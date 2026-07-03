@@ -83,6 +83,21 @@ export const PERMISSIONS = {
   MEDIA_RENAMER_MANAGE_TEMPLATES: 'media_renamer.manage_templates',
   RELEASE_SCORING_VIEW: 'release_scoring.view',
   RELEASE_SCORING_MANAGE: 'release_scoring.manage',
+
+  // Media Manager (core)
+  MEDIA_MANAGER_VIEW: 'media_manager.view',
+  MEDIA_MANAGER_MANAGE_LIBRARIES: 'media_manager.manage_libraries',
+  MEDIA_MANAGER_SCAN: 'media_manager.scan',
+  MEDIA_MANAGER_MATCH: 'media_manager.match',
+  MEDIA_MANAGER_EDIT_METADATA: 'media_manager.edit_metadata',
+  MEDIA_MANAGER_MANAGE_ARTWORK: 'media_manager.manage_artwork',
+  MEDIA_MANAGER_MANAGE_SUBTITLES: 'media_manager.manage_subtitles',
+  MEDIA_MANAGER_RENAME: 'media_manager.rename',
+  MEDIA_MANAGER_MOVE_FILES: 'media_manager.move_files',
+  MEDIA_MANAGER_GENERATE_NFO: 'media_manager.generate_nfo',
+  MEDIA_MANAGER_MANAGE_INTEGRATIONS: 'media_manager.manage_integrations',
+  MEDIA_MANAGER_DELETE: 'media_manager.delete',
+  MEDIA_MANAGER_ADMIN: 'media_manager.admin',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -138,6 +153,16 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.FILES_BULK_ACTIONS,
     PERMISSIONS.FILES_CLEANUP,
     PERMISSIONS.SYSTEM_VIEW,
+    PERMISSIONS.MEDIA_MANAGER_VIEW,
+    PERMISSIONS.MEDIA_MANAGER_MANAGE_LIBRARIES,
+    PERMISSIONS.MEDIA_MANAGER_SCAN,
+    PERMISSIONS.MEDIA_MANAGER_MATCH,
+    PERMISSIONS.MEDIA_MANAGER_EDIT_METADATA,
+    PERMISSIONS.MEDIA_MANAGER_MANAGE_ARTWORK,
+    PERMISSIONS.MEDIA_MANAGER_MANAGE_SUBTITLES,
+    PERMISSIONS.MEDIA_MANAGER_RENAME,
+    PERMISSIONS.MEDIA_MANAGER_MOVE_FILES,
+    PERMISSIONS.MEDIA_MANAGER_GENERATE_NFO,
   ],
   [SystemRole.USER]: [
     PERMISSIONS.TORRENTS_VIEW,
@@ -152,6 +177,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.FILES_VIEW,
     PERMISSIONS.FILES_PREVIEW,
     PERMISSIONS.FILES_DOWNLOAD,
+    PERMISSIONS.MEDIA_MANAGER_VIEW,
   ],
   [SystemRole.READ_ONLY]: [
     PERMISSIONS.TORRENTS_VIEW,
@@ -161,5 +187,6 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.FILES_PREVIEW,
     PERMISSIONS.FILES_DOWNLOAD,
     PERMISSIONS.SYSTEM_VIEW,
+    PERMISSIONS.MEDIA_MANAGER_VIEW,
   ],
 };

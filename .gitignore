@@ -47,3 +47,12 @@ coverage/
 uploads/
 data/
 tmp/
+
+# Private canonical docs — kept locally, never published to the public core repo
+/ARCHITECTURE.md
+/docs/SECURITY.md
+/docs/API.md
+/docs/BUILD.md
+/docs/RELEASE_PROCESS.md
+/docs/UltraTorrent-User-Manual.docx
+/docs/UltraTorrent-User-Manual.pdf

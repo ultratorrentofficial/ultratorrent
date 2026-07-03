@@ -130,6 +130,7 @@ export const MODULE_IDS = {
   MEDIA_RENAMER: 'media_renamer',
   // Core (relocated from premium/enterprise into single-tier community)
   MEDIA_RENAMER_PRO: 'media_renamer_pro',
+  MEDIA_MANAGER: 'media_manager',
   RELEASE_SCORING: 'release_scoring',
   MEDIA_ACQUISITION_INTELLIGENCE: 'media_acquisition_intelligence',
   // Premium (license-gated placeholders)

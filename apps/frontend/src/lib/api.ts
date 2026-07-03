@@ -765,6 +765,10 @@ export interface MediaLibrary {
   template: string | null;
   mode: RenameMode;
   isEnabled: boolean;
+  scanIntervalMinutes: number | null;
+  lastScanAt: string | null;
+  nfoEnabled: boolean;
+  artworkEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -777,6 +781,93 @@ export interface CreateLibraryInput {
   template?: string;
   mode: RenameMode;
   isEnabled?: boolean;
+  scanIntervalMinutes?: number | null;
+  nfoEnabled?: boolean;
+  artworkEnabled?: boolean;
+}
+
+// --- Media Manager (core module `media_manager`) — /api/media ---------------
+
+export type MediaItemType =
+  | 'movie'
+  | 'tv'
+  | 'anime'
+  | 'music_video'
+  | 'documentary'
+  | 'other_video';
+
+export type MediaMatchStatus = 'unmatched' | 'matched' | 'manual';
+
+export interface MediaItem {
+  id: string;
+  libraryId: string;
+  mediaType: MediaItemType;
+  title: string;
+  sortTitle: string | null;
+  year: number | null;
+  season: number | null;
+  episode: number | null;
+  matchStatus: MediaMatchStatus;
+  confidence: number;
+  path: string;
+  createdAt: string;
+}
+
+export interface MediaItemQuery {
+  mediaType?: string;
+  matchStatus?: string;
+  libraryId?: string;
+}
+
+export interface MediaItemUpdateInput {
+  title?: string;
+  sortTitle?: string | null;
+  mediaType?: MediaItemType;
+  year?: number | null;
+  season?: number | null;
+  episode?: number | null;
+}
+
+/** Manual-identification body for `matchItem`; an empty body re-runs auto-match. */
+export interface MediaManualMatchInput {
+  mediaType?: MediaItemType;
+  title?: string;
+  year?: number | null;
+  season?: number | null;
+  episode?: number | null;
+}
+
+export interface MediaHealth {
+  total: number;
+  byMediaType: Record<string, number>;
+  unmatched: number;
+  lowConfidence: number;
+  missingArtwork: number;
+  missingSubtitles: number;
+  recentlyAdded: number;
+  duplicateGroups: number;
+  failedJobs: number;
+}
+
+export interface MediaDashboardLibrary {
+  id: string;
+  name: string;
+  kind: MediaKind;
+  path: string;
+  isEnabled: boolean;
+  lastScanAt: string | null;
+  itemCount: number;
+}
+
+export interface MediaDashboard {
+  health: MediaHealth;
+  libraries: MediaDashboardLibrary[];
+}
+
+export interface MediaScanResult {
+  scanned: number;
+  added: number;
+  updated: number;
 }
 
 export interface RenamePlanItem {
@@ -1693,7 +1784,17 @@ export const api = {
     presets(): Promise<MediaPresets> {
       return request<MediaPresets>('/media/presets');
     },
+    dashboard(): Promise<MediaDashboard> {
+      return request<MediaDashboard>('/media/dashboard');
+    },
+    health(): Promise<MediaHealth> {
+      return request<MediaHealth>('/media/health');
+    },
     libraries(): Promise<MediaLibrary[]> {
+      return request<MediaLibrary[]>('/media/libraries');
+    },
+    /** Alias of {@link libraries} for the Media Manager surface. */
+    listLibraries(): Promise<MediaLibrary[]> {
       return request<MediaLibrary[]>('/media/libraries');
     },
     createLibrary(body: CreateLibraryInput): Promise<MediaLibrary> {
@@ -1704,6 +1805,24 @@ export const api = {
     },
     deleteLibrary(id: string): Promise<void> {
       return request<void>(`/media/libraries/${id}`, { method: 'DELETE' });
+    },
+    scanLibrary(id: string): Promise<MediaScanResult> {
+      return request<MediaScanResult>(`/media/libraries/${id}/scan`, { method: 'POST' });
+    },
+    listItems(query: MediaItemQuery = {}): Promise<MediaItem[]> {
+      return request<MediaItem[]>('/media/items', { query: query as QueryParams });
+    },
+    getItem(id: string): Promise<MediaItem> {
+      return request<MediaItem>(`/media/items/${id}`);
+    },
+    updateItem(id: string, body: MediaItemUpdateInput): Promise<MediaItem> {
+      return request<MediaItem>(`/media/items/${id}`, { method: 'PATCH', body });
+    },
+    matchItem(id: string, body?: MediaManualMatchInput): Promise<MediaItem> {
+      return request<MediaItem>(`/media/items/${id}/match`, { method: 'POST', body: body ?? {} });
+    },
+    unmatchItem(id: string): Promise<MediaItem> {
+      return request<MediaItem>(`/media/items/${id}/unmatch`, { method: 'POST' });
     },
     preview(body: RenameRequest): Promise<RenamePlan> {
       return request<RenamePlan>('/media/preview', { method: 'POST', body });

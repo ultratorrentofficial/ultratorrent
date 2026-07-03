@@ -17,6 +17,9 @@ import { RssRulePage } from '@/pages/RssRulePage';
 import { RssFeedHistoryPage } from '@/pages/RssFeedHistoryPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { MediaPage } from '@/pages/MediaPage';
+import { MediaDashboardPage } from '@/pages/media-manager/MediaDashboardPage';
+import { MediaLibrariesPage } from '@/pages/media-manager/MediaLibrariesPage';
+import { MediaItemsPage } from '@/pages/media-manager/MediaItemsPage';
 import { ModulesPage } from '@/pages/ModulesPage';
 import { EnginesPage } from '@/pages/engines/EnginesPage';
 import { MediaAcquisitionPage } from '@/pages/media-acquisition/MediaAcquisitionPage';
@@ -88,10 +91,41 @@ export function App() {
                   <Route element={<ProtectedRoute permission={PERMISSIONS.FILES_VIEW} />}>
                     <Route element={<AppShell />}>
                       <Route path="/files" element={<FilesPage />} />
+                    </Route>
+                  </Route>
+
+                  {/* Media Manager — core module `media_manager`. */}
+                  <Route element={<ProtectedRoute permission={PERMISSIONS.MEDIA_MANAGER_VIEW} />}>
+                    <Route element={<AppShell />}>
                       <Route
                         path="/media"
                         element={
-                          <ModuleRoute moduleId="media_renamer_pro">
+                          <ModuleRoute moduleId="media_manager">
+                            <MediaDashboardPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/libraries"
+                        element={
+                          <ModuleRoute moduleId="media_manager">
+                            <MediaLibrariesPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/items"
+                        element={
+                          <ModuleRoute moduleId="media_manager">
+                            <MediaItemsPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      {/* Rename engine (preview/apply/history + dry-run/jobs/templates). */}
+                      <Route
+                        path="/media/rename"
+                        element={
+                          <ModuleRoute moduleId="media_manager">
                             <MediaPage />
                           </ModuleRoute>
                         }

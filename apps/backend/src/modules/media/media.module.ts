@@ -1,85 +1,41 @@
-import {
-  Controller,
-  Delete,
-  Get,
-  Global,
-  Module,
-  Param,
-  Patch,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
-import { PERMISSIONS } from '@ultratorrent/shared';
-import { MediaService, RenameRequest } from './media.service';
+import { Global, Module } from '@nestjs/common';
 import { SettingsModule } from '../settings/settings.module';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { FilesModule } from '../files/files.module';
+import { MediaService } from './media.service';
+import { MediaLibraryService } from './media-library.service';
+import { MediaScannerService } from './media-scanner.service';
+import { MediaIdentificationService } from './media-identification.service';
+import { MediaItemService } from './media-item.service';
+import { MediaHealthService } from './media-health.service';
+import { MediaController } from './media.controller';
 
-@ApiTags('media')
-@ApiBearerAuth()
-@Controller('media')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
-export class MediaController {
-  constructor(private readonly media: MediaService) {}
-
-  @Get('presets')
-  @RequirePermissions(PERMISSIONS.FILES_VIEW)
-  presets() {
-    return this.media.presets();
-  }
-
-  @Get('libraries')
-  @RequirePermissions(PERMISSIONS.FILES_VIEW)
-  libraries() {
-    return this.media.listLibraries();
-  }
-
-  @Post('libraries')
-  @RequirePermissions(PERMISSIONS.FILES_MANAGE)
-  createLibrary(@Req() req: Request) {
-    return this.media.createLibrary(req.body ?? {});
-  }
-
-  @Patch('libraries/:id')
-  @RequirePermissions(PERMISSIONS.FILES_MANAGE)
-  updateLibrary(@Param('id') id: string, @Req() req: Request) {
-    return this.media.updateLibrary(id, req.body ?? {});
-  }
-
-  @Delete('libraries/:id')
-  @RequirePermissions(PERMISSIONS.FILES_MANAGE)
-  removeLibrary(@Param('id') id: string) {
-    return this.media.removeLibrary(id);
-  }
-
-  @Post('preview')
-  @RequirePermissions(PERMISSIONS.FILES_VIEW)
-  preview(@Req() req: Request) {
-    return this.media.buildPlan((req.body ?? {}) as RenameRequest);
-  }
-
-  @Post('apply')
-  @RequirePermissions(PERMISSIONS.FILES_MANAGE)
-  apply(@Req() req: Request) {
-    return this.media.apply((req.body ?? {}) as RenameRequest);
-  }
-
-  @Get('history')
-  @RequirePermissions(PERMISSIONS.FILES_VIEW)
-  history() {
-    return this.media.history();
-  }
-}
-
+/**
+ * Media Manager — scan, identify, enrich, and organise media libraries.
+ *
+ * Evolved from the original media renamer: it keeps the pure rename engine
+ * (preview/apply/presets/history) and adds library scanning, filename-based
+ * identification, item management, and a health dashboard. Filesystem access is
+ * constrained by FilePathService (imported from FilesModule).
+ */
 @Global()
 @Module({
-  imports: [SettingsModule],
-  providers: [MediaService],
+  imports: [SettingsModule, FilesModule],
+  providers: [
+    MediaService,
+    MediaLibraryService,
+    MediaScannerService,
+    MediaIdentificationService,
+    MediaItemService,
+    MediaHealthService,
+  ],
   controllers: [MediaController],
-  exports: [MediaService],
+  exports: [
+    MediaService,
+    MediaLibraryService,
+    MediaScannerService,
+    MediaIdentificationService,
+    MediaItemService,
+    MediaHealthService,
+  ],
 })
 export class MediaModule {}

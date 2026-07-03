@@ -417,18 +417,255 @@ model SystemEvent {
 // ---------------------------------------------------------------------------
 
 model MediaLibrary {
+  id                  String    @id @default(uuid())
+  name                String
+  kind                String    @default("tv") // tv | anime | movie | music | audiobook | general
+  path                String
+  preset              String    @default("plex") // plex | jellyfin | emby | kodi | custom
+  template            String?
+  mode                String    @default("hardlink") // preview | rename_in_place | rename_move | copy | hardlink | symlink
+  isEnabled           Boolean   @default(true)
+  scanIntervalMinutes Int?
+  lastScanAt          DateTime?
+  nfoEnabled          Boolean   @default(false)
+  artworkEnabled      Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  items MediaItem[]
+
+  @@map("media_libraries")
+}
+
+// ---------------------------------------------------------------------------
+// Media Manager — a scanned, identified, and enriched view of a library's
+// contents. Items are the unit of organisation; each carries its physical
+// files, resolved metadata, artwork, subtitles, external ids, and NFO sidecars.
+// ---------------------------------------------------------------------------
+
+model MediaItem {
+  id               String   @id @default(uuid())
+  libraryId        String
+  mediaType        String   @default("other_video") // movie | tv | anime | music_video | documentary | other_video
+  title            String
+  sortTitle        String?
+  year             Int?
+  season           Int?
+  episode          Int?
+  matchStatus      String   @default("unmatched") // unmatched | matched | manual
+  confidence       Float    @default(0)
+  path             String
+  duplicateGroupId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  library        MediaLibrary         @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  files          MediaFile[]
+  metadata       MediaMetadata?
+  artwork        MediaArtwork[]
+  subtitles      MediaSubtitle[]
+  externalIds    MediaExternalId[]
+  nfoFiles       MediaNfoFile[]
+  collections    MediaCollectionItem[]
+  duplicateGroup MediaDuplicateGroup?  @relation(fields: [duplicateGroupId], references: [id])
+
+  @@index([mediaType])
+  @@index([title])
+  @@index([year])
+  @@index([libraryId])
+  @@index([matchStatus])
+  @@index([duplicateGroupId])
+  @@map("media_items")
+}
+
+model MediaFile {
+  id           String   @id @default(uuid())
+  itemId       String
+  path         String
+  size         BigInt   @default(0)
+  container    String?
+  videoCodec   String?
+  audioCodec   String?
+  resolution   String?
+  hdr          String?
+  language     String?
+  releaseGroup String?
+  quality      String?
+  createdAt    DateTime @default(now())
+
+  item MediaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("media_files")
+}
+
+model MediaMetadata {
+  id            String    @id @default(uuid())
+  itemId        String    @unique
+  title         String?
+  originalTitle String?
+  sortTitle     String?
+  overview      String?   @db.Text
+  releaseDate   DateTime?
+  year          Int?
+  runtime       Int?
+  genres        Json      @default("[]")
+  studios       Json      @default("[]")
+  cast          Json      @default("[]")
+  crew          Json      @default("[]")
+  directors     Json      @default("[]")
+  writers       Json      @default("[]")
+  rating        Float?
+  certification String?
+  tags          Json      @default("[]")
+  providerName  String?
+  updatedAt     DateTime  @updatedAt
+
+  item MediaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("media_metadata")
+}
+
+model MediaArtwork {
+  id           String   @id @default(uuid())
+  itemId       String
+  type         String // poster | fanart | logo | clearart | banner | thumbnail | season_poster | episode_thumbnail
+  url          String?
+  localPath    String?
+  source       String?
+  selected     Boolean  @default(false)
+  width        Int?
+  height       Int?
+  seasonNumber Int?
+  createdAt    DateTime @default(now())
+
+  item MediaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, type])
+  @@map("media_artwork")
+}
+
+model MediaSubtitle {
+  id        String   @id @default(uuid())
+  itemId    String
+  path      String
+  language  String
+  forced    Boolean  @default(false)
+  sdh       Boolean  @default(false)
+  source    String?
+  createdAt DateTime @default(now())
+
+  item MediaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("media_subtitles")
+}
+
+model MediaExternalId {
+  id         String  @id @default(uuid())
+  itemId     String
+  provider   String // tmdb | tvdb | imdb | omdb | anilist
+  externalId String
+  url        String?
+
+  item MediaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, provider])
+  @@index([provider, externalId])
+  @@map("media_external_ids")
+}
+
+model MediaCollection {
+  id          String   @id @default(uuid())
+  name        String
+  overview    String?  @db.Text
+  artworkPath String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items MediaCollectionItem[]
+
+  @@map("media_collections")
+}
+
+model MediaCollectionItem {
+  collectionId String
+  itemId       String
+
+  collection MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  item       MediaItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, itemId])
+  @@map("media_collection_items")
+}
+
+model MediaRenameTemplate {
   id        String   @id @default(uuid())
   name      String
-  kind      String   @default("tv") // tv | anime | movie | music | audiobook | general
-  path      String
-  preset    String   @default("plex") // plex | jellyfin | emby | kodi | custom
-  template  String?
-  mode      String   @default("hardlink") // preview | rename_in_place | rename_move | copy | hardlink | symlink
-  isEnabled Boolean  @default(true)
+  mediaType String
+  template  String
+  isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("media_libraries")
+  @@map("media_rename_templates")
+}
+
+model MediaProcessingJob {
+  id         String    @id @default(uuid())
+  type       String // library_scan | media_identification | metadata_fetch | artwork_fetch | subtitle_scan | rename_preview | rename_execute | nfo_generate | media_server_refresh
+  status     String    @default("queued") // queued | running | completed | failed
+  libraryId  String?
+  itemId     String?
+  payload    Json      @default("{}")
+  result     Json?
+  error      String?
+  progress   Int       @default(0)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([libraryId])
+  @@map("media_processing_jobs")
+}
+
+model MediaDuplicateGroup {
+  id        String   @id @default(uuid())
+  reason    String // title_year | show_season_episode | external_id | file_hash | similar_filename
+  createdAt DateTime @default(now())
+
+  items MediaItem[]
+
+  @@map("media_duplicate_groups")
+}
+
+model MediaServerIntegration {
+  id            String    @id @default(uuid())
+  name          String
+  kind          String // plex | jellyfin | emby | kodi
+  config        Json      @default("{}")
+  isEnabled     Boolean   @default(true)
+  lastRefreshAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("media_server_integrations")
+}
+
+model MediaNfoFile {
+  id          String   @id @default(uuid())
+  itemId      String
+  type        String // movie | tvshow | season | episode
+  path        String
+  generatedAt DateTime @default(now())
+
+  item MediaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("media_nfo_files")
 }
 
 model ModuleState {
