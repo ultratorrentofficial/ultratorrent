@@ -1,0 +1,103 @@
+# Build & Run
+
+UltraTorrent is a single **Community** product in one repository — an npm
+workspaces monorepo. There are no editions, no overlay, and no separate
+build profiles: one `npm run build` builds the whole product.
+
+- [Repository layout](#repository-layout)
+- [Prerequisites](#prerequisites)
+- [Install & build](#install--build)
+- [Database (Prisma)](#database-prisma)
+- [Running in development](#running-in-development)
+- [Testing & linting](#testing--linting)
+- [Docker images](#docker-images)
+- [Versioning](#versioning)
+
+---
+
+## Repository layout
+
+```
+apps/backend      NestJS API      (@ultratorrent/backend)
+apps/frontend     React + Vite SPA (@ultratorrent/frontend)
+packages/shared   @ultratorrent/shared — types, permission catalog, event contracts
+docs/             documentation
+ops/scripts/      release + version tooling
+```
+
+`packages/shared` is a dependency of both apps, so it builds first.
+
+## Prerequisites
+
+- **Node.js ≥ 20** and npm (workspaces).
+- **PostgreSQL** and **Redis** for running the backend (see
+  [INSTALL.md](INSTALL.md) / [DOCKER.md](DOCKER.md)).
+
+## Install & build
+
+Install once at the repo root — npm workspaces link the packages together:
+
+```bash
+npm ci                # or: npm install
+npm run build         # builds @ultratorrent/shared → backend → frontend, in order
+```
+
+`npm run build` is the single build entry point; it runs the workspace builds in
+dependency order (shared first, then backend and frontend).
+
+## Database (Prisma)
+
+The backend uses Prisma against PostgreSQL. From the repo root:
+
+```bash
+npm run prisma:generate    # generate the Prisma client
+npm run prisma:migrate     # apply migrations (dev)
+npm run prisma:seed        # provision permissions, roles, bootstrap admin, settings (idempotent)
+```
+
+Migrations live in `apps/backend/prisma/migrations`. For a fresh production DB,
+use `prisma migrate deploy`.
+
+## Running in development
+
+```bash
+npm run dev            # backend + frontend together
+npm run dev:backend    # backend only  (@ultratorrent/backend)
+npm run dev:frontend   # frontend only (Vite dev server)
+```
+
+The frontend proxies API/WebSocket traffic to the backend; changes are picked up
+via Vite HMR. See [DEVELOPMENT.md](DEVELOPMENT.md) for the full local setup.
+
+## Testing & linting
+
+```bash
+npm run test           # run every workspace's tests
+npm run lint           # lint every workspace
+```
+
+Both fan out across all workspaces (`--if-present`).
+
+## Docker images
+
+Build the two runtime images (tagged with the current `version.json` version and
+the bare name):
+
+```bash
+npm run package
+```
+
+| Image | Dockerfile |
+|-------|-----------|
+| `ultratorrent/backend:<version>` (+ `ultratorrent/backend`) | `apps/backend/Dockerfile` |
+| `ultratorrent/frontend:<version>` (+ `ultratorrent/frontend`) | `apps/frontend/Dockerfile` |
+
+To run the stack with Docker Compose, see [DOCKER.md](DOCKER.md).
+
+## Versioning
+
+`version.json` is the single source of truth for the product version; every
+workspace `package.json` and the root `VERSION` follow it. Changes are tracked
+with changesets and shipped via `npm run release:plan` / `release:apply`. See
+[RELEASE_PROCESS.md](RELEASE_PROCESS.md) for the full flow.
+</content>

@@ -59,8 +59,12 @@ NestJS modules, each RBAC-guarded and audited where it mutates state:
 - **automation** — condition/action rules triggered by events.
 - **taxonomy** — categories & tags.
 - **notifications** — in-app + webhook/Discord/Slack/Telegram fan-out.
+- **media-manager** — media libraries: scan → identify (parse release names →
+  type/title/year/season/episode), metadata/artwork/subtitles, NFO, duplicate
+  detection, media-server integration, and the rename engine (preset/preview/
+  apply/history). Endpoints under `/api/media`; `media_manager.*` permissions.
 - **dashboard**, **search**, **settings**, **apikeys**, **audit**, **system**
-  (health/liveness/version), **realtime**, **node-agent**, **module-registry**.
+  (health/liveness/version), **realtime**, **module-registry**.
 
 ## Security model (Core)
 
@@ -116,3 +120,14 @@ docs/             this documentation set
 [EDITIONS.md](EDITIONS.md) · [INSTALL.md](INSTALL.md) · [DOCKER.md](DOCKER.md) ·
 [DEVELOPMENT.md](DEVELOPMENT.md) · [NAVIGATION.md](NAVIGATION.md) ·
 [FILE_MANAGER.md](FILE_MANAGER.md) · [MODULES.md](MODULES.md)
+
+## Change Log
+
+This is the canonical architecture doc for the single-tier Community repo. When a
+component is added or changed, update the relevant section above **and** append a
+dated row here.
+
+| Date | Change |
+|------|--------|
+| 2026-07-03 | **Media Manager core module.** New `media_manager` module evolved from the core renamer. Prisma models `MediaItem`/`MediaFile`/`MediaMetadata`/`MediaArtwork`/`MediaSubtitle`/`MediaExternalId`/`MediaCollection`/`MediaCollectionItem`/`MediaRenameTemplate`/`MediaProcessingJob` (+ duplicate-group, media-server-integration, NFO) via the `media_manager_models` migration. Backend services: library/scanner/identification/item/health, plus metadata/artwork/subtitle/NFO/duplicate/media-server-integration, and the retained rename engine. Endpoints under `/api/media`; `media_manager.*` permission block. Frontend: Media Dashboard/Items/Libraries pages + routing/nav + `api.mediaManager`. |
+| 2026-07-03 | **Single-tier community conversion.** The product was consolidated from a dual community/enterprise split into one community platform in this repo: the enterprise overlay and its modules (licensing/UPLM, Fleet, Customers, Provisioning, Billing, Central Backups/Updates, Analytics, White-Label, Multi-Server, Node Agent) were removed, Release Scoring + Media Acquisition Intelligence were relocated into core, and the versioning/publish tooling was de-editioned. This doc is now the canonical architecture reference. |

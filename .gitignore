@@ -48,11 +48,9 @@ uploads/
 data/
 tmp/
 
-# Private canonical docs — kept locally, never published to the public core repo
+# Redundant legacy user-manual binaries (superseded by the Core manual). The
+# full root ARCHITECTURE.md is kept local until its stale enterprise sections
+# are rewritten for the community repo (then it gets published too).
 /ARCHITECTURE.md
-/docs/SECURITY.md
-/docs/API.md
-/docs/BUILD.md
-/docs/RELEASE_PROCESS.md
 /docs/UltraTorrent-User-Manual.docx
 /docs/UltraTorrent-User-Manual.pdf
