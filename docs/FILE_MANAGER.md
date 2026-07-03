@@ -1,8 +1,8 @@
 # File Manager
 
 UltraTorrent ships a path-safe file manager for the directories your torrent
-engine writes to. It is part of the **core `files` module** (available in every
-edition) and is gated only by granular `files.*` RBAC permissions.
+engine writes to. It is part of the **core `files` module** and is gated only by
+granular `files.*` RBAC permissions.
 
 - REST surface: [API.md → Files](API.md#files--apifiles)
 - Security model: [SECURITY.md → File-path validation](SECURITY.md#file-path-validation)
@@ -28,8 +28,8 @@ edition) and is gated only by granular `files.*` RBAC permissions.
 | Cleanup preview / execute | `POST /api/files/cleanup-preview` · `…/cleanup-execute` | `files.cleanup` |
 | Trash list/restore/purge/empty | `GET /api/files/trash` · `…/trash/*` | `files.view` / `files.delete` |
 
-`files.manage` is retained as a **legacy umbrella** permission used by the media
-renamer; the file manager itself uses the granular permissions above.
+`files.manage` is retained as a **legacy umbrella** permission; the file manager
+itself uses the granular permissions above.
 
 ---
 
@@ -42,8 +42,8 @@ FILE_MANAGER_ROOTS=/downloads,/media   # comma-separated; default /downloads
 ```
 
 All operations resolve to a path **inside** one of these roots. Keep the list as
-narrow as possible. The media renamer additionally allows configured library
-paths; the file manager is confined strictly to `FILE_MANAGER_ROOTS`.
+narrow as possible. The file manager is confined strictly to `FILE_MANAGER_ROOTS`;
+Media Manager library scanning is likewise constrained to these hard roots.
 
 ### Default Root Path (admin-configurable)
 
@@ -61,8 +61,8 @@ narrow within the hard roots, never widen past them or reach a system directory.
 
 ### Directory picker
 
-Path fields across the app (Add-Torrent save path, RSS-rule save path, media
-library/renamer paths, Automation move/rename destinations, and the Default
+Path fields across the app (Add-Torrent save path, RSS-rule save path, Media
+Manager library paths, Automation move/rename destinations, and the Default
 Root Path itself) use a **root-limited directory picker** (`PathPicker` /
 `DirectoryPicker`): breadcrumbs cannot go above the root, folders can be created
 in place (with `files.create_folder`), and the selected path is validated

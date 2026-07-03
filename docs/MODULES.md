@@ -53,6 +53,33 @@ references a known module, and that there are **no circular dependencies**
 (rejected with a clear error). Declared `permissions` are synced into the
 permission catalog so RBAC can assign them.
 
+### Example core module — Media Manager
+
+```ts
+{
+  id: 'media_manager',
+  name: 'Media Manager',
+  tier: 'core',
+  enabledByDefault: true,
+  dependencies: ['auth', 'files'],
+  permissions: [
+    'media_manager.view', 'media_manager.manage_libraries', 'media_manager.scan',
+    'media_manager.match', 'media_manager.edit_metadata', 'media_manager.manage_artwork',
+    'media_manager.manage_subtitles', 'media_manager.rename', 'media_manager.move_files',
+    'media_manager.generate_nfo', 'media_manager.manage_integrations',
+    'media_manager.delete', 'media_manager.admin',
+  ],
+  menu: [{ label: 'Media', path: '/media', icon: 'Clapperboard', permission: 'media_manager.view' }],
+  routes: ['/api/media'],
+}
+```
+
+Media Manager organizes a media library — library scanning, filename
+identification, metadata/artwork/subtitle enrichment, NFO generation, duplicate
+detection, media-server integration, and template renaming — behind `/api/media`
+and the `media_manager.*` permission block. See
+[MEDIA_MANAGER.md](MEDIA_MANAGER.md) for the full guide.
+
 ## Module state
 
 For each module the registry computes a `ModuleStatus` with a `state`:
@@ -61,7 +88,7 @@ For each module the registry computes a `ModuleStatus` with a `state`:
 |-------|---------|
 | `enabled` | Licensed + dependencies satisfied + turned on. |
 | `disabled` | Allowed, but an admin turned it off. |
-| `locked` | The tier is not licensed in this edition. |
+| `locked` | The tier is not licensed by the active provider. |
 | `missing_dependency` | Wants to run but a dependency is off. |
 
 `enabled` requires **all** dependencies to be enabled (computed as a fixpoint),

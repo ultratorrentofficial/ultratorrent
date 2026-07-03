@@ -136,7 +136,8 @@ docs/             this documentation set
 
 [INSTALL.md](INSTALL.md) · [DOCKER.md](DOCKER.md) ·
 [DEVELOPMENT.md](DEVELOPMENT.md) · [NAVIGATION.md](NAVIGATION.md) ·
-[FILE_MANAGER.md](FILE_MANAGER.md) · [MODULES.md](MODULES.md)
+[FILE_MANAGER.md](FILE_MANAGER.md) · [MEDIA_MANAGER.md](MEDIA_MANAGER.md) ·
+[MODULES.md](MODULES.md)
 
 ## Change Log
 

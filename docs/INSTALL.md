@@ -1,11 +1,10 @@
 # Installation & Setup
 
-This guide covers installing the **Community** edition (public Core) of
-UltraTorrent on a **Linux PC**, a **QNAP NAS**, or a **Synology NAS**. The
-container (Docker) route is recommended everywhere; a manual from-source route is
-also documented for Linux.
+This guide covers installing **UltraTorrent** on a **Linux PC**, a **QNAP NAS**,
+or a **Synology NAS**. The container (Docker) route is recommended everywhere; a
+manual from-source route is also documented for Linux.
 
-> This installs UltraTorrent — a single, self-hosted community product with no
+> UltraTorrent is a single, self-hosted community product — one codebase, with no
 > separate editions or add-on overlay. It runs standalone.
 
 - [Choosing an install method](#choosing-an-install-method)

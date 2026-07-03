@@ -139,14 +139,12 @@ contribution, you agree that it will be distributed under the same license. Note
 the AGPL's network-use clause: anyone running a modified version as a service must
 offer its source to users.
 
-**Contribution licensing grant (dual-licensing).** UltraTorrent is an open-core
-project: the Community edition is AGPL-3.0, and a separate commercial Enterprise
-edition funds its development. To keep that model sustainable, by submitting a
-contribution you also grant the project maintainer (the copyright holder) a
-perpetual, worldwide, non-exclusive, royalty-free, irrevocable license to use,
-reproduce, modify, and **relicense your contribution under other terms, including
-proprietary/commercial licenses**, in addition to the AGPL-3.0 above. You retain
-the copyright to your contribution; this grant does not take it away.
+**Contribution licensing grant.** UltraTorrent is licensed under AGPL-3.0. By
+submitting a contribution you also grant the project maintainer (the copyright
+holder) a perpetual, worldwide, non-exclusive, royalty-free, irrevocable license
+to use, reproduce, modify, and **relicense your contribution under other terms**,
+in addition to the AGPL-3.0 above. You retain the copyright to your contribution;
+this grant does not take it away.
 
 > If your employer owns your work, make sure you have permission to contribute
 > under these terms.
@@ -156,18 +154,16 @@ A CLA Assistant bot comments on your first pull request; sign once by commenting
 `I have read the CLA Document and I hereby sign the CLA`. Maintainers and bots
 are allow-listed and do not need to sign.
 
-## Editions & the Community/Enterprise boundary
+## Modules
 
-UltraTorrent ships as a public **Community** edition and a private **Enterprise**
-overlay from one codebase ([BUILD.md](BUILD.md)). When contributing:
+UltraTorrent is a single-tier community product built from one codebase
+([BUILD.md](BUILD.md)); every feature is a module declared in the module registry
+([MODULES.md](MODULES.md)). When contributing:
 
-- **Community code (`apps/*`, `packages/shared`) must never import the Enterprise
-  overlay** (`@ultratorrent/enterprise`). Run `scripts/check-edition-boundary.sh`
-  before pushing; CI's `guard-no-enterprise` enforces it.
-- The Community build must succeed with `packages/enterprise` absent
-  (`npm run build:community`).
-- Enterprise features extend Community via dependency injection / provider
-  replacement (e.g. swapping the `LicenseProvider`), never by editing Community
-  code. Add premium/enterprise capabilities as overlay modules in
-  `packages/enterprise`, with a **locked manifest placeholder** in Core.
+- Put shared types, permissions, and event names in `@ultratorrent/shared` so the
+  API and UI agree, rather than duplicating them.
+- Add new capabilities as modules with a manifest (tier `core`), and gate
+  optional endpoints with `@RequiresModule(...)` + `ModuleGuard`.
+- Optional external integrations resolve through provider interfaces (e.g. the
+  `LicenseProvider` binds the default `CommunityLicenseProvider`).
 </content>

@@ -136,7 +136,7 @@ and shared by backend guards and frontend capability checks.
 | | `automation.view` | `AUTOMATION_VIEW` |
 | | `automation.manage` | `AUTOMATION_MANAGE` |
 | **File manager** | `files.view` | `FILES_VIEW` |
-| | `files.manage` | `FILES_MANAGE` (legacy umbrella; still used by the media renamer) |
+| | `files.manage` | `FILES_MANAGE` (legacy umbrella) |
 | | `files.preview` | `FILES_PREVIEW` |
 | | `files.download` | `FILES_DOWNLOAD` |
 | | `files.create_folder` | `FILES_CREATE_FOLDER` |

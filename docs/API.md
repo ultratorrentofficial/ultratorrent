@@ -553,7 +553,7 @@ acting username, `action`, `objectType`/`objectId`, `result`, `ipAddress`,
 `PermissionsGuard` — tag `media`. The Media Manager organizes a media library:
 scanning, metadata/artwork/subtitle enrichment, NFO generation, duplicate
 detection, media-server integrations, and a rename engine. See
-[MEDIA_RENAMER.md](MEDIA_RENAMER.md).
+[MEDIA_MANAGER.md](MEDIA_MANAGER.md).
 
 ### Overview & libraries
 

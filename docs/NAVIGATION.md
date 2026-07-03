@@ -33,12 +33,9 @@ installation gets the current IA simply by running the shipped frontend bundle.
 | Overview | Dashboard |
 | Torrents | All Torrents + `?state=` sub-views (Downloading/Seeding/Completed/Paused/Errors) |
 | Automation | RSS Feeds, Automation |
-| Files & Media | File Manager, Media Renamer, Media Servers, Media Acquisition, Release Scoring |
-| Infrastructure | Engines, Multi-Server, Node Agent |
-| Fleet | Overview, Nodes, Node Groups, Policies, Activity, Alerts, Central Backups, Central Updates |
-| Business | Customers, Provisioning, Billing |
-| Analytics | Analytics |
-| Administration | Users, Modules, License, UPLM Export, White Label, Settings |
+| Files & Media | File Manager, Media Manager, Libraries, Media Items, Unmatched, Duplicates, Rename Preview, Media Settings, Media Acquisition, Release Scoring |
+| Infrastructure | Engines |
+| Administration | Users, Modules, Settings |
 | System | Audit Log |
 
 A group header is rendered only when at least one of its items is visible.
@@ -66,13 +63,13 @@ entry at once. `isItemActive(item, pathname, search)` is query-aware:
 - The base `/torrents` ("All Torrents", `end`) is active only with **no** state
   filter.
 - Other `end` items match exactly; non-`end` items match as a path prefix (so a
-  detail route like `/fleet/nodes/:id` keeps "Nodes" active).
+  detail route like `/media/items/:id` keeps "Media Items" active).
 
 ## Breadcrumbs
 
 `crumbsFor(pathname)` matches the path against `NAV_GROUPS` (longest prefix) to
 produce `Group › Item [› Detail]`. Detail routes not present in the nav
-(`/account`, `/rss/rules/:id`, `/fleet/nodes/:id`, `/customers/:id`) are mapped
+(`/account`, `/rss/rules/:id`, `/media/items/:id`) are mapped
 in `DETAIL_LABELS`.
 
 ## Platform version
@@ -82,13 +79,13 @@ the endpoint's value flows from `version.json` → `VERSION`). It surfaces via:
 
 - `hooks/useVersion.ts` — cached TanStack Query hook.
 - Sidebar footer badge and the user menu (both open the About dialog).
-- `components/AboutDialog.tsx` — product, version, edition, API version, build
+- `components/AboutDialog.tsx` — product, version, API version, build
   time, commit, and runtime.
 
 ## Adding or extending a nav item
 
 1. Ensure the destination **route exists** in `App.tsx` (with its
-   `ProtectedRoute` permission and, for premium/enterprise, `ModuleRoute`).
+   `ProtectedRoute` permission and, where module-gated, `ModuleRoute`).
 2. Add a `NavItem` to the right group in `navigation.ts` with a `lucide-react`
    `icon`, and the matching `permission` and/or `module` gates.
 3. If it is a detail route that should show a breadcrumb tail, add an entry to

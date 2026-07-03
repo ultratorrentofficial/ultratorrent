@@ -73,6 +73,11 @@ interface and are planned.
 - **Categories & tags** — organize torrents with managed taxonomies.
 - **Built-in file manager** — browse, preview, download, rename, move, copy,
   delete, and mkdir within a strict allow-list of roots.
+- **Media Manager** — organize a media library: root-restricted folder scanning,
+  filename identification, metadata (local NFO + optional TMDB), artwork and
+  subtitle management, NFO generation, template renaming (hardlink/symlink/move),
+  duplicate detection, and Plex/Jellyfin/Emby/Kodi integrations, with a
+  post-download workflow and live job progress over WebSocket.
 - **RSS automation** — feeds with include/exclude rules that auto-download
   matches to the default engine.
 - **Rules engine** — condition/action automation triggered by events such as
@@ -258,6 +263,7 @@ ultratorrent/
 | Document | Description |
 |----------|-------------|
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Core clean-architecture layers, the engine provider abstraction, data flow, real-time design, RBAC |
+| [MEDIA_MANAGER.md](docs/MEDIA_MANAGER.md) | Media libraries, identification, metadata/artwork/subtitles, rename templates, NFO, media-server integrations, automation, security |
 | [INSTALL.md](docs/INSTALL.md)           | Prerequisites, env setup, Prisma, running dev, connecting rTorrent |
 | [DOCKER.md](docs/DOCKER.md)             | Docker Compose services, volumes, env, health checks, commands |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md)   | Local workflow, adding an engine provider, adding a module, testing, standards |
@@ -277,12 +283,9 @@ Advisories) or email the maintainers. We aim to acknowledge reports promptly.
 
 ## License
 
-UltraTorrent is licensed under the **GNU Affero General Public License v3.0 or
-later (AGPL-3.0-or-later)**. If you run a modified version as a network service,
-the AGPL requires you to make the corresponding source available to its users.
-See the `LICENSE` file for the full text.
-
-The commercial **Enterprise overlay** (`packages/enterprise/`, which is not part
-of the public Community edition) is proprietary and separately licensed — see
-`packages/enterprise/LICENSE`.
+UltraTorrent is a single, self-hosted community product — one codebase, with no
+separate editions or add-on overlay. It is licensed under the **GNU Affero
+General Public License v3.0 or later (AGPL-3.0-or-later)**. If you run a modified
+version as a network service, the AGPL requires you to make the corresponding
+source available to its users. See the `LICENSE` file for the full text.
 </content>

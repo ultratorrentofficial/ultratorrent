@@ -1,13 +1,13 @@
 # Versioning Policy
 
-UltraTorrent carries a **single canonical version across all editions**, managed
-with a lightweight changeset flow modeled on
+UltraTorrent carries a **single canonical version**, managed with a lightweight
+changeset flow modeled on
 [Changesets](https://github.com/changesets/changesets) (the `.changeset/*.md`
 convention, driven by the scripts in `ops/scripts/` — no CLI, since this is an
 npm-workspaces monorepo). This is the standing policy for **what** bumps the
 version and **how** it reaches what users and admins actually see. There is one
-versioned unit — the product — and Community, Enterprise, and the SDK all ship on
-that same number. Every change is documented as a changeset.
+versioned unit — the product — and every workspace package ships on that same
+number. Every change is documented as a changeset.
 
 ---
 
@@ -44,20 +44,19 @@ Day-to-day, almost everything is **`minor`** (new capability) or **`patch`**
 ## 3. What is versioned
 
 This repo has **one** canonical version: the root `package.json` (`ultratorrent`).
-The workspace packages (`@ultratorrent/shared`, `-backend`, `-frontend`,
-`-enterprise`) are **not** versioned independently — they're satellites kept in
-lockstep with the root. There is **no per-edition version**: `community`,
-`enterprise`, and `sdk` all equal the canonical version.
+The workspace packages (`@ultratorrent/shared`, `-backend`, `-frontend`) are
+**not** versioned independently — they're satellites kept in lockstep with the
+root.
 
 The same number is read at runtime/build from several places, all kept in sync:
 
 | Where | Read by | How |
 |-------|---------|-----|
-| `version.json` (`version` + `editions.*`) | source-of-truth mirror | one canonical number; editions in lockstep |
+| `version.json` | source-of-truth mirror | one canonical number |
 | `VERSION` | `GET /api/system/version` | backend runtime read (`apps/backend/src/config/configuration.ts`) |
 | `apps/frontend` sidebar footer `v…` | `GET /api/system/version` (`useVersion`) | fetched from the backend |
 | each workspace `package.json` | tooling / metadata | mirrored |
-| `packages/shared/VERSION`, `packages/enterprise/VERSION` | edition tags | mirrored (lockstep) |
+| `packages/shared/VERSION` | contracts tag | mirrored (lockstep) |
 
 `ops/scripts/sync-versions.js` propagates the root version into all of them —
 **one-way**, root is the source of truth. `npm run version:check` validates there
@@ -116,15 +115,10 @@ auto-releases — it is always an explicit operator action.
    synced `version.json`/`VERSION`/package.json satellites, and that the consumed
    `.changeset/*.md` are deleted.
 
-4. **Package + publish (separate deploy step).** Building the Docker images and
-   publishing the public Community mirror is unchanged and independent of the
-   version bump:
-   ```bash
-   npm run release:community     # build/test/package Community, publish mirror
-   npm run release:enterprise    # build/test/package Enterprise + UPLM catalog
-   ```
+4. **Package + publish (separate deploy step).** Building the Docker images is a
+   separate deploy step, independent of the version bump.
 
-5. **Deploy.** Customers pick up the new version on their `git pull` + build. If
+5. **Deploy.** Operators pick up the new version on their `git pull` + build. If
    the displayed numbers ever drift (e.g. an out-of-band edit), re-run
    `npm run version:sync` to bring the satellites back in line with the root.
 

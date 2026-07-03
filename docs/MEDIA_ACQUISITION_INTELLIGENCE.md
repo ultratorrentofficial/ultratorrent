@@ -1,10 +1,9 @@
 # Media Acquisition Intelligence
 
-A **Premium** overlay module (`packages/enterprise/src/media-acquisition`, id
-`media_acquisition_intelligence`) that decides **what UltraTorrent should
-acquire**. It does not match RSS titles in isolation — it **orchestrates** the
-existing modules into an explainable acquisition decision. UPLM-gated; RBAC
-`media_acquisition.*`.
+A **core** module (id `media_acquisition_intelligence`) that decides **what
+UltraTorrent should acquire**. It does not match RSS titles in isolation — it
+**orchestrates** the existing modules into an explainable acquisition decision.
+RBAC `media_acquisition.*`.
 
 - [What it decides](#what-it-decides)
 - [Boundary — it orchestrates, never replaces](#boundary--it-orchestrates-never-replaces)
@@ -39,12 +38,12 @@ download · skip · hold_for_approval · upgrade_existing · replace_existing ·
 | RSS Automation | detects candidate releases |
 | Release Scoring | scores release quality/desirability |
 | Library state (snapshots) | what exists / what's missing |
-| Media Renamer | organises completed files |
+| Media Manager | organises completed files |
 | **Media Acquisition Intelligence** | **decides whether acquisition is valuable** |
 
 It **reuses** Core's `parseTorrentName` and the Release Scoring engine
 (`scoreRelease`) — no duplicated logic — and never replaces RSS Automation,
-Release Scoring, or the Media Renamer.
+Release Scoring, or the Media Manager.
 
 ## Watchlist
 
@@ -168,5 +167,5 @@ reject, override, history, export, settings}`.
   each provides input/output/config schemas and an explainable trace
   (contract scaffold).
 
-See also: [MODULES.md](MODULES.md), [UPLM.md](UPLM.md),
-[AUTOMATION.md](AUTOMATION.md), [SECURITY.md](SECURITY.md).
+See also: [MODULES.md](MODULES.md), [MEDIA_MANAGER.md](MEDIA_MANAGER.md),
+[SECURITY.md](SECURITY.md).
