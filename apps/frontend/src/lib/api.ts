@@ -922,6 +922,215 @@ export interface MediaRenameOperation {
   createdAt: string;
 }
 
+// --- Media Manager detail resources ---------------------------------------
+
+/** A scanned physical file backing a MediaItem. `size` is a BigInt string. */
+export interface MediaFile {
+  id: string;
+  itemId: string;
+  path: string;
+  size: string;
+  container: string | null;
+  videoCodec: string | null;
+  audioCodec: string | null;
+  resolution: string | null;
+  hdr: string | null;
+  language: string | null;
+  releaseGroup: string | null;
+  quality: string | null;
+  createdAt: string;
+}
+
+export type MediaArtworkType =
+  | 'poster'
+  | 'fanart'
+  | 'logo'
+  | 'clearart'
+  | 'banner'
+  | 'thumbnail'
+  | 'season_poster'
+  | 'episode_thumbnail';
+
+export interface MediaArtwork {
+  id: string;
+  itemId: string;
+  type: string;
+  url: string | null;
+  localPath: string | null;
+  source: string | null;
+  selected: boolean;
+  width: number | null;
+  height: number | null;
+  seasonNumber: number | null;
+  createdAt: string;
+}
+
+export interface MediaSubtitle {
+  id: string;
+  itemId: string;
+  path: string;
+  language: string;
+  forced: boolean;
+  sdh: boolean;
+  source: string | null;
+  createdAt: string;
+}
+
+export interface MediaMetadata {
+  id: string;
+  itemId: string;
+  title: string | null;
+  originalTitle: string | null;
+  sortTitle: string | null;
+  overview: string | null;
+  releaseDate: string | null;
+  year: number | null;
+  runtime: number | null;
+  genres: string[];
+  studios: string[];
+  cast: Array<{ name: string; role?: string }>;
+  crew: Array<{ name: string; job?: string }>;
+  directors: string[];
+  writers: string[];
+  rating: number | null;
+  certification: string | null;
+  tags: string[];
+  providerName: string | null;
+  updatedAt: string;
+}
+
+export interface MediaExternalId {
+  id: string;
+  itemId: string;
+  provider: string;
+  externalId: string;
+  url: string | null;
+}
+
+export interface MediaNfoFile {
+  id: string;
+  itemId: string;
+  type: string;
+  path: string;
+  generatedAt: string;
+}
+
+/** Full item detail returned by `getItem` (includes relations). */
+export interface MediaItemDetail extends MediaItem {
+  updatedAt: string;
+  duplicateGroupId: string | null;
+  files: MediaFile[];
+  metadata: MediaMetadata | null;
+  artwork: MediaArtwork[];
+  subtitles: MediaSubtitle[];
+  externalIds: MediaExternalId[];
+  nfoFiles: MediaNfoFile[];
+  library: MediaLibrary | null;
+}
+
+export interface MediaArtworkList {
+  itemId: string;
+  artwork: MediaArtwork[];
+  selected: Record<string, string>;
+}
+
+export interface MediaArtworkMissing {
+  itemId: string;
+  present: string[];
+  missing: string[];
+}
+
+export interface MediaSubtitleMissing {
+  itemId: string;
+  present: string[];
+  missing: string[];
+  hasAny: boolean;
+}
+
+export interface MediaArtworkUploadInput {
+  type: string;
+  filename?: string;
+  mime?: string;
+  /** base64 (optionally a data: URL) payload of the image. */
+  dataBase64: string;
+  seasonNumber?: number | null;
+}
+
+export interface MediaMetadataUpdateInput {
+  title?: string;
+  originalTitle?: string;
+  sortTitle?: string;
+  overview?: string;
+  year?: number | null;
+  runtime?: number | null;
+  genres?: string[];
+  studios?: string[];
+  directors?: string[];
+  writers?: string[];
+  rating?: number | null;
+  certification?: string | null;
+  tags?: string[];
+}
+
+export interface MediaNfoGenerateResult {
+  generated: number;
+  files: MediaNfoFile[];
+}
+
+/** One item within a detected duplicate group (already quality-scored). */
+export interface MediaDuplicateItem {
+  id: string;
+  title: string;
+  year: number | null;
+  season: number | null;
+  episode: number | null;
+  libraryId: string;
+  path: string;
+  qualityScore: number;
+  totalSize: number;
+  bestResolution: string | null;
+  bestCodec: string | null;
+}
+
+export interface MediaDuplicateGroup {
+  id: string;
+  reason: string;
+  createdAt: string;
+  suggestedKeepId: string | null;
+  items: MediaDuplicateItem[];
+}
+
+export type MediaServerKind = 'plex' | 'jellyfin' | 'emby' | 'kodi';
+
+export interface MediaServerIntegration {
+  id: string;
+  name: string;
+  kind: string;
+  isEnabled: boolean;
+  lastRefreshAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  config: Record<string, unknown>;
+}
+
+export interface MediaServerIntegrationInput {
+  name?: string;
+  kind?: string;
+  isEnabled?: boolean;
+  config?: Record<string, unknown>;
+}
+
+export interface MediaServerTestResult {
+  ok: boolean;
+  message?: string;
+  [key: string]: unknown;
+}
+
+export interface MediaServerRefreshResult {
+  id: string;
+  lastRefreshAt: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Media Renamer Pro (Milestone 6) — /api/media-renamer
 // ---------------------------------------------------------------------------
@@ -1812,8 +2021,8 @@ export const api = {
     listItems(query: MediaItemQuery = {}): Promise<MediaItem[]> {
       return request<MediaItem[]>('/media/items', { query: query as QueryParams });
     },
-    getItem(id: string): Promise<MediaItem> {
-      return request<MediaItem>(`/media/items/${id}`);
+    getItem(id: string): Promise<MediaItemDetail> {
+      return request<MediaItemDetail>(`/media/items/${id}`);
     },
     updateItem(id: string, body: MediaItemUpdateInput): Promise<MediaItem> {
       return request<MediaItem>(`/media/items/${id}`, { method: 'PATCH', body });
@@ -1823,6 +2032,84 @@ export const api = {
     },
     unmatchItem(id: string): Promise<MediaItem> {
       return request<MediaItem>(`/media/items/${id}/unmatch`, { method: 'POST' });
+    },
+    // --- metadata ---------------------------------------------------------
+    fetchMetadata(id: string): Promise<MediaMetadata> {
+      return request<MediaMetadata>(`/media/items/${id}/metadata/fetch`, { method: 'POST' });
+    },
+    updateMetadata(id: string, body: MediaMetadataUpdateInput): Promise<MediaMetadata> {
+      return request<MediaMetadata>(`/media/items/${id}/metadata`, { method: 'PATCH', body });
+    },
+    // --- artwork ----------------------------------------------------------
+    getItemArtwork(id: string): Promise<MediaArtworkList> {
+      return request<MediaArtworkList>(`/media/items/${id}/artwork`);
+    },
+    selectArtwork(id: string, artworkId: string): Promise<MediaArtwork> {
+      return request<MediaArtwork>(`/media/items/${id}/artwork/select`, {
+        method: 'POST',
+        body: { artworkId },
+      });
+    },
+    uploadArtwork(id: string, body: MediaArtworkUploadInput): Promise<MediaArtwork> {
+      return request<MediaArtwork>(`/media/items/${id}/artwork/upload`, { method: 'POST', body });
+    },
+    missingArtwork(id: string): Promise<MediaArtworkMissing> {
+      return request<MediaArtworkMissing>(`/media/items/${id}/artwork/missing`);
+    },
+    // --- subtitles --------------------------------------------------------
+    listSubtitles(id: string): Promise<MediaSubtitle[]> {
+      return request<MediaSubtitle[]>(`/media/items/${id}/subtitles`);
+    },
+    scanSubtitles(id: string): Promise<{ scanned?: number; created?: number } & Record<string, unknown>> {
+      return request(`/media/items/${id}/subtitles/scan`, { method: 'POST' });
+    },
+    missingSubtitles(id: string, preferred?: string): Promise<MediaSubtitleMissing> {
+      return request<MediaSubtitleMissing>(`/media/items/${id}/subtitles/missing`, {
+        query: preferred ? { preferred } : undefined,
+      });
+    },
+    // --- NFO --------------------------------------------------------------
+    generateNfo(itemId: string): Promise<MediaNfoGenerateResult> {
+      return request<MediaNfoGenerateResult>('/media/nfo/generate', {
+        method: 'POST',
+        body: { itemId },
+      });
+    },
+    // --- duplicates -------------------------------------------------------
+    listDuplicates(): Promise<MediaDuplicateGroup[]> {
+      return request<MediaDuplicateGroup[]>('/media/duplicates');
+    },
+    detectDuplicates(): Promise<MediaDuplicateGroup[]> {
+      return request<MediaDuplicateGroup[]>('/media/duplicates/detect', { method: 'POST' });
+    },
+    // --- media-server integrations ---------------------------------------
+    listServerIntegrations(): Promise<MediaServerIntegration[]> {
+      return request<MediaServerIntegration[]>('/media/server-integrations');
+    },
+    createServerIntegration(body: MediaServerIntegrationInput): Promise<MediaServerIntegration> {
+      return request<MediaServerIntegration>('/media/server-integrations', { method: 'POST', body });
+    },
+    updateServerIntegration(
+      id: string,
+      body: MediaServerIntegrationInput,
+    ): Promise<MediaServerIntegration> {
+      return request<MediaServerIntegration>(`/media/server-integrations/${id}`, {
+        method: 'PATCH',
+        body,
+      });
+    },
+    deleteServerIntegration(id: string): Promise<void> {
+      return request<void>(`/media/server-integrations/${id}`, { method: 'DELETE' });
+    },
+    testServerIntegration(id: string): Promise<MediaServerTestResult> {
+      return request<MediaServerTestResult>(`/media/server-integrations/${id}/test`, {
+        method: 'POST',
+      });
+    },
+    refreshServerIntegration(id: string): Promise<MediaServerRefreshResult> {
+      return request<MediaServerRefreshResult>(`/media/server-integrations/${id}/refresh`, {
+        method: 'POST',
+      });
     },
     preview(body: RenameRequest): Promise<RenamePlan> {
       return request<RenamePlan>('/media/preview', { method: 'POST', body });

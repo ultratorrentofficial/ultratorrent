@@ -81,3 +81,58 @@ export function matchStatusVariant(
 export function matchStatusLabel(status: string): string {
   return MATCH_STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status;
 }
+
+/** Artwork types tracked per item — mirrors the backend `ARTWORK_TYPES`. */
+export const ARTWORK_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'poster', label: 'Poster' },
+  { value: 'fanart', label: 'Fanart' },
+  { value: 'logo', label: 'Logo' },
+  { value: 'clearart', label: 'Clear art' },
+  { value: 'banner', label: 'Banner' },
+  { value: 'thumbnail', label: 'Thumbnail' },
+  { value: 'season_poster', label: 'Season poster' },
+  { value: 'episode_thumbnail', label: 'Episode thumbnail' },
+];
+
+export function artworkTypeLabel(type: string): string {
+  return ARTWORK_TYPE_OPTIONS.find((t) => t.value === type)?.label ?? type;
+}
+
+/** Media-server integration kinds — mirrors the backend `VALID_KINDS`. */
+export const MEDIA_SERVER_KIND_OPTIONS: { value: string; label: string }[] = [
+  { value: 'plex', label: 'Plex' },
+  { value: 'jellyfin', label: 'Jellyfin' },
+  { value: 'emby', label: 'Emby' },
+  { value: 'kodi', label: 'Kodi' },
+];
+
+export function mediaServerKindLabel(kind: string): string {
+  return MEDIA_SERVER_KIND_OPTIONS.find((k) => k.value === kind)?.label ?? kind;
+}
+
+/** Human labels for duplicate-detection reasons. */
+export function duplicateReasonLabel(reason: string): string {
+  switch (reason) {
+    case 'external_id':
+      return 'Same external ID';
+    case 'show_season_episode':
+      return 'Same show / season / episode';
+    case 'title_year':
+      return 'Same title & year';
+    case 'similar_filename':
+      return 'Similar filename';
+    default:
+      return reason;
+  }
+}
+
+/** Format a Season/Episode marker from optional numbers. */
+export function seasonEpisodeLabel(
+  season: number | null | undefined,
+  episode: number | null | undefined,
+): string {
+  if (season == null && episode == null) return '—';
+  const s = season != null ? `S${String(season).padStart(2, '0')}` : '';
+  const e = episode != null ? `E${String(episode).padStart(2, '0')}` : '';
+  return `${s}${e}` || '—';
+}

@@ -20,6 +20,11 @@ import { MediaPage } from '@/pages/MediaPage';
 import { MediaDashboardPage } from '@/pages/media-manager/MediaDashboardPage';
 import { MediaLibrariesPage } from '@/pages/media-manager/MediaLibrariesPage';
 import { MediaItemsPage } from '@/pages/media-manager/MediaItemsPage';
+import { MediaDetailPage } from '@/pages/media-manager/MediaDetailPage';
+import { MediaUnmatchedPage } from '@/pages/media-manager/MediaUnmatchedPage';
+import { MediaDuplicatesPage } from '@/pages/media-manager/MediaDuplicatesPage';
+import { MediaRenamePreviewPage } from '@/pages/media-manager/MediaRenamePreviewPage';
+import { MediaSettingsPage } from '@/pages/media-manager/MediaSettingsPage';
 import { ModulesPage } from '@/pages/ModulesPage';
 import { EnginesPage } from '@/pages/engines/EnginesPage';
 import { MediaAcquisitionPage } from '@/pages/media-acquisition/MediaAcquisitionPage';
@@ -118,6 +123,46 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_manager">
                             <MediaItemsPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/items/:id"
+                        element={
+                          <ModuleRoute moduleId="media_manager">
+                            <MediaDetailPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/unmatched"
+                        element={
+                          <ModuleRoute moduleId="media_manager">
+                            <MediaUnmatchedPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/duplicates"
+                        element={
+                          <ModuleRoute moduleId="media_manager">
+                            <MediaDuplicatesPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/rename-preview"
+                        element={
+                          <ModuleRoute moduleId="media_manager">
+                            <MediaRenamePreviewPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/settings"
+                        element={
+                          <ModuleRoute moduleId="media_manager">
+                            <MediaSettingsPage />
                           </ModuleRoute>
                         }
                       />
