@@ -1,0 +1,5 @@
+---
+"ultratorrent": minor
+---
+
+The **Media Manager** gains its full enrichment backend. Scanned files now carry technical details (codec, resolution, HDR, audio, release group, quality) parsed from their filenames. Items can fetch rich **metadata** (overview, genres, cast/crew, ratings) from a local `.nfo` sidecar and — when a TMDB key is configured — from TMDB, with manual edits supported. New capabilities: **artwork** management (list/select per type, custom image upload validated to PNG/JPG/WEBP under 10 MB), **subtitle** discovery (scans for sidecar `.srt/.ass/.sub/.vtt` files, detecting language, forced, and SDH flags), Kodi-style **NFO** generation (movie/tvshow/season/episode, per-library toggle), **duplicate** detection (by external id, show/season/episode, title+year, or similar filename, with a quality comparison to pick the copy to keep), and **media-server integrations** for Plex, Jellyfin, Emby, and Kodi (test connection + trigger a library refresh; credentials are encrypted at rest). All filesystem access stays inside the configured storage roots and sensitive actions are audited.

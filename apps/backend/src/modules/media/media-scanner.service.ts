@@ -3,6 +3,39 @@ import { readdir, stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
+import { parseTorrentName } from '../rss/torrent-name-parser';
+
+/** Technical fields derived from a release filename for a MediaFile row. */
+export interface MediaFileTechInfo {
+  container: string | null;
+  videoCodec: string | null;
+  audioCodec: string | null;
+  resolution: string | null;
+  hdr: string | null;
+  language: string | null;
+  releaseGroup: string | null;
+  quality: string | null;
+}
+
+/**
+ * Derive MediaFile technical metadata by parsing a release filename with the
+ * shared torrent-name parser. Pure — exported for unit testing.
+ */
+export function deriveFileTechInfo(filePath: string): MediaFileTechInfo {
+  const parsed = parseTorrentName(path.basename(filePath));
+  const container = path.extname(filePath).replace(/^\./, '').toLowerCase() || null;
+  const quality = [parsed.source, parsed.resolution].filter(Boolean).join(' ') || null;
+  return {
+    container,
+    videoCodec: parsed.codec ?? null,
+    audioCodec: parsed.audio[0] ?? null,
+    resolution: parsed.resolution ?? null,
+    hdr: parsed.hdr.length ? parsed.hdr.join('/') : null,
+    language: parsed.languages[0] ?? null,
+    releaseGroup: parsed.releaseGroup ?? null,
+    quality,
+  };
+}
 
 const VIDEO_EXT = new Set([
   '.mkv',
@@ -55,6 +88,8 @@ export class MediaScannerService {
         include: { files: true },
       });
 
+      const tech = deriveFileTechInfo(file.path);
+
       if (existing) {
         await this.prisma.mediaFile.upsert({
           where: {
@@ -64,9 +99,9 @@ export class MediaScannerService {
             itemId: existing.id,
             path: file.path,
             size: BigInt(file.size),
-            container: path.extname(file.path).replace(/^\./, '') || null,
+            ...tech,
           },
-          update: { size: BigInt(file.size) },
+          update: { size: BigInt(file.size), ...tech },
         });
         updated++;
       } else {
@@ -81,7 +116,7 @@ export class MediaScannerService {
               create: {
                 path: file.path,
                 size: BigInt(file.size),
-                container: path.extname(file.path).replace(/^\./, '') || null,
+                ...tech,
               },
             },
           },

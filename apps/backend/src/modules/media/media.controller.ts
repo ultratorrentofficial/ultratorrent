@@ -22,11 +22,35 @@ import {
 } from './media-identification.service';
 import { MediaItemService, ItemUpdateDto } from './media-item.service';
 import { MediaHealthService } from './media-health.service';
+import {
+  MediaMetadataService,
+  MetadataUpdateDto,
+  AuditContext,
+} from './media-metadata.service';
+import { MediaArtworkService, ArtworkUpload } from './media-artwork.service';
+import { MediaSubtitleService } from './media-subtitle.service';
+import { MediaNfoService } from './media-nfo.service';
+import { MediaDuplicateService } from './media-duplicate.service';
+import {
+  MediaServerIntegrationService,
+  IntegrationInput,
+} from './media-server-integration.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 const P = PERMISSIONS;
+
+/** Build an audit context (user + request metadata) from the request. */
+function auditCtx(req: Request): AuditContext {
+  const user = req.user as AuthenticatedUser | undefined;
+  return {
+    userId: user?.id,
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'],
+  };
+}
 
 @ApiTags('media')
 @ApiBearerAuth()
@@ -40,6 +64,12 @@ export class MediaController {
     private readonly identification: MediaIdentificationService,
     private readonly items: MediaItemService,
     private readonly healthSvc: MediaHealthService,
+    private readonly metadata: MediaMetadataService,
+    private readonly artwork: MediaArtworkService,
+    private readonly subtitles: MediaSubtitleService,
+    private readonly nfo: MediaNfoService,
+    private readonly duplicates: MediaDuplicateService,
+    private readonly integrations: MediaServerIntegrationService,
   ) {}
 
   // --- overview ----------------------------------------------------------
@@ -123,6 +153,143 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_MATCH)
   unmatchItem(@Param('id') id: string) {
     return this.identification.unmatch(id);
+  }
+
+  // --- metadata ----------------------------------------------------------
+  @Post('items/:id/metadata/fetch')
+  @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
+  fetchMetadata(@Param('id') id: string, @Req() req: Request) {
+    return this.metadata.fetchMetadata(id, auditCtx(req));
+  }
+
+  @Patch('items/:id/metadata')
+  @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
+  updateMetadata(
+    @Param('id') id: string,
+    @Body() body: MetadataUpdateDto,
+    @Req() req: Request,
+  ) {
+    return this.metadata.updateMetadata(id, body ?? {}, auditCtx(req));
+  }
+
+  // --- artwork -----------------------------------------------------------
+  @Get('items/:id/artwork')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  listArtwork(@Param('id') id: string) {
+    return this.artwork.list(id);
+  }
+
+  @Post('items/:id/artwork/select')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_ARTWORK)
+  selectArtwork(
+    @Param('id') id: string,
+    @Body() body: { artworkId: string },
+    @Req() req: Request,
+  ) {
+    return this.artwork.select(id, body?.artworkId, auditCtx(req));
+  }
+
+  @Post('items/:id/artwork/upload')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_ARTWORK)
+  uploadArtwork(
+    @Param('id') id: string,
+    @Body() body: ArtworkUpload,
+    @Req() req: Request,
+  ) {
+    return this.artwork.uploadCustom(id, body, auditCtx(req));
+  }
+
+  @Get('items/:id/artwork/missing')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  missingArtwork(@Param('id') id: string) {
+    return this.artwork.detectMissing(id);
+  }
+
+  // --- subtitles ---------------------------------------------------------
+  @Get('items/:id/subtitles')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  listSubtitles(@Param('id') id: string) {
+    return this.subtitles.list(id);
+  }
+
+  @Post('items/:id/subtitles/scan')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_SUBTITLES)
+  scanSubtitles(@Param('id') id: string) {
+    return this.subtitles.scan(id);
+  }
+
+  @Get('items/:id/subtitles/missing')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  missingSubtitles(
+    @Param('id') id: string,
+    @Query('preferred') preferred?: string,
+  ) {
+    const langs = preferred ? preferred.split(',').map((l) => l.trim()) : undefined;
+    return this.subtitles.detectMissing(id, langs);
+  }
+
+  // --- NFO ---------------------------------------------------------------
+  @Post('nfo/generate')
+  @RequirePermissions(P.MEDIA_MANAGER_GENERATE_NFO)
+  generateNfo(
+    @Body() body: { itemId?: string; libraryId?: string },
+    @Req() req: Request,
+  ) {
+    return this.nfo.generate(body ?? {}, auditCtx(req));
+  }
+
+  // --- duplicates --------------------------------------------------------
+  @Get('duplicates')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  listDuplicates() {
+    return this.duplicates.list();
+  }
+
+  @Post('duplicates/detect')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  detectDuplicates() {
+    return this.duplicates.detect();
+  }
+
+  // --- media-server integrations ----------------------------------------
+  @Get('server-integrations')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_INTEGRATIONS)
+  listIntegrations() {
+    return this.integrations.list();
+  }
+
+  @Post('server-integrations')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_INTEGRATIONS)
+  createIntegration(@Body() body: IntegrationInput, @Req() req: Request) {
+    return this.integrations.create(body ?? {}, auditCtx(req));
+  }
+
+  @Patch('server-integrations/:id')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_INTEGRATIONS)
+  updateIntegration(
+    @Param('id') id: string,
+    @Body() body: IntegrationInput,
+    @Req() req: Request,
+  ) {
+    return this.integrations.update(id, body ?? {}, auditCtx(req));
+  }
+
+  @Delete('server-integrations/:id')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_INTEGRATIONS)
+  removeIntegration(@Param('id') id: string, @Req() req: Request) {
+    return this.integrations.remove(id, auditCtx(req));
+  }
+
+  @Post('server-integrations/:id/test')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_INTEGRATIONS)
+  testIntegration(@Param('id') id: string, @Req() req: Request) {
+    return this.integrations.test(id, auditCtx(req));
+  }
+
+  @Post('server-integrations/:id/refresh')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_INTEGRATIONS)
+  refreshIntegration(@Param('id') id: string, @Req() req: Request) {
+    return this.integrations.refresh(id, auditCtx(req));
   }
 
   // --- rename engine (retained) -----------------------------------------

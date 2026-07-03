@@ -21,9 +21,33 @@ export interface MediaMetadata {
   year?: number;
 }
 
+/** A rich, provider-agnostic metadata payload used to enrich a MediaItem. */
+export interface MediaMetadataDetails {
+  title?: string;
+  originalTitle?: string;
+  overview?: string;
+  releaseDate?: string | null; // ISO date (YYYY-MM-DD)
+  year?: number;
+  runtime?: number;
+  genres?: string[];
+  studios?: string[];
+  cast?: Array<{ name: string; role?: string }>;
+  crew?: Array<{ name: string; job?: string }>;
+  directors?: string[];
+  writers?: string[];
+  rating?: number;
+  certification?: string;
+  tags?: string[];
+  providerName?: string;
+  /** provider -> external id (e.g. { tmdb: '603', imdb: 'tt0133093' }). */
+  externalIds?: Record<string, string>;
+}
+
 export interface MediaMetadataProvider {
   readonly name: string;
   lookup(query: MediaLookup): Promise<MediaMetadata>;
+  /** Rich enrichment used by MediaMetadataService. Null when nothing found. */
+  fetchDetails(query: MediaLookup): Promise<MediaMetadataDetails | null>;
 }
 
 /** Offline provider — returns nothing, so the renamer uses the parsed name. */
@@ -31,6 +55,9 @@ export class LocalMetadataProvider implements MediaMetadataProvider {
   readonly name = 'local';
   async lookup(): Promise<MediaMetadata> {
     return {};
+  }
+  async fetchDetails(): Promise<MediaMetadataDetails | null> {
+    return null;
   }
 }
 
@@ -88,5 +115,106 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
     } catch {
       return {};
     }
+  }
+
+  /** Rich enrichment: overview, genres, cast/crew, ratings, external ids. */
+  async fetchDetails(q: MediaLookup): Promise<MediaMetadataDetails | null> {
+    try {
+      if (q.kind === 'movie') {
+        const search = await this.get('/search/movie', {
+          query: q.title,
+          ...(q.year ? { year: String(q.year) } : {}),
+        });
+        const hit = search?.results?.[0];
+        if (!hit) return null;
+        const full = await this.get(`/movie/${hit.id}`, {
+          append_to_response: 'credits,release_dates',
+        });
+        return this.mapMovie(hit, full);
+      }
+      // tv / anime
+      const search = await this.get('/search/tv', { query: q.title });
+      const hit = search?.results?.[0];
+      if (!hit) return null;
+      const full = await this.get(`/tv/${hit.id}`, {
+        append_to_response: 'credits,external_ids',
+      });
+      return this.mapTv(hit, full, q);
+    } catch {
+      return null;
+    }
+  }
+
+  private mapMovie(hit: any, full: any): MediaMetadataDetails {
+    const credits = full?.credits ?? {};
+    const cast = (credits.cast ?? [])
+      .slice(0, 20)
+      .map((c: any) => ({ name: c.name, role: c.character || undefined }));
+    const crew = (credits.crew ?? []).map((c: any) => ({
+      name: c.name,
+      job: c.job || undefined,
+    }));
+    const directors = crew.filter((c: any) => c.job === 'Director').map((c: any) => c.name);
+    const writers = crew
+      .filter((c: any) => c.job === 'Writer' || c.job === 'Screenplay')
+      .map((c: any) => c.name);
+    const externalIds: Record<string, string> = { tmdb: String(hit.id) };
+    if (full?.imdb_id) externalIds.imdb = full.imdb_id;
+    return {
+      title: full?.title ?? hit.title,
+      originalTitle: full?.original_title ?? hit.original_title,
+      overview: full?.overview ?? hit.overview,
+      releaseDate: full?.release_date || hit.release_date || null,
+      year: (full?.release_date || hit.release_date)
+        ? Number((full?.release_date || hit.release_date).slice(0, 4))
+        : undefined,
+      runtime: full?.runtime ?? undefined,
+      genres: (full?.genres ?? []).map((g: any) => g.name),
+      studios: (full?.production_companies ?? []).map((s: any) => s.name),
+      cast,
+      crew,
+      directors,
+      writers,
+      rating: hit.vote_average ?? undefined,
+      tags: (full?.keywords?.keywords ?? []).map((k: any) => k.name),
+      providerName: this.name,
+      externalIds,
+    };
+  }
+
+  private mapTv(hit: any, full: any, q: MediaLookup): MediaMetadataDetails {
+    const credits = full?.credits ?? {};
+    const cast = (credits.cast ?? [])
+      .slice(0, 20)
+      .map((c: any) => ({ name: c.name, role: c.character || undefined }));
+    const crew = (credits.crew ?? []).map((c: any) => ({
+      name: c.name,
+      job: c.job || undefined,
+    }));
+    const externalIds: Record<string, string> = { tmdb: String(hit.id) };
+    const ext = full?.external_ids ?? {};
+    if (ext.imdb_id) externalIds.imdb = ext.imdb_id;
+    if (ext.tvdb_id) externalIds.tvdb = String(ext.tvdb_id);
+    const first = full?.first_air_date || hit.first_air_date;
+    return {
+      title: full?.name ?? hit.name,
+      originalTitle: full?.original_name ?? hit.original_name,
+      overview: full?.overview ?? hit.overview,
+      releaseDate: first || null,
+      year: first ? Number(first.slice(0, 4)) : undefined,
+      runtime: Array.isArray(full?.episode_run_time)
+        ? full.episode_run_time[0]
+        : undefined,
+      genres: (full?.genres ?? []).map((g: any) => g.name),
+      studios: (full?.networks ?? []).map((s: any) => s.name),
+      cast,
+      crew,
+      directors: [],
+      writers: [],
+      rating: hit.vote_average ?? undefined,
+      tags: [],
+      providerName: this.name,
+      externalIds,
+    };
   }
 }
