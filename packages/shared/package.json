@@ -1,0 +1,23 @@
+{
+  "name": "@ultratorrent/shared",
+  "version": "0.11.5",
+  "private": true,
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/cjs/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json",
+    "dev": "tsc -p tsconfig.cjs.json --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  },
+  "license": "AGPL-3.0-or-later"
+}

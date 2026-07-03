@@ -1,0 +1,33 @@
+{
+  "name": "ultratorrent",
+  "version": "0.11.5",
+  "private": true,
+  "description": "UltraTorrent — a modern, self-hosted torrent management platform",
+  "license": "AGPL-3.0-or-later",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @ultratorrent/shared && npm run build --workspace @ultratorrent/backend && npm run build --workspace @ultratorrent/frontend",
+    "package": "V=$(node -e \"process.stdout.write(require('./version.json').version)\"); docker build --build-arg ULTRATORRENT_VERSION=$V -f apps/backend/Dockerfile -t ultratorrent/backend:$V -t ultratorrent/backend . && docker build -f apps/frontend/Dockerfile -t ultratorrent/frontend:$V -t ultratorrent/frontend .",
+    "dev": "npm run dev --workspace @ultratorrent/backend & npm run dev --workspace @ultratorrent/frontend",
+    "dev:backend": "npm run dev --workspace @ultratorrent/backend",
+    "dev:frontend": "npm run dev --workspace @ultratorrent/frontend",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "version:show": "node scripts/version.mjs show",
+    "version:check": "node scripts/version.mjs check",
+    "version:sync": "node ops/scripts/sync-versions.js",
+    "changeset:add": "node ops/scripts/changeset-add.js",
+    "release:plan": "node ops/scripts/release.js",
+    "release:apply": "node ops/scripts/release.js --apply",
+    "prisma:generate": "npm run prisma:generate --workspace @ultratorrent/backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace @ultratorrent/backend",
+    "prisma:seed": "npm run prisma:seed --workspace @ultratorrent/backend"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces:note": "UltraTorrent uses npm workspaces. Run `npm install` at the repo root."
+}

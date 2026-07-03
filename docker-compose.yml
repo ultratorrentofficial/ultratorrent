@@ -1,0 +1,133 @@
+# UltraTorrent — full stack composition.
+# Usage: cp .env.example .env && docker compose up -d --build
+# Profiles: `rtorrent` (bundled engine), `proxy` (edge reverse proxy).
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ultratorrent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-ultratorrent}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ultratorrent}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      # Derived from POSTGRES_* so it can't drift from the DB password. Use an
+      # alphanumeric POSTGRES_PASSWORD (URL-special chars would need encoding).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ultratorrent}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ultratorrent}?schema=public
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      # Required in production: must be set, >=32 chars, and DIFFERENT from
+      # JWT_ACCESS_SECRET (the backend refuses to boot otherwise).
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      FILE_MANAGER_ROOTS: ${FILE_MANAGER_ROOTS:-/downloads}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ultratorrent.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+    volumes:
+      - downloads:/downloads
+    # Not published to the host by default — the frontend reaches it over the
+    # internal Docker network. To expose the API directly, add a mapping, e.g.
+    # `ports: ["4000:4000"]` (or a free host port).
+    expose: ["4000"]
+    networks: [internal]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        VITE_API_URL: /api
+        VITE_WS_URL: /
+    restart: unless-stopped
+    depends_on: [backend]
+    # Host port is configurable — set FRONTEND_PORT in .env if 8080 is taken.
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    networks: [internal]
+
+  # Optional bundled rTorrent engine. Enable with: --profile rtorrent
+  # Minimal headless rtorrent that serves SCGI over TCP on 0.0.0.0:5000, so the
+  # backend reaches it at rtorrent:5000. Configure an engine in the UI:
+  # kind rtorrent, mode scgi-tcp, host `rtorrent`, port 5000.
+  rtorrent:
+    build:
+      context: ./deploy/rtorrent
+    profiles: ["rtorrent"]
+    restart: unless-stopped
+    environment:
+      # Run rtorrent as this uid/gid so downloads are owned how you want. If your
+      # downloads folder belongs to another user (e.g. Plex), set PUID/PGID to
+      # that user's id/gid in .env (find them with `id <user>`). Default 1000
+      # matches the backend's `node` user.
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      # DHT is off by default (this rtorrent build can crash on a DHT
+      # internal_error). Trackers + PEX still find peers. Set RT_DHT=on to enable.
+      RT_DHT: ${RT_DHT:-off}
+    volumes:
+      - downloads:/downloads
+    expose: ["5000"]
+    networks: [internal]
+
+  # Optional edge reverse proxy (TLS termination). Enable with: --profile proxy
+  proxy:
+    image: caddy:2-alpine
+    profiles: ["proxy"]
+    restart: unless-stopped
+    depends_on: [frontend, backend]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    networks: [internal]
+
+volumes:
+  postgres_data:
+  redis_data:
+  downloads:
+  caddy_data:
+
+networks:
+  internal:
+    driver: bridge

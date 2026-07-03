@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Prisma
+apps/backend/prisma/migrations/dev.db*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+
+# Art / brand source assets (not needed for the build — the app ships
+# apps/frontend/public/logo.png)
+art/
+
+# Internal security reports / audits — never commit or publish. Keep all
+# security review files in this folder.
+security/
+SECURITY_REVIEW*.md
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Runtime data
+uploads/
+data/
+tmp/

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>UltraTorrent — User Manual (Community Edition)</title>
+<style>
+  @page { margin: 2cm; }
+  body { font-family: "Liberation Sans", Arial, sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.45; }
+  h1 { font-size: 26pt; color: #1f6feb; margin: 0 0 4pt; }
+  h2 { font-size: 16pt; color: #1f6feb; border-bottom: 1px solid #d0d7de; padding-bottom: 3pt; margin-top: 22pt; page-break-after: avoid; }
+  h3 { font-size: 12.5pt; margin-top: 14pt; page-break-after: avoid; }
+  code { font-family: "Liberation Mono", "Courier New", monospace; background: #f0f2f4; padding: 0 3px; font-size: 10pt; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0; font-size: 10pt; }
+  th, td { border: 1px solid #d0d7de; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #f0f2f4; }
+  ul { margin: 6pt 0; }
+  .cover { text-align: center; padding-top: 5cm; page-break-after: always; }
+  .cover .sub { font-size: 13pt; color: #57606a; margin-top: 6pt; }
+  .cover .meta { font-size: 10pt; color: #57606a; margin-top: 2cm; }
+  .note { background: #f6f8fa; border-left: 4px solid #1f6feb; padding: 6pt 10pt; margin: 8pt 0; }
+  .toc a { color: #1a1a1a; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>UltraTorrent</h1>
+  <div class="sub">User Manual — Community Edition</div>
+  <div class="meta">
+    A modern, self-hosted torrent management platform.<br/>
+    Version 0.10.0 · AGPL-3.0<br/>
+    github.com/damirabal/ultratorrent-core
+  </div>
+</div>
+
+<h2>Contents</h2>
+<ol class="toc">
+  <li>Introduction</li>
+  <li>Signing in</li>
+  <li>Getting around the interface</li>
+  <li>Dashboard</li>
+  <li>Managing torrents</li>
+  <li>The file manager</li>
+  <li>RSS automation</li>
+  <li>Automation rules</li>
+  <li>Notifications</li>
+  <li>Search</li>
+  <li>Your account &amp; security</li>
+  <li>Administration</li>
+  <li>System &amp; audit</li>
+  <li>Getting help</li>
+</ol>
+
+<h2>1. Introduction</h2>
+<p>UltraTorrent is a clean, fast, multi-user web interface for your existing
+BitTorrent client. It does not download torrents itself — it controls an engine
+such as <b>rTorrent</b> and presents everything through one modern UI with
+real-time updates, role-based access control, and a full audit trail.</p>
+<p>This manual covers the <b>Community edition</b>. Everything below works in the
+free, open-source build.</p>
+
+<h2>2. Signing in</h2>
+<p>Open the UltraTorrent URL in your browser and sign in with the username and
+password your administrator created.</p>
+<ul>
+  <li><b>Two-factor authentication (2FA):</b> if enabled on your account, you'll
+  be prompted for a 6-digit code from your authenticator app after your password.</li>
+  <li><b>Sessions:</b> you stay signed in via a secure token that refreshes
+  automatically. Use <b>Sign out</b> in the user menu (top right) to end your
+  session on this device.</li>
+</ul>
+
+<h2>3. Getting around the interface</h2>
+<p>The app has three main areas:</p>
+<ul>
+  <li><b>Sidebar (left):</b> grouped navigation — Overview, Torrents, Automation,
+  Files &amp; Media, Administration, and System. You only see the items your
+  permissions allow. Collapse the sidebar to an icon rail with the toggle at the
+  bottom; on mobile it opens as a drawer.</li>
+  <li><b>Top bar:</b> breadcrumbs showing where you are, live download/upload
+  rates, a realtime-connection indicator, and your user menu.</li>
+  <li><b>Main area:</b> the current page.</li>
+</ul>
+<p>The version number and an <b>About UltraTorrent</b> dialog are available from
+the sidebar footer and the user menu.</p>
+
+<h2>4. Dashboard</h2>
+<p>The Dashboard is your at-a-glance overview:</p>
+<ul>
+  <li>Current <b>download</b> and <b>upload</b> speeds and overall <b>share ratio</b>.</li>
+  <li>Total and active torrent counts, and a breakdown by state
+  (downloading / seeding / completed / paused / errored).</li>
+  <li>A live <b>bandwidth chart</b> and a <b>recent activity</b> feed.</li>
+  <li>Engine status (online / offline).</li>
+</ul>
+
+<h2>5. Managing torrents</h2>
+<h3>Adding a torrent</h3>
+<p>Click <b>Add Torrent</b> and choose one of three sources:</p>
+<ul>
+  <li><b>Magnet link</b> — paste a <code>magnet:</code> URI.</li>
+  <li><b>Torrent file</b> — upload a <code>.torrent</code> file.</li>
+  <li><b>Remote URL</b> — an <code>http(s)</code> link to a <code>.torrent</code>.</li>
+</ul>
+<p>Optionally set a <b>Save path</b> using the <b>Browse</b> picker (see
+&sect;6). Paths are restricted to the folders your administrator allows.</p>
+
+<h3>The torrent list</h3>
+<p>The list shows name, progress, size, speeds, ratio, ETA, seeds/peers, and
+when it was added. You can:</p>
+<ul>
+  <li><b>Sort</b> by any column and <b>search</b> by name.</li>
+  <li><b>Filter</b> by state using the pills (All / Downloading / Seeding /
+  Completed / Paused / Errors). The sidebar links to these filtered views too.</li>
+  <li><b>Select multiple</b> torrents for <b>bulk actions</b>.</li>
+</ul>
+
+<h3>Actions</h3>
+<table>
+  <tr><th>Action</th><th>What it does</th></tr>
+  <tr><td>Start / Stop / Pause / Resume</td><td>Control the transfer state.</td></tr>
+  <tr><td>Recheck</td><td>Re-verify downloaded data against the torrent.</td></tr>
+  <tr><td>Move</td><td>Relocate the torrent's data to another allowed folder.</td></tr>
+  <tr><td>Remove</td><td>Remove the torrent, <b>keeping</b> its downloaded files.</td></tr>
+  <tr><td>Remove with data</td><td>Remove the torrent <b>and delete</b> its files. Irreversible — requires a separate permission and is always audited.</td></tr>
+</table>
+
+<h3>Details</h3>
+<p>Click a torrent to open its details drawer, with tabs for <b>Overview</b>,
+<b>Files</b> (per-file priority), <b>Peers</b>, and <b>Trackers</b>. Live data
+updates as it changes.</p>
+
+<h3>Categories &amp; tags</h3>
+<p>Organize transfers with managed <b>categories</b> and <b>tags</b>.</p>
+
+<h2>6. The file manager</h2>
+<p>Under <b>Files</b> you can manage the files on your download volumes. Browsing
+is confined to the roots your administrator configures (the <b>Default Root
+Path</b>); you cannot navigate above them.</p>
+<ul>
+  <li><b>Browse</b> folders, <b>preview</b> text files, and <b>download</b> files.</li>
+  <li><b>Create folder</b>, <b>rename</b>, <b>move</b>, and <b>copy</b>.</li>
+  <li><b>Delete</b> moves items to a <b>Trash</b> you can restore from or empty.
+  Permanent deletes ask for confirmation.</li>
+  <li>The <b>Cleanup Wizard</b> finds junk/leftover files for review before removal.</li>
+  <li>Wherever a folder is needed, a <b>Browse</b> picker lets you pick a
+  location instead of typing a path.</li>
+</ul>
+
+<h2>7. RSS automation</h2>
+<p>Under <b>RSS Feeds</b> you can subscribe to feeds and auto-download matches.</p>
+<ul>
+  <li><b>Add / edit a feed</b> — name, URL (http/https), and refresh interval.</li>
+  <li><b>Rules</b> — per feed, add rules with <b>include</b> / <b>exclude</b>
+  patterns, an optional <b>save path</b> (via the picker), and an
+  <b>auto-download</b> toggle. Edit a rule with the pencil button.</li>
+  <li><b>Match preferences</b> — fine-tune how items are matched and prioritized,
+  with a builder and test tools.</li>
+  <li><b>History</b> — see what each feed has matched and downloaded.</li>
+</ul>
+
+<h2>8. Automation rules</h2>
+<p>Under <b>Automation</b> you can build "when this happens, do that" rules —
+for example, when a torrent completes, move it to a folder or send a
+notification. Each rule has a trigger, optional conditions, and one or more
+actions; rule activity is logged.</p>
+
+<h2>9. Notifications</h2>
+<p>UltraTorrent shows an in-app notification feed and can also fan events out to
+external channels (webhook, Discord, Slack, Telegram). Completed downloads
+notify automatically.</p>
+
+<h2>10. Search</h2>
+<p>Use <b>Search</b> for fast lookup across your torrents.</p>
+
+<h2>11. Your account &amp; security</h2>
+<p>Open <b>Account &amp; security</b> from the user menu to:</p>
+<ul>
+  <li><b>Change your password.</b></li>
+  <li><b>Enable two-factor authentication (2FA)</b> — scan the QR code with an
+  authenticator app, confirm a code, and save your one-time <b>recovery codes</b>
+  somewhere safe.</li>
+  <li><b>Manage API keys</b> — issue and revoke personal keys for scripting.</li>
+</ul>
+
+<h2>12. Administration</h2>
+<div class="note">Administration features require the appropriate permissions;
+most users will not see them.</div>
+<ul>
+  <li><b>Users</b> — create users and assign roles. Roles map to granular,
+  dot-namespaced permissions (e.g. <code>torrents.delete_data</code>), from
+  Super Admin down to Read-Only. Only a Super Admin can grant the Super Admin
+  role.</li>
+  <li><b>Modules</b> — view available modules and their status.</li>
+  <li><b>Settings</b> — configure the instance. This includes the
+  <b>Default Root Path</b>, which sets the highest folder users may browse to;
+  browsing can only be narrowed within the server's allowed storage roots.</li>
+</ul>
+
+<h2>13. System &amp; audit</h2>
+<ul>
+  <li><b>Audit Log</b> — a searchable record of security-relevant and destructive
+  actions, showing who did what, when, from where, and the result.</li>
+  <li>Health and version information is available to administrators.</li>
+</ul>
+
+<h2>14. Getting help</h2>
+<p>UltraTorrent Community is open source under the AGPL-3.0 license. Source code,
+issues, and the latest documentation are at
+<code>github.com/damirabal/ultratorrent-core</code>. To report a security issue,
+please use private disclosure (see the project's Security section) rather than a
+public issue.</p>
+
+</body>
+</html>

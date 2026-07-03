@@ -1,0 +1,1870 @@
+/**
+ * Typed fetch client for the UltraTorrent REST API.
+ *
+ * Responsibilities:
+ *  - Persist the access/refresh token pair in localStorage.
+ *  - Attach the bearer access token to every request.
+ *  - Transparently refresh the access token on a 401 and replay the request
+ *    exactly once. Concurrent 401s share a single in-flight refresh.
+ *  - Surface a typed `ApiError` and broadcast auth changes so React contexts can
+ *    react to forced logout (refresh failure).
+ */
+
+import type {
+  AuthUser,
+  BrowseResponse,
+  BulkOperationType,
+  CleanupCategory,
+  CleanupExecuteResult,
+  CleanupPreview,
+  FileNode,
+  FilePropertiesResponse,
+  LicenseStatus,
+  LoginResponse,
+  ModuleStatus,
+  NormalizedFile,
+  NormalizedPeer,
+  NormalizedTorrent,
+  NormalizedTracker,
+  Paginated,
+  TorrentMatchedRule,
+  TrashItemDto,
+} from '@ultratorrent/shared';
+
+export type { FileNode, FilePropertiesResponse, CleanupPreview, CleanupCategory, CleanupExecuteResult, TrashItemDto, BrowseResponse, BulkOperationType };
+
+const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
+
+const STORAGE_KEY = 'ultratorrent.auth';
+
+export interface StoredTokens {
+  accessToken: string;
+  refreshToken: string;
+  /** Epoch ms at which the access token expires (best-effort). */
+  expiresAt: number;
+}
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+    public readonly body?: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Token store + auth-change broadcast
+// ---------------------------------------------------------------------------
+
+type AuthListener = (tokens: StoredTokens | null) => void;
+const authListeners = new Set<AuthListener>();
+
+let tokens: StoredTokens | null = readTokens();
+
+function readTokens(): StoredTokens | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredTokens;
+    if (!parsed.accessToken || !parsed.refreshToken) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function getTokens(): StoredTokens | null {
+  return tokens;
+}
+
+export function getAccessToken(): string | null {
+  return tokens?.accessToken ?? null;
+}
+
+export function setTokens(next: StoredTokens | null): void {
+  tokens = next;
+  try {
+    if (next) localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* storage unavailable — keep in-memory only */
+  }
+  for (const listener of authListeners) listener(next);
+}
+
+export function onAuthChange(listener: AuthListener): () => void {
+  authListeners.add(listener);
+  return () => authListeners.delete(listener);
+}
+
+function storeLoginResponse(res: LoginResponse): void {
+  setTokens({
+    accessToken: res.accessToken,
+    refreshToken: res.refreshToken,
+    expiresAt: Date.now() + res.expiresIn * 1000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Core request pipeline
+// ---------------------------------------------------------------------------
+
+type QueryParams = Record<string, string | number | boolean | undefined | null>;
+
+interface RequestOptions extends Omit<RequestInit, 'body'> {
+  body?: unknown;
+  /** Skip attaching the bearer token (used by login/refresh). */
+  auth?: boolean;
+  /** Internal: prevent infinite refresh recursion. */
+  _retry?: boolean;
+  /** Raw body passthrough (e.g. FormData) — skips JSON serialization. */
+  raw?: boolean;
+  query?: QueryParams;
+}
+
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function performRefresh(): Promise<boolean> {
+  if (!tokens?.refreshToken) return false;
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: tokens?.refreshToken }),
+      });
+      if (!res.ok) {
+        setTokens(null);
+        return false;
+      }
+      const data = (await res.json()) as LoginResponse;
+      storeLoginResponse(data);
+      return true;
+    } catch {
+      setTokens(null);
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+function buildUrl(path: string, query?: QueryParams): string {
+  // API_URL may be absolute (http://host/api) or relative (/api). Resolving
+  // against the current origin makes new URL() valid in both cases.
+  const target = path.startsWith('http') ? path : `${API_URL}${path}`;
+  const base =
+    typeof window !== 'undefined' ? window.location.origin : undefined;
+  const url = new URL(target, base);
+  if (query) {
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === null || value === '') continue;
+      url.searchParams.set(key, String(value));
+    }
+  }
+  return url.toString();
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { body, auth = true, _retry = false, raw = false, query, headers, ...rest } = options;
+
+  const finalHeaders = new Headers(headers);
+  if (auth && tokens?.accessToken) {
+    finalHeaders.set('Authorization', `Bearer ${tokens.accessToken}`);
+  }
+
+  let finalBody: BodyInit | undefined;
+  if (body !== undefined) {
+    if (raw || body instanceof FormData) {
+      finalBody = body as BodyInit;
+    } else {
+      finalHeaders.set('Content-Type', 'application/json');
+      finalBody = JSON.stringify(body);
+    }
+  }
+
+  const res = await fetch(buildUrl(path, query), {
+    ...rest,
+    headers: finalHeaders,
+    body: finalBody,
+  });
+
+  if (res.status === 401 && auth && !_retry && tokens?.refreshToken) {
+    const refreshed = await performRefresh();
+    if (refreshed) {
+      return request<T>(path, { ...options, _retry: true });
+    }
+  }
+
+  if (!res.ok) {
+    let parsed: unknown;
+    let message = `${res.status} ${res.statusText}`;
+    try {
+      parsed = await res.json();
+      const maybe = parsed as { message?: string | string[]; error?: string };
+      if (Array.isArray(maybe.message)) message = maybe.message.join(', ');
+      else if (typeof maybe.message === 'string') message = maybe.message;
+      else if (typeof maybe.error === 'string') message = maybe.error;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, message, parsed);
+  }
+
+  if (res.status === 204) return undefined as T;
+  const contentType = res.headers.get('Content-Type') ?? '';
+  if (!contentType.includes('application/json')) {
+    return (await res.text()) as unknown as T;
+  }
+  return (await res.json()) as T;
+}
+
+// ---------------------------------------------------------------------------
+// Domain response shapes (server contracts not in @ultratorrent/shared)
+// ---------------------------------------------------------------------------
+
+export interface DashboardSummary {
+  engineOnline: boolean;
+  downloadRate: number;
+  uploadRate: number;
+  totalTorrents: number;
+  downloading: number;
+  paused: number;
+  completed: number;
+  seeding: number;
+  errored: number;
+  ratio: number;
+  totalUploaded: number;
+  totalDownloaded: number;
+}
+
+export interface ActivityItem {
+  id: string;
+  type: string;
+  message: string;
+  hash?: string | null;
+  level?: 'info' | 'success' | 'warning' | 'error';
+  at: string;
+}
+
+export interface AuditEntry {
+  id: string;
+  userId: string | null;
+  action: string;
+  objectType: string | null;
+  objectId: string | null;
+  result: 'success' | 'failure';
+  ipAddress: string | null;
+  userAgent: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  user?: { username: string } | null;
+}
+
+export interface RssRule {
+  id: string;
+  /** The feed the rule was created under (its "home" feed). */
+  feedId: string;
+  /**
+   * Every feed this rule targets: its owner feed plus any feed named by an
+   * enabled match candidate's feed scope. The rule is polled against — and
+   * listed under — each of these.
+   */
+  feedIds: string[];
+  name: string;
+  includeRegex: string | null;
+  excludeRegex: string | null;
+  categoryId: string | null;
+  savePath: string | null;
+  autoDownload: boolean;
+  isEnabled: boolean;
+  createdAt: string;
+}
+
+export interface RssFeed {
+  id: string;
+  name: string;
+  url: string;
+  refreshInterval: number; // seconds
+  isEnabled: boolean;
+  lastFetchedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  rules: RssRule[];
+}
+
+export interface RssHistoryItem {
+  id: string;
+  feedId: string;
+  itemGuid: string;
+  title: string;
+  link: string;
+  magnet: string | null;
+  matched: boolean;
+  downloaded: boolean;
+  createdAt: string;
+}
+
+/** Portable bundle of rules + match candidates (keyed to feeds by URL). */
+export interface RssExportBundle {
+  kind: 'ultratorrent.rss-export';
+  version: number;
+  exportedAt: string;
+  rules: unknown[];
+}
+
+/** Result of importing an {@link RssExportBundle}. */
+export interface RssImportSummary {
+  feedsCreated: number;
+  rulesCreated: number;
+  candidatesCreated: number;
+  rulesSkipped: number;
+}
+
+/** A page of feed history plus whole-feed status counts (mutually exclusive). */
+export interface RssHistoryPage {
+  items: RssHistoryItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  counts: { downloaded: number; matched: number; seen: number };
+}
+
+export interface CreateFeedInput {
+  name: string;
+  url: string;
+  refreshInterval?: number;
+  isEnabled?: boolean;
+}
+
+export type UpdateFeedInput = Partial<CreateFeedInput>;
+
+export interface CreateRuleInput {
+  feedId: string;
+  name: string;
+  includeRegex?: string;
+  excludeRegex?: string;
+  savePath?: string;
+  autoDownload?: boolean;
+}
+
+/** Editable fields of an RSS rule (feed is fixed). Empty string clears a pattern. */
+export type UpdateRuleInput = Partial<Omit<CreateRuleInput, 'feedId'>>;
+
+export interface AutomationCondition {
+  field: string;
+  op: string;
+  value: string | number | boolean;
+}
+
+export interface AutomationAction {
+  type: string;
+  params?: Record<string, unknown>;
+}
+
+export interface AutomationRule {
+  id: string;
+  name: string;
+  description: string | null;
+  trigger: string;
+  conditions: AutomationCondition[];
+  actions: AutomationAction[];
+  isEnabled: boolean;
+  priority: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertAutomationInput {
+  name: string;
+  description?: string;
+  trigger: string;
+  conditions: AutomationCondition[];
+  actions: AutomationAction[];
+  isEnabled?: boolean;
+  priority?: number;
+}
+
+export interface AutomationLog {
+  id: string;
+  ruleId: string;
+  status: 'success' | 'failed' | 'skipped';
+  context: Record<string, unknown>;
+  message: string | null;
+  createdAt: string;
+}
+
+export interface AccountProfile {
+  id: string;
+  username: string;
+  email: string;
+  displayName: string | null;
+  roles: string[];
+  twoFactorEnabled: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
+export interface TwoFactorSetup {
+  secret: string;
+  otpauthUrl: string;
+  qrDataUrl: string;
+}
+
+// FileNode / BrowseResponse are sourced from @ultratorrent/shared (re-exported above).
+
+export interface SystemHealth {
+  status: 'ok' | 'degraded' | 'down';
+  uptimeSeconds: number;
+  version: string;
+  engines: { id: string; kind: string; online: boolean; latencyMs: number | null }[];
+  disk: { path: string; freeBytes: number; totalBytes: number }[];
+  memory: { usedBytes: number; totalBytes: number } | null;
+}
+
+/** File-browser Default Root Path state, from `GET /api/files/root`. */
+export interface FileBrowserRoot {
+  /** Effective absolute root the browser is confined to. */
+  root: string;
+  /** Admin-configured value (null = using the env default). */
+  configured: string | null;
+  /** Ops-controlled hard boundary (FILE_MANAGER_ROOTS). */
+  hardRoots: string[];
+  exists: boolean;
+  readable: boolean;
+  writable: boolean;
+}
+
+/** Platform identity + version, from the public `GET /api/system/version`. */
+export interface SystemVersion {
+  product: string;
+  version: string;
+  edition: string;
+  apiVersion: string;
+  gitSha: string | null;
+  buildTime: string | null;
+  node: string;
+}
+
+export interface ModuleHealth {
+  id: string;
+  status: 'healthy' | 'disabled' | 'locked' | 'degraded';
+  enabled: boolean;
+  licensed: boolean;
+  unmetDependencies: string[];
+  checkedAt: string;
+}
+
+export interface AppSettings {
+  [key: string]: unknown;
+}
+
+export type BulkAction = 'start' | 'stop' | 'pause' | 'resume' | 'recheck' | 'remove' | 'removeData';
+export type TorrentAction = 'start' | 'stop' | 'pause' | 'resume' | 'recheck';
+
+export interface TorrentQuery {
+  search?: string;
+  state?: string;
+  category?: string;
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface AddTorrentPayload {
+  magnet?: string;
+  url?: string;
+  category?: string;
+  tags?: string[];
+  savePath?: string;
+  startPaused?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Match Preferences (RSS automation candidates)
+// ---------------------------------------------------------------------------
+
+export type MatchType =
+  | 'exact_text'
+  | 'contains_text'
+  | 'regex'
+  | 'wildcard'
+  | 'smart_episode_match'
+  | 'smart_movie_match'
+  | 'fuzzy_match';
+
+export interface CandidateQualityRules {
+  quality?: string;
+  source?: string;
+  codec?: string;
+  resolution?: string;
+  season?: number;
+  episode?: number;
+  year?: number;
+}
+
+export interface CandidateSizeRules {
+  minBytes?: number;
+  maxBytes?: number;
+}
+
+export interface CandidateFeedScope {
+  feedIds?: string[];
+}
+
+export interface RssRuleMatchCandidate {
+  id: string;
+  rssRuleId: string;
+  priorityOrder: number;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  matchType: MatchType;
+  pattern: string | null;
+  requiredTerms: string[];
+  excludedTerms: string[];
+  qualityRules: CandidateQualityRules;
+  sizeRules: CandidateSizeRules;
+  feedScope: CandidateFeedScope;
+  lastMatchedAt: string | null;
+  matchCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CheckResult {
+  label: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface CandidateResult {
+  candidateId: string;
+  name: string;
+  priorityOrder: number;
+  matchType: MatchType;
+  result: 'matched' | 'failed' | 'skipped' | 'disabled';
+  reason: string;
+  checks: CheckResult[];
+}
+
+export interface ParsedRelease {
+  resolution?: string;
+  source?: string;
+  codec?: string;
+  season?: number;
+  episode?: number;
+  year?: number;
+  languages: string[];
+  repack: boolean;
+  proper: boolean;
+  badQuality: string[];
+}
+
+export interface RssRuleMatchEvaluation {
+  id: string;
+  rssRuleId: string;
+  rssItemId: string;
+  matchedCandidateId: string | null;
+  matchedCandidatePriority: number | null;
+  result: 'matched' | 'no_match' | 'skipped_duplicate';
+  evaluationTrace: { parsed: ParsedRelease; candidates: CandidateResult[] };
+  actionTaken: string | null;
+  torrentHash: string | null;
+  createdAt: string;
+}
+
+/** Body shared by create (all required-ish) and update (partial) candidate calls. */
+export interface CandidateInput {
+  name: string;
+  matchType: MatchType;
+  pattern?: string;
+  description?: string;
+  enabled?: boolean;
+  requiredTerms?: string[];
+  excludedTerms?: string[];
+  qualityRules?: CandidateQualityRules;
+  sizeRules?: CandidateSizeRules;
+  feedScope?: CandidateFeedScope;
+  priorityOrder?: number;
+}
+
+export interface ParseExplanation {
+  field: string;
+  value: string;
+  reason: string;
+}
+
+export interface ParsedTorrentMeta {
+  title: string | null;
+  season: number | null;
+  episode: number | null;
+  absoluteEpisode: number | null;
+  part: number | null;
+  airDate: string | null;
+  year: number | null;
+  resolution: string | null;
+  source: string | null;
+  codec: string | null;
+  audio: string[];
+  hdr: string[];
+  languages: string[];
+  releaseGroup: string | null;
+  proper: boolean;
+  repack: boolean;
+  contentType: 'tv_episode' | 'anime_episode' | 'movie' | 'daily' | 'unknown';
+  explanations: ParseExplanation[];
+  warnings: string[];
+  confidence: number;
+}
+
+export interface GeneratedCandidate {
+  name: string;
+  description: string;
+  matchType: MatchType;
+  pattern: string;
+  requiredTerms: string[];
+  excludedTerms: string[];
+  qualityRules: CandidateQualityRules;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface SmartAnalyzeResult {
+  sourceName: string;
+  parsedMetadata: ParsedTorrentMeta;
+  confidenceScore: number;
+  recommendedCandidates: GeneratedCandidate[];
+  explanations: ParseExplanation[];
+  warnings: string[];
+}
+
+export interface SmartTestResult {
+  parsedMetadata: ParsedTorrentMeta;
+  candidates: GeneratedCandidate[];
+  results: Array<{ title: string } & PreferenceListResultItem>;
+  recommendation: {
+    matchedCandidateId: string | null;
+    matchedCandidateName: string | null;
+    action: 'download' | 'none';
+  };
+}
+
+export interface ApplySmartMatchInput {
+  sourceName: string;
+  parsedMetadata: ParsedTorrentMeta;
+  confidenceScore: number;
+  recommendedCandidates: GeneratedCandidate[];
+  userEdited: boolean;
+}
+
+export interface TestMatchResultItem extends CandidateResult {
+  title: string;
+}
+
+export interface PreferenceListResultItem {
+  title: string;
+  matched: boolean;
+  matchedCandidateId: string | null;
+  matchedCandidatePriority: number | null;
+  action: 'download' | 'none';
+  candidates: CandidateResult[];
+  parsed: ParsedRelease;
+}
+
+/** One history item evaluated by `testAgainstHistory` — actionable (grabbable). */
+export interface HistoryTestResultItem extends PreferenceListResultItem {
+  historyId: string;
+  downloaded: boolean;
+  hasMagnet: boolean;
+}
+
+/** Result of testing a rule's preference list against its stored feed history. */
+export interface HistoryTestResult {
+  results: HistoryTestResultItem[];
+  /** How many history items were available to test against (0 = none yet). */
+  historyCount: number;
+}
+
+/** Outcome of grabbing already-seen history items that match a rule. */
+export interface RssBackfillSummary {
+  evaluated: number;
+  matched: number;
+  downloaded: number;
+}
+
+// ---------------------------------------------------------------------------
+// Users & roles
+// ---------------------------------------------------------------------------
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  displayName: string | null;
+  isActive: boolean;
+  isSystem: boolean;
+  lastLoginAt: string | null;
+  roles: string[];
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  description: string | null;
+  permissions: { permission: { key: string } }[];
+}
+
+export interface CreateUserInput {
+  username: string;
+  email: string;
+  displayName?: string;
+  password: string;
+  roleNames: string[];
+}
+
+export interface UpdateUserInput {
+  email?: string;
+  displayName?: string;
+  isActive?: boolean;
+  roleNames?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Media renamer
+// ---------------------------------------------------------------------------
+
+export type MediaKind = 'tv' | 'anime' | 'movie' | 'music' | 'audiobook' | 'general';
+export type Preset = 'plex' | 'jellyfin' | 'emby' | 'kodi' | 'custom';
+export type RenameMode =
+  | 'preview'
+  | 'rename_in_place'
+  | 'rename_move'
+  | 'copy'
+  | 'hardlink'
+  | 'symlink';
+
+export type MediaPresets = Record<
+  Exclude<Preset, 'custom'>,
+  Partial<Record<MediaKind, string>>
+>;
+
+export interface MediaLibrary {
+  id: string;
+  name: string;
+  kind: MediaKind;
+  path: string;
+  preset: Preset;
+  template: string | null;
+  mode: RenameMode;
+  isEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLibraryInput {
+  name: string;
+  path: string;
+  kind: MediaKind;
+  preset: Preset;
+  template?: string;
+  mode: RenameMode;
+  isEnabled?: boolean;
+}
+
+export interface RenamePlanItem {
+  source: string;
+  destination: string | null;
+  action: string;
+  kind: string;
+  reason: string;
+  skipped: boolean;
+  isSubtitle: boolean;
+  isSample: boolean;
+  isExtra: boolean;
+}
+
+export interface RenamePlan {
+  mode: RenameMode;
+  preset: Preset;
+  libraryPath: string;
+  kind: MediaKind;
+  parsed: Record<string, unknown>;
+  items: RenamePlanItem[];
+  warnings: string[];
+}
+
+export interface RenameRequest {
+  hash?: string;
+  engineId?: string;
+  path?: string;
+  preset: Preset;
+  mode: RenameMode;
+  libraryPath: string;
+  template?: string;
+}
+
+export interface RenameApplyResult {
+  applied: number;
+  skipped: number;
+  failed: number;
+  plan: RenamePlan;
+}
+
+export interface MediaRenameOperation {
+  id: string;
+  source: string;
+  destination: string;
+  action: string;
+  kind: string;
+  mode: RenameMode;
+  status: string;
+  message: string | null;
+  torrentHash: string | null;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Media Renamer Pro (Milestone 6) — /api/media-renamer
+// ---------------------------------------------------------------------------
+
+export interface MediaRenamerFileInput {
+  path: string;
+  size?: number;
+}
+
+export interface MediaRenamerAnalyzeResult {
+  mediaType: string;
+  parsed: Record<string, unknown>;
+  confidence: number;
+}
+
+export interface MediaRenamerPlanItem {
+  source: string;
+  destination: string | null;
+  action: string;
+  kind: string;
+  reason: string;
+  skipped: boolean;
+  isSubtitle: boolean;
+  isSample: boolean;
+  isExtra: boolean;
+}
+
+export interface MediaRenamerPlan {
+  kind: string;
+  warnings: string[];
+  items: MediaRenamerPlanItem[];
+}
+
+export interface MediaRenameJob {
+  id: string;
+  status: string;
+  mode: RenameMode;
+  sourcePath: string;
+  mediaType: string;
+  confidenceScore: number;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface MediaRenameJobFile {
+  id?: string;
+  originalPath: string;
+  proposedPath: string;
+  finalPath: string | null;
+  fileType: string;
+  action: string;
+  status: string;
+  errorMessage: string | null;
+}
+
+export interface MediaRenameJobDetail extends MediaRenameJob {
+  files: MediaRenameJobFile[];
+}
+
+export interface MediaRenamerRunBody {
+  sourceName: string;
+  files: MediaRenamerFileInput[];
+  preset: Preset;
+  mode: RenameMode;
+  libraryPath: string;
+  template?: string;
+}
+
+export interface MediaRenamerDryRunResult {
+  job: MediaRenameJob;
+  plan: MediaRenamerPlan;
+}
+
+export interface MediaRenamerRollbackResult {
+  ok: boolean;
+  reverted: number;
+}
+
+export interface MediaRenamerTemplate {
+  id: string;
+  name: string;
+  mediaType: string;
+  serverPreset: string;
+  template: string;
+  enabled: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpsertMediaRenamerTemplateInput {
+  name: string;
+  mediaType: string;
+  serverPreset: string;
+  template: string;
+  enabled?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Release Scoring (Milestone 6) — /api/release-scoring
+// ---------------------------------------------------------------------------
+
+export type TrackerHealth = 'healthy' | 'degraded' | 'dead';
+export type ReleaseDecision = 'download' | 'review' | 'skip' | 'reject';
+
+export interface ReleaseScoreInput {
+  title: string;
+  preferredResolution?: string;
+  preferredCodec?: string;
+  preferredSources?: string[];
+  preferredGroups?: string[];
+  avoidedGroups?: string[];
+  excludedTerms?: string[];
+  seeders?: number;
+  trackerHealth?: TrackerHealth;
+  duplicateRisk?: boolean;
+}
+
+export interface ReleaseScoreResult {
+  score: number;
+  decision: ReleaseDecision;
+  reasons: string[];
+  warnings: string[];
+  parsed: Record<string, unknown>;
+}
+
+export interface ReleaseRuleInput extends Omit<ReleaseScoreInput, 'title'> {
+  minScore?: number;
+}
+
+export interface ReleaseTestRuleInput {
+  title: string;
+  rule: ReleaseRuleInput;
+}
+
+export interface ReleaseTestRuleResult extends ReleaseScoreResult {
+  minScore: number;
+  passed: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Media Acquisition Intelligence (Premium) — /api/media-acquisition
+// ---------------------------------------------------------------------------
+
+export type MediaAcquisitionDecision =
+  | 'download'
+  | 'skip'
+  | 'hold_for_approval'
+  | 'upgrade_existing'
+  | 'replace_existing'
+  | 'manual_review';
+
+export type WatchlistItemType =
+  | 'series'
+  | 'season'
+  | 'episode'
+  | 'movie'
+  | 'movie_collection'
+  | 'anime'
+  | 'manual_query';
+
+export type WatchlistStatus = 'active' | 'paused' | (string & {});
+
+export interface MediaAcquisitionRecentDecision {
+  id: string;
+  releaseName: string;
+  decision: MediaAcquisitionDecision;
+  reason: string;
+  createdAt: string;
+}
+
+export interface MediaAcquisitionOverview {
+  watchlist: { active: number };
+  approvals: { pending: number };
+  decisions: { recommended: number; skipped: number; upgrades: number };
+  recent: MediaAcquisitionRecentDecision[];
+}
+
+export interface WatchlistItem {
+  id: string;
+  type: WatchlistItemType;
+  title: string;
+  year: number | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  status: WatchlistStatus;
+  priority: number;
+  profileId: string | null;
+  createdAt: string;
+}
+
+export interface CreateWatchlistInput {
+  type: WatchlistItemType;
+  title: string;
+  year?: number;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  collectionName?: string;
+  status?: WatchlistStatus;
+  priority?: number;
+  profileId?: string;
+}
+
+export interface UpdateWatchlistInput {
+  title?: string;
+  year?: number;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  collectionName?: string;
+  status?: WatchlistStatus;
+  priority?: number;
+  profileId?: string | null;
+}
+
+export type AcquisitionMediaType = 'tv' | 'movie' | 'anime' | 'any';
+
+export interface AcquisitionProfile {
+  id: string;
+  name: string;
+  mediaType: AcquisitionMediaType;
+  minimumScore: number;
+  approvalScore: number;
+  preferredResolution: string | null;
+  preferredCodec: string | null;
+  preferredSource: string | null;
+  excludedTerms: string[];
+  requiredTerms: string[];
+  preferredGroups: string[];
+  enabled: boolean;
+}
+
+export interface CreateAcquisitionProfileInput {
+  name: string;
+  mediaType: AcquisitionMediaType;
+  minimumScore?: number;
+  approvalScore?: number;
+  minimumResolution?: string;
+  preferredResolution?: string;
+  preferredSource?: string;
+  preferredCodec?: string;
+  preferredAudio?: string;
+  preferredHdr?: string;
+  preferredLanguages?: string[];
+  requiredTerms?: string[];
+  excludedTerms?: string[];
+  preferredGroups?: string[];
+  duplicateRules?: Record<string, unknown>;
+  storageRules?: Record<string, unknown>;
+  automationRules?: Record<string, unknown>;
+  enabled?: boolean;
+}
+
+export type AcquisitionApprovalStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'not_required'
+  | (string & {});
+
+export interface AcquisitionTraceStep {
+  step: string;
+  status: string;
+  reason: string;
+  score?: number;
+  decision?: string;
+}
+
+export interface AcquisitionEvaluation {
+  id: string;
+  releaseName: string;
+  decision: MediaAcquisitionDecision;
+  decisionReason: string;
+  confidence: number;
+  requiresApproval: boolean;
+  approvalStatus: AcquisitionApprovalStatus;
+  trace: { steps: AcquisitionTraceStep[] };
+  releaseScore: number;
+  libraryMatch: unknown;
+  duplicateRisk: unknown;
+  createdAt?: string;
+}
+
+export interface AcquisitionEvaluationAction {
+  id?: string;
+  actionType?: string;
+  status?: string;
+  message?: string | null;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+export interface AcquisitionEvaluationDetail extends AcquisitionEvaluation {
+  actions: AcquisitionEvaluationAction[];
+}
+
+export interface EvaluateInput {
+  releaseName: string;
+  sourceType?: string;
+  profileId?: string;
+  sizeBytes?: number;
+  seeders?: number;
+}
+
+export interface AcquisitionHistoryEvent {
+  eventType: string;
+  message: string;
+  createdAt: string;
+}
+
+export interface AcquisitionRecommendations {
+  pendingApprovals: { id: string; releaseName: string; reason: string }[];
+  qualityUpgrades: { id: string; releaseName: string }[];
+  watchlistWithNoMatches: { id: string; title: string }[];
+}
+
+export interface AcquisitionSettings {
+  autoEvaluateRss: boolean;
+  defaultProfileId: string | null;
+  approvalExpiryHours: number;
+  notifyOnApprovalRequired: boolean;
+}
+
+export interface AcquisitionExportInput {
+  evaluations?: boolean;
+  watchlist?: boolean;
+  profiles?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Public API surface
+// ---------------------------------------------------------------------------
+
+// --- Torrent engines (core) ------------------------------------------------
+export type EngineKind = 'rtorrent' | 'qbittorrent' | 'transmission' | 'deluge';
+export type EngineMode = 'scgi-tcp' | 'scgi-unix' | 'http';
+
+export interface EngineConnectionInput {
+  mode: EngineMode;
+  host?: string;
+  port?: number;
+  socketPath?: string;
+  url?: string;
+  timeoutMs?: number;
+}
+
+export interface EngineSummary {
+  id: string;
+  name: string;
+  kind: string;
+  isDefault: boolean;
+  isEnabled: boolean;
+  mode?: EngineMode;
+  host?: string;
+  port?: number;
+  socketPath?: string;
+  url?: string;
+  timeoutMs?: number;
+}
+
+export interface CreateEngineInput {
+  name: string;
+  kind: string;
+  config: EngineConnectionInput;
+  isDefault?: boolean;
+  isEnabled?: boolean;
+}
+
+export interface UpdateEngineInput {
+  name?: string;
+  config?: EngineConnectionInput;
+  isDefault?: boolean;
+  isEnabled?: boolean;
+}
+
+export interface EngineHealthStatus {
+  online: boolean;
+  latencyMs: number | null;
+  version: string | null;
+  error: string | null;
+  checkedAt: string;
+}
+
+export const api = {
+  auth: {
+    async login(
+      username: string,
+      password: string,
+      totp?: string,
+    ): Promise<LoginResponse> {
+      const res = await request<LoginResponse>('/auth/login', {
+        method: 'POST',
+        auth: false,
+        body: { username, password, ...(totp ? { totp } : {}) },
+      });
+      storeLoginResponse(res);
+      return res;
+    },
+    async logout(): Promise<void> {
+      const refreshToken = tokens?.refreshToken;
+      try {
+        if (refreshToken) {
+          await request<void>('/auth/logout', {
+            method: 'POST',
+            body: { refreshToken },
+          });
+        }
+      } finally {
+        setTokens(null);
+      }
+    },
+    me(): Promise<AuthUser> {
+      return request<AuthUser>('/auth/me');
+    },
+  },
+
+  dashboard: {
+    summary(): Promise<DashboardSummary> {
+      return request<DashboardSummary>('/dashboard/summary');
+    },
+    activity(): Promise<ActivityItem[]> {
+      return request<ActivityItem[]>('/dashboard/activity');
+    },
+  },
+
+  torrents: {
+    list(query: TorrentQuery = {}): Promise<Paginated<NormalizedTorrent>> {
+      return request<Paginated<NormalizedTorrent>>('/torrents', {
+        query: query as QueryParams,
+      });
+    },
+    get(hash: string): Promise<NormalizedTorrent> {
+      return request<NormalizedTorrent>(`/torrents/${hash}`);
+    },
+    files(hash: string): Promise<NormalizedFile[]> {
+      return request<NormalizedFile[]>(`/torrents/${hash}/files`);
+    },
+    matchedRule(hash: string): Promise<TorrentMatchedRule | null> {
+      return request<TorrentMatchedRule | null>(`/torrents/${hash}/matched-rule`);
+    },
+    peers(hash: string): Promise<NormalizedPeer[]> {
+      return request<NormalizedPeer[]>(`/torrents/${hash}/peers`);
+    },
+    trackers(hash: string): Promise<NormalizedTracker[]> {
+      return request<NormalizedTracker[]>(`/torrents/${hash}/trackers`);
+    },
+    add(payload: AddTorrentPayload): Promise<NormalizedTorrent> {
+      return request<NormalizedTorrent>('/torrents', { method: 'POST', body: payload });
+    },
+    upload(file: File, options: Omit<AddTorrentPayload, 'magnet' | 'url'> = {}): Promise<NormalizedTorrent> {
+      const form = new FormData();
+      form.append('file', file);
+      if (options.category) form.append('category', options.category);
+      if (options.savePath) form.append('savePath', options.savePath);
+      if (options.startPaused != null) form.append('startPaused', String(options.startPaused));
+      if (options.tags?.length) form.append('tags', options.tags.join(','));
+      return request<NormalizedTorrent>('/torrents/upload', { method: 'POST', body: form, raw: true });
+    },
+    action(hash: string, action: TorrentAction): Promise<void> {
+      return request<void>(`/torrents/${hash}/${action}`, { method: 'POST' });
+    },
+    remove(hash: string, withData = false): Promise<void> {
+      return request<void>(`/torrents/${hash}${withData ? '/data' : ''}`, { method: 'DELETE' });
+    },
+    bulk(hashes: string[], action: BulkAction): Promise<void> {
+      return request<void>('/torrents/bulk', { method: 'POST', body: { hashes, action } });
+    },
+  },
+
+  audit: {
+    list(query: { page?: number; pageSize?: number } = {}): Promise<Paginated<AuditEntry>> {
+      return request<Paginated<AuditEntry>>('/audit', { query });
+    },
+  },
+
+  rss: {
+    list(): Promise<RssFeed[]> {
+      return request<RssFeed[]>('/rss/feeds');
+    },
+    createFeed(body: CreateFeedInput): Promise<RssFeed> {
+      return request<RssFeed>('/rss/feeds', { method: 'POST', body });
+    },
+    updateFeed(id: string, body: UpdateFeedInput): Promise<RssFeed> {
+      return request<RssFeed>(`/rss/feeds/${id}`, { method: 'PATCH', body });
+    },
+    deleteFeed(id: string): Promise<void> {
+      return request<void>(`/rss/feeds/${id}`, { method: 'DELETE' });
+    },
+    history(
+      feedId: string,
+      query: { page?: number; pageSize?: number } = {},
+    ): Promise<RssHistoryPage> {
+      return request<RssHistoryPage>(`/rss/feeds/${feedId}/history`, { query });
+    },
+    refreshFeed(feedId: string): Promise<{ newItems: number; downloaded: number }> {
+      return request<{ newItems: number; downloaded: number }>(
+        `/rss/feeds/${feedId}/refresh`,
+        { method: 'POST' },
+      );
+    },
+    createRule(body: CreateRuleInput): Promise<RssRule> {
+      return request<RssRule>('/rss/rules', { method: 'POST', body });
+    },
+    exportRules(): Promise<RssExportBundle> {
+      return request<RssExportBundle>('/rss/rules-export');
+    },
+    importRules(bundle: unknown): Promise<RssImportSummary> {
+      return request<RssImportSummary>('/rss/rules-import', { method: 'POST', body: bundle });
+    },
+    updateRule(id: string, body: UpdateRuleInput): Promise<RssRule> {
+      return request<RssRule>(`/rss/rules/${id}`, { method: 'PATCH', body });
+    },
+    deleteRule(id: string): Promise<void> {
+      return request<void>(`/rss/rules/${id}`, { method: 'DELETE' });
+    },
+    listCandidates(ruleId: string): Promise<RssRuleMatchCandidate[]> {
+      return request<RssRuleMatchCandidate[]>(`/rss/rules/${ruleId}/match-candidates`);
+    },
+    createCandidate(
+      ruleId: string,
+      body: CandidateInput,
+    ): Promise<RssRuleMatchCandidate & { backfill?: RssBackfillSummary }> {
+      return request<RssRuleMatchCandidate & { backfill?: RssBackfillSummary }>(
+        `/rss/rules/${ruleId}/match-candidates`,
+        { method: 'POST', body },
+      );
+    },
+    updateCandidate(
+      ruleId: string,
+      candidateId: string,
+      body: Partial<CandidateInput>,
+    ): Promise<RssRuleMatchCandidate & { backfill?: RssBackfillSummary }> {
+      return request<RssRuleMatchCandidate & { backfill?: RssBackfillSummary }>(
+        `/rss/rules/${ruleId}/match-candidates/${candidateId}`,
+        { method: 'PATCH', body },
+      );
+    },
+    deleteCandidate(ruleId: string, candidateId: string): Promise<void> {
+      return request<void>(`/rss/rules/${ruleId}/match-candidates/${candidateId}`, {
+        method: 'DELETE',
+      });
+    },
+    reorderCandidates(ruleId: string, orderedIds: string[]): Promise<RssRuleMatchCandidate[]> {
+      return request<RssRuleMatchCandidate[]>(
+        `/rss/rules/${ruleId}/match-candidates/reorder`,
+        { method: 'POST', body: { orderedIds } },
+      );
+    },
+    testMatch(
+      ruleId: string,
+      body: { candidateId?: string; candidate?: CandidateInput; titles: string[] },
+    ): Promise<{ results: TestMatchResultItem[] }> {
+      return request<{ results: TestMatchResultItem[] }>(
+        `/rss/rules/${ruleId}/test-match`,
+        { method: 'POST', body },
+      );
+    },
+    testPreferenceList(
+      ruleId: string,
+      body: { titles: string[] },
+    ): Promise<{ results: PreferenceListResultItem[] }> {
+      return request<{ results: PreferenceListResultItem[] }>(
+        `/rss/rules/${ruleId}/test-preference-list`,
+        { method: 'POST', body },
+      );
+    },
+    testAgainstHistory(ruleId: string): Promise<HistoryTestResult> {
+      return request<HistoryTestResult>(`/rss/rules/${ruleId}/test-history`, {
+        method: 'POST',
+      });
+    },
+    backfill(ruleId: string): Promise<RssBackfillSummary> {
+      return request<RssBackfillSummary>(`/rss/rules/${ruleId}/backfill`, {
+        method: 'POST',
+      });
+    },
+    downloadHistoryItem(historyId: string): Promise<RssHistoryItem & { torrentHash: string }> {
+      return request<RssHistoryItem & { torrentHash: string }>(
+        `/rss/history/${historyId}/download`,
+        { method: 'POST' },
+      );
+    },
+    matchHistory(ruleId: string): Promise<RssRuleMatchEvaluation[]> {
+      return request<RssRuleMatchEvaluation[]>(`/rss/rules/${ruleId}/match-history`);
+    },
+    convertToRegex(text: string): Promise<{ pattern: string }> {
+      return request<{ pattern: string }>('/rss/convert-to-regex', {
+        method: 'POST',
+        body: { text },
+      });
+    },
+    analyzeSmartMatch(torrentName: string): Promise<SmartAnalyzeResult> {
+      return request<SmartAnalyzeResult>('/rss/smart-match/analyze', {
+        method: 'POST',
+        body: { torrentName },
+      });
+    },
+    testSmartMatch(body: {
+      torrentName: string;
+      sampleItems?: string[];
+      rssFeedId?: string;
+    }): Promise<SmartTestResult> {
+      return request<SmartTestResult>('/rss/smart-match/test', {
+        method: 'POST',
+        body,
+      });
+    },
+    applySmartMatch(
+      ruleId: string,
+      body: ApplySmartMatchInput,
+    ): Promise<RssRuleMatchCandidate[]> {
+      return request<RssRuleMatchCandidate[]>(`/rss/rules/${ruleId}/apply-smart-match`, {
+        method: 'POST',
+        body,
+      });
+    },
+  },
+
+  automation: {
+    list(): Promise<AutomationRule[]> {
+      return request<AutomationRule[]>('/automation/rules');
+    },
+    create(body: UpsertAutomationInput): Promise<AutomationRule> {
+      return request<AutomationRule>('/automation/rules', {
+        method: 'POST',
+        body,
+      });
+    },
+    update(id: string, body: UpsertAutomationInput): Promise<AutomationRule> {
+      return request<AutomationRule>(`/automation/rules/${id}`, {
+        method: 'PATCH',
+        body,
+      });
+    },
+    remove(id: string): Promise<void> {
+      return request<void>(`/automation/rules/${id}`, { method: 'DELETE' });
+    },
+    logs(id: string): Promise<AutomationLog[]> {
+      return request<AutomationLog[]>(`/automation/rules/${id}/logs`);
+    },
+  },
+
+  files: {
+    /** @deprecated use browse(); retained for back-compat. */
+    async list(path = '/'): Promise<FileNode[]> {
+      const res = await request<BrowseResponse>('/files', { query: { path } });
+      return res?.items ?? [];
+    },
+    browse(path = '/'): Promise<BrowseResponse> {
+      return request<BrowseResponse>('/files', { query: { path } });
+    },
+    /** Effective Default Root Path + read/write status. */
+    root(): Promise<FileBrowserRoot> {
+      return request<FileBrowserRoot>('/files/root');
+    },
+    /** Change the Default Root Path (admin; validated + audited server-side). */
+    setRoot(path: string): Promise<FileBrowserRoot> {
+      return request<FileBrowserRoot>('/files/root', { method: 'PUT', body: { path } });
+    },
+    properties(path: string): Promise<FilePropertiesResponse> {
+      return request<FilePropertiesResponse>('/files/properties', { query: { path } });
+    },
+    preview(path: string): Promise<{ path: string; content: string }> {
+      return request<{ path: string; content: string }>('/files/preview', { query: { path } });
+    },
+    /** Fetch the file with the bearer token and trigger a browser download. */
+    async download(path: string): Promise<void> {
+      const token = getAccessToken();
+      const res = await fetch(buildUrl('/files/download', { path }), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new ApiError(res.status, `Download failed (${res.status})`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = path.split('/').filter(Boolean).pop() ?? 'download';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    },
+    createFolder(path: string, name: string): Promise<unknown> {
+      return request('/files/folders', { method: 'POST', body: { path, name } });
+    },
+    rename(path: string, newName: string, overwrite = false): Promise<unknown> {
+      return request('/files/rename', { method: 'POST', body: { path, newName, overwrite } });
+    },
+    move(source: string, destination: string, overwrite = false): Promise<unknown> {
+      return request('/files/move', { method: 'POST', body: { source, destination, overwrite } });
+    },
+    copy(source: string, destination: string, overwrite = false): Promise<unknown> {
+      return request('/files/copy', { method: 'POST', body: { source, destination, overwrite } });
+    },
+    remove(path: string, permanent = false): Promise<unknown> {
+      return request('/files/delete', { method: 'POST', body: { path, permanent } });
+    },
+    bulk(dto: {
+      operation: BulkOperationType;
+      paths: string[];
+      destination?: string;
+      overwrite?: boolean;
+      permanent?: boolean;
+    }): Promise<{ operation: string; total: number; succeeded: number; failed: number; results: Array<{ path: string; ok: boolean; message?: string }> }> {
+      return request('/files/bulk', { method: 'POST', body: dto });
+    },
+    cleanupPreview(path: string, categories?: CleanupCategory[]): Promise<CleanupPreview> {
+      return request<CleanupPreview>('/files/cleanup-preview', {
+        method: 'POST',
+        body: { path, categories },
+      });
+    },
+    cleanupExecute(path: string, paths: string[], permanent = false): Promise<CleanupExecuteResult> {
+      return request<CleanupExecuteResult>('/files/cleanup-execute', {
+        method: 'POST',
+        body: { path, paths, permanent },
+      });
+    },
+    trash: {
+      list(): Promise<TrashItemDto[]> {
+        return request<TrashItemDto[]>('/files/trash');
+      },
+      restore(id: string, overwrite = false): Promise<unknown> {
+        return request('/files/trash/restore', { method: 'POST', body: { id, overwrite } });
+      },
+      purge(id: string): Promise<unknown> {
+        return request('/files/trash/purge', { method: 'POST', body: { id } });
+      },
+      empty(): Promise<{ removed: number; bytes: number }> {
+        return request('/files/trash/empty', { method: 'POST', body: {} });
+      },
+    },
+  },
+
+  settings: {
+    get(): Promise<AppSettings> {
+      return request<AppSettings>('/settings');
+    },
+    update(patch: AppSettings): Promise<AppSettings> {
+      return request<AppSettings>('/settings', { method: 'PATCH', body: patch });
+    },
+  },
+
+  account: {
+    profile(): Promise<AccountProfile> {
+      return request<AccountProfile>('/account/profile');
+    },
+    updateProfile(body: {
+      email?: string;
+      displayName?: string;
+    }): Promise<AccountProfile> {
+      return request<AccountProfile>('/account/profile', {
+        method: 'PATCH',
+        body,
+      });
+    },
+    changePassword(
+      currentPassword: string,
+      newPassword: string,
+    ): Promise<{ success: boolean }> {
+      return request('/account/password', {
+        method: 'POST',
+        body: { currentPassword, newPassword },
+      });
+    },
+    twoFactorStatus(): Promise<{ enabled: boolean }> {
+      return request('/account/2fa');
+    },
+    setupTwoFactor(): Promise<TwoFactorSetup> {
+      return request<TwoFactorSetup>('/account/2fa/setup', { method: 'POST' });
+    },
+    enableTwoFactor(code: string): Promise<{ recoveryCodes: string[] }> {
+      return request('/account/2fa/enable', { method: 'POST', body: { code } });
+    },
+    disableTwoFactor(password: string): Promise<{ success: boolean }> {
+      return request('/account/2fa/disable', {
+        method: 'POST',
+        body: { password },
+      });
+    },
+    regenerateRecovery(code: string): Promise<{ recoveryCodes: string[] }> {
+      return request('/account/2fa/recovery', {
+        method: 'POST',
+        body: { code },
+      });
+    },
+  },
+
+  system: {
+    health(): Promise<SystemHealth> {
+      return request<SystemHealth>('/system/health');
+    },
+    version(): Promise<SystemVersion> {
+      return request<SystemVersion>('/system/version');
+    },
+  },
+
+  modules: {
+    list(): Promise<ModuleStatus[]> {
+      return request<ModuleStatus[]>('/modules');
+    },
+    enabled(): Promise<ModuleStatus[]> {
+      return request<ModuleStatus[]>('/modules/enabled');
+    },
+    license(): Promise<LicenseStatus> {
+      return request<LicenseStatus>('/modules/license');
+    },
+    get(id: string): Promise<ModuleStatus> {
+      return request<ModuleStatus>(`/modules/${id}`);
+    },
+    health(id: string): Promise<ModuleHealth> {
+      return request<ModuleHealth>(`/modules/${id}/health`);
+    },
+    enable(id: string): Promise<ModuleStatus> {
+      return request<ModuleStatus>(`/modules/${id}/enable`, { method: 'POST' });
+    },
+    disable(id: string): Promise<ModuleStatus> {
+      return request<ModuleStatus>(`/modules/${id}/disable`, { method: 'POST' });
+    },
+  },
+
+  users: {
+    list(): Promise<User[]> {
+      return request<User[]>('/users');
+    },
+    roles(): Promise<Role[]> {
+      return request<Role[]>('/users/roles');
+    },
+    create(body: CreateUserInput): Promise<User> {
+      return request<User>('/users', { method: 'POST', body });
+    },
+    update(id: string, body: UpdateUserInput): Promise<User> {
+      return request<User>(`/users/${id}`, { method: 'PATCH', body });
+    },
+    remove(id: string): Promise<void> {
+      return request<void>(`/users/${id}`, { method: 'DELETE' });
+    },
+  },
+
+  engines: {
+    list(): Promise<EngineSummary[]> {
+      return request<EngineSummary[]>('/engines');
+    },
+    create(body: CreateEngineInput): Promise<{ id: string }> {
+      return request<{ id: string }>('/engines', { method: 'POST', body });
+    },
+    update(id: string, body: UpdateEngineInput): Promise<{ id: string }> {
+      return request<{ id: string }>(`/engines/${id}`, { method: 'PATCH', body });
+    },
+    remove(id: string): Promise<void> {
+      return request<void>(`/engines/${id}`, { method: 'DELETE' });
+    },
+    test(body: { kind: string; config: EngineConnectionInput }): Promise<EngineHealthStatus> {
+      return request<EngineHealthStatus>('/engines/test', { method: 'POST', body });
+    },
+    health(engineId?: string): Promise<EngineHealthStatus> {
+      return request<EngineHealthStatus>('/engines/health', { query: { engineId } });
+    },
+  },
+
+  media: {
+    presets(): Promise<MediaPresets> {
+      return request<MediaPresets>('/media/presets');
+    },
+    libraries(): Promise<MediaLibrary[]> {
+      return request<MediaLibrary[]>('/media/libraries');
+    },
+    createLibrary(body: CreateLibraryInput): Promise<MediaLibrary> {
+      return request<MediaLibrary>('/media/libraries', { method: 'POST', body });
+    },
+    updateLibrary(id: string, body: Partial<CreateLibraryInput>): Promise<MediaLibrary> {
+      return request<MediaLibrary>(`/media/libraries/${id}`, { method: 'PATCH', body });
+    },
+    deleteLibrary(id: string): Promise<void> {
+      return request<void>(`/media/libraries/${id}`, { method: 'DELETE' });
+    },
+    preview(body: RenameRequest): Promise<RenamePlan> {
+      return request<RenamePlan>('/media/preview', { method: 'POST', body });
+    },
+    apply(body: RenameRequest): Promise<RenameApplyResult> {
+      return request<RenameApplyResult>('/media/apply', { method: 'POST', body });
+    },
+    history(): Promise<MediaRenameOperation[]> {
+      return request<MediaRenameOperation[]>('/media/history');
+    },
+  },
+
+  mediaRenamer: {
+    analyze(body: { sourceName: string; files: MediaRenamerFileInput[] }): Promise<MediaRenamerAnalyzeResult> {
+      return request<MediaRenamerAnalyzeResult>('/media-renamer/analyze', { method: 'POST', body });
+    },
+    dryRun(body: MediaRenamerRunBody): Promise<MediaRenamerDryRunResult> {
+      return request<MediaRenamerDryRunResult>('/media-renamer/dry-run', { method: 'POST', body });
+    },
+    execute(body: MediaRenamerRunBody): Promise<MediaRenameJobDetail> {
+      return request<MediaRenameJobDetail>('/media-renamer/execute', { method: 'POST', body });
+    },
+    jobs(): Promise<MediaRenameJob[]> {
+      return request<MediaRenameJob[]>('/media-renamer/jobs');
+    },
+    job(id: string): Promise<MediaRenameJobDetail> {
+      return request<MediaRenameJobDetail>(`/media-renamer/jobs/${id}`);
+    },
+    rollback(id: string): Promise<MediaRenamerRollbackResult> {
+      return request<MediaRenamerRollbackResult>(`/media-renamer/jobs/${id}/rollback`, { method: 'POST' });
+    },
+    templates(): Promise<MediaRenamerTemplate[]> {
+      return request<MediaRenamerTemplate[]>('/media-renamer/templates');
+    },
+    createTemplate(body: UpsertMediaRenamerTemplateInput): Promise<MediaRenamerTemplate> {
+      return request<MediaRenamerTemplate>('/media-renamer/templates', { method: 'POST', body });
+    },
+    updateTemplate(id: string, body: Partial<UpsertMediaRenamerTemplateInput>): Promise<MediaRenamerTemplate> {
+      return request<MediaRenamerTemplate>(`/media-renamer/templates/${id}`, { method: 'PATCH', body });
+    },
+    deleteTemplate(id: string): Promise<void> {
+      return request<void>(`/media-renamer/templates/${id}`, { method: 'DELETE' });
+    },
+  },
+
+  releaseScoring: {
+    score(body: ReleaseScoreInput): Promise<ReleaseScoreResult> {
+      return request<ReleaseScoreResult>('/release-scoring/score', { method: 'POST', body });
+    },
+    testRule(body: ReleaseTestRuleInput): Promise<ReleaseTestRuleResult> {
+      return request<ReleaseTestRuleResult>('/release-scoring/test-rule', { method: 'POST', body });
+    },
+  },
+
+  mediaAcquisition: {
+    overview(): Promise<MediaAcquisitionOverview> {
+      return request<MediaAcquisitionOverview>('/media-acquisition/overview');
+    },
+    watchlist(status?: string): Promise<WatchlistItem[]> {
+      return request<WatchlistItem[]>('/media-acquisition/watchlist', { query: { status } });
+    },
+    watchlistItem(id: string): Promise<WatchlistItem> {
+      return request<WatchlistItem>(`/media-acquisition/watchlist/${id}`);
+    },
+    createWatchlist(body: CreateWatchlistInput): Promise<WatchlistItem> {
+      return request<WatchlistItem>('/media-acquisition/watchlist', { method: 'POST', body });
+    },
+    updateWatchlist(id: string, body: UpdateWatchlistInput): Promise<WatchlistItem> {
+      return request<WatchlistItem>(`/media-acquisition/watchlist/${id}`, { method: 'PATCH', body });
+    },
+    deleteWatchlist(id: string): Promise<void> {
+      return request<void>(`/media-acquisition/watchlist/${id}`, { method: 'DELETE' });
+    },
+    profiles(mediaType?: string): Promise<AcquisitionProfile[]> {
+      return request<AcquisitionProfile[]>('/media-acquisition/profiles', { query: { mediaType } });
+    },
+    profile(id: string): Promise<AcquisitionProfile> {
+      return request<AcquisitionProfile>(`/media-acquisition/profiles/${id}`);
+    },
+    createProfile(body: CreateAcquisitionProfileInput): Promise<AcquisitionProfile> {
+      return request<AcquisitionProfile>('/media-acquisition/profiles', { method: 'POST', body });
+    },
+    updateProfile(
+      id: string,
+      body: Partial<CreateAcquisitionProfileInput>,
+    ): Promise<AcquisitionProfile> {
+      return request<AcquisitionProfile>(`/media-acquisition/profiles/${id}`, {
+        method: 'PATCH',
+        body,
+      });
+    },
+    deleteProfile(id: string): Promise<void> {
+      return request<void>(`/media-acquisition/profiles/${id}`, { method: 'DELETE' });
+    },
+    evaluate(body: EvaluateInput): Promise<AcquisitionEvaluation> {
+      return request<AcquisitionEvaluation>('/media-acquisition/evaluate', { method: 'POST', body });
+    },
+    evaluations(
+      query: { decision?: string; approvalStatus?: string } = {},
+    ): Promise<AcquisitionEvaluation[]> {
+      return request<AcquisitionEvaluation[]>('/media-acquisition/evaluations', { query });
+    },
+    evaluation(id: string): Promise<AcquisitionEvaluationDetail> {
+      return request<AcquisitionEvaluationDetail>(`/media-acquisition/evaluations/${id}`);
+    },
+    approvalQueue(): Promise<AcquisitionEvaluation[]> {
+      return request<AcquisitionEvaluation[]>('/media-acquisition/approval-queue');
+    },
+    approve(id: string): Promise<AcquisitionEvaluation> {
+      return request<AcquisitionEvaluation>(`/media-acquisition/evaluations/${id}/approve`, {
+        method: 'POST',
+      });
+    },
+    reject(id: string, reason?: string): Promise<AcquisitionEvaluation> {
+      return request<AcquisitionEvaluation>(`/media-acquisition/evaluations/${id}/reject`, {
+        method: 'POST',
+        body: reason ? { reason } : {},
+      });
+    },
+    override(id: string, decision: string, reason?: string): Promise<AcquisitionEvaluation> {
+      return request<AcquisitionEvaluation>(`/media-acquisition/evaluations/${id}/override`, {
+        method: 'POST',
+        body: { decision, ...(reason ? { reason } : {}) },
+      });
+    },
+    history(limit = 100): Promise<AcquisitionHistoryEvent[]> {
+      return request<AcquisitionHistoryEvent[]>('/media-acquisition/history', { query: { limit } });
+    },
+    recommendations(): Promise<AcquisitionRecommendations> {
+      return request<AcquisitionRecommendations>('/media-acquisition/recommendations');
+    },
+    settings(): Promise<AcquisitionSettings> {
+      return request<AcquisitionSettings>('/media-acquisition/settings');
+    },
+    updateSettings(body: Partial<AcquisitionSettings>): Promise<AcquisitionSettings> {
+      return request<AcquisitionSettings>('/media-acquisition/settings', { method: 'PATCH', body });
+    },
+    /** POST /export → JSON blob; triggers a browser download. */
+    async export(body: AcquisitionExportInput): Promise<void> {
+      const token = getAccessToken();
+      const res = await fetch(buildUrl('/media-acquisition/export'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new ApiError(res.status, `Export failed (${res.status})`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `media-acquisition-export-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    },
+  },
+
+};
+
+export { API_URL };

@@ -1,0 +1,746 @@
+// UltraTorrent data model.
+// Generated client is consumed by the Infrastructure layer only.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & access control
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String   @unique
+  displayName  String?
+  passwordHash String
+  isActive     Boolean  @default(true)
+  isSystem     Boolean  @default(false)
+  lastLoginAt  DateTime?
+  // Two-factor authentication (TOTP). Secret is encrypted at rest.
+  totpSecret    String?
+  totpEnabled   Boolean  @default(false)
+  recoveryCodes String[] @default([])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  roles         UserRole[]
+  refreshTokens RefreshToken[]
+  apiKeys       ApiKey[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  userId     String
+  tokenHash  String   @unique
+  family     String
+  userAgent  String?
+  ipAddress  String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model ApiKey {
+  id         String   @id @default(uuid())
+  userId     String
+  name       String
+  prefix     String   @unique
+  keyHash    String
+  scopes     String[]
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+// ---------------------------------------------------------------------------
+// Torrent engines & snapshots
+// ---------------------------------------------------------------------------
+
+model TorrentEngine {
+  id        String   @id @default(uuid())
+  name      String
+  kind      String   // rtorrent | qbittorrent | transmission | deluge
+  config    Json     // connection details (encrypted secrets at rest)
+  isDefault Boolean  @default(false)
+  isEnabled Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  snapshots TorrentSnapshot[]
+
+  @@map("torrent_engines")
+}
+
+model TorrentSnapshot {
+  id           String   @id @default(uuid())
+  engineId     String
+  hash         String
+  name         String
+  state        String
+  progress     Float
+  size         BigInt
+  downloaded   BigInt
+  uploaded     BigInt
+  ratio        Float
+  downloadRate Int
+  uploadRate   Int
+  savePath     String
+  label        String?
+  categoryId   String?
+  addedAt      DateTime?
+  completedAt  DateTime?
+  capturedAt   DateTime @default(now())
+
+  engine   TorrentEngine     @relation(fields: [engineId], references: [id], onDelete: Cascade)
+  category TorrentCategory?  @relation(fields: [categoryId], references: [id])
+  tags     TorrentTagLink[]
+
+  @@unique([engineId, hash])
+  @@index([state])
+  @@index([categoryId])
+  @@map("torrent_snapshots")
+}
+
+model TorrentCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  color     String?
+  savePath  String?
+  createdAt DateTime @default(now())
+
+  snapshots TorrentSnapshot[]
+
+  @@map("torrent_categories")
+}
+
+model TorrentTag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  color     String?
+  createdAt DateTime @default(now())
+
+  links TorrentTagLink[]
+
+  @@map("torrent_tags")
+}
+
+model TorrentTagLink {
+  snapshotId String
+  tagId      String
+  snapshot   TorrentSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  tag        TorrentTag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([snapshotId, tagId])
+  @@map("torrent_tag_links")
+}
+
+// ---------------------------------------------------------------------------
+// RSS & automation
+// ---------------------------------------------------------------------------
+
+model RssFeed {
+  id              String   @id @default(uuid())
+  name            String
+  url             String
+  refreshInterval Int      @default(900) // seconds
+  isEnabled       Boolean  @default(true)
+  lastFetchedAt   DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  rules   RssRule[]
+  history RssHistory[]
+
+  @@map("rss_feeds")
+}
+
+model RssRule {
+  id            String   @id @default(uuid())
+  feedId        String
+  name          String
+  includeRegex  String?
+  excludeRegex  String?
+  categoryId    String?
+  savePath      String?
+  autoDownload  Boolean  @default(true)
+  isEnabled     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  feed             RssFeed                  @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  matchCandidates  RssRuleMatchCandidate[]
+  matchEvaluations RssRuleMatchEvaluation[]
+  smartTemplates   RssSmartMatchTemplate[]
+
+  @@map("rss_rules")
+}
+
+model RssSmartMatchTemplate {
+  id                  String   @id @default(uuid())
+  rssRuleId           String
+  sourceName          String
+  parsedMetadata      Json
+  generatedCandidates Json
+  confidenceScore     Int      @default(0)
+  userEdited          Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  rule RssRule @relation(fields: [rssRuleId], references: [id], onDelete: Cascade)
+
+  @@index([rssRuleId])
+  @@map("rss_smart_match_templates")
+}
+
+model RssRuleMatchCandidate {
+  id            String    @id @default(uuid())
+  rssRuleId     String
+  priorityOrder Int       @default(0)
+  name          String
+  description   String?
+  enabled       Boolean   @default(true)
+  matchType     String // exact_text | contains_text | regex | wildcard | smart_episode_match | smart_movie_match | fuzzy_match
+  pattern       String?
+  requiredTerms Json      @default("[]")
+  excludedTerms Json      @default("[]")
+  qualityRules  Json      @default("{}") // { quality, source, codec, resolution, season, episode, year }
+  sizeRules     Json      @default("{}") // { minBytes, maxBytes }
+  feedScope     Json      @default("{}") // { feedIds: string[] } — empty = all feeds
+  lastMatchedAt DateTime?
+  matchCount    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  rule RssRule @relation(fields: [rssRuleId], references: [id], onDelete: Cascade)
+
+  @@index([rssRuleId])
+  @@map("rss_rule_match_candidates")
+}
+
+model RssRuleMatchEvaluation {
+  id                       String   @id @default(uuid())
+  rssRuleId                String
+  rssItemId                String
+  matchedCandidateId       String?
+  matchedCandidatePriority Int?
+  result                   String // matched | no_match | skipped_duplicate
+  evaluationTrace          Json
+  actionTaken              String? // download | none | skipped_duplicate
+  torrentHash              String?
+  createdAt                DateTime @default(now())
+
+  rule RssRule @relation(fields: [rssRuleId], references: [id], onDelete: Cascade)
+
+  @@index([rssRuleId])
+  @@index([rssItemId])
+  @@map("rss_rule_match_evaluations")
+}
+
+model RssHistory {
+  id          String   @id @default(uuid())
+  feedId      String
+  itemGuid    String
+  title       String
+  link        String
+  magnet      String?  // magnet URI from the feed item, preferred for downloads
+  matched     Boolean
+  downloaded  Boolean
+  createdAt   DateTime @default(now())
+  feed        RssFeed  @relation(fields: [feedId], references: [id], onDelete: Cascade)
+
+  @@unique([feedId, itemGuid])
+  @@map("rss_history")
+}
+
+model AutomationRule {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  trigger     String   // e.g. torrent.completed
+  conditions  Json     // array of {field, op, value}
+  actions     Json     // array of {type, params}
+  isEnabled   Boolean  @default(true)
+  priority    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  logs AutomationLog[]
+
+  @@map("automation_rules")
+}
+
+model AutomationLog {
+  id        String   @id @default(uuid())
+  ruleId    String
+  status    String   // success | failed | skipped
+  context   Json
+  message   String?
+  createdAt DateTime @default(now())
+  rule      AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@map("automation_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Platform configuration & observability
+// ---------------------------------------------------------------------------
+
+model DownloadPath {
+  id        String   @id @default(uuid())
+  label     String
+  path      String   @unique
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("download_paths")
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String?
+  level     String   // info | success | warning | error
+  title     String
+  message   String
+  eventType String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  objectType String?
+  objectId  String?
+  result    String   // success | failure
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model SystemEvent {
+  id        String   @id @default(uuid())
+  type      String
+  severity  String   @default("info")
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@map("system_events")
+}
+
+// ---------------------------------------------------------------------------
+// Media renamer
+// ---------------------------------------------------------------------------
+
+model MediaLibrary {
+  id        String   @id @default(uuid())
+  name      String
+  kind      String   @default("tv") // tv | anime | movie | music | audiobook | general
+  path      String
+  preset    String   @default("plex") // plex | jellyfin | emby | kodi | custom
+  template  String?
+  mode      String   @default("hardlink") // preview | rename_in_place | rename_move | copy | hardlink | symlink
+  isEnabled Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("media_libraries")
+}
+
+model ModuleState {
+  id        String   @id @default(uuid())
+  moduleId  String   @unique
+  enabled   Boolean  @default(true)
+  status    String
+  tier      String
+  reason    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("module_states")
+}
+
+model ModuleEvent {
+  id        String   @id @default(uuid())
+  moduleId  String
+  eventType String
+  message   String
+  metadata  Json?
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@index([moduleId])
+  @@map("module_events")
+}
+
+model MediaRenameOperation {
+  id          String   @id @default(uuid())
+  source      String
+  destination String?
+  action      String
+  kind        String
+  mode        String
+  status      String // success | failed | skipped
+  message     String?
+  torrentHash String?
+  createdAt   DateTime @default(now())
+
+  @@index([torrentHash])
+  @@index([createdAt])
+  @@map("media_rename_operations")
+}
+
+// ---------------------------------------------------------------------------
+// UPLM licensing — LOCAL STATE ONLY (Enterprise overlay).
+//
+// Product-key activation model (same as CCA): the external UPLM Licensing
+// Manager signs an entitlement certificate; UltraTorrent activates a product
+// key, verifies the signed certificate (fail-closed), stores it, re-validates
+// monthly with a grace window, and gates premium/enterprise modules on the
+// result. The verify/activate logic lives in packages/enterprise — Core ships
+// these tables but never the licensing services.
+// ---------------------------------------------------------------------------
+
+/// Singleton license state (id fixed to "singleton"). Holds the verified
+/// certificate, derived state, and the encrypted product key for re-validation.
+
+/// The effective set of entitled module keys (from included_modules), rebuilt
+/// on every activation/validation.
+
+/// Audit trail of activation / validation / config transitions.
+
+// ---------------------------------------------------------------------------
+// Node Agent (Milestone 3) — every install carries a persistent identity and a
+// local agent so it can later become centrally managed. Core writes identity,
+// health, and local command/event records; the private Enterprise overlay adds
+// the secure Central transport that fills NodeCentralConnection and drives
+// remote commands. Core never executes proprietary remote workflows.
+// ---------------------------------------------------------------------------
+
+/// A soft-deleted file/folder moved into a storage root's `.ultratorrent-trash`.
+/// Enables the Trash Browser, restore-to-original, and Empty Trash.
+model TrashItem {
+  id           String   @id @default(uuid())
+  /// Original root-relative path before deletion (used to restore).
+  originalPath String
+  name         String
+  /// Absolute path inside `.ultratorrent-trash/` where the item now lives.
+  trashPath    String   @unique
+  /// Absolute storage root the item belonged to (restore target base).
+  storageRoot  String
+  isDirectory  Boolean  @default(false)
+  size         BigInt   @default(0)
+  deletedById  String?
+  deletedAt    DateTime @default(now())
+
+  @@index([deletedAt])
+  @@map("trash_items")
+}
+
+// ---------------------------------------------------------------------------
+// Fleet Management (Milestone 4) — Central-side registry of managed nodes.
+//
+// These tables are written exclusively by the private Enterprise Fleet overlay
+// (packages/enterprise/src/fleet). Core ships the tables (one migration system)
+// but never the Fleet services, which are gated by the Module Registry + a UPLM
+// entitlement + RBAC. Node credentials are stored hashed, never raw.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Customer Management / Provisioning / Billing (Milestone 5) — Enterprise
+// foundation for selling managed seedboxes. Written only by the private
+// customers/provisioning/billing overlays (Core ships the tables, one migration
+// system). Provider credentials are stored encrypted (SecretCipher), never raw.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Premium modules (Milestone 6) — written only by the private premium overlays
+// (media-renamer-pro, multi-server, library-awareness). Core ships the tables.
+// Media-server credentials are encrypted (SecretCipher), never raw.
+// ---------------------------------------------------------------------------
+
+model MediaRenameJob {
+  id               String    @id @default(uuid())
+  torrentHash      String?
+  engineId         String?
+  status           String    @default("pending") // pending | preview | running | completed | failed | rolled_back
+  mode             String
+  sourcePath       String
+  destinationPath  String?
+  mediaType        String?
+  parsedMetadata   Json?
+  providerMetadata Json?
+  confidenceScore  Int?
+  dryRunResult     Json?
+  executedBy       String?
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+
+  files MediaRenameFile[]
+
+  @@index([status])
+  @@index([torrentHash])
+  @@map("media_rename_jobs")
+}
+
+model MediaRenameFile {
+  id           String   @id @default(uuid())
+  jobId        String
+  originalPath String
+  proposedPath String?
+  finalPath    String?
+  fileType     String? // video | subtitle | sample | extra | general
+  action       String // rename | move | copy | hardlink | symlink | skip
+  status       String   @default("planned") // planned | done | failed | skipped | rolled_back
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  job MediaRenameJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("media_rename_files")
+}
+
+model MediaNamingTemplate {
+  id           String   @id @default(uuid())
+  name         String
+  mediaType    String // tv | anime | movie | music | audiobook | general
+  serverPreset String // plex | jellyfin | emby | kodi | custom
+  template     String
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("media_naming_templates")
+}
+
+model MediaServerConfig {
+  id              String   @id @default(uuid())
+  provider        String // plex | jellyfin | emby | kodi
+  name            String
+  baseUrl         String
+  // SecretCipher ciphertext of the server config (API token etc); never raw.
+  encryptedConfig String
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([provider])
+  @@map("media_server_configs")
+}
+
+// ---------------------------------------------------------------------------
+// Enterprise release modules (Milestone 7) — written only by the white-label /
+// central-backups / central-updates overlays. Core ships the tables.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Media Acquisition Intelligence (Premium overlay) — decides what to acquire.
+// Written only by the private media-acquisition overlay. Never performs file
+// operations; it records explainable decisions + recommendations.
+// ---------------------------------------------------------------------------
+
+model MediaAcquisitionWatchlistItem {
+  id              String   @id @default(uuid())
+  type            String // series | season | episode | movie | movie_collection | anime | manual_query
+  title           String
+  normalizedTitle String
+  year            Int?
+  externalIds     Json?
+  seasonNumber    Int?
+  episodeNumber   Int?
+  collectionName  String?
+  status          String   @default("active") // active | paused | completed | archived
+  priority        Int      @default(100)
+  profileId       String?
+  targetLibraryId String?
+  settings        Json?
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([normalizedTitle])
+  @@map("media_acquisition_watchlist_items")
+}
+
+model MediaAcquisitionProfile {
+  id                 String   @id @default(uuid())
+  name               String
+  description        String?
+  mediaType          String // tv | movie | anime | any
+  minimumScore       Int      @default(0)
+  approvalScore      Int      @default(0)
+  minimumResolution  String?
+  preferredResolution String?
+  preferredSource    String?
+  preferredCodec     String?
+  preferredAudio     String?
+  preferredHdr       String?
+  preferredLanguages Json?
+  requiredTerms      Json?
+  excludedTerms      Json?
+  preferredGroups    Json?
+  qualityRules       Json?
+  duplicateRules     Json?
+  storageRules       Json?
+  automationRules    Json?
+  enabled            Boolean  @default(true)
+  createdBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("media_acquisition_profiles")
+}
+
+model MediaAcquisitionEvaluation {
+  id               String   @id @default(uuid())
+  sourceType       String // rss | manual | watchlist_sweep | upgrade_sweep | automation
+  sourceId         String?
+  releaseName      String
+  parsedMetadata   Json?
+  watchlistItemId  String?
+  profileId        String?
+  libraryMatch     Json?
+  releaseScore     Json?
+  duplicateRisk    Json?
+  qualityGap       Json?
+  storageCheck     Json?
+  serverSelection  Json?
+  decision         String // download | skip | hold_for_approval | upgrade_existing | replace_existing | manual_review
+  decisionReason   String?
+  priority         Int      @default(100)
+  confidence       Int      @default(0)
+  requiresApproval Boolean  @default(false)
+  approvalStatus   String   @default("not_required") // not_required | pending | approved | rejected | expired
+  actionTaken      String?
+  torrentHash      String?
+  trace            Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  actions MediaAcquisitionAction[]
+
+  @@index([decision])
+  @@index([approvalStatus])
+  @@index([createdAt])
+  @@map("media_acquisition_evaluations")
+}
+
+model MediaAcquisitionAction {
+  id           String    @id @default(uuid())
+  evaluationId String
+  actionType   String // download_torrent | assign_category | apply_tags | set_save_path | rename_after_download | scan_library_after_import | notify_user
+  status       String    @default("pending") // pending | running | completed | failed
+  payload      Json?
+  result       Json?
+  createdBy    String?
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+  errorMessage String?
+
+  evaluation MediaAcquisitionEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationId])
+  @@map("media_acquisition_actions")
+}
+
+model MediaAcquisitionHistory {
+  id              String   @id @default(uuid())
+  watchlistItemId String?
+  evaluationId    String?
+  eventType       String
+  message         String
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([watchlistItemId])
+  @@index([createdAt])
+  @@map("media_acquisition_history")
+}

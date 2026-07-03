@@ -1,0 +1,262 @@
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, FolderTree, Save, Settings2 } from 'lucide-react';
+import { ApiError, api, type AppSettings } from '@/lib/api';
+import { PERMISSIONS } from '@ultratorrent/shared';
+import { useAuth } from '@/auth/AuthContext';
+import { useToast } from '@/components/ui/toast';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input, Label } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { PathPicker } from '@/components/PathPicker';
+import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+
+/** Owned by the dedicated Default Root Path section — not the generic list. */
+const ROOT_PATH_KEY = 'fileManager.defaultRootPath';
+
+/** Render a settings object generically — the backend owns the schema. */
+export function SettingsPage() {
+  const { hasPermission } = useAuth();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE);
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['settings'],
+    queryFn: api.settings.get,
+  });
+
+  const [draft, setDraft] = useState<AppSettings>({});
+  useEffect(() => {
+    if (data) setDraft(data);
+  }, [data]);
+
+  const mutation = useMutation({
+    mutationFn: (patch: AppSettings) => api.settings.update(patch),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['settings'], updated);
+      toast.success('Settings saved');
+    },
+    onError: (err) => toast.error('Could not save settings', err instanceof ApiError ? err.message : undefined),
+  });
+
+  // The Default Root Path has its own validated + audited route; keep it out of
+  // the generic list (the protected key is also rejected by PATCH /settings).
+  const entries = Object.entries(draft).filter(([key]) => key !== ROOT_PATH_KEY);
+
+  const setValue = (key: string, value: unknown) =>
+    setDraft((prev) => ({ ...prev, [key]: value }));
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+          <p className="text-sm text-muted-foreground">Configure your UltraTorrent instance.</p>
+        </div>
+        {canManage && entries.length > 0 && (
+          <Button
+            onClick={() => mutation.mutate(Object.fromEntries(entries))}
+            loading={mutation.isPending}
+          >
+            <Save className="h-4 w-4" /> Save changes
+          </Button>
+        )}
+      </div>
+
+      <RootPathSection canManageRoot={hasPermission(PERMISSIONS.SETTINGS_MANAGE_ROOT_PATH)} />
+
+      {isLoading ? (
+        <CenteredSpinner label="Loading settings…" />
+      ) : isError ? (
+        <ErrorState message="Could not load settings." onRetry={() => refetch()} />
+      ) : entries.length === 0 ? (
+        <Card>
+          <CardContent>
+            <EmptyState
+              icon={<Settings2 className="h-6 w-6" />}
+              title="No configurable settings"
+              description="This instance does not expose editable settings yet."
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>General</CardTitle>
+            <CardDescription>Values are validated by the server on save.</CardDescription>
+          </CardHeader>
+          <CardContent className="divide-y divide-border/60">
+            {entries.map(([key, value]) => (
+              <SettingRow
+                key={key}
+                name={key}
+                value={value}
+                disabled={!canManage}
+                onChange={(v) => setValue(key, v)}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function RootPathSection({ canManageRoot }: { canManageRoot: boolean }) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['files', 'root'],
+    queryFn: api.files.root,
+  });
+  const [value, setValue] = useState('');
+  useEffect(() => {
+    if (data) setValue(data.configured ?? data.root);
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: (p: string) => api.files.setRoot(p.trim()),
+    onSuccess: (info) => {
+      queryClient.setQueryData(['files', 'root'], info);
+      queryClient.invalidateQueries({ queryKey: ['files', 'browse'] });
+      toast.success('Default root path saved', info.root);
+    },
+    onError: (err) =>
+      toast.error('Could not save root path', err instanceof ApiError ? err.message : undefined),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FolderTree className="h-4 w-4 text-primary" /> Default Root Path
+        </CardTitle>
+        <CardDescription>
+          Users can browse only inside this root path. Parent folders and system directories outside
+          it are blocked.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <CenteredSpinner label="Loading…" />
+        ) : isError ? (
+          <ErrorState message="Could not load the root path." onRetry={() => refetch()} />
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Effective root:</span>
+              <code className="rounded bg-white/5 px-2 py-0.5 font-mono">{data?.root}</code>
+              <Badge variant={data?.exists ? 'success' : 'destructive'} dot>
+                {data?.exists ? 'exists' : 'missing'}
+              </Badge>
+              <Badge variant={data?.readable ? 'success' : 'destructive'} dot>
+                {data?.readable ? 'readable' : 'not readable'}
+              </Badge>
+              <Badge variant={data?.writable ? 'success' : 'warning'} dot>
+                {data?.writable ? 'writable' : 'read-only'}
+              </Badge>
+            </div>
+
+            {data && !data.writable && (
+              <p className="flex items-start gap-1.5 text-xs text-warning">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                The app process cannot write to this path — downloads and folder creation there will
+                fail.
+              </p>
+            )}
+
+            {canManageRoot ? (
+              <div className="space-y-2">
+                <Label htmlFor="root-path">Root path</Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <PathPicker
+                    id="root-path"
+                    value={value}
+                    onChange={setValue}
+                    placeholder={data?.hardRoots?.[0] ?? '/downloads'}
+                    aria-label="Root path"
+                    pickerTitle="Choose the default root folder"
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={() => save.mutate(value)}
+                    loading={save.isPending}
+                    disabled={!value.trim()}
+                    className="shrink-0"
+                  >
+                    <Save className="h-4 w-4" /> Save
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Must be a directory within the server&apos;s configured storage roots (
+                  <code className="font-mono">{data?.hardRoots?.join(', ') || '—'}</code>). Browsing
+                  can only be narrowed within these, never widened past them.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Only administrators with the <code className="font-mono">settings.manage_root_path</code>{' '}
+                permission can change this.
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SettingRow({
+  name,
+  value,
+  disabled,
+  onChange,
+}: {
+  name: string;
+  value: unknown;
+  disabled: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  const label = name
+    .replace(/[_.]/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/^\w/, (c) => c.toUpperCase());
+
+  const isObject = value !== null && typeof value === 'object';
+
+  return (
+    <div className="flex items-center justify-between gap-4 py-3.5">
+      <div className="min-w-0">
+        <Label className="block">{label}</Label>
+        <p className="truncate font-mono text-xs text-muted-foreground">{name}</p>
+      </div>
+      <div className="w-full max-w-xs shrink-0">
+        {typeof value === 'boolean' ? (
+          <div className="flex justify-end">
+            <Switch checked={value} onCheckedChange={onChange} disabled={disabled} aria-label={label} />
+          </div>
+        ) : typeof value === 'number' ? (
+          <Input
+            type="number"
+            value={value}
+            disabled={disabled}
+            onChange={(e) => onChange(Number(e.target.value))}
+          />
+        ) : isObject ? (
+          <code className="block truncate rounded bg-white/5 px-2 py-1 text-xs text-muted-foreground">
+            {JSON.stringify(value)}
+          </code>
+        ) : (
+          <Input
+            value={String(value ?? '')}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

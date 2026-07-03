@@ -1,0 +1,92 @@
+import { Link, useLocation } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
+import { NAV_GROUPS } from '@/components/layout/navigation';
+
+export interface Crumb {
+  label: string;
+  to?: string;
+}
+
+/** Detail routes that aren't in the sidebar but should still get a trail. */
+const DETAIL_LABELS: { prefix: string; label: string }[] = [
+  { prefix: '/account', label: 'Account' },
+  { prefix: '/rss/rules/', label: 'Rule' },
+];
+
+/**
+ * Build a breadcrumb trail for a pathname by matching it against the sidebar
+ * information architecture (`NAV_GROUPS`). Returns `Group › Item [› Detail]`.
+ * Exported for tests.
+ */
+export function crumbsFor(pathname: string): Crumb[] {
+  let best: { group: string; label: string; base: string } | null = null;
+  for (const group of NAV_GROUPS) {
+    for (const item of group.items) {
+      const base = item.to.split('?')[0];
+      if (pathname === base || pathname.startsWith(base + '/')) {
+        if (!best || base.length > best.base.length) {
+          best = { group: group.title, label: item.label, base };
+        }
+      }
+    }
+  }
+
+  if (!best) {
+    // Not in the nav (e.g. /account) — derive a single crumb from the path.
+    const detail = DETAIL_LABELS.find((d) => pathname.startsWith(d.prefix));
+    if (detail) return [{ label: detail.label }];
+    const seg = pathname.split('/').filter(Boolean)[0];
+    if (!seg) return [];
+    return [{ label: seg.charAt(0).toUpperCase() + seg.slice(1) }];
+  }
+
+  const crumbs: Crumb[] = [{ label: best.group }, { label: best.label, to: best.base }];
+
+  // Deeper than the matched nav route → a detail page.
+  if (pathname.length > best.base.length) {
+    const detail = DETAIL_LABELS.find((d) => pathname.startsWith(d.prefix));
+    crumbs.push({ label: detail?.label ?? 'Details' });
+  }
+  return crumbs;
+}
+
+/** App-level breadcrumb trail rendered in the top bar. */
+export function Breadcrumbs() {
+  const { pathname } = useLocation();
+  const crumbs = crumbsFor(pathname);
+  if (crumbs.length === 0) return null;
+
+  return (
+    <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center sm:flex">
+      <ol className="flex min-w-0 items-center gap-1.5 text-sm">
+        {crumbs.map((crumb, i) => {
+          const last = i === crumbs.length - 1;
+          return (
+            <li key={`${crumb.label}-${i}`} className="flex min-w-0 items-center gap-1.5">
+              {i > 0 && (
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden />
+              )}
+              {crumb.to && !last ? (
+                <Link
+                  to={crumb.to}
+                  className="truncate text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {crumb.label}
+                </Link>
+              ) : (
+                <span
+                  className={
+                    last ? 'truncate font-medium text-foreground' : 'truncate text-muted-foreground'
+                  }
+                  aria-current={last ? 'page' : undefined}
+                >
+                  {crumb.label}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}

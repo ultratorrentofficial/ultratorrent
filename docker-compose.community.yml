@@ -1,0 +1,56 @@
+# UltraTorrent — COMMUNITY stack (public Core only; no Enterprise overlay).
+# Usage: docker compose -f docker-compose.community.yml up -d --build
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ultratorrent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-ultratorrent}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ultratorrent}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redis_data:/data]
+    networks: [internal]
+
+  backend:
+    image: ultratorrent/community:backend
+    build: { context: ., dockerfile: apps/backend/Dockerfile }
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      # Derived from POSTGRES_* so it can't drift from the DB password.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ultratorrent}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ultratorrent}?schema=public
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      FILE_MANAGER_ROOTS: ${FILE_MANAGER_ROOTS:-/downloads}
+    volumes: [downloads:/downloads]
+    # Internal-only; the frontend proxies to it over the Docker network. Add a
+    # `ports` mapping only if you want to reach the API directly from the host.
+    expose: ["4000"]
+    networks: [internal]
+
+  frontend:
+    image: ultratorrent/community:frontend
+    build: { context: ., dockerfile: apps/frontend/Dockerfile, args: { VITE_API_URL: /api, VITE_WS_URL: / } }
+    restart: unless-stopped
+    depends_on: [backend]
+    ports: ["${FRONTEND_PORT:-8080}:8080"]   # set FRONTEND_PORT in .env if 8080 is taken
+    networks: [internal]
+
+volumes: { postgres_data: {}, redis_data: {}, downloads: {} }
+networks: { internal: {} }

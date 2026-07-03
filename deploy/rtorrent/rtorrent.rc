@@ -1,0 +1,20 @@
+# Minimal headless rTorrent for the bundled UltraTorrent engine (Docker).
+# Run headless (no ncurses UI) so it works without a tty.
+system.daemon.set = true
+session.path.set = /downloads/.session
+directory.default.set = /downloads
+
+# SCGI over TCP — bind ALL interfaces so the backend container can reach it at
+# rtorrent:5000 across the compose network. (Do NOT publish this port to the
+# host; it is an unauthenticated control socket.)
+network.scgi.open_port = 0.0.0.0:5000
+
+# Sensible defaults: PEX + UDP trackers on, fixed peer port range.
+encoding.add = utf8
+network.port_range.set = 6890-6999
+network.port_random.set = no
+protocol.pex.set = yes
+trackers.use_udp.set = yes
+# DHT is set by the entrypoint from the RT_DHT env var (default OFF) — this
+# rtorrent build can crash on a DHT internal_error, so it's opt-in. Trackers +
+# PEX still discover peers without it.

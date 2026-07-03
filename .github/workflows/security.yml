@@ -1,0 +1,59 @@
+name: Security checks
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1' # weekly
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Assert no private keys committed
+        run: |
+          if git ls-files | grep -E '\.(pem|key)$|/keys/' | grep -vE 'apikeys'; then
+            echo "::error::private key material must not be committed"; exit 1
+          fi
+          echo "OK: no committed key material"
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high || true # report, do not block on transitive advisories
+
+  license-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: License compliance report
+        run: npx license-checker --summary || true
+
+  container-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Community image
+        run: docker build -f apps/backend/Dockerfile -t ultratorrent/community:backend .
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ultratorrent/community:backend
+          severity: HIGH,CRITICAL
+          exit-code: '0' # report; tighten to '1' to block on findings

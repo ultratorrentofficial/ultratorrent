@@ -1,0 +1,16 @@
+# Edge reverse proxy for UltraTorrent (proxy profile).
+# Replace :80 with your domain to get automatic HTTPS via Let's Encrypt.
+:80 {
+	encode gzip
+
+	# WebSocket + API to the backend
+	@api path /api/* /ws/*
+	handle @api {
+		reverse_proxy backend:4000
+	}
+
+	# Everything else to the static frontend
+	handle {
+		reverse_proxy frontend:80
+	}
+}
