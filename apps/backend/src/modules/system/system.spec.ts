@@ -7,8 +7,8 @@ function svc(values: Record<string, unknown> = {}) {
 
 describe('SystemService.version', () => {
   it('reports product, version, and edition from config', () => {
-    const v = svc({ 'node.productVersion': '1.2.3', edition: 'enterprise' }).version();
-    expect(v).toMatchObject({ product: 'UltraTorrent', version: '1.2.3', edition: 'enterprise', apiVersion: 'v1' });
+    const v = svc({ 'node.productVersion': '1.2.3', edition: 'community' }).version();
+    expect(v).toMatchObject({ product: 'UltraTorrent', version: '1.2.3', edition: 'community', apiVersion: 'v1' });
     expect(v.node).toBe(process.version);
   });
 

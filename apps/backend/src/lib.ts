@@ -1,11 +1,9 @@
 /**
- * Public Core library surface.
+ * Public library surface.
  *
- * This barrel is the ONLY thing the private Enterprise overlay imports from the
- * Core backend. It exposes the bootstrap factory, the Nest `AppModule`, the
- * module registry service + tokens, and the bundled manifests — everything the
- * overlay needs to (a) compose itself on top of Core and (b) generate/sign the
- * module catalog. Core never imports anything from the overlay in return.
+ * This barrel exposes the bootstrap factory, the Nest `AppModule`, the module
+ * registry service + tokens, and the bundled manifests. It is a single, stable
+ * entrypoint for any host or external module that composes on top of the app.
  */
 export {
   createUltraTorrentApp,
@@ -20,11 +18,9 @@ export {
   CommunityLicenseProvider,
   LICENSE_PROVIDER,
 } from './modules/module-registry/community-license.provider';
-export { ModuleGuard } from './modules/module-registry/module-license.guard';
-export { RequiresModule } from './modules/module-registry/module-access.decorator';
 
-// Reusable media/parse/path building blocks for the premium overlays (so they
-// never duplicate Core's release parser, rename planner, or path safety).
+// Reusable media/parse/path building blocks (so external modules never
+// duplicate the release parser, rename planner, or path safety).
 export {
   buildRenamePlan,
   renderTemplate,
@@ -49,8 +45,8 @@ export type { ParsedTorrentMeta } from './modules/rss/torrent-name-parser';
 export { PathSafety, assertSafeName } from './modules/files/path-safety';
 export { EngineRegistryService } from './modules/engine/engine-registry.service';
 
-// Infrastructure + auth building blocks the Enterprise overlay reuses for its
-// own controllers/services (so the overlay imports a single Core entrypoint).
+// Infrastructure + auth building blocks an external module can reuse via a
+// single entrypoint.
 export { PrismaService } from './infrastructure/prisma/prisma.service';
 export { AuditService } from './modules/audit/audit.service';
 export { RealtimeGateway } from './modules/realtime/realtime.gateway';
@@ -66,13 +62,11 @@ export {
 export {
   CORE_MANIFESTS,
   COMMUNITY_MANIFESTS,
-  PREMIUM_MANIFESTS,
-  ENTERPRISE_MANIFESTS,
   ALL_MANIFESTS,
 } from './modules/module-registry/manifests';
 
-// Re-export the shared module/license contracts so overlay code can depend on a
-// single Core entrypoint rather than reaching into @ultratorrent/shared too.
+// Re-export the shared module contracts so external-module code can depend on a
+// single entrypoint rather than reaching into @ultratorrent/shared too.
 export type {
   LicenseProvider,
   LicenseStatus,

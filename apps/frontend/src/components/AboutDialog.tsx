@@ -33,7 +33,7 @@ export function AboutDialog({ open, onClose }: { open: boolean; onClose: () => v
         </div>
         <DialogTitle className="mt-2">{data?.product ?? 'UltraTorrent'}</DialogTitle>
         <DialogDescription>
-          Enterprise torrent management platform.
+          Modern torrent management platform.
         </DialogDescription>
       </DialogHeader>
 

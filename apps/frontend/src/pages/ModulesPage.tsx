@@ -16,8 +16,6 @@ import { StateBadge, TierBadge, TIER_ORDER } from '@/modules/moduleUi';
 const TIER_HEADING: Record<ModuleTier, string> = {
   core: 'Core',
   community: 'Community',
-  premium: 'Premium',
-  enterprise: 'Enterprise',
 };
 
 export function ModulesPage() {

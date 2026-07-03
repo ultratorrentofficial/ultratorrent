@@ -43,7 +43,6 @@ const M = (over: Partial<ModuleManifest>): ModuleManifest => ({
   id: over.id!, name: over.name ?? over.id!, description: '',
   tier: over.tier ?? 'core', enabledByDefault: over.enabledByDefault ?? true,
   dependencies: over.dependencies ?? [], permissions: over.permissions ?? [],
-  requiredLicenseModule: over.requiredLicenseModule,
 });
 
 describe('ModuleRegistryService — validation', () => {
@@ -68,7 +67,7 @@ describe('ModuleRegistryService — states & rules', () => {
     M({ id: 'auth', tier: 'core' }),
     M({ id: 'free', tier: 'community', dependencies: ['auth'] }),
     M({ id: 'free_dep', tier: 'community', dependencies: ['free'] }),
-    M({ id: 'pro', tier: 'premium', enabledByDefault: false, requiredLicenseModule: 'pro', dependencies: ['auth'] }),
+    M({ id: 'opt', tier: 'community', enabledByDefault: false, dependencies: ['auth'] }),
   ];
 
   it('core is enabled and locked; community enabled by default', async () => {
@@ -79,13 +78,13 @@ describe('ModuleRegistryService — states & rules', () => {
     expect(s.getStatus('free')!.enabled).toBe(true);
   });
 
-  it('premium is locked under the community license', async () => {
+  it('an optional module off by default is available but not enabled', async () => {
     const { s } = svc(set());
     await s.refresh();
-    const pro = s.getStatus('pro')!;
-    expect(pro.licensed).toBe(false);
-    expect(pro.enabled).toBe(false);
-    expect(pro.state).toBe('locked');
+    const opt = s.getStatus('opt')!;
+    expect(opt.licensed).toBe(true);
+    expect(opt.enabled).toBe(false);
+    expect(opt.state).toBe('disabled');
   });
 
   it('core modules cannot be disabled', async () => {
@@ -94,10 +93,11 @@ describe('ModuleRegistryService — states & rules', () => {
     await expect(s.disable('auth')).rejects.toThrow(ForbiddenException);
   });
 
-  it('enabling a locked premium module is refused', async () => {
+  it('an optional module off by default can be enabled', async () => {
     const { s } = svc(set());
     await s.refresh();
-    await expect(s.enable('pro')).rejects.toThrow(/license/i);
+    await s.enable('opt');
+    expect(s.getStatus('opt')!.enabled).toBe(true);
   });
 
   it('disabling a community module with an enabled dependent is refused', async () => {
@@ -132,6 +132,6 @@ describe('ModuleRegistryService — states & rules', () => {
     const { s } = svc(set());
     await s.refresh();
     expect(s.isEnabled('free')).toBe(true);
-    expect(s.isEnabled('pro')).toBe(false);
+    expect(s.isEnabled('opt')).toBe(false);
   });
 });

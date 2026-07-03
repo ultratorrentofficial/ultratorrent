@@ -202,11 +202,11 @@ export function App() {
                     </Route>
                   </Route>
 
-                  {/* Media Renamer Pro (`media_renamer_pro`) is now served by the
-                      unified MediaPage at `/media` (Libraries + Quick Rename +
-                      Dry Run + Jobs + Templates + History). */}
+                  {/* Media renaming is served by the unified MediaPage at `/media`
+                      (Libraries + Quick Rename + Dry Run + Jobs + Templates +
+                      History) via the `media_manager` module. */}
 
-                  {/* Media Acquisition — Premium module `media_acquisition_intelligence`. */}
+                  {/* Media Acquisition — `media_acquisition_intelligence` module. */}
                   <Route element={<ProtectedRoute permission={PERMISSIONS.MEDIA_ACQUISITION_VIEW} />}>
                     <Route element={<AppShell />}>
                       <Route

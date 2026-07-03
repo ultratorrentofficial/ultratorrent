@@ -3,9 +3,8 @@ import { ModuleManifest, MODULE_IDS, PERMISSIONS } from '@ultratorrent/shared';
 const P = PERMISSIONS;
 
 /**
- * Manifests for the public Core + bundled community modules. The private
- * Enterprise overlay injects its own manifests at runtime via the registry's
- * `registerExternal()` hook — these are not declared here.
+ * Manifests for the always-on Core modules. Optional (toggleable) modules live
+ * in {@link COMMUNITY_MANIFESTS} below.
  */
 export const CORE_MANIFESTS: ModuleManifest[] = [
   {
@@ -196,36 +195,28 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
   {
     id: MODULE_IDS.MODULE_REGISTRY,
     name: 'Module registry',
-    description: 'Edition/module management and licensing surface.',
+    description: 'Enable/disable optional modules.',
     tier: 'core',
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH, MODULE_IDS.RBAC],
     permissions: [P.MODULES_VIEW, P.MODULES_MANAGE],
     routes: ['/api/modules'],
     menu: [{ label: 'Modules', path: '/modules', icon: 'Boxes', permission: P.MODULES_VIEW }],
-    settingsSections: ['modules', 'license'],
+    settingsSections: ['modules'],
   },
 ];
 
-/** Bundled community module (free, optional, on by default). */
-export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
-  // The Intelligent Media Renamer was merged into a single Premium module
-  // (`media_renamer_pro`, see PREMIUM_MANIFESTS) — libraries + rename + jobs +
-  // templates + history under one entitlement. No community media module.
-];
-
 /**
- * Premium/Enterprise PLACEHOLDERS. These declare extension points only — the
- * real implementations live in the private Enterprise overlay and are injected
- * at runtime. Under the default CommunityLicenseProvider they appear "locked".
+ * Optional (toggleable) modules, bundled and on by default. They can be enabled
+ * or disabled per install; access to their routes is governed by RBAC.
  */
-export const PREMIUM_MANIFESTS: ModuleManifest[] = [
+export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
   {
     id: MODULE_IDS.MEDIA_MANAGER,
     name: 'Media Manager',
     description:
       'Scan, identify, enrich, and organise your media libraries: library scanning, filename identification, metadata/artwork/subtitles, duplicate detection, NFO generation, rename/move for media servers, and a health dashboard.',
-    tier: 'core',
+    tier: 'community',
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH, MODULE_IDS.FILES],
     permissions: [
@@ -268,7 +259,7 @@ export const PREMIUM_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.RELEASE_SCORING,
     name: 'Release Scoring',
     description: 'Explainable 0–100 scoring of RSS releases with reasons, warnings, and a recommendation.',
-    tier: 'core',
+    tier: 'community',
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH, MODULE_IDS.RSS],
     permissions: [P.RELEASE_SCORING_VIEW, P.RELEASE_SCORING_MANAGE],
@@ -279,12 +270,11 @@ export const PREMIUM_MANIFESTS: ModuleManifest[] = [
     name: 'Media Acquisition Intelligence',
     description:
       'Decides what media to acquire from library gaps, release quality, duplicate risk, watchlists, acquisition profiles, and automation context — explainable decisions, never direct file operations.',
-    tier: 'core',
+    tier: 'community',
     enabledByDefault: true,
-    // Hard deps must be real, registered module ids. UPLM (licensing layer),
-    // Smart Match Builder (an RSS feature), and library intelligence are reused
-    // at runtime, not declared as module deps; optional integrations
-    // (media_renamer_pro/*_integration/multi_server) are soft (documented).
+    // Hard deps must be real, registered module ids. Smart Match Builder (an RSS
+    // feature) and library intelligence are reused at runtime, not declared as
+    // module deps.
     dependencies: [
       MODULE_IDS.AUTH,
       MODULE_IDS.RBAC,
@@ -334,35 +324,9 @@ export const PREMIUM_MANIFESTS: ModuleManifest[] = [
       'explainable_decisions',
     ],
   },
-  // Manifest-only premium placeholders (capability declarations; implemented later).
-  {
-    id: MODULE_IDS.AI_RELEASE_INTELLIGENCE,
-    name: 'AI Release Intelligence',
-    description: 'AI-assisted release classification and recommendations (planned).',
-    tier: 'premium',
-    enabledByDefault: false,
-    requiredLicenseModule: MODULE_IDS.AI_RELEASE_INTELLIGENCE,
-    dependencies: [MODULE_IDS.RELEASE_SCORING],
-    permissions: [],
-  },
-  {
-    id: MODULE_IDS.WORKFLOW_TEMPLATES,
-    name: 'Workflow Templates',
-    description: 'Reusable automation workflow templates (planned).',
-    tier: 'premium',
-    enabledByDefault: false,
-    requiredLicenseModule: MODULE_IDS.WORKFLOW_TEMPLATES,
-    dependencies: [MODULE_IDS.AUTOMATION],
-    permissions: [],
-  },
 ];
-
-// Enterprise-tier modules were removed in the single-tier community refactor.
-export const ENTERPRISE_MANIFESTS: ModuleManifest[] = [];
 
 export const ALL_MANIFESTS: ModuleManifest[] = [
   ...CORE_MANIFESTS,
   ...COMMUNITY_MANIFESTS,
-  ...PREMIUM_MANIFESTS,
-  ...ENTERPRISE_MANIFESTS,
 ];

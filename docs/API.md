@@ -670,8 +670,8 @@ to acquire with explainable decisions; it **never performs file operations**. Se
 
 `@Controller('modules')` (`ModuleRegistryController`) guarded — tag `modules`.
 Exposes the module registry: which feature modules are enabled and the current
-edition/license status. In the community product the license provider reports
-`edition: "community"` and grants the `core` and `community` tiers.
+edition/availability status. In the single-tier community product this reports
+`edition: "community"` with every `core` and `community` module available.
 
 | Method | Path | Auth | Permission |
 |--------|------|------|------------|

@@ -6,14 +6,13 @@ import {
 } from '@ultratorrent/shared';
 import { ALL_MANIFESTS } from './manifests';
 
-/** DI token for the active {@link LicenseProvider}. */
-export const LICENSE_PROVIDER = Symbol('LICENSE_PROVIDER');
+/** DI token for the module-availability provider. */
+export const LICENSE_PROVIDER = Symbol('MODULE_AVAILABILITY_PROVIDER');
 
 /**
- * Default, no-license-file provider for the public Core. It permits every
- * `core` and `community` module and denies `premium`/`enterprise`. The private
- * Enterprise overlay binds a UPLM-backed provider to {@link LICENSE_PROVIDER}
- * to unlock the higher tiers — Core never needs to know how.
+ * Single-tier availability provider. UltraTorrent ships one community edition in
+ * which every module is `core`/`community` and therefore always available. The
+ * registry consults this seam so the rule lives in one place.
  */
 @Injectable()
 export class CommunityLicenseProvider implements LicenseProvider {
@@ -26,7 +25,7 @@ export class CommunityLicenseProvider implements LicenseProvider {
       edition: 'community',
       valid: true,
       licensee: null,
-      modules: [], // no premium/enterprise unlocks
+      modules: ['*'], // every module is available
       issuedAt: null,
       expiresAt: null,
       expired: false,
@@ -35,7 +34,7 @@ export class CommunityLicenseProvider implements LicenseProvider {
 
   async hasModule(moduleId: string): Promise<boolean> {
     const tier = this.tierById.get(moduleId);
-    // Unknown ids (e.g. an external module key) are treated as not-permitted.
+    // Unknown ids (e.g. an external module key) are treated as not-available.
     return tier === 'core' || tier === 'community';
   }
 

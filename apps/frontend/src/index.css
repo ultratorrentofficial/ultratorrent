@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    /* Premium dark theme is the default. A light theme is provided for
+    /* The dark theme is the default. A light theme is provided for
        completeness but the app ships `class="dark"` on <html>. */
     --background: 240 24% 5%;
     --foreground: 220 20% 96%;

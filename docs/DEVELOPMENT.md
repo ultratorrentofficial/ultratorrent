@@ -212,21 +212,21 @@ npm run test:cov --workspace @ultratorrent/backend      # coverage
 - **Shared first.** Types, permissions, and event names that both API and UI need
   belong in `@ultratorrent/shared`, not duplicated.
 
-## Modules & licensing
+## Modules
 
 UltraTorrent is a single-tier community product — one codebase, no edition
-branches or private overlay. See [MODULES.md](MODULES.md) for the module model.
+branches. See [MODULES.md](MODULES.md) for the module model.
 
 - **Every feature is a module** with a manifest in
   `apps/backend/src/modules/module-registry/manifests.ts` (tier, dependencies,
   permissions, menu, routes). The registry validates them at startup and rejects
   circular dependencies.
-- **Gate optional endpoints** with `@RequiresModule(id)` + `ModuleGuard`; the
-  backend returns `403` when a module is disabled or locked. Frontend gating (via
-  `/api/modules/enabled`) is UX only — the server always enforces permissions.
-- **Licensing** goes through the `LicenseProvider` interface. The app binds the
-  default `CommunityLicenseProvider`, which permits the core + community tiers;
-  this single-tier product ships no premium/enterprise tiers.
+- **Gate endpoints with RBAC** — `@UseGuards(JwtAuthGuard, PermissionsGuard)` +
+  `@RequirePermissions(...)`. The registry's enable/disable state drives client
+  navigation (via `/api/modules/enabled`); the server always enforces permissions.
+- **Availability** goes through the `LicenseProvider` seam. The app binds the
+  default `CommunityLicenseProvider`, under which every `core`/`community` module
+  is available.
 - **Build & run:** `npm run build` builds shared → backend → frontend; `npm run
   dev` runs the API plus the Vite dev server.
 </content>

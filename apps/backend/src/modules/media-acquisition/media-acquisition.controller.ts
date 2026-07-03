@@ -28,9 +28,8 @@ import {
 const P = PERMISSIONS;
 
 /**
- * Media Acquisition Intelligence API (Premium). Module-gated
- * (`@RequiresModule('media_acquisition_intelligence')` + ModuleGuard, i.e. UPLM)
- * + RBAC. Decisions are explainable; this module never performs file operations.
+ * Media Acquisition Intelligence API. Core module, RBAC-gated. Decisions are
+ * explainable; this module never performs file operations.
  */
 @ApiTags('media-acquisition')
 @ApiBearerAuth()

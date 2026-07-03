@@ -2,29 +2,28 @@
 
 UltraTorrent is a single **Community** product. Every feature is a *module* that
 declares a **manifest**; the registry loads manifests at startup and uses the
-active **license provider** plus the **dependency graph** to decide what is
-active. Backend enforcement is authoritative — frontend gating is only UX.
+**dependency graph** (plus an optional per-module enable/disable flag) to decide
+what is active. Access to a module's routes is governed by RBAC.
 
 - [Tiers](#tiers)
 - [Manifest format](#manifest-format)
 - [Module state](#module-state)
-- [License provider](#license-provider)
+- [Availability provider](#availability-provider)
 - [API](#api)
-- [Backend enforcement](#backend-enforcement)
+- [Access control](#access-control)
 - [Adding a module](#adding-a-module)
 
 ---
 
 ## Tiers
 
-| Tier | Meaning | Default license |
-|------|---------|-----------------|
-| `core` | Always available, **cannot be disabled** (auth, RBAC, engine, torrents, RSS, files, settings, audit, Media Manager, Release Scoring, Media Acquisition Intelligence, …). | permitted |
-| `premium` | License-gated modules; denied by the default provider, so they appear **locked**. Currently only planned placeholders (AI Release Intelligence, Workflow Templates). | denied |
+| Tier | Meaning |
+|------|---------|
+| `core` | Always available, **cannot be disabled** (auth, RBAC, engine, torrents, RSS, files, settings, audit, …). |
+| `community` | Bundled optional modules, on by default but **toggleable** by an admin (Media Manager, Release Scoring, Media Acquisition Intelligence, …). |
 
-The default license provider permits every `core` module and denies `premium`,
-so the shipped product runs all core modules and shows premium placeholders as
-locked until a provider grants them.
+Every module is `core` or `community`, and every module is available in the
+single-tier product — there is no licensing, product key, or gated tier.
 
 ## Manifest format
 
@@ -36,7 +35,6 @@ locked until a provider grants them.
   id: 'rss',
   name: 'RSS automation',
   description: 'Feeds, ranked match candidates, and the Smart Match Builder.',
-  version: '1.0.0',
   tier: 'core',
   enabledByDefault: true,
   dependencies: ['auth', 'engine'],
@@ -53,13 +51,13 @@ references a known module, and that there are **no circular dependencies**
 (rejected with a clear error). Declared `permissions` are synced into the
 permission catalog so RBAC can assign them.
 
-### Example core module — Media Manager
+### Example community module — Media Manager
 
 ```ts
 {
   id: 'media_manager',
   name: 'Media Manager',
-  tier: 'core',
+  tier: 'community',
   enabledByDefault: true,
   dependencies: ['auth', 'files'],
   permissions: [
@@ -86,18 +84,17 @@ For each module the registry computes a `ModuleStatus` with a `state`:
 
 | State | Meaning |
 |-------|---------|
-| `enabled` | Licensed + dependencies satisfied + turned on. |
+| `enabled` | Dependencies satisfied + turned on. |
 | `disabled` | Allowed, but an admin turned it off. |
-| `locked` | The tier is not licensed by the active provider. |
 | `missing_dependency` | Wants to run but a dependency is off. |
 
 `enabled` requires **all** dependencies to be enabled (computed as a fixpoint),
 so disabling a module cascades to its dependents.
 
-## License provider
+## Availability provider
 
-`LicenseProvider` (in `@ultratorrent/shared`) is the seam between the registry
-and any licensing implementation:
+`LicenseProvider` (in `@ultratorrent/shared`) is a small seam the registry
+consults to decide whether a module is available:
 
 ```ts
 interface LicenseProvider {
@@ -108,10 +105,10 @@ interface LicenseProvider {
 }
 ```
 
-Core binds the default **`CommunityLicenseProvider`** to the `LICENSE_PROVIDER`
-DI token. It permits `core` (and `community`) modules, denies `premium`, needs
-no license file, and reports edition `community`. It is the only provider the
-product ships — there is no product-key, signature, or external licensing
+The product binds the default **`CommunityLicenseProvider`** to the
+`LICENSE_PROVIDER` DI token. Every `core`/`community` module is available, it
+needs no license file, and it reports edition `community`. It is the only
+provider the product ships — there is no product key, signature, or external
 service.
 
 ## API
@@ -130,28 +127,21 @@ service.
 Rules:
 - Core modules cannot be disabled.
 - A module may be disabled only if no enabled module depends on it.
-- Premium modules require a license provider that grants entitlement.
-- Enable/disable and access violations are recorded as `module_events` + audit logs.
+- Enable/disable actions are recorded as `module_events` + audit logs.
 
-## Backend enforcement
+## Access control
 
-Decorate a controller (or route) with `@RequiresModule(id)` and add the
-`ModuleGuard`. The guard rejects the request with `403` when the module is not
-enabled (disabled or unlicensed) and records the violation:
-
-```ts
-@Controller('release-scoring')
-@RequiresModule(MODULE_IDS.RELEASE_SCORING)
-@UseGuards(JwtAuthGuard, PermissionsGuard, ModuleGuard)
-export class ReleaseScoringController { /* ... */ }
-```
+Module routes are protected by RBAC — `@UseGuards(JwtAuthGuard, PermissionsGuard)`
+plus `@RequirePermissions(...)` on each controller/route. The registry's
+enable/disable state drives the client navigation and route gating so a disabled
+module's UI is hidden; the authoritative access decision on the backend is RBAC.
 
 ## Adding a module
 
 1. Build the NestJS module as usual (controller/service/DTOs).
 2. Add its manifest to `manifests.ts` (tier, deps, permissions, menu, routes).
-3. Gate its controller with `@RequiresModule(...)` + `ModuleGuard` if it should
-   respect enable/disable.
+3. Guard its controller with `@UseGuards(JwtAuthGuard, PermissionsGuard)` and
+   `@RequirePermissions(...)`.
 4. Declare new permissions in `packages/shared/src/permissions.ts` (or rely on
    manifest permission-sync for module-only keys).
 

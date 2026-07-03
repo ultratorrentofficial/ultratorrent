@@ -1,16 +1,15 @@
 /**
- * Module registry & licensing contract (public Core).
+ * Module registry contract.
  *
- * UltraTorrent ships as ONE codebase that runs in multiple editions. Every
- * feature is a *module* declaring a manifest; the registry loads manifests at
- * startup and uses the active LicenseProvider + the dependency graph to decide
- * what is active. The private Enterprise overlay plugs in extra modules and a
- * real license provider without copying Core business logic.
+ * UltraTorrent ships as a single-tier, fully-community product. Every feature is
+ * a *module* declaring a manifest; the registry loads manifests at startup and
+ * uses the dependency graph (plus an optional per-module enable/disable flag) to
+ * decide what is active. Access to a module's routes is governed by RBAC.
  */
 
-export type ModuleTier = 'core' | 'community' | 'premium' | 'enterprise';
+export type ModuleTier = 'core' | 'community';
 
-export type Edition = 'community' | 'premium' | 'enterprise';
+export type Edition = 'community';
 
 export interface ModuleMenuItem {
   label: string;
@@ -24,10 +23,8 @@ export interface ModuleManifest {
   name: string;
   description: string;
   tier: ModuleTier;
-  /** Whether the module is on by default once its tier is permitted. */
+  /** Whether the module is on by default. */
   enabledByDefault: boolean;
-  /** License feature key that unlocks this module (omitted for core/community). */
-  requiredLicenseModule?: string;
   dependencies: string[];
   permissions: string[];
   menu?: ModuleMenuItem[];
@@ -54,7 +51,7 @@ export interface ModuleStatus {
   tier: ModuleTier;
   state: ModuleStateValue;
   enabled: boolean;
-  /** Whether the active license permits this module. */
+  /** Whether this module is available in the current build (always true). */
   licensed: boolean;
   dependencies: string[];
   /** Dependencies that are not currently satisfied (enabled). */
@@ -68,13 +65,13 @@ export interface ModuleStatus {
   reason: string;
 }
 
-// --- licensing (public interface only; impl is pluggable) ----------------
+// --- module availability (single-tier; the whole product is community) ----
 
 export interface LicenseStatus {
   edition: Edition;
   valid: boolean;
   licensee: string | null;
-  /** Unlocked license feature keys ('*' means all). */
+  /** Available module keys ('*' means all). */
   modules: string[];
   issuedAt: string | null;
   expiresAt: string | null;
@@ -82,9 +79,9 @@ export interface LicenseStatus {
 }
 
 /**
- * The seam between the Core module registry and any licensing implementation.
- * Core ships a default {@link Edition} 'community' provider; the private
- * Enterprise overlay supplies a UPLM-backed provider via the same interface.
+ * The seam the module registry consults to decide whether a module is available.
+ * The single-tier community build makes every module available; the interface is
+ * kept as a small pluggable seam so the availability rule lives in one place.
  */
 export interface LicenseProvider {
   getStatus(): Promise<LicenseStatus>;
@@ -94,9 +91,9 @@ export interface LicenseProvider {
 }
 
 /**
- * An externally-injected module (e.g. from the Enterprise overlay). The backend
- * and frontend shapes are intentionally opaque (`unknown`) so Core does not
- * depend on Nest/React types in the public contract.
+ * An externally-injected module. The backend and frontend shapes are
+ * intentionally opaque (`unknown`) so the shared contract does not depend on
+ * Nest/React types.
  */
 export interface UltraTorrentExternalModule {
   manifest: ModuleManifest;
@@ -126,16 +123,11 @@ export const MODULE_IDS = {
   TAXONOMY: 'taxonomy',
   ACCOUNT: 'account',
   MODULE_REGISTRY: 'module_registry',
-  // Community (free, optional)
+  // Community (optional, on by default)
   MEDIA_RENAMER: 'media_renamer',
-  // Core (relocated from premium/enterprise into single-tier community)
-  MEDIA_RENAMER_PRO: 'media_renamer_pro',
   MEDIA_MANAGER: 'media_manager',
   RELEASE_SCORING: 'release_scoring',
   MEDIA_ACQUISITION_INTELLIGENCE: 'media_acquisition_intelligence',
-  // Premium (license-gated placeholders)
-  AI_RELEASE_INTELLIGENCE: 'ai_release_intelligence',
-  WORKFLOW_TEMPLATES: 'workflow_templates',
 } as const;
 
 export type ModuleId = (typeof MODULE_IDS)[keyof typeof MODULE_IDS];

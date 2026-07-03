@@ -45,13 +45,13 @@ A group header is rendered only when at least one of its items is visible.
 Each `NavItem` may declare:
 
 - `permission?: Permission` — the user must hold it (RBAC).
-- `module?: string` — the module must be enabled (license/enablement).
+- `module?: string` — the module must be enabled.
 
 `visibleGroups(hasPermission, isEnabled)` keeps an item when **both** gates pass
 (absent gate = pass) and then drops any group left with no items. This is how
-RBAC and licensing collapse the menu. Visibility is a UI convenience only — the
-server still enforces via `ProtectedRoute`/`ModuleRoute` on the route and RBAC +
-`ModuleGuard` on the API. Never rely on a hidden menu item for security.
+RBAC and module enablement collapse the menu. Visibility is a UI convenience
+only — the server still enforces via `ProtectedRoute`/`ModuleRoute` on the route
+and RBAC on the API. Never rely on a hidden menu item for security.
 
 ## Active state
 

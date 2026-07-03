@@ -48,7 +48,7 @@ export class AcquisitionEvaluatorService {
     const profileRow = await this.resolveProfile(input.profileId ?? watchlist.item?.profileId ?? undefined);
     const profile = this.toDecisionProfile(profileRow);
 
-    // --- release scoring (reuse the premium engine) --------------------------
+    // --- release scoring (reuse the scoring engine) --------------------------
     const score = scoreRelease({
       title: input.releaseName,
       preferredResolution: profileRow?.preferredResolution ?? undefined,

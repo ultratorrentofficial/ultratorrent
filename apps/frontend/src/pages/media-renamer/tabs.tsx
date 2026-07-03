@@ -148,9 +148,9 @@ function jobStatusVariant(status: string): BadgeVariant {
 }
 
 /**
- * Tab sections for the unified Intelligent Media Renamer page (Premium). These
- * were the "Media Renamer" page; they now render as tabs inside `MediaPage`
- * alongside the Core Libraries/History tabs. Each is self-contained.
+ * Tab sections for the unified Intelligent Media Renamer page. These were the
+ * "Media Renamer" page; they now render as tabs inside `MediaPage` alongside the
+ * Libraries/History tabs. Each is self-contained.
  */
 export function DryRunTab() {
   const { hasPermission } = useAuth();

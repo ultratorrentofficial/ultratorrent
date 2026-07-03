@@ -1271,7 +1271,7 @@ export interface ReleaseTestRuleResult extends ReleaseScoreResult {
 }
 
 // ---------------------------------------------------------------------------
-// Media Acquisition Intelligence (Premium) — /api/media-acquisition
+// Media Acquisition Intelligence — /api/media-acquisition
 // ---------------------------------------------------------------------------
 
 export type MediaAcquisitionDecision =

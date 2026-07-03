@@ -36,7 +36,7 @@ export class ModuleRegistryController {
     return this.registry.getEnabled();
   }
 
-  /** Current license/edition status (auth only). */
+  /** Current edition/module-availability status (auth only). */
   @Get('license')
   licenseStatus() {
     return this.license.getStatus();

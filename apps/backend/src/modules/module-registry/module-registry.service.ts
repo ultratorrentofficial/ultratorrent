@@ -25,8 +25,8 @@ export class ModuleRegistryService implements OnModuleInit {
   private byId = new Map<string, ModuleManifest>();
   private statuses = new Map<string, ModuleStatus>();
 
-  /** Active license provider. Defaults to the injected (Community) provider;
-   *  the private Enterprise overlay swaps it at bootstrap via setLicenseProvider. */
+  /** Availability provider. Defaults to the single-tier community provider; an
+   *  external module may swap it at bootstrap via setLicenseProvider. */
   private license: LicenseProvider;
 
   constructor(
@@ -37,16 +37,13 @@ export class ModuleRegistryService implements OnModuleInit {
     this.license = defaultLicense;
   }
 
-  /**
-   * Replace the active license provider at runtime (Enterprise overlay hook).
-   * Core never imports the overlay — it only exposes this seam.
-   */
+  /** Replace the availability provider at runtime (external-module seam). */
   async setLicenseProvider(provider: LicenseProvider): Promise<void> {
     this.license = provider;
     await this.refresh();
   }
 
-  /** The current license provider (used by overlay license endpoints). */
+  /** The current availability provider. */
   get licenseProvider(): LicenseProvider {
     return this.license;
   }
@@ -78,7 +75,7 @@ export class ModuleRegistryService implements OnModuleInit {
     this.byId = byId;
   }
 
-  /** Inject an external (e.g. Enterprise overlay) module manifest at runtime. */
+  /** Inject an external module manifest at runtime. */
   async registerExternal(manifest: ModuleManifest): Promise<void> {
     this.load([...this.manifests, manifest]);
     await this.refresh();
@@ -91,7 +88,7 @@ export class ModuleRegistryService implements OnModuleInit {
     if (!m || typeof m !== 'object') fail('not an object');
     if (!m.id || typeof m.id !== 'string') fail('missing id');
     if (!m.name) fail('missing name');
-    if (!['core', 'community', 'premium', 'enterprise'].includes(m.tier)) fail('bad tier');
+    if (!['core', 'community'].includes(m.tier)) fail('bad tier');
     if (!Array.isArray(m.dependencies)) fail('dependencies must be an array');
     if (!Array.isArray(m.permissions)) fail('permissions must be an array');
     if (typeof m.enabledByDefault !== 'boolean') fail('enabledByDefault must be boolean');
@@ -152,10 +149,7 @@ export class ModuleRegistryService implements OnModuleInit {
       const unmet = m.dependencies.filter((d) => !enabled.get(d));
       let state: ModuleStateValue;
       let reason: string;
-      if (!isLicensed) {
-        state = 'locked';
-        reason = `${m.tier} tier is not licensed in this edition`;
-      } else if (isEnabled) {
+      if (isEnabled) {
         state = 'enabled';
         reason = 'active';
       } else if (want.get(m.id) && unmet.length) {
@@ -210,9 +204,6 @@ export class ModuleRegistryService implements OnModuleInit {
   // --- mutations ---------------------------------------------------------
   async enable(id: string, userId?: string): Promise<ModuleStatus> {
     const m = this.getManifest(id);
-    if (!(await this.license.hasModule(id)) && m.tier !== 'core' && m.tier !== 'community') {
-      throw new ForbiddenException(`A license is required to enable "${id}"`);
-    }
     const unmet = m.dependencies.filter((d) => !this.isEnabled(d));
     if (unmet.length) {
       throw new BadRequestException(`Enable its dependencies first: ${unmet.join(', ')}`);
@@ -242,10 +233,6 @@ export class ModuleRegistryService implements OnModuleInit {
     return this.getStatus(id)!;
   }
 
-  async recordAccessViolation(id: string, userId?: string, url?: string): Promise<void> {
-    await this.event(id, 'module.access_denied', `Blocked access to disabled module "${id}" (${url ?? '?'})`, userId);
-  }
-
   private async setState(moduleId: string, enabled: boolean, tier: string): Promise<void> {
     await this.prisma.moduleState.upsert({
       where: { moduleId },
@@ -263,7 +250,7 @@ export class ModuleRegistryService implements OnModuleInit {
       action: eventType,
       objectType: 'module',
       objectId: moduleId,
-      result: eventType === 'module.access_denied' ? 'failure' : 'success',
+      result: 'success',
     });
   }
 }

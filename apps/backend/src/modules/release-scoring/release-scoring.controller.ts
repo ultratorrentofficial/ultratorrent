@@ -10,8 +10,8 @@ import { ScoreDto, TestRuleDto } from './dto/release-scoring.dto';
 const P = PERMISSIONS;
 
 /**
- * Release Scoring API — explainable 0–100 scoring of RSS releases. Module-gated
- * (`@RequiresModule('release_scoring')` + `ModuleGuard`, i.e. UPLM) + RBAC.
+ * Release Scoring API — explainable 0–100 scoring of RSS releases. Core module,
+ * RBAC-gated.
  */
 @ApiTags('release-scoring')
 @ApiBearerAuth()

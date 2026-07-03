@@ -162,8 +162,9 @@ UltraTorrent is a single-tier community product built from one codebase
 
 - Put shared types, permissions, and event names in `@ultratorrent/shared` so the
   API and UI agree, rather than duplicating them.
-- Add new capabilities as modules with a manifest (tier `core`), and gate
-  optional endpoints with `@RequiresModule(...)` + `ModuleGuard`.
+- Add new capabilities as modules with a manifest (tier `core` or `community`),
+  and gate their endpoints with RBAC (`@UseGuards(JwtAuthGuard, PermissionsGuard)`
+  + `@RequirePermissions(...)`).
 - Optional external integrations resolve through provider interfaces (e.g. the
   `LicenseProvider` binds the default `CommunityLicenseProvider`).
 </content>

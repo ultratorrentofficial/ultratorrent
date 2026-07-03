@@ -6,15 +6,11 @@ type Tone = 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'i
 const TIER_TONE: Record<ModuleTier, Tone> = {
   core: 'outline',
   community: 'success',
-  premium: 'info',
-  enterprise: 'default',
 };
 
 const TIER_LABEL: Record<ModuleTier, string> = {
   core: 'Core',
   community: 'Community',
-  premium: 'Premium',
-  enterprise: 'Enterprise',
 };
 
 export function TierBadge({ tier }: { tier: ModuleTier }) {
@@ -47,4 +43,4 @@ export function StateBadge({ state }: { state: ModuleStateValue }) {
   );
 }
 
-export const TIER_ORDER: ModuleTier[] = ['core', 'community', 'premium', 'enterprise'];
+export const TIER_ORDER: ModuleTier[] = ['core', 'community'];

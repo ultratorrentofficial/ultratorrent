@@ -11,9 +11,9 @@ import { MediaAcquisitionController } from './media-acquisition.controller';
 
 /**
  * Scheduler stubs for the acquisition sweeps. Each is a no-op unless the module
- * is enabled (which requires a UPLM entitlement), so an unlicensed install pays
- * nothing. They are the hook where RSS/watchlist/upgrade sweeps will batch-
- * evaluate candidates; evaluation is operator-driven for now.
+ * is enabled, so a disabled install pays nothing. They are the hook where
+ * RSS/watchlist/upgrade sweeps will batch-evaluate candidates; evaluation is
+ * operator-driven for now.
  */
 @Injectable()
 export class MediaAcquisitionScheduler {
@@ -35,10 +35,9 @@ export class MediaAcquisitionScheduler {
 }
 
 /**
- * Premium Media Acquisition Intelligence overlay. Gated by
- * `@RequiresModule('media_acquisition_intelligence')` + `ModuleGuard` (UPLM) +
- * RBAC. Reuses Core's `parseTorrentName` and the Release Scoring engine; never
- * performs file operations (decisions + recommendations only).
+ * Media Acquisition Intelligence module. RBAC-gated. Reuses `parseTorrentName`
+ * and the Release Scoring engine; never performs file operations (decisions +
+ * recommendations only).
  */
 @Module({
   providers: [

@@ -94,14 +94,12 @@ export default (): AppConfig => ({
     process.env.ENCRYPTION_KEY ??
     process.env.JWT_ACCESS_SECRET ??
     'dev-encryption-key-change-me',
-  // Node Agent identity. `mode` defaults to standalone; the Enterprise overlay
-  // promotes it to managed_node/hybrid once Central registration succeeds.
+  // Node Agent identity. `mode` defaults to standalone.
   node: {
     productVersion: resolveVersion(),
     mode: process.env.NODE_PRODUCT_MODE ?? 'standalone',
     publicUrl: process.env.NODE_PUBLIC_URL ?? null,
   },
-  // 'community' (public Core) or 'enterprise' (Core + overlay). The Enterprise
-  // entrypoint sets ULTRATORRENT_EDITION=enterprise.
-  edition: process.env.ULTRATORRENT_EDITION ?? 'community',
+  // Single-tier product: always the community edition.
+  edition: 'community',
 });

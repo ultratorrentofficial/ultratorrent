@@ -17,15 +17,13 @@ import { AllExceptionsFilter } from './common/all-exceptions.filter';
 
 export interface UltraTorrentAppOptions {
   /**
-   * Extra NestJS modules to import (e.g. the private Enterprise overlay's
-   * `UplmModule`). Core never imports these — the host (enterprise build)
-   * supplies them. Each module is responsible for swapping the registry's
-   * license provider via `ModuleRegistryService.setLicenseProvider`.
+   * Extra NestJS modules to import. The app never imports these itself — a host
+   * may supply them to extend the app with additional modules.
    */
   externalModules?: Array<unknown>;
 }
 
-/** Root module that composes Core (`AppModule`) with any external overlays. */
+/** Root module that composes the app (`AppModule`) with any external modules. */
 class UltraTorrentRootModule {
   static forRoot(extra: Array<unknown>): DynamicModule {
     return {
@@ -36,9 +34,8 @@ class UltraTorrentRootModule {
 }
 
 /**
- * Build (but do not start) the UltraTorrent Nest application. The public Core
- * uses this with no options (community); the Enterprise overlay calls it with
- * `externalModules: [UplmModule]` to inject UPLM licensing.
+ * Build (but do not start) the UltraTorrent Nest application. Normally called
+ * with no options; a host may pass `externalModules` to add extra modules.
  */
 export async function createUltraTorrentApp(
   options: UltraTorrentAppOptions = {},
@@ -101,7 +98,7 @@ export async function createUltraTorrentApp(
   return app;
 }
 
-/** Start the app (used by both the Core and Enterprise entrypoints). */
+/** Start the app. */
 export async function startUltraTorrentApp(
   options: UltraTorrentAppOptions = {},
 ): Promise<INestApplication> {
