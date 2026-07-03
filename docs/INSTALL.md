@@ -5,8 +5,8 @@ UltraTorrent on a **Linux PC**, a **QNAP NAS**, or a **Synology NAS**. The
 container (Docker) route is recommended everywhere; a manual from-source route is
 also documented for Linux.
 
-> **Editions.** This installs the Community edition. It runs standalone with no
-> Enterprise overlay. See [EDITIONS.md](EDITIONS.md) for how the editions relate.
+> This installs UltraTorrent — a single, self-hosted community product with no
+> separate editions or add-on overlay. It runs standalone.
 
 - [Choosing an install method](#choosing-an-install-method)
 - [Docker install (recommended)](#docker-install-recommended)

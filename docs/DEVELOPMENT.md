@@ -212,54 +212,21 @@ npm run test:cov --workspace @ultratorrent/backend      # coverage
 - **Shared first.** Types, permissions, and event names that both API and UI need
   belong in `@ultratorrent/shared`, not duplicated.
 
-## Editions, modules & licensing
+## Modules & licensing
 
-UltraTorrent is one codebase that ships as a **public Core** plus a **private
-Enterprise overlay** — no long-lived edition branches. See
-[MODULES.md](MODULES.md) and [EDITIONS.md](EDITIONS.md) for the full model.
+UltraTorrent is a single-tier community product — one codebase, no edition
+branches or private overlay. See [MODULES.md](MODULES.md) for the module model.
 
 - **Every feature is a module** with a manifest in
   `apps/backend/src/modules/module-registry/manifests.ts` (tier, dependencies,
   permissions, menu, routes). The registry validates them at startup and rejects
   circular dependencies.
-- **Gate license-aware/optional endpoints** with `@RequiresModule(id)` +
-  `ModuleGuard`; the backend returns `403` when a module is disabled or locked.
-  Frontend gating (via `/api/modules/enabled`) is UX only.
-- **Licensing** goes through the `LicenseProvider` interface. Core binds the
-  default `CommunityLicenseProvider` (permits core+community, denies
-  premium+enterprise). Do **not** add real license verification to Core — that
-  belongs in the Enterprise overlay, bound to the `LICENSE_PROVIDER` token.
-- **Build commands:** `npm run build:community` / `npm run dev:community` build
-  and run the Core edition; they must succeed with no enterprise package present.
-
-> Keep proprietary Enterprise logic out of the public Core. Core only declares
-> interfaces (`ModuleManifest`, `LicenseProvider`, `UltraTorrentExternalModule`)
-> and placeholder manifests; the overlay injects implementations at runtime.
-
-### Enterprise overlay & UPLM (`packages/enterprise`)
-
-The private overlay implements the **UPLM** licensing integration (full detail
-in [UPLM.md](UPLM.md)). It imports Core through the single
-`@ultratorrent/backend/lib` barrel and never the other way around.
-
-```bash
-# from packages/enterprise
-npm run build                       # type-check + emit (node16 resolution → honours backend's exports map)
-npm test                            # UPLM unit tests (canonical JSON, signing, fail-closed verify, upload flow)
-
-npm run uplm:keygen                 # dev only: generate the module-signing Ed25519 keypair into keys/ (gitignored)
-npm run uplm:validate-manifests     # validate Core manifests before exporting
-npm run uplm:export-modules         # build the catalog + detached signature → dist/uplm/ultratorrent-modules.json (+ .json.sig)
-npm run uplm:verify-export          # verify a catalog against its .sig (module-signing public key)
-# (customer-side licensing is product-key activation via the admin UI — no CLI)
-
-# run the Enterprise build (Core + UPLM overlay)
-DATABASE_URL=… JWT_ACCESS_SECRET=… node dist/main.js
-```
-
-- UPLM **local-state** tables (`uplm_*`) live in Core's Prisma schema (one
-  migration system); UPLM **services** live only in `packages/enterprise`.
-- **Never commit keys.** `keys/`, `*.pem`, `*.key`, and `dist/` are gitignored.
-- The overlay is **excluded** from the root `build` script, so the Community
-  build never depends on it.
+- **Gate optional endpoints** with `@RequiresModule(id)` + `ModuleGuard`; the
+  backend returns `403` when a module is disabled or locked. Frontend gating (via
+  `/api/modules/enabled`) is UX only — the server always enforces permissions.
+- **Licensing** goes through the `LicenseProvider` interface. The app binds the
+  default `CommunityLicenseProvider`, which permits the core + community tiers;
+  this single-tier product ships no premium/enterprise tiers.
+- **Build & run:** `npm run build` builds shared → backend → frontend; `npm run
+  dev` runs the API plus the Vite dev server.
 </content>

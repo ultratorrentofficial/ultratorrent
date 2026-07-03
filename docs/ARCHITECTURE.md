@@ -1,9 +1,9 @@
-# Architecture (Community / Core)
+# Architecture
 
-This document describes the architecture of the **UltraTorrent Community (Core)**
-edition — the open-source code in this repository. The commercial Enterprise
-overlay is a separate, private package and is intentionally **not** covered here;
-see [EDITIONS.md](EDITIONS.md) for how the two editions relate.
+This document describes the architecture of **UltraTorrent** — the open-source,
+self-hosted torrent management platform in this repository. UltraTorrent is a
+single, community product: there is no separate commercial edition or private
+overlay, and everything the application ships is covered here.
 
 ## Overview
 
@@ -117,7 +117,7 @@ docs/             this documentation set
 
 ## Further reading
 
-[EDITIONS.md](EDITIONS.md) · [INSTALL.md](INSTALL.md) · [DOCKER.md](DOCKER.md) ·
+[INSTALL.md](INSTALL.md) · [DOCKER.md](DOCKER.md) ·
 [DEVELOPMENT.md](DEVELOPMENT.md) · [NAVIGATION.md](NAVIGATION.md) ·
 [FILE_MANAGER.md](FILE_MANAGER.md) · [MODULES.md](MODULES.md)
 

@@ -258,7 +258,6 @@ ultratorrent/
 | Document | Description |
 |----------|-------------|
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Core clean-architecture layers, the engine provider abstraction, data flow, real-time design, RBAC |
-| [EDITIONS.md](docs/EDITIONS.md)         | How the public Community (Core) and commercial Enterprise editions relate |
 | [INSTALL.md](docs/INSTALL.md)           | Prerequisites, env setup, Prisma, running dev, connecting rTorrent |
 | [DOCKER.md](docs/DOCKER.md)             | Docker Compose services, volumes, env, health checks, commands |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md)   | Local workflow, adding an engine provider, adding a module, testing, standards |
