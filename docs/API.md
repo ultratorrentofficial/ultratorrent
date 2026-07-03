@@ -670,13 +670,14 @@ to acquire with explainable decisions; it **never performs file operations**. Se
 
 `@Controller('modules')` (`ModuleRegistryController`) guarded — tag `modules`.
 Exposes the module registry: which feature modules are enabled and the current
-edition/availability status. In the single-tier community product this reports
-`edition: "community"` with every `core` and `community` module available.
+module-availability status. There is no licensing or edition gating — every
+module is available and access is governed only by RBAC. This reports the single
+`community` product with every `core` and `community` module available.
 
 | Method | Path | Auth | Permission |
 |--------|------|------|------------|
 | `GET`  | `/api/modules/enabled` | Bearer | — enabled modules (used by clients to build navigation) |
-| `GET`  | `/api/modules/license` | Bearer | — current license/edition status |
+| `GET`  | `/api/modules/license` | Bearer | — module-availability status (no gating; always the single `community` product) |
 | `GET`  | `/api/modules` | Bearer | `modules.view` |
 | `GET`  | `/api/modules/:id` | Bearer | `modules.view` |
 | `GET`  | `/api/modules/:id/manifest` | Bearer | `modules.view` |

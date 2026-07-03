@@ -109,7 +109,9 @@ Authorization is **permission-based**. Every protected route declares the
 permission(s) it needs via `@RequirePermissions(...)`; the `PermissionsGuard`
 verifies the authenticated principal holds **all** of them. `SUPER_ADMIN` bypasses
 granular checks. The catalog is defined once in `packages/shared/src/permissions.ts`
-and shared by backend guards and frontend capability checks.
+and shared by backend guards and frontend capability checks. Every feature in the
+platform is included; there is no licensing, edition, or feature gating — RBAC is
+the only access-control mechanism.
 
 ### Permission catalog
 

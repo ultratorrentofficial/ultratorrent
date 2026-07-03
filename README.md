@@ -2,13 +2,15 @@
 
 # UltraTorrent
 
-**A modern, self-hosted torrent management platform.**
+**A modern, self-hosted Media Acquisition & Management Platform.**
 
-UltraTorrent puts a clean, fast, multi-user web UI in front of your existing
-BitTorrent client. It speaks to engines like **rTorrent** through a pluggable
-provider abstraction, normalizes everything into engine-agnostic data, and adds
-real-time updates, granular role-based access control, and a full audit trail on
-top.
+UltraTorrent is far more than a torrent downloader: it acquires, organizes, and
+manages media end to end. It puts a clean, fast, multi-user web UI in front of
+your existing BitTorrent engines, speaking to engines like **rTorrent** through a
+pluggable provider abstraction, then layers on RSS automation, media
+identification, metadata/artwork/subtitle management, NFO generation, a rename
+engine, media-server integrations, real-time updates, granular role-based access
+control, and a full audit trail.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](#license)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-43853d.svg)
@@ -38,17 +40,21 @@ top.
 
 ## What is UltraTorrent?
 
-UltraTorrent is **not** a BitTorrent client. It is a management layer that
-controls one or more existing torrent engines over their native control
-protocol. The browser UI never talks to the engine directly — it talks to the
-UltraTorrent API, which translates requests into the engine's protocol and
-returns **normalized** data. That single seam (the `TorrentEngineProvider`
-interface) is what lets UltraTorrent add support for new engines without
-touching any UI or business logic.
+UltraTorrent is a **Media Acquisition & Management Platform**, not a desktop
+BitTorrent app. Downloading is only the first step: it controls one or more
+existing torrent engines over their native control protocol, then identifies,
+enriches, renames, files, and publishes the result to your media servers. The
+browser UI never talks to an engine directly — it talks to the UltraTorrent API,
+which translates requests into the engine's protocol and returns **normalized**
+data. That single seam (the `TorrentEngineProvider` interface) is one of several
+provider abstractions that let UltraTorrent add engines, metadata sources, and
+integrations without touching any UI or business logic.
 
-The current MVP ships a complete **rTorrent** provider (XML-RPC over SCGI);
+The current release ships a complete **rTorrent** provider (XML-RPC over SCGI);
 qBittorrent, Transmission, and Deluge are first-class targets of the same
-interface and are planned.
+interface and are planned. See
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full platform
+architecture.
 
 ## Features
 
@@ -275,7 +281,7 @@ ultratorrent/
 UltraTorrent's Core security model — Argon2id hashing, JWT + rotating hashed
 refresh tokens, server-enforced RBAC, canonicalized root-limited file/path
 handling, SSRF-guarded remote fetches, and audit logging — is summarized in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model-core).
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model).
 
 **Reporting a vulnerability:** please report security issues **privately** — do
 not open a public issue. Use GitHub's *Report a vulnerability* (Security tab →

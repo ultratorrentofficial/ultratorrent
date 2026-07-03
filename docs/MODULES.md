@@ -93,8 +93,12 @@ so disabling a module cascades to its dependents.
 
 ## Availability provider
 
-`LicenseProvider` (in `@ultratorrent/shared`) is a small seam the registry
-consults to decide whether a module is available:
+There is **no licensing, edition, or feature gating** in UltraTorrent — every
+module is available in this single community product and access is governed only
+by RBAC. The registry still consults a small **availability seam** so it always
+has a single answer to "is this module available?"; in this product that answer
+is always *yes*. The interface (named `LicenseProvider` in `@ultratorrent/shared`
+for historical/compatibility reasons) is:
 
 ```ts
 interface LicenseProvider {
@@ -107,9 +111,11 @@ interface LicenseProvider {
 
 The product binds the default **`CommunityLicenseProvider`** to the
 `LICENSE_PROVIDER` DI token. Every `core`/`community` module is available, it
-needs no license file, and it reports edition `community`. It is the only
-provider the product ships — there is no product key, signature, or external
-service.
+needs no license file, and it reports `community` as the single product
+identifier. It is the only provider the product ships — there is no product key,
+signature, tier, or external service, and nothing is ever gated or paywalled.
+See [ARCHITECTURE.md → Provider Architecture](ARCHITECTURE.md#provider-architecture)
+for how provider seams isolate external services more generally.
 
 ## API
 
