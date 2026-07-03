@@ -37,8 +37,15 @@ describe('AutomationEngine — ratio.reached edge trigger', () => {
     const registry = { resolve: jest.fn().mockResolvedValue(provider) } as any;
     const notifications = { dispatch: jest.fn().mockResolvedValue(undefined) } as any;
     const media = {} as any;
-    const engine = new AutomationEngine(prisma, registry, notifications, media);
-    return { engine, provider };
+    const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
+    const engine = new AutomationEngine(
+      prisma,
+      registry,
+      notifications,
+      media,
+      mediaActions,
+    );
+    return { engine, provider, mediaActions };
   }
 
   it('fires when the ratio first crosses the threshold', async () => {
@@ -72,5 +79,41 @@ describe('AutomationEngine — ratio.reached edge trigger', () => {
       { context: torrent({ ratio: 2.1 }), previous: torrent({ ratio: 1.9 }) },
     ]);
     expect(provider.stopTorrent).not.toHaveBeenCalled();
+  });
+});
+
+describe('AutomationEngine — media action dispatch', () => {
+  const MEDIA_RULE = {
+    id: 'm1',
+    name: 'Scan on complete',
+    conditions: [],
+    actions: [{ type: 'media_scan_library', params: { libraryId: 'L1' } }],
+  };
+
+  it('delegates a media_* action to MediaAutomationActions (no engine call)', async () => {
+    const prisma = {
+      automationRule: { findMany: jest.fn().mockResolvedValue([MEDIA_RULE]) },
+      automationLog: { create: jest.fn().mockResolvedValue(undefined) },
+    } as any;
+    const provider = { stopTorrent: jest.fn() };
+    const registry = { resolve: jest.fn().mockResolvedValue(provider) } as any;
+    const notifications = { dispatch: jest.fn().mockResolvedValue(undefined) } as any;
+    const media = {} as any;
+    const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
+    const engine = new AutomationEngine(
+      prisma,
+      registry,
+      notifications,
+      media,
+      mediaActions,
+    );
+
+    await engine.evaluate('torrent.completed', torrent());
+
+    expect(mediaActions.execute).toHaveBeenCalledWith('media_scan_library', {
+      libraryId: 'L1',
+    });
+    // Media actions never resolve a torrent engine provider.
+    expect(registry.resolve).not.toHaveBeenCalled();
   });
 });

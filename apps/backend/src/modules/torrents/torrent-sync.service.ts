@@ -6,6 +6,7 @@ import { EngineRegistryService } from '../engine/engine-registry.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AutomationEngine } from '../automation/automation.module';
 import { NotificationsService } from '../notifications/notifications.module';
+import { MediaProcessingService } from '../media/media-processing.service';
 
 /**
  * Background synchroniser. On a fixed cadence it pulls live torrent + stats
@@ -26,6 +27,7 @@ export class TorrentSyncService {
     private readonly realtime: RealtimeGateway,
     private readonly automation: AutomationEngine,
     private readonly notifications: NotificationsService,
+    private readonly mediaProcessing: MediaProcessingService,
   ) {}
 
   @Interval(2000)
@@ -123,6 +125,13 @@ export class TorrentSyncService {
           .evaluate('torrent.completed', t)
           .catch((err) =>
             this.logger.warn(`Automation evaluate failed: ${err.message}`),
+          );
+        // Post-download Media Manager workflow (opt-in, best-effort). Runs after
+        // rule evaluation so operator rules see the completion first.
+        await this.mediaProcessing
+          .handleTorrentCompleted(t)
+          .catch((err) =>
+            this.logger.warn(`Media workflow failed: ${err.message}`),
           );
       }
 

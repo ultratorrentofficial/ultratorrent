@@ -16,7 +16,27 @@ export const WS_EVENTS = {
   FILES_OP_FAILED: 'files.operation.failed',
   FILES_CLEANUP_COMPLETED: 'files.cleanup.completed',
   FILES_TRASH_UPDATED: 'files.trash.updated',
+  // Media Manager job progress (scoped to media_manager.view).
+  MEDIA_JOB_STARTED: 'media_manager.job.started',
+  MEDIA_JOB_PROGRESS: 'media_manager.job.progress',
+  MEDIA_JOB_COMPLETED: 'media_manager.job.completed',
+  MEDIA_JOB_FAILED: 'media_manager.job.failed',
 } as const;
+
+/** A Media Manager background job's lifecycle event over WebSocket. */
+export interface MediaJobEventPayload {
+  jobId: string;
+  /** library_scan | media_identification | metadata_fetch | artwork_fetch | subtitle_scan | rename_execute | nfo_generate | media_server_refresh */
+  type: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  progress: number;
+  libraryId?: string | null;
+  itemId?: string | null;
+  message?: string | null;
+  result?: unknown;
+  error?: string | null;
+  at: string;
+}
 
 export interface StatsUpdatePayload {
   engineId: string;

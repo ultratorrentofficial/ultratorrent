@@ -14,6 +14,9 @@ import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaServerIntegrationService } from './media-server-integration.service';
+import { MediaProcessingQueueService } from './media-processing-queue.service';
+import { MediaAutomationActions } from './media-automation.actions';
+import { MediaProcessingService } from './media-processing.service';
 import { MediaController } from './media.controller';
 
 /**
@@ -43,6 +46,9 @@ import { MediaController } from './media.controller';
     MediaNfoService,
     MediaDuplicateService,
     MediaServerIntegrationService,
+    MediaProcessingQueueService,
+    MediaAutomationActions,
+    MediaProcessingService,
   ],
   controllers: [MediaController],
   exports: [
@@ -58,6 +64,9 @@ import { MediaController } from './media.controller';
     MediaNfoService,
     MediaDuplicateService,
     MediaServerIntegrationService,
+    MediaProcessingQueueService,
+    MediaAutomationActions,
+    MediaProcessingService,
   ],
 })
 export class MediaModule {}

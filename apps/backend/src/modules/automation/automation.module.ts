@@ -27,12 +27,63 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { NotificationsService } from '../notifications/notifications.module';
 import { MediaService } from '../media/media.service';
+import { MediaAutomationActions } from '../media/media-automation.actions';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 type Condition = { field: keyof NormalizedTorrent; op: string; value: unknown };
 type Action = { type: string; params?: Record<string, unknown> };
+
+/**
+ * Catalog of automation triggers the engine understands. Triggers are matched by
+ * string id when a rule is evaluated; this catalog is the metadata the UI needs
+ * to present them (and the single place new triggers are registered).
+ */
+export const AUTOMATION_TRIGGERS = [
+  { id: 'torrent.completed', label: 'When a download completes', category: 'torrent' },
+  { id: 'ratio.reached', label: 'When the share ratio is reached', category: 'torrent' },
+  { id: 'media.detected', label: 'When media is detected in a download', category: 'media' },
+  { id: 'media.matched', label: 'When a media item is matched', category: 'media' },
+  { id: 'media.unmatched', label: 'When a media item cannot be matched', category: 'media' },
+  { id: 'media.missing_artwork', label: 'When a media item is missing artwork', category: 'media' },
+  { id: 'media.missing_subtitles', label: 'When a media item is missing subtitles', category: 'media' },
+  { id: 'media.rename_completed', label: 'When a media rename/move completes', category: 'media' },
+  { id: 'media.server_refresh_failed', label: 'When a media-server refresh fails', category: 'media' },
+] as const;
+
+/** Catalog of actions the engine can execute (metadata for the UI). */
+export const AUTOMATION_ACTIONS = [
+  { id: 'notify', label: 'Send notification', category: 'torrent' },
+  { id: 'move', label: 'Move data', category: 'torrent' },
+  { id: 'pause', label: 'Pause torrent', category: 'torrent' },
+  { id: 'stop', label: 'Stop torrent', category: 'torrent' },
+  { id: 'delete', label: 'Remove torrent', category: 'torrent' },
+  { id: 'delete_with_data', label: 'Remove torrent + data', category: 'torrent' },
+  { id: 'webhook', label: 'Call webhook', category: 'torrent' },
+  { id: 'rename_for_media', label: 'Rename for media server', category: 'media' },
+  { id: 'media_scan_library', label: 'Scan a media library', category: 'media' },
+  { id: 'media_match', label: 'Identify a media item', category: 'media' },
+  { id: 'media_fetch_metadata', label: 'Fetch media metadata', category: 'media' },
+  { id: 'media_fetch_artwork', label: 'Fetch media artwork', category: 'media' },
+  { id: 'media_generate_nfo', label: 'Generate NFO sidecars', category: 'media' },
+  { id: 'media_rename', label: 'Rename media into the library', category: 'media' },
+  { id: 'media_move', label: 'Move media into the library', category: 'media' },
+  { id: 'media_notify', label: 'Send media notification', category: 'media' },
+  { id: 'media_server_refresh', label: 'Refresh a media server', category: 'media' },
+] as const;
+
+/** Media action ids delegated to MediaAutomationActions. */
+const MEDIA_ACTION_TYPES = new Set([
+  'media_scan_library',
+  'media_match',
+  'media_fetch_metadata',
+  'media_fetch_artwork',
+  'media_generate_nfo',
+  'media_rename',
+  'media_move',
+  'media_server_refresh',
+]);
 
 class UpsertRuleDto {
   @IsString() name!: string;
@@ -65,6 +116,7 @@ export class AutomationEngine {
     private readonly registry: EngineRegistryService,
     private readonly notifications: NotificationsService,
     private readonly media: MediaService,
+    private readonly mediaActions: MediaAutomationActions,
   ) {}
 
   /** Evaluate every enabled rule for a trigger against a single torrent. */
@@ -176,25 +228,37 @@ export class AutomationEngine {
     action: Action,
     t: NormalizedTorrent,
   ): Promise<void> {
-    const provider = await this.registry.resolve(t.engineId);
     const params = action.params ?? {};
+
+    // Media Manager actions delegate to MediaAutomationActions (no engine needed).
+    if (MEDIA_ACTION_TYPES.has(action.type)) {
+      await this.mediaActions.execute(action.type, params);
+      return;
+    }
+
     switch (action.type) {
       case 'move':
-        await provider.moveStorage(t.hash, String(params.destination));
+        await (await this.registry.resolve(t.engineId)).moveStorage(
+          t.hash,
+          String(params.destination),
+        );
         break;
       case 'pause':
-        await provider.pauseTorrent(t.hash);
+        await (await this.registry.resolve(t.engineId)).pauseTorrent(t.hash);
         break;
       case 'stop':
-        await provider.stopTorrent(t.hash);
+        await (await this.registry.resolve(t.engineId)).stopTorrent(t.hash);
         break;
       case 'delete':
-        await provider.removeTorrent(t.hash);
+        await (await this.registry.resolve(t.engineId)).removeTorrent(t.hash);
         break;
       case 'delete_with_data':
-        await provider.removeTorrentAndData(t.hash);
+        await (await this.registry.resolve(t.engineId)).removeTorrentAndData(
+          t.hash,
+        );
         break;
       case 'notify':
+      case 'media_notify':
         await this.notifications.dispatch({
           level: 'info',
           title: String(params.title ?? 'Automation'),
@@ -292,6 +356,12 @@ export class AutomationService {
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AutomationController {
   constructor(private readonly svc: AutomationService) {}
+
+  @Get('catalog')
+  @RequirePermissions(PERMISSIONS.AUTOMATION_VIEW)
+  catalog() {
+    return { triggers: AUTOMATION_TRIGGERS, actions: AUTOMATION_ACTIONS };
+  }
 
   @Get('rules')
   @RequirePermissions(PERMISSIONS.AUTOMATION_VIEW)

@@ -18,6 +18,7 @@ import { PERMISSIONS, SystemRole, WS_EVENTS } from '@ultratorrent/shared';
 const SCOPED_PERMISSIONS = [
   PERMISSIONS.TORRENTS_VIEW,
   PERMISSIONS.FILES_VIEW,
+  PERMISSIONS.MEDIA_MANAGER_VIEW,
 ];
 
 /**
@@ -81,6 +82,9 @@ export class RealtimeGateway
       return `perm:${PERMISSIONS.TORRENTS_VIEW}`;
     }
     if (event.startsWith('files.')) return `perm:${PERMISSIONS.FILES_VIEW}`;
+    if (event.startsWith('media_manager.')) {
+      return `perm:${PERMISSIONS.MEDIA_MANAGER_VIEW}`;
+    }
     // Permission-free events (e.g. notifications) go to all authenticated sockets.
     return 'authenticated';
   }

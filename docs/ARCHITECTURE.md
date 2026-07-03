@@ -56,13 +56,30 @@ NestJS modules, each RBAC-guarded and audited where it mutates state:
   mkdir/delete-to-trash/cleanup) confined to configured roots.
 - **rss** — feeds + include/exclude rules + a match-preference engine and Smart
   Match Builder.
-- **automation** — condition/action rules triggered by events.
+- **automation** — condition/action rules triggered by events. Beyond the
+  torrent triggers (`torrent.completed`, `ratio.reached`) and actions
+  (stop/delete/move/notify/webhook/`rename_for_media`), the engine registers
+  Media Manager triggers (`media.detected|matched|unmatched|missing_artwork|
+  missing_subtitles|rename_completed|server_refresh_failed`) and actions
+  (`media_scan_library`, `media_match`, `media_fetch_metadata`,
+  `media_fetch_artwork`, `media_generate_nfo`, `media_rename`, `media_move`,
+  `media_notify`, `media_server_refresh`) — the latter delegated to
+  `MediaAutomationActions` (media module) so the engine has no engine-provider
+  dependency for media work. Catalog exposed at `GET /api/automation/catalog`.
+  A `MediaProcessingService` subscribes to `torrent.completed` and, for downloads
+  landing inside an opted-in library, runs an opt-in best-effort post-download
+  pipeline (scan → identify → rename/move per `library.mode` → metadata → artwork
+  → subtitles → NFO → media-server refresh), firing the `media.*` triggers.
 - **taxonomy** — categories & tags.
 - **notifications** — in-app + webhook/Discord/Slack/Telegram fan-out.
 - **media-manager** — media libraries: scan → identify (parse release names →
   type/title/year/season/episode), metadata/artwork/subtitles, NFO, duplicate
   detection, media-server integration, and the rename engine (preset/preview/
-  apply/history). Endpoints under `/api/media`; `media_manager.*` permissions.
+  apply/history). Long-running operations run through an in-process
+  `MediaProcessingQueueService` that persists each as a `MediaProcessingJob` row
+  and streams `media_manager.job.{started,progress,completed,failed}` lifecycle
+  events over the RealtimeGateway. Endpoints under `/api/media`; `media_manager.*`
+  permissions.
 - **dashboard**, **search**, **settings**, **apikeys**, **audit**, **system**
   (health/liveness/version), **realtime**, **module-registry**.
 
@@ -129,5 +146,6 @@ dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-07-03 | **Media Manager automation + post-download workflow + job queue.** Automation engine gains Media Manager triggers (`media.detected|matched|unmatched|missing_artwork|missing_subtitles|rename_completed|server_refresh_failed`) and actions (`media_scan_library`/`media_match`/`media_fetch_metadata`/`media_fetch_artwork`/`media_generate_nfo`/`media_rename`/`media_move`/`media_notify`/`media_server_refresh`) delegated to `MediaAutomationActions`; a trigger/action catalog is exposed at `GET /api/automation/catalog`. New `MediaProcessingService` runs an opt-in best-effort post-download pipeline off `torrent.completed` (scan → identify → rename/move per `library.mode` → metadata → artwork → subtitles → NFO → media-server refresh) for downloads inside a covering library. New in-process `MediaProcessingQueueService` persists long-running operations as `MediaProcessingJob` rows (queued/running/completed/failed + progress) and streams their lifecycle over the RealtimeGateway. Added WS events `media_manager.job.{started,progress,completed,failed}` and the `MediaJobEventPayload` contract in `@ultratorrent/shared`; the gateway scopes the `media_manager.*` channel to `MEDIA_MANAGER_VIEW`. |
 | 2026-07-03 | **Media Manager core module.** New `media_manager` module evolved from the core renamer. Prisma models `MediaItem`/`MediaFile`/`MediaMetadata`/`MediaArtwork`/`MediaSubtitle`/`MediaExternalId`/`MediaCollection`/`MediaCollectionItem`/`MediaRenameTemplate`/`MediaProcessingJob` (+ duplicate-group, media-server-integration, NFO) via the `media_manager_models` migration. Backend services: library/scanner/identification/item/health, plus metadata/artwork/subtitle/NFO/duplicate/media-server-integration, and the retained rename engine. Endpoints under `/api/media`; `media_manager.*` permission block. Frontend: Media Dashboard/Items/Libraries pages + routing/nav + `api.mediaManager`. |
 | 2026-07-03 | **Single-tier community conversion.** The product was consolidated from a dual community/enterprise split into one community platform in this repo: the enterprise overlay and its modules (licensing/UPLM, Fleet, Customers, Provisioning, Billing, Central Backups/Updates, Analytics, White-Label, Multi-Server, Node Agent) were removed, Release Scoring + Media Acquisition Intelligence were relocated into core, and the versioning/publish tooling was de-editioned. This doc is now the canonical architecture reference. |

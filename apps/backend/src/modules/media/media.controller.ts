@@ -35,6 +35,7 @@ import {
   MediaServerIntegrationService,
   IntegrationInput,
 } from './media-server-integration.service';
+import { MediaProcessingQueueService } from './media-processing-queue.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -70,6 +71,7 @@ export class MediaController {
     private readonly nfo: MediaNfoService,
     private readonly duplicates: MediaDuplicateService,
     private readonly integrations: MediaServerIntegrationService,
+    private readonly jobs: MediaProcessingQueueService,
   ) {}
 
   // --- overview ----------------------------------------------------------
@@ -113,7 +115,10 @@ export class MediaController {
   @Post('libraries/:id/scan')
   @RequirePermissions(P.MEDIA_MANAGER_SCAN)
   scanLibrary(@Param('id') id: string) {
-    return this.scanner.scanLibrary(id);
+    // Tracked as a MediaProcessingJob with WS progress on the media_manager channel.
+    return this.jobs.run('library_scan', { libraryId: id }, () =>
+      this.scanner.scanLibrary(id),
+    );
   }
 
   // --- items -------------------------------------------------------------
