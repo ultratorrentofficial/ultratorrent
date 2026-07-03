@@ -1,10 +1,9 @@
 # Module Registry
 
-UltraTorrent is **one codebase** that runs in multiple editions. Every feature
-is a *module* that declares a **manifest**; the registry loads manifests at
-startup and uses the active **license provider** plus the **dependency graph**
-to decide what is active. Backend enforcement is authoritative — frontend
-gating is only UX.
+UltraTorrent is a single **Community** product. Every feature is a *module* that
+declares a **manifest**; the registry loads manifests at startup and uses the
+active **license provider** plus the **dependency graph** to decide what is
+active. Backend enforcement is authoritative — frontend gating is only UX.
 
 - [Tiers](#tiers)
 - [Manifest format](#manifest-format)
@@ -13,7 +12,6 @@ gating is only UX.
 - [API](#api)
 - [Backend enforcement](#backend-enforcement)
 - [Adding a module](#adding-a-module)
-- [External (Enterprise) module injection](#external-enterprise-module-injection)
 
 ---
 
@@ -21,14 +19,12 @@ gating is only UX.
 
 | Tier | Meaning | Default license |
 |------|---------|-----------------|
-| `core` | Always available, **cannot be disabled** (auth, RBAC, engine, torrents, RSS, files, settings, audit, …). | always |
-| `community` | Free, optional modules; on by default, may be disabled. | always |
-| `premium` | License-gated features (multi-server, advanced analytics, …). | denied in community |
-| `enterprise` | Fleet/hosting modules (fleet management, node registry, billing, …). | denied in community |
+| `core` | Always available, **cannot be disabled** (auth, RBAC, engine, torrents, RSS, files, settings, audit, Media Manager, Release Scoring, Media Acquisition Intelligence, …). | permitted |
+| `premium` | License-gated modules; denied by the default provider, so they appear **locked**. Currently only planned placeholders (AI Release Intelligence, Workflow Templates). | denied |
 
-The public Core ships `core` + `community` modules and **placeholder** manifests
-for `premium`/`enterprise`. Their real implementations live in the private
-Enterprise overlay and are injected at runtime — Core never imports them.
+The default license provider permits every `core` module and denies `premium`,
+so the shipped product runs all core modules and shows premium placeholders as
+locked until a provider grants them.
 
 ## Manifest format
 
@@ -37,21 +33,18 @@ Enterprise overlay and are injected at runtime — Core never imports them.
 
 ```ts
 {
-  id: 'fleet_management',
-  name: 'Fleet Management',
-  description: 'Manage multiple UltraTorrent nodes centrally.',
+  id: 'rss',
+  name: 'RSS automation',
+  description: 'Feeds, ranked match candidates, and the Smart Match Builder.',
   version: '1.0.0',
-  tier: 'enterprise',
-  enabledByDefault: false,
-  requiredLicenseModule: 'fleet_management',
-  dependencies: ['auth', 'rbac', 'users', 'notifications', 'api_keys'],
-  permissions: ['fleet.view', 'fleet.manage'],
-  menu: [{ label: 'Fleet', path: '/fleet', icon: 'Network', permission: 'fleet.view' }],
-  routes: ['/api/fleet', '/api/nodes'],
-  websocketEvents: ['fleet.node.registered', 'fleet.node.heartbeat'],
-  schedulerJobs: ['fleet_health_sweep'],
-  settingsSections: ['fleet'],
-  features: ['provisioning'],
+  tier: 'core',
+  enabledByDefault: true,
+  dependencies: ['auth', 'engine'],
+  permissions: ['rss.view', 'rss.manage'],
+  menu: [{ label: 'RSS', path: '/rss', icon: 'Rss', permission: 'rss.view' }],
+  routes: ['/api/rss'],
+  schedulerJobs: ['rss_poll'],
+  features: ['smart_match_builder', 'match_preferences'],
 }
 ```
 
@@ -89,16 +82,10 @@ interface LicenseProvider {
 ```
 
 Core binds the default **`CommunityLicenseProvider`** to the `LICENSE_PROVIDER`
-DI token. It permits `core` + `community`, denies `premium` + `enterprise`, needs
-no license file, and reports edition `community`. The private Enterprise overlay
-swaps in a UPLM-backed provider at bootstrap to unlock higher tiers — no Core
-changes required.
-
-The runtime swap uses Core's `ModuleRegistryService.setLicenseProvider()` seam
-(Core exposes the seam but never imports the overlay). The overlay's
-`LicenseProviderImpl` is **fail-closed**: with no operational license,
-`hasModule()` is `false` for every Premium/Enterprise module. See
-[UPLM.md](UPLM.md) for the licensing authority, signing, and verification model.
+DI token. It permits `core` (and `community`) modules, denies `premium`, needs
+no license file, and reports edition `community`. It is the only provider the
+product ships — there is no product-key, signature, or external licensing
+service.
 
 ## API
 
@@ -115,8 +102,8 @@ The runtime swap uses Core's `ModuleRegistryService.setLicenseProvider()` seam
 
 Rules:
 - Core modules cannot be disabled.
-- Community modules may be disabled only if no enabled module depends on them.
-- Premium/Enterprise modules require a license provider that grants entitlement.
+- A module may be disabled only if no enabled module depends on it.
+- Premium modules require a license provider that grants entitlement.
 - Enable/disable and access violations are recorded as `module_events` + audit logs.
 
 ## Backend enforcement
@@ -126,10 +113,10 @@ Decorate a controller (or route) with `@RequiresModule(id)` and add the
 enabled (disabled or unlicensed) and records the violation:
 
 ```ts
-@Controller('media')
-@RequiresModule(MODULE_IDS.MEDIA_RENAMER)
+@Controller('release-scoring')
+@RequiresModule(MODULE_IDS.RELEASE_SCORING)
 @UseGuards(JwtAuthGuard, PermissionsGuard, ModuleGuard)
-export class MediaController { /* ... */ }
+export class ReleaseScoringController { /* ... */ }
 ```
 
 ## Adding a module
@@ -141,17 +128,5 @@ export class MediaController { /* ... */ }
 4. Declare new permissions in `packages/shared/src/permissions.ts` (or rely on
    manifest permission-sync for module-only keys).
 
-## External (Enterprise) module injection
-
-The private overlay provides an `UltraTorrentExternalModule { manifest,
-backendModule?, frontendRoutes?, frontendMenuItems? }`. At runtime it calls
-`ModuleRegistryService.registerExternal(manifest)` and binds its own
-`LicenseProvider`. Core stays free of any enterprise dependency, and the
-**community build succeeds without the enterprise package installed**
-(`npm run build:community`).
-
-Premium/enterprise modules are **registered but locked** in Core (manifest
-placeholders, no implementation); the overlay supplies the implementation and is
-discovered when loaded (`externalModules` at bootstrap). The Community↔Enterprise
-repository split, build profiles, and this overlay/discovery mechanism are
-documented in [BUILD.md](BUILD.md).
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the registry fits into the wider
+system, and [BUILD.md](BUILD.md) for building and running the monorepo.

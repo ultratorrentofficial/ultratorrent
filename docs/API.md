@@ -17,9 +17,14 @@ directly from the NestJS controllers.
 - [Automation — `/api/automation`](#automation--apiautomation)
 - [Notifications — `/api/notifications`](#notifications--apinotifications)
 - [Settings — `/api/settings`](#settings--apisettings)
+- [Account — `/api/account`](#account--apiaccount)
 - [Users & Roles — `/api/users`](#users--roles--apiusers)
 - [API keys — `/api/api-keys`](#api-keys--apiapi-keys)
 - [Audit — `/api/audit`](#audit--apiaudit)
+- [Media Manager — `/api/media`](#media-manager--apimedia)
+- [Media Acquisition Intelligence — `/api/media-acquisition`](#media-acquisition-intelligence--apimedia-acquisition)
+- [Release Scoring — `/api/release-scoring`](#release-scoring--apirelease-scoring)
+- [Modules — `/api/modules`](#modules--apimodules)
 - [System — `/api/system`](#system--apisystem)
 - [WebSocket API](#websocket-api)
 - [Not yet exposed](#not-yet-exposed)
@@ -133,6 +138,7 @@ the target engine.
 |--------|------|------------|-------|
 | `GET` | `/api/torrents` | `torrents.view` | `engineId`, `state`, `category`, `search`, `sortBy`, `sortDir` (`asc`\|`desc`), `page`, `pageSize` |
 | `GET` | `/api/torrents/:hash` | `torrents.view` | `engineId` |
+| `GET` | `/api/torrents/:hash/matched-rule` | `torrents.view` | — (the RSS rule, if any, that added the torrent) |
 | `GET` | `/api/torrents/:hash/files` | `torrents.view` | `engineId` |
 | `GET` | `/api/torrents/:hash/peers` | `torrents.view` | `engineId` |
 | `GET` | `/api/torrents/:hash/trackers` | `torrents.view` | `engineId` |
@@ -245,6 +251,7 @@ fields serialized as strings. An empty `q` returns `{ items: [] }`.
 |--------|------|------------|--------------|
 | `GET`    | `/api/engines` | `system.view` | — |
 | `GET`    | `/api/engines/health` | `system.view` | `engineId` (query, optional) |
+| `POST`   | `/api/engines/test` | `engines.manage` | `TestEngineDto` — probe a connection without persisting it |
 | `POST`   | `/api/engines` | `engines.manage` | `CreateEngineDto` |
 | `PATCH`  | `/api/engines/:id` | `engines.manage` | `UpdateEngineDto` |
 | `DELETE` | `/api/engines/:id` | `engines.manage` | — |
@@ -305,6 +312,8 @@ outside the roots, or names containing `/` or NUL, are rejected
 | Method | Path | Permission | Body / Query |
 |--------|------|------------|--------------|
 | `GET`  | `/api/files` | `files.view` | `path` (query) — directory listing |
+| `GET`  | `/api/files/root` | `files.view` | — the configured Default Root Path and allow-list roots |
+| `PUT`  | `/api/files/root` | `settings.manage_root_path` | `{ path }` — change the Default Root Path (validated, narrowed to `FILE_MANAGER_ROOTS`, audited) |
 | `GET`  | `/api/files/properties` | `files.view` | `path` (query) — size, item count, ext, hash |
 | `GET`  | `/api/files/preview` | `files.preview` | `path` (query) — UTF-8 text, ≤ 256 KB |
 | `GET`  | `/api/files/download` | `files.download` | `path` (query) — streams the file (bearer required) |
@@ -351,14 +360,51 @@ background every 60 s; due feeds are fetched and items matching an enabled rule'
 include/exclude regexes are auto-downloaded to the default engine (with
 duplicate detection via `RssHistory`).
 
+### Feeds
+
+| Method | Path | Permission | Body / Query |
+|--------|------|------------|--------------|
+| `GET`    | `/api/rss/feeds` | `rss.view` | — |
+| `POST`   | `/api/rss/feeds` | `rss.manage` | `CreateFeedDto` — `{ name, url, refreshInterval?, isEnabled? }` |
+| `PATCH`  | `/api/rss/feeds/:id` | `rss.manage` | `UpdateFeedDto` (all fields optional) |
+| `DELETE` | `/api/rss/feeds/:id` | `rss.manage` | — |
+| `GET`    | `/api/rss/feeds/:id/history` | `rss.view` | `page`, `pageSize` (default 25) |
+| `POST`   | `/api/rss/feeds/:id/refresh` | `rss.manage` | — fetch the feed now |
+
+### Rules
+
 | Method | Path | Permission | Body |
 |--------|------|------------|------|
-| `GET`    | `/api/rss/feeds` | `rss.view` | — |
-| `POST`   | `/api/rss/feeds` | `rss.manage` | `{ name, url, refreshInterval?, isEnabled? }` |
-| `DELETE` | `/api/rss/feeds/:id` | `rss.manage` | — |
-| `GET`    | `/api/rss/feeds/:id/history` | `rss.view` | — |
-| `POST`   | `/api/rss/rules` | `rss.manage` | `{ feedId, name, includeRegex?, excludeRegex?, savePath?, autoDownload? }` |
+| `POST`   | `/api/rss/rules` | `rss.manage` | `CreateRuleDto` — `{ feedId, name, includeRegex?, excludeRegex?, savePath?, autoDownload? }` |
+| `PATCH`  | `/api/rss/rules/:id` | `rss.manage` | `UpdateRuleDto` (all fields optional) |
 | `DELETE` | `/api/rss/rules/:id` | `rss.manage` | — |
+| `GET`    | `/api/rss/rules-export` | `rss.view` | — export all rules (and their match filters) |
+| `POST`   | `/api/rss/rules-import` | `rss.manage` | previously-exported rules payload |
+| `GET`    | `/api/rss/rules/:id/match-history` | `rss.view` | — items this rule has matched |
+
+### Match candidates (preference list)
+
+| Method | Path | Permission | Body |
+|--------|------|------------|------|
+| `GET`    | `/api/rss/rules/:id/match-candidates` | `rss.view` | — |
+| `POST`   | `/api/rss/rules/:id/match-candidates` | `rss.manage` | candidate spec |
+| `POST`   | `/api/rss/rules/:id/match-candidates/reorder` | `rss.manage` | `{ orderedIds: string[] }` |
+| `PATCH`  | `/api/rss/rules/:id/match-candidates/:candidateId` | `rss.manage` | candidate patch |
+| `DELETE` | `/api/rss/rules/:id/match-candidates/:candidateId` | `rss.manage` | — |
+
+### Testing, backfill & Smart Match
+
+| Method | Path | Permission | Body |
+|--------|------|------------|------|
+| `POST` | `/api/rss/rules/:id/test-match` | `rss.view` | test a candidate string against the rule |
+| `POST` | `/api/rss/rules/:id/test-preference-list` | `rss.view` | test the ordered preference list |
+| `POST` | `/api/rss/rules/:id/test-history` | `rss.view` | re-test the rule against stored feed history |
+| `POST` | `/api/rss/rules/:id/backfill` | `rss.manage` | replay history through the rule |
+| `POST` | `/api/rss/history/:id/download` | `rss.manage` | download a specific history item |
+| `POST` | `/api/rss/convert-to-regex` | `rss.view` | `{ text }` → `{ pattern }` |
+| `POST` | `/api/rss/smart-match/analyze` | `rss.view` | `{ torrentName }` — analyze into match components |
+| `POST` | `/api/rss/smart-match/test` | `rss.view` | test a smart-match spec |
+| `POST` | `/api/rss/rules/:id/apply-smart-match` | `rss.manage` | apply a smart-match spec to the rule |
 
 ---
 
@@ -417,11 +463,36 @@ configured under the `notifications.channels` setting.
 
 | Method | Path | Permission | Body |
 |--------|------|------------|------|
-| `GET` | `/api/settings` | `settings.view` | — |
-| `PUT` | `/api/settings/:key` | `settings.manage` | `{ value: <any JSON> }` |
+| `GET`   | `/api/settings` | `settings.view` | — |
+| `PUT`   | `/api/settings/:key` | `settings.manage` | `{ value: <any JSON> }` |
+| `PATCH` | `/api/settings` | `settings.manage` | `{ "<key>": <value>, … }` — bulk upsert |
 
 `GET` returns all settings as a `{ key: value }` map. `PUT` upserts a single key
-and returns `{ key, value }`.
+and returns `{ key, value }`. `PATCH` upserts every key in the body and returns
+the full settings map. A protected set of keys cannot be written through these
+routes.
+
+---
+
+## Account — `/api/account`
+
+`@Controller('account')` guarded by `JwtAuthGuard` only (any authenticated user
+manages their own account) — tag `account`.
+
+| Method | Path | Auth | Body |
+|--------|------|------|------|
+| `GET`   | `/api/account/profile` | Bearer | — current user's profile |
+| `PATCH` | `/api/account/profile` | Bearer | `UpdateProfileDto` (e.g. `displayName`, `email`) |
+| `POST`  | `/api/account/password` | Bearer | `{ currentPassword, newPassword }` |
+| `GET`   | `/api/account/2fa` | Bearer | — TOTP status for the current user |
+| `POST`  | `/api/account/2fa/setup` | Bearer | — begin enrollment (returns secret + otpauth URL) |
+| `POST`  | `/api/account/2fa/enable` | Bearer | `{ code }` — verify and enable |
+| `POST`  | `/api/account/2fa/disable` | Bearer | `{ password }` |
+| `POST`  | `/api/account/2fa/recovery` | Bearer | `{ code }` — regenerate recovery codes |
+
+Changing the password (via `/api/account/password`) revokes the user's existing
+refresh tokens. Enabling/disabling 2FA and password changes write `account.*`
+audit rows.
 
 ---
 
@@ -476,190 +547,142 @@ acting username, `action`, `objectType`/`objectId`, `result`, `ipAddress`,
 
 ---
 
-## Node Agent — `/api/node-agent`
+## Media Manager — `/api/media`
 
-`@Controller('node-agent')` (`NodeAgentController`) — tag `node-agent`. Every
-install carries a persistent node identity and local agent; Central registration
-requires the Enterprise overlay. See [NODE_AGENT.md](NODE_AGENT.md).
+`@Controller('media')` (`MediaController`) guarded by `JwtAuthGuard` +
+`PermissionsGuard` — tag `media`. The Media Manager organizes a media library:
+scanning, metadata/artwork/subtitle enrichment, NFO generation, duplicate
+detection, media-server integrations, and a rename engine. See
+[MEDIA_RENAMER.md](MEDIA_RENAMER.md).
 
-| Method | Path | Permission | Description |
-|--------|------|------------|-------------|
-| `GET` | `/api/node-agent/status` | `node_agent.view` | Identity, Central status, local health snapshot, last heartbeat |
-| `POST` | `/api/node-agent/register` | `node_agent.register` | Register with Central via the active transport. Body: `{ nodeName?, centralUrl?, enrollmentToken?, publicUrl? }`. Community returns `{ accepted:false, status:"unavailable", message }` |
-| `POST` | `/api/node-agent/unregister` | `node_agent.unregister` | Disconnect from Central |
-| `POST` | `/api/node-agent/heartbeat-now` | `node_agent.manage` | Collect + record a local heartbeat (and send if a transport is available) |
-| `GET` | `/api/node-agent/events` | `node_agent.view` | Recent node-agent events (`?limit`, cap 500) |
-| `GET` | `/api/node-agent/commands` | `node_agent.commands.view` | Recent remote commands (`?limit`, cap 200) |
+### Overview & libraries
 
-Remote command types are restricted to an explicit allow-list; Core validates
-and records them but never executes arbitrary shell commands (execution is an
-Enterprise concern). WebSocket: `node_agent.status.updated`,
-`node_agent.heartbeat.created`, `node_agent.registered`,
-`node_agent.unregistered`, `node_agent.command.received/completed/failed`.
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET`    | `/api/media/dashboard` | `media_manager.view` |
+| `GET`    | `/api/media/health` | `media_manager.view` |
+| `GET`    | `/api/media/libraries` | `media_manager.view` |
+| `POST`   | `/api/media/libraries` | `media_manager.manage_libraries` |
+| `PATCH`  | `/api/media/libraries/:id` | `media_manager.manage_libraries` |
+| `DELETE` | `/api/media/libraries/:id` | `media_manager.manage_libraries` |
+| `POST`   | `/api/media/libraries/:id/scan` | `media_manager.scan` |
+
+### Items, matching & metadata
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET`   | `/api/media/items` | `media_manager.view` (`?mediaType`, `?matchStatus`, `?libraryId`) |
+| `GET`   | `/api/media/items/:id` | `media_manager.view` |
+| `PATCH` | `/api/media/items/:id` | `media_manager.edit_metadata` |
+| `POST`  | `/api/media/items/:id/match` | `media_manager.match` (empty body re-runs auto-identify; a body matches manually) |
+| `POST`  | `/api/media/items/:id/unmatch` | `media_manager.match` |
+| `POST`  | `/api/media/items/:id/metadata/fetch` | `media_manager.edit_metadata` |
+| `PATCH` | `/api/media/items/:id/metadata` | `media_manager.edit_metadata` |
+
+### Artwork & subtitles
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET`  | `/api/media/items/:id/artwork` | `media_manager.view` |
+| `POST` | `/api/media/items/:id/artwork/select` | `media_manager.manage_artwork` (`{ artworkId }`) |
+| `POST` | `/api/media/items/:id/artwork/upload` | `media_manager.manage_artwork` |
+| `GET`  | `/api/media/items/:id/artwork/missing` | `media_manager.view` |
+| `GET`  | `/api/media/items/:id/subtitles` | `media_manager.view` |
+| `POST` | `/api/media/items/:id/subtitles/scan` | `media_manager.manage_subtitles` |
+| `GET`  | `/api/media/items/:id/subtitles/missing` | `media_manager.view` (`?preferred=en,fr`) |
+
+### NFO, duplicates & server integrations
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `POST`   | `/api/media/nfo/generate` | `media_manager.generate_nfo` (`{ itemId? , libraryId? }`) |
+| `GET`    | `/api/media/duplicates` | `media_manager.view` |
+| `POST`   | `/api/media/duplicates/detect` | `media_manager.view` |
+| `GET`    | `/api/media/server-integrations` | `media_manager.manage_integrations` |
+| `POST`   | `/api/media/server-integrations` | `media_manager.manage_integrations` (settings encrypted at rest) |
+| `PATCH`  | `/api/media/server-integrations/:id` | `media_manager.manage_integrations` |
+| `DELETE` | `/api/media/server-integrations/:id` | `media_manager.manage_integrations` |
+| `POST`   | `/api/media/server-integrations/:id/test` | `media_manager.manage_integrations` |
+| `POST`   | `/api/media/server-integrations/:id/refresh` | `media_manager.manage_integrations` |
+
+Media-server integration (Plex/Jellyfin/Emby-style connectors) lives here under
+`/api/media/server-integrations` — there is no separate `/api/media-servers`
+group.
+
+### Rename engine
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET`  | `/api/media/presets` | `media_manager.view` |
+| `POST` | `/api/media/preview` | `media_manager.view` — build a rename plan (dry-run) |
+| `POST` | `/api/media/apply` | `media_manager.rename` — execute the plan |
+| `GET`  | `/api/media/history` | `media_manager.view` |
 
 ---
 
-## Fleet Management — `/api/fleet`
+## Media Acquisition Intelligence — `/api/media-acquisition`
 
-`@Controller('fleet')` (`FleetController`, tag `fleet`) — **Enterprise overlay**.
-The whole controller is `@RequiresModule('fleet_management')` + `ModuleGuard`, so
-every route returns **403** unless the module is enabled, which requires a UPLM
-entitlement. RBAC (`fleet.*`) is layered on top. See
-[FLEET_MANAGEMENT.md](FLEET_MANAGEMENT.md).
+`@Controller('media-acquisition')` (`MediaAcquisitionController`) guarded by
+`JwtAuthGuard` + `PermissionsGuard` — tag `media-acquisition`. Decides **what**
+to acquire with explainable decisions; it **never performs file operations**. See
+[MEDIA_ACQUISITION_INTELLIGENCE.md](MEDIA_ACQUISITION_INTELLIGENCE.md).
 
 | Method | Path | Permission |
 |--------|------|------------|
-| `GET` | `/api/fleet/overview` | `fleet.view` |
-| `GET` | `/api/fleet/activity` | `fleet.view` |
-| `GET` | `/api/fleet/alerts` | `fleet.view` |
-| `GET` | `/api/fleet/search?q=` | `fleet.nodes.view` |
-| `GET` | `/api/fleet/nodes` | `fleet.nodes.view` |
-| `POST` | `/api/fleet/nodes` | `fleet.nodes.manage` (returns a one-time enrollment token) |
-| `GET` | `/api/fleet/nodes/:id` | `fleet.nodes.view` |
-| `PATCH` | `/api/fleet/nodes/:id` | `fleet.nodes.manage` |
-| `DELETE` | `/api/fleet/nodes/:id` | `fleet.nodes.manage` |
-| `POST` | `/api/fleet/nodes/:id/command` | `fleet.nodes.command` (approved types only; unknown → 400) |
-| `GET` | `/api/fleet/nodes/:id/commands` | `fleet.nodes.view` |
-| `GET` | `/api/fleet/nodes/:id/health` | `fleet.nodes.view` |
-| `GET` | `/api/fleet/nodes/:id/audit` | `fleet.nodes.audit` |
-| `GET` | `/api/fleet/nodes/:id/modules` | `fleet.nodes.view` |
-| `GET` | `/api/fleet/groups` | `fleet.view` |
-| `POST`/`PATCH`/`DELETE` | `/api/fleet/groups[/:id]` | `fleet.manage` |
-| `GET` | `/api/fleet/policies` | `fleet.policies.view` |
-| `POST`/`PATCH`/`DELETE` | `/api/fleet/policies[/:id]` | `fleet.policies.manage` |
-| `POST` | `/api/fleet/policies/:id/apply` | `fleet.policies.manage` |
-| `POST` | `/api/fleet/enroll` · `/api/fleet/heartbeat` | node token (scaffold transport boundary; not user-authed) |
-
-WebSocket: `fleet.node.registered/online/offline`, `fleet.node.health.updated`,
-`fleet.node.command.started/completed/failed`, `fleet.alert.created`.
+| `GET`    | `/api/media-acquisition/overview` | `media_acquisition.view` |
+| `GET`    | `/api/media-acquisition/watchlist` · `/watchlist/:id` | `media_acquisition.view` |
+| `POST`   | `/api/media-acquisition/watchlist` | `media_acquisition.manage_watchlist` |
+| `PATCH`  | `/api/media-acquisition/watchlist/:id` | `media_acquisition.manage_watchlist` |
+| `DELETE` | `/api/media-acquisition/watchlist/:id` | `media_acquisition.manage_watchlist` |
+| `GET`    | `/api/media-acquisition/profiles` · `/profiles/:id` | `media_acquisition.view` |
+| `POST`   | `/api/media-acquisition/profiles` | `media_acquisition.manage_profiles` |
+| `PATCH`  | `/api/media-acquisition/profiles/:id` | `media_acquisition.manage_profiles` |
+| `DELETE` | `/api/media-acquisition/profiles/:id` | `media_acquisition.manage_profiles` |
+| `POST`   | `/api/media-acquisition/evaluate` | `media_acquisition.evaluate` |
+| `GET`    | `/api/media-acquisition/evaluations` · `/evaluations/:id` | `media_acquisition.view` |
+| `GET`    | `/api/media-acquisition/approval-queue` | `media_acquisition.view` |
+| `POST`   | `/api/media-acquisition/evaluations/:id/approve` | `media_acquisition.approve` |
+| `POST`   | `/api/media-acquisition/evaluations/:id/reject` | `media_acquisition.reject` |
+| `POST`   | `/api/media-acquisition/evaluations/:id/override` | `media_acquisition.override` |
+| `GET`    | `/api/media-acquisition/history` | `media_acquisition.history` |
+| `GET`    | `/api/media-acquisition/recommendations` | `media_acquisition.view` |
+| `GET`    | `/api/media-acquisition/settings` | `media_acquisition.settings` |
+| `PATCH`  | `/api/media-acquisition/settings` | `media_acquisition.settings` |
+| `POST`   | `/api/media-acquisition/export` | `media_acquisition.export` |
 
 ---
 
-## Customer Management — `/api/customers`
+## Release Scoring — `/api/release-scoring`
 
-`@Controller('customers')` (`CustomersController`) — **Enterprise overlay**,
-`@RequiresModule('customers')` + `ModuleGuard` (UPLM) + RBAC. See
-[FLEET_MANAGEMENT.md](FLEET_MANAGEMENT.md) for node ownership.
+`@Controller('release-scoring')` (`ReleaseScoringController`) guarded by
+`JwtAuthGuard` + `PermissionsGuard` — tag `release-scoring`.
 
 | Method | Path | Permission |
 |--------|------|------------|
-| `GET` | `/api/customers?status=` | `customers.view` |
-| `POST` | `/api/customers` | `customers.manage` |
-| `GET`/`PATCH`/`DELETE` | `/api/customers/:id` | view / manage / manage |
-| `GET` | `/api/customers/:id/nodes` | `customers.view` |
-| `POST` | `/api/customers/:id/nodes/:nodeId/assign` | `customers.assign_nodes` |
-| `DELETE` | `/api/customers/:id/nodes/:nodeId` | `customers.assign_nodes` |
-| `GET` | `/api/customers/:id/services` | `customers.view` |
-| `POST` | `/api/customers/:id/services` | `customers.manage` |
-| `PATCH` | `/api/customers/:id/services/:serviceId` | `customers.manage` |
+| `POST` | `/api/release-scoring/score` | `release_scoring.view` |
+| `POST` | `/api/release-scoring/test-rule` | `release_scoring.view` |
 
-Node assignment validates the node against the fleet registry and mirrors
-`customerId` onto the `FleetNode`.
+`score` returns `{ score (0–100), decision, reasons[], warnings[], parsed }`.
 
 ---
 
-## Provisioning — `/api/provisioning`
+## Modules — `/api/modules`
 
-`@Controller('provisioning')` (`ProvisioningController`) — **Enterprise
-overlay**, module-gated + RBAC. Cloud-agnostic (Vultr scaffold). See
-[PROVISIONING.md](PROVISIONING.md).
+`@Controller('modules')` (`ModuleRegistryController`) guarded — tag `modules`.
+Exposes the module registry: which feature modules are enabled and the current
+edition/license status. In the community product the license provider reports
+`edition: "community"` and grants the `core` and `community` tiers.
 
-| Method | Path | Permission |
-|--------|------|------------|
-| `GET` | `/api/provisioning/providers` · `/providers/:p/regions` · `/providers/:p/plans` | `provisioning.view` |
-| `POST` | `/api/provisioning/providers/:p/test` | `provisioning.manage` |
-| `GET` | `/api/provisioning/credentials` | `provisioning.view` (masked; secrets encrypted at rest) |
-| `POST`/`DELETE` | `/api/provisioning/credentials[/:id]` | `provisioning.manage` |
-| `GET`/`POST`/`PATCH` | `/api/provisioning/plans[/:id]` | view / manage / manage |
-| `GET` | `/api/provisioning/jobs` · `/jobs/:id` | `provisioning.view` |
-| `POST` | `/api/provisioning/jobs` | `provisioning.create_server` |
-| `POST` | `/api/provisioning/jobs/:id/cancel` | `provisioning.manage` |
-
----
-
-## Billing — `/api/billing`
-
-`@Controller('billing')` (`BillingController`) — **Enterprise overlay**,
-module-gated + RBAC. Provider-agnostic (Manual default). See
-[BILLING.md](BILLING.md).
-
-| Method | Path | Permission |
-|--------|------|------------|
-| `GET` | `/api/billing/providers` · `/configs` · `/events` | `billing.view` |
-| `POST`/`DELETE` | `/api/billing/configs[/:id]` | `billing.manage` (secrets encrypted at rest) |
-| `POST` | `/api/billing/customers` · `/subscriptions` | `billing.manage` |
-| `POST` | `/api/billing/services/:id/suspend` | `billing.suspend` (audited) |
-| `POST` | `/api/billing/services/:id/resume` | `billing.resume` (audited) |
-| `POST` | `/api/billing/webhook/:provider` | provider signature (module-gated; not user-authed) |
-
----
-
-## Premium modules (Milestone 6)
-
-All are **premium Enterprise overlays**, each `@RequiresModule(<id>)` +
-`ModuleGuard` (UPLM) + RBAC. See [MEDIA_RENAMER.md](MEDIA_RENAMER.md),
-[MULTI_SERVER.md](MULTI_SERVER.md), [MEDIA_SERVERS.md](MEDIA_SERVERS.md),
-[ANALYTICS.md](ANALYTICS.md).
-
-### Media Renamer — `/api/media-renamer` (module `media_renamer_pro`)
-
-| Method | Path | Permission |
-|--------|------|------------|
-| `POST` | `/analyze` | `media_renamer.view` |
-| `POST` | `/dry-run` | `media_renamer.preview` |
-| `POST` | `/execute` | `media_renamer.execute` |
-| `GET` | `/jobs` · `/jobs/:id` | `media_renamer.view` |
-| `POST` | `/jobs/:id/rollback` | `media_renamer.rollback` |
-| `GET` | `/templates` | `media_renamer.view` |
-| `POST`/`PATCH`/`DELETE` | `/templates[/:id]` | `media_renamer.manage_templates` |
-
-### Release Scoring — `/api/release-scoring` (module `release_scoring`)
-
-| Method | Path | Permission |
-|--------|------|------------|
-| `POST` | `/score` · `/test-rule` | `release_scoring.view` |
-
-Returns `{ score (0–100), decision, reasons[], warnings[], parsed }`.
-
-### Analytics — `/api/analytics` (module `advanced_analytics`)
-
-| Method | Path | Permission |
-|--------|------|------------|
-| `GET` | `/overview?days=` | `analytics.view` |
-
-### Multi-Server — `/api/multi-server` (module `multi_server`)
-
-| Method | Path | Permission |
-|--------|------|------------|
-| `GET` | `/overview` · `/best-engine` | `multi_server.view` |
-| `GET`/`POST`/`PATCH`/`DELETE` | `/groups[/:id]` | view / manage |
-| `GET`/`POST`/`DELETE` | `/engines/:engineId/storage[/:id]` | view / manage |
-
-### Media Servers — `/api/media-servers` (module `library_awareness`)
-
-| Method | Path | Permission |
-|--------|------|------------|
-| `GET` | `/servers` · `/servers/:id/libraries` | `media_servers.view` |
-| `POST` | `/servers/:id/find` · `/servers/:id/missing` | `media_servers.view` |
-| `POST`/`DELETE` | `/servers[/:id]` | `media_servers.manage` (settings encrypted at rest) |
-| `POST` | `/servers/:id/scan/:libraryId` | `media_servers.manage` |
-
-### Media Acquisition Intelligence — `/api/media-acquisition` (module `media_acquisition_intelligence`)
-
-Decides what to acquire; explainable decisions; **never performs file
-operations**. See [MEDIA_ACQUISITION_INTELLIGENCE.md](MEDIA_ACQUISITION_INTELLIGENCE.md).
-
-| Method | Path | Permission |
-|--------|------|------------|
-| `GET` | `/overview` · `/evaluations[/:id]` · `/approval-queue` · `/recommendations` | `media_acquisition.view` |
-| `GET` | `/watchlist[/:id]` · `/profiles[/:id]` | `media_acquisition.view` |
-| `POST`/`PATCH`/`DELETE` | `/watchlist[/:id]` | `media_acquisition.manage_watchlist` |
-| `POST`/`PATCH`/`DELETE` | `/profiles[/:id]` | `media_acquisition.manage_profiles` |
-| `POST` | `/evaluate` | `media_acquisition.evaluate` |
-| `POST` | `/evaluations/:id/approve` · `/reject` · `/override` | `…approve` / `…reject` / `…override` |
-| `GET` | `/history` | `media_acquisition.history` |
-| `GET`/`PATCH` | `/settings` | `media_acquisition.settings` |
-| `POST` | `/export` | `media_acquisition.export` |
+| Method | Path | Auth | Permission |
+|--------|------|------|------------|
+| `GET`  | `/api/modules/enabled` | Bearer | — enabled modules (used by clients to build navigation) |
+| `GET`  | `/api/modules/license` | Bearer | — current license/edition status |
+| `GET`  | `/api/modules` | Bearer | `modules.view` |
+| `GET`  | `/api/modules/:id` | Bearer | `modules.view` |
+| `GET`  | `/api/modules/:id/manifest` | Bearer | `modules.view` |
+| `GET`  | `/api/modules/:id/health` | Bearer | `modules.view` |
+| `POST` | `/api/modules/:id/enable` | Bearer | `modules.manage` |
+| `POST` | `/api/modules/:id/disable` | Bearer | `modules.manage` |
 
 ---
 
@@ -671,7 +694,7 @@ operations**. See [MEDIA_ACQUISITION_INTELLIGENCE.md](MEDIA_ACQUISITION_INTELLIG
 |--------|------|------|------------|-------------|
 | `GET` | `/api/system/live` | **Public** | — | Liveness: `{ status: "ok", uptime }` |
 | `GET` | `/api/system/ready` | **Public** | — | Readiness: `{ status, database }` (DB ping) |
-| `GET` | `/api/system/version` | **Public** | — | `{ product, version, edition, apiVersion, gitSha, buildTime, node }` — product/edition (community\|enterprise) version |
+| `GET` | `/api/system/version` | **Public** | — | `{ product, version, edition, apiVersion, gitSha, buildTime, node }` — `edition` is `community` |
 | `GET` | `/api/system/health` | Bearer | `system.view` | Detailed: process info, per-engine health, and disk usage for each file-manager root |
 
 The public `live`/`ready` probes are designed for container/orchestrator health
@@ -714,4 +737,3 @@ remain modeled in the schema without a dedicated endpoint: **download paths**
 alternative credential on requests (all routes authenticate via JWT). The
 `torrents.rename` permission and the provider's `renameTorrent`/`renameFile`
 capabilities also have no dedicated REST route yet.
-</content>

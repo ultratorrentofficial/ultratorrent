@@ -290,124 +290,6 @@ engine actually writes to.
   hole. Docker Compose likewise refuses to start without `POSTGRES_PASSWORD` and
   `ADMIN_PASSWORD` (no insecure defaults).
 
-## UPLM licensing (Enterprise overlay)
-
-Enterprise licensing is handled by **UPLM** (the external authority) in the
-private overlay; the public Core has no UPLM dependency. The security model
-(full detail in [UPLM.md](UPLM.md)):
-
-- **Ed25519** signatures over **canonical JSON** for both the signed module
-  catalog and UPLM entitlements. A single canonicalization routine is shared by
-  signer and verifier so they cannot drift.
-- **Two key pairs**: a module-signing pair (build box signs the catalog, UPLM
-  verifies) and an entitlement-signing pair (UPLM signs entitlements, every
-  instance verifies). **Private keys are never committed** — `keys/`, `*.pem`,
-  and `*.key` are gitignored; keys come from env/files at deploy time.
-- **Key rotation** via a `keyId` on every signed document; multiple trusted
-  UPLM public keys may be configured simultaneously.
-- **Fail-closed verification**: an entitlement is rejected (never throws) unless
-  it is signed by a *trusted* key, the signature verifies, the schema matches,
-  it grants ≥1 module, it is unexpired, and any platform binding matches. With
-  no valid entitlement, every Premium/Enterprise module stays **locked**; Core
-  and Community run with no license.
-- **Authoritative backend gating**: licensing is enforced by the registry +
-  `ModuleGuard`, never by the frontend. Unsigned or unknown-key entitlements are
-  never trusted.
-- **Audit**: every `license.uploaded/verified/rejected/expired`,
-  `module.unlocked`, and module-export event is recorded.
-
-## Node Agent
-
-The Node Agent prepares every install for central management without weakening a
-standalone deployment (full detail in [NODE_AGENT.md](NODE_AGENT.md)):
-
-- **Stable random identity**: `nodeId` is a random opaque id and `installId` a
-  UUID, both minted once and stable across restarts/upgrades.
-- **No raw tokens**: a Central-issued node token is stored only as a SHA-256
-  hash (`nodeTokenHash`); the raw token is never persisted. Other Central
-  secrets use `SecretCipher` (AES-256-GCM).
-- **No arbitrary execution**: remote commands are restricted to an explicit
-  allow-list of types; unknown types are rejected, never run. Core never shells
-  out. Proprietary command execution lives in the Enterprise overlay and is
-  audited.
-- **RBAC**: every Node Agent action requires a `node_agent.*` permission;
-  backend enforcement is authoritative.
-- **Optional, fail-safe transport**: the Central transport is optional (Core
-  ships a no-op). Transport failures never break local health/heartbeat
-  recording, and registration in Community returns a clear "unavailable" result
-  instead of erroring.
-- **Audited**: registration, unregistration, and command execution are written
-  to the audit log and to `node_agent_events`.
-
-## Fleet Management (Enterprise overlay)
-
-Central-side fleet control (full detail in
-[FLEET_MANAGEMENT.md](FLEET_MANAGEMENT.md)) is gated and safe by construction:
-
-- **Triple-gated**: every Fleet route is `@RequiresModule('fleet_management')` +
-  `ModuleGuard` (so it 403s unless the module is enabled — which needs a UPLM
-  entitlement) **and** RBAC (`fleet.*`). `FleetCommandService` re-checks
-  `licensed` as defence in depth.
-- **No raw credentials**: enrollment tokens and node tokens are stored only as
-  SHA-256 hashes (`FleetNodeCredential`); the raw token is returned exactly once
-  at creation/enrollment.
-- **Approved commands only**: Central may issue only the Node Agent allow-list of
-  command types; unknown types are rejected and recorded. No arbitrary shell
-  execution; issuance requires the node to be active and the module licensed.
-- **Audited**: node create/update/delete, enrollment, command issuance, group and
-  policy changes are written to the audit log and to `fleet_node_audit_events`.
-- **Scaffolded transport**: the node-facing `enroll`/`heartbeat` endpoints are a
-  clearly-marked scaffold authenticated by node tokens, to be replaced by a
-  hardened mTLS Central transport. Full remote update orchestration is out of
-  scope for this milestone.
-
-## Customers, Provisioning & Billing (Enterprise overlays)
-
-The managed-seedbox business modules (full detail in
-[PROVISIONING.md](PROVISIONING.md) and [BILLING.md](BILLING.md)) are each
-module-gated (`@RequiresModule` + `ModuleGuard`, i.e. UPLM) + RBAC:
-
-- **Credentials encrypted at rest**: cloud-provider API keys
-  (`ProvisioningProviderCredential`) and billing-provider secrets
-  (`BillingProviderConfig`) are encrypted with **SecretCipher (AES-256-GCM)**.
-  Raw secrets are never stored plaintext, never returned by the API (list
-  results are masked), and never logged — verified against the DB and logs.
-- **No hardcoded cloud credentials**: the Vultr scaffold makes no live/billable
-  call without a configured key **and** explicit `liveMode`; provisioning jobs
-  are never auto-executed.
-- **Dangerous actions are permission-scoped + audited**: creating a server
-  requires `provisioning.create_server`, destroying requires
-  `provisioning.destroy_server`; billing `suspend`/`resume` require their own
-  permissions and are audited and event-logged.
-- **Minimal PII**: customers store only name + optional email/company.
-- **Webhooks isolated**: inbound billing webhooks are on a separate,
-  non-user-authed controller, signature-verified per provider (scaffold).
-
-## Premium modules (Milestone 6)
-
-The premium overlays are each module-gated (UPLM) + RBAC. Notable controls:
-
-- **Media Renamer Pro** ([MEDIA_RENAMER.md](MEDIA_RENAMER.md)): every source and
-  destination is **path-traversal-checked** with Core's `PathSafety` (in
-  addition to per-segment template sanitisation). **Seeding is preserved** by
-  default (hardlink/symlink/copy never remove the original); only the explicit
-  `rename_*` modes relocate originals, behind `media_renamer.execute`. There is
-  **no delete mode**. Execute and rollback are audited.
-- **Library Awareness** ([MEDIA_SERVERS.md](MEDIA_SERVERS.md)): media-server API
-  tokens are **encrypted at rest** (`SecretCipher`), never returned or logged; no
-  hardcoded credentials.
-- **Release Scoring** is a pure function (no IO, no secrets). **Analytics** is
-  read-only over existing data.
-- Dangerous renamer actions (`execute`, `rollback`) and multi-server/media-server
-  mutations require their own granular permissions; backend enforcement is
-  authoritative.
-- **Media Acquisition Intelligence** ([MEDIA_ACQUISITION_INTELLIGENCE.md](MEDIA_ACQUISITION_INTELLIGENCE.md)):
-  **never performs file operations** — it only records explainable decisions and
-  *pending* recommendations; replacement/upgrade is recommended, never executed.
-  Releases requiring approval are **not** auto-downloaded. `approve`/`reject`/
-  `override` are separate permissions (`override` is the stronger one); every
-  decision and approval is audited and carries a full decision trace.
-
 ## Engine control surface
 
 The rTorrent SCGI/XML-RPC interface is **unauthenticated and gives full control**
@@ -430,7 +312,7 @@ as their dedicated route** per action (e.g. `removeData` requires
 
 **Realtime (WebSocket).** The `/ws` gateway authenticates the JWT on handshake
 and joins each socket only to `perm:<key>` rooms for the **view permissions it
-holds** (`torrents.view`/`files.view`/`node_agent.view`; SUPER_ADMIN all). Live
+holds** (`torrents.view`/`files.view`; SUPER_ADMIN all). Live
 events are emitted only to the matching room, so a user never receives realtime
 data they could not read over REST.
 
