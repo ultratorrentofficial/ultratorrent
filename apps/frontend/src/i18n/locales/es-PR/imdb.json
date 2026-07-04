@@ -59,6 +59,7 @@
     "dirPlaceholder": "/data/imdb",
     "dirPicker": "Selecciona el directorio del conjunto de datos de IMDb",
     "dirAria": "Directorio del conjunto de datos de IMDb",
+    "dirHelp": "Dónde se guardan y descargan los archivos de datos. Déjalo en blanco para usar una ubicación predeterminada bajo tu raíz de almacenamiento.",
     "validateBtn": "Validar conjunto de datos",
     "importBtn": "Importar ahora",
     "autoTitle": "Descarga e importación automática",

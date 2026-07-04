@@ -381,6 +381,8 @@ function DatasetSection({
         error: null,
       });
       toast.success(t('dataset.updateNowStartedTitle'), t('dataset.updateNowStartedBody'));
+      // The backend may have persisted a default dataset path — reflect it.
+      queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'settings'] });
     },
     onError: (err) =>
       toast.error(t('dataset.updateNowFailedTitle'), err instanceof ApiError ? err.message : undefined),
@@ -439,6 +441,7 @@ function DatasetSection({
           pickerTitle={t('dataset.dirPicker')}
           aria-label={t('dataset.dirAria')}
         />
+        <p className="mt-1 text-xs text-muted-foreground">{t('dataset.dirHelp')}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -529,7 +532,7 @@ function DatasetSection({
               variant="outline"
               onClick={() => updateNow.mutate()}
               loading={updateNow.isPending}
-              disabled={!datasetPath.trim() || importInFlight}
+              disabled={importInFlight}
             >
               <DownloadCloud className="h-4 w-4" /> {t('dataset.updateNowBtn')}
             </Button>

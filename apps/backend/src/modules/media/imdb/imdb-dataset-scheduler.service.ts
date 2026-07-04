@@ -41,8 +41,10 @@ export class ImdbDatasetScheduler {
       return;
     }
 
+    // A datasetPath is NOT required — runDatasetUpdate falls back to a managed
+    // default location under the storage root when none is configured.
     const usesDataset = settings.mode === 'dataset' || settings.mode === 'hybrid';
-    if (!usesDataset || !settings.autoDownloadEnabled || !settings.datasetPath) return;
+    if (!usesDataset || !settings.autoDownloadEnabled) return;
 
     const intervalMs = Math.max(1, settings.autoUpdateIntervalHours) * HOUR_MS;
     const now = Date.now();

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
+import * as path from 'node:path';
 import type { Prisma } from '@prisma/client';
 import type { NormalizedTorrent } from '@ultratorrent/shared';
 import { WS_EVENTS } from '@ultratorrent/shared';
@@ -169,16 +170,38 @@ export class ImdbService {
   }
 
   /**
-   * Download the configured datasets then (re)import them. Awaitable — used by
-   * the scheduler so it can track completion; the import itself runs detached.
+   * The directory downloads land in / imports read from. Uses the configured
+   * `datasetPath` when set; otherwise falls back to a managed location under the
+   * first storage root and persists it, so auto-download works out of the box
+   * without the operator pre-picking a folder (the path is a *destination* for
+   * the download, not a pre-existing source).
+   */
+  private async resolveDatasetDir(): Promise<string> {
+    const s = await this.settingsSvc.read();
+    if (s.datasetPath) return s.datasetPath;
+    const root = this.filePath.hardRoots[0];
+    if (!root) {
+      throw new BadRequestException(
+        'No storage root is configured. Set FILE_MANAGER_ROOTS or an IMDb dataset path first.',
+      );
+    }
+    const dir = this.filePath.assertWithinHardRoots(
+      path.join(root, '.ultratorrent', 'imdb-datasets'),
+    );
+    // Persist the default so the rest of the UI (validate/import/history) points here.
+    await this.settingsSvc.update({ datasetPath: dir });
+    return dir;
+  }
+
+  /**
+   * Download the datasets then (re)import them. Awaitable — used by the
+   * scheduler so it can track completion; the import itself runs detached.
    */
   async runDatasetUpdate(ctx: AuditContext = {}): Promise<void> {
+    const dir = await this.resolveDatasetDir();
     const s = await this.settingsSvc.read();
-    if (!s.datasetPath) {
-      throw new BadRequestException('Configure a dataset path before downloading IMDb datasets.');
-    }
-    await this.importer.downloadDataset(s.datasetPath, s.datasetBaseUrl, ctx);
-    await this.importer.startImport(s.datasetPath, ctx);
+    await this.importer.downloadDataset(dir, s.datasetBaseUrl, ctx);
+    await this.importer.startImport(dir, ctx);
   }
 
   /**
@@ -186,15 +209,14 @@ export class ImdbService {
    * return immediately so the HTTP request never blocks on the large transfer.
    * Progress streams over the imdb.dataset.download.* / import.* WS events.
    */
-  async triggerDatasetUpdate(ctx: AuditContext = {}): Promise<{ started: boolean }> {
-    const s = await this.settingsSvc.read();
-    if (!s.datasetPath) {
-      throw new BadRequestException('Configure a dataset path before downloading IMDb datasets.');
-    }
+  async triggerDatasetUpdate(ctx: AuditContext = {}): Promise<{ started: boolean; datasetPath: string }> {
+    // Resolve (and persist a default) up front so a misconfiguration surfaces
+    // synchronously to the caller instead of only in the detached job.
+    const datasetPath = await this.resolveDatasetDir();
     void this.runDatasetUpdate(ctx).catch((err) =>
       this.logger.error(`IMDb dataset update failed: ${(err as Error).message}`),
     );
-    return { started: true };
+    return { started: true, datasetPath };
   }
 
   // --- search / lookup -----------------------------------------------------

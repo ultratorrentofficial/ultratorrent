@@ -23,6 +23,7 @@ import {
 } from './imdb-match';
 import { ImdbMetadataProvider } from './imdb-metadata.provider';
 import { ImdbDatasetImporterService } from './imdb-dataset-importer.service';
+import { ImdbService } from './imdb.service';
 import {
   ImdbSettingsService,
   REDACTED,
@@ -488,6 +489,52 @@ describe('ImdbSettingsService', () => {
     const { svc } = make();
     await expect(svc.update({ datasetBaseUrl: 'ftp://x/' })).rejects.toThrow();
     await expect(svc.update({ autoUpdateIntervalHours: 0 })).rejects.toThrow();
+  });
+});
+
+// --- dataset update destination --------------------------------------------
+
+describe('ImdbService.triggerDatasetUpdate — dataset destination', () => {
+  function makeService(datasetPath: string | null) {
+    const settingsSvc = {
+      read: jest.fn().mockResolvedValue({ datasetPath, datasetBaseUrl: 'https://ds.example/' }),
+      update: jest.fn().mockResolvedValue(undefined),
+    };
+    const importer = {
+      downloadDataset: jest.fn().mockResolvedValue({}),
+      startImport: jest.fn().mockResolvedValue({}),
+    };
+    const filePath = {
+      hardRoots: ['/data'],
+      assertWithinHardRoots: (p: string) => p,
+    };
+    const svc = new ImdbService(
+      {} as any, // prisma
+      settingsSvc as any,
+      importer as any,
+      filePath as any,
+      noopAudit,
+      noopRealtime,
+      {} as any, // settings
+      {} as any, // moduleRef
+    );
+    return { svc, settingsSvc, importer };
+  }
+
+  it('falls back to a managed default under the storage root when no path is set', async () => {
+    const { svc, settingsSvc } = makeService(null);
+    const res = await svc.triggerDatasetUpdate();
+    const expected = '/data/.ultratorrent/imdb-datasets';
+    expect(res).toEqual({ started: true, datasetPath: expected });
+    // The default is persisted so the rest of the UI points at it.
+    expect(settingsSvc.update).toHaveBeenCalledWith({ datasetPath: expected });
+  });
+
+  it('uses the configured dataset path as-is when one is set', async () => {
+    const { svc, settingsSvc } = makeService('/data/imdb');
+    const res = await svc.triggerDatasetUpdate();
+    expect(res.datasetPath).toBe('/data/imdb');
+    expect(settingsSvc.update).not.toHaveBeenCalled();
   });
 });
 

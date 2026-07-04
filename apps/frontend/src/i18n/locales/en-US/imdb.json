@@ -59,6 +59,7 @@
     "dirPlaceholder": "/data/imdb",
     "dirPicker": "Select the IMDb dataset directory",
     "dirAria": "IMDb dataset directory",
+    "dirHelp": "Where dataset files live and are downloaded to. Leave blank to use a managed default under your storage root.",
     "validateBtn": "Validate dataset",
     "importBtn": "Import now",
     "autoTitle": "Automatic download & import",
