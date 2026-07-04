@@ -66,10 +66,11 @@ export class MediaAutomationActions {
       }
       case 'media_fetch_artwork': {
         if (!itemId) throw new BadRequestException('itemId is required');
-        // No online artwork provider is configured in core — report the gap so a
-        // downstream rule / operator can act (upload / select).
+        // Fetch poster/fanart from the configured provider (TMDB). When no key
+        // or external id is present, importFromProvider reports the gap instead
+        // so a downstream rule / operator can act (upload / select).
         return this.queue.run('artwork_fetch', { itemId }, () =>
-          this.artwork.detectMissing(itemId),
+          this.artwork.importFromProvider(itemId, ctx),
         );
       }
       case 'media_generate_nfo': {

@@ -209,6 +209,18 @@ export class MediaController {
     return this.artwork.uploadCustom(id, body, auditCtx(req));
   }
 
+  @Post('items/:id/artwork/import')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_ARTWORK)
+  importArtwork(@Param('id') id: string, @Req() req: Request) {
+    const ctx = auditCtx(req);
+    // Tracked as a MediaProcessingJob (WS progress) — same path the
+    // media_fetch_artwork automation action takes. Falls back to reporting the
+    // gap when no provider key / external id is configured.
+    return this.jobs.run('artwork_fetch', { itemId: id }, () =>
+      this.artwork.importFromProvider(id, ctx),
+    );
+  }
+
   @Get('items/:id/artwork/missing')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   missingArtwork(@Param('id') id: string) {

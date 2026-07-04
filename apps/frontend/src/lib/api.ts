@@ -1040,6 +1040,19 @@ export interface MediaArtworkMissing {
   missing: string[];
 }
 
+/**
+ * Result of a provider artwork import. When a provider ran, `provider`/`imported`
+ * are set; when none was configured it falls back to the missing-art report
+ * (`present`/`missing`).
+ */
+export interface MediaArtworkImportResult {
+  itemId: string;
+  provider?: string;
+  imported?: string[];
+  present?: string[];
+  missing?: string[];
+}
+
 export interface MediaSubtitleMissing {
   itemId: string;
   present: string[];
@@ -2205,6 +2218,11 @@ export const api = {
     },
     uploadArtwork(id: string, body: MediaArtworkUploadInput): Promise<MediaArtwork> {
       return request<MediaArtwork>(`/media/items/${id}/artwork/upload`, { method: 'POST', body });
+    },
+    importArtwork(id: string): Promise<MediaArtworkImportResult> {
+      return request<MediaArtworkImportResult>(`/media/items/${id}/artwork/import`, {
+        method: 'POST',
+      });
     },
     missingArtwork(id: string): Promise<MediaArtworkMissing> {
       return request<MediaArtworkMissing>(`/media/items/${id}/artwork/missing`);

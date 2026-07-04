@@ -133,7 +133,7 @@ ship today; others are defined/planned as the ecosystem grows:
 | **MediaMetadataProvider** | Resolve titles → metadata (overview, cast, genres, external IDs) | **Implemented** — `LocalMetadataProvider`, `TmdbMetadataProvider`, `ImdbMetadataProvider` (compliant: user datasets / licensed API, no scraping) |
 | **MediaServerProvider** | Trigger library refreshes on a media server | **Implemented** — Plex, Jellyfin, Emby, Kodi connectors |
 | **NotificationProvider** | Deliver notifications to external channels | **Implemented** — in-app, webhook, Discord, Slack, Telegram fan-out |
-| **ArtworkProvider** | Fetch typed artwork (poster/fanart/logo/…) | **Partial** — artwork is fetched/uploaded/selected today; a dedicated remote artwork provider is a planned extraction |
+| **ArtworkProvider** | Resolve an item's external id → downloadable artwork candidates (poster/fanart/logo/…) | **Implemented** — `TmdbArtworkProvider` (fanart.tv/TVDB planned); downloads share the upload magic-byte + size validation and a host allowlist |
 | **SubtitleProvider** | Discover and fetch subtitles | **Partial** — sidecar discovery ships today; remote subtitle download (e.g. OpenSubtitles) is planned |
 | **RSSProvider** | Poll and parse feeds into candidate releases | **Implemented** — the RSS module's polling/parse layer |
 | **AuthenticationProvider** | Verify credentials / issue identity | **Implemented (internal)** — local Argon2id + JWT; external IdP (OIDC/LDAP) is a planned provider |
@@ -216,7 +216,11 @@ detail is in [MEDIA_MANAGER.md](MEDIA_MANAGER.md); the key capabilities:
   HTML scraping — with root-path-confined dataset import and an encrypted key).
   External IDs (tmdb/tvdb/imdb/omdb/anilist) are recorded per item.
 - **Artwork** — typed artwork (poster/fanart/logo/clearart/banner/thumbnail/
-  season/episode) fetched, uploaded, and selected per item.
+  season/episode) per item, sourced from operator upload or an online
+  `ArtworkProvider` (`TmdbArtworkProvider` — resolves the item's TMDB id,
+  downloads poster+fanart into the hard root through the shared image
+  validation, and records provenance `source: 'tmdb'`). Custom uploads keep
+  selection precedence over auto-imported art.
 - **Subtitle management** — sidecar discovery with language/forced/SDH flags and
   missing-language detection.
 - **NFO generation** — Kodi-style movie/tvshow/season/episode sidecars, written
@@ -479,6 +483,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-07-04 | **Online artwork provider (TMDB).** New `ArtworkProvider` seam (`artwork-provider.ts`) with `TmdbArtworkProvider` — resolves an item's `tmdb` `MediaExternalId`, lists `/images`, and imports the best poster+fanart. `MediaArtworkService.importFromProvider()` downloads through the same magic-byte + 10 MB validation as uploads, enforces an `image.tmdb.org` host allowlist (SSRF guard), stores under the hard root with provenance `source: 'tmdb'`, is idempotent per url, and auto-selects only when no art of that type exists (custom uploads keep precedence). The `media_fetch_artwork` automation action now fetches instead of only reporting the gap; it still falls back to `detectMissing()` when no TMDB key/external id is configured. Operators can also trigger it manually via `POST /api/media/items/:id/artwork/import` (permission `media_manager.manage_artwork`), tracked as a `MediaProcessingJob` with WS progress, and from the Media Detail artwork panel's "Fetch from provider" button (en-US + es-PR). Pure mapping/ranking/host-guard helpers are unit-tested. |
 | 2026-07-04 | **i18n coverage: core admin/account pages.** Migrated Dashboard, Settings, Users, Modules, Engines, Audit, Account (Profile), and System (NotFound/ErrorBoundary/LockedModule) surfaces to `t()` under eight new namespaces — `dashboard` (27 keys), `settings` (33), `users` (43), `modules` (42), `engines` (51), `audit` (16), `account` (53), `system` (8) — each shipping en-US + es-PR with exact key parity; shared UI chrome (dialog, drawer, toast, language switcher) also localized. Final sweep migrated the remaining MediaAcquisition + ReleaseScoring pages into the `media`/`rss` namespaces. |
 | 2026-07-04 | **i18n coverage: RSS, Torrents, Files, Automation.** Migrated these surfaces to `t()` under four new namespaces — `rss` (350 keys), `torrents` (157), `files` (194), `automation` (75) — each shipping en-US + es-PR with exact key parity; enum/status labels resolve via render-time helpers. |
 | 2026-07-04 | **Internationalization (i18next).** The frontend gains an i18n framework (`i18next` + `react-i18next` + language detector) with two shipped languages — **en-US** (default/fallback) and **es-PR** — as static, typed, namespaced JSON under `src/i18n/locales/`. A **language switcher** in the app-shell top bar persists the choice in `localStorage` (`ultratorrent.lang`); Spanish browser variants resolve to es-PR. Core surfaces (navigation, login, app-shell chrome, common UI, feedback) are translated; page migration to `t()` (Media Manager/IMDb, then the rest) is rolling out. Nav/breadcrumbs translate at render so structure tests stay stable. |

@@ -8,7 +8,14 @@ import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { AuditService } from '../audit/audit.service';
+import { SettingsService } from '../settings/settings.module';
 import type { AuditContext } from './media-metadata.service';
+import {
+  type ArtworkCandidate,
+  TmdbArtworkProvider,
+  isAllowedArtworkHost,
+  pickBestArtwork,
+} from './artwork-provider';
 
 /** Artwork types tracked per item. */
 export const ARTWORK_TYPES = [
@@ -132,6 +139,7 @@ export class MediaArtworkService {
     private readonly prisma: PrismaService,
     private readonly filePath: FilePathService,
     private readonly audit: AuditService,
+    private readonly settings: SettingsService,
   ) {}
 
   private async requireItem(itemId: string) {
@@ -229,6 +237,112 @@ export class MediaArtworkService {
     });
 
     return artwork;
+  }
+
+  /**
+   * Fetch baseline artwork (poster + fanart) from an online provider and store
+   * it locally. Falls back to detectMissing() when no provider is configured or
+   * the item has no external id, preserving the "report the gap" behaviour.
+   */
+  async importFromProvider(itemId: string, ctx: AuditContext = {}) {
+    const item = await this.requireItem(itemId);
+
+    const key =
+      (await this.settings.get<string>('media.tmdbApiKey')) ?? process.env.TMDB_API_KEY;
+    if (!key) return this.detectMissing(itemId);
+
+    const ext = await this.prisma.mediaExternalId.findUnique({
+      where: { itemId_provider: { itemId, provider: 'tmdb' } },
+    });
+    if (!ext) return this.detectMissing(itemId);
+
+    const kind = item.mediaType === 'movie' ? 'movie' : 'tv'; // tv/anime → tv
+    const provider = new TmdbArtworkProvider(key);
+    const candidates = await provider.list(kind, ext.externalId);
+
+    const imported: ArtworkType[] = [];
+    for (const type of REQUIRED_TYPES) {
+      const cand = pickBestArtwork(candidates, type);
+      if (!cand) continue;
+      const art = await this.downloadAndStore(itemId, cand);
+      if (art) imported.push(type);
+    }
+
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.artwork.import',
+      objectType: 'media_item',
+      objectId: itemId,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { provider: 'tmdb', imported },
+    });
+
+    return { itemId, provider: 'tmdb', imported };
+  }
+
+  /**
+   * Download a provider candidate, validate it through the same magic-byte +
+   * size checks as uploads, store it under the hard root, and record the row.
+   * Idempotent per url. Returns null (skips) on any fetch/validation failure.
+   */
+  private async downloadAndStore(itemId: string, cand: ArtworkCandidate) {
+    if (!isAllowedArtworkHost(cand.url)) {
+      throw new BadRequestException(`Refusing to fetch artwork from "${cand.url}".`);
+    }
+
+    // Idempotency: don't re-download art we already have from this url.
+    const existing = await this.prisma.mediaArtwork.findFirst({
+      where: { itemId, url: cand.url },
+    });
+    if (existing) return existing;
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    let buffer: Buffer;
+    try {
+      const res = await fetch(cand.url, { signal: ctrl.signal });
+      if (!res.ok) return null;
+      buffer = Buffer.from(await res.arrayBuffer());
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (buffer.length === 0 || buffer.length > MAX_ARTWORK_BYTES) return null;
+    const mime = sniffImageMime(buffer);
+    if (!mime) return null; // provider served a non-image / unsupported format
+
+    const root = this.filePath.hardRoots[0];
+    if (!root) throw new BadRequestException('No storage root is configured.');
+    const dir = path.join(root, '.ultratorrent', 'media-artwork', itemId);
+    const dest = this.filePath.assertWithinHardRoots(
+      path.join(dir, `${cand.type}-${Date.now()}.${MIME_EXT[mime]}`),
+    );
+    await mkdir(path.dirname(dest), { recursive: true });
+    await writeFile(dest, buffer);
+
+    // Auto-select only when the item has no art of this type yet, so an
+    // operator's custom upload always keeps precedence.
+    const hasSelected = await this.prisma.mediaArtwork.findFirst({
+      where: { itemId, type: cand.type, selected: true },
+      select: { id: true },
+    });
+
+    return this.prisma.mediaArtwork.create({
+      data: {
+        itemId,
+        type: cand.type,
+        localPath: dest,
+        url: cand.url,
+        source: 'tmdb',
+        selected: !hasSelected,
+        width: cand.width ?? null,
+        height: cand.height ?? null,
+        seasonNumber: cand.seasonNumber ?? null,
+      },
+    });
   }
 
   /** Report which baseline artwork types an item is missing. */

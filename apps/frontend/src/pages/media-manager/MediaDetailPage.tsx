@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Download,
   ExternalLink,
   FileText,
   Film,
@@ -756,7 +757,10 @@ function ArtworkTab({ itemId }: { itemId: string }) {
   });
 
   const invalidate = () => {
+    // Refresh the artwork + missing-art queries, and the parent item query,
+    // which also carries an `artwork` array (drives the header poster).
     queryClient.invalidateQueries({ queryKey: ['media', 'items', itemId, 'artwork'] });
+    queryClient.invalidateQueries({ queryKey: ['media', 'items', itemId], exact: true });
   };
 
   const select = useMutation({
@@ -778,6 +782,17 @@ function ArtworkTab({ itemId }: { itemId: string }) {
       invalidate();
     },
     onError: (err) => toast.error(t('detail.artwork.uploadError'), err instanceof ApiError ? err.message : undefined),
+  });
+
+  const importArt = useMutation({
+    mutationFn: () => api.media.importArtwork(itemId),
+    onSuccess: (res) => {
+      const count = res.imported?.length ?? 0;
+      if (count > 0) toast.success(t('detail.artwork.importedToast', { count }));
+      else toast.info(t('detail.artwork.importedNone'));
+      invalidate();
+    },
+    onError: (err) => toast.error(t('detail.artwork.importError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const byType = useMemo(() => {
@@ -828,6 +843,13 @@ function ArtworkTab({ itemId }: { itemId: string }) {
             />
             <Button variant="secondary" onClick={() => fileInputRef.current?.click()} loading={upload.isPending}>
               <Upload className="h-4 w-4" /> {t('detail.artwork.uploadCustom')}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => importArt.mutate()}
+              loading={importArt.isPending}
+            >
+              <Download className="h-4 w-4" /> {t('detail.artwork.importFromProvider')}
             </Button>
           </CardContent>
         </Card>

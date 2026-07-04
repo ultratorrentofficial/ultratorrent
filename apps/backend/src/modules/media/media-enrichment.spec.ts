@@ -5,6 +5,11 @@ import {
   sniffImageMime,
   MAX_ARTWORK_BYTES,
 } from './media-artwork.service';
+import {
+  mapTmdbImages,
+  pickBestArtwork,
+  isAllowedArtworkHost,
+} from './artwork-provider';
 import { buildNfoXml, nfoFilenameFor } from './media-nfo.service';
 import {
   detectDuplicateGroups,
@@ -101,6 +106,58 @@ describe('validateArtworkUpload', () => {
     expect(() =>
       validateArtworkUpload({ type: 'poster', dataBase64: big.toString('base64') }),
     ).toThrow(BadRequestException);
+  });
+});
+
+// --- TMDB artwork provider ----------------------------------------------
+const IMG = 'https://image.tmdb.org/t/p/original';
+
+describe('mapTmdbImages', () => {
+  it('maps posters/backdrops/logos to our artwork types with absolute urls', () => {
+    const cands = mapTmdbImages(
+      {
+        posters: [{ file_path: '/p.jpg', width: 1000, vote_average: 5 }],
+        backdrops: [{ file_path: '/b.jpg', width: 1920, iso_639_1: null }],
+        logos: [{ file_path: '/l.png' }],
+      },
+      IMG,
+    );
+    expect(cands).toEqual([
+      { type: 'poster', url: `${IMG}/p.jpg`, width: 1000, height: undefined, lang: null, score: 5 },
+      { type: 'fanart', url: `${IMG}/b.jpg`, width: 1920, height: undefined, lang: null, score: 0 },
+      { type: 'logo', url: `${IMG}/l.png`, width: undefined, height: undefined, lang: null, score: 0 },
+    ]);
+  });
+  it('drops entries without a file_path and tolerates null input', () => {
+    expect(mapTmdbImages(null, IMG)).toEqual([]);
+    expect(mapTmdbImages({ posters: [{ width: 10 }] }, IMG)).toEqual([]);
+  });
+});
+
+describe('pickBestArtwork', () => {
+  const cands = mapTmdbImages(
+    {
+      posters: [
+        { file_path: '/lo.jpg', width: 500, vote_average: 2 },
+        { file_path: '/hi.jpg', width: 2000, vote_average: 8 },
+      ],
+    },
+    IMG,
+  );
+  it('picks the highest-scored candidate of a type', () => {
+    expect(pickBestArtwork(cands, 'poster')?.url).toBe(`${IMG}/hi.jpg`);
+  });
+  it('returns undefined when no candidate of that type exists', () => {
+    expect(pickBestArtwork(cands, 'fanart')).toBeUndefined();
+  });
+});
+
+describe('isAllowedArtworkHost', () => {
+  it('allows the TMDB image cdn only', () => {
+    expect(isAllowedArtworkHost(`${IMG}/x.jpg`)).toBe(true);
+    expect(isAllowedArtworkHost('https://evil.example.com/x.jpg')).toBe(false);
+    expect(isAllowedArtworkHost('http://169.254.169.254/latest/meta-data')).toBe(false);
+    expect(isAllowedArtworkHost('not a url')).toBe(false);
   });
 });
 
