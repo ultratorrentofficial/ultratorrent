@@ -381,6 +381,21 @@ transfer rates, and connection status; and route-level `ProtectedRoute` /
 into Overview, Torrents, Automation, Files & Media, Infrastructure,
 Administration, and System. See [NAVIGATION.md](NAVIGATION.md) for the nav model.
 
+### Internationalization (i18n)
+
+The UI is fully localizable via **i18next + react-i18next**, shipping two
+languages out of the box: **en-US** (default and fallback) and **es-PR**
+(Spanish). Translations are **static, typed, namespaced JSON** under
+`src/i18n/locales/<lng>/<namespace>.json` (namespaces split by surface —
+`common`, `nav`, `auth`, `shell`, `media`, `imdb`, …), so nothing loads over the
+network and `t()` keys are type-checked (`i18next.d.ts`). Components read strings
+through `useTranslation(namespace)`; dynamic values use interpolation and counts
+use i18next pluralization. A **language switcher** in the app-shell top bar lets
+each user pick their language; the choice is detected/persisted in
+`localStorage` (`ultratorrent.lang`) and Spanish browser variants (`es`,
+`es-ES`, `es-419`) resolve to es-PR. New surfaces add their namespace + both
+language files; page migration to `t()` is rolling out across the app.
+
 ## Deployment (Docker)
 
 UltraTorrent is Docker-native. Compose brings up the database, cache, backend,
@@ -460,6 +475,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-07-04 | **Internationalization (i18next).** The frontend gains an i18n framework (`i18next` + `react-i18next` + language detector) with two shipped languages — **en-US** (default/fallback) and **es-PR** — as static, typed, namespaced JSON under `src/i18n/locales/`. A **language switcher** in the app-shell top bar persists the choice in `localStorage` (`ultratorrent.lang`); Spanish browser variants resolve to es-PR. Core surfaces (navigation, login, app-shell chrome, common UI, feedback) are translated; page migration to `t()` (Media Manager/IMDb, then the rest) is rolling out. Nav/breadcrumbs translate at render so structure tests stay stable. |
 | 2026-07-04 | **Added a compliant IMDb metadata provider.** New `ImdbMetadataProvider` (`imdb`) resolves metadata from **user-provided IMDb datasets** (seven `.tsv.gz` files streamed into eight Prisma models — `IMDbTitle`/`IMDbAka`/`IMDbCrew`/`IMDbEpisode`/`IMDbPrincipal`/`IMDbPerson`/`IMDbRating`/`IMDbDatasetImport`) and/or an **optional licensed IMDb REST API** — **never** HTML scraping of imdb.com. Settings live under `media.imdb` (mode `disabled`/`dataset`/`official_api`/`hybrid`, dataset path confined to `FILE_MANAGER_ROOTS` via `FilePathService`, AES-GCM-encrypted API key). Resumable, detached gz-TSV importer streams progress over `imdb.dataset.validate.*`/`imdb.dataset.import.*` WS events; manual match (`imdb.match.completed`) stores the IMDb id as a `MediaExternalId` and drives cross-provider enrichment (TMDB `/find` + OMDb, separate licensed keys; `imdb.enrichment.completed`). Endpoints under `/api/media/providers/imdb/*` + `POST /api/media/items/:id/match/imdb`; new `media_manager.imdb.{view,configure,import_dataset,search,match}` permissions (added to the `media_manager` manifest); settings/dataset/match/api-test are audited. Frontend `/media/settings/imdb` page + Media Detail IMDb panel + Unmatched IMDb suggestions. |
 | 2026-07-03 | **Repositioned as a Media Acquisition & Management Platform.** Reframed the introduction and terminology from "torrent management platform / torrent client" to a self-hosted media acquisition & management platform that combines BitTorrent downloading, RSS automation, media organization, metadata/artwork/subtitle management, NFO generation, file management, automation, media-server integrations, multi-user administration, REST/WebSocket APIs, and Docker deployment. |
 | 2026-07-03 | **Removed all licensing/edition concepts from the architecture.** Purged every architectural reference to editions, license tiers, and feature/module licensing/gating. Access is RBAC-only; every feature is included in the single community product. Only the open-source AGPL license and explicit "no editions/licensing" statements remain. |
