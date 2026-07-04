@@ -53,7 +53,32 @@
       "filtersCount_other": "{{count}} filtros",
       "feedsCount_one": "{{count}} fuente",
       "feedsCount_other": "{{count}} fuentes",
-      "skippedCount": "{{count}} omitidas"
+      "skippedCount": "{{count}} omitidas",
+      "overwrittenCount_one": "{{count}} regla sobrescrita",
+      "overwrittenCount_other": "{{count}} reglas sobrescritas",
+      "mergedCount_one": "{{count}} regla combinada",
+      "mergedCount_other": "{{count}} reglas combinadas",
+      "nothingImported": "Nada que importar"
+    },
+    "importDialog": {
+      "title": "Importar reglas RSS",
+      "description": "Elige cómo manejar las reglas que ya existen y luego importa desde «{{name}}».",
+      "confirm": "Importar",
+      "cancel": "Cancelar",
+      "mode": {
+        "skip": {
+          "label": "Omitir duplicados",
+          "desc": "Las reglas que ya existen (mismo nombre en el mismo feed) se dejan sin cambios. Solo se agregan reglas nuevas."
+        },
+        "overwrite": {
+          "label": "Sobrescribir existentes",
+          "desc": "Reemplaza la configuración de una regla existente y todo su conjunto de filtros con la versión importada."
+        },
+        "merge": {
+          "label": "Combinar filtros",
+          "desc": "Conserva las reglas existentes y agrega solo los filtros importados que aún no están presentes."
+        }
+      }
     }
   },
   "feedDialog": {

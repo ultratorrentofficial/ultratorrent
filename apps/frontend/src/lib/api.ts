@@ -321,11 +321,17 @@ export interface RssExportBundle {
 }
 
 /** Result of importing an {@link RssExportBundle}. */
+export type RssImportMode = 'skip' | 'overwrite' | 'merge';
+
 export interface RssImportSummary {
+  mode: RssImportMode;
   feedsCreated: number;
   rulesCreated: number;
-  candidatesCreated: number;
+  rulesOverwritten: number;
+  rulesMerged: number;
   rulesSkipped: number;
+  candidatesCreated: number;
+  candidatesSkipped: number;
 }
 
 /** A page of feed history plus whole-feed status counts (mutually exclusive). */
@@ -1802,8 +1808,12 @@ export const api = {
     exportRules(): Promise<RssExportBundle> {
       return request<RssExportBundle>('/rss/rules-export');
     },
-    importRules(bundle: unknown): Promise<RssImportSummary> {
-      return request<RssImportSummary>('/rss/rules-import', { method: 'POST', body: bundle });
+    importRules(bundle: unknown, mode: RssImportMode = 'skip'): Promise<RssImportSummary> {
+      return request<RssImportSummary>('/rss/rules-import', {
+        method: 'POST',
+        body: bundle,
+        query: { mode },
+      });
     },
     updateRule(id: string, body: UpdateRuleInput): Promise<RssRule> {
       return request<RssRule>(`/rss/rules/${id}`, { method: 'PATCH', body });

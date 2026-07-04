@@ -53,7 +53,32 @@
       "filtersCount_other": "{{count}} filters",
       "feedsCount_one": "{{count}} feed",
       "feedsCount_other": "{{count}} feeds",
-      "skippedCount": "{{count}} skipped"
+      "skippedCount": "{{count}} skipped",
+      "overwrittenCount_one": "{{count}} rule overwritten",
+      "overwrittenCount_other": "{{count}} rules overwritten",
+      "mergedCount_one": "{{count}} rule merged",
+      "mergedCount_other": "{{count}} rules merged",
+      "nothingImported": "Nothing to import"
+    },
+    "importDialog": {
+      "title": "Import RSS rules",
+      "description": "Choose how to handle rules that already exist, then import from “{{name}}”.",
+      "confirm": "Import",
+      "cancel": "Cancel",
+      "mode": {
+        "skip": {
+          "label": "Skip duplicates",
+          "desc": "Rules that already exist (same name under the same feed) are left untouched. Only new rules are added."
+        },
+        "overwrite": {
+          "label": "Overwrite existing",
+          "desc": "Replace an existing rule's settings and its entire filter set with the imported version."
+        },
+        "merge": {
+          "label": "Merge filters",
+          "desc": "Keep existing rules and add only imported filters that aren't already present."
+        }
+      }
     }
   },
   "feedDialog": {

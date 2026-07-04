@@ -234,16 +234,70 @@ export class RssService {
    * history (avoids a surprise bulk grab) — new items are picked up on the
    * next poll.
    */
-  async importRules(body: any) {
+  /** Build the create-data for one imported candidate row (feedScope dropped). */
+  private importCandidateData(rssRuleId: string, c: any, order: number) {
+    return {
+      rssRuleId,
+      name: typeof c.name === 'string' && c.name ? c.name : `Candidate ${order}`,
+      description: typeof c.description === 'string' ? c.description : null,
+      enabled: typeof c.enabled === 'boolean' ? c.enabled : true,
+      matchType: c.matchType as string,
+      pattern: typeof c.pattern === 'string' ? c.pattern : null,
+      requiredTerms: (Array.isArray(c.requiredTerms) ? c.requiredTerms : []) as object,
+      excludedTerms: (Array.isArray(c.excludedTerms) ? c.excludedTerms : []) as object,
+      qualityRules: (c.qualityRules && typeof c.qualityRules === 'object'
+        ? c.qualityRules
+        : {}) as object,
+      sizeRules: (c.sizeRules && typeof c.sizeRules === 'object' ? c.sizeRules : {}) as object,
+      feedScope: {} as object, // cross-install feed ids are dropped
+      priorityOrder: typeof c.priorityOrder === 'number' ? c.priorityOrder : order,
+    };
+  }
+
+  /** Content identity for de-duping match candidates on merge. */
+  private candidateKey(c: {
+    matchType?: string | null;
+    pattern?: string | null;
+    name?: string | null;
+  }): string {
+    return `${(c.matchType ?? '').toLowerCase()}|${(c.pattern ?? '').trim().toLowerCase()}|${(c.name ?? '').trim().toLowerCase()}`;
+  }
+
+  /**
+   * Import a bundle produced by {@link exportRules}. Feeds are matched by URL
+   * (created if missing; existing feed settings are never overwritten). How a
+   * rule that already exists under that feed (matched by name) is handled
+   * depends on `mode`:
+   *  - `skip` (default): leave the existing rule untouched.
+   *  - `overwrite`: replace the rule's fields AND its whole candidate set.
+   *  - `merge`: keep the rule + its candidates, and append only imported
+   *    candidates that aren't already present (by matchType+pattern+name).
+   * Never auto-downloads from history.
+   */
+  async importRules(body: any, mode: 'skip' | 'overwrite' | 'merge' = 'skip') {
     if (!body || body.kind !== 'ultratorrent.rss-export' || !Array.isArray(body.rules)) {
       throw new BadRequestException('Not a valid UltraTorrent RSS export');
     }
+    const importMode = (['skip', 'overwrite', 'merge'] as const).includes(mode as any)
+      ? mode
+      : 'skip';
     const summary = {
+      mode: importMode,
       feedsCreated: 0,
       rulesCreated: 0,
-      candidatesCreated: 0,
+      rulesOverwritten: 0,
+      rulesMerged: 0,
       rulesSkipped: 0,
+      candidatesCreated: 0,
+      candidatesSkipped: 0,
     };
+
+    const validCandidates = (r: any) =>
+      (Array.isArray(r.candidates) ? r.candidates : []).filter((c: any) => {
+        if (c && MATCH_TYPES.includes(c.matchType)) return true;
+        summary.candidatesSkipped += 1; // unknown/invalid match type dropped
+        return false;
+      });
 
     for (const r of body.rules) {
       const feedUrl = r?.feed?.url;
@@ -265,50 +319,73 @@ export class RssService {
         summary.feedsCreated += 1;
       }
 
+      const ruleData = {
+        includeRegex: r.includeRegex ?? null,
+        excludeRegex: r.excludeRegex ?? null,
+        savePath: r.savePath ?? null,
+        autoDownload: typeof r.autoDownload === 'boolean' ? r.autoDownload : true,
+        isEnabled: typeof r.isEnabled === 'boolean' ? r.isEnabled : true,
+      };
+
       const existing = await this.prisma.rssRule.findFirst({
         where: { feedId: feed.id, name: r.name },
+        include: { matchCandidates: true },
       });
+
       if (existing) {
-        summary.rulesSkipped += 1;
+        if (importMode === 'skip') {
+          summary.rulesSkipped += 1;
+          continue;
+        }
+        if (importMode === 'overwrite') {
+          await this.prisma.rssRule.update({ where: { id: existing.id }, data: ruleData });
+          await this.prisma.rssRuleMatchCandidate.deleteMany({
+            where: { rssRuleId: existing.id },
+          });
+          let order = 0;
+          for (const c of validCandidates(r)) {
+            order += 1;
+            await this.prisma.rssRuleMatchCandidate.create({
+              data: this.importCandidateData(existing.id, c, order),
+            });
+            summary.candidatesCreated += 1;
+          }
+          summary.rulesOverwritten += 1;
+          continue;
+        }
+        // merge: keep the rule + candidates, append only new (non-duplicate) ones
+        const seen = new Set(existing.matchCandidates.map((c) => this.candidateKey(c)));
+        let order = existing.matchCandidates.reduce(
+          (m, c) => Math.max(m, c.priorityOrder),
+          0,
+        );
+        for (const c of validCandidates(r)) {
+          const key = this.candidateKey(c);
+          if (seen.has(key)) {
+            summary.candidatesSkipped += 1;
+            continue;
+          }
+          order += 1;
+          const data = this.importCandidateData(existing.id, c, order);
+          data.priorityOrder = order; // append after the current max
+          await this.prisma.rssRuleMatchCandidate.create({ data });
+          seen.add(key);
+          summary.candidatesCreated += 1;
+        }
+        summary.rulesMerged += 1;
         continue;
       }
 
+      // brand-new rule
       const rule = await this.prisma.rssRule.create({
-        data: {
-          feedId: feed.id,
-          name: r.name,
-          includeRegex: r.includeRegex ?? null,
-          excludeRegex: r.excludeRegex ?? null,
-          savePath: r.savePath ?? null,
-          autoDownload: typeof r.autoDownload === 'boolean' ? r.autoDownload : true,
-          isEnabled: typeof r.isEnabled === 'boolean' ? r.isEnabled : true,
-        },
+        data: { feedId: feed.id, name: r.name, ...ruleData },
       });
       summary.rulesCreated += 1;
-
       let order = 0;
-      for (const c of Array.isArray(r.candidates) ? r.candidates : []) {
-        if (!c || !MATCH_TYPES.includes(c.matchType)) continue;
+      for (const c of validCandidates(r)) {
         order += 1;
         await this.prisma.rssRuleMatchCandidate.create({
-          data: {
-            rssRuleId: rule.id,
-            name: typeof c.name === 'string' && c.name ? c.name : `Candidate ${order}`,
-            description: typeof c.description === 'string' ? c.description : null,
-            enabled: typeof c.enabled === 'boolean' ? c.enabled : true,
-            matchType: c.matchType,
-            pattern: typeof c.pattern === 'string' ? c.pattern : null,
-            requiredTerms: (Array.isArray(c.requiredTerms) ? c.requiredTerms : []) as object,
-            excludedTerms: (Array.isArray(c.excludedTerms) ? c.excludedTerms : []) as object,
-            qualityRules: (c.qualityRules && typeof c.qualityRules === 'object'
-              ? c.qualityRules
-              : {}) as object,
-            sizeRules: (c.sizeRules && typeof c.sizeRules === 'object'
-              ? c.sizeRules
-              : {}) as object,
-            feedScope: {}, // cross-install feed ids are dropped
-            priorityOrder: typeof c.priorityOrder === 'number' ? c.priorityOrder : order,
-          },
+          data: this.importCandidateData(rule.id, c, order),
         });
         summary.candidatesCreated += 1;
       }
@@ -1274,8 +1351,8 @@ export class RssController {
   }
   @Post('rules-import')
   @RequirePermissions(PERMISSIONS.RSS_MANAGE)
-  importRules(@Req() req: Request) {
-    return this.rss.importRules(req.body ?? {});
+  importRules(@Req() req: Request, @Query('mode') mode?: string) {
+    return this.rss.importRules(req.body ?? {}, mode as 'skip' | 'overwrite' | 'merge');
   }
 
   // --- match candidates (preference list) --------------------------------

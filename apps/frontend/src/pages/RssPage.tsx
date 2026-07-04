@@ -24,12 +24,13 @@ import {
   type CreateFeedInput,
   type CreateRuleInput,
   type RssFeed,
+  type RssImportMode,
   type RssRule,
   type UpdateFeedInput,
   type UpdateRuleInput,
 } from '@/lib/api';
 import { formatRelativeTime } from '@/lib/format';
-import { safeHttpUrl } from '@/lib/utils';
+import { cn, safeHttpUrl } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -64,6 +65,10 @@ export function RssPage() {
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [pendingImport, setPendingImport] = useState<{ bundle: unknown; name: string } | null>(
+    null,
+  );
+  const [importMode, setImportMode] = useState<RssImportMode>('skip');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const exportRules = async () => {
@@ -88,30 +93,43 @@ export function RssPage() {
     }
   };
 
+  // Parse the file, then let the user pick how duplicates are handled before
+  // actually importing.
   const onImportFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-selecting the same file
     if (!file) return;
-    setImporting(true);
     try {
       const bundle = JSON.parse(await file.text());
-      const s = await api.rss.importRules(bundle);
-      const parts = [
-        t('feeds.toast.rulesCount', { count: s.rulesCreated }),
-        t('feeds.toast.filtersCount', { count: s.candidatesCreated }),
-      ];
+      setImportMode('skip');
+      setPendingImport({ bundle, name: file.name });
+    } catch {
+      toast.error(t('feeds.toast.importFailed'), t('feeds.toast.invalidJson'));
+    }
+  };
+
+  const doImport = async () => {
+    if (!pendingImport) return;
+    setImporting(true);
+    try {
+      const s = await api.rss.importRules(pendingImport.bundle, importMode);
+      const parts: string[] = [];
+      if (s.rulesCreated) parts.push(t('feeds.toast.rulesCount', { count: s.rulesCreated }));
+      if (s.rulesOverwritten)
+        parts.push(t('feeds.toast.overwrittenCount', { count: s.rulesOverwritten }));
+      if (s.rulesMerged) parts.push(t('feeds.toast.mergedCount', { count: s.rulesMerged }));
+      if (s.candidatesCreated)
+        parts.push(t('feeds.toast.filtersCount', { count: s.candidatesCreated }));
       if (s.feedsCreated) parts.push(t('feeds.toast.feedsCount', { count: s.feedsCreated }));
       if (s.rulesSkipped) parts.push(t('feeds.toast.skippedCount', { count: s.rulesSkipped }));
-      toast.success(t('feeds.toast.imported'), parts.join(', '));
+      toast.success(
+        t('feeds.toast.imported'),
+        parts.length ? parts.join(', ') : t('feeds.toast.nothingImported'),
+      );
       invalidate();
+      setPendingImport(null);
     } catch (err) {
-      const msg =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof SyntaxError
-            ? t('feeds.toast.invalidJson')
-            : undefined;
-      toast.error(t('feeds.toast.importFailed'), msg);
+      toast.error(t('feeds.toast.importFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setImporting(false);
     }
@@ -439,6 +457,51 @@ export function RssPage() {
             invalidate();
           }}
         />
+      )}
+
+      {pendingImport && (
+        <Dialog
+          open
+          onClose={() => {
+            if (!importing) setPendingImport(null);
+          }}
+          className="max-w-lg"
+        >
+          <DialogHeader>
+            <DialogTitle>{t('feeds.importDialog.title')}</DialogTitle>
+            <DialogDescription>
+              {t('feeds.importDialog.description', { name: pendingImport.name })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            {(['skip', 'overwrite', 'merge'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setImportMode(m)}
+                className={cn(
+                  'w-full rounded-md border p-3 text-left transition-colors',
+                  importMode === m
+                    ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
+                    : 'border-border/60 hover:bg-white/[0.02]',
+                )}
+              >
+                <p className="text-sm font-medium">{t(`feeds.importDialog.mode.${m}.label`)}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t(`feeds.importDialog.mode.${m}.desc`)}
+                </p>
+              </button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPendingImport(null)} disabled={importing}>
+              {t('feeds.importDialog.cancel')}
+            </Button>
+            <Button onClick={() => void doImport()} loading={importing}>
+              <Upload className="h-4 w-4" /> {t('feeds.importDialog.confirm')}
+            </Button>
+          </DialogFooter>
+        </Dialog>
       )}
     </div>
   );
