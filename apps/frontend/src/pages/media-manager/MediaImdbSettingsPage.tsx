@@ -8,6 +8,7 @@ import {
   Database,
   Film,
   Plug,
+  DownloadCloud,
   Save,
   ShieldCheck,
   SlidersHorizontal,
@@ -283,16 +284,23 @@ function DatasetSection({
   const { t } = useTranslation('imdb');
 
   const [datasetPath, setDatasetPath] = useState(settings.datasetPath ?? '');
-  const [scheduleEnabled, setScheduleEnabled] = useState(Boolean(settings.importSchedule));
-  const [schedule, setSchedule] = useState(settings.importSchedule ?? '');
+  const [autoDownload, setAutoDownload] = useState(settings.autoDownloadEnabled);
+  const [baseUrl, setBaseUrl] = useState(settings.datasetBaseUrl);
+  const [intervalHours, setIntervalHours] = useState(String(settings.autoUpdateIntervalHours));
   const [report, setReport] = useState<ImdbDatasetValidationReport | null>(null);
   const [live, setLive] = useState<LiveImport | null>(null);
 
   useEffect(() => {
     setDatasetPath(settings.datasetPath ?? '');
-    setScheduleEnabled(Boolean(settings.importSchedule));
-    setSchedule(settings.importSchedule ?? '');
-  }, [settings.datasetPath, settings.importSchedule]);
+    setAutoDownload(settings.autoDownloadEnabled);
+    setBaseUrl(settings.datasetBaseUrl);
+    setIntervalHours(String(settings.autoUpdateIntervalHours));
+  }, [
+    settings.datasetPath,
+    settings.autoDownloadEnabled,
+    settings.datasetBaseUrl,
+    settings.autoUpdateIntervalHours,
+  ]);
 
   // Live import progress from the media_manager.view room.
   useEffect(() => {
@@ -310,6 +318,16 @@ function DatasetSection({
         };
       });
 
+    const offDownloadStarted = wsClient.on(WS_EVENTS.IMDB_DATASET_DOWNLOAD_STARTED, (p) =>
+      apply({ ...p, progress: 0 }, 'downloading'),
+    );
+    const offDownloadProgress = wsClient.on(WS_EVENTS.IMDB_DATASET_DOWNLOAD_PROGRESS, (p) =>
+      apply(p, 'downloading'),
+    );
+    const offDownloadFailed = wsClient.on(WS_EVENTS.IMDB_DATASET_DOWNLOAD_FAILED, (p) => {
+      apply(p, 'failed');
+      toast.error(t('dataset.downloadFailedTitle'), p.error ?? undefined);
+    });
     const offProgress = wsClient.on(WS_EVENTS.IMDB_DATASET_IMPORT_PROGRESS, (p) =>
       apply(p, 'running'),
     );
@@ -328,6 +346,9 @@ function DatasetSection({
       toast.error(t('dataset.importFailedTitle'), p.error ?? undefined);
     });
     return () => {
+      offDownloadStarted();
+      offDownloadProgress();
+      offDownloadFailed();
       offProgress();
       offCompleted();
       offFailed();
@@ -339,13 +360,30 @@ function DatasetSection({
     queryFn: api.media.imdbImports,
   });
 
-  const saveSchedule = useMutation({
+  const saveAuto = useMutation({
     mutationFn: (body: ImdbSettingsInput) => api.media.updateImdbSettings(body),
     onSuccess: () => {
       toast.success(t('common.saved'));
       queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'settings'] });
     },
     onError: (err) => toast.error(t('common.couldNotSave'), err instanceof ApiError ? err.message : undefined),
+  });
+
+  const updateNow = useMutation({
+    mutationFn: () => api.media.updateImdbDatasetNow(),
+    onSuccess: () => {
+      setLive({
+        importId: null,
+        status: 'downloading',
+        progress: 0,
+        message: null,
+        recordsImported: 0,
+        error: null,
+      });
+      toast.success(t('dataset.updateNowStartedTitle'), t('dataset.updateNowStartedBody'));
+    },
+    onError: (err) =>
+      toast.error(t('dataset.updateNowFailedTitle'), err instanceof ApiError ? err.message : undefined),
   });
 
   const validate = useMutation({
@@ -445,49 +483,73 @@ function DatasetSection({
         </div>
       )}
 
-      {/* Scheduled import */}
+      {/* Automatic download + import */}
       <div className="space-y-3 border-t border-border/60 pt-4">
         <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
           <div>
-            <Label htmlFor="imdb-schedule-toggle">{t('dataset.scheduleTitle')}</Label>
-            <p className="text-xs text-muted-foreground">{t('dataset.scheduleDesc')}</p>
+            <Label htmlFor="imdb-auto-toggle">{t('dataset.autoTitle')}</Label>
+            <p className="text-xs text-muted-foreground">{t('dataset.autoDesc')}</p>
           </div>
           <Switch
-            id="imdb-schedule-toggle"
-            checked={scheduleEnabled}
-            onCheckedChange={setScheduleEnabled}
+            id="imdb-auto-toggle"
+            checked={autoDownload}
+            onCheckedChange={setAutoDownload}
             disabled={!canConfigure}
           />
         </div>
-        {scheduleEnabled && (
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[240px] flex-1">
-              <Label htmlFor="imdb-schedule">{t('dataset.cronLabel')}</Label>
-              <Input
-                id="imdb-schedule"
-                value={schedule}
-                onChange={(e) => setSchedule(e.target.value)}
-                placeholder={t('dataset.cronPlaceholder')}
-                disabled={!canConfigure}
-              />
-            </div>
+        <div className="grid gap-3 sm:grid-cols-[1fr,auto]">
+          <div>
+            <Label htmlFor="imdb-base-url">{t('dataset.baseUrlLabel')}</Label>
+            <Input
+              id="imdb-base-url"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder={t('dataset.baseUrlPlaceholder')}
+              disabled={!canConfigure}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t('dataset.baseUrlHelp')}</p>
           </div>
-        )}
-        {canConfigure && (
-          <div className="flex justify-end">
+          <div>
+            <Label htmlFor="imdb-interval">{t('dataset.intervalLabel')}</Label>
+            <Input
+              id="imdb-interval"
+              type="number"
+              min={1}
+              value={intervalHours}
+              onChange={(e) => setIntervalHours(e.target.value)}
+              className="sm:w-32"
+              disabled={!canConfigure}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t('dataset.intervalHelp')}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          {canImport && (
+            <Button
+              variant="outline"
+              onClick={() => updateNow.mutate()}
+              loading={updateNow.isPending}
+              disabled={!datasetPath.trim() || importInFlight}
+            >
+              <DownloadCloud className="h-4 w-4" /> {t('dataset.updateNowBtn')}
+            </Button>
+          )}
+          {canConfigure && (
             <Button
               variant="secondary"
               onClick={() =>
-                saveSchedule.mutate({
-                  importSchedule: scheduleEnabled ? schedule.trim() || null : null,
+                saveAuto.mutate({
+                  autoDownloadEnabled: autoDownload,
+                  datasetBaseUrl: baseUrl.trim() || null,
+                  autoUpdateIntervalHours: Math.max(1, Number(intervalHours) || 1),
                 })
               }
-              loading={saveSchedule.isPending}
+              loading={saveAuto.isPending}
             >
-              <Save className="h-4 w-4" /> {t('dataset.saveScheduleBtn')}
+              <Save className="h-4 w-4" /> {t('dataset.saveAutoBtn')}
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Import history */}

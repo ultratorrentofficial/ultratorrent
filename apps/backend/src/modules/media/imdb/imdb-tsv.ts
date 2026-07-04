@@ -7,6 +7,14 @@
  * unit-testable.
  */
 
+/**
+ * The official IMDb non-commercial datasets are published at this host. It is
+ * the sanctioned distribution channel for the `.tsv.gz` files (NOT imdb.com HTML
+ * scraping), and is the default base for the optional auto-download job. The
+ * base URL is operator-configurable so a private mirror can be used instead.
+ */
+export const DEFAULT_IMDB_DATASET_BASE_URL = 'https://datasets.imdbws.com/';
+
 /** The seven IMDb dataset files, in a safe import order (titles first). */
 export interface DatasetFileSpec {
   /** Gzipped filename as distributed by IMDb. */

@@ -51,6 +51,9 @@ const baseSettings: ImdbSettings = {
   apiKey: null,
   datasetPath: null,
   importSchedule: null,
+  autoDownloadEnabled: false,
+  datasetBaseUrl: 'https://datasets.imdbws.com/',
+  autoUpdateIntervalHours: 168,
   preferredRegion: null,
   preferredLanguage: null,
   includeAdult: false,
@@ -450,6 +453,41 @@ describe('ImdbSettingsService', () => {
     const logged = spy.mock.calls.flat().join(' ');
     expect(logged).not.toContain('top-secret');
     spy.mockRestore();
+  });
+
+  it('defaults auto-download off with the official base URL and weekly interval', async () => {
+    const { svc } = make();
+    const s = await svc.read();
+    expect(s.autoDownloadEnabled).toBe(false);
+    expect(s.datasetBaseUrl).toBe('https://datasets.imdbws.com/');
+    expect(s.autoUpdateIntervalHours).toBe(168);
+  });
+
+  it('persists auto-download config', async () => {
+    const { svc } = make();
+    await svc.update({
+      autoDownloadEnabled: true,
+      datasetBaseUrl: 'https://mirror.example.com/imdb/',
+      autoUpdateIntervalHours: 24,
+    });
+    const s = await svc.read();
+    expect(s.autoDownloadEnabled).toBe(true);
+    expect(s.datasetBaseUrl).toBe('https://mirror.example.com/imdb/');
+    expect(s.autoUpdateIntervalHours).toBe(24);
+  });
+
+  it('resets the base URL to the official default when cleared', async () => {
+    const { svc } = make();
+    await svc.update({ datasetBaseUrl: 'https://mirror.example.com/' });
+    await svc.update({ datasetBaseUrl: null });
+    const s = await svc.read();
+    expect(s.datasetBaseUrl).toBe('https://datasets.imdbws.com/');
+  });
+
+  it('rejects a non-http base URL and a sub-hour interval', async () => {
+    const { svc } = make();
+    await expect(svc.update({ datasetBaseUrl: 'ftp://x/' })).rejects.toThrow();
+    await expect(svc.update({ autoUpdateIntervalHours: 0 })).rejects.toThrow();
   });
 });
 

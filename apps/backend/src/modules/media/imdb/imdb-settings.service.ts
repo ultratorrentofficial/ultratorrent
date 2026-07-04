@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SettingsService } from '../../settings/settings.module';
 import { SecretCipher } from '../../../common/crypto/secret-cipher';
+import { DEFAULT_IMDB_DATASET_BASE_URL } from './imdb-tsv';
 
 /** Settings key under which the IMDb provider config lives. */
 export const IMDB_SETTINGS_KEY = 'media.imdb';
@@ -19,6 +20,12 @@ export interface ImdbSettings {
   apiKey: string | null;
   datasetPath: string | null;
   importSchedule: string | null;
+  /** When true, a scheduled job downloads + imports the datasets automatically. */
+  autoDownloadEnabled: boolean;
+  /** Base URL the dataset files are fetched from (defaults to official IMDb). */
+  datasetBaseUrl: string;
+  /** How often the auto-update job runs, in hours (minimum 1). */
+  autoUpdateIntervalHours: number;
   preferredRegion: string | null;
   preferredLanguage: string | null;
   includeAdult: boolean;
@@ -40,6 +47,9 @@ export interface ImdbSettingsPatch {
   apiKey?: string | null;
   datasetPath?: string | null;
   importSchedule?: string | null;
+  autoDownloadEnabled?: boolean;
+  datasetBaseUrl?: string | null;
+  autoUpdateIntervalHours?: number;
   preferredRegion?: string | null;
   preferredLanguage?: string | null;
   includeAdult?: boolean;
@@ -53,6 +63,9 @@ const DEFAULTS: ImdbSettings = {
   apiKey: null,
   datasetPath: null,
   importSchedule: null,
+  autoDownloadEnabled: false,
+  datasetBaseUrl: DEFAULT_IMDB_DATASET_BASE_URL,
+  autoUpdateIntervalHours: 168,
   preferredRegion: null,
   preferredLanguage: null,
   includeAdult: false,
@@ -96,6 +109,12 @@ export class ImdbSettingsService {
       apiKey,
       datasetPath: str((stored as any).datasetPath),
       importSchedule: str((stored as any).importSchedule),
+      autoDownloadEnabled: bool((stored as any).autoDownloadEnabled, DEFAULTS.autoDownloadEnabled),
+      datasetBaseUrl: str((stored as any).datasetBaseUrl) ?? DEFAULTS.datasetBaseUrl,
+      autoUpdateIntervalHours: Math.max(
+        1,
+        num((stored as any).autoUpdateIntervalHours, DEFAULTS.autoUpdateIntervalHours),
+      ),
       preferredRegion: str((stored as any).preferredRegion),
       preferredLanguage: str((stored as any).preferredLanguage),
       includeAdult: bool((stored as any).includeAdult, DEFAULTS.includeAdult),
@@ -134,6 +153,15 @@ export class ImdbSettingsService {
     if (patch.cacheTtl !== undefined && (patch.cacheTtl < 0 || !Number.isFinite(patch.cacheTtl))) {
       throw new BadRequestException('cacheTtl must be a non-negative number.');
     }
+    if (
+      patch.autoUpdateIntervalHours !== undefined &&
+      (!Number.isFinite(patch.autoUpdateIntervalHours) || patch.autoUpdateIntervalHours < 1)
+    ) {
+      throw new BadRequestException('autoUpdateIntervalHours must be at least 1.');
+    }
+    if (patch.datasetBaseUrl != null && patch.datasetBaseUrl !== '') {
+      assertHttpUrl(patch.datasetBaseUrl);
+    }
 
     const next: ImdbSettings = {
       mode: patch.mode ?? current.mode,
@@ -141,6 +169,14 @@ export class ImdbSettingsService {
       apiKey: resolveKey(patch.apiKey, current.apiKey),
       datasetPath: normOpt(patch.datasetPath, current.datasetPath),
       importSchedule: normOpt(patch.importSchedule, current.importSchedule),
+      autoDownloadEnabled: patch.autoDownloadEnabled ?? current.autoDownloadEnabled,
+      // Undefined = keep; null/'' = reset to the official default (never empty).
+      datasetBaseUrl:
+        patch.datasetBaseUrl === undefined
+          ? current.datasetBaseUrl
+          : normOpt(patch.datasetBaseUrl, current.datasetBaseUrl) ?? DEFAULTS.datasetBaseUrl,
+      autoUpdateIntervalHours:
+        patch.autoUpdateIntervalHours ?? current.autoUpdateIntervalHours,
       preferredRegion: normOpt(patch.preferredRegion, current.preferredRegion),
       preferredLanguage: normOpt(patch.preferredLanguage, current.preferredLanguage),
       includeAdult: patch.includeAdult ?? current.includeAdult,
@@ -153,6 +189,9 @@ export class ImdbSettingsService {
       apiBaseUrl: next.apiBaseUrl,
       datasetPath: next.datasetPath,
       importSchedule: next.importSchedule,
+      autoDownloadEnabled: next.autoDownloadEnabled,
+      datasetBaseUrl: next.datasetBaseUrl,
+      autoUpdateIntervalHours: next.autoUpdateIntervalHours,
       preferredRegion: next.preferredRegion,
       preferredLanguage: next.preferredLanguage,
       includeAdult: next.includeAdult,
@@ -168,6 +207,18 @@ export class ImdbSettingsService {
 
 function str(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+/** Assert a string is an absolute http(s) URL (SSRF guard for the base URL). */
+function assertHttpUrl(value: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new BadRequestException('datasetBaseUrl must be a valid URL.');
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new BadRequestException('datasetBaseUrl must be an http(s) URL.');
+  }
 }
 function bool(v: unknown, d: boolean): boolean {
   return typeof v === 'boolean' ? v : d;

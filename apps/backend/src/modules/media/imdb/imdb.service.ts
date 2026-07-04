@@ -159,6 +159,44 @@ export class ImdbService {
     });
   }
 
+  /** Timestamp of the most recent dataset import attempt (for the scheduler). */
+  async latestImportAt(): Promise<Date | null> {
+    const last = await this.prisma.iMDbDatasetImport.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    return last?.createdAt ?? null;
+  }
+
+  /**
+   * Download the configured datasets then (re)import them. Awaitable — used by
+   * the scheduler so it can track completion; the import itself runs detached.
+   */
+  async runDatasetUpdate(ctx: AuditContext = {}): Promise<void> {
+    const s = await this.settingsSvc.read();
+    if (!s.datasetPath) {
+      throw new BadRequestException('Configure a dataset path before downloading IMDb datasets.');
+    }
+    await this.importer.downloadDataset(s.datasetPath, s.datasetBaseUrl, ctx);
+    await this.importer.startImport(s.datasetPath, ctx);
+  }
+
+  /**
+   * Manual "update now": kick off a download + import in the background and
+   * return immediately so the HTTP request never blocks on the large transfer.
+   * Progress streams over the imdb.dataset.download.* / import.* WS events.
+   */
+  async triggerDatasetUpdate(ctx: AuditContext = {}): Promise<{ started: boolean }> {
+    const s = await this.settingsSvc.read();
+    if (!s.datasetPath) {
+      throw new BadRequestException('Configure a dataset path before downloading IMDb datasets.');
+    }
+    void this.runDatasetUpdate(ctx).catch((err) =>
+      this.logger.error(`IMDb dataset update failed: ${(err as Error).message}`),
+    );
+    return { started: true };
+  }
+
   // --- search / lookup -----------------------------------------------------
 
   async search(query: ImdbSearchQuery) {

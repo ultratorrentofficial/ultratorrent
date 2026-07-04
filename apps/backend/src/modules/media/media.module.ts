@@ -19,6 +19,7 @@ import { MediaAutomationActions } from './media-automation.actions';
 import { MediaProcessingService } from './media-processing.service';
 import { ImdbSettingsService } from './imdb/imdb-settings.service';
 import { ImdbDatasetImporterService } from './imdb/imdb-dataset-importer.service';
+import { ImdbDatasetScheduler } from './imdb/imdb-dataset-scheduler.service';
 import { ImdbService } from './imdb/imdb.service';
 import { MediaController } from './media.controller';
 
@@ -54,6 +55,7 @@ import { MediaController } from './media.controller';
     MediaProcessingService,
     ImdbSettingsService,
     ImdbDatasetImporterService,
+    ImdbDatasetScheduler,
     ImdbService,
   ],
   controllers: [MediaController],

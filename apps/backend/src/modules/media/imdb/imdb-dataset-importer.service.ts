@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { createReadStream, promises as fs } from 'node:fs';
+import { createReadStream, createWriteStream, promises as fs } from 'node:fs';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import * as path from 'node:path';
 import * as readline from 'node:readline';
 import { createGunzip } from 'node:zlib';
@@ -11,6 +13,7 @@ import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import type { AuditContext } from '../media-metadata.service';
 import {
   DatasetFileSpec,
+  DEFAULT_IMDB_DATASET_BASE_URL,
   IMDB_DATASET_FILES,
   mapAkaRow,
   mapCrewRow,
@@ -43,16 +46,36 @@ export interface DatasetValidationReport {
   hasMinimum: boolean;
 }
 
+/** Per-file outcome of an auto-download run. */
+export interface DatasetDownloadFileReport {
+  file: string;
+  ok: boolean;
+  bytes: number;
+  error?: string;
+}
+
+export interface DatasetDownloadReport {
+  datasetPath: string;
+  baseUrl: string;
+  files: DatasetDownloadFileReport[];
+  filesDownloaded: number;
+}
+
 const BATCH_SIZE = 1000;
+
+/** Per-file download timeout — datasets are large; title.principals is ~hundreds of MB. */
+const DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
 
 /**
  * Validates and stream-imports the official IMDb non-commercial TSV datasets
  * (user-supplied `.tsv.gz` files) into the local IMDb* tables.
  *
- * COMPLIANCE: every byte read here comes from an on-disk dataset file the
- * operator placed under the allowed storage roots. There is NO network access,
- * NO imdb.com request, and NO HTML parsing. Every file path is asserted with
- * FilePathService.assertWithinHardRoots first.
+ * COMPLIANCE: import reads only on-disk dataset files under the allowed storage
+ * roots. The optional `downloadDataset` fetches the official non-commercial
+ * `.tsv.gz` files from their sanctioned distribution host (datasets.imdbws.com
+ * by default) — the only network access here. There is NO imdb.com HTML request,
+ * NO browser automation, and NO web-page parsing. Every file path is asserted
+ * with FilePathService.assertWithinHardRoots first.
  *
  * MEMORY: each `.gz` is parsed as a stream (createReadStream → gunzip →
  * readline), one line at a time, and upserted in bounded batches. The whole
@@ -81,6 +104,126 @@ export class ImdbDatasetImporterService {
 
   private emit(event: string, payload: Omit<ImdbEventPayload, 'at'>): void {
     this.realtime.broadcast(event, { ...payload, at: new Date().toISOString() });
+  }
+
+  // --- download ------------------------------------------------------------
+
+  /**
+   * Download the seven official IMDb `.tsv.gz` datasets from `baseUrl` into the
+   * (hard-root-confined) dataset directory, streaming each file straight to disk
+   * via a temp `.part` file that is atomically renamed on success.
+   *
+   * COMPLIANCE: the only network access this subsystem performs. It fetches the
+   * official, non-commercial dataset files from their sanctioned distribution
+   * host (`datasets.imdbws.com` by default; operator-configurable) — this is NOT
+   * scraping imdb.com HTML, browser automation, or web-page parsing, all of
+   * which remain forbidden. Nothing but the published dataset files is fetched.
+   */
+  async downloadDataset(
+    datasetPath: string,
+    baseUrl: string = DEFAULT_IMDB_DATASET_BASE_URL,
+    ctx: AuditContext = {},
+  ): Promise<DatasetDownloadReport> {
+    const dirAbs = this.assertDir(datasetPath);
+    await fs.mkdir(dirAbs, { recursive: true });
+
+    // Normalise the base so relative filenames resolve under it.
+    let base: URL;
+    try {
+      base = new URL(baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
+    } catch {
+      throw new BadRequestException(`Invalid dataset base URL "${baseUrl}".`);
+    }
+    if (base.protocol !== 'https:' && base.protocol !== 'http:') {
+      throw new BadRequestException('Dataset base URL must be an http(s) URL.');
+    }
+
+    this.emit(WS_EVENTS.IMDB_DATASET_DOWNLOAD_STARTED, { message: base.toString() });
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.imdb.dataset.download.started',
+      objectType: 'imdb_dataset',
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { baseUrl: base.toString(), datasetPath: dirAbs },
+    });
+
+    const files: DatasetDownloadFileReport[] = [];
+    try {
+      let done = 0;
+      for (const spec of IMDB_DATASET_FILES) {
+        const url = new URL(spec.file, base).toString();
+        const dest = this.assertFile(dirAbs, spec.file);
+        try {
+          const bytes = await this.downloadFile(url, dest);
+          files.push({ file: spec.file, ok: true, bytes });
+        } catch (err) {
+          files.push({ file: spec.file, ok: false, bytes: 0, error: (err as Error).message });
+          this.logger.warn(`IMDb dataset download failed for ${spec.file}: ${(err as Error).message}`);
+        }
+        done += 1;
+        this.emit(WS_EVENTS.IMDB_DATASET_DOWNLOAD_PROGRESS, {
+          progress: Math.round((done / IMDB_DATASET_FILES.length) * 100),
+          message: spec.file,
+        });
+      }
+    } catch (err) {
+      this.emit(WS_EVENTS.IMDB_DATASET_DOWNLOAD_FAILED, { error: (err as Error).message });
+      await this.audit.record({
+        userId: ctx.userId,
+        action: 'media.imdb.dataset.download.failed',
+        objectType: 'imdb_dataset',
+        result: 'failure',
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        metadata: { error: (err as Error).message },
+      });
+      throw err;
+    }
+
+    const filesDownloaded = files.filter((f) => f.ok).length;
+    if (filesDownloaded === 0) {
+      const message = 'No dataset files could be downloaded.';
+      this.emit(WS_EVENTS.IMDB_DATASET_DOWNLOAD_FAILED, { error: message });
+      throw new BadRequestException(message);
+    }
+
+    this.emit(WS_EVENTS.IMDB_DATASET_DOWNLOAD_COMPLETED, {
+      progress: 100,
+      message: `${filesDownloaded}/${IMDB_DATASET_FILES.length}`,
+    });
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.imdb.dataset.download.completed',
+      objectType: 'imdb_dataset',
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { filesDownloaded, total: IMDB_DATASET_FILES.length },
+    });
+
+    return { datasetPath: dirAbs, baseUrl: base.toString(), files, filesDownloaded };
+  }
+
+  /** Stream one remote file to a temp `.part`, then atomically rename it in. */
+  private async downloadFile(url: string, dest: string): Promise<number> {
+    const tmp = `${dest}.part`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), DOWNLOAD_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok || !res.body) {
+        throw new Error(`HTTP ${res.status} for ${url}`);
+      }
+      await pipeline(Readable.fromWeb(res.body as any), createWriteStream(tmp));
+      await fs.rename(tmp, dest);
+      const stat = await fs.stat(dest);
+      return stat.size;
+    } catch (err) {
+      await fs.rm(tmp, { force: true }).catch(() => undefined);
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   // --- validation ----------------------------------------------------------

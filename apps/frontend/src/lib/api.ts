@@ -1208,6 +1208,12 @@ export interface ImdbSettings {
   apiKey: string | null;
   datasetPath: string | null;
   importSchedule: string | null;
+  /** When true, a scheduled job downloads + imports the datasets automatically. */
+  autoDownloadEnabled: boolean;
+  /** Base URL the dataset files are fetched from (defaults to official IMDb). */
+  datasetBaseUrl: string;
+  /** How often the auto-update job runs, in hours (minimum 1). */
+  autoUpdateIntervalHours: number;
   preferredRegion: string | null;
   preferredLanguage: string | null;
   includeAdult: boolean;
@@ -1223,6 +1229,9 @@ export interface ImdbSettingsInput {
   apiKey?: string | null;
   datasetPath?: string | null;
   importSchedule?: string | null;
+  autoDownloadEnabled?: boolean;
+  datasetBaseUrl?: string | null;
+  autoUpdateIntervalHours?: number;
   preferredRegion?: string | null;
   preferredLanguage?: string | null;
   includeAdult?: boolean;
@@ -2368,6 +2377,12 @@ export const api = {
     },
     imdbImports(): Promise<ImdbDatasetImport[]> {
       return request<ImdbDatasetImport[]>('/media/providers/imdb/dataset/imports');
+    },
+    /** Download the configured datasets then import them (detached; WS progress). */
+    updateImdbDatasetNow(): Promise<{ started: boolean }> {
+      return request<{ started: boolean }>('/media/providers/imdb/dataset/update-now', {
+        method: 'POST',
+      });
     },
     imdbSearch(query: ImdbSearchInput): Promise<ImdbSearchResult[]> {
       return request<ImdbSearchResult[]>('/media/providers/imdb/search', {

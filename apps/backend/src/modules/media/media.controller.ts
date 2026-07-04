@@ -374,6 +374,14 @@ export class MediaController {
     return this.imdb.importDataset(body?.datasetPath ?? '', auditCtx(req));
   }
 
+  @Post('providers/imdb/dataset/update-now')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_IMPORT_DATASET)
+  updateImdbDatasetNow(@Req() req: Request) {
+    // Download the configured datasets then import them — detached; progress
+    // streams over the imdb.dataset.download.* / import.* WS events.
+    return this.imdb.triggerDatasetUpdate(auditCtx(req));
+  }
+
   @Get('providers/imdb/dataset/imports')
   @RequirePermissions(P.MEDIA_MANAGER_IMDB_VIEW)
   imdbImports() {
