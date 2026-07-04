@@ -1,6 +1,6 @@
 {
   "name": "@ultratorrent/backend",
-  "version": "0.11.8",
+  "version": "0.12.0",
   "private": true,
   "description": "UltraTorrent backend API (NestJS)",
   "main": "dist/main.js",
