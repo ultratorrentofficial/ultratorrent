@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "primary": "Primary",
+    "breadcrumb": "Breadcrumb"
+  },
+  "menu": {
+    "open": "Open menu",
+    "close": "Close menu"
+  },
+  "sidebar": {
+    "expand": "Expand sidebar",
+    "collapse": "Collapse sidebar"
+  },
+  "engine": {
+    "label": "Engine",
+    "online": "Online",
+    "offline": "Offline",
+    "onlineTitle": "Engine online",
+    "offlineTitle": "Engine offline"
+  },
+  "connection": {
+    "connected": "Realtime connected",
+    "connecting": "Connecting…",
+    "offline": "Realtime offline"
+  },
+  "user": {
+    "accountSecurity": "Account & security",
+    "signOut": "Sign out"
+  },
+  "about": {
+    "trigger": "About",
+    "title": "About UltraTorrent",
+    "triggerLabel": "About UltraTorrent",
+    "triggerLabelWithVersion": "About UltraTorrent — {{version}}",
+    "tagline": "Modern torrent management platform.",
+    "version": "Version",
+    "edition": "Edition",
+    "api": "API",
+    "build": "Build",
+    "commit": "Commit",
+    "runtime": "Runtime",
+    "unavailable": "unavailable",
+    "dev": "dev",
+    "copyright": "© {{year}} UltraTorrent. Licensed software.",
+    "license": "License"
+  }
+}

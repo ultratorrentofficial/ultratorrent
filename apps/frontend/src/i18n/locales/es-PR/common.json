@@ -1,0 +1,19 @@
+{
+  "actions": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "confirm": "Confirmar",
+    "close": "Cerrar",
+    "edit": "Editar",
+    "add": "Agregar",
+    "remove": "Quitar",
+    "retry": "Reintentar"
+  },
+  "feedback": {
+    "loading": "Cargando…",
+    "somethingWentWrong": "Algo salió mal",
+    "noResults": "Sin resultados",
+    "tryAgain": "Reintentar"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "groups": {
+    "Overview": "Overview",
+    "Torrents": "Torrents",
+    "Automation": "Automation",
+    "Files & Media": "Files & Media",
+    "Infrastructure": "Infrastructure",
+    "Administration": "Administration",
+    "System": "System"
+  },
+  "items": {
+    "Dashboard": "Dashboard",
+    "All Torrents": "All Torrents",
+    "Downloading": "Downloading",
+    "Seeding": "Seeding",
+    "Completed": "Completed",
+    "Paused": "Paused",
+    "Errors": "Errors",
+    "RSS Feeds": "RSS Feeds",
+    "Automation": "Automation",
+    "File Manager": "File Manager",
+    "Media Manager": "Media Manager",
+    "Libraries": "Libraries",
+    "Media Items": "Media Items",
+    "Unmatched": "Unmatched",
+    "Duplicates": "Duplicates",
+    "Rename Preview": "Rename Preview",
+    "Media Settings": "Media Settings",
+    "Media Acquisition": "Media Acquisition",
+    "Release Scoring": "Release Scoring",
+    "Engines": "Engines",
+    "Users": "Users",
+    "Modules": "Modules",
+    "Settings": "Settings",
+    "Audit Log": "Audit Log"
+  },
+  "details": {
+    "Account": "Account",
+    "Rule": "Rule",
+    "Details": "Details"
+  }
+}

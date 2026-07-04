@@ -1,0 +1,19 @@
+{
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "close": "Close",
+    "edit": "Edit",
+    "add": "Add",
+    "remove": "Remove",
+    "retry": "Try again"
+  },
+  "feedback": {
+    "loading": "Loading…",
+    "somethingWentWrong": "Something went wrong",
+    "noResults": "No results",
+    "tryAgain": "Try again"
+  }
+}

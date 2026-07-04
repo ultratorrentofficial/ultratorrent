@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "primary": "Principal",
+    "breadcrumb": "Ruta de navegación"
+  },
+  "menu": {
+    "open": "Abrir menú",
+    "close": "Cerrar menú"
+  },
+  "sidebar": {
+    "expand": "Expandir barra lateral",
+    "collapse": "Contraer barra lateral"
+  },
+  "engine": {
+    "label": "Motor",
+    "online": "En línea",
+    "offline": "Desconectado",
+    "onlineTitle": "Motor en línea",
+    "offlineTitle": "Motor desconectado"
+  },
+  "connection": {
+    "connected": "Tiempo real conectado",
+    "connecting": "Conectando…",
+    "offline": "Tiempo real desconectado"
+  },
+  "user": {
+    "accountSecurity": "Cuenta y seguridad",
+    "signOut": "Cerrar sesión"
+  },
+  "about": {
+    "trigger": "Acerca de",
+    "title": "Acerca de UltraTorrent",
+    "triggerLabel": "Acerca de UltraTorrent",
+    "triggerLabelWithVersion": "Acerca de UltraTorrent — {{version}}",
+    "tagline": "Plataforma moderna de gestión de torrents.",
+    "version": "Versión",
+    "edition": "Edición",
+    "api": "API",
+    "build": "Compilación",
+    "commit": "Commit",
+    "runtime": "Entorno de ejecución",
+    "unavailable": "no disponible",
+    "dev": "dev",
+    "copyright": "© {{year}} UltraTorrent. Software con licencia.",
+    "license": "Licencia"
+  }
+}

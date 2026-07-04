@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowDown,
   ArrowUp,
@@ -18,7 +19,8 @@ import { useRealtime } from '@/realtime/RealtimeContext';
 import { useVersion } from '@/hooks/useVersion';
 import { AboutDialog } from '@/components/AboutDialog';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
-import { isItemActive, visibleGroups, type NavItem, type NavGroup } from '@/components/layout/navigation';
+import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
+import { isItemActive, tNav, visibleGroups, type NavItem, type NavGroup } from '@/components/layout/navigation';
 import { formatSpeedCompact } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -107,13 +109,15 @@ function NavRow({
 }) {
   const Icon = item.icon;
   const location = useLocation();
+  const { t } = useTranslation('nav');
   const isActive = isItemActive(item, location.pathname, location.search);
+  const label = tNav(t, 'items', item.label);
   return (
     <Link
       to={item.to}
       onClick={onNavigate}
-      title={collapsed ? item.label : undefined}
-      aria-label={item.label}
+      title={collapsed ? label : undefined}
+      aria-label={label}
       aria-current={isActive ? 'page' : undefined}
       className={cn(
         'group flex items-center gap-3 rounded-lg text-sm font-medium transition-all',
@@ -130,7 +134,7 @@ function NavRow({
           isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
         )}
       />
-      {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && <span className="truncate">{label}</span>}
     </Link>
   );
 }
@@ -144,13 +148,15 @@ function NavGroupBlock({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
+  const { t } = useTranslation('nav');
+  const title = tNav(t, 'groups', group.title);
   return (
-    <div role="group" aria-label={group.title} className="flex flex-col gap-1">
+    <div role="group" aria-label={title} className="flex flex-col gap-1">
       {collapsed ? (
         <div className="mx-2 my-1 h-px bg-border/40" aria-hidden />
       ) : (
         <p className="px-3 pb-0.5 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-          {group.title}
+          {title}
         </p>
       )}
       {group.items.map((item) => (
@@ -175,6 +181,7 @@ function Sidebar({
   onToggleCollapsed?: () => void;
   onAbout?: () => void;
 }) {
+  const { t } = useTranslation('shell');
   return (
     <aside
       className={cn(
@@ -195,7 +202,7 @@ function Sidebar({
           <button
             type="button"
             onClick={onNavigate}
-            aria-label="Close menu"
+            aria-label={t('menu.close')}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:bg-white/5 lg:hidden"
           >
             <X className="h-4 w-4" />
@@ -204,7 +211,7 @@ function Sidebar({
       </div>
 
       <nav
-        aria-label="Primary"
+        aria-label={t('nav.primary')}
         className="flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden scrollbar-thin"
       >
         {groups.map((group) => (
@@ -224,7 +231,9 @@ function Sidebar({
             collapsed ? 'grid place-items-center p-2' : 'p-3',
           )}
         >
-          {!collapsed && <p className="text-[11px] font-medium text-muted-foreground">Engine</p>}
+          {!collapsed && (
+            <p className="text-[11px] font-medium text-muted-foreground">{t('engine.label')}</p>
+          )}
           <EngineMini collapsed={collapsed} />
         </div>
 
@@ -234,9 +243,9 @@ function Sidebar({
             <button
               type="button"
               onClick={onToggleCollapsed}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
               aria-expanded={!collapsed}
-              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
               className="hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:inline-flex"
             >
               {collapsed ? (
@@ -254,31 +263,33 @@ function Sidebar({
 
 function VersionBadge({ collapsed, onClick }: { collapsed?: boolean; onClick?: () => void }) {
   const { data } = useVersion();
+  const { t } = useTranslation('shell');
   const label = data?.version ? `v${data.version}` : '';
   return (
     <button
       type="button"
       onClick={onClick}
-      title="About UltraTorrent"
-      aria-label={`About UltraTorrent${label ? ` — ${label}` : ''}`}
+      title={t('about.triggerLabel')}
+      aria-label={label ? t('about.triggerLabelWithVersion', { version: label }) : t('about.triggerLabel')}
       className={cn(
         'flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         collapsed && 'px-2',
       )}
     >
       <Info className="h-[18px] w-[18px] shrink-0" />
-      {!collapsed && <span className="tabular-nums">{label || 'About'}</span>}
+      {!collapsed && <span className="tabular-nums">{label || t('about.trigger')}</span>}
     </button>
   );
 }
 
 function EngineMini({ collapsed }: { collapsed?: boolean }) {
   const { engineOnline, status } = useRealtime();
+  const { t } = useTranslation('shell');
   const online = engineOnline ?? status === 'connected';
   return (
     <div
       className={cn('flex items-center gap-2', !collapsed && 'mt-1.5')}
-      title={online ? 'Engine online' : 'Engine offline'}
+      title={online ? t('engine.onlineTitle') : t('engine.offlineTitle')}
     >
       <span
         className={cn(
@@ -286,19 +297,24 @@ function EngineMini({ collapsed }: { collapsed?: boolean }) {
           online ? 'bg-success animate-pulse-soft' : 'bg-destructive',
         )}
       />
-      {!collapsed && <span className="text-xs font-medium">{online ? 'Online' : 'Offline'}</span>}
+      {!collapsed && (
+        <span className="text-xs font-medium">
+          {online ? t('engine.online') : t('engine.offline')}
+        </span>
+      )}
     </div>
   );
 }
 
 function TopBar({ onMenu, onAbout }: { onMenu: () => void; onAbout: () => void }) {
   const { stats, status } = useRealtime();
+  const { t } = useTranslation('shell');
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/60 bg-background/70 px-4 backdrop-blur-xl sm:px-6">
       <button
         type="button"
         onClick={onMenu}
-        aria-label="Open menu"
+        aria-label={t('menu.open')}
         className="rounded-md p-2 text-muted-foreground hover:bg-white/5 lg:hidden"
       >
         <Menu className="h-5 w-5" />
@@ -318,6 +334,7 @@ function TopBar({ onMenu, onAbout }: { onMenu: () => void; onAbout: () => void }
           tone="success"
         />
         <ConnectionDot status={status} />
+        <LanguageSwitcher className="hidden sm:flex" />
         <UserMenu onAbout={onAbout} />
       </div>
     </header>
@@ -347,10 +364,11 @@ function SpeedPill({
 }
 
 function ConnectionDot({ status }: { status: string }) {
+  const { t } = useTranslation('shell');
   const map: Record<string, { color: string; label: string }> = {
-    connected: { color: 'bg-success', label: 'Realtime connected' },
-    connecting: { color: 'bg-warning animate-pulse', label: 'Connecting…' },
-    disconnected: { color: 'bg-destructive', label: 'Realtime offline' },
+    connected: { color: 'bg-success', label: t('connection.connected') },
+    connecting: { color: 'bg-warning animate-pulse', label: t('connection.connecting') },
+    disconnected: { color: 'bg-destructive', label: t('connection.offline') },
   };
   const s = map[status] ?? map.disconnected;
   return (
@@ -363,6 +381,7 @@ function ConnectionDot({ status }: { status: string }) {
 function UserMenu({ onAbout }: { onAbout: () => void }) {
   const { user, logout } = useAuth();
   const { data: version } = useVersion();
+  const { t } = useTranslation('shell');
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -427,7 +446,7 @@ function UserMenu({ onAbout }: { onAbout: () => void }) {
               className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-white/5"
             >
               <UserCog className="h-4 w-4" />
-              Account &amp; security
+              {t('user.accountSecurity')}
             </button>
             <button
               type="button"
@@ -438,7 +457,7 @@ function UserMenu({ onAbout }: { onAbout: () => void }) {
               className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-white/5"
             >
               <Info className="h-4 w-4" />
-              <span className="flex-1 text-left">About UltraTorrent</span>
+              <span className="flex-1 text-left">{t('about.triggerLabel')}</span>
               {version?.version && (
                 <span className="text-[10px] font-medium tabular-nums text-muted-foreground">
                   v{version.version}
@@ -451,7 +470,7 @@ function UserMenu({ onAbout }: { onAbout: () => void }) {
               className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
             >
               <LogOut className="h-4 w-4" />
-              Sign out
+              {t('user.signOut')}
             </button>
           </div>
         </>

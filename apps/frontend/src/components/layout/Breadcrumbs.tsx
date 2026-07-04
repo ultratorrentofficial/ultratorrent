@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ChevronRight } from 'lucide-react';
-import { NAV_GROUPS } from '@/components/layout/navigation';
+import { NAV_GROUPS, tNav } from '@/components/layout/navigation';
 
 export interface Crumb {
   label: string;
@@ -53,11 +54,22 @@ export function crumbsFor(pathname: string): Crumb[] {
 /** App-level breadcrumb trail rendered in the top bar. */
 export function Breadcrumbs() {
   const { pathname } = useLocation();
+  const { t, i18n } = useTranslation('nav');
+  const { t: tShell } = useTranslation('shell');
   const crumbs = crumbsFor(pathname);
   if (crumbs.length === 0) return null;
 
+  // `crumbsFor` returns canonical English (tests assert on it); translate at
+  // render by matching the label against the nav sections, English as fallback.
+  const label = (raw: string): string => {
+    for (const section of ['items', 'groups', 'details'] as const) {
+      if (i18n.exists(`${section}.${raw}`, { ns: 'nav' })) return tNav(t, section, raw);
+    }
+    return raw;
+  };
+
   return (
-    <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center sm:flex">
+    <nav aria-label={tShell('nav.breadcrumb')} className="hidden min-w-0 items-center sm:flex">
       <ol className="flex min-w-0 items-center gap-1.5 text-sm">
         {crumbs.map((crumb, i) => {
           const last = i === crumbs.length - 1;
@@ -71,7 +83,7 @@ export function Breadcrumbs() {
                   to={crumb.to}
                   className="truncate text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  {crumb.label}
+                  {label(crumb.label)}
                 </Link>
               ) : (
                 <span
@@ -80,7 +92,7 @@ export function Breadcrumbs() {
                   }
                   aria-current={last ? 'page' : undefined}
                 >
-                  {crumb.label}
+                  {label(crumb.label)}
                 </span>
               )}
             </li>

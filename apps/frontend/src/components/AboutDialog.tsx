@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { KeyRound, ExternalLink } from 'lucide-react';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -21,43 +22,40 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
  */
 export function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
+  const { t } = useTranslation('shell');
   const { data, isLoading, isError } = useVersion();
   const year = new Date().getFullYear();
   const edition = data?.edition ? data.edition[0].toUpperCase() + data.edition.slice(1) : '—';
 
   return (
-    <Dialog open={open} onClose={onClose} title="About UltraTorrent" className="max-w-md">
+    <Dialog open={open} onClose={onClose} title={t('about.title')} className="max-w-md">
       <DialogHeader>
         <div className="flex items-center gap-3">
           <img src="/logo.png" alt="" className="h-8 w-auto object-contain" />
         </div>
         <DialogTitle className="mt-2">{data?.product ?? 'UltraTorrent'}</DialogTitle>
-        <DialogDescription>
-          Modern torrent management platform.
-        </DialogDescription>
+        <DialogDescription>{t('about.tagline')}</DialogDescription>
       </DialogHeader>
 
       <div className="divide-y divide-border/50 rounded-lg border border-border/60 bg-white/[0.02] px-4">
         <Row
-          label="Version"
+          label={t('about.version')}
           value={
-            isLoading ? '…' : isError ? 'unavailable' : `v${data?.version ?? '—'}`
+            isLoading ? '…' : isError ? t('about.unavailable') : `v${data?.version ?? '—'}`
           }
         />
-        <Row label="Edition" value={isLoading ? '…' : edition} />
-        <Row label="API" value={data?.apiVersion ?? '—'} />
+        <Row label={t('about.edition')} value={isLoading ? '…' : edition} />
+        <Row label={t('about.api')} value={data?.apiVersion ?? '—'} />
         <Row
-          label="Build"
-          value={data?.buildTime ? formatDateTime(data.buildTime) : 'dev'}
+          label={t('about.build')}
+          value={data?.buildTime ? formatDateTime(data.buildTime) : t('about.dev')}
         />
-        {data?.gitSha ? <Row label="Commit" value={data.gitSha.slice(0, 10)} /> : null}
-        <Row label="Runtime" value={data?.node ?? '—'} />
+        {data?.gitSha ? <Row label={t('about.commit')} value={data.gitSha.slice(0, 10)} /> : null}
+        <Row label={t('about.runtime')} value={data?.node ?? '—'} />
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
-          © {year} UltraTorrent. Licensed software.
-        </p>
+        <p className="text-xs text-muted-foreground">{t('about.copyright', { year })}</p>
         <Button
           variant="outline"
           size="sm"
@@ -67,7 +65,7 @@ export function AboutDialog({ open, onClose }: { open: boolean; onClose: () => v
           }}
         >
           <KeyRound className="mr-1.5 h-3.5 w-3.5" />
-          License
+          {t('about.license')}
           <ExternalLink className="ml-1.5 h-3 w-3 opacity-60" />
         </Button>
       </div>

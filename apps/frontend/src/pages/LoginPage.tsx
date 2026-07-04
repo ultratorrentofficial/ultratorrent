@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Eye, EyeOff, KeyRound, Lock, ShieldCheck, User } from 'lucide-react';
 import { useAuth } from '@/auth/AuthContext';
 import { ApiError } from '@/lib/api';
@@ -8,6 +9,7 @@ import { Input, Label } from '@/components/ui/input';
 
 export function LoginPage() {
   const { login, status } = useAuth();
+  const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
@@ -43,13 +45,13 @@ export function LoginPage() {
       } else if (err instanceof ApiError) {
         setError(
           twoFactor
-            ? 'Invalid authentication code.'
+            ? t('errors.invalidCode')
             : err.status === 401
-              ? 'Invalid username or password.'
+              ? t('errors.invalidCredentials')
               : err.message,
         );
       } else {
-        setError('Unable to sign in. Please try again.');
+        setError(t('errors.generic'));
       }
     } finally {
       setSubmitting(false);
@@ -78,12 +80,10 @@ export function LoginPage() {
         <div className="mb-8 flex flex-col items-center gap-4 text-center">
           <img
             src="/logo.png"
-            alt="UltraTorrent — Download more. Wait less."
+            alt={t('logoAlt')}
             className="w-96 max-w-full object-contain drop-shadow-[0_0_55px_rgba(37,99,235,0.3)]"
           />
-          <p className="text-sm text-muted-foreground">
-            Sign in to your control center
-          </p>
+          <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
 
         <form
@@ -93,7 +93,7 @@ export function LoginPage() {
           {!twoFactor ? (
             <>
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">{t('username')}</Label>
                 <div className="relative">
                   <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -110,7 +110,7 @@ export function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t('password')}</Label>
                 <div className="relative">
                   <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -126,7 +126,7 @@ export function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -137,11 +137,9 @@ export function LoginPage() {
           ) : (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium">
-                <ShieldCheck className="h-4 w-4 text-primary" /> Two-factor authentication
+                <ShieldCheck className="h-4 w-4 text-primary" /> {t('twoFactor.title')}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Enter the 6-digit code from your authenticator app, or one of your recovery codes.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('twoFactor.hint')}</p>
               <div className="relative">
                 <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -160,7 +158,7 @@ export function LoginPage() {
                 onClick={backToCredentials}
                 className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
               >
-                <ArrowLeft className="h-3 w-3" /> Use a different account
+                <ArrowLeft className="h-3 w-3" /> {t('twoFactor.useDifferentAccount')}
               </button>
             </div>
           )}
@@ -175,13 +173,11 @@ export function LoginPage() {
           )}
 
           <Button type="submit" size="lg" className="w-full" loading={submitting}>
-            {twoFactor ? 'Verify' : 'Sign in'}
+            {twoFactor ? t('verify') : t('signIn')}
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          UltraTorrent — self-hosted torrent management
-        </p>
+        <p className="mt-6 text-center text-xs text-muted-foreground">{t('footer')}</p>
       </div>
     </div>
   );

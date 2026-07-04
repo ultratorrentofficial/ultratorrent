@@ -24,8 +24,23 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react';
+import type { TFunction } from 'i18next';
 import type { Permission } from '@ultratorrent/shared';
 import { PERMISSIONS } from '@ultratorrent/shared';
+
+/**
+ * Translate a nav group title / item / detail label by its canonical English
+ * key. The `NAV_GROUPS` data structure stays in English (tests assert on it);
+ * the shell + breadcrumbs call this at RENDER time. The dynamic-key cast is
+ * contained here — the `nav` resources are keyed by the canonical English text.
+ */
+export function tNav(
+  t: TFunction<'nav'>,
+  section: 'groups' | 'items' | 'details',
+  english: string,
+): string {
+  return t(`${section}.${english}` as 'groups.Overview');
+}
 
 export interface NavItem {
   to: string;

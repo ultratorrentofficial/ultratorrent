@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
 export function Spinner({ className }: { className?: string }) {
@@ -65,10 +66,13 @@ export interface ErrorStateProps {
   onRetry?: () => void;
 }
 
-export function ErrorState({ title = 'Something went wrong', message, onRetry }: ErrorStateProps) {
+export function ErrorState({ title, message, onRetry }: ErrorStateProps) {
+  const { t } = useTranslation('common');
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <h3 className="text-base font-semibold text-destructive">{title}</h3>
+      <h3 className="text-base font-semibold text-destructive">
+        {title ?? t('feedback.somethingWentWrong')}
+      </h3>
       {message && <p className="max-w-md text-sm text-muted-foreground">{message}</p>}
       {onRetry && (
         <button
@@ -76,7 +80,7 @@ export function ErrorState({ title = 'Something went wrong', message, onRetry }:
           onClick={onRetry}
           className="mt-1 rounded-md bg-white/5 px-3 py-1.5 text-sm font-medium hover:bg-white/10"
         >
-          Try again
+          {t('feedback.tryAgain')}
         </button>
       )}
     </div>
