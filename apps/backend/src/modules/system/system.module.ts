@@ -1,8 +1,11 @@
 import {
+  Body,
   Controller,
   Get,
   Injectable,
   Module,
+  Patch,
+  Post,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -16,6 +19,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { SettingsModule } from '../settings/settings.module';
+import { SystemUpdateService } from './system-update.service';
 
 @Injectable()
 export class SystemService {
@@ -98,7 +103,10 @@ export class SystemService {
 @ApiTags('system')
 @Controller('system')
 export class SystemController {
-  constructor(private readonly system: SystemService) {}
+  constructor(
+    private readonly system: SystemService,
+    private readonly update: SystemUpdateService,
+  ) {}
 
   @Public()
   @Get('live')
@@ -125,10 +133,38 @@ export class SystemController {
   health() {
     return this.system.health();
   }
+
+  /** Whether a newer release is available + how to apply it for this deployment. */
+  @Get('update')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.SYSTEM_VIEW)
+  updateStatus() {
+    return this.update.getStatus();
+  }
+
+  /** Force a fresh update check now. */
+  @Post('update/check')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.SYSTEM_VIEW)
+  checkUpdate() {
+    return this.update.checkNow();
+  }
+
+  /** Enable/disable the background update check (super-admin). */
+  @Patch('update/settings')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.SYSTEM_MANAGE)
+  setUpdateCheck(@Body() dto: { enabled?: boolean }) {
+    return this.update.setEnabled(Boolean(dto?.enabled));
+  }
 }
 
 @Module({
-  providers: [SystemService],
+  imports: [SettingsModule],
+  providers: [SystemService, SystemUpdateService],
   controllers: [SystemController],
 })
 export class SystemModule {}

@@ -473,6 +473,21 @@ export interface SystemVersion {
   node: string;
 }
 
+/** Update-availability status from `GET /api/system/update`. */
+export interface SystemUpdateStatus {
+  current: string;
+  latest: string | null;
+  updateAvailable: boolean;
+  deployment: 'docker' | 'bare';
+  checkEnabled: boolean;
+  checkedAt: string | null;
+  error: string | null;
+  latestUrl: string | null;
+  changelogUrl: string | null;
+  /** Deployment-specific commands to apply the update (never auto-applied). */
+  updateSteps: string[];
+}
+
 export interface ModuleHealth {
   id: string;
   status: 'healthy' | 'disabled' | 'locked' | 'degraded';
@@ -2136,6 +2151,21 @@ export const api = {
     },
     version(): Promise<SystemVersion> {
       return request<SystemVersion>('/system/version');
+    },
+    /** Whether a newer release exists + how to apply it for this deployment. */
+    update(): Promise<SystemUpdateStatus> {
+      return request<SystemUpdateStatus>('/system/update');
+    },
+    /** Force a fresh update check now. */
+    checkUpdate(): Promise<SystemUpdateStatus> {
+      return request<SystemUpdateStatus>('/system/update/check', { method: 'POST' });
+    },
+    /** Enable/disable the background update check (super-admin). */
+    setUpdateCheck(enabled: boolean): Promise<SystemUpdateStatus> {
+      return request<SystemUpdateStatus>('/system/update/settings', {
+        method: 'PATCH',
+        body: { enabled },
+      });
     },
   },
 

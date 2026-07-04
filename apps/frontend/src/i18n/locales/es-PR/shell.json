@@ -46,6 +46,26 @@
     "unavailable": "no disponible",
     "dev": "dev",
     "copyright": "© {{year}} UltraTorrent. Software con licencia.",
-    "license": "Licencia"
+    "license": "Licencia",
+    "update": {
+      "checking": "Buscando actualizaciones…",
+      "current": "Tienes la última versión",
+      "available": "Actualización disponible: v{{version}}",
+      "unavailable": "No se pudo buscar actualizaciones",
+      "checkNow": "Buscar ahora",
+      "upToDate": "Tienes la última versión",
+      "checkFailed": "Falló la búsqueda de actualizaciones",
+      "howTo": "Cómo actualizar",
+      "copy": "Copiar",
+      "copied": "Copiado al portapapeles",
+      "releaseNotes": "Notas de la versión",
+      "lastChecked": "Última comprobación {{time}}",
+      "autoCheck": "Buscar actualizaciones automáticamente",
+      "saveFailed": "No se pudo guardar",
+      "deployment": {
+        "docker": "Docker",
+        "bare": "Instalación manual"
+      }
+    }
   }
 }
