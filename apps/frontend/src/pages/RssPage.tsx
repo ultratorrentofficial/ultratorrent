@@ -37,6 +37,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { PathPicker } from '@/components/PathPicker';
+import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
@@ -657,6 +658,7 @@ function RuleDialog({
 }) {
   const { t } = useTranslation('rss');
   const toast = useToast();
+  const { ensure: ensureDirectory, dialog: ensureDirectoryDialog } = useEnsureDirectory();
   const editing = !!rule;
   const [name, setName] = useState(rule?.name ?? '');
   const [includeRegex, setIncludeRegex] = useState(rule?.includeRegex ?? '');
@@ -666,6 +668,8 @@ function RuleDialog({
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
+    // Validate the save path against the hard roots and offer to create it if missing.
+    if (savePath.trim() && !(await ensureDirectory(savePath))) return;
     setSaving(true);
     try {
       if (editing) {
@@ -703,6 +707,7 @@ function RuleDialog({
   };
 
   return (
+    <>
     <Dialog open onClose={onClose}>
       <DialogHeader>
         <DialogTitle>
@@ -750,6 +755,8 @@ function RuleDialog({
         </Button>
       </DialogFooter>
     </Dialog>
+    {ensureDirectoryDialog}
+    </>
   );
 }
 

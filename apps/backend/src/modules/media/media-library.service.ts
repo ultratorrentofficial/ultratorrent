@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { FilePathService } from '../files/file-path.service';
 
 export interface LibraryInput {
   name?: string;
@@ -20,7 +21,10 @@ export interface LibraryInput {
  */
 @Injectable()
 export class MediaLibraryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly filePath: FilePathService,
+  ) {}
 
   list() {
     return this.prisma.mediaLibrary.findMany({ orderBy: { createdAt: 'asc' } });
@@ -36,10 +40,12 @@ export class MediaLibraryService {
     if (!data?.name || !data?.path) {
       throw new BadRequestException('name and path are required');
     }
+    // A library path must live inside the ops-controlled storage roots.
+    const safePath = this.filePath.assertWithinHardRoots(data.path);
     return this.prisma.mediaLibrary.create({
       data: {
         name: data.name,
-        path: data.path,
+        path: safePath,
         kind: data.kind ?? 'tv',
         preset: data.preset ?? 'plex',
         template: data.template ?? null,
@@ -53,11 +59,14 @@ export class MediaLibraryService {
   }
 
   update(id: string, data: LibraryInput) {
+    // Validate the path against the hard roots whenever one is supplied.
+    const safePath =
+      data.path != null ? this.filePath.assertWithinHardRoots(data.path) : undefined;
     return this.prisma.mediaLibrary.update({
       where: { id },
       data: {
         name: data.name,
-        path: data.path,
+        path: safePath,
         kind: data.kind,
         preset: data.preset,
         template: data.template,

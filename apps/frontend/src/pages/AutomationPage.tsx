@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { PathPicker } from '@/components/PathPicker';
+import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { Select } from '@/components/ui/select';
 import { presetOptions, modeOptions } from './media-manager/constants';
 import { Switch } from '@/components/ui/switch';
@@ -254,6 +255,7 @@ function RuleEditor({
   const { t } = useTranslation('automation');
   const tt = t as unknown as AnyT;
   const toast = useToast();
+  const { ensure: ensureDirectory, dialog: ensureDirectoryDialog } = useEnsureDirectory();
   const [name, setName] = useState(rule?.name ?? '');
   const [description, setDescription] = useState(rule?.description ?? '');
   const [trigger, setTrigger] = useState(rule?.trigger ?? TRIGGER_VALUES[0]);
@@ -273,6 +275,18 @@ function RuleEditor({
     setActions((as) => as.map((a, idx) => (idx === i ? { ...a, ...patch } : a)));
 
   const submit = async () => {
+    // Validate any destination folders (move/rename actions) against the hard
+    // roots and offer to create the missing ones before saving the rule.
+    const dirPaths = actions
+      .filter((a) => a.type)
+      .flatMap((a) => {
+        const p = (a.params ?? {}) as Record<string, unknown>;
+        return [p.destination, p.libraryPath]
+          .filter((v): v is string => typeof v === 'string' && v.trim() !== '');
+      });
+    for (const dir of dirPaths) {
+      if (!(await ensureDirectory(dir))) return;
+    }
     setSaving(true);
     try {
       const body: UpsertAutomationInput = {
@@ -298,6 +312,7 @@ function RuleEditor({
   };
 
   return (
+    <>
     <Dialog open onClose={onClose} className="max-w-2xl">
       <DialogHeader>
         <DialogTitle>{rule ? t('editor.editTitle') : t('editor.newTitle')}</DialogTitle>
@@ -415,6 +430,8 @@ function RuleEditor({
         </Button>
       </DialogFooter>
     </Dialog>
+    {ensureDirectoryDialog}
+    </>
   );
 }
 

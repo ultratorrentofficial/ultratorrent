@@ -448,6 +448,19 @@ export interface FileBrowserRoot {
   writable: boolean;
 }
 
+/** Containment + on-disk state for a path, from `GET /api/files/inspect`. */
+export interface PathInspection {
+  /** The resolved absolute path. */
+  path: string;
+  /** Inside FILE_MANAGER_ROOTS (the ops hard boundary). */
+  withinHardRoots: boolean;
+  /** A protected system directory that may never be targeted. */
+  isSystemDir: boolean;
+  exists: boolean;
+  isDirectory: boolean;
+  writable: boolean;
+}
+
 /** Platform identity + version, from the public `GET /api/system/version`. */
 export interface SystemVersion {
   product: string;
@@ -1990,6 +2003,14 @@ export const api = {
     },
     createFolder(path: string, name: string): Promise<unknown> {
       return request('/files/folders', { method: 'POST', body: { path, name } });
+    },
+    /** Containment + existence of an arbitrary path (for pre-save validation). */
+    inspectPath(path: string): Promise<PathInspection> {
+      return request<PathInspection>('/files/inspect', { query: { path } });
+    },
+    /** Create a directory (recursively) inside the hard roots; idempotent. */
+    ensureDir(path: string): Promise<PathInspection> {
+      return request<PathInspection>('/files/ensure-dir', { method: 'POST', body: { path } });
     },
     rename(path: string, newName: string, overwrite = false): Promise<unknown> {
       return request('/files/rename', { method: 'POST', body: { path, newName, overwrite } });

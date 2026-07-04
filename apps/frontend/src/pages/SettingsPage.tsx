@@ -12,6 +12,7 @@ import { Input, Label } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { PathPicker } from '@/components/PathPicker';
+import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 
 /** Owned by the dedicated Default Root Path section — not the generic list. */
@@ -111,6 +112,7 @@ function RootPathSection({ canManageRoot }: { canManageRoot: boolean }) {
   const { t } = useTranslation('settings');
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { ensure: ensureDirectory, dialog: ensureDirectoryDialog } = useEnsureDirectory();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['files', 'root'],
     queryFn: api.files.root,
@@ -130,6 +132,12 @@ function RootPathSection({ canManageRoot }: { canManageRoot: boolean }) {
     onError: (err) =>
       toast.error(t('rootPath.saveFailedToast'), err instanceof ApiError ? err.message : undefined),
   });
+
+  // Validate the root against the hard roots and offer to create it if missing.
+  const doSave = async () => {
+    if (!(await ensureDirectory(value))) return;
+    save.mutate(value);
+  };
 
   return (
     <Card>
@@ -181,7 +189,7 @@ function RootPathSection({ canManageRoot }: { canManageRoot: boolean }) {
                     className="flex-1"
                   />
                   <Button
-                    onClick={() => save.mutate(value)}
+                    onClick={() => void doSave()}
                     loading={save.isPending}
                     disabled={!value.trim()}
                     className="shrink-0"
@@ -205,6 +213,7 @@ function RootPathSection({ canManageRoot }: { canManageRoot: boolean }) {
           </>
         )}
       </CardContent>
+      {ensureDirectoryDialog}
     </Card>
   );
 }

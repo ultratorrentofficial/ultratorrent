@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input, Label } from '@/components/ui/input';
 import { PathPicker } from '@/components/PathPicker';
+import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -23,6 +24,7 @@ export interface AddTorrentDialogProps {
 export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
   const { t } = useTranslation('torrents');
   const toast = useToast();
+  const { ensure: ensureDirectory, dialog: ensureDirectoryDialog } = useEnsureDirectory();
   const queryClient = useQueryClient();
 
   const [source, setSource] = useState<Source>('magnet');
@@ -62,6 +64,8 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
 
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
+    // Validate the save path against the hard roots and offer to create it if missing.
+    if (savePath.trim() && !(await ensureDirectory(savePath))) return;
     setSubmitting(true);
 
     const options: Pick<AddTorrentPayload, 'category' | 'savePath' | 'tags' | 'startPaused'> = {
@@ -101,6 +105,7 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
   };
 
   return (
+    <>
     <Dialog open={open} onClose={close} title={t('add.title')} className="max-w-xl">
       <DialogHeader>
         <DialogTitle>{t('add.title')}</DialogTitle>
@@ -254,5 +259,7 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
         </Button>
       </DialogFooter>
     </Dialog>
+    {ensureDirectoryDialog}
+    </>
   );
 }

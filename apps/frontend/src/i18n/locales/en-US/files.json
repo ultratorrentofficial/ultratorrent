@@ -224,5 +224,17 @@
     "selectFolderBtn": "Select this folder",
     "browse": "Browse",
     "browseAria": "Browse"
+  },
+  "ensureDir": {
+    "title": "Create this folder?",
+    "description": "This folder doesn't exist yet. Do you want to create it before saving?",
+    "confirm": "Create folder",
+    "cancel": "Cancel",
+    "createdTitle": "Folder created",
+    "createError": "Could not create the folder",
+    "outsideRootsTitle": "Path not allowed",
+    "outsideRootsBody": "That path is outside the server's allowed storage roots.",
+    "notDirTitle": "Not a folder",
+    "notDirBody": "That path already exists but is a file, not a folder."
   }
 }

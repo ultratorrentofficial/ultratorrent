@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Textarea } from '@/components/ui/input';
 import { PathPicker } from '@/components/PathPicker';
+import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { Select } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -234,6 +235,7 @@ function LibraryDialog({
 }) {
   const toast = useToast();
   const { t } = useTranslation('media');
+  const { ensure: ensureDirectory, dialog: ensureDirectoryDialog } = useEnsureDirectory();
   const { data: presets } = useQuery({ queryKey: ['media', 'presets'], queryFn: api.media.presets });
   const [name, setName] = useState(library?.name ?? '');
   const [path, setPath] = useState(library?.path ?? '');
@@ -258,6 +260,8 @@ function LibraryDialog({
       toast.error(t('libraries.invalidIntervalTitle'), t('libraries.invalidIntervalBody'));
       return;
     }
+    // Validate the path against the hard roots and offer to create it if missing.
+    if (!(await ensureDirectory(path))) return;
     setSaving(true);
     try {
       const body: CreateLibraryInput = {
@@ -284,6 +288,7 @@ function LibraryDialog({
   };
 
   return (
+    <>
     <Dialog open onClose={onClose} className="max-w-lg">
       <DialogHeader>
         <DialogTitle>{library ? t('libraries.dialog.editTitle') : t('libraries.dialog.addTitle')}</DialogTitle>
@@ -364,5 +369,7 @@ function LibraryDialog({
         </Button>
       </DialogFooter>
     </Dialog>
+    {ensureDirectoryDialog}
+    </>
   );
 }

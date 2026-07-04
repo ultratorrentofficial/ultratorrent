@@ -224,5 +224,17 @@
     "selectFolderBtn": "Seleccionar esta carpeta",
     "browse": "Explorar",
     "browseAria": "Explorar"
+  },
+  "ensureDir": {
+    "title": "¿Crear esta carpeta?",
+    "description": "Esta carpeta aún no existe. ¿Quieres crearla antes de guardar?",
+    "confirm": "Crear carpeta",
+    "cancel": "Cancelar",
+    "createdTitle": "Carpeta creada",
+    "createError": "No se pudo crear la carpeta",
+    "outsideRootsTitle": "Ruta no permitida",
+    "outsideRootsBody": "Esa ruta está fuera de las raíces de almacenamiento permitidas del servidor.",
+    "notDirTitle": "No es una carpeta",
+    "notDirBody": "Esa ruta ya existe, pero es un archivo, no una carpeta."
   }
 }

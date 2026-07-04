@@ -133,11 +133,62 @@ export class FilesController {
     return this.files.download(p, res);
   }
 
+  /**
+   * Report containment + on-disk state for an arbitrary path. Backs the
+   * "validate against the hard root / does this folder exist?" check any
+   * path-save form runs before persisting.
+   */
+  @Get('inspect')
+  @RequirePermissions(PERMISSIONS.FILES_VIEW)
+  inspect(@Query('path') p: string) {
+    return this.paths.inspect(p);
+  }
+
   // --- mutate ---
   @Post('folders')
   @RequirePermissions(PERMISSIONS.FILES_CREATE_FOLDER)
   createFolder(@Body() dto: CreateFolderDto, @Req() req: Request, @CurrentUser() user: AuthenticatedUser) {
     return this.files.createFolder(dto, opCtx(req, user));
+  }
+
+  /**
+   * Create a directory (recursively) at an absolute path inside the hard roots —
+   * used by the "the folder doesn't exist, create it?" confirmation. Idempotent
+   * and audited.
+   */
+  @Post('ensure-dir')
+  @RequirePermissions(PERMISSIONS.FILES_CREATE_FOLDER)
+  async ensureDir(
+    @Body('path') p: string,
+    @Req() req: Request,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const ctx = opCtx(req, user);
+    try {
+      const info = await this.paths.ensureDirectory(p);
+      await this.audit.record({
+        userId: ctx.userId,
+        action: 'files.ensure_dir',
+        objectType: 'file',
+        objectId: info.path,
+        result: 'success',
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+      });
+      return info;
+    } catch (err) {
+      await this.audit.record({
+        userId: ctx.userId,
+        action: 'files.ensure_dir',
+        objectType: 'file',
+        objectId: typeof p === 'string' ? p : '',
+        result: 'failure',
+        metadata: { error: (err as Error).message },
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+      });
+      throw err;
+    }
   }
 
   @Post('rename')

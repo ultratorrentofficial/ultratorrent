@@ -34,6 +34,25 @@ export interface RootInfo {
 }
 
 /**
+ * Non-throwing report about an arbitrary caller-supplied path, used by the
+ * "the folder doesn't exist — create it?" save flow. It answers, in one call,
+ * both boundary questions (is it inside the ops hard roots / a protected system
+ * dir?) and the existence questions (does it exist, is it a directory, can we
+ * write to it?) — without asserting, so the UI can decide what to prompt.
+ */
+export interface PathInspection {
+  /** The resolved absolute path. */
+  path: string;
+  /** Inside FILE_MANAGER_ROOTS (the ops hard boundary). */
+  withinHardRoots: boolean;
+  /** A protected system directory that may never be targeted. */
+  isSystemDir: boolean;
+  exists: boolean;
+  isDirectory: boolean;
+  writable: boolean;
+}
+
+/**
  * Injectable holder for the configured {@link PathSafety} so every file-manager
  * service shares one source of truth for the allowed roots. The pure
  * `PathSafety` class stays framework-free for unit testing.
@@ -102,6 +121,52 @@ export class FilePathService implements OnModuleInit {
       );
     }
     return abs;
+  }
+
+  /**
+   * Inspect a caller-supplied path without throwing. Reports containment within
+   * the hard roots plus on-disk state so the frontend can validate a typed path
+   * and offer to create it when it's allowed but missing.
+   */
+  async inspect(requested: string): Promise<PathInspection> {
+    if (typeof requested !== 'string' || !requested.trim()) {
+      throw new BadRequestException('A path is required.');
+    }
+    const abs = path.resolve(requested.trim());
+    const isSystemDir = this.isSystemDir(abs);
+    const withinHardRoots = this.withinHardRoots(abs);
+    let exists = false;
+    let isDirectory = false;
+    let writable = false;
+    try {
+      const st = await fs.stat(abs);
+      exists = true;
+      isDirectory = st.isDirectory();
+    } catch {
+      exists = false;
+    }
+    if (exists) {
+      writable = await fs
+        .access(abs, fsc.W_OK)
+        .then(() => true)
+        .catch(() => false);
+    }
+    return { path: abs, withinHardRoots, isSystemDir, exists, isDirectory, writable };
+  }
+
+  /**
+   * Create a directory (recursively) after asserting it is a normal path inside
+   * the ops hard roots and not a protected system directory. Idempotent — a
+   * pre-existing directory is fine. Returns the fresh inspection.
+   */
+  async ensureDirectory(requested: string): Promise<PathInspection> {
+    const abs = this.assertWithinHardRoots(requested);
+    const existing = await fs.stat(abs).catch(() => null);
+    if (existing && !existing.isDirectory()) {
+      throw new BadRequestException('That path already exists and is not a directory.');
+    }
+    await fs.mkdir(abs, { recursive: true });
+    return this.inspect(abs);
   }
 
   /** Rebuild PathSafety from the DB setting, narrowed within the env roots. */
