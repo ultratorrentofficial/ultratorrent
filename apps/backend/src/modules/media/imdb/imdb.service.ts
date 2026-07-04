@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import type { Prisma } from '@prisma/client';
 import type { NormalizedTorrent } from '@ultratorrent/shared';
 import { WS_EVENTS } from '@ultratorrent/shared';
@@ -49,7 +50,11 @@ export class ImdbService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
     private readonly settings: SettingsService,
-    private readonly automation: AutomationEngine,
+    // AutomationEngine lives in AutomationModule, which imports MediaService /
+    // MediaAutomationActions back from this module — a module cycle. Resolve it
+    // lazily via ModuleRef so it isn't needed at construction time (it's only
+    // used for a fire-and-forget trigger), which breaks the bootstrap cycle.
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /** Build a provider bound to the current settings. */
@@ -272,7 +277,8 @@ export class ImdbService {
 
   private fireMatched(title: string): void {
     const context = { name: title } as unknown as NormalizedTorrent;
-    this.automation
+    this.moduleRef
+      .get(AutomationEngine, { strict: false })
       .evaluate('media.matched', context)
       .catch((err) =>
         this.logger.warn(`media.matched trigger failed: ${(err as Error).message}`),

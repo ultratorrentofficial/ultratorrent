@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import * as path from 'node:path';
 import type { MediaLibrary } from '@prisma/client';
 import type { NormalizedTorrent } from '@ultratorrent/shared';
@@ -35,7 +36,10 @@ export class MediaProcessingService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly automation: AutomationEngine,
+    // Lazily resolved (see below) to break the MediaModule ⇄ AutomationModule
+    // cycle: AutomationModule imports MediaService/MediaAutomationActions from
+    // here, so AutomationEngine can't be a construction-time dependency.
+    private readonly moduleRef: ModuleRef,
     private readonly scanner: MediaScannerService,
     private readonly identification: MediaIdentificationService,
     private readonly subtitles: MediaSubtitleService,
@@ -46,7 +50,8 @@ export class MediaProcessingService {
 
   /** Fire a `media.*` automation trigger with the torrent as context (best-effort). */
   private fire(trigger: string, t: NormalizedTorrent): void {
-    this.automation
+    this.moduleRef
+      .get(AutomationEngine, { strict: false })
       .evaluate(trigger, t)
       .catch((err) =>
         this.logger.warn(`Automation ${trigger} failed: ${(err as Error).message}`),
