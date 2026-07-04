@@ -1,0 +1,60 @@
+{
+  "page": {
+    "title": "Módulos",
+    "subtitle": "Activa o desactiva capacidades opcionales. Los módulos core siempre están activos."
+  },
+  "license": {
+    "edition": "edición {{edition}}",
+    "valid": "Válida",
+    "expired": "Vencida",
+    "invalid": "Inválida",
+    "licensedTo": "Licenciado a {{licensee}}. ",
+    "expires": "Vence {{date}}.",
+    "noExpiry": "Sin vencimiento.",
+    "allUnlocked": "Todos los módulos desbloqueados",
+    "unlocked_one": "{{count}} módulo desbloqueado",
+    "unlocked_other": "{{count}} módulos desbloqueados"
+  },
+  "list": {
+    "loading": "Cargando módulos…",
+    "error": "No se pudieron cargar los módulos.",
+    "empty": "No hay módulos"
+  },
+  "tier": {
+    "core": "Core",
+    "community": "Comunidad"
+  },
+  "state": {
+    "available": "Disponible",
+    "enabled": "Activado",
+    "disabled": "Desactivado",
+    "locked": "Bloqueado",
+    "missing_dependency": "Dependencia faltante",
+    "license_required": "Requiere licencia"
+  },
+  "card": {
+    "healthLabel": "Estado: {{status}}",
+    "healthUnknown": "Estado desconocido",
+    "licensed": "con licencia",
+    "unlicensed": "sin licencia",
+    "permissions_one": "{{count}} permiso",
+    "permissions_other": "{{count}} permisos",
+    "deps": "deps:",
+    "coreAlwaysOnTitle": "Core — siempre activo",
+    "coreAlwaysOn": "core — siempre activo",
+    "disable": "Desactivar",
+    "enable": "Activar"
+  },
+  "toast": {
+    "enabled": "Módulo activado",
+    "disabled": "Módulo desactivado",
+    "enableFailed": "No se pudo activar el módulo",
+    "disableFailed": "No se pudo desactivar el módulo"
+  },
+  "locked": {
+    "notAvailable": "{{title}} no está disponible",
+    "unmetDependencies": "Dependencias no satisfechas: ",
+    "manageModules": "Administrar módulos",
+    "noAccess": "Esta función no está habilitada para tu cuenta. Comunícate con un administrador si crees que deberías tener acceso."
+  }
+}

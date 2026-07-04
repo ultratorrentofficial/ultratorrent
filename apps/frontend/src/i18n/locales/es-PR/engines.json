@@ -1,0 +1,75 @@
+{
+  "page": {
+    "title": "Motores de torrents",
+    "subtitle": "Conecta UltraTorrent a uno o más clientes de torrents. El motor predeterminado alimenta la vista de Torrents."
+  },
+  "actions": {
+    "addEngine": "Agregar motor",
+    "setDefault": "Establecer como predeterminado",
+    "editEngine": "Editar motor",
+    "deleteEngine": "Eliminar motor",
+    "cancel": "Cancelar"
+  },
+  "list": {
+    "loading": "Cargando motores…",
+    "error": "No se pudieron cargar los motores."
+  },
+  "empty": {
+    "title": "No hay motores configurados",
+    "description": "Agrega un motor de torrents (p. ej. rTorrent) para que UltraTorrent pueda listar y administrar torrents.",
+    "action": "Agrega tu primer motor"
+  },
+  "badge": {
+    "default": "predeterminado",
+    "disabled": "deshabilitado"
+  },
+  "health": {
+    "online": "en línea",
+    "offline": "sin conexión"
+  },
+  "confirm": {
+    "delete": "¿Eliminar el motor \"{{name}}\"? Los torrents en él permanecen en el propio motor."
+  },
+  "toast": {
+    "removed": "Motor eliminado",
+    "removeFailed": "No se pudo eliminar el motor",
+    "defaultUpdated": "Motor predeterminado actualizado",
+    "defaultFailed": "No se pudo establecer el predeterminado",
+    "updated": "Motor actualizado",
+    "added": "Motor agregado",
+    "updateFailed": "No se pudo actualizar el motor",
+    "addFailed": "No se pudo agregar el motor"
+  },
+  "kinds": {
+    "rtorrent": "rTorrent",
+    "qbittorrent": "qBittorrent (próximamente)",
+    "transmission": "Transmission (próximamente)",
+    "deluge": "Deluge (próximamente)"
+  },
+  "modes": {
+    "scgiTcp": "SCGI sobre TCP (host + puerto)",
+    "scgiUnix": "SCGI sobre socket Unix",
+    "http": "HTTP / URL XML-RPC"
+  },
+  "dialog": {
+    "addTitle": "Agregar motor",
+    "editTitle": "Editar {{name}}",
+    "description": "Para el rTorrent incluido en Docker, usa SCGI sobre TCP con host <code>rtorrent</code> y puerto <code>5000</code>.",
+    "name": "Nombre",
+    "namePlaceholder": "rTorrent local",
+    "client": "Cliente",
+    "connection": "Conexión",
+    "socketPath": "Ruta del socket",
+    "url": "URL XML-RPC",
+    "host": "Host",
+    "port": "Puerto",
+    "timeout": "Tiempo de espera (ms)",
+    "defaultEngine": "Motor predeterminado",
+    "enabled": "Habilitado",
+    "testConnection": "Probar conexión",
+    "saveChanges": "Guardar cambios",
+    "testConnected": "Conectado",
+    "testNoResponse": "El motor no respondió.",
+    "testFailed": "Falló la prueba."
+  }
+}

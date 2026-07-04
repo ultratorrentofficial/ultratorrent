@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronLeft, ChevronRight, ScrollText } from 'lucide-react';
 import { api, type AuditEntry } from '@/lib/api';
@@ -13,6 +14,7 @@ import { cn } from '@/lib/utils';
 const PAGE_SIZE = 30;
 
 export function AuditPage() {
+  const { t } = useTranslation('audit');
   const [page, setPage] = useState(1);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
@@ -28,23 +30,21 @@ export function AuditPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Audit log</h1>
-        <p className="text-sm text-muted-foreground">
-          A chronological, human-readable record of actions across the platform.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('page.subtitle')}</p>
       </div>
 
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <CenteredSpinner label="Loading audit log…" />
+            <CenteredSpinner label={t('state.loading')} />
           ) : isError ? (
-            <ErrorState message="Could not load the audit log." onRetry={() => refetch()} />
+            <ErrorState message={t('state.error')} onRetry={() => refetch()} />
           ) : items.length === 0 ? (
             <EmptyState
               icon={<ScrollText className="h-6 w-6" />}
-              title="No audit entries"
-              description="Actions performed in UltraTorrent will be recorded here."
+              title={t('state.emptyTitle')}
+              description={t('state.emptyDescription')}
             />
           ) : (
             <ul className="divide-y divide-border/60">
@@ -59,12 +59,12 @@ export function AuditPage() {
       {total > PAGE_SIZE && (
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            Page {page} of {totalPages}
-            {isFetching && <span className="ml-2 opacity-70">updating…</span>}
+            {t('pagination.pageOf', { page, totalPages })}
+            {isFetching && <span className="ml-2 opacity-70">{t('pagination.updating')}</span>}
           </p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              <ChevronLeft className="h-4 w-4" /> Prev
+              <ChevronLeft className="h-4 w-4" /> {t('pagination.prev')}
             </Button>
             <Button
               variant="outline"
@@ -72,7 +72,7 @@ export function AuditPage() {
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
             >
-              Next <ChevronRight className="h-4 w-4" />
+              {t('pagination.next')} <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -82,6 +82,7 @@ export function AuditPage() {
 }
 
 function AuditRow({ entry }: { entry: AuditEntry }) {
+  const { t } = useTranslation('audit');
   const [open, setOpen] = useState(false);
   const d = describeAudit(entry);
   const Icon = d.Icon;
@@ -142,34 +143,34 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
           <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5">
             {entry.objectType && (
               <>
-                <dt className="text-muted-foreground">Target type</dt>
+                <dt className="text-muted-foreground">{t('details.targetType')}</dt>
                 <dd className="font-mono">{entry.objectType}</dd>
               </>
             )}
             {entry.objectId && (
               <>
-                <dt className="text-muted-foreground">Target</dt>
+                <dt className="text-muted-foreground">{t('details.target')}</dt>
                 <dd className="break-all font-mono">{entry.objectId}</dd>
               </>
             )}
-            <dt className="text-muted-foreground">Result</dt>
+            <dt className="text-muted-foreground">{t('details.result')}</dt>
             <dd>
               <Badge variant={entry.result === 'failure' ? 'destructive' : 'success'} className="text-[10px]">
                 {entry.result}
               </Badge>
             </dd>
-            <dt className="text-muted-foreground">When</dt>
+            <dt className="text-muted-foreground">{t('details.when')}</dt>
             <dd className="tabular-nums">{formatDateTime(entry.createdAt)}</dd>
             {entry.userAgent && (
               <>
-                <dt className="text-muted-foreground">User agent</dt>
+                <dt className="text-muted-foreground">{t('details.userAgent')}</dt>
                 <dd className="break-all text-muted-foreground">{entry.userAgent}</dd>
               </>
             )}
           </dl>
           {entry.metadata && Object.keys(entry.metadata).length > 0 && (
             <div>
-              <p className="mb-1 text-muted-foreground">Metadata</p>
+              <p className="mb-1 text-muted-foreground">{t('details.metadata')}</p>
               <pre className="overflow-x-auto rounded-md bg-black/40 p-2 font-mono text-[11px] leading-relaxed text-foreground/80">
                 {JSON.stringify(entry.metadata, null, 2)}
               </pre>

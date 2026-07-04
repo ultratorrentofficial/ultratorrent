@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   Area,
@@ -30,6 +31,7 @@ import { CenteredSpinner, EmptyState, Skeleton } from '@/components/ui/feedback'
 import { cn } from '@/lib/utils';
 
 export function DashboardPage() {
+  const { t } = useTranslation('dashboard');
   const { stats, bandwidth, engineOnline } = useRealtime();
 
   const summaryQuery = useQuery({
@@ -55,8 +57,8 @@ export function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Realtime overview of your engine.</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('page.subtitle')}</p>
         </div>
         <EngineStatusBadge online={online} />
       </div>
@@ -64,34 +66,34 @@ export function DashboardPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
-          label="Download"
+          label={t('stats.download')}
           value={formatSpeed(downloadRate)}
           icon={<ArrowDownToLine className="h-5 w-5" />}
           tone="info"
           loading={summaryQuery.isLoading && !stats}
         />
         <StatCard
-          label="Upload"
+          label={t('stats.upload')}
           value={formatSpeed(uploadRate)}
           icon={<ArrowUpFromLine className="h-5 w-5" />}
           tone="success"
           loading={summaryQuery.isLoading && !stats}
         />
         <StatCard
-          label="Share ratio"
+          label={t('stats.shareRatio')}
           value={formatRatio(summary?.ratio)}
           icon={<Gauge className="h-5 w-5" />}
           tone="primary"
           loading={summaryQuery.isLoading}
-          sub={`${formatBytes(summary?.totalUploaded)} up`}
+          sub={t('stats.uploadedSub', { size: formatBytes(summary?.totalUploaded) })}
         />
         <StatCard
-          label="Torrents"
+          label={t('stats.torrents')}
           value={String(summary?.totalTorrents ?? 0)}
           icon={<HardDriveDownload className="h-5 w-5" />}
           tone="accent"
           loading={summaryQuery.isLoading}
-          sub={`${summary?.downloading ?? 0} active`}
+          sub={t('stats.activeSub', { count: summary?.downloading ?? 0 })}
         />
       </div>
 
@@ -100,12 +102,14 @@ export function DashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between">
             <div>
-              <CardTitle>Bandwidth</CardTitle>
-              <p className="text-xs text-muted-foreground">Live, last {bandwidth.length} samples</p>
+              <CardTitle>{t('bandwidth.title')}</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {t('bandwidth.samples', { count: bandwidth.length })}
+              </p>
             </div>
             <div className="flex items-center gap-4 text-xs">
-              <LegendDot className="bg-info" label="Down" />
-              <LegendDot className="bg-success" label="Up" />
+              <LegendDot className="bg-info" label={t('bandwidth.legendDown')} />
+              <LegendDot className="bg-success" label={t('bandwidth.legendUp')} />
             </div>
           </CardHeader>
           <CardContent>
@@ -116,7 +120,7 @@ export function DashboardPage() {
         {/* State breakdown */}
         <Card>
           <CardHeader>
-            <CardTitle>Torrent states</CardTitle>
+            <CardTitle>{t('states.title')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {summaryQuery.isLoading ? (
@@ -127,11 +131,11 @@ export function DashboardPage() {
               </div>
             ) : (
               <>
-                <StateRow icon={<Download className="h-4 w-4 text-info" />} label="Downloading" value={summary?.downloading ?? 0} />
-                <StateRow icon={<Sprout className="h-4 w-4 text-success" />} label="Seeding" value={summary?.seeding ?? 0} />
-                <StateRow icon={<CheckCircle2 className="h-4 w-4 text-success" />} label="Completed" value={summary?.completed ?? 0} />
-                <StateRow icon={<Pause className="h-4 w-4 text-warning" />} label="Paused" value={summary?.paused ?? 0} />
-                <StateRow icon={<TriangleAlert className="h-4 w-4 text-destructive" />} label="Errored" value={summary?.errored ?? 0} />
+                <StateRow icon={<Download className="h-4 w-4 text-info" />} label={t('states.downloading')} value={summary?.downloading ?? 0} />
+                <StateRow icon={<Sprout className="h-4 w-4 text-success" />} label={t('states.seeding')} value={summary?.seeding ?? 0} />
+                <StateRow icon={<CheckCircle2 className="h-4 w-4 text-success" />} label={t('states.completed')} value={summary?.completed ?? 0} />
+                <StateRow icon={<Pause className="h-4 w-4 text-warning" />} label={t('states.paused')} value={summary?.paused ?? 0} />
+                <StateRow icon={<TriangleAlert className="h-4 w-4 text-destructive" />} label={t('states.errored')} value={summary?.errored ?? 0} />
               </>
             )}
           </CardContent>
@@ -141,7 +145,7 @@ export function DashboardPage() {
       {/* Recent activity */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent activity</CardTitle>
+          <CardTitle>{t('activity.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           {activityQuery.isLoading ? (
@@ -155,8 +159,8 @@ export function DashboardPage() {
           ) : (
             <EmptyState
               icon={<Activity className="h-6 w-6" />}
-              title="No recent activity"
-              description="Events from your engine and automations will appear here."
+              title={t('activity.emptyTitle')}
+              description={t('activity.emptyDescription')}
             />
           )}
         </CardContent>
@@ -166,6 +170,7 @@ export function DashboardPage() {
 }
 
 function BandwidthChart() {
+  const { t } = useTranslation('dashboard');
   const { bandwidth } = useRealtime();
 
   const data = useMemo(
@@ -176,7 +181,7 @@ function BandwidthChart() {
   if (data.length === 0) {
     return (
       <div className="grid h-[260px] place-items-center text-sm text-muted-foreground">
-        Waiting for live bandwidth data…
+        {t('bandwidth.waiting')}
       </div>
     );
   }
@@ -218,7 +223,10 @@ function BandwidthChart() {
               fontSize: 12,
             }}
             labelStyle={{ color: 'hsl(240 8% 70%)' }}
-            formatter={(value: number, name: string) => [formatSpeed(value), name === 'down' ? 'Download' : 'Upload']}
+            formatter={(value: number, name: string) => [
+              formatSpeed(value),
+              name === 'down' ? t('bandwidth.tooltipDown') : t('bandwidth.tooltipUp'),
+            ]}
           />
           <Area
             type="monotone"
@@ -324,9 +332,10 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 }
 
 function EngineStatusBadge({ online }: { online: boolean }) {
+  const { t } = useTranslation('dashboard');
   return (
     <Badge variant={online ? 'success' : 'destructive'} dot className="px-3 py-1">
-      Engine {online ? 'online' : 'offline'}
+      {online ? t('engine.online') : t('engine.offline')}
     </Badge>
   );
 }

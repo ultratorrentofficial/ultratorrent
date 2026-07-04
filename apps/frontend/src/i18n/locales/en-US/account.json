@@ -1,0 +1,71 @@
+{
+  "page": {
+    "loading": "Loading account…",
+    "title": "Account",
+    "subtitle": "Manage your profile, password, and two-factor authentication."
+  },
+  "profile": {
+    "title": "Profile",
+    "username": "Username",
+    "email": "Email",
+    "displayName": "Display name",
+    "roles": "Roles",
+    "lastSignIn": "Last sign-in {{time}}",
+    "save": "Save changes"
+  },
+  "password": {
+    "title": "Password",
+    "current": "Current password",
+    "new": "New password",
+    "tooShort": "At least 10 characters.",
+    "confirm": "Confirm new password",
+    "mismatch": "Passwords don’t match.",
+    "submit": "Change password"
+  },
+  "twoFactor": {
+    "title": "Two-factor authentication",
+    "on": "On",
+    "off": "Off",
+    "descEnabled": "Your account is protected with an authenticator app. You’ll be asked for a code when you sign in.",
+    "descDisabled": "Add a second step to sign-in using an authenticator app (Google Authenticator, Authy, 1Password, …).",
+    "enable": "Enable 2FA",
+    "disable": "Disable 2FA"
+  },
+  "enable": {
+    "title": "Enable two-factor authentication",
+    "description": "Scan the QR code with your authenticator app, then enter the 6-digit code to confirm.",
+    "generating": "Generating secret…",
+    "qrAlt": "2FA QR code",
+    "manualKey": "Or enter this key manually:",
+    "codeLabel": "Verification code",
+    "cancel": "Cancel",
+    "verify": "Verify & enable"
+  },
+  "recovery": {
+    "title": "Save your recovery codes",
+    "description": "Each code works once if you lose your authenticator. Store them somewhere safe — they won’t be shown again.",
+    "copy": "Copy",
+    "download": "Download",
+    "done": "I’ve saved them"
+  },
+  "disable": {
+    "title": "Disable two-factor authentication",
+    "description": "Confirm your password to turn off 2FA. Your account will be less protected.",
+    "passwordLabel": "Password",
+    "cancel": "Cancel",
+    "submit": "Disable 2FA"
+  },
+  "toast": {
+    "profileUpdated": "Profile updated",
+    "profileUpdateFailed": "Could not update profile",
+    "passwordChanged": "Password changed",
+    "passwordChangedDetail": "Use your new password next time you sign in.",
+    "passwordChangeFailed": "Could not change password",
+    "setupFailed": "Could not start setup",
+    "enabled": "Two-factor enabled",
+    "invalidCode": "Invalid code",
+    "codesCopied": "Recovery codes copied",
+    "disabled": "Two-factor disabled",
+    "disableFailed": "Could not disable"
+  }
+}

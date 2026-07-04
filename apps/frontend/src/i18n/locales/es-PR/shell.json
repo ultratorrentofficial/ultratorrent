@@ -27,6 +27,9 @@
     "accountSecurity": "Cuenta y seguridad",
     "signOut": "Cerrar sesión"
   },
+  "language": {
+    "label": "Idioma"
+  },
   "about": {
     "trigger": "Acerca de",
     "title": "Acerca de UltraTorrent",

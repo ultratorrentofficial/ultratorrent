@@ -1,0 +1,45 @@
+{
+  "page": {
+    "title": "Settings",
+    "subtitle": "Configure your UltraTorrent instance.",
+    "save": "Save changes",
+    "loading": "Loading settings…",
+    "error": "Could not load settings.",
+    "emptyTitle": "No configurable settings",
+    "emptyDescription": "This instance does not expose editable settings yet.",
+    "generalTitle": "General",
+    "generalDescription": "Values are validated by the server on save."
+  },
+  "toast": {
+    "saved": "Settings saved",
+    "saveFailed": "Could not save settings"
+  },
+  "rootPath": {
+    "title": "Default Root Path",
+    "description": "Users can browse only inside this root path. Parent folders and system directories outside it are blocked.",
+    "loading": "Loading…",
+    "error": "Could not load the root path.",
+    "effectiveRoot": "Effective root:",
+    "exists": "exists",
+    "missing": "missing",
+    "readable": "readable",
+    "notReadable": "not readable",
+    "writable": "writable",
+    "readOnly": "read-only",
+    "notWritableWarning": "The app process cannot write to this path — downloads and folder creation there will fail.",
+    "label": "Root path",
+    "ariaLabel": "Root path",
+    "pickerTitle": "Choose the default root folder",
+    "save": "Save",
+    "help": {
+      "before": "Must be a directory within the server's configured storage roots (",
+      "after": "). Browsing can only be narrowed within these, never widened past them."
+    },
+    "adminOnly": {
+      "before": "Only administrators with the ",
+      "after": " permission can change this."
+    },
+    "savedToast": "Default root path saved",
+    "saveFailedToast": "Could not save root path"
+  }
+}

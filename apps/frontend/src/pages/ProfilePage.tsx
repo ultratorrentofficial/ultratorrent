@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
@@ -26,6 +27,7 @@ import {
 import { CenteredSpinner } from '@/components/ui/feedback';
 
 export function ProfilePage() {
+  const { t } = useTranslation('account');
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['account', 'profile'],
@@ -34,14 +36,14 @@ export function ProfilePage() {
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: ['account', 'profile'] });
 
-  if (isLoading || !data) return <CenteredSpinner label="Loading account…" />;
+  if (isLoading || !data) return <CenteredSpinner label={t('page.loading')} />;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Account</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
         <p className="text-sm text-muted-foreground">
-          Manage your profile, password, and two-factor authentication.
+          {t('page.subtitle')}
         </p>
       </div>
 
@@ -74,6 +76,7 @@ function ProfileSection({
   lastLoginAt: string | null;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation('account');
   const toast = useToast();
   const [emailValue, setEmailValue] = useState(email);
   const [name, setName] = useState(displayName ?? '');
@@ -83,10 +86,10 @@ function ProfileSection({
     setSaving(true);
     try {
       await api.account.updateProfile({ email: emailValue.trim(), displayName: name.trim() });
-      toast.success('Profile updated');
+      toast.success(t('toast.profileUpdated'));
       onSaved();
     } catch (err) {
-      toast.error('Could not update profile', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.profileUpdateFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setSaving(false);
     }
@@ -96,25 +99,25 @@ function ProfileSection({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <UserCircle className="h-5 w-5 text-primary" /> Profile
+          <UserCircle className="h-5 w-5 text-primary" /> {t('profile.title')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label>Username</Label>
+            <Label>{t('profile.username')}</Label>
             <Input value={username} disabled className="opacity-70" />
           </div>
           <div>
-            <Label htmlFor="pf-email">Email</Label>
+            <Label htmlFor="pf-email">{t('profile.email')}</Label>
             <Input id="pf-email" type="email" value={emailValue} onChange={(e) => setEmailValue(e.target.value)} />
           </div>
           <div>
-            <Label htmlFor="pf-name">Display name</Label>
+            <Label htmlFor="pf-name">{t('profile.displayName')}</Label>
             <Input id="pf-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
-            <Label>Roles</Label>
+            <Label>{t('profile.roles')}</Label>
             <div className="flex flex-wrap gap-1.5 pt-2">
               {roles.map((r) => (
                 <Badge key={r} variant="secondary">{r.replace(/_/g, ' ').toLowerCase()}</Badge>
@@ -124,9 +127,9 @@ function ProfileSection({
         </div>
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            Last sign-in {formatRelativeTime(lastLoginAt)}
+            {t('profile.lastSignIn', { time: formatRelativeTime(lastLoginAt) })}
           </p>
-          <Button onClick={save} loading={saving}>Save changes</Button>
+          <Button onClick={save} loading={saving}>{t('profile.save')}</Button>
         </div>
       </CardContent>
     </Card>
@@ -134,6 +137,7 @@ function ProfileSection({
 }
 
 function PasswordSection() {
+  const { t } = useTranslation('account');
   const toast = useToast();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -148,12 +152,12 @@ function PasswordSection() {
     setSaving(true);
     try {
       await api.account.changePassword(current, next);
-      toast.success('Password changed', 'Use your new password next time you sign in.');
+      toast.success(t('toast.passwordChanged'), t('toast.passwordChangedDetail'));
       setCurrent('');
       setNext('');
       setConfirm('');
     } catch (err) {
-      toast.error('Could not change password', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.passwordChangeFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setSaving(false);
     }
@@ -163,28 +167,28 @@ function PasswordSection() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <KeyRound className="h-5 w-5 text-primary" /> Password
+          <KeyRound className="h-5 w-5 text-primary" /> {t('password.title')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <Label htmlFor="pw-cur">Current password</Label>
+            <Label htmlFor="pw-cur">{t('password.current')}</Label>
             <Input id="pw-cur" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
           </div>
           <div>
-            <Label htmlFor="pw-new">New password</Label>
+            <Label htmlFor="pw-new">{t('password.new')}</Label>
             <Input id="pw-new" type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
-            {tooShort && <p className="mt-1 text-xs text-warning">At least 10 characters.</p>}
+            {tooShort && <p className="mt-1 text-xs text-warning">{t('password.tooShort')}</p>}
           </div>
           <div>
-            <Label htmlFor="pw-confirm">Confirm new password</Label>
+            <Label htmlFor="pw-confirm">{t('password.confirm')}</Label>
             <Input id="pw-confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
-            {mismatch && <p className="mt-1 text-xs text-destructive">Passwords don’t match.</p>}
+            {mismatch && <p className="mt-1 text-xs text-destructive">{t('password.mismatch')}</p>}
           </div>
         </div>
         <div className="flex justify-end">
-          <Button onClick={save} disabled={!canSave} loading={saving}>Change password</Button>
+          <Button onClick={save} disabled={!canSave} loading={saving}>{t('password.submit')}</Button>
         </div>
       </CardContent>
     </Card>
@@ -192,6 +196,7 @@ function PasswordSection() {
 }
 
 function TwoFactorSection({ enabled, onChanged }: { enabled: boolean; onChanged: () => void }) {
+  const { t } = useTranslation('account');
   const [enableOpen, setEnableOpen] = useState(false);
   const [disableOpen, setDisableOpen] = useState(false);
 
@@ -199,26 +204,24 @@ function TwoFactorSection({ enabled, onChanged }: { enabled: boolean; onChanged:
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-primary" /> Two-factor authentication
+          <ShieldCheck className="h-5 w-5 text-primary" /> {t('twoFactor.title')}
           <Badge variant={enabled ? 'success' : 'secondary'} dot>
-            {enabled ? 'On' : 'Off'}
+            {enabled ? t('twoFactor.on') : t('twoFactor.off')}
           </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          {enabled
-            ? 'Your account is protected with an authenticator app. You’ll be asked for a code when you sign in.'
-            : 'Add a second step to sign-in using an authenticator app (Google Authenticator, Authy, 1Password, …).'}
+          {enabled ? t('twoFactor.descEnabled') : t('twoFactor.descDisabled')}
         </p>
         <div className="flex justify-end">
           {enabled ? (
             <Button variant="destructive" onClick={() => setDisableOpen(true)}>
-              <ShieldOff className="h-4 w-4" /> Disable 2FA
+              <ShieldOff className="h-4 w-4" /> {t('twoFactor.disable')}
             </Button>
           ) : (
             <Button onClick={() => setEnableOpen(true)}>
-              <ShieldCheck className="h-4 w-4" /> Enable 2FA
+              <ShieldCheck className="h-4 w-4" /> {t('twoFactor.enable')}
             </Button>
           )}
         </div>
@@ -247,6 +250,7 @@ function TwoFactorSection({ enabled, onChanged }: { enabled: boolean; onChanged:
 }
 
 function EnableTwoFactorDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation('account');
   const toast = useToast();
   const [setup, setSetup] = useState<TwoFactorSetup | null>(null);
   const [code, setCode] = useState('');
@@ -259,7 +263,7 @@ function EnableTwoFactorDialog({ onClose, onDone }: { onClose: () => void; onDon
       .setupTwoFactor()
       .then(setSetup)
       .catch((err) =>
-        toast.error('Could not start setup', err instanceof ApiError ? err.message : undefined),
+        toast.error(t('toast.setupFailed'), err instanceof ApiError ? err.message : undefined),
       );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -269,9 +273,9 @@ function EnableTwoFactorDialog({ onClose, onDone }: { onClose: () => void; onDon
     try {
       const res = await api.account.enableTwoFactor(code.trim());
       setRecovery(res.recoveryCodes);
-      toast.success('Two-factor enabled');
+      toast.success(t('toast.enabled'));
     } catch (err) {
-      toast.error('Invalid code', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.invalidCode'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setBusy(false);
     }
@@ -282,25 +286,25 @@ function EnableTwoFactorDialog({ onClose, onDone }: { onClose: () => void; onDon
       {!recovery ? (
         <>
           <DialogHeader>
-            <DialogTitle>Enable two-factor authentication</DialogTitle>
+            <DialogTitle>{t('enable.title')}</DialogTitle>
             <DialogDescription>
-              Scan the QR code with your authenticator app, then enter the 6-digit code to confirm.
+              {t('enable.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {!setup ? (
-              <CenteredSpinner label="Generating secret…" />
+              <CenteredSpinner label={t('enable.generating')} />
             ) : (
               <>
                 <div className="flex flex-col items-center gap-3">
-                  <img src={setup.qrDataUrl} alt="2FA QR code" className="h-44 w-44 rounded-lg bg-white p-2" />
+                  <img src={setup.qrDataUrl} alt={t('enable.qrAlt')} className="h-44 w-44 rounded-lg bg-white p-2" />
                   <div className="text-center">
-                    <p className="text-xs text-muted-foreground">Or enter this key manually:</p>
+                    <p className="text-xs text-muted-foreground">{t('enable.manualKey')}</p>
                     <code className="select-all break-all font-mono text-xs">{setup.secret}</code>
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="enable-code">Verification code</Label>
+                  <Label htmlFor="enable-code">{t('enable.codeLabel')}</Label>
                   <Input
                     id="enable-code"
                     autoFocus
@@ -314,9 +318,9 @@ function EnableTwoFactorDialog({ onClose, onDone }: { onClose: () => void; onDon
             )}
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button variant="ghost" onClick={onClose}>{t('enable.cancel')}</Button>
             <Button onClick={verify} loading={busy} disabled={!setup || code.trim().length < 6}>
-              Verify & enable
+              {t('enable.verify')}
             </Button>
           </DialogFooter>
         </>
@@ -328,13 +332,14 @@ function EnableTwoFactorDialog({ onClose, onDone }: { onClose: () => void; onDon
 }
 
 function RecoveryCodesView({ codes, onDone }: { codes: string[]; onDone: () => void }) {
+  const { t } = useTranslation('account');
   const toast = useToast();
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
     await navigator.clipboard.writeText(codes.join('\n'));
     setCopied(true);
-    toast.success('Recovery codes copied');
+    toast.success(t('toast.codesCopied'));
     setTimeout(() => setCopied(false), 2000);
   };
   const download = () => {
@@ -350,9 +355,9 @@ function RecoveryCodesView({ codes, onDone }: { codes: string[]; onDone: () => v
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Save your recovery codes</DialogTitle>
+        <DialogTitle>{t('recovery.title')}</DialogTitle>
         <DialogDescription>
-          Each code works once if you lose your authenticator. Store them somewhere safe — they won’t be shown again.
+          {t('recovery.description')}
         </DialogDescription>
       </DialogHeader>
       <div className="py-2">
@@ -363,21 +368,22 @@ function RecoveryCodesView({ codes, onDone }: { codes: string[]; onDone: () => v
         </div>
         <div className="mt-3 flex gap-2">
           <Button variant="outline" size="sm" onClick={copy}>
-            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} Copy
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {t('recovery.copy')}
           </Button>
           <Button variant="outline" size="sm" onClick={download}>
-            <Download className="h-4 w-4" /> Download
+            <Download className="h-4 w-4" /> {t('recovery.download')}
           </Button>
         </div>
       </div>
       <DialogFooter>
-        <Button onClick={onDone}>I’ve saved them</Button>
+        <Button onClick={onDone}>{t('recovery.done')}</Button>
       </DialogFooter>
     </>
   );
 }
 
 function DisableTwoFactorDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation('account');
   const toast = useToast();
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -386,10 +392,10 @@ function DisableTwoFactorDialog({ onClose, onDone }: { onClose: () => void; onDo
     setBusy(true);
     try {
       await api.account.disableTwoFactor(password);
-      toast.success('Two-factor disabled');
+      toast.success(t('toast.disabled'));
       onDone();
     } catch (err) {
-      toast.error('Could not disable', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.disableFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setBusy(false);
     }
@@ -398,13 +404,13 @@ function DisableTwoFactorDialog({ onClose, onDone }: { onClose: () => void; onDo
   return (
     <Dialog open onClose={onClose}>
       <DialogHeader>
-        <DialogTitle>Disable two-factor authentication</DialogTitle>
+        <DialogTitle>{t('disable.title')}</DialogTitle>
         <DialogDescription>
-          Confirm your password to turn off 2FA. Your account will be less protected.
+          {t('disable.description')}
         </DialogDescription>
       </DialogHeader>
       <div className="py-2">
-        <Label htmlFor="disable-pw">Password</Label>
+        <Label htmlFor="disable-pw">{t('disable.passwordLabel')}</Label>
         <Input
           id="disable-pw"
           type="password"
@@ -415,9 +421,9 @@ function DisableTwoFactorDialog({ onClose, onDone }: { onClose: () => void; onDo
         />
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="ghost" onClick={onClose}>{t('disable.cancel')}</Button>
         <Button variant="destructive" onClick={disable} loading={busy} disabled={!password}>
-          Disable 2FA
+          {t('disable.submit')}
         </Button>
       </DialogFooter>
     </Dialog>

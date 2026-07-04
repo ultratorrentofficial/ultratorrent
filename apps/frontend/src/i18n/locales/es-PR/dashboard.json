@@ -1,0 +1,41 @@
+{
+  "page": {
+    "title": "Panel",
+    "subtitle": "Vista en tiempo real de tu motor."
+  },
+  "engine": {
+    "online": "Motor en línea",
+    "offline": "Motor desconectado"
+  },
+  "stats": {
+    "download": "Descarga",
+    "upload": "Subida",
+    "shareRatio": "Proporción de compartición",
+    "torrents": "Torrents",
+    "uploadedSub": "{{size}} subidos",
+    "activeSub": "{{count}} activos"
+  },
+  "bandwidth": {
+    "title": "Ancho de banda",
+    "samples_one": "En vivo, última {{count}} muestra",
+    "samples_other": "En vivo, últimas {{count}} muestras",
+    "legendDown": "Bajada",
+    "legendUp": "Subida",
+    "waiting": "Esperando datos de ancho de banda en vivo…",
+    "tooltipDown": "Descarga",
+    "tooltipUp": "Subida"
+  },
+  "states": {
+    "title": "Estados de torrents",
+    "downloading": "Descargando",
+    "seeding": "Compartiendo",
+    "completed": "Completados",
+    "paused": "En pausa",
+    "errored": "Con errores"
+  },
+  "activity": {
+    "title": "Actividad reciente",
+    "emptyTitle": "Sin actividad reciente",
+    "emptyDescription": "Los eventos de tu motor y automatizaciones aparecerán aquí."
+  }
+}

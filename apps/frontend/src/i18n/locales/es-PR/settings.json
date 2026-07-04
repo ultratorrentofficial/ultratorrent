@@ -1,0 +1,45 @@
+{
+  "page": {
+    "title": "Ajustes",
+    "subtitle": "Configura tu instancia de UltraTorrent.",
+    "save": "Guardar cambios",
+    "loading": "Cargando ajustes…",
+    "error": "No se pudieron cargar los ajustes.",
+    "emptyTitle": "No hay ajustes configurables",
+    "emptyDescription": "Esta instancia aún no expone ajustes editables.",
+    "generalTitle": "General",
+    "generalDescription": "Los valores los valida el servidor al guardar."
+  },
+  "toast": {
+    "saved": "Ajustes guardados",
+    "saveFailed": "No se pudieron guardar los ajustes"
+  },
+  "rootPath": {
+    "title": "Ruta raíz predeterminada",
+    "description": "Los usuarios solo pueden navegar dentro de esta ruta raíz. Las carpetas superiores y los directorios del sistema fuera de ella están bloqueados.",
+    "loading": "Cargando…",
+    "error": "No se pudo cargar la ruta raíz.",
+    "effectiveRoot": "Raíz efectiva:",
+    "exists": "existe",
+    "missing": "no existe",
+    "readable": "legible",
+    "notReadable": "no legible",
+    "writable": "escribible",
+    "readOnly": "solo lectura",
+    "notWritableWarning": "El proceso de la aplicación no puede escribir en esta ruta — las descargas y la creación de carpetas allí fallarán.",
+    "label": "Ruta raíz",
+    "ariaLabel": "Ruta raíz",
+    "pickerTitle": "Elige la carpeta raíz predeterminada",
+    "save": "Guardar",
+    "help": {
+      "before": "Debe ser un directorio dentro de las raíces de almacenamiento configuradas en el servidor (",
+      "after": "). La navegación solo puede restringirse dentro de estas, nunca ampliarse más allá de ellas."
+    },
+    "adminOnly": {
+      "before": "Solo los administradores con el permiso ",
+      "after": " pueden cambiar esto."
+    },
+    "savedToast": "Ruta raíz predeterminada guardada",
+    "saveFailedToast": "No se pudo guardar la ruta raíz"
+  }
+}

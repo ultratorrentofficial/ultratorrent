@@ -430,5 +430,65 @@
       "noTitlesBody": "Ingresa al menos un título para probar.",
       "noCandidateSelected": "No hay candidato seleccionado"
     }
+  },
+  "scoring": {
+    "page": {
+      "title": "Puntuación de lanzamientos",
+      "subtitle": "Puntúa los lanzamientos según tus preferencias de calidad y pruébalos contra las reglas de descarga."
+    },
+    "tabs": {
+      "score": "Puntuar",
+      "rule": "Probar contra una regla"
+    },
+    "trackerHealth": {
+      "unspecified": "Sin especificar",
+      "healthy": "Saludable",
+      "degraded": "Degradado",
+      "dead": "Inactivo"
+    },
+    "form": {
+      "title": "Título del lanzamiento",
+      "titlePlaceholder": "p. ej. Some.Movie.2021.2160p.BluRay.x265-GROUP",
+      "preferredResolution": "Resolución preferida",
+      "preferredResolutionPlaceholder": "p. ej. 1080p",
+      "preferredCodec": "Códec preferido",
+      "preferredCodecPlaceholder": "p. ej. x265",
+      "preferredSources": "Fuentes preferidas",
+      "preferredSourcesPlaceholder": "p. ej. BluRay, WEB-DL",
+      "preferredGroups": "Grupos preferidos",
+      "preferredGroupsPlaceholder": "Grupo de lanzamiento",
+      "avoidedGroups": "Grupos a evitar",
+      "avoidedGroupsPlaceholder": "Grupo de lanzamiento a evitar",
+      "excludedTerms": "Términos excluidos",
+      "excludedTermsPlaceholder": "p. ej. CAM, HDTS",
+      "seeders": "Semillas",
+      "trackerHealthLabel": "Estado del tracker",
+      "minScore": "Puntuación mínima para aprobar",
+      "duplicateRisk": "Marcar como posible duplicado"
+    },
+    "actions": {
+      "scoreRelease": "Puntuar lanzamiento",
+      "testRule": "Probar regla"
+    },
+    "chip": {
+      "remove": "Quitar {{value}}"
+    },
+    "toast": {
+      "scoringFailed": "Falló la puntuación",
+      "titleRequired": "Título requerido",
+      "titleRequiredBody": "Ingresa un título de lanzamiento para puntuar."
+    },
+    "result": {
+      "emptyTitle": "Aún no hay resultados",
+      "emptyBody": "Completa el formulario y {{action}} para ver el desglose.",
+      "emptyActionScore": "puntúa un lanzamiento",
+      "emptyActionRule": "prueba una regla",
+      "scoreLabel": "Puntuación",
+      "passed": "Aprobado",
+      "failed": "Rechazado",
+      "vsMin": "{{score}} vs mín. {{min}}",
+      "reasons": "Razones",
+      "warnings": "Advertencias"
+    }
   }
 }

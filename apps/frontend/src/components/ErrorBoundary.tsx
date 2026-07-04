@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import i18n from '@/i18n';
 import { Button } from '@/components/ui/button';
 
 interface Props {
@@ -27,14 +28,18 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="grid min-h-screen place-items-center px-6 text-center">
           <div className="max-w-md space-y-4">
-            <h1 className="text-2xl font-bold">Something went wrong</h1>
+            <h1 className="text-2xl font-bold">
+              {i18n.t('feedback.somethingWentWrong', { ns: 'common' })}
+            </h1>
             <p className="text-sm text-muted-foreground">
-              An unexpected error occurred while rendering the app.
+              {i18n.t('feedback.unexpectedError', { ns: 'common' })}
             </p>
             <pre className="overflow-x-auto rounded-lg bg-white/[0.03] p-3 text-left text-xs text-destructive scrollbar-thin">
               {this.state.error.message}
             </pre>
-            <Button onClick={() => window.location.reload()}>Reload app</Button>
+            <Button onClick={() => window.location.reload()}>
+              {i18n.t('actions.reload', { ns: 'common' })}
+            </Button>
           </div>
         </div>
       );

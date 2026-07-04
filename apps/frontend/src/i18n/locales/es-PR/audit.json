@@ -1,0 +1,26 @@
+{
+  "page": {
+    "title": "Registro de auditoría",
+    "subtitle": "Un historial cronológico y legible de las acciones realizadas en la plataforma."
+  },
+  "state": {
+    "loading": "Cargando el registro de auditoría…",
+    "error": "No se pudo cargar el registro de auditoría.",
+    "emptyTitle": "No hay entradas de auditoría",
+    "emptyDescription": "Las acciones realizadas en UltraTorrent se registrarán aquí."
+  },
+  "pagination": {
+    "pageOf": "Página {{page}} de {{totalPages}}",
+    "updating": "actualizando…",
+    "prev": "Anterior",
+    "next": "Siguiente"
+  },
+  "details": {
+    "targetType": "Tipo de objeto",
+    "target": "Objeto",
+    "result": "Resultado",
+    "when": "Cuándo",
+    "userAgent": "Agente de usuario",
+    "metadata": "Metadatos"
+  }
+}

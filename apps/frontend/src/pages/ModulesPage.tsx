@@ -1,6 +1,7 @@
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Boxes, CheckCircle2, Power, PowerOff, ShieldAlert } from 'lucide-react';
-import type { ModuleStatus, ModuleTier } from '@ultratorrent/shared';
+import type { ModuleStatus } from '@ultratorrent/shared';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { ApiError, api } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
@@ -13,12 +14,8 @@ import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedbac
 import { cn } from '@/lib/utils';
 import { StateBadge, TierBadge, TIER_ORDER } from '@/modules/moduleUi';
 
-const TIER_HEADING: Record<ModuleTier, string> = {
-  core: 'Core',
-  community: 'Community',
-};
-
 export function ModulesPage() {
+  const { t } = useTranslation('modules');
   const toast = useToast();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
@@ -42,11 +39,11 @@ export function ModulesPage() {
     try {
       if (next) await api.modules.enable(module.id);
       else await api.modules.disable(module.id);
-      toast.success(next ? 'Module enabled' : 'Module disabled', module.name);
+      toast.success(next ? t('toast.enabled') : t('toast.disabled'), module.name);
       invalidate();
     } catch (err) {
       toast.error(
-        next ? 'Could not enable module' : 'Could not disable module',
+        next ? t('toast.enableFailed') : t('toast.disableFailed'),
         err instanceof ApiError ? err.message : undefined,
       );
     }
@@ -60,10 +57,8 @@ export function ModulesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Modules</h1>
-        <p className="text-sm text-muted-foreground">
-          Enable or disable optional capabilities. Core modules are always on.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('page.subtitle')}</p>
       </div>
 
       {license && (
@@ -77,36 +72,42 @@ export function ModulesPage() {
               )}
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold capitalize">{license.edition} edition</span>
+                  <span className="text-sm font-semibold capitalize">
+                    {t('license.edition', { edition: license.edition })}
+                  </span>
                   <Badge variant={license.valid ? 'success' : 'warning'} dot>
-                    {license.valid ? 'Valid' : license.expired ? 'Expired' : 'Invalid'}
+                    {license.valid
+                      ? t('license.valid')
+                      : license.expired
+                        ? t('license.expired')
+                        : t('license.invalid')}
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {license.licensee ? `Licensed to ${license.licensee}. ` : ''}
+                  {license.licensee ? t('license.licensedTo', { licensee: license.licensee }) : ''}
                   {license.expiresAt
-                    ? `Expires ${formatDateTime(license.expiresAt)}.`
-                    : 'No expiry.'}
+                    ? t('license.expires', { date: formatDateTime(license.expiresAt) })
+                    : t('license.noExpiry')}
                 </p>
               </div>
             </div>
             <Badge variant="outline">
               {license.modules.includes('*')
-                ? 'All modules unlocked'
-                : `${license.modules.length} module${license.modules.length === 1 ? '' : 's'} unlocked`}
+                ? t('license.allUnlocked')
+                : t('license.unlocked', { count: license.modules.length })}
             </Badge>
           </CardContent>
         </Card>
       )}
 
       {isLoading ? (
-        <CenteredSpinner label="Loading modules…" />
+        <CenteredSpinner label={t('list.loading')} />
       ) : isError ? (
-        <ErrorState message="Could not load modules." onRetry={() => refetch()} />
+        <ErrorState message={t('list.error')} onRetry={() => refetch()} />
       ) : !data || data.length === 0 ? (
         <Card>
           <CardContent>
-            <EmptyState icon={<Boxes className="h-6 w-6" />} title="No modules" />
+            <EmptyState icon={<Boxes className="h-6 w-6" />} title={t('list.empty')} />
           </CardContent>
         </Card>
       ) : (
@@ -114,7 +115,7 @@ export function ModulesPage() {
           {grouped.map((group) => (
             <div key={group.tier} className="space-y-3">
               <h2 className="text-sm font-semibold text-muted-foreground">
-                {TIER_HEADING[group.tier]}
+                {t(`tier.${group.tier}`)}
               </h2>
               {group.modules.map((module) => (
                 <ModuleCard
@@ -141,6 +142,7 @@ function ModuleCard({
   canManage: boolean;
   onToggle: (next: boolean) => void;
 }) {
+  const { t } = useTranslation('modules');
   const { data: health } = useQuery({
     queryKey: ['modules', 'health', module.id],
     queryFn: () => api.modules.health(module.id),
@@ -165,7 +167,7 @@ function ModuleCard({
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={cn('h-2.5 w-2.5 shrink-0 rounded-full', healthTone)}
-              title={health ? `Health: ${health.status}` : 'Health unknown'}
+              title={health ? t('card.healthLabel', { status: health.status }) : t('card.healthUnknown')}
             />
             <p className="font-semibold">{module.name}</p>
             <code className="rounded bg-white/[0.04] px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
@@ -174,7 +176,7 @@ function ModuleCard({
             <TierBadge tier={module.tier} />
             <StateBadge state={module.state} />
             <Badge variant={module.licensed ? 'success' : 'secondary'}>
-              {module.licensed ? 'licensed' : 'unlicensed'}
+              {module.licensed ? t('card.licensed') : t('card.unlicensed')}
             </Badge>
           </div>
 
@@ -183,12 +185,10 @@ function ModuleCard({
           )}
 
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span>
-              {module.permissions.length} permission{module.permissions.length === 1 ? '' : 's'}
-            </span>
+            <span>{t('card.permissions', { count: module.permissions.length })}</span>
             {module.dependencies.length > 0 && (
               <span className="flex flex-wrap items-center gap-1">
-                deps:
+                {t('card.deps')}
                 {module.dependencies.map((dep) => (
                   <code
                     key={dep}
@@ -214,16 +214,16 @@ function ModuleCard({
         <div className="flex shrink-0 items-center gap-2">
           {canManage &&
             (isLockedCore ? (
-              <Badge variant="outline" title="Core — always on">
-                core — always on
+              <Badge variant="outline" title={t('card.coreAlwaysOnTitle')}>
+                {t('card.coreAlwaysOn')}
               </Badge>
             ) : module.enabled ? (
               <Button variant="outline" size="sm" onClick={() => onToggle(false)}>
-                <PowerOff className="h-4 w-4" /> Disable
+                <PowerOff className="h-4 w-4" /> {t('card.disable')}
               </Button>
             ) : (
               <Button variant="secondary" size="sm" onClick={() => onToggle(true)}>
-                <Power className="h-4 w-4" /> Enable
+                <Power className="h-4 w-4" /> {t('card.enable')}
               </Button>
             ))}
         </div>

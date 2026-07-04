@@ -15,6 +15,14 @@ import enRss from './locales/en-US/rss.json';
 import enTorrents from './locales/en-US/torrents.json';
 import enFiles from './locales/en-US/files.json';
 import enAutomation from './locales/en-US/automation.json';
+import enSettings from './locales/en-US/settings.json';
+import enUsers from './locales/en-US/users.json';
+import enModules from './locales/en-US/modules.json';
+import enEngines from './locales/en-US/engines.json';
+import enAudit from './locales/en-US/audit.json';
+import enDashboard from './locales/en-US/dashboard.json';
+import enAccount from './locales/en-US/account.json';
+import enSystem from './locales/en-US/system.json';
 import esCommon from './locales/es-PR/common.json';
 import esNav from './locales/es-PR/nav.json';
 import esAuth from './locales/es-PR/auth.json';
@@ -25,6 +33,14 @@ import esRss from './locales/es-PR/rss.json';
 import esTorrents from './locales/es-PR/torrents.json';
 import esFiles from './locales/es-PR/files.json';
 import esAutomation from './locales/es-PR/automation.json';
+import esSettings from './locales/es-PR/settings.json';
+import esUsers from './locales/es-PR/users.json';
+import esModules from './locales/es-PR/modules.json';
+import esEngines from './locales/es-PR/engines.json';
+import esAudit from './locales/es-PR/audit.json';
+import esDashboard from './locales/es-PR/dashboard.json';
+import esAccount from './locales/es-PR/account.json';
+import esSystem from './locales/es-PR/system.json';
 
 /**
  * i18n key conventions (read this before adding strings)
@@ -64,6 +80,14 @@ export const NAMESPACES = [
   'torrents',
   'files',
   'automation',
+  'settings',
+  'users',
+  'modules',
+  'engines',
+  'audit',
+  'dashboard',
+  'account',
+  'system',
 ] as const;
 
 export const resources = {
@@ -78,6 +102,14 @@ export const resources = {
     torrents: enTorrents,
     files: enFiles,
     automation: enAutomation,
+    settings: enSettings,
+    users: enUsers,
+    modules: enModules,
+    engines: enEngines,
+    audit: enAudit,
+    dashboard: enDashboard,
+    account: enAccount,
+    system: enSystem,
   },
   'es-PR': {
     common: esCommon,
@@ -90,6 +122,14 @@ export const resources = {
     torrents: esTorrents,
     files: esFiles,
     automation: esAutomation,
+    settings: esSettings,
+    users: esUsers,
+    modules: esModules,
+    engines: esEngines,
+    audit: esAudit,
+    dashboard: esDashboard,
+    account: esAccount,
+    system: esSystem,
   },
 } as const;
 

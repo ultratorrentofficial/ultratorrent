@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Usuarios",
+    "subtitle": "Administra las cuentas y los roles que les otorgan permisos.",
+    "addUser": "Agregar usuario"
+  },
+  "list": {
+    "loading": "Cargando usuarios…",
+    "error": "No se pudieron cargar los usuarios.",
+    "emptyTitle": "No hay usuarios",
+    "emptyDescription": "Agrega cuentas y asígnales roles para controlar el acceso.",
+    "addFirst": "Agrega tu primer usuario"
+  },
+  "status": {
+    "active": "Activo",
+    "disabled": "Deshabilitado",
+    "system": "sistema"
+  },
+  "card": {
+    "lastLogin": "último acceso {{time}}",
+    "noRoles": "sin roles",
+    "editUser": "Editar usuario",
+    "deleteUser": "Eliminar usuario",
+    "systemCannotDelete": "Los usuarios del sistema no se pueden eliminar"
+  },
+  "confirm": {
+    "delete": "¿Eliminar el usuario \"{{username}}\"? Esta acción no se puede deshacer."
+  },
+  "toast": {
+    "deleted": "Usuario eliminado",
+    "deleteFailed": "No se pudo eliminar el usuario",
+    "created": "Usuario creado",
+    "createFailed": "No se pudo crear el usuario",
+    "updated": "Usuario actualizado",
+    "updateFailed": "No se pudo actualizar el usuario"
+  },
+  "rolePicker": {
+    "none": "No hay roles disponibles."
+  },
+  "create": {
+    "title": "Agregar usuario",
+    "description": "Crea una cuenta y asígnale roles.",
+    "username": "Nombre de usuario",
+    "displayName": "Nombre visible",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "passwordPlaceholder": "al menos 10 caracteres",
+    "passwordHint": "La contraseña debe tener al menos 10 caracteres.",
+    "roles": "Roles",
+    "cancel": "Cancelar",
+    "submit": "Crear usuario"
+  },
+  "edit": {
+    "title": "Editar {{username}}",
+    "description": "El nombre de usuario y la contraseña no se pueden cambiar aquí.",
+    "email": "Correo electrónico",
+    "displayName": "Nombre visible",
+    "active": "Activo",
+    "roles": "Roles",
+    "cancel": "Cancelar",
+    "submit": "Guardar cambios"
+  }
+}

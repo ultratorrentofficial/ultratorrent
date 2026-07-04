@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEscape, useOverlayDismiss, useScrollLock } from './dialog';
@@ -52,6 +53,7 @@ export function DrawerHeader({
   className?: string;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation('common');
   return (
     <div
       className={cn(
@@ -63,7 +65,7 @@ export function DrawerHeader({
       <button
         type="button"
         onClick={onClose}
-        aria-label="Close panel"
+        aria-label={t('a11y.closePanel')}
         className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="h-4 w-4" />

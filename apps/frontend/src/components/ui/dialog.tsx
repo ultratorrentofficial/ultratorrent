@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -58,6 +59,7 @@ export interface DialogProps {
 }
 
 export function Dialog({ open, onClose, className, children, title }: DialogProps) {
+  const { t } = useTranslation('common');
   useScrollLock(open);
   useEscape(open, onClose);
   const overlayDismiss = useOverlayDismiss(onClose);
@@ -83,7 +85,7 @@ export function Dialog({ open, onClose, className, children, title }: DialogProp
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close dialog"
+          aria-label={t('a11y.closeDialog')}
           className="absolute right-4 top-4 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="h-4 w-4" />

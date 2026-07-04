@@ -1,0 +1,41 @@
+{
+  "page": {
+    "title": "Dashboard",
+    "subtitle": "Realtime overview of your engine."
+  },
+  "engine": {
+    "online": "Engine online",
+    "offline": "Engine offline"
+  },
+  "stats": {
+    "download": "Download",
+    "upload": "Upload",
+    "shareRatio": "Share ratio",
+    "torrents": "Torrents",
+    "uploadedSub": "{{size}} up",
+    "activeSub": "{{count}} active"
+  },
+  "bandwidth": {
+    "title": "Bandwidth",
+    "samples_one": "Live, last {{count}} sample",
+    "samples_other": "Live, last {{count}} samples",
+    "legendDown": "Down",
+    "legendUp": "Up",
+    "waiting": "Waiting for live bandwidth data…",
+    "tooltipDown": "Download",
+    "tooltipUp": "Upload"
+  },
+  "states": {
+    "title": "Torrent states",
+    "downloading": "Downloading",
+    "seeding": "Seeding",
+    "completed": "Completed",
+    "paused": "Paused",
+    "errored": "Errored"
+  },
+  "activity": {
+    "title": "Recent activity",
+    "emptyTitle": "No recent activity",
+    "emptyDescription": "Events from your engine and automations will appear here."
+  }
+}

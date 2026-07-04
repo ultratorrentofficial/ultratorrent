@@ -1,0 +1,26 @@
+{
+  "page": {
+    "title": "Audit log",
+    "subtitle": "A chronological, human-readable record of actions across the platform."
+  },
+  "state": {
+    "loading": "Loading audit log…",
+    "error": "Could not load the audit log.",
+    "emptyTitle": "No audit entries",
+    "emptyDescription": "Actions performed in UltraTorrent will be recorded here."
+  },
+  "pagination": {
+    "pageOf": "Page {{page}} of {{totalPages}}",
+    "updating": "updating…",
+    "prev": "Prev",
+    "next": "Next"
+  },
+  "details": {
+    "targetType": "Target type",
+    "target": "Target",
+    "result": "Result",
+    "when": "When",
+    "userAgent": "User agent",
+    "metadata": "Metadata"
+  }
+}

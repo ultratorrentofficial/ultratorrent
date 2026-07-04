@@ -1,0 +1,60 @@
+{
+  "page": {
+    "title": "Modules",
+    "subtitle": "Enable or disable optional capabilities. Core modules are always on."
+  },
+  "license": {
+    "edition": "{{edition}} edition",
+    "valid": "Valid",
+    "expired": "Expired",
+    "invalid": "Invalid",
+    "licensedTo": "Licensed to {{licensee}}. ",
+    "expires": "Expires {{date}}.",
+    "noExpiry": "No expiry.",
+    "allUnlocked": "All modules unlocked",
+    "unlocked_one": "{{count}} module unlocked",
+    "unlocked_other": "{{count}} modules unlocked"
+  },
+  "list": {
+    "loading": "Loading modules…",
+    "error": "Could not load modules.",
+    "empty": "No modules"
+  },
+  "tier": {
+    "core": "Core",
+    "community": "Community"
+  },
+  "state": {
+    "available": "Available",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "locked": "Locked",
+    "missing_dependency": "Missing dependency",
+    "license_required": "License required"
+  },
+  "card": {
+    "healthLabel": "Health: {{status}}",
+    "healthUnknown": "Health unknown",
+    "licensed": "licensed",
+    "unlicensed": "unlicensed",
+    "permissions_one": "{{count}} permission",
+    "permissions_other": "{{count}} permissions",
+    "deps": "deps:",
+    "coreAlwaysOnTitle": "Core — always on",
+    "coreAlwaysOn": "core — always on",
+    "disable": "Disable",
+    "enable": "Enable"
+  },
+  "toast": {
+    "enabled": "Module enabled",
+    "disabled": "Module disabled",
+    "enableFailed": "Could not enable module",
+    "disableFailed": "Could not disable module"
+  },
+  "locked": {
+    "notAvailable": "{{title}} is not available",
+    "unmetDependencies": "Unmet dependencies: ",
+    "manageModules": "Manage modules",
+    "noAccess": "This feature isn’t enabled for your account. Contact an administrator if you think you should have access."
+  }
+}

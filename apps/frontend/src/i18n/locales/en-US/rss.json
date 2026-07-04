@@ -430,5 +430,65 @@
       "noTitlesBody": "Enter at least one title to test.",
       "noCandidateSelected": "No candidate selected"
     }
+  },
+  "scoring": {
+    "page": {
+      "title": "Release Scoring",
+      "subtitle": "Score releases against your quality preferences and test them against download rules."
+    },
+    "tabs": {
+      "score": "Score",
+      "rule": "Test against rule"
+    },
+    "trackerHealth": {
+      "unspecified": "Unspecified",
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "dead": "Dead"
+    },
+    "form": {
+      "title": "Release title",
+      "titlePlaceholder": "e.g. Some.Movie.2021.2160p.BluRay.x265-GROUP",
+      "preferredResolution": "Preferred resolution",
+      "preferredResolutionPlaceholder": "e.g. 1080p",
+      "preferredCodec": "Preferred codec",
+      "preferredCodecPlaceholder": "e.g. x265",
+      "preferredSources": "Preferred sources",
+      "preferredSourcesPlaceholder": "e.g. BluRay, WEB-DL",
+      "preferredGroups": "Preferred groups",
+      "preferredGroupsPlaceholder": "Release group",
+      "avoidedGroups": "Avoided groups",
+      "avoidedGroupsPlaceholder": "Release group to avoid",
+      "excludedTerms": "Excluded terms",
+      "excludedTermsPlaceholder": "e.g. CAM, HDTS",
+      "seeders": "Seeders",
+      "trackerHealthLabel": "Tracker health",
+      "minScore": "Minimum passing score",
+      "duplicateRisk": "Flag as duplicate risk"
+    },
+    "actions": {
+      "scoreRelease": "Score release",
+      "testRule": "Test rule"
+    },
+    "chip": {
+      "remove": "Remove {{value}}"
+    },
+    "toast": {
+      "scoringFailed": "Scoring failed",
+      "titleRequired": "Title required",
+      "titleRequiredBody": "Enter a release title to score."
+    },
+    "result": {
+      "emptyTitle": "No result yet",
+      "emptyBody": "Fill in the form and {{action}} to see the breakdown.",
+      "emptyActionScore": "score a release",
+      "emptyActionRule": "test a rule",
+      "scoreLabel": "Score",
+      "passed": "Passed",
+      "failed": "Failed",
+      "vsMin": "{{score}} vs min {{min}}",
+      "reasons": "Reasons",
+      "warnings": "Warnings"
+    }
   }
 }

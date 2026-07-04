@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
  * (`ultratorrent.lang`) persists the choice across reloads.
  */
 export function LanguageSwitcher({ className }: { className?: string }) {
-  const { i18n } = useTranslation('shell');
+  const { t, i18n } = useTranslation('shell');
   // Normalize e.g. `es` → `es-PR` so the <select> always has a matching option.
   const current =
     SUPPORTED_LANGUAGES.find((l) => l.code === i18n.language)?.code ??
@@ -23,7 +23,7 @@ export function LanguageSwitcher({ className }: { className?: string }) {
         aria-hidden
       />
       <select
-        aria-label="Language"
+        aria-label={t('language.label')}
         value={current}
         onChange={(e) => void i18n.changeLanguage(e.target.value)}
         className={cn(

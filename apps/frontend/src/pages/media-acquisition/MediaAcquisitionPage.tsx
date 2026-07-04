@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CircleCheck,
@@ -70,80 +71,63 @@ type BadgeVariant = NonNullable<BadgeProps['variant']>;
 
 const QK = ['media-acquisition'] as const;
 
-const WATCHLIST_TYPE_OPTIONS: { value: WatchlistItemType; label: string }[] = [
-  { value: 'series', label: 'Series' },
-  { value: 'season', label: 'Season' },
-  { value: 'episode', label: 'Episode' },
-  { value: 'movie', label: 'Movie' },
-  { value: 'movie_collection', label: 'Movie collection' },
-  { value: 'anime', label: 'Anime' },
-  { value: 'manual_query', label: 'Manual query' },
+const WATCHLIST_TYPE_VALUES: WatchlistItemType[] = [
+  'series',
+  'season',
+  'episode',
+  'movie',
+  'movie_collection',
+  'anime',
+  'manual_query',
 ];
 
-const MEDIA_TYPE_OPTIONS: { value: AcquisitionMediaType; label: string }[] = [
-  { value: 'any', label: 'Any' },
-  { value: 'tv', label: 'TV' },
-  { value: 'movie', label: 'Movie' },
-  { value: 'anime', label: 'Anime' },
-];
+const MEDIA_TYPE_VALUES: AcquisitionMediaType[] = ['any', 'tv', 'movie', 'anime'];
 
-const RESOLUTION_OPTIONS = [
-  { value: '', label: 'Any' },
-  { value: '2160p', label: '2160p (4K)' },
-  { value: '1080p', label: '1080p' },
-  { value: '720p', label: '720p' },
-  { value: '480p', label: '480p' },
-];
-
-const SOURCE_OPTIONS = [
-  { value: '', label: 'Any' },
-  { value: 'BluRay', label: 'BluRay' },
-  { value: 'WEB-DL', label: 'WEB-DL' },
-  { value: 'WEBRip', label: 'WEBRip' },
-  { value: 'HDTV', label: 'HDTV' },
-];
-
-const CODEC_OPTIONS = [
-  { value: '', label: 'Any' },
+// Technical resolution/source/codec tokens rendered verbatim; only the leading
+// "Any" option is translated (see buildTechnicalOptions callers).
+const RESOLUTION_VALUES = ['2160p (4K)', '1080p', '720p', '480p'];
+const SOURCE_VALUES = ['BluRay', 'WEB-DL', 'WEBRip', 'HDTV'];
+const CODEC_VALUES: { value: string; label: string }[] = [
   { value: 'x265', label: 'x265 / HEVC' },
   { value: 'x264', label: 'x264 / AVC' },
   { value: 'AV1', label: 'AV1' },
 ];
 
-const OVERRIDE_DECISION_OPTIONS: { value: MediaAcquisitionDecision; label: string }[] = [
-  { value: 'download', label: 'Download' },
-  { value: 'skip', label: 'Skip' },
-  { value: 'hold_for_approval', label: 'Hold for approval' },
-  { value: 'upgrade_existing', label: 'Upgrade existing' },
-  { value: 'replace_existing', label: 'Replace existing' },
-  { value: 'manual_review', label: 'Manual review' },
+const OVERRIDE_DECISION_VALUES: MediaAcquisitionDecision[] = [
+  'download',
+  'skip',
+  'hold_for_approval',
+  'upgrade_existing',
+  'replace_existing',
+  'manual_review',
 ];
 
-const DECISION_META: Record<
-  string,
-  { variant: BadgeVariant; className?: string; label: string }
-> = {
-  download: { variant: 'success', label: 'Download' },
-  skip: { variant: 'secondary', label: 'Skip' },
-  hold_for_approval: { variant: 'warning', label: 'Hold for approval' },
-  upgrade_existing: { variant: 'info', label: 'Upgrade existing' },
-  replace_existing: {
-    variant: 'outline',
-    className: 'bg-info/10 text-info border-info/30',
-    label: 'Replace existing',
-  },
+const DECISION_META: Record<string, { variant: BadgeVariant; className?: string }> = {
+  download: { variant: 'success' },
+  skip: { variant: 'secondary' },
+  hold_for_approval: { variant: 'warning' },
+  upgrade_existing: { variant: 'info' },
+  replace_existing: { variant: 'outline', className: 'bg-info/10 text-info border-info/30' },
   manual_review: {
     variant: 'outline',
     className: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
-    label: 'Manual review',
   },
 };
 
 function DecisionBadge({ decision }: { decision: string }) {
-  const m = DECISION_META[decision] ?? { variant: 'outline' as BadgeVariant, label: decision };
+  const { t } = useTranslation('media');
+  const m = DECISION_META[decision] ?? { variant: 'outline' as BadgeVariant };
+  const labels: Record<string, string> = {
+    download: t('acquisition.decision.download'),
+    skip: t('acquisition.decision.skip'),
+    hold_for_approval: t('acquisition.decision.hold_for_approval'),
+    upgrade_existing: t('acquisition.decision.upgrade_existing'),
+    replace_existing: t('acquisition.decision.replace_existing'),
+    manual_review: t('acquisition.decision.manual_review'),
+  };
   return (
     <Badge variant={m.variant} className={m.className}>
-      {m.label}
+      {labels[decision] ?? decision}
     </Badge>
   );
 }
@@ -161,9 +145,9 @@ function approvalVariant(status: string): BadgeVariant {
   }
 }
 
-function renderMeta(value: unknown): string {
+function renderMeta(value: unknown, yes: string, no: string): string {
   if (value == null) return '—';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'boolean') return value ? yes : no;
   if (typeof value === 'number' || typeof value === 'string') return String(value);
   try {
     return JSON.stringify(value);
@@ -173,31 +157,29 @@ function renderMeta(value: unknown): string {
 }
 
 export function MediaAcquisitionPage() {
+  const { t } = useTranslation('media');
   const [tab, setTab] = useState('overview');
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <Sparkles className="h-6 w-6 text-primary" /> Media Acquisition
+          <Sparkles className="h-6 w-6 text-primary" /> {t('acquisition.title')}
         </h1>
-        <p className="text-sm text-muted-foreground">
-          Intelligent watchlists, quality profiles and explainable download decisions with an
-          approval workflow.
-        </p>
+        <p className="text-sm text-muted-foreground">{t('acquisition.subtitle')}</p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <div className="overflow-x-auto scrollbar-thin">
           <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="watchlist">Watchlist</TabsTrigger>
-            <TabsTrigger value="profiles">Profiles</TabsTrigger>
-            <TabsTrigger value="evaluations">Evaluations</TabsTrigger>
-            <TabsTrigger value="approvals">Approval Queue</TabsTrigger>
-            <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
+            <TabsTrigger value="overview">{t('acquisition.tabs.overview')}</TabsTrigger>
+            <TabsTrigger value="watchlist">{t('acquisition.tabs.watchlist')}</TabsTrigger>
+            <TabsTrigger value="profiles">{t('acquisition.tabs.profiles')}</TabsTrigger>
+            <TabsTrigger value="evaluations">{t('acquisition.tabs.evaluations')}</TabsTrigger>
+            <TabsTrigger value="approvals">{t('acquisition.tabs.approvals')}</TabsTrigger>
+            <TabsTrigger value="recommendations">{t('acquisition.tabs.recommendations')}</TabsTrigger>
+            <TabsTrigger value="history">{t('acquisition.tabs.history')}</TabsTrigger>
+            <TabsTrigger value="settings">{t('acquisition.tabs.settings')}</TabsTrigger>
           </TabsList>
         </div>
 
@@ -280,8 +262,9 @@ function StepIcon({ status }: { status: string }) {
 }
 
 function TraceView({ steps }: { steps: AcquisitionTraceStep[] }) {
+  const { t } = useTranslation('media');
   if (!steps || steps.length === 0) {
-    return <p className="text-sm text-muted-foreground">No decision trace recorded.</p>;
+    return <p className="text-sm text-muted-foreground">{t('acquisition.trace.empty')}</p>;
   }
   return (
     <ol className="space-y-2">
@@ -301,7 +284,7 @@ function TraceView({ steps }: { steps: AcquisitionTraceStep[] }) {
               </Badge>
               {typeof step.score === 'number' && (
                 <span className="text-xs tabular-nums text-muted-foreground">
-                  score {step.score}
+                  {t('acquisition.trace.score', { score: step.score })}
                 </span>
               )}
               {step.decision && <DecisionBadge decision={step.decision} />}
@@ -328,6 +311,7 @@ function ChipInput({
   onChange: (next: string[]) => void;
   placeholder?: string;
 }) {
+  const { t } = useTranslation('media');
   const [draft, setDraft] = useState('');
   const commit = () => {
     const v = draft.trim();
@@ -347,7 +331,7 @@ function ChipInput({
             <button
               type="button"
               onClick={() => onChange(values.filter((x) => x !== v))}
-              aria-label={`Remove ${v}`}
+              aria-label={t('acquisition.common.removeName', { name: v })}
               className="text-muted-foreground hover:text-foreground"
             >
               <X className="h-3 w-3" />
@@ -379,15 +363,21 @@ function ChipInput({
 // ---------------------------------------------------------------------------
 
 function OverviewTab() {
+  const { t } = useTranslation('media');
   const overviewQuery = useQuery({
     queryKey: [...QK, 'overview'],
     queryFn: api.mediaAcquisition.overview,
     refetchInterval: 15_000,
   });
 
-  if (overviewQuery.isLoading) return <CenteredSpinner label="Loading overview…" />;
+  if (overviewQuery.isLoading) return <CenteredSpinner label={t('acquisition.overview.loading')} />;
   if (overviewQuery.isError)
-    return <ErrorState message="Could not load the overview." onRetry={() => overviewQuery.refetch()} />;
+    return (
+      <ErrorState
+        message={t('acquisition.overview.error')}
+        onRetry={() => overviewQuery.refetch()}
+      />
+    );
 
   const data = overviewQuery.data;
   if (!data) return null;
@@ -397,44 +387,46 @@ function OverviewTab() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard
           icon={<ListChecks className="h-5 w-5" />}
-          label="Active watchlist"
+          label={t('acquisition.overview.stats.activeWatchlist')}
           value={formatNumber(data.watchlist.active)}
         />
         <StatCard
           icon={<Gavel className="h-5 w-5" />}
-          label="Pending approvals"
+          label={t('acquisition.overview.stats.pendingApprovals')}
           value={formatNumber(data.approvals.pending)}
           tone="warning"
         />
         <StatCard
           icon={<DownloadCloud className="h-5 w-5" />}
-          label="Downloads recommended"
+          label={t('acquisition.overview.stats.downloadsRecommended')}
           value={formatNumber(data.decisions.recommended)}
           tone="success"
         />
         <StatCard
           icon={<CircleDot className="h-5 w-5" />}
-          label="Skipped"
+          label={t('acquisition.overview.stats.skipped')}
           value={formatNumber(data.decisions.skipped)}
           tone="muted"
         />
         <StatCard
           icon={<TrendingUp className="h-5 w-5" />}
-          label="Upgrades"
+          label={t('acquisition.overview.stats.upgrades')}
           value={formatNumber(data.decisions.upgrades)}
           tone="info"
         />
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground">Recent decisions</h2>
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          {t('acquisition.overview.recentDecisions')}
+        </h2>
         <Card>
           <CardContent className="p-0">
             {data.recent.length === 0 ? (
               <EmptyState
                 icon={<Sparkles className="h-6 w-6" />}
-                title="No decisions yet"
-                description="Evaluations will appear here as releases are scored against your profiles."
+                title={t('acquisition.overview.emptyTitle')}
+                description={t('acquisition.overview.emptyBody')}
               />
             ) : (
               <ul className="divide-y divide-border/60">
@@ -465,6 +457,7 @@ function OverviewTab() {
 // ---------------------------------------------------------------------------
 
 function WatchlistTab() {
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_MANAGE_WATCHLIST);
   const toast = useToast();
@@ -494,21 +487,27 @@ function WatchlistTab() {
         status: item.status === 'paused' ? 'active' : 'paused',
       }),
     onSuccess: () => {
-      toast.success('Watchlist updated');
+      toast.success(t('acquisition.watchlist.toast.updated'));
       invalidate();
     },
     onError: (err) =>
-      toast.error('Could not update item', err instanceof ApiError ? err.message : undefined),
+      toast.error(
+        t('acquisition.watchlist.toast.updateFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.mediaAcquisition.deleteWatchlist(id),
     onSuccess: () => {
-      toast.success('Removed from watchlist');
+      toast.success(t('acquisition.watchlist.toast.removed'));
       invalidate();
     },
     onError: (err) =>
-      toast.error('Could not remove item', err instanceof ApiError ? err.message : undefined),
+      toast.error(
+        t('acquisition.watchlist.toast.removeFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
   });
 
   const profiles = profilesQuery.data ?? [];
@@ -524,15 +523,15 @@ function WatchlistTab() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             options={[
-              { value: '', label: 'All statuses' },
-              { value: 'active', label: 'Active' },
-              { value: 'paused', label: 'Paused' },
+              { value: '', label: t('acquisition.filter.allStatuses') },
+              { value: 'active', label: t('acquisition.status.active') },
+              { value: 'paused', label: t('acquisition.status.paused') },
             ]}
           />
         </div>
         {canManage && (
           <Button onClick={() => setShowAdd(true)}>
-            <Plus className="h-4 w-4" /> Add to watchlist
+            <Plus className="h-4 w-4" /> {t('acquisition.watchlist.add')}
           </Button>
         )}
       </div>
@@ -540,21 +539,21 @@ function WatchlistTab() {
       <Card>
         <CardContent className="p-0">
           {watchlistQuery.isLoading ? (
-            <CenteredSpinner label="Loading watchlist…" />
+            <CenteredSpinner label={t('acquisition.watchlist.loading')} />
           ) : watchlistQuery.isError ? (
             <ErrorState
-              message="Could not load the watchlist."
+              message={t('acquisition.watchlist.error')}
               onRetry={() => watchlistQuery.refetch()}
             />
           ) : items.length === 0 ? (
             <EmptyState
               icon={<ListChecks className="h-6 w-6" />}
-              title="Watchlist is empty"
-              description="Add a series, movie or anime to start tracking wanted releases."
+              title={t('acquisition.watchlist.emptyTitle')}
+              description={t('acquisition.watchlist.emptyBody')}
               action={
                 canManage ? (
                   <Button onClick={() => setShowAdd(true)}>
-                    <Plus className="h-4 w-4" /> Add to watchlist
+                    <Plus className="h-4 w-4" /> {t('acquisition.watchlist.add')}
                   </Button>
                 ) : undefined
               }
@@ -564,13 +563,15 @@ function WatchlistTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="pl-4">Title</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Detail</TableHead>
-                    <TableHead>Priority</TableHead>
-                    <TableHead>Profile</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="pr-4 text-right">Actions</TableHead>
+                    <TableHead className="pl-4">{t('acquisition.watchlist.col.title')}</TableHead>
+                    <TableHead>{t('acquisition.watchlist.col.type')}</TableHead>
+                    <TableHead>{t('acquisition.watchlist.col.detail')}</TableHead>
+                    <TableHead>{t('acquisition.watchlist.col.priority')}</TableHead>
+                    <TableHead>{t('acquisition.watchlist.col.profile')}</TableHead>
+                    <TableHead>{t('acquisition.watchlist.col.status')}</TableHead>
+                    <TableHead className="pr-4 text-right">
+                      {t('acquisition.watchlist.col.actions')}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -598,7 +599,9 @@ function WatchlistTab() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={item.status === 'paused' ? 'secondary' : 'success'} dot>
-                          {item.status === 'paused' ? 'Paused' : 'Active'}
+                          {item.status === 'paused'
+                            ? t('acquisition.status.paused')
+                            : t('acquisition.status.active')}
                         </Badge>
                       </TableCell>
                       <TableCell className="pr-4">
@@ -608,7 +611,11 @@ function WatchlistTab() {
                               <button
                                 type="button"
                                 onClick={() => toggleMutation.mutate(item)}
-                                aria-label={item.status === 'paused' ? 'Resume' : 'Pause'}
+                                aria-label={
+                                  item.status === 'paused'
+                                    ? t('acquisition.watchlist.resume')
+                                    : t('acquisition.watchlist.pause')
+                                }
                                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
                               >
                                 {item.status === 'paused' ? (
@@ -620,7 +627,7 @@ function WatchlistTab() {
                               <button
                                 type="button"
                                 onClick={() => setEditing(item)}
-                                aria-label="Edit"
+                                aria-label={t('acquisition.common.edit')}
                                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -628,10 +635,14 @@ function WatchlistTab() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (window.confirm(`Remove "${item.title}" from the watchlist?`))
+                                  if (
+                                    window.confirm(
+                                      t('acquisition.watchlist.confirmRemove', { title: item.title }),
+                                    )
+                                  )
                                     deleteMutation.mutate(item.id);
                                 }}
-                                aria-label={`Delete ${item.title}`}
+                                aria-label={t('acquisition.common.deleteName', { name: item.title })}
                                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -675,6 +686,7 @@ function WatchlistDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation('media');
   const toast = useToast();
   const isEdit = Boolean(item);
   const [form, setForm] = useState({
@@ -720,50 +732,67 @@ function WatchlistDialog({
       return api.mediaAcquisition.createWatchlist(body);
     },
     onSuccess: () => {
-      toast.success(isEdit ? 'Watchlist item updated' : 'Added to watchlist');
+      toast.success(
+        isEdit
+          ? t('acquisition.watchlist.toast.itemUpdated')
+          : t('acquisition.watchlist.toast.added'),
+      );
       onSaved();
       onClose();
     },
     onError: (err) =>
-      toast.error('Could not save item', err instanceof ApiError ? err.message : undefined),
+      toast.error(
+        t('acquisition.watchlist.toast.saveFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
   });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) {
-      toast.error('Title required', 'Enter a title to track.');
+      toast.error(
+        t('acquisition.watchlist.toast.titleRequired'),
+        t('acquisition.watchlist.toast.titleRequiredBody'),
+      );
       return;
     }
     mutation.mutate();
   };
 
+  const typeOptions = WATCHLIST_TYPE_VALUES.map((value) => ({
+    value,
+    label: t(`acquisition.watchlistType.${value}`),
+  }));
+
   const profileOptions = [
-    { value: '', label: 'No profile' },
+    { value: '', label: t('acquisition.filter.noProfile') },
     ...profiles.map((p) => ({ value: p.id, label: p.name })),
   ];
 
+  const dialogTitle = isEdit
+    ? t('acquisition.watchlist.dialog.editTitle')
+    : t('acquisition.watchlist.dialog.addTitle');
+
   return (
-    <Dialog open onClose={onClose} title={isEdit ? 'Edit watchlist item' : 'Add to watchlist'}>
+    <Dialog open onClose={onClose} title={dialogTitle}>
       <DialogHeader>
-        <DialogTitle>{isEdit ? 'Edit watchlist item' : 'Add to watchlist'}</DialogTitle>
-        <DialogDescription>
-          Track a series, movie or anime so matching releases are evaluated automatically.
-        </DialogDescription>
+        <DialogTitle>{dialogTitle}</DialogTitle>
+        <DialogDescription>{t('acquisition.watchlist.dialog.description')}</DialogDescription>
       </DialogHeader>
       <form onSubmit={submit} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="wl-type">Type</Label>
+            <Label htmlFor="wl-type">{t('acquisition.watchlist.dialog.type')}</Label>
             <Select
               id="wl-type"
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as WatchlistItemType }))}
-              options={WATCHLIST_TYPE_OPTIONS}
+              options={typeOptions}
               disabled={isEdit}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="wl-title">Title</Label>
+            <Label htmlFor="wl-title">{t('acquisition.watchlist.dialog.title')}</Label>
             <Input
               id="wl-title"
               value={form.title}
@@ -773,7 +802,9 @@ function WatchlistDialog({
           </div>
           {showCollection && (
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="wl-collection">Collection name</Label>
+              <Label htmlFor="wl-collection">
+                {t('acquisition.watchlist.dialog.collectionName')}
+              </Label>
               <Input
                 id="wl-collection"
                 value={form.collectionName}
@@ -784,7 +815,7 @@ function WatchlistDialog({
           )}
           {showYear && (
             <div className="space-y-1.5">
-              <Label htmlFor="wl-year">Year</Label>
+              <Label htmlFor="wl-year">{t('acquisition.watchlist.dialog.year')}</Label>
               <Input
                 id="wl-year"
                 type="number"
@@ -796,7 +827,7 @@ function WatchlistDialog({
           )}
           {showSeason && (
             <div className="space-y-1.5">
-              <Label htmlFor="wl-season">Season</Label>
+              <Label htmlFor="wl-season">{t('acquisition.watchlist.dialog.season')}</Label>
               <Input
                 id="wl-season"
                 type="number"
@@ -808,7 +839,7 @@ function WatchlistDialog({
           )}
           {showEpisode && (
             <div className="space-y-1.5">
-              <Label htmlFor="wl-episode">Episode</Label>
+              <Label htmlFor="wl-episode">{t('acquisition.watchlist.dialog.episode')}</Label>
               <Input
                 id="wl-episode"
                 type="number"
@@ -819,7 +850,7 @@ function WatchlistDialog({
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="wl-priority">Priority</Label>
+            <Label htmlFor="wl-priority">{t('acquisition.watchlist.dialog.priority')}</Label>
             <Input
               id="wl-priority"
               type="number"
@@ -828,7 +859,7 @@ function WatchlistDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="wl-profile">Quality profile</Label>
+            <Label htmlFor="wl-profile">{t('acquisition.watchlist.dialog.profile')}</Label>
             <Select
               id="wl-profile"
               value={form.profileId}
@@ -839,10 +870,11 @@ function WatchlistDialog({
         </div>
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
+            {t('acquisition.common.cancel')}
           </Button>
           <Button type="submit" loading={mutation.isPending}>
-            <Save className="h-4 w-4" /> {isEdit ? 'Save' : 'Add'}
+            <Save className="h-4 w-4" />{' '}
+            {isEdit ? t('acquisition.common.save') : t('acquisition.common.add')}
           </Button>
         </DialogFooter>
       </form>
@@ -855,6 +887,7 @@ function WatchlistDialog({
 // ---------------------------------------------------------------------------
 
 function ProfilesTab() {
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_MANAGE_PROFILES);
   const toast = useToast();
@@ -870,11 +903,14 @@ function ProfilesTab() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.mediaAcquisition.deleteProfile(id),
     onSuccess: () => {
-      toast.success('Profile deleted');
+      toast.success(t('acquisition.profiles.toast.deleted'));
       queryClient.invalidateQueries({ queryKey: [...QK, 'profiles'] });
     },
     onError: (err) =>
-      toast.error('Could not delete profile', err instanceof ApiError ? err.message : undefined),
+      toast.error(
+        t('acquisition.profiles.toast.deleteFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
   });
 
   const profiles = profilesQuery.data ?? [];
@@ -884,7 +920,7 @@ function ProfilesTab() {
       {canManage && (
         <div className="flex justify-end">
           <Button onClick={() => setShowAdd(true)}>
-            <Plus className="h-4 w-4" /> Add profile
+            <Plus className="h-4 w-4" /> {t('acquisition.profiles.add')}
           </Button>
         </div>
       )}
@@ -892,18 +928,21 @@ function ProfilesTab() {
       <Card>
         <CardContent className="p-0">
           {profilesQuery.isLoading ? (
-            <CenteredSpinner label="Loading profiles…" />
+            <CenteredSpinner label={t('acquisition.profiles.loading')} />
           ) : profilesQuery.isError ? (
-            <ErrorState message="Could not load profiles." onRetry={() => profilesQuery.refetch()} />
+            <ErrorState
+              message={t('acquisition.profiles.error')}
+              onRetry={() => profilesQuery.refetch()}
+            />
           ) : profiles.length === 0 ? (
             <EmptyState
               icon={<FlaskConical className="h-6 w-6" />}
-              title="No quality profiles"
-              description="Create a profile to define how releases are scored and approved."
+              title={t('acquisition.profiles.emptyTitle')}
+              description={t('acquisition.profiles.emptyBody')}
               action={
                 canManage ? (
                   <Button onClick={() => setShowAdd(true)}>
-                    <Plus className="h-4 w-4" /> Add profile
+                    <Plus className="h-4 w-4" /> {t('acquisition.profiles.add')}
                   </Button>
                 ) : undefined
               }
@@ -913,12 +952,14 @@ function ProfilesTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="pl-4">Name</TableHead>
-                    <TableHead>Media</TableHead>
-                    <TableHead>Min / Approval</TableHead>
-                    <TableHead>Preferred</TableHead>
-                    <TableHead>Enabled</TableHead>
-                    <TableHead className="pr-4 text-right">Actions</TableHead>
+                    <TableHead className="pl-4">{t('acquisition.profiles.col.name')}</TableHead>
+                    <TableHead>{t('acquisition.profiles.col.media')}</TableHead>
+                    <TableHead>{t('acquisition.profiles.col.minApproval')}</TableHead>
+                    <TableHead>{t('acquisition.profiles.col.preferred')}</TableHead>
+                    <TableHead>{t('acquisition.profiles.col.enabled')}</TableHead>
+                    <TableHead className="pr-4 text-right">
+                      {t('acquisition.profiles.col.actions')}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -943,7 +984,9 @@ function ProfilesTab() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={p.enabled ? 'success' : 'secondary'}>
-                          {p.enabled ? 'Enabled' : 'Disabled'}
+                          {p.enabled
+                            ? t('acquisition.status.enabled')
+                            : t('acquisition.status.disabled')}
                         </Badge>
                       </TableCell>
                       <TableCell className="pr-4">
@@ -951,15 +994,19 @@ function ProfilesTab() {
                           {canManage && (
                             <>
                               <Button size="sm" variant="outline" onClick={() => setEditing(p)}>
-                                Edit
+                                {t('acquisition.common.edit')}
                               </Button>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (window.confirm(`Delete profile "${p.name}"?`))
+                                  if (
+                                    window.confirm(
+                                      t('acquisition.profiles.confirmDelete', { name: p.name }),
+                                    )
+                                  )
                                     deleteMutation.mutate(p.id);
                                 }}
-                                aria-label={`Delete ${p.name}`}
+                                aria-label={t('acquisition.common.deleteName', { name: p.name })}
                                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -990,6 +1037,7 @@ function ProfileDialog({
   profile?: AcquisitionProfile;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('media');
   const toast = useToast();
   const queryClient = useQueryClient();
   const isEdit = Boolean(profile);
@@ -1027,41 +1075,59 @@ function ProfileDialog({
         : api.mediaAcquisition.createProfile(body);
     },
     onSuccess: () => {
-      toast.success(isEdit ? 'Profile updated' : 'Profile created');
+      toast.success(
+        isEdit ? t('acquisition.profiles.toast.updated') : t('acquisition.profiles.toast.created'),
+      );
       queryClient.invalidateQueries({ queryKey: [...QK, 'profiles'] });
       onClose();
     },
     onError: (err) =>
-      toast.error('Could not save profile', err instanceof ApiError ? err.message : undefined),
+      toast.error(
+        t('acquisition.profiles.toast.saveFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
   });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) {
-      toast.error('Name required', 'Enter a profile name.');
+      toast.error(
+        t('acquisition.profiles.toast.nameRequired'),
+        t('acquisition.profiles.toast.nameRequiredBody'),
+      );
       return;
     }
     mutation.mutate();
   };
 
+  const mediaTypeOptions = MEDIA_TYPE_VALUES.map((value) => ({
+    value,
+    label: t(`acquisition.mediaTypeOption.${value}`),
+  }));
+  const resolutionOptions = [
+    { value: '', label: t('acquisition.filter.any') },
+    ...RESOLUTION_VALUES.map((v) => ({ value: v.split(' ')[0], label: v })),
+  ];
+  const sourceOptions = [
+    { value: '', label: t('acquisition.filter.any') },
+    ...SOURCE_VALUES.map((v) => ({ value: v, label: v })),
+  ];
+  const codecOptions = [{ value: '', label: t('acquisition.filter.any') }, ...CODEC_VALUES];
+
+  const dialogTitle = isEdit
+    ? t('acquisition.profiles.dialog.editTitle')
+    : t('acquisition.profiles.dialog.addTitle');
+
   return (
-    <Dialog
-      open
-      onClose={onClose}
-      title={isEdit ? 'Edit profile' : 'Add profile'}
-      className="max-w-2xl"
-    >
+    <Dialog open onClose={onClose} title={dialogTitle} className="max-w-2xl">
       <DialogHeader>
-        <DialogTitle>{isEdit ? 'Edit profile' : 'Add profile'}</DialogTitle>
-        <DialogDescription>
-          Define quality preferences and the score thresholds that drive download and approval
-          decisions.
-        </DialogDescription>
+        <DialogTitle>{dialogTitle}</DialogTitle>
+        <DialogDescription>{t('acquisition.profiles.dialog.description')}</DialogDescription>
       </DialogHeader>
       <form onSubmit={submit} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="pf-name">Name</Label>
+            <Label htmlFor="pf-name">{t('acquisition.profiles.dialog.name')}</Label>
             <Input
               id="pf-name"
               value={form.name}
@@ -1070,18 +1136,18 @@ function ProfileDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pf-media">Media type</Label>
+            <Label htmlFor="pf-media">{t('acquisition.profiles.dialog.mediaType')}</Label>
             <Select
               id="pf-media"
               value={form.mediaType}
               onChange={(e) =>
                 setForm((f) => ({ ...f, mediaType: e.target.value as AcquisitionMediaType }))
               }
-              options={MEDIA_TYPE_OPTIONS}
+              options={mediaTypeOptions}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pf-min">Minimum score</Label>
+            <Label htmlFor="pf-min">{t('acquisition.profiles.dialog.minimumScore')}</Label>
             <Input
               id="pf-min"
               type="number"
@@ -1090,7 +1156,7 @@ function ProfileDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pf-approval">Approval score</Label>
+            <Label htmlFor="pf-approval">{t('acquisition.profiles.dialog.approvalScore')}</Label>
             <Input
               id="pf-approval"
               type="number"
@@ -1099,51 +1165,51 @@ function ProfileDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pf-res">Preferred resolution</Label>
+            <Label htmlFor="pf-res">{t('acquisition.profiles.dialog.preferredResolution')}</Label>
             <Select
               id="pf-res"
               value={form.preferredResolution}
               onChange={(e) => setForm((f) => ({ ...f, preferredResolution: e.target.value }))}
-              options={RESOLUTION_OPTIONS}
+              options={resolutionOptions}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pf-source">Preferred source</Label>
+            <Label htmlFor="pf-source">{t('acquisition.profiles.dialog.preferredSource')}</Label>
             <Select
               id="pf-source"
               value={form.preferredSource}
               onChange={(e) => setForm((f) => ({ ...f, preferredSource: e.target.value }))}
-              options={SOURCE_OPTIONS}
+              options={sourceOptions}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pf-codec">Preferred codec</Label>
+            <Label htmlFor="pf-codec">{t('acquisition.profiles.dialog.preferredCodec')}</Label>
             <Select
               id="pf-codec"
               value={form.preferredCodec}
               onChange={(e) => setForm((f) => ({ ...f, preferredCodec: e.target.value }))}
-              options={CODEC_OPTIONS}
+              options={codecOptions}
             />
           </div>
         </div>
 
         <ChipInput
-          label="Required terms"
+          label={t('acquisition.profiles.dialog.requiredTerms')}
           values={requiredTerms}
           onChange={setRequiredTerms}
-          placeholder="Type a term and press Enter"
+          placeholder={t('acquisition.profiles.dialog.termPlaceholder')}
         />
         <ChipInput
-          label="Excluded terms"
+          label={t('acquisition.profiles.dialog.excludedTerms')}
           values={excludedTerms}
           onChange={setExcludedTerms}
           placeholder="e.g. CAM, HDCAM"
         />
         <ChipInput
-          label="Preferred groups"
+          label={t('acquisition.profiles.dialog.preferredGroups')}
           values={preferredGroups}
           onChange={setPreferredGroups}
-          placeholder="Release groups"
+          placeholder={t('acquisition.profiles.dialog.groupsPlaceholder')}
         />
 
         <label className="flex items-center gap-2.5 text-sm">
@@ -1153,15 +1219,16 @@ function ProfileDialog({
             onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
             className="h-4 w-4 rounded border-input bg-white/[0.02]"
           />
-          Enabled
+          {t('acquisition.status.enabled')}
         </label>
 
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
+            {t('acquisition.common.cancel')}
           </Button>
           <Button type="submit" loading={mutation.isPending}>
-            <Save className="h-4 w-4" /> {isEdit ? 'Save' : 'Create profile'}
+            <Save className="h-4 w-4" />{' '}
+            {isEdit ? t('acquisition.common.save') : t('acquisition.profiles.dialog.create')}
           </Button>
         </DialogFooter>
       </form>
@@ -1174,6 +1241,7 @@ function ProfileDialog({
 // ---------------------------------------------------------------------------
 
 function EvaluationsTab() {
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canEvaluate = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_EVALUATE);
   const toast = useToast();
@@ -1203,13 +1271,21 @@ function EvaluationsTab() {
       }),
     onSuccess: (res) => {
       setTestResult(res);
-      toast.success('Evaluation complete', `Decision: ${res.decision}`);
+      toast.success(
+        t('acquisition.evaluations.toast.complete'),
+        t('acquisition.evaluations.toast.completeBody', {
+          decision: t(`acquisition.decision.${res.decision}`),
+        }),
+      );
       queryClient.invalidateQueries({ queryKey: [...QK, 'evaluations'] });
       queryClient.invalidateQueries({ queryKey: [...QK, 'approval-queue'] });
       queryClient.invalidateQueries({ queryKey: [...QK, 'overview'] });
     },
     onError: (err) =>
-      toast.error('Evaluation failed', err instanceof ApiError ? err.message : undefined),
+      toast.error(
+        t('acquisition.evaluations.toast.failed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
   });
 
   const profiles = profilesQuery.data ?? [];
@@ -1221,11 +1297,11 @@ function EvaluationsTab() {
         <Card>
           <CardContent className="space-y-4 p-5">
             <div className="flex items-center gap-2 text-sm font-semibold">
-              <FlaskConical className="h-4 w-4 text-info" /> Test evaluate
+              <FlaskConical className="h-4 w-4 text-info" /> {t('acquisition.evaluations.testEvaluate')}
             </div>
             <div className="grid gap-4 lg:grid-cols-[1fr_220px_auto] lg:items-end">
               <div className="space-y-1.5">
-                <Label htmlFor="ev-release">Release name</Label>
+                <Label htmlFor="ev-release">{t('acquisition.evaluations.releaseName')}</Label>
                 <Input
                   id="ev-release"
                   value={testForm.releaseName}
@@ -1237,13 +1313,13 @@ function EvaluationsTab() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="ev-profile">Profile (optional)</Label>
+                <Label htmlFor="ev-profile">{t('acquisition.evaluations.profileOptional')}</Label>
                 <Select
                   id="ev-profile"
                   value={testForm.profileId}
                   onChange={(e) => setTestForm((f) => ({ ...f, profileId: e.target.value }))}
                   options={[
-                    { value: '', label: 'Auto-select' },
+                    { value: '', label: t('acquisition.filter.autoSelect') },
                     ...profiles.map((p) => ({ value: p.id, label: p.name })),
                   ]}
                 />
@@ -1251,14 +1327,17 @@ function EvaluationsTab() {
               <Button
                 onClick={() => {
                   if (!testForm.releaseName.trim()) {
-                    toast.error('Release name required', 'Enter a release name to evaluate.');
+                    toast.error(
+                      t('acquisition.evaluations.toast.releaseRequired'),
+                      t('acquisition.evaluations.toast.releaseRequiredBody'),
+                    );
                     return;
                   }
                   evaluateMutation.mutate();
                 }}
                 loading={evaluateMutation.isPending}
               >
-                <FlaskConical className="h-4 w-4" /> Evaluate
+                <FlaskConical className="h-4 w-4" /> {t('acquisition.evaluations.evaluate')}
               </Button>
             </div>
 
@@ -1268,12 +1347,17 @@ function EvaluationsTab() {
                   <DecisionBadge decision={testResult.decision} />
                   <span className="text-sm text-muted-foreground">{testResult.decisionReason}</span>
                   <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                    confidence {formatPercent(testResult.confidence)} · score {testResult.releaseScore}
+                    {t('acquisition.evaluations.confidenceScore', {
+                      confidence: formatPercent(testResult.confidence),
+                      score: testResult.releaseScore,
+                    })}
                   </span>
                 </div>
                 <details className="group">
                   <summary className="cursor-pointer text-xs font-medium text-primary hover:underline">
-                    Decision trace ({testResult.trace?.steps?.length ?? 0} steps)
+                    {t('acquisition.evaluations.traceSummary', {
+                      count: testResult.trace?.steps?.length ?? 0,
+                    })}
                   </summary>
                   <div className="mt-3">
                     <TraceView steps={testResult.trace?.steps ?? []} />
@@ -1286,14 +1370,19 @@ function EvaluationsTab() {
       )}
 
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-muted-foreground">Recent evaluations</h2>
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          {t('acquisition.evaluations.recent')}
+        </h2>
         <div className="w-44">
           <Select
             value={decisionFilter}
             onChange={(e) => setDecisionFilter(e.target.value)}
             options={[
-              { value: '', label: 'All decisions' },
-              ...OVERRIDE_DECISION_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+              { value: '', label: t('acquisition.filter.allDecisions') },
+              ...OVERRIDE_DECISION_VALUES.map((value) => ({
+                value,
+                label: t(`acquisition.decision.${value}`),
+              })),
             ]}
           />
         </div>
@@ -1302,28 +1391,28 @@ function EvaluationsTab() {
       <Card>
         <CardContent className="p-0">
           {evaluationsQuery.isLoading ? (
-            <CenteredSpinner label="Loading evaluations…" />
+            <CenteredSpinner label={t('acquisition.evaluations.loading')} />
           ) : evaluationsQuery.isError ? (
             <ErrorState
-              message="Could not load evaluations."
+              message={t('acquisition.evaluations.error')}
               onRetry={() => evaluationsQuery.refetch()}
             />
           ) : evaluations.length === 0 ? (
             <EmptyState
               icon={<FlaskConical className="h-6 w-6" />}
-              title="No evaluations yet"
-              description="Evaluate a release above or wait for RSS items to be scored."
+              title={t('acquisition.evaluations.emptyTitle')}
+              description={t('acquisition.evaluations.emptyBody')}
             />
           ) : (
             <div className="overflow-x-auto scrollbar-thin">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="pl-4">Release</TableHead>
-                    <TableHead>Decision</TableHead>
-                    <TableHead>Reason</TableHead>
-                    <TableHead>Confidence</TableHead>
-                    <TableHead className="pr-4">Score</TableHead>
+                    <TableHead className="pl-4">{t('acquisition.evaluations.col.release')}</TableHead>
+                    <TableHead>{t('acquisition.evaluations.col.decision')}</TableHead>
+                    <TableHead>{t('acquisition.evaluations.col.reason')}</TableHead>
+                    <TableHead>{t('acquisition.evaluations.col.confidence')}</TableHead>
+                    <TableHead className="pr-4">{t('acquisition.evaluations.col.score')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1377,24 +1466,30 @@ function EvaluationDetailDialog({
   evaluationId: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('media');
   const detailQuery = useQuery({
     queryKey: [...QK, 'evaluation', evaluationId],
     queryFn: () => api.mediaAcquisition.evaluation(evaluationId),
   });
 
   const ev: AcquisitionEvaluationDetail | undefined = detailQuery.data;
+  const yes = t('acquisition.common.yes');
+  const no = t('acquisition.common.no');
 
   return (
-    <Dialog open onClose={onClose} title="Evaluation detail" className="max-w-2xl">
+    <Dialog open onClose={onClose} title={t('acquisition.evaluations.detail.title')} className="max-w-2xl">
       <DialogHeader>
-        <DialogTitle>Evaluation detail</DialogTitle>
-        <DialogDescription>Full decision trace and library context.</DialogDescription>
+        <DialogTitle>{t('acquisition.evaluations.detail.title')}</DialogTitle>
+        <DialogDescription>{t('acquisition.evaluations.detail.description')}</DialogDescription>
       </DialogHeader>
 
       {detailQuery.isLoading ? (
-        <CenteredSpinner label="Loading evaluation…" />
+        <CenteredSpinner label={t('acquisition.evaluations.detail.loading')} />
       ) : detailQuery.isError ? (
-        <ErrorState message="Could not load this evaluation." onRetry={() => detailQuery.refetch()} />
+        <ErrorState
+          message={t('acquisition.evaluations.detail.error')}
+          onRetry={() => detailQuery.refetch()}
+        />
       ) : ev ? (
         <div className="space-y-4">
           <p className="break-all font-mono text-xs">{ev.releaseName}</p>
@@ -1408,35 +1503,47 @@ function EvaluationDetailDialog({
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-md border border-border/60 bg-white/[0.02] px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Score</p>
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                {t('acquisition.evaluations.detail.score')}
+              </p>
               <p className="text-sm font-semibold tabular-nums">{ev.releaseScore}</p>
             </div>
             <div className="rounded-md border border-border/60 bg-white/[0.02] px-3 py-2">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                Library match
+                {t('acquisition.evaluations.detail.libraryMatch')}
               </p>
-              <p className="truncate text-sm font-semibold" title={renderMeta(ev.libraryMatch)}>
-                {renderMeta(ev.libraryMatch)}
+              <p
+                className="truncate text-sm font-semibold"
+                title={renderMeta(ev.libraryMatch, yes, no)}
+              >
+                {renderMeta(ev.libraryMatch, yes, no)}
               </p>
             </div>
             <div className="rounded-md border border-border/60 bg-white/[0.02] px-3 py-2">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                Duplicate risk
+                {t('acquisition.evaluations.detail.duplicateRisk')}
               </p>
-              <p className="truncate text-sm font-semibold" title={renderMeta(ev.duplicateRisk)}>
-                {renderMeta(ev.duplicateRisk)}
+              <p
+                className="truncate text-sm font-semibold"
+                title={renderMeta(ev.duplicateRisk, yes, no)}
+              >
+                {renderMeta(ev.duplicateRisk, yes, no)}
               </p>
             </div>
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-semibold">Decision trace</p>
+            <p className="mb-2 text-sm font-semibold">
+              {t('acquisition.evaluations.detail.decisionTrace')}
+            </p>
             <TraceView steps={ev.trace?.steps ?? []} />
           </div>
 
           {ev.actions && ev.actions.length > 0 && (
             <div>
-              <p className="mb-2 text-sm font-semibold">Actions</p>
+              <p className="mb-2 text-sm font-semibold">
+                {t('acquisition.evaluations.detail.actions')}
+              </p>
               <ul className="divide-y divide-border/60 rounded-md border border-border/60">
                 {ev.actions.map((a, i) => (
                   <li key={a.id ?? i} className="flex items-center justify-between gap-3 px-3 py-2">
@@ -1462,7 +1569,7 @@ function EvaluationDetailDialog({
       ) : null}
 
       <DialogFooter>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t('acquisition.common.close')}</Button>
       </DialogFooter>
     </Dialog>
   );
@@ -1473,6 +1580,7 @@ function EvaluationDetailDialog({
 // ---------------------------------------------------------------------------
 
 function ApprovalQueueTab() {
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canApprove = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_APPROVE);
   const canReject = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_REJECT);
@@ -1496,11 +1604,14 @@ function ApprovalQueueTab() {
   const approveMutation = useMutation({
     mutationFn: (id: string) => api.mediaAcquisition.approve(id),
     onSuccess: () => {
-      toast.success('Approved');
+      toast.success(t('acquisition.approvals.toast.approved'));
       invalidate();
     },
     onError: (err) =>
-      toast.error('Could not approve', err instanceof ApiError ? err.message : undefined),
+      toast.error(
+        t('acquisition.approvals.toast.approveFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
   });
 
   const queue = queueQuery.data ?? [];
@@ -1510,17 +1621,17 @@ function ApprovalQueueTab() {
       <Card>
         <CardContent className="p-0">
           {queueQuery.isLoading ? (
-            <CenteredSpinner label="Loading approval queue…" />
+            <CenteredSpinner label={t('acquisition.approvals.loading')} />
           ) : queueQuery.isError ? (
             <ErrorState
-              message="Could not load the approval queue."
+              message={t('acquisition.approvals.error')}
               onRetry={() => queueQuery.refetch()}
             />
           ) : queue.length === 0 ? (
             <EmptyState
               icon={<Gavel className="h-6 w-6" />}
-              title="Nothing awaiting approval"
-              description="Releases that require a human decision will appear here."
+              title={t('acquisition.approvals.emptyTitle')}
+              description={t('acquisition.approvals.emptyBody')}
             />
           ) : (
             <ul className="divide-y divide-border/60">
@@ -1534,7 +1645,10 @@ function ApprovalQueueTab() {
                       <DecisionBadge decision={ev.decision} />
                       <span className="text-xs text-muted-foreground">{ev.decisionReason}</span>
                       <span className="text-xs tabular-nums text-muted-foreground">
-                        · score {ev.releaseScore} · {formatPercent(ev.confidence)}
+                        {t('acquisition.approvals.scoreConfidence', {
+                          score: ev.releaseScore,
+                          confidence: formatPercent(ev.confidence),
+                        })}
                       </span>
                     </div>
                   </div>
@@ -1546,7 +1660,7 @@ function ApprovalQueueTab() {
                         onClick={() => approveMutation.mutate(ev.id)}
                         loading={approveMutation.isPending && approveMutation.variables === ev.id}
                       >
-                        <ThumbsUp className="h-4 w-4" /> Approve
+                        <ThumbsUp className="h-4 w-4" /> {t('acquisition.approvals.approve')}
                       </Button>
                     )}
                     {canReject && (
@@ -1555,7 +1669,7 @@ function ApprovalQueueTab() {
                         variant="outline"
                         onClick={() => setReasonFor({ kind: 'reject', ev })}
                       >
-                        <ThumbsDown className="h-4 w-4" /> Reject
+                        <ThumbsDown className="h-4 w-4" /> {t('acquisition.approvals.reject')}
                       </Button>
                     )}
                     {canOverride && (
@@ -1564,7 +1678,7 @@ function ApprovalQueueTab() {
                         variant="ghost"
                         onClick={() => setReasonFor({ kind: 'override', ev })}
                       >
-                        <Gavel className="h-4 w-4" /> Override
+                        <Gavel className="h-4 w-4" /> {t('acquisition.approvals.override')}
                       </Button>
                     )}
                   </div>
@@ -1602,41 +1716,45 @@ function RejectDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useTranslation('media');
   const toast = useToast();
   const [reason, setReason] = useState('');
   const mutation = useMutation({
     mutationFn: () => api.mediaAcquisition.reject(evaluation.id, reason.trim() || undefined),
     onSuccess: () => {
-      toast.success('Rejected');
+      toast.success(t('acquisition.approvals.toast.rejected'));
       onDone();
       onClose();
     },
     onError: (err) =>
-      toast.error('Could not reject', err instanceof ApiError ? err.message : undefined),
+      toast.error(
+        t('acquisition.approvals.toast.rejectFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
   });
   return (
-    <Dialog open onClose={onClose} title="Reject release">
+    <Dialog open onClose={onClose} title={t('acquisition.approvals.rejectDialog.title')}>
       <DialogHeader>
-        <DialogTitle>Reject release</DialogTitle>
+        <DialogTitle>{t('acquisition.approvals.rejectDialog.title')}</DialogTitle>
         <DialogDescription className="break-all font-mono text-xs">
           {evaluation.releaseName}
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-1.5">
-        <Label htmlFor="reject-reason">Reason (optional)</Label>
+        <Label htmlFor="reject-reason">{t('acquisition.approvals.reasonOptional')}</Label>
         <Textarea
           id="reject-reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="Why is this release being rejected?"
+          placeholder={t('acquisition.approvals.rejectDialog.placeholder')}
         />
       </div>
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>
-          Cancel
+          {t('acquisition.common.cancel')}
         </Button>
         <Button variant="destructive" onClick={() => mutation.mutate()} loading={mutation.isPending}>
-          <ThumbsDown className="h-4 w-4" /> Reject
+          <ThumbsDown className="h-4 w-4" /> {t('acquisition.approvals.reject')}
         </Button>
       </DialogFooter>
     </Dialog>
@@ -1652,6 +1770,7 @@ function OverrideDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useTranslation('media');
   const toast = useToast();
   const [decision, setDecision] = useState<MediaAcquisitionDecision>('download');
   const [reason, setReason] = useState('');
@@ -1659,47 +1778,54 @@ function OverrideDialog({
     mutationFn: () =>
       api.mediaAcquisition.override(evaluation.id, decision, reason.trim() || undefined),
     onSuccess: () => {
-      toast.success('Decision overridden');
+      toast.success(t('acquisition.approvals.toast.overridden'));
       onDone();
       onClose();
     },
     onError: (err) =>
-      toast.error('Could not override', err instanceof ApiError ? err.message : undefined),
+      toast.error(
+        t('acquisition.approvals.toast.overrideFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
   });
+  const decisionOptions = OVERRIDE_DECISION_VALUES.map((value) => ({
+    value,
+    label: t(`acquisition.decision.${value}`),
+  }));
   return (
-    <Dialog open onClose={onClose} title="Override decision">
+    <Dialog open onClose={onClose} title={t('acquisition.approvals.overrideDialog.title')}>
       <DialogHeader>
-        <DialogTitle>Override decision</DialogTitle>
+        <DialogTitle>{t('acquisition.approvals.overrideDialog.title')}</DialogTitle>
         <DialogDescription className="break-all font-mono text-xs">
           {evaluation.releaseName}
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="ov-decision">New decision</Label>
+          <Label htmlFor="ov-decision">{t('acquisition.approvals.overrideDialog.newDecision')}</Label>
           <Select
             id="ov-decision"
             value={decision}
             onChange={(e) => setDecision(e.target.value as MediaAcquisitionDecision)}
-            options={OVERRIDE_DECISION_OPTIONS}
+            options={decisionOptions}
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="ov-reason">Reason (optional)</Label>
+          <Label htmlFor="ov-reason">{t('acquisition.approvals.reasonOptional')}</Label>
           <Textarea
             id="ov-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Explain the manual override"
+            placeholder={t('acquisition.approvals.overrideDialog.placeholder')}
           />
         </div>
       </div>
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>
-          Cancel
+          {t('acquisition.common.cancel')}
         </Button>
         <Button onClick={() => mutation.mutate()} loading={mutation.isPending}>
-          <Gavel className="h-4 w-4" /> Override
+          <Gavel className="h-4 w-4" /> {t('acquisition.approvals.override')}
         </Button>
       </DialogFooter>
     </Dialog>
@@ -1711,16 +1837,20 @@ function OverrideDialog({
 // ---------------------------------------------------------------------------
 
 function RecommendationsTab() {
+  const { t } = useTranslation('media');
   const recQuery = useQuery({
     queryKey: [...QK, 'recommendations'],
     queryFn: api.mediaAcquisition.recommendations,
     refetchInterval: 30_000,
   });
 
-  if (recQuery.isLoading) return <CenteredSpinner label="Loading recommendations…" />;
+  if (recQuery.isLoading) return <CenteredSpinner label={t('acquisition.recommendations.loading')} />;
   if (recQuery.isError)
     return (
-      <ErrorState message="Could not load recommendations." onRetry={() => recQuery.refetch()} />
+      <ErrorState
+        message={t('acquisition.recommendations.error')}
+        onRetry={() => recQuery.refetch()}
+      />
     );
 
   const data = recQuery.data;
@@ -1730,8 +1860,8 @@ function RecommendationsTab() {
     <div className="grid gap-6 lg:grid-cols-3">
       <RecommendationSection
         icon={<Gavel className="h-4 w-4 text-warning" />}
-        title="Pending approvals"
-        empty="No approvals waiting."
+        title={t('acquisition.recommendations.pendingApprovals')}
+        empty={t('acquisition.recommendations.pendingEmpty')}
         items={data.pendingApprovals.map((p) => ({
           id: p.id,
           primary: p.releaseName,
@@ -1740,14 +1870,14 @@ function RecommendationsTab() {
       />
       <RecommendationSection
         icon={<TrendingUp className="h-4 w-4 text-info" />}
-        title="Quality upgrades"
-        empty="No upgrade candidates."
+        title={t('acquisition.recommendations.qualityUpgrades')}
+        empty={t('acquisition.recommendations.upgradesEmpty')}
         items={data.qualityUpgrades.map((q) => ({ id: q.id, primary: q.releaseName }))}
       />
       <RecommendationSection
         icon={<ListChecks className="h-4 w-4 text-muted-foreground" />}
-        title="Watchlist with no matches"
-        empty="Every watchlist item has matches."
+        title={t('acquisition.recommendations.noMatches')}
+        empty={t('acquisition.recommendations.noMatchesEmpty')}
         items={data.watchlistWithNoMatches.map((w) => ({ id: w.id, primary: w.title }))}
       />
     </div>
@@ -1802,6 +1932,7 @@ function RecommendationSection({
 // ---------------------------------------------------------------------------
 
 function HistoryTab() {
+  const { t } = useTranslation('media');
   const historyQuery = useQuery({
     queryKey: [...QK, 'history'],
     queryFn: () => api.mediaAcquisition.history(200),
@@ -1814,23 +1945,26 @@ function HistoryTab() {
     <Card>
       <CardContent className="p-0">
         {historyQuery.isLoading ? (
-          <CenteredSpinner label="Loading history…" />
+          <CenteredSpinner label={t('acquisition.history.loading')} />
         ) : historyQuery.isError ? (
-          <ErrorState message="Could not load history." onRetry={() => historyQuery.refetch()} />
+          <ErrorState
+            message={t('acquisition.history.error')}
+            onRetry={() => historyQuery.refetch()}
+          />
         ) : events.length === 0 ? (
           <EmptyState
             icon={<History className="h-6 w-6" />}
-            title="No history yet"
-            description="Acquisition events will be recorded here as decisions are made."
+            title={t('acquisition.history.emptyTitle')}
+            description={t('acquisition.history.emptyBody')}
           />
         ) : (
           <div className="overflow-x-auto scrollbar-thin">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-4">Event</TableHead>
-                  <TableHead>Message</TableHead>
-                  <TableHead className="pr-4">When</TableHead>
+                  <TableHead className="pl-4">{t('acquisition.history.col.event')}</TableHead>
+                  <TableHead>{t('acquisition.history.col.message')}</TableHead>
+                  <TableHead className="pr-4">{t('acquisition.history.col.when')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1862,6 +1996,7 @@ function HistoryTab() {
 // ---------------------------------------------------------------------------
 
 function SettingsTab() {
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_SETTINGS);
   const canExport = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_EXPORT);
@@ -1883,25 +2018,36 @@ function SettingsTab() {
   const saveMutation = useMutation({
     mutationFn: (body: Partial<AcquisitionSettings>) => api.mediaAcquisition.updateSettings(body),
     onSuccess: (res) => {
-      toast.success('Settings saved');
+      toast.success(t('acquisition.settings.toast.saved'));
       setForm(res);
       queryClient.invalidateQueries({ queryKey: [...QK, 'settings'] });
     },
     onError: (err) =>
-      toast.error('Could not save settings', err instanceof ApiError ? err.message : undefined),
+      toast.error(
+        t('acquisition.settings.toast.saveFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
   });
 
   const exportMutation = useMutation({
     mutationFn: () =>
       api.mediaAcquisition.export({ evaluations: true, watchlist: true, profiles: true }),
-    onSuccess: () => toast.success('Export downloaded'),
+    onSuccess: () => toast.success(t('acquisition.settings.toast.exported')),
     onError: (err) =>
-      toast.error('Export failed', err instanceof ApiError ? err.message : undefined),
+      toast.error(
+        t('acquisition.settings.toast.exportFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
   });
 
-  if (settingsQuery.isLoading) return <CenteredSpinner label="Loading settings…" />;
+  if (settingsQuery.isLoading) return <CenteredSpinner label={t('acquisition.settings.loading')} />;
   if (settingsQuery.isError)
-    return <ErrorState message="Could not load settings." onRetry={() => settingsQuery.refetch()} />;
+    return (
+      <ErrorState
+        message={t('acquisition.settings.error')}
+        onRetry={() => settingsQuery.refetch()}
+      />
+    );
 
   const current = form ?? settingsQuery.data;
   if (!current) return null;
@@ -1935,29 +2081,31 @@ function SettingsTab() {
                 className="mt-0.5 h-4 w-4 rounded border-input bg-white/[0.02]"
               />
               <span>
-                <span className="text-sm font-medium">Auto-evaluate RSS items</span>
+                <span className="text-sm font-medium">{t('acquisition.settings.autoEvaluate')}</span>
                 <span className="block text-xs text-muted-foreground">
-                  Score incoming RSS releases against profiles automatically.
+                  {t('acquisition.settings.autoEvaluateHint')}
                 </span>
               </span>
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="set-default-profile">Default profile</Label>
+                <Label htmlFor="set-default-profile">
+                  {t('acquisition.settings.defaultProfile')}
+                </Label>
                 <Select
                   id="set-default-profile"
                   value={current.defaultProfileId ?? ''}
                   disabled={!canManage}
                   onChange={(e) => update({ defaultProfileId: e.target.value || null })}
                   options={[
-                    { value: '', label: 'None' },
+                    { value: '', label: t('acquisition.filter.none') },
                     ...profiles.map((p) => ({ value: p.id, label: p.name })),
                   ]}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="set-expiry">Approval expiry (hours)</Label>
+                <Label htmlFor="set-expiry">{t('acquisition.settings.approvalExpiry')}</Label>
                 <Input
                   id="set-expiry"
                   type="number"
@@ -1977,9 +2125,9 @@ function SettingsTab() {
                 className="mt-0.5 h-4 w-4 rounded border-input bg-white/[0.02]"
               />
               <span>
-                <span className="text-sm font-medium">Notify when approval is required</span>
+                <span className="text-sm font-medium">{t('acquisition.settings.notify')}</span>
                 <span className="block text-xs text-muted-foreground">
-                  Send a notification whenever a release needs a human decision.
+                  {t('acquisition.settings.notifyHint')}
                 </span>
               </span>
             </label>
@@ -1987,7 +2135,7 @@ function SettingsTab() {
             {canManage && (
               <div className="flex justify-end">
                 <Button type="submit" loading={saveMutation.isPending}>
-                  <Save className="h-4 w-4" /> Save settings
+                  <Save className="h-4 w-4" /> {t('acquisition.settings.save')}
                 </Button>
               </div>
             )}
@@ -1999,9 +2147,9 @@ function SettingsTab() {
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
             <div>
-              <p className="text-sm font-semibold">Export data</p>
+              <p className="text-sm font-semibold">{t('acquisition.settings.exportTitle')}</p>
               <p className="text-xs text-muted-foreground">
-                Download evaluations, watchlist and profiles as a JSON file.
+                {t('acquisition.settings.exportHint')}
               </p>
             </div>
             <Button
@@ -2009,7 +2157,7 @@ function SettingsTab() {
               onClick={() => exportMutation.mutate()}
               loading={exportMutation.isPending}
             >
-              <Download className="h-4 w-4" /> Export JSON
+              <Download className="h-4 w-4" /> {t('acquisition.settings.exportButton')}
             </Button>
           </CardContent>
         </Card>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { ModuleStateValue, ModuleTier } from '@ultratorrent/shared';
 import { Badge } from '@/components/ui/badge';
 
@@ -8,13 +9,9 @@ const TIER_TONE: Record<ModuleTier, Tone> = {
   community: 'success',
 };
 
-const TIER_LABEL: Record<ModuleTier, string> = {
-  core: 'Core',
-  community: 'Community',
-};
-
 export function TierBadge({ tier }: { tier: ModuleTier }) {
-  return <Badge variant={TIER_TONE[tier]}>{TIER_LABEL[tier]}</Badge>;
+  const { t } = useTranslation('modules');
+  return <Badge variant={TIER_TONE[tier]}>{t(`tier.${tier}`)}</Badge>;
 }
 
 const STATE_TONE: Record<ModuleStateValue, Tone> = {
@@ -26,19 +23,11 @@ const STATE_TONE: Record<ModuleStateValue, Tone> = {
   license_required: 'info',
 };
 
-const STATE_LABEL: Record<ModuleStateValue, string> = {
-  available: 'Available',
-  enabled: 'Enabled',
-  disabled: 'Disabled',
-  locked: 'Locked',
-  missing_dependency: 'Missing dependency',
-  license_required: 'License required',
-};
-
 export function StateBadge({ state }: { state: ModuleStateValue }) {
+  const { t } = useTranslation('modules');
   return (
     <Badge variant={STATE_TONE[state]} dot>
-      {STATE_LABEL[state]}
+      {t(`state.${state}`)}
     </Badge>
   );
 }

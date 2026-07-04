@@ -736,6 +736,11 @@
       "selectError": "Could not select artwork",
       "uploadedToast": "Artwork uploaded",
       "uploadError": "Could not upload artwork",
+      "importFromProvider": "Fetch from provider",
+      "importedToast_one": "Imported {{count}} artwork image",
+      "importedToast_other": "Imported {{count}} artwork images",
+      "importedNone": "No artwork imported — configure a TMDB key and match this item first.",
+      "importError": "Could not fetch artwork",
       "missing": "Missing:",
       "emptyTitle": "No artwork",
       "emptyBody": "Fetch metadata or upload custom artwork to populate this item."
@@ -780,6 +785,280 @@
       "emptyTitle": "No history",
       "emptyBody": "Applied rename operations are recorded here.",
       "noMatch": "No operations matched this item — showing recent activity."
+    }
+  },
+  "acquisition": {
+    "title": "Media Acquisition",
+    "subtitle": "Intelligent watchlists, quality profiles and explainable download decisions with an approval workflow.",
+    "tabs": {
+      "overview": "Overview",
+      "watchlist": "Watchlist",
+      "profiles": "Profiles",
+      "evaluations": "Evaluations",
+      "approvals": "Approval Queue",
+      "recommendations": "Recommendations",
+      "history": "History",
+      "settings": "Settings"
+    },
+    "common": {
+      "yes": "Yes",
+      "no": "No",
+      "cancel": "Cancel",
+      "save": "Save",
+      "add": "Add",
+      "close": "Close",
+      "edit": "Edit",
+      "deleteName": "Delete {{name}}",
+      "removeName": "Remove {{name}}"
+    },
+    "status": {
+      "active": "Active",
+      "paused": "Paused",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "filter": {
+      "any": "Any",
+      "allStatuses": "All statuses",
+      "allDecisions": "All decisions",
+      "noProfile": "No profile",
+      "autoSelect": "Auto-select",
+      "none": "None"
+    },
+    "decision": {
+      "download": "Download",
+      "skip": "Skip",
+      "hold_for_approval": "Hold for approval",
+      "upgrade_existing": "Upgrade existing",
+      "replace_existing": "Replace existing",
+      "manual_review": "Manual review"
+    },
+    "watchlistType": {
+      "series": "Series",
+      "season": "Season",
+      "episode": "Episode",
+      "movie": "Movie",
+      "movie_collection": "Movie collection",
+      "anime": "Anime",
+      "manual_query": "Manual query"
+    },
+    "mediaTypeOption": {
+      "any": "Any",
+      "tv": "TV",
+      "movie": "Movie",
+      "anime": "Anime"
+    },
+    "trace": {
+      "empty": "No decision trace recorded.",
+      "score": "score {{score}}"
+    },
+    "overview": {
+      "loading": "Loading overview…",
+      "error": "Could not load the overview.",
+      "recentDecisions": "Recent decisions",
+      "emptyTitle": "No decisions yet",
+      "emptyBody": "Evaluations will appear here as releases are scored against your profiles.",
+      "stats": {
+        "activeWatchlist": "Active watchlist",
+        "pendingApprovals": "Pending approvals",
+        "downloadsRecommended": "Downloads recommended",
+        "skipped": "Skipped",
+        "upgrades": "Upgrades"
+      }
+    },
+    "watchlist": {
+      "add": "Add to watchlist",
+      "loading": "Loading watchlist…",
+      "error": "Could not load the watchlist.",
+      "emptyTitle": "Watchlist is empty",
+      "emptyBody": "Add a series, movie or anime to start tracking wanted releases.",
+      "resume": "Resume",
+      "pause": "Pause",
+      "confirmRemove": "Remove \"{{title}}\" from the watchlist?",
+      "col": {
+        "title": "Title",
+        "type": "Type",
+        "detail": "Detail",
+        "priority": "Priority",
+        "profile": "Profile",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "toast": {
+        "updated": "Watchlist updated",
+        "updateFailed": "Could not update item",
+        "removed": "Removed from watchlist",
+        "removeFailed": "Could not remove item",
+        "itemUpdated": "Watchlist item updated",
+        "added": "Added to watchlist",
+        "saveFailed": "Could not save item",
+        "titleRequired": "Title required",
+        "titleRequiredBody": "Enter a title to track."
+      },
+      "dialog": {
+        "addTitle": "Add to watchlist",
+        "editTitle": "Edit watchlist item",
+        "description": "Track a series, movie or anime so matching releases are evaluated automatically.",
+        "type": "Type",
+        "title": "Title",
+        "collectionName": "Collection name",
+        "year": "Year",
+        "season": "Season",
+        "episode": "Episode",
+        "priority": "Priority",
+        "profile": "Quality profile"
+      }
+    },
+    "profiles": {
+      "add": "Add profile",
+      "loading": "Loading profiles…",
+      "error": "Could not load profiles.",
+      "emptyTitle": "No quality profiles",
+      "emptyBody": "Create a profile to define how releases are scored and approved.",
+      "confirmDelete": "Delete profile \"{{name}}\"?",
+      "col": {
+        "name": "Name",
+        "media": "Media",
+        "minApproval": "Min / Approval",
+        "preferred": "Preferred",
+        "enabled": "Enabled",
+        "actions": "Actions"
+      },
+      "toast": {
+        "deleted": "Profile deleted",
+        "deleteFailed": "Could not delete profile",
+        "updated": "Profile updated",
+        "created": "Profile created",
+        "saveFailed": "Could not save profile",
+        "nameRequired": "Name required",
+        "nameRequiredBody": "Enter a profile name."
+      },
+      "dialog": {
+        "addTitle": "Add profile",
+        "editTitle": "Edit profile",
+        "description": "Define quality preferences and the score thresholds that drive download and approval decisions.",
+        "name": "Name",
+        "mediaType": "Media type",
+        "minimumScore": "Minimum score",
+        "approvalScore": "Approval score",
+        "preferredResolution": "Preferred resolution",
+        "preferredSource": "Preferred source",
+        "preferredCodec": "Preferred codec",
+        "requiredTerms": "Required terms",
+        "excludedTerms": "Excluded terms",
+        "preferredGroups": "Preferred groups",
+        "termPlaceholder": "Type a term and press Enter",
+        "groupsPlaceholder": "Release groups",
+        "create": "Create profile"
+      }
+    },
+    "evaluations": {
+      "testEvaluate": "Test evaluate",
+      "releaseName": "Release name",
+      "profileOptional": "Profile (optional)",
+      "evaluate": "Evaluate",
+      "recent": "Recent evaluations",
+      "loading": "Loading evaluations…",
+      "error": "Could not load evaluations.",
+      "emptyTitle": "No evaluations yet",
+      "emptyBody": "Evaluate a release above or wait for RSS items to be scored.",
+      "confidenceScore": "confidence {{confidence}} · score {{score}}",
+      "traceSummary_one": "Decision trace ({{count}} step)",
+      "traceSummary_other": "Decision trace ({{count}} steps)",
+      "col": {
+        "release": "Release",
+        "decision": "Decision",
+        "reason": "Reason",
+        "confidence": "Confidence",
+        "score": "Score"
+      },
+      "toast": {
+        "complete": "Evaluation complete",
+        "completeBody": "Decision: {{decision}}",
+        "failed": "Evaluation failed",
+        "releaseRequired": "Release name required",
+        "releaseRequiredBody": "Enter a release name to evaluate."
+      },
+      "detail": {
+        "title": "Evaluation detail",
+        "description": "Full decision trace and library context.",
+        "loading": "Loading evaluation…",
+        "error": "Could not load this evaluation.",
+        "score": "Score",
+        "libraryMatch": "Library match",
+        "duplicateRisk": "Duplicate risk",
+        "decisionTrace": "Decision trace",
+        "actions": "Actions"
+      }
+    },
+    "approvals": {
+      "loading": "Loading approval queue…",
+      "error": "Could not load the approval queue.",
+      "emptyTitle": "Nothing awaiting approval",
+      "emptyBody": "Releases that require a human decision will appear here.",
+      "scoreConfidence": "· score {{score}} · {{confidence}}",
+      "approve": "Approve",
+      "reject": "Reject",
+      "override": "Override",
+      "reasonOptional": "Reason (optional)",
+      "rejectDialog": {
+        "title": "Reject release",
+        "placeholder": "Why is this release being rejected?"
+      },
+      "overrideDialog": {
+        "title": "Override decision",
+        "newDecision": "New decision",
+        "placeholder": "Explain the manual override"
+      },
+      "toast": {
+        "approved": "Approved",
+        "approveFailed": "Could not approve",
+        "rejected": "Rejected",
+        "rejectFailed": "Could not reject",
+        "overridden": "Decision overridden",
+        "overrideFailed": "Could not override"
+      }
+    },
+    "recommendations": {
+      "loading": "Loading recommendations…",
+      "error": "Could not load recommendations.",
+      "pendingApprovals": "Pending approvals",
+      "qualityUpgrades": "Quality upgrades",
+      "noMatches": "Watchlist with no matches",
+      "pendingEmpty": "No approvals waiting.",
+      "upgradesEmpty": "No upgrade candidates.",
+      "noMatchesEmpty": "Every watchlist item has matches."
+    },
+    "history": {
+      "loading": "Loading history…",
+      "error": "Could not load history.",
+      "emptyTitle": "No history yet",
+      "emptyBody": "Acquisition events will be recorded here as decisions are made.",
+      "col": {
+        "event": "Event",
+        "message": "Message",
+        "when": "When"
+      }
+    },
+    "settings": {
+      "loading": "Loading settings…",
+      "error": "Could not load settings.",
+      "autoEvaluate": "Auto-evaluate RSS items",
+      "autoEvaluateHint": "Score incoming RSS releases against profiles automatically.",
+      "defaultProfile": "Default profile",
+      "approvalExpiry": "Approval expiry (hours)",
+      "notify": "Notify when approval is required",
+      "notifyHint": "Send a notification whenever a release needs a human decision.",
+      "save": "Save settings",
+      "exportTitle": "Export data",
+      "exportHint": "Download evaluations, watchlist and profiles as a JSON file.",
+      "exportButton": "Export JSON",
+      "toast": {
+        "saved": "Settings saved",
+        "saveFailed": "Could not save settings",
+        "exported": "Export downloaded",
+        "exportFailed": "Export failed"
+      }
     }
   }
 }

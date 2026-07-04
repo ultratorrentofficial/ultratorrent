@@ -9,6 +9,14 @@ import type rss from './locales/en-US/rss.json';
 import type torrents from './locales/en-US/torrents.json';
 import type files from './locales/en-US/files.json';
 import type automation from './locales/en-US/automation.json';
+import type settings from './locales/en-US/settings.json';
+import type users from './locales/en-US/users.json';
+import type modules from './locales/en-US/modules.json';
+import type engines from './locales/en-US/engines.json';
+import type audit from './locales/en-US/audit.json';
+import type dashboard from './locales/en-US/dashboard.json';
+import type account from './locales/en-US/account.json';
+import type system from './locales/en-US/system.json';
 
 // Type the default namespace + resource shape so `t()` keys are checked against
 // the en-US bundles (the canonical shape). Both languages share this shape.
@@ -26,6 +34,14 @@ declare module 'i18next' {
       torrents: typeof torrents;
       files: typeof files;
       automation: typeof automation;
+      settings: typeof settings;
+      users: typeof users;
+      modules: typeof modules;
+      engines: typeof engines;
+      audit: typeof audit;
+      dashboard: typeof dashboard;
+      account: typeof account;
+      system: typeof system;
     };
   }
 }

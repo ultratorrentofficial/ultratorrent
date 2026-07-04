@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Users",
+    "subtitle": "Manage accounts and the roles that grant them permissions.",
+    "addUser": "Add user"
+  },
+  "list": {
+    "loading": "Loading users…",
+    "error": "Could not load users.",
+    "emptyTitle": "No users",
+    "emptyDescription": "Add accounts and assign them roles to control access.",
+    "addFirst": "Add your first user"
+  },
+  "status": {
+    "active": "Active",
+    "disabled": "Disabled",
+    "system": "system"
+  },
+  "card": {
+    "lastLogin": "last login {{time}}",
+    "noRoles": "no roles",
+    "editUser": "Edit user",
+    "deleteUser": "Delete user",
+    "systemCannotDelete": "System users cannot be deleted"
+  },
+  "confirm": {
+    "delete": "Delete user \"{{username}}\"? This cannot be undone."
+  },
+  "toast": {
+    "deleted": "User deleted",
+    "deleteFailed": "Could not delete user",
+    "created": "User created",
+    "createFailed": "Could not create user",
+    "updated": "User updated",
+    "updateFailed": "Could not update user"
+  },
+  "rolePicker": {
+    "none": "No roles available."
+  },
+  "create": {
+    "title": "Add user",
+    "description": "Create an account and assign roles.",
+    "username": "Username",
+    "displayName": "Display name",
+    "email": "Email",
+    "password": "Password",
+    "passwordPlaceholder": "at least 10 characters",
+    "passwordHint": "Password must be at least 10 characters.",
+    "roles": "Roles",
+    "cancel": "Cancel",
+    "submit": "Create user"
+  },
+  "edit": {
+    "title": "Edit {{username}}",
+    "description": "Username and password cannot be changed here.",
+    "email": "Email",
+    "displayName": "Display name",
+    "active": "Active",
+    "roles": "Roles",
+    "cancel": "Cancel",
+    "submit": "Save changes"
+  }
+}

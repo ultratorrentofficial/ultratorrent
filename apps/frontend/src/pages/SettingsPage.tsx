@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, FolderTree, Save, Settings2 } from 'lucide-react';
 import { ApiError, api, type AppSettings } from '@/lib/api';
@@ -19,6 +20,7 @@ const ROOT_PATH_KEY = 'fileManager.defaultRootPath';
 /** Render a settings object generically — the backend owns the schema. */
 export function SettingsPage() {
   const { hasPermission } = useAuth();
+  const { t } = useTranslation('settings');
   const toast = useToast();
   const queryClient = useQueryClient();
   const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE);
@@ -37,9 +39,9 @@ export function SettingsPage() {
     mutationFn: (patch: AppSettings) => api.settings.update(patch),
     onSuccess: (updated) => {
       queryClient.setQueryData(['settings'], updated);
-      toast.success('Settings saved');
+      toast.success(t('toast.saved'));
     },
-    onError: (err) => toast.error('Could not save settings', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('toast.saveFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   // The Default Root Path has its own validated + audited route; keep it out of
@@ -53,15 +55,15 @@ export function SettingsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground">Configure your UltraTorrent instance.</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('page.subtitle')}</p>
         </div>
         {canManage && entries.length > 0 && (
           <Button
             onClick={() => mutation.mutate(Object.fromEntries(entries))}
             loading={mutation.isPending}
           >
-            <Save className="h-4 w-4" /> Save changes
+            <Save className="h-4 w-4" /> {t('page.save')}
           </Button>
         )}
       </div>
@@ -69,24 +71,24 @@ export function SettingsPage() {
       <RootPathSection canManageRoot={hasPermission(PERMISSIONS.SETTINGS_MANAGE_ROOT_PATH)} />
 
       {isLoading ? (
-        <CenteredSpinner label="Loading settings…" />
+        <CenteredSpinner label={t('page.loading')} />
       ) : isError ? (
-        <ErrorState message="Could not load settings." onRetry={() => refetch()} />
+        <ErrorState message={t('page.error')} onRetry={() => refetch()} />
       ) : entries.length === 0 ? (
         <Card>
           <CardContent>
             <EmptyState
               icon={<Settings2 className="h-6 w-6" />}
-              title="No configurable settings"
-              description="This instance does not expose editable settings yet."
+              title={t('page.emptyTitle')}
+              description={t('page.emptyDescription')}
             />
           </CardContent>
         </Card>
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>General</CardTitle>
-            <CardDescription>Values are validated by the server on save.</CardDescription>
+            <CardTitle>{t('page.generalTitle')}</CardTitle>
+            <CardDescription>{t('page.generalDescription')}</CardDescription>
           </CardHeader>
           <CardContent className="divide-y divide-border/60">
             {entries.map(([key, value]) => (
@@ -106,6 +108,7 @@ export function SettingsPage() {
 }
 
 function RootPathSection({ canManageRoot }: { canManageRoot: boolean }) {
+  const { t } = useTranslation('settings');
   const toast = useToast();
   const queryClient = useQueryClient();
   const { data, isLoading, isError, refetch } = useQuery({
@@ -122,63 +125,59 @@ function RootPathSection({ canManageRoot }: { canManageRoot: boolean }) {
     onSuccess: (info) => {
       queryClient.setQueryData(['files', 'root'], info);
       queryClient.invalidateQueries({ queryKey: ['files', 'browse'] });
-      toast.success('Default root path saved', info.root);
+      toast.success(t('rootPath.savedToast'), info.root);
     },
     onError: (err) =>
-      toast.error('Could not save root path', err instanceof ApiError ? err.message : undefined),
+      toast.error(t('rootPath.saveFailedToast'), err instanceof ApiError ? err.message : undefined),
   });
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <FolderTree className="h-4 w-4 text-primary" /> Default Root Path
+          <FolderTree className="h-4 w-4 text-primary" /> {t('rootPath.title')}
         </CardTitle>
-        <CardDescription>
-          Users can browse only inside this root path. Parent folders and system directories outside
-          it are blocked.
-        </CardDescription>
+        <CardDescription>{t('rootPath.description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
-          <CenteredSpinner label="Loading…" />
+          <CenteredSpinner label={t('rootPath.loading')} />
         ) : isError ? (
-          <ErrorState message="Could not load the root path." onRetry={() => refetch()} />
+          <ErrorState message={t('rootPath.error')} onRetry={() => refetch()} />
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Effective root:</span>
+              <span className="text-muted-foreground">{t('rootPath.effectiveRoot')}</span>
               <code className="rounded bg-white/5 px-2 py-0.5 font-mono">{data?.root}</code>
               <Badge variant={data?.exists ? 'success' : 'destructive'} dot>
-                {data?.exists ? 'exists' : 'missing'}
+                {data?.exists ? t('rootPath.exists') : t('rootPath.missing')}
               </Badge>
               <Badge variant={data?.readable ? 'success' : 'destructive'} dot>
-                {data?.readable ? 'readable' : 'not readable'}
+                {data?.readable ? t('rootPath.readable') : t('rootPath.notReadable')}
               </Badge>
               <Badge variant={data?.writable ? 'success' : 'warning'} dot>
-                {data?.writable ? 'writable' : 'read-only'}
+                {data?.writable ? t('rootPath.writable') : t('rootPath.readOnly')}
               </Badge>
             </div>
 
             {data && !data.writable && (
               <p className="flex items-start gap-1.5 text-xs text-warning">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                The app process cannot write to this path — downloads and folder creation there will
-                fail.
+                {t('rootPath.notWritableWarning')}
               </p>
             )}
 
             {canManageRoot ? (
               <div className="space-y-2">
-                <Label htmlFor="root-path">Root path</Label>
+                <Label htmlFor="root-path">{t('rootPath.label')}</Label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <PathPicker
                     id="root-path"
                     value={value}
                     onChange={setValue}
                     placeholder={data?.hardRoots?.[0] ?? '/downloads'}
-                    aria-label="Root path"
-                    pickerTitle="Choose the default root folder"
+                    aria-label={t('rootPath.ariaLabel')}
+                    pickerTitle={t('rootPath.pickerTitle')}
                     className="flex-1"
                   />
                   <Button
@@ -187,19 +186,20 @@ function RootPathSection({ canManageRoot }: { canManageRoot: boolean }) {
                     disabled={!value.trim()}
                     className="shrink-0"
                   >
-                    <Save className="h-4 w-4" /> Save
+                    <Save className="h-4 w-4" /> {t('rootPath.save')}
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Must be a directory within the server&apos;s configured storage roots (
-                  <code className="font-mono">{data?.hardRoots?.join(', ') || '—'}</code>). Browsing
-                  can only be narrowed within these, never widened past them.
+                  {t('rootPath.help.before')}
+                  <code className="font-mono">{data?.hardRoots?.join(', ') || '—'}</code>
+                  {t('rootPath.help.after')}
                 </p>
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Only administrators with the <code className="font-mono">settings.manage_root_path</code>{' '}
-                permission can change this.
+                {t('rootPath.adminOnly.before')}
+                <code className="font-mono">settings.manage_root_path</code>
+                {t('rootPath.adminOnly.after')}
               </p>
             )}
           </>

@@ -1,0 +1,71 @@
+{
+  "page": {
+    "loading": "Cargando cuenta…",
+    "title": "Cuenta",
+    "subtitle": "Administra tu perfil, contraseña y autenticación de dos factores."
+  },
+  "profile": {
+    "title": "Perfil",
+    "username": "Nombre de usuario",
+    "email": "Correo electrónico",
+    "displayName": "Nombre visible",
+    "roles": "Roles",
+    "lastSignIn": "Último inicio de sesión {{time}}",
+    "save": "Guardar cambios"
+  },
+  "password": {
+    "title": "Contraseña",
+    "current": "Contraseña actual",
+    "new": "Nueva contraseña",
+    "tooShort": "Al menos 10 caracteres.",
+    "confirm": "Confirmar nueva contraseña",
+    "mismatch": "Las contraseñas no coinciden.",
+    "submit": "Cambiar contraseña"
+  },
+  "twoFactor": {
+    "title": "Autenticación de dos factores",
+    "on": "Activada",
+    "off": "Desactivada",
+    "descEnabled": "Tu cuenta está protegida con una app de autenticación. Se te pedirá un código al iniciar sesión.",
+    "descDisabled": "Agrega un segundo paso al inicio de sesión usando una app de autenticación (Google Authenticator, Authy, 1Password, …).",
+    "enable": "Activar 2FA",
+    "disable": "Desactivar 2FA"
+  },
+  "enable": {
+    "title": "Activar autenticación de dos factores",
+    "description": "Escanea el código QR con tu app de autenticación y luego ingresa el código de 6 dígitos para confirmar.",
+    "generating": "Generando secreto…",
+    "qrAlt": "Código QR de 2FA",
+    "manualKey": "O ingresa esta clave manualmente:",
+    "codeLabel": "Código de verificación",
+    "cancel": "Cancelar",
+    "verify": "Verificar y activar"
+  },
+  "recovery": {
+    "title": "Guarda tus códigos de recuperación",
+    "description": "Cada código funciona una sola vez si pierdes tu autenticador. Guárdalos en un lugar seguro — no se volverán a mostrar.",
+    "copy": "Copiar",
+    "download": "Descargar",
+    "done": "Ya los guardé"
+  },
+  "disable": {
+    "title": "Desactivar autenticación de dos factores",
+    "description": "Confirma tu contraseña para desactivar 2FA. Tu cuenta quedará menos protegida.",
+    "passwordLabel": "Contraseña",
+    "cancel": "Cancelar",
+    "submit": "Desactivar 2FA"
+  },
+  "toast": {
+    "profileUpdated": "Perfil actualizado",
+    "profileUpdateFailed": "No se pudo actualizar el perfil",
+    "passwordChanged": "Contraseña cambiada",
+    "passwordChangedDetail": "Usa tu nueva contraseña la próxima vez que inicies sesión.",
+    "passwordChangeFailed": "No se pudo cambiar la contraseña",
+    "setupFailed": "No se pudo iniciar la configuración",
+    "enabled": "Dos factores activado",
+    "invalidCode": "Código no válido",
+    "codesCopied": "Códigos de recuperación copiados",
+    "disabled": "Dos factores desactivado",
+    "disableFailed": "No se pudo desactivar"
+  }
+}

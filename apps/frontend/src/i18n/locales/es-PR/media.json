@@ -736,6 +736,11 @@
       "selectError": "No se pudo seleccionar la ilustración",
       "uploadedToast": "Ilustración subida",
       "uploadError": "No se pudo subir la ilustración",
+      "importFromProvider": "Obtener del proveedor",
+      "importedToast_one": "Se importó {{count}} ilustración",
+      "importedToast_other": "Se importaron {{count}} ilustraciones",
+      "importedNone": "No se importaron ilustraciones: configura una clave de TMDB y empareja este elemento primero.",
+      "importError": "No se pudo obtener la ilustración",
       "missing": "Faltantes:",
       "emptyTitle": "No hay ilustraciones",
       "emptyBody": "Obtén metadatos o sube ilustraciones personalizadas para poblar este elemento."
@@ -780,6 +785,280 @@
       "emptyTitle": "No hay historial",
       "emptyBody": "Las operaciones de renombrado aplicadas se registran aquí.",
       "noMatch": "Ninguna operación coincidió con este elemento — mostrando actividad reciente."
+    }
+  },
+  "acquisition": {
+    "title": "Adquisición de medios",
+    "subtitle": "Listas de seguimiento inteligentes, perfiles de calidad y decisiones de descarga explicables con un flujo de aprobación.",
+    "tabs": {
+      "overview": "Resumen",
+      "watchlist": "Lista de seguimiento",
+      "profiles": "Perfiles",
+      "evaluations": "Evaluaciones",
+      "approvals": "Cola de aprobación",
+      "recommendations": "Recomendaciones",
+      "history": "Historial",
+      "settings": "Configuración"
+    },
+    "common": {
+      "yes": "Sí",
+      "no": "No",
+      "cancel": "Cancelar",
+      "save": "Guardar",
+      "add": "Agregar",
+      "close": "Cerrar",
+      "edit": "Editar",
+      "deleteName": "Eliminar {{name}}",
+      "removeName": "Quitar {{name}}"
+    },
+    "status": {
+      "active": "Activo",
+      "paused": "En pausa",
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado"
+    },
+    "filter": {
+      "any": "Cualquiera",
+      "allStatuses": "Todos los estados",
+      "allDecisions": "Todas las decisiones",
+      "noProfile": "Sin perfil",
+      "autoSelect": "Selección automática",
+      "none": "Ninguno"
+    },
+    "decision": {
+      "download": "Descargar",
+      "skip": "Omitir",
+      "hold_for_approval": "Retener para aprobación",
+      "upgrade_existing": "Mejorar existente",
+      "replace_existing": "Reemplazar existente",
+      "manual_review": "Revisión manual"
+    },
+    "watchlistType": {
+      "series": "Serie",
+      "season": "Temporada",
+      "episode": "Episodio",
+      "movie": "Película",
+      "movie_collection": "Colección de películas",
+      "anime": "Anime",
+      "manual_query": "Consulta manual"
+    },
+    "mediaTypeOption": {
+      "any": "Cualquiera",
+      "tv": "TV",
+      "movie": "Película",
+      "anime": "Anime"
+    },
+    "trace": {
+      "empty": "No se registró ningún rastro de decisión.",
+      "score": "puntaje {{score}}"
+    },
+    "overview": {
+      "loading": "Cargando resumen…",
+      "error": "No se pudo cargar el resumen.",
+      "recentDecisions": "Decisiones recientes",
+      "emptyTitle": "Aún no hay decisiones",
+      "emptyBody": "Las evaluaciones aparecerán aquí a medida que los lanzamientos se puntúen contra tus perfiles.",
+      "stats": {
+        "activeWatchlist": "Lista de seguimiento activa",
+        "pendingApprovals": "Aprobaciones pendientes",
+        "downloadsRecommended": "Descargas recomendadas",
+        "skipped": "Omitidas",
+        "upgrades": "Mejoras"
+      }
+    },
+    "watchlist": {
+      "add": "Agregar a la lista",
+      "loading": "Cargando lista de seguimiento…",
+      "error": "No se pudo cargar la lista de seguimiento.",
+      "emptyTitle": "La lista de seguimiento está vacía",
+      "emptyBody": "Agrega una serie, película o anime para empezar a seguir los lanzamientos que buscas.",
+      "resume": "Reanudar",
+      "pause": "Pausar",
+      "confirmRemove": "¿Quitar \"{{title}}\" de la lista de seguimiento?",
+      "col": {
+        "title": "Título",
+        "type": "Tipo",
+        "detail": "Detalle",
+        "priority": "Prioridad",
+        "profile": "Perfil",
+        "status": "Estado",
+        "actions": "Acciones"
+      },
+      "toast": {
+        "updated": "Lista de seguimiento actualizada",
+        "updateFailed": "No se pudo actualizar el elemento",
+        "removed": "Quitado de la lista de seguimiento",
+        "removeFailed": "No se pudo quitar el elemento",
+        "itemUpdated": "Elemento de la lista actualizado",
+        "added": "Agregado a la lista de seguimiento",
+        "saveFailed": "No se pudo guardar el elemento",
+        "titleRequired": "El título es obligatorio",
+        "titleRequiredBody": "Ingresa un título para seguir."
+      },
+      "dialog": {
+        "addTitle": "Agregar a la lista de seguimiento",
+        "editTitle": "Editar elemento de la lista",
+        "description": "Sigue una serie, película o anime para que los lanzamientos que coincidan se evalúen automáticamente.",
+        "type": "Tipo",
+        "title": "Título",
+        "collectionName": "Nombre de la colección",
+        "year": "Año",
+        "season": "Temporada",
+        "episode": "Episodio",
+        "priority": "Prioridad",
+        "profile": "Perfil de calidad"
+      }
+    },
+    "profiles": {
+      "add": "Agregar perfil",
+      "loading": "Cargando perfiles…",
+      "error": "No se pudieron cargar los perfiles.",
+      "emptyTitle": "No hay perfiles de calidad",
+      "emptyBody": "Crea un perfil para definir cómo se puntúan y aprueban los lanzamientos.",
+      "confirmDelete": "¿Eliminar el perfil \"{{name}}\"?",
+      "col": {
+        "name": "Nombre",
+        "media": "Medio",
+        "minApproval": "Mín. / Aprobación",
+        "preferred": "Preferido",
+        "enabled": "Habilitado",
+        "actions": "Acciones"
+      },
+      "toast": {
+        "deleted": "Perfil eliminado",
+        "deleteFailed": "No se pudo eliminar el perfil",
+        "updated": "Perfil actualizado",
+        "created": "Perfil creado",
+        "saveFailed": "No se pudo guardar el perfil",
+        "nameRequired": "El nombre es obligatorio",
+        "nameRequiredBody": "Ingresa un nombre de perfil."
+      },
+      "dialog": {
+        "addTitle": "Agregar perfil",
+        "editTitle": "Editar perfil",
+        "description": "Define las preferencias de calidad y los umbrales de puntaje que impulsan las decisiones de descarga y aprobación.",
+        "name": "Nombre",
+        "mediaType": "Tipo de medio",
+        "minimumScore": "Puntaje mínimo",
+        "approvalScore": "Puntaje de aprobación",
+        "preferredResolution": "Resolución preferida",
+        "preferredSource": "Fuente preferida",
+        "preferredCodec": "Códec preferido",
+        "requiredTerms": "Términos requeridos",
+        "excludedTerms": "Términos excluidos",
+        "preferredGroups": "Grupos preferidos",
+        "termPlaceholder": "Escribe un término y presiona Enter",
+        "groupsPlaceholder": "Grupos de lanzamiento",
+        "create": "Crear perfil"
+      }
+    },
+    "evaluations": {
+      "testEvaluate": "Evaluar de prueba",
+      "releaseName": "Nombre del lanzamiento",
+      "profileOptional": "Perfil (opcional)",
+      "evaluate": "Evaluar",
+      "recent": "Evaluaciones recientes",
+      "loading": "Cargando evaluaciones…",
+      "error": "No se pudieron cargar las evaluaciones.",
+      "emptyTitle": "Aún no hay evaluaciones",
+      "emptyBody": "Evalúa un lanzamiento arriba o espera a que se puntúen los elementos de RSS.",
+      "confidenceScore": "confianza {{confidence}} · puntaje {{score}}",
+      "traceSummary_one": "Rastro de decisión ({{count}} paso)",
+      "traceSummary_other": "Rastro de decisión ({{count}} pasos)",
+      "col": {
+        "release": "Lanzamiento",
+        "decision": "Decisión",
+        "reason": "Motivo",
+        "confidence": "Confianza",
+        "score": "Puntaje"
+      },
+      "toast": {
+        "complete": "Evaluación completada",
+        "completeBody": "Decisión: {{decision}}",
+        "failed": "La evaluación falló",
+        "releaseRequired": "El nombre del lanzamiento es obligatorio",
+        "releaseRequiredBody": "Ingresa un nombre de lanzamiento para evaluar."
+      },
+      "detail": {
+        "title": "Detalle de la evaluación",
+        "description": "Rastro completo de la decisión y contexto de la biblioteca.",
+        "loading": "Cargando evaluación…",
+        "error": "No se pudo cargar esta evaluación.",
+        "score": "Puntaje",
+        "libraryMatch": "Coincidencia en biblioteca",
+        "duplicateRisk": "Riesgo de duplicado",
+        "decisionTrace": "Rastro de decisión",
+        "actions": "Acciones"
+      }
+    },
+    "approvals": {
+      "loading": "Cargando cola de aprobación…",
+      "error": "No se pudo cargar la cola de aprobación.",
+      "emptyTitle": "Nada en espera de aprobación",
+      "emptyBody": "Los lanzamientos que requieren una decisión humana aparecerán aquí.",
+      "scoreConfidence": "· puntaje {{score}} · {{confidence}}",
+      "approve": "Aprobar",
+      "reject": "Rechazar",
+      "override": "Anular",
+      "reasonOptional": "Motivo (opcional)",
+      "rejectDialog": {
+        "title": "Rechazar lanzamiento",
+        "placeholder": "¿Por qué se rechaza este lanzamiento?"
+      },
+      "overrideDialog": {
+        "title": "Anular decisión",
+        "newDecision": "Nueva decisión",
+        "placeholder": "Explica la anulación manual"
+      },
+      "toast": {
+        "approved": "Aprobado",
+        "approveFailed": "No se pudo aprobar",
+        "rejected": "Rechazado",
+        "rejectFailed": "No se pudo rechazar",
+        "overridden": "Decisión anulada",
+        "overrideFailed": "No se pudo anular"
+      }
+    },
+    "recommendations": {
+      "loading": "Cargando recomendaciones…",
+      "error": "No se pudieron cargar las recomendaciones.",
+      "pendingApprovals": "Aprobaciones pendientes",
+      "qualityUpgrades": "Mejoras de calidad",
+      "noMatches": "Lista de seguimiento sin coincidencias",
+      "pendingEmpty": "No hay aprobaciones en espera.",
+      "upgradesEmpty": "No hay candidatos para mejorar.",
+      "noMatchesEmpty": "Cada elemento de la lista tiene coincidencias."
+    },
+    "history": {
+      "loading": "Cargando historial…",
+      "error": "No se pudo cargar el historial.",
+      "emptyTitle": "Aún no hay historial",
+      "emptyBody": "Los eventos de adquisición se registrarán aquí a medida que se tomen decisiones.",
+      "col": {
+        "event": "Evento",
+        "message": "Mensaje",
+        "when": "Cuándo"
+      }
+    },
+    "settings": {
+      "loading": "Cargando configuración…",
+      "error": "No se pudo cargar la configuración.",
+      "autoEvaluate": "Evaluar automáticamente los elementos de RSS",
+      "autoEvaluateHint": "Puntúa automáticamente los lanzamientos entrantes de RSS contra los perfiles.",
+      "defaultProfile": "Perfil predeterminado",
+      "approvalExpiry": "Vencimiento de aprobación (horas)",
+      "notify": "Notificar cuando se requiera aprobación",
+      "notifyHint": "Envía una notificación cada vez que un lanzamiento necesite una decisión humana.",
+      "save": "Guardar configuración",
+      "exportTitle": "Exportar datos",
+      "exportHint": "Descarga las evaluaciones, la lista de seguimiento y los perfiles como un archivo JSON.",
+      "exportButton": "Exportar JSON",
+      "toast": {
+        "saved": "Configuración guardada",
+        "saveFailed": "No se pudo guardar la configuración",
+        "exported": "Exportación descargada",
+        "exportFailed": "La exportación falló"
+      }
     }
   }
 }

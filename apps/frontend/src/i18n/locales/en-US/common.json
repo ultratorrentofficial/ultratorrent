@@ -8,12 +8,19 @@
     "edit": "Edit",
     "add": "Add",
     "remove": "Remove",
-    "retry": "Try again"
+    "retry": "Try again",
+    "reload": "Reload app"
   },
   "feedback": {
     "loading": "Loading…",
     "somethingWentWrong": "Something went wrong",
+    "unexpectedError": "An unexpected error occurred while rendering the app.",
     "noResults": "No results",
     "tryAgain": "Try again"
+  },
+  "a11y": {
+    "closeDialog": "Close dialog",
+    "closePanel": "Close panel",
+    "dismiss": "Dismiss"
   }
 }

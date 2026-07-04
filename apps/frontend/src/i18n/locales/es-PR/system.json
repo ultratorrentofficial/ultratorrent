@@ -1,0 +1,14 @@
+{
+  "notFound": {
+    "code": "404",
+    "title": "Página no encontrada",
+    "description": "La página que buscas no existe.",
+    "backToDashboard": "Volver al panel"
+  },
+  "errors": {
+    "network": "Error de red. Verifica tu conexión e inténtalo de nuevo.",
+    "permission": "No tienes permiso para hacer eso.",
+    "notFound": "No pudimos encontrar lo que buscabas.",
+    "generic": "Algo salió mal. Inténtalo de nuevo."
+  }
+}

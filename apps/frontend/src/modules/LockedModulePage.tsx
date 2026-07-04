@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Boxes, Lock } from 'lucide-react';
@@ -9,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { TierBadge, StateBadge } from './moduleUi';
 
 export function LockedModulePage({ moduleId }: { moduleId: string }) {
+  const { t } = useTranslation('modules');
   const navigate = useNavigate();
   const { user, hasPermission } = useAuth();
   const isSuperAdmin = user?.roles?.includes(SystemRole.SUPER_ADMIN) ?? false;
@@ -32,7 +34,7 @@ export function LockedModulePage({ moduleId }: { moduleId: string }) {
           </div>
 
           <div className="space-y-1.5">
-            <h1 className="text-xl font-bold tracking-tight">{title} is not available</h1>
+            <h1 className="text-xl font-bold tracking-tight">{t('locked.notAvailable', { title })}</h1>
             {module && (
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <TierBadge tier={module.tier} />
@@ -46,21 +48,18 @@ export function LockedModulePage({ moduleId }: { moduleId: string }) {
               <p className="max-w-md text-sm text-muted-foreground">{module.reason}</p>
               {module.unmetDependencies.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Unmet dependencies:{' '}
+                  {t('locked.unmetDependencies')}
                   <span className="font-mono text-warning">
                     {module.unmetDependencies.join(', ')}
                   </span>
                 </p>
               )}
               <Button variant="secondary" onClick={() => navigate('/modules')}>
-                <Boxes className="h-4 w-4" /> Manage modules
+                <Boxes className="h-4 w-4" /> {t('locked.manageModules')}
               </Button>
             </>
           ) : (
-            <p className="max-w-md text-sm text-muted-foreground">
-              This feature isn&apos;t enabled for your account. Contact an administrator if you think
-              you should have access.
-            </p>
+            <p className="max-w-md text-sm text-muted-foreground">{t('locked.noAccess')}</p>
           )}
         </CardContent>
       </Card>

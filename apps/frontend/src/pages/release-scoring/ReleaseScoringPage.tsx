@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
 import {
   Award,
@@ -28,12 +29,13 @@ import { cn } from '@/lib/utils';
 
 type BadgeVariant = NonNullable<BadgeProps['variant']>;
 
-const TRACKER_HEALTH_OPTIONS = [
-  { value: '', label: 'Unspecified' },
-  { value: 'healthy', label: 'Healthy' },
-  { value: 'degraded', label: 'Degraded' },
-  { value: 'dead', label: 'Dead' },
-];
+const TRACKER_HEALTH_VALUES = ['', 'healthy', 'degraded', 'dead'] as const;
+const TRACKER_HEALTH_KEYS: Record<string, string> = {
+  '': 'unspecified',
+  healthy: 'healthy',
+  degraded: 'degraded',
+  dead: 'dead',
+};
 
 function decisionVariant(decision: ReleaseDecision): BadgeVariant {
   switch (decision) {
@@ -86,22 +88,21 @@ const EMPTY_FORM: ScoringForm = {
 };
 
 export function ReleaseScoringPage() {
+  const { t } = useTranslation('rss');
   const [tab, setTab] = useState('score');
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Release Scoring</h1>
-        <p className="text-sm text-muted-foreground">
-          Score releases against your quality preferences and test them against download rules.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('scoring.page.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('scoring.page.subtitle')}</p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <div className="overflow-x-auto scrollbar-thin">
           <TabsList>
-            <TabsTrigger value="score">Score</TabsTrigger>
-            <TabsTrigger value="rule">Test against rule</TabsTrigger>
+            <TabsTrigger value="score">{t('scoring.tabs.score')}</TabsTrigger>
+            <TabsTrigger value="rule">{t('scoring.tabs.rule')}</TabsTrigger>
           </TabsList>
         </div>
         <div className="mt-4">
@@ -118,9 +119,15 @@ export function ReleaseScoringPage() {
 }
 
 function ScoringPanel({ mode }: { mode: 'score' | 'rule' }) {
+  const { t } = useTranslation('rss');
   const toast = useToast();
   const [form, setForm] = useState<ScoringForm>(EMPTY_FORM);
   const [result, setResult] = useState<ReleaseScoreResult | ReleaseTestRuleResult | null>(null);
+
+  const trackerHealthOptions = TRACKER_HEALTH_VALUES.map((value) => ({
+    value,
+    label: t(`scoring.trackerHealth.${TRACKER_HEALTH_KEYS[value]}` as 'scoring.trackerHealth.unspecified'),
+  }));
 
   const buildPreferences = (): Omit<ReleaseScoreInput, 'title'> => ({
     preferredResolution: form.preferredResolution.trim() || undefined,
@@ -150,13 +157,13 @@ function ScoringPanel({ mode }: { mode: 'score' | 'rule' }) {
     },
     onSuccess: (res) => setResult(res),
     onError: (err) =>
-      toast.error('Scoring failed', err instanceof ApiError ? err.message : undefined),
+      toast.error(t('scoring.toast.scoringFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) {
-      toast.error('Title required', 'Enter a release title to score.');
+      toast.error(t('scoring.toast.titleRequired'), t('scoring.toast.titleRequiredBody'));
       return;
     }
     mutation.mutate();
@@ -170,64 +177,64 @@ function ScoringPanel({ mode }: { mode: 'score' | 'rule' }) {
         <CardContent className="p-5">
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="rs-title">Release title</Label>
+              <Label htmlFor="rs-title">{t('scoring.form.title')}</Label>
               <Input
                 id="rs-title"
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="e.g. Some.Movie.2021.2160p.BluRay.x265-GROUP"
+                placeholder={t('scoring.form.titlePlaceholder')}
               />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="rs-res">Preferred resolution</Label>
+                <Label htmlFor="rs-res">{t('scoring.form.preferredResolution')}</Label>
                 <Input
                   id="rs-res"
                   value={form.preferredResolution}
                   onChange={(e) => setForm((f) => ({ ...f, preferredResolution: e.target.value }))}
-                  placeholder="e.g. 1080p"
+                  placeholder={t('scoring.form.preferredResolutionPlaceholder')}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="rs-codec">Preferred codec</Label>
+                <Label htmlFor="rs-codec">{t('scoring.form.preferredCodec')}</Label>
                 <Input
                   id="rs-codec"
                   value={form.preferredCodec}
                   onChange={(e) => setForm((f) => ({ ...f, preferredCodec: e.target.value }))}
-                  placeholder="e.g. x265"
+                  placeholder={t('scoring.form.preferredCodecPlaceholder')}
                 />
               </div>
             </div>
 
             <ChipInput
-              label="Preferred sources"
-              placeholder="e.g. BluRay, WEB-DL"
+              label={t('scoring.form.preferredSources')}
+              placeholder={t('scoring.form.preferredSourcesPlaceholder')}
               values={form.preferredSources}
               onChange={(values) => setForm((f) => ({ ...f, preferredSources: values }))}
             />
             <ChipInput
-              label="Preferred groups"
-              placeholder="Release group"
+              label={t('scoring.form.preferredGroups')}
+              placeholder={t('scoring.form.preferredGroupsPlaceholder')}
               values={form.preferredGroups}
               onChange={(values) => setForm((f) => ({ ...f, preferredGroups: values }))}
             />
             <ChipInput
-              label="Avoided groups"
-              placeholder="Release group to avoid"
+              label={t('scoring.form.avoidedGroups')}
+              placeholder={t('scoring.form.avoidedGroupsPlaceholder')}
               values={form.avoidedGroups}
               onChange={(values) => setForm((f) => ({ ...f, avoidedGroups: values }))}
             />
             <ChipInput
-              label="Excluded terms"
-              placeholder="e.g. CAM, HDTS"
+              label={t('scoring.form.excludedTerms')}
+              placeholder={t('scoring.form.excludedTermsPlaceholder')}
               values={form.excludedTerms}
               onChange={(values) => setForm((f) => ({ ...f, excludedTerms: values }))}
             />
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="rs-seeders">Seeders</Label>
+                <Label htmlFor="rs-seeders">{t('scoring.form.seeders')}</Label>
                 <Input
                   id="rs-seeders"
                   type="number"
@@ -236,19 +243,19 @@ function ScoringPanel({ mode }: { mode: 'score' | 'rule' }) {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="rs-tracker">Tracker health</Label>
+                <Label htmlFor="rs-tracker">{t('scoring.form.trackerHealthLabel')}</Label>
                 <Select
                   id="rs-tracker"
                   value={form.trackerHealth}
                   onChange={(e) => setForm((f) => ({ ...f, trackerHealth: e.target.value }))}
-                  options={TRACKER_HEALTH_OPTIONS}
+                  options={trackerHealthOptions}
                 />
               </div>
             </div>
 
             {mode === 'rule' && (
               <div className="space-y-1.5">
-                <Label htmlFor="rs-min">Minimum passing score</Label>
+                <Label htmlFor="rs-min">{t('scoring.form.minScore')}</Label>
                 <Input
                   id="rs-min"
                   type="number"
@@ -265,11 +272,12 @@ function ScoringPanel({ mode }: { mode: 'score' | 'rule' }) {
                 onChange={(e) => setForm((f) => ({ ...f, duplicateRisk: e.target.checked }))}
                 className="h-4 w-4 rounded border-input bg-white/[0.02]"
               />
-              Flag as duplicate risk
+              {t('scoring.form.duplicateRisk')}
             </label>
 
             <Button type="submit" loading={mutation.isPending}>
-              <Gauge className="h-4 w-4" /> {mode === 'score' ? 'Score release' : 'Test rule'}
+              <Gauge className="h-4 w-4" />{' '}
+              {mode === 'score' ? t('scoring.actions.scoreRelease') : t('scoring.actions.testRule')}
             </Button>
           </form>
         </CardContent>
@@ -285,10 +293,14 @@ function ScoringPanel({ mode }: { mode: 'score' | 'rule' }) {
                 <Award className="h-6 w-6" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-base font-semibold">No result yet</h3>
+                <h3 className="text-base font-semibold">{t('scoring.result.emptyTitle')}</h3>
                 <p className="text-sm text-muted-foreground">
-                  Fill in the form and {mode === 'score' ? 'score a release' : 'test a rule'} to see
-                  the breakdown.
+                  {t('scoring.result.emptyBody', {
+                    action:
+                      mode === 'score'
+                        ? t('scoring.result.emptyActionScore')
+                        : t('scoring.result.emptyActionRule'),
+                  })}
                 </p>
               </div>
             </CardContent>
@@ -306,13 +318,14 @@ function ResultPanel({
   result: ReleaseScoreResult | ReleaseTestRuleResult;
   ruleResult: ReleaseTestRuleResult | null;
 }) {
+  const { t } = useTranslation('rss');
   return (
     <Card>
       <CardContent className="space-y-4 p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Score
+              {t('scoring.result.scoreLabel')}
             </p>
             <p className={cn('text-4xl font-bold tabular-nums', scoreTone(result.score))}>
               {Math.round(result.score)}
@@ -333,9 +346,14 @@ function ResultPanel({
                 : 'border-destructive/30 bg-destructive/10 text-destructive',
             )}
           >
-            <span className="font-medium">{ruleResult.passed ? 'Passed' : 'Failed'}</span>
+            <span className="font-medium">
+              {ruleResult.passed ? t('scoring.result.passed') : t('scoring.result.failed')}
+            </span>
             <span className="text-xs tabular-nums">
-              {Math.round(ruleResult.score)} vs min {ruleResult.minScore}
+              {t('scoring.result.vsMin', {
+                score: Math.round(ruleResult.score),
+                min: ruleResult.minScore,
+              })}
             </span>
           </div>
         )}
@@ -343,7 +361,7 @@ function ResultPanel({
         {result.reasons.length > 0 && (
           <div className="space-y-1.5">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Reasons
+              {t('scoring.result.reasons')}
             </p>
             <ul className="space-y-1.5">
               {result.reasons.map((reason, i) => {
@@ -370,7 +388,7 @@ function ResultPanel({
         {result.warnings.length > 0 && (
           <div className="space-y-1.5">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Warnings
+              {t('scoring.result.warnings')}
             </p>
             <ul className="space-y-1.5">
               {result.warnings.map((warning, i) => (
@@ -398,6 +416,7 @@ function ChipInput({
   values: string[];
   onChange: (values: string[]) => void;
 }) {
+  const { t } = useTranslation('rss');
   const [draft, setDraft] = useState('');
 
   const commit = () => {
@@ -419,7 +438,7 @@ function ChipInput({
             <button
               type="button"
               onClick={() => onChange(values.filter((v) => v !== value))}
-              aria-label={`Remove ${value}`}
+              aria-label={t('scoring.chip.remove', { value })}
               className="text-muted-foreground transition-colors hover:text-destructive"
             >
               <X className="h-3 w-3" />

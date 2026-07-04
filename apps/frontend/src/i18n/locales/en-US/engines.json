@@ -1,0 +1,75 @@
+{
+  "page": {
+    "title": "Torrent Engines",
+    "subtitle": "Connect UltraTorrent to one or more torrent clients. The default engine powers the Torrents view."
+  },
+  "actions": {
+    "addEngine": "Add engine",
+    "setDefault": "Set as default",
+    "editEngine": "Edit engine",
+    "deleteEngine": "Delete engine",
+    "cancel": "Cancel"
+  },
+  "list": {
+    "loading": "Loading engines…",
+    "error": "Could not load engines."
+  },
+  "empty": {
+    "title": "No engines configured",
+    "description": "Add a torrent engine (e.g. rTorrent) so UltraTorrent can list and manage torrents.",
+    "action": "Add your first engine"
+  },
+  "badge": {
+    "default": "default",
+    "disabled": "disabled"
+  },
+  "health": {
+    "online": "online",
+    "offline": "offline"
+  },
+  "confirm": {
+    "delete": "Delete engine \"{{name}}\"? Torrents on it stay on the engine itself."
+  },
+  "toast": {
+    "removed": "Engine removed",
+    "removeFailed": "Could not remove engine",
+    "defaultUpdated": "Default engine updated",
+    "defaultFailed": "Could not set default",
+    "updated": "Engine updated",
+    "added": "Engine added",
+    "updateFailed": "Could not update engine",
+    "addFailed": "Could not add engine"
+  },
+  "kinds": {
+    "rtorrent": "rTorrent",
+    "qbittorrent": "qBittorrent (coming soon)",
+    "transmission": "Transmission (coming soon)",
+    "deluge": "Deluge (coming soon)"
+  },
+  "modes": {
+    "scgiTcp": "SCGI over TCP (host + port)",
+    "scgiUnix": "SCGI over Unix socket",
+    "http": "HTTP / XML-RPC URL"
+  },
+  "dialog": {
+    "addTitle": "Add engine",
+    "editTitle": "Edit {{name}}",
+    "description": "For the bundled Docker rTorrent, use SCGI over TCP with host <code>rtorrent</code> and port <code>5000</code>.",
+    "name": "Name",
+    "namePlaceholder": "Local rTorrent",
+    "client": "Client",
+    "connection": "Connection",
+    "socketPath": "Socket path",
+    "url": "XML-RPC URL",
+    "host": "Host",
+    "port": "Port",
+    "timeout": "Timeout (ms)",
+    "defaultEngine": "Default engine",
+    "enabled": "Enabled",
+    "testConnection": "Test connection",
+    "saveChanges": "Save changes",
+    "testConnected": "Connected",
+    "testNoResponse": "Engine did not respond.",
+    "testFailed": "Test failed."
+  }
+}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CircleCheck,
@@ -36,20 +37,15 @@ import {
 } from '@/components/ui/dialog';
 import { CenteredSpinner, EmptyState, ErrorState, Spinner } from '@/components/ui/feedback';
 
-const KIND_OPTIONS = [
-  { value: 'rtorrent', label: 'rTorrent' },
-  { value: 'qbittorrent', label: 'qBittorrent (coming soon)', disabled: true },
-  { value: 'transmission', label: 'Transmission (coming soon)', disabled: true },
-  { value: 'deluge', label: 'Deluge (coming soon)', disabled: true },
-];
-
-const MODE_OPTIONS: { value: EngineMode; label: string }[] = [
-  { value: 'scgi-tcp', label: 'SCGI over TCP (host + port)' },
-  { value: 'scgi-unix', label: 'SCGI over Unix socket' },
-  { value: 'http', label: 'HTTP / XML-RPC URL' },
+const KIND_OPTIONS: { value: string; disabled?: boolean }[] = [
+  { value: 'rtorrent' },
+  { value: 'qbittorrent', disabled: true },
+  { value: 'transmission', disabled: true },
+  { value: 'deluge', disabled: true },
 ];
 
 export function EnginesPage() {
+  const { t } = useTranslation('engines');
   const toast = useToast();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
@@ -70,24 +66,23 @@ export function EnginesPage() {
   };
 
   const remove = async (engine: EngineSummary) => {
-    if (!confirm(`Delete engine "${engine.name}"? Torrents on it stay on the engine itself.`))
-      return;
+    if (!confirm(t('confirm.delete', { name: engine.name }))) return;
     try {
       await api.engines.remove(engine.id);
-      toast.success('Engine removed', engine.name);
+      toast.success(t('toast.removed'), engine.name);
       invalidate();
     } catch (err) {
-      toast.error('Could not remove engine', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.removeFailed'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
   const makeDefault = async (engine: EngineSummary) => {
     try {
       await api.engines.update(engine.id, { isDefault: true });
-      toast.success('Default engine updated', engine.name);
+      toast.success(t('toast.defaultUpdated'), engine.name);
       invalidate();
     } catch (err) {
-      toast.error('Could not set default', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.defaultFailed'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
@@ -95,34 +90,31 @@ export function EnginesPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Torrent Engines</h1>
-          <p className="text-sm text-muted-foreground">
-            Connect UltraTorrent to one or more torrent clients. The default engine powers the
-            Torrents view.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('page.subtitle')}</p>
         </div>
         {canManage && (
           <Button onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" /> Add engine
+            <Plus className="h-4 w-4" /> {t('actions.addEngine')}
           </Button>
         )}
       </div>
 
       {isLoading ? (
-        <CenteredSpinner label="Loading engines…" />
+        <CenteredSpinner label={t('list.loading')} />
       ) : isError ? (
-        <ErrorState message="Could not load engines." onRetry={() => refetch()} />
+        <ErrorState message={t('list.error')} onRetry={() => refetch()} />
       ) : !data || data.length === 0 ? (
         <Card>
           <CardContent>
             <EmptyState
               icon={<Cpu className="h-6 w-6" />}
-              title="No engines configured"
-              description="Add a torrent engine (e.g. rTorrent) so UltraTorrent can list and manage torrents."
+              title={t('empty.title')}
+              description={t('empty.description')}
               action={
                 canManage ? (
                   <Button onClick={() => setCreating(true)}>
-                    <Plus className="h-4 w-4" /> Add your first engine
+                    <Plus className="h-4 w-4" /> {t('empty.action')}
                   </Button>
                 ) : undefined
               }
@@ -140,10 +132,10 @@ export function EnginesPage() {
                     <Badge variant="info">{engine.kind}</Badge>
                     {engine.isDefault && (
                       <Badge variant="success" dot>
-                        default
+                        {t('badge.default')}
                       </Badge>
                     )}
-                    {!engine.isEnabled && <Badge variant="secondary">disabled</Badge>}
+                    {!engine.isEnabled && <Badge variant="secondary">{t('badge.disabled')}</Badge>}
                     <HealthBadge engineId={engine.id} enabled={engine.isEnabled} />
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -165,8 +157,8 @@ export function EnginesPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label="Set as default"
-                        title="Set as default"
+                        aria-label={t('actions.setDefault')}
+                        title={t('actions.setDefault')}
                         onClick={() => makeDefault(engine)}
                       >
                         <Star className="h-4 w-4" />
@@ -175,7 +167,7 @@ export function EnginesPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="Edit engine"
+                      aria-label={t('actions.editEngine')}
                       onClick={() => setEditing(engine)}
                     >
                       <Pencil className="h-4 w-4" />
@@ -183,7 +175,7 @@ export function EnginesPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="Delete engine"
+                      aria-label={t('actions.deleteEngine')}
                       onClick={() => remove(engine)}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
@@ -215,6 +207,7 @@ export function EnginesPage() {
 }
 
 function HealthBadge({ engineId, enabled }: { engineId: string; enabled: boolean }) {
+  const { t } = useTranslation('engines');
   const { data, isLoading, isError } = useQuery({
     queryKey: ['engine-health', engineId],
     queryFn: () => api.engines.health(engineId),
@@ -228,13 +221,13 @@ function HealthBadge({ engineId, enabled }: { engineId: string; enabled: boolean
   if (isError || !data?.online) {
     return (
       <Badge variant="destructive" dot>
-        <CircleX className="h-3 w-3" /> offline
+        <CircleX className="h-3 w-3" /> {t('health.offline')}
       </Badge>
     );
   }
   return (
     <Badge variant="success" dot>
-      <CircleCheck className="h-3 w-3" /> online
+      <CircleCheck className="h-3 w-3" /> {t('health.online')}
       {data.latencyMs != null && (
         <span className="text-muted-foreground">· {data.latencyMs}ms</span>
       )}
@@ -258,8 +251,20 @@ function EngineDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation('engines');
   const toast = useToast();
   const isEdit = !!engine;
+  const kindLabels: Record<string, string> = {
+    rtorrent: t('kinds.rtorrent'),
+    qbittorrent: t('kinds.qbittorrent'),
+    transmission: t('kinds.transmission'),
+    deluge: t('kinds.deluge'),
+  };
+  const modeOptions: { value: EngineMode; label: string }[] = [
+    { value: 'scgi-tcp', label: t('modes.scgiTcp') },
+    { value: 'scgi-unix', label: t('modes.scgiUnix') },
+    { value: 'http', label: t('modes.http') },
+  ];
   const [name, setName] = useState(engine?.name ?? '');
   const [kind, setKind] = useState(engine?.kind ?? 'rtorrent');
   const [mode, setMode] = useState<EngineMode>(engine?.mode ?? DEFAULTS.mode);
@@ -305,14 +310,14 @@ function EngineDialog({
         res.online
           ? {
               ok: true,
-              text: `Connected${res.version ? ` — ${res.version}` : ''}${
+              text: `${t('dialog.testConnected')}${res.version ? ` — ${res.version}` : ''}${
                 res.latencyMs != null ? ` (${res.latencyMs}ms)` : ''
               }`,
             }
-          : { ok: false, text: res.error ?? 'Engine did not respond.' },
+          : { ok: false, text: res.error ?? t('dialog.testNoResponse') },
       );
     } catch (err) {
-      setTestResult({ ok: false, text: err instanceof ApiError ? err.message : 'Test failed.' });
+      setTestResult({ ok: false, text: err instanceof ApiError ? err.message : t('dialog.testFailed') });
     } finally {
       setTesting(false);
     }
@@ -329,7 +334,7 @@ function EngineDialog({
           isEnabled,
         };
         await api.engines.update(engine.id, body);
-        toast.success('Engine updated', name.trim());
+        toast.success(t('toast.updated'), name.trim());
       } else {
         const body: CreateEngineInput = {
           name: name.trim(),
@@ -339,12 +344,12 @@ function EngineDialog({
           isEnabled,
         };
         await api.engines.create(body);
-        toast.success('Engine added', name.trim());
+        toast.success(t('toast.added'), name.trim());
       }
       onSaved();
     } catch (err) {
       toast.error(
-        isEdit ? 'Could not update engine' : 'Could not add engine',
+        isEdit ? t('toast.updateFailed') : t('toast.addFailed'),
         err instanceof ApiError ? err.message : undefined,
       );
     } finally {
@@ -355,25 +360,26 @@ function EngineDialog({
   return (
     <Dialog open onClose={onClose} className="max-w-lg">
       <DialogHeader>
-        <DialogTitle>{isEdit ? `Edit ${engine?.name}` : 'Add engine'}</DialogTitle>
+        <DialogTitle>
+          {isEdit ? t('dialog.editTitle', { name: engine?.name }) : t('dialog.addTitle')}
+        </DialogTitle>
         <DialogDescription>
-          For the bundled Docker rTorrent, use SCGI over TCP with host <code>rtorrent</code> and
-          port <code>5000</code>.
+          <Trans t={t} i18nKey="dialog.description" components={{ code: <code /> }} />
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <Label htmlFor="e-name">Name</Label>
+            <Label htmlFor="e-name">{t('dialog.name')}</Label>
             <Input
               id="e-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Local rTorrent"
+              placeholder={t('dialog.namePlaceholder')}
             />
           </div>
           <div>
-            <Label htmlFor="e-kind">Client</Label>
+            <Label htmlFor="e-kind">{t('dialog.client')}</Label>
             <Select
               id="e-kind"
               value={kind}
@@ -382,7 +388,7 @@ function EngineDialog({
             >
               {KIND_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value} disabled={o.disabled}>
-                  {o.label}
+                  {kindLabels[o.value]}
                 </option>
               ))}
             </Select>
@@ -390,18 +396,18 @@ function EngineDialog({
         </div>
 
         <div>
-          <Label htmlFor="e-mode">Connection</Label>
+          <Label htmlFor="e-mode">{t('dialog.connection')}</Label>
           <Select
             id="e-mode"
             value={mode}
             onChange={(e) => setMode(e.target.value as EngineMode)}
-            options={MODE_OPTIONS}
+            options={modeOptions}
           />
         </div>
 
         {mode === 'scgi-unix' ? (
           <div>
-            <Label htmlFor="e-socket">Socket path</Label>
+            <Label htmlFor="e-socket">{t('dialog.socketPath')}</Label>
             <Input
               id="e-socket"
               value={socketPath}
@@ -412,7 +418,7 @@ function EngineDialog({
           </div>
         ) : mode === 'http' ? (
           <div>
-            <Label htmlFor="e-url">XML-RPC URL</Label>
+            <Label htmlFor="e-url">{t('dialog.url')}</Label>
             <Input
               id="e-url"
               value={url}
@@ -424,7 +430,7 @@ function EngineDialog({
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="e-host">Host</Label>
+              <Label htmlFor="e-host">{t('dialog.host')}</Label>
               <Input
                 id="e-host"
                 value={host}
@@ -434,7 +440,7 @@ function EngineDialog({
               />
             </div>
             <div>
-              <Label htmlFor="e-port">Port</Label>
+              <Label htmlFor="e-port">{t('dialog.port')}</Label>
               <Input
                 id="e-port"
                 type="number"
@@ -447,7 +453,7 @@ function EngineDialog({
         )}
 
         <div>
-          <Label htmlFor="e-timeout">Timeout (ms)</Label>
+          <Label htmlFor="e-timeout">{t('dialog.timeout')}</Label>
           <Input
             id="e-timeout"
             type="number"
@@ -459,11 +465,11 @@ function EngineDialog({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-            <Label htmlFor="e-default">Default engine</Label>
+            <Label htmlFor="e-default">{t('dialog.defaultEngine')}</Label>
             <Switch id="e-default" checked={isDefault} onCheckedChange={setIsDefault} />
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-            <Label htmlFor="e-enabled">Enabled</Label>
+            <Label htmlFor="e-enabled">{t('dialog.enabled')}</Label>
             <Switch id="e-enabled" checked={isEnabled} onCheckedChange={setIsEnabled} />
           </div>
         </div>
@@ -487,14 +493,14 @@ function EngineDialog({
       </div>
       <DialogFooter className="sm:justify-between">
         <Button variant="ghost" onClick={runTest} loading={testing} disabled={!connectionValid}>
-          Test connection
+          {t('dialog.testConnection')}
         </Button>
         <div className="flex items-center gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('actions.cancel')}
           </Button>
           <Button onClick={submit} loading={saving} disabled={!valid}>
-            {isEdit ? 'Save changes' : 'Add engine'}
+            {isEdit ? t('dialog.saveChanges') : t('dialog.addTitle')}
           </Button>
         </div>
       </DialogFooter>
