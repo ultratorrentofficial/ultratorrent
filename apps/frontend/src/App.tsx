@@ -25,6 +25,7 @@ import { MediaUnmatchedPage } from '@/pages/media-manager/MediaUnmatchedPage';
 import { MediaDuplicatesPage } from '@/pages/media-manager/MediaDuplicatesPage';
 import { MediaRenamePreviewPage } from '@/pages/media-manager/MediaRenamePreviewPage';
 import { MediaSettingsPage } from '@/pages/media-manager/MediaSettingsPage';
+import { MediaImdbSettingsPage } from '@/pages/media-manager/MediaImdbSettingsPage';
 import { ModulesPage } from '@/pages/ModulesPage';
 import { EnginesPage } from '@/pages/engines/EnginesPage';
 import { MediaAcquisitionPage } from '@/pages/media-acquisition/MediaAcquisitionPage';
@@ -163,6 +164,14 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_manager">
                             <MediaSettingsPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/settings/imdb"
+                        element={
+                          <ModuleRoute moduleId="media_manager">
+                            <MediaImdbSettingsPage />
                           </ModuleRoute>
                         }
                       />

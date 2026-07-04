@@ -1131,6 +1131,159 @@ export interface MediaServerRefreshResult {
   lastRefreshAt: string | null;
 }
 
+// --- IMDb metadata provider — /api/media/providers/imdb --------------------
+
+export type ImdbMode = 'disabled' | 'dataset' | 'official_api' | 'hybrid';
+
+/** IMDb title kinds accepted by the search endpoint. */
+export type ImdbTitleKind = 'movie' | 'tv' | 'episode' | 'any';
+
+export interface ImdbProviderCapabilities {
+  source: ImdbMode;
+  available: boolean;
+  methods: Record<string, boolean>;
+}
+
+/** GET providers/imdb/status. */
+export interface ImdbStatus {
+  source: ImdbMode;
+  available: boolean;
+  datasetTitleCount: number;
+  apiConfigured?: boolean;
+  detail?: string;
+  capabilities: ImdbProviderCapabilities;
+  lastImport: {
+    id: string;
+    status: string;
+    recordsImported: number;
+    completedAt: string | null;
+    datasetDate: string | null;
+  } | null;
+}
+
+/** GET/PATCH providers/imdb/settings (secret redacted on read). */
+export interface ImdbSettings {
+  mode: ImdbMode;
+  apiBaseUrl: string | null;
+  /** Redacted placeholder ("••••••••") or null on read; write-only otherwise. */
+  apiKey: string | null;
+  datasetPath: string | null;
+  importSchedule: string | null;
+  preferredRegion: string | null;
+  preferredLanguage: string | null;
+  includeAdult: boolean;
+  minVotes: number;
+  cacheTtl: number;
+  hasApiKey: boolean;
+}
+
+export interface ImdbSettingsInput {
+  mode?: ImdbMode;
+  apiBaseUrl?: string | null;
+  /** Omit or send the redacted placeholder to keep the stored key. */
+  apiKey?: string | null;
+  datasetPath?: string | null;
+  importSchedule?: string | null;
+  preferredRegion?: string | null;
+  preferredLanguage?: string | null;
+  includeAdult?: boolean;
+  minVotes?: number;
+  cacheTtl?: number;
+}
+
+export interface ImdbApiTestResult {
+  apiConfigured: boolean;
+  available: boolean;
+}
+
+export interface ImdbDatasetFileReport {
+  file: string;
+  key: string;
+  present: boolean;
+  gzipOk: boolean;
+  headerOk: boolean;
+  sizeBytes: number | null;
+  error?: string;
+}
+
+export interface ImdbDatasetValidationReport {
+  datasetPath: string;
+  valid: boolean;
+  filesFound: number;
+  files: ImdbDatasetFileReport[];
+  hasMinimum: boolean;
+}
+
+/** A dataset import record (GET dataset/imports, POST dataset/import). */
+export interface ImdbDatasetImport {
+  id: string;
+  status: string; // pending | validating | running | completed | failed
+  sourcePath: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  failedAt: string | null;
+  errorMessage: string | null;
+  filesImported: string[];
+  recordsImported: number;
+  datasetDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImdbSearchInput {
+  title: string;
+  year?: number;
+  type?: ImdbTitleKind;
+  season?: number;
+  episode?: number;
+}
+
+/** A single scored IMDb search hit (GET search). */
+export interface ImdbSearchResult {
+  tconst: string;
+  titleType: string;
+  primaryTitle: string;
+  originalTitle: string;
+  year: number | null;
+  isAdult: boolean;
+  genres: string[];
+  rating: number | null;
+  numVotes: number | null;
+  /** 0..1 confidence this hit matches the query. */
+  confidence: number;
+}
+
+/** GET title/:imdbId — full IMDb title details plus a public link. */
+export interface ImdbTitle {
+  title?: string;
+  originalTitle?: string | null;
+  overview?: string;
+  year?: number;
+  runtime?: number;
+  genres?: string[];
+  directors?: string[];
+  writers?: string[];
+  cast?: Array<{ name: string; role?: string }>;
+  rating?: number;
+  providerName?: string;
+  externalIds?: Record<string, string>;
+  imdbUrl: string;
+}
+
+/** POST items/:id/match/imdb body. */
+export interface ImdbMatchInput {
+  imdbId: string;
+  confidence?: number;
+}
+
+/** POST items/:id/match/imdb response. */
+export interface ImdbMatchResult {
+  item: MediaItem;
+  imdbId: string;
+  rating: number | null;
+  matched: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Media Renamer Pro (Milestone 6) — /api/media-renamer
 // ---------------------------------------------------------------------------
@@ -2119,6 +2272,45 @@ export const api = {
     },
     history(): Promise<MediaRenameOperation[]> {
       return request<MediaRenameOperation[]>('/media/history');
+    },
+    // --- IMDb provider ----------------------------------------------------
+    imdbStatus(): Promise<ImdbStatus> {
+      return request<ImdbStatus>('/media/providers/imdb/status');
+    },
+    imdbSettings(): Promise<ImdbSettings> {
+      return request<ImdbSettings>('/media/providers/imdb/settings');
+    },
+    updateImdbSettings(body: ImdbSettingsInput): Promise<ImdbSettings> {
+      return request<ImdbSettings>('/media/providers/imdb/settings', { method: 'PATCH', body });
+    },
+    testImdbApi(): Promise<ImdbApiTestResult> {
+      return request<ImdbApiTestResult>('/media/providers/imdb/test', { method: 'POST' });
+    },
+    validateImdbDataset(body: { datasetPath?: string }): Promise<ImdbDatasetValidationReport> {
+      return request<ImdbDatasetValidationReport>('/media/providers/imdb/dataset/validate', {
+        method: 'POST',
+        body,
+      });
+    },
+    importImdbDataset(body: { datasetPath?: string }): Promise<ImdbDatasetImport> {
+      return request<ImdbDatasetImport>('/media/providers/imdb/dataset/import', {
+        method: 'POST',
+        body,
+      });
+    },
+    imdbImports(): Promise<ImdbDatasetImport[]> {
+      return request<ImdbDatasetImport[]>('/media/providers/imdb/dataset/imports');
+    },
+    imdbSearch(query: ImdbSearchInput): Promise<ImdbSearchResult[]> {
+      return request<ImdbSearchResult[]>('/media/providers/imdb/search', {
+        query: query as unknown as QueryParams,
+      });
+    },
+    imdbTitle(imdbId: string): Promise<ImdbTitle> {
+      return request<ImdbTitle>(`/media/providers/imdb/title/${encodeURIComponent(imdbId)}`);
+    },
+    matchItemImdb(itemId: string, body: ImdbMatchInput): Promise<ImdbMatchResult> {
+      return request<ImdbMatchResult>(`/media/items/${itemId}/match/imdb`, { method: 'POST', body });
     },
   },
 

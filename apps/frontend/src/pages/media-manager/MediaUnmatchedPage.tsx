@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, RotateCw, Search } from 'lucide-react';
+import { CheckCircle2, Film, RotateCw, Search, Star } from 'lucide-react';
 import {
   ApiError,
   api,
+  type ImdbSearchResult,
   type MediaItem,
   type MediaItemType,
   type MediaManualMatchInput,
 } from '@/lib/api';
+import { formatNumber } from '@/lib/format';
 import { useAuth } from '@/auth/AuthContext';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { useToast } from '@/components/ui/toast';
@@ -184,6 +186,9 @@ function ManualMatchDialog({
   onMatched: () => void;
 }) {
   const toast = useToast();
+  const { hasPermission } = useAuth();
+  const canImdbSearch = hasPermission(PERMISSIONS.MEDIA_MANAGER_IMDB_SEARCH);
+  const canImdbMatch = hasPermission(PERMISSIONS.MEDIA_MANAGER_IMDB_MATCH);
   const [title, setTitle] = useState(item.title);
   const [type, setType] = useState<MediaItemType>(item.mediaType);
   const [year, setYear] = useState(item.year != null ? String(item.year) : '');
@@ -208,12 +213,22 @@ function ManualMatchDialog({
     onError: (err) => toast.error('Could not match', err instanceof ApiError ? err.message : undefined),
   });
 
+  const imdbMatch = useMutation({
+    mutationFn: (result: ImdbSearchResult) =>
+      api.media.matchItemImdb(item.id, { imdbId: result.tconst, confidence: result.confidence }),
+    onSuccess: (res) => {
+      toast.success('Matched with IMDb', res.item.title);
+      onMatched();
+    },
+    onError: (err) => toast.error('Could not match', err instanceof ApiError ? err.message : undefined),
+  });
+
   return (
-    <Dialog open onClose={onClose} className="max-w-lg">
+    <Dialog open onClose={onClose} className="max-w-2xl">
       <DialogHeader>
         <DialogTitle>Match manually</DialogTitle>
         <DialogDescription>
-          Provide the correct identity for this item. It will be marked as manually matched.
+          Provide the correct identity for this item, or pick an IMDb suggestion below.
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2">
@@ -244,6 +259,18 @@ function ManualMatchDialog({
             <Input id="mm-episode" type="number" value={episode} onChange={(e) => setEpisode(e.target.value)} />
           </div>
         </div>
+
+        {canImdbSearch && (
+          <ImdbSuggestions
+            title={title}
+            year={year}
+            type={type}
+            canMatch={canImdbMatch}
+            onSelect={(r) => imdbMatch.mutate(r)}
+            selectingId={imdbMatch.isPending ? imdbMatch.variables?.tconst : undefined}
+            disabled={imdbMatch.isPending}
+          />
+        )}
       </div>
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
@@ -254,5 +281,106 @@ function ManualMatchDialog({
         </Button>
       </DialogFooter>
     </Dialog>
+  );
+}
+
+/** IMDb match suggestions for the manual-match flow. */
+function ImdbSuggestions({
+  title,
+  year,
+  type,
+  canMatch,
+  onSelect,
+  selectingId,
+  disabled,
+}: {
+  title: string;
+  year: string;
+  type: MediaItemType;
+  canMatch: boolean;
+  onSelect: (result: ImdbSearchResult) => void;
+  selectingId: string | undefined;
+  disabled: boolean;
+}) {
+  const imdbType = type === 'tv' || type === 'anime' ? 'tv' : type === 'movie' ? 'movie' : 'any';
+  const search = useQuery({
+    queryKey: ['media', 'imdb', 'search', { title: title.trim(), year, imdbType }],
+    queryFn: () =>
+      api.media.imdbSearch({
+        title: title.trim(),
+        year: year.trim() ? Number(year) : undefined,
+        type: imdbType,
+      }),
+    enabled: title.trim().length > 1,
+  });
+
+  const results = search.data ?? [];
+
+  return (
+    <div className="space-y-2 border-t border-border/60 pt-4">
+      <div className="flex items-center gap-2">
+        <Film className="h-4 w-4 text-muted-foreground" />
+        <p className="text-sm font-semibold">IMDb suggestions</p>
+      </div>
+      <div className="max-h-[32vh] overflow-y-auto scrollbar-thin">
+        {title.trim().length <= 1 ? (
+          <p className="py-4 text-center text-xs text-muted-foreground">
+            Enter a title above to see IMDb suggestions.
+          </p>
+        ) : search.isLoading || search.isFetching ? (
+          <CenteredSpinner label="Searching IMDb…" />
+        ) : search.isError ? (
+          <ErrorState message="IMDb search failed." onRetry={() => search.refetch()} />
+        ) : results.length === 0 ? (
+          <EmptyState
+            icon={<Film className="h-6 w-6" />}
+            title="No IMDb matches"
+            description="Adjust the title, year, or type to refine the search."
+          />
+        ) : (
+          <ul className="divide-y divide-border/40">
+            {results.map((r) => (
+              <li key={r.tconst} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="truncate font-medium">{r.primaryTitle}</span>
+                    {r.year != null && (
+                      <span className="text-xs text-muted-foreground">({r.year})</span>
+                    )}
+                    <Badge variant="warning">IMDb</Badge>
+                    <Badge variant="secondary">{r.titleType}</Badge>
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-mono">{r.tconst}</span>
+                    {r.rating != null && (
+                      <span className="flex items-center gap-0.5">
+                        <Star className="h-3 w-3 text-warning" /> {r.rating.toFixed(1)}
+                      </span>
+                    )}
+                    {r.numVotes != null && <span>{formatNumber(r.numVotes)} votes</span>}
+                    <Badge
+                      variant={r.confidence >= 0.75 ? 'success' : r.confidence >= 0.5 ? 'info' : 'secondary'}
+                    >
+                      {Math.round(r.confidence * 100)}% match
+                    </Badge>
+                  </div>
+                </div>
+                {canMatch && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onSelect(r)}
+                    loading={selectingId === r.tconst}
+                    disabled={disabled}
+                  >
+                    Select
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }

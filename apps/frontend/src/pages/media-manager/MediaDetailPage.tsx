@@ -2,12 +2,16 @@ import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ExternalLink,
   FileText,
+  Film,
   History,
   Image as ImageIcon,
   RotateCw,
   Save,
+  Search,
   Sparkles,
+  Star,
   Subtitles,
   Undo2,
   Upload,
@@ -15,12 +19,13 @@ import {
 import {
   ApiError,
   api,
+  type ImdbSearchResult,
   type MediaArtwork,
   type MediaItemDetail,
   type MediaMetadata,
   type MediaMetadataUpdateInput,
 } from '@/lib/api';
-import { formatBytes } from '@/lib/format';
+import { formatBytes, formatNumber } from '@/lib/format';
 import { useAuth } from '@/auth/AuthContext';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { useToast } from '@/components/ui/toast';
@@ -37,10 +42,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Select } from '@/components/ui/select';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import {
   ARTWORK_TYPE_OPTIONS,
+  IMDB_TITLE_KIND_OPTIONS,
   artworkTypeLabel,
+  imdbTitleUrl,
   matchStatusLabel,
   matchStatusVariant,
   mediaTypeLabel,
@@ -171,6 +186,7 @@ function OverviewTab({ item }: { item: MediaItemDetail }) {
   });
 
   return (
+    <div className="space-y-4">
     <Card>
       <CardContent className="space-y-5 p-5">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -219,6 +235,259 @@ function OverviewTab({ item }: { item: MediaItemDetail }) {
         )}
       </CardContent>
     </Card>
+    <ImdbPanel item={item} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// IMDb
+// ---------------------------------------------------------------------------
+
+function ImdbPanel({ item }: { item: MediaItemDetail }) {
+  const { hasPermission } = useAuth();
+  const canMatch = hasPermission(PERMISSIONS.MEDIA_MANAGER_IMDB_MATCH);
+  const canView = hasPermission(PERMISSIONS.MEDIA_MANAGER_IMDB_VIEW);
+  const [matching, setMatching] = useState(false);
+
+  const imdbExternal = item.externalIds.find((x) => x.provider === 'imdb');
+  const imdbId = imdbExternal?.externalId ?? null;
+  const meta = item.metadata;
+  const isImdbRating = meta?.providerName === 'imdb' && meta.rating != null;
+
+  // Show nothing when there's no IMDb linkage and the user can't act on it.
+  if (!imdbId && !canView && !canMatch) return null;
+
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Film className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-base font-semibold">IMDb</h2>
+          </div>
+          {canMatch && (
+            <Button size="sm" variant="outline" onClick={() => setMatching(true)}>
+              <Search className="h-4 w-4" /> Match with IMDb
+            </Button>
+          )}
+        </div>
+
+        {imdbId ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Field
+              label="IMDb ID"
+              value={
+                <span className="flex items-center gap-1.5">
+                  <span className="font-mono text-xs">{imdbId}</span>
+                  <Badge variant="warning">IMDb</Badge>
+                </span>
+              }
+            />
+            {isImdbRating && (
+              <Field
+                label="IMDb rating"
+                value={
+                  <span className="flex items-center gap-1.5">
+                    <Star className="h-4 w-4 text-warning" />
+                    <span className="tabular-nums">{meta!.rating!.toFixed(1)}</span>
+                    <span className="text-xs text-muted-foreground">/ 10</span>
+                  </span>
+                }
+              />
+            )}
+            <Field
+              label="Link"
+              value={
+                <a
+                  href={imdbExternal?.url ?? imdbTitleUrl(imdbId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-info hover:underline"
+                >
+                  Open on IMDb <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              }
+            />
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            This item is not linked to an IMDb title
+            {canMatch ? ' — use “Match with IMDb” to search and link one.' : '.'}
+          </p>
+        )}
+      </CardContent>
+
+      {matching && (
+        <ImdbMatchDialog item={item} onClose={() => setMatching(false)} />
+      )}
+    </Card>
+  );
+}
+
+function ImdbMatchDialog({ item, onClose }: { item: MediaItemDetail; onClose: () => void }) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState(item.title);
+  const [year, setYear] = useState(item.year != null ? String(item.year) : '');
+  const [type, setType] = useState<string>(
+    item.mediaType === 'tv' || item.mediaType === 'anime' ? 'tv' : item.mediaType === 'movie' ? 'movie' : 'any',
+  );
+  const [submitted, setSubmitted] = useState(false);
+
+  const search = useQuery({
+    queryKey: ['media', 'imdb', 'search', { title, year, type }],
+    queryFn: () =>
+      api.media.imdbSearch({
+        title: title.trim(),
+        year: year.trim() ? Number(year) : undefined,
+        type: (type as 'movie' | 'tv' | 'episode' | 'any') || undefined,
+      }),
+    enabled: submitted && title.trim().length > 0,
+  });
+
+  const match = useMutation({
+    mutationFn: (result: ImdbSearchResult) =>
+      api.media.matchItemImdb(item.id, { imdbId: result.tconst, confidence: result.confidence }),
+    onSuccess: (res) => {
+      toast.success('Matched with IMDb', res.item.title);
+      queryClient.invalidateQueries({ queryKey: ['media', 'items', item.id] });
+      onClose();
+    },
+    onError: (err) => toast.error('Could not match', err instanceof ApiError ? err.message : undefined),
+  });
+
+  const results = search.data ?? [];
+
+  return (
+    <Dialog open onClose={onClose} className="max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Match with IMDb</DialogTitle>
+        <DialogDescription>
+          Search the IMDb provider and pick the correct title to link this item.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 py-2">
+        <div className="grid gap-3 sm:grid-cols-[1fr,110px,130px,auto]">
+          <div>
+            <Label htmlFor="imdb-q-title">Title</Label>
+            <Input
+              id="imdb-q-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setSubmitted(true);
+              }}
+            />
+          </div>
+          <div>
+            <Label htmlFor="imdb-q-year">Year</Label>
+            <Input
+              id="imdb-q-year"
+              type="number"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="imdb-q-type">Type</Label>
+            <Select
+              id="imdb-q-type"
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              options={IMDB_TITLE_KIND_OPTIONS}
+            />
+          </div>
+          <div className="flex items-end">
+            <Button
+              onClick={() => setSubmitted(true)}
+              loading={search.isFetching}
+              disabled={!title.trim()}
+              className="w-full"
+            >
+              <Search className="h-4 w-4" /> Search
+            </Button>
+          </div>
+        </div>
+
+        <div className="max-h-[45vh] overflow-y-auto scrollbar-thin">
+          {!submitted ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Enter a title and search to see IMDb suggestions.
+            </p>
+          ) : search.isLoading || search.isFetching ? (
+            <CenteredSpinner label="Searching IMDb…" />
+          ) : search.isError ? (
+            <ErrorState message="IMDb search failed." onRetry={() => search.refetch()} />
+          ) : results.length === 0 ? (
+            <EmptyState
+              icon={<Film className="h-6 w-6" />}
+              title="No results"
+              description="No IMDb titles matched. Try adjusting the title, year, or type."
+            />
+          ) : (
+            <ul className="divide-y divide-border/40">
+              {results.map((r) => (
+                <ImdbResultRow
+                  key={r.tconst}
+                  result={r}
+                  onSelect={() => match.mutate(r)}
+                  busy={match.isPending && match.variables?.tconst === r.tconst}
+                  disabled={match.isPending}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+      <DialogFooter>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+      </DialogFooter>
+    </Dialog>
+  );
+}
+
+function ImdbResultRow({
+  result,
+  onSelect,
+  busy,
+  disabled,
+}: {
+  result: ImdbSearchResult;
+  onSelect: () => void;
+  busy: boolean;
+  disabled: boolean;
+}) {
+  return (
+    <li className="flex items-center justify-between gap-3 py-2.5">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="truncate font-medium">{result.primaryTitle}</span>
+          {result.year != null && (
+            <span className="text-xs text-muted-foreground">({result.year})</span>
+          )}
+          <Badge variant="warning">IMDb</Badge>
+          <Badge variant="secondary">{result.titleType}</Badge>
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-mono">{result.tconst}</span>
+          {result.rating != null && (
+            <span className="flex items-center gap-0.5">
+              <Star className="h-3 w-3 text-warning" /> {result.rating.toFixed(1)}
+            </span>
+          )}
+          {result.numVotes != null && <span>{formatNumber(result.numVotes)} votes</span>}
+          <Badge variant={result.confidence >= 0.75 ? 'success' : result.confidence >= 0.5 ? 'info' : 'secondary'}>
+            {Math.round(result.confidence * 100)}% match
+          </Badge>
+        </div>
+      </div>
+      <Button size="sm" variant="outline" onClick={onSelect} loading={busy} disabled={disabled}>
+        Select
+      </Button>
+    </li>
   );
 }
 
@@ -392,6 +661,8 @@ function MetadataTab({ item }: { item: MediaItemDetail }) {
           </div>
         </div>
 
+        <ImdbCredits meta={meta} />
+
         {canEdit && (
           <div className="flex justify-end border-t border-border/60 pt-4">
             <Button onClick={() => save.mutate()} loading={save.isPending}>
@@ -401,6 +672,43 @@ function MetadataTab({ item }: { item: MediaItemDetail }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Read-only credits block, surfaced when IMDb (or another provider) supplied them. */
+function ImdbCredits({ meta }: { meta: MediaMetadata | null | undefined }) {
+  if (!meta) return null;
+  const directors = meta.directors ?? [];
+  const writers = meta.writers ?? [];
+  const cast = meta.cast ?? [];
+  if (directors.length === 0 && writers.length === 0 && cast.length === 0) return null;
+
+  return (
+    <div className="space-y-3 border-t border-border/60 pt-4">
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-semibold">Credits</p>
+        {meta.providerName === 'imdb' && <Badge variant="warning">IMDb</Badge>}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {directors.length > 0 && (
+          <Field label="Directors" value={directors.join(', ')} />
+        )}
+        {writers.length > 0 && <Field label="Writers" value={writers.join(', ')} />}
+      </div>
+      {cast.length > 0 && (
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Cast</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {cast.slice(0, 24).map((c, i) => (
+              <Badge key={`${c.name}-${i}`} variant="secondary">
+                {c.name}
+                {c.role ? ` — ${c.role}` : ''}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

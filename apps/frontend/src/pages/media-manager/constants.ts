@@ -126,6 +126,76 @@ export function duplicateReasonLabel(reason: string): string {
   }
 }
 
+// ---------------------------------------------------------------------------
+// IMDb metadata provider
+// ---------------------------------------------------------------------------
+
+/** IMDb operating modes — mirrors the backend `ImdbMode`. */
+export const IMDB_MODE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'disabled', label: 'Disabled' },
+  { value: 'dataset', label: 'Dataset (local IMDb files)' },
+  { value: 'official_api', label: 'Official / licensed API' },
+  { value: 'hybrid', label: 'Hybrid (dataset + API)' },
+];
+
+export function imdbModeLabel(mode: string): string {
+  return IMDB_MODE_OPTIONS.find((m) => m.value === mode)?.label ?? mode;
+}
+
+/** IMDb title kinds accepted by search — mirrors the backend `ImdbTitleKind`. */
+export const IMDB_TITLE_KIND_OPTIONS: { value: string; label: string }[] = [
+  { value: 'any', label: 'Any' },
+  { value: 'movie', label: 'Movie' },
+  { value: 'tv', label: 'TV' },
+  { value: 'episode', label: 'Episode' },
+];
+
+/** Colored badge variant for an IMDb dataset-import status. */
+export function imdbImportStatusVariant(
+  status: string,
+): 'success' | 'info' | 'warning' | 'destructive' | 'secondary' {
+  switch (status) {
+    case 'completed':
+      return 'success';
+    case 'running':
+    case 'validating':
+      return 'info';
+    case 'pending':
+      return 'warning';
+    case 'failed':
+      return 'destructive';
+    default:
+      return 'secondary';
+  }
+}
+
+/**
+ * Verbatim compliance notice shown on the IMDb settings surface. UltraTorrent
+ * never scrapes IMDb web pages.
+ */
+export const IMDB_COMPLIANCE_NOTICE =
+  'UltraTorrent does not scrape IMDb web pages. IMDb support uses user-provided IMDb datasets or licensed IMDb API access.';
+
+/** Human labels for the IMDb dataset TSV files. */
+export const IMDB_DATASET_FILE_LABELS: Record<string, string> = {
+  'title.basics': 'Titles',
+  'name.basics': 'People',
+  'title.akas': 'Alternate titles',
+  'title.crew': 'Crew',
+  'title.episode': 'Episodes',
+  'title.principals': 'Principals',
+  'title.ratings': 'Ratings',
+};
+
+export function imdbDatasetFileLabel(key: string): string {
+  return IMDB_DATASET_FILE_LABELS[key] ?? key;
+}
+
+/** Build a public "open on IMDb" link (a string only — never fetched). */
+export function imdbTitleUrl(imdbId: string): string {
+  return `https://www.imdb.com/title/${imdbId}/`;
+}
+
 /** Format a Season/Episode marker from optional numbers. */
 export function seasonEpisodeLabel(
   season: number | null | undefined,

@@ -5,6 +5,7 @@ import {
   KeyRound,
   Image as ImageIcon,
   Pencil,
+  Film,
   Plug,
   Plus,
   RefreshCw,
@@ -43,6 +44,7 @@ export function MediaSettingsPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canManageIntegrations = hasPermission(PERMISSIONS.MEDIA_MANAGER_MANAGE_INTEGRATIONS);
+  const canViewImdb = hasPermission(PERMISSIONS.MEDIA_MANAGER_IMDB_VIEW);
 
   return (
     <div className="space-y-6">
@@ -58,6 +60,23 @@ export function MediaSettingsPage() {
       </div>
 
       <MetadataProvidersSection />
+      {canViewImdb && (
+        <SectionCard
+          icon={<Film className="h-5 w-5" />}
+          title="IMDb provider"
+          description="Configure IMDb metadata from user-provided datasets or a licensed IMDb API."
+          actions={
+            <Button size="sm" variant="outline" onClick={() => navigate('/media/settings/imdb')}>
+              Configure IMDb
+            </Button>
+          }
+        >
+          <p className="text-sm text-muted-foreground">
+            Dataset import, official-API configuration, and matching preferences for the IMDb
+            provider.
+          </p>
+        </SectionCard>
+      )}
       <ArtworkPreferencesSection />
       <SubtitlePreferencesSection />
       <RenameTemplatesSection />

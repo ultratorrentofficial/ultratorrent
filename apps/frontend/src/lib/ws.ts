@@ -11,6 +11,7 @@ import {
   WS_EVENTS,
   type EngineStatusPayload,
   type FileOperationEventPayload,
+  type ImdbEventPayload,
   type NotificationPayload,
   type StatsUpdatePayload,
   type TorrentsUpdatePayload,
@@ -30,6 +31,15 @@ export interface WsEventMap {
   [WS_EVENTS.FILES_OP_FAILED]: FileOperationEventPayload;
   [WS_EVENTS.FILES_CLEANUP_COMPLETED]: Record<string, unknown>;
   [WS_EVENTS.FILES_TRASH_UPDATED]: Record<string, unknown>;
+  // IMDb provider lifecycle (scoped to the media_manager.view room).
+  [WS_EVENTS.IMDB_DATASET_VALIDATE_STARTED]: ImdbEventPayload;
+  [WS_EVENTS.IMDB_DATASET_VALIDATE_COMPLETED]: ImdbEventPayload;
+  [WS_EVENTS.IMDB_DATASET_VALIDATE_FAILED]: ImdbEventPayload;
+  [WS_EVENTS.IMDB_DATASET_IMPORT_PROGRESS]: ImdbEventPayload;
+  [WS_EVENTS.IMDB_DATASET_IMPORT_COMPLETED]: ImdbEventPayload;
+  [WS_EVENTS.IMDB_DATASET_IMPORT_FAILED]: ImdbEventPayload;
+  [WS_EVENTS.IMDB_MATCH_COMPLETED]: ImdbEventPayload;
+  [WS_EVENTS.IMDB_ENRICHMENT_COMPLETED]: ImdbEventPayload;
 }
 
 export type WsStatus = 'connecting' | 'connected' | 'disconnected';
