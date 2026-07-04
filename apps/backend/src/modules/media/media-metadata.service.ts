@@ -6,6 +6,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { SettingsService } from '../settings/settings.module';
 import { FilePathService } from '../files/file-path.service';
 import { AuditService } from '../audit/audit.service';
+import { ImdbService } from './imdb/imdb.service';
 import {
   LocalMetadataProvider,
   MediaLookup,
@@ -90,6 +91,7 @@ export class MediaMetadataService {
     private readonly settings: SettingsService,
     private readonly filePath: FilePathService,
     private readonly audit: AuditService,
+    private readonly imdb: ImdbService,
   ) {}
 
   /** Resolve the active provider (TMDB when keyed, else offline local). */
@@ -234,6 +236,19 @@ export class MediaMetadataService {
       userAgent: ctx.userAgent,
       metadata: { provider: provider.name, matched: remote !== null },
     });
+
+    // Cross-provider enrichment: when an IMDb id is known, let TMDB/OMDb resolve
+    // by IMDb id and apply the IMDb rating (only) as a rating source. Best-effort.
+    const imdbId = externalIds.imdb;
+    if (imdbId) {
+      try {
+        await this.imdb.enrichCrossProvider(itemId, String(imdbId), ctx);
+      } catch (err) {
+        this.logger.warn(
+          `IMDb cross-provider enrichment failed for ${itemId}: ${(err as Error).message}`,
+        );
+      }
+    }
 
     return metadata;
   }

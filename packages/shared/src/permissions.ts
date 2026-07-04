@@ -98,6 +98,13 @@ export const PERMISSIONS = {
   MEDIA_MANAGER_MANAGE_INTEGRATIONS: 'media_manager.manage_integrations',
   MEDIA_MANAGER_DELETE: 'media_manager.delete',
   MEDIA_MANAGER_ADMIN: 'media_manager.admin',
+
+  // Media Manager — IMDb metadata provider (compliant dataset/licensed-API).
+  MEDIA_MANAGER_IMDB_VIEW: 'media_manager.imdb.view',
+  MEDIA_MANAGER_IMDB_CONFIGURE: 'media_manager.imdb.configure',
+  MEDIA_MANAGER_IMDB_IMPORT_DATASET: 'media_manager.imdb.import_dataset',
+  MEDIA_MANAGER_IMDB_SEARCH: 'media_manager.imdb.search',
+  MEDIA_MANAGER_IMDB_MATCH: 'media_manager.imdb.match',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -163,6 +170,11 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.MEDIA_MANAGER_RENAME,
     PERMISSIONS.MEDIA_MANAGER_MOVE_FILES,
     PERMISSIONS.MEDIA_MANAGER_GENERATE_NFO,
+    PERMISSIONS.MEDIA_MANAGER_IMDB_VIEW,
+    PERMISSIONS.MEDIA_MANAGER_IMDB_SEARCH,
+    PERMISSIONS.MEDIA_MANAGER_IMDB_CONFIGURE,
+    PERMISSIONS.MEDIA_MANAGER_IMDB_IMPORT_DATASET,
+    PERMISSIONS.MEDIA_MANAGER_IMDB_MATCH,
   ],
   [SystemRole.USER]: [
     PERMISSIONS.TORRENTS_VIEW,
@@ -178,6 +190,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.FILES_PREVIEW,
     PERMISSIONS.FILES_DOWNLOAD,
     PERMISSIONS.MEDIA_MANAGER_VIEW,
+    PERMISSIONS.MEDIA_MANAGER_IMDB_VIEW,
+    PERMISSIONS.MEDIA_MANAGER_IMDB_SEARCH,
   ],
   [SystemRole.READ_ONLY]: [
     PERMISSIONS.TORRENTS_VIEW,

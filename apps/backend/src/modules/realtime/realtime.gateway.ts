@@ -82,7 +82,7 @@ export class RealtimeGateway
       return `perm:${PERMISSIONS.TORRENTS_VIEW}`;
     }
     if (event.startsWith('files.')) return `perm:${PERMISSIONS.FILES_VIEW}`;
-    if (event.startsWith('media_manager.')) {
+    if (event.startsWith('media_manager.') || event.startsWith('imdb.')) {
       return `perm:${PERMISSIONS.MEDIA_MANAGER_VIEW}`;
     }
     // Permission-free events (e.g. notifications) go to all authenticated sockets.

@@ -17,6 +17,9 @@ import { MediaServerIntegrationService } from './media-server-integration.servic
 import { MediaProcessingQueueService } from './media-processing-queue.service';
 import { MediaAutomationActions } from './media-automation.actions';
 import { MediaProcessingService } from './media-processing.service';
+import { ImdbSettingsService } from './imdb/imdb-settings.service';
+import { ImdbDatasetImporterService } from './imdb/imdb-dataset-importer.service';
+import { ImdbService } from './imdb/imdb.service';
 import { MediaController } from './media.controller';
 
 /**
@@ -49,6 +52,9 @@ import { MediaController } from './media.controller';
     MediaProcessingQueueService,
     MediaAutomationActions,
     MediaProcessingService,
+    ImdbSettingsService,
+    ImdbDatasetImporterService,
+    ImdbService,
   ],
   controllers: [MediaController],
   exports: [
@@ -67,6 +73,9 @@ import { MediaController } from './media.controller';
     MediaProcessingQueueService,
     MediaAutomationActions,
     MediaProcessingService,
+    ImdbSettingsService,
+    ImdbDatasetImporterService,
+    ImdbService,
   ],
 })
 export class MediaModule {}

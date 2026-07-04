@@ -981,3 +981,122 @@ model MediaAcquisitionHistory {
   @@index([createdAt])
   @@map("media_acquisition_history")
 }
+
+// ---------------------------------------------------------------------------
+// IMDb metadata provider — a local, queryable mirror of the official IMDb
+// non-commercial TSV datasets (imported from user-supplied .tsv.gz files) plus
+// bookkeeping for dataset imports. NO data is scraped from imdb.com web pages;
+// these tables are populated only from the licensed datasets (or, at runtime,
+// an optional configured official/licensed IMDb REST API).
+// ---------------------------------------------------------------------------
+
+model IMDbTitle {
+  id             String   @id @default(uuid())
+  tconst         String   @unique
+  titleType      String
+  primaryTitle   String
+  originalTitle  String
+  isAdult        Boolean  @default(false)
+  startYear      Int?
+  endYear        Int?
+  runtimeMinutes Int?
+  genres         String[] @default([])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([primaryTitle])
+  @@index([originalTitle])
+  @@index([startYear])
+  @@index([titleType])
+  @@map("imdb_titles")
+}
+
+model IMDbAka {
+  id              String  @id @default(uuid())
+  titleId         String // references IMDbTitle.tconst (stored as the tconst string)
+  title           String
+  region          String?
+  language        String?
+  types           String?
+  attributes      String?
+  isOriginalTitle Boolean @default(false)
+
+  @@index([titleId])
+  @@map("imdb_akas")
+}
+
+model IMDbCrew {
+  id        String   @id @default(uuid())
+  titleId   String   @unique
+  directors String[] @default([])
+  writers   String[] @default([])
+
+  @@map("imdb_crew")
+}
+
+model IMDbEpisode {
+  id             String  @id @default(uuid())
+  episodeTitleId String  @unique
+  parentTitleId  String
+  seasonNumber   Int?
+  episodeNumber  Int?
+
+  @@index([parentTitleId])
+  @@index([parentTitleId, seasonNumber, episodeNumber])
+  @@map("imdb_episodes")
+}
+
+model IMDbPrincipal {
+  id         String  @id @default(uuid())
+  titleId    String
+  ordering   Int
+  personId   String
+  category   String?
+  job        String?
+  characters String?
+
+  @@index([titleId])
+  @@index([personId])
+  @@map("imdb_principals")
+}
+
+model IMDbPerson {
+  id                String   @id @default(uuid())
+  nconst            String   @unique
+  primaryName       String
+  birthYear         Int?
+  deathYear         Int?
+  primaryProfession String[] @default([])
+  knownForTitles    String[] @default([])
+
+  @@index([primaryName])
+  @@map("imdb_persons")
+}
+
+model IMDbRating {
+  id            String @id @default(uuid())
+  titleId       String @unique
+  averageRating Float
+  numVotes      Int
+
+  @@index([averageRating])
+  @@index([numVotes])
+  @@map("imdb_ratings")
+}
+
+model IMDbDatasetImport {
+  id              String    @id @default(uuid())
+  status          String    @default("pending") // pending | validating | running | completed | failed
+  sourcePath      String
+  startedAt       DateTime?
+  completedAt     DateTime?
+  failedAt        DateTime?
+  errorMessage    String?
+  filesImported   Json      @default("[]")
+  recordsImported Int       @default(0)
+  datasetDate     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("imdb_dataset_imports")
+}

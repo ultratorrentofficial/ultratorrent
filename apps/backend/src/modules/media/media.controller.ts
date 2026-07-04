@@ -11,8 +11,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { PERMISSIONS } from '@ultratorrent/shared';
+import { ImdbService, ImdbMatchDto } from './imdb/imdb.service';
+import { ImdbSettingsPatch } from './imdb/imdb-settings.service';
+import type { ImdbTitleKind } from './imdb/imdb-match';
 import { MediaService, RenameRequest } from './media.service';
 import { MediaLibraryService, LibraryInput } from './media-library.service';
 import { MediaScannerService } from './media-scanner.service';
@@ -72,6 +76,7 @@ export class MediaController {
     private readonly duplicates: MediaDuplicateService,
     private readonly integrations: MediaServerIntegrationService,
     private readonly jobs: MediaProcessingQueueService,
+    private readonly imdb: ImdbService,
   ) {}
 
   // --- overview ----------------------------------------------------------
@@ -295,6 +300,86 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_MANAGE_INTEGRATIONS)
   refreshIntegration(@Param('id') id: string, @Req() req: Request) {
     return this.integrations.refresh(id, auditCtx(req));
+  }
+
+  // --- IMDb metadata provider -------------------------------------------
+  @Get('providers/imdb/status')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_VIEW)
+  imdbStatus() {
+    return this.imdb.status();
+  }
+
+  @Get('providers/imdb/settings')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_VIEW)
+  imdbSettings() {
+    return this.imdb.getSettings();
+  }
+
+  @Patch('providers/imdb/settings')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_CONFIGURE)
+  updateImdbSettings(@Body() body: ImdbSettingsPatch, @Req() req: Request) {
+    return this.imdb.updateSettings(body ?? {}, auditCtx(req));
+  }
+
+  @Post('providers/imdb/test')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_CONFIGURE)
+  testImdbApi(@Req() req: Request) {
+    return this.imdb.testApiConnection(auditCtx(req));
+  }
+
+  @Post('providers/imdb/dataset/validate')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_IMPORT_DATASET)
+  validateImdbDataset(@Body() body: { datasetPath?: string }, @Req() req: Request) {
+    return this.imdb.validateDataset(body?.datasetPath ?? '', auditCtx(req));
+  }
+
+  @Post('providers/imdb/dataset/import')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_IMPORT_DATASET)
+  importImdbDataset(@Body() body: { datasetPath?: string }, @Req() req: Request) {
+    // Returns the import record immediately; the import runs as a detached job.
+    return this.imdb.importDataset(body?.datasetPath ?? '', auditCtx(req));
+  }
+
+  @Get('providers/imdb/dataset/imports')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_VIEW)
+  imdbImports() {
+    return this.imdb.listImports();
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('providers/imdb/search')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_SEARCH)
+  imdbSearch(
+    @Query('title') title?: string,
+    @Query('year') year?: string,
+    @Query('type') type?: string,
+    @Query('season') season?: string,
+    @Query('episode') episode?: string,
+  ) {
+    const y = year ? Number.parseInt(year, 10) : undefined;
+    return this.imdb.search({
+      title: title ?? '',
+      year: Number.isFinite(y as number) ? (y as number) : undefined,
+      type: (type as ImdbTitleKind) || undefined,
+      season: season ? Number.parseInt(season, 10) : undefined,
+      episode: episode ? Number.parseInt(episode, 10) : undefined,
+    });
+  }
+
+  @Get('providers/imdb/title/:imdbId')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_VIEW)
+  imdbTitle(@Param('imdbId') imdbId: string) {
+    return this.imdb.getTitle(imdbId);
+  }
+
+  @Post('items/:id/match/imdb')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_MATCH)
+  matchItemImdb(
+    @Param('id') id: string,
+    @Body() body: ImdbMatchDto,
+    @Req() req: Request,
+  ) {
+    return this.imdb.matchItem(id, body ?? ({} as ImdbMatchDto), auditCtx(req));
   }
 
   // --- rename engine (retained) -----------------------------------------

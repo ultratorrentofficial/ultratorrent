@@ -21,7 +21,35 @@ export const WS_EVENTS = {
   MEDIA_JOB_PROGRESS: 'media_manager.job.progress',
   MEDIA_JOB_COMPLETED: 'media_manager.job.completed',
   MEDIA_JOB_FAILED: 'media_manager.job.failed',
+  // IMDb metadata provider (scoped to media_manager.view).
+  IMDB_DATASET_VALIDATE_STARTED: 'imdb.dataset.validate.started',
+  IMDB_DATASET_VALIDATE_COMPLETED: 'imdb.dataset.validate.completed',
+  IMDB_DATASET_VALIDATE_FAILED: 'imdb.dataset.validate.failed',
+  IMDB_DATASET_IMPORT_PROGRESS: 'imdb.dataset.import.progress',
+  IMDB_DATASET_IMPORT_COMPLETED: 'imdb.dataset.import.completed',
+  IMDB_DATASET_IMPORT_FAILED: 'imdb.dataset.import.failed',
+  IMDB_MATCH_COMPLETED: 'imdb.match.completed',
+  IMDB_ENRICHMENT_COMPLETED: 'imdb.enrichment.completed',
 } as const;
+
+/**
+ * An IMDb provider lifecycle event over WebSocket (dataset validate/import,
+ * manual match, cross-provider enrichment). Never carries secrets.
+ */
+export interface ImdbEventPayload {
+  /** Dataset import id (validate/import events) or media item id (match/enrichment). */
+  id?: string | null;
+  itemId?: string | null;
+  imdbId?: string | null;
+  status?: string;
+  progress?: number;
+  message?: string | null;
+  /** Per-file / summary counts (never secrets). */
+  recordsImported?: number;
+  filesImported?: string[];
+  error?: string | null;
+  at: string;
+}
 
 /** A Media Manager background job's lifecycle event over WebSocket. */
 export interface MediaJobEventPayload {
