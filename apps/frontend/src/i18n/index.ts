@@ -9,10 +9,14 @@ import enCommon from './locales/en-US/common.json';
 import enNav from './locales/en-US/nav.json';
 import enAuth from './locales/en-US/auth.json';
 import enShell from './locales/en-US/shell.json';
+import enMedia from './locales/en-US/media.json';
+import enImdb from './locales/en-US/imdb.json';
 import esCommon from './locales/es-PR/common.json';
 import esNav from './locales/es-PR/nav.json';
 import esAuth from './locales/es-PR/auth.json';
 import esShell from './locales/es-PR/shell.json';
+import esMedia from './locales/es-PR/media.json';
+import esImdb from './locales/es-PR/imdb.json';
 
 /**
  * i18n key conventions (read this before adding strings)
@@ -41,11 +45,25 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'es-PR', label: 'Español' },
 ] as const;
 
-export const NAMESPACES = ['common', 'nav', 'auth', 'shell'] as const;
+export const NAMESPACES = ['common', 'nav', 'auth', 'shell', 'media', 'imdb'] as const;
 
 export const resources = {
-  'en-US': { common: enCommon, nav: enNav, auth: enAuth, shell: enShell },
-  'es-PR': { common: esCommon, nav: esNav, auth: esAuth, shell: esShell },
+  'en-US': {
+    common: enCommon,
+    nav: enNav,
+    auth: enAuth,
+    shell: enShell,
+    media: enMedia,
+    imdb: enImdb,
+  },
+  'es-PR': {
+    common: esCommon,
+    nav: esNav,
+    auth: esAuth,
+    shell: esShell,
+    media: esMedia,
+    imdb: esImdb,
+  },
 } as const;
 
 void i18n

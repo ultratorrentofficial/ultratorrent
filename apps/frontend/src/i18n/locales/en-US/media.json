@@ -1,0 +1,785 @@
+{
+  "libraryKind": {
+    "tv": "TV",
+    "anime": "Anime",
+    "movie": "Movie",
+    "music": "Music",
+    "audiobook": "Audiobook",
+    "general": "General"
+  },
+  "preset": {
+    "plex": "Plex",
+    "jellyfin": "Jellyfin",
+    "emby": "Emby",
+    "kodi": "Kodi",
+    "custom": "Custom"
+  },
+  "renameMode": {
+    "preview": "Preview only",
+    "rename_in_place": "Rename in place",
+    "rename_move": "Rename + move",
+    "copy": "Copy",
+    "hardlink": "Hardlink (keeps seeding)",
+    "symlink": "Symlink (keeps seeding)"
+  },
+  "mediaType": {
+    "movie": "Movie",
+    "tv": "TV",
+    "anime": "Anime",
+    "music_video": "Music video",
+    "documentary": "Documentary",
+    "other_video": "Other"
+  },
+  "matchStatus": {
+    "matched": "Matched",
+    "manual": "Manual",
+    "unmatched": "Unmatched"
+  },
+  "artworkType": {
+    "poster": "Poster",
+    "fanart": "Fanart",
+    "logo": "Logo",
+    "clearart": "Clear art",
+    "banner": "Banner",
+    "thumbnail": "Thumbnail",
+    "season_poster": "Season poster",
+    "episode_thumbnail": "Episode thumbnail"
+  },
+  "mediaServerKind": {
+    "plex": "Plex",
+    "jellyfin": "Jellyfin",
+    "emby": "Emby",
+    "kodi": "Kodi"
+  },
+  "duplicateReason": {
+    "external_id": "Same external ID",
+    "show_season_episode": "Same show / season / episode",
+    "title_year": "Same title & year",
+    "similar_filename": "Similar filename"
+  },
+  "common": {
+    "backToManager": "Media Manager",
+    "backToItems": "Media Items",
+    "backToSettings": "Media Settings",
+    "cancel": "Cancel",
+    "close": "Close",
+    "save": "Save",
+    "saveChanges": "Save changes",
+    "saved": "Saved",
+    "couldNotSave": "Could not save",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "disabledBadge": "disabled",
+    "select": "Select",
+    "selected": "Selected",
+    "noFilesToRename": "No files to rename.",
+    "neverScanned": "Never scanned",
+    "scannedAgo": "Scanned {{time}}",
+    "updating": "updating…",
+    "items_one": "{{count}} item",
+    "items_other": "{{count}} items"
+  },
+  "imdbSuggest": {
+    "badge": "IMDb",
+    "votes": "{{formatted}} votes",
+    "matchPct": "{{pct}}% match"
+  },
+  "dashboard": {
+    "title": "Media Manager",
+    "subtitle": "Library health and composition at a glance. Scan, identify, and organise your media.",
+    "librariesBtn": "Libraries",
+    "renameToolsBtn": "Rename tools",
+    "scanAllBtn": "Scan all",
+    "loading": "Loading dashboard…",
+    "error": "Could not load the Media Manager dashboard.",
+    "nothingToScanTitle": "Nothing to scan",
+    "nothingToScanBody": "No enabled libraries.",
+    "scanCompleteTitle": "Scan complete",
+    "scanCompleteBody_one": "{{scanned}} scanned · {{added}} added · {{updated}} updated across {{count}} library.",
+    "scanCompleteBody_other": "{{scanned}} scanned · {{added}} added · {{updated}} updated across {{count}} libraries.",
+    "scanFailed": "Scan failed",
+    "stat": {
+      "total": "Total items",
+      "unmatched": "Unmatched",
+      "lowConfidence": "Low confidence",
+      "recentlyAdded": "Recently added",
+      "missingArtwork": "Missing artwork",
+      "missingSubtitles": "Missing subtitles",
+      "duplicates": "Duplicates",
+      "failedJobs": "Failed jobs"
+    },
+    "byMediaType": "By media type",
+    "viewAllItems": "View all items",
+    "noItemsScanned": "No items scanned yet.",
+    "librariesHeading": "Libraries",
+    "manageLibraries": "Manage libraries",
+    "noLibrariesTitle": "No libraries yet",
+    "noLibrariesBody": "Add a library to point Media Manager at a folder and start scanning.",
+    "addLibrary": "Add a library"
+  },
+  "libraries": {
+    "title": "Libraries",
+    "subtitle": "Point Media Manager at folders to scan, identify, and organise. Each library carries its own preset and naming template.",
+    "addLibrary": "Add library",
+    "loading": "Loading libraries…",
+    "error": "Could not load libraries.",
+    "emptyTitle": "No libraries",
+    "emptyBody": "Define a library to map a media kind to a folder and naming template.",
+    "addFirst": "Add your first library",
+    "autoScanEvery": "Auto-scan every {{minutes}} min",
+    "nfo": "NFO",
+    "artwork": "Artwork",
+    "scan": "Scan",
+    "editAria": "Edit",
+    "deleteAria": "Delete",
+    "scannedToast": "Scanned “{{name}}”",
+    "scanResult": "{{scanned}} scanned · {{added}} added · {{updated}} updated.",
+    "scanFailed": "Scan failed",
+    "deleteConfirm": "Delete library \"{{name}}\"? Scanned items for this library are removed too.",
+    "deletedTitle": "Library deleted",
+    "deleteError": "Could not delete library",
+    "invalidIntervalTitle": "Invalid scan interval",
+    "invalidIntervalBody": "Enter a non-negative number of minutes, or leave it blank.",
+    "updatedTitle": "Library updated",
+    "createdTitle": "Library created",
+    "saveError": "Could not save library",
+    "dialog": {
+      "editTitle": "Edit library",
+      "addTitle": "Add library",
+      "description": "Maps a media kind to a folder, naming template, and scan schedule."
+    },
+    "field": {
+      "name": "Name",
+      "namePlaceholder": "e.g. TV Shows",
+      "path": "Library path",
+      "pathPlaceholder": "/media/tv",
+      "pathAria": "Library path",
+      "pathPicker": "Choose a library folder",
+      "kind": "Kind",
+      "preset": "Preset",
+      "mode": "Mode",
+      "template": "Template (optional)",
+      "templatePlaceholder": "Leave empty to use the preset default",
+      "scanInterval": "Auto-scan interval (minutes)",
+      "scanIntervalPlaceholder": "Leave blank to scan manually",
+      "nfo": "Generate NFO",
+      "artwork": "Fetch artwork",
+      "enabled": "Enabled"
+    },
+    "presetDefault": "Preset default:"
+  },
+  "items": {
+    "title": "Media Items",
+    "subtitle": "Everything Media Manager has scanned. Re-identify to re-run automatic matching, or unmatch to clear a bad identity.",
+    "filter": {
+      "type": "Type",
+      "status": "Match status",
+      "library": "Library",
+      "allTypes": "All types",
+      "allStatuses": "All statuses",
+      "allLibraries": "All libraries"
+    },
+    "loading": "Loading items…",
+    "error": "Could not load media items.",
+    "emptyFilteredTitle": "No items match these filters",
+    "emptyTitle": "No items yet",
+    "emptyFilteredBody": "Try clearing a filter, or scan a library to add items.",
+    "emptyBody": "Scan a library to populate this list.",
+    "clearFilters": "Clear filters",
+    "goToLibraries": "Go to libraries",
+    "col": {
+      "title": "Title",
+      "type": "Type",
+      "year": "Year",
+      "seasonEp": "Season/Ep",
+      "match": "Match",
+      "confidence": "Confidence",
+      "actions": "Actions"
+    },
+    "reidentify": "Re-identify",
+    "unmatch": "Unmatch",
+    "reidentifiedTitle": "Re-identified",
+    "reidentifiedBody": "{{title}} — {{status}}.",
+    "reidentifyError": "Could not re-identify",
+    "unmatchedTitle": "Unmatched",
+    "unmatchError": "Could not unmatch"
+  },
+  "unmatched": {
+    "title": "Unmatched Items",
+    "subtitle": "Items automatic identification could not confidently match. Re-run identification or match them manually.",
+    "loading": "Loading unmatched items…",
+    "error": "Could not load unmatched items.",
+    "emptyTitle": "Nothing unmatched",
+    "emptyBody": "Every scanned item has been matched. Nice.",
+    "col": {
+      "title": "Title",
+      "type": "Type",
+      "year": "Year",
+      "confidence": "Confidence",
+      "actions": "Actions"
+    },
+    "reidentify": "Re-identify",
+    "matchBtn": "Match…",
+    "reidentifiedTitle": "Re-identified",
+    "reidentifyError": "Could not re-identify",
+    "count_one": "{{count}} unmatched item",
+    "count_other": "{{count}} unmatched items",
+    "dialog": {
+      "title": "Match manually",
+      "description": "Provide the correct identity for this item, or pick an IMDb suggestion below."
+    },
+    "field": {
+      "title": "Title",
+      "type": "Type",
+      "year": "Year",
+      "season": "Season",
+      "episode": "Episode"
+    },
+    "matchedTitle": "Matched",
+    "matchError": "Could not match",
+    "matchedImdbTitle": "Matched with IMDb",
+    "matchItemBtn": "Match item",
+    "imdb": {
+      "heading": "IMDb suggestions",
+      "enterTitle": "Enter a title above to see IMDb suggestions.",
+      "searching": "Searching IMDb…",
+      "searchFailed": "IMDb search failed.",
+      "noMatchesTitle": "No IMDb matches",
+      "noMatchesBody": "Adjust the title, year, or type to refine the search."
+    }
+  },
+  "duplicates": {
+    "title": "Duplicates",
+    "subtitle": "Groups of items that look like duplicates. The highest-quality item is suggested to keep.",
+    "detectBtn": "Detect duplicates",
+    "loading": "Loading duplicates…",
+    "error": "Could not load duplicates.",
+    "emptyTitle": "No duplicates",
+    "emptyBody": "Run detection to scan your libraries for duplicate items.",
+    "detectionCompleteTitle": "Detection complete",
+    "detectionCompleteBody_one": "{{count}} duplicate group found.",
+    "detectionCompleteBody_other": "{{count}} duplicate groups found.",
+    "detectionFailed": "Detection failed",
+    "groupFallbackTitle": "Duplicate group",
+    "col": {
+      "item": "Item",
+      "year": "Year",
+      "se": "S/E",
+      "resolution": "Resolution",
+      "codec": "Codec",
+      "size": "Size",
+      "actions": "Actions"
+    },
+    "suggestedKeepAria": "Suggested keep",
+    "keep": "Keep",
+    "keepThis": "Keep this",
+    "remove": "Remove",
+    "footnote": "Selecting a keeper marks the rest as removal candidates. Remove files from disk via the rename engine or your media server."
+  },
+  "renamePreview": {
+    "title": "Rename Preview",
+    "subtitle": "Preview how a source folder would be reorganized into a library’s layout, then execute when it looks right.",
+    "loadingLibraries": "Loading libraries…",
+    "field": {
+      "library": "Library",
+      "selectLibrary": "Select a library…",
+      "source": "Source path",
+      "sourcePlaceholder": "/downloads/Show.Name.S01",
+      "sourceAria": "Source path",
+      "sourcePicker": "Choose the source folder"
+    },
+    "target": "Target:",
+    "dryRun": "Dry run (preview only)",
+    "previewBtn": "Preview",
+    "executeBtn": "Execute",
+    "dryRunHint": "Turn off “Dry run” to enable Execute.",
+    "conflictHint": "Resolve destination conflicts before executing.",
+    "pickFirst": "Pick a library and a source path first.",
+    "previewFailed": "Preview failed",
+    "appliedTitle": "Rename applied",
+    "appliedBody": "{{applied}} applied, {{skipped}} skipped, {{failed}} failed.",
+    "applyFailed": "Apply failed",
+    "confirmExecute": "Execute this rename plan on disk?",
+    "plan": "Plan",
+    "conflicts_one": "{{count}} conflict",
+    "conflicts_other": "{{count}} conflicts",
+    "badge": {
+      "subtitle": "subtitle",
+      "sample": "sample",
+      "conflict": "conflict"
+    }
+  },
+  "settings": {
+    "title": "Media Settings",
+    "subtitle": "Metadata providers, artwork and subtitle preferences, rename templates, and media-server integrations.",
+    "imdb": {
+      "title": "IMDb provider",
+      "description": "Configure IMDb metadata from user-provided datasets or a licensed IMDb API.",
+      "configureBtn": "Configure IMDb",
+      "body": "Dataset import, official-API configuration, and matching preferences for the IMDb provider."
+    },
+    "metadata": {
+      "title": "Metadata providers",
+      "description": "TMDB powers rich metadata and artwork. Without a key, local NFO metadata is used.",
+      "noViewPerm": "You do not have permission to view settings. Ask an administrator to configure the TMDB API key.",
+      "loading": "Loading…",
+      "keyLabel": "TMDB API key",
+      "keyPlaceholder": "Enter TMDB API key"
+    },
+    "requiresSettings": "Requires settings access.",
+    "artworkPref": {
+      "title": "Artwork preferences",
+      "description": "Which artwork type to prefer when multiple are available.",
+      "label": "Preferred artwork type"
+    },
+    "subtitlePref": {
+      "title": "Subtitle preferences",
+      "description": "Preferred subtitle languages (comma-separated ISO codes), used to flag missing subtitles.",
+      "label": "Preferred languages",
+      "placeholder": "en, es, fr"
+    },
+    "renameTemplates": {
+      "title": "Rename templates",
+      "description": "Naming templates are configured per library and in the rename engine.",
+      "libraryBtn": "Library templates",
+      "engineBtn": "Rename engine templates"
+    },
+    "integrations": {
+      "noPermTitle": "Media Server Integrations",
+      "noPermBody": "You do not have permission to manage media-server integrations.",
+      "title": "Media Server Integrations",
+      "description": "Connect Plex, Jellyfin, Emby, or Kodi to trigger library refreshes.",
+      "addBtn": "Add integration",
+      "loading": "Loading integrations…",
+      "error": "Could not load integrations.",
+      "emptyTitle": "No integrations",
+      "emptyBody": "Add a media-server integration to keep your server’s library in sync.",
+      "removedTitle": "Integration removed",
+      "removeError": "Could not remove",
+      "connOkTitle": "Connection OK",
+      "connFailedTitle": "Connection failed",
+      "testFailed": "Test failed",
+      "refreshRequested": "Library refresh requested",
+      "refreshFailed": "Refresh failed",
+      "test": "Test",
+      "refresh": "Refresh",
+      "editAria": "Edit",
+      "deleteAria": "Delete",
+      "removeConfirm": "Remove integration \"{{name}}\"?",
+      "lastRefresh": "Last refresh {{time}}",
+      "updatedTitle": "Integration updated",
+      "addedTitle": "Integration added",
+      "saveError": "Could not save integration",
+      "dialog": {
+        "editTitle": "Edit integration",
+        "addTitle": "Add integration",
+        "description": "Secrets are encrypted at rest and never shown again. Leave the {{token}} blank to keep the existing one."
+      },
+      "tokenLabel": {
+        "token": "Token",
+        "apiKey": "API key"
+      },
+      "tokenLabelLower": {
+        "token": "token",
+        "apiKey": "api key"
+      },
+      "field": {
+        "name": "Name",
+        "namePlaceholder": "e.g. Living Room Plex",
+        "kind": "Kind",
+        "host": "Host / URL",
+        "hostPlaceholder": "http://localhost:32400",
+        "tokenPlaceholderKeep": "Leave blank to keep existing",
+        "tokenPlaceholderNew": "Enter {{token}}",
+        "enabled": "Enabled"
+      }
+    }
+  },
+  "renamer": {
+    "title": "Media renamer",
+    "subtitle": "Organize downloads into media-server layouts. Hardlink and symlink modes keep torrents seeding.",
+    "tab": {
+      "libraries": "Libraries",
+      "rename": "Quick Rename",
+      "dryRun": "Dry Run",
+      "jobs": "Jobs",
+      "templates": "Templates",
+      "history": "History"
+    },
+    "presetOption": {
+      "plex": "Plex",
+      "jellyfin": "Jellyfin",
+      "emby": "Emby",
+      "kodi": "Kodi",
+      "custom": "Custom (template)"
+    },
+    "modeOption": {
+      "preview": "Preview only",
+      "rename_in_place": "Rename in place",
+      "rename_move": "Rename + move",
+      "copy": "Copy",
+      "hardlink": "Hardlink",
+      "symlink": "Symlink"
+    },
+    "mediaTypeOption": {
+      "tv": "TV",
+      "anime": "Anime",
+      "movie": "Movie",
+      "music": "Music",
+      "audiobook": "Audiobook",
+      "general": "General"
+    },
+    "libraries": {
+      "addBtn": "Add library",
+      "loading": "Loading libraries…",
+      "error": "Could not load libraries.",
+      "emptyTitle": "No libraries",
+      "emptyBody": "Define a library to map a media kind to a destination path and naming template.",
+      "addFirst": "Add your first library",
+      "toggleAria": "Toggle library",
+      "editAria": "Edit",
+      "deleteAria": "Delete",
+      "updateError": "Could not update library",
+      "deleteConfirm": "Delete library \"{{name}}\"?",
+      "deletedTitle": "Library deleted",
+      "deleteError": "Could not delete library",
+      "updatedTitle": "Library updated",
+      "createdTitle": "Library created",
+      "saveError": "Could not save library"
+    },
+    "dialog": {
+      "editTitle": "Edit library",
+      "addTitle": "Add library",
+      "description": "Maps a media kind to a destination path and naming template."
+    },
+    "field": {
+      "name": "Name",
+      "namePlaceholder": "e.g. TV Shows",
+      "path": "Destination path",
+      "pathPlaceholder": "/media/tv",
+      "pathAria": "Destination path",
+      "pathPicker": "Choose a library folder",
+      "kind": "Kind",
+      "preset": "Preset",
+      "mode": "Mode",
+      "template": "Template (optional)",
+      "templatePlaceholder": "Leave empty to use the preset default",
+      "enabled": "Enabled"
+    },
+    "presetDefault": "Preset default:",
+    "rename": {
+      "source": "Source path",
+      "sourcePlaceholder": "/downloads/Show.Name.S01",
+      "sourceAria": "Source path",
+      "sourcePicker": "Choose the source folder",
+      "useLibrary": "Use library",
+      "manual": "Manual…",
+      "dest": "Destination library path",
+      "destPlaceholder": "/media/tv",
+      "destAria": "Destination library path",
+      "destPicker": "Choose a library folder",
+      "preset": "Preset",
+      "mode": "Mode",
+      "hint": "Preview is a safe dry-run. Hardlink and symlink modes keep the torrent seeding.",
+      "previewBtn": "Preview",
+      "applyBtn": "Apply",
+      "missingFieldsTitle": "Missing fields",
+      "missingFieldsBody": "A source path and a destination library path are required.",
+      "previewFailed": "Preview failed",
+      "confirmApply": "Apply this rename plan to disk?",
+      "appliedTitle": "Rename applied",
+      "appliedBody": "{{applied}} applied, {{skipped}} skipped, {{failed}} failed.",
+      "applyFailed": "Apply failed"
+    },
+    "plan": {
+      "title": "Rename plan",
+      "badge": {
+        "subtitle": "subtitle",
+        "sample": "sample",
+        "extra": "extra"
+      }
+    },
+    "history": {
+      "loading": "Loading history…",
+      "error": "Could not load history.",
+      "emptyTitle": "No operations yet",
+      "emptyBody": "Applied rename operations are recorded here."
+    },
+    "dryRun": {
+      "source": "Source name",
+      "sourcePlaceholder": "e.g. Some.Show.S01E02.1080p.WEB-DL.x264-GROUP",
+      "paths": "File paths",
+      "pathsPlaceholder": "One path per line, e.g.\n/downloads/show.s01e02.mkv\n/downloads/show.s01e02.eng.srt",
+      "pathsHint": "One file per line. Subtitles, samples and extras are detected automatically.",
+      "preset": "Server preset",
+      "mode": "Mode",
+      "library": "Library path",
+      "libraryPlaceholder": "/media/tv",
+      "libraryPicker": "Choose a library folder",
+      "template": "Template (optional)",
+      "templatePlaceholder": "Override the preset template",
+      "runBtn": "Dry run",
+      "executeBtn": "Execute",
+      "sourceRequiredTitle": "Source name required",
+      "sourceRequiredBody": "Enter the release / source name to parse.",
+      "noFilesTitle": "No files",
+      "noFilesBody": "Add at least one file path (one per line).",
+      "libraryRequiredTitle": "Library path required",
+      "libraryRequiredBody": "Set the destination library path.",
+      "completeTitle": "Dry run complete",
+      "completeBody_one": "{{count}} item planned.",
+      "completeBody_other": "{{count}} items planned.",
+      "failed": "Dry run failed",
+      "execStartedTitle": "Execution started",
+      "execStartedBody": "Job {{id}} created.",
+      "execFailed": "Execution failed",
+      "plan": "Plan",
+      "nothingTitle": "Nothing to do",
+      "nothingBody": "No file operations were planned for this source.",
+      "col": {
+        "source": "Source",
+        "destination": "Destination",
+        "action": "Action",
+        "kind": "Kind",
+        "notes": "Notes"
+      },
+      "skip": "skip",
+      "badge": {
+        "sub": "sub",
+        "sample": "sample",
+        "extra": "extra"
+      }
+    },
+    "templateHints": {
+      "title": "Default template hints",
+      "tv": "TV",
+      "movie": "Movie",
+      "anime": "Anime"
+    },
+    "jobs": {
+      "loading": "Loading jobs…",
+      "error": "Could not load jobs.",
+      "emptyTitle": "No rename jobs yet",
+      "emptyBody": "Run a dry run and execute it to create your first job.",
+      "col": {
+        "source": "Source",
+        "type": "Type",
+        "mode": "Mode",
+        "status": "Status",
+        "confidence": "Confidence",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "viewAria": "View job"
+    },
+    "jobDetail": {
+      "title": "Job detail",
+      "heading": "Rename job",
+      "description": "File-by-file outcome of this rename job.",
+      "loading": "Loading job…",
+      "error": "Could not load this job.",
+      "col": {
+        "original": "Original",
+        "result": "Result",
+        "action": "Action",
+        "status": "Status"
+      },
+      "noFiles": "No files recorded for this job.",
+      "rolledBackTitle": "Rolled back",
+      "rolledBackBody_one": "{{count}} file reverted.",
+      "rolledBackBody_other": "{{count}} files reverted.",
+      "rollbackFailed": "Rollback failed",
+      "rollbackConfirm": "Roll back all file operations for this job?",
+      "rollbackBtn": "Rollback"
+    },
+    "templates": {
+      "addBtn": "Add template",
+      "loading": "Loading templates…",
+      "error": "Could not load templates.",
+      "emptyTitle": "No custom templates",
+      "emptyBody": "Add a naming template to override the built-in presets.",
+      "col": {
+        "name": "Name",
+        "type": "Type",
+        "preset": "Preset",
+        "template": "Template",
+        "enabled": "Enabled",
+        "actions": "Actions"
+      },
+      "edit": "Edit",
+      "deleteAria": "Delete {{name}}",
+      "deleteConfirm": "Delete template \"{{name}}\"?",
+      "deletedTitle": "Template deleted",
+      "deleteError": "Could not delete template"
+    },
+    "templateDialog": {
+      "editTitle": "Edit template",
+      "addTitle": "Add template",
+      "description": "Tokens like {title}, {year}, {season}, {episode} are expanded at rename time.",
+      "name": "Name",
+      "mediaType": "Media type",
+      "preset": "Server preset",
+      "template": "Template",
+      "templatePlaceholder": "{title} ({year})/Season {season}/{title} - S{season}E{episode}",
+      "enabled": "Enabled",
+      "missingTitle": "Missing fields",
+      "missingBody": "Name and template are required.",
+      "updatedTitle": "Template updated",
+      "createdTitle": "Template created",
+      "saveError": "Could not save template",
+      "save": "Save",
+      "create": "Create template"
+    }
+  },
+  "detail": {
+    "loading": "Loading item…",
+    "error": "Could not load this media item.",
+    "tab": {
+      "overview": "Overview",
+      "files": "Files",
+      "metadata": "Metadata",
+      "artwork": "Artwork",
+      "subtitles": "Subtitles",
+      "rename": "Rename",
+      "nfo": "NFO",
+      "history": "History"
+    },
+    "field": {
+      "title": "Title",
+      "type": "Type",
+      "year": "Year",
+      "seasonEpisode": "Season / Episode",
+      "matchStatus": "Match status",
+      "confidence": "Confidence",
+      "library": "Library",
+      "externalIds": "External IDs",
+      "path": "Path"
+    },
+    "reidentify": "Re-identify",
+    "unmatch": "Unmatch",
+    "reidentifiedTitle": "Re-identified",
+    "reidentifiedBody": "{{title}} — {{status}}.",
+    "reidentifyError": "Could not re-identify",
+    "unmatchedTitle": "Unmatched",
+    "unmatchError": "Could not unmatch",
+    "imdb": {
+      "heading": "IMDb",
+      "matchBtn": "Match with IMDb",
+      "id": "IMDb ID",
+      "rating": "IMDb rating",
+      "link": "Link",
+      "openOnImdb": "Open on IMDb",
+      "notLinked": "This item is not linked to an IMDb title",
+      "notLinkedCta": " — use “Match with IMDb” to search and link one.",
+      "notLinkedEnd": ".",
+      "dialog": {
+        "title": "Match with IMDb",
+        "description": "Search the IMDb provider and pick the correct title to link this item."
+      },
+      "field": {
+        "title": "Title",
+        "year": "Year",
+        "type": "Type"
+      },
+      "searchBtn": "Search",
+      "prompt": "Enter a title and search to see IMDb suggestions.",
+      "searching": "Searching IMDb…",
+      "searchFailed": "IMDb search failed.",
+      "noResultsTitle": "No results",
+      "noResultsBody": "No IMDb titles matched. Try adjusting the title, year, or type.",
+      "matchedTitle": "Matched with IMDb",
+      "matchError": "Could not match"
+    },
+    "files": {
+      "emptyTitle": "No files",
+      "emptyBody": "This item has no scanned files yet.",
+      "col": {
+        "path": "Path",
+        "size": "Size",
+        "resolution": "Resolution",
+        "codec": "Codec",
+        "hdr": "HDR",
+        "quality": "Quality"
+      }
+    },
+    "metadata": {
+      "source": "Source: {{provider}}",
+      "noneFetched": "No metadata fetched yet.",
+      "fetchBtn": "Fetch metadata",
+      "fetchedTitle": "Metadata fetched",
+      "fetchedVia": "via {{provider}}",
+      "fetchError": "Could not fetch metadata",
+      "savedTitle": "Metadata saved",
+      "saveError": "Could not save metadata",
+      "saveBtn": "Save metadata",
+      "field": {
+        "title": "Title",
+        "year": "Year",
+        "runtime": "Runtime (min)",
+        "overview": "Overview",
+        "genres": "Genres (comma-separated)",
+        "studios": "Studios (comma-separated)",
+        "rating": "Rating",
+        "certification": "Certification"
+      },
+      "credits": "Credits",
+      "directors": "Directors",
+      "writers": "Writers",
+      "cast": "Cast"
+    },
+    "artwork": {
+      "loading": "Loading artwork…",
+      "error": "Could not load artwork.",
+      "uploadType": "Upload type",
+      "uploadCustom": "Upload custom",
+      "selectedToast": "Artwork selected",
+      "selectError": "Could not select artwork",
+      "uploadedToast": "Artwork uploaded",
+      "uploadError": "Could not upload artwork",
+      "missing": "Missing:",
+      "emptyTitle": "No artwork",
+      "emptyBody": "Fetch metadata or upload custom artwork to populate this item."
+    },
+    "subtitles": {
+      "scanBtn": "Scan subtitles",
+      "scanCompleteTitle": "Subtitle scan complete",
+      "scanError": "Could not scan subtitles",
+      "missingLanguages": "Missing languages:",
+      "loading": "Loading subtitles…",
+      "error": "Could not load subtitles.",
+      "emptyTitle": "No subtitles",
+      "emptyBody": "Scan to discover sidecar subtitle files next to this item.",
+      "col": {
+        "language": "Language",
+        "forced": "Forced",
+        "sdh": "SDH",
+        "path": "Path"
+      },
+      "yes": "Yes"
+    },
+    "rename": {
+      "description": "Preview how this item would be renamed using its library’s preset and template.",
+      "previewBtn": "Preview rename",
+      "previewFailed": "Preview failed",
+      "noLibrary": "This item is not associated with a library.",
+      "noLibraryError": "This item has no library configured."
+    },
+    "nfo": {
+      "description": "Generate a Kodi-style .nfo sidecar for this item from its metadata.",
+      "generateBtn": "Generate NFO",
+      "generatedTitle": "NFO generated",
+      "generatedBody_one": "{{count}} file written.",
+      "generatedBody_other": "{{count}} files written.",
+      "generateError": "Could not generate NFO",
+      "emptyTitle": "No NFO files",
+      "emptyBody": "No .nfo sidecar files have been generated for this item yet."
+    },
+    "history": {
+      "loading": "Loading history…",
+      "error": "Could not load history.",
+      "emptyTitle": "No history",
+      "emptyBody": "Applied rename operations are recorded here.",
+      "noMatch": "No operations matched this item — showing recent activity."
+    }
+  }
+}

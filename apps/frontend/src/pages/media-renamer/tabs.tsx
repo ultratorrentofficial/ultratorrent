@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Clapperboard,
@@ -157,6 +158,15 @@ export function DryRunTab() {
   const canExecute = hasPermission(PERMISSIONS.MEDIA_RENAMER_EXECUTE);
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
+  const presetOptions = PRESET_OPTIONS.map((o) => ({
+    value: o.value,
+    label: t(`renamer.presetOption.${o.value}` as 'renamer.presetOption.plex'),
+  }));
+  const modeOptions = MODE_OPTIONS.map((o) => ({
+    value: o.value,
+    label: t(`renamer.modeOption.${o.value}` as 'renamer.modeOption.preview'),
+  }));
 
   const [form, setForm] = useState({
     sourceName: '',
@@ -186,15 +196,15 @@ export function DryRunTab() {
 
   const validate = (): boolean => {
     if (!form.sourceName.trim()) {
-      toast.error('Source name required', 'Enter the release / source name to parse.');
+      toast.error(t('renamer.dryRun.sourceRequiredTitle'), t('renamer.dryRun.sourceRequiredBody'));
       return false;
     }
     if (!form.paths.trim()) {
-      toast.error('No files', 'Add at least one file path (one per line).');
+      toast.error(t('renamer.dryRun.noFilesTitle'), t('renamer.dryRun.noFilesBody'));
       return false;
     }
     if (!form.libraryPath.trim()) {
-      toast.error('Library path required', 'Set the destination library path.');
+      toast.error(t('renamer.dryRun.libraryRequiredTitle'), t('renamer.dryRun.libraryRequiredBody'));
       return false;
     }
     return true;
@@ -204,20 +214,26 @@ export function DryRunTab() {
     mutationFn: () => api.mediaRenamer.dryRun(buildBody()),
     onSuccess: (res) => {
       setPlan(res.plan);
-      toast.success('Dry run complete', `${res.plan.items.length} item(s) planned.`);
+      toast.success(
+        t('renamer.dryRun.completeTitle'),
+        t('renamer.dryRun.completeBody', { count: res.plan.items.length }),
+      );
     },
     onError: (err) =>
-      toast.error('Dry run failed', err instanceof ApiError ? err.message : undefined),
+      toast.error(t('renamer.dryRun.failed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const executeMutation = useMutation({
     mutationFn: () => api.mediaRenamer.execute(buildBody()),
     onSuccess: (job) => {
-      toast.success('Execution started', `Job ${job.id.slice(0, 8)} created.`);
+      toast.success(
+        t('renamer.dryRun.execStartedTitle'),
+        t('renamer.dryRun.execStartedBody', { id: job.id.slice(0, 8) }),
+      );
       queryClient.invalidateQueries({ queryKey: ['media-renamer', 'jobs'] });
     },
     onError: (err) =>
-      toast.error('Execution failed', err instanceof ApiError ? err.message : undefined),
+      toast.error(t('renamer.dryRun.execFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const planItems = plan?.items ?? [];
@@ -228,63 +244,63 @@ export function DryRunTab() {
         <CardContent className="space-y-4 p-5">
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-1.5 lg:col-span-2">
-              <Label htmlFor="mr-source">Source name</Label>
+              <Label htmlFor="mr-source">{t('renamer.dryRun.source')}</Label>
               <Input
                 id="mr-source"
                 value={form.sourceName}
                 onChange={(e) => setForm((f) => ({ ...f, sourceName: e.target.value }))}
-                placeholder="e.g. Some.Show.S01E02.1080p.WEB-DL.x264-GROUP"
+                placeholder={t('renamer.dryRun.sourcePlaceholder')}
               />
             </div>
             <div className="space-y-1.5 lg:col-span-2">
-              <Label htmlFor="mr-paths">File paths</Label>
+              <Label htmlFor="mr-paths">{t('renamer.dryRun.paths')}</Label>
               <Textarea
                 id="mr-paths"
                 value={form.paths}
                 onChange={(e) => setForm((f) => ({ ...f, paths: e.target.value }))}
-                placeholder={'One path per line, e.g.\n/downloads/show.s01e02.mkv\n/downloads/show.s01e02.eng.srt'}
+                placeholder={t('renamer.dryRun.pathsPlaceholder')}
                 className="min-h-[120px] font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                One file per line. Subtitles, samples and extras are detected automatically.
+                {t('renamer.dryRun.pathsHint')}
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="mr-preset">Server preset</Label>
+              <Label htmlFor="mr-preset">{t('renamer.dryRun.preset')}</Label>
               <Select
                 id="mr-preset"
                 value={form.preset}
                 onChange={(e) => setForm((f) => ({ ...f, preset: e.target.value as Preset }))}
-                options={PRESET_OPTIONS}
+                options={presetOptions}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="mr-mode">Mode</Label>
+              <Label htmlFor="mr-mode">{t('renamer.dryRun.mode')}</Label>
               <Select
                 id="mr-mode"
                 value={form.mode}
                 onChange={(e) => setForm((f) => ({ ...f, mode: e.target.value as RenameMode }))}
-                options={MODE_OPTIONS}
+                options={modeOptions}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="mr-library">Library path</Label>
+              <Label htmlFor="mr-library">{t('renamer.dryRun.library')}</Label>
               <PathPicker
                 id="mr-library"
                 value={form.libraryPath}
                 onChange={(v) => setForm((f) => ({ ...f, libraryPath: v }))}
-                placeholder="/media/tv"
-                aria-label="Library path"
-                pickerTitle="Choose a library folder"
+                placeholder={t('renamer.dryRun.libraryPlaceholder')}
+                aria-label={t('renamer.dryRun.library')}
+                pickerTitle={t('renamer.dryRun.libraryPicker')}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="mr-template">Template (optional)</Label>
+              <Label htmlFor="mr-template">{t('renamer.dryRun.template')}</Label>
               <Input
                 id="mr-template"
                 value={form.template}
                 onChange={(e) => setForm((f) => ({ ...f, template: e.target.value }))}
-                placeholder="Override the preset template"
+                placeholder={t('renamer.dryRun.templatePlaceholder')}
                 className="font-mono text-xs"
               />
             </div>
@@ -295,7 +311,7 @@ export function DryRunTab() {
               onClick={() => validate() && dryRunMutation.mutate()}
               loading={dryRunMutation.isPending}
             >
-              <ScanSearch className="h-4 w-4" /> Dry run
+              <ScanSearch className="h-4 w-4" /> {t('renamer.dryRun.runBtn')}
             </Button>
             {canExecute && (
               <Button
@@ -303,7 +319,7 @@ export function DryRunTab() {
                 onClick={() => validate() && executeMutation.mutate()}
                 loading={executeMutation.isPending}
               >
-                <Play className="h-4 w-4" /> Execute
+                <Play className="h-4 w-4" /> {t('renamer.dryRun.executeBtn')}
               </Button>
             )}
           </div>
@@ -329,26 +345,26 @@ export function DryRunTab() {
             <CardContent className="p-0">
               <div className="flex items-center justify-between gap-3 px-4 py-3">
                 <p className="text-sm font-semibold">
-                  Plan <span className="text-muted-foreground">· {plan.kind}</span>
+                  {t('renamer.dryRun.plan')} <span className="text-muted-foreground">· {plan.kind}</span>
                 </p>
-                <Badge variant="secondary">{planItems.length} items</Badge>
+                <Badge variant="secondary">{t('common.items', { count: planItems.length })}</Badge>
               </div>
               {planItems.length === 0 ? (
                 <EmptyState
                   icon={<ListChecks className="h-6 w-6" />}
-                  title="Nothing to do"
-                  description="No file operations were planned for this source."
+                  title={t('renamer.dryRun.nothingTitle')}
+                  description={t('renamer.dryRun.nothingBody')}
                 />
               ) : (
                 <div className="overflow-x-auto scrollbar-thin">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="pl-4">Source</TableHead>
-                        <TableHead>Destination</TableHead>
-                        <TableHead>Action</TableHead>
-                        <TableHead>Kind</TableHead>
-                        <TableHead className="pr-4">Notes</TableHead>
+                        <TableHead className="pl-4">{t('renamer.dryRun.col.source')}</TableHead>
+                        <TableHead>{t('renamer.dryRun.col.destination')}</TableHead>
+                        <TableHead>{t('renamer.dryRun.col.action')}</TableHead>
+                        <TableHead>{t('renamer.dryRun.col.kind')}</TableHead>
+                        <TableHead className="pr-4">{t('renamer.dryRun.col.notes')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -368,15 +384,15 @@ export function DryRunTab() {
                           </TableCell>
                           <TableCell>
                             <Badge variant={item.skipped ? 'warning' : actionVariant(item.action)} className="capitalize">
-                              {item.skipped ? 'skip' : item.action}
+                              {item.skipped ? t('renamer.dryRun.skip') : item.action}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             <div className="flex flex-wrap items-center gap-1">
                               <span className="capitalize">{item.kind}</span>
-                              {item.isSubtitle && <Badge variant="outline">sub</Badge>}
-                              {item.isSample && <Badge variant="outline">sample</Badge>}
-                              {item.isExtra && <Badge variant="outline">extra</Badge>}
+                              {item.isSubtitle && <Badge variant="outline">{t('renamer.dryRun.badge.sub')}</Badge>}
+                              {item.isSample && <Badge variant="outline">{t('renamer.dryRun.badge.sample')}</Badge>}
+                              {item.isExtra && <Badge variant="outline">{t('renamer.dryRun.badge.extra')}</Badge>}
                             </div>
                           </TableCell>
                           <TableCell
@@ -400,11 +416,12 @@ export function DryRunTab() {
 }
 
 function TemplateHints() {
+  const { t } = useTranslation('media');
   return (
     <Card>
       <CardContent className="space-y-3 p-5">
         <div className="flex items-center gap-2 text-sm font-semibold">
-          <Info className="h-4 w-4 text-info" /> Default template hints
+          <Info className="h-4 w-4 text-info" /> {t('renamer.templateHints.title')}
         </div>
         <div className="grid gap-2 sm:grid-cols-3">
           {TEMPLATE_HINTS.map((hint) => (
@@ -413,7 +430,7 @@ function TemplateHints() {
               className="rounded-md border border-border/60 bg-white/[0.02] px-3 py-2.5"
             >
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {hint.label}
+                {t(`renamer.templateHints.${hint.kind}` as 'renamer.templateHints.tv')}
               </p>
               <p className="mt-1 break-words font-mono text-[11px] text-foreground/90">
                 {hint.template}
@@ -428,6 +445,7 @@ function TemplateHints() {
 
 export function JobsTab() {
   const [detailId, setDetailId] = useState<string | null>(null);
+  const { t } = useTranslation('media');
 
   const jobsQuery = useQuery({
     queryKey: ['media-renamer', 'jobs'],
@@ -442,27 +460,27 @@ export function JobsTab() {
       <Card>
         <CardContent className="p-0">
           {jobsQuery.isLoading ? (
-            <CenteredSpinner label="Loading jobs…" />
+            <CenteredSpinner label={t('renamer.jobs.loading')} />
           ) : jobsQuery.isError ? (
-            <ErrorState message="Could not load jobs." onRetry={() => jobsQuery.refetch()} />
+            <ErrorState message={t('renamer.jobs.error')} onRetry={() => jobsQuery.refetch()} />
           ) : jobs.length === 0 ? (
             <EmptyState
               icon={<Clapperboard className="h-6 w-6" />}
-              title="No rename jobs yet"
-              description="Run a dry run and execute it to create your first job."
+              title={t('renamer.jobs.emptyTitle')}
+              description={t('renamer.jobs.emptyBody')}
             />
           ) : (
             <div className="overflow-x-auto scrollbar-thin">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="pl-4">Source</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Mode</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Confidence</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="pr-4 text-right">Actions</TableHead>
+                    <TableHead className="pl-4">{t('renamer.jobs.col.source')}</TableHead>
+                    <TableHead>{t('renamer.jobs.col.type')}</TableHead>
+                    <TableHead>{t('renamer.jobs.col.mode')}</TableHead>
+                    <TableHead>{t('renamer.jobs.col.status')}</TableHead>
+                    <TableHead>{t('renamer.jobs.col.confidence')}</TableHead>
+                    <TableHead>{t('renamer.jobs.col.created')}</TableHead>
+                    <TableHead className="pr-4 text-right">{t('renamer.jobs.col.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -494,7 +512,7 @@ export function JobsTab() {
                           <button
                             type="button"
                             onClick={() => setDetailId(job.id)}
-                            aria-label="View job"
+                            aria-label={t('renamer.jobs.viewAria')}
                             className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
                           >
                             <Eye className="h-4 w-4" />
@@ -520,6 +538,7 @@ function JobDetailDialog({ jobId, onClose }: { jobId: string; onClose: () => voi
   const canRollback = hasPermission(PERMISSIONS.MEDIA_RENAMER_ROLLBACK);
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
 
   const jobQuery = useQuery({
     queryKey: ['media-renamer', 'job', jobId],
@@ -529,27 +548,30 @@ function JobDetailDialog({ jobId, onClose }: { jobId: string; onClose: () => voi
   const rollbackMutation = useMutation({
     mutationFn: () => api.mediaRenamer.rollback(jobId),
     onSuccess: (res) => {
-      toast.success('Rolled back', `${res.reverted} file(s) reverted.`);
+      toast.success(
+        t('renamer.jobDetail.rolledBackTitle'),
+        t('renamer.jobDetail.rolledBackBody', { count: res.reverted }),
+      );
       queryClient.invalidateQueries({ queryKey: ['media-renamer', 'jobs'] });
       queryClient.invalidateQueries({ queryKey: ['media-renamer', 'job', jobId] });
     },
     onError: (err) =>
-      toast.error('Rollback failed', err instanceof ApiError ? err.message : undefined),
+      toast.error(t('renamer.jobDetail.rollbackFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const job: MediaRenameJobDetail | undefined = jobQuery.data;
 
   return (
-    <Dialog open onClose={onClose} title="Job detail" className="max-w-2xl">
+    <Dialog open onClose={onClose} title={t('renamer.jobDetail.title')} className="max-w-2xl">
       <DialogHeader>
-        <DialogTitle>Rename job</DialogTitle>
-        <DialogDescription>File-by-file outcome of this rename job.</DialogDescription>
+        <DialogTitle>{t('renamer.jobDetail.heading')}</DialogTitle>
+        <DialogDescription>{t('renamer.jobDetail.description')}</DialogDescription>
       </DialogHeader>
 
       {jobQuery.isLoading ? (
-        <CenteredSpinner label="Loading job…" />
+        <CenteredSpinner label={t('renamer.jobDetail.loading')} />
       ) : jobQuery.isError ? (
-        <ErrorState message="Could not load this job." onRetry={() => jobQuery.refetch()} />
+        <ErrorState message={t('renamer.jobDetail.error')} onRetry={() => jobQuery.refetch()} />
       ) : job ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
@@ -565,10 +587,10 @@ function JobDetailDialog({ jobId, onClose }: { jobId: string; onClose: () => voi
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-3">Original</TableHead>
-                  <TableHead>Result</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead className="pr-3">Status</TableHead>
+                  <TableHead className="pl-3">{t('renamer.jobDetail.col.original')}</TableHead>
+                  <TableHead>{t('renamer.jobDetail.col.result')}</TableHead>
+                  <TableHead>{t('renamer.jobDetail.col.action')}</TableHead>
+                  <TableHead className="pr-3">{t('renamer.jobDetail.col.status')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -604,7 +626,7 @@ function JobDetailDialog({ jobId, onClose }: { jobId: string; onClose: () => voi
                 {(job.files ?? []).length === 0 && (
                   <TableRow>
                     <TableCell className="px-3 py-6 text-center text-sm text-muted-foreground" colSpan={4}>
-                      No files recorded for this job.
+                      {t('renamer.jobDetail.noFiles')}
                     </TableCell>
                   </TableRow>
                 )}
@@ -619,15 +641,15 @@ function JobDetailDialog({ jobId, onClose }: { jobId: string; onClose: () => voi
           <Button
             variant="outline"
             onClick={() => {
-              if (window.confirm('Roll back all file operations for this job?'))
+              if (window.confirm(t('renamer.jobDetail.rollbackConfirm')))
                 rollbackMutation.mutate();
             }}
             loading={rollbackMutation.isPending}
           >
-            <RotateCcw className="h-4 w-4" /> Rollback
+            <RotateCcw className="h-4 w-4" /> {t('renamer.jobDetail.rollbackBtn')}
           </Button>
         )}
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t('common.close')}</Button>
       </DialogFooter>
     </Dialog>
   );
@@ -638,6 +660,7 @@ export function TemplatesTab() {
   const canManage = hasPermission(PERMISSIONS.MEDIA_RENAMER_MANAGE_TEMPLATES);
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<MediaRenamerTemplate | null>(null);
 
@@ -649,11 +672,11 @@ export function TemplatesTab() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.mediaRenamer.deleteTemplate(id),
     onSuccess: () => {
-      toast.success('Template deleted');
+      toast.success(t('renamer.templates.deletedTitle'));
       queryClient.invalidateQueries({ queryKey: ['media-renamer', 'templates'] });
     },
     onError: (err) =>
-      toast.error('Could not delete template', err instanceof ApiError ? err.message : undefined),
+      toast.error(t('renamer.templates.deleteError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const templates = templatesQuery.data ?? [];
@@ -663,7 +686,7 @@ export function TemplatesTab() {
       {canManage && (
         <div className="flex justify-end">
           <Button onClick={() => setShowAdd(true)}>
-            <Plus className="h-4 w-4" /> Add template
+            <Plus className="h-4 w-4" /> {t('renamer.templates.addBtn')}
           </Button>
         </div>
       )}
@@ -671,21 +694,21 @@ export function TemplatesTab() {
       <Card>
         <CardContent className="p-0">
           {templatesQuery.isLoading ? (
-            <CenteredSpinner label="Loading templates…" />
+            <CenteredSpinner label={t('renamer.templates.loading')} />
           ) : templatesQuery.isError ? (
             <ErrorState
-              message="Could not load templates."
+              message={t('renamer.templates.error')}
               onRetry={() => templatesQuery.refetch()}
             />
           ) : templates.length === 0 ? (
             <EmptyState
               icon={<FilePenLine className="h-6 w-6" />}
-              title="No custom templates"
-              description="Add a naming template to override the built-in presets."
+              title={t('renamer.templates.emptyTitle')}
+              description={t('renamer.templates.emptyBody')}
               action={
                 canManage ? (
                   <Button onClick={() => setShowAdd(true)}>
-                    <Plus className="h-4 w-4" /> Add template
+                    <Plus className="h-4 w-4" /> {t('renamer.templates.addBtn')}
                   </Button>
                 ) : undefined
               }
@@ -695,12 +718,12 @@ export function TemplatesTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="pl-4">Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Preset</TableHead>
-                    <TableHead>Template</TableHead>
-                    <TableHead>Enabled</TableHead>
-                    <TableHead className="pr-4 text-right">Actions</TableHead>
+                    <TableHead className="pl-4">{t('renamer.templates.col.name')}</TableHead>
+                    <TableHead>{t('renamer.templates.col.type')}</TableHead>
+                    <TableHead>{t('renamer.templates.col.preset')}</TableHead>
+                    <TableHead>{t('renamer.templates.col.template')}</TableHead>
+                    <TableHead>{t('renamer.templates.col.enabled')}</TableHead>
+                    <TableHead className="pr-4 text-right">{t('renamer.templates.col.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -721,7 +744,7 @@ export function TemplatesTab() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={tpl.enabled ? 'success' : 'secondary'}>
-                          {tpl.enabled ? 'Enabled' : 'Disabled'}
+                          {tpl.enabled ? t('common.enabled') : t('common.disabled')}
                         </Badge>
                       </TableCell>
                       <TableCell className="pr-4">
@@ -729,15 +752,15 @@ export function TemplatesTab() {
                           {canManage && (
                             <>
                               <Button size="sm" variant="outline" onClick={() => setEditing(tpl)}>
-                                Edit
+                                {t('renamer.templates.edit')}
                               </Button>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (window.confirm(`Delete template "${tpl.name}"?`))
+                                  if (window.confirm(t('renamer.templates.deleteConfirm', { name: tpl.name })))
                                     deleteMutation.mutate(tpl.id);
                                 }}
-                                aria-label={`Delete ${tpl.name}`}
+                                aria-label={t('renamer.templates.deleteAria', { name: tpl.name })}
                                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -770,7 +793,16 @@ function TemplateDialog({
 }) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const isEdit = Boolean(template);
+  const presetOptions = PRESET_OPTIONS.map((o) => ({
+    value: o.value,
+    label: t(`renamer.presetOption.${o.value}` as 'renamer.presetOption.plex'),
+  }));
+  const mediaTypeOptions = MEDIA_TYPE_OPTIONS.map((o) => ({
+    value: o.value,
+    label: t(`renamer.mediaTypeOption.${o.value}` as 'renamer.mediaTypeOption.tv'),
+  }));
   const [form, setForm] = useState({
     name: template?.name ?? '',
     mediaType: template?.mediaType ?? 'tv',
@@ -793,35 +825,33 @@ function TemplateDialog({
         : api.mediaRenamer.createTemplate(body);
     },
     onSuccess: () => {
-      toast.success(isEdit ? 'Template updated' : 'Template created');
+      toast.success(isEdit ? t('renamer.templateDialog.updatedTitle') : t('renamer.templateDialog.createdTitle'));
       queryClient.invalidateQueries({ queryKey: ['media-renamer', 'templates'] });
       onClose();
     },
     onError: (err) =>
-      toast.error('Could not save template', err instanceof ApiError ? err.message : undefined),
+      toast.error(t('renamer.templateDialog.saveError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.template.trim()) {
-      toast.error('Missing fields', 'Name and template are required.');
+      toast.error(t('renamer.templateDialog.missingTitle'), t('renamer.templateDialog.missingBody'));
       return;
     }
     mutation.mutate();
   };
 
   return (
-    <Dialog open onClose={onClose} title={isEdit ? 'Edit template' : 'Add template'}>
+    <Dialog open onClose={onClose} title={isEdit ? t('renamer.templateDialog.editTitle') : t('renamer.templateDialog.addTitle')}>
       <DialogHeader>
-        <DialogTitle>{isEdit ? 'Edit template' : 'Add template'}</DialogTitle>
-        <DialogDescription>
-          Tokens like {'{title}'}, {'{year}'}, {'{season}'}, {'{episode}'} are expanded at rename time.
-        </DialogDescription>
+        <DialogTitle>{isEdit ? t('renamer.templateDialog.editTitle') : t('renamer.templateDialog.addTitle')}</DialogTitle>
+        <DialogDescription>{t('renamer.templateDialog.description')}</DialogDescription>
       </DialogHeader>
       <form onSubmit={submit} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-name">Name</Label>
+            <Label htmlFor="tpl-name">{t('renamer.templateDialog.name')}</Label>
             <Input
               id="tpl-name"
               value={form.name}
@@ -830,31 +860,31 @@ function TemplateDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-type">Media type</Label>
+            <Label htmlFor="tpl-type">{t('renamer.templateDialog.mediaType')}</Label>
             <Select
               id="tpl-type"
               value={form.mediaType}
               onChange={(e) => setForm((f) => ({ ...f, mediaType: e.target.value }))}
-              options={MEDIA_TYPE_OPTIONS}
+              options={mediaTypeOptions}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-preset">Server preset</Label>
+            <Label htmlFor="tpl-preset">{t('renamer.templateDialog.preset')}</Label>
             <Select
               id="tpl-preset"
               value={form.serverPreset}
               onChange={(e) => setForm((f) => ({ ...f, serverPreset: e.target.value }))}
-              options={PRESET_OPTIONS}
+              options={presetOptions}
             />
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="tpl-template">Template</Label>
+          <Label htmlFor="tpl-template">{t('renamer.templateDialog.template')}</Label>
           <Textarea
             id="tpl-template"
             value={form.template}
             onChange={(e) => setForm((f) => ({ ...f, template: e.target.value }))}
-            placeholder="{title} ({year})/Season {season}/{title} - S{season}E{episode}"
+            placeholder={t('renamer.templateDialog.templatePlaceholder')}
             className="font-mono text-xs"
           />
         </div>
@@ -865,14 +895,14 @@ function TemplateDialog({
             onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
             className="h-4 w-4 rounded border-input bg-white/[0.02]"
           />
-          Enabled
+          {t('renamer.templateDialog.enabled')}
         </label>
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button type="submit" loading={mutation.isPending}>
-            <Save className="h-4 w-4" /> {isEdit ? 'Save' : 'Create template'}
+            <Save className="h-4 w-4" /> {isEdit ? t('renamer.templateDialog.save') : t('renamer.templateDialog.create')}
           </Button>
         </DialogFooter>
       </form>

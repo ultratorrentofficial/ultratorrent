@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { WS_EVENTS, type ImdbEventPayload } from '@ultratorrent/shared';
 import {
@@ -43,8 +44,7 @@ import {
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { PathPicker } from '@/components/PathPicker';
 import {
-  IMDB_COMPLIANCE_NOTICE,
-  IMDB_MODE_OPTIONS,
+  imdbModeOptions,
   imdbDatasetFileLabel,
   imdbImportStatusVariant,
   imdbModeLabel,
@@ -68,6 +68,7 @@ export function MediaImdbSettingsPage() {
   const canView = hasPermission(PERMISSIONS.MEDIA_MANAGER_IMDB_VIEW);
   const canConfigure = hasPermission(PERMISSIONS.MEDIA_MANAGER_IMDB_CONFIGURE);
   const canImport = hasPermission(PERMISSIONS.MEDIA_MANAGER_IMDB_IMPORT_DATASET);
+  const { t } = useTranslation('imdb');
 
   const statusQuery = useQuery({
     queryKey: ['media', 'imdb', 'status'],
@@ -85,8 +86,8 @@ export function MediaImdbSettingsPage() {
       <div className="p-6">
         <EmptyState
           icon={<Film className="h-6 w-6" />}
-          title="No access"
-          description="You do not have permission to view the IMDb provider."
+          title={t('page.noAccessTitle')}
+          description={t('page.noAccessBody')}
         />
       </div>
     );
@@ -95,7 +96,7 @@ export function MediaImdbSettingsPage() {
   if (statusQuery.isLoading || settingsQuery.isLoading) {
     return (
       <div className="p-6">
-        <CenteredSpinner label="Loading IMDb settings…" />
+        <CenteredSpinner label={t('page.loading')} />
       </div>
     );
   }
@@ -103,7 +104,7 @@ export function MediaImdbSettingsPage() {
     return (
       <div className="p-6">
         <ErrorState
-          message="Could not load IMDb provider settings."
+          message={t('page.error')}
           onRetry={() => {
             statusQuery.refetch();
             settingsQuery.refetch();
@@ -122,15 +123,13 @@ export function MediaImdbSettingsPage() {
           onClick={() => navigate('/media/settings')}
           className="mb-2 -ml-2"
         >
-          Media Settings
+          {t('page.backToSettings')}
         </Button>
         <div className="flex flex-wrap items-center gap-2">
           <Film className="h-6 w-6 text-muted-foreground" />
-          <h1 className="text-2xl font-bold tracking-tight">IMDb Provider</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Configure IMDb metadata from user-provided datasets or a licensed IMDb API.
-        </p>
+        <p className="text-sm text-muted-foreground">{t('page.subtitle')}</p>
       </div>
 
       <ComplianceNotice />
@@ -179,10 +178,11 @@ function SectionCard({
 }
 
 function ComplianceNotice() {
+  const { t } = useTranslation('imdb');
   return (
     <div className="flex items-start gap-2 rounded-md border border-info/30 bg-info/10 p-3 text-xs text-info">
       <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-      <p>{IMDB_COMPLIANCE_NOTICE}</p>
+      <p>{t('complianceNotice')}</p>
     </div>
   );
 }
@@ -192,34 +192,35 @@ function ComplianceNotice() {
 // ---------------------------------------------------------------------------
 
 function ProviderStatusSection({ status }: { status: ImdbStatus }) {
+  const { t } = useTranslation('imdb');
   const enabled = status.source !== 'disabled';
   return (
     <SectionCard
       icon={<Activity className="h-5 w-5" />}
-      title="Provider status"
-      description="Current IMDb provider health and last dataset import."
+      title={t('status.title')}
+      description={t('status.description')}
       actions={
         <Badge variant={status.available ? 'success' : enabled ? 'warning' : 'secondary'} dot>
-          {status.available ? 'Ready' : enabled ? 'Not ready' : 'Disabled'}
+          {status.available ? t('status.ready') : enabled ? t('status.notReady') : t('status.disabled')}
         </Badge>
       }
     >
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatusField label="Mode" value={imdbModeLabel(status.source)} />
+        <StatusField label={t('status.mode')} value={imdbModeLabel(t, status.source)} />
         <StatusField
-          label="Dataset titles"
+          label={t('status.datasetTitles')}
           value={formatNumber(status.datasetTitleCount)}
         />
         <StatusField
-          label="Official API"
+          label={t('status.officialApi')}
           value={
             <Badge variant={status.apiConfigured ? 'success' : 'secondary'}>
-              {status.apiConfigured ? 'Configured' : 'Not configured'}
+              {status.apiConfigured ? t('status.configured') : t('status.notConfigured')}
             </Badge>
           }
         />
         <StatusField
-          label="Last import"
+          label={t('status.lastImport')}
           value={
             status.lastImport ? (
               <span className="flex flex-wrap items-center gap-1.5">
@@ -227,7 +228,7 @@ function ProviderStatusSection({ status }: { status: ImdbStatus }) {
                   {status.lastImport.status}
                 </Badge>
                 <span className="text-muted-foreground">
-                  {formatNumber(status.lastImport.recordsImported)} records
+                  {t('records', { formatted: formatNumber(status.lastImport.recordsImported) })}
                 </span>
               </span>
             ) : (
@@ -236,7 +237,7 @@ function ProviderStatusSection({ status }: { status: ImdbStatus }) {
           }
         />
         <StatusField
-          label="Last import at"
+          label={t('status.lastImportAt')}
           value={
             status.lastImport?.completedAt
               ? formatRelativeTime(status.lastImport.completedAt)
@@ -244,7 +245,7 @@ function ProviderStatusSection({ status }: { status: ImdbStatus }) {
           }
         />
         <StatusField
-          label="Dataset date"
+          label={t('status.datasetDate')}
           value={
             status.lastImport?.datasetDate ? formatDateTime(status.lastImport.datasetDate) : '—'
           }
@@ -279,6 +280,7 @@ function DatasetSection({
 }) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('imdb');
 
   const [datasetPath, setDatasetPath] = useState(settings.datasetPath ?? '');
   const [scheduleEnabled, setScheduleEnabled] = useState(Boolean(settings.importSchedule));
@@ -315,19 +317,22 @@ function DatasetSection({
       apply({ ...p, progress: 100 }, 'completed');
       queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'imports'] });
       queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'status'] });
-      toast.success('IMDb dataset imported', `${formatNumber(p.recordsImported ?? 0)} records`);
+      toast.success(
+        t('dataset.importedToastTitle'),
+        t('records', { formatted: formatNumber(p.recordsImported ?? 0) }),
+      );
     });
     const offFailed = wsClient.on(WS_EVENTS.IMDB_DATASET_IMPORT_FAILED, (p) => {
       apply(p, 'failed');
       queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'imports'] });
-      toast.error('IMDb import failed', p.error ?? undefined);
+      toast.error(t('dataset.importFailedTitle'), p.error ?? undefined);
     });
     return () => {
       offProgress();
       offCompleted();
       offFailed();
     };
-  }, [queryClient, toast]);
+  }, [queryClient, toast, t]);
 
   const importsQuery = useQuery({
     queryKey: ['media', 'imdb', 'imports'],
@@ -337,20 +342,24 @@ function DatasetSection({
   const saveSchedule = useMutation({
     mutationFn: (body: ImdbSettingsInput) => api.media.updateImdbSettings(body),
     onSuccess: () => {
-      toast.success('Saved');
+      toast.success(t('common.saved'));
       queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'settings'] });
     },
-    onError: (err) => toast.error('Could not save', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('common.couldNotSave'), err instanceof ApiError ? err.message : undefined),
   });
 
   const validate = useMutation({
     mutationFn: () => api.media.validateImdbDataset({ datasetPath: datasetPath.trim() }),
     onSuccess: (res) => {
       setReport(res);
-      if (res.valid) toast.success('Dataset looks valid', `${res.filesFound} file(s) found`);
-      else toast.error('Dataset validation failed', res.hasMinimum ? undefined : 'title.basics missing');
+      if (res.valid) toast.success(t('dataset.validTitle'), t('filesFound', { count: res.filesFound }));
+      else
+        toast.error(
+          t('dataset.invalidTitle'),
+          res.hasMinimum ? undefined : t('dataset.titleBasicsMissing'),
+        );
     },
-    onError: (err) => toast.error('Validation failed', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('dataset.validationFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const startImport = useMutation({
@@ -364,10 +373,10 @@ function DatasetSection({
         recordsImported: rec.recordsImported,
         error: null,
       });
-      toast.success('Import started', 'Live progress will appear below.');
+      toast.success(t('dataset.importStartedTitle'), t('dataset.importStartedBody'));
       queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'imports'] });
     },
-    onError: (err) => toast.error('Could not start import', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('dataset.importStartError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const importInFlight =
@@ -377,20 +386,20 @@ function DatasetSection({
   return (
     <SectionCard
       icon={<Database className="h-5 w-5" />}
-      title="Dataset configuration"
-      description="Point to a directory holding the official IMDb TSV dataset files (.tsv.gz)."
+      title={t('dataset.title')}
+      description={t('dataset.description')}
     >
       <div>
-        <Label htmlFor="imdb-dataset-path">Dataset directory</Label>
+        <Label htmlFor="imdb-dataset-path">{t('dataset.dirLabel')}</Label>
         <PathPicker
           id="imdb-dataset-path"
           value={datasetPath}
           onChange={setDatasetPath}
           mode="directory"
           disabled={!canImport}
-          placeholder="/data/imdb"
-          pickerTitle="Select the IMDb dataset directory"
-          aria-label="IMDb dataset directory"
+          placeholder={t('dataset.dirPlaceholder')}
+          pickerTitle={t('dataset.dirPicker')}
+          aria-label={t('dataset.dirAria')}
         />
       </div>
 
@@ -401,14 +410,14 @@ function DatasetSection({
           loading={validate.isPending}
           disabled={!canImport || !datasetPath.trim()}
         >
-          Validate dataset
+          {t('dataset.validateBtn')}
         </Button>
         <Button
           onClick={() => startImport.mutate()}
           loading={startImport.isPending}
           disabled={!canImport || !datasetPath.trim() || importInFlight}
         >
-          <Upload className="h-4 w-4" /> Import now
+          <Upload className="h-4 w-4" /> {t('dataset.importBtn')}
         </Button>
       </div>
 
@@ -423,12 +432,12 @@ function DatasetSection({
               </Badge>
               {live.message && (
                 <span className="text-xs text-muted-foreground">
-                  {imdbDatasetFileLabel(live.message)}
+                  {imdbDatasetFileLabel(t, live.message)}
                 </span>
               )}
             </div>
             <span className="text-xs tabular-nums text-muted-foreground">
-              {formatNumber(live.recordsImported)} records
+              {t('records', { formatted: formatNumber(live.recordsImported) })}
             </span>
           </div>
           <Progress value={live.progress / 100} showLabel />
@@ -440,10 +449,8 @@ function DatasetSection({
       <div className="space-y-3 border-t border-border/60 pt-4">
         <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
           <div>
-            <Label htmlFor="imdb-schedule-toggle">Scheduled import</Label>
-            <p className="text-xs text-muted-foreground">
-              Automatically re-import on a cron schedule.
-            </p>
+            <Label htmlFor="imdb-schedule-toggle">{t('dataset.scheduleTitle')}</Label>
+            <p className="text-xs text-muted-foreground">{t('dataset.scheduleDesc')}</p>
           </div>
           <Switch
             id="imdb-schedule-toggle"
@@ -455,12 +462,12 @@ function DatasetSection({
         {scheduleEnabled && (
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[240px] flex-1">
-              <Label htmlFor="imdb-schedule">Cron schedule</Label>
+              <Label htmlFor="imdb-schedule">{t('dataset.cronLabel')}</Label>
               <Input
                 id="imdb-schedule"
                 value={schedule}
                 onChange={(e) => setSchedule(e.target.value)}
-                placeholder="0 4 * * 0"
+                placeholder={t('dataset.cronPlaceholder')}
                 disabled={!canConfigure}
               />
             </div>
@@ -477,7 +484,7 @@ function DatasetSection({
               }
               loading={saveSchedule.isPending}
             >
-              <Save className="h-4 w-4" /> Save schedule
+              <Save className="h-4 w-4" /> {t('dataset.saveScheduleBtn')}
             </Button>
           </div>
         )}
@@ -485,27 +492,27 @@ function DatasetSection({
 
       {/* Import history */}
       <div className="space-y-2 border-t border-border/60 pt-4">
-        <p className="text-sm font-semibold">Import history</p>
+        <p className="text-sm font-semibold">{t('dataset.historyTitle')}</p>
         {importsQuery.isLoading ? (
-          <CenteredSpinner label="Loading imports…" />
+          <CenteredSpinner label={t('dataset.historyLoading')} />
         ) : importsQuery.isError ? (
-          <ErrorState message="Could not load imports." onRetry={() => importsQuery.refetch()} />
+          <ErrorState message={t('dataset.historyError')} onRetry={() => importsQuery.refetch()} />
         ) : (importsQuery.data?.length ?? 0) === 0 ? (
           <EmptyState
             icon={<Database className="h-6 w-6" />}
-            title="No imports yet"
-            description="Validate and import a dataset to populate IMDb metadata."
+            title={t('dataset.historyEmptyTitle')}
+            description={t('dataset.historyEmptyBody')}
           />
         ) : (
           <div className="overflow-x-auto scrollbar-thin">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[110px] pl-4">Status</TableHead>
-                  <TableHead className="w-[120px]">Records</TableHead>
-                  <TableHead className="w-[160px]">Started</TableHead>
-                  <TableHead className="w-[160px]">Finished</TableHead>
-                  <TableHead className="min-w-[220px] pr-4">Source</TableHead>
+                  <TableHead className="w-[110px] pl-4">{t('dataset.col.status')}</TableHead>
+                  <TableHead className="w-[120px]">{t('dataset.col.records')}</TableHead>
+                  <TableHead className="w-[160px]">{t('dataset.col.started')}</TableHead>
+                  <TableHead className="w-[160px]">{t('dataset.col.finished')}</TableHead>
+                  <TableHead className="min-w-[220px] pr-4">{t('dataset.col.source')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -549,43 +556,44 @@ function DatasetSection({
 }
 
 function ValidationReport({ report }: { report: ImdbDatasetValidationReport }) {
+  const { t } = useTranslation('imdb');
   return (
     <div className="space-y-2 rounded-md border border-border/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={report.valid ? 'success' : 'destructive'} dot>
-          {report.valid ? 'Valid' : 'Invalid'}
+          {report.valid ? t('report.valid') : t('report.invalid')}
         </Badge>
-        <span className="text-xs text-muted-foreground">{report.filesFound} file(s) found</span>
+        <span className="text-xs text-muted-foreground">{t('filesFound', { count: report.filesFound })}</span>
         {!report.hasMinimum && (
-          <Badge variant="warning">title.basics missing — cannot import</Badge>
+          <Badge variant="warning">{t('report.titleBasicsMissingBadge')}</Badge>
         )}
       </div>
       <div className="overflow-x-auto scrollbar-thin">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-[160px] pl-3">File</TableHead>
-              <TableHead className="w-[90px]">Present</TableHead>
-              <TableHead className="w-[90px]">Header</TableHead>
-              <TableHead className="w-[100px] pr-3">Size</TableHead>
+              <TableHead className="min-w-[160px] pl-3">{t('report.col.file')}</TableHead>
+              <TableHead className="w-[90px]">{t('report.col.present')}</TableHead>
+              <TableHead className="w-[90px]">{t('report.col.header')}</TableHead>
+              <TableHead className="w-[100px] pr-3">{t('report.col.size')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {report.files.map((f) => (
               <TableRow key={f.key}>
                 <TableCell className="pl-3">
-                  <span className="text-sm">{imdbDatasetFileLabel(f.key)}</span>
+                  <span className="text-sm">{imdbDatasetFileLabel(t, f.key)}</span>
                   <p className="font-mono text-[11px] text-muted-foreground">{f.file}</p>
                 </TableCell>
                 <TableCell>
                   <Badge variant={f.present ? 'success' : 'secondary'}>
-                    {f.present ? 'Yes' : 'No'}
+                    {f.present ? t('report.yes') : t('report.no')}
                   </Badge>
                 </TableCell>
                 <TableCell>
                   {f.present ? (
                     <Badge variant={f.headerOk ? 'success' : 'destructive'}>
-                      {f.headerOk ? 'OK' : 'Bad'}
+                      {f.headerOk ? t('report.ok') : t('report.bad')}
                     </Badge>
                   ) : (
                     <span className="text-muted-foreground">—</span>
@@ -616,6 +624,7 @@ function OfficialApiSection({
 }) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('imdb');
 
   const [mode, setMode] = useState(settings.mode);
   const [apiBaseUrl, setApiBaseUrl] = useState(settings.apiBaseUrl ?? '');
@@ -643,54 +652,54 @@ function OfficialApiSection({
       return api.media.updateImdbSettings(body);
     },
     onSuccess: () => {
-      toast.success('Saved');
+      toast.success(t('common.saved'));
       queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'settings'] });
       queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'status'] });
     },
-    onError: (err) => toast.error('Could not save', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('common.couldNotSave'), err instanceof ApiError ? err.message : undefined),
   });
 
   const test = useMutation({
     mutationFn: () => api.media.testImdbApi(),
     onSuccess: (res) => {
-      if (res.available) toast.success('Connection OK', 'IMDb API is available.');
+      if (res.available) toast.success(t('api.connOkTitle'), t('api.connOkBody'));
       else if (res.apiConfigured)
-        toast.error('API configured but unavailable', 'Check the base URL and key.');
-      else toast.error('API not configured', 'Set a base URL and API key first.');
+        toast.error(t('api.configuredUnavailableTitle'), t('api.configuredUnavailableBody'));
+      else toast.error(t('api.notConfiguredTitle'), t('api.notConfiguredBody'));
     },
-    onError: (err) => toast.error('Test failed', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('api.testFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   return (
     <SectionCard
       icon={<Plug className="h-5 w-5" />}
-      title="Official / licensed API"
-      description="Optional licensed IMDb REST API used for search and lookups. Never contacts imdb.com."
+      title={t('api.title')}
+      description={t('api.description')}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="imdb-mode">Provider mode</Label>
+          <Label htmlFor="imdb-mode">{t('api.mode')}</Label>
           <Select
             id="imdb-mode"
             value={mode}
             onChange={(e) => setMode(e.target.value as typeof mode)}
-            options={IMDB_MODE_OPTIONS}
+            options={imdbModeOptions(t)}
             disabled={!canConfigure}
           />
         </div>
         <div>
-          <Label htmlFor="imdb-base-url">API base URL</Label>
+          <Label htmlFor="imdb-base-url">{t('api.baseUrl')}</Label>
           <Input
             id="imdb-base-url"
             value={apiBaseUrl}
             onChange={(e) => setApiBaseUrl(e.target.value)}
-            placeholder="https://api.example.com/imdb"
+            placeholder={t('api.baseUrlPlaceholder')}
             disabled={!canConfigure}
             autoComplete="off"
           />
         </div>
         <div>
-          <Label htmlFor="imdb-api-key">API key</Label>
+          <Label htmlFor="imdb-api-key">{t('api.apiKey')}</Label>
           <Input
             id="imdb-api-key"
             type="password"
@@ -705,13 +714,13 @@ function OfficialApiSection({
                 setApiKeyDirty(true);
               }
             }}
-            placeholder={settings.hasApiKey ? 'Leave blank to keep existing' : 'Enter API key'}
+            placeholder={settings.hasApiKey ? t('api.apiKeyPlaceholderKeep') : t('api.apiKeyPlaceholderNew')}
             disabled={!canConfigure}
             autoComplete="off"
           />
         </div>
         <div>
-          <Label htmlFor="imdb-cache-ttl">Cache TTL (seconds)</Label>
+          <Label htmlFor="imdb-cache-ttl">{t('api.cacheTtl')}</Label>
           <Input
             id="imdb-cache-ttl"
             type="number"
@@ -726,10 +735,10 @@ function OfficialApiSection({
       {canConfigure && (
         <div className="flex flex-wrap justify-end gap-2 border-t border-border/60 pt-4">
           <Button variant="outline" onClick={() => test.mutate()} loading={test.isPending}>
-            Test connection
+            {t('api.testBtn')}
           </Button>
           <Button onClick={() => save.mutate()} loading={save.isPending}>
-            <Save className="h-4 w-4" /> Save
+            <Save className="h-4 w-4" /> {t('api.saveBtn')}
           </Button>
         </div>
       )}
@@ -750,6 +759,7 @@ function MatchingPreferencesSection({
 }) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('imdb');
 
   const [language, setLanguage] = useState(settings.preferredLanguage ?? '');
   const [region, setRegion] = useState(settings.preferredRegion ?? '');
@@ -772,58 +782,56 @@ function MatchingPreferencesSection({
         minVotes: Number(minVotes) || 0,
       }),
     onSuccess: () => {
-      toast.success('Saved');
+      toast.success(t('common.saved'));
       queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'settings'] });
     },
-    onError: (err) => toast.error('Could not save', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('common.couldNotSave'), err instanceof ApiError ? err.message : undefined),
   });
 
   return (
     <SectionCard
       icon={<SlidersHorizontal className="h-5 w-5" />}
-      title="Matching preferences"
-      description="Tune how IMDb search ranks and filters candidate titles."
+      title={t('matching.title')}
+      description={t('matching.description')}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="imdb-language">Preferred language</Label>
+          <Label htmlFor="imdb-language">{t('matching.language')}</Label>
           <Input
             id="imdb-language"
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
-            placeholder="en"
+            placeholder={t('matching.languagePlaceholder')}
             disabled={!canConfigure}
           />
         </div>
         <div>
-          <Label htmlFor="imdb-region">Preferred region</Label>
+          <Label htmlFor="imdb-region">{t('matching.region')}</Label>
           <Input
             id="imdb-region"
             value={region}
             onChange={(e) => setRegion(e.target.value)}
-            placeholder="US"
+            placeholder={t('matching.regionPlaceholder')}
             disabled={!canConfigure}
           />
         </div>
         <div>
-          <Label htmlFor="imdb-min-votes">Minimum votes</Label>
+          <Label htmlFor="imdb-min-votes">{t('matching.minVotes')}</Label>
           <Input
             id="imdb-min-votes"
             type="number"
             min={0}
             value={minVotes}
             onChange={(e) => setMinVotes(e.target.value)}
-            placeholder="0"
+            placeholder={t('matching.minVotesPlaceholder')}
             disabled={!canConfigure}
           />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Higher thresholds weight confidence toward well-known titles.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('matching.minVotesHint')}</p>
         </div>
         <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
           <div>
-            <Label htmlFor="imdb-adult">Include adult titles</Label>
-            <p className="text-xs text-muted-foreground">Off by default.</p>
+            <Label htmlFor="imdb-adult">{t('matching.includeAdult')}</Label>
+            <p className="text-xs text-muted-foreground">{t('matching.includeAdultHint')}</p>
           </div>
           <Switch
             id="imdb-adult"
@@ -837,7 +845,7 @@ function MatchingPreferencesSection({
       {canConfigure && (
         <div className="flex justify-end border-t border-border/60 pt-4">
           <Button onClick={() => save.mutate()} loading={save.isPending}>
-            <Save className="h-4 w-4" /> Save preferences
+            <Save className="h-4 w-4" /> {t('matching.saveBtn')}
           </Button>
         </div>
       )}

@@ -1,3 +1,4 @@
+import type { Namespace, TFunction } from 'i18next';
 import type {
   MediaItemType,
   MediaKind,
@@ -6,61 +7,132 @@ import type {
   RenameMode,
 } from '@/lib/api';
 
-/** Library kinds — mirrors the backend `MediaLibrary.kind` enum. */
-export const LIBRARY_KIND_OPTIONS: { value: MediaKind; label: string }[] = [
-  { value: 'tv', label: 'TV' },
-  { value: 'anime', label: 'Anime' },
-  { value: 'movie', label: 'Movie' },
-  { value: 'music', label: 'Music' },
-  { value: 'audiobook', label: 'Audiobook' },
-  { value: 'general', label: 'General' },
+/**
+ * i18n note: the label/option helpers below translate at RENDER time. They take
+ * the caller's `t` (from `useTranslation('media')` / `useTranslation('imdb')`)
+ * and resolve namespace-qualified keys. The dynamic-key cast is contained here —
+ * the `media`/`imdb` resources hold the canonical enum labels. This mirrors the
+ * `tNav` pattern in `components/layout/navigation.ts`.
+ */
+type AnyT = (key: string, options?: Record<string, unknown>) => string;
+/** Accept any namespace's `t` and resolve namespace-qualified keys dynamically. */
+type SomeT = TFunction<Namespace>;
+const loose = (t: SomeT): AnyT => t as unknown as AnyT;
+
+/** Enum value lists — mirror the backend enums (used to build <Select> options). */
+export const LIBRARY_KIND_VALUES: MediaKind[] = [
+  'tv',
+  'anime',
+  'movie',
+  'music',
+  'audiobook',
+  'general',
 ];
 
-export const PRESET_OPTIONS: { value: Preset; label: string }[] = [
-  { value: 'plex', label: 'Plex' },
-  { value: 'jellyfin', label: 'Jellyfin' },
-  { value: 'emby', label: 'Emby' },
-  { value: 'kodi', label: 'Kodi' },
-  { value: 'custom', label: 'Custom' },
+export const PRESET_VALUES: Preset[] = ['plex', 'jellyfin', 'emby', 'kodi', 'custom'];
+
+export const MODE_VALUES: RenameMode[] = [
+  'preview',
+  'rename_in_place',
+  'rename_move',
+  'copy',
+  'hardlink',
+  'symlink',
 ];
 
-export const MODE_OPTIONS: { value: RenameMode; label: string }[] = [
-  { value: 'preview', label: 'Preview only' },
-  { value: 'rename_in_place', label: 'Rename in place' },
-  { value: 'rename_move', label: 'Rename + move' },
-  { value: 'copy', label: 'Copy' },
-  { value: 'hardlink', label: 'Hardlink (keeps seeding)' },
-  { value: 'symlink', label: 'Symlink (keeps seeding)' },
+export const MEDIA_TYPE_VALUES: MediaItemType[] = [
+  'movie',
+  'tv',
+  'anime',
+  'music_video',
+  'documentary',
+  'other_video',
 ];
 
-/** Media item types — mirrors the backend `MediaItem.mediaType` enum. */
-export const MEDIA_TYPE_OPTIONS: { value: MediaItemType; label: string }[] = [
-  { value: 'movie', label: 'Movie' },
-  { value: 'tv', label: 'TV' },
-  { value: 'anime', label: 'Anime' },
-  { value: 'music_video', label: 'Music video' },
-  { value: 'documentary', label: 'Documentary' },
-  { value: 'other_video', label: 'Other' },
+export const MATCH_STATUS_VALUES: MediaMatchStatus[] = ['matched', 'manual', 'unmatched'];
+
+/** Artwork types tracked per item — mirrors the backend `ARTWORK_TYPES`. */
+export const ARTWORK_TYPE_VALUES: string[] = [
+  'poster',
+  'fanart',
+  'logo',
+  'clearart',
+  'banner',
+  'thumbnail',
+  'season_poster',
+  'episode_thumbnail',
 ];
 
-export const MATCH_STATUS_OPTIONS: { value: MediaMatchStatus; label: string }[] = [
-  { value: 'matched', label: 'Matched' },
-  { value: 'manual', label: 'Manual' },
-  { value: 'unmatched', label: 'Unmatched' },
-];
+/** Media-server integration kinds — mirrors the backend `VALID_KINDS`. */
+export const MEDIA_SERVER_KIND_VALUES: string[] = ['plex', 'jellyfin', 'emby', 'kodi'];
 
-export function kindLabel(kind: string): string {
-  return LIBRARY_KIND_OPTIONS.find((k) => k.value === kind)?.label ?? kind;
+/** IMDb operating modes — mirrors the backend `ImdbMode`. */
+export const IMDB_MODE_VALUES: string[] = ['disabled', 'dataset', 'official_api', 'hybrid'];
+
+/** IMDb title kinds accepted by search — mirrors the backend `ImdbTitleKind`. */
+export const IMDB_TITLE_KIND_VALUES: string[] = ['any', 'movie', 'tv', 'episode'];
+
+// --- Enum label resolvers ---------------------------------------------------
+
+export function kindLabel(t: SomeT, kind: string): string {
+  return loose(t)(`media:libraryKind.${kind}`, { defaultValue: kind });
 }
-export function presetLabel(preset: string): string {
-  return PRESET_OPTIONS.find((p) => p.value === preset)?.label ?? preset;
+export function presetLabel(t: SomeT, preset: string): string {
+  return loose(t)(`media:preset.${preset}`, { defaultValue: preset });
 }
-export function modeLabel(mode: string): string {
-  return MODE_OPTIONS.find((m) => m.value === mode)?.label ?? mode;
+export function modeLabel(t: SomeT, mode: string): string {
+  return loose(t)(`media:renameMode.${mode}`, { defaultValue: mode });
 }
-export function mediaTypeLabel(type: string): string {
-  return MEDIA_TYPE_OPTIONS.find((t) => t.value === type)?.label ?? type;
+export function mediaTypeLabel(t: SomeT, type: string): string {
+  return loose(t)(`media:mediaType.${type}`, { defaultValue: type });
 }
+export function matchStatusLabel(t: SomeT, status: string): string {
+  return loose(t)(`media:matchStatus.${status}`, { defaultValue: status });
+}
+export function artworkTypeLabel(t: SomeT, type: string): string {
+  return loose(t)(`media:artworkType.${type}`, { defaultValue: type });
+}
+export function mediaServerKindLabel(t: SomeT, kind: string): string {
+  return loose(t)(`media:mediaServerKind.${kind}`, { defaultValue: kind });
+}
+export function duplicateReasonLabel(t: SomeT, reason: string): string {
+  return loose(t)(`media:duplicateReason.${reason}`, { defaultValue: reason });
+}
+export function imdbModeLabel(t: SomeT, mode: string): string {
+  return loose(t)(`imdb:mode.${mode}`, { defaultValue: mode });
+}
+
+// --- <Select> option builders (translated) ----------------------------------
+
+export function libraryKindOptions(t: SomeT): { value: MediaKind; label: string }[] {
+  return LIBRARY_KIND_VALUES.map((value) => ({ value, label: kindLabel(t, value) }));
+}
+export function presetOptions(t: SomeT): { value: Preset; label: string }[] {
+  return PRESET_VALUES.map((value) => ({ value, label: presetLabel(t, value) }));
+}
+export function modeOptions(t: SomeT): { value: RenameMode; label: string }[] {
+  return MODE_VALUES.map((value) => ({ value, label: modeLabel(t, value) }));
+}
+export function mediaTypeOptions(t: SomeT): { value: MediaItemType; label: string }[] {
+  return MEDIA_TYPE_VALUES.map((value) => ({ value, label: mediaTypeLabel(t, value) }));
+}
+export function matchStatusOptions(t: SomeT): { value: MediaMatchStatus; label: string }[] {
+  return MATCH_STATUS_VALUES.map((value) => ({ value, label: matchStatusLabel(t, value) }));
+}
+export function mediaServerKindOptions(t: SomeT): { value: string; label: string }[] {
+  return MEDIA_SERVER_KIND_VALUES.map((value) => ({ value, label: mediaServerKindLabel(t, value) }));
+}
+export function imdbModeOptions(t: SomeT): { value: string; label: string }[] {
+  return IMDB_MODE_VALUES.map((value) => ({ value, label: imdbModeLabel(t, value) }));
+}
+export function imdbTitleKindOptions(t: SomeT): { value: string; label: string }[] {
+  return IMDB_TITLE_KIND_VALUES.map((value) => ({
+    value,
+    label: loose(t)(`imdb:titleKind.${value}`, { defaultValue: value }),
+  }));
+}
+
+// --- Badge variants (no user-facing text) -----------------------------------
 
 /** Colored badge variant for a media item's match status. */
 export function matchStatusVariant(
@@ -77,78 +149,6 @@ export function matchStatusVariant(
       return 'secondary';
   }
 }
-
-export function matchStatusLabel(status: string): string {
-  return MATCH_STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status;
-}
-
-/** Artwork types tracked per item — mirrors the backend `ARTWORK_TYPES`. */
-export const ARTWORK_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'poster', label: 'Poster' },
-  { value: 'fanart', label: 'Fanart' },
-  { value: 'logo', label: 'Logo' },
-  { value: 'clearart', label: 'Clear art' },
-  { value: 'banner', label: 'Banner' },
-  { value: 'thumbnail', label: 'Thumbnail' },
-  { value: 'season_poster', label: 'Season poster' },
-  { value: 'episode_thumbnail', label: 'Episode thumbnail' },
-];
-
-export function artworkTypeLabel(type: string): string {
-  return ARTWORK_TYPE_OPTIONS.find((t) => t.value === type)?.label ?? type;
-}
-
-/** Media-server integration kinds — mirrors the backend `VALID_KINDS`. */
-export const MEDIA_SERVER_KIND_OPTIONS: { value: string; label: string }[] = [
-  { value: 'plex', label: 'Plex' },
-  { value: 'jellyfin', label: 'Jellyfin' },
-  { value: 'emby', label: 'Emby' },
-  { value: 'kodi', label: 'Kodi' },
-];
-
-export function mediaServerKindLabel(kind: string): string {
-  return MEDIA_SERVER_KIND_OPTIONS.find((k) => k.value === kind)?.label ?? kind;
-}
-
-/** Human labels for duplicate-detection reasons. */
-export function duplicateReasonLabel(reason: string): string {
-  switch (reason) {
-    case 'external_id':
-      return 'Same external ID';
-    case 'show_season_episode':
-      return 'Same show / season / episode';
-    case 'title_year':
-      return 'Same title & year';
-    case 'similar_filename':
-      return 'Similar filename';
-    default:
-      return reason;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// IMDb metadata provider
-// ---------------------------------------------------------------------------
-
-/** IMDb operating modes — mirrors the backend `ImdbMode`. */
-export const IMDB_MODE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'disabled', label: 'Disabled' },
-  { value: 'dataset', label: 'Dataset (local IMDb files)' },
-  { value: 'official_api', label: 'Official / licensed API' },
-  { value: 'hybrid', label: 'Hybrid (dataset + API)' },
-];
-
-export function imdbModeLabel(mode: string): string {
-  return IMDB_MODE_OPTIONS.find((m) => m.value === mode)?.label ?? mode;
-}
-
-/** IMDb title kinds accepted by search — mirrors the backend `ImdbTitleKind`. */
-export const IMDB_TITLE_KIND_OPTIONS: { value: string; label: string }[] = [
-  { value: 'any', label: 'Any' },
-  { value: 'movie', label: 'Movie' },
-  { value: 'tv', label: 'TV' },
-  { value: 'episode', label: 'Episode' },
-];
 
 /** Colored badge variant for an IMDb dataset-import status. */
 export function imdbImportStatusVariant(
@@ -169,26 +169,13 @@ export function imdbImportStatusVariant(
   }
 }
 
-/**
- * Verbatim compliance notice shown on the IMDb settings surface. UltraTorrent
- * never scrapes IMDb web pages.
- */
-export const IMDB_COMPLIANCE_NOTICE =
-  'UltraTorrent does not scrape IMDb web pages. IMDb support uses user-provided IMDb datasets or licensed IMDb API access.';
+// ---------------------------------------------------------------------------
+// IMDb helpers
+// ---------------------------------------------------------------------------
 
-/** Human labels for the IMDb dataset TSV files. */
-export const IMDB_DATASET_FILE_LABELS: Record<string, string> = {
-  'title.basics': 'Titles',
-  'name.basics': 'People',
-  'title.akas': 'Alternate titles',
-  'title.crew': 'Crew',
-  'title.episode': 'Episodes',
-  'title.principals': 'Principals',
-  'title.ratings': 'Ratings',
-};
-
-export function imdbDatasetFileLabel(key: string): string {
-  return IMDB_DATASET_FILE_LABELS[key] ?? key;
+/** Human label for an IMDb dataset TSV file key (dots swapped for `_` in i18n keys). */
+export function imdbDatasetFileLabel(t: SomeT, key: string): string {
+  return loose(t)(`imdb:datasetFile.${key.replace(/\./g, '_')}`, { defaultValue: key });
 }
 
 /** Build a public "open on IMDb" link (a string only — never fetched). */

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, ScanSearch, Star } from 'lucide-react';
 import { ApiError, api, type MediaDuplicateGroup } from '@/lib/api';
@@ -23,6 +24,7 @@ export function MediaDuplicatesPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['media', 'duplicates'],
@@ -32,10 +34,14 @@ export function MediaDuplicatesPage() {
   const detect = useMutation({
     mutationFn: api.media.detectDuplicates,
     onSuccess: (groups) => {
-      toast.success('Detection complete', `${groups.length} duplicate group(s) found.`);
+      toast.success(
+        t('duplicates.detectionCompleteTitle'),
+        t('duplicates.detectionCompleteBody', { count: groups.length }),
+      );
       queryClient.setQueryData(['media', 'duplicates'], groups);
     },
-    onError: (err) => toast.error('Detection failed', err instanceof ApiError ? err.message : undefined),
+    onError: (err) =>
+      toast.error(t('duplicates.detectionFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const groups = data ?? [];
@@ -45,32 +51,32 @@ export function MediaDuplicatesPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Button variant="ghost" size="sm" onClick={() => navigate('/media')} className="mb-2 -ml-2">
-            Media Manager
+            {t('common.backToManager')}
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight">Duplicates</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('duplicates.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            Groups of items that look like duplicates. The highest-quality item is suggested to keep.
+            {t('duplicates.subtitle')}
           </p>
         </div>
         <Button variant="secondary" onClick={() => detect.mutate()} loading={detect.isPending}>
-          <ScanSearch className="h-4 w-4" /> Detect duplicates
+          <ScanSearch className="h-4 w-4" /> {t('duplicates.detectBtn')}
         </Button>
       </div>
 
       {isLoading ? (
-        <CenteredSpinner label="Loading duplicates…" />
+        <CenteredSpinner label={t('duplicates.loading')} />
       ) : isError ? (
-        <ErrorState message="Could not load duplicates." onRetry={() => refetch()} />
+        <ErrorState message={t('duplicates.error')} onRetry={() => refetch()} />
       ) : groups.length === 0 ? (
         <Card>
           <CardContent>
             <EmptyState
               icon={<Copy className="h-6 w-6" />}
-              title="No duplicates"
-              description="Run detection to scan your libraries for duplicate items."
+              title={t('duplicates.emptyTitle')}
+              description={t('duplicates.emptyBody')}
               action={
                 <Button variant="secondary" onClick={() => detect.mutate()} loading={detect.isPending}>
-                  <ScanSearch className="h-4 w-4" /> Detect duplicates
+                  <ScanSearch className="h-4 w-4" /> {t('duplicates.detectBtn')}
                 </Button>
               }
             />
@@ -89,30 +95,34 @@ export function MediaDuplicatesPage() {
 
 function DuplicateGroupCard({ group }: { group: MediaDuplicateGroup }) {
   const navigate = useNavigate();
+  const { t } = useTranslation('media');
   // Client-side keep/remove marking (no destructive backend action exists).
   const [keepId, setKeepId] = useState<string | null>(group.suggestedKeepId);
-  const title = useMemo(() => group.items[0]?.title ?? 'Duplicate group', [group.items]);
+  const title = useMemo(
+    () => group.items[0]?.title ?? t('duplicates.groupFallbackTitle'),
+    [group.items, t],
+  );
 
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm font-semibold">{title}</p>
-          <Badge variant="info">{duplicateReasonLabel(group.reason)}</Badge>
-          <span className="text-xs text-muted-foreground">{group.items.length} items</span>
+          <Badge variant="info">{duplicateReasonLabel(t, group.reason)}</Badge>
+          <span className="text-xs text-muted-foreground">{t('common.items', { count: group.items.length })}</span>
         </div>
 
         <div className="overflow-x-auto scrollbar-thin">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[240px] pl-4">Item</TableHead>
-                <TableHead className="w-[90px]">Year</TableHead>
-                <TableHead className="w-[110px]">S/E</TableHead>
-                <TableHead className="w-[110px]">Resolution</TableHead>
-                <TableHead className="w-[90px]">Codec</TableHead>
-                <TableHead className="w-[100px]">Size</TableHead>
-                <TableHead className="w-[200px] pr-4 text-right">Actions</TableHead>
+                <TableHead className="min-w-[240px] pl-4">{t('duplicates.col.item')}</TableHead>
+                <TableHead className="w-[90px]">{t('duplicates.col.year')}</TableHead>
+                <TableHead className="w-[110px]">{t('duplicates.col.se')}</TableHead>
+                <TableHead className="w-[110px]">{t('duplicates.col.resolution')}</TableHead>
+                <TableHead className="w-[90px]">{t('duplicates.col.codec')}</TableHead>
+                <TableHead className="w-[100px]">{t('duplicates.col.size')}</TableHead>
+                <TableHead className="w-[200px] pr-4 text-right">{t('duplicates.col.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -123,7 +133,7 @@ function DuplicateGroupCard({ group }: { group: MediaDuplicateGroup }) {
                     <TableCell className="pl-4">
                       <div className="flex items-center gap-2">
                         {item.id === group.suggestedKeepId && (
-                          <Star className="h-3.5 w-3.5 shrink-0 text-warning" aria-label="Suggested keep" />
+                          <Star className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={t('duplicates.suggestedKeepAria')} />
                         )}
                         <button
                           className="text-left font-medium hover:underline"
@@ -146,13 +156,13 @@ function DuplicateGroupCard({ group }: { group: MediaDuplicateGroup }) {
                     <TableCell className="pr-4">
                       <div className="flex items-center justify-end gap-2">
                         {isKeep ? (
-                          <Badge variant="success">Keep</Badge>
+                          <Badge variant="success">{t('duplicates.keep')}</Badge>
                         ) : (
                           <>
                             <Button size="sm" variant="outline" onClick={() => setKeepId(item.id)}>
-                              Keep this
+                              {t('duplicates.keepThis')}
                             </Button>
-                            {keepId && <Badge variant="warning">Remove</Badge>}
+                            {keepId && <Badge variant="warning">{t('duplicates.remove')}</Badge>}
                           </>
                         )}
                       </div>
@@ -163,10 +173,7 @@ function DuplicateGroupCard({ group }: { group: MediaDuplicateGroup }) {
             </TableBody>
           </Table>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Selecting a keeper marks the rest as removal candidates. Remove files from disk via the
-          rename engine or your media server.
-        </p>
+        <p className="text-xs text-muted-foreground">{t('duplicates.footnote')}</p>
       </CardContent>
     </Card>
   );

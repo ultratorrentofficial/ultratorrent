@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ExternalLink,
@@ -52,9 +53,9 @@ import {
 import { Select } from '@/components/ui/select';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import {
-  ARTWORK_TYPE_OPTIONS,
-  IMDB_TITLE_KIND_OPTIONS,
+  ARTWORK_TYPE_VALUES,
   artworkTypeLabel,
+  imdbTitleKindOptions,
   imdbTitleUrl,
   matchStatusLabel,
   matchStatusVariant,
@@ -65,6 +66,7 @@ import {
 export function MediaDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation('media');
   const [tab, setTab] = useState('overview');
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -76,14 +78,14 @@ export function MediaDetailPage() {
   if (isLoading) {
     return (
       <div className="p-6">
-        <CenteredSpinner label="Loading item…" />
+        <CenteredSpinner label={t('detail.loading')} />
       </div>
     );
   }
   if (isError || !data) {
     return (
       <div className="p-6">
-        <ErrorState message="Could not load this media item." onRetry={() => refetch()} />
+        <ErrorState message={t('detail.error')} onRetry={() => refetch()} />
       </div>
     );
   }
@@ -92,13 +94,13 @@ export function MediaDetailPage() {
     <div className="space-y-6">
       <div>
         <Button variant="ghost" size="sm" onClick={() => navigate('/media/items')} className="mb-2 -ml-2">
-          Media Items
+          {t('common.backToItems')}
         </Button>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold tracking-tight">{data.title}</h1>
-          <Badge variant="secondary">{mediaTypeLabel(data.mediaType)}</Badge>
+          <Badge variant="secondary">{mediaTypeLabel(t, data.mediaType)}</Badge>
           <Badge variant={matchStatusVariant(data.matchStatus)} dot>
-            {matchStatusLabel(data.matchStatus)}
+            {matchStatusLabel(t, data.matchStatus)}
           </Badge>
         </div>
         <p className="truncate font-mono text-xs text-muted-foreground">{data.path}</p>
@@ -107,14 +109,14 @@ export function MediaDetailPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <div className="overflow-x-auto scrollbar-thin">
           <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="files">Files</TabsTrigger>
-            <TabsTrigger value="metadata">Metadata</TabsTrigger>
-            <TabsTrigger value="artwork">Artwork</TabsTrigger>
-            <TabsTrigger value="subtitles">Subtitles</TabsTrigger>
-            <TabsTrigger value="rename">Rename</TabsTrigger>
-            <TabsTrigger value="nfo">NFO</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
+            <TabsTrigger value="overview">{t('detail.tab.overview')}</TabsTrigger>
+            <TabsTrigger value="files">{t('detail.tab.files')}</TabsTrigger>
+            <TabsTrigger value="metadata">{t('detail.tab.metadata')}</TabsTrigger>
+            <TabsTrigger value="artwork">{t('detail.tab.artwork')}</TabsTrigger>
+            <TabsTrigger value="subtitles">{t('detail.tab.subtitles')}</TabsTrigger>
+            <TabsTrigger value="rename">{t('detail.tab.rename')}</TabsTrigger>
+            <TabsTrigger value="nfo">{t('detail.tab.nfo')}</TabsTrigger>
+            <TabsTrigger value="history">{t('detail.tab.history')}</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="overview" className="mt-4">
@@ -162,6 +164,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 function OverviewTab({ item }: { item: MediaItemDetail }) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canMatch = hasPermission(PERMISSIONS.MEDIA_MANAGER_MATCH);
 
@@ -170,19 +173,22 @@ function OverviewTab({ item }: { item: MediaItemDetail }) {
   const reidentify = useMutation({
     mutationFn: () => api.media.matchItem(item.id),
     onSuccess: (updated) => {
-      toast.success('Re-identified', `${updated.title} — ${matchStatusLabel(updated.matchStatus)}.`);
+      toast.success(
+        t('detail.reidentifiedTitle'),
+        t('detail.reidentifiedBody', { title: updated.title, status: matchStatusLabel(t, updated.matchStatus) }),
+      );
       invalidate();
     },
-    onError: (err) => toast.error('Could not re-identify', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('detail.reidentifyError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const unmatch = useMutation({
     mutationFn: () => api.media.unmatchItem(item.id),
     onSuccess: () => {
-      toast.success('Unmatched', item.title);
+      toast.success(t('detail.unmatchedTitle'), item.title);
       invalidate();
     },
-    onError: (err) => toast.error('Could not unmatch', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('detail.unmatchError'), err instanceof ApiError ? err.message : undefined),
   });
 
   return (
@@ -190,23 +196,23 @@ function OverviewTab({ item }: { item: MediaItemDetail }) {
     <Card>
       <CardContent className="space-y-5 p-5">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Title" value={item.title} />
-          <Field label="Type" value={mediaTypeLabel(item.mediaType)} />
-          <Field label="Year" value={item.year ?? '—'} />
-          <Field label="Season / Episode" value={seasonEpisodeLabel(item.season, item.episode)} />
+          <Field label={t('detail.field.title')} value={item.title} />
+          <Field label={t('detail.field.type')} value={mediaTypeLabel(t, item.mediaType)} />
+          <Field label={t('detail.field.year')} value={item.year ?? '—'} />
+          <Field label={t('detail.field.seasonEpisode')} value={seasonEpisodeLabel(item.season, item.episode)} />
           <Field
-            label="Match status"
+            label={t('detail.field.matchStatus')}
             value={
               <Badge variant={matchStatusVariant(item.matchStatus)} dot>
-                {matchStatusLabel(item.matchStatus)}
+                {matchStatusLabel(t, item.matchStatus)}
               </Badge>
             }
           />
-          <Field label="Confidence" value={`${Math.round((item.confidence ?? 0) * 100)}%`} />
-          <Field label="Library" value={item.library?.name ?? '—'} />
+          <Field label={t('detail.field.confidence')} value={`${Math.round((item.confidence ?? 0) * 100)}%`} />
+          <Field label={t('detail.field.library')} value={item.library?.name ?? '—'} />
           {item.externalIds.length > 0 && (
             <Field
-              label="External IDs"
+              label={t('detail.field.externalIds')}
               value={
                 <span className="flex flex-wrap gap-1">
                   {item.externalIds.map((x) => (
@@ -219,16 +225,16 @@ function OverviewTab({ item }: { item: MediaItemDetail }) {
             />
           )}
         </div>
-        <Field label="Path" value={<span className="break-all font-mono text-xs">{item.path}</span>} />
+        <Field label={t('detail.field.path')} value={<span className="break-all font-mono text-xs">{item.path}</span>} />
 
         {canMatch && (
           <div className="flex flex-wrap gap-2 border-t border-border/60 pt-4">
             <Button variant="secondary" onClick={() => reidentify.mutate()} loading={reidentify.isPending}>
-              <RotateCw className="h-4 w-4" /> Re-identify
+              <RotateCw className="h-4 w-4" /> {t('detail.reidentify')}
             </Button>
             {item.matchStatus !== 'unmatched' && (
               <Button variant="outline" onClick={() => unmatch.mutate()} loading={unmatch.isPending}>
-                <Undo2 className="h-4 w-4" /> Unmatch
+                <Undo2 className="h-4 w-4" /> {t('detail.unmatch')}
               </Button>
             )}
           </div>
@@ -245,6 +251,7 @@ function OverviewTab({ item }: { item: MediaItemDetail }) {
 // ---------------------------------------------------------------------------
 
 function ImdbPanel({ item }: { item: MediaItemDetail }) {
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canMatch = hasPermission(PERMISSIONS.MEDIA_MANAGER_IMDB_MATCH);
   const canView = hasPermission(PERMISSIONS.MEDIA_MANAGER_IMDB_VIEW);
@@ -264,11 +271,11 @@ function ImdbPanel({ item }: { item: MediaItemDetail }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Film className="h-5 w-5 text-muted-foreground" />
-            <h2 className="text-base font-semibold">IMDb</h2>
+            <h2 className="text-base font-semibold">{t('detail.imdb.heading')}</h2>
           </div>
           {canMatch && (
             <Button size="sm" variant="outline" onClick={() => setMatching(true)}>
-              <Search className="h-4 w-4" /> Match with IMDb
+              <Search className="h-4 w-4" /> {t('detail.imdb.matchBtn')}
             </Button>
           )}
         </div>
@@ -276,17 +283,17 @@ function ImdbPanel({ item }: { item: MediaItemDetail }) {
         {imdbId ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field
-              label="IMDb ID"
+              label={t('detail.imdb.id')}
               value={
                 <span className="flex items-center gap-1.5">
                   <span className="font-mono text-xs">{imdbId}</span>
-                  <Badge variant="warning">IMDb</Badge>
+                  <Badge variant="warning">{t('imdbSuggest.badge')}</Badge>
                 </span>
               }
             />
             {isImdbRating && (
               <Field
-                label="IMDb rating"
+                label={t('detail.imdb.rating')}
                 value={
                   <span className="flex items-center gap-1.5">
                     <Star className="h-4 w-4 text-warning" />
@@ -297,7 +304,7 @@ function ImdbPanel({ item }: { item: MediaItemDetail }) {
               />
             )}
             <Field
-              label="Link"
+              label={t('detail.imdb.link')}
               value={
                 <a
                   href={imdbExternal?.url ?? imdbTitleUrl(imdbId)}
@@ -305,15 +312,15 @@ function ImdbPanel({ item }: { item: MediaItemDetail }) {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-info hover:underline"
                 >
-                  Open on IMDb <ExternalLink className="h-3.5 w-3.5" />
+                  {t('detail.imdb.openOnImdb')} <ExternalLink className="h-3.5 w-3.5" />
                 </a>
               }
             />
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            This item is not linked to an IMDb title
-            {canMatch ? ' — use “Match with IMDb” to search and link one.' : '.'}
+            {t('detail.imdb.notLinked')}
+            {canMatch ? t('detail.imdb.notLinkedCta') : t('detail.imdb.notLinkedEnd')}
           </p>
         )}
       </CardContent>
@@ -328,6 +335,7 @@ function ImdbPanel({ item }: { item: MediaItemDetail }) {
 function ImdbMatchDialog({ item, onClose }: { item: MediaItemDetail; onClose: () => void }) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const [title, setTitle] = useState(item.title);
   const [year, setYear] = useState(item.year != null ? String(item.year) : '');
   const [type, setType] = useState<string>(
@@ -350,11 +358,11 @@ function ImdbMatchDialog({ item, onClose }: { item: MediaItemDetail; onClose: ()
     mutationFn: (result: ImdbSearchResult) =>
       api.media.matchItemImdb(item.id, { imdbId: result.tconst, confidence: result.confidence }),
     onSuccess: (res) => {
-      toast.success('Matched with IMDb', res.item.title);
+      toast.success(t('detail.imdb.matchedTitle'), res.item.title);
       queryClient.invalidateQueries({ queryKey: ['media', 'items', item.id] });
       onClose();
     },
-    onError: (err) => toast.error('Could not match', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('detail.imdb.matchError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const results = search.data ?? [];
@@ -362,15 +370,15 @@ function ImdbMatchDialog({ item, onClose }: { item: MediaItemDetail; onClose: ()
   return (
     <Dialog open onClose={onClose} className="max-w-2xl">
       <DialogHeader>
-        <DialogTitle>Match with IMDb</DialogTitle>
+        <DialogTitle>{t('detail.imdb.dialog.title')}</DialogTitle>
         <DialogDescription>
-          Search the IMDb provider and pick the correct title to link this item.
+          {t('detail.imdb.dialog.description')}
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2">
         <div className="grid gap-3 sm:grid-cols-[1fr,110px,130px,auto]">
           <div>
-            <Label htmlFor="imdb-q-title">Title</Label>
+            <Label htmlFor="imdb-q-title">{t('detail.imdb.field.title')}</Label>
             <Input
               id="imdb-q-title"
               value={title}
@@ -381,7 +389,7 @@ function ImdbMatchDialog({ item, onClose }: { item: MediaItemDetail; onClose: ()
             />
           </div>
           <div>
-            <Label htmlFor="imdb-q-year">Year</Label>
+            <Label htmlFor="imdb-q-year">{t('detail.imdb.field.year')}</Label>
             <Input
               id="imdb-q-year"
               type="number"
@@ -390,12 +398,12 @@ function ImdbMatchDialog({ item, onClose }: { item: MediaItemDetail; onClose: ()
             />
           </div>
           <div>
-            <Label htmlFor="imdb-q-type">Type</Label>
+            <Label htmlFor="imdb-q-type">{t('detail.imdb.field.type')}</Label>
             <Select
               id="imdb-q-type"
               value={type}
               onChange={(e) => setType(e.target.value)}
-              options={IMDB_TITLE_KIND_OPTIONS}
+              options={imdbTitleKindOptions(t)}
             />
           </div>
           <div className="flex items-end">
@@ -405,7 +413,7 @@ function ImdbMatchDialog({ item, onClose }: { item: MediaItemDetail; onClose: ()
               disabled={!title.trim()}
               className="w-full"
             >
-              <Search className="h-4 w-4" /> Search
+              <Search className="h-4 w-4" /> {t('detail.imdb.searchBtn')}
             </Button>
           </div>
         </div>
@@ -413,17 +421,17 @@ function ImdbMatchDialog({ item, onClose }: { item: MediaItemDetail; onClose: ()
         <div className="max-h-[45vh] overflow-y-auto scrollbar-thin">
           {!submitted ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              Enter a title and search to see IMDb suggestions.
+              {t('detail.imdb.prompt')}
             </p>
           ) : search.isLoading || search.isFetching ? (
-            <CenteredSpinner label="Searching IMDb…" />
+            <CenteredSpinner label={t('detail.imdb.searching')} />
           ) : search.isError ? (
-            <ErrorState message="IMDb search failed." onRetry={() => search.refetch()} />
+            <ErrorState message={t('detail.imdb.searchFailed')} onRetry={() => search.refetch()} />
           ) : results.length === 0 ? (
             <EmptyState
               icon={<Film className="h-6 w-6" />}
-              title="No results"
-              description="No IMDb titles matched. Try adjusting the title, year, or type."
+              title={t('detail.imdb.noResultsTitle')}
+              description={t('detail.imdb.noResultsBody')}
             />
           ) : (
             <ul className="divide-y divide-border/40">
@@ -442,7 +450,7 @@ function ImdbMatchDialog({ item, onClose }: { item: MediaItemDetail; onClose: ()
       </div>
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </Button>
       </DialogFooter>
     </Dialog>
@@ -460,6 +468,7 @@ function ImdbResultRow({
   busy: boolean;
   disabled: boolean;
 }) {
+  const { t } = useTranslation('media');
   return (
     <li className="flex items-center justify-between gap-3 py-2.5">
       <div className="min-w-0">
@@ -468,7 +477,7 @@ function ImdbResultRow({
           {result.year != null && (
             <span className="text-xs text-muted-foreground">({result.year})</span>
           )}
-          <Badge variant="warning">IMDb</Badge>
+          <Badge variant="warning">{t('imdbSuggest.badge')}</Badge>
           <Badge variant="secondary">{result.titleType}</Badge>
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -478,14 +487,14 @@ function ImdbResultRow({
               <Star className="h-3 w-3 text-warning" /> {result.rating.toFixed(1)}
             </span>
           )}
-          {result.numVotes != null && <span>{formatNumber(result.numVotes)} votes</span>}
+          {result.numVotes != null && <span>{t('imdbSuggest.votes', { formatted: formatNumber(result.numVotes) })}</span>}
           <Badge variant={result.confidence >= 0.75 ? 'success' : result.confidence >= 0.5 ? 'info' : 'secondary'}>
-            {Math.round(result.confidence * 100)}% match
+            {t('imdbSuggest.matchPct', { pct: Math.round(result.confidence * 100) })}
           </Badge>
         </div>
       </div>
       <Button size="sm" variant="outline" onClick={onSelect} loading={busy} disabled={disabled}>
-        Select
+        {t('common.select')}
       </Button>
     </li>
   );
@@ -496,14 +505,15 @@ function ImdbResultRow({
 // ---------------------------------------------------------------------------
 
 function FilesTab({ item }: { item: MediaItemDetail }) {
+  const { t } = useTranslation('media');
   if (item.files.length === 0) {
     return (
       <Card>
         <CardContent>
           <EmptyState
             icon={<FileText className="h-6 w-6" />}
-            title="No files"
-            description="This item has no scanned files yet."
+            title={t('detail.files.emptyTitle')}
+            description={t('detail.files.emptyBody')}
           />
         </CardContent>
       </Card>
@@ -516,12 +526,12 @@ function FilesTab({ item }: { item: MediaItemDetail }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[280px] pl-4">Path</TableHead>
-                <TableHead className="w-[100px]">Size</TableHead>
-                <TableHead className="w-[100px]">Resolution</TableHead>
-                <TableHead className="w-[90px]">Codec</TableHead>
-                <TableHead className="w-[80px]">HDR</TableHead>
-                <TableHead className="w-[110px] pr-4">Quality</TableHead>
+                <TableHead className="min-w-[280px] pl-4">{t('detail.files.col.path')}</TableHead>
+                <TableHead className="w-[100px]">{t('detail.files.col.size')}</TableHead>
+                <TableHead className="w-[100px]">{t('detail.files.col.resolution')}</TableHead>
+                <TableHead className="w-[90px]">{t('detail.files.col.codec')}</TableHead>
+                <TableHead className="w-[80px]">{t('detail.files.col.hdr')}</TableHead>
+                <TableHead className="w-[110px] pr-4">{t('detail.files.col.quality')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -561,6 +571,7 @@ function commaList(value: string): string[] {
 function MetadataTab({ item }: { item: MediaItemDetail }) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canEdit = hasPermission(PERMISSIONS.MEDIA_MANAGER_EDIT_METADATA);
   const meta = item.metadata;
@@ -579,10 +590,10 @@ function MetadataTab({ item }: { item: MediaItemDetail }) {
   const fetchMeta = useMutation({
     mutationFn: () => api.media.fetchMetadata(item.id),
     onSuccess: (m: MediaMetadata) => {
-      toast.success('Metadata fetched', m.providerName ? `via ${m.providerName}` : undefined);
+      toast.success(t('detail.metadata.fetchedTitle'), m.providerName ? t('detail.metadata.fetchedVia', { provider: m.providerName }) : undefined);
       invalidate();
     },
-    onError: (err) => toast.error('Could not fetch metadata', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('detail.metadata.fetchError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const save = useMutation({
@@ -600,10 +611,10 @@ function MetadataTab({ item }: { item: MediaItemDetail }) {
       return api.media.updateMetadata(item.id, body);
     },
     onSuccess: () => {
-      toast.success('Metadata saved');
+      toast.success(t('detail.metadata.savedTitle'));
       invalidate();
     },
-    onError: (err) => toast.error('Could not save metadata', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('detail.metadata.saveError'), err instanceof ApiError ? err.message : undefined),
   });
 
   return (
@@ -611,52 +622,52 @@ function MetadataTab({ item }: { item: MediaItemDetail }) {
       <CardContent className="space-y-5 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
-            {meta?.providerName ? `Source: ${meta.providerName}` : 'No metadata fetched yet.'}
+            {meta?.providerName ? t('detail.metadata.source', { provider: meta.providerName }) : t('detail.metadata.noneFetched')}
           </p>
           {canEdit && (
             <Button variant="secondary" onClick={() => fetchMeta.mutate()} loading={fetchMeta.isPending}>
-              <Sparkles className="h-4 w-4" /> Fetch metadata
+              <Sparkles className="h-4 w-4" /> {t('detail.metadata.fetchBtn')}
             </Button>
           )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label htmlFor="md-title">Title</Label>
+            <Label htmlFor="md-title">{t('detail.metadata.field.title')}</Label>
             <Input id="md-title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={!canEdit} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="md-year">Year</Label>
+              <Label htmlFor="md-year">{t('detail.metadata.field.year')}</Label>
               <Input id="md-year" type="number" value={year} onChange={(e) => setYear(e.target.value)} disabled={!canEdit} />
             </div>
             <div>
-              <Label htmlFor="md-runtime">Runtime (min)</Label>
+              <Label htmlFor="md-runtime">{t('detail.metadata.field.runtime')}</Label>
               <Input id="md-runtime" type="number" value={runtime} onChange={(e) => setRuntime(e.target.value)} disabled={!canEdit} />
             </div>
           </div>
         </div>
 
         <div>
-          <Label htmlFor="md-overview">Overview</Label>
+          <Label htmlFor="md-overview">{t('detail.metadata.field.overview')}</Label>
           <Textarea id="md-overview" value={overview} onChange={(e) => setOverview(e.target.value)} rows={4} disabled={!canEdit} />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label htmlFor="md-genres">Genres (comma-separated)</Label>
+            <Label htmlFor="md-genres">{t('detail.metadata.field.genres')}</Label>
             <Input id="md-genres" value={genres} onChange={(e) => setGenres(e.target.value)} disabled={!canEdit} />
           </div>
           <div>
-            <Label htmlFor="md-studios">Studios (comma-separated)</Label>
+            <Label htmlFor="md-studios">{t('detail.metadata.field.studios')}</Label>
             <Input id="md-studios" value={studios} onChange={(e) => setStudios(e.target.value)} disabled={!canEdit} />
           </div>
           <div>
-            <Label htmlFor="md-rating">Rating</Label>
+            <Label htmlFor="md-rating">{t('detail.metadata.field.rating')}</Label>
             <Input id="md-rating" type="number" step="0.1" value={rating} onChange={(e) => setRating(e.target.value)} disabled={!canEdit} />
           </div>
           <div>
-            <Label htmlFor="md-cert">Certification</Label>
+            <Label htmlFor="md-cert">{t('detail.metadata.field.certification')}</Label>
             <Input id="md-cert" value={certification} onChange={(e) => setCertification(e.target.value)} disabled={!canEdit} />
           </div>
         </div>
@@ -666,7 +677,7 @@ function MetadataTab({ item }: { item: MediaItemDetail }) {
         {canEdit && (
           <div className="flex justify-end border-t border-border/60 pt-4">
             <Button onClick={() => save.mutate()} loading={save.isPending}>
-              <Save className="h-4 w-4" /> Save metadata
+              <Save className="h-4 w-4" /> {t('detail.metadata.saveBtn')}
             </Button>
           </div>
         )}
@@ -677,6 +688,7 @@ function MetadataTab({ item }: { item: MediaItemDetail }) {
 
 /** Read-only credits block, surfaced when IMDb (or another provider) supplied them. */
 function ImdbCredits({ meta }: { meta: MediaMetadata | null | undefined }) {
+  const { t } = useTranslation('media');
   if (!meta) return null;
   const directors = meta.directors ?? [];
   const writers = meta.writers ?? [];
@@ -686,18 +698,18 @@ function ImdbCredits({ meta }: { meta: MediaMetadata | null | undefined }) {
   return (
     <div className="space-y-3 border-t border-border/60 pt-4">
       <div className="flex items-center gap-2">
-        <p className="text-sm font-semibold">Credits</p>
-        {meta.providerName === 'imdb' && <Badge variant="warning">IMDb</Badge>}
+        <p className="text-sm font-semibold">{t('detail.metadata.credits')}</p>
+        {meta.providerName === 'imdb' && <Badge variant="warning">{t('imdbSuggest.badge')}</Badge>}
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         {directors.length > 0 && (
-          <Field label="Directors" value={directors.join(', ')} />
+          <Field label={t('detail.metadata.directors')} value={directors.join(', ')} />
         )}
-        {writers.length > 0 && <Field label="Writers" value={writers.join(', ')} />}
+        {writers.length > 0 && <Field label={t('detail.metadata.writers')} value={writers.join(', ')} />}
       </div>
       {cast.length > 0 && (
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Cast</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('detail.metadata.cast')}</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {cast.slice(0, 24).map((c, i) => (
               <Badge key={`${c.name}-${i}`} variant="secondary">
@@ -728,6 +740,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
 function ArtworkTab({ itemId }: { itemId: string }) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.MEDIA_MANAGER_MANAGE_ARTWORK);
   const [uploadType, setUploadType] = useState('poster');
@@ -749,10 +762,10 @@ function ArtworkTab({ itemId }: { itemId: string }) {
   const select = useMutation({
     mutationFn: (artworkId: string) => api.media.selectArtwork(itemId, artworkId),
     onSuccess: () => {
-      toast.success('Artwork selected');
+      toast.success(t('detail.artwork.selectedToast'));
       invalidate();
     },
-    onError: (err) => toast.error('Could not select artwork', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('detail.artwork.selectError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const upload = useMutation({
@@ -761,10 +774,10 @@ function ArtworkTab({ itemId }: { itemId: string }) {
       return api.media.uploadArtwork(itemId, { type: uploadType, filename: file.name, dataBase64 });
     },
     onSuccess: () => {
-      toast.success('Artwork uploaded');
+      toast.success(t('detail.artwork.uploadedToast'));
       invalidate();
     },
-    onError: (err) => toast.error('Could not upload artwork', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('detail.artwork.uploadError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const byType = useMemo(() => {
@@ -777,8 +790,8 @@ function ArtworkTab({ itemId }: { itemId: string }) {
     return map;
   }, [data]);
 
-  if (isLoading) return <CenteredSpinner label="Loading artwork…" />;
-  if (isError) return <ErrorState message="Could not load artwork." onRetry={() => refetch()} />;
+  if (isLoading) return <CenteredSpinner label={t('detail.artwork.loading')} />;
+  if (isError) return <ErrorState message={t('detail.artwork.error')} onRetry={() => refetch()} />;
 
   const missing = missingQuery.data?.missing ?? [];
 
@@ -788,16 +801,16 @@ function ArtworkTab({ itemId }: { itemId: string }) {
         <Card>
           <CardContent className="flex flex-wrap items-end gap-3 p-4">
             <div className="min-w-[180px]">
-              <Label htmlFor="art-type">Upload type</Label>
+              <Label htmlFor="art-type">{t('detail.artwork.uploadType')}</Label>
               <select
                 id="art-type"
                 value={uploadType}
                 onChange={(e) => setUploadType(e.target.value)}
                 className="h-10 w-full rounded-md border border-input bg-card px-3 text-sm"
               >
-                {ARTWORK_TYPE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
+                {ARTWORK_TYPE_VALUES.map((value) => (
+                  <option key={value} value={value}>
+                    {artworkTypeLabel(t, value)}
                   </option>
                 ))}
               </select>
@@ -814,7 +827,7 @@ function ArtworkTab({ itemId }: { itemId: string }) {
               }}
             />
             <Button variant="secondary" onClick={() => fileInputRef.current?.click()} loading={upload.isPending}>
-              <Upload className="h-4 w-4" /> Upload custom
+              <Upload className="h-4 w-4" /> {t('detail.artwork.uploadCustom')}
             </Button>
           </CardContent>
         </Card>
@@ -822,10 +835,10 @@ function ArtworkTab({ itemId }: { itemId: string }) {
 
       {missing.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
-          <span>Missing:</span>
-          {missing.map((t) => (
-            <Badge key={t} variant="warning">
-              {artworkTypeLabel(t)}
+          <span>{t('detail.artwork.missing')}</span>
+          {missing.map((type) => (
+            <Badge key={type} variant="warning">
+              {artworkTypeLabel(t, type)}
             </Badge>
           ))}
         </div>
@@ -836,8 +849,8 @@ function ArtworkTab({ itemId }: { itemId: string }) {
           <CardContent>
             <EmptyState
               icon={<ImageIcon className="h-6 w-6" />}
-              title="No artwork"
-              description="Fetch metadata or upload custom artwork to populate this item."
+              title={t('detail.artwork.emptyTitle')}
+              description={t('detail.artwork.emptyBody')}
             />
           </CardContent>
         </Card>
@@ -846,7 +859,7 @@ function ArtworkTab({ itemId }: { itemId: string }) {
           {[...byType.entries()].map(([type, arts]) => (
             <Card key={type}>
               <CardContent className="space-y-3 p-4">
-                <p className="text-sm font-semibold">{artworkTypeLabel(type)}</p>
+                <p className="text-sm font-semibold">{artworkTypeLabel(t, type)}</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6">
                   {arts.map((a) => (
                     <div
@@ -869,7 +882,7 @@ function ArtworkTab({ itemId }: { itemId: string }) {
                       </div>
                       {a.selected ? (
                         <Badge variant="success" className="w-full justify-center">
-                          Selected
+                          {t('common.selected')}
                         </Badge>
                       ) : (
                         canManage && (
@@ -880,7 +893,7 @@ function ArtworkTab({ itemId }: { itemId: string }) {
                             onClick={() => select.mutate(a.id)}
                             loading={select.isPending && select.variables === a.id}
                           >
-                            Select
+                            {t('common.select')}
                           </Button>
                         )
                       )}
@@ -903,6 +916,7 @@ function ArtworkTab({ itemId }: { itemId: string }) {
 function SubtitlesTab({ itemId }: { itemId: string }) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.MEDIA_MANAGER_MANAGE_SUBTITLES);
 
@@ -918,10 +932,10 @@ function SubtitlesTab({ itemId }: { itemId: string }) {
   const scan = useMutation({
     mutationFn: () => api.media.scanSubtitles(itemId),
     onSuccess: () => {
-      toast.success('Subtitle scan complete');
+      toast.success(t('detail.subtitles.scanCompleteTitle'));
       queryClient.invalidateQueries({ queryKey: ['media', 'items', itemId, 'subtitles'] });
     },
-    onError: (err) => toast.error('Could not scan subtitles', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('detail.subtitles.scanError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const missing = missingQuery.data?.missing ?? [];
@@ -931,14 +945,14 @@ function SubtitlesTab({ itemId }: { itemId: string }) {
       {canManage && (
         <div className="flex justify-end">
           <Button variant="secondary" onClick={() => scan.mutate()} loading={scan.isPending}>
-            <Subtitles className="h-4 w-4" /> Scan subtitles
+            <Subtitles className="h-4 w-4" /> {t('detail.subtitles.scanBtn')}
           </Button>
         </div>
       )}
 
       {missing.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
-          <span>Missing languages:</span>
+          <span>{t('detail.subtitles.missingLanguages')}</span>
           {missing.map((l) => (
             <Badge key={l} variant="warning">
               {l}
@@ -951,18 +965,18 @@ function SubtitlesTab({ itemId }: { itemId: string }) {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-6">
-              <CenteredSpinner label="Loading subtitles…" />
+              <CenteredSpinner label={t('detail.subtitles.loading')} />
             </div>
           ) : isError ? (
             <div className="p-6">
-              <ErrorState message="Could not load subtitles." onRetry={() => refetch()} />
+              <ErrorState message={t('detail.subtitles.error')} onRetry={() => refetch()} />
             </div>
           ) : (data?.length ?? 0) === 0 ? (
             <div className="p-6">
               <EmptyState
                 icon={<Subtitles className="h-6 w-6" />}
-                title="No subtitles"
-                description="Scan to discover sidecar subtitle files next to this item."
+                title={t('detail.subtitles.emptyTitle')}
+                description={t('detail.subtitles.emptyBody')}
               />
             </div>
           ) : (
@@ -970,10 +984,10 @@ function SubtitlesTab({ itemId }: { itemId: string }) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[110px] pl-4">Language</TableHead>
-                    <TableHead className="w-[90px]">Forced</TableHead>
-                    <TableHead className="w-[90px]">SDH</TableHead>
-                    <TableHead className="min-w-[280px] pr-4">Path</TableHead>
+                    <TableHead className="w-[110px] pl-4">{t('detail.subtitles.col.language')}</TableHead>
+                    <TableHead className="w-[90px]">{t('detail.subtitles.col.forced')}</TableHead>
+                    <TableHead className="w-[90px]">{t('detail.subtitles.col.sdh')}</TableHead>
+                    <TableHead className="min-w-[280px] pr-4">{t('detail.subtitles.col.path')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -982,8 +996,8 @@ function SubtitlesTab({ itemId }: { itemId: string }) {
                       <TableCell className="pl-4">
                         <Badge variant="secondary">{s.language}</Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{s.forced ? 'Yes' : '—'}</TableCell>
-                      <TableCell className="text-muted-foreground">{s.sdh ? 'Yes' : '—'}</TableCell>
+                      <TableCell className="text-muted-foreground">{s.forced ? t('detail.subtitles.yes') : '—'}</TableCell>
+                      <TableCell className="text-muted-foreground">{s.sdh ? t('detail.subtitles.yes') : '—'}</TableCell>
                       <TableCell className="pr-4">
                         <p className="truncate font-mono text-xs text-muted-foreground">{s.path}</p>
                       </TableCell>
@@ -1005,11 +1019,12 @@ function SubtitlesTab({ itemId }: { itemId: string }) {
 
 function RenameTab({ item }: { item: MediaItemDetail }) {
   const toast = useToast();
+  const { t } = useTranslation('media');
   const lib = item.library;
 
   const preview = useMutation({
     mutationFn: () => {
-      if (!lib) throw new ApiError(400, 'This item has no library configured.');
+      if (!lib) throw new ApiError(400, t('detail.rename.noLibraryError'));
       return api.media.preview({
         path: item.path,
         preset: lib.preset,
@@ -1018,7 +1033,7 @@ function RenameTab({ item }: { item: MediaItemDetail }) {
         template: lib.template ?? undefined,
       });
     },
-    onError: (err) => toast.error('Preview failed', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('detail.rename.previewFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const plan = preview.data;
@@ -1028,23 +1043,23 @@ function RenameTab({ item }: { item: MediaItemDetail }) {
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-sm text-muted-foreground">
-            Preview how this item would be renamed using its library’s preset and template.
+            {t('detail.rename.description')}
           </p>
           <Button variant="secondary" onClick={() => preview.mutate()} loading={preview.isPending} disabled={!lib}>
-            <RotateCw className="h-4 w-4" /> Preview rename
+            <RotateCw className="h-4 w-4" /> {t('detail.rename.previewBtn')}
           </Button>
         </CardContent>
       </Card>
 
       {!lib && (
-        <p className="text-sm text-muted-foreground">This item is not associated with a library.</p>
+        <p className="text-sm text-muted-foreground">{t('detail.rename.noLibrary')}</p>
       )}
 
       {plan && (
         <Card>
           <CardContent className="space-y-2 p-4">
             {plan.items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No files to rename.</p>
+              <p className="text-sm text-muted-foreground">{t('common.noFilesToRename')}</p>
             ) : (
               plan.items.map((it, i) => (
                 <div key={i} className="rounded-md border border-border/60 p-3">
@@ -1073,16 +1088,17 @@ function RenameTab({ item }: { item: MediaItemDetail }) {
 function NfoTab({ item }: { item: MediaItemDetail }) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canGenerate = hasPermission(PERMISSIONS.MEDIA_MANAGER_GENERATE_NFO);
 
   const generate = useMutation({
     mutationFn: () => api.media.generateNfo(item.id),
     onSuccess: (res) => {
-      toast.success('NFO generated', `${res.generated} file(s) written.`);
+      toast.success(t('detail.nfo.generatedTitle'), t('detail.nfo.generatedBody', { count: res.generated }));
       queryClient.invalidateQueries({ queryKey: ['media', 'items', item.id] });
     },
-    onError: (err) => toast.error('Could not generate NFO', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('detail.nfo.generateError'), err instanceof ApiError ? err.message : undefined),
   });
 
   return (
@@ -1090,11 +1106,11 @@ function NfoTab({ item }: { item: MediaItemDetail }) {
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-sm text-muted-foreground">
-            Generate a Kodi-style .nfo sidecar for this item from its metadata.
+            {t('detail.nfo.description')}
           </p>
           {canGenerate && (
             <Button variant="secondary" onClick={() => generate.mutate()} loading={generate.isPending}>
-              <FileText className="h-4 w-4" /> Generate NFO
+              <FileText className="h-4 w-4" /> {t('detail.nfo.generateBtn')}
             </Button>
           )}
         </CardContent>
@@ -1105,8 +1121,8 @@ function NfoTab({ item }: { item: MediaItemDetail }) {
           <CardContent>
             <EmptyState
               icon={<FileText className="h-6 w-6" />}
-              title="No NFO files"
-              description="No .nfo sidecar files have been generated for this item yet."
+              title={t('detail.nfo.emptyTitle')}
+              description={t('detail.nfo.emptyBody')}
             />
           </CardContent>
         </Card>
@@ -1133,13 +1149,14 @@ function NfoTab({ item }: { item: MediaItemDetail }) {
 // ---------------------------------------------------------------------------
 
 function ItemHistoryTab({ item }: { item: MediaItemDetail }) {
+  const { t } = useTranslation('media');
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['media', 'history'],
     queryFn: api.media.history,
   });
 
-  if (isLoading) return <CenteredSpinner label="Loading history…" />;
-  if (isError) return <ErrorState message="Could not load history." onRetry={() => refetch()} />;
+  if (isLoading) return <CenteredSpinner label={t('detail.history.loading')} />;
+  if (isError) return <ErrorState message={t('detail.history.error')} onRetry={() => refetch()} />;
 
   const filePaths = new Set(item.files.map((f) => f.path));
   const related = (data ?? []).filter(
@@ -1156,8 +1173,8 @@ function ItemHistoryTab({ item }: { item: MediaItemDetail }) {
         <CardContent>
           <EmptyState
             icon={<History className="h-6 w-6" />}
-            title="No history"
-            description="Applied rename operations are recorded here."
+            title={t('detail.history.emptyTitle')}
+            description={t('detail.history.emptyBody')}
           />
         </CardContent>
       </Card>
@@ -1174,7 +1191,7 @@ function ItemHistoryTab({ item }: { item: MediaItemDetail }) {
   return (
     <div className="space-y-2">
       {related.length === 0 && (
-        <p className="text-xs text-muted-foreground">No operations matched this item — showing recent activity.</p>
+        <p className="text-xs text-muted-foreground">{t('detail.history.noMatch')}</p>
       )}
       {rows.map((op) => (
         <Card key={op.id}>

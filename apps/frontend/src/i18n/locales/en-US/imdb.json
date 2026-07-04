@@ -1,0 +1,140 @@
+{
+  "complianceNotice": "UltraTorrent does not scrape IMDb web pages. IMDb support uses user-provided IMDb datasets or licensed IMDb API access.",
+  "mode": {
+    "disabled": "Disabled",
+    "dataset": "Dataset (local IMDb files)",
+    "official_api": "Official / licensed API",
+    "hybrid": "Hybrid (dataset + API)"
+  },
+  "titleKind": {
+    "any": "Any",
+    "movie": "Movie",
+    "tv": "TV",
+    "episode": "Episode"
+  },
+  "datasetFile": {
+    "title_basics": "Titles",
+    "name_basics": "People",
+    "title_akas": "Alternate titles",
+    "title_crew": "Crew",
+    "title_episode": "Episodes",
+    "title_principals": "Principals",
+    "title_ratings": "Ratings"
+  },
+  "common": {
+    "saved": "Saved",
+    "couldNotSave": "Could not save"
+  },
+  "records": "{{formatted}} records",
+  "filesFound_one": "{{count}} file found",
+  "filesFound_other": "{{count}} files found",
+  "page": {
+    "backToSettings": "Media Settings",
+    "title": "IMDb Provider",
+    "subtitle": "Configure IMDb metadata from user-provided datasets or a licensed IMDb API.",
+    "noAccessTitle": "No access",
+    "noAccessBody": "You do not have permission to view the IMDb provider.",
+    "loading": "Loading IMDb settings…",
+    "error": "Could not load IMDb provider settings."
+  },
+  "status": {
+    "title": "Provider status",
+    "description": "Current IMDb provider health and last dataset import.",
+    "ready": "Ready",
+    "notReady": "Not ready",
+    "disabled": "Disabled",
+    "mode": "Mode",
+    "datasetTitles": "Dataset titles",
+    "officialApi": "Official API",
+    "configured": "Configured",
+    "notConfigured": "Not configured",
+    "lastImport": "Last import",
+    "lastImportAt": "Last import at",
+    "datasetDate": "Dataset date"
+  },
+  "dataset": {
+    "title": "Dataset configuration",
+    "description": "Point to a directory holding the official IMDb TSV dataset files (.tsv.gz).",
+    "dirLabel": "Dataset directory",
+    "dirPlaceholder": "/data/imdb",
+    "dirPicker": "Select the IMDb dataset directory",
+    "dirAria": "IMDb dataset directory",
+    "validateBtn": "Validate dataset",
+    "importBtn": "Import now",
+    "scheduleTitle": "Scheduled import",
+    "scheduleDesc": "Automatically re-import on a cron schedule.",
+    "cronLabel": "Cron schedule",
+    "cronPlaceholder": "0 4 * * 0",
+    "saveScheduleBtn": "Save schedule",
+    "historyTitle": "Import history",
+    "historyLoading": "Loading imports…",
+    "historyError": "Could not load imports.",
+    "historyEmptyTitle": "No imports yet",
+    "historyEmptyBody": "Validate and import a dataset to populate IMDb metadata.",
+    "col": {
+      "status": "Status",
+      "records": "Records",
+      "started": "Started",
+      "finished": "Finished",
+      "source": "Source"
+    },
+    "validTitle": "Dataset looks valid",
+    "invalidTitle": "Dataset validation failed",
+    "titleBasicsMissing": "title.basics missing",
+    "validationFailed": "Validation failed",
+    "importStartedTitle": "Import started",
+    "importStartedBody": "Live progress will appear below.",
+    "importStartError": "Could not start import",
+    "importedToastTitle": "IMDb dataset imported",
+    "importFailedTitle": "IMDb import failed"
+  },
+  "report": {
+    "valid": "Valid",
+    "invalid": "Invalid",
+    "titleBasicsMissingBadge": "title.basics missing — cannot import",
+    "col": {
+      "file": "File",
+      "present": "Present",
+      "header": "Header",
+      "size": "Size"
+    },
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "bad": "Bad"
+  },
+  "api": {
+    "title": "Official / licensed API",
+    "description": "Optional licensed IMDb REST API used for search and lookups. Never contacts imdb.com.",
+    "mode": "Provider mode",
+    "baseUrl": "API base URL",
+    "baseUrlPlaceholder": "https://api.example.com/imdb",
+    "apiKey": "API key",
+    "apiKeyPlaceholderKeep": "Leave blank to keep existing",
+    "apiKeyPlaceholderNew": "Enter API key",
+    "cacheTtl": "Cache TTL (seconds)",
+    "testBtn": "Test connection",
+    "saveBtn": "Save",
+    "connOkTitle": "Connection OK",
+    "connOkBody": "IMDb API is available.",
+    "configuredUnavailableTitle": "API configured but unavailable",
+    "configuredUnavailableBody": "Check the base URL and key.",
+    "notConfiguredTitle": "API not configured",
+    "notConfiguredBody": "Set a base URL and API key first.",
+    "testFailed": "Test failed"
+  },
+  "matching": {
+    "title": "Matching preferences",
+    "description": "Tune how IMDb search ranks and filters candidate titles.",
+    "language": "Preferred language",
+    "languagePlaceholder": "en",
+    "region": "Preferred region",
+    "regionPlaceholder": "US",
+    "minVotes": "Minimum votes",
+    "minVotesPlaceholder": "0",
+    "minVotesHint": "Higher thresholds weight confidence toward well-known titles.",
+    "includeAdult": "Include adult titles",
+    "includeAdultHint": "Off by default.",
+    "saveBtn": "Save preferences"
+  }
+}

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clapperboard, RotateCw, Sparkles, Undo2 } from 'lucide-react';
 import { ApiError, api, type MediaItem } from '@/lib/api';
@@ -21,11 +22,11 @@ import {
 } from '@/components/ui/table';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import {
-  MATCH_STATUS_OPTIONS,
-  MEDIA_TYPE_OPTIONS,
   matchStatusLabel,
+  matchStatusOptions,
   matchStatusVariant,
   mediaTypeLabel,
+  mediaTypeOptions,
 } from './constants';
 
 function seasonEpisode(item: MediaItem): string {
@@ -40,6 +41,7 @@ export function MediaItemsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
+  const { t } = useTranslation('media');
   const canMatch = hasPermission(PERMISSIONS.MEDIA_MANAGER_MATCH);
 
   const [params, setParams] = useSearchParams();
@@ -64,10 +66,10 @@ export function MediaItemsPage() {
 
   const libraryOptions = useMemo(
     () => [
-      { value: '', label: 'All libraries' },
+      { value: '', label: t('items.filter.allLibraries') },
       ...(librariesQuery.data ?? []).map((l) => ({ value: l.id, label: l.name })),
     ],
-    [librariesQuery.data],
+    [librariesQuery.data, t],
   );
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['media'] });
@@ -75,19 +77,22 @@ export function MediaItemsPage() {
   const reidentify = useMutation({
     mutationFn: (id: string) => api.media.matchItem(id),
     onSuccess: (item) => {
-      toast.success('Re-identified', `${item.title} — ${matchStatusLabel(item.matchStatus)}.`);
+      toast.success(
+        t('items.reidentifiedTitle'),
+        t('items.reidentifiedBody', { title: item.title, status: matchStatusLabel(t, item.matchStatus) }),
+      );
       invalidate();
     },
-    onError: (err) => toast.error('Could not re-identify', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('items.reidentifyError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const unmatch = useMutation({
     mutationFn: (id: string) => api.media.unmatchItem(id),
     onSuccess: (item) => {
-      toast.success('Unmatched', item.title);
+      toast.success(t('items.unmatchedTitle'), item.title);
       invalidate();
     },
-    onError: (err) => toast.error('Could not unmatch', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('items.unmatchError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const items = data ?? [];
@@ -97,37 +102,36 @@ export function MediaItemsPage() {
     <div className="space-y-6">
       <div>
         <Button variant="ghost" size="sm" onClick={() => navigate('/media')} className="mb-2 -ml-2">
-          Media Manager
+          {t('common.backToManager')}
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Media Items</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('items.title')}</h1>
         <p className="text-sm text-muted-foreground">
-          Everything Media Manager has scanned. Re-identify to re-run automatic matching, or unmatch
-          to clear a bad identity.
+          {t('items.subtitle')}
         </p>
       </div>
 
       <Card>
         <CardContent className="grid gap-3 p-4 sm:grid-cols-3">
           <div>
-            <Label htmlFor="filter-type">Type</Label>
+            <Label htmlFor="filter-type">{t('items.filter.type')}</Label>
             <Select
               id="filter-type"
               value={mediaType}
               onChange={(e) => setFilter('mediaType', e.target.value)}
-              options={[{ value: '', label: 'All types' }, ...MEDIA_TYPE_OPTIONS]}
+              options={[{ value: '', label: t('items.filter.allTypes') }, ...mediaTypeOptions(t)]}
             />
           </div>
           <div>
-            <Label htmlFor="filter-status">Match status</Label>
+            <Label htmlFor="filter-status">{t('items.filter.status')}</Label>
             <Select
               id="filter-status"
               value={matchStatus}
               onChange={(e) => setFilter('matchStatus', e.target.value)}
-              options={[{ value: '', label: 'All statuses' }, ...MATCH_STATUS_OPTIONS]}
+              options={[{ value: '', label: t('items.filter.allStatuses') }, ...matchStatusOptions(t)]}
             />
           </div>
           <div>
-            <Label htmlFor="filter-library">Library</Label>
+            <Label htmlFor="filter-library">{t('items.filter.library')}</Label>
             <Select
               id="filter-library"
               value={libraryId}
@@ -142,29 +146,27 @@ export function MediaItemsPage() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-6">
-              <CenteredSpinner label="Loading items…" />
+              <CenteredSpinner label={t('items.loading')} />
             </div>
           ) : isError ? (
             <div className="p-6">
-              <ErrorState message="Could not load media items." onRetry={() => refetch()} />
+              <ErrorState message={t('items.error')} onRetry={() => refetch()} />
             </div>
           ) : items.length === 0 ? (
             <div className="p-6">
               <EmptyState
                 icon={<Clapperboard className="h-6 w-6" />}
-                title={hasFilters ? 'No items match these filters' : 'No items yet'}
+                title={hasFilters ? t('items.emptyFilteredTitle') : t('items.emptyTitle')}
                 description={
-                  hasFilters
-                    ? 'Try clearing a filter, or scan a library to add items.'
-                    : 'Scan a library to populate this list.'
+                  hasFilters ? t('items.emptyFilteredBody') : t('items.emptyBody')
                 }
                 action={
                   hasFilters ? (
                     <Button variant="outline" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
-                      Clear filters
+                      {t('items.clearFilters')}
                     </Button>
                   ) : (
-                    <Button onClick={() => navigate('/media/libraries')}>Go to libraries</Button>
+                    <Button onClick={() => navigate('/media/libraries')}>{t('items.goToLibraries')}</Button>
                   )
                 }
               />
@@ -174,13 +176,13 @@ export function MediaItemsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[280px] pl-4">Title</TableHead>
-                    <TableHead className="w-[120px]">Type</TableHead>
-                    <TableHead className="w-[80px]">Year</TableHead>
-                    <TableHead className="w-[110px]">Season/Ep</TableHead>
-                    <TableHead className="w-[130px]">Match</TableHead>
-                    <TableHead className="w-[110px]">Confidence</TableHead>
-                    {canMatch && <TableHead className="w-[230px] pr-4 text-right">Actions</TableHead>}
+                    <TableHead className="min-w-[280px] pl-4">{t('items.col.title')}</TableHead>
+                    <TableHead className="w-[120px]">{t('items.col.type')}</TableHead>
+                    <TableHead className="w-[80px]">{t('items.col.year')}</TableHead>
+                    <TableHead className="w-[110px]">{t('items.col.seasonEp')}</TableHead>
+                    <TableHead className="w-[130px]">{t('items.col.match')}</TableHead>
+                    <TableHead className="w-[110px]">{t('items.col.confidence')}</TableHead>
+                    {canMatch && <TableHead className="w-[230px] pr-4 text-right">{t('items.col.actions')}</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -195,13 +197,13 @@ export function MediaItemsPage() {
                           <p className="truncate font-mono text-xs text-muted-foreground">{item.path}</p>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{mediaTypeLabel(item.mediaType)}</Badge>
+                          <Badge variant="secondary">{mediaTypeLabel(t, item.mediaType)}</Badge>
                         </TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">{item.year ?? '—'}</TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">{seasonEpisode(item)}</TableCell>
                         <TableCell>
                           <Badge variant={matchStatusVariant(item.matchStatus)} dot>
-                            {matchStatusLabel(item.matchStatus)}
+                            {matchStatusLabel(t, item.matchStatus)}
                           </Badge>
                         </TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">
@@ -218,7 +220,7 @@ export function MediaItemsPage() {
                                 loading={reidentify.isPending && reidentify.variables === item.id}
                                 disabled={busy}
                               >
-                                <RotateCw className="h-4 w-4" /> Re-identify
+                                <RotateCw className="h-4 w-4" /> {t('items.reidentify')}
                               </Button>
                               {item.matchStatus !== 'unmatched' && (
                                 <Button
@@ -229,7 +231,7 @@ export function MediaItemsPage() {
                                   loading={unmatch.isPending && unmatch.variables === item.id}
                                   disabled={busy}
                                 >
-                                  <Undo2 className="h-4 w-4" /> Unmatch
+                                  <Undo2 className="h-4 w-4" /> {t('items.unmatch')}
                                 </Button>
                               )}
                             </div>
@@ -247,8 +249,8 @@ export function MediaItemsPage() {
 
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Sparkles className="h-3.5 w-3.5" />
-        {items.length.toLocaleString()} item{items.length === 1 ? '' : 's'}
-        {isFetching && <span className="opacity-70"> · updating…</span>}
+        {t('common.items', { count: items.length })}
+        {isFetching && <span className="opacity-70"> · {t('common.updating')}</span>}
       </p>
     </div>
   );

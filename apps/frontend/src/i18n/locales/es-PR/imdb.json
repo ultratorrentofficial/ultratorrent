@@ -1,0 +1,140 @@
+{
+  "complianceNotice": "UltraTorrent no extrae datos de las páginas web de IMDb. La compatibilidad con IMDb utiliza conjuntos de datos de IMDb proporcionados por el usuario o acceso a la API de IMDb con licencia.",
+  "mode": {
+    "disabled": "Deshabilitado",
+    "dataset": "Conjunto de datos (archivos IMDb locales)",
+    "official_api": "API oficial / con licencia",
+    "hybrid": "Híbrido (conjunto de datos + API)"
+  },
+  "titleKind": {
+    "any": "Cualquiera",
+    "movie": "Película",
+    "tv": "TV",
+    "episode": "Episodio"
+  },
+  "datasetFile": {
+    "title_basics": "Títulos",
+    "name_basics": "Personas",
+    "title_akas": "Títulos alternativos",
+    "title_crew": "Equipo",
+    "title_episode": "Episodios",
+    "title_principals": "Principales",
+    "title_ratings": "Calificaciones"
+  },
+  "common": {
+    "saved": "Guardado",
+    "couldNotSave": "No se pudo guardar"
+  },
+  "records": "{{formatted}} registros",
+  "filesFound_one": "{{count}} archivo encontrado",
+  "filesFound_other": "{{count}} archivos encontrados",
+  "page": {
+    "backToSettings": "Ajustes de Medios",
+    "title": "Proveedor IMDb",
+    "subtitle": "Configura los metadatos de IMDb desde conjuntos de datos proporcionados por el usuario o una API de IMDb con licencia.",
+    "noAccessTitle": "Sin acceso",
+    "noAccessBody": "No tienes permiso para ver el proveedor IMDb.",
+    "loading": "Cargando ajustes de IMDb…",
+    "error": "No se pudieron cargar los ajustes del proveedor IMDb."
+  },
+  "status": {
+    "title": "Estado del proveedor",
+    "description": "Salud actual del proveedor IMDb y última importación de conjunto de datos.",
+    "ready": "Listo",
+    "notReady": "No está listo",
+    "disabled": "Deshabilitado",
+    "mode": "Modo",
+    "datasetTitles": "Títulos del conjunto de datos",
+    "officialApi": "API oficial",
+    "configured": "Configurada",
+    "notConfigured": "No configurada",
+    "lastImport": "Última importación",
+    "lastImportAt": "Última importación el",
+    "datasetDate": "Fecha del conjunto de datos"
+  },
+  "dataset": {
+    "title": "Configuración del conjunto de datos",
+    "description": "Apunta a un directorio que contenga los archivos oficiales del conjunto de datos TSV de IMDb (.tsv.gz).",
+    "dirLabel": "Directorio del conjunto de datos",
+    "dirPlaceholder": "/data/imdb",
+    "dirPicker": "Selecciona el directorio del conjunto de datos de IMDb",
+    "dirAria": "Directorio del conjunto de datos de IMDb",
+    "validateBtn": "Validar conjunto de datos",
+    "importBtn": "Importar ahora",
+    "scheduleTitle": "Importación programada",
+    "scheduleDesc": "Reimportar automáticamente según un horario cron.",
+    "cronLabel": "Horario cron",
+    "cronPlaceholder": "0 4 * * 0",
+    "saveScheduleBtn": "Guardar horario",
+    "historyTitle": "Historial de importaciones",
+    "historyLoading": "Cargando importaciones…",
+    "historyError": "No se pudieron cargar las importaciones.",
+    "historyEmptyTitle": "Aún no hay importaciones",
+    "historyEmptyBody": "Valida e importa un conjunto de datos para poblar los metadatos de IMDb.",
+    "col": {
+      "status": "Estado",
+      "records": "Registros",
+      "started": "Iniciada",
+      "finished": "Finalizada",
+      "source": "Origen"
+    },
+    "validTitle": "El conjunto de datos parece válido",
+    "invalidTitle": "Falló la validación del conjunto de datos",
+    "titleBasicsMissing": "falta title.basics",
+    "validationFailed": "Falló la validación",
+    "importStartedTitle": "Importación iniciada",
+    "importStartedBody": "El progreso en vivo aparecerá abajo.",
+    "importStartError": "No se pudo iniciar la importación",
+    "importedToastTitle": "Conjunto de datos de IMDb importado",
+    "importFailedTitle": "Falló la importación de IMDb"
+  },
+  "report": {
+    "valid": "Válido",
+    "invalid": "Inválido",
+    "titleBasicsMissingBadge": "falta title.basics — no se puede importar",
+    "col": {
+      "file": "Archivo",
+      "present": "Presente",
+      "header": "Encabezado",
+      "size": "Tamaño"
+    },
+    "yes": "Sí",
+    "no": "No",
+    "ok": "OK",
+    "bad": "Mal"
+  },
+  "api": {
+    "title": "API oficial / con licencia",
+    "description": "API REST de IMDb con licencia opcional, usada para búsquedas y consultas. Nunca contacta imdb.com.",
+    "mode": "Modo del proveedor",
+    "baseUrl": "URL base de la API",
+    "baseUrlPlaceholder": "https://api.example.com/imdb",
+    "apiKey": "Clave de API",
+    "apiKeyPlaceholderKeep": "Déjalo en blanco para conservar la existente",
+    "apiKeyPlaceholderNew": "Ingresa la clave de API",
+    "cacheTtl": "TTL de caché (segundos)",
+    "testBtn": "Probar conexión",
+    "saveBtn": "Guardar",
+    "connOkTitle": "Conexión correcta",
+    "connOkBody": "La API de IMDb está disponible.",
+    "configuredUnavailableTitle": "API configurada pero no disponible",
+    "configuredUnavailableBody": "Verifica la URL base y la clave.",
+    "notConfiguredTitle": "API no configurada",
+    "notConfiguredBody": "Primero establece una URL base y una clave de API.",
+    "testFailed": "Falló la prueba"
+  },
+  "matching": {
+    "title": "Preferencias de emparejamiento",
+    "description": "Ajusta cómo la búsqueda de IMDb clasifica y filtra los títulos candidatos.",
+    "language": "Idioma preferido",
+    "languagePlaceholder": "en",
+    "region": "Región preferida",
+    "regionPlaceholder": "US",
+    "minVotes": "Votos mínimos",
+    "minVotesPlaceholder": "0",
+    "minVotesHint": "Umbrales más altos inclinan la confianza hacia títulos conocidos.",
+    "includeAdult": "Incluir títulos para adultos",
+    "includeAdultHint": "Desactivado por defecto.",
+    "saveBtn": "Guardar preferencias"
+  }
+}

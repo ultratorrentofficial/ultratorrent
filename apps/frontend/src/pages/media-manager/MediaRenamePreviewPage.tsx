@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Play, Save } from 'lucide-react';
 import {
@@ -38,6 +39,7 @@ function conflictSet(plan: RenamePlan | undefined): Set<string> {
 export function MediaRenamePreviewPage() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canApply = hasPermission(PERMISSIONS.MEDIA_MANAGER_RENAME);
 
@@ -53,10 +55,10 @@ export function MediaRenamePreviewPage() {
 
   const libraryOptions = useMemo(
     () => [
-      { value: '', label: 'Select a library…' },
+      { value: '', label: t('renamePreview.field.selectLibrary') },
       ...libraries.map((l) => ({ value: l.id, label: `${l.name} (${l.path})` })),
     ],
-    [libraries],
+    [libraries, t],
   );
 
   const buildBody = (): RenameRequest | null => {
@@ -73,31 +75,31 @@ export function MediaRenamePreviewPage() {
   const preview = useMutation({
     mutationFn: () => {
       const body = buildBody();
-      if (!body) throw new ApiError(400, 'Pick a library and a source path first.');
+      if (!body) throw new ApiError(400, t('renamePreview.pickFirst'));
       return api.media.preview(body);
     },
     onSuccess: (result) => setPlan(result),
-    onError: (err) => toast.error('Preview failed', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('renamePreview.previewFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const apply = useMutation({
     mutationFn: () => {
       const body = buildBody();
-      if (!body) throw new ApiError(400, 'Pick a library and a source path first.');
+      if (!body) throw new ApiError(400, t('renamePreview.pickFirst'));
       return api.media.apply(body);
     },
     onSuccess: (res) => {
       setPlan(res.plan);
       toast.success(
-        'Rename applied',
-        `${res.applied} applied, ${res.skipped} skipped, ${res.failed} failed.`,
+        t('renamePreview.appliedTitle'),
+        t('renamePreview.appliedBody', { applied: res.applied, skipped: res.skipped, failed: res.failed }),
       );
     },
-    onError: (err) => toast.error('Apply failed', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('renamePreview.applyFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const runApply = () => {
-    if (!confirm('Execute this rename plan on disk?')) return;
+    if (!confirm(t('renamePreview.confirmExecute'))) return;
     apply.mutate();
   };
 
@@ -108,24 +110,23 @@ export function MediaRenamePreviewPage() {
     <div className="space-y-6">
       <div>
         <Button variant="ghost" size="sm" onClick={() => navigate('/media')} className="mb-2 -ml-2">
-          Media Manager
+          {t('common.backToManager')}
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Rename Preview</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('renamePreview.title')}</h1>
         <p className="text-sm text-muted-foreground">
-          Preview how a source folder would be reorganized into a library’s layout, then execute when
-          it looks right.
+          {t('renamePreview.subtitle')}
         </p>
       </div>
 
       <Card>
         <CardContent className="space-y-4 p-4">
           {librariesQuery.isLoading ? (
-            <CenteredSpinner label="Loading libraries…" />
+            <CenteredSpinner label={t('renamePreview.loadingLibraries')} />
           ) : (
             <>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="rp-library">Library</Label>
+                  <Label htmlFor="rp-library">{t('renamePreview.field.library')}</Label>
                   <Select
                     id="rp-library"
                     value={libraryId}
@@ -134,23 +135,23 @@ export function MediaRenamePreviewPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="rp-source">Source path</Label>
+                  <Label htmlFor="rp-source">{t('renamePreview.field.source')}</Label>
                   <PathPicker
                     id="rp-source"
                     value={sourcePath}
                     onChange={setSourcePath}
-                    placeholder="/downloads/Show.Name.S01"
-                    aria-label="Source path"
-                    pickerTitle="Choose the source folder"
+                    placeholder={t('renamePreview.field.sourcePlaceholder')}
+                    aria-label={t('renamePreview.field.sourceAria')}
+                    pickerTitle={t('renamePreview.field.sourcePicker')}
                   />
                 </div>
               </div>
 
               {library && (
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>Target:</span>
-                  <Badge variant="info">{presetLabel(library.preset)}</Badge>
-                  <Badge variant="outline">{modeLabel(library.mode)}</Badge>
+                  <span>{t('renamePreview.target')}</span>
+                  <Badge variant="info">{presetLabel(t, library.preset)}</Badge>
+                  <Badge variant="outline">{modeLabel(t, library.mode)}</Badge>
                   <span className="font-mono">{library.path}</span>
                 </div>
               )}
@@ -159,7 +160,7 @@ export function MediaRenamePreviewPage() {
                 <div className="flex items-center gap-2">
                   <Switch id="rp-dryrun" checked={dryRun} onCheckedChange={setDryRun} />
                   <Label htmlFor="rp-dryrun" className="cursor-pointer">
-                    Dry run (preview only)
+                    {t('renamePreview.dryRun')}
                   </Label>
                 </div>
                 <div className="flex gap-2">
@@ -169,7 +170,7 @@ export function MediaRenamePreviewPage() {
                     loading={preview.isPending}
                     disabled={!library || !sourcePath.trim()}
                   >
-                    <Play className="h-4 w-4" /> Preview
+                    <Play className="h-4 w-4" /> {t('renamePreview.previewBtn')}
                   </Button>
                   {canApply && (
                     <Button
@@ -177,20 +178,19 @@ export function MediaRenamePreviewPage() {
                       loading={apply.isPending}
                       disabled={dryRun || !plan || plan.items.length === 0 || hasConflicts}
                     >
-                      <Save className="h-4 w-4" /> Execute
+                      <Save className="h-4 w-4" /> {t('renamePreview.executeBtn')}
                     </Button>
                   )}
                 </div>
               </div>
               {canApply && dryRun && (
                 <p className="text-xs text-muted-foreground">
-                  Turn off “Dry run” to enable Execute.
+                  {t('renamePreview.dryRunHint')}
                 </p>
               )}
               {canApply && hasConflicts && (
                 <p className="flex items-center gap-1.5 text-xs text-destructive">
-                  <AlertTriangle className="h-3.5 w-3.5" /> Resolve destination conflicts before
-                  executing.
+                  <AlertTriangle className="h-3.5 w-3.5" /> {t('renamePreview.conflictHint')}
                 </p>
               )}
             </>
@@ -202,13 +202,13 @@ export function MediaRenamePreviewPage() {
         <Card>
           <CardContent className="space-y-3 p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold">Plan</p>
-              <Badge variant="info">{presetLabel(plan.preset)}</Badge>
-              <Badge variant="outline">{modeLabel(plan.mode)}</Badge>
+              <p className="text-sm font-semibold">{t('renamePreview.plan')}</p>
+              <Badge variant="info">{presetLabel(t, plan.preset)}</Badge>
+              <Badge variant="outline">{modeLabel(t, plan.mode)}</Badge>
               <span className="text-xs text-muted-foreground">
-                {plan.items.length} item{plan.items.length === 1 ? '' : 's'}
+                {t('common.items', { count: plan.items.length })}
               </span>
-              {hasConflicts && <Badge variant="destructive">{conflicts.size} conflict(s)</Badge>}
+              {hasConflicts && <Badge variant="destructive">{t('renamePreview.conflicts', { count: conflicts.size })}</Badge>}
             </div>
 
             {plan.warnings.length > 0 && (
@@ -220,7 +220,7 @@ export function MediaRenamePreviewPage() {
             )}
 
             {plan.items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No files to rename.</p>
+              <p className="text-sm text-muted-foreground">{t('common.noFilesToRename')}</p>
             ) : (
               <div className="space-y-2">
                 {plan.items.map((item, i) => {
@@ -238,9 +238,9 @@ export function MediaRenamePreviewPage() {
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant={item.skipped ? 'secondary' : 'success'}>{item.action}</Badge>
-                        {item.isSubtitle && <Badge variant="outline">subtitle</Badge>}
-                        {item.isSample && <Badge variant="warning">sample</Badge>}
-                        {isConflict && <Badge variant="destructive">conflict</Badge>}
+                        {item.isSubtitle && <Badge variant="outline">{t('renamePreview.badge.subtitle')}</Badge>}
+                        {item.isSample && <Badge variant="warning">{t('renamePreview.badge.sample')}</Badge>}
+                        {isConflict && <Badge variant="destructive">{t('renamePreview.badge.conflict')}</Badge>}
                         {item.reason && <span className="text-xs text-muted-foreground">{item.reason}</span>}
                       </div>
                       <p className="mt-2 break-all font-mono text-xs text-muted-foreground">{item.source}</p>

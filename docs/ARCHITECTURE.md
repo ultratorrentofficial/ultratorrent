@@ -394,7 +394,9 @@ use i18next pluralization. A **language switcher** in the app-shell top bar lets
 each user pick their language; the choice is detected/persisted in
 `localStorage` (`ultratorrent.lang`) and Spanish browser variants (`es`,
 `es-ES`, `es-419`) resolve to es-PR. New surfaces add their namespace + both
-language files; page migration to `t()` is rolling out across the app.
+language files; page migration to `t()` is rolling out across the app — the
+Media Manager and IMDb surfaces (namespaces `media` / `imdb`) are being
+translated first, then the remaining pages.
 
 ## Deployment (Docker)
 

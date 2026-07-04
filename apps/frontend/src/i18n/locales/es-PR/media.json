@@ -1,0 +1,785 @@
+{
+  "libraryKind": {
+    "tv": "TV",
+    "anime": "Anime",
+    "movie": "Película",
+    "music": "Música",
+    "audiobook": "Audiolibro",
+    "general": "General"
+  },
+  "preset": {
+    "plex": "Plex",
+    "jellyfin": "Jellyfin",
+    "emby": "Emby",
+    "kodi": "Kodi",
+    "custom": "Personalizado"
+  },
+  "renameMode": {
+    "preview": "Solo vista previa",
+    "rename_in_place": "Renombrar en el lugar",
+    "rename_move": "Renombrar y mover",
+    "copy": "Copiar",
+    "hardlink": "Enlace fijo (sigue compartiendo)",
+    "symlink": "Enlace simbólico (sigue compartiendo)"
+  },
+  "mediaType": {
+    "movie": "Película",
+    "tv": "TV",
+    "anime": "Anime",
+    "music_video": "Video musical",
+    "documentary": "Documental",
+    "other_video": "Otro"
+  },
+  "matchStatus": {
+    "matched": "Emparejado",
+    "manual": "Manual",
+    "unmatched": "Sin emparejar"
+  },
+  "artworkType": {
+    "poster": "Póster",
+    "fanart": "Fanart",
+    "logo": "Logo",
+    "clearart": "Clear art",
+    "banner": "Banner",
+    "thumbnail": "Miniatura",
+    "season_poster": "Póster de temporada",
+    "episode_thumbnail": "Miniatura de episodio"
+  },
+  "mediaServerKind": {
+    "plex": "Plex",
+    "jellyfin": "Jellyfin",
+    "emby": "Emby",
+    "kodi": "Kodi"
+  },
+  "duplicateReason": {
+    "external_id": "Mismo ID externo",
+    "show_season_episode": "Misma serie / temporada / episodio",
+    "title_year": "Mismo título y año",
+    "similar_filename": "Nombre de archivo similar"
+  },
+  "common": {
+    "backToManager": "Gestor de Medios",
+    "backToItems": "Elementos de Medios",
+    "backToSettings": "Ajustes de Medios",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "save": "Guardar",
+    "saveChanges": "Guardar cambios",
+    "saved": "Guardado",
+    "couldNotSave": "No se pudo guardar",
+    "enabled": "Habilitado",
+    "disabled": "Deshabilitado",
+    "disabledBadge": "deshabilitado",
+    "select": "Seleccionar",
+    "selected": "Seleccionado",
+    "noFilesToRename": "No hay archivos para renombrar.",
+    "neverScanned": "Nunca escaneado",
+    "scannedAgo": "Escaneado {{time}}",
+    "updating": "actualizando…",
+    "items_one": "{{count}} elemento",
+    "items_other": "{{count}} elementos"
+  },
+  "imdbSuggest": {
+    "badge": "IMDb",
+    "votes": "{{formatted}} votos",
+    "matchPct": "{{pct}}% de coincidencia"
+  },
+  "dashboard": {
+    "title": "Gestor de Medios",
+    "subtitle": "Salud y composición de la biblioteca de un vistazo. Escanea, identifica y organiza tus medios.",
+    "librariesBtn": "Bibliotecas",
+    "renameToolsBtn": "Herramientas de renombrado",
+    "scanAllBtn": "Escanear todo",
+    "loading": "Cargando panel…",
+    "error": "No se pudo cargar el panel del Gestor de Medios.",
+    "nothingToScanTitle": "Nada que escanear",
+    "nothingToScanBody": "No hay bibliotecas habilitadas.",
+    "scanCompleteTitle": "Escaneo completo",
+    "scanCompleteBody_one": "{{scanned}} escaneados · {{added}} agregados · {{updated}} actualizados en {{count}} biblioteca.",
+    "scanCompleteBody_other": "{{scanned}} escaneados · {{added}} agregados · {{updated}} actualizados en {{count}} bibliotecas.",
+    "scanFailed": "Falló el escaneo",
+    "stat": {
+      "total": "Elementos totales",
+      "unmatched": "Sin emparejar",
+      "lowConfidence": "Baja confianza",
+      "recentlyAdded": "Agregados recientemente",
+      "missingArtwork": "Sin ilustraciones",
+      "missingSubtitles": "Sin subtítulos",
+      "duplicates": "Duplicados",
+      "failedJobs": "Trabajos fallidos"
+    },
+    "byMediaType": "Por tipo de medio",
+    "viewAllItems": "Ver todos los elementos",
+    "noItemsScanned": "Aún no se han escaneado elementos.",
+    "librariesHeading": "Bibliotecas",
+    "manageLibraries": "Administrar bibliotecas",
+    "noLibrariesTitle": "Aún no hay bibliotecas",
+    "noLibrariesBody": "Agrega una biblioteca para apuntar el Gestor de Medios a una carpeta y comenzar a escanear.",
+    "addLibrary": "Agregar una biblioteca"
+  },
+  "libraries": {
+    "title": "Bibliotecas",
+    "subtitle": "Apunta el Gestor de Medios a carpetas para escanear, identificar y organizar. Cada biblioteca tiene su propio preset y plantilla de nombres.",
+    "addLibrary": "Agregar biblioteca",
+    "loading": "Cargando bibliotecas…",
+    "error": "No se pudieron cargar las bibliotecas.",
+    "emptyTitle": "No hay bibliotecas",
+    "emptyBody": "Define una biblioteca para asignar un tipo de medio a una carpeta y una plantilla de nombres.",
+    "addFirst": "Agrega tu primera biblioteca",
+    "autoScanEvery": "Escaneo automático cada {{minutes}} min",
+    "nfo": "NFO",
+    "artwork": "Ilustraciones",
+    "scan": "Escanear",
+    "editAria": "Editar",
+    "deleteAria": "Eliminar",
+    "scannedToast": "Escaneada “{{name}}”",
+    "scanResult": "{{scanned}} escaneados · {{added}} agregados · {{updated}} actualizados.",
+    "scanFailed": "Falló el escaneo",
+    "deleteConfirm": "¿Eliminar la biblioteca \"{{name}}\"? También se eliminan los elementos escaneados de esta biblioteca.",
+    "deletedTitle": "Biblioteca eliminada",
+    "deleteError": "No se pudo eliminar la biblioteca",
+    "invalidIntervalTitle": "Intervalo de escaneo inválido",
+    "invalidIntervalBody": "Ingresa un número de minutos no negativo, o déjalo en blanco.",
+    "updatedTitle": "Biblioteca actualizada",
+    "createdTitle": "Biblioteca creada",
+    "saveError": "No se pudo guardar la biblioteca",
+    "dialog": {
+      "editTitle": "Editar biblioteca",
+      "addTitle": "Agregar biblioteca",
+      "description": "Asigna un tipo de medio a una carpeta, una plantilla de nombres y un horario de escaneo."
+    },
+    "field": {
+      "name": "Nombre",
+      "namePlaceholder": "p. ej. Series",
+      "path": "Ruta de la biblioteca",
+      "pathPlaceholder": "/media/tv",
+      "pathAria": "Ruta de la biblioteca",
+      "pathPicker": "Elige una carpeta de biblioteca",
+      "kind": "Tipo",
+      "preset": "Preset",
+      "mode": "Modo",
+      "template": "Plantilla (opcional)",
+      "templatePlaceholder": "Déjalo vacío para usar el valor por defecto del preset",
+      "scanInterval": "Intervalo de escaneo automático (minutos)",
+      "scanIntervalPlaceholder": "Déjalo en blanco para escanear manualmente",
+      "nfo": "Generar NFO",
+      "artwork": "Obtener ilustraciones",
+      "enabled": "Habilitado"
+    },
+    "presetDefault": "Valor por defecto del preset:"
+  },
+  "items": {
+    "title": "Elementos de Medios",
+    "subtitle": "Todo lo que el Gestor de Medios ha escaneado. Vuelve a identificar para ejecutar de nuevo el emparejamiento automático, o desempareja para borrar una identidad incorrecta.",
+    "filter": {
+      "type": "Tipo",
+      "status": "Estado de emparejamiento",
+      "library": "Biblioteca",
+      "allTypes": "Todos los tipos",
+      "allStatuses": "Todos los estados",
+      "allLibraries": "Todas las bibliotecas"
+    },
+    "loading": "Cargando elementos…",
+    "error": "No se pudieron cargar los elementos de medios.",
+    "emptyFilteredTitle": "Ningún elemento coincide con estos filtros",
+    "emptyTitle": "Aún no hay elementos",
+    "emptyFilteredBody": "Prueba a quitar un filtro, o escanea una biblioteca para agregar elementos.",
+    "emptyBody": "Escanea una biblioteca para poblar esta lista.",
+    "clearFilters": "Limpiar filtros",
+    "goToLibraries": "Ir a bibliotecas",
+    "col": {
+      "title": "Título",
+      "type": "Tipo",
+      "year": "Año",
+      "seasonEp": "Temp./Ep.",
+      "match": "Emparejamiento",
+      "confidence": "Confianza",
+      "actions": "Acciones"
+    },
+    "reidentify": "Volver a identificar",
+    "unmatch": "Desemparejar",
+    "reidentifiedTitle": "Reidentificado",
+    "reidentifiedBody": "{{title}} — {{status}}.",
+    "reidentifyError": "No se pudo volver a identificar",
+    "unmatchedTitle": "Desemparejado",
+    "unmatchError": "No se pudo desemparejar"
+  },
+  "unmatched": {
+    "title": "Elementos sin emparejar",
+    "subtitle": "Elementos que la identificación automática no pudo emparejar con confianza. Vuelve a ejecutar la identificación o empáralos manualmente.",
+    "loading": "Cargando elementos sin emparejar…",
+    "error": "No se pudieron cargar los elementos sin emparejar.",
+    "emptyTitle": "Nada sin emparejar",
+    "emptyBody": "Todos los elementos escaneados han sido emparejados. Bien.",
+    "col": {
+      "title": "Título",
+      "type": "Tipo",
+      "year": "Año",
+      "confidence": "Confianza",
+      "actions": "Acciones"
+    },
+    "reidentify": "Volver a identificar",
+    "matchBtn": "Emparejar…",
+    "reidentifiedTitle": "Reidentificado",
+    "reidentifyError": "No se pudo volver a identificar",
+    "count_one": "{{count}} elemento sin emparejar",
+    "count_other": "{{count}} elementos sin emparejar",
+    "dialog": {
+      "title": "Emparejar manualmente",
+      "description": "Proporciona la identidad correcta para este elemento, o elige una sugerencia de IMDb abajo."
+    },
+    "field": {
+      "title": "Título",
+      "type": "Tipo",
+      "year": "Año",
+      "season": "Temporada",
+      "episode": "Episodio"
+    },
+    "matchedTitle": "Emparejado",
+    "matchError": "No se pudo emparejar",
+    "matchedImdbTitle": "Emparejado con IMDb",
+    "matchItemBtn": "Emparejar elemento",
+    "imdb": {
+      "heading": "Sugerencias de IMDb",
+      "enterTitle": "Ingresa un título arriba para ver sugerencias de IMDb.",
+      "searching": "Buscando en IMDb…",
+      "searchFailed": "La búsqueda en IMDb falló.",
+      "noMatchesTitle": "Sin coincidencias de IMDb",
+      "noMatchesBody": "Ajusta el título, el año o el tipo para refinar la búsqueda."
+    }
+  },
+  "duplicates": {
+    "title": "Duplicados",
+    "subtitle": "Grupos de elementos que parecen duplicados. Se sugiere conservar el elemento de mayor calidad.",
+    "detectBtn": "Detectar duplicados",
+    "loading": "Cargando duplicados…",
+    "error": "No se pudieron cargar los duplicados.",
+    "emptyTitle": "No hay duplicados",
+    "emptyBody": "Ejecuta la detección para buscar elementos duplicados en tus bibliotecas.",
+    "detectionCompleteTitle": "Detección completa",
+    "detectionCompleteBody_one": "Se encontró {{count}} grupo de duplicados.",
+    "detectionCompleteBody_other": "Se encontraron {{count}} grupos de duplicados.",
+    "detectionFailed": "Falló la detección",
+    "groupFallbackTitle": "Grupo de duplicados",
+    "col": {
+      "item": "Elemento",
+      "year": "Año",
+      "se": "Temp./Ep.",
+      "resolution": "Resolución",
+      "codec": "Códec",
+      "size": "Tamaño",
+      "actions": "Acciones"
+    },
+    "suggestedKeepAria": "Conservación sugerida",
+    "keep": "Conservar",
+    "keepThis": "Conservar este",
+    "remove": "Eliminar",
+    "footnote": "Seleccionar uno para conservar marca el resto como candidatos a eliminación. Elimina los archivos del disco mediante el motor de renombrado o tu servidor de medios."
+  },
+  "renamePreview": {
+    "title": "Vista previa de renombrado",
+    "subtitle": "Previsualiza cómo se reorganizaría una carpeta de origen en el diseño de una biblioteca, luego ejecútalo cuando se vea bien.",
+    "loadingLibraries": "Cargando bibliotecas…",
+    "field": {
+      "library": "Biblioteca",
+      "selectLibrary": "Selecciona una biblioteca…",
+      "source": "Ruta de origen",
+      "sourcePlaceholder": "/downloads/Show.Name.S01",
+      "sourceAria": "Ruta de origen",
+      "sourcePicker": "Elige la carpeta de origen"
+    },
+    "target": "Destino:",
+    "dryRun": "Simulación (solo vista previa)",
+    "previewBtn": "Vista previa",
+    "executeBtn": "Ejecutar",
+    "dryRunHint": "Desactiva la “Simulación” para habilitar Ejecutar.",
+    "conflictHint": "Resuelve los conflictos de destino antes de ejecutar.",
+    "pickFirst": "Primero elige una biblioteca y una ruta de origen.",
+    "previewFailed": "Falló la vista previa",
+    "appliedTitle": "Renombrado aplicado",
+    "appliedBody": "{{applied}} aplicados, {{skipped}} omitidos, {{failed}} fallidos.",
+    "applyFailed": "Falló la aplicación",
+    "confirmExecute": "¿Ejecutar este plan de renombrado en el disco?",
+    "plan": "Plan",
+    "conflicts_one": "{{count}} conflicto",
+    "conflicts_other": "{{count}} conflictos",
+    "badge": {
+      "subtitle": "subtítulo",
+      "sample": "muestra",
+      "conflict": "conflicto"
+    }
+  },
+  "settings": {
+    "title": "Ajustes de Medios",
+    "subtitle": "Proveedores de metadatos, preferencias de ilustraciones y subtítulos, plantillas de renombrado e integraciones con servidores de medios.",
+    "imdb": {
+      "title": "Proveedor IMDb",
+      "description": "Configura los metadatos de IMDb desde conjuntos de datos proporcionados por el usuario o una API de IMDb con licencia.",
+      "configureBtn": "Configurar IMDb",
+      "body": "Importación de conjuntos de datos, configuración de la API oficial y preferencias de emparejamiento para el proveedor IMDb."
+    },
+    "metadata": {
+      "title": "Proveedores de metadatos",
+      "description": "TMDB potencia metadatos e ilustraciones enriquecidos. Sin una clave, se usan los metadatos NFO locales.",
+      "noViewPerm": "No tienes permiso para ver los ajustes. Pide a un administrador que configure la clave de la API de TMDB.",
+      "loading": "Cargando…",
+      "keyLabel": "Clave de la API de TMDB",
+      "keyPlaceholder": "Ingresa la clave de la API de TMDB"
+    },
+    "requiresSettings": "Requiere acceso a los ajustes.",
+    "artworkPref": {
+      "title": "Preferencias de ilustraciones",
+      "description": "Qué tipo de ilustración preferir cuando hay varias disponibles.",
+      "label": "Tipo de ilustración preferido"
+    },
+    "subtitlePref": {
+      "title": "Preferencias de subtítulos",
+      "description": "Idiomas de subtítulos preferidos (códigos ISO separados por comas), usados para señalar subtítulos faltantes.",
+      "label": "Idiomas preferidos",
+      "placeholder": "en, es, fr"
+    },
+    "renameTemplates": {
+      "title": "Plantillas de renombrado",
+      "description": "Las plantillas de nombres se configuran por biblioteca y en el motor de renombrado.",
+      "libraryBtn": "Plantillas de biblioteca",
+      "engineBtn": "Plantillas del motor de renombrado"
+    },
+    "integrations": {
+      "noPermTitle": "Integraciones con servidores de medios",
+      "noPermBody": "No tienes permiso para administrar las integraciones con servidores de medios.",
+      "title": "Integraciones con servidores de medios",
+      "description": "Conecta Plex, Jellyfin, Emby o Kodi para activar actualizaciones de biblioteca.",
+      "addBtn": "Agregar integración",
+      "loading": "Cargando integraciones…",
+      "error": "No se pudieron cargar las integraciones.",
+      "emptyTitle": "No hay integraciones",
+      "emptyBody": "Agrega una integración con un servidor de medios para mantener sincronizada la biblioteca de tu servidor.",
+      "removedTitle": "Integración eliminada",
+      "removeError": "No se pudo eliminar",
+      "connOkTitle": "Conexión correcta",
+      "connFailedTitle": "Falló la conexión",
+      "testFailed": "Falló la prueba",
+      "refreshRequested": "Actualización de biblioteca solicitada",
+      "refreshFailed": "Falló la actualización",
+      "test": "Probar",
+      "refresh": "Actualizar",
+      "editAria": "Editar",
+      "deleteAria": "Eliminar",
+      "removeConfirm": "¿Eliminar la integración \"{{name}}\"?",
+      "lastRefresh": "Última actualización {{time}}",
+      "updatedTitle": "Integración actualizada",
+      "addedTitle": "Integración agregada",
+      "saveError": "No se pudo guardar la integración",
+      "dialog": {
+        "editTitle": "Editar integración",
+        "addTitle": "Agregar integración",
+        "description": "Los secretos se cifran en reposo y nunca se vuelven a mostrar. Deja la {{token}} en blanco para conservar la existente."
+      },
+      "tokenLabel": {
+        "token": "Token",
+        "apiKey": "Clave de API"
+      },
+      "tokenLabelLower": {
+        "token": "token",
+        "apiKey": "clave de API"
+      },
+      "field": {
+        "name": "Nombre",
+        "namePlaceholder": "p. ej. Plex de la sala",
+        "kind": "Tipo",
+        "host": "Host / URL",
+        "hostPlaceholder": "http://localhost:32400",
+        "tokenPlaceholderKeep": "Déjalo en blanco para conservar el existente",
+        "tokenPlaceholderNew": "Ingresa {{token}}",
+        "enabled": "Habilitado"
+      }
+    }
+  },
+  "renamer": {
+    "title": "Renombrador de medios",
+    "subtitle": "Organiza las descargas en diseños de servidores de medios. Los modos de enlace fijo y simbólico mantienen los torrents compartiendo.",
+    "tab": {
+      "libraries": "Bibliotecas",
+      "rename": "Renombrado rápido",
+      "dryRun": "Simulación",
+      "jobs": "Trabajos",
+      "templates": "Plantillas",
+      "history": "Historial"
+    },
+    "presetOption": {
+      "plex": "Plex",
+      "jellyfin": "Jellyfin",
+      "emby": "Emby",
+      "kodi": "Kodi",
+      "custom": "Personalizado (plantilla)"
+    },
+    "modeOption": {
+      "preview": "Solo vista previa",
+      "rename_in_place": "Renombrar en el lugar",
+      "rename_move": "Renombrar y mover",
+      "copy": "Copiar",
+      "hardlink": "Enlace fijo",
+      "symlink": "Enlace simbólico"
+    },
+    "mediaTypeOption": {
+      "tv": "TV",
+      "anime": "Anime",
+      "movie": "Película",
+      "music": "Música",
+      "audiobook": "Audiolibro",
+      "general": "General"
+    },
+    "libraries": {
+      "addBtn": "Agregar biblioteca",
+      "loading": "Cargando bibliotecas…",
+      "error": "No se pudieron cargar las bibliotecas.",
+      "emptyTitle": "No hay bibliotecas",
+      "emptyBody": "Define una biblioteca para asignar un tipo de medio a una ruta de destino y una plantilla de nombres.",
+      "addFirst": "Agrega tu primera biblioteca",
+      "toggleAria": "Alternar biblioteca",
+      "editAria": "Editar",
+      "deleteAria": "Eliminar",
+      "updateError": "No se pudo actualizar la biblioteca",
+      "deleteConfirm": "¿Eliminar la biblioteca \"{{name}}\"?",
+      "deletedTitle": "Biblioteca eliminada",
+      "deleteError": "No se pudo eliminar la biblioteca",
+      "updatedTitle": "Biblioteca actualizada",
+      "createdTitle": "Biblioteca creada",
+      "saveError": "No se pudo guardar la biblioteca"
+    },
+    "dialog": {
+      "editTitle": "Editar biblioteca",
+      "addTitle": "Agregar biblioteca",
+      "description": "Asigna un tipo de medio a una ruta de destino y una plantilla de nombres."
+    },
+    "field": {
+      "name": "Nombre",
+      "namePlaceholder": "p. ej. Series",
+      "path": "Ruta de destino",
+      "pathPlaceholder": "/media/tv",
+      "pathAria": "Ruta de destino",
+      "pathPicker": "Elige una carpeta de biblioteca",
+      "kind": "Tipo",
+      "preset": "Preset",
+      "mode": "Modo",
+      "template": "Plantilla (opcional)",
+      "templatePlaceholder": "Déjalo vacío para usar el valor por defecto del preset",
+      "enabled": "Habilitado"
+    },
+    "presetDefault": "Valor por defecto del preset:",
+    "rename": {
+      "source": "Ruta de origen",
+      "sourcePlaceholder": "/downloads/Show.Name.S01",
+      "sourceAria": "Ruta de origen",
+      "sourcePicker": "Elige la carpeta de origen",
+      "useLibrary": "Usar biblioteca",
+      "manual": "Manual…",
+      "dest": "Ruta de la biblioteca de destino",
+      "destPlaceholder": "/media/tv",
+      "destAria": "Ruta de la biblioteca de destino",
+      "destPicker": "Elige una carpeta de biblioteca",
+      "preset": "Preset",
+      "mode": "Modo",
+      "hint": "La vista previa es una simulación segura. Los modos de enlace fijo y simbólico mantienen el torrent compartiendo.",
+      "previewBtn": "Vista previa",
+      "applyBtn": "Aplicar",
+      "missingFieldsTitle": "Faltan campos",
+      "missingFieldsBody": "Se requieren una ruta de origen y una ruta de biblioteca de destino.",
+      "previewFailed": "Falló la vista previa",
+      "confirmApply": "¿Aplicar este plan de renombrado en el disco?",
+      "appliedTitle": "Renombrado aplicado",
+      "appliedBody": "{{applied}} aplicados, {{skipped}} omitidos, {{failed}} fallidos.",
+      "applyFailed": "Falló la aplicación"
+    },
+    "plan": {
+      "title": "Plan de renombrado",
+      "badge": {
+        "subtitle": "subtítulo",
+        "sample": "muestra",
+        "extra": "extra"
+      }
+    },
+    "history": {
+      "loading": "Cargando historial…",
+      "error": "No se pudo cargar el historial.",
+      "emptyTitle": "Aún no hay operaciones",
+      "emptyBody": "Las operaciones de renombrado aplicadas se registran aquí."
+    },
+    "dryRun": {
+      "source": "Nombre de origen",
+      "sourcePlaceholder": "p. ej. Some.Show.S01E02.1080p.WEB-DL.x264-GROUP",
+      "paths": "Rutas de archivos",
+      "pathsPlaceholder": "Una ruta por línea, p. ej.\n/downloads/show.s01e02.mkv\n/downloads/show.s01e02.eng.srt",
+      "pathsHint": "Un archivo por línea. Los subtítulos, muestras y extras se detectan automáticamente.",
+      "preset": "Preset del servidor",
+      "mode": "Modo",
+      "library": "Ruta de la biblioteca",
+      "libraryPlaceholder": "/media/tv",
+      "libraryPicker": "Elige una carpeta de biblioteca",
+      "template": "Plantilla (opcional)",
+      "templatePlaceholder": "Anula la plantilla del preset",
+      "runBtn": "Simulación",
+      "executeBtn": "Ejecutar",
+      "sourceRequiredTitle": "Se requiere el nombre de origen",
+      "sourceRequiredBody": "Ingresa el nombre del lanzamiento / origen a analizar.",
+      "noFilesTitle": "No hay archivos",
+      "noFilesBody": "Agrega al menos una ruta de archivo (una por línea).",
+      "libraryRequiredTitle": "Se requiere la ruta de la biblioteca",
+      "libraryRequiredBody": "Establece la ruta de la biblioteca de destino.",
+      "completeTitle": "Simulación completa",
+      "completeBody_one": "{{count}} elemento planificado.",
+      "completeBody_other": "{{count}} elementos planificados.",
+      "failed": "Falló la simulación",
+      "execStartedTitle": "Ejecución iniciada",
+      "execStartedBody": "Trabajo {{id}} creado.",
+      "execFailed": "Falló la ejecución",
+      "plan": "Plan",
+      "nothingTitle": "Nada que hacer",
+      "nothingBody": "No se planificaron operaciones de archivo para este origen.",
+      "col": {
+        "source": "Origen",
+        "destination": "Destino",
+        "action": "Acción",
+        "kind": "Tipo",
+        "notes": "Notas"
+      },
+      "skip": "omitir",
+      "badge": {
+        "sub": "sub",
+        "sample": "muestra",
+        "extra": "extra"
+      }
+    },
+    "templateHints": {
+      "title": "Sugerencias de plantillas por defecto",
+      "tv": "TV",
+      "movie": "Película",
+      "anime": "Anime"
+    },
+    "jobs": {
+      "loading": "Cargando trabajos…",
+      "error": "No se pudieron cargar los trabajos.",
+      "emptyTitle": "Aún no hay trabajos de renombrado",
+      "emptyBody": "Ejecuta una simulación y aplícala para crear tu primer trabajo.",
+      "col": {
+        "source": "Origen",
+        "type": "Tipo",
+        "mode": "Modo",
+        "status": "Estado",
+        "confidence": "Confianza",
+        "created": "Creado",
+        "actions": "Acciones"
+      },
+      "viewAria": "Ver trabajo"
+    },
+    "jobDetail": {
+      "title": "Detalle del trabajo",
+      "heading": "Trabajo de renombrado",
+      "description": "Resultado archivo por archivo de este trabajo de renombrado.",
+      "loading": "Cargando trabajo…",
+      "error": "No se pudo cargar este trabajo.",
+      "col": {
+        "original": "Original",
+        "result": "Resultado",
+        "action": "Acción",
+        "status": "Estado"
+      },
+      "noFiles": "No se registraron archivos para este trabajo.",
+      "rolledBackTitle": "Revertido",
+      "rolledBackBody_one": "{{count}} archivo revertido.",
+      "rolledBackBody_other": "{{count}} archivos revertidos.",
+      "rollbackFailed": "Falló la reversión",
+      "rollbackConfirm": "¿Revertir todas las operaciones de archivo de este trabajo?",
+      "rollbackBtn": "Revertir"
+    },
+    "templates": {
+      "addBtn": "Agregar plantilla",
+      "loading": "Cargando plantillas…",
+      "error": "No se pudieron cargar las plantillas.",
+      "emptyTitle": "No hay plantillas personalizadas",
+      "emptyBody": "Agrega una plantilla de nombres para anular los presets integrados.",
+      "col": {
+        "name": "Nombre",
+        "type": "Tipo",
+        "preset": "Preset",
+        "template": "Plantilla",
+        "enabled": "Habilitada",
+        "actions": "Acciones"
+      },
+      "edit": "Editar",
+      "deleteAria": "Eliminar {{name}}",
+      "deleteConfirm": "¿Eliminar la plantilla \"{{name}}\"?",
+      "deletedTitle": "Plantilla eliminada",
+      "deleteError": "No se pudo eliminar la plantilla"
+    },
+    "templateDialog": {
+      "editTitle": "Editar plantilla",
+      "addTitle": "Agregar plantilla",
+      "description": "Los tokens como {title}, {year}, {season}, {episode} se expanden al momento de renombrar.",
+      "name": "Nombre",
+      "mediaType": "Tipo de medio",
+      "preset": "Preset del servidor",
+      "template": "Plantilla",
+      "templatePlaceholder": "{title} ({year})/Season {season}/{title} - S{season}E{episode}",
+      "enabled": "Habilitada",
+      "missingTitle": "Faltan campos",
+      "missingBody": "Se requieren el nombre y la plantilla.",
+      "updatedTitle": "Plantilla actualizada",
+      "createdTitle": "Plantilla creada",
+      "saveError": "No se pudo guardar la plantilla",
+      "save": "Guardar",
+      "create": "Crear plantilla"
+    }
+  },
+  "detail": {
+    "loading": "Cargando elemento…",
+    "error": "No se pudo cargar este elemento de medios.",
+    "tab": {
+      "overview": "Resumen",
+      "files": "Archivos",
+      "metadata": "Metadatos",
+      "artwork": "Ilustraciones",
+      "subtitles": "Subtítulos",
+      "rename": "Renombrar",
+      "nfo": "NFO",
+      "history": "Historial"
+    },
+    "field": {
+      "title": "Título",
+      "type": "Tipo",
+      "year": "Año",
+      "seasonEpisode": "Temporada / Episodio",
+      "matchStatus": "Estado de emparejamiento",
+      "confidence": "Confianza",
+      "library": "Biblioteca",
+      "externalIds": "IDs externos",
+      "path": "Ruta"
+    },
+    "reidentify": "Volver a identificar",
+    "unmatch": "Desemparejar",
+    "reidentifiedTitle": "Reidentificado",
+    "reidentifiedBody": "{{title}} — {{status}}.",
+    "reidentifyError": "No se pudo volver a identificar",
+    "unmatchedTitle": "Desemparejado",
+    "unmatchError": "No se pudo desemparejar",
+    "imdb": {
+      "heading": "IMDb",
+      "matchBtn": "Emparejar con IMDb",
+      "id": "ID de IMDb",
+      "rating": "Calificación de IMDb",
+      "link": "Enlace",
+      "openOnImdb": "Abrir en IMDb",
+      "notLinked": "Este elemento no está vinculado a un título de IMDb",
+      "notLinkedCta": " — usa “Emparejar con IMDb” para buscar y vincular uno.",
+      "notLinkedEnd": ".",
+      "dialog": {
+        "title": "Emparejar con IMDb",
+        "description": "Busca en el proveedor IMDb y elige el título correcto para vincular este elemento."
+      },
+      "field": {
+        "title": "Título",
+        "year": "Año",
+        "type": "Tipo"
+      },
+      "searchBtn": "Buscar",
+      "prompt": "Ingresa un título y busca para ver sugerencias de IMDb.",
+      "searching": "Buscando en IMDb…",
+      "searchFailed": "La búsqueda en IMDb falló.",
+      "noResultsTitle": "Sin resultados",
+      "noResultsBody": "Ningún título de IMDb coincidió. Prueba a ajustar el título, el año o el tipo.",
+      "matchedTitle": "Emparejado con IMDb",
+      "matchError": "No se pudo emparejar"
+    },
+    "files": {
+      "emptyTitle": "No hay archivos",
+      "emptyBody": "Este elemento aún no tiene archivos escaneados.",
+      "col": {
+        "path": "Ruta",
+        "size": "Tamaño",
+        "resolution": "Resolución",
+        "codec": "Códec",
+        "hdr": "HDR",
+        "quality": "Calidad"
+      }
+    },
+    "metadata": {
+      "source": "Fuente: {{provider}}",
+      "noneFetched": "Aún no se han obtenido metadatos.",
+      "fetchBtn": "Obtener metadatos",
+      "fetchedTitle": "Metadatos obtenidos",
+      "fetchedVia": "vía {{provider}}",
+      "fetchError": "No se pudieron obtener los metadatos",
+      "savedTitle": "Metadatos guardados",
+      "saveError": "No se pudieron guardar los metadatos",
+      "saveBtn": "Guardar metadatos",
+      "field": {
+        "title": "Título",
+        "year": "Año",
+        "runtime": "Duración (min)",
+        "overview": "Sinopsis",
+        "genres": "Géneros (separados por comas)",
+        "studios": "Estudios (separados por comas)",
+        "rating": "Calificación",
+        "certification": "Clasificación"
+      },
+      "credits": "Créditos",
+      "directors": "Directores",
+      "writers": "Guionistas",
+      "cast": "Reparto"
+    },
+    "artwork": {
+      "loading": "Cargando ilustraciones…",
+      "error": "No se pudieron cargar las ilustraciones.",
+      "uploadType": "Tipo de subida",
+      "uploadCustom": "Subir personalizada",
+      "selectedToast": "Ilustración seleccionada",
+      "selectError": "No se pudo seleccionar la ilustración",
+      "uploadedToast": "Ilustración subida",
+      "uploadError": "No se pudo subir la ilustración",
+      "missing": "Faltantes:",
+      "emptyTitle": "No hay ilustraciones",
+      "emptyBody": "Obtén metadatos o sube ilustraciones personalizadas para poblar este elemento."
+    },
+    "subtitles": {
+      "scanBtn": "Escanear subtítulos",
+      "scanCompleteTitle": "Escaneo de subtítulos completo",
+      "scanError": "No se pudieron escanear los subtítulos",
+      "missingLanguages": "Idiomas faltantes:",
+      "loading": "Cargando subtítulos…",
+      "error": "No se pudieron cargar los subtítulos.",
+      "emptyTitle": "No hay subtítulos",
+      "emptyBody": "Escanea para descubrir archivos de subtítulos adjuntos junto a este elemento.",
+      "col": {
+        "language": "Idioma",
+        "forced": "Forzado",
+        "sdh": "SDH",
+        "path": "Ruta"
+      },
+      "yes": "Sí"
+    },
+    "rename": {
+      "description": "Previsualiza cómo se renombraría este elemento usando el preset y la plantilla de su biblioteca.",
+      "previewBtn": "Previsualizar renombrado",
+      "previewFailed": "Falló la vista previa",
+      "noLibrary": "Este elemento no está asociado a una biblioteca.",
+      "noLibraryError": "Este elemento no tiene una biblioteca configurada."
+    },
+    "nfo": {
+      "description": "Genera un archivo .nfo estilo Kodi para este elemento a partir de sus metadatos.",
+      "generateBtn": "Generar NFO",
+      "generatedTitle": "NFO generado",
+      "generatedBody_one": "{{count}} archivo escrito.",
+      "generatedBody_other": "{{count}} archivos escritos.",
+      "generateError": "No se pudo generar el NFO",
+      "emptyTitle": "No hay archivos NFO",
+      "emptyBody": "Aún no se han generado archivos .nfo adjuntos para este elemento."
+    },
+    "history": {
+      "loading": "Cargando historial…",
+      "error": "No se pudo cargar el historial.",
+      "emptyTitle": "No hay historial",
+      "emptyBody": "Las operaciones de renombrado aplicadas se registran aquí.",
+      "noMatch": "Ninguna operación coincidió con este elemento — mostrando actividad reciente."
+    }
+  }
+}

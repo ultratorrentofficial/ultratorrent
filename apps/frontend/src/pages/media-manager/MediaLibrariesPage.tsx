@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderTree, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 import {
@@ -32,12 +33,12 @@ import {
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { formatRelativeTime } from '@/lib/format';
 import {
-  LIBRARY_KIND_OPTIONS,
-  MODE_OPTIONS,
-  PRESET_OPTIONS,
   kindLabel,
+  libraryKindOptions,
   modeLabel,
+  modeOptions,
   presetLabel,
+  presetOptions,
 } from './constants';
 
 function presetTemplate(
@@ -54,6 +55,7 @@ export function MediaLibrariesPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.MEDIA_MANAGER_MANAGE_LIBRARIES);
   const canScan = hasPermission(PERMISSIONS.MEDIA_MANAGER_SCAN);
@@ -81,25 +83,25 @@ export function MediaLibrariesPage() {
     try {
       const res = await api.media.scanLibrary(lib.id);
       toast.success(
-        `Scanned “${lib.name}”`,
-        `${res.scanned} scanned · ${res.added} added · ${res.updated} updated.`,
+        t('libraries.scannedToast', { name: lib.name }),
+        t('libraries.scanResult', { scanned: res.scanned, added: res.added, updated: res.updated }),
       );
       invalidate();
     } catch (err) {
-      toast.error('Scan failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('libraries.scanFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setScanningId(null);
     }
   };
 
   const remove = async (lib: MediaLibrary) => {
-    if (!confirm(`Delete library "${lib.name}"? Scanned items for this library are removed too.`)) return;
+    if (!confirm(t('libraries.deleteConfirm', { name: lib.name }))) return;
     try {
       await api.media.deleteLibrary(lib.id);
-      toast.success('Library deleted', lib.name);
+      toast.success(t('libraries.deletedTitle'), lib.name);
       invalidate();
     } catch (err) {
-      toast.error('Could not delete library', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('libraries.deleteError'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
@@ -108,36 +110,35 @@ export function MediaLibrariesPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Button variant="ghost" size="sm" onClick={() => navigate('/media')} className="mb-2 -ml-2">
-            Media Manager
+            {t('common.backToManager')}
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight">Libraries</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('libraries.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            Point Media Manager at folders to scan, identify, and organise. Each library carries its
-            own preset and naming template.
+            {t('libraries.subtitle')}
           </p>
         </div>
         {canManage && (
           <Button onClick={() => setCreating(true)}>
-            <FolderTree className="h-4 w-4" /> Add library
+            <FolderTree className="h-4 w-4" /> {t('libraries.addLibrary')}
           </Button>
         )}
       </div>
 
       {isLoading ? (
-        <CenteredSpinner label="Loading libraries…" />
+        <CenteredSpinner label={t('libraries.loading')} />
       ) : isError ? (
-        <ErrorState message="Could not load libraries." onRetry={() => refetch()} />
+        <ErrorState message={t('libraries.error')} onRetry={() => refetch()} />
       ) : !data || data.length === 0 ? (
         <Card>
           <CardContent>
             <EmptyState
               icon={<FolderTree className="h-6 w-6" />}
-              title="No libraries"
-              description="Define a library to map a media kind to a folder and naming template."
+              title={t('libraries.emptyTitle')}
+              description={t('libraries.emptyBody')}
               action={
                 canManage ? (
                   <Button onClick={() => setCreating(true)}>
-                    <FolderTree className="h-4 w-4" /> Add your first library
+                    <FolderTree className="h-4 w-4" /> {t('libraries.addFirst')}
                   </Button>
                 ) : undefined
               }
@@ -154,20 +155,24 @@ export function MediaLibrariesPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold">{lib.name}</p>
-                      <Badge variant="secondary">{kindLabel(lib.kind)}</Badge>
-                      <Badge variant="info">{presetLabel(lib.preset)}</Badge>
-                      <Badge variant="outline">{modeLabel(lib.mode)}</Badge>
-                      {!lib.isEnabled && <Badge variant="warning">disabled</Badge>}
+                      <Badge variant="secondary">{kindLabel(t, lib.kind)}</Badge>
+                      <Badge variant="info">{presetLabel(t, lib.preset)}</Badge>
+                      <Badge variant="outline">{modeLabel(t, lib.mode)}</Badge>
+                      {!lib.isEnabled && <Badge variant="warning">{t('common.disabledBadge')}</Badge>}
                     </div>
                     <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{lib.path}</p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      {count !== undefined && <span>{count.toLocaleString()} item{count === 1 ? '' : 's'}</span>}
+                      {count !== undefined && <span>{t('common.items', { count })}</span>}
                       <span>
-                        {lib.lastScanAt ? `Scanned ${formatRelativeTime(lib.lastScanAt)}` : 'Never scanned'}
+                        {lib.lastScanAt
+                          ? t('common.scannedAgo', { time: formatRelativeTime(lib.lastScanAt) })
+                          : t('common.neverScanned')}
                       </span>
-                      {lib.scanIntervalMinutes != null && <span>Auto-scan every {lib.scanIntervalMinutes} min</span>}
-                      {lib.nfoEnabled && <span>NFO</span>}
-                      {lib.artworkEnabled && <span>Artwork</span>}
+                      {lib.scanIntervalMinutes != null && (
+                        <span>{t('libraries.autoScanEvery', { minutes: lib.scanIntervalMinutes })}</span>
+                      )}
+                      {lib.nfoEnabled && <span>{t('libraries.nfo')}</span>}
+                      {lib.artworkEnabled && <span>{t('libraries.artwork')}</span>}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
@@ -179,15 +184,15 @@ export function MediaLibrariesPage() {
                         loading={scanningId === lib.id}
                         disabled={scanningId !== null}
                       >
-                        <RefreshCw className="h-4 w-4" /> Scan
+                        <RefreshCw className="h-4 w-4" /> {t('libraries.scan')}
                       </Button>
                     )}
                     {canManage && (
                       <>
-                        <Button variant="ghost" size="icon" aria-label="Edit" onClick={() => setEditing(lib)}>
+                        <Button variant="ghost" size="icon" aria-label={t('libraries.editAria')} onClick={() => setEditing(lib)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" aria-label="Delete" onClick={() => void remove(lib)}>
+                        <Button variant="ghost" size="icon" aria-label={t('libraries.deleteAria')} onClick={() => void remove(lib)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </>
@@ -228,6 +233,7 @@ function LibraryDialog({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { t } = useTranslation('media');
   const { data: presets } = useQuery({ queryKey: ['media', 'presets'], queryFn: api.media.presets });
   const [name, setName] = useState(library?.name ?? '');
   const [path, setPath] = useState(library?.path ?? '');
@@ -249,7 +255,7 @@ function LibraryDialog({
     const trimmedInterval = scanInterval.trim();
     const parsedInterval = trimmedInterval === '' ? null : Number(trimmedInterval);
     if (parsedInterval != null && (!Number.isFinite(parsedInterval) || parsedInterval < 0)) {
-      toast.error('Invalid scan interval', 'Enter a non-negative number of minutes, or leave it blank.');
+      toast.error(t('libraries.invalidIntervalTitle'), t('libraries.invalidIntervalBody'));
       return;
     }
     setSaving(true);
@@ -268,10 +274,10 @@ function LibraryDialog({
       };
       if (library) await api.media.updateLibrary(library.id, body);
       else await api.media.createLibrary(body);
-      toast.success(library ? 'Library updated' : 'Library created', body.name);
+      toast.success(library ? t('libraries.updatedTitle') : t('libraries.createdTitle'), body.name);
       onSaved();
     } catch (err) {
-      toast.error('Could not save library', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('libraries.saveError'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setSaving(false);
     }
@@ -280,81 +286,81 @@ function LibraryDialog({
   return (
     <Dialog open onClose={onClose} className="max-w-lg">
       <DialogHeader>
-        <DialogTitle>{library ? 'Edit library' : 'Add library'}</DialogTitle>
+        <DialogTitle>{library ? t('libraries.dialog.editTitle') : t('libraries.dialog.addTitle')}</DialogTitle>
         <DialogDescription>
-          Maps a media kind to a folder, naming template, and scan schedule.
+          {t('libraries.dialog.description')}
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2">
         <div>
-          <Label htmlFor="lib-name">Name</Label>
-          <Input id="lib-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. TV Shows" />
+          <Label htmlFor="lib-name">{t('libraries.field.name')}</Label>
+          <Input id="lib-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('libraries.field.namePlaceholder')} />
         </div>
         <div>
-          <Label htmlFor="lib-path">Library path</Label>
-          <PathPicker id="lib-path" value={path} onChange={setPath} placeholder="/media/tv" aria-label="Library path" pickerTitle="Choose a library folder" />
+          <Label htmlFor="lib-path">{t('libraries.field.path')}</Label>
+          <PathPicker id="lib-path" value={path} onChange={setPath} placeholder={t('libraries.field.pathPlaceholder')} aria-label={t('libraries.field.pathAria')} pickerTitle={t('libraries.field.pathPicker')} />
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <Label htmlFor="lib-kind">Kind</Label>
-            <Select id="lib-kind" value={kind} onChange={(e) => setKind(e.target.value as MediaKind)} options={LIBRARY_KIND_OPTIONS} />
+            <Label htmlFor="lib-kind">{t('libraries.field.kind')}</Label>
+            <Select id="lib-kind" value={kind} onChange={(e) => setKind(e.target.value as MediaKind)} options={libraryKindOptions(t)} />
           </div>
           <div>
-            <Label htmlFor="lib-preset">Preset</Label>
-            <Select id="lib-preset" value={preset} onChange={(e) => setPreset(e.target.value as Preset)} options={PRESET_OPTIONS} />
+            <Label htmlFor="lib-preset">{t('libraries.field.preset')}</Label>
+            <Select id="lib-preset" value={preset} onChange={(e) => setPreset(e.target.value as Preset)} options={presetOptions(t)} />
           </div>
           <div>
-            <Label htmlFor="lib-mode">Mode</Label>
-            <Select id="lib-mode" value={mode} onChange={(e) => setMode(e.target.value as RenameMode)} options={MODE_OPTIONS} />
+            <Label htmlFor="lib-mode">{t('libraries.field.mode')}</Label>
+            <Select id="lib-mode" value={mode} onChange={(e) => setMode(e.target.value as RenameMode)} options={modeOptions(t)} />
           </div>
         </div>
         <div>
-          <Label htmlFor="lib-template">Template (optional)</Label>
+          <Label htmlFor="lib-template">{t('libraries.field.template')}</Label>
           <Textarea
             id="lib-template"
             value={template}
             onChange={(e) => setTemplate(e.target.value)}
-            placeholder={defaultTemplate || 'Leave empty to use the preset default'}
+            placeholder={defaultTemplate || t('libraries.field.templatePlaceholder')}
             className="font-mono text-xs"
           />
           {defaultTemplate && (
             <p className="mt-1 text-xs text-muted-foreground">
-              Preset default: <code className="font-mono">{defaultTemplate}</code>
+              {t('libraries.presetDefault')} <code className="font-mono">{defaultTemplate}</code>
             </p>
           )}
         </div>
         <div>
-          <Label htmlFor="lib-scan-interval">Auto-scan interval (minutes)</Label>
+          <Label htmlFor="lib-scan-interval">{t('libraries.field.scanInterval')}</Label>
           <Input
             id="lib-scan-interval"
             type="number"
             min={0}
             value={scanInterval}
             onChange={(e) => setScanInterval(e.target.value)}
-            placeholder="Leave blank to scan manually"
+            placeholder={t('libraries.field.scanIntervalPlaceholder')}
           />
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-            <Label htmlFor="lib-nfo">Generate NFO</Label>
+            <Label htmlFor="lib-nfo">{t('libraries.field.nfo')}</Label>
             <Switch id="lib-nfo" checked={nfoEnabled} onCheckedChange={setNfoEnabled} />
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-            <Label htmlFor="lib-artwork">Fetch artwork</Label>
+            <Label htmlFor="lib-artwork">{t('libraries.field.artwork')}</Label>
             <Switch id="lib-artwork" checked={artworkEnabled} onCheckedChange={setArtworkEnabled} />
           </div>
         </div>
         <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-          <Label htmlFor="lib-enabled">Enabled</Label>
+          <Label htmlFor="lib-enabled">{t('libraries.field.enabled')}</Label>
           <Switch id="lib-enabled" checked={enabled} onCheckedChange={setEnabled} />
         </div>
       </div>
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button onClick={() => void submit()} loading={saving} disabled={!name.trim() || !path.trim()}>
-          {library ? 'Save changes' : 'Add library'}
+          {library ? t('common.saveChanges') : t('libraries.addLibrary')}
         </Button>
       </DialogFooter>
     </Dialog>

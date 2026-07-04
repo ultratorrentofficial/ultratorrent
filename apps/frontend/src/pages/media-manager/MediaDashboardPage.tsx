@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Clapperboard,
@@ -36,6 +37,7 @@ export function MediaDashboardPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const [scanning, setScanning] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -46,7 +48,7 @@ export function MediaDashboardPage() {
   const scanAll = async () => {
     const libs = (data?.libraries ?? []).filter((l) => l.isEnabled);
     if (libs.length === 0) {
-      toast.info('Nothing to scan', 'No enabled libraries.');
+      toast.info(t('dashboard.nothingToScanTitle'), t('dashboard.nothingToScanBody'));
       return;
     }
     setScanning(true);
@@ -61,12 +63,12 @@ export function MediaDashboardPage() {
         updated += res.updated;
       }
       toast.success(
-        'Scan complete',
-        `${scanned} scanned · ${added} added · ${updated} updated across ${libs.length} librar${libs.length === 1 ? 'y' : 'ies'}.`,
+        t('dashboard.scanCompleteTitle'),
+        t('dashboard.scanCompleteBody', { scanned, added, updated, count: libs.length }),
       );
       queryClient.invalidateQueries({ queryKey: ['media'] });
     } catch (err) {
-      toast.error('Scan failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('dashboard.scanFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setScanning(false);
     }
@@ -76,57 +78,57 @@ export function MediaDashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Media Manager</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            Library health and composition at a glance. Scan, identify, and organise your media.
+            {t('dashboard.subtitle')}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => navigate('/media/libraries')}>
-            <FolderTree className="h-4 w-4" /> Libraries
+            <FolderTree className="h-4 w-4" /> {t('dashboard.librariesBtn')}
           </Button>
           <Button variant="outline" onClick={() => navigate('/media/rename')}>
-            <Clapperboard className="h-4 w-4" /> Rename tools
+            <Clapperboard className="h-4 w-4" /> {t('dashboard.renameToolsBtn')}
           </Button>
           <Button onClick={() => void scanAll()} loading={scanning} disabled={isLoading || isError}>
-            <RefreshCw className="h-4 w-4" /> Scan all
+            <RefreshCw className="h-4 w-4" /> {t('dashboard.scanAllBtn')}
           </Button>
         </div>
       </div>
 
       {isLoading ? (
-        <CenteredSpinner label="Loading dashboard…" />
+        <CenteredSpinner label={t('dashboard.loading')} />
       ) : isError || !data ? (
-        <ErrorState message="Could not load the Media Manager dashboard." onRetry={() => refetch()} />
+        <ErrorState message={t('dashboard.error')} onRetry={() => refetch()} />
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            <StatTile label="Total items" value={data.health.total} icon={<Clapperboard className="h-4 w-4" />} tone="neutral" />
-            <StatTile label="Unmatched" value={data.health.unmatched} icon={<ListChecks className="h-4 w-4" />} tone="warning" to="/media/items?matchStatus=unmatched" />
-            <StatTile label="Low confidence" value={data.health.lowConfidence} icon={<TriangleAlert className="h-4 w-4" />} tone="warning" />
-            <StatTile label="Recently added" value={data.health.recentlyAdded} icon={<Sparkles className="h-4 w-4" />} tone="info" />
-            <StatTile label="Missing artwork" value={data.health.missingArtwork} icon={<Image className="h-4 w-4" />} tone="info" />
-            <StatTile label="Missing subtitles" value={data.health.missingSubtitles} icon={<Subtitles className="h-4 w-4" />} tone="info" />
-            <StatTile label="Duplicates" value={data.health.duplicateGroups} icon={<Layers className="h-4 w-4" />} tone="warning" />
-            <StatTile label="Failed jobs" value={data.health.failedJobs} icon={<TriangleAlert className="h-4 w-4" />} tone="destructive" />
+            <StatTile label={t('dashboard.stat.total')} value={data.health.total} icon={<Clapperboard className="h-4 w-4" />} tone="neutral" />
+            <StatTile label={t('dashboard.stat.unmatched')} value={data.health.unmatched} icon={<ListChecks className="h-4 w-4" />} tone="warning" to="/media/items?matchStatus=unmatched" />
+            <StatTile label={t('dashboard.stat.lowConfidence')} value={data.health.lowConfidence} icon={<TriangleAlert className="h-4 w-4" />} tone="warning" />
+            <StatTile label={t('dashboard.stat.recentlyAdded')} value={data.health.recentlyAdded} icon={<Sparkles className="h-4 w-4" />} tone="info" />
+            <StatTile label={t('dashboard.stat.missingArtwork')} value={data.health.missingArtwork} icon={<Image className="h-4 w-4" />} tone="info" />
+            <StatTile label={t('dashboard.stat.missingSubtitles')} value={data.health.missingSubtitles} icon={<Subtitles className="h-4 w-4" />} tone="info" />
+            <StatTile label={t('dashboard.stat.duplicates')} value={data.health.duplicateGroups} icon={<Layers className="h-4 w-4" />} tone="warning" />
+            <StatTile label={t('dashboard.stat.failedJobs')} value={data.health.failedJobs} icon={<TriangleAlert className="h-4 w-4" />} tone="destructive" />
           </div>
 
           <Card>
             <CardContent className="space-y-3 p-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold">By media type</p>
+                <p className="text-sm font-semibold">{t('dashboard.byMediaType')}</p>
                 <Link to="/media/items" className="text-xs text-info hover:underline">
-                  View all items
+                  {t('dashboard.viewAllItems')}
                 </Link>
               </div>
               {Object.keys(data.health.byMediaType).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No items scanned yet.</p>
+                <p className="text-sm text-muted-foreground">{t('dashboard.noItemsScanned')}</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(data.health.byMediaType).map(([type, count]) => (
                     <Link key={type} to={`/media/items?mediaType=${encodeURIComponent(type)}`}>
                       <Badge variant="secondary">
-                        {mediaTypeLabel(type)} · {count.toLocaleString()}
+                        {mediaTypeLabel(t, type)} · {count.toLocaleString()}
                       </Badge>
                     </Link>
                   ))}
@@ -137,9 +139,9 @@ export function MediaDashboardPage() {
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-semibold">Libraries</p>
+              <p className="text-sm font-semibold">{t('dashboard.librariesHeading')}</p>
               <Link to="/media/libraries" className="text-xs text-info hover:underline">
-                Manage libraries
+                {t('dashboard.manageLibraries')}
               </Link>
             </div>
             {data.libraries.length === 0 ? (
@@ -147,11 +149,11 @@ export function MediaDashboardPage() {
                 <CardContent>
                   <EmptyState
                     icon={<FolderTree className="h-6 w-6" />}
-                    title="No libraries yet"
-                    description="Add a library to point Media Manager at a folder and start scanning."
+                    title={t('dashboard.noLibrariesTitle')}
+                    description={t('dashboard.noLibrariesBody')}
                     action={
                       <Button onClick={() => navigate('/media/libraries')}>
-                        <FolderTree className="h-4 w-4" /> Add a library
+                        <FolderTree className="h-4 w-4" /> {t('dashboard.addLibrary')}
                       </Button>
                     }
                   />
@@ -172,20 +174,23 @@ export function MediaDashboardPage() {
 }
 
 function LibraryCard({ library }: { library: MediaDashboardLibrary }) {
+  const { t } = useTranslation('media');
   return (
     <Link to={`/media/items?libraryId=${library.id}`} className="block">
       <Card className="h-full transition-colors hover:border-info/50">
         <CardContent className="space-y-2 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <p className="min-w-0 flex-1 truncate font-semibold">{library.name}</p>
-            <Badge variant="secondary">{kindLabel(library.kind)}</Badge>
-            {!library.isEnabled && <Badge variant="outline">disabled</Badge>}
+            <Badge variant="secondary">{kindLabel(t, library.kind)}</Badge>
+            {!library.isEnabled && <Badge variant="outline">{t('common.disabledBadge')}</Badge>}
           </div>
           <p className="truncate font-mono text-xs text-muted-foreground">{library.path}</p>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{library.itemCount.toLocaleString()} item{library.itemCount === 1 ? '' : 's'}</span>
+            <span>{t('common.items', { count: library.itemCount })}</span>
             <span>
-              {library.lastScanAt ? `Scanned ${formatRelativeTime(library.lastScanAt)}` : 'Never scanned'}
+              {library.lastScanAt
+                ? t('common.scannedAgo', { time: formatRelativeTime(library.lastScanAt) })
+                : t('common.neverScanned')}
             </span>
           </div>
         </CardContent>

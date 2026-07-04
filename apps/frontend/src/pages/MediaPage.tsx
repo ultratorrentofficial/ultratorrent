@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FolderTree,
@@ -41,6 +42,14 @@ import {
 } from '@/components/ui/dialog';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
+import {
+  kindLabel,
+  libraryKindOptions,
+  modeLabel,
+  modeOptions,
+  presetLabel,
+  presetOptions,
+} from './media-manager/constants';
 import { DryRunTab, JobsTab, TemplatesTab } from './media-renamer/tabs';
 
 export const KIND_OPTIONS: { value: MediaKind; label: string }[] = [
@@ -81,26 +90,26 @@ function presetTemplate(
 
 export function MediaPage() {
   const [tab, setTab] = useState('libraries');
+  const { t } = useTranslation('media');
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Media renamer</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('renamer.title')}</h1>
         <p className="text-sm text-muted-foreground">
-          Organize downloads into media-server layouts. Hardlink and symlink modes keep torrents
-          seeding.
+          {t('renamer.subtitle')}
         </p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <div className="overflow-x-auto scrollbar-thin">
           <TabsList>
-            <TabsTrigger value="libraries">Libraries</TabsTrigger>
-            <TabsTrigger value="rename">Quick Rename</TabsTrigger>
-            <TabsTrigger value="dry-run">Dry Run</TabsTrigger>
-            <TabsTrigger value="jobs">Jobs</TabsTrigger>
-            <TabsTrigger value="templates">Templates</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
+            <TabsTrigger value="libraries">{t('renamer.tab.libraries')}</TabsTrigger>
+            <TabsTrigger value="rename">{t('renamer.tab.rename')}</TabsTrigger>
+            <TabsTrigger value="dry-run">{t('renamer.tab.dryRun')}</TabsTrigger>
+            <TabsTrigger value="jobs">{t('renamer.tab.jobs')}</TabsTrigger>
+            <TabsTrigger value="templates">{t('renamer.tab.templates')}</TabsTrigger>
+            <TabsTrigger value="history">{t('renamer.tab.history')}</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="libraries" className="mt-4">
@@ -133,6 +142,7 @@ export function MediaPage() {
 function LibrariesTab() {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<MediaLibrary | null>(null);
 
@@ -148,18 +158,18 @@ function LibrariesTab() {
       await api.media.updateLibrary(lib.id, { isEnabled });
       invalidate();
     } catch (err) {
-      toast.error('Could not update library', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('renamer.libraries.updateError'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
   const remove = async (lib: MediaLibrary) => {
-    if (!confirm(`Delete library "${lib.name}"?`)) return;
+    if (!confirm(t('renamer.libraries.deleteConfirm', { name: lib.name }))) return;
     try {
       await api.media.deleteLibrary(lib.id);
-      toast.success('Library deleted', lib.name);
+      toast.success(t('renamer.libraries.deletedTitle'), lib.name);
       invalidate();
     } catch (err) {
-      toast.error('Could not delete library', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('renamer.libraries.deleteError'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
@@ -167,24 +177,24 @@ function LibrariesTab() {
     <div className="space-y-4">
       <div className="flex justify-end">
         <Button onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> Add library
+          <Plus className="h-4 w-4" /> {t('renamer.libraries.addBtn')}
         </Button>
       </div>
 
       {isLoading ? (
-        <CenteredSpinner label="Loading libraries…" />
+        <CenteredSpinner label={t('renamer.libraries.loading')} />
       ) : isError ? (
-        <ErrorState message="Could not load libraries." onRetry={() => refetch()} />
+        <ErrorState message={t('renamer.libraries.error')} onRetry={() => refetch()} />
       ) : !data || data.length === 0 ? (
         <Card>
           <CardContent>
             <EmptyState
               icon={<FolderTree className="h-6 w-6" />}
-              title="No libraries"
-              description="Define a library to map a media kind to a destination path and naming template."
+              title={t('renamer.libraries.emptyTitle')}
+              description={t('renamer.libraries.emptyBody')}
               action={
                 <Button onClick={() => setCreating(true)}>
-                  <Plus className="h-4 w-4" /> Add your first library
+                  <Plus className="h-4 w-4" /> {t('renamer.libraries.addFirst')}
                 </Button>
               }
             />
@@ -198,9 +208,9 @@ function LibrariesTab() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{lib.name}</p>
-                    <Badge variant="secondary">{kindLabel(lib.kind)}</Badge>
-                    <Badge variant="info">{presetLabel(lib.preset)}</Badge>
-                    <Badge variant="outline">{modeLabel(lib.mode)}</Badge>
+                    <Badge variant="secondary">{kindLabel(t, lib.kind)}</Badge>
+                    <Badge variant="info">{presetLabel(t, lib.preset)}</Badge>
+                    <Badge variant="outline">{modeLabel(t, lib.mode)}</Badge>
                   </div>
                   <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{lib.path}</p>
                   {lib.template && (
@@ -211,12 +221,12 @@ function LibrariesTab() {
                   <Switch
                     checked={lib.isEnabled}
                     onCheckedChange={(v) => toggleEnabled(lib, v)}
-                    aria-label="Toggle library"
+                    aria-label={t('renamer.libraries.toggleAria')}
                   />
-                  <Button variant="ghost" size="icon" aria-label="Edit" onClick={() => setEditing(lib)}>
+                  <Button variant="ghost" size="icon" aria-label={t('renamer.libraries.editAria')} onClick={() => setEditing(lib)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" aria-label="Delete" onClick={() => remove(lib)}>
+                  <Button variant="ghost" size="icon" aria-label={t('renamer.libraries.deleteAria')} onClick={() => remove(lib)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
@@ -254,6 +264,7 @@ function LibraryDialog({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { t } = useTranslation('media');
   const { data: presets } = useQuery({ queryKey: ['media', 'presets'], queryFn: api.media.presets });
   const [name, setName] = useState(library?.name ?? '');
   const [path, setPath] = useState(library?.path ?? '');
@@ -280,10 +291,10 @@ function LibraryDialog({
       };
       if (library) await api.media.updateLibrary(library.id, body);
       else await api.media.createLibrary(body);
-      toast.success(library ? 'Library updated' : 'Library created', body.name);
+      toast.success(library ? t('renamer.libraries.updatedTitle') : t('renamer.libraries.createdTitle'), body.name);
       onSaved();
     } catch (err) {
-      toast.error('Could not save library', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('renamer.libraries.saveError'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setSaving(false);
     }
@@ -292,60 +303,60 @@ function LibraryDialog({
   return (
     <Dialog open onClose={onClose} className="max-w-lg">
       <DialogHeader>
-        <DialogTitle>{library ? 'Edit library' : 'Add library'}</DialogTitle>
+        <DialogTitle>{library ? t('renamer.dialog.editTitle') : t('renamer.dialog.addTitle')}</DialogTitle>
         <DialogDescription>
-          Maps a media kind to a destination path and naming template.
+          {t('renamer.dialog.description')}
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2">
         <div>
-          <Label htmlFor="lib-name">Name</Label>
-          <Input id="lib-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. TV Shows" />
+          <Label htmlFor="lib-name">{t('renamer.field.name')}</Label>
+          <Input id="lib-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('renamer.field.namePlaceholder')} />
         </div>
         <div>
-          <Label htmlFor="lib-path">Destination path</Label>
-          <PathPicker id="lib-path" value={path} onChange={setPath} placeholder="/media/tv" aria-label="Destination path" pickerTitle="Choose a library folder" />
+          <Label htmlFor="lib-path">{t('renamer.field.path')}</Label>
+          <PathPicker id="lib-path" value={path} onChange={setPath} placeholder={t('renamer.field.pathPlaceholder')} aria-label={t('renamer.field.pathAria')} pickerTitle={t('renamer.field.pathPicker')} />
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <Label htmlFor="lib-kind">Kind</Label>
-            <Select id="lib-kind" value={kind} onChange={(e) => setKind(e.target.value as MediaKind)} options={KIND_OPTIONS} />
+            <Label htmlFor="lib-kind">{t('renamer.field.kind')}</Label>
+            <Select id="lib-kind" value={kind} onChange={(e) => setKind(e.target.value as MediaKind)} options={libraryKindOptions(t)} />
           </div>
           <div>
-            <Label htmlFor="lib-preset">Preset</Label>
-            <Select id="lib-preset" value={preset} onChange={(e) => setPreset(e.target.value as Preset)} options={PRESET_OPTIONS} />
+            <Label htmlFor="lib-preset">{t('renamer.field.preset')}</Label>
+            <Select id="lib-preset" value={preset} onChange={(e) => setPreset(e.target.value as Preset)} options={presetOptions(t)} />
           </div>
           <div>
-            <Label htmlFor="lib-mode">Mode</Label>
-            <Select id="lib-mode" value={mode} onChange={(e) => setMode(e.target.value as RenameMode)} options={MODE_OPTIONS} />
+            <Label htmlFor="lib-mode">{t('renamer.field.mode')}</Label>
+            <Select id="lib-mode" value={mode} onChange={(e) => setMode(e.target.value as RenameMode)} options={modeOptions(t)} />
           </div>
         </div>
         <div>
-          <Label htmlFor="lib-template">Template (optional)</Label>
+          <Label htmlFor="lib-template">{t('renamer.field.template')}</Label>
           <Textarea
             id="lib-template"
             value={template}
             onChange={(e) => setTemplate(e.target.value)}
-            placeholder={defaultTemplate || 'Leave empty to use the preset default'}
+            placeholder={defaultTemplate || t('renamer.field.templatePlaceholder')}
             className="font-mono text-xs"
           />
           {defaultTemplate && (
             <p className="mt-1 text-xs text-muted-foreground">
-              Preset default: <code className="font-mono">{defaultTemplate}</code>
+              {t('renamer.presetDefault')} <code className="font-mono">{defaultTemplate}</code>
             </p>
           )}
         </div>
         <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-          <Label htmlFor="lib-enabled">Enabled</Label>
+          <Label htmlFor="lib-enabled">{t('renamer.field.enabled')}</Label>
           <Switch id="lib-enabled" checked={enabled} onCheckedChange={setEnabled} />
         </div>
       </div>
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button onClick={submit} loading={saving} disabled={!name.trim() || !path.trim()}>
-          {library ? 'Save changes' : 'Add library'}
+          {library ? t('common.saveChanges') : t('renamer.dialog.addTitle')}
         </Button>
       </DialogFooter>
     </Dialog>
@@ -358,6 +369,7 @@ function LibraryDialog({
 
 function RenameTab() {
   const toast = useToast();
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canApply = hasPermission(PERMISSIONS.FILES_MANAGE);
 
@@ -373,10 +385,10 @@ function RenameTab() {
 
   const libraryOptions = useMemo(
     () => [
-      { value: '', label: 'Manual…' },
+      { value: '', label: t('renamer.rename.manual') },
       ...(libraries ?? []).map((l) => ({ value: l.id, label: `${l.name} (${l.path})` })),
     ],
-    [libraries],
+    [libraries, t],
   );
 
   const applyLibrary = (id: string) => {
@@ -391,7 +403,7 @@ function RenameTab() {
 
   const runPreview = async () => {
     if (!path.trim() || !libraryPath.trim()) {
-      toast.error('Missing fields', 'A source path and a destination library path are required.');
+      toast.error(t('renamer.rename.missingFieldsTitle'), t('renamer.rename.missingFieldsBody'));
       return;
     }
     setPreviewing(true);
@@ -399,24 +411,24 @@ function RenameTab() {
       const result = await api.media.preview(body());
       setPlan(result);
     } catch (err) {
-      toast.error('Preview failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('renamer.rename.previewFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setPreviewing(false);
     }
   };
 
   const runApply = async () => {
-    if (!confirm('Apply this rename plan to disk?')) return;
+    if (!confirm(t('renamer.rename.confirmApply'))) return;
     setApplying(true);
     try {
       const res = await api.media.apply(body());
       setPlan(res.plan);
       toast.success(
-        'Rename applied',
-        `${res.applied} applied, ${res.skipped} skipped, ${res.failed} failed.`,
+        t('renamer.rename.appliedTitle'),
+        t('renamer.rename.appliedBody', { applied: res.applied, skipped: res.skipped, failed: res.failed }),
       );
     } catch (err) {
-      toast.error('Apply failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('renamer.rename.applyFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setApplying(false);
     }
@@ -427,19 +439,19 @@ function RenameTab() {
       <Card>
         <CardContent className="space-y-4 p-4">
           <div>
-            <Label htmlFor="rn-path">Source path</Label>
+            <Label htmlFor="rn-path">{t('renamer.rename.source')}</Label>
             <PathPicker
               id="rn-path"
               value={path}
               onChange={setPath}
-              placeholder="/downloads/Show.Name.S01"
-              aria-label="Source path"
-              pickerTitle="Choose the source folder"
+              placeholder={t('renamer.rename.sourcePlaceholder')}
+              aria-label={t('renamer.rename.sourceAria')}
+              pickerTitle={t('renamer.rename.sourcePicker')}
             />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="rn-library">Use library</Label>
+              <Label htmlFor="rn-library">{t('renamer.rename.useLibrary')}</Label>
               <Select
                 id="rn-library"
                 onChange={(e) => applyLibrary(e.target.value)}
@@ -447,36 +459,36 @@ function RenameTab() {
               />
             </div>
             <div>
-              <Label htmlFor="rn-dest">Destination library path</Label>
+              <Label htmlFor="rn-dest">{t('renamer.rename.dest')}</Label>
               <PathPicker
                 id="rn-dest"
                 value={libraryPath}
                 onChange={setLibraryPath}
-                placeholder="/media/tv"
-                aria-label="Destination library path"
-                pickerTitle="Choose a library folder"
+                placeholder={t('renamer.rename.destPlaceholder')}
+                aria-label={t('renamer.rename.destAria')}
+                pickerTitle={t('renamer.rename.destPicker')}
               />
             </div>
             <div>
-              <Label htmlFor="rn-preset">Preset</Label>
-              <Select id="rn-preset" value={preset} onChange={(e) => setPreset(e.target.value as Preset)} options={PRESET_OPTIONS} />
+              <Label htmlFor="rn-preset">{t('renamer.rename.preset')}</Label>
+              <Select id="rn-preset" value={preset} onChange={(e) => setPreset(e.target.value as Preset)} options={presetOptions(t)} />
             </div>
             <div>
-              <Label htmlFor="rn-mode">Mode</Label>
-              <Select id="rn-mode" value={mode} onChange={(e) => setMode(e.target.value as RenameMode)} options={MODE_OPTIONS} />
+              <Label htmlFor="rn-mode">{t('renamer.rename.mode')}</Label>
+              <Select id="rn-mode" value={mode} onChange={(e) => setMode(e.target.value as RenameMode)} options={modeOptions(t)} />
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">
-              Preview is a safe dry-run. Hardlink and symlink modes keep the torrent seeding.
+              {t('renamer.rename.hint')}
             </p>
             <div className="flex gap-2">
               <Button variant="secondary" onClick={runPreview} loading={previewing}>
-                <Play className="h-4 w-4" /> Preview
+                <Play className="h-4 w-4" /> {t('renamer.rename.previewBtn')}
               </Button>
               {canApply && (
                 <Button onClick={runApply} loading={applying} disabled={!plan || plan.items.length === 0}>
-                  <Save className="h-4 w-4" /> Apply
+                  <Save className="h-4 w-4" /> {t('renamer.rename.applyBtn')}
                 </Button>
               )}
             </div>
@@ -490,15 +502,16 @@ function RenameTab() {
 }
 
 function PlanView({ plan }: { plan: RenamePlan }) {
+  const { t } = useTranslation('media');
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold">Rename plan</p>
-          <Badge variant="secondary">{kindLabel(plan.kind)}</Badge>
-          <Badge variant="info">{presetLabel(plan.preset)}</Badge>
-          <Badge variant="outline">{modeLabel(plan.mode)}</Badge>
-          <span className="text-xs text-muted-foreground">{plan.items.length} item{plan.items.length === 1 ? '' : 's'}</span>
+          <p className="text-sm font-semibold">{t('renamer.plan.title')}</p>
+          <Badge variant="secondary">{kindLabel(t, plan.kind)}</Badge>
+          <Badge variant="info">{presetLabel(t, plan.preset)}</Badge>
+          <Badge variant="outline">{modeLabel(t, plan.mode)}</Badge>
+          <span className="text-xs text-muted-foreground">{t('common.items', { count: plan.items.length })}</span>
         </div>
 
         {plan.warnings.length > 0 && (
@@ -510,7 +523,7 @@ function PlanView({ plan }: { plan: RenamePlan }) {
         )}
 
         {plan.items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No files to rename.</p>
+          <p className="text-sm text-muted-foreground">{t('common.noFilesToRename')}</p>
         ) : (
           <div className="space-y-2">
             {plan.items.map((item, i) => (
@@ -523,9 +536,9 @@ function PlanView({ plan }: { plan: RenamePlan }) {
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={item.skipped ? 'secondary' : 'success'}>{item.action}</Badge>
-                  {item.isSubtitle && <Badge variant="outline">subtitle</Badge>}
-                  {item.isSample && <Badge variant="warning">sample</Badge>}
-                  {item.isExtra && <Badge variant="outline">extra</Badge>}
+                  {item.isSubtitle && <Badge variant="outline">{t('renamer.plan.badge.subtitle')}</Badge>}
+                  {item.isSample && <Badge variant="warning">{t('renamer.plan.badge.sample')}</Badge>}
+                  {item.isExtra && <Badge variant="outline">{t('renamer.plan.badge.extra')}</Badge>}
                   {item.reason && (
                     <span className="text-xs text-muted-foreground">{item.reason}</span>
                   )}
@@ -550,21 +563,22 @@ function PlanView({ plan }: { plan: RenamePlan }) {
 // ---------------------------------------------------------------------------
 
 function HistoryTab() {
+  const { t } = useTranslation('media');
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['media', 'history'],
     queryFn: api.media.history,
   });
 
-  if (isLoading) return <CenteredSpinner label="Loading history…" />;
-  if (isError) return <ErrorState message="Could not load history." onRetry={() => refetch()} />;
+  if (isLoading) return <CenteredSpinner label={t('renamer.history.loading')} />;
+  if (isError) return <ErrorState message={t('renamer.history.error')} onRetry={() => refetch()} />;
   if (!data || data.length === 0) {
     return (
       <Card>
         <CardContent>
           <EmptyState
             icon={<History className="h-6 w-6" />}
-            title="No operations yet"
-            description="Applied rename operations are recorded here."
+            title={t('renamer.history.emptyTitle')}
+            description={t('renamer.history.emptyBody')}
           />
         </CardContent>
       </Card>
@@ -589,7 +603,7 @@ function HistoryTab() {
                   {op.status}
                 </Badge>
                 <Badge variant="outline">{op.action}</Badge>
-                <Badge variant="secondary">{modeLabel(op.mode)}</Badge>
+                <Badge variant="secondary">{modeLabel(t, op.mode)}</Badge>
               </div>
               <span className="text-xs text-muted-foreground">{formatRelativeTime(op.createdAt)}</span>
             </div>
@@ -605,16 +619,3 @@ function HistoryTab() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Label helpers
-// ---------------------------------------------------------------------------
-
-function kindLabel(kind: string): string {
-  return KIND_OPTIONS.find((k) => k.value === kind)?.label ?? kind;
-}
-function presetLabel(preset: string): string {
-  return PRESET_OPTIONS.find((p) => p.value === preset)?.label ?? preset;
-}
-function modeLabel(mode: string): string {
-  return MODE_OPTIONS.find((m) => m.value === mode)?.label ?? mode;
-}

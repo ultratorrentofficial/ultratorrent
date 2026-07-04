@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   KeyRound,
@@ -38,10 +39,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
-import { MEDIA_SERVER_KIND_OPTIONS, mediaServerKindLabel } from './constants';
+import { artworkTypeLabel, mediaServerKindLabel, mediaServerKindOptions } from './constants';
 
 export function MediaSettingsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation('media');
   const { hasPermission } = useAuth();
   const canManageIntegrations = hasPermission(PERMISSIONS.MEDIA_MANAGER_MANAGE_INTEGRATIONS);
   const canViewImdb = hasPermission(PERMISSIONS.MEDIA_MANAGER_IMDB_VIEW);
@@ -50,12 +52,11 @@ export function MediaSettingsPage() {
     <div className="space-y-6">
       <div>
         <Button variant="ghost" size="sm" onClick={() => navigate('/media')} className="mb-2 -ml-2">
-          Media Manager
+          {t('common.backToManager')}
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Media Settings</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('settings.title')}</h1>
         <p className="text-sm text-muted-foreground">
-          Metadata providers, artwork and subtitle preferences, rename templates, and media-server
-          integrations.
+          {t('settings.subtitle')}
         </p>
       </div>
 
@@ -63,17 +64,16 @@ export function MediaSettingsPage() {
       {canViewImdb && (
         <SectionCard
           icon={<Film className="h-5 w-5" />}
-          title="IMDb provider"
-          description="Configure IMDb metadata from user-provided datasets or a licensed IMDb API."
+          title={t('settings.imdb.title')}
+          description={t('settings.imdb.description')}
           actions={
             <Button size="sm" variant="outline" onClick={() => navigate('/media/settings/imdb')}>
-              Configure IMDb
+              {t('settings.imdb.configureBtn')}
             </Button>
           }
         >
           <p className="text-sm text-muted-foreground">
-            Dataset import, official-API configuration, and matching preferences for the IMDb
-            provider.
+            {t('settings.imdb.body')}
           </p>
         </SectionCard>
       )}
@@ -83,9 +83,9 @@ export function MediaSettingsPage() {
       {canManageIntegrations ? (
         <IntegrationsSection />
       ) : (
-        <SectionCard icon={<Plug className="h-5 w-5" />} title="Media Server Integrations">
+        <SectionCard icon={<Plug className="h-5 w-5" />} title={t('settings.integrations.noPermTitle')}>
           <p className="text-sm text-muted-foreground">
-            You do not have permission to manage media-server integrations.
+            {t('settings.integrations.noPermBody')}
           </p>
         </SectionCard>
       )}
@@ -132,6 +132,7 @@ function useSettingField(key: string) {
   const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE);
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { t } = useTranslation('media');
 
   const query = useQuery({
     queryKey: ['settings'],
@@ -142,10 +143,10 @@ function useSettingField(key: string) {
   const save = useMutation({
     mutationFn: (value: string) => api.settings.update({ [key]: value }),
     onSuccess: () => {
-      toast.success('Saved');
+      toast.success(t('common.saved'));
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
-    onError: (err) => toast.error('Could not save', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('common.couldNotSave'), err instanceof ApiError ? err.message : undefined),
   });
 
   const stored = canView ? ((query.data?.[key] as string | undefined) ?? '') : '';
@@ -153,6 +154,7 @@ function useSettingField(key: string) {
 }
 
 function MetadataProvidersSection() {
+  const { t } = useTranslation('media');
   const { canView, canManage, stored, isLoading, save } = useSettingField('media.tmdbApiKey');
   const [value, setValue] = useState('');
   useEffect(() => setValue(stored), [stored]);
@@ -160,33 +162,32 @@ function MetadataProvidersSection() {
   return (
     <SectionCard
       icon={<KeyRound className="h-5 w-5" />}
-      title="Metadata providers"
-      description="TMDB powers rich metadata and artwork. Without a key, local NFO metadata is used."
+      title={t('settings.metadata.title')}
+      description={t('settings.metadata.description')}
     >
       {!canView ? (
         <p className="text-sm text-muted-foreground">
-          You do not have permission to view settings. Ask an administrator to configure the TMDB API
-          key.
+          {t('settings.metadata.noViewPerm')}
         </p>
       ) : isLoading ? (
-        <CenteredSpinner label="Loading…" />
+        <CenteredSpinner label={t('settings.metadata.loading')} />
       ) : (
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[280px] flex-1">
-            <Label htmlFor="tmdb-key">TMDB API key</Label>
+            <Label htmlFor="tmdb-key">{t('settings.metadata.keyLabel')}</Label>
             <Input
               id="tmdb-key"
               type="password"
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder="Enter TMDB API key"
+              placeholder={t('settings.metadata.keyPlaceholder')}
               disabled={!canManage}
               autoComplete="off"
             />
           </div>
           {canManage && (
             <Button onClick={() => save.mutate(value.trim())} loading={save.isPending}>
-              <Save className="h-4 w-4" /> Save
+              <Save className="h-4 w-4" /> {t('common.save')}
             </Button>
           )}
         </div>
@@ -196,6 +197,7 @@ function MetadataProvidersSection() {
 }
 
 function ArtworkPreferencesSection() {
+  const { t } = useTranslation('media');
   const { canView, canManage, stored, isLoading, save } = useSettingField('media.artwork.preferredType');
   const [value, setValue] = useState('poster');
   useEffect(() => {
@@ -205,33 +207,33 @@ function ArtworkPreferencesSection() {
   return (
     <SectionCard
       icon={<ImageIcon className="h-5 w-5" />}
-      title="Artwork preferences"
-      description="Which artwork type to prefer when multiple are available."
+      title={t('settings.artworkPref.title')}
+      description={t('settings.artworkPref.description')}
     >
       {!canView ? (
-        <p className="text-sm text-muted-foreground">Requires settings access.</p>
+        <p className="text-sm text-muted-foreground">{t('settings.requiresSettings')}</p>
       ) : isLoading ? (
-        <CenteredSpinner label="Loading…" />
+        <CenteredSpinner label={t('settings.metadata.loading')} />
       ) : (
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[220px]">
-            <Label htmlFor="art-pref">Preferred artwork type</Label>
+            <Label htmlFor="art-pref">{t('settings.artworkPref.label')}</Label>
             <Select
               id="art-pref"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               disabled={!canManage}
               options={[
-                { value: 'poster', label: 'Poster' },
-                { value: 'fanart', label: 'Fanart' },
-                { value: 'banner', label: 'Banner' },
-                { value: 'thumbnail', label: 'Thumbnail' },
+                { value: 'poster', label: artworkTypeLabel(t, 'poster') },
+                { value: 'fanart', label: artworkTypeLabel(t, 'fanart') },
+                { value: 'banner', label: artworkTypeLabel(t, 'banner') },
+                { value: 'thumbnail', label: artworkTypeLabel(t, 'thumbnail') },
               ]}
             />
           </div>
           {canManage && (
             <Button onClick={() => save.mutate(value)} loading={save.isPending}>
-              <Save className="h-4 w-4" /> Save
+              <Save className="h-4 w-4" /> {t('common.save')}
             </Button>
           )}
         </div>
@@ -245,6 +247,7 @@ function SubtitlePreferencesSection() {
     'media.subtitles.preferredLanguages',
   );
   const [value, setValue] = useState('en');
+  const { t } = useTranslation('media');
   useEffect(() => {
     if (stored) setValue(stored);
   }, [stored]);
@@ -252,28 +255,28 @@ function SubtitlePreferencesSection() {
   return (
     <SectionCard
       icon={<Subtitles className="h-5 w-5" />}
-      title="Subtitle preferences"
-      description="Preferred subtitle languages (comma-separated ISO codes), used to flag missing subtitles."
+      title={t('settings.subtitlePref.title')}
+      description={t('settings.subtitlePref.description')}
     >
       {!canView ? (
-        <p className="text-sm text-muted-foreground">Requires settings access.</p>
+        <p className="text-sm text-muted-foreground">{t('settings.requiresSettings')}</p>
       ) : isLoading ? (
-        <CenteredSpinner label="Loading…" />
+        <CenteredSpinner label={t('settings.metadata.loading')} />
       ) : (
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[280px] flex-1">
-            <Label htmlFor="sub-pref">Preferred languages</Label>
+            <Label htmlFor="sub-pref">{t('settings.subtitlePref.label')}</Label>
             <Input
               id="sub-pref"
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder="en, es, fr"
+              placeholder={t('settings.subtitlePref.placeholder')}
               disabled={!canManage}
             />
           </div>
           {canManage && (
             <Button onClick={() => save.mutate(value.trim())} loading={save.isPending}>
-              <Save className="h-4 w-4" /> Save
+              <Save className="h-4 w-4" /> {t('common.save')}
             </Button>
           )}
         </div>
@@ -284,18 +287,19 @@ function SubtitlePreferencesSection() {
 
 function RenameTemplatesSection() {
   const navigate = useNavigate();
+  const { t } = useTranslation('media');
   return (
     <SectionCard
       icon={<Wand2 className="h-5 w-5" />}
-      title="Rename templates"
-      description="Naming templates are configured per library and in the rename engine."
+      title={t('settings.renameTemplates.title')}
+      description={t('settings.renameTemplates.description')}
     >
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={() => navigate('/media/libraries')}>
-          Library templates
+          {t('settings.renameTemplates.libraryBtn')}
         </Button>
         <Button variant="outline" onClick={() => navigate('/media/rename')}>
-          Rename engine templates
+          {t('settings.renameTemplates.engineBtn')}
         </Button>
       </div>
     </SectionCard>
@@ -309,6 +313,7 @@ function RenameTemplatesSection() {
 function IntegrationsSection() {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('media');
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<MediaServerIntegration | null>(null);
 
@@ -323,28 +328,28 @@ function IntegrationsSection() {
   const remove = useMutation({
     mutationFn: (id: string) => api.media.deleteServerIntegration(id),
     onSuccess: () => {
-      toast.success('Integration removed');
+      toast.success(t('settings.integrations.removedTitle'));
       invalidate();
     },
-    onError: (err) => toast.error('Could not remove', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('settings.integrations.removeError'), err instanceof ApiError ? err.message : undefined),
   });
 
   const test = useMutation({
     mutationFn: (id: string) => api.media.testServerIntegration(id),
     onSuccess: (res) => {
-      if (res.ok) toast.success('Connection OK', res.message);
-      else toast.error('Connection failed', res.message);
+      if (res.ok) toast.success(t('settings.integrations.connOkTitle'), res.message);
+      else toast.error(t('settings.integrations.connFailedTitle'), res.message);
     },
-    onError: (err) => toast.error('Test failed', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('settings.integrations.testFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const refresh = useMutation({
     mutationFn: (id: string) => api.media.refreshServerIntegration(id),
     onSuccess: () => {
-      toast.success('Library refresh requested');
+      toast.success(t('settings.integrations.refreshRequested'));
       invalidate();
     },
-    onError: (err) => toast.error('Refresh failed', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('settings.integrations.refreshFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const rows = data ?? [];
@@ -352,23 +357,23 @@ function IntegrationsSection() {
   return (
     <SectionCard
       icon={<Plug className="h-5 w-5" />}
-      title="Media Server Integrations"
-      description="Connect Plex, Jellyfin, Emby, or Kodi to trigger library refreshes."
+      title={t('settings.integrations.title')}
+      description={t('settings.integrations.description')}
       actions={
         <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> Add integration
+          <Plus className="h-4 w-4" /> {t('settings.integrations.addBtn')}
         </Button>
       }
     >
       {isLoading ? (
-        <CenteredSpinner label="Loading integrations…" />
+        <CenteredSpinner label={t('settings.integrations.loading')} />
       ) : isError ? (
-        <ErrorState message="Could not load integrations." onRetry={() => refetch()} />
+        <ErrorState message={t('settings.integrations.error')} onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState
           icon={<Plug className="h-6 w-6" />}
-          title="No integrations"
-          description="Add a media-server integration to keep your server’s library in sync."
+          title={t('settings.integrations.emptyTitle')}
+          description={t('settings.integrations.emptyBody')}
         />
       ) : (
         <div className="space-y-3">
@@ -385,14 +390,14 @@ function IntegrationsSection() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-medium">{row.name}</p>
-                    <Badge variant="secondary">{mediaServerKindLabel(row.kind)}</Badge>
+                    <Badge variant="secondary">{mediaServerKindLabel(t, row.kind)}</Badge>
                     <Badge variant={row.isEnabled ? 'success' : 'secondary'} dot>
-                      {row.isEnabled ? 'Enabled' : 'Disabled'}
+                      {row.isEnabled ? t('common.enabled') : t('common.disabled')}
                     </Badge>
                   </div>
                   {row.lastRefreshAt && (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Last refresh {formatRelativeTime(row.lastRefreshAt)}
+                      {t('settings.integrations.lastRefresh', { time: formatRelativeTime(row.lastRefreshAt) })}
                     </p>
                   )}
                 </div>
@@ -404,7 +409,7 @@ function IntegrationsSection() {
                     loading={test.isPending && test.variables === row.id}
                     disabled={busy}
                   >
-                    Test
+                    {t('settings.integrations.test')}
                   </Button>
                   <Button
                     size="sm"
@@ -413,17 +418,17 @@ function IntegrationsSection() {
                     loading={refresh.isPending && refresh.variables === row.id}
                     disabled={busy || !row.isEnabled}
                   >
-                    <RefreshCw className="h-4 w-4" /> Refresh
+                    <RefreshCw className="h-4 w-4" /> {t('settings.integrations.refresh')}
                   </Button>
-                  <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => setEditing(row)}>
+                  <Button size="icon" variant="ghost" aria-label={t('settings.integrations.editAria')} onClick={() => setEditing(row)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
-                    aria-label="Delete"
+                    aria-label={t('settings.integrations.deleteAria')}
                     onClick={() => {
-                      if (confirm(`Remove integration "${row.name}"?`)) remove.mutate(row.id);
+                      if (confirm(t('settings.integrations.removeConfirm', { name: row.name }))) remove.mutate(row.id);
                     }}
                     disabled={busy}
                   >
@@ -464,6 +469,7 @@ function IntegrationDialog({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { t } = useTranslation('media');
   const cfg = (integration?.config ?? {}) as Record<string, unknown>;
   const [name, setName] = useState(integration?.name ?? '');
   const [kind, setKind] = useState(integration?.kind ?? 'plex');
@@ -472,7 +478,12 @@ function IntegrationDialog({
   const [token, setToken] = useState('');
 
   const isPlex = kind === 'plex';
-  const tokenLabel = isPlex ? 'Token' : 'API key';
+  const tokenLabel = isPlex
+    ? t('settings.integrations.tokenLabel.token')
+    : t('settings.integrations.tokenLabel.apiKey');
+  const tokenLower = isPlex
+    ? t('settings.integrations.tokenLabelLower.token')
+    : t('settings.integrations.tokenLabelLower.apiKey');
 
   const save = useMutation({
     mutationFn: () => {
@@ -490,43 +501,45 @@ function IntegrationDialog({
         : api.media.createServerIntegration(body);
     },
     onSuccess: () => {
-      toast.success(integration ? 'Integration updated' : 'Integration added', name.trim());
+      toast.success(
+        integration ? t('settings.integrations.updatedTitle') : t('settings.integrations.addedTitle'),
+        name.trim(),
+      );
       onSaved();
     },
-    onError: (err) => toast.error('Could not save integration', err instanceof ApiError ? err.message : undefined),
+    onError: (err) => toast.error(t('settings.integrations.saveError'), err instanceof ApiError ? err.message : undefined),
   });
 
   return (
     <Dialog open onClose={onClose} className="max-w-lg">
       <DialogHeader>
-        <DialogTitle>{integration ? 'Edit integration' : 'Add integration'}</DialogTitle>
+        <DialogTitle>{integration ? t('settings.integrations.dialog.editTitle') : t('settings.integrations.dialog.addTitle')}</DialogTitle>
         <DialogDescription>
-          Secrets are encrypted at rest and never shown again. Leave the {tokenLabel.toLowerCase()}{' '}
-          blank to keep the existing one.
+          {t('settings.integrations.dialog.description', { token: tokenLower })}
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2">
         <div>
-          <Label htmlFor="int-name">Name</Label>
-          <Input id="int-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Living Room Plex" />
+          <Label htmlFor="int-name">{t('settings.integrations.field.name')}</Label>
+          <Input id="int-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('settings.integrations.field.namePlaceholder')} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <Label htmlFor="int-kind">Kind</Label>
+            <Label htmlFor="int-kind">{t('settings.integrations.field.kind')}</Label>
             <Select
               id="int-kind"
               value={kind}
               onChange={(e) => setKind(e.target.value)}
-              options={MEDIA_SERVER_KIND_OPTIONS}
+              options={mediaServerKindOptions(t)}
             />
           </div>
           <div>
-            <Label htmlFor="int-host">Host / URL</Label>
+            <Label htmlFor="int-host">{t('settings.integrations.field.host')}</Label>
             <Input
               id="int-host"
               value={host}
               onChange={(e) => setHost(e.target.value)}
-              placeholder="http://localhost:32400"
+              placeholder={t('settings.integrations.field.hostPlaceholder')}
             />
           </div>
         </div>
@@ -537,21 +550,21 @@ function IntegrationDialog({
             type="password"
             value={token}
             onChange={(e) => setToken(e.target.value)}
-            placeholder={integration ? 'Leave blank to keep existing' : `Enter ${tokenLabel.toLowerCase()}`}
+            placeholder={integration ? t('settings.integrations.field.tokenPlaceholderKeep') : t('settings.integrations.field.tokenPlaceholderNew', { token: tokenLower })}
             autoComplete="off"
           />
         </div>
         <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-          <Label htmlFor="int-enabled">Enabled</Label>
+          <Label htmlFor="int-enabled">{t('settings.integrations.field.enabled')}</Label>
           <Switch id="int-enabled" checked={enabled} onCheckedChange={setEnabled} />
         </div>
       </div>
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!name.trim()}>
-          {integration ? 'Save changes' : 'Add integration'}
+          {integration ? t('common.saveChanges') : t('settings.integrations.addBtn')}
         </Button>
       </DialogFooter>
     </Dialog>
