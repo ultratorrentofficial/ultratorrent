@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { File as FileIcon, Folder, RotateCcw, Trash2, TriangleAlert } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
@@ -6,10 +7,11 @@ import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerBody, DrawerFooter, DrawerHeader } from '@/components/ui/drawer';
 import { CenteredSpinner, EmptyState } from '@/components/ui/feedback';
-import { formatBytes, formatRelativeTime, pluralize } from '@/lib/format';
+import { formatBytes, formatRelativeTime } from '@/lib/format';
 
 /** Trash Browser: list soft-deleted items, restore, permanently purge, empty. */
 export function TrashDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation('files');
   const toast = useToast();
   const qc = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -31,24 +33,24 @@ export function TrashDrawer({ open, onClose }: { open: boolean; onClose: () => v
     setBusyId(id);
     try {
       await api.files.trash.restore(id);
-      toast.success('Restored');
+      toast.success(t('trash.restored'));
       await refresh();
     } catch (err) {
-      toast.error('Restore failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('trash.restoreFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setBusyId(null);
     }
   };
 
   const purge = async (id: string) => {
-    if (!window.confirm('Permanently delete this item? This cannot be undone.')) return;
+    if (!window.confirm(t('trash.purgeConfirm'))) return;
     setBusyId(id);
     try {
       await api.files.trash.purge(id);
-      toast.success('Permanently deleted');
+      toast.success(t('trash.purgedToast'));
       await refresh();
     } catch (err) {
-      toast.error('Delete failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('trash.deleteFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setBusyId(null);
     }
@@ -57,10 +59,10 @@ export function TrashDrawer({ open, onClose }: { open: boolean; onClose: () => v
   const empty = async () => {
     try {
       const res = await api.files.trash.empty();
-      toast.success(`Emptied Trash`, `${pluralize(res.removed, 'item')} removed`);
+      toast.success(t('trash.emptiedToast'), t('trash.removedToast', { count: res.removed }));
       await refresh();
     } catch (err) {
-      toast.error('Empty Trash failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('trash.emptyFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setConfirmEmpty(false);
     }
@@ -68,22 +70,22 @@ export function TrashDrawer({ open, onClose }: { open: boolean; onClose: () => v
 
   const items = data ?? [];
   return (
-    <Drawer open={open} onClose={onClose} title="Trash" className="max-w-xl">
+    <Drawer open={open} onClose={onClose} title={t('trash.title')} className="max-w-xl">
       <DrawerHeader onClose={onClose}>
         <div className="flex items-center gap-2">
           <Trash2 className="h-5 w-5 text-muted-foreground" />
           <div>
-            <h2 className="text-lg font-semibold">Trash</h2>
-            <p className="text-xs text-muted-foreground">{pluralize(items.length, 'item')}</p>
+            <h2 className="text-lg font-semibold">{t('trash.title')}</h2>
+            <p className="text-xs text-muted-foreground">{t('trash.count', { count: items.length })}</p>
           </div>
         </div>
       </DrawerHeader>
 
       <DrawerBody className="space-y-1">
         {isLoading ? (
-          <CenteredSpinner label="Loading trash…" />
+          <CenteredSpinner label={t('trash.loading')} />
         ) : items.length === 0 ? (
-          <EmptyState icon={<Trash2 className="h-6 w-6" />} title="Trash is empty" />
+          <EmptyState icon={<Trash2 className="h-6 w-6" />} title={t('trash.empty')} />
         ) : (
           <ul className="divide-y divide-border/40">
             {items.map((item) => (
@@ -100,7 +102,7 @@ export function TrashDrawer({ open, onClose }: { open: boolean; onClose: () => v
                   </p>
                 </div>
                 <Button size="sm" variant="ghost" loading={busyId === item.id} onClick={() => restore(item.id)}>
-                  <RotateCcw className="h-4 w-4" /> Restore
+                  <RotateCcw className="h-4 w-4" /> {t('trash.restore')}
                 </Button>
                 <Button
                   size="sm"
@@ -118,18 +120,18 @@ export function TrashDrawer({ open, onClose }: { open: boolean; onClose: () => v
       </DrawerBody>
 
       <DrawerFooter className="justify-between">
-        <Button variant="ghost" size="sm" onClick={() => refetch()}>Refresh</Button>
+        <Button variant="ghost" size="sm" onClick={() => refetch()}>{t('trash.refresh')}</Button>
         {confirmEmpty ? (
           <span className="flex items-center gap-2">
             <span className="flex items-center gap-1.5 text-sm text-destructive">
-              <TriangleAlert className="h-4 w-4" /> Delete all permanently?
+              <TriangleAlert className="h-4 w-4" /> {t('trash.deleteAllConfirm')}
             </span>
-            <Button size="sm" variant="ghost" onClick={() => setConfirmEmpty(false)}>Cancel</Button>
-            <Button size="sm" variant="destructive" onClick={empty}>Confirm</Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirmEmpty(false)}>{t('trash.cancel')}</Button>
+            <Button size="sm" variant="destructive" onClick={empty}>{t('trash.confirm')}</Button>
           </span>
         ) : (
           <Button variant="destructive" size="sm" disabled={items.length === 0} onClick={() => setConfirmEmpty(true)}>
-            <Trash2 className="h-4 w-4" /> Empty Trash
+            <Trash2 className="h-4 w-4" /> {t('trash.emptyTrash')}
           </Button>
         )}
       </DrawerFooter>

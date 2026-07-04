@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { CheckSquare, FlipHorizontal, FolderPlus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { useAuth } from '@/auth/AuthContext';
@@ -26,6 +27,7 @@ export function FilesToolbar({
   onInvert,
 }: FilesToolbarProps) {
   const { hasPermission } = useAuth();
+  const { t } = useTranslation('files');
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative min-w-[12rem] flex-1">
@@ -33,32 +35,32 @@ export function FilesToolbar({
         <Input
           value={search}
           onChange={(e) => onSearch(e.target.value)}
-          placeholder="Filter in this folder…"
+          placeholder={t('toolbar.filterPlaceholder')}
           className="pl-8"
         />
       </div>
       <Button variant="secondary" size="sm" onClick={onRefresh}>
-        <RefreshCw className="h-4 w-4" /> Refresh
+        <RefreshCw className="h-4 w-4" /> {t('toolbar.refresh')}
       </Button>
       {hasPermission(PERMISSIONS.FILES_CREATE_FOLDER) && (
         <Button variant="secondary" size="sm" onClick={onNewFolder}>
-          <FolderPlus className="h-4 w-4" /> New Folder
+          <FolderPlus className="h-4 w-4" /> {t('toolbar.newFolder')}
         </Button>
       )}
       {hasPermission(PERMISSIONS.FILES_CLEANUP) && (
         <Button variant="secondary" size="sm" onClick={onCleanup}>
-          <Sparkles className="h-4 w-4" /> Cleanup
+          <Sparkles className="h-4 w-4" /> {t('toolbar.cleanup')}
         </Button>
       )}
-      <Button variant="ghost" size="sm" onClick={onSelectAll} title="Select all">
-        <CheckSquare className="h-4 w-4" /> Select All
+      <Button variant="ghost" size="sm" onClick={onSelectAll} title={t('toolbar.selectAllTitle')}>
+        <CheckSquare className="h-4 w-4" /> {t('toolbar.selectAll')}
       </Button>
-      <Button variant="ghost" size="sm" onClick={onInvert} title="Invert selection">
-        <FlipHorizontal className="h-4 w-4" /> Invert
+      <Button variant="ghost" size="sm" onClick={onInvert} title={t('toolbar.invertTitle')}>
+        <FlipHorizontal className="h-4 w-4" /> {t('toolbar.invert')}
       </Button>
       {hasPermission(PERMISSIONS.FILES_VIEW) && (
         <Button variant="ghost" size="sm" onClick={onTrash}>
-          <Trash2 className="h-4 w-4" /> Trash
+          <Trash2 className="h-4 w-4" /> {t('toolbar.trash')}
         </Button>
       )}
     </div>

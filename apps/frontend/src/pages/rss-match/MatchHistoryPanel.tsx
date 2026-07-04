@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, History } from 'lucide-react';
 import { api, type RssRuleMatchEvaluation } from '@/lib/api';
@@ -17,13 +18,8 @@ const RESULT_TONE: Record<RssRuleMatchEvaluation['result'], Tone> = {
   skipped_duplicate: 'warning',
 };
 
-const RESULT_LABEL: Record<RssRuleMatchEvaluation['result'], string> = {
-  matched: 'Matched',
-  no_match: 'No match',
-  skipped_duplicate: 'Skipped (duplicate)',
-};
-
 export function MatchHistoryPanel({ ruleId }: { ruleId: string }) {
+  const { t } = useTranslation('rss');
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['rss', 'match-history', ruleId],
     queryFn: () => api.rss.matchHistory(ruleId),
@@ -38,16 +34,16 @@ export function MatchHistoryPanel({ ruleId }: { ruleId: string }) {
       return next;
     });
 
-  if (isLoading) return <CenteredSpinner label="Loading match history…" />;
-  if (isError) return <ErrorState message="Could not load match history." onRetry={() => refetch()} />;
+  if (isLoading) return <CenteredSpinner label={t('matchHistory.loading')} />;
+  if (isError) return <ErrorState message={t('matchHistory.loadError')} onRetry={() => refetch()} />;
   if (!data || data.length === 0) {
     return (
       <Card>
         <CardContent>
           <EmptyState
             icon={<History className="h-6 w-6" />}
-            title="No evaluations yet"
-            description="Items matched against this rule's candidates will be recorded here."
+            title={t('matchHistory.empty.title')}
+            description={t('matchHistory.empty.description')}
           />
         </CardContent>
       </Card>
@@ -62,7 +58,7 @@ export function MatchHistoryPanel({ ruleId }: { ruleId: string }) {
           evaluation.matchedCandidateId != null
             ? evaluation.evaluationTrace.candidates.find(
                 (c) => c.candidateId === evaluation.matchedCandidateId,
-              )?.name ?? 'unknown candidate'
+              )?.name ?? t('matchHistory.unknownCandidate')
             : null;
         return (
           <Card key={evaluation.id}>
@@ -78,7 +74,7 @@ export function MatchHistoryPanel({ ruleId }: { ruleId: string }) {
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
               )}
               <Badge variant={RESULT_TONE[evaluation.result]} dot>
-                {RESULT_LABEL[evaluation.result]}
+                {t(`matchHistory.result.${evaluation.result}` as 'matchHistory.result.matched')}
               </Badge>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
@@ -88,12 +84,14 @@ export function MatchHistoryPanel({ ruleId }: { ruleId: string }) {
                       {evaluation.matchedCandidatePriority != null && (
                         <span className="text-muted-foreground">
                           {' '}
-                          (priority {evaluation.matchedCandidatePriority + 1})
+                          {t('matchHistory.prioritySuffix', {
+                            priority: evaluation.matchedCandidatePriority + 1,
+                          })}
                         </span>
                       )}
                     </span>
                   ) : (
-                    <span className="text-muted-foreground">no candidate matched</span>
+                    <span className="text-muted-foreground">{t('matchHistory.noCandidateMatched')}</span>
                   )}
                   {evaluation.actionTaken && (
                     <Badge variant="info">{evaluation.actionTaken}</Badge>
@@ -110,7 +108,7 @@ export function MatchHistoryPanel({ ruleId }: { ruleId: string }) {
                 <ParsedDebug parsed={evaluation.evaluationTrace.parsed} />
                 {evaluation.torrentHash && (
                   <p className="font-mono text-xs text-muted-foreground">
-                    torrent: {evaluation.torrentHash}
+                    {t('matchHistory.torrentLabel', { hash: evaluation.torrentHash })}
                   </p>
                 )}
                 <div className="space-y-2">

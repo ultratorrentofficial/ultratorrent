@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bot,
@@ -25,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { PathPicker } from '@/components/PathPicker';
 import { Select } from '@/components/ui/select';
-import { PRESET_OPTIONS, MODE_OPTIONS } from './MediaPage';
+import { presetOptions, modeOptions } from './media-manager/constants';
 import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
@@ -36,12 +37,17 @@ import {
 } from '@/components/ui/dialog';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 
-const TRIGGERS = [
-  { value: 'torrent.completed', label: 'When a download completes' },
-  { value: 'ratio.reached', label: 'When the share ratio is reached' },
-];
+/** Loose `t` so builders below can resolve dynamic namespace keys. */
+type AnyT = (key: string, options?: Record<string, unknown>) => string;
+
+const TRIGGER_VALUES = ['torrent.completed', 'ratio.reached'] as const;
+const triggerKey = (v: string) => `trigger.${v.replace(/\./g, '_')}`;
+const triggerLabel = (t: AnyT, v: string) => t(triggerKey(v), { defaultValue: v });
+const triggerOptions = (t: AnyT) =>
+  TRIGGER_VALUES.map((value) => ({ value, label: triggerLabel(t, value) }));
 
 const FIELDS = ['name', 'label', 'state', 'ratio', 'size', 'progress', 'downloadRate', 'uploadRate'];
+// Operator tokens form a compact rule DSL (rendered in monospace) — kept literal.
 const OPS = [
   { value: 'eq', label: '=' },
   { value: 'neq', label: '≠' },
@@ -52,16 +58,20 @@ const OPS = [
   { value: 'contains', label: 'contains' },
   { value: 'matches', label: 'matches /regex/' },
 ];
-const ACTION_TYPES = [
-  { value: 'notify', label: 'Send notification' },
-  { value: 'move', label: 'Move data' },
-  { value: 'pause', label: 'Pause torrent' },
-  { value: 'stop', label: 'Stop torrent' },
-  { value: 'delete', label: 'Remove torrent' },
-  { value: 'delete_with_data', label: 'Remove torrent + data' },
-  { value: 'webhook', label: 'Call webhook' },
-  { value: 'rename_for_media', label: 'Rename for media server' },
-];
+
+const ACTION_TYPE_VALUES = [
+  'notify',
+  'move',
+  'pause',
+  'stop',
+  'delete',
+  'delete_with_data',
+  'webhook',
+  'rename_for_media',
+] as const;
+const actionTypeLabel = (t: AnyT, v: string) => t(`actionType.${v}`, { defaultValue: v });
+const actionTypeOptions = (t: AnyT) =>
+  ACTION_TYPE_VALUES.map((value) => ({ value, label: actionTypeLabel(t, value) }));
 
 function coerce(v: string): string | number | boolean {
   if (v === 'true') return true;
@@ -71,6 +81,8 @@ function coerce(v: string): string | number | boolean {
 }
 
 export function AutomationPage() {
+  const { t } = useTranslation('automation');
+  const tt = t as unknown as AnyT;
   const toast = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<AutomationRule | null>(null);
@@ -100,18 +112,18 @@ export function AutomationPage() {
       await api.automation.update(rule.id, { ...toBody(rule), isEnabled: !rule.isEnabled });
       invalidate();
     } catch (err) {
-      toast.error('Could not update rule', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.updateError'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
   const remove = async (rule: AutomationRule) => {
-    if (!confirm(`Delete rule "${rule.name}"?`)) return;
+    if (!confirm(t('confirmDelete', { name: rule.name }))) return;
     try {
       await api.automation.remove(rule.id);
-      toast.success('Rule deleted', rule.name);
+      toast.success(t('toast.deleted'), rule.name);
       invalidate();
     } catch (err) {
-      toast.error('Could not delete rule', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.deleteError'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
@@ -119,30 +131,30 @@ export function AutomationPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Automation</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            Rules run when their trigger fires and every condition matches.
+            {t('page.subtitle')}
           </p>
         </div>
         <Button onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> New rule
+          <Plus className="h-4 w-4" /> {t('page.newRule')}
         </Button>
       </div>
 
       {isLoading ? (
-        <CenteredSpinner label="Loading rules…" />
+        <CenteredSpinner label={t('page.loading')} />
       ) : isError ? (
-        <ErrorState message="Could not load automation rules." onRetry={() => refetch()} />
+        <ErrorState message={t('page.loadError')} onRetry={() => refetch()} />
       ) : !data || data.length === 0 ? (
         <Card>
           <CardContent>
             <EmptyState
               icon={<Bot className="h-6 w-6" />}
-              title="No automation rules"
-              description="Create a rule to react to completed downloads — move data, notify, clean up, and more."
+              title={t('page.emptyTitle')}
+              description={t('page.emptyDescription')}
               action={
                 <Button onClick={() => setCreating(true)}>
-                  <Plus className="h-4 w-4" /> Create your first rule
+                  <Plus className="h-4 w-4" /> {t('page.createFirst')}
                 </Button>
               }
             />
@@ -157,20 +169,22 @@ export function AutomationPage() {
                   <div className="flex items-center gap-2">
                     <p className="font-semibold">{rule.name}</p>
                     <Badge variant={rule.isEnabled ? 'success' : 'secondary'} dot>
-                      {rule.isEnabled ? 'Enabled' : 'Disabled'}
+                      {rule.isEnabled ? t('card.enabled') : t('card.disabled')}
                     </Badge>
                     <Badge variant="outline">
                       <Zap className="h-3 w-3" />
-                      {TRIGGERS.find((t) => t.value === rule.trigger)?.label ?? rule.trigger}
+                      {triggerLabel(tt, rule.trigger)}
                     </Badge>
-                    {rule.priority > 0 && <Badge variant="secondary">priority {rule.priority}</Badge>}
+                    {rule.priority > 0 && (
+                      <Badge variant="secondary">{t('card.priority', { priority: rule.priority })}</Badge>
+                    )}
                   </div>
                   {rule.description && (
                     <p className="mt-1 text-sm text-muted-foreground">{rule.description}</p>
                   )}
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {rule.conditions.length === 0 ? (
-                      <span className="text-xs text-muted-foreground">always (no conditions)</span>
+                      <span className="text-xs text-muted-foreground">{t('card.alwaysNoConditions')}</span>
                     ) : (
                       rule.conditions.map((c, i) => (
                         <code key={i} className="rounded bg-white/[0.04] px-1.5 py-0.5 font-mono text-xs">
@@ -182,7 +196,7 @@ export function AutomationPage() {
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {rule.actions.map((a, i) => (
                       <Badge key={i} variant="info">
-                        {ACTION_TYPES.find((t) => t.value === a.type)?.label ?? a.type}
+                        {actionTypeLabel(tt, a.type)}
                       </Badge>
                     ))}
                   </div>
@@ -191,15 +205,15 @@ export function AutomationPage() {
                   <Switch
                     checked={rule.isEnabled}
                     onCheckedChange={() => toggle(rule)}
-                    aria-label="Toggle rule"
+                    aria-label={t('card.toggleRule')}
                   />
                   <Button variant="ghost" size="sm" onClick={() => setLogsFor(rule)}>
-                    <ScrollText className="h-4 w-4" /> Logs
+                    <ScrollText className="h-4 w-4" /> {t('card.logs')}
                   </Button>
-                  <Button variant="ghost" size="icon" aria-label="Edit" onClick={() => setEditing(rule)}>
+                  <Button variant="ghost" size="icon" aria-label={t('card.edit')} onClick={() => setEditing(rule)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" aria-label="Delete" onClick={() => remove(rule)}>
+                  <Button variant="ghost" size="icon" aria-label={t('card.delete')} onClick={() => remove(rule)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
@@ -237,10 +251,12 @@ function RuleEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation('automation');
+  const tt = t as unknown as AnyT;
   const toast = useToast();
   const [name, setName] = useState(rule?.name ?? '');
   const [description, setDescription] = useState(rule?.description ?? '');
-  const [trigger, setTrigger] = useState(rule?.trigger ?? TRIGGERS[0].value);
+  const [trigger, setTrigger] = useState(rule?.trigger ?? TRIGGER_VALUES[0]);
   const [priority, setPriority] = useState(String(rule?.priority ?? 0));
   const [enabled, setEnabled] = useState(rule?.isEnabled ?? true);
   const [conditions, setConditions] = useState<AutomationCondition[]>(
@@ -272,10 +288,10 @@ function RuleEditor({
       };
       if (rule) await api.automation.update(rule.id, body);
       else await api.automation.create(body);
-      toast.success(rule ? 'Rule updated' : 'Rule created', body.name);
+      toast.success(rule ? t('toast.updated') : t('toast.created'), body.name);
       onSaved();
     } catch (err) {
-      toast.error('Could not save rule', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.saveError'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setSaving(false);
     }
@@ -284,41 +300,39 @@ function RuleEditor({
   return (
     <Dialog open onClose={onClose} className="max-w-2xl">
       <DialogHeader>
-        <DialogTitle>{rule ? 'Edit rule' : 'New automation rule'}</DialogTitle>
+        <DialogTitle>{rule ? t('editor.editTitle') : t('editor.newTitle')}</DialogTitle>
         <DialogDescription>
-          When the trigger fires, the rule runs its actions if every condition matches.
+          {t('editor.description')}
         </DialogDescription>
       </DialogHeader>
 
       <div className="max-h-[60vh] space-y-4 overflow-y-auto py-2 pr-1">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <Label htmlFor="ar-name">Name</Label>
-            <Input id="ar-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Seed then notify" />
+            <Label htmlFor="ar-name">{t('editor.name')}</Label>
+            <Input id="ar-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('editor.namePlaceholder')} />
           </div>
           <div>
-            <Label htmlFor="ar-priority">Priority</Label>
+            <Label htmlFor="ar-priority">{t('editor.priority')}</Label>
             <Input id="ar-priority" type="number" value={priority} onChange={(e) => setPriority(e.target.value)} />
           </div>
         </div>
         <div>
-          <Label htmlFor="ar-desc">Description (optional)</Label>
+          <Label htmlFor="ar-desc">{t('editor.descriptionLabel')}</Label>
           <Input id="ar-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <Label htmlFor="ar-trigger">Trigger</Label>
-            <Select id="ar-trigger" value={trigger} onChange={(e) => setTrigger(e.target.value)} options={TRIGGERS} />
+            <Label htmlFor="ar-trigger">{t('editor.trigger')}</Label>
+            <Select id="ar-trigger" value={trigger} onChange={(e) => setTrigger(e.target.value)} options={triggerOptions(tt)} />
             {trigger === 'ratio.reached' && (
               <p className="mt-1 text-xs text-muted-foreground">
-                Add a <code>ratio ≥ N</code> condition (e.g. <code>ratio gte 2</code>). Fires once
-                when a torrent first reaches it — pair with a <em>stop</em> or <em>delete</em> action
-                to cap seeding.
+                <Trans t={t} i18nKey="editor.ratioHint" components={{ code: <code />, em: <em /> }} />
               </p>
             )}
           </div>
           <div className="flex items-end justify-between">
-            <Label htmlFor="ar-enabled">Enabled</Label>
+            <Label htmlFor="ar-enabled">{t('editor.enabled')}</Label>
             <Switch id="ar-enabled" checked={enabled} onCheckedChange={setEnabled} />
           </div>
         </div>
@@ -326,17 +340,17 @@ function RuleEditor({
         {/* Conditions */}
         <div className="space-y-2 rounded-lg border border-border/60 p-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Conditions <span className="text-muted-foreground">(all must match)</span></p>
+            <p className="text-sm font-medium">{t('editor.conditionsTitle')} <span className="text-muted-foreground">{t('editor.conditionsHint')}</span></p>
             <Button
               variant="subtle"
               size="sm"
               onClick={() => setConditions((c) => [...c, { field: 'name', op: 'contains', value: '' }])}
             >
-              <Plus className="h-4 w-4" /> Add
+              <Plus className="h-4 w-4" /> {t('editor.add')}
             </Button>
           </div>
           {conditions.length === 0 && (
-            <p className="text-xs text-muted-foreground">No conditions — the rule always runs on its trigger.</p>
+            <p className="text-xs text-muted-foreground">{t('editor.noConditions')}</p>
           )}
           {conditions.map((c, i) => (
             <div key={i} className="flex items-center gap-2">
@@ -355,10 +369,10 @@ function RuleEditor({
               <Input
                 value={String(c.value)}
                 onChange={(e) => setCondition(i, { value: e.target.value })}
-                placeholder="value"
+                placeholder={t('editor.valuePlaceholder')}
                 className="flex-1"
               />
-              <Button variant="ghost" size="icon" aria-label="Remove condition" onClick={() => setConditions((cs) => cs.filter((_, idx) => idx !== i))}>
+              <Button variant="ghost" size="icon" aria-label={t('editor.removeCondition')} onClick={() => setConditions((cs) => cs.filter((_, idx) => idx !== i))}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -368,13 +382,13 @@ function RuleEditor({
         {/* Actions */}
         <div className="space-y-2 rounded-lg border border-border/60 p-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Actions <span className="text-muted-foreground">(run in order)</span></p>
+            <p className="text-sm font-medium">{t('editor.actionsTitle')} <span className="text-muted-foreground">{t('editor.actionsHint')}</span></p>
             <Button
               variant="subtle"
               size="sm"
               onClick={() => setActions((a) => [...a, { type: 'notify', params: { message: '' } }])}
             >
-              <Plus className="h-4 w-4" /> Add
+              <Plus className="h-4 w-4" /> {t('editor.add')}
             </Button>
           </div>
           {actions.map((a, i) => (
@@ -382,11 +396,11 @@ function RuleEditor({
               <Select
                 value={a.type}
                 onChange={(e) => setAction(i, { type: e.target.value, params: {} })}
-                options={ACTION_TYPES}
+                options={actionTypeOptions(tt)}
                 className="w-52"
               />
               <ActionParams action={a} onChange={(params) => setAction(i, { params })} />
-              <Button variant="ghost" size="icon" aria-label="Remove action" onClick={() => setActions((as) => as.filter((_, idx) => idx !== i))}>
+              <Button variant="ghost" size="icon" aria-label={t('editor.removeAction')} onClick={() => setActions((as) => as.filter((_, idx) => idx !== i))}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -395,9 +409,9 @@ function RuleEditor({
       </div>
 
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="ghost" onClick={onClose}>{t('editor.cancel')}</Button>
         <Button onClick={submit} loading={saving} disabled={!name.trim() || actions.length === 0}>
-          {rule ? 'Save changes' : 'Create rule'}
+          {rule ? t('editor.saveChanges') : t('editor.createRule')}
         </Button>
       </DialogFooter>
     </Dialog>
@@ -411,6 +425,8 @@ function ActionParams({
   action: AutomationAction;
   onChange: (params: Record<string, unknown>) => void;
 }) {
+  const { t } = useTranslation('automation');
+  const tt = t as unknown as AnyT;
   const p = action.params ?? {};
   const set = (key: string, value: string) => onChange({ ...p, [key]: value });
 
@@ -419,18 +435,18 @@ function ActionParams({
       <PathPicker
         value={String(p.destination ?? '')}
         onChange={(v) => set('destination', v)}
-        placeholder="/downloads/done"
-        aria-label="Destination folder"
-        pickerTitle="Choose a destination folder"
+        placeholder={t('params.destinationPlaceholder')}
+        aria-label={t('params.destinationAria')}
+        pickerTitle={t('params.destinationPicker')}
         className="flex-1"
       />
     );
   }
   if (action.type === 'notify') {
-    return <Input value={String(p.message ?? '')} onChange={(e) => set('message', e.target.value)} placeholder="message" className="flex-1" />;
+    return <Input value={String(p.message ?? '')} onChange={(e) => set('message', e.target.value)} placeholder={t('params.messagePlaceholder')} className="flex-1" />;
   }
   if (action.type === 'webhook') {
-    return <Input value={String(p.url ?? '')} onChange={(e) => set('url', e.target.value)} placeholder="https://…" className="flex-1 font-mono" />;
+    return <Input value={String(p.url ?? '')} onChange={(e) => set('url', e.target.value)} placeholder={t('params.webhookPlaceholder')} className="flex-1 font-mono" />;
   }
   if (action.type === 'rename_for_media') {
     return (
@@ -438,36 +454,37 @@ function ActionParams({
         <Select
           value={String(p.preset ?? 'plex')}
           onChange={(e) => set('preset', e.target.value)}
-          options={PRESET_OPTIONS}
+          options={presetOptions(tt as never)}
           className="w-32"
         />
         <Select
           value={String(p.mode ?? 'rename_move')}
           onChange={(e) => set('mode', e.target.value)}
-          options={MODE_OPTIONS}
+          options={modeOptions(tt as never)}
           className="w-44"
         />
         <PathPicker
           value={String(p.libraryPath ?? '')}
           onChange={(v) => set('libraryPath', v)}
-          placeholder="/media/tv"
-          aria-label="Library path"
-          pickerTitle="Choose a library folder"
+          placeholder={t('params.libraryPathPlaceholder')}
+          aria-label={t('params.libraryPathAria')}
+          pickerTitle={t('params.libraryPathPicker')}
           className="min-w-[10rem] flex-1"
         />
         <Input
           value={String(p.template ?? '')}
           onChange={(e) => set('template', e.target.value)}
-          placeholder="template (optional)"
+          placeholder={t('params.templatePlaceholder')}
           className="min-w-[10rem] flex-1 font-mono"
         />
       </div>
     );
   }
-  return <div className="flex-1 text-xs text-muted-foreground">No parameters</div>;
+  return <div className="flex-1 text-xs text-muted-foreground">{t('params.noParameters')}</div>;
 }
 
 function LogsDialog({ rule, onClose }: { rule: AutomationRule; onClose: () => void }) {
+  const { t } = useTranslation('automation');
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['automation', 'logs', rule.id],
     queryFn: () => api.automation.logs(rule.id),
@@ -479,16 +496,16 @@ function LogsDialog({ rule, onClose }: { rule: AutomationRule; onClose: () => vo
   return (
     <Dialog open onClose={onClose} className="max-w-2xl">
       <DialogHeader>
-        <DialogTitle>Execution log — {rule.name}</DialogTitle>
-        <DialogDescription>Every time this rule ran.</DialogDescription>
+        <DialogTitle>{t('logs.title', { name: rule.name })}</DialogTitle>
+        <DialogDescription>{t('logs.description')}</DialogDescription>
       </DialogHeader>
       <div className="max-h-[60vh] overflow-y-auto py-2">
         {isLoading ? (
-          <CenteredSpinner label="Loading logs…" />
+          <CenteredSpinner label={t('logs.loading')} />
         ) : isError ? (
-          <ErrorState message="Could not load logs." onRetry={() => refetch()} />
+          <ErrorState message={t('logs.loadError')} onRetry={() => refetch()} />
         ) : !data || data.length === 0 ? (
-          <EmptyState icon={<ScrollText className="h-6 w-6" />} title="No runs yet" description="Entries appear here once the rule fires." />
+          <EmptyState icon={<ScrollText className="h-6 w-6" />} title={t('logs.emptyTitle')} description={t('logs.emptyDescription')} />
         ) : (
           <ul className="divide-y divide-border/60">
             {data.map((log) => (
@@ -497,14 +514,14 @@ function LogsDialog({ rule, onClose }: { rule: AutomationRule; onClose: () => vo
                   <p className="text-sm">{log.message ?? (log.context?.name as string) ?? '—'}</p>
                   <p className="text-xs text-muted-foreground">{formatRelativeTime(log.createdAt)}</p>
                 </div>
-                <Badge variant={badge(log.status)} dot>{log.status}</Badge>
+                <Badge variant={badge(log.status)} dot>{(t as unknown as AnyT)(`logStatus.${log.status}`, { defaultValue: log.status })}</Badge>
               </li>
             ))}
           </ul>
         )}
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose}>Close</Button>
+        <Button variant="ghost" onClick={onClose}>{t('logs.close')}</Button>
       </DialogFooter>
     </Dialog>
   );

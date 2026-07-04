@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -48,14 +49,15 @@ const PAGE_SIZES = [25, 50, 100];
 
 type StatusTone = 'success' | 'info' | 'warning';
 
-function statusOf(item: RssHistoryItem): { label: string; variant: StatusTone } {
-  if (item.downloaded) return { label: 'Downloaded', variant: 'success' };
-  if (item.matched) return { label: 'Matched', variant: 'info' };
-  return { label: 'Seen', variant: 'warning' };
+function statusOf(item: RssHistoryItem): { key: 'downloaded' | 'matched' | 'seen'; variant: StatusTone } {
+  if (item.downloaded) return { key: 'downloaded', variant: 'success' };
+  if (item.matched) return { key: 'matched', variant: 'info' };
+  return { key: 'seen', variant: 'warning' };
 }
 
 export function RssFeedHistoryPage() {
   const { feedId = '' } = useParams<{ feedId: string }>();
+  const { t } = useTranslation('rss');
   const navigate = useNavigate();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -90,15 +92,15 @@ export function RssFeedHistoryPage() {
     try {
       const { newItems, downloaded } = await api.rss.refreshFeed(feedId);
       toast.success(
-        'Feed fetched',
+        t('history.toast.feedFetched'),
         newItems === 0
-          ? 'No new items.'
-          : `${newItems} new item${newItems === 1 ? '' : 's'}` +
-              (downloaded > 0 ? `, ${downloaded} downloaded` : ''),
+          ? t('history.toast.noNewItems')
+          : t('history.toast.newItems', { count: newItems }) +
+              (downloaded > 0 ? t('history.toast.downloadedSuffix', { count: downloaded }) : ''),
       );
       invalidateHistory();
     } catch (err) {
-      toast.error('Could not fetch feed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('history.toast.fetchFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setRefreshing(false);
     }
@@ -108,10 +110,10 @@ export function RssFeedHistoryPage() {
     setDownloadingId(item.id);
     try {
       await api.rss.downloadHistoryItem(item.id);
-      toast.success('Download started', item.title);
+      toast.success(t('history.toast.downloadStarted'), item.title);
       invalidateHistory();
     } catch (err) {
-      toast.error('Download failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('history.toast.downloadFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setDownloadingId(null);
     }
@@ -126,47 +128,46 @@ export function RssFeedHistoryPage() {
     <div className="space-y-6">
       <div>
         <Button variant="ghost" size="sm" onClick={() => navigate('/rss')} className="mb-2 -ml-2">
-          <ArrowLeft className="h-4 w-4" /> Back to RSS
+          <ArrowLeft className="h-4 w-4" /> {t('history.back')}
         </Button>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold tracking-tight">
-              Feed history{feed ? ` — ${feed.name}` : ''}
+              {feed ? t('history.titleWithName', { name: feed.name }) : t('history.title')}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Every release this feed has delivered, newest first. Create a rule on
-              anything not yet matched to start grabbing it automatically.
+              {t('history.subtitle')}
             </p>
           </div>
           <Button onClick={() => void fetchNow()} loading={refreshing}>
-            <RefreshCw className="h-4 w-4" /> Fetch now
+            <RefreshCw className="h-4 w-4" /> {t('history.fetchNow')}
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Total" value={total} tone="neutral" />
-        <StatTile label="Downloaded" value={counts.downloaded} tone="success" />
-        <StatTile label="Matched" value={counts.matched} tone="info" />
-        <StatTile label="Seen" value={counts.seen} tone="warning" />
+        <StatTile label={t('history.stat.total')} value={total} tone="neutral" />
+        <StatTile label={t('history.stat.downloaded')} value={counts.downloaded} tone="success" />
+        <StatTile label={t('history.stat.matched')} value={counts.matched} tone="info" />
+        <StatTile label={t('history.stat.seen')} value={counts.seen} tone="warning" />
       </div>
 
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-6">
-              <CenteredSpinner label="Loading history…" />
+              <CenteredSpinner label={t('history.loading')} />
             </div>
           ) : isError ? (
             <div className="p-6">
-              <ErrorState message="Could not load feed history." onRetry={() => refetch()} />
+              <ErrorState message={t('history.loadError')} onRetry={() => refetch()} />
             </div>
           ) : items.length === 0 ? (
             <div className="p-6">
               <EmptyState
                 icon={<History className="h-6 w-6" />}
-                title="No history yet"
-                description="Items appear here after the feed is fetched. Use “Fetch now” to pull it immediately."
+                title={t('history.empty.title')}
+                description={t('history.empty.description')}
               />
             </div>
           ) : (
@@ -175,10 +176,10 @@ export function RssFeedHistoryPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="min-w-[320px] pl-4">Release</TableHead>
-                      <TableHead className="w-[130px]">Status</TableHead>
-                      <TableHead className="w-[130px]">Seen</TableHead>
-                      <TableHead className="w-[260px] pr-4 text-right">Actions</TableHead>
+                      <TableHead className="min-w-[320px] pl-4">{t('history.col.release')}</TableHead>
+                      <TableHead className="w-[130px]">{t('history.col.status')}</TableHead>
+                      <TableHead className="w-[130px]">{t('history.col.seen')}</TableHead>
+                      <TableHead className="w-[260px] pr-4 text-right">{t('history.col.actions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -193,7 +194,7 @@ export function RssFeedHistoryPage() {
                           </TableCell>
                           <TableCell>
                             <Badge variant={status.variant} dot>
-                              {status.label}
+                              {t(`history.status.${status.key}` as 'history.status.seen')}
                             </Badge>
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
@@ -208,7 +209,7 @@ export function RssFeedHistoryPage() {
                                   className="whitespace-nowrap"
                                   onClick={() => setRuleFor(item)}
                                 >
-                                  <Wand2 className="h-4 w-4" /> Create rule
+                                  <Wand2 className="h-4 w-4" /> {t('history.createRule')}
                                 </Button>
                               )}
                               {!item.downloaded && item.magnet && (
@@ -220,7 +221,7 @@ export function RssFeedHistoryPage() {
                                   loading={downloadingId === item.id}
                                   disabled={downloadingId !== null}
                                 >
-                                  <Download className="h-4 w-4" /> Download
+                                  <Download className="h-4 w-4" /> {t('history.download')}
                                 </Button>
                               )}
                             </div>
@@ -234,20 +235,24 @@ export function RssFeedHistoryPage() {
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 px-4 py-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>Rows per page</span>
+                  <span>{t('history.rowsPerPage')}</span>
                   <Select
-                    aria-label="Rows per page"
+                    aria-label={t('history.rowsPerPage')}
                     className="h-8 w-[72px]"
                     value={String(pageSize)}
                     onChange={(e) => changePageSize(Number(e.target.value))}
                     options={PAGE_SIZES.map((s) => ({ value: String(s), label: String(s) }))}
                   />
-                  {isFetching && <span className="opacity-70">updating…</span>}
+                  {isFetching && <span className="opacity-70">{t('history.updating')}</span>}
                 </div>
                 <div className="flex items-center gap-3">
                   <p className="text-xs text-muted-foreground">
-                    Page {page} of {totalPages} · {total.toLocaleString()} item
-                    {total === 1 ? '' : 's'}
+                    {t('history.pageInfo', {
+                      count: total,
+                      page,
+                      totalPages,
+                      total: total.toLocaleString(),
+                    })}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
@@ -256,7 +261,7 @@ export function RssFeedHistoryPage() {
                       disabled={page <= 1}
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                     >
-                      <ChevronLeft className="h-4 w-4" /> Prev
+                      <ChevronLeft className="h-4 w-4" /> {t('history.prev')}
                     </Button>
                     <Button
                       variant="outline"
@@ -264,7 +269,7 @@ export function RssFeedHistoryPage() {
                       disabled={page >= totalPages}
                       onClick={() => setPage((p) => p + 1)}
                     >
-                      Next <ChevronRight className="h-4 w-4" />
+                      {t('history.next')} <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -331,6 +336,7 @@ function QuickRuleDialog({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { t } = useTranslation('rss');
   const toast = useToast();
   const [name, setName] = useState('');
   const [autoDownload, setAutoDownload] = useState(true);
@@ -351,20 +357,24 @@ function QuickRuleDialog({
     if (!meta) return [] as string[];
     const out: string[] = [];
     if (meta.season != null) {
-      out.push(meta.episode != null ? `S${meta.season} · E${meta.episode}` : `Season ${meta.season}`);
+      out.push(
+        meta.episode != null
+          ? t('quickRule.chip.seasonEpisode', { season: meta.season, episode: meta.episode })
+          : t('quickRule.chip.season', { season: meta.season }),
+      );
     }
     if (meta.year != null) out.push(String(meta.year));
     if (meta.resolution) out.push(meta.resolution);
     if (meta.source) out.push(meta.source);
     if (meta.codec) out.push(meta.codec);
     return out;
-  }, [meta]);
+  }, [meta, t]);
 
   const create = async () => {
     if (!analysis) return;
     const ruleName = effectiveName.trim();
     if (!ruleName) {
-      toast.error('Name required', 'Give the rule a name.');
+      toast.error(t('quickRule.toast.nameRequired'), t('quickRule.toast.nameRequiredBody'));
       return;
     }
     setSaving(true);
@@ -382,14 +392,14 @@ function QuickRuleDialog({
         userEdited: touchedName,
       });
       toast.success(
-        'Rule created',
+        t('quickRule.toast.created'),
         autoDownload
-          ? `“${ruleName}” — matching releases in history are being grabbed.`
-          : `“${ruleName}” created.`,
+          ? t('quickRule.toast.createdAuto', { name: ruleName })
+          : t('quickRule.toast.createdManual', { name: ruleName }),
       );
       onCreated();
     } catch (err) {
-      toast.error('Could not create rule', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('quickRule.toast.createFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setSaving(false);
     }
@@ -398,21 +408,21 @@ function QuickRuleDialog({
   return (
     <Dialog open onClose={onClose} className="max-w-xl">
       <DialogHeader>
-        <DialogTitle>Create rule from this release</DialogTitle>
+        <DialogTitle>{t('quickRule.title')}</DialogTitle>
         <DialogDescription className="break-all font-mono text-xs">{item.title}</DialogDescription>
       </DialogHeader>
 
       <div className="space-y-5 py-2">
         {isLoading ? (
           <div className="py-6">
-            <CenteredSpinner label="Analyzing release…" />
+            <CenteredSpinner label={t('quickRule.analyzing')} />
           </div>
         ) : isError || !analysis ? (
-          <ErrorState message="Could not analyze this release." />
+          <ErrorState message={t('quickRule.analyzeError')} />
         ) : (
           <>
             <div>
-              <Label htmlFor="quick-rule-name">Rule name</Label>
+              <Label htmlFor="quick-rule-name">{t('quickRule.nameLabel')}</Label>
               <Input
                 id="quick-rule-name"
                 value={effectiveName}
@@ -420,17 +430,17 @@ function QuickRuleDialog({
                   setTouchedName(true);
                   setName(e.target.value);
                 }}
-                placeholder="e.g. Agent Kim Reactivated"
+                placeholder={t('quickRule.namePlaceholder')}
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                Pre-filled from the release. Edit if you want a broader or narrower rule.
+                {t('quickRule.nameHint')}
               </p>
             </div>
 
             {chips.length > 0 && (
               <div>
                 <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                  <Sparkles className="h-3.5 w-3.5" /> Detected
+                  <Sparkles className="h-3.5 w-3.5" /> {t('quickRule.detected')}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {chips.map((c) => (
@@ -443,11 +453,9 @@ function QuickRuleDialog({
             )}
 
             <div className="rounded-md border border-border/60 p-3">
-              <p className="text-sm font-medium">Match preferences</p>
+              <p className="text-sm font-medium">{t('quickRule.matchPreferences')}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {analysis.recommendedCandidates.length} candidate
-                {analysis.recommendedCandidates.length === 1 ? '' : 's'} will be created
-                (best-quality first). You can fine-tune them later under Match preferences.
+                {t('quickRule.candidatesInfo', { count: analysis.recommendedCandidates.length })}
               </p>
               <ol className="mt-2 space-y-1">
                 {analysis.recommendedCandidates.slice(0, 4).map((c, i) => (
@@ -465,10 +473,10 @@ function QuickRuleDialog({
             <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
               <div>
                 <Label htmlFor="quick-rule-auto" className="cursor-pointer">
-                  Auto-download matches
+                  {t('quickRule.autoDownload')}
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Grab this release now and future matches automatically.
+                  {t('quickRule.autoDownloadHint')}
                 </p>
               </div>
               <Switch id="quick-rule-auto" checked={autoDownload} onCheckedChange={setAutoDownload} />
@@ -479,7 +487,7 @@ function QuickRuleDialog({
 
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
-          Cancel
+          {t('quickRule.cancel')}
         </Button>
         <Button
           onClick={() => void create()}
@@ -488,11 +496,11 @@ function QuickRuleDialog({
         >
           {saving ? (
             <>
-              <Spinner className="h-4 w-4" /> Creating…
+              <Spinner className="h-4 w-4" /> {t('quickRule.creating')}
             </>
           ) : (
             <>
-              <Wand2 className="h-4 w-4" /> Create rule &amp; grab matches
+              <Wand2 className="h-4 w-4" /> {t('quickRule.create')}
             </>
           )}
         </Button>

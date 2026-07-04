@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ApiError,
   api,
@@ -20,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { MATCH_TYPE_OPTIONS, TermInput } from './shared';
+import { matchTypeOptions, TermInput } from './shared';
 
 interface FormState {
   name: string;
@@ -105,15 +106,16 @@ function toInput(f: FormState): CandidateInput {
   };
 }
 
-const PATTERN_HINT: Partial<Record<MatchType, string>> = {
-  exact_text: 'Title must equal this exactly (case-insensitive).',
-  contains_text: 'Title must contain every word here (any order); gaps like an episode number are ignored.',
-  regex: 'JavaScript regular expression, matched against the title.',
-  wildcard: 'Use * and ? wildcards, e.g. *1080p*WEB-DL*.',
-  smart_episode_match: 'Series name; season/episode handled via quality rules.',
-  smart_movie_match: 'Movie name; year handled via quality rules.',
-  fuzzy_match: 'Approximate title; minor differences are tolerated.',
-};
+/** Match types that show a pattern hint (mirrors the `candidateEditor.hint.*` keys). */
+const PATTERN_HINT_TYPES: MatchType[] = [
+  'exact_text',
+  'contains_text',
+  'regex',
+  'wildcard',
+  'smart_episode_match',
+  'smart_movie_match',
+  'fuzzy_match',
+];
 
 export function CandidateEditorDialog({
   ruleId,
@@ -131,6 +133,7 @@ export function CandidateEditorDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation('rss');
   const toast = useToast();
   const [form, setForm] = useState<FormState>(() => fromCandidate(candidate));
   const [saving, setSaving] = useState(false);
@@ -154,25 +157,27 @@ export function CandidateEditorDialog({
         const updated = await api.rss.updateCandidate(ruleId, candidate.id, body);
         const grabbed = updated.backfill?.downloaded ?? 0;
         toast.success(
-          'Candidate updated',
+          t('candidateEditor.toast.updated'),
           grabbed > 0
-            ? `${body.name} — downloaded ${grabbed} matching item${grabbed === 1 ? '' : 's'} from history`
+            ? t('candidateEditor.toast.backfill', { name: body.name, count: grabbed })
             : body.name,
         );
       } else {
         const created = await api.rss.createCandidate(ruleId, body);
         const grabbed = created.backfill?.downloaded ?? 0;
         toast.success(
-          'Candidate added',
+          t('candidateEditor.toast.added'),
           grabbed > 0
-            ? `${body.name} — downloaded ${grabbed} matching item${grabbed === 1 ? '' : 's'} from history`
+            ? t('candidateEditor.toast.backfill', { name: body.name, count: grabbed })
             : body.name,
         );
       }
       onSaved();
     } catch (err) {
       toast.error(
-        mode === 'edit' ? 'Could not update candidate' : 'Could not add candidate',
+        mode === 'edit'
+          ? t('candidateEditor.toast.updateFailed')
+          : t('candidateEditor.toast.addFailed'),
         err instanceof ApiError ? err.message : undefined,
       );
     } finally {
@@ -184,45 +189,49 @@ export function CandidateEditorDialog({
     <Dialog open onClose={onClose} className="max-w-2xl">
       <DialogHeader>
         <DialogTitle>
-          {mode === 'edit' ? 'Edit candidate' : candidate ? 'Duplicate candidate' : 'Add candidate'}
+          {mode === 'edit'
+            ? t('candidateEditor.editTitle')
+            : candidate
+              ? t('candidateEditor.duplicateTitle')
+              : t('candidateEditor.addTitle')}
         </DialogTitle>
         <DialogDescription>
-          Candidates are evaluated in priority order; the first one that matches wins.
+          {t('candidateEditor.description')}
         </DialogDescription>
       </DialogHeader>
 
       <div className="space-y-5 py-2">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Label htmlFor="cand-name">Name</Label>
+            <Label htmlFor="cand-name">{t('candidateEditor.name')}</Label>
             <Input
               id="cand-name"
               value={form.name}
               onChange={(e) => set('name', e.target.value)}
-              placeholder="e.g. 1080p WEB-DL preferred"
+              placeholder={t('candidateEditor.namePlaceholder')}
             />
           </div>
           <div className="sm:col-span-2">
-            <Label htmlFor="cand-desc">Description</Label>
+            <Label htmlFor="cand-desc">{t('candidateEditor.descriptionLabel')}</Label>
             <Textarea
               id="cand-desc"
               value={form.description}
               onChange={(e) => set('description', e.target.value)}
-              placeholder="Optional note about what this candidate targets."
+              placeholder={t('candidateEditor.descriptionPlaceholder')}
               className="min-h-[60px]"
             />
           </div>
           <div>
-            <Label htmlFor="cand-type">Match type</Label>
+            <Label htmlFor="cand-type">{t('candidateEditor.matchType')}</Label>
             <Select
               id="cand-type"
               value={form.matchType}
               onChange={(e) => set('matchType', e.target.value as MatchType)}
-              options={MATCH_TYPE_OPTIONS}
+              options={matchTypeOptions(t)}
             />
           </div>
           <div className="flex items-end justify-between rounded-md border border-border/60 bg-white/[0.02] px-3 py-2">
-            <Label htmlFor="cand-enabled">Enabled</Label>
+            <Label htmlFor="cand-enabled">{t('candidateEditor.enabled')}</Label>
             <Switch
               id="cand-enabled"
               checked={form.enabled}
@@ -230,97 +239,99 @@ export function CandidateEditorDialog({
             />
           </div>
           <div className="sm:col-span-2">
-            <Label htmlFor="cand-pattern">Pattern</Label>
+            <Label htmlFor="cand-pattern">{t('candidateEditor.pattern')}</Label>
             <Input
               id="cand-pattern"
               value={form.pattern}
               onChange={(e) => set('pattern', e.target.value)}
-              placeholder="Show.Name.S01"
+              placeholder={t('candidateEditor.patternPlaceholder')}
               className="font-mono"
             />
-            {PATTERN_HINT[form.matchType] && (
-              <p className="mt-1 text-xs text-muted-foreground">{PATTERN_HINT[form.matchType]}</p>
+            {PATTERN_HINT_TYPES.includes(form.matchType) && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t(`candidateEditor.hint.${form.matchType}` as 'candidateEditor.hint.regex')}
+              </p>
             )}
           </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label>Required terms</Label>
+            <Label>{t('candidateEditor.requiredTerms')}</Label>
             <TermInput
               value={form.requiredTerms}
               onChange={(v) => set('requiredTerms', v)}
-              placeholder="add term, press Enter"
+              placeholder={t('candidateEditor.termPlaceholder')}
               tone="success"
             />
           </div>
           <div>
-            <Label>Excluded terms</Label>
+            <Label>{t('candidateEditor.excludedTerms')}</Label>
             <TermInput
               value={form.excludedTerms}
               onChange={(v) => set('excludedTerms', v)}
-              placeholder="add term, press Enter"
+              placeholder={t('candidateEditor.termPlaceholder')}
               tone="destructive"
             />
           </div>
         </div>
 
         <div className="space-y-3 rounded-md border border-border/60 p-3">
-          <p className="text-sm font-medium">Quality rules</p>
+          <p className="text-sm font-medium">{t('candidateEditor.qualityRules')}</p>
           <div className="grid gap-3 sm:grid-cols-4">
             <div className="sm:col-span-2">
-              <Label htmlFor="cand-quality">Quality</Label>
+              <Label htmlFor="cand-quality">{t('candidateEditor.quality')}</Label>
               <Input id="cand-quality" value={form.quality} onChange={(e) => set('quality', e.target.value)} placeholder="WEB-DL" />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="cand-source">Source</Label>
+              <Label htmlFor="cand-source">{t('candidateEditor.source')}</Label>
               <Input id="cand-source" value={form.source} onChange={(e) => set('source', e.target.value)} placeholder="BluRay" />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="cand-codec">Codec</Label>
+              <Label htmlFor="cand-codec">{t('candidateEditor.codec')}</Label>
               <Input id="cand-codec" value={form.codec} onChange={(e) => set('codec', e.target.value)} placeholder="x265" />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="cand-res">Resolution</Label>
+              <Label htmlFor="cand-res">{t('candidateEditor.resolution')}</Label>
               <Input id="cand-res" value={form.resolution} onChange={(e) => set('resolution', e.target.value)} placeholder="1080p" />
             </div>
             <div>
-              <Label htmlFor="cand-season">Season</Label>
+              <Label htmlFor="cand-season">{t('candidateEditor.season')}</Label>
               <Input id="cand-season" type="number" value={form.season} onChange={(e) => set('season', e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="cand-episode">Episode</Label>
+              <Label htmlFor="cand-episode">{t('candidateEditor.episode')}</Label>
               <Input id="cand-episode" type="number" value={form.episode} onChange={(e) => set('episode', e.target.value)} />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="cand-year">Year</Label>
+              <Label htmlFor="cand-year">{t('candidateEditor.year')}</Label>
               <Input id="cand-year" type="number" value={form.year} onChange={(e) => set('year', e.target.value)} />
             </div>
           </div>
         </div>
 
         <div className="space-y-3 rounded-md border border-border/60 p-3">
-          <p className="text-sm font-medium">Size rules</p>
+          <p className="text-sm font-medium">{t('candidateEditor.sizeRules')}</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="cand-min">Min size (MB)</Label>
+              <Label htmlFor="cand-min">{t('candidateEditor.minSize')}</Label>
               <Input id="cand-min" type="number" min={0} value={form.minMb} onChange={(e) => set('minMb', e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="cand-max">Max size (MB)</Label>
+              <Label htmlFor="cand-max">{t('candidateEditor.maxSize')}</Label>
               <Input id="cand-max" type="number" min={0} value={form.maxMb} onChange={(e) => set('maxMb', e.target.value)} />
             </div>
           </div>
         </div>
 
         <div className="space-y-3 rounded-md border border-border/60 p-3">
-          <p className="text-sm font-medium">Feed scope</p>
+          <p className="text-sm font-medium">{t('candidateEditor.feedScope')}</p>
           <p className="text-xs text-muted-foreground">
-            Limit this candidate to specific feeds. Leave all unchecked to apply to every feed.
+            {t('candidateEditor.feedScopeHint')}
           </p>
           <div className="space-y-2">
             {feeds.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No feeds available.</p>
+              <p className="text-xs text-muted-foreground">{t('candidateEditor.noFeeds')}</p>
             ) : (
               feeds.map((feed) => (
                 <label key={feed.id} className="flex cursor-pointer items-center gap-2 text-sm">
@@ -339,10 +350,10 @@ export function CandidateEditorDialog({
 
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
-          Cancel
+          {t('candidateEditor.cancel')}
         </Button>
         <Button onClick={submit} loading={saving} disabled={!form.name.trim()}>
-          {mode === 'edit' ? 'Save changes' : 'Add candidate'}
+          {mode === 'edit' ? t('candidateEditor.saveSubmit') : t('candidateEditor.addSubmit')}
         </Button>
       </DialogFooter>
     </Dialog>

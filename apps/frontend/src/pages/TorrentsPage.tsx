@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
@@ -46,13 +47,13 @@ import { AddTorrentDialog } from '@/components/torrents/AddTorrentDialog';
 
 const PAGE_SIZE = 25;
 
-const STATE_FILTERS: { value: string; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: TorrentState.DOWNLOADING, label: 'Downloading' },
-  { value: TorrentState.SEEDING, label: 'Seeding' },
-  { value: TorrentState.COMPLETED, label: 'Completed' },
-  { value: TorrentState.PAUSED, label: 'Paused' },
-  { value: TorrentState.ERROR, label: 'Errored' },
+const STATE_FILTERS: { value: string; key: string }[] = [
+  { value: 'all', key: 'all' },
+  { value: TorrentState.DOWNLOADING, key: 'downloading' },
+  { value: TorrentState.SEEDING, key: 'seeding' },
+  { value: TorrentState.COMPLETED, key: 'completed' },
+  { value: TorrentState.PAUSED, key: 'paused' },
+  { value: TorrentState.ERROR, key: 'error' },
 ];
 
 type SortKey =
@@ -71,6 +72,7 @@ type SortKey =
   | 'state';
 
 export function TorrentsPage() {
+  const { t } = useTranslation('torrents');
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
 
@@ -212,14 +214,14 @@ export function TorrentsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Torrents</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            {total > 0 ? `${total.toLocaleString()} total` : 'Manage your transfers'}
+            {total > 0 ? t('page.total', { total: total.toLocaleString() }) : t('page.subtitle')}
           </p>
         </div>
         {hasPermission(PERMISSIONS.TORRENTS_ADD) && (
           <Button onClick={() => setAddOpen(true)}>
-            <Plus className="h-4 w-4" /> Add torrent
+            <Plus className="h-4 w-4" /> {t('addTorrent')}
           </Button>
         )}
       </div>
@@ -234,9 +236,9 @@ export function TorrentsPage() {
               setSearchInput(e.target.value);
               setPage(1);
             }}
-            placeholder="Search torrents…"
+            placeholder={t('search.placeholder')}
             className="pl-9"
-            aria-label="Search torrents"
+            aria-label={t('search.aria')}
           />
         </div>
 
@@ -253,7 +255,7 @@ export function TorrentsPage() {
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              {filter.label}
+              {t(`filter.${filter.key}` as 'filter.all')}
             </button>
           ))}
         </div>
@@ -270,31 +272,31 @@ export function TorrentsPage() {
         ) : noEngine ? (
           <EmptyState
             icon={<Cpu className="h-6 w-6" />}
-            title="No torrent engine configured"
-            description="UltraTorrent needs a torrent engine (e.g. rTorrent) before it can list torrents."
+            title={t('noEngine.title')}
+            description={t('noEngine.description')}
             action={
               hasPermission(PERMISSIONS.ENGINES_MANAGE) ? (
                 <Button onClick={() => navigate('/engines')}>
-                  <Cpu className="h-4 w-4" /> Configure an engine
+                  <Cpu className="h-4 w-4" /> {t('noEngine.action')}
                 </Button>
               ) : undefined
             }
           />
         ) : isError ? (
-          <ErrorState message="Could not load torrents." onRetry={() => refetch()} />
+          <ErrorState message={t('loadError')} onRetry={() => refetch()} />
         ) : rows.length === 0 ? (
           <EmptyState
             icon={<Inbox className="h-6 w-6" />}
-            title="No torrents found"
+            title={t('empty.title')}
             description={
               search || stateFilter !== 'all'
-                ? 'Try adjusting your search or filters.'
-                : 'Add your first torrent to get started.'
+                ? t('empty.searchDescription')
+                : t('empty.description')
             }
             action={
               hasPermission(PERMISSIONS.TORRENTS_ADD) && !search && stateFilter === 'all' ? (
                 <Button onClick={() => setAddOpen(true)}>
-                  <Plus className="h-4 w-4" /> Add torrent
+                  <Plus className="h-4 w-4" /> {t('addTorrent')}
                 </Button>
               ) : undefined
             }
@@ -309,45 +311,45 @@ export function TorrentsPage() {
                       checked={allOnPageSelected}
                       indeterminate={!allOnPageSelected && someOnPageSelected}
                       onCheckedChange={toggleAll}
-                      aria-label="Select all on page"
+                      aria-label={t('table.selectAll')}
                     />
                   </TableHead>
-                  <TableHead className="w-12">Status</TableHead>
+                  <TableHead className="w-12">{t('col.status')}</TableHead>
                   <SortableHead sortKey="name" activeKey={sortBy} direction={sortDir} onSort={handleSort} className="min-w-[240px]">
-                    Name
+                    {t('col.name')}
                   </SortableHead>
                   <SortableHead sortKey="progress" activeKey={sortBy} direction={sortDir} onSort={handleSort} className="w-40">
-                    Progress
+                    {t('col.progress')}
                   </SortableHead>
                   <SortableHead sortKey="size" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
-                    Size
+                    {t('col.size')}
                   </SortableHead>
                   <SortableHead sortKey="downloadRate" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
-                    Down
+                    {t('col.down')}
                   </SortableHead>
                   <SortableHead sortKey="uploadRate" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
-                    Up
+                    {t('col.up')}
                   </SortableHead>
                   <SortableHead sortKey="ratio" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
-                    Ratio
+                    {t('col.ratio')}
                   </SortableHead>
                   <SortableHead sortKey="eta" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
-                    ETA
+                    {t('col.eta')}
                   </SortableHead>
                   <SortableHead sortKey="seedsConnected" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
-                    Seeds
+                    {t('col.seeds')}
                   </SortableHead>
                   <SortableHead sortKey="peersConnected" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
-                    Peers
+                    {t('col.peers')}
                   </SortableHead>
                   <SortableHead sortKey="downloaded" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
-                    DL
+                    {t('col.dl')}
                   </SortableHead>
                   <SortableHead sortKey="uploaded" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
-                    UL
+                    {t('col.ul')}
                   </SortableHead>
                   <SortableHead sortKey="addedAt" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="pr-4">
-                    Added
+                    {t('col.added')}
                   </SortableHead>
                 </TableRow>
               </TableHeader>
@@ -371,8 +373,8 @@ export function TorrentsPage() {
       {total > PAGE_SIZE && (
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            Page {page} of {totalPages}
-            {isFetching && <span className="ml-2 opacity-70">updating…</span>}
+            {t('pagination.page', { page, total: totalPages })}
+            {isFetching && <span className="ml-2 opacity-70">{t('pagination.updating')}</span>}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -381,7 +383,7 @@ export function TorrentsPage() {
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
-              <ChevronLeft className="h-4 w-4" /> Prev
+              <ChevronLeft className="h-4 w-4" /> {t('pagination.prev')}
             </Button>
             <Button
               variant="outline"
@@ -389,7 +391,7 @@ export function TorrentsPage() {
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             >
-              Next <ChevronRight className="h-4 w-4" />
+              {t('pagination.next')} <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -412,10 +414,11 @@ function TorrentRow({
   onToggle: () => void;
   onOpen: () => void;
 }) {
+  const { t } = useTranslation('torrents');
   return (
     <TableRow selected={selected} className="cursor-pointer" onClick={onOpen}>
       <TableCell className="pl-4" onClick={(e) => e.stopPropagation()}>
-        <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={`Select ${torrent.name}`} />
+        <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={t('table.selectRow', { name: torrent.name })} />
       </TableCell>
       <TableCell>
         <TorrentStateDot state={torrent.state} />

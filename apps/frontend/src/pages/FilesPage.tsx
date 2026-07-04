@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronRight,
@@ -20,7 +21,7 @@ import { PERMISSIONS, WS_EVENTS } from '@ultratorrent/shared';
 import { ApiError, api, type FileNode } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { useAuth } from '@/auth/AuthContext';
-import { formatBytes, formatRelativeTime, pluralize } from '@/lib/format';
+import { formatBytes, formatRelativeTime } from '@/lib/format';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
@@ -42,6 +43,7 @@ import {
 
 export function FilesPage() {
   const { hasPermission } = useAuth();
+  const { t } = useTranslation('files');
   const toast = useToast();
   const qc = useQueryClient();
   const [path, setPath] = useState('/');
@@ -113,7 +115,7 @@ export function FilesPage() {
     try {
       await api.files.download(node.path);
     } catch (err) {
-      toast.error('Download failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.downloadFailed'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
@@ -121,11 +123,14 @@ export function FilesPage() {
     setCleanupBusy(true);
     try {
       const res = await api.files.bulk({ operation: 'cleanup', paths: [...selected] });
-      toast.success(`Moved ${pluralize(res.succeeded, 'item')} to Trash`, res.failed ? `${res.failed} failed` : undefined);
+      toast.success(
+        t('toast.movedToTrash', { count: res.succeeded }),
+        res.failed ? t('toast.someFailed', { count: res.failed }) : undefined,
+      );
       await qc.invalidateQueries({ queryKey: ['files'] });
       clear();
     } catch (err) {
-      toast.error('Cleanup failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.cleanupFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setCleanupBusy(false);
     }
@@ -135,33 +140,33 @@ export function FilesPage() {
     e.preventDefault();
     const entries: ContextMenuEntry[] = [];
     if (node.isDirectory) {
-      entries.push({ label: 'Open', icon: <FolderOpen className="h-4 w-4" />, onSelect: () => setPath(node.path) });
+      entries.push({ label: t('context.open'), icon: <FolderOpen className="h-4 w-4" />, onSelect: () => setPath(node.path) });
     } else {
       if (hasPermission(PERMISSIONS.FILES_PREVIEW))
-        entries.push({ label: 'Preview', icon: <Eye className="h-4 w-4" />, onSelect: () => setPreviewNode(node) });
+        entries.push({ label: t('context.preview'), icon: <Eye className="h-4 w-4" />, onSelect: () => setPreviewNode(node) });
       if (hasPermission(PERMISSIONS.FILES_DOWNLOAD))
-        entries.push({ label: 'Download', icon: <Download className="h-4 w-4" />, onSelect: () => void download(node) });
+        entries.push({ label: t('context.download'), icon: <Download className="h-4 w-4" />, onSelect: () => void download(node) });
     }
     if (hasPermission(PERMISSIONS.FILES_RENAME))
-      entries.push({ label: 'Rename', icon: <Pencil className="h-4 w-4" />, onSelect: () => setRenameNode(node) });
+      entries.push({ label: t('context.rename'), icon: <Pencil className="h-4 w-4" />, onSelect: () => setRenameNode(node) });
     if (hasPermission(PERMISSIONS.FILES_MOVE))
-      entries.push({ label: 'Move', icon: <FolderInput className="h-4 w-4" />, onSelect: () => setMoveCopy({ mode: 'move', paths: [node.path] }) });
+      entries.push({ label: t('context.move'), icon: <FolderInput className="h-4 w-4" />, onSelect: () => setMoveCopy({ mode: 'move', paths: [node.path] }) });
     if (hasPermission(PERMISSIONS.FILES_COPY))
-      entries.push({ label: 'Copy', icon: <Copy className="h-4 w-4" />, onSelect: () => setMoveCopy({ mode: 'copy', paths: [node.path] }) });
+      entries.push({ label: t('context.copy'), icon: <Copy className="h-4 w-4" />, onSelect: () => setMoveCopy({ mode: 'copy', paths: [node.path] }) });
     if (hasPermission(PERMISSIONS.FILES_DELETE))
-      entries.push({ label: 'Delete', icon: <Trash2 className="h-4 w-4" />, destructive: true, onSelect: () => setDeleteState({ paths: [node.path], name: node.name }) });
+      entries.push({ label: t('context.delete'), icon: <Trash2 className="h-4 w-4" />, destructive: true, onSelect: () => setDeleteState({ paths: [node.path], name: node.name }) });
     entries.push({ type: 'separator' });
     if (node.isDirectory && hasPermission(PERMISSIONS.FILES_CREATE_FOLDER))
-      entries.push({ label: 'New Folder', icon: <FolderPlus className="h-4 w-4" />, onSelect: () => { setCreateParent(node.path); setCreateOpen(true); } });
-    entries.push({ label: 'Properties', icon: <Info className="h-4 w-4" />, onSelect: () => setPropsPath(node.path) });
+      entries.push({ label: t('context.newFolder'), icon: <FolderPlus className="h-4 w-4" />, onSelect: () => { setCreateParent(node.path); setCreateOpen(true); } });
+    entries.push({ label: t('context.properties'), icon: <Info className="h-4 w-4" />, onSelect: () => setPropsPath(node.path) });
     setMenu({ x: e.clientX, y: e.clientY, entries });
   };
 
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Files</h1>
-        <p className="text-sm text-muted-foreground">Manage files on your download volumes.</p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('page.subtitle')}</p>
       </div>
 
       <FilesToolbar
@@ -176,13 +181,13 @@ export function FilesPage() {
       />
 
       {/* Breadcrumbs */}
-      <nav className="flex flex-wrap items-center gap-1 text-sm" aria-label="Breadcrumb">
+      <nav className="flex flex-wrap items-center gap-1 text-sm" aria-label={t('breadcrumb.ariaLabel')}>
         <button
           type="button"
           onClick={() => goTo(-1)}
           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
         >
-          <Home className="h-3.5 w-3.5" /> root
+          <Home className="h-3.5 w-3.5" /> {t('breadcrumb.root')}
         </button>
         {segments.map((seg, i) => (
           <Fragment key={i}>
@@ -216,11 +221,11 @@ export function FilesPage() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <CenteredSpinner label="Loading directory…" />
+            <CenteredSpinner label={t('list.loading')} />
           ) : isError ? (
-            <ErrorState message="Could not read this directory." onRetry={() => refetch()} />
+            <ErrorState message={t('list.error')} onRetry={() => refetch()} />
           ) : items.length === 0 ? (
-            <EmptyState icon={<FolderTree className="h-6 w-6" />} title={search ? 'No matches' : 'Empty directory'} />
+            <EmptyState icon={<FolderTree className="h-6 w-6" />} title={search ? t('list.noMatches') : t('list.emptyDirectory')} />
           ) : (
             <>
               <div className="flex items-center gap-3 border-b border-border/60 px-4 py-2">
@@ -228,9 +233,9 @@ export function FilesPage() {
                   checked={allSelected}
                   indeterminate={someSelected && !allSelected}
                   onCheckedChange={() => (allSelected ? clear() : selectAll())}
-                  aria-label="Select all"
+                  aria-label={t('list.selectAll')}
                 />
-                <span className="text-xs text-muted-foreground">{items.length} items</span>
+                <span className="text-xs text-muted-foreground">{t('list.itemCount', { count: items.length })}</span>
               </div>
               <ul className="divide-y divide-border/60">
                 {items.map((node) => (
@@ -302,6 +307,7 @@ function FileRow({
   onOpen: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }) {
+  const { t } = useTranslation('files');
   const isDir = node.isDirectory;
   const clickable = isDir || canPreview;
   return (
@@ -309,7 +315,7 @@ function FileRow({
       className={cn('flex items-center gap-3 px-4 py-3 transition-colors', selected && 'bg-primary/[0.06]')}
       onContextMenu={onContextMenu}
     >
-      <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={`Select ${node.name}`} />
+      <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={t('list.selectRow', { name: node.name })} />
       <button
         type="button"
         onClick={onOpen}

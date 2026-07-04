@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   ChevronDown,
   ChevronUp,
@@ -58,6 +59,7 @@ export function CandidateCard({
   onDragEnd,
   onDrop,
 }: CandidateCardProps) {
+  const { t } = useTranslation('rss');
   const canConvertToRegex =
     candidate.matchType !== 'regex' &&
     (candidate.matchType === 'contains_text' ||
@@ -91,7 +93,7 @@ export function CandidateCard({
         <div className="flex flex-col items-center gap-1">
           <span
             className="grid h-7 w-7 place-items-center rounded-md bg-white/[0.04] text-xs font-semibold tabular-nums"
-            title="Priority"
+            title={t('candidate.priority')}
           >
             {index + 1}
           </span>
@@ -103,7 +105,7 @@ export function CandidateCard({
               variant="ghost"
               size="icon"
               className="h-6 w-6"
-              aria-label="Move up"
+              aria-label={t('candidate.moveUp')}
               disabled={isFirst}
               onClick={onMoveUp}
             >
@@ -113,7 +115,7 @@ export function CandidateCard({
               variant="ghost"
               size="icon"
               className="h-6 w-6"
-              aria-label="Move down"
+              aria-label={t('candidate.moveDown')}
               disabled={isLast}
               onClick={onMoveDown}
             >
@@ -125,14 +127,14 @@ export function CandidateCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold">{candidate.name}</span>
-            <Badge variant="secondary">{matchTypeLabel(candidate.matchType)}</Badge>
+            <Badge variant="secondary">{matchTypeLabel(t, candidate.matchType)}</Badge>
             {candidate.enabled ? (
               <Badge variant="success" dot>
-                enabled
+                {t('candidate.enabled')}
               </Badge>
             ) : (
               <Badge variant="secondary" dot>
-                disabled
+                {t('candidate.disabled')}
               </Badge>
             )}
           </div>
@@ -143,7 +145,7 @@ export function CandidateCard({
 
           {candidate.pattern && (
             <p className="mt-2 truncate font-mono text-xs text-foreground/80">
-              <span className="text-muted-foreground">pattern:</span> {candidate.pattern}
+              <span className="text-muted-foreground">{t('candidate.patternLabel')}</span> {candidate.pattern}
             </p>
           )}
 
@@ -165,25 +167,25 @@ export function CandidateCard({
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span>
               {candidate.lastMatchedAt
-                ? `last matched ${formatRelativeTime(candidate.lastMatchedAt)}`
-                : 'never matched'}
+                ? t('candidate.lastMatched', { time: formatRelativeTime(candidate.lastMatchedAt) })
+                : t('candidate.neverMatched')}
             </span>
-            <span>{candidate.matchCount} match{candidate.matchCount === 1 ? '' : 'es'}</span>
+            <span>{t('candidate.matchCount', { count: candidate.matchCount })}</span>
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-1">
             <Button variant="ghost" size="sm" onClick={onEdit}>
-              <Pencil className="h-3.5 w-3.5" /> Edit
+              <Pencil className="h-3.5 w-3.5" /> {t('candidate.edit')}
             </Button>
             <Button variant="ghost" size="sm" onClick={onDuplicate}>
-              <Copy className="h-3.5 w-3.5" /> Duplicate
+              <Copy className="h-3.5 w-3.5" /> {t('candidate.duplicate')}
             </Button>
             <Button variant="ghost" size="sm" onClick={onAddFallback}>
-              <CornerDownRight className="h-3.5 w-3.5" /> Add fallback
+              <CornerDownRight className="h-3.5 w-3.5" /> {t('candidate.addFallback')}
             </Button>
             {canConvertToRegex && (
               <Button variant="ghost" size="sm" onClick={onConvertToRegex}>
-                <Regex className="h-3.5 w-3.5" /> Convert to regex
+                <Regex className="h-3.5 w-3.5" /> {t('candidate.convertToRegex')}
               </Button>
             )}
             <Button
@@ -192,14 +194,14 @@ export function CandidateCard({
               className="text-destructive hover:text-destructive"
               onClick={onDelete}
             >
-              <Trash2 className="h-3.5 w-3.5" /> Delete
+              <Trash2 className="h-3.5 w-3.5" /> {t('candidate.delete')}
             </Button>
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">enabled</span>
+              <span className="text-xs text-muted-foreground">{t('candidate.enabled')}</span>
               <Switch
                 checked={candidate.enabled}
                 onCheckedChange={onToggleEnabled}
-                aria-label="Toggle candidate"
+                aria-label={t('candidate.toggleAria')}
               />
             </div>
           </div>

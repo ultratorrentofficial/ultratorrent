@@ -1,4 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -52,6 +53,7 @@ function minutes(seconds: number): string {
 }
 
 export function RssPage() {
+  const { t } = useTranslation('rss');
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -76,11 +78,11 @@ export function RssPage() {
       a.click();
       URL.revokeObjectURL(url);
       toast.success(
-        'Rules exported',
-        `${bundle.rules.length} rule${bundle.rules.length === 1 ? '' : 's'}`,
+        t('feeds.toast.exported'),
+        t('feeds.toast.rulesCount', { count: bundle.rules.length }),
       );
     } catch (err) {
-      toast.error('Export failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('feeds.toast.exportFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setExporting(false);
     }
@@ -95,21 +97,21 @@ export function RssPage() {
       const bundle = JSON.parse(await file.text());
       const s = await api.rss.importRules(bundle);
       const parts = [
-        `${s.rulesCreated} rule${s.rulesCreated === 1 ? '' : 's'}`,
-        `${s.candidatesCreated} filter${s.candidatesCreated === 1 ? '' : 's'}`,
+        t('feeds.toast.rulesCount', { count: s.rulesCreated }),
+        t('feeds.toast.filtersCount', { count: s.candidatesCreated }),
       ];
-      if (s.feedsCreated) parts.push(`${s.feedsCreated} feed${s.feedsCreated === 1 ? '' : 's'}`);
-      if (s.rulesSkipped) parts.push(`${s.rulesSkipped} skipped`);
-      toast.success('Rules imported', parts.join(', '));
+      if (s.feedsCreated) parts.push(t('feeds.toast.feedsCount', { count: s.feedsCreated }));
+      if (s.rulesSkipped) parts.push(t('feeds.toast.skippedCount', { count: s.rulesSkipped }));
+      toast.success(t('feeds.toast.imported'), parts.join(', '));
       invalidate();
     } catch (err) {
       const msg =
         err instanceof ApiError
           ? err.message
           : err instanceof SyntaxError
-            ? 'Not a valid JSON file'
+            ? t('feeds.toast.invalidJson')
             : undefined;
-      toast.error('Import failed', msg);
+      toast.error(t('feeds.toast.importFailed'), msg);
     } finally {
       setImporting(false);
     }
@@ -131,13 +133,13 @@ export function RssPage() {
   const feedName = (id: string): string | undefined => feeds.find((f) => f.id === id)?.name;
 
   const deleteFeed = async (feed: RssFeed) => {
-    if (!confirm(`Delete feed "${feed.name}" and its rules?`)) return;
+    if (!confirm(t('feeds.confirmDeleteFeed', { name: feed.name }))) return;
     try {
       await api.rss.deleteFeed(feed.id);
-      toast.success('Feed deleted', feed.name);
+      toast.success(t('feeds.toast.feedDeleted'), feed.name);
       invalidate();
     } catch (err) {
-      toast.error('Could not delete feed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('feeds.toast.deleteFeedFailed'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
@@ -146,16 +148,16 @@ export function RssPage() {
     try {
       const { newItems, downloaded } = await api.rss.refreshFeed(feed.id);
       toast.success(
-        'Feed fetched',
+        t('feeds.toast.feedFetched'),
         newItems === 0
-          ? 'No new items.'
-          : `${newItems} new item${newItems === 1 ? '' : 's'}` +
-              (downloaded > 0 ? `, ${downloaded} downloaded` : ''),
+          ? t('feeds.toast.noNewItems')
+          : t('feeds.toast.newItems', { count: newItems }) +
+              (downloaded > 0 ? t('feeds.toast.downloadedSuffix', { count: downloaded }) : ''),
       );
       invalidate();
       queryClient.invalidateQueries({ queryKey: ['rss', 'history', feed.id] });
     } catch (err) {
-      toast.error('Could not fetch feed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('feeds.toast.fetchFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setRefreshingId(null);
     }
@@ -164,10 +166,10 @@ export function RssPage() {
   const deleteRule = async (ruleId: string, ruleName: string) => {
     try {
       await api.rss.deleteRule(ruleId);
-      toast.success('Rule deleted', ruleName);
+      toast.success(t('feeds.toast.ruleDeleted'), ruleName);
       invalidate();
     } catch (err) {
-      toast.error('Could not delete rule', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('feeds.toast.deleteRuleFailed'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
@@ -175,9 +177,9 @@ export function RssPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">RSS feeds</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('feeds.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            Subscribed feeds are polled for new releases and matched against rules.
+            {t('feeds.subtitle')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -193,31 +195,31 @@ export function RssPage() {
             onClick={() => fileInputRef.current?.click()}
             loading={importing}
           >
-            <Upload className="h-4 w-4" /> Import
+            <Upload className="h-4 w-4" /> {t('feeds.import')}
           </Button>
           <Button variant="secondary" onClick={() => void exportRules()} loading={exporting}>
-            <Download className="h-4 w-4" /> Export
+            <Download className="h-4 w-4" /> {t('feeds.export')}
           </Button>
           <Button onClick={() => setAddFeedOpen(true)}>
-            <Plus className="h-4 w-4" /> Add feed
+            <Plus className="h-4 w-4" /> {t('feeds.addFeed')}
           </Button>
         </div>
       </div>
 
       {isLoading ? (
-        <CenteredSpinner label="Loading feeds…" />
+        <CenteredSpinner label={t('feeds.loading')} />
       ) : isError ? (
-        <ErrorState message="Could not load RSS feeds." onRetry={() => refetch()} />
+        <ErrorState message={t('feeds.loadError')} onRetry={() => refetch()} />
       ) : !data || data.length === 0 ? (
         <Card>
           <CardContent>
             <EmptyState
               icon={<Rss className="h-6 w-6" />}
-              title="No RSS feeds"
-              description="Feeds you add are polled automatically and can drive download rules."
+              title={t('feeds.empty.title')}
+              description={t('feeds.empty.description')}
               action={
                 <Button onClick={() => setAddFeedOpen(true)}>
-                  <Plus className="h-4 w-4" /> Add your first feed
+                  <Plus className="h-4 w-4" /> {t('feeds.addFirstFeed')}
                 </Button>
               }
             />
@@ -235,7 +237,7 @@ export function RssPage() {
                     <div className="flex items-center gap-2">
                       <p className="truncate font-semibold">{feed.name}</p>
                       <Badge variant={feed.isEnabled ? 'success' : 'secondary'} dot>
-                        {feed.isEnabled ? 'Active' : 'Paused'}
+                        {feed.isEnabled ? t('feeds.active') : t('feeds.paused')}
                       </Badge>
                     </div>
                     {(() => {
@@ -259,10 +261,10 @@ export function RssPage() {
                     })()}
                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> every {minutes(feed.refreshInterval)}
+                        <Clock className="h-3 w-3" /> {t('feeds.everyInterval', { interval: minutes(feed.refreshInterval) })}
                       </span>
-                      <span>checked {formatRelativeTime(feed.lastFetchedAt)}</span>
-                      <span>{rules.length} rule{rules.length === 1 ? '' : 's'}</span>
+                      <span>{t('feeds.checked', { time: formatRelativeTime(feed.lastFetchedAt) })}</span>
+                      <span>{t('feeds.ruleCount', { count: rules.length })}</span>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
@@ -273,19 +275,19 @@ export function RssPage() {
                       loading={refreshingId === feed.id}
                       disabled={refreshingId !== null}
                     >
-                      <RefreshCw className="h-4 w-4" /> Fetch now
+                      <RefreshCw className="h-4 w-4" /> {t('feeds.fetchNow')}
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate(`/rss/feeds/${feed.id}/history`)}
                     >
-                      <History className="h-4 w-4" /> History
+                      <History className="h-4 w-4" /> {t('feeds.history')}
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="Edit feed"
+                      aria-label={t('feeds.editFeed')}
                       onClick={() => setEditFeed(feed)}
                     >
                       <Pencil className="h-4 w-4" />
@@ -293,7 +295,7 @@ export function RssPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="Delete feed"
+                      aria-label={t('feeds.deleteFeed')}
                       onClick={() => deleteFeed(feed)}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
@@ -305,7 +307,7 @@ export function RssPage() {
                 <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
                   {rules.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      No rules yet — this feed is logged but nothing is auto-downloaded.
+                      {t('feeds.noRules')}
                     </p>
                   ) : (
                     rules.map((rule) => {
@@ -322,12 +324,12 @@ export function RssPage() {
                             <span className="text-sm font-medium">{rule.name}</span>
                             {rule.autoDownload && (
                               <Badge variant="info" dot>
-                                <Download className="h-3 w-3" /> auto
+                                <Download className="h-3 w-3" /> {t('feeds.auto')}
                               </Badge>
                             )}
                             {linked && (
                               <Badge variant="secondary">
-                                <Link2 className="h-3 w-3" /> from {feedName(rule.feedId) ?? 'another feed'}
+                                <Link2 className="h-3 w-3" /> {t('feeds.fromFeed', { feed: feedName(rule.feedId) ?? t('feeds.anotherFeed') })}
                               </Badge>
                             )}
                           </div>
@@ -358,7 +360,7 @@ export function RssPage() {
                             size="sm"
                             onClick={() => navigate(`/rss/rules/${rule.id}`)}
                           >
-                            <SlidersHorizontal className="h-4 w-4" /> Match preferences
+                            <SlidersHorizontal className="h-4 w-4" /> {t('feeds.matchPreferences')}
                           </Button>
                           {/* Edit/Delete belong to the owner feed. On a linked
                               feed the rule is a read-only projection. */}
@@ -367,7 +369,7 @@ export function RssPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                aria-label="Edit rule"
+                                aria-label={t('feeds.editRule')}
                                 onClick={() => setEditRule({ feed, rule })}
                               >
                                 <Pencil className="h-4 w-4" />
@@ -375,7 +377,7 @@ export function RssPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                aria-label="Delete rule"
+                                aria-label={t('feeds.deleteRule')}
                                 onClick={() => deleteRule(rule.id, rule.name)}
                               >
                                 <Trash2 className="h-4 w-4 text-muted-foreground" />
@@ -388,7 +390,7 @@ export function RssPage() {
                     })
                   )}
                   <Button variant="subtle" size="sm" onClick={() => setRuleForFeed(feed)}>
-                    <Plus className="h-4 w-4" /> Add rule
+                    <Plus className="h-4 w-4" /> {t('feeds.addRule')}
                   </Button>
                 </div>
               </CardContent>
@@ -443,6 +445,7 @@ export function RssPage() {
 }
 
 function AddFeedDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const { t } = useTranslation('rss');
   const toast = useToast();
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
@@ -460,10 +463,10 @@ function AddFeedDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         isEnabled: enabled,
       };
       await api.rss.createFeed(body);
-      toast.success('Feed added', body.name);
+      toast.success(t('feedDialog.toast.added'), body.name);
       onSaved();
     } catch (err) {
-      toast.error('Could not add feed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('feedDialog.toast.addFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setSaving(false);
     }
@@ -472,20 +475,20 @@ function AddFeedDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   return (
     <Dialog open onClose={onClose}>
       <DialogHeader>
-        <DialogTitle>Add RSS feed</DialogTitle>
-        <DialogDescription>The feed is polled on the interval you set.</DialogDescription>
+        <DialogTitle>{t('feedDialog.addTitle')}</DialogTitle>
+        <DialogDescription>{t('feedDialog.addDescription')}</DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2">
         <div>
-          <Label htmlFor="feed-name">Name</Label>
-          <Input id="feed-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Linux ISOs" />
+          <Label htmlFor="feed-name">{t('feedDialog.name')}</Label>
+          <Input id="feed-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('feedDialog.namePlaceholder')} />
         </div>
         <div>
-          <Label htmlFor="feed-url">Feed URL</Label>
-          <Input id="feed-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…/rss" />
+          <Label htmlFor="feed-url">{t('feedDialog.url')}</Label>
+          <Input id="feed-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t('feedDialog.urlPlaceholder')} />
         </div>
         <div>
-          <Label htmlFor="feed-interval">Refresh interval (minutes)</Label>
+          <Label htmlFor="feed-interval">{t('feedDialog.interval')}</Label>
           <Input
             id="feed-interval"
             type="number"
@@ -495,14 +498,14 @@ function AddFeedDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () 
           />
         </div>
         <div className="flex items-center justify-between">
-          <Label htmlFor="feed-enabled">Enabled</Label>
+          <Label htmlFor="feed-enabled">{t('feedDialog.enabled')}</Label>
           <Switch id="feed-enabled" checked={enabled} onCheckedChange={setEnabled} />
         </div>
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="ghost" onClick={onClose}>{t('feedDialog.cancel')}</Button>
         <Button onClick={submit} loading={saving} disabled={!name.trim() || !url.trim()}>
-          Add feed
+          {t('feedDialog.addSubmit')}
         </Button>
       </DialogFooter>
     </Dialog>
@@ -510,6 +513,7 @@ function AddFeedDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () 
 }
 
 function EditFeedDialog({ feed, onClose, onSaved }: { feed: RssFeed; onClose: () => void; onSaved: () => void }) {
+  const { t } = useTranslation('rss');
   const toast = useToast();
   const [name, setName] = useState(feed.name);
   const [url, setUrl] = useState(feed.url);
@@ -527,10 +531,10 @@ function EditFeedDialog({ feed, onClose, onSaved }: { feed: RssFeed; onClose: ()
         isEnabled: enabled,
       };
       await api.rss.updateFeed(feed.id, body);
-      toast.success('Feed updated', body.name);
+      toast.success(t('feedDialog.toast.updated'), body.name);
       onSaved();
     } catch (err) {
-      toast.error('Could not update feed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('feedDialog.toast.updateFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setSaving(false);
     }
@@ -539,20 +543,20 @@ function EditFeedDialog({ feed, onClose, onSaved }: { feed: RssFeed; onClose: ()
   return (
     <Dialog open onClose={onClose}>
       <DialogHeader>
-        <DialogTitle>Edit RSS feed</DialogTitle>
-        <DialogDescription>Update the feed name, URL, polling interval, or enabled state.</DialogDescription>
+        <DialogTitle>{t('feedDialog.editTitle')}</DialogTitle>
+        <DialogDescription>{t('feedDialog.editDescription')}</DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2">
         <div>
-          <Label htmlFor="edit-feed-name">Name</Label>
-          <Input id="edit-feed-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Linux ISOs" />
+          <Label htmlFor="edit-feed-name">{t('feedDialog.name')}</Label>
+          <Input id="edit-feed-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('feedDialog.namePlaceholder')} />
         </div>
         <div>
-          <Label htmlFor="edit-feed-url">Feed URL</Label>
-          <Input id="edit-feed-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…/rss" />
+          <Label htmlFor="edit-feed-url">{t('feedDialog.url')}</Label>
+          <Input id="edit-feed-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t('feedDialog.urlPlaceholder')} />
         </div>
         <div>
-          <Label htmlFor="edit-feed-interval">Refresh interval (minutes)</Label>
+          <Label htmlFor="edit-feed-interval">{t('feedDialog.interval')}</Label>
           <Input
             id="edit-feed-interval"
             type="number"
@@ -562,14 +566,14 @@ function EditFeedDialog({ feed, onClose, onSaved }: { feed: RssFeed; onClose: ()
           />
         </div>
         <div className="flex items-center justify-between">
-          <Label htmlFor="edit-feed-enabled">Enabled</Label>
+          <Label htmlFor="edit-feed-enabled">{t('feedDialog.enabled')}</Label>
           <Switch id="edit-feed-enabled" checked={enabled} onCheckedChange={setEnabled} />
         </div>
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="ghost" onClick={onClose}>{t('feedDialog.cancel')}</Button>
         <Button onClick={submit} loading={saving} disabled={!name.trim() || !url.trim()}>
-          Save changes
+          {t('feedDialog.saveSubmit')}
         </Button>
       </DialogFooter>
     </Dialog>
@@ -588,6 +592,7 @@ function RuleDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation('rss');
   const toast = useToast();
   const editing = !!rule;
   const [name, setName] = useState(rule?.name ?? '');
@@ -610,7 +615,7 @@ function RuleDialog({
           autoDownload,
         };
         await api.rss.updateRule(rule.id, body);
-        toast.success('Rule updated', body.name);
+        toast.success(t('ruleDialog.toast.updated'), body.name);
       } else {
         const body: CreateRuleInput = {
           feedId: feed.id,
@@ -621,12 +626,12 @@ function RuleDialog({
           autoDownload,
         };
         await api.rss.createRule(body);
-        toast.success('Rule added', body.name);
+        toast.success(t('ruleDialog.toast.added'), body.name);
       }
       onSaved();
     } catch (err) {
       toast.error(
-        editing ? 'Could not update rule' : 'Could not add rule',
+        editing ? t('ruleDialog.toast.updateFailed') : t('ruleDialog.toast.addFailed'),
         err instanceof ApiError ? err.message : undefined,
       );
     } finally {
@@ -638,46 +643,47 @@ function RuleDialog({
     <Dialog open onClose={onClose}>
       <DialogHeader>
         <DialogTitle>
-          {editing ? `Edit rule — “${rule.name}”` : `Add rule to “${feed.name}”`}
+          {editing
+            ? t('ruleDialog.editTitle', { name: rule.name })
+            : t('ruleDialog.addTitle', { name: feed.name })}
         </DialogTitle>
         <DialogDescription>
-          Matched items {autoDownload ? 'are downloaded automatically' : 'are recorded only'}.
-          Regexes are case-insensitive and matched against the item title.
+          {autoDownload ? t('ruleDialog.descriptionAuto') : t('ruleDialog.descriptionManual')}
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2">
         <div>
-          <Label htmlFor="rule-name">Name</Label>
-          <Input id="rule-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 1080p only" />
+          <Label htmlFor="rule-name">{t('ruleDialog.name')}</Label>
+          <Input id="rule-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('ruleDialog.namePlaceholder')} />
         </div>
         <div>
-          <Label htmlFor="rule-include">Include regex</Label>
-          <Input id="rule-include" value={includeRegex} onChange={(e) => setIncludeRegex(e.target.value)} placeholder="1080p" className="font-mono" />
+          <Label htmlFor="rule-include">{t('ruleDialog.include')}</Label>
+          <Input id="rule-include" value={includeRegex} onChange={(e) => setIncludeRegex(e.target.value)} placeholder={t('ruleDialog.includePlaceholder')} className="font-mono" />
         </div>
         <div>
-          <Label htmlFor="rule-exclude">Exclude regex</Label>
-          <Input id="rule-exclude" value={excludeRegex} onChange={(e) => setExcludeRegex(e.target.value)} placeholder="(CAM|TS)" className="font-mono" />
+          <Label htmlFor="rule-exclude">{t('ruleDialog.exclude')}</Label>
+          <Input id="rule-exclude" value={excludeRegex} onChange={(e) => setExcludeRegex(e.target.value)} placeholder={t('ruleDialog.excludePlaceholder')} className="font-mono" />
         </div>
         <div>
-          <Label htmlFor="rule-path">Save path (optional)</Label>
+          <Label htmlFor="rule-path">{t('ruleDialog.savePath')}</Label>
           <PathPicker
             id="rule-path"
             value={savePath}
             onChange={setSavePath}
-            placeholder="/downloads/movies"
-            aria-label="Save path"
-            pickerTitle="Choose a save folder"
+            placeholder={t('ruleDialog.savePathPlaceholder')}
+            aria-label={t('ruleDialog.savePathAria')}
+            pickerTitle={t('ruleDialog.savePathPicker')}
           />
         </div>
         <div className="flex items-center justify-between">
-          <Label htmlFor="rule-auto">Auto-download matches</Label>
+          <Label htmlFor="rule-auto">{t('ruleDialog.autoDownload')}</Label>
           <Switch id="rule-auto" checked={autoDownload} onCheckedChange={setAutoDownload} />
         </div>
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="ghost" onClick={onClose}>{t('ruleDialog.cancel')}</Button>
         <Button onClick={submit} loading={saving} disabled={!name.trim()}>
-          {editing ? 'Save changes' : 'Add rule'}
+          {editing ? t('ruleDialog.saveSubmit') : t('ruleDialog.addSubmit')}
         </Button>
       </DialogFooter>
     </Dialog>

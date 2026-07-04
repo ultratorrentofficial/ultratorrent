@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Pause, Play, RefreshCw, Square, Trash2 } from 'lucide-react';
 import { TorrentState, type NormalizedTorrent } from '@ultratorrent/shared';
@@ -21,6 +22,7 @@ const PAUSED_STATES = new Set<TorrentState>([
 ]);
 
 export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps) {
+  const { t } = useTranslation('torrents');
   const { hasPermission } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -33,10 +35,10 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
     setPending(action);
     try {
       await api.torrents.action(torrent.hash, action);
-      toast.success(`${label} requested`);
+      toast.success(t('actions.requested', { action: label }));
       await queryClient.invalidateQueries({ queryKey: ['torrents'] });
     } catch (err) {
-      toast.error(`Failed to ${label.toLowerCase()}`, err instanceof ApiError ? err.message : undefined);
+      toast.error(t('actions.failed', { action: label.toLowerCase() }), err instanceof ApiError ? err.message : undefined);
     } finally {
       setPending(null);
     }
@@ -51,9 +53,9 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
             size="sm"
             loading={pending === 'resume'}
             disabled={!hasPermission(PERMISSIONS.TORRENTS_RESUME)}
-            onClick={() => run('resume', 'Resume')}
+            onClick={() => run('resume', t('actions.resume'))}
           >
-            <Play className="h-4 w-4" /> Resume
+            <Play className="h-4 w-4" /> {t('actions.resume')}
           </Button>
         ) : (
           <Button
@@ -61,9 +63,9 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
             size="sm"
             loading={pending === 'pause'}
             disabled={!hasPermission(PERMISSIONS.TORRENTS_PAUSE)}
-            onClick={() => run('pause', 'Pause')}
+            onClick={() => run('pause', t('actions.pause'))}
           >
-            <Pause className="h-4 w-4" /> Pause
+            <Pause className="h-4 w-4" /> {t('actions.pause')}
           </Button>
         )}
 
@@ -72,9 +74,9 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
           size="sm"
           loading={pending === 'stop'}
           disabled={!hasPermission(PERMISSIONS.TORRENTS_STOP)}
-          onClick={() => run('stop', 'Stop')}
+          onClick={() => run('stop', t('actions.stop'))}
         >
-          <Square className="h-4 w-4" /> Stop
+          <Square className="h-4 w-4" /> {t('actions.stop')}
         </Button>
 
         <Button
@@ -82,9 +84,9 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
           size="sm"
           loading={pending === 'recheck'}
           disabled={!hasPermission(PERMISSIONS.TORRENTS_RECHECK)}
-          onClick={() => run('recheck', 'Recheck')}
+          onClick={() => run('recheck', t('actions.recheck'))}
         >
-          <RefreshCw className="h-4 w-4" /> Recheck
+          <RefreshCw className="h-4 w-4" /> {t('actions.recheck')}
         </Button>
 
         <Button
@@ -94,7 +96,7 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
           disabled={!hasPermission(PERMISSIONS.TORRENTS_DELETE)}
           onClick={() => setConfirmDelete(true)}
         >
-          <Trash2 className="h-4 w-4" /> Delete
+          <Trash2 className="h-4 w-4" /> {t('actions.delete')}
         </Button>
       </div>
 
@@ -106,12 +108,12 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
         onConfirm={async (withData) => {
           try {
             await api.torrents.remove(torrent.hash, withData);
-            toast.success('Torrent deleted');
+            toast.success(t('actions.deletedTitle'));
             await queryClient.invalidateQueries({ queryKey: ['torrents'] });
             setConfirmDelete(false);
             onDeleted?.();
           } catch (err) {
-            toast.error('Failed to delete', err instanceof ApiError ? err.message : undefined);
+            toast.error(t('actions.deleteFailed'), err instanceof ApiError ? err.message : undefined);
           }
         }}
       />

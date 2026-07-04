@@ -1,8 +1,8 @@
+import { useTranslation } from 'react-i18next';
 import { Copy, FolderInput, Sparkles, Trash2, X } from 'lucide-react';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/button';
-import { pluralize } from '@/lib/format';
 
 export interface FilesBulkToolbarProps {
   count: number;
@@ -24,6 +24,7 @@ export function FilesBulkToolbar({
   cleanupBusy,
 }: FilesBulkToolbarProps) {
   const { hasPermission } = useAuth();
+  const { t } = useTranslation('files');
   if (count === 0) return null;
 
   return (
@@ -32,31 +33,31 @@ export function FilesBulkToolbar({
         type="button"
         onClick={onClear}
         className="rounded-md p-1 text-muted-foreground hover:bg-white/5 hover:text-foreground"
-        aria-label="Clear selection"
+        aria-label={t('bulk.clearSelection')}
       >
         <X className="h-4 w-4" />
       </button>
-      <span className="text-sm font-medium">{pluralize(count, 'selected')}</span>
+      <span className="text-sm font-medium">{t('bulk.selected', { count })}</span>
       <div className="mx-1 h-5 w-px bg-border" />
 
       {hasPermission(PERMISSIONS.FILES_MOVE) && (
         <Button variant="ghost" size="sm" onClick={onMove}>
-          <FolderInput className="h-4 w-4" /> Move
+          <FolderInput className="h-4 w-4" /> {t('bulk.move')}
         </Button>
       )}
       {hasPermission(PERMISSIONS.FILES_COPY) && (
         <Button variant="ghost" size="sm" onClick={onCopy}>
-          <Copy className="h-4 w-4" /> Copy
+          <Copy className="h-4 w-4" /> {t('bulk.copy')}
         </Button>
       )}
       {hasPermission(PERMISSIONS.FILES_CLEANUP) && (
         <Button variant="ghost" size="sm" loading={cleanupBusy} onClick={onCleanup}>
-          <Sparkles className="h-4 w-4" /> Cleanup Selected
+          <Sparkles className="h-4 w-4" /> {t('bulk.cleanupSelected')}
         </Button>
       )}
       {hasPermission(PERMISSIONS.FILES_DELETE) && (
         <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={onDelete}>
-          <Trash2 className="h-4 w-4" /> Delete
+          <Trash2 className="h-4 w-4" /> {t('bulk.delete')}
         </Button>
       )}
     </div>

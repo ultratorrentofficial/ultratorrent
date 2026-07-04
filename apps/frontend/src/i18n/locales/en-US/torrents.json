@@ -1,0 +1,207 @@
+{
+  "page": {
+    "title": "Torrents",
+    "total": "{{total}} total",
+    "subtitle": "Manage your transfers"
+  },
+  "addTorrent": "Add torrent",
+  "search": {
+    "placeholder": "Search torrents…",
+    "aria": "Search torrents"
+  },
+  "filter": {
+    "all": "All",
+    "downloading": "Downloading",
+    "seeding": "Seeding",
+    "completed": "Completed",
+    "paused": "Paused",
+    "error": "Errored"
+  },
+  "state": {
+    "downloading": "Downloading",
+    "seeding": "Seeding",
+    "completed": "Completed",
+    "paused": "Paused",
+    "stopped": "Stopped",
+    "queued": "Queued",
+    "checking": "Checking",
+    "allocating": "Allocating",
+    "error": "Error",
+    "unknown": "Unknown"
+  },
+  "table": {
+    "selectAll": "Select all on page",
+    "selectRow": "Select {{name}}"
+  },
+  "col": {
+    "status": "Status",
+    "name": "Name",
+    "progress": "Progress",
+    "size": "Size",
+    "down": "Down",
+    "up": "Up",
+    "ratio": "Ratio",
+    "eta": "ETA",
+    "seeds": "Seeds",
+    "peers": "Peers",
+    "dl": "DL",
+    "ul": "UL",
+    "added": "Added"
+  },
+  "noEngine": {
+    "title": "No torrent engine configured",
+    "description": "UltraTorrent needs a torrent engine (e.g. rTorrent) before it can list torrents.",
+    "action": "Configure an engine"
+  },
+  "loadError": "Could not load torrents.",
+  "empty": {
+    "title": "No torrents found",
+    "searchDescription": "Try adjusting your search or filters.",
+    "description": "Add your first torrent to get started."
+  },
+  "pagination": {
+    "page": "Page {{page}} of {{total}}",
+    "updating": "updating…",
+    "prev": "Prev",
+    "next": "Next"
+  },
+  "count_one": "{{count}} torrent",
+  "count_other": "{{count}} torrents",
+  "add": {
+    "title": "Add torrent",
+    "description": "Add via magnet link, remote URL, or a .torrent file.",
+    "tab": {
+      "magnet": "Magnet",
+      "url": "URL",
+      "file": "File"
+    },
+    "magnetLabel": "Magnet link",
+    "magnetPlaceholder": "magnet:?xt=urn:btih:…",
+    "urlLabel": "Torrent URL",
+    "urlPlaceholder": "https://example.com/file.torrent",
+    "removeFile": "Remove file",
+    "dropHint": "Drop a .torrent file here",
+    "browseHint": "or click to browse",
+    "category": "Category",
+    "categoryPlaceholder": "movies",
+    "tags": "Tags",
+    "tagsPlaceholder": "hd, 1080p",
+    "savePath": "Save path",
+    "savePathPlaceholder": "/downloads",
+    "savePathAria": "Save path",
+    "savePathPicker": "Choose a save folder",
+    "startPaused": "Add in paused state",
+    "startPausedAria": "Start paused",
+    "cancel": "Cancel",
+    "submit": "Add torrent",
+    "successTitle": "Torrent added",
+    "successBody": "It will appear in your list shortly.",
+    "errorTitle": "Could not add torrent",
+    "errorFallback": "Failed to add torrent."
+  },
+  "bulk": {
+    "clearAria": "Clear selection",
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected",
+    "action": {
+      "resume": "Resume",
+      "pause": "Pause",
+      "stop": "Stop",
+      "recheck": "Recheck"
+    },
+    "resume": "Resume",
+    "pause": "Pause",
+    "stop": "Stop",
+    "recheck": "Recheck",
+    "delete": "Delete",
+    "appliedTitle": "{{action}} applied",
+    "failedTitle": "Bulk {{action}} failed",
+    "deletedTitle": "Torrents deleted",
+    "deleteFailed": "Bulk delete failed"
+  },
+  "delete": {
+    "title": "Delete torrent",
+    "heading_one": "Delete torrent?",
+    "heading_other": "Delete {{count}} torrents?",
+    "body": "You are about to remove {{target}}. This action cannot be undone.",
+    "targetThis": "this torrent",
+    "targetNamed": "“{{name}}”",
+    "targetMany": "{{count}} torrents",
+    "alsoData": "Also delete downloaded data",
+    "alsoDataHint": "Permanently removes files from disk.",
+    "dataAria": "Delete data",
+    "cancel": "Cancel",
+    "confirm": "Delete",
+    "confirmData": "Delete + data"
+  },
+  "actions": {
+    "resume": "Resume",
+    "pause": "Pause",
+    "stop": "Stop",
+    "recheck": "Recheck",
+    "delete": "Delete",
+    "requested": "{{action}} requested",
+    "failed": "Failed to {{action}}",
+    "deletedTitle": "Torrent deleted",
+    "deleteFailed": "Failed to delete"
+  },
+  "drawer": {
+    "private": "Private",
+    "tab": {
+      "overview": "Overview",
+      "files": "Files",
+      "peers": "Peers",
+      "trackers": "Trackers"
+    },
+    "overview": {
+      "progress": "Progress",
+      "download": "Download",
+      "upload": "Upload",
+      "downloaded": "Downloaded",
+      "uploaded": "Uploaded",
+      "size": "Size",
+      "ratio": "Ratio",
+      "eta": "ETA",
+      "seedsPeers": "Seeds / Peers"
+    },
+    "detail": {
+      "savePath": "Save path",
+      "label": "Label",
+      "added": "Added",
+      "completed": "Completed",
+      "engine": "Engine",
+      "matchedRule": "Matched rule"
+    },
+    "files": {
+      "loadError": "Could not load files.",
+      "empty": "No files"
+    },
+    "priority": {
+      "skip": "Skip",
+      "normal": "Normal",
+      "high": "High"
+    },
+    "peers": {
+      "loadError": "Could not load peers.",
+      "empty": "No connected peers",
+      "address": "Address",
+      "client": "Client",
+      "done": "Done",
+      "down": "Down",
+      "up": "Up"
+    },
+    "trackers": {
+      "loadError": "Could not load trackers.",
+      "empty": "No trackers",
+      "tier": "Tier {{tier}}",
+      "seeders": "Seeders: {{value}}",
+      "leechers": "Leechers: {{value}}",
+      "status": {
+        "working": "Working",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "error": "Error"
+      }
+    }
+  }
+}

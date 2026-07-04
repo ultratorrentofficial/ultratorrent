@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { FileUp, Link2, Magnet, UploadCloud, X } from 'lucide-react';
 import { ApiError, api, type AddTorrentPayload } from '@/lib/api';
@@ -20,6 +21,7 @@ export interface AddTorrentDialogProps {
 }
 
 export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
+  const { t } = useTranslation('torrents');
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -77,12 +79,12 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
       } else {
         await api.torrents.add({ url: url.trim(), ...options });
       }
-      toast.success('Torrent added', 'It will appear in your list shortly.');
+      toast.success(t('add.successTitle'), t('add.successBody'));
       await queryClient.invalidateQueries({ queryKey: ['torrents'] });
       close();
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Failed to add torrent.';
-      toast.error('Could not add torrent', message);
+      const message = err instanceof ApiError ? err.message : t('add.errorFallback');
+      toast.error(t('add.errorTitle'), message);
     } finally {
       setSubmitting(false);
     }
@@ -99,29 +101,29 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
   };
 
   return (
-    <Dialog open={open} onClose={close} title="Add torrent" className="max-w-xl">
+    <Dialog open={open} onClose={close} title={t('add.title')} className="max-w-xl">
       <DialogHeader>
-        <DialogTitle>Add torrent</DialogTitle>
-        <DialogDescription>Add via magnet link, remote URL, or a .torrent file.</DialogDescription>
+        <DialogTitle>{t('add.title')}</DialogTitle>
+        <DialogDescription>{t('add.description')}</DialogDescription>
       </DialogHeader>
 
       <Tabs value={source} onValueChange={(v) => setSource(v as Source)}>
         <TabsList className="w-full">
           <TabsTrigger value="magnet" className="flex-1">
-            <Magnet className="h-4 w-4" /> Magnet
+            <Magnet className="h-4 w-4" /> {t('add.tab.magnet')}
           </TabsTrigger>
           <TabsTrigger value="url" className="flex-1">
-            <Link2 className="h-4 w-4" /> URL
+            <Link2 className="h-4 w-4" /> {t('add.tab.url')}
           </TabsTrigger>
           <TabsTrigger value="file" className="flex-1">
-            <FileUp className="h-4 w-4" /> File
+            <FileUp className="h-4 w-4" /> {t('add.tab.file')}
           </TabsTrigger>
         </TabsList>
 
         <div className="mt-4">
           <TabsContent value="magnet">
             <div className="space-y-2">
-              <Label htmlFor="magnet">Magnet link</Label>
+              <Label htmlFor="magnet">{t('add.magnetLabel')}</Label>
               <Input
                 id="magnet"
                 value={magnet}
@@ -135,12 +137,12 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
 
           <TabsContent value="url">
             <div className="space-y-2">
-              <Label htmlFor="url">Torrent URL</Label>
+              <Label htmlFor="url">{t('add.urlLabel')}</Label>
               <Input
                 id="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://example.com/file.torrent"
+                placeholder={t('add.urlPlaceholder')}
                 className="font-mono text-xs"
               />
             </div>
@@ -188,7 +190,7 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
                       setFile(null);
                     }}
                     className="rounded p-1 text-muted-foreground hover:text-foreground"
-                    aria-label="Remove file"
+                    aria-label={t('add.removeFile')}
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -196,8 +198,8 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
               ) : (
                 <>
                   <UploadCloud className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm font-medium">Drop a .torrent file here</p>
-                  <p className="text-xs text-muted-foreground">or click to browse</p>
+                  <p className="text-sm font-medium">{t('add.dropHint')}</p>
+                  <p className="text-xs text-muted-foreground">{t('add.browseHint')}</p>
                 </>
               )}
             </div>
@@ -208,47 +210,47 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
       {/* Shared options */}
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="category">Category</Label>
+          <Label htmlFor="category">{t('add.category')}</Label>
           <Input
             id="category"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            placeholder="movies"
+            placeholder={t('add.categoryPlaceholder')}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="tags">Tags</Label>
+          <Label htmlFor="tags">{t('add.tags')}</Label>
           <Input
             id="tags"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
-            placeholder="hd, 1080p"
+            placeholder={t('add.tagsPlaceholder')}
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="savePath">Save path</Label>
+          <Label htmlFor="savePath">{t('add.savePath')}</Label>
           <PathPicker
             id="savePath"
             value={savePath}
             onChange={setSavePath}
-            placeholder="/downloads"
-            aria-label="Save path"
-            pickerTitle="Choose a save folder"
+            placeholder={t('add.savePathPlaceholder')}
+            aria-label={t('add.savePathAria')}
+            pickerTitle={t('add.savePathPicker')}
           />
         </div>
       </div>
 
       <label className="mt-4 flex items-center justify-between rounded-lg border border-border/60 bg-white/[0.02] px-3 py-2.5">
-        <span className="text-sm font-medium">Add in paused state</span>
-        <Switch checked={startPaused} onCheckedChange={setStartPaused} aria-label="Start paused" />
+        <span className="text-sm font-medium">{t('add.startPaused')}</span>
+        <Switch checked={startPaused} onCheckedChange={setStartPaused} aria-label={t('add.startPausedAria')} />
       </label>
 
       <DialogFooter>
         <Button variant="ghost" onClick={close} disabled={submitting}>
-          Cancel
+          {t('add.cancel')}
         </Button>
         <Button onClick={handleSubmit} disabled={!canSubmit} loading={submitting}>
-          Add torrent
+          {t('add.submit')}
         </Button>
       </DialogFooter>
     </Dialog>

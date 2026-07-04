@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
@@ -58,6 +59,7 @@ export function DirectoryPicker({
   onSelect: (absolutePath: string) => void;
   title?: string;
 }) {
+  const { t } = useTranslation('files');
   const { hasPermission } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -96,10 +98,10 @@ export function DirectoryPicker({
       setCreatingOpen(false);
       setNewFolder('');
       queryClient.invalidateQueries({ queryKey: ['files', 'browse', rel] });
-      toast.success('Folder created');
+      toast.success(t('picker.folderCreated'));
     },
     onError: (err) =>
-      toast.error('Unable to create folder', err instanceof ApiError ? err.message : undefined),
+      toast.error(t('picker.createFolderFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const items = useMemo(() => {
@@ -132,12 +134,11 @@ export function DirectoryPicker({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} title={title ?? 'Choose a location'} className="max-w-2xl">
+    <Dialog open={open} onClose={onClose} title={title ?? t('picker.defaultTitle')} className="max-w-2xl">
       <DialogHeader>
-        <DialogTitle>{title ?? (mode === 'file' ? 'Select a file' : 'Select a folder')}</DialogTitle>
+        <DialogTitle>{title ?? (mode === 'file' ? t('picker.selectFile') : t('picker.selectFolder'))}</DialogTitle>
         <DialogDescription>
-          You can browse only inside the allowed root. Parent folders and system directories outside
-          it are blocked.
+          {t('picker.description')}
         </DialogDescription>
       </DialogHeader>
 
@@ -153,9 +154,9 @@ export function DirectoryPicker({
             'inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-white/5',
             rel === '/' ? 'font-medium text-foreground' : 'text-muted-foreground',
           )}
-          title="Root folder"
+          title={t('picker.rootTitle')}
         >
-          <Home className="h-3.5 w-3.5" /> Root
+          <Home className="h-3.5 w-3.5" /> {t('picker.root')}
         </button>
         {segments.map((seg, i) => (
           <span key={i} className="flex items-center">
@@ -184,14 +185,14 @@ export function DirectoryPicker({
           <Input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter in this folder…"
-            aria-label="Filter"
+            placeholder={t('picker.filterPlaceholder')}
+            aria-label={t('picker.filterAria')}
             className="pl-8"
           />
         </div>
         {canCreate && (
           <Button variant="outline" size="sm" onClick={() => setCreatingOpen((v) => !v)}>
-            <FolderPlus className="h-4 w-4" /> New folder
+            <FolderPlus className="h-4 w-4" /> {t('picker.newFolder')}
           </Button>
         )}
       </div>
@@ -205,8 +206,8 @@ export function DirectoryPicker({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && newFolder.trim()) createFolder.mutate(newFolder.trim());
             }}
-            placeholder="New folder name"
-            aria-label="New folder name"
+            placeholder={t('picker.newFolderPlaceholder')}
+            aria-label={t('picker.newFolderAria')}
           />
           <Button
             size="sm"
@@ -214,7 +215,7 @@ export function DirectoryPicker({
             loading={createFolder.isPending}
             disabled={!newFolder.trim()}
           >
-            Create
+            {t('picker.create')}
           </Button>
         </div>
       )}
@@ -222,15 +223,15 @@ export function DirectoryPicker({
       {/* Listing */}
       <div className="mt-3 max-h-[45vh] min-h-[12rem] overflow-y-auto rounded-md border border-border/60 scrollbar-thin">
         {browseQuery.isLoading || rootQuery.isLoading ? (
-          <CenteredSpinner label="Loading…" />
+          <CenteredSpinner label={t('picker.loading')} />
         ) : browseQuery.isError ? (
-          <ErrorState message="Could not load this folder." onRetry={() => browseQuery.refetch()} />
+          <ErrorState message={t('picker.loadError')} onRetry={() => browseQuery.refetch()} />
         ) : items.length === 0 ? (
           <EmptyState
             icon={<Folder className="h-6 w-6" />}
-            title={filter ? 'No matches' : mode === 'file' ? 'No files or folders' : 'No subfolders'}
+            title={filter ? t('picker.noMatches') : mode === 'file' ? t('picker.noFilesOrFolders') : t('picker.noSubfolders')}
             description={
-              filter ? 'Try a different filter.' : 'This folder is empty — you can still select it.'
+              filter ? t('picker.tryDifferentFilter') : t('picker.emptyFolderHint')
             }
           />
         ) : (
@@ -270,7 +271,7 @@ export function DirectoryPicker({
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground/70">
-            {mode === 'file' && selectedFile ? 'Selected file' : 'Current folder'}
+            {mode === 'file' && selectedFile ? t('picker.selectedFile') : t('picker.currentFolder')}
           </p>
           <p className="truncate font-mono text-xs" title={selectedAbsolute}>
             {selectedAbsolute}
@@ -278,11 +279,11 @@ export function DirectoryPicker({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('picker.cancel')}
           </Button>
           <Button onClick={confirm} disabled={!canConfirm}>
             <Check className="h-4 w-4" />
-            {mode === 'file' ? 'Select file' : 'Select this folder'}
+            {mode === 'file' ? t('picker.selectFileBtn') : t('picker.selectFolderBtn')}
           </Button>
         </div>
       </div>
@@ -318,6 +319,7 @@ export function PathPicker({
   className?: string;
   'aria-label'?: string;
 }) {
+  const { t } = useTranslation('files');
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -339,10 +341,10 @@ export function PathPicker({
           variant="outline"
           onClick={() => setOpen(true)}
           disabled={disabled}
-          aria-label="Browse"
+          aria-label={t('picker.browseAria')}
           className="shrink-0"
         >
-          <FolderOpen className="h-4 w-4" /> Browse
+          <FolderOpen className="h-4 w-4" /> {t('picker.browse')}
         </Button>
       </div>
       <DirectoryPicker

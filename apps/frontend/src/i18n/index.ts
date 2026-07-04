@@ -11,12 +11,20 @@ import enAuth from './locales/en-US/auth.json';
 import enShell from './locales/en-US/shell.json';
 import enMedia from './locales/en-US/media.json';
 import enImdb from './locales/en-US/imdb.json';
+import enRss from './locales/en-US/rss.json';
+import enTorrents from './locales/en-US/torrents.json';
+import enFiles from './locales/en-US/files.json';
+import enAutomation from './locales/en-US/automation.json';
 import esCommon from './locales/es-PR/common.json';
 import esNav from './locales/es-PR/nav.json';
 import esAuth from './locales/es-PR/auth.json';
 import esShell from './locales/es-PR/shell.json';
 import esMedia from './locales/es-PR/media.json';
 import esImdb from './locales/es-PR/imdb.json';
+import esRss from './locales/es-PR/rss.json';
+import esTorrents from './locales/es-PR/torrents.json';
+import esFiles from './locales/es-PR/files.json';
+import esAutomation from './locales/es-PR/automation.json';
 
 /**
  * i18n key conventions (read this before adding strings)
@@ -45,7 +53,18 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'es-PR', label: 'Español' },
 ] as const;
 
-export const NAMESPACES = ['common', 'nav', 'auth', 'shell', 'media', 'imdb'] as const;
+export const NAMESPACES = [
+  'common',
+  'nav',
+  'auth',
+  'shell',
+  'media',
+  'imdb',
+  'rss',
+  'torrents',
+  'files',
+  'automation',
+] as const;
 
 export const resources = {
   'en-US': {
@@ -55,6 +74,10 @@ export const resources = {
     shell: enShell,
     media: enMedia,
     imdb: enImdb,
+    rss: enRss,
+    torrents: enTorrents,
+    files: enFiles,
+    automation: enAutomation,
   },
   'es-PR': {
     common: esCommon,
@@ -63,6 +86,10 @@ export const resources = {
     shell: esShell,
     media: esMedia,
     imdb: esImdb,
+    rss: esRss,
+    torrents: esTorrents,
+    files: esFiles,
+    automation: esAutomation,
   },
 } as const;
 

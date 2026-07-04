@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Check, X } from 'lucide-react';
 import type { CandidateResult, CheckResult, MatchType, ParsedRelease } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
@@ -13,22 +15,26 @@ type BadgeTone =
   | 'info'
   | 'outline';
 
-export const MATCH_TYPE_OPTIONS: { value: MatchType; label: string }[] = [
-  { value: 'contains_text', label: 'Contains text' },
-  { value: 'exact_text', label: 'Exact text' },
-  { value: 'regex', label: 'Regex' },
-  { value: 'wildcard', label: 'Wildcard' },
-  { value: 'smart_episode_match', label: 'Smart episode match' },
-  { value: 'smart_movie_match', label: 'Smart movie match' },
-  { value: 'fuzzy_match', label: 'Fuzzy match' },
+/** `t` from `useTranslation('rss')`; kept loose so helpers resolve dynamic keys. */
+type RssT = TFunction<'rss'>;
+
+export const MATCH_TYPE_VALUES: MatchType[] = [
+  'contains_text',
+  'exact_text',
+  'regex',
+  'wildcard',
+  'smart_episode_match',
+  'smart_movie_match',
+  'fuzzy_match',
 ];
 
-const MATCH_TYPE_LABELS = Object.fromEntries(
-  MATCH_TYPE_OPTIONS.map((o) => [o.value, o.label]),
-) as Record<MatchType, string>;
+export function matchTypeLabel(t: RssT, type: MatchType): string {
+  return t(`matchType.${type}` as 'matchType.contains_text', { defaultValue: type });
+}
 
-export function matchTypeLabel(type: MatchType): string {
-  return MATCH_TYPE_LABELS[type] ?? type;
+/** Translated <Select> options for the match-type picker. */
+export function matchTypeOptions(t: RssT): { value: MatchType; label: string }[] {
+  return MATCH_TYPE_VALUES.map((value) => ({ value, label: matchTypeLabel(t, value) }));
 }
 
 const RESULT_TONE: Record<CandidateResult['result'], BadgeTone> = {
@@ -38,23 +44,17 @@ const RESULT_TONE: Record<CandidateResult['result'], BadgeTone> = {
   disabled: 'warning',
 };
 
-const RESULT_LABEL: Record<CandidateResult['result'], string> = {
-  matched: 'Matched',
-  failed: 'Failed',
-  skipped: 'Skipped',
-  disabled: 'Disabled',
-};
-
 export function CandidateResultBadge({ result }: { result: CandidateResult['result'] }) {
+  const { t } = useTranslation('rss');
   return (
     <Badge variant={RESULT_TONE[result]} dot>
-      {RESULT_LABEL[result]}
+      {t(`candidateResult.${result}` as 'candidateResult.matched')}
     </Badge>
   );
 }
 
-export function resultLabel(result: CandidateResult['result']): string {
-  return RESULT_LABEL[result];
+export function resultLabel(t: RssT, result: CandidateResult['result']): string {
+  return t(`candidateResult.${result}` as 'candidateResult.matched');
 }
 
 /** Renders the per-check pass/fail breakdown for a candidate evaluation. */
@@ -79,6 +79,7 @@ export function CheckList({ checks }: { checks: CheckResult[] }) {
 
 /** Compact mono debug line summarising the parsed release metadata. */
 export function ParsedDebug({ parsed }: { parsed: ParsedRelease }) {
+  const { t } = useTranslation('rss');
   const parts: string[] = [];
   if (parsed.season != null)
     parts.push(`S${String(parsed.season).padStart(2, '0')}`);
@@ -95,8 +96,8 @@ export function ParsedDebug({ parsed }: { parsed: ParsedRelease }) {
 
   return (
     <p className="rounded-md bg-black/30 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-muted-foreground">
-      <span className="text-foreground/60">parsed:</span>{' '}
-      {parts.length ? parts.join('  ') : 'no metadata detected'}
+      <span className="text-foreground/60">{t('shared.parsedLabel')}</span>{' '}
+      {parts.length ? parts.join('  ') : t('shared.noMetadata')}
     </p>
   );
 }
@@ -110,6 +111,7 @@ export function Chip({
   tone?: 'neutral' | 'success' | 'destructive';
   onRemove?: () => void;
 }) {
+  const { t } = useTranslation('rss');
   const tones: Record<string, string> = {
     neutral: 'bg-white/[0.04] text-foreground/90 border-white/10',
     success: 'bg-success/10 text-success border-success/20',
@@ -126,7 +128,7 @@ export function Chip({
       {onRemove && (
         <button
           type="button"
-          aria-label="Remove"
+          aria-label={t('shared.remove')}
           onClick={onRemove}
           className="rounded-sm text-current/70 hover:text-current"
         >

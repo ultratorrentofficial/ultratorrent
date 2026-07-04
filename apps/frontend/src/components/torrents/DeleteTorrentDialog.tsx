@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -13,6 +14,7 @@ export interface DeleteTorrentDialogProps {
 }
 
 export function DeleteTorrentDialog({ open, count, name, onClose, onConfirm }: DeleteTorrentDialogProps) {
+  const { t } = useTranslation('torrents');
   const [withData, setWithData] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -25,34 +27,39 @@ export function DeleteTorrentDialog({ open, count, name, onClose, onConfirm }: D
     }
   };
 
-  const target = count === 1 ? (name ? `“${name}”` : 'this torrent') : `${count} torrents`;
+  const target =
+    count === 1
+      ? name
+        ? t('delete.targetNamed', { name })
+        : t('delete.targetThis')
+      : t('delete.targetMany', { count });
 
   return (
-    <Dialog open={open} onClose={onClose} title="Delete torrent" className="max-w-md">
+    <Dialog open={open} onClose={onClose} title={t('delete.title')} className="max-w-md">
       <DialogHeader>
         <div className="mb-1 grid h-11 w-11 place-items-center rounded-xl bg-destructive/10 text-destructive">
           <TriangleAlert className="h-5 w-5" />
         </div>
-        <DialogTitle>Delete {count === 1 ? 'torrent' : `${count} torrents`}?</DialogTitle>
+        <DialogTitle>{t('delete.heading', { count })}</DialogTitle>
         <DialogDescription>
-          You are about to remove {target}. This action cannot be undone.
+          {t('delete.body', { target })}
         </DialogDescription>
       </DialogHeader>
 
       <label className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
         <div>
-          <p className="text-sm font-medium">Also delete downloaded data</p>
-          <p className="text-xs text-muted-foreground">Permanently removes files from disk.</p>
+          <p className="text-sm font-medium">{t('delete.alsoData')}</p>
+          <p className="text-xs text-muted-foreground">{t('delete.alsoDataHint')}</p>
         </div>
-        <Switch checked={withData} onCheckedChange={setWithData} aria-label="Delete data" />
+        <Switch checked={withData} onCheckedChange={setWithData} aria-label={t('delete.dataAria')} />
       </label>
 
       <DialogFooter>
         <Button variant="ghost" onClick={onClose} disabled={busy}>
-          Cancel
+          {t('delete.cancel')}
         </Button>
         <Button variant="destructive" onClick={handleConfirm} loading={busy}>
-          {withData ? 'Delete + data' : 'Delete'}
+          {withData ? t('delete.confirmData') : t('delete.confirm')}
         </Button>
       </DialogFooter>
     </Dialog>

@@ -1,0 +1,95 @@
+{
+  "page": {
+    "title": "Automatización",
+    "subtitle": "Las reglas se ejecutan cuando su disparador ocurre y todas las condiciones coinciden.",
+    "newRule": "Nueva regla",
+    "loading": "Cargando reglas…",
+    "loadError": "No se pudieron cargar las reglas de automatización.",
+    "emptyTitle": "No hay reglas de automatización",
+    "emptyDescription": "Crea una regla para reaccionar a descargas completadas: mover datos, notificar, limpiar y más.",
+    "createFirst": "Crea tu primera regla"
+  },
+  "trigger": {
+    "torrent_completed": "Cuando se completa una descarga",
+    "ratio_reached": "Cuando se alcanza la proporción de compartición"
+  },
+  "actionType": {
+    "notify": "Enviar notificación",
+    "move": "Mover datos",
+    "pause": "Pausar torrent",
+    "stop": "Detener torrent",
+    "delete": "Eliminar torrent",
+    "delete_with_data": "Eliminar torrent + datos",
+    "webhook": "Llamar webhook",
+    "rename_for_media": "Renombrar para servidor multimedia"
+  },
+  "card": {
+    "enabled": "Habilitada",
+    "disabled": "Deshabilitada",
+    "priority": "prioridad {{priority}}",
+    "alwaysNoConditions": "siempre (sin condiciones)",
+    "toggleRule": "Alternar regla",
+    "logs": "Registros",
+    "edit": "Editar",
+    "delete": "Eliminar"
+  },
+  "confirmDelete": "¿Eliminar la regla \"{{name}}\"?",
+  "toast": {
+    "updateError": "No se pudo actualizar la regla",
+    "deleted": "Regla eliminada",
+    "deleteError": "No se pudo eliminar la regla",
+    "updated": "Regla actualizada",
+    "created": "Regla creada",
+    "saveError": "No se pudo guardar la regla"
+  },
+  "editor": {
+    "editTitle": "Editar regla",
+    "newTitle": "Nueva regla de automatización",
+    "description": "Cuando el disparador ocurre, la regla ejecuta sus acciones si todas las condiciones coinciden.",
+    "name": "Nombre",
+    "namePlaceholder": "p. ej. Sembrar y luego notificar",
+    "priority": "Prioridad",
+    "descriptionLabel": "Descripción (opcional)",
+    "trigger": "Disparador",
+    "ratioHint": "Agrega una condición <code>ratio ≥ N</code> (p. ej. <code>ratio gte 2</code>). Se activa una vez cuando un torrent la alcanza por primera vez; combínala con una acción <em>detener</em> o <em>eliminar</em> para limitar la siembra.",
+    "enabled": "Habilitada",
+    "conditionsTitle": "Condiciones",
+    "conditionsHint": "(todas deben coincidir)",
+    "add": "Agregar",
+    "noConditions": "Sin condiciones: la regla siempre se ejecuta con su disparador.",
+    "valuePlaceholder": "valor",
+    "removeCondition": "Quitar condición",
+    "actionsTitle": "Acciones",
+    "actionsHint": "(se ejecutan en orden)",
+    "removeAction": "Quitar acción",
+    "cancel": "Cancelar",
+    "saveChanges": "Guardar cambios",
+    "createRule": "Crear regla"
+  },
+  "params": {
+    "destinationPlaceholder": "/downloads/done",
+    "destinationAria": "Carpeta de destino",
+    "destinationPicker": "Elige una carpeta de destino",
+    "messagePlaceholder": "mensaje",
+    "webhookPlaceholder": "https://…",
+    "libraryPathPlaceholder": "/media/tv",
+    "libraryPathAria": "Ruta de la biblioteca",
+    "libraryPathPicker": "Elige una carpeta de biblioteca",
+    "templatePlaceholder": "plantilla (opcional)",
+    "noParameters": "Sin parámetros"
+  },
+  "logs": {
+    "title": "Registro de ejecución — {{name}}",
+    "description": "Cada vez que se ejecutó esta regla.",
+    "loading": "Cargando registros…",
+    "loadError": "No se pudieron cargar los registros.",
+    "emptyTitle": "Aún no hay ejecuciones",
+    "emptyDescription": "Las entradas aparecen aquí cuando la regla se activa.",
+    "close": "Cerrar"
+  },
+  "logStatus": {
+    "success": "éxito",
+    "failed": "fallida",
+    "skipped": "omitida"
+  }
+}

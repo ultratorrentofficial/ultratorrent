@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Check,
   Info,
@@ -13,7 +14,6 @@ import {
   api,
   type GeneratedCandidate,
   type MatchType,
-  type ParsedTorrentMeta,
   type SmartAnalyzeResult,
   type SmartTestResult,
 } from '@/lib/api';
@@ -31,14 +31,6 @@ interface EditableCandidate extends GeneratedCandidate {
 }
 
 const PLACEHOLDER = 'The.Example.Show.S02E05.1080p.WEB-DL.x265-GROUP';
-
-const CONTENT_TYPE_LABELS: Record<ParsedTorrentMeta['contentType'], string> = {
-  tv_episode: 'TV episode',
-  anime_episode: 'Anime episode',
-  movie: 'Movie',
-  daily: 'Daily',
-  unknown: 'Unknown',
-};
 
 const CONFIDENCE_VARIANT: Record<GeneratedCandidate['confidence'], 'success' | 'warning' | 'secondary'> = {
   high: 'success',
@@ -66,6 +58,7 @@ export function SmartMatchBuilder({
   /** Called after candidates are appended so the parent can switch tabs. */
   onApplied: () => void;
 }) {
+  const { t } = useTranslation('rss');
   const toast = useToast();
   const [torrentName, setTorrentName] = useState('');
   const [analysis, setAnalysis] = useState<SmartAnalyzeResult | null>(null);
@@ -82,7 +75,7 @@ export function SmartMatchBuilder({
   const analyze = async () => {
     const name = torrentName.trim();
     if (!name) {
-      toast.error('Nothing to analyze', 'Paste a torrent release name first.');
+      toast.error(t('smart.toast.nothingToAnalyze'), t('smart.toast.nothingToAnalyzeBody'));
       return;
     }
     setAnalyzing(true);
@@ -93,7 +86,7 @@ export function SmartMatchBuilder({
       setCandidates(res.recommendedCandidates.map((c) => ({ ...c, included: true })));
       setUserEdited(false);
     } catch (err) {
-      toast.error('Could not analyze', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('smart.toast.analyzeFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setAnalyzing(false);
     }
@@ -112,7 +105,7 @@ export function SmartMatchBuilder({
   const runTest = async () => {
     const name = torrentName.trim();
     if (!name) {
-      toast.error('Nothing to test', 'Paste a torrent release name first.');
+      toast.error(t('smart.toast.nothingToTest'), t('smart.toast.nothingToTestBody'));
       return;
     }
     const sampleItems = sampleText
@@ -127,7 +120,7 @@ export function SmartMatchBuilder({
       });
       setTestResult(res);
     } catch (err) {
-      toast.error('Test failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('smart.toast.testFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setTesting(false);
     }
@@ -137,7 +130,7 @@ export function SmartMatchBuilder({
     if (!analysis) return;
     const included = candidates.filter((c) => c.included);
     if (included.length === 0) {
-      toast.error('No candidates selected', 'Include at least one candidate to save.');
+      toast.error(t('smart.toast.noCandidatesSelected'), t('smart.toast.noCandidatesSelectedBody'));
       return;
     }
     const recommendedCandidates: GeneratedCandidate[] = included.map((c) => ({
@@ -160,12 +153,12 @@ export function SmartMatchBuilder({
         userEdited,
       });
       toast.success(
-        'Candidates added',
-        `Appended ${recommendedCandidates.length} candidate${recommendedCandidates.length === 1 ? '' : 's'} to the rule.`,
+        t('smart.toast.candidatesAdded'),
+        t('smart.toast.candidatesAddedBody', { count: recommendedCandidates.length }),
       );
       onApplied();
     } catch (err) {
-      toast.error('Could not save candidates', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('smart.toast.saveFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setSaving(false);
     }
@@ -178,14 +171,12 @@ export function SmartMatchBuilder({
           <div className="flex items-start gap-2 rounded-md bg-info/10 px-3 py-2 text-xs text-info">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              Smart Build analyzes a release name and proposes ranked match candidates. Saving{' '}
-              <strong>appends</strong> them to this rule — it never replaces existing candidates, and
-              you can edit everything before saving.
+              {t('smart.infoBefore')} <strong>{t('smart.infoBold')}</strong> {t('smart.infoAfter')}
             </span>
           </div>
 
           <div>
-            <Label htmlFor="smart-name">Paste torrent release name</Label>
+            <Label htmlFor="smart-name">{t('smart.pasteLabel')}</Label>
             <div className="mt-1 flex gap-2">
               <Input
                 id="smart-name"
@@ -198,7 +189,7 @@ export function SmartMatchBuilder({
                 className="font-mono"
               />
               <Button onClick={analyze} loading={analyzing} className="shrink-0">
-                <Sparkles className="h-4 w-4" /> Analyze
+                <Sparkles className="h-4 w-4" /> {t('smart.analyze')}
               </Button>
             </div>
           </div>
@@ -217,7 +208,7 @@ export function SmartMatchBuilder({
           {/* Test */}
           <Card>
             <CardContent className="space-y-3 p-4">
-              <Label htmlFor="smart-samples">Sample titles to test against (optional, one per line)</Label>
+              <Label htmlFor="smart-samples">{t('smart.sampleLabel')}</Label>
               <Textarea
                 id="smart-samples"
                 value={sampleText}
@@ -227,10 +218,10 @@ export function SmartMatchBuilder({
               />
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">
-                  Tests the generated candidates against the release name and any sample titles.
+                  {t('smart.sampleHint')}
                 </p>
                 <Button variant="secondary" onClick={runTest} loading={testing} className="shrink-0">
-                  <ListChecks className="h-4 w-4" /> Test candidates
+                  <ListChecks className="h-4 w-4" /> {t('smart.testCandidates')}
                 </Button>
               </div>
             </CardContent>
@@ -244,7 +235,7 @@ export function SmartMatchBuilder({
               loading={saving}
               disabled={candidates.filter((c) => c.included).length === 0}
             >
-              <Save className="h-4 w-4" /> Save to rule
+              <Save className="h-4 w-4" /> {t('smart.saveToRule')}
             </Button>
           </div>
         </>
@@ -254,25 +245,29 @@ export function SmartMatchBuilder({
 }
 
 function MetadataPreview({ analysis }: { analysis: SmartAnalyzeResult }) {
+  const { t } = useTranslation('rss');
   const meta = analysis.parsedMetadata;
   const score = analysis.confidenceScore;
 
   const rows: { label: string; value: string }[] = [];
-  if (meta.title) rows.push({ label: 'Title', value: meta.title });
-  rows.push({ label: 'Content type', value: CONTENT_TYPE_LABELS[meta.contentType] });
+  if (meta.title) rows.push({ label: t('smart.metadata.row.title'), value: meta.title });
+  rows.push({
+    label: t('smart.metadata.row.contentType'),
+    value: t(`smart.contentType.${meta.contentType}` as 'smart.contentType.movie'),
+  });
   if (meta.season != null || meta.episode != null) {
     const s = meta.season != null ? `S${String(meta.season).padStart(2, '0')}` : '';
     const e = meta.episode != null ? `E${String(meta.episode).padStart(2, '0')}` : '';
-    rows.push({ label: 'Season / Episode', value: `${s}${e}` || '—' });
+    rows.push({ label: t('smart.metadata.row.seasonEpisode'), value: `${s}${e}` || '—' });
   }
   if (meta.absoluteEpisode != null)
-    rows.push({ label: 'Absolute episode', value: String(meta.absoluteEpisode) });
-  if (meta.airDate) rows.push({ label: 'Air date', value: meta.airDate });
-  if (meta.year != null) rows.push({ label: 'Year', value: String(meta.year) });
-  if (meta.resolution) rows.push({ label: 'Resolution', value: meta.resolution });
-  if (meta.source) rows.push({ label: 'Source', value: meta.source });
-  if (meta.codec) rows.push({ label: 'Codec', value: meta.codec });
-  if (meta.releaseGroup) rows.push({ label: 'Release group', value: meta.releaseGroup });
+    rows.push({ label: t('smart.metadata.row.absoluteEpisode'), value: String(meta.absoluteEpisode) });
+  if (meta.airDate) rows.push({ label: t('smart.metadata.row.airDate'), value: meta.airDate });
+  if (meta.year != null) rows.push({ label: t('smart.metadata.row.year'), value: String(meta.year) });
+  if (meta.resolution) rows.push({ label: t('smart.metadata.row.resolution'), value: meta.resolution });
+  if (meta.source) rows.push({ label: t('smart.metadata.row.source'), value: meta.source });
+  if (meta.codec) rows.push({ label: t('smart.metadata.row.codec'), value: meta.codec });
+  if (meta.releaseGroup) rows.push({ label: t('smart.metadata.row.releaseGroup'), value: meta.releaseGroup });
 
   return (
     <Card>
@@ -280,10 +275,10 @@ function MetadataPreview({ analysis }: { analysis: SmartAnalyzeResult }) {
         {/* Confidence */}
         <div>
           <div className="flex items-end justify-between">
-            <p className="text-sm font-semibold">Confidence</p>
+            <p className="text-sm font-semibold">{t('smart.metadata.confidence')}</p>
             <span className={cn('text-2xl font-bold tabular-nums', scoreTone(score))}>
               {Math.round(score)}
-              <span className="text-base text-muted-foreground">/100</span>
+              <span className="text-base text-muted-foreground">{t('smart.metadata.outOf')}</span>
             </span>
           </div>
           <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/[0.06]">
@@ -296,7 +291,7 @@ function MetadataPreview({ analysis }: { analysis: SmartAnalyzeResult }) {
 
         {/* Extracted metadata */}
         <div>
-          <p className="mb-2 text-sm font-semibold">Extracted metadata</p>
+          <p className="mb-2 text-sm font-semibold">{t('smart.metadata.extracted')}</p>
           <dl className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
             {rows.map((r) => (
               <div key={r.label} className="flex items-baseline justify-between gap-3 text-sm">
@@ -323,8 +318,8 @@ function MetadataPreview({ analysis }: { analysis: SmartAnalyzeResult }) {
               {meta.languages.map((l) => (
                 <Chip key={`lang-${l}`}>{l}</Chip>
               ))}
-              {meta.repack && <Chip tone="success">repack</Chip>}
-              {meta.proper && <Chip tone="success">proper</Chip>}
+              {meta.repack && <Chip tone="success">{t('smart.metadata.repack')}</Chip>}
+              {meta.proper && <Chip tone="success">{t('smart.metadata.proper')}</Chip>}
             </div>
           )}
         </div>
@@ -332,7 +327,7 @@ function MetadataPreview({ analysis }: { analysis: SmartAnalyzeResult }) {
         {/* Explanations */}
         {analysis.explanations.length > 0 && (
           <div>
-            <p className="mb-1.5 text-sm font-semibold">Why</p>
+            <p className="mb-1.5 text-sm font-semibold">{t('smart.metadata.why')}</p>
             <ul className="space-y-1">
               {analysis.explanations.map((ex, i) => (
                 <li key={`${ex.field}-${i}`} className="flex items-start gap-2 text-xs">
@@ -373,19 +368,19 @@ function CandidatesEditor({
   onUpdate: (index: number, patch: Partial<EditableCandidate>) => void;
   onRemove: (index: number) => void;
 }) {
+  const { t } = useTranslation('rss');
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
         <div>
-          <p className="text-sm font-semibold">Generated candidates</p>
+          <p className="text-sm font-semibold">{t('smart.editor.title')}</p>
           <p className="text-xs text-muted-foreground">
-            Edit names and patterns, toggle which to include, or remove any before saving. They are
-            appended in this order of preference.
+            {t('smart.editor.hint')}
           </p>
         </div>
 
         {candidates.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No candidates remaining.</p>
+          <p className="text-sm text-muted-foreground">{t('smart.editor.none')}</p>
         ) : (
           candidates.map((c, i) => (
             <div
@@ -399,9 +394,9 @@ function CandidatesEditor({
                 <span className="grid h-6 w-6 place-items-center rounded-md bg-white/[0.04] text-xs font-semibold tabular-nums">
                   {i + 1}
                 </span>
-                <Badge variant="secondary">{matchTypeLabel(c.matchType as MatchType)}</Badge>
+                <Badge variant="secondary">{matchTypeLabel(t, c.matchType as MatchType)}</Badge>
                 <Badge variant={CONFIDENCE_VARIANT[c.confidence]} dot>
-                  {c.confidence}
+                  {t(`smart.confidence.${c.confidence}` as 'smart.confidence.high')}
                 </Badge>
                 <div className="ml-auto flex items-center gap-1">
                   <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
@@ -411,12 +406,12 @@ function CandidatesEditor({
                       onChange={(e) => onUpdate(i, { included: e.target.checked })}
                       className="h-3.5 w-3.5 accent-primary"
                     />
-                    include
+                    {t('smart.editor.include')}
                   </label>
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Remove candidate"
+                    aria-label={t('smart.editor.removeCandidate')}
                     onClick={() => onRemove(i)}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -426,7 +421,7 @@ function CandidatesEditor({
 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor={`smart-cand-name-${i}`}>Name</Label>
+                  <Label htmlFor={`smart-cand-name-${i}`}>{t('smart.editor.name')}</Label>
                   <Input
                     id={`smart-cand-name-${i}`}
                     value={c.name}
@@ -434,7 +429,7 @@ function CandidatesEditor({
                   />
                 </div>
                 <div>
-                  <Label htmlFor={`smart-cand-pattern-${i}`}>Pattern</Label>
+                  <Label htmlFor={`smart-cand-pattern-${i}`}>{t('smart.editor.pattern')}</Label>
                   <Input
                     id={`smart-cand-pattern-${i}`}
                     value={c.pattern}
@@ -471,19 +466,22 @@ function CandidatesEditor({
 }
 
 function TestResults({ result }: { result: SmartTestResult }) {
+  const { t } = useTranslation('rss');
   return (
     <Card>
       <CardContent className="space-y-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold">Test results</p>
+          <p className="text-sm font-semibold">{t('smart.results.title')}</p>
           <Badge variant={result.recommendation.action === 'download' ? 'success' : 'secondary'} dot>
             {result.recommendation.action === 'download'
-              ? `Recommended: ${result.recommendation.matchedCandidateName ?? 'download'}`
-              : 'Recommended: no action'}
+              ? t('smart.results.recommendedDownload', {
+                  name: result.recommendation.matchedCandidateName ?? t('smart.results.downloadFallback'),
+                })
+              : t('smart.results.recommendedNoAction')}
           </Badge>
         </div>
         {result.results.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No titles were evaluated.</p>
+          <p className="text-sm text-muted-foreground">{t('smart.results.none')}</p>
         ) : (
           result.results.map((r, i) => <PreferenceRow key={`${r.title}-${i}`} item={r} />)
         )}

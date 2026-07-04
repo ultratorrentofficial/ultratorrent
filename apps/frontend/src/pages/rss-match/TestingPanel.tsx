@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Download, FlaskConical, History, ListChecks, PlayCircle } from 'lucide-react';
 import {
   ApiError,
@@ -33,6 +34,7 @@ export function TestingPanel({
   ruleId: string;
   candidates: RssRuleMatchCandidate[];
 }) {
+  const { t } = useTranslation('rss');
   const toast = useToast();
   const [titlesText, setTitlesText] = useState('');
   const [candidateId, setCandidateId] = useState(candidates[0]?.id ?? '');
@@ -64,15 +66,15 @@ export function TestingPanel({
       if (res.historyCount === 0) {
         clearResults();
         toast.info(
-          'No feed history yet',
-          'Enter a torrent name below to test the matching settings.',
+          t('testing.toast.noHistoryTitle'),
+          t('testing.toast.noHistoryBody'),
         );
         return;
       }
       clearResults();
       setHistoryResults(res.results);
     } catch (err) {
-      toast.error('Test failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('testing.toast.testFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setRunning(null);
     }
@@ -84,49 +86,49 @@ export function TestingPanel({
     try {
       await api.rss.downloadHistoryItem(historyId);
       setGrabbed((g) => ({ ...g, [historyId]: true }));
-      toast.success('Download started', title);
+      toast.success(t('testing.toast.downloadStarted'), title);
     } catch (err) {
-      toast.error('Download failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('testing.toast.downloadFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setDownloadingId(null);
     }
   };
 
   const runCandidate = async () => {
-    const t = titles();
-    if (t.length === 0) {
-      toast.error('No titles', 'Enter at least one title to test.');
+    const titleList = titles();
+    if (titleList.length === 0) {
+      toast.error(t('testing.toast.noTitles'), t('testing.toast.noTitlesBody'));
       return;
     }
     if (!candidateId) {
-      toast.error('No candidate selected');
+      toast.error(t('testing.toast.noCandidateSelected'));
       return;
     }
     setRunning('candidate');
     try {
-      const res = await api.rss.testMatch(ruleId, { candidateId, titles: t });
+      const res = await api.rss.testMatch(ruleId, { candidateId, titles: titleList });
       clearResults();
       setMatchResults(res.results);
     } catch (err) {
-      toast.error('Test failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('testing.toast.testFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setRunning(null);
     }
   };
 
   const runPreference = async () => {
-    const t = titles();
-    if (t.length === 0) {
-      toast.error('No titles', 'Enter at least one title to test.');
+    const titleList = titles();
+    if (titleList.length === 0) {
+      toast.error(t('testing.toast.noTitles'), t('testing.toast.noTitlesBody'));
       return;
     }
     setRunning('preference');
     try {
-      const res = await api.rss.testPreferenceList(ruleId, { titles: t });
+      const res = await api.rss.testPreferenceList(ruleId, { titles: titleList });
       clearResults();
       setPrefResults(res.results);
     } catch (err) {
-      toast.error('Test failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('testing.toast.testFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setRunning(null);
     }
@@ -140,22 +142,21 @@ export function TestingPanel({
         <CardContent className="space-y-4 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-semibold">Test against feed history</p>
+              <p className="text-sm font-semibold">{t('testing.historyTitle')}</p>
               <p className="text-xs text-muted-foreground">
-                Run the preference list against items this feed has delivered.
-                Matches can be downloaded straight from the results below.
+                {t('testing.historyDescription')}
               </p>
             </div>
             <Button onClick={runHistory} loading={running === 'history'}>
-              <History className="h-4 w-4" /> Test against history
+              <History className="h-4 w-4" /> {t('testing.testAgainstHistory')}
             </Button>
           </div>
 
           <div className="border-t border-border/60 pt-4">
             <div className="mb-1.5 flex items-center justify-between">
-              <Label htmlFor="test-titles">Or test a torrent name (one per line)</Label>
+              <Label htmlFor="test-titles">{t('testing.orTestLabel')}</Label>
               <Button variant="ghost" size="sm" onClick={() => setTitlesText(SAMPLE)}>
-                Insert sample
+                {t('testing.insertSample')}
               </Button>
             </div>
             <Textarea
@@ -169,7 +170,7 @@ export function TestingPanel({
 
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[220px] flex-1">
-              <Label htmlFor="test-candidate">Candidate to test</Label>
+              <Label htmlFor="test-candidate">{t('testing.candidateLabel')}</Label>
               <Select
                 id="test-candidate"
                 value={candidateId}
@@ -187,14 +188,14 @@ export function TestingPanel({
               loading={running === 'candidate'}
               disabled={candidates.length === 0}
             >
-              <PlayCircle className="h-4 w-4" /> Test selected candidate
+              <PlayCircle className="h-4 w-4" /> {t('testing.testSelectedCandidate')}
             </Button>
             <Button
               variant="secondary"
               onClick={runPreference}
               loading={running === 'preference'}
             >
-              <ListChecks className="h-4 w-4" /> Test preference list
+              <ListChecks className="h-4 w-4" /> {t('testing.testPreferenceList')}
             </Button>
           </div>
         </CardContent>
@@ -215,8 +216,8 @@ export function TestingPanel({
           <CardContent>
             <EmptyState
               icon={<FlaskConical className="h-6 w-6" />}
-              title="No results yet"
-              description="Test the preference list against this feed's history, or paste a torrent name to check it."
+              title={t('testing.emptyTitle')}
+              description={t('testing.emptyDescription')}
             />
           </CardContent>
         </Card>
@@ -226,6 +227,7 @@ export function TestingPanel({
 }
 
 function CandidateResults({ results }: { results: TestMatchResultItem[] }) {
+  const { t } = useTranslation('rss');
   // Matches first, then the rest (stable — original order preserved within each).
   const sorted = [...results].sort(
     (a, b) => (a.result === 'matched' ? 0 : 1) - (b.result === 'matched' ? 0 : 1),
@@ -233,7 +235,7 @@ function CandidateResults({ results }: { results: TestMatchResultItem[] }) {
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
-        <p className="text-sm font-semibold">Candidate test results</p>
+        <p className="text-sm font-semibold">{t('testing.candidateResultsTitle')}</p>
         {sorted.map((r, i) => (
           <div key={`${r.title}-${i}`} className="rounded-md border border-border/60 p-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -250,11 +252,12 @@ function CandidateResults({ results }: { results: TestMatchResultItem[] }) {
 }
 
 function PreferenceResults({ results }: { results: PreferenceListResultItem[] }) {
+  const { t } = useTranslation('rss');
   const sorted = sortMatchesFirst(results);
   return (
     <Card>
       <CardContent className="space-y-4 p-4">
-        <p className="text-sm font-semibold">Preference list results</p>
+        <p className="text-sm font-semibold">{t('testing.preferenceResultsTitle')}</p>
         {sorted.map((r, i) => (
           <PreferenceRow key={`${r.title}-${i}`} item={r} />
         ))}
@@ -281,15 +284,16 @@ function HistoryResults({
   grabbed: Record<string, boolean>;
   onDownload: (historyId: string, title: string) => void;
 }) {
+  const { t } = useTranslation('rss');
   const matches = results.filter((r) => r.action === 'download').length;
   const sorted = sortMatchesFirst(results);
   return (
     <Card>
       <CardContent className="space-y-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold">Feed history results</p>
+          <p className="text-sm font-semibold">{t('testing.historyResultsTitle')}</p>
           <Badge variant={matches > 0 ? 'success' : 'secondary'} dot>
-            {matches} of {results.length} match
+            {t('testing.matchesBadge', { matches, total: results.length })}
           </Badge>
         </div>
         {sorted.map((r, i) => (
@@ -323,6 +327,7 @@ export function PreferenceRow({
   item: PreferenceListResultItem;
   download?: DownloadControl;
 }) {
+  const { t } = useTranslation('rss');
   const matchedIndex = item.candidates.findIndex((c) => c.result === 'matched');
   const skipped = item.candidates
     .map((c, i) => ({ c, i }))
@@ -332,14 +337,14 @@ export function PreferenceRow({
   // The action line means different things in the two modes: a manual title
   // test is a prediction ("would download"); a history row is actionable.
   const actionText = !isMatch
-    ? 'No action — does not match'
+    ? t('testing.action.noMatch')
     : download
       ? download.downloaded
-        ? 'Downloaded'
+        ? t('testing.action.downloaded')
         : download.hasMagnet
-          ? 'Matches — click Download to grab it'
-          : 'Matches — no magnet available to grab'
-      : 'Matches — would download on the next poll';
+          ? t('testing.action.clickToGrab')
+          : t('testing.action.noMagnet')
+      : t('testing.action.wouldDownload');
 
   return (
     <div className="rounded-md border border-border/60 p-3">
@@ -347,11 +352,11 @@ export function PreferenceRow({
         <p className="min-w-0 break-all font-mono text-xs text-foreground/80">{item.title}</p>
         <div className="flex shrink-0 items-center gap-2">
           <Badge variant={isMatch ? 'success' : 'secondary'} dot>
-            {isMatch ? 'Match' : 'No match'}
+            {isMatch ? t('testing.match') : t('testing.noMatch')}
           </Badge>
           {download && isMatch && (
             download.downloaded ? (
-              <Badge variant="success" dot>Downloaded</Badge>
+              <Badge variant="success" dot>{t('testing.downloaded')}</Badge>
             ) : download.hasMagnet ? (
               <Button
                 size="sm"
@@ -360,7 +365,7 @@ export function PreferenceRow({
                 loading={download.loading}
                 onClick={download.onDownload}
               >
-                <Download className="h-4 w-4" /> Download
+                <Download className="h-4 w-4" /> {t('testing.download')}
               </Button>
             ) : null
           )}
@@ -379,7 +384,7 @@ export function PreferenceRow({
               )}
             >
               <div className="flex flex-wrap items-center gap-x-2">
-                <span className="font-medium">Candidate {i + 1}:</span>
+                <span className="font-medium">{t('testing.candidateN', { n: i + 1 })}</span>
                 <span
                   className={cn(
                     'font-semibold',
@@ -389,7 +394,7 @@ export function PreferenceRow({
                     c.result === 'skipped' && 'text-muted-foreground',
                   )}
                 >
-                  {resultLabel(c.result)}
+                  {resultLabel(t, c.result)}
                 </span>
                 {c.reason && <span className="text-muted-foreground">— {c.reason}</span>}
               </div>
@@ -404,9 +409,11 @@ export function PreferenceRow({
         </p>
         {matchedIndex >= 0 && skipped.length > 0 && (
           <p className="text-xs text-muted-foreground">
-            Candidate{skipped.length === 1 ? '' : 's'}{' '}
-            {skipped.map(({ i }) => i + 1).join(' and ')} skipped because candidate{' '}
-            {matchedIndex + 1} matched.
+            {t('testing.skippedNote', {
+              count: skipped.length,
+              list: skipped.map(({ i }) => i + 1).join(` ${t('testing.and')} `),
+              matched: matchedIndex + 1,
+            })}
           </p>
         )}
       </div>

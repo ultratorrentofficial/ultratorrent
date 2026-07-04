@@ -5,6 +5,10 @@ import type auth from './locales/en-US/auth.json';
 import type shell from './locales/en-US/shell.json';
 import type media from './locales/en-US/media.json';
 import type imdb from './locales/en-US/imdb.json';
+import type rss from './locales/en-US/rss.json';
+import type torrents from './locales/en-US/torrents.json';
+import type files from './locales/en-US/files.json';
+import type automation from './locales/en-US/automation.json';
 
 // Type the default namespace + resource shape so `t()` keys are checked against
 // the en-US bundles (the canonical shape). Both languages share this shape.
@@ -18,6 +22,10 @@ declare module 'i18next' {
       shell: typeof shell;
       media: typeof media;
       imdb: typeof imdb;
+      rss: typeof rss;
+      torrents: typeof torrents;
+      files: typeof files;
+      automation: typeof automation;
     };
   }
 }

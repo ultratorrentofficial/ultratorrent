@@ -1,0 +1,95 @@
+{
+  "page": {
+    "title": "Automation",
+    "subtitle": "Rules run when their trigger fires and every condition matches.",
+    "newRule": "New rule",
+    "loading": "Loading rules…",
+    "loadError": "Could not load automation rules.",
+    "emptyTitle": "No automation rules",
+    "emptyDescription": "Create a rule to react to completed downloads — move data, notify, clean up, and more.",
+    "createFirst": "Create your first rule"
+  },
+  "trigger": {
+    "torrent_completed": "When a download completes",
+    "ratio_reached": "When the share ratio is reached"
+  },
+  "actionType": {
+    "notify": "Send notification",
+    "move": "Move data",
+    "pause": "Pause torrent",
+    "stop": "Stop torrent",
+    "delete": "Remove torrent",
+    "delete_with_data": "Remove torrent + data",
+    "webhook": "Call webhook",
+    "rename_for_media": "Rename for media server"
+  },
+  "card": {
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "priority": "priority {{priority}}",
+    "alwaysNoConditions": "always (no conditions)",
+    "toggleRule": "Toggle rule",
+    "logs": "Logs",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "confirmDelete": "Delete rule \"{{name}}\"?",
+  "toast": {
+    "updateError": "Could not update rule",
+    "deleted": "Rule deleted",
+    "deleteError": "Could not delete rule",
+    "updated": "Rule updated",
+    "created": "Rule created",
+    "saveError": "Could not save rule"
+  },
+  "editor": {
+    "editTitle": "Edit rule",
+    "newTitle": "New automation rule",
+    "description": "When the trigger fires, the rule runs its actions if every condition matches.",
+    "name": "Name",
+    "namePlaceholder": "e.g. Seed then notify",
+    "priority": "Priority",
+    "descriptionLabel": "Description (optional)",
+    "trigger": "Trigger",
+    "ratioHint": "Add a <code>ratio ≥ N</code> condition (e.g. <code>ratio gte 2</code>). Fires once when a torrent first reaches it — pair with a <em>stop</em> or <em>delete</em> action to cap seeding.",
+    "enabled": "Enabled",
+    "conditionsTitle": "Conditions",
+    "conditionsHint": "(all must match)",
+    "add": "Add",
+    "noConditions": "No conditions — the rule always runs on its trigger.",
+    "valuePlaceholder": "value",
+    "removeCondition": "Remove condition",
+    "actionsTitle": "Actions",
+    "actionsHint": "(run in order)",
+    "removeAction": "Remove action",
+    "cancel": "Cancel",
+    "saveChanges": "Save changes",
+    "createRule": "Create rule"
+  },
+  "params": {
+    "destinationPlaceholder": "/downloads/done",
+    "destinationAria": "Destination folder",
+    "destinationPicker": "Choose a destination folder",
+    "messagePlaceholder": "message",
+    "webhookPlaceholder": "https://…",
+    "libraryPathPlaceholder": "/media/tv",
+    "libraryPathAria": "Library path",
+    "libraryPathPicker": "Choose a library folder",
+    "templatePlaceholder": "template (optional)",
+    "noParameters": "No parameters"
+  },
+  "logs": {
+    "title": "Execution log — {{name}}",
+    "description": "Every time this rule ran.",
+    "loading": "Loading logs…",
+    "loadError": "Could not load logs.",
+    "emptyTitle": "No runs yet",
+    "emptyDescription": "Entries appear here once the rule fires.",
+    "close": "Close"
+  },
+  "logStatus": {
+    "success": "success",
+    "failed": "failed",
+    "skipped": "skipped"
+  }
+}

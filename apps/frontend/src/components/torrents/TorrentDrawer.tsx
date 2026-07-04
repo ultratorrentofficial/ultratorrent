@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   FileText,
@@ -44,6 +45,7 @@ export interface TorrentDrawerProps {
 type Tab = 'overview' | 'files' | 'peers' | 'trackers';
 
 export function TorrentDrawer({ torrent, onClose }: TorrentDrawerProps) {
+  const { t } = useTranslation('torrents');
   const [tab, setTab] = useState<Tab>('overview');
   const open = torrent != null;
 
@@ -56,7 +58,7 @@ export function TorrentDrawer({ torrent, onClose }: TorrentDrawerProps) {
               <TorrentStateBadge state={torrent.state} />
               {torrent.isPrivate && (
                 <Badge variant="secondary" className="gap-1">
-                  <Lock className="h-3 w-3" /> Private
+                  <Lock className="h-3 w-3" /> {t('drawer.private')}
                 </Badge>
               )}
             </div>
@@ -72,16 +74,16 @@ export function TorrentDrawer({ torrent, onClose }: TorrentDrawerProps) {
               <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
                 <TabsList className="w-full">
                   <TabsTrigger value="overview" className="flex-1">
-                    Overview
+                    {t('drawer.tab.overview')}
                   </TabsTrigger>
                   <TabsTrigger value="files" className="flex-1">
-                    Files
+                    {t('drawer.tab.files')}
                   </TabsTrigger>
                   <TabsTrigger value="peers" className="flex-1">
-                    Peers
+                    {t('drawer.tab.peers')}
                   </TabsTrigger>
                   <TabsTrigger value="trackers" className="flex-1">
-                    Trackers
+                    {t('drawer.tab.trackers')}
                   </TabsTrigger>
                 </TabsList>
 
@@ -113,6 +115,7 @@ export function TorrentDrawer({ torrent, onClose }: TorrentDrawerProps) {
 }
 
 function OverviewTab({ torrent }: { torrent: NormalizedTorrent }) {
+  const { t } = useTranslation('torrents');
   // The matching automation rule (if this torrent was auto-downloaded) is
   // resolved by info-hash from the RSS match evaluations — it isn't part of the
   // live engine data, so fetch it separately.
@@ -125,36 +128,36 @@ function OverviewTab({ torrent }: { torrent: NormalizedTorrent }) {
     <div className="space-y-5">
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Progress</span>
+          <span className="text-muted-foreground">{t('drawer.overview.progress')}</span>
           <span className="font-semibold tabular-nums">{formatPercent(torrent.progress)}</span>
         </div>
         <Progress value={torrent.progress} className="h-2.5" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="Download" value={formatSpeed(torrent.downloadRate)} tone="info" />
-        <Stat label="Upload" value={formatSpeed(torrent.uploadRate)} tone="success" />
-        <Stat label="Downloaded" value={formatBytes(torrent.downloaded)} />
-        <Stat label="Uploaded" value={formatBytes(torrent.uploaded)} />
-        <Stat label="Size" value={formatBytes(torrent.size)} />
-        <Stat label="Ratio" value={formatRatio(torrent.ratio)} />
+        <Stat label={t('drawer.overview.download')} value={formatSpeed(torrent.downloadRate)} tone="info" />
+        <Stat label={t('drawer.overview.upload')} value={formatSpeed(torrent.uploadRate)} tone="success" />
+        <Stat label={t('drawer.overview.downloaded')} value={formatBytes(torrent.downloaded)} />
+        <Stat label={t('drawer.overview.uploaded')} value={formatBytes(torrent.uploaded)} />
+        <Stat label={t('drawer.overview.size')} value={formatBytes(torrent.size)} />
+        <Stat label={t('drawer.overview.ratio')} value={formatRatio(torrent.ratio)} />
         <Stat
-          label="ETA"
+          label={t('drawer.overview.eta')}
           value={torrent.state === TorrentState.DOWNLOADING ? formatEta(torrent.eta) : '—'}
         />
-        <Stat label="Seeds / Peers" value={`${torrent.seedsConnected} / ${torrent.peersConnected}`} />
+        <Stat label={t('drawer.overview.seedsPeers')} value={`${torrent.seedsConnected} / ${torrent.peersConnected}`} />
       </div>
 
       <div className="space-y-2.5 rounded-lg border border-border/60 bg-white/[0.02] p-4 text-sm">
-        <Detail icon={<FolderOpen className="h-4 w-4" />} label="Save path" value={torrent.savePath} mono />
-        {torrent.label && <Detail icon={<FileText className="h-4 w-4" />} label="Label" value={torrent.label} />}
-        <Detail label="Added" value={formatDateTime(torrent.addedAt)} />
-        <Detail label="Completed" value={formatDateTime(torrent.completedAt)} />
-        <Detail label="Engine" value={torrent.engineId} mono />
+        <Detail icon={<FolderOpen className="h-4 w-4" />} label={t('drawer.detail.savePath')} value={torrent.savePath} mono />
+        {torrent.label && <Detail icon={<FileText className="h-4 w-4" />} label={t('drawer.detail.label')} value={torrent.label} />}
+        <Detail label={t('drawer.detail.added')} value={formatDateTime(torrent.addedAt)} />
+        <Detail label={t('drawer.detail.completed')} value={formatDateTime(torrent.completedAt)} />
+        <Detail label={t('drawer.detail.engine')} value={torrent.engineId} mono />
         {matchedRule && (
           <Detail
             icon={<Wand2 className="h-4 w-4" />}
-            label="Matched rule"
+            label={t('drawer.detail.matchedRule')}
             value={matchedRule.ruleName}
           />
         )}
@@ -170,6 +173,7 @@ function OverviewTab({ torrent }: { torrent: NormalizedTorrent }) {
 }
 
 function FilesTab({ hash, active }: { hash: string; active: boolean }) {
+  const { t } = useTranslation('torrents');
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['torrent', hash, 'files'],
     queryFn: () => api.torrents.files(hash),
@@ -177,14 +181,14 @@ function FilesTab({ hash, active }: { hash: string; active: boolean }) {
   });
 
   if (isLoading) return <CenteredSpinner />;
-  if (isError) return <ErrorState message="Could not load files." onRetry={() => refetch()} />;
+  if (isError) return <ErrorState message={t('drawer.files.loadError')} onRetry={() => refetch()} />;
   if (!data || data.length === 0)
-    return <EmptyState icon={<FileText className="h-6 w-6" />} title="No files" />;
+    return <EmptyState icon={<FileText className="h-6 w-6" />} title={t('drawer.files.empty')} />;
 
   const priorityLabel: Record<FilePriority, string> = {
-    [FilePriority.SKIP]: 'Skip',
-    [FilePriority.NORMAL]: 'Normal',
-    [FilePriority.HIGH]: 'High',
+    [FilePriority.SKIP]: t('drawer.priority.skip'),
+    [FilePriority.NORMAL]: t('drawer.priority.normal'),
+    [FilePriority.HIGH]: t('drawer.priority.high'),
   };
   const priorityVariant: Record<FilePriority, 'secondary' | 'default' | 'warning'> = {
     [FilePriority.SKIP]: 'secondary',
@@ -215,6 +219,7 @@ function FilesTab({ hash, active }: { hash: string; active: boolean }) {
 }
 
 function PeersTab({ hash, active }: { hash: string; active: boolean }) {
+  const { t } = useTranslation('torrents');
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['torrent', hash, 'peers'],
     queryFn: () => api.torrents.peers(hash),
@@ -223,20 +228,20 @@ function PeersTab({ hash, active }: { hash: string; active: boolean }) {
   });
 
   if (isLoading) return <CenteredSpinner />;
-  if (isError) return <ErrorState message="Could not load peers." onRetry={() => refetch()} />;
+  if (isError) return <ErrorState message={t('drawer.peers.loadError')} onRetry={() => refetch()} />;
   if (!data || data.length === 0)
-    return <EmptyState icon={<Users className="h-6 w-6" />} title="No connected peers" />;
+    return <EmptyState icon={<Users className="h-6 w-6" />} title={t('drawer.peers.empty')} />;
 
   return (
     <div className="overflow-x-auto scrollbar-thin">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
-            <th className="pb-2 pr-3 font-semibold">Address</th>
-            <th className="pb-2 pr-3 font-semibold">Client</th>
-            <th className="pb-2 pr-3 text-right font-semibold">Done</th>
-            <th className="pb-2 pr-3 text-right font-semibold">Down</th>
-            <th className="pb-2 text-right font-semibold">Up</th>
+            <th className="pb-2 pr-3 font-semibold">{t('drawer.peers.address')}</th>
+            <th className="pb-2 pr-3 font-semibold">{t('drawer.peers.client')}</th>
+            <th className="pb-2 pr-3 text-right font-semibold">{t('drawer.peers.done')}</th>
+            <th className="pb-2 pr-3 text-right font-semibold">{t('drawer.peers.down')}</th>
+            <th className="pb-2 text-right font-semibold">{t('drawer.peers.up')}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
@@ -261,6 +266,7 @@ function PeersTab({ hash, active }: { hash: string; active: boolean }) {
 }
 
 function TrackersTab({ hash, active }: { hash: string; active: boolean }) {
+  const { t } = useTranslation('torrents');
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['torrent', hash, 'trackers'],
     queryFn: () => api.torrents.trackers(hash),
@@ -268,9 +274,9 @@ function TrackersTab({ hash, active }: { hash: string; active: boolean }) {
   });
 
   if (isLoading) return <CenteredSpinner />;
-  if (isError) return <ErrorState message="Could not load trackers." onRetry={() => refetch()} />;
+  if (isError) return <ErrorState message={t('drawer.trackers.loadError')} onRetry={() => refetch()} />;
   if (!data || data.length === 0)
-    return <EmptyState icon={<Globe className="h-6 w-6" />} title="No trackers" />;
+    return <EmptyState icon={<Globe className="h-6 w-6" />} title={t('drawer.trackers.empty')} />;
 
   const statusVariant: Record<NormalizedTracker['status'], 'success' | 'destructive' | 'secondary' | 'info'> = {
     working: 'success',
@@ -290,14 +296,14 @@ function TrackersTab({ hash, active }: { hash: string; active: boolean }) {
                 <p className="mt-1 text-xs text-muted-foreground">{tracker.message}</p>
               )}
             </div>
-            <Badge variant={statusVariant[tracker.status]} className="shrink-0 capitalize">
-              {tracker.status}
+            <Badge variant={statusVariant[tracker.status]} className="shrink-0">
+              {t(`drawer.trackers.status.${tracker.status}` as 'drawer.trackers.status.working')}
             </Badge>
           </div>
           <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
-            <span>Tier {tracker.tier}</span>
-            <span>Seeders: {tracker.seeders ?? '—'}</span>
-            <span>Leechers: {tracker.leechers ?? '—'}</span>
+            <span>{t('drawer.trackers.tier', { tier: tracker.tier })}</span>
+            <span>{t('drawer.trackers.seeders', { value: tracker.seeders ?? '—' })}</span>
+            <span>{t('drawer.trackers.leechers', { value: tracker.leechers ?? '—' })}</span>
           </div>
         </li>
       ))}

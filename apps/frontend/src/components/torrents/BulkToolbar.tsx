@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Pause, Play, RefreshCw, Square, Trash2, X } from 'lucide-react';
 import { PERMISSIONS } from '@ultratorrent/shared';
@@ -7,7 +8,6 @@ import { useAuth } from '@/auth/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { DeleteTorrentDialog } from './DeleteTorrentDialog';
-import { pluralize } from '@/lib/format';
 
 export interface BulkToolbarProps {
   selected: string[];
@@ -15,6 +15,7 @@ export interface BulkToolbarProps {
 }
 
 export function BulkToolbar({ selected, onClear }: BulkToolbarProps) {
+  const { t } = useTranslation('torrents');
   const { hasPermission } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -27,10 +28,10 @@ export function BulkToolbar({ selected, onClear }: BulkToolbarProps) {
     setPending(action);
     try {
       await api.torrents.bulk(selected, action);
-      toast.success(`${label} applied`, pluralize(selected.length, 'torrent'));
+      toast.success(t('bulk.appliedTitle', { action: label }), t('count', { count: selected.length }));
       await queryClient.invalidateQueries({ queryKey: ['torrents'] });
     } catch (err) {
-      toast.error(`Bulk ${label.toLowerCase()} failed`, err instanceof ApiError ? err.message : undefined);
+      toast.error(t('bulk.failedTitle', { action: label.toLowerCase() }), err instanceof ApiError ? err.message : undefined);
     } finally {
       setPending(null);
     }
@@ -43,11 +44,11 @@ export function BulkToolbar({ selected, onClear }: BulkToolbarProps) {
           type="button"
           onClick={onClear}
           className="rounded-md p-1 text-muted-foreground hover:bg-white/5 hover:text-foreground"
-          aria-label="Clear selection"
+          aria-label={t('bulk.clearAria')}
         >
           <X className="h-4 w-4" />
         </button>
-        <span className="text-sm font-medium">{pluralize(selected.length, 'selected')}</span>
+        <span className="text-sm font-medium">{t('bulk.selected', { count: selected.length })}</span>
 
         <div className="mx-1 h-5 w-px bg-border" />
 
@@ -56,36 +57,36 @@ export function BulkToolbar({ selected, onClear }: BulkToolbarProps) {
           size="sm"
           loading={pending === 'resume'}
           disabled={!hasPermission(PERMISSIONS.TORRENTS_RESUME)}
-          onClick={() => run('resume', 'Resume')}
+          onClick={() => run('resume', t('bulk.action.resume'))}
         >
-          <Play className="h-4 w-4" /> Resume
+          <Play className="h-4 w-4" /> {t('bulk.resume')}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           loading={pending === 'pause'}
           disabled={!hasPermission(PERMISSIONS.TORRENTS_PAUSE)}
-          onClick={() => run('pause', 'Pause')}
+          onClick={() => run('pause', t('bulk.action.pause'))}
         >
-          <Pause className="h-4 w-4" /> Pause
+          <Pause className="h-4 w-4" /> {t('bulk.pause')}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           loading={pending === 'stop'}
           disabled={!hasPermission(PERMISSIONS.TORRENTS_STOP)}
-          onClick={() => run('stop', 'Stop')}
+          onClick={() => run('stop', t('bulk.action.stop'))}
         >
-          <Square className="h-4 w-4" /> Stop
+          <Square className="h-4 w-4" /> {t('bulk.stop')}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           loading={pending === 'recheck'}
           disabled={!hasPermission(PERMISSIONS.TORRENTS_RECHECK)}
-          onClick={() => run('recheck', 'Recheck')}
+          onClick={() => run('recheck', t('bulk.action.recheck'))}
         >
-          <RefreshCw className="h-4 w-4" /> Recheck
+          <RefreshCw className="h-4 w-4" /> {t('bulk.recheck')}
         </Button>
 
         <Button
@@ -95,7 +96,7 @@ export function BulkToolbar({ selected, onClear }: BulkToolbarProps) {
           disabled={!hasPermission(PERMISSIONS.TORRENTS_DELETE)}
           onClick={() => setConfirmDelete(true)}
         >
-          <Trash2 className="h-4 w-4" /> Delete
+          <Trash2 className="h-4 w-4" /> {t('bulk.delete')}
         </Button>
       </div>
 
@@ -106,12 +107,12 @@ export function BulkToolbar({ selected, onClear }: BulkToolbarProps) {
         onConfirm={async (withData) => {
           try {
             await api.torrents.bulk(selected, withData ? 'removeData' : 'remove');
-            toast.success('Torrents deleted', pluralize(selected.length, 'torrent'));
+            toast.success(t('bulk.deletedTitle'), t('count', { count: selected.length }));
             await queryClient.invalidateQueries({ queryKey: ['torrents'] });
             setConfirmDelete(false);
             onClear();
           } catch (err) {
-            toast.error('Bulk delete failed', err instanceof ApiError ? err.message : undefined);
+            toast.error(t('bulk.deleteFailed'), err instanceof ApiError ? err.message : undefined);
           }
         }}
       />

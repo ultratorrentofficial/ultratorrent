@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ListFilter, Plus } from 'lucide-react';
@@ -34,6 +35,7 @@ function reorderIds(ids: string[], fromId: string, toId: string): string[] {
 
 export function RssRulePage() {
   const { ruleId = '' } = useParams<{ ruleId: string }>();
+  const { t } = useTranslation('rss');
   const navigate = useNavigate();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -80,7 +82,7 @@ export function RssRulePage() {
       queryClient.setQueryData(candidatesKey, updated);
     } catch (err) {
       if (previous) queryClient.setQueryData(candidatesKey, previous);
-      toast.error('Could not reorder candidates', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('rule.toast.reorderFailed'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
@@ -114,18 +116,18 @@ export function RssRulePage() {
       await api.rss.updateCandidate(ruleId, candidate.id, { enabled });
     } catch (err) {
       if (previous) queryClient.setQueryData(candidatesKey, previous);
-      toast.error('Could not update candidate', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('rule.toast.updateFailed'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
   const deleteCandidate = async (candidate: RssRuleMatchCandidate) => {
-    if (!confirm(`Delete candidate "${candidate.name}"?`)) return;
+    if (!confirm(t('rule.toast.confirmDelete', { name: candidate.name }))) return;
     try {
       await api.rss.deleteCandidate(ruleId, candidate.id);
-      toast.success('Candidate deleted', candidate.name);
+      toast.success(t('rule.toast.deleted'), candidate.name);
       invalidate();
     } catch (err) {
-      toast.error('Could not delete candidate', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('rule.toast.deleteFailed'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
@@ -134,17 +136,17 @@ export function RssRulePage() {
     try {
       const { pattern } = await api.rss.convertToRegex(candidate.pattern);
       await api.rss.updateCandidate(ruleId, candidate.id, { matchType: 'regex', pattern });
-      toast.success('Converted to regex', pattern);
+      toast.success(t('rule.toast.convertedToRegex'), pattern);
       invalidate();
     } catch (err) {
-      toast.error('Could not convert pattern', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('rule.toast.convertFailed'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
   const addFallback = (candidate: RssRuleMatchCandidate) => {
     const source: RssRuleMatchCandidate = {
       ...candidate,
-      name: `${candidate.name} (fallback)`,
+      name: t('rule.fallbackSuffix', { name: candidate.name }),
       pattern: candidate.pattern,
     };
     setEditor({ mode: 'create', source });
@@ -154,47 +156,47 @@ export function RssRulePage() {
     <div className="space-y-6">
       <div>
         <Button variant="ghost" size="sm" onClick={() => navigate('/rss')} className="mb-2 -ml-2">
-          <ArrowLeft className="h-4 w-4" /> Back to RSS
+          <ArrowLeft className="h-4 w-4" /> {t('rule.back')}
         </Button>
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
-              Match preferences{rule ? ` — ${rule.name}` : ''}
+              {rule ? t('rule.titleWithName', { name: rule.name }) : t('rule.title')}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {feed ? `Feed: ${feed.name}. ` : ''}
-              Candidates are evaluated top-to-bottom; the first match wins.
+              {feed ? t('rule.subtitleFeedPrefix', { name: feed.name }) : ''}
+              {t('rule.subtitle')}
             </p>
           </div>
           <Button onClick={() => setEditor({ mode: 'create', source: null })}>
-            <Plus className="h-4 w-4" /> Add candidate
+            <Plus className="h-4 w-4" /> {t('rule.addCandidate')}
           </Button>
         </div>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="preferences">Preferences</TabsTrigger>
-          <TabsTrigger value="smart">Smart Build</TabsTrigger>
-          <TabsTrigger value="test">Test</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="preferences">{t('rule.tab.preferences')}</TabsTrigger>
+          <TabsTrigger value="smart">{t('rule.tab.smartBuild')}</TabsTrigger>
+          <TabsTrigger value="test">{t('rule.tab.test')}</TabsTrigger>
+          <TabsTrigger value="history">{t('rule.tab.history')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="preferences" className="mt-4">
           {isLoading ? (
-            <CenteredSpinner label="Loading candidates…" />
+            <CenteredSpinner label={t('rule.loading')} />
           ) : isError ? (
-            <ErrorState message="Could not load match candidates." onRetry={() => refetch()} />
+            <ErrorState message={t('rule.loadError')} onRetry={() => refetch()} />
           ) : !candidates || candidates.length === 0 ? (
             <Card>
               <CardContent>
                 <EmptyState
                   icon={<ListFilter className="h-6 w-6" />}
-                  title="No match candidates"
-                  description="Add candidates to control which releases this rule downloads and in what order of preference."
+                  title={t('rule.empty.title')}
+                  description={t('rule.empty.description')}
                   action={
                     <Button onClick={() => setEditor({ mode: 'create', source: null })}>
-                      <Plus className="h-4 w-4" /> Add your first candidate
+                      <Plus className="h-4 w-4" /> {t('rule.empty.action')}
                     </Button>
                   }
                 />

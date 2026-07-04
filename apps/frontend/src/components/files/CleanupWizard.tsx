@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Sparkles, TriangleAlert } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
@@ -10,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Drawer, DrawerBody, DrawerFooter, DrawerHeader } from '@/components/ui/drawer';
 import { CenteredSpinner, EmptyState } from '@/components/ui/feedback';
-import { formatBytes, pluralize } from '@/lib/format';
+import { formatBytes } from '@/lib/format';
 
 /**
  * Cleanup Wizard: scans the current folder, groups candidates by category with
@@ -26,6 +27,7 @@ export function CleanupWizard({
   path: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('files');
   const toast = useToast();
   const qc = useQueryClient();
   const [preview, setPreview] = useState<CleanupPreview | null>(null);
@@ -53,7 +55,7 @@ export function CleanupWizard({
       // Pre-select everything by default.
       setSelected(new Set(result.categories.flatMap((c) => c.items.map((i) => i.path))));
     } catch (err) {
-      toast.error('Scan failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('cleanup.scanFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setScanning(false);
     }
@@ -89,13 +91,15 @@ export function CleanupWizard({
     try {
       const res = await api.files.cleanupExecute(path, [...selected], permanent);
       toast.success(
-        `Cleaned ${pluralize(res.removed, 'item')}`,
-        `${formatBytes(res.bytesReclaimed)} reclaimed${res.failed ? ` · ${res.failed} failed` : ''}`,
+        t('cleanup.cleanedToast', { count: res.removed }),
+        res.failed
+          ? t('cleanup.reclaimedWithFailed', { size: formatBytes(res.bytesReclaimed), count: res.failed })
+          : t('cleanup.reclaimed', { size: formatBytes(res.bytesReclaimed) }),
       );
       await qc.invalidateQueries({ queryKey: ['files'] });
       onClose();
     } catch (err) {
-      toast.error('Cleanup failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('cleanup.cleanupFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setExecuting(false);
       setConfirming(false);
@@ -103,12 +107,12 @@ export function CleanupWizard({
   };
 
   return (
-    <Drawer open={open} onClose={onClose} title="Cleanup Wizard" className="max-w-2xl">
+    <Drawer open={open} onClose={onClose} title={t('cleanup.title')} className="max-w-2xl">
       <DrawerHeader onClose={onClose}>
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
           <div>
-            <h2 className="text-lg font-semibold">Cleanup Wizard</h2>
+            <h2 className="text-lg font-semibold">{t('cleanup.title')}</h2>
             <p className="truncate text-xs text-muted-foreground">{path}</p>
           </div>
         </div>
@@ -116,23 +120,23 @@ export function CleanupWizard({
 
       <DrawerBody className="space-y-4">
         {scanning ? (
-          <CenteredSpinner label="Scanning for cleanup candidates…" />
+          <CenteredSpinner label={t('cleanup.scanning')} />
         ) : !preview || preview.totalItems === 0 ? (
           <EmptyState
             icon={<Sparkles className="h-6 w-6" />}
-            title="Nothing to clean up"
-            description="No sample files, empty folders, orphans, or junk were found here."
+            title={t('cleanup.emptyTitle')}
+            description={t('cleanup.emptyDescription')}
           />
         ) : (
           <>
             <div className="flex items-center justify-between rounded-lg border border-border/60 bg-white/[0.02] px-4 py-3">
               <div className="text-sm">
-                <p className="font-medium">{pluralize(preview.totalItems, 'candidate')} found</p>
-                <p className="text-xs text-muted-foreground">Up to {formatBytes(preview.estimatedSpaceSaved)} recoverable</p>
+                <p className="font-medium">{t('cleanup.candidatesFound', { count: preview.totalItems })}</p>
+                <p className="text-xs text-muted-foreground">{t('cleanup.recoverable', { size: formatBytes(preview.estimatedSpaceSaved) })}</p>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setSelected(new Set(allPaths))}>Select all</Button>
-                <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>None</Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelected(new Set(allPaths))}>{t('cleanup.selectAll')}</Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>{t('cleanup.none')}</Button>
               </div>
             </div>
 
@@ -147,7 +151,7 @@ export function CleanupWizard({
                         checked={selectedInGroup === groupPaths.length}
                         indeterminate={selectedInGroup > 0 && selectedInGroup < groupPaths.length}
                         onCheckedChange={(on) => toggleCategory(groupPaths, on)}
-                        aria-label={`Select ${group.label}`}
+                        aria-label={t('cleanup.selectGroup', { label: group.label })}
                       />
                       <span className="text-sm font-medium">{group.label}</span>
                       <Badge variant="secondary">{group.itemCount}</Badge>
@@ -157,7 +161,7 @@ export function CleanupWizard({
                   <ul className="divide-y divide-border/40">
                     {group.items.map((item) => (
                       <li key={item.path} className="flex items-center gap-3 px-3 py-2">
-                        <Checkbox checked={selected.has(item.path)} onCheckedChange={() => toggle(item.path)} aria-label={`Select ${item.name}`} />
+                        <Checkbox checked={selected.has(item.path)} onCheckedChange={() => toggle(item.path)} aria-label={t('cleanup.selectItem', { name: item.name })} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm">{item.name}</p>
                           <p className="truncate text-xs text-muted-foreground">{item.reason}</p>
@@ -178,23 +182,25 @@ export function CleanupWizard({
           <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
             <span className="flex items-center gap-2 text-sm">
               <TriangleAlert className="h-4 w-4 text-destructive" />
-              {permanent ? 'Permanently delete' : 'Move to Trash'} {pluralize(selected.size, 'item')}?
+              {permanent
+                ? t('cleanup.confirmPermanent', { count: selected.size })
+                : t('cleanup.confirmTrash', { count: selected.size })}
             </span>
             <div className="flex gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={executing}>Cancel</Button>
-              <Button size="sm" variant="destructive" onClick={execute} loading={executing}>Confirm</Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={executing}>{t('cleanup.cancel')}</Button>
+              <Button size="sm" variant="destructive" onClick={execute} loading={executing}>{t('cleanup.confirm')}</Button>
             </div>
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3">
             <label className="flex items-center gap-2 text-sm">
-              <Switch checked={permanent} onCheckedChange={setPermanent} aria-label="Delete permanently" />
-              Delete permanently
+              <Switch checked={permanent} onCheckedChange={setPermanent} aria-label={t('cleanup.deletePermanentlyAria')} />
+              {t('cleanup.deletePermanently')}
             </label>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">{pluralize(selected.size, 'selected')} · {formatBytes(selectedSize)}</span>
+              <span className="text-xs text-muted-foreground">{t('cleanup.selectedSummary', { count: selected.size, size: formatBytes(selectedSize) })}</span>
               <Button variant="destructive" disabled={selected.size === 0} onClick={() => setConfirming(true)}>
-                Clean up
+                {t('cleanup.cleanUp')}
               </Button>
             </div>
           </div>

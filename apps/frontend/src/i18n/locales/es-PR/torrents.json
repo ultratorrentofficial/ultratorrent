@@ -1,0 +1,207 @@
+{
+  "page": {
+    "title": "Torrents",
+    "total": "{{total}} en total",
+    "subtitle": "Administra tus transferencias"
+  },
+  "addTorrent": "Agregar torrent",
+  "search": {
+    "placeholder": "Buscar torrents…",
+    "aria": "Buscar torrents"
+  },
+  "filter": {
+    "all": "Todos",
+    "downloading": "Descargando",
+    "seeding": "Compartiendo",
+    "completed": "Completados",
+    "paused": "Pausados",
+    "error": "Con errores"
+  },
+  "state": {
+    "downloading": "Descargando",
+    "seeding": "Compartiendo",
+    "completed": "Completado",
+    "paused": "Pausado",
+    "stopped": "Detenido",
+    "queued": "En cola",
+    "checking": "Verificando",
+    "allocating": "Asignando",
+    "error": "Error",
+    "unknown": "Desconocido"
+  },
+  "table": {
+    "selectAll": "Seleccionar todo en la página",
+    "selectRow": "Seleccionar {{name}}"
+  },
+  "col": {
+    "status": "Estado",
+    "name": "Nombre",
+    "progress": "Progreso",
+    "size": "Tamaño",
+    "down": "Bajada",
+    "up": "Subida",
+    "ratio": "Ratio",
+    "eta": "Tiempo restante",
+    "seeds": "Semillas",
+    "peers": "Pares",
+    "dl": "Descargado",
+    "ul": "Subido",
+    "added": "Agregado"
+  },
+  "noEngine": {
+    "title": "No hay motor de torrents configurado",
+    "description": "UltraTorrent necesita un motor de torrents (por ejemplo, rTorrent) antes de poder listar torrents.",
+    "action": "Configurar un motor"
+  },
+  "loadError": "No se pudieron cargar los torrents.",
+  "empty": {
+    "title": "No se encontraron torrents",
+    "searchDescription": "Intenta ajustar tu búsqueda o filtros.",
+    "description": "Agrega tu primer torrent para comenzar."
+  },
+  "pagination": {
+    "page": "Página {{page}} de {{total}}",
+    "updating": "actualizando…",
+    "prev": "Anterior",
+    "next": "Siguiente"
+  },
+  "count_one": "{{count}} torrent",
+  "count_other": "{{count}} torrents",
+  "add": {
+    "title": "Agregar torrent",
+    "description": "Agrega mediante enlace magnet, URL remota o un archivo .torrent.",
+    "tab": {
+      "magnet": "Magnet",
+      "url": "URL",
+      "file": "Archivo"
+    },
+    "magnetLabel": "Enlace magnet",
+    "magnetPlaceholder": "magnet:?xt=urn:btih:…",
+    "urlLabel": "URL del torrent",
+    "urlPlaceholder": "https://example.com/file.torrent",
+    "removeFile": "Quitar archivo",
+    "dropHint": "Suelta un archivo .torrent aquí",
+    "browseHint": "o haz clic para explorar",
+    "category": "Categoría",
+    "categoryPlaceholder": "películas",
+    "tags": "Etiquetas",
+    "tagsPlaceholder": "hd, 1080p",
+    "savePath": "Ruta de guardado",
+    "savePathPlaceholder": "/downloads",
+    "savePathAria": "Ruta de guardado",
+    "savePathPicker": "Elige una carpeta de guardado",
+    "startPaused": "Agregar en estado pausado",
+    "startPausedAria": "Iniciar pausado",
+    "cancel": "Cancelar",
+    "submit": "Agregar torrent",
+    "successTitle": "Torrent agregado",
+    "successBody": "Aparecerá en tu lista en breve.",
+    "errorTitle": "No se pudo agregar el torrent",
+    "errorFallback": "No se pudo agregar el torrent."
+  },
+  "bulk": {
+    "clearAria": "Limpiar selección",
+    "selected_one": "{{count}} seleccionado",
+    "selected_other": "{{count}} seleccionados",
+    "action": {
+      "resume": "Reanudar",
+      "pause": "Pausar",
+      "stop": "Detener",
+      "recheck": "Reverificar"
+    },
+    "resume": "Reanudar",
+    "pause": "Pausar",
+    "stop": "Detener",
+    "recheck": "Reverificar",
+    "delete": "Eliminar",
+    "appliedTitle": "{{action}} aplicado",
+    "failedTitle": "Falló la acción en masa: {{action}}",
+    "deletedTitle": "Torrents eliminados",
+    "deleteFailed": "Falló la eliminación en masa"
+  },
+  "delete": {
+    "title": "Eliminar torrent",
+    "heading_one": "¿Eliminar torrent?",
+    "heading_other": "¿Eliminar {{count}} torrents?",
+    "body": "Estás a punto de eliminar {{target}}. Esta acción no se puede deshacer.",
+    "targetThis": "este torrent",
+    "targetNamed": "“{{name}}”",
+    "targetMany": "{{count}} torrents",
+    "alsoData": "Eliminar también los datos descargados",
+    "alsoDataHint": "Elimina permanentemente los archivos del disco.",
+    "dataAria": "Eliminar datos",
+    "cancel": "Cancelar",
+    "confirm": "Eliminar",
+    "confirmData": "Eliminar + datos"
+  },
+  "actions": {
+    "resume": "Reanudar",
+    "pause": "Pausar",
+    "stop": "Detener",
+    "recheck": "Reverificar",
+    "delete": "Eliminar",
+    "requested": "{{action}} solicitado",
+    "failed": "No se pudo {{action}}",
+    "deletedTitle": "Torrent eliminado",
+    "deleteFailed": "No se pudo eliminar"
+  },
+  "drawer": {
+    "private": "Privado",
+    "tab": {
+      "overview": "Resumen",
+      "files": "Archivos",
+      "peers": "Pares",
+      "trackers": "Rastreadores"
+    },
+    "overview": {
+      "progress": "Progreso",
+      "download": "Descarga",
+      "upload": "Subida",
+      "downloaded": "Descargado",
+      "uploaded": "Subido",
+      "size": "Tamaño",
+      "ratio": "Ratio",
+      "eta": "Tiempo restante",
+      "seedsPeers": "Semillas / Pares"
+    },
+    "detail": {
+      "savePath": "Ruta de guardado",
+      "label": "Etiqueta",
+      "added": "Agregado",
+      "completed": "Completado",
+      "engine": "Motor",
+      "matchedRule": "Regla coincidente"
+    },
+    "files": {
+      "loadError": "No se pudieron cargar los archivos.",
+      "empty": "Sin archivos"
+    },
+    "priority": {
+      "skip": "Omitir",
+      "normal": "Normal",
+      "high": "Alta"
+    },
+    "peers": {
+      "loadError": "No se pudieron cargar los pares.",
+      "empty": "No hay pares conectados",
+      "address": "Dirección",
+      "client": "Cliente",
+      "done": "Hecho",
+      "down": "Bajada",
+      "up": "Subida"
+    },
+    "trackers": {
+      "loadError": "No se pudieron cargar los rastreadores.",
+      "empty": "Sin rastreadores",
+      "tier": "Nivel {{tier}}",
+      "seeders": "Semillas: {{value}}",
+      "leechers": "Pares incompletos: {{value}}",
+      "status": {
+        "working": "Funcionando",
+        "enabled": "Habilitado",
+        "disabled": "Deshabilitado",
+        "error": "Error"
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, FolderInput, FolderPlus, Info, Pencil, TriangleAlert } from 'lucide-react';
 import { ApiError, api, type FileNode } from '@/lib/api';
@@ -14,10 +15,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CenteredSpinner } from '@/components/ui/feedback';
-import { formatBytes, formatDateTime, pluralize } from '@/lib/format';
+import { formatBytes, formatDateTime } from '@/lib/format';
 
 /** Shared mutation runner: toast + invalidate + close. */
 function useFileMutation() {
+  const { t } = useTranslation('files');
   const toast = useToast();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -29,7 +31,7 @@ function useFileMutation() {
       await qc.invalidateQueries({ queryKey: ['files'] });
       onDone?.();
     } catch (err) {
-      toast.error('Operation failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.operationFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setBusy(false);
     }
@@ -48,36 +50,37 @@ export function CreateFolderDialog({
   parentPath: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('files');
   const [name, setName] = useState('');
   const { busy, run } = useFileMutation();
   useEffect(() => { if (open) setName(''); }, [open]);
 
   const submit = () =>
-    run(() => api.files.createFolder(parentPath, name.trim()), `Created “${name.trim()}”`, onClose);
+    run(() => api.files.createFolder(parentPath, name.trim()), t('createFolder.success', { name: name.trim() }), onClose);
 
   return (
-    <Dialog open={open} onClose={onClose} title="New folder" className="max-w-md">
+    <Dialog open={open} onClose={onClose} title={t('createFolder.title')} className="max-w-md">
       <DialogHeader>
         <div className="mb-1 grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary">
           <FolderPlus className="h-5 w-5" />
         </div>
-        <DialogTitle>New folder</DialogTitle>
-        <DialogDescription>Create a folder in {parentPath}</DialogDescription>
+        <DialogTitle>{t('createFolder.title')}</DialogTitle>
+        <DialogDescription>{t('createFolder.description', { path: parentPath })}</DialogDescription>
       </DialogHeader>
       <div className="space-y-2">
-        <Label htmlFor="folder-name">Folder name</Label>
+        <Label htmlFor="folder-name">{t('createFolder.nameLabel')}</Label>
         <Input
           id="folder-name"
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && name.trim() && submit()}
-          placeholder="Season 01"
+          placeholder={t('createFolder.namePlaceholder')}
         />
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-        <Button onClick={submit} loading={busy} disabled={!name.trim()}>Create</Button>
+        <Button variant="ghost" onClick={onClose} disabled={busy}>{t('createFolder.cancel')}</Button>
+        <Button onClick={submit} loading={busy} disabled={!name.trim()}>{t('createFolder.create')}</Button>
       </DialogFooter>
     </Dialog>
   );
@@ -94,6 +97,7 @@ export function RenameDialog({
   node: FileNode | null;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('files');
   const [name, setName] = useState('');
   const [overwrite, setOverwrite] = useState(false);
   const { busy, run } = useFileMutation();
@@ -101,20 +105,20 @@ export function RenameDialog({
 
   if (!node) return null;
   const submit = () =>
-    run(() => api.files.rename(node.path, name.trim(), overwrite), `Renamed to “${name.trim()}”`, onClose);
+    run(() => api.files.rename(node.path, name.trim(), overwrite), t('rename.success', { name: name.trim() }), onClose);
 
   return (
-    <Dialog open={open} onClose={onClose} title="Rename" className="max-w-md">
+    <Dialog open={open} onClose={onClose} title={t('rename.titleBar')} className="max-w-md">
       <DialogHeader>
         <div className="mb-1 grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary">
           <Pencil className="h-5 w-5" />
         </div>
-        <DialogTitle>Rename {node.isDirectory ? 'folder' : 'file'}</DialogTitle>
-        <DialogDescription>Renaming “{node.name}”</DialogDescription>
+        <DialogTitle>{node.isDirectory ? t('rename.titleFolder') : t('rename.titleFile')}</DialogTitle>
+        <DialogDescription>{t('rename.description', { name: node.name })}</DialogDescription>
       </DialogHeader>
       <div className="space-y-3">
         <div className="space-y-2">
-          <Label htmlFor="rename-name">New name</Label>
+          <Label htmlFor="rename-name">{t('rename.nameLabel')}</Label>
           <Input
             id="rename-name"
             autoFocus
@@ -124,13 +128,13 @@ export function RenameDialog({
           />
         </div>
         <label className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
-          <span className="text-sm">Overwrite if it exists</span>
-          <Switch checked={overwrite} onCheckedChange={setOverwrite} aria-label="Overwrite" />
+          <span className="text-sm">{t('rename.overwriteLabel')}</span>
+          <Switch checked={overwrite} onCheckedChange={setOverwrite} aria-label={t('rename.overwriteAria')} />
         </label>
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-        <Button onClick={submit} loading={busy} disabled={!name.trim() || name.trim() === node.name}>Rename</Button>
+        <Button variant="ghost" onClick={onClose} disabled={busy}>{t('rename.cancel')}</Button>
+        <Button onClick={submit} loading={busy} disabled={!name.trim() || name.trim() === node.name}>{t('rename.submit')}</Button>
       </DialogFooter>
     </Dialog>
   );
@@ -153,6 +157,7 @@ export function MoveCopyDialog({
   onClose: () => void;
   onDone?: () => void;
 }) {
+  const { t } = useTranslation('files');
   const [destination, setDestination] = useState(defaultDestination);
   const [overwrite, setOverwrite] = useState(false);
   const { busy, run } = useFileMutation();
@@ -169,39 +174,41 @@ export function MoveCopyDialog({
         }
         return api.files.bulk({ operation: mode, paths, destination: dest, overwrite });
       },
-      `${mode === 'move' ? 'Moved' : 'Copied'} ${pluralize(paths.length, 'item')}`,
+      mode === 'move'
+        ? t('moveCopy.moveSuccess', { count: paths.length })
+        : t('moveCopy.copySuccess', { count: paths.length }),
       () => { onClose(); onDone?.(); },
     );
 
   const Icon = mode === 'move' ? FolderInput : Copy;
   return (
-    <Dialog open={open} onClose={onClose} title={mode === 'move' ? 'Move' : 'Copy'} className="max-w-md">
+    <Dialog open={open} onClose={onClose} title={mode === 'move' ? t('moveCopy.moveTitleBar') : t('moveCopy.copyTitleBar')} className="max-w-md">
       <DialogHeader>
         <div className="mb-1 grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary">
           <Icon className="h-5 w-5" />
         </div>
-        <DialogTitle>{mode === 'move' ? 'Move' : 'Copy'} {pluralize(paths.length, 'item')}</DialogTitle>
-        <DialogDescription>Choose a destination folder (root-relative).</DialogDescription>
+        <DialogTitle>{mode === 'move' ? t('moveCopy.moveHeading', { count: paths.length }) : t('moveCopy.copyHeading', { count: paths.length })}</DialogTitle>
+        <DialogDescription>{t('moveCopy.description')}</DialogDescription>
       </DialogHeader>
       <div className="space-y-3">
         <div className="space-y-2">
-          <Label htmlFor="destination">Destination folder</Label>
+          <Label htmlFor="destination">{t('moveCopy.destinationLabel')}</Label>
           <Input
             id="destination"
             autoFocus
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
-            placeholder="/movies"
+            placeholder={t('moveCopy.destinationPlaceholder')}
           />
         </div>
         <label className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
-          <span className="text-sm">Overwrite existing</span>
-          <Switch checked={overwrite} onCheckedChange={setOverwrite} aria-label="Overwrite" />
+          <span className="text-sm">{t('moveCopy.overwriteLabel')}</span>
+          <Switch checked={overwrite} onCheckedChange={setOverwrite} aria-label={t('moveCopy.overwriteAria')} />
         </label>
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-        <Button onClick={submit} loading={busy}>{mode === 'move' ? 'Move' : 'Copy'}</Button>
+        <Button variant="ghost" onClick={onClose} disabled={busy}>{t('moveCopy.cancel')}</Button>
+        <Button onClick={submit} loading={busy}>{mode === 'move' ? t('moveCopy.moveAction') : t('moveCopy.copyAction')}</Button>
       </DialogFooter>
     </Dialog>
   );
@@ -222,6 +229,7 @@ export function DeleteFileDialog({
   onClose: () => void;
   onDone?: () => void;
 }) {
+  const { t } = useTranslation('files');
   const [permanent, setPermanent] = useState(false);
   const { busy, run } = useFileMutation();
   useEffect(() => { if (open) setPermanent(false); }, [open]);
@@ -232,35 +240,40 @@ export function DeleteFileDialog({
         if (paths.length === 1) return api.files.remove(paths[0], permanent);
         return api.files.bulk({ operation: 'delete', paths, permanent });
       },
-      permanent ? `Permanently deleted ${pluralize(paths.length, 'item')}` : `Moved ${pluralize(paths.length, 'item')} to Trash`,
+      permanent
+        ? t('delete.successPermanent', { count: paths.length })
+        : t('delete.successTrash', { count: paths.length }),
       () => { onClose(); onDone?.(); },
     );
 
-  const target = paths.length === 1 ? (name ? `“${name}”` : 'this item') : `${paths.length} items`;
+  const target =
+    paths.length === 1
+      ? name
+        ? t('delete.targetNamed', { name })
+        : t('delete.targetSingle')
+      : t('delete.targetMulti', { count: paths.length });
   return (
-    <Dialog open={open} onClose={onClose} title="Delete" className="max-w-md">
+    <Dialog open={open} onClose={onClose} title={t('delete.titleBar')} className="max-w-md">
       <DialogHeader>
         <div className="mb-1 grid h-11 w-11 place-items-center rounded-xl bg-destructive/10 text-destructive">
           <TriangleAlert className="h-5 w-5" />
         </div>
-        <DialogTitle>Delete {paths.length === 1 ? 'item' : `${paths.length} items`}?</DialogTitle>
+        <DialogTitle>{t('delete.heading', { count: paths.length })}</DialogTitle>
         <DialogDescription>
-          {permanent
-            ? `${target} will be permanently removed from disk. This cannot be undone.`
-            : `${target} will be moved to Trash and can be restored later.`}
+          {permanent ? t('delete.descPermanent', { target }) : t('delete.descTrash', { target })}
         </DialogDescription>
       </DialogHeader>
       <label className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
         <div>
-          <p className="text-sm font-medium">Delete permanently</p>
-          <p className="text-xs text-muted-foreground">Skip Trash and remove from disk now.</p>
+          <p className="text-sm font-medium">{t('delete.permanentTitle')}</p>
+          <p className="text-xs text-muted-foreground">{t('delete.permanentHint')}</p>
         </div>
-        <Switch checked={permanent} onCheckedChange={setPermanent} aria-label="Permanent delete" />
+        <Switch checked={permanent} onCheckedChange={setPermanent} aria-label={t('delete.permanentAria')} />
       </label>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button variant="ghost" onClick={onClose} disabled={busy}>{t('delete.cancel')}</Button>
         <Button variant="destructive" onClick={submit} loading={busy}>
-          {permanent ? 'Delete permanently' : 'Move to Trash'}
+          {permanent ? t('delete.confirmPermanent') : t('delete.confirmTrash')}
         </Button>
       </DialogFooter>
     </Dialog>
@@ -278,6 +291,7 @@ export function PropertiesDialog({
   path: string | null;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('files');
   const { data, isLoading } = useQuery({
     queryKey: ['file-properties', path],
     queryFn: () => api.files.properties(path as string),
@@ -285,36 +299,36 @@ export function PropertiesDialog({
   });
 
   return (
-    <Dialog open={open} onClose={onClose} title="Properties" className="max-w-lg">
+    <Dialog open={open} onClose={onClose} title={t('properties.titleBar')} className="max-w-lg">
       <DialogHeader>
         <div className="mb-1 grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary">
           <Info className="h-5 w-5" />
         </div>
-        <DialogTitle>Properties</DialogTitle>
+        <DialogTitle>{t('properties.title')}</DialogTitle>
       </DialogHeader>
       {isLoading || !data ? (
-        <CenteredSpinner label="Reading…" />
+        <CenteredSpinner label={t('properties.loading')} />
       ) : (
         <dl className="grid grid-cols-[7rem_1fr] gap-x-4 gap-y-2.5 text-sm">
-          <Row label="Name" value={data.name} />
-          <Row label="Type" value={data.isDirectory ? 'Folder' : 'File'} />
-          <Row label="Path" value={data.path} mono />
-          <Row label="Full path" value={data.absolutePath} mono />
-          <Row label="Size" value={formatBytes(data.size)} />
+          <Row label={t('properties.name')} value={data.name} />
+          <Row label={t('properties.type')} value={data.isDirectory ? t('properties.folder') : t('properties.file')} />
+          <Row label={t('properties.path')} value={data.path} mono />
+          <Row label={t('properties.fullPath')} value={data.absolutePath} mono />
+          <Row label={t('properties.size')} value={formatBytes(data.size)} />
           {data.isDirectory && data.itemCount !== undefined && (
-            <Row label="Items" value={String(data.itemCount)} />
+            <Row label={t('properties.items')} value={String(data.itemCount)} />
           )}
-          {data.extension && <Row label="Extension" value={data.extension} />}
-          <Row label="Created" value={formatDateTime(data.createdAt)} />
-          <Row label="Modified" value={formatDateTime(data.modifiedAt)} />
-          {data.hash && <Row label="SHA-256" value={data.hash} mono />}
+          {data.extension && <Row label={t('properties.extension')} value={data.extension} />}
+          <Row label={t('properties.created')} value={formatDateTime(data.createdAt)} />
+          <Row label={t('properties.modified')} value={formatDateTime(data.modifiedAt)} />
+          {data.hash && <Row label={t('properties.hash')} value={data.hash} mono />}
           {data.media && (
-            <Row label="Media" value={JSON.stringify(data.media)} mono />
+            <Row label={t('properties.media')} value={JSON.stringify(data.media)} mono />
           )}
         </dl>
       )}
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose}>Close</Button>
+        <Button variant="ghost" onClick={onClose}>{t('properties.close')}</Button>
       </DialogFooter>
     </Dialog>
   );
@@ -333,6 +347,7 @@ export function PreviewDialog({
   canDownload: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('files');
   const toast = useToast();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['file-preview', node?.path],
@@ -346,22 +361,22 @@ export function PreviewDialog({
     try {
       await api.files.download(node.path);
     } catch (err) {
-      toast.error('Download failed', err instanceof ApiError ? err.message : undefined);
+      toast.error(t('toast.downloadFailed'), err instanceof ApiError ? err.message : undefined);
     }
   };
 
   if (!node) return null;
   return (
-    <Dialog open={open} onClose={onClose} title="Preview" className="max-w-3xl">
+    <Dialog open={open} onClose={onClose} title={t('preview.titleBar')} className="max-w-3xl">
       <DialogHeader>
         <DialogTitle className="truncate">{node.name}</DialogTitle>
         <DialogDescription>{formatBytes(node.size)}</DialogDescription>
       </DialogHeader>
       {isLoading ? (
-        <CenteredSpinner label="Loading preview…" />
+        <CenteredSpinner label={t('preview.loading')} />
       ) : isError ? (
         <div className="rounded-lg border border-border/60 p-4 text-sm text-muted-foreground">
-          {(error as ApiError)?.message ?? 'This file cannot be previewed.'}
+          {(error as ApiError)?.message ?? t('preview.cannotPreview')}
         </div>
       ) : (
         <pre className="max-h-[60vh] overflow-auto scrollbar-thin rounded-lg border border-border/60 bg-black/30 p-3 text-xs leading-relaxed">
@@ -369,8 +384,8 @@ export function PreviewDialog({
         </pre>
       )}
       <DialogFooter>
-        {canDownload && <Button variant="secondary" onClick={download}>Download</Button>}
-        <Button variant="ghost" onClick={onClose}>Close</Button>
+        {canDownload && <Button variant="secondary" onClick={download}>{t('preview.download')}</Button>}
+        <Button variant="ghost" onClick={onClose}>{t('preview.close')}</Button>
       </DialogFooter>
     </Dialog>
   );
