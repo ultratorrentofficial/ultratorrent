@@ -196,6 +196,8 @@
       "confidence": "Confianza",
       "actions": "Acciones"
     },
+    "viewDetails": "Ver detalles de {{title}}",
+    "confidenceShort": "{{value}}% de coincidencia",
     "reidentify": "Volver a identificar",
     "unmatch": "Desemparejar",
     "reidentifiedTitle": "Reidentificado",

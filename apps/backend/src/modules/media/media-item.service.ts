@@ -30,7 +30,19 @@ export class MediaItemService {
     return this.prisma.mediaItem.findMany({
       where,
       orderBy: [{ title: 'asc' }, { createdAt: 'asc' }],
-      include: { files: true },
+      // Rich list: the media browser renders posters + metadata per row, so
+      // eagerly load the display relations. Artwork is narrowed to the poster
+      // (selected first) to keep the payload small; the detail view loads all.
+      include: {
+        files: true,
+        metadata: true,
+        externalIds: true,
+        artwork: {
+          where: { type: 'poster' },
+          orderBy: { selected: 'desc' },
+          take: 1,
+        },
+      },
     });
   }
 

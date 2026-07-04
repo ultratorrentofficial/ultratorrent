@@ -831,6 +831,12 @@ export interface MediaItem {
   confidence: number;
   path: string;
   createdAt: string;
+  // Display relations eagerly loaded by the list endpoint (artwork is narrowed
+  // to the poster). Optional so the bare-item shape stays valid elsewhere.
+  files?: MediaFile[];
+  metadata?: MediaMetadata | null;
+  artwork?: MediaArtwork[];
+  externalIds?: MediaExternalId[];
 }
 
 export interface MediaItemQuery {
@@ -2258,6 +2264,18 @@ export const api = {
     },
     missingArtwork(id: string): Promise<MediaArtworkMissing> {
       return request<MediaArtworkMissing>(`/media/items/${id}/artwork/missing`);
+    },
+    /**
+     * Fetch a locally-stored artwork image as a Blob (bearer-authenticated, so
+     * it can't be an `<img src>` directly). Remote artwork uses its `url`.
+     */
+    async artworkImage(artworkId: string): Promise<Blob> {
+      const token = getAccessToken();
+      const res = await fetch(buildUrl(`/media/artwork/${artworkId}/image`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new ApiError(res.status, `Artwork image failed (${res.status})`);
+      return res.blob();
     },
     // --- subtitles --------------------------------------------------------
     listSubtitles(id: string): Promise<MediaSubtitle[]> {

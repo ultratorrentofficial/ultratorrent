@@ -3,7 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, stat } from 'node:fs/promises';
+import { createReadStream, type ReadStream } from 'node:fs';
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
@@ -32,6 +33,15 @@ export type ArtworkType = (typeof ARTWORK_TYPES)[number];
 
 /** Baseline types we expect a fully-decorated movie/show to have. */
 const REQUIRED_TYPES: ArtworkType[] = ['poster', 'fanart'];
+
+/** Content types for locally-stored artwork images, keyed by extension. */
+const ARTWORK_CONTENT_TYPES: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
 
 export const MAX_ARTWORK_BYTES = 10 * 1024 * 1024; // 10 MB
 
@@ -146,6 +156,32 @@ export class MediaArtworkService {
     const item = await this.prisma.mediaItem.findUnique({ where: { id: itemId } });
     if (!item) throw new NotFoundException('Item not found');
     return item;
+  }
+
+  /**
+   * Open a locally-stored artwork image (custom uploads + provider imports that
+   * were downloaded to disk) for streaming. Remote-only artwork — art that has a
+   * `url` but no `localPath` — is served directly from that URL by the client
+   * and never routed here. The path is re-asserted inside the hard roots.
+   */
+  async readImage(
+    artworkId: string,
+  ): Promise<{ stream: ReadStream; contentType: string; size: number }> {
+    const art = await this.prisma.mediaArtwork.findUnique({ where: { id: artworkId } });
+    if (!art) throw new NotFoundException('Artwork not found');
+    if (!art.localPath) {
+      throw new NotFoundException('This artwork has no locally stored image.');
+    }
+    const safe = this.filePath.assertWithinHardRoots(art.localPath);
+    const st = await stat(safe).catch(() => null);
+    if (!st || !st.isFile()) {
+      throw new NotFoundException('The artwork image file is missing.');
+    }
+    return {
+      stream: createReadStream(safe),
+      contentType: ARTWORK_CONTENT_TYPES[path.extname(safe).toLowerCase()] ?? 'application/octet-stream',
+      size: st.size,
+    };
   }
 
   /** List an item's artwork with the current selection per type. */

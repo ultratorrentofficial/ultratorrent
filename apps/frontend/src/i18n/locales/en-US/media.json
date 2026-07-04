@@ -196,6 +196,8 @@
       "confidence": "Confidence",
       "actions": "Actions"
     },
+    "viewDetails": "View details for {{title}}",
+    "confidenceShort": "{{value}}% match",
     "reidentify": "Re-identify",
     "unmatch": "Unmatch",
     "reidentifiedTitle": "Re-identified",

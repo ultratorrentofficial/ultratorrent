@@ -8,11 +8,13 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { ImdbService, ImdbMatchDto } from './imdb/imdb.service';
 import { ImdbSettingsPatch } from './imdb/imdb-settings.service';
@@ -225,6 +227,26 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   missingArtwork(@Param('id') id: string) {
     return this.artwork.detectMissing(id);
+  }
+
+  /**
+   * Stream a locally-stored artwork image (custom uploads + on-disk provider
+   * imports) so the browser can render it — filesystem paths aren't reachable
+   * from an <img> tag. Remote-only artwork is loaded directly from its url.
+   */
+  @Get('artwork/:artworkId/image')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  async artworkImage(
+    @Param('artworkId') artworkId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { stream, contentType, size } = await this.artwork.readImage(artworkId);
+    res.set({
+      'Content-Type': contentType,
+      'Content-Length': String(size),
+      'Cache-Control': 'private, max-age=86400',
+    });
+    return new StreamableFile(stream);
   }
 
   // --- subtitles ---------------------------------------------------------
