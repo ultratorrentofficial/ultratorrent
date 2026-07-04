@@ -53,6 +53,7 @@ import {
 } from '@/components/ui/dialog';
 import { Select } from '@/components/ui/select';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { MediaPoster } from '@/components/media/MediaPoster';
 import {
   ARTWORK_TYPE_VALUES,
   artworkTypeLabel,
@@ -890,18 +891,12 @@ function ArtworkTab({ itemId }: { itemId: string }) {
                         a.selected ? 'border-primary' : 'border-border/60'
                       }`}
                     >
-                      <div className="flex aspect-[2/3] items-center justify-center overflow-hidden rounded bg-white/[0.03]">
-                        {a.url || a.localPath ? (
-                          <img
-                            src={a.url ?? a.localPath ?? ''}
-                            alt={type}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                        )}
-                      </div>
+                      <MediaPoster
+                        artwork={a}
+                        alt={artworkTypeLabel(t, type)}
+                        className="aspect-[2/3] rounded"
+                        iconClassName="h-6 w-6"
+                      />
                       {a.selected ? (
                         <Badge variant="success" className="w-full justify-center">
                           {t('common.selected')}
