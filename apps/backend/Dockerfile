@@ -37,10 +37,14 @@ FROM node:22-bookworm-slim AS runtime
 # defaults to empty so it doesn't shadow the VERSION file.
 ARG ULTRATORRENT_VERSION=
 ARG GIT_SHA=
+# Optional exact `git describe` tag (.git is not in the build context, so it must
+# be passed in). Empty → backend falls back to `v<VERSION>`.
+ARG GIT_TAG=
 ENV NODE_ENV=production \
     ULTRATORRENT_EDITION=community \
     ULTRATORRENT_VERSION=${ULTRATORRENT_VERSION} \
-    GIT_SHA=${GIT_SHA}
+    GIT_SHA=${GIT_SHA} \
+    GIT_TAG=${GIT_TAG}
 WORKDIR /app
 
 # OpenSSL so Prisma detects the right query engine at runtime (else it warns and

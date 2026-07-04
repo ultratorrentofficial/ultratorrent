@@ -31,11 +31,16 @@ export class SystemService {
 
   /** Product/edition version — drives the UI version badge and ops tooling. */
   version() {
+    const version = this.config.get<string>('node.productVersion') ?? '0.10.0';
     return {
       product: 'UltraTorrent',
-      version: this.config.get<string>('node.productVersion') ?? '0.10.0',
+      version,
       edition: this.config.get<string>('edition') ?? 'community',
       apiVersion: 'v1',
+      // Exact `git describe` tag when supplied at build time (GIT_TAG); otherwise
+      // fall back to the tag implied by VERSION (`v<version>`) — every commit is
+      // tagged vX.Y.Z, so this matches the release.
+      gitTag: process.env.GIT_TAG || `v${version}`,
       gitSha: process.env.GIT_SHA ?? null,
       buildTime: process.env.BUILD_TIME ?? null,
       node: process.version,

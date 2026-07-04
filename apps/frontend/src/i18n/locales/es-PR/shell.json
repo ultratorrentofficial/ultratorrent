@@ -37,6 +37,7 @@
     "triggerLabelWithVersion": "Acerca de UltraTorrent — {{version}}",
     "tagline": "Plataforma moderna de gestión de torrents.",
     "version": "Versión",
+    "tag": "Etiqueta",
     "edition": "Edición",
     "api": "API",
     "build": "Compilación",

@@ -44,6 +44,10 @@ export function AboutDialog({ open, onClose }: { open: boolean; onClose: () => v
             isLoading ? '…' : isError ? t('about.unavailable') : `v${data?.version ?? '—'}`
           }
         />
+        <Row
+          label={t('about.tag')}
+          value={isLoading ? '…' : isError ? t('about.unavailable') : data?.gitTag ?? '—'}
+        />
         <Row label={t('about.edition')} value={isLoading ? '…' : edition} />
         <Row label={t('about.api')} value={data?.apiVersion ?? '—'} />
         <Row

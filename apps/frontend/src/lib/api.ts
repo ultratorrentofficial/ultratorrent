@@ -448,6 +448,7 @@ export interface SystemVersion {
   version: string;
   edition: string;
   apiVersion: string;
+  gitTag: string | null;
   gitSha: string | null;
   buildTime: string | null;
   node: string;

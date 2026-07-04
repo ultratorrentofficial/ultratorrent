@@ -9,6 +9,8 @@ describe('SystemService.version', () => {
   it('reports product, version, and edition from config', () => {
     const v = svc({ 'node.productVersion': '1.2.3', edition: 'community' }).version();
     expect(v).toMatchObject({ product: 'UltraTorrent', version: '1.2.3', edition: 'community', apiVersion: 'v1' });
+    // gitTag falls back to `v<version>` when GIT_TAG isn't set at build.
+    expect(v.gitTag).toBe('v1.2.3');
     expect(v.node).toBe(process.version);
   });
 

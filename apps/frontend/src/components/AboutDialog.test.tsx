@@ -12,6 +12,7 @@ vi.mock('@/lib/api', () => ({
         version: '9.9.9',
         edition: 'community',
         apiVersion: 'v1',
+        gitTag: 'v9.9.9-2-gabcdef1',
         gitSha: 'abcdef1234567890',
         buildTime: null,
         node: 'v22.0.0',
@@ -37,6 +38,8 @@ describe('AboutDialog', () => {
     expect(await screen.findByText('v9.9.9')).toBeInTheDocument();
     expect(screen.getByText('UltraTorrent')).toBeInTheDocument();
     expect(screen.getByText('Community')).toBeInTheDocument();
+    // The exact git-describe tag is surfaced alongside the version.
+    expect(screen.getByText('v9.9.9-2-gabcdef1')).toBeInTheDocument();
     // Short commit sha is surfaced.
     expect(screen.getByText('abcdef1234')).toBeInTheDocument();
   });

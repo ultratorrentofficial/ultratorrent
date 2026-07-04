@@ -25,7 +25,13 @@ services:
 
   backend:
     image: ultratorrent/community:backend
-    build: { context: ., dockerfile: apps/backend/Dockerfile }
+    # Pass GIT_TAG/GIT_SHA to stamp the exact git tag/sha; empty → backend uses `v<VERSION>`.
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        GIT_TAG: ${GIT_TAG:-}
+        GIT_SHA: ${GIT_SHA:-}
     restart: unless-stopped
     depends_on:
       postgres: { condition: service_healthy }
