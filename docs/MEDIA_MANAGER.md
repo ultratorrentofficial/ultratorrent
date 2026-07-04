@@ -22,6 +22,7 @@ post-download workflow — all behind the `media_manager.*` permission block.
 - [Library setup](#library-setup)
 - [Media identification & matching](#media-identification--matching)
 - [Metadata providers](#metadata-providers)
+- [IMDb integration](#imdb-integration)
 - [Artwork](#artwork)
 - [Subtitles](#subtitles)
 - [Rename templates](#rename-templates)
@@ -155,6 +156,164 @@ item) includes overview, release date, runtime, genres/studios/cast/crew,
 rating, certification, and the originating `providerName`. External IDs
 (`MediaExternalId`: `tmdb`, `tvdb`, `imdb`, `omdb`, `anilist`) are recorded per
 item.
+
+---
+
+## IMDb integration
+
+IMDb ships as an additional, compliant `MediaMetadataProvider` (provider key
+`imdb`, `ImdbMetadataProvider`). It enriches items with IMDb identifiers,
+titles, alternate titles (AKAs), crew/principals, episode data, and IMDb
+ratings — sourced **only** from data you provide or license.
+
+> **No-scraping policy.** UltraTorrent does not scrape IMDb web pages. IMDb
+> support uses user-provided IMDb datasets or licensed IMDb API access.
+
+### Supported data sources
+
+- **User-provided IMDb datasets** — the official IMDb non-commercial
+  `.tsv.gz` files, imported into local Prisma tables and served entirely
+  offline afterwards.
+- **Optional licensed IMDb REST API** — an official/licensed IMDb API endpoint
+  (base URL + key) that you are entitled to use. This is never imdb.com HTML;
+  it is a REST API you configure yourself.
+
+Neither source is required to run UltraTorrent. With no IMDb configuration the
+provider stays **disabled** and the rest of Media Manager is unaffected.
+
+### Provider modes
+
+Set the mode on **Media > Settings > IMDb** (`media.imdb.mode`):
+
+| Mode | Behaviour |
+|------|-----------|
+| `disabled` | IMDb provider off (default). No searches, matches, or enrichment. |
+| `dataset` | Serve from imported IMDb dataset tables only (fully offline). |
+| `official_api` | Query the configured licensed IMDb REST API only. |
+| `hybrid` | Prefer the imported dataset; fall back to the licensed API. |
+
+The provider is **disabled/dataset-only without API credentials** — an API key
+is required for `official_api`/`hybrid` and is only ever entered in Settings.
+
+### Dataset import setup
+
+1. **Obtain the datasets.** Download IMDb's non-commercial datasets from
+   IMDb's official datasets page (`https://datasets.imdbws.com/`), subject to
+   IMDb's terms. Seven `.tsv.gz` files are required:
+   - `title.basics.tsv.gz`
+   - `title.akas.tsv.gz`
+   - `title.crew.tsv.gz`
+   - `title.episode.tsv.gz`
+   - `title.principals.tsv.gz`
+   - `title.ratings.tsv.gz`
+   - `name.basics.tsv.gz`
+2. **Place them under the Default Root Path.** Put all seven files in a folder
+   that lives **under one of your `FILE_MANAGER_ROOTS`** (the Default Root
+   Path). Set that folder as the **dataset path** in Settings. The path is
+   canonicalised and confined by `FilePathService` — a path outside the roots is
+   rejected.
+3. **Validate.** Click **Validate** (or `POST
+   /api/media/providers/imdb/dataset/validate`). The server checks each file
+   exists, is under the root, and is a readable gzip/TSV with the expected
+   header. Progress streams over `imdb.dataset.validate.*` WebSocket events.
+4. **Import.** Click **Import** (or `POST
+   /api/media/providers/imdb/dataset/import`). A detached, resumable job
+   streams the gzipped TSV row-by-row into the IMDb tables, emitting live
+   progress over `imdb.dataset.import.progress` and completing with
+   `imdb.dataset.import.completed`. The endpoint returns the import record
+   immediately; the job continues in the background.
+
+An optional **import schedule** (`media.imdb.importSchedule`, a cron-style
+string) can be stored to document a periodic refresh cadence; it is **off by
+default** (unset) and there is no scheduled-jobs seed to enable.
+
+### Official API setup
+
+On **Media > Settings > IMDb**, choose `official_api` or `hybrid`, then set the
+**API base URL** (`media.imdb.apiBaseUrl`) and **API key**
+(`media.imdb.apiKey`). Use **Test** (`POST /api/media/providers/imdb/test`) to
+verify connectivity. The key is **AES-GCM encrypted at rest**, redacted in every
+API response, and never written to logs.
+
+### Matching behaviour
+
+- **Search** by title with optional `year`, `type` (movie/series/episode), and
+  `season`/`episode`; alternate titles (AKAs) are considered
+  (`GET /api/media/providers/imdb/search`, rate-limited to 30/min).
+- **IMDb id lookup** returns a single title
+  (`GET /api/media/providers/imdb/title/:imdbId`).
+- **Manual match** attaches an IMDb id to a media item
+  (`POST /api/media/items/:id/match/imdb`, body `{ imdbId, confidence? }`) with
+  a confidence score; the IMDb id is stored as a `MediaExternalId` (`imdb`).
+- **Rating as a rating source.** IMDb ratings are surfaced as an IMDb-sourced
+  rating; IMDb is not treated as the authoritative title/artwork provider.
+- **Cross-provider enrichment.** Once an IMDb id is known, it can enrich from
+  **separate licensed APIs** — TMDB `/find` and OMDb (each their own key) —
+  emitting `imdb.enrichment.completed`. These enrichment lookups reuse the
+  existing `media.tmdbApiKey`/`TMDB_API_KEY` and `media.omdbApiKey`/
+  `OMDB_API_KEY` values (Settings first, environment fallback).
+
+Matches and enrichment finish with the `imdb.match.completed` /
+`imdb.enrichment.completed` WebSocket events.
+
+### Settings reference (`media.imdb`)
+
+| Key | Meaning | Default |
+|-----|---------|---------|
+| `mode` | `disabled` / `dataset` / `official_api` / `hybrid` | `disabled` |
+| `apiBaseUrl` | Licensed IMDb REST API base URL | `null` |
+| `apiKey` | Licensed IMDb API key (AES-GCM encrypted, redacted) | `null` |
+| `datasetPath` | Folder of `.tsv.gz` files, **under the Default Root Path** | `null` |
+| `importSchedule` | Optional cron-style refresh cadence (off) | `null` |
+| `preferredRegion` | Preferred AKA region | `null` |
+| `preferredLanguage` | Preferred AKA language | `null` |
+| `includeAdult` | Include adult titles | `false` |
+| `minVotes` | Minimum vote count for ratings | `0` |
+| `cacheTtl` | API response cache TTL (seconds) | `3600` |
+
+Defaults are **code-side** (`imdb-settings.service.ts`); no settings seed is
+needed — an unconfigured provider reads as `disabled`.
+
+### Security considerations
+
+- **Root-path restriction.** The dataset path is validated against
+  `FILE_MANAGER_ROOTS` via `FilePathService`; files outside the roots are
+  rejected.
+- **Encrypted key.** The licensed API key is AES-GCM encrypted at rest and
+  redacted (`••••••••`) in responses.
+- **No secrets logged.** Neither the key nor the dataset contents are written to
+  logs.
+- **Audited.** Settings changes, dataset validate/import, matches, and API tests
+  are recorded to the audit log.
+- **RBAC + rate limiting.** Every endpoint is permission-gated (see below) and
+  search is throttled.
+
+### IMDb permissions
+
+| Permission | Grants |
+|------------|--------|
+| `media_manager.imdb.view` | View IMDb status, settings (redacted), imports, and title lookups. |
+| `media_manager.imdb.configure` | Change IMDb settings and test the API connection. |
+| `media_manager.imdb.import_dataset` | Validate and import IMDb datasets. |
+| `media_manager.imdb.search` | Search the IMDb catalogue. |
+| `media_manager.imdb.match` | Match a media item to an IMDb id. |
+
+### Troubleshooting
+
+- **Files not found / outside root** — ensure all seven `.tsv.gz` files sit in
+  the configured folder and that the folder is **under a `FILE_MANAGER_ROOTS`
+  entry**. Paths outside the roots are rejected by design.
+- **gzip/TSV validation fails** — the file must be a valid gzip TSV with the
+  expected IMDb header; re-download if truncated or renamed.
+- **Provider disabled without credentials** — `official_api`/`hybrid` need a
+  base URL and key; without them use `dataset` mode after an import, or leave it
+  `disabled`.
+
+### Data model (IMDb)
+
+Eight Prisma models back the provider: `IMDbTitle`, `IMDbAka`, `IMDbCrew`,
+`IMDbEpisode`, `IMDbPrincipal`, `IMDbPerson`, `IMDbRating`, and
+`IMDbDatasetImport` (the import job/history record).
 
 ---
 
@@ -403,6 +562,11 @@ holds `media_manager.view`. The payload (`MediaJobEventPayload` in
 | `media_manager.manage_integrations` | Manage / test / refresh media-server integrations. |
 | `media_manager.delete` | Delete media records (reserved). |
 | `media_manager.admin` | Full module administration (reserved). |
+| `media_manager.imdb.view` | View IMDb status/settings/imports/title lookups. |
+| `media_manager.imdb.configure` | Change IMDb settings; test the API connection. |
+| `media_manager.imdb.import_dataset` | Validate / import IMDb datasets. |
+| `media_manager.imdb.search` | Search the IMDb catalogue. |
+| `media_manager.imdb.match` | Match a media item to an IMDb id. |
 
 Default role grants: Power User holds view through `generate_nfo` (not
 integrations/delete/admin); User and Read-Only hold only `media_manager.view`;
@@ -453,6 +617,16 @@ All paths are under the global `/api` prefix, `@Controller('media')`, guarded by
 | POST | `/api/media/preview` | `media_manager.view` |
 | POST | `/api/media/apply` | `media_manager.rename` |
 | GET | `/api/media/history` | `media_manager.view` |
+| GET | `/api/media/providers/imdb/status` | `media_manager.imdb.view` |
+| GET | `/api/media/providers/imdb/settings` | `media_manager.imdb.view` |
+| PATCH | `/api/media/providers/imdb/settings` | `media_manager.imdb.configure` |
+| POST | `/api/media/providers/imdb/test` | `media_manager.imdb.configure` |
+| POST | `/api/media/providers/imdb/dataset/validate` | `media_manager.imdb.import_dataset` |
+| POST | `/api/media/providers/imdb/dataset/import` | `media_manager.imdb.import_dataset` |
+| GET | `/api/media/providers/imdb/dataset/imports` | `media_manager.imdb.view` |
+| GET | `/api/media/providers/imdb/search` | `media_manager.imdb.search` (`?title`,`?year`,`?type`,`?season`,`?episode`; 30/min) |
+| GET | `/api/media/providers/imdb/title/:imdbId` | `media_manager.imdb.view` |
+| POST | `/api/media/items/:id/match/imdb` | `media_manager.imdb.match` (`{ imdbId, confidence? }`) |
 
 ---
 
@@ -475,6 +649,8 @@ Prisma models (`apps/backend/prisma/schema.prisma`):
 | `MediaDuplicateGroup` | A group of duplicate items and the reason. |
 | `MediaServerIntegration` | Plex/Jellyfin/Emby/Kodi connector (encrypted config). |
 | `MediaNfoFile` | A generated NFO sidecar (movie/tvshow/season/episode). |
+| `IMDbTitle` / `IMDbAka` / `IMDbCrew` / `IMDbEpisode` / `IMDbPrincipal` / `IMDbPerson` / `IMDbRating` | Imported IMDb dataset tables (titles, AKAs, crew, episodes, principals, people, ratings). |
+| `IMDbDatasetImport` | An IMDb dataset import job/history record. |
 
 Duplicate groups are formed by reason: `title_year`, `show_season_episode`,
 `external_id`, `file_hash`, or `similar_filename`.
@@ -496,6 +672,7 @@ All routes are wrapped in `<ModuleRoute moduleId="media_manager">` and gated on
 | `/media/duplicates` | Duplicate groups |
 | `/media/rename-preview` | Rename preview / dry-run |
 | `/media/settings` | Media settings (incl. TMDB key) |
+| `/media/settings/imdb` | IMDb provider settings (mode, dataset, licensed API, compliance notice) |
 
 See also: [API.md](API.md) · [MODULES.md](MODULES.md) ·
 [FILE_MANAGER.md](FILE_MANAGER.md) · [SECURITY.md](SECURITY.md) ·

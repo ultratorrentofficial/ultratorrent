@@ -394,6 +394,24 @@ ADMIN_EMAIL=admin@ultratorrent.local
 
 ---
 
+## Optional: IMDb datasets
+
+The Media Manager includes a **compliant IMDb metadata provider** that is
+**optional and off by default**. It draws data only from IMDb datasets you
+provide or an optional licensed IMDb API — UltraTorrent never scrapes IMDb web
+pages, and no environment variable is required (it is configured entirely from
+**Media > Settings > IMDb**, RBAC-gated by `media_manager.imdb.*`).
+
+To use dataset mode, download IMDb's non-commercial datasets (the seven
+`.tsv.gz` files: `title.basics`, `title.akas`, `title.crew`, `title.episode`,
+`title.principals`, `title.ratings`, and `name.basics`) from IMDb's official
+datasets page, and place them in a folder **under one of your
+`FILE_MANAGER_ROOTS`** (the Default Root Path). Then, in the UI, set that folder
+as the IMDb dataset path and run **Validate** followed by **Import**. See
+[MEDIA_MANAGER.md](MEDIA_MANAGER.md#imdb-integration) for the full walkthrough.
+
+---
+
 ## Manual install (Linux PC, from source)
 
 For development or running without Docker.

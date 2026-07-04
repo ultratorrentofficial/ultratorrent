@@ -233,6 +233,12 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
       P.MEDIA_MANAGER_MANAGE_INTEGRATIONS,
       P.MEDIA_MANAGER_DELETE,
       P.MEDIA_MANAGER_ADMIN,
+      // IMDb metadata provider (compliant dataset / licensed-API).
+      P.MEDIA_MANAGER_IMDB_VIEW,
+      P.MEDIA_MANAGER_IMDB_CONFIGURE,
+      P.MEDIA_MANAGER_IMDB_IMPORT_DATASET,
+      P.MEDIA_MANAGER_IMDB_SEARCH,
+      P.MEDIA_MANAGER_IMDB_MATCH,
     ],
     menu: [{ label: 'Media', path: '/media', icon: 'Clapperboard', permission: P.MEDIA_MANAGER_VIEW }],
     routes: ['/api/media'],
@@ -253,6 +259,7 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
       'kodi',
       'hardlink',
       'symlink',
+      'imdb',
     ],
   },
   {

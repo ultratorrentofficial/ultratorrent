@@ -618,6 +618,30 @@ group.
 | `POST` | `/api/media/apply` | `media_manager.rename` — execute the plan |
 | `GET`  | `/api/media/history` | `media_manager.view` |
 
+### IMDb provider — `/api/media/providers/imdb`
+
+Compliant IMDb metadata provider. Data comes **only** from user-provided IMDb
+datasets and/or an optional licensed IMDb REST API — UltraTorrent does not scrape
+IMDb web pages. The licensed API key is AES-GCM encrypted at rest and redacted in
+responses; dataset paths are confined to `FILE_MANAGER_ROOTS`.
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET`   | `/api/media/providers/imdb/status` | `media_manager.imdb.view` — mode, health, dataset title count, last import |
+| `GET`   | `/api/media/providers/imdb/settings` | `media_manager.imdb.view` — redacted (`hasApiKey`, no secret) |
+| `PATCH` | `/api/media/providers/imdb/settings` | `media_manager.imdb.configure` (`{ mode?, apiBaseUrl?, apiKey?, datasetPath?, importSchedule?, preferredRegion?, preferredLanguage?, includeAdult?, minVotes?, cacheTtl? }`) |
+| `POST`  | `/api/media/providers/imdb/test` | `media_manager.imdb.configure` — test the licensed API connection |
+| `POST`  | `/api/media/providers/imdb/dataset/validate` | `media_manager.imdb.import_dataset` (`{ datasetPath }`) — check files exist, are in-root, valid gzip/TSV |
+| `POST`  | `/api/media/providers/imdb/dataset/import` | `media_manager.imdb.import_dataset` (`{ datasetPath }`) — returns the import record; runs as a detached job |
+| `GET`   | `/api/media/providers/imdb/dataset/imports` | `media_manager.imdb.view` — import history |
+| `GET`   | `/api/media/providers/imdb/search` | `media_manager.imdb.search` (`?title`, `?year`, `?type`, `?season`, `?episode`; throttled 30/min) |
+| `GET`   | `/api/media/providers/imdb/title/:imdbId` | `media_manager.imdb.view` — single title by IMDb id |
+| `POST`  | `/api/media/items/:id/match/imdb` | `media_manager.imdb.match` (`{ imdbId, confidence? }`) — store IMDb id as an external id |
+
+Provider modes (`mode`): `disabled` (default), `dataset` (imported tables only),
+`official_api` (licensed API only), `hybrid` (dataset first, API fallback).
+Settings changes, dataset validate/import, matches, and API tests are audited.
+
 ---
 
 ## Media Acquisition Intelligence — `/api/media-acquisition`
@@ -725,7 +749,16 @@ On a valid token the client joins a shared `broadcast` room and a private
 | `stats:update` (`STATS_UPDATE`) | `{ engineId, stats: GlobalStats, at }` | Each sync tick |
 | `engine:status` (`ENGINE_STATUS`) | `{ engineId, online, error, at }` | Each sync tick / on engine failure |
 | `notification` (`NOTIFICATION`) | `{ id, level, title, message, createdAt }` | On dispatch (broadcast or per-user) |
+| `media_manager.job.{started,progress,completed,failed}` | `MediaJobEventPayload` | Media Manager background jobs (scoped to `media_manager.view`) |
+| `imdb.dataset.validate.{started,completed,failed}` | `ImdbEventPayload` | IMDb dataset validation lifecycle (scoped to `media_manager.view`) |
+| `imdb.dataset.import.{progress,completed,failed}` | `ImdbEventPayload` | IMDb dataset import lifecycle + live progress |
+| `imdb.match.completed` | `ImdbEventPayload` | A media item was matched to an IMDb id |
+| `imdb.enrichment.completed` | `ImdbEventPayload` | Cross-provider enrichment (TMDB/OMDb) finished for an IMDb id |
 | `torrent:update` / `system:health` | — | Reserved |
+
+The `imdb.*` events never carry secrets; `ImdbEventPayload` fields include
+`id`/`itemId`/`imdbId`, `status`, `progress`, `message`, `recordsImported`,
+`filesImported[]`, and `at`.
 
 ---
 

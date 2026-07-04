@@ -14,6 +14,7 @@ implemented and how to deploy and report responsibly.
 - [Audit logging](#audit-logging)
 - [File-path validation](#file-path-validation)
 - [Secrets management](#secrets-management)
+- [IMDb metadata provider](#imdb-metadata-provider)
 - [Engine control surface](#engine-control-surface)
 - [Reporting a vulnerability](#reporting-a-vulnerability)
 
@@ -279,6 +280,9 @@ engine actually writes to.
   strips them**, returning only non-sensitive fields (`id`, `name`, `kind`,
   `isDefault`, `isEnabled`, `mode`). The schema notes secrets are stored
   encrypted at rest.
+- The **IMDb licensed-API key** (`media.imdb.apiKey`) is AES-GCM encrypted at
+  rest, **redacted** (`••••••••`) in every API response, and never written to
+  logs (see [IMDb metadata provider](#imdb-metadata-provider)).
 - Refresh tokens are stored hashed (SHA-256); passwords are stored hashed
   (Argon2id); 2FA recovery codes are stored hashed (SHA-256). None is ever logged.
 - **TOTP secrets** are encrypted at rest with AES-256-GCM using `ENCRYPTION_KEY`
@@ -291,6 +295,29 @@ engine actually writes to.
   identical — closing the "forgot to set a secret → forgeable SUPER_ADMIN token"
   hole. Docker Compose likewise refuses to start without `POSTGRES_PASSWORD` and
   `ADMIN_PASSWORD` (no insecure defaults).
+
+## IMDb metadata provider
+
+The IMDb provider is designed to be compliant and privacy-preserving:
+
+- **No web scraping.** UltraTorrent does not scrape IMDb web pages. IMDb support
+  uses user-provided IMDb datasets or licensed IMDb API access. There is no code
+  path that fetches or parses imdb.com HTML.
+- **Dataset path under the Default Root Path.** The dataset folder
+  (`media.imdb.datasetPath`) must live under `FILE_MANAGER_ROOTS`. It is
+  canonicalised and containment-checked by `FilePathService`/`PathSafety` (the
+  same guards as the file manager); a path outside the roots — or using
+  traversal/symlink escape — is rejected before any file is read.
+- **Encrypted API key, never logged.** The licensed IMDb API key is AES-GCM
+  encrypted at rest and redacted in responses; neither the key nor dataset
+  contents are logged.
+- **Audited.** IMDb settings changes, dataset validation/imports, item matches,
+  and API-connection tests are recorded to the audit log (actor, IP, result).
+- **RBAC + rate limiting.** Every endpoint is gated by a
+  `media_manager.imdb.{view,configure,import_dataset,search,match}` permission,
+  and IMDb search is throttled (30 requests/min).
+- **Disabled by default.** With no configuration the provider is `disabled`; an
+  API key is required for `official_api`/`hybrid` modes.
 
 ## Engine control surface
 

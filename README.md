@@ -80,10 +80,12 @@ architecture.
 - **Built-in file manager** — browse, preview, download, rename, move, copy,
   delete, and mkdir within a strict allow-list of roots.
 - **Media Manager** — organize a media library: root-restricted folder scanning,
-  filename identification, metadata (local NFO + optional TMDB), artwork and
-  subtitle management, NFO generation, template renaming (hardlink/symlink/move),
-  duplicate detection, and Plex/Jellyfin/Emby/Kodi integrations, with a
-  post-download workflow and live job progress over WebSocket.
+  filename identification, metadata (local NFO + optional TMDB, plus compliant
+  IMDb metadata from user-provided IMDb datasets or a licensed IMDb API — never
+  web scraping), artwork and subtitle management, NFO generation, template
+  renaming (hardlink/symlink/move), duplicate detection, and
+  Plex/Jellyfin/Emby/Kodi integrations, with a post-download workflow and live
+  job progress over WebSocket.
 - **RSS automation** — feeds with include/exclude rules that auto-download
   matches to the default engine.
 - **Rules engine** — condition/action automation triggered by events such as

@@ -130,7 +130,7 @@ ship today; others are defined/planned as the ecosystem grows:
 | Provider interface | Purpose | Status |
 |--------------------|---------|--------|
 | **TorrentEngineProvider** | Control a BitTorrent engine (add/remove/lifecycle/files/trackers/limits/stats) | **Implemented** — `RTorrentProvider` |
-| **MediaMetadataProvider** | Resolve titles → metadata (overview, cast, genres, external IDs) | **Implemented** — `LocalMetadataProvider`, `TmdbMetadataProvider` |
+| **MediaMetadataProvider** | Resolve titles → metadata (overview, cast, genres, external IDs) | **Implemented** — `LocalMetadataProvider`, `TmdbMetadataProvider`, `ImdbMetadataProvider` (compliant: user datasets / licensed API, no scraping) |
 | **MediaServerProvider** | Trigger library refreshes on a media server | **Implemented** — Plex, Jellyfin, Emby, Kodi connectors |
 | **NotificationProvider** | Deliver notifications to external channels | **Implemented** — in-app, webhook, Discord, Slack, Telegram fan-out |
 | **ArtworkProvider** | Fetch typed artwork (poster/fanart/logo/…) | **Partial** — artwork is fetched/uploaded/selected today; a dedicated remote artwork provider is a planned extraction |
@@ -211,7 +211,9 @@ detail is in [MEDIA_MANAGER.md](MEDIA_MANAGER.md); the key capabilities:
   per title; release-name parsing derives type/title/year/season/episode with a
   confidence score and a `matchStatus` (`unmatched`/`matched`/`manual`).
 - **Metadata** — resolved through the `MediaMetadataProvider` abstraction
-  (`local` NFO sidecars always available; `tmdb` when a key is configured).
+  (`local` NFO sidecars always available; `tmdb` when a key is configured;
+  `imdb` from user-provided IMDb datasets and/or a licensed IMDb API — never
+  HTML scraping — with root-path-confined dataset import and an encrypted key).
   External IDs (tmdb/tvdb/imdb/omdb/anilist) are recorded per item.
 - **Artwork** — typed artwork (poster/fanart/logo/clearart/banner/thumbnail/
   season/episode) fetched, uploaded, and selected per item.
@@ -399,7 +401,7 @@ directly. This is the platform's current and planned integration surface:
 | Category | Integrations |
 |----------|-------------|
 | **Torrent engines** | rTorrent (implemented); qBittorrent, Transmission, Deluge (planned) |
-| **Metadata** | TMDB (implemented); IMDb (API/datasets), OMDb, TVDB, AniList (planned) |
+| **Metadata** | TMDB, IMDb (implemented — IMDb via user-provided datasets or a licensed IMDb API, **never** HTML scraping); OMDb, TVDB, AniList (planned) |
 | **Subtitles** | OpenSubtitles (planned; sidecar discovery ships today) |
 | **Media servers** | Plex, Jellyfin, Emby, Kodi (implemented) |
 | **Notifications** | Discord, Slack, Telegram, Email, Webhooks (webhook/Discord/Slack/Telegram implemented; email planned) |
@@ -458,6 +460,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-07-04 | **Added a compliant IMDb metadata provider.** New `ImdbMetadataProvider` (`imdb`) resolves metadata from **user-provided IMDb datasets** (seven `.tsv.gz` files streamed into eight Prisma models — `IMDbTitle`/`IMDbAka`/`IMDbCrew`/`IMDbEpisode`/`IMDbPrincipal`/`IMDbPerson`/`IMDbRating`/`IMDbDatasetImport`) and/or an **optional licensed IMDb REST API** — **never** HTML scraping of imdb.com. Settings live under `media.imdb` (mode `disabled`/`dataset`/`official_api`/`hybrid`, dataset path confined to `FILE_MANAGER_ROOTS` via `FilePathService`, AES-GCM-encrypted API key). Resumable, detached gz-TSV importer streams progress over `imdb.dataset.validate.*`/`imdb.dataset.import.*` WS events; manual match (`imdb.match.completed`) stores the IMDb id as a `MediaExternalId` and drives cross-provider enrichment (TMDB `/find` + OMDb, separate licensed keys; `imdb.enrichment.completed`). Endpoints under `/api/media/providers/imdb/*` + `POST /api/media/items/:id/match/imdb`; new `media_manager.imdb.{view,configure,import_dataset,search,match}` permissions (added to the `media_manager` manifest); settings/dataset/match/api-test are audited. Frontend `/media/settings/imdb` page + Media Detail IMDb panel + Unmatched IMDb suggestions. |
 | 2026-07-03 | **Repositioned as a Media Acquisition & Management Platform.** Reframed the introduction and terminology from "torrent management platform / torrent client" to a self-hosted media acquisition & management platform that combines BitTorrent downloading, RSS automation, media organization, metadata/artwork/subtitle management, NFO generation, file management, automation, media-server integrations, multi-user administration, REST/WebSocket APIs, and Docker deployment. |
 | 2026-07-03 | **Removed all licensing/edition concepts from the architecture.** Purged every architectural reference to editions, license tiers, and feature/module licensing/gating. Access is RBAC-only; every feature is included in the single community product. Only the open-source AGPL license and explicit "no editions/licensing" statements remain. |
 | 2026-07-03 | **Added Core Principles.** Documented the platform's engineering principles (Open Source, API First, Docker Native, Secure by Default, Provider-Based, Event-Driven, Modular, Automation First, Real-Time, Cross-Platform, Extensible, Enterprise-Quality as a quality bar). |
