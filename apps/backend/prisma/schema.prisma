@@ -798,6 +798,44 @@ model MediaAnalyticsImportJob {
   @@map("media_analytics_import_jobs")
 }
 
+/// A scheduled media newsletter campaign.
+model MediaServerNewsletter {
+  id                   String    @id @default(uuid())
+  name                 String
+  enabled              Boolean   @default(true)
+  frequency            String    @default("weekly") // daily | weekly | monthly | manual
+  recipientEmails      Json      @default("[]")
+  contentSections      Json      @default("[]")
+  subjectTemplate      String?
+  dateRangeMode        String    @default("since_last_send") // since_last_send | last_days
+  lastDays             Int       @default(7)
+  lastSuccessfulSendAt DateTime?
+  nextRunAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  deliveries MediaServerNewsletterDelivery[]
+
+  @@map("media_server_newsletters")
+}
+
+/// One newsletter email delivery attempt.
+model MediaServerNewsletterDelivery {
+  id             String    @id @default(uuid())
+  newsletterId   String
+  recipientEmail String
+  status         String    @default("pending") // pending | sent | failed
+  subject        String?
+  sentAt         DateTime?
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+
+  newsletter MediaServerNewsletter @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
+
+  @@index([newsletterId])
+  @@map("media_server_newsletter_deliveries")
+}
+
 model MediaNfoFile {
   id          String   @id @default(uuid())
   itemId      String

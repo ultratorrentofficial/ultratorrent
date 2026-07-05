@@ -39,6 +39,7 @@ import { WatchHistoryPage } from '@/pages/media-server-analytics/WatchHistoryPag
 import { ReportsPage } from '@/pages/media-server-analytics/ReportsPage';
 import { RecentlyAddedPage } from '@/pages/media-server-analytics/RecentlyAddedPage';
 import { ImportAnalyticsPage } from '@/pages/media-server-analytics/ImportAnalyticsPage';
+import { NewslettersPage } from '@/pages/media-server-analytics/NewslettersPage';
 import { ReleaseScoringPage } from '@/pages/release-scoring/ReleaseScoringPage';
 import { AutomationPage } from '@/pages/AutomationPage';
 import { FilesPage } from '@/pages/FilesPage';
@@ -319,6 +320,14 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_server_analytics">
                             <ImportAnalyticsPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media-server-analytics/newsletters"
+                        element={
+                          <ModuleRoute moduleId="media_server_analytics">
+                            <NewslettersPage />
                           </ModuleRoute>
                         }
                       />

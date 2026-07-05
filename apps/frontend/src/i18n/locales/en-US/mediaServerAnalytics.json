@@ -135,5 +135,52 @@
       "body": "Tautulli migration is complete. UltraTorrent can now provide unified media acquisition, media server analytics, watch history, and newsletters."
     },
     "previewBtn": "Preview"
+  },
+  "newsletter": {
+    "title": "Newsletters",
+    "subtitle": "Scheduled emails of what was recently added to your library.",
+    "loadError": "Could not load newsletters.",
+    "email": {
+      "title": "Email (SMTP) settings",
+      "host": "SMTP host",
+      "port": "Port",
+      "secure": "Use TLS/SSL",
+      "user": "Username",
+      "password": "Password",
+      "fromName": "From name",
+      "fromAddress": "From address",
+      "save": "Save",
+      "test": "Send test",
+      "testRecipient": "Test recipient",
+      "saved": "Email settings saved",
+      "tested": "Test email sent",
+      "testFailed": "Could not send test",
+      "notConfigured": "Configure SMTP to enable sending."
+    },
+    "add": {
+      "title": "New newsletter",
+      "name": "Name",
+      "frequency": "Frequency",
+      "recipients": "Recipient emails (comma-separated)",
+      "submit": "Create"
+    },
+    "freq": {
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "manual": "Manual"
+    },
+    "empty": "No newsletters yet.",
+    "preview": "Preview",
+    "testSend": "Test send",
+    "sendNow": "Send now",
+    "delete": "Delete",
+    "previewTitle": "Preview: {{subject}}",
+    "itemCount": "{{count}} items",
+    "sent": "Sent to {{sent}} ({{failed}} failed)",
+    "sendFailed": "Could not send",
+    "created": "Newsletter created",
+    "testSent": "Test sent",
+    "nextRun": "Next: {{date}}"
   }
 }

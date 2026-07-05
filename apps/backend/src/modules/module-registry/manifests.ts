@@ -393,9 +393,9 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
       'media_server.import.warning',
       'media_server.import.cancelled',
     ],
-    schedulerJobs: ['media_server_session_poll'],
+    schedulerJobs: ['media_server_session_poll', 'media_server_newsletter_dispatch'],
     settingsSections: ['media-server-analytics'],
-    features: ['media_server_connections', 'provider_capabilities', 'server_health', 'multi_server', 'live_activity', 'watch_history'],
+    features: ['media_server_connections', 'provider_capabilities', 'server_health', 'multi_server', 'live_activity', 'watch_history', 'analytics_reports', 'tautulli_import', 'newsletters'],
   },
 ];
 

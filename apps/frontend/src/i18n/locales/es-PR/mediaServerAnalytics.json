@@ -135,5 +135,52 @@
       "body": "La migración de Tautulli está completa. UltraTorrent ahora ofrece adquisición de multimedia, analíticas del servidor, historial y boletines unificados."
     },
     "previewBtn": "Vista previa"
+  },
+  "newsletter": {
+    "title": "Boletines",
+    "subtitle": "Correos programados de lo agregado recientemente a tu biblioteca.",
+    "loadError": "No se pudieron cargar los boletines.",
+    "email": {
+      "title": "Ajustes de correo (SMTP)",
+      "host": "Servidor SMTP",
+      "port": "Puerto",
+      "secure": "Usar TLS/SSL",
+      "user": "Usuario",
+      "password": "Contraseña",
+      "fromName": "Nombre del remitente",
+      "fromAddress": "Correo del remitente",
+      "save": "Guardar",
+      "test": "Enviar prueba",
+      "testRecipient": "Destinatario de prueba",
+      "saved": "Ajustes guardados",
+      "tested": "Correo de prueba enviado",
+      "testFailed": "No se pudo enviar la prueba",
+      "notConfigured": "Configura SMTP para poder enviar."
+    },
+    "add": {
+      "title": "Nuevo boletín",
+      "name": "Nombre",
+      "frequency": "Frecuencia",
+      "recipients": "Correos destinatarios (separados por comas)",
+      "submit": "Crear"
+    },
+    "freq": {
+      "daily": "Diario",
+      "weekly": "Semanal",
+      "monthly": "Mensual",
+      "manual": "Manual"
+    },
+    "empty": "Aún no hay boletines.",
+    "preview": "Vista previa",
+    "testSend": "Enviar prueba",
+    "sendNow": "Enviar ahora",
+    "delete": "Eliminar",
+    "previewTitle": "Vista previa: {{subject}}",
+    "itemCount": "{{count}} elementos",
+    "sent": "Enviado a {{sent}} ({{failed}} fallidos)",
+    "sendFailed": "No se pudo enviar",
+    "created": "Boletín creado",
+    "testSent": "Prueba enviada",
+    "nextRun": "Próximo: {{date}}"
   }
 }

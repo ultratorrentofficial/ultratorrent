@@ -5,6 +5,8 @@ import { MediaServerAnalyticsService } from './media-server-analytics.service';
 import { MediaServerSessionService } from './media-server-session.service';
 import { MediaServerReportService } from './media-server-report.service';
 import { AnalyticsImportService } from './analytics-import.service';
+import { MediaServerEmailService } from './media-server-email.service';
+import { MediaServerNewsletterService } from './media-server-newsletter.service';
 import { MediaServerAnalyticsController } from './media-server-analytics.controller';
 
 /**
@@ -15,7 +17,15 @@ import { MediaServerAnalyticsController } from './media-server-analytics.control
  */
 @Module({
   imports: [MediaModule],
-  providers: [MediaServerAnalyticsService, MediaServerSessionService, MediaServerReportService, AnalyticsImportService, SecretCipher],
+  providers: [
+    MediaServerAnalyticsService,
+    MediaServerSessionService,
+    MediaServerReportService,
+    AnalyticsImportService,
+    MediaServerEmailService,
+    MediaServerNewsletterService,
+    SecretCipher,
+  ],
   controllers: [MediaServerAnalyticsController],
 })
 export class MediaServerAnalyticsModule {}

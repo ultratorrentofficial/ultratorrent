@@ -10,6 +10,8 @@ import { MediaServerAnalyticsService } from './media-server-analytics.service';
 import { MediaServerSessionService } from './media-server-session.service';
 import { MediaServerReportService } from './media-server-report.service';
 import { AnalyticsImportService } from './analytics-import.service';
+import { MediaServerEmailService } from './media-server-email.service';
+import { MediaServerNewsletterService } from './media-server-newsletter.service';
 
 const P = PERMISSIONS;
 
@@ -29,6 +31,8 @@ export class MediaServerAnalyticsController {
     private readonly sessions: MediaServerSessionService,
     private readonly reports: MediaServerReportService,
     private readonly imports: AnalyticsImportService,
+    private readonly email: MediaServerEmailService,
+    private readonly newsletters: MediaServerNewsletterService,
   ) {}
 
   @Get('dashboard')
@@ -137,6 +141,70 @@ export class MediaServerAnalyticsController {
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
   getImportJob(@Param('id') id: string) {
     return this.imports.getJob(id);
+  }
+
+  // --- newsletters --------------------------------------------------------
+  @Get('newsletters')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
+  listNewsletters() {
+    return this.newsletters.list();
+  }
+  @Post('newsletters')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
+  createNewsletter(@Body() body: Record<string, unknown>, @CurrentUser() u: AuthenticatedUser) {
+    return this.newsletters.create(body ?? {}, u?.id);
+  }
+  @Get('newsletters/:id')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
+  getNewsletter(@Param('id') id: string) {
+    return this.newsletters.get(id);
+  }
+  @Patch('newsletters/:id')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
+  updateNewsletter(@Param('id') id: string, @Body() body: Record<string, unknown>, @CurrentUser() u: AuthenticatedUser) {
+    return this.newsletters.update(id, body ?? {}, u?.id);
+  }
+  @Delete('newsletters/:id')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
+  deleteNewsletter(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
+    return this.newsletters.remove(id, u?.id);
+  }
+  @Post('newsletters/:id/preview')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
+  previewNewsletter(@Param('id') id: string) {
+    return this.newsletters.preview(id);
+  }
+  @Post('newsletters/:id/test-send')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_SEND_NEWSLETTERS)
+  testSendNewsletter(@Param('id') id: string, @Body() body: { recipient?: string }, @CurrentUser() u: AuthenticatedUser) {
+    return this.newsletters.testSend(id, body?.recipient ?? '', u?.id);
+  }
+  @Post('newsletters/:id/send-now')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_SEND_NEWSLETTERS)
+  sendNewsletter(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
+    return this.newsletters.sendNow(id, u?.id);
+  }
+  @Get('newsletters/:id/deliveries')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
+  newsletterDeliveries(@Param('id') id: string) {
+    return this.newsletters.deliveries(id);
+  }
+
+  // --- email settings -----------------------------------------------------
+  @Get('settings/email')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS)
+  getEmailSettings() {
+    return this.email.getSettings();
+  }
+  @Patch('settings/email')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS)
+  updateEmailSettings(@Body() body: Record<string, unknown>) {
+    return this.email.updateSettings(body ?? {});
+  }
+  @Post('settings/email/test')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS)
+  testEmail(@Body() body: { recipient?: string }) {
+    return this.email.testEmail(body?.recipient ?? '');
   }
 
   // --- connections (reuse the shared integration store) -------------------

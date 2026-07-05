@@ -2794,9 +2794,71 @@ export const api = {
     importJobs(): Promise<AnalyticsImportJob[]> {
       return request<AnalyticsImportJob[]>('/media-server-analytics/import-jobs');
     },
+    newsletters(): Promise<Newsletter[]> {
+      return request<Newsletter[]>('/media-server-analytics/newsletters');
+    },
+    createNewsletter(body: Partial<Newsletter>): Promise<Newsletter> {
+      return request<Newsletter>('/media-server-analytics/newsletters', { method: 'POST', body });
+    },
+    updateNewsletter(id: string, body: Partial<Newsletter>): Promise<Newsletter> {
+      return request<Newsletter>(`/media-server-analytics/newsletters/${id}`, { method: 'PATCH', body });
+    },
+    deleteNewsletter(id: string): Promise<void> {
+      return request<void>(`/media-server-analytics/newsletters/${id}`, { method: 'DELETE' });
+    },
+    previewNewsletter(id: string): Promise<NewsletterPreview> {
+      return request<NewsletterPreview>(`/media-server-analytics/newsletters/${id}/preview`, { method: 'POST' });
+    },
+    testSendNewsletter(id: string, recipient: string): Promise<{ ok: boolean }> {
+      return request<{ ok: boolean }>(`/media-server-analytics/newsletters/${id}/test-send`, { method: 'POST', body: { recipient } });
+    },
+    sendNewsletter(id: string): Promise<{ sent: number; failed: number }> {
+      return request<{ sent: number; failed: number }>(`/media-server-analytics/newsletters/${id}/send-now`, { method: 'POST' });
+    },
+    emailSettings(): Promise<MediaServerEmailSettings> {
+      return request<MediaServerEmailSettings>('/media-server-analytics/settings/email');
+    },
+    updateEmailSettings(body: Partial<MediaServerEmailSettings> & { password?: string }): Promise<MediaServerEmailSettings> {
+      return request<MediaServerEmailSettings>('/media-server-analytics/settings/email', { method: 'PATCH', body });
+    },
+    testEmail(recipient: string): Promise<{ ok: boolean }> {
+      return request<{ ok: boolean }>('/media-server-analytics/settings/email/test', { method: 'POST', body: { recipient } });
+    },
   },
 
 };
+
+export interface Newsletter {
+  id: string;
+  name: string;
+  enabled: boolean;
+  frequency: string;
+  recipientEmails: string[];
+  contentSections: string[];
+  subjectTemplate: string | null;
+  dateRangeMode: string;
+  lastDays: number;
+  lastSuccessfulSendAt: string | null;
+  nextRunAt: string | null;
+}
+
+export interface NewsletterPreview {
+  subject: string;
+  html: string;
+  text: string;
+  count: number;
+  since: string;
+}
+
+export interface MediaServerEmailSettings {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  fromName: string;
+  fromAddress: string;
+  hasPassword: boolean;
+}
 
 export interface AnalyticsImportSource {
   id: string;

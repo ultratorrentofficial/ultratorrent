@@ -91,8 +91,11 @@ connection management, and Dashboard + Connections pages. Later phases:
 - ~~Recently Added / Library / User / Playback analytics~~ ✅ (Phase 3) — computed
   on demand from watch history + the Media Manager library. Snapshot persistence
   (for long-range trends) remains.
-- **Newsletters** — a full SMTP email + scheduled-newsletter system (net-new; no
-  email infrastructure exists today).
+- ~~Newsletters~~ ✅ (Phase 5) — a net-new SMTP email service (`nodemailer`, config
+  in the `Setting` store with the password encrypted), scheduled newsletter
+  campaigns of recently-added media (responsive HTML + plain-text, preview, test
+  send, send now, delivery tracking, a 15-min dispatch scheduler). Subscription
+  management + Tautulli newsletter import remain.
 - ~~Tautulli import~~ ✅ (Phase 4, watch history) — `MediaAnalyticsImportProvider`
   + a background import job with preview, duplicate-safe streaming, and progress.
   See [TAUTULLI_IMPORT.md](TAUTULLI_IMPORT.md). Users/libraries/statistics/
