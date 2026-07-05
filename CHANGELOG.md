@@ -45,6 +45,18 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.14.0] - 2026-07-05
+
+### Added
+- feat(media): add a "Test TMDB key" button in Media Settings that validates the key against TMDB before saving
+- feat(media): optimized IMDb movie import — import a lean movie-focused subset (title.basics/ratings/akas, filtered by type/adult/min-year) with referential integrity, stats, idempotency; skip title.principals/episode; add reset + admin strategy panel + docs
+
+### Fixed
+- feat(media): add a Stop button to cancel a running IMDb dataset import — cooperative cancellation across both the optimized and full import strategies, marking the run 'cancelled' (already-imported records are kept) with a stop endpoint, WS event, and UI button
+- feat(media): IMDb Danger Zone — wipe all imported IMDb data (wipe-only) for when the wrong dataset was imported
+- fix(docker): rtorrent entrypoint no longer crash-loops when it cannot drop privileges (Synology/non-root/cap-stripped hosts)
+- fix(docker): re-add SETUID/SETGID caps to the rtorrent service so gosu can drop to PUID:PGID on hosts (Synology) that strip them
+
 ## [0.13.1] - 2026-07-05
 
 ### Fixed
