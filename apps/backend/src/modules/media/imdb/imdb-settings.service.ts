@@ -44,6 +44,8 @@ export interface ImdbSettings {
   importStrategy: ImdbImportStrategy;
   /** Optimized import: only titles with startYear >= this are imported. */
   minImportYear: number;
+  /** Optimized import: also import TV series/mini-series/episodes (+ title.episode), not just movies. */
+  importTvShows: boolean;
   /** Optimized import: also import alternate titles (title.akas) for imported titles. */
   importAkas: boolean;
   /** Optimized import: also import crew (title.crew) for imported titles. */
@@ -76,6 +78,7 @@ export interface ImdbSettingsPatch {
   autoUpdateIntervalHours?: number;
   importStrategy?: ImdbImportStrategy;
   minImportYear?: number;
+  importTvShows?: boolean;
   importAkas?: boolean;
   importCrew?: boolean;
   importPeople?: boolean;
@@ -97,6 +100,7 @@ const DEFAULTS: ImdbSettings = {
   autoUpdateIntervalHours: 168,
   importStrategy: 'optimized_movies',
   minImportYear: 1970,
+  importTvShows: false,
   importAkas: true,
   importCrew: false,
   importPeople: false,
@@ -160,6 +164,7 @@ export class ImdbSettingsService {
         : DEFAULTS.importStrategy,
       // Admin setting wins; else the IMDB_MIN_YEAR env default; else 1970.
       minImportYear: num((stored as any).minImportYear, this.defaultMinYear()),
+      importTvShows: bool((stored as any).importTvShows, DEFAULTS.importTvShows),
       importAkas: bool((stored as any).importAkas, DEFAULTS.importAkas),
       importCrew: bool((stored as any).importCrew, DEFAULTS.importCrew),
       importPeople: bool((stored as any).importPeople, DEFAULTS.importPeople),
@@ -236,6 +241,7 @@ export class ImdbSettingsService {
         patch.autoUpdateIntervalHours ?? current.autoUpdateIntervalHours,
       importStrategy: patch.importStrategy ?? current.importStrategy,
       minImportYear: patch.minImportYear ?? current.minImportYear,
+      importTvShows: patch.importTvShows ?? current.importTvShows,
       importAkas: patch.importAkas ?? current.importAkas,
       importCrew: patch.importCrew ?? current.importCrew,
       importPeople: patch.importPeople ?? current.importPeople,
@@ -256,6 +262,7 @@ export class ImdbSettingsService {
       autoUpdateIntervalHours: next.autoUpdateIntervalHours,
       importStrategy: next.importStrategy,
       minImportYear: next.minImportYear,
+      importTvShows: next.importTvShows,
       importAkas: next.importAkas,
       importCrew: next.importCrew,
       importPeople: next.importPeople,

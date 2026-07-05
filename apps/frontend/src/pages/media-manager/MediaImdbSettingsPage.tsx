@@ -213,6 +213,7 @@ function OptimizedImportSection({
 
   const [strategy, setStrategy] = useState<ImdbImportStrategy>(settings.importStrategy);
   const [minYear, setMinYear] = useState(String(settings.minImportYear));
+  const [importTvShows, setImportTvShows] = useState(settings.importTvShows);
   const [importAkas, setImportAkas] = useState(settings.importAkas);
   const [importCrew, setImportCrew] = useState(settings.importCrew);
   const [importPeople, setImportPeople] = useState(settings.importPeople);
@@ -220,6 +221,7 @@ function OptimizedImportSection({
   useEffect(() => {
     setStrategy(settings.importStrategy);
     setMinYear(String(settings.minImportYear));
+    setImportTvShows(settings.importTvShows);
     setImportAkas(settings.importAkas);
     setImportCrew(settings.importCrew);
     setImportPeople(settings.importPeople);
@@ -242,6 +244,7 @@ function OptimizedImportSection({
       api.media.updateImdbSettings({
         importStrategy: strategy,
         minImportYear: Number(minYear) || settings.minImportYear,
+        importTvShows,
         importAkas,
         importCrew,
         importPeople,
@@ -284,8 +287,10 @@ function OptimizedImportSection({
   const selectedDatasets = ['title.basics', 'title.ratings'];
   if (importAkas) selectedDatasets.push('title.akas');
   if (importCrew) selectedDatasets.push('title.crew');
+  if (importTvShows) selectedDatasets.push('title.episode');
   if (importPeople) selectedDatasets.push('name.basics');
-  const skippedDatasets = ['title.principals', 'title.episode'];
+  // title.principals is always skipped; title.episode only when TV is off.
+  const skippedDatasets = importTvShows ? ['title.principals'] : ['title.principals', 'title.episode'];
 
   return (
     <SectionCard
@@ -345,6 +350,7 @@ function OptimizedImportSection({
             <p className="mt-1 text-xs text-muted-foreground">{t('optimized.minYearHint')}</p>
           </div>
           <div className="space-y-2 self-center">
+            <OptToggleRow label={t('optimized.importTvShows')} checked={importTvShows} onChange={setImportTvShows} disabled={!canConfigure} />
             <OptToggleRow label={t('optimized.importAkas')} checked={importAkas} onChange={setImportAkas} disabled={!canConfigure} />
             <OptToggleRow label={t('optimized.importCrew')} checked={importCrew} onChange={setImportCrew} disabled={!canConfigure} />
             <OptToggleRow label={t('optimized.importPeople')} checked={importPeople} onChange={setImportPeople} disabled={!canConfigure} />

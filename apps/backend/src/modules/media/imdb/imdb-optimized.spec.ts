@@ -6,6 +6,7 @@ import { ImdbOptimizedImportService } from './imdb-optimized-import.service';
 import {
   IMDB_DATASET_FILES,
   OPTIMIZED_TITLE_TYPES,
+  OPTIMIZED_TV_TYPES,
   optimizedTitleSkipReason,
   mapTitleRow,
 } from './imdb-tsv';
@@ -38,6 +39,7 @@ function makePrisma() {
   const ratings: any[] = [];
   const akas: any[] = [];
   const crew: any[] = [];
+  const episodes: any[] = [];
   const persons: any[] = [];
   const importRow: any = { id: 'imp1' };
 
@@ -56,6 +58,7 @@ function makePrisma() {
     _ratings: ratings,
     _akas: akas,
     _crew: crew,
+    _episodes: episodes,
     _persons: persons,
     _import: importRow,
     iMDbDatasetImport: {
@@ -92,14 +95,16 @@ function makePrisma() {
       ),
     },
     iMDbPrincipal: {
+      // Principals must NEVER be imported by the optimized strategy.
       createMany: jest.fn(async () => {
         throw new Error('optimized import must NOT write principals');
       }),
     },
     iMDbEpisode: {
-      createMany: jest.fn(async () => {
-        throw new Error('optimized import must NOT write episodes');
-      }),
+      // Episodes are imported only when the TV toggle is on; keyed by episodeTitleId.
+      createMany: jest.fn(async ({ data, skipDuplicates }: any) =>
+        dedupInsert(episodes, data, (r) => r.episodeTitleId, Boolean(skipDuplicates)),
+      ),
     },
   };
 }
@@ -116,6 +121,7 @@ const optimizedSettings = (over: Record<string, unknown> = {}) =>
   ({
     importStrategy: 'optimized_movies',
     minImportYear: 1970,
+    importTvShows: false,
     importAkas: true,
     importCrew: false,
     importPeople: false,
@@ -164,10 +170,19 @@ describe('optimizedTitleSkipReason', () => {
     }
   });
 
-  it('skips non-movie title types', () => {
+  it('skips TV/other title types by default (movies only)', () => {
     expect(optimizedTitleSkipReason(row({ titleType: 'tvSeries' }), 1970)).toBe('titleType');
     expect(optimizedTitleSkipReason(row({ titleType: 'tvEpisode' }), 1970)).toBe('titleType');
     expect(optimizedTitleSkipReason(row({ titleType: 'short' }), 1970)).toBe('titleType');
+  });
+
+  it('keeps TV series/mini-series/episodes when includeTv is on (but still not shorts)', () => {
+    for (const t of OPTIMIZED_TV_TYPES) {
+      expect(optimizedTitleSkipReason(row({ titleType: t }), 1970, true)).toBeNull();
+    }
+    // Movies are still kept, and non-movie/non-TV types are still skipped.
+    expect(optimizedTitleSkipReason(row({ titleType: 'movie' }), 1970, true)).toBeNull();
+    expect(optimizedTitleSkipReason(row({ titleType: 'short' }), 1970, true)).toBe('titleType');
   });
 
   it('skips adult titles', () => {
@@ -211,7 +226,7 @@ describe('ImdbOptimizedImportService.execute', () => {
     await fs.rm(dir, { recursive: true, force: true });
   });
 
-  it('NEVER imports title.principals or title.episode', async () => {
+  it('movies-only (default): NEVER imports principals, and skips episodes/TV titles', async () => {
     const dir = await seedDir();
     // Add principals/episode files too — they must still be ignored.
     await writeGz(dir, 'title.principals.tsv.gz', [
@@ -226,7 +241,32 @@ describe('ImdbOptimizedImportService.execute', () => {
     await makeService(prisma).execute('imp1', dir, optimizedSettings(), {});
     expect(prisma.iMDbPrincipal.createMany).not.toHaveBeenCalled();
     expect(prisma.iMDbEpisode.createMany).not.toHaveBeenCalled();
+    expect(prisma._episodes.length).toBe(0);
+    // tt4 (tvSeries) and tt7 (tvEpisode) were NOT imported as titles.
+    expect(prisma._titles.some((t) => t.tconst === 'tt4' || t.tconst === 'tt7')).toBe(false);
     expect(OPTIMIZED_SKIPPED_DATASETS).toEqual(['title.principals', 'title.episode']);
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  it('with importTvShows on: imports TV series + episodes and title.episode, but still not principals', async () => {
+    const dir = await seedDir();
+    await writeGz(dir, 'title.principals.tsv.gz', [
+      header('title.principals'),
+      ['tt1', '1', 'nm1', 'actor', '\\N', '["Neo"]'],
+    ]);
+    await writeGz(dir, 'title.episode.tsv.gz', [
+      header('title.episode'),
+      ['tt7', 'tt4', '1', '3'], // episode tt7 (imported as tvEpisode) -> parent tt4
+      ['tt404', 'tt4', '1', '4'], // orphan episode (tt404 not an imported title)
+    ]);
+    const prisma = makePrisma();
+    await makeService(prisma).execute('imp1', dir, optimizedSettings({ importTvShows: true }), {});
+    // TV titles now imported alongside the movies.
+    expect(prisma._titles.map((t) => t.tconst).sort()).toEqual(['tt1', 'tt2', 'tt3', 'tt4', 'tt7']);
+    // title.episode imported, referential on the episode's own tconst.
+    expect(prisma._episodes.map((e) => e.episodeTitleId)).toEqual(['tt7']); // tt404 orphan dropped
+    // Principals still never touched.
+    expect(prisma.iMDbPrincipal.createMany).not.toHaveBeenCalled();
     await fs.rm(dir, { recursive: true, force: true });
   });
 

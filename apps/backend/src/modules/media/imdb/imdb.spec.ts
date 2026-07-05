@@ -61,6 +61,7 @@ const baseSettings: ImdbSettings = {
   autoUpdateIntervalHours: 168,
   importStrategy: 'optimized_movies',
   minImportYear: 1970,
+  importTvShows: false,
   importAkas: true,
   importCrew: false,
   importPeople: false,

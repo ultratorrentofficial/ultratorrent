@@ -264,13 +264,20 @@ export function mapRatingRow(f: string[]) {
 // --- optimized "movie import" filter (pure) --------------------------------
 
 /**
- * The title types the optimized movie import keeps. Deliberately narrow —
- * UltraTorrent acquires and matches *movies*: theatrical/TV movies and
- * direct-to-video releases. Everything else (series, episodes, shorts, games,
- * …) is skipped by the optimized strategy.
+ * The movie-like title types the optimized import always keeps —
+ * theatrical/TV movies and direct-to-video releases. UltraTorrent's core job is
+ * movie acquisition, so these are the default subset.
  */
 export const OPTIMIZED_TITLE_TYPES = ['movie', 'tvMovie', 'video'] as const;
-const OPTIMIZED_TITLE_TYPE_SET = new Set<string>(OPTIMIZED_TITLE_TYPES);
+const OPTIMIZED_MOVIE_TYPE_SET = new Set<string>(OPTIMIZED_TITLE_TYPES);
+
+/**
+ * The TV title types imported additionally when the "include TV" toggle is on:
+ * series, mini-series, and individual episodes. Everything else (shorts, games,
+ * tvSpecial, …) is still skipped.
+ */
+export const OPTIMIZED_TV_TYPES = ['tvSeries', 'tvMiniSeries', 'tvEpisode'] as const;
+const OPTIMIZED_TV_TYPE_SET = new Set<string>(OPTIMIZED_TV_TYPES);
 
 /** Why a title row was skipped by the optimized filter (null = keep it). */
 export type TitleSkipReason = 'titleType' | 'adult' | 'minYear';
@@ -278,13 +285,18 @@ export type TitleSkipReason = 'titleType' | 'adult' | 'minYear';
 /**
  * Decide whether an optimized import should keep a parsed title row. Returns
  * `null` to keep, or the reason it was skipped so the importer can count it.
- * Order matters for the stats: type → adult → year.
+ * Order matters for the stats: type → adult → year. When `includeTv` is true,
+ * TV series/mini-series/episodes are accepted alongside the movie types.
  */
 export function optimizedTitleSkipReason(
   row: TitleRow,
   minYear: number,
+  includeTv = false,
 ): TitleSkipReason | null {
-  if (!OPTIMIZED_TITLE_TYPE_SET.has(row.titleType)) return 'titleType';
+  const allowed =
+    OPTIMIZED_MOVIE_TYPE_SET.has(row.titleType) ||
+    (includeTv && OPTIMIZED_TV_TYPE_SET.has(row.titleType));
+  if (!allowed) return 'titleType';
   if (row.isAdult) return 'adult';
   if (row.startYear == null || row.startYear < minYear) return 'minYear';
   return null;

@@ -15,6 +15,7 @@ import {
   IMDB_DATASET_FILES,
   mapAkaRow,
   mapCrewRow,
+  mapEpisodeRow,
   mapPersonRow,
   mapRatingRow,
   mapTitleRow,
@@ -48,10 +49,17 @@ export interface ImportStats {
 const DEFAULT_BATCH_SIZE = 5000;
 
 /**
- * Datasets the optimized strategy NEVER imports. `title.principals` is enormous
- * (~90M rows of cast/crew links) and `title.episode` is TV-episode structure —
- * neither is needed for movie acquisition, matching, ranking, or the metadata
- * UltraTorrent surfaces. Kept here so the reason is explicit and testable.
+ * The dataset the optimized strategy NEVER imports, whatever the toggles.
+ * `title.principals` is enormous (~90M cast/crew link rows) and isn't needed for
+ * acquisition, matching, or ranking. `title.episode` is NOT here — it's imported
+ * when the "include TV" toggle is on (episodes need it), and skipped otherwise.
+ */
+export const ALWAYS_SKIPPED_DATASETS = ['title.principals'] as const;
+
+/**
+ * The datasets skipped in the default movies-only configuration — principals
+ * plus TV-episode structure. Kept for the test/logging of the default profile;
+ * with `importTvShows` on, `title.episode` moves out of this set.
  */
 export const OPTIMIZED_SKIPPED_DATASETS = ['title.principals', 'title.episode'] as const;
 
@@ -161,6 +169,7 @@ export class ImdbOptimizedImportService {
     const start = Date.now();
     const stats = zeroStats();
     const minYear = settings.minImportYear;
+    const includeTv = Boolean(settings.importTvShows);
     const batchSize = this.batchSize();
     const done: string[] = [];
 
@@ -168,10 +177,12 @@ export class ImdbOptimizedImportService {
       where: { id: importId },
       data: { status: 'running', startedAt: new Date(), strategy: 'optimized_movies' },
     });
+    // title.principals is always skipped; title.episode only when TV is off.
+    const skipped = includeTv ? [...ALWAYS_SKIPPED_DATASETS] : [...OPTIMIZED_SKIPPED_DATASETS];
     this.logger.log(
       `IMDb optimized import ${importId}: strategy=optimized_movies minYear=${minYear} ` +
-        `batch=${batchSize} akas=${settings.importAkas} crew=${settings.importCrew} ` +
-        `people=${settings.importPeople}. Intentionally skipping ${OPTIMIZED_SKIPPED_DATASETS.join(', ')}.`,
+        `tv=${includeTv} akas=${settings.importAkas} crew=${settings.importCrew} ` +
+        `people=${settings.importPeople} batch=${batchSize}. Intentionally skipping ${skipped.join(', ')}.`,
     );
 
     // Ordered plan: titles first (everything else references them), then the
@@ -182,10 +193,12 @@ export class ImdbOptimizedImportService {
       required: boolean;
       run: (abs: string, spec: DatasetFileSpec) => Promise<void>;
     }> = [
-      { key: 'title.basics', enabled: true, required: true, run: (a, s) => this.importTitles(a, s, minYear, batchSize, stats) },
+      { key: 'title.basics', enabled: true, required: true, run: (a, s) => this.importTitles(a, s, minYear, includeTv, batchSize, stats) },
       { key: 'title.ratings', enabled: true, required: false, run: (a, s) => this.importRatings(a, s, batchSize, stats) },
       { key: 'title.akas', enabled: settings.importAkas, required: false, run: (a, s) => this.importAkas(a, s, batchSize, stats) },
       { key: 'title.crew', enabled: settings.importCrew, required: false, run: (a, s) => this.importCrew(a, s, batchSize, stats) },
+      // Episode structure (season/episode → parent) — only useful with TV titles.
+      { key: 'title.episode', enabled: includeTv, required: false, run: (a, s) => this.importEpisodes(a, s, batchSize, stats) },
       { key: 'name.basics', enabled: settings.importPeople, required: false, run: (a, s) => this.importPeople(a, s, batchSize, stats) },
     ];
     const steps = plan.filter((p) => p.enabled);
@@ -348,6 +361,7 @@ export class ImdbOptimizedImportService {
     abs: string,
     spec: DatasetFileSpec,
     minYear: number,
+    includeTv: boolean,
     batchSize: number,
     stats: ImportStats,
   ): Promise<void> {
@@ -365,7 +379,7 @@ export class ImdbOptimizedImportService {
         stats.errors += 1;
         continue;
       }
-      const reason = optimizedTitleSkipReason(row, minYear);
+      const reason = optimizedTitleSkipReason(row, minYear, includeTv);
       if (reason === 'titleType') {
         stats.skippedTitleType += 1;
         continue;
@@ -388,41 +402,53 @@ export class ImdbOptimizedImportService {
   }
 
   private importRatings(abs: string, spec: DatasetFileSpec, batchSize: number, stats: ImportStats) {
-    return this.importReferential(abs, spec, batchSize, stats, mapRatingRow, (rows) =>
+    return this.importReferential(abs, spec, batchSize, stats, mapRatingRow, (r) => r.titleId, (rows) =>
       this.prisma.iMDbRating.createMany({ data: rows, skipDuplicates: true }),
     );
   }
 
   private importAkas(abs: string, spec: DatasetFileSpec, batchSize: number, stats: ImportStats) {
-    return this.importReferential(abs, spec, batchSize, stats, mapAkaRow, (rows) =>
+    return this.importReferential(abs, spec, batchSize, stats, mapAkaRow, (r) => r.titleId, (rows) =>
       this.prisma.iMDbAka.createMany({ data: rows, skipDuplicates: true }),
     );
   }
 
   private importCrew(abs: string, spec: DatasetFileSpec, batchSize: number, stats: ImportStats) {
-    return this.importReferential(abs, spec, batchSize, stats, mapCrewRow, (rows) =>
+    return this.importReferential(abs, spec, batchSize, stats, mapCrewRow, (r) => r.titleId, (rows) =>
       this.prisma.iMDbCrew.createMany({ data: rows, skipDuplicates: true }),
     );
   }
 
   /**
-   * Stream a title-referencing dataset (ratings/akas/crew), keeping only rows
-   * whose parent title was imported in step 1 (referential integrity), and
-   * writing them in batches. Rows for un-imported titles are counted as
-   * `skippedParentMissing`.
+   * Episode structure (title.episode). Referential on the EPISODE's own tconst,
+   * so a row is kept only when the episode title itself was imported (i.e. TV is
+   * on and the episode passed the filters). Idempotent — episodeTitleId is unique.
    */
-  private async importReferential<T extends { titleId: string }>(
+  private importEpisodes(abs: string, spec: DatasetFileSpec, batchSize: number, stats: ImportStats) {
+    return this.importReferential(abs, spec, batchSize, stats, mapEpisodeRow, (r) => r.episodeTitleId, (rows) =>
+      this.prisma.iMDbEpisode.createMany({ data: rows, skipDuplicates: true }),
+    );
+  }
+
+  /**
+   * Stream a title-referencing dataset (ratings/akas/crew/episode), keeping only
+   * rows whose referenced title was imported in step 1 (referential integrity)
+   * and writing them in batches. `idOf` extracts the tconst that must exist in
+   * imdb_titles. Rows for un-imported titles are counted as `skippedParentMissing`.
+   */
+  private async importReferential<T>(
     abs: string,
     spec: DatasetFileSpec,
     batchSize: number,
     stats: ImportStats,
     map: (f: string[]) => T | null,
+    idOf: (row: T) => string,
     insert: (rows: T[]) => Promise<{ count: number }>,
   ): Promise<void> {
     let batch: T[] = [];
     const flush = async () => {
       if (!batch.length) return;
-      const { kept, missing } = await this.keepExistingTitles(batch);
+      const { kept, missing } = await this.keepExistingTitles(batch, idOf);
       stats.skippedParentMissing += missing;
       if (kept.length) {
         const res = await insert(kept);
@@ -471,17 +497,18 @@ export class ImdbOptimizedImportService {
     await flush();
   }
 
-  /** Split a batch into rows whose parent title exists vs those that don't. */
-  private async keepExistingTitles<T extends { titleId: string }>(
+  /** Split a batch into rows whose referenced title exists vs those that don't. */
+  private async keepExistingTitles<T>(
     rows: T[],
+    idOf: (row: T) => string,
   ): Promise<{ kept: T[]; missing: number }> {
-    const ids = Array.from(new Set(rows.map((r) => r.titleId)));
+    const ids = Array.from(new Set(rows.map(idOf)));
     const existing = await this.prisma.iMDbTitle.findMany({
       where: { tconst: { in: ids } },
       select: { tconst: true },
     });
     const present = new Set(existing.map((e) => e.tconst));
-    const kept = rows.filter((r) => present.has(r.titleId));
+    const kept = rows.filter((r) => present.has(idOf(r)));
     return { kept, missing: rows.length - kept.length };
   }
 }

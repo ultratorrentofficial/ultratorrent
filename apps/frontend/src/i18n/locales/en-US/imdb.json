@@ -166,6 +166,7 @@
     "skippedWarning": "Intentionally skipped: {{files}}. These are very large (Principals is ~90M rows) and aren't needed for movie acquisition, matching, or ranking.",
     "minYear": "Minimum year",
     "minYearHint": "Titles released before this year are skipped. Defaults to 1970 (env IMDB_MIN_YEAR).",
+    "importTvShows": "Import TV series & episodes",
     "importAkas": "Import alternate titles (AKAs)",
     "importCrew": "Import crew (directors/writers)",
     "importPeople": "Import people (large)",

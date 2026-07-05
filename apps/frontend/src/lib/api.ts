@@ -1240,6 +1240,8 @@ export interface ImdbSettings {
   importStrategy: ImdbImportStrategy;
   /** Optimized import: only titles with startYear >= this are imported. */
   minImportYear: number;
+  /** Optimized import: also import TV series/mini-series/episodes, not just movies. */
+  importTvShows: boolean;
   /** Optimized import: also import alternate titles (title.akas). */
   importAkas: boolean;
   /** Optimized import: also import crew (title.crew). */
@@ -1266,6 +1268,7 @@ export interface ImdbSettingsInput {
   autoUpdateIntervalHours?: number;
   importStrategy?: ImdbImportStrategy;
   minImportYear?: number;
+  importTvShows?: boolean;
   importAkas?: boolean;
   importCrew?: boolean;
   importPeople?: boolean;

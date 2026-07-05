@@ -166,6 +166,7 @@
     "skippedWarning": "Omitidos a propósito: {{files}}. Son muy grandes (Principals tiene ~90M filas) y no se necesitan para adquirir, emparejar ni clasificar películas.",
     "minYear": "Año mínimo",
     "minYearHint": "Se omiten los títulos anteriores a este año. Por defecto 1970 (env IMDB_MIN_YEAR).",
+    "importTvShows": "Importar series y episodios de TV",
     "importAkas": "Importar títulos alternativos (AKAs)",
     "importCrew": "Importar equipo (directores/guionistas)",
     "importPeople": "Importar personas (grande)",

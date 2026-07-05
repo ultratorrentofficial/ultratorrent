@@ -34,22 +34,22 @@ workflow, and skips the rest.
 
 | Dataset | Table | Setting |
 |---|---|---|
+| `title.episode.tsv.gz` | `imdb_episodes` | `importTvShows` (episode ↔ parent structure) |
 | `title.crew.tsv.gz` | `imdb_crew` | `importCrew` |
 | `name.basics.tsv.gz` | `imdb_persons` | `importPeople` (large) |
 
 **Never imported by the optimized strategy:**
 
-- `title.principals.tsv.gz` — ~90M cast/crew link rows; not needed for movie
-  acquisition/matching/ranking.
-- `title.episode.tsv.gz` — TV-episode structure; out of scope for movies.
-
-To import these too, switch the strategy to **Full import** (see below).
+- `title.principals.tsv.gz` — ~90M cast/crew link rows; not needed for
+  acquisition/matching/ranking. Always skipped (only the Full import brings it in).
 
 ### Title filter
 
 A `title.basics` row is imported only when **all** hold:
 
-- `titleType` ∈ (`movie`, `tvMovie`, `video`)
+- `titleType` ∈ (`movie`, `tvMovie`, `video`) — **and**, when `importTvShows` is
+  on, also `tvSeries`, `tvMiniSeries`, `tvEpisode`. Everything else (shorts,
+  games, `tvSpecial`, …) is still skipped.
 - `isAdult` = 0 (adult titles are never imported)
 - `startYear` ≥ the configured minimum year (default **1970**)
 
@@ -77,6 +77,11 @@ overrides the built-in 1970 default.
 
 - **Strategy** — `Optimized Movie Import` (default) or `Full import`.
 - **Minimum year** — floor for imported titles.
+- **Import TV series & episodes** — off by default. When on, the import also
+  keeps `tvSeries`/`tvMiniSeries`/`tvEpisode` titles and imports `title.episode`
+  (season/episode → parent) so episodes can be matched. `title.principals` is
+  still skipped. (Episodes with a null/pre-minimum-year `startYear` are still
+  filtered out — set the minimum year lower if you need older episodes.)
 - **Import alternate titles (AKAs)** — on by default.
 - **Import crew** — off by default.
 - **Import people** — off by default (large).
