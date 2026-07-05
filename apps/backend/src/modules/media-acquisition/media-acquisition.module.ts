@@ -7,6 +7,7 @@ import { AcquisitionWatchlistService } from './watchlist.service';
 import { AcquisitionProfileService } from './profile.service';
 import { AcquisitionEvaluatorService } from './evaluator.service';
 import { AcquisitionApprovalService } from './approval.service';
+import { SmartDownloadExecutorService } from './smart-download-executor.service';
 import { MissingEpisodesService } from './missing-episodes.service';
 import { MediaAcquisitionController } from './media-acquisition.controller';
 
@@ -47,6 +48,7 @@ export class MediaAcquisitionScheduler {
     AcquisitionProfileService,
     AcquisitionEvaluatorService,
     AcquisitionApprovalService,
+    SmartDownloadExecutorService,
     MissingEpisodesService,
     MediaAcquisitionScheduler,
   ],

@@ -3,11 +3,13 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AcquisitionDecision } from './decision.engine';
+import { SmartDownloadExecutorService } from './smart-download-executor.service';
 
 /**
- * Approval queue: approve / reject / override held evaluations. Approving a held
- * download records a PENDING download action (a recommendation) — this module
- * never executes downloads or file operations itself. All actions are audited.
+ * Approval queue: approve / reject / override held evaluations. Approving (or
+ * overriding to a download) executes the evaluation's pending download action
+ * through the Smart Download executor — adding the release to the engine and,
+ * on an upgrade, removing the superseded torrent. All actions are audited.
  */
 @Injectable()
 export class AcquisitionApprovalService {
@@ -15,6 +17,7 @@ export class AcquisitionApprovalService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
+    private readonly executor: SmartDownloadExecutorService,
   ) {}
 
   queue() {
@@ -38,11 +41,15 @@ export class AcquisitionApprovalService {
       where: { id },
       data: { approvalStatus: 'approved', actionTaken: 'approved' },
     });
-    // Approving routes the held release to a pending download recommendation.
-    await this.prisma.mediaAcquisitionAction.create({
-      data: { evaluationId: id, actionType: 'download_torrent', status: 'pending', payload: { releaseName: ev.releaseName } as object, createdBy: userId },
-    });
-    await this.record(id, ev.watchlistItemId, 'evaluation.approved', 'Approved by operator', userId);
+    // Approving executes the pending download action recorded at evaluation time.
+    const exec = await this.executor.executeForEvaluation(id, userId);
+    await this.record(
+      id,
+      ev.watchlistItemId,
+      'evaluation.approved',
+      exec.torrentHash ? `Approved — acquiring ${exec.torrentHash}` : 'Approved by operator',
+      userId,
+    );
     await this.audit.record({ userId, action: 'media_acquisition.evaluation.approved', objectType: 'media_acquisition_evaluation', objectId: id });
     this.realtime.broadcast('media_acquisition.evaluation.approved', { id });
     return updated;
@@ -74,9 +81,9 @@ export class AcquisitionApprovalService {
       },
     });
     if (decision === 'download' || decision === 'upgrade_existing' || decision === 'replace_existing') {
-      await this.prisma.mediaAcquisitionAction.create({
-        data: { evaluationId: id, actionType: 'download_torrent', status: 'pending', payload: { releaseName: ev.releaseName, override: true } as object, createdBy: userId },
-      });
+      // Execute the pending action (present when the original decision carried a
+      // download intent, e.g. hold_for_approval); no-op if there is none.
+      await this.executor.executeForEvaluation(id, userId);
     }
     await this.record(id, ev.watchlistItemId, 'evaluation.overridden', `Overridden to ${decision}`, userId);
     await this.audit.record({ userId, action: 'media_acquisition.evaluation.overridden', objectType: 'media_acquisition_evaluation', objectId: id, metadata: { decision, reason } });

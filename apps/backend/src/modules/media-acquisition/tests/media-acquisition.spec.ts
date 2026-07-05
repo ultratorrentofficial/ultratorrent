@@ -12,14 +12,20 @@ const MODELS = [
   'wantedEpisode',
 ];
 
+const executorStub = () => ({
+  executeAction: jest.fn().mockResolvedValue({ status: 'skipped' }),
+  executeForEvaluation: jest.fn().mockResolvedValue({ status: 'skipped' }),
+});
+
 function build() {
   const prisma = makeFakePrisma(MODELS);
   const rt = realtime();
-  const evaluator = new AcquisitionEvaluatorService(prisma as any, audit() as any, rt as any);
+  const exec = executorStub();
+  const evaluator = new AcquisitionEvaluatorService(prisma as any, audit() as any, rt as any, exec as any);
   const watchlist = new AcquisitionWatchlistService(prisma as any, audit() as any, rt as any);
   const profiles = new AcquisitionProfileService(prisma as any, audit() as any);
-  const approval = new AcquisitionApprovalService(prisma as any, audit() as any, rt as any);
-  return { prisma, rt, evaluator, watchlist, profiles, approval };
+  const approval = new AcquisitionApprovalService(prisma as any, audit() as any, rt as any, exec as any);
+  return { prisma, rt, exec, evaluator, watchlist, profiles, approval };
 }
 
 const RELEASE = 'The Show S01E02 1080p WEB-DL x265-GRP';
@@ -97,21 +103,24 @@ describe('Approval queue', () => {
     await expect(ctx.approval.approve(ev.id, 'u1')).rejects.toThrow(/not pending/);
   });
 
-  it('reject → rejected, no download action', async () => {
+  it('reject → rejected; the held download action is never executed', async () => {
     const { ctx, ev } = await heldEvaluation();
     const r = await ctx.approval.reject(ev.id, 'too risky', 'u1');
     expect(r.approvalStatus).toBe('rejected');
-    expect(ctx.prisma.mediaAcquisitionAction.rows).toHaveLength(0);
+    // The pending action recorded at evaluation time stays pending — not executed.
+    expect(ctx.exec.executeForEvaluation).not.toHaveBeenCalled();
+    expect(ctx.prisma.mediaAcquisitionAction.rows.every((a: any) => a.status === 'pending')).toBe(true);
   });
 
-  it('override to skip → rejected; override to download → approved + action', async () => {
+  it('override to skip → rejected (no execute); override to download → approved + executes', async () => {
     const a = await heldEvaluation();
     const r1 = await a.ctx.approval.override(a.ev.id, 'skip', 'not wanted', 'u1');
     expect(r1.approvalStatus).toBe('rejected');
+    expect(a.ctx.exec.executeForEvaluation).not.toHaveBeenCalled();
 
     const b = await heldEvaluation();
     const r2 = await b.ctx.approval.override(b.ev.id, 'download', 'I want it', 'u1');
     expect(r2.approvalStatus).toBe('approved');
-    expect(b.ctx.prisma.mediaAcquisitionAction.rows.some((a: any) => a.payload?.override)).toBe(true);
+    expect(b.ctx.exec.executeForEvaluation).toHaveBeenCalledWith(b.ev.id, 'u1');
   });
 });

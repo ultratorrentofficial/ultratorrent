@@ -10,6 +10,7 @@ import {
   DecisionSignals,
   decide,
 } from './decision.engine';
+import { SmartDownloadExecutorService } from './smart-download-executor.service';
 
 export interface EvaluateInput {
   releaseName: string;
@@ -18,7 +19,19 @@ export interface EvaluateInput {
   profileId?: string;
   sizeBytes?: number;
   seeders?: number;
+  /** magnet:/.torrent URL — when present, an auto decision actually downloads. */
+  downloadUrl?: string;
+  /** Where the engine should save the download. */
+  savePath?: string;
 }
+
+/** Decisions that carry a download intent, so an action is recorded for them. */
+const DOWNLOAD_INTENT: AcquisitionDecision[] = [
+  'download',
+  'upgrade_existing',
+  'replace_existing',
+  'hold_for_approval',
+];
 
 const RES_RANK: Record<string, number> = { '2160p': 4, '1080p': 3, '720p': 2, '480p': 1 };
 const arr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
@@ -37,6 +50,7 @@ export class AcquisitionEvaluatorService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
+    private readonly executor: SmartDownloadExecutorService,
   ) {}
 
   async evaluate(input: EvaluateInput, userId?: string) {
@@ -104,11 +118,30 @@ export class AcquisitionEvaluatorService {
       },
     });
 
-    // Recommended download → record a PENDING action (recommendation, not executed).
-    if ((result.decision === 'download' || result.decision === 'upgrade_existing') && !result.requiresApproval) {
-      await this.prisma.mediaAcquisitionAction.create({
-        data: { evaluationId: evaluation.id, actionType: 'download_torrent', status: 'pending', payload: { releaseName: input.releaseName } as object, createdBy: userId },
+    // A download-intent decision records a download action carrying everything
+    // the executor needs. Auto (non-approval) decisions execute immediately;
+    // held ones stay pending until approve/override drives them.
+    if (DOWNLOAD_INTENT.includes(result.decision)) {
+      const action = await this.prisma.mediaAcquisitionAction.create({
+        data: {
+          evaluationId: evaluation.id,
+          actionType: 'download_torrent',
+          status: 'pending',
+          payload: {
+            releaseName: input.releaseName,
+            downloadUrl: input.downloadUrl,
+            savePath: input.savePath,
+            supersedeHash:
+              result.decision === 'upgrade_existing' || result.decision === 'replace_existing'
+                ? owned.ownedTorrentHash ?? undefined
+                : undefined,
+          } as object,
+          createdBy: userId,
+        },
       });
+      if (!result.requiresApproval && input.downloadUrl) {
+        await this.executor.executeAction(action.id, userId);
+      }
     }
 
     await this.history(watchlist.item?.id, evaluation.id, `evaluation.${result.decision}`, result.reason);
@@ -131,7 +164,7 @@ export class AcquisitionEvaluatorService {
 
   /** Whether this exact release is already in the library, and at what quality. */
   private async libraryState(parsed: { title?: string | null; season?: number | null; episode?: number | null; year?: number | null }, candidateRes: string | null) {
-    if (!parsed.title) return { owned: false, ambiguous: true, reason: 'unparseable title' };
+    if (!parsed.title) return { owned: false, ambiguous: true, reason: 'unparseable title', ownedTorrentHash: null as string | null };
     const title = parsed.title;
     const marker =
       parsed.season != null && parsed.episode != null
@@ -142,15 +175,21 @@ export class AcquisitionEvaluatorService {
 
     const existing = await this.prisma.torrentSnapshot.findMany({
       where: { name: { contains: title, mode: 'insensitive' } },
-      select: { name: true },
+      select: { name: true, hash: true },
       take: 25,
     });
     const ownedRow = marker ? existing.find((s) => s.name.toLowerCase().includes(marker)) : existing[0];
-    if (!ownedRow) return { owned: false, reason: marker ? `${marker} not in library` : 'not in library' };
+    if (!ownedRow) return { owned: false, reason: marker ? `${marker} not in library` : 'not in library', ownedTorrentHash: null as string | null };
 
     const ownedRes = this.detectResolution(ownedRow.name);
     const newIsBetter = this.resRank(candidateRes) > this.resRank(ownedRes);
-    return { owned: true, newIsBetter, ownedResolution: ownedRes, reason: newIsBetter ? 'owned, lower quality' : 'owned in equal/better quality' };
+    return {
+      owned: true,
+      newIsBetter,
+      ownedResolution: ownedRes,
+      ownedTorrentHash: ownedRow.hash as string | null,
+      reason: newIsBetter ? 'owned, lower quality' : 'owned in equal/better quality',
+    };
   }
 
   private duplicateRisk(library: { owned: boolean; newIsBetter?: boolean }) {

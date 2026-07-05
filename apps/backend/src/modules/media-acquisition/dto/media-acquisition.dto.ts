@@ -62,6 +62,9 @@ export class EvaluateReleaseDto {
   @IsOptional() @IsString() profileId?: string;
   @IsOptional() @IsInt() @Min(0) sizeBytes?: number;
   @IsOptional() @IsInt() @Min(0) seeders?: number;
+  /** magnet:/.torrent URL. When present, an auto (non-approval) decision downloads. */
+  @IsOptional() @IsString() @MaxLength(8192) downloadUrl?: string;
+  @IsOptional() @IsString() @MaxLength(1024) savePath?: string;
 }
 
 export class RejectEvaluationDto {
