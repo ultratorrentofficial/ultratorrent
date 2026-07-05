@@ -93,6 +93,8 @@ connection management, and Dashboard + Connections pages. Later phases:
   (for long-range trends) remains.
 - **Newsletters** — a full SMTP email + scheduled-newsletter system (net-new; no
   email infrastructure exists today).
-- **Tautulli import** — `MediaAnalyticsImportProvider` + import job engine
-  (preview, validation, mapping, duplicate handling, resume, incremental sync).
+- ~~Tautulli import~~ ✅ (Phase 4, watch history) — `MediaAnalyticsImportProvider`
+  + a background import job with preview, duplicate-safe streaming, and progress.
+  See [TAUTULLI_IMPORT.md](TAUTULLI_IMPORT.md). Users/libraries/statistics/
+  newsletter import, mapping, and incremental sync remain.
 - **Automation triggers/actions**, notifications, and the remaining UI pages.

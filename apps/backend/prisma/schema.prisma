@@ -719,9 +719,10 @@ model MediaServerSession {
 
 /// Completed playback — recorded when a session ends, or imported (Tautulli).
 model MediaServerWatchHistory {
-  id              String    @id @default(uuid())
-  connectionId    String?
-  importSourceId  String?
+  id                String    @id @default(uuid())
+  connectionId      String?
+  importSourceId    String?
+  providerHistoryId String?
   providerUserId  String?
   userName        String?
   title           String
@@ -739,10 +740,62 @@ model MediaServerWatchHistory {
   importedAt      DateTime?
   createdAt       DateTime  @default(now())
 
+  @@unique([importSourceId, providerHistoryId])
   @@index([connectionId])
   @@index([providerUserId])
   @@index([startedAt])
   @@map("media_server_watch_history")
+}
+
+/// A historical analytics import source (e.g. Tautulli) — NOT a media server.
+model MediaAnalyticsImportSource {
+  id                    String    @id @default(uuid())
+  name                  String
+  type                  String // tautulli
+  baseUrl               String
+  encryptedApiKey       String?
+  enabled               Boolean   @default(true)
+  syncEnabled           Boolean   @default(false)
+  lastConnectionTestAt  DateTime?
+  lastImportAt          DateTime?
+  lastIncrementalSyncAt DateTime?
+  importCursor          Json?
+  sourceVersion         String?
+  status                String?
+  notes                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  jobs MediaAnalyticsImportJob[]
+
+  @@map("media_analytics_import_sources")
+}
+
+/// A single import run from an analytics import source.
+model MediaAnalyticsImportJob {
+  id               String    @id @default(uuid())
+  sourceId         String
+  status           String    @default("pending") // pending | running | completed | failed | cancelled
+  mode             String    @default("one_time")
+  selectedSections Json?
+  progress         Int       @default(0)
+  totalRecords     Int       @default(0)
+  processedRecords Int       @default(0)
+  importedRecords  Int       @default(0)
+  skippedRecords   Int       @default(0)
+  failedRecords    Int       @default(0)
+  warnings         Json?
+  errors           Json?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  source MediaAnalyticsImportSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId])
+  @@map("media_analytics_import_jobs")
 }
 
 model MediaNfoFile {

@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { MediaModule } from '../media/media.module';
+import { SecretCipher } from '../../common/crypto/secret-cipher';
 import { MediaServerAnalyticsService } from './media-server-analytics.service';
 import { MediaServerSessionService } from './media-server-session.service';
 import { MediaServerReportService } from './media-server-report.service';
+import { AnalyticsImportService } from './analytics-import.service';
 import { MediaServerAnalyticsController } from './media-server-analytics.controller';
 
 /**
@@ -13,7 +15,7 @@ import { MediaServerAnalyticsController } from './media-server-analytics.control
  */
 @Module({
   imports: [MediaModule],
-  providers: [MediaServerAnalyticsService, MediaServerSessionService, MediaServerReportService],
+  providers: [MediaServerAnalyticsService, MediaServerSessionService, MediaServerReportService, AnalyticsImportService, SecretCipher],
   controllers: [MediaServerAnalyticsController],
 })
 export class MediaServerAnalyticsModule {}

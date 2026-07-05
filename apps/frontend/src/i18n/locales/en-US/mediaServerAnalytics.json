@@ -96,5 +96,44 @@
       "type": "Type",
       "added": "Added"
     }
+  },
+  "import": {
+    "title": "Import Analytics",
+    "subtitle": "Migrate historical watch history from Tautulli into UltraTorrent.",
+    "loadError": "Could not load import sources.",
+    "noSource": "No import source yet — add your Tautulli server below.",
+    "add": {
+      "title": "Add Tautulli source",
+      "name": "Name",
+      "url": "Tautulli URL",
+      "apiKey": "API key",
+      "submit": "Add source"
+    },
+    "test": "Test",
+    "preview": {
+      "users": "Users",
+      "history": "History records"
+    },
+    "import": "Import now",
+    "delete": "Delete",
+    "tested": "Connection OK",
+    "testFailed": "Connection failed",
+    "previewFailed": "Preview failed",
+    "started": "Import started",
+    "importFailed": "Could not start import",
+    "jobs": "Import jobs",
+    "noJobs": "No imports yet.",
+    "job": {
+      "status": "Status",
+      "imported": "Imported",
+      "skipped": "Skipped",
+      "progress": "Progress"
+    },
+    "retirement": {
+      "title": "Tautulli migration",
+      "done": "Migration complete",
+      "body": "Tautulli migration is complete. UltraTorrent can now provide unified media acquisition, media server analytics, watch history, and newsletters."
+    },
+    "previewBtn": "Preview"
   }
 }

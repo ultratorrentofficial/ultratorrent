@@ -9,6 +9,7 @@ import { MediaServerIntegrationService } from '../media/media-server-integration
 import { MediaServerAnalyticsService } from './media-server-analytics.service';
 import { MediaServerSessionService } from './media-server-session.service';
 import { MediaServerReportService } from './media-server-report.service';
+import { AnalyticsImportService } from './analytics-import.service';
 
 const P = PERMISSIONS;
 
@@ -27,6 +28,7 @@ export class MediaServerAnalyticsController {
     private readonly integrations: MediaServerIntegrationService,
     private readonly sessions: MediaServerSessionService,
     private readonly reports: MediaServerReportService,
+    private readonly imports: AnalyticsImportService,
   ) {}
 
   @Get('dashboard')
@@ -83,6 +85,58 @@ export class MediaServerAnalyticsController {
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW)
   recentlyAdded() {
     return this.reports.recentlyAdded();
+  }
+
+  // --- analytics import (Tautulli) ----------------------------------------
+  @Get('import-sources')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
+  listImportSources() {
+    return this.imports.listSources();
+  }
+  @Post('import-sources')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
+  createImportSource(@Body() body: Record<string, unknown>, @CurrentUser() u: AuthenticatedUser) {
+    return this.imports.createSource(body ?? {}, u?.id);
+  }
+  @Get('import-sources/:id')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
+  getImportSource(@Param('id') id: string) {
+    return this.imports.getSource(id);
+  }
+  @Patch('import-sources/:id')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
+  updateImportSource(@Param('id') id: string, @Body() body: Record<string, unknown>, @CurrentUser() u: AuthenticatedUser) {
+    return this.imports.updateSource(id, body ?? {}, u?.id);
+  }
+  @Delete('import-sources/:id')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
+  deleteImportSource(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
+    return this.imports.removeSource(id, u?.id);
+  }
+  @Post('import-sources/:id/test')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
+  testImportSource(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
+    return this.imports.test(id, u?.id);
+  }
+  @Post('import-sources/:id/preview')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
+  previewImport(@Param('id') id: string) {
+    return this.imports.preview(id);
+  }
+  @Post('import-sources/:id/import')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_RUN_IMPORTS)
+  runImport(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
+    return this.imports.runImport(id, u?.id);
+  }
+  @Get('import-jobs')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
+  listImportJobs() {
+    return this.imports.listJobs();
+  }
+  @Get('import-jobs/:id')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
+  getImportJob(@Param('id') id: string) {
+    return this.imports.getJob(id);
   }
 
   // --- connections (reuse the shared integration store) -------------------

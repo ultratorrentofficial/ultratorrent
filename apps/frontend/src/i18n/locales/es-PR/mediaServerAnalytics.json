@@ -96,5 +96,44 @@
       "type": "Tipo",
       "added": "Agregado"
     }
+  },
+  "import": {
+    "title": "Importar analíticas",
+    "subtitle": "Migra el historial de reproducción de Tautulli a UltraTorrent.",
+    "loadError": "No se pudieron cargar las fuentes.",
+    "noSource": "Aún no hay fuente — agrega tu servidor Tautulli abajo.",
+    "add": {
+      "title": "Agregar fuente Tautulli",
+      "name": "Nombre",
+      "url": "URL de Tautulli",
+      "apiKey": "Clave de API",
+      "submit": "Agregar fuente"
+    },
+    "test": "Probar",
+    "preview": {
+      "users": "Usuarios",
+      "history": "Registros de historial"
+    },
+    "import": "Importar ahora",
+    "delete": "Eliminar",
+    "tested": "Conexión correcta",
+    "testFailed": "Falló la conexión",
+    "previewFailed": "Falló la vista previa",
+    "started": "Importación iniciada",
+    "importFailed": "No se pudo iniciar la importación",
+    "jobs": "Trabajos de importación",
+    "noJobs": "Aún no hay importaciones.",
+    "job": {
+      "status": "Estado",
+      "imported": "Importados",
+      "skipped": "Omitidos",
+      "progress": "Progreso"
+    },
+    "retirement": {
+      "title": "Migración de Tautulli",
+      "done": "Migración completa",
+      "body": "La migración de Tautulli está completa. UltraTorrent ahora ofrece adquisición de multimedia, analíticas del servidor, historial y boletines unificados."
+    },
+    "previewBtn": "Vista previa"
   }
 }

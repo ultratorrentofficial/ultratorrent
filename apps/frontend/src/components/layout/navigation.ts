@@ -30,6 +30,7 @@ import {
   Activity,
   History,
   BarChart3,
+  DownloadCloud,
   Users,
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
@@ -121,6 +122,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/media-server-analytics/watch-history', label: 'Watch History', icon: History, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_HISTORY, module: 'media_server_analytics' },
       { to: '/media-server-analytics/recently-added', label: 'Recently Added', icon: Clapperboard, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics' },
       { to: '/media-server-analytics/reports', label: 'Analytics Reports', icon: BarChart3, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS, module: 'media_server_analytics' },
+      { to: '/media-server-analytics/import', label: 'Import Analytics', icon: DownloadCloud, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS, module: 'media_server_analytics' },
     ],
   },
   {

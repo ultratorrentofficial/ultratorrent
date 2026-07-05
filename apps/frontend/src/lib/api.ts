@@ -2773,9 +2773,63 @@ export const api = {
     recentlyAdded(): Promise<MediaServerRecentlyAddedItem[]> {
       return request<MediaServerRecentlyAddedItem[]>('/media-server-analytics/recently-added');
     },
+    importSources(): Promise<AnalyticsImportSource[]> {
+      return request<AnalyticsImportSource[]>('/media-server-analytics/import-sources');
+    },
+    createImportSource(body: { name?: string; baseUrl: string; apiKey?: string }): Promise<AnalyticsImportSource> {
+      return request<AnalyticsImportSource>('/media-server-analytics/import-sources', { method: 'POST', body });
+    },
+    deleteImportSource(id: string): Promise<void> {
+      return request<void>(`/media-server-analytics/import-sources/${id}`, { method: 'DELETE' });
+    },
+    testImportSource(id: string): Promise<{ ok: boolean; message: string }> {
+      return request<{ ok: boolean; message: string }>(`/media-server-analytics/import-sources/${id}/test`, { method: 'POST' });
+    },
+    previewImport(id: string): Promise<AnalyticsImportPreview> {
+      return request<AnalyticsImportPreview>(`/media-server-analytics/import-sources/${id}/preview`, { method: 'POST' });
+    },
+    runImport(id: string): Promise<AnalyticsImportJob> {
+      return request<AnalyticsImportJob>(`/media-server-analytics/import-sources/${id}/import`, { method: 'POST' });
+    },
+    importJobs(): Promise<AnalyticsImportJob[]> {
+      return request<AnalyticsImportJob[]>('/media-server-analytics/import-jobs');
+    },
   },
 
 };
+
+export interface AnalyticsImportSource {
+  id: string;
+  name: string;
+  type: string;
+  baseUrl: string;
+  enabled: boolean;
+  syncEnabled: boolean;
+  hasApiKey: boolean;
+  status: string | null;
+  lastImportAt: string | null;
+}
+
+export interface AnalyticsImportPreview {
+  reachable: boolean;
+  version?: string;
+  totalUsers: number;
+  totalHistory: number;
+  message?: string;
+}
+
+export interface AnalyticsImportJob {
+  id: string;
+  sourceId: string;
+  status: string;
+  progress: number;
+  totalRecords: number;
+  processedRecords: number;
+  importedRecords: number;
+  skippedRecords: number;
+  failedRecords: number;
+  createdAt: string;
+}
 
 export interface MediaServerUsageReport {
   totalPlays: number;
