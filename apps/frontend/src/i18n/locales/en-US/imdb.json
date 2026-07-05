@@ -62,6 +62,11 @@
     "dirHelp": "Where dataset files live and are downloaded to. Leave blank to use a managed default under your storage root.",
     "validateBtn": "Validate dataset",
     "importBtn": "Import now",
+    "stopBtn": "Stop import",
+    "stopRequestedTitle": "Stopping import",
+    "stopRequestedBody": "The import will halt after the current batch; records already imported are kept.",
+    "stopFailedTitle": "Could not stop import",
+    "stoppedToastTitle": "Import stopped",
     "autoTitle": "Automatic download & import",
     "autoDesc": "On a schedule, download the latest IMDb dataset files and import them automatically.",
     "baseUrlLabel": "Dataset base URL",
@@ -146,5 +151,46 @@
     "includeAdult": "Include adult titles",
     "includeAdultHint": "Off by default.",
     "saveBtn": "Save preferences"
+  },
+  "optimized": {
+    "title": "Import strategy",
+    "description": "Import a lean, production-ready IMDb subset tuned for movie acquisition and matching — instead of every dataset.",
+    "strategyLabel": "Strategy",
+    "strategy": {
+      "optimized": "Optimized Movie Import",
+      "full": "Full import (every dataset)"
+    },
+    "badge": "Optimized Movie Import",
+    "badgeFull": "Full mirror",
+    "selectedDatasets": "Imported datasets",
+    "skippedWarning": "Intentionally skipped: {{files}}. These are very large (Principals is ~90M rows) and aren't needed for movie acquisition, matching, or ranking.",
+    "minYear": "Minimum year",
+    "minYearHint": "Titles released before this year are skipped. Defaults to 1970 (env IMDB_MIN_YEAR).",
+    "importAkas": "Import alternate titles (AKAs)",
+    "importCrew": "Import crew (directors/writers)",
+    "importPeople": "Import people (large)",
+    "latestStats": "Latest import stats",
+    "stat": {
+      "scanned": "Rows scanned",
+      "imported": "Rows imported",
+      "skipType": "Skipped: type",
+      "skipAdult": "Skipped: adult",
+      "skipYear": "Skipped: year",
+      "skipOrphan": "Skipped: orphan",
+      "errors": "Errors",
+      "duration": "Duration"
+    },
+    "saveBtn": "Save strategy",
+    "validateBtn": "Validate datasets",
+    "runBtn": "Run import",
+    "resetBtn": "Reset & reimport",
+    "resetConfirm": "This deletes all imported IMDb data and reimports from scratch. Continue?",
+    "importStarted": "IMDb import started",
+    "importBusy": "An import is already running.",
+    "importFailed": "Could not start the import",
+    "validateOk": "Datasets look valid",
+    "validateFail": "Dataset validation failed",
+    "resetDone": "IMDb data reset ({{count}} titles cleared); reimport started.",
+    "resetFailed": "Could not reset IMDb data"
   }
 }

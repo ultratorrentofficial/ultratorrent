@@ -19,6 +19,13 @@ function resolveVersion(): string {
   return '0.10.0';
 }
 
+/** Parse an integer env var, clamped to [min, max], falling back to `def`. */
+function intEnv(raw: string | undefined, def: number, min: number, max: number): number {
+  const n = raw != null && raw.trim() !== '' ? Number.parseInt(raw, 10) : NaN;
+  if (!Number.isFinite(n)) return def;
+  return Math.min(max, Math.max(min, n));
+}
+
 export interface AppConfig {
   port: number;
   corsOrigin: string;
@@ -30,6 +37,13 @@ export interface AppConfig {
   };
   redis: { host: string; port: number };
   fileManager: { roots: string[] };
+  /**
+   * IMDb optimized-import tuning. `minYear` is the default floor for the
+   * "Optimized Movie Import" strategy (titles before it are skipped) and
+   * `importBatchSize` the streaming insert/upsert batch size. Both are
+   * overridable per-import via settings; these are the environment defaults.
+   */
+  imdb: { minYear: number; importBatchSize: number };
   encryptionKey: string;
   node: { productVersion: string; mode: string; publicUrl: string | null };
   edition: string;
@@ -87,6 +101,10 @@ export default (): AppConfig => ({
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
+  },
+  imdb: {
+    minYear: intEnv(process.env.IMDB_MIN_YEAR, 1970, 1874, 2200),
+    importBatchSize: intEnv(process.env.IMDB_IMPORT_BATCH_SIZE, 5000, 100, 100000),
   },
   // Used to encrypt TOTP secrets at rest. Falls back to the JWT secret in dev;
   // set a dedicated ENCRYPTION_KEY in production.

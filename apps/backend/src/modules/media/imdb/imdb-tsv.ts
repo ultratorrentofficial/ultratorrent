@@ -206,6 +206,7 @@ export function mapAkaRow(f: string[]) {
   if (!titleId || !title) return null;
   return {
     titleId,
+    ordering: tsvInt(f[1]),
     title,
     region: tsvField(f[3]),
     language: tsvField(f[4]),
@@ -258,4 +259,33 @@ export function mapRatingRow(f: string[]) {
   const numVotes = tsvInt(f[2]);
   if (!titleId || averageRating === null || numVotes === null) return null;
   return { titleId, averageRating, numVotes };
+}
+
+// --- optimized "movie import" filter (pure) --------------------------------
+
+/**
+ * The title types the optimized movie import keeps. Deliberately narrow —
+ * UltraTorrent acquires and matches *movies*: theatrical/TV movies and
+ * direct-to-video releases. Everything else (series, episodes, shorts, games,
+ * …) is skipped by the optimized strategy.
+ */
+export const OPTIMIZED_TITLE_TYPES = ['movie', 'tvMovie', 'video'] as const;
+const OPTIMIZED_TITLE_TYPE_SET = new Set<string>(OPTIMIZED_TITLE_TYPES);
+
+/** Why a title row was skipped by the optimized filter (null = keep it). */
+export type TitleSkipReason = 'titleType' | 'adult' | 'minYear';
+
+/**
+ * Decide whether an optimized import should keep a parsed title row. Returns
+ * `null` to keep, or the reason it was skipped so the importer can count it.
+ * Order matters for the stats: type → adult → year.
+ */
+export function optimizedTitleSkipReason(
+  row: TitleRow,
+  minYear: number,
+): TitleSkipReason | null {
+  if (!OPTIMIZED_TITLE_TYPE_SET.has(row.titleType)) return 'titleType';
+  if (row.isAdult) return 'adult';
+  if (row.startYear == null || row.startYear < minYear) return 'minYear';
+  return null;
 }

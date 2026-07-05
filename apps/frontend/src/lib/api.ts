@@ -1219,6 +1219,9 @@ export interface ImdbStatus {
   } | null;
 }
 
+/** Which IMDb datasets an import pulls in. */
+export type ImdbImportStrategy = 'optimized_movies' | 'full';
+
 /** GET/PATCH providers/imdb/settings (secret redacted on read). */
 export interface ImdbSettings {
   mode: ImdbMode;
@@ -1233,6 +1236,16 @@ export interface ImdbSettings {
   datasetBaseUrl: string;
   /** How often the auto-update job runs, in hours (minimum 1). */
   autoUpdateIntervalHours: number;
+  /** Import strategy: the lean optimized movie subset (default) or the full mirror. */
+  importStrategy: ImdbImportStrategy;
+  /** Optimized import: only titles with startYear >= this are imported. */
+  minImportYear: number;
+  /** Optimized import: also import alternate titles (title.akas). */
+  importAkas: boolean;
+  /** Optimized import: also import crew (title.crew). */
+  importCrew: boolean;
+  /** Optimized import: also import people (name.basics) — large. */
+  importPeople: boolean;
   preferredRegion: string | null;
   preferredLanguage: string | null;
   includeAdult: boolean;
@@ -1251,11 +1264,29 @@ export interface ImdbSettingsInput {
   autoDownloadEnabled?: boolean;
   datasetBaseUrl?: string | null;
   autoUpdateIntervalHours?: number;
+  importStrategy?: ImdbImportStrategy;
+  minImportYear?: number;
+  importAkas?: boolean;
+  importCrew?: boolean;
+  importPeople?: boolean;
   preferredRegion?: string | null;
   preferredLanguage?: string | null;
   includeAdult?: boolean;
   minVotes?: number;
   cacheTtl?: number;
+}
+
+/** Optimized-import scan/skip counters persisted on an import record. */
+export interface ImdbImportStats {
+  rowsScanned: number;
+  rowsImported: number;
+  skippedTitleType: number;
+  skippedAdult: number;
+  skippedMinYear: number;
+  skippedParentMissing: number;
+  errors: number;
+  durationMs: number;
+  datasets: string[];
 }
 
 export interface ImdbApiTestResult {
@@ -1284,7 +1315,7 @@ export interface ImdbDatasetValidationReport {
 /** A dataset import record (GET dataset/imports, POST dataset/import). */
 export interface ImdbDatasetImport {
   id: string;
-  status: string; // pending | validating | running | completed | failed
+  status: string; // pending | validating | running | completed | failed | cancelled
   sourcePath: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -1292,6 +1323,10 @@ export interface ImdbDatasetImport {
   errorMessage: string | null;
   filesImported: string[];
   recordsImported: number;
+  /** Optimized-import counters (null for legacy/full imports). */
+  stats?: ImdbImportStats | null;
+  /** Strategy that produced this record (optimized_movies | full | null). */
+  strategy?: string | null;
   datasetDate: string | null;
   createdAt: string;
   updatedAt: string;
@@ -2421,10 +2456,25 @@ export const api = {
     imdbImports(): Promise<ImdbDatasetImport[]> {
       return request<ImdbDatasetImport[]>('/media/providers/imdb/dataset/imports');
     },
+    /** Cooperatively stop the running import; 404 if none is in progress. */
+    stopImdbImport(): Promise<ImdbDatasetImport> {
+      return request<ImdbDatasetImport>('/media/providers/imdb/dataset/import/stop', {
+        method: 'POST',
+      });
+    },
     /** Download the configured datasets then import them (detached; WS progress). */
     updateImdbDatasetNow(): Promise<{ started: boolean }> {
       return request<{ started: boolean }>('/media/providers/imdb/dataset/update-now', {
         method: 'POST',
+      });
+    },
+    /** Wipe all imported IMDb data; optionally kick off a fresh import. */
+    resetImdbData(
+      reimport = false,
+    ): Promise<{ clearedTitles: number; reimport: { started: boolean; datasetPath: string | null } | null }> {
+      return request('/media/providers/imdb/dataset/reset', {
+        method: 'POST',
+        body: { reimport },
       });
     },
     imdbSearch(query: ImdbSearchInput): Promise<ImdbSearchResult[]> {

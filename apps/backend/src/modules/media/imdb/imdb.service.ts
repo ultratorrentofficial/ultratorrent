@@ -182,11 +182,49 @@ export class ImdbService implements OnModuleInit {
     return this.importer.startImport(datasetPath, ctx);
   }
 
+  /** Cooperatively stop the in-progress dataset import (records already committed are kept). */
+  stopImport(ctx: AuditContext = {}) {
+    return this.importer.stopImport(ctx);
+  }
+
   listImports() {
     return this.prisma.iMDbDatasetImport.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
+  }
+
+  /**
+   * Wipe all imported IMDb data (titles, akas, ratings, crew, episodes,
+   * principals, people) so the next import starts from a clean slate — used by
+   * the admin "Reset & reimport" control, e.g. after changing the minimum year
+   * or import strategy. Refuses while an import is active. Optionally kicks off
+   * a fresh import immediately (reusing on-disk dataset files, downloading only
+   * if missing). Import *history* rows are kept for the audit trail.
+   */
+  async resetData(
+    ctx: AuditContext = {},
+    reimport = false,
+  ): Promise<{ clearedTitles: number; reimport: { started: boolean; datasetPath: string | null } | null }> {
+    if (await this.activeImportExists()) {
+      throw new BadRequestException('An IMDb import is in progress — stop it before resetting.');
+    }
+    const clearedTitles = await this.prisma.iMDbTitle.count();
+    // TRUNCATE is far faster than deleteMany for a full wipe of multi-million-row tables.
+    await this.prisma.$executeRawUnsafe(
+      'TRUNCATE TABLE "imdb_titles", "imdb_akas", "imdb_ratings", "imdb_crew", "imdb_episodes", "imdb_principals", "imdb_persons"',
+    );
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.imdb.dataset.reset',
+      objectType: 'imdb_dataset',
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { clearedTitles, reimport },
+    });
+    this.logger.warn(`IMDb data reset — cleared ${clearedTitles} title(s).`);
+    const reimportResult = reimport ? await this.triggerDatasetUpdate(ctx) : null;
+    return { clearedTitles, reimport: reimportResult };
   }
 
   /** Timestamp of the most recent dataset import attempt (for the scheduler). */

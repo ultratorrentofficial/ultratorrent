@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { SettingsService } from '../../settings/settings.module';
 import { SecretCipher } from '../../../common/crypto/secret-cipher';
 import { DEFAULT_IMDB_DATASET_BASE_URL } from './imdb-tsv';
@@ -8,6 +9,19 @@ export const IMDB_SETTINGS_KEY = 'media.imdb';
 
 export type ImdbMode = 'disabled' | 'dataset' | 'official_api' | 'hybrid';
 const MODES: ImdbMode[] = ['disabled', 'dataset', 'official_api', 'hybrid'];
+
+/**
+ * How much of the IMDb dataset an import pulls in:
+ *  - `optimized_movies` (default): a lean, production-ready subset — movie-like
+ *    non-adult titles from the configured minimum year forward, plus their
+ *    ratings and (optionally) alternate titles / crew / people. Skips the huge
+ *    `title.principals` and `title.episode` files entirely.
+ *  - `full`: the legacy behaviour — import every present dataset file as-is.
+ * The optimized strategy is the default; full remains available for operators
+ * who want the complete mirror.
+ */
+export type ImdbImportStrategy = 'optimized_movies' | 'full';
+const IMPORT_STRATEGIES: ImdbImportStrategy[] = ['optimized_movies', 'full'];
 
 /** Redaction placeholder returned to clients in place of a stored secret. */
 export const REDACTED = '••••••••';
@@ -26,6 +40,16 @@ export interface ImdbSettings {
   datasetBaseUrl: string;
   /** How often the auto-update job runs, in hours (minimum 1). */
   autoUpdateIntervalHours: number;
+  /** Which import strategy the importer runs (see {@link ImdbImportStrategy}). */
+  importStrategy: ImdbImportStrategy;
+  /** Optimized import: only titles with startYear >= this are imported. */
+  minImportYear: number;
+  /** Optimized import: also import alternate titles (title.akas) for imported titles. */
+  importAkas: boolean;
+  /** Optimized import: also import crew (title.crew) for imported titles. */
+  importCrew: boolean;
+  /** Optimized import: also import people (name.basics). Off by default (large). */
+  importPeople: boolean;
   preferredRegion: string | null;
   preferredLanguage: string | null;
   includeAdult: boolean;
@@ -50,6 +74,11 @@ export interface ImdbSettingsPatch {
   autoDownloadEnabled?: boolean;
   datasetBaseUrl?: string | null;
   autoUpdateIntervalHours?: number;
+  importStrategy?: ImdbImportStrategy;
+  minImportYear?: number;
+  importAkas?: boolean;
+  importCrew?: boolean;
+  importPeople?: boolean;
   preferredRegion?: string | null;
   preferredLanguage?: string | null;
   includeAdult?: boolean;
@@ -66,6 +95,11 @@ const DEFAULTS: ImdbSettings = {
   autoDownloadEnabled: false,
   datasetBaseUrl: DEFAULT_IMDB_DATASET_BASE_URL,
   autoUpdateIntervalHours: 168,
+  importStrategy: 'optimized_movies',
+  minImportYear: 1970,
+  importAkas: true,
+  importCrew: false,
+  importPeople: false,
   preferredRegion: null,
   preferredLanguage: null,
   includeAdult: false,
@@ -83,7 +117,13 @@ export class ImdbSettingsService {
   constructor(
     private readonly settings: SettingsService,
     private readonly cipher: SecretCipher,
+    private readonly config: ConfigService,
   ) {}
+
+  /** The env-configured default minimum import year (IMDB_MIN_YEAR). */
+  private defaultMinYear(): number {
+    return this.config.get<number>('imdb.minYear') ?? DEFAULTS.minImportYear;
+  }
 
   /** Read the stored (encrypted) blob and decrypt the API key for internal use. */
   async read(): Promise<ImdbSettings> {
@@ -115,6 +155,14 @@ export class ImdbSettingsService {
         1,
         num((stored as any).autoUpdateIntervalHours, DEFAULTS.autoUpdateIntervalHours),
       ),
+      importStrategy: IMPORT_STRATEGIES.includes((stored as any).importStrategy)
+        ? (stored as any).importStrategy
+        : DEFAULTS.importStrategy,
+      // Admin setting wins; else the IMDB_MIN_YEAR env default; else 1970.
+      minImportYear: num((stored as any).minImportYear, this.defaultMinYear()),
+      importAkas: bool((stored as any).importAkas, DEFAULTS.importAkas),
+      importCrew: bool((stored as any).importCrew, DEFAULTS.importCrew),
+      importPeople: bool((stored as any).importPeople, DEFAULTS.importPeople),
       preferredRegion: str((stored as any).preferredRegion),
       preferredLanguage: str((stored as any).preferredLanguage),
       includeAdult: bool((stored as any).includeAdult, DEFAULTS.includeAdult),
@@ -162,6 +210,15 @@ export class ImdbSettingsService {
     if (patch.datasetBaseUrl != null && patch.datasetBaseUrl !== '') {
       assertHttpUrl(patch.datasetBaseUrl);
     }
+    if (patch.importStrategy !== undefined && !IMPORT_STRATEGIES.includes(patch.importStrategy)) {
+      throw new BadRequestException(`Invalid IMDb import strategy "${patch.importStrategy}".`);
+    }
+    if (
+      patch.minImportYear !== undefined &&
+      (!Number.isFinite(patch.minImportYear) || patch.minImportYear < 1874 || patch.minImportYear > 2200)
+    ) {
+      throw new BadRequestException('minImportYear must be a year between 1874 and 2200.');
+    }
 
     const next: ImdbSettings = {
       mode: patch.mode ?? current.mode,
@@ -177,6 +234,11 @@ export class ImdbSettingsService {
           : normOpt(patch.datasetBaseUrl, current.datasetBaseUrl) ?? DEFAULTS.datasetBaseUrl,
       autoUpdateIntervalHours:
         patch.autoUpdateIntervalHours ?? current.autoUpdateIntervalHours,
+      importStrategy: patch.importStrategy ?? current.importStrategy,
+      minImportYear: patch.minImportYear ?? current.minImportYear,
+      importAkas: patch.importAkas ?? current.importAkas,
+      importCrew: patch.importCrew ?? current.importCrew,
+      importPeople: patch.importPeople ?? current.importPeople,
       preferredRegion: normOpt(patch.preferredRegion, current.preferredRegion),
       preferredLanguage: normOpt(patch.preferredLanguage, current.preferredLanguage),
       includeAdult: patch.includeAdult ?? current.includeAdult,
@@ -192,6 +254,11 @@ export class ImdbSettingsService {
       autoDownloadEnabled: next.autoDownloadEnabled,
       datasetBaseUrl: next.datasetBaseUrl,
       autoUpdateIntervalHours: next.autoUpdateIntervalHours,
+      importStrategy: next.importStrategy,
+      minImportYear: next.minImportYear,
+      importAkas: next.importAkas,
+      importCrew: next.importCrew,
+      importPeople: next.importPeople,
       preferredRegion: next.preferredRegion,
       preferredLanguage: next.preferredLanguage,
       includeAdult: next.includeAdult,

@@ -1008,6 +1008,11 @@ model IMDbTitle {
   @@index([originalTitle])
   @@index([startYear])
   @@index([titleType])
+  // Optimized movie import filters/sorts on (titleType, year) together.
+  @@index([titleType, startYear])
+  @@index([isAdult])
+  // Genre filtering over the String[] column — GIN for array containment.
+  @@index([genres], type: Gin)
   @@map("imdb_titles")
 }
 
@@ -1019,9 +1024,15 @@ model IMDbAka {
   language        String?
   types           String?
   attributes      String?
+  ordering        Int?
   isOriginalTitle Boolean @default(false)
 
+  // (titleId, ordering) is IMDb's natural key for an alternate title, so a
+  // re-import upserts rather than duplicating — makes the import idempotent.
+  @@unique([titleId, ordering])
   @@index([titleId])
+  // Release-name matching searches alternate titles by text.
+  @@index([title])
   @@map("imdb_akas")
 }
 
@@ -1086,7 +1097,7 @@ model IMDbRating {
 
 model IMDbDatasetImport {
   id              String    @id @default(uuid())
-  status          String    @default("pending") // pending | validating | running | completed | failed
+  status          String    @default("pending") // pending | validating | running | completed | failed | cancelled
   sourcePath      String
   startedAt       DateTime?
   completedAt     DateTime?
@@ -1094,6 +1105,10 @@ model IMDbDatasetImport {
   errorMessage    String?
   filesImported   Json      @default("[]")
   recordsImported Int       @default(0)
+  /// Optimized-import scan/skip counters (ImportStats): scanned, imported, skipped-by-*, errors, durationMs.
+  stats           Json?
+  /// Which import strategy produced this record (optimized_movies | full).
+  strategy        String?
   datasetDate     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

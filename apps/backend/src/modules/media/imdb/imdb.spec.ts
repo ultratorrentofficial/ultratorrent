@@ -45,6 +45,10 @@ function filePathStub(root: string) {
 
 const noopRealtime = { broadcast: jest.fn() } as any;
 const noopAudit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+// The importer now reads the strategy + delegates the optimized path; these
+// stubs keep the legacy-path tests (validate/importFile/full runImport) intact.
+const fullStrategySettings = { read: async () => ({ importStrategy: 'full' }) } as any;
+const noopOptimized = { execute: jest.fn().mockResolvedValue(undefined) } as any;
 
 const baseSettings: ImdbSettings = {
   mode: 'dataset',
@@ -55,6 +59,11 @@ const baseSettings: ImdbSettings = {
   autoDownloadEnabled: false,
   datasetBaseUrl: 'https://datasets.imdbws.com/',
   autoUpdateIntervalHours: 168,
+  importStrategy: 'optimized_movies',
+  minImportYear: 1970,
+  importAkas: true,
+  importCrew: false,
+  importPeople: false,
   preferredRegion: null,
   preferredLanguage: null,
   includeAdult: false,
@@ -138,6 +147,8 @@ describe('ImdbDatasetImporterService streaming', () => {
       filePathStub(dir),
       noopAudit,
       noopRealtime,
+      fullStrategySettings,
+      noopOptimized,
     );
 
     const spec = IMDB_DATASET_FILES.find((f) => f.key === 'title.basics')!;
@@ -157,6 +168,8 @@ describe('ImdbDatasetImporterService streaming', () => {
       filePathStub('/media/allowed'),
       noopAudit,
       noopRealtime,
+      fullStrategySettings,
+      noopOptimized,
     );
     await expect(importer.validate('/etc/passwd')).rejects.toThrow(ForbiddenException);
   });
@@ -175,6 +188,8 @@ describe('ImdbDatasetImporterService streaming', () => {
       filePathStub('/media/allowed'),
       noopAudit,
       noopRealtime,
+      fullStrategySettings,
+      noopOptimized,
     );
     const res = await importer.startImport('/media/allowed/imdb');
     expect(res).toBe(active); // returns the in-flight import…
@@ -193,6 +208,8 @@ describe('ImdbDatasetImporterService streaming', () => {
       filePathStub(dir),
       noopAudit,
       noopRealtime,
+      fullStrategySettings,
+      noopOptimized,
     );
     const report = await importer.validate(dir);
     expect(report.hasMinimum).toBe(true);
@@ -230,6 +247,8 @@ describe('ImdbDatasetImporterService streaming', () => {
       filePathStub(dir),
       noopAudit,
       noopRealtime,
+      fullStrategySettings,
+      noopOptimized,
     );
     await importer.runImport('imp1', dir);
     // title.basics was already done → no createMany
@@ -433,7 +452,8 @@ describe('ImdbSettingsService', () => {
       set: jest.fn(async (k: string, v: unknown) => void store.set(k, v)),
     } as any;
     const cipher = new SecretCipher({ get: () => 'unit-test-secret' } as any);
-    return { svc: new ImdbSettingsService(settings, cipher), store, cipher };
+    const config = { get: (k: string) => (k === 'imdb.minYear' ? 1970 : undefined) } as any;
+    return { svc: new ImdbSettingsService(settings, cipher, config), store, cipher };
   }
 
   it('encrypts the API key at rest and never returns it in clear', async () => {

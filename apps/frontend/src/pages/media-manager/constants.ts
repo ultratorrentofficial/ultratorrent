@@ -164,6 +164,10 @@ export function imdbImportStatusVariant(
       return 'warning';
     case 'failed':
       return 'destructive';
+    case 'stopping':
+      return 'warning';
+    case 'cancelled':
+      return 'secondary';
     default:
       return 'secondary';
   }

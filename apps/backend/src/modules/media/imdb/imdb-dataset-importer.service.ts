@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { createReadStream, createWriteStream, promises as fs } from 'node:fs';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -25,6 +30,9 @@ import {
   parseTsvLine,
   validateHeader,
 } from './imdb-tsv';
+import { ImdbSettingsService } from './imdb-settings.service';
+import { ImdbOptimizedImportService } from './imdb-optimized-import.service';
+import { ImportCancelledError } from './imdb-cancel';
 
 /** Per-file validation outcome. */
 export interface DatasetFileReport {
@@ -84,12 +92,22 @@ const DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
 @Injectable()
 export class ImdbDatasetImporterService {
   private readonly logger = new Logger(ImdbDatasetImporterService.name);
+  /**
+   * Import ids for which a stop has been requested. The detached worker checks
+   * this cooperatively between files and at each batch boundary; the flag is
+   * cleared once the worker reaches a terminal state. In-process only — a stop
+   * cannot cross a restart, but neither can the worker (orphans are failed at
+   * boot by ImdbService.onModuleInit).
+   */
+  private readonly cancelRequested = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly filePath: FilePathService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
+    private readonly settingsSvc: ImdbSettingsService,
+    private readonly optimized: ImdbOptimizedImportService,
   ) {}
 
   /** Resolve a dataset directory to an absolute path inside the hard roots. */
@@ -355,8 +373,63 @@ export class ImdbDatasetImporterService {
     return record;
   }
 
-  /** The detached worker body. Isolated per-file; safe to re-run (resumable). */
+  /**
+   * Request cooperative cancellation of the in-progress import. Flags the active
+   * run so the detached worker stops at its next file/batch boundary and marks
+   * the row `cancelled`; work already committed (whole files, partial batches) is
+   * kept — the resume design means a later re-run continues from there. Returns
+   * the affected import row (still `running`/`pending` until the worker observes
+   * the flag); throws if nothing is running.
+   */
+  async stopImport(ctx: AuditContext = {}) {
+    const active = await this.prisma.iMDbDatasetImport.findFirst({
+      where: { status: { in: ['pending', 'running'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!active) {
+      throw new NotFoundException('No IMDb dataset import is currently running.');
+    }
+    this.cancelRequested.add(active.id);
+    this.logger.log(`IMDb import ${active.id} — stop requested.`);
+    this.emit(WS_EVENTS.IMDB_DATASET_IMPORT_PROGRESS, {
+      id: active.id,
+      status: 'stopping',
+      message: 'stop requested',
+      recordsImported: active.recordsImported,
+    });
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.imdb.dataset.import.stop_requested',
+      objectType: 'imdb_dataset_import',
+      objectId: active.id,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { recordsImported: active.recordsImported },
+    });
+    return active;
+  }
+
+  /**
+   * The detached worker body. Dispatches on the configured import strategy:
+   * `optimized_movies` (default) runs the lean, filtered movie import; `full`
+   * runs the legacy every-file import below. Isolated per-file; safe to re-run.
+   */
   async runImport(importId: string, dirAbs: string, ctx: AuditContext = {}): Promise<void> {
+    const settings = await this.settingsSvc.read();
+    if (settings.importStrategy === 'optimized_movies') {
+      // The optimized strategy owns its terminal state; it polls this flag at
+      // batch/step boundaries and marks the row 'cancelled' if a stop is asked.
+      try {
+        await this.optimized.execute(importId, dirAbs, settings, ctx, () =>
+          this.cancelRequested.has(importId),
+        );
+      } finally {
+        this.cancelRequested.delete(importId);
+      }
+      return;
+    }
+
+    // --- legacy full import: import every present dataset file as-is ---------
     const existing = await this.prisma.iMDbDatasetImport.findUnique({
       where: { id: importId },
     });
@@ -380,9 +453,16 @@ export class ImdbDatasetImporterService {
       }
     });
 
+    const shouldCancel = () => this.cancelRequested.has(importId);
+
     let failure: string | null = null;
+    let cancelled = false;
     let processed = 0;
     for (const spec of IMDB_DATASET_FILES) {
+      if (shouldCancel()) {
+        cancelled = true;
+        break;
+      }
       processed += 1;
       if (alreadyDone.has(spec.key)) continue;
       const abs = this.assertFile(dirAbs, spec.file);
@@ -390,7 +470,7 @@ export class ImdbDatasetImporterService {
       if (!stat || !stat.isFile()) continue; // optional file absent — skip cleanly.
 
       try {
-        const count = await this.importFile(spec, abs);
+        const count = await this.importFile(spec, abs, shouldCancel);
         recordsImported += count;
         alreadyDone.add(spec.key);
         await this.prisma.iMDbDatasetImport.update({
@@ -410,13 +490,41 @@ export class ImdbDatasetImporterService {
           filesImported: Array.from(alreadyDone),
         });
       } catch (err) {
+        if (err instanceof ImportCancelledError) {
+          cancelled = true;
+          break;
+        }
         // Per-file failure: record it but continue with the remaining files.
         failure = `${spec.key}: ${(err as Error).message}`;
         this.logger.warn(`IMDb import ${importId} — ${failure}`);
       }
     }
 
+    if (cancelled) {
+      this.cancelRequested.delete(importId);
+      await this.prisma.iMDbDatasetImport.update({
+        where: { id: importId },
+        data: { status: 'cancelled', completedAt: new Date(), recordsImported },
+      });
+      this.emit(WS_EVENTS.IMDB_DATASET_IMPORT_CANCELLED, {
+        id: importId,
+        status: 'cancelled',
+        recordsImported,
+        filesImported: Array.from(alreadyDone),
+      });
+      await this.audit.record({
+        userId: ctx.userId,
+        action: 'media.imdb.dataset.import.cancelled',
+        objectType: 'imdb_dataset_import',
+        objectId: importId,
+        metadata: { recordsImported, filesImported: Array.from(alreadyDone) },
+      });
+      this.logger.log(`IMDb import ${importId} stopped by user (${recordsImported} records kept).`);
+      return;
+    }
+
     if (failure) {
+      this.cancelRequested.delete(importId);
       await this.prisma.iMDbDatasetImport.update({
         where: { id: importId },
         data: { status: 'failed', failedAt: new Date(), errorMessage: failure, recordsImported },
@@ -438,6 +546,7 @@ export class ImdbDatasetImporterService {
       return;
     }
 
+    this.cancelRequested.delete(importId);
     await this.prisma.iMDbDatasetImport.update({
       where: { id: importId },
       data: { status: 'completed', completedAt: new Date(), recordsImported },
@@ -462,7 +571,11 @@ export class ImdbDatasetImporterService {
    * Stream a single `.gz` dataset file into its table in bounded batches.
    * Returns the number of rows imported. Never loads the whole file.
    */
-  async importFile(spec: DatasetFileSpec, absPath: string): Promise<number> {
+  async importFile(
+    spec: DatasetFileSpec,
+    absPath: string,
+    shouldCancel: () => boolean = () => false,
+  ): Promise<number> {
     let batch: any[] = [];
     let imported = 0;
     let header: string[] | null = null;
@@ -493,7 +606,12 @@ export class ImdbDatasetImporterService {
         }
         const row = this.mapRow(spec.key, fields);
         if (row) batch.push(row);
-        if (batch.length >= BATCH_SIZE) await flush();
+        if (batch.length >= BATCH_SIZE) {
+          await flush();
+          // Cooperative stop point: bail after committing the batch so a huge
+          // file (title.principals ~90M rows) cancels within one batch.
+          if (shouldCancel()) throw new ImportCancelledError();
+        }
       }
       await flush();
     } finally {
@@ -534,7 +652,7 @@ export class ImdbDatasetImporterService {
         await this.prisma.iMDbPerson.createMany({ data: rows, skipDuplicates: true });
         return;
       case 'title.akas':
-        await this.prisma.iMDbAka.createMany({ data: rows });
+        await this.prisma.iMDbAka.createMany({ data: rows, skipDuplicates: true });
         return;
       case 'title.crew':
         await this.prisma.iMDbCrew.createMany({ data: rows, skipDuplicates: true });

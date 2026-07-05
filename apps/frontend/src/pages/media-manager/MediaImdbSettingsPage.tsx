@@ -13,11 +13,13 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Upload,
+  Square,
 } from 'lucide-react';
 import {
   ApiError,
   api,
   type ImdbDatasetValidationReport,
+  type ImdbImportStrategy,
   type ImdbSettings,
   type ImdbSettingsInput,
   type ImdbStatus,
@@ -62,6 +64,11 @@ interface LiveImport {
   recordsImported: number;
   error: string | null;
 }
+
+/** Terminal import states — an import in any of these is no longer in flight. */
+const TERMINAL_IMPORT_STATUSES = ['completed', 'failed', 'cancelled'];
+const isTerminalImport = (status: string | undefined | null): boolean =>
+  status != null && TERMINAL_IMPORT_STATUSES.includes(status);
 
 export function MediaImdbSettingsPage() {
   const navigate = useNavigate();
@@ -135,6 +142,11 @@ export function MediaImdbSettingsPage() {
 
       <ComplianceNotice />
       <ProviderStatusSection status={statusQuery.data} />
+      <OptimizedImportSection
+        settings={settingsQuery.data}
+        canImport={canImport}
+        canConfigure={canConfigure}
+      />
       <DatasetSection
         settings={settingsQuery.data}
         canImport={canImport}
@@ -175,6 +187,239 @@ function SectionCard({
         {children}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The "Optimized Movie Import" panel: pick the import strategy, tune the movie
+ * subset (min year + optional akas/crew/people), see which datasets are (and
+ * aren't) imported and the latest run's scan/skip stats, and run/validate/reset.
+ */
+function OptimizedImportSection({
+  settings,
+  canImport,
+  canConfigure,
+}: {
+  settings: ImdbSettings;
+  canImport: boolean;
+  canConfigure: boolean;
+}) {
+  const { t } = useTranslation('imdb');
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const [strategy, setStrategy] = useState<ImdbImportStrategy>(settings.importStrategy);
+  const [minYear, setMinYear] = useState(String(settings.minImportYear));
+  const [importAkas, setImportAkas] = useState(settings.importAkas);
+  const [importCrew, setImportCrew] = useState(settings.importCrew);
+  const [importPeople, setImportPeople] = useState(settings.importPeople);
+
+  useEffect(() => {
+    setStrategy(settings.importStrategy);
+    setMinYear(String(settings.minImportYear));
+    setImportAkas(settings.importAkas);
+    setImportCrew(settings.importCrew);
+    setImportPeople(settings.importPeople);
+  }, [settings]);
+
+  // Newest import row carries the latest optimized stats.
+  const importsQuery = useQuery({
+    queryKey: ['media', 'imdb', 'imports'],
+    queryFn: api.media.imdbImports,
+    enabled: canImport,
+  });
+  const stats = importsQuery.data?.find((i) => i.stats)?.stats ?? null;
+
+  const optimized = strategy === 'optimized_movies';
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['media', 'imdb'] });
+
+  const save = useMutation({
+    mutationFn: () =>
+      api.media.updateImdbSettings({
+        importStrategy: strategy,
+        minImportYear: Number(minYear) || settings.minImportYear,
+        importAkas,
+        importCrew,
+        importPeople,
+      }),
+    onSuccess: () => {
+      toast.success(t('common.saved'));
+      queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'settings'] });
+    },
+    onError: (e) => toast.error(t('common.couldNotSave'), e instanceof ApiError ? e.message : undefined),
+  });
+
+  const runImport = useMutation({
+    mutationFn: () => api.media.updateImdbDatasetNow(),
+    onSuccess: (r) => {
+      if (r.started) toast.success(t('optimized.importStarted'));
+      else toast.info(t('optimized.importBusy'));
+      invalidate();
+    },
+    onError: (e) => toast.error(t('optimized.importFailed'), e instanceof ApiError ? e.message : undefined),
+  });
+
+  const validate = useMutation({
+    mutationFn: () => api.media.validateImdbDataset({}),
+    onSuccess: (r) => {
+      if (r.valid) toast.success(t('optimized.validateOk'), t('filesFound', { count: r.filesFound }));
+      else toast.error(t('optimized.validateFail'));
+    },
+    onError: (e) => toast.error(t('optimized.validateFail'), e instanceof ApiError ? e.message : undefined),
+  });
+
+  const reset = useMutation({
+    mutationFn: () => api.media.resetImdbData(true),
+    onSuccess: (r) => {
+      toast.success(t('optimized.resetDone', { count: r.clearedTitles }));
+      invalidate();
+    },
+    onError: (e) => toast.error(t('optimized.resetFailed'), e instanceof ApiError ? e.message : undefined),
+  });
+
+  const selectedDatasets = ['title.basics', 'title.ratings'];
+  if (importAkas) selectedDatasets.push('title.akas');
+  if (importCrew) selectedDatasets.push('title.crew');
+  if (importPeople) selectedDatasets.push('name.basics');
+  const skippedDatasets = ['title.principals', 'title.episode'];
+
+  return (
+    <SectionCard
+      icon={<Database className="h-5 w-5" />}
+      title={t('optimized.title')}
+      description={t('optimized.description')}
+    >
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-[240px]">
+          <Label htmlFor="imdb-strategy">{t('optimized.strategyLabel')}</Label>
+          <Select
+            id="imdb-strategy"
+            value={strategy}
+            onChange={(e) => setStrategy(e.target.value as ImdbImportStrategy)}
+            disabled={!canConfigure}
+            options={[
+              { value: 'optimized_movies', label: t('optimized.strategy.optimized') },
+              { value: 'full', label: t('optimized.strategy.full') },
+            ]}
+          />
+        </div>
+        <Badge variant={optimized ? 'success' : 'secondary'}>
+          {optimized ? t('optimized.badge') : t('optimized.badgeFull')}
+        </Badge>
+      </div>
+
+      <div>
+        <p className="text-sm font-medium">{t('optimized.selectedDatasets')}</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {selectedDatasets.map((k) => (
+            <Badge key={k} variant="secondary">
+              {imdbDatasetFileLabel(t, k)}
+            </Badge>
+          ))}
+        </div>
+      </div>
+
+      {optimized && (
+        <div className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+          {t('optimized.skippedWarning', {
+            files: skippedDatasets.map((k) => imdbDatasetFileLabel(t, k)).join(', '),
+          })}
+        </div>
+      )}
+
+      {optimized && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="imdb-min-year">{t('optimized.minYear')}</Label>
+            <Input
+              id="imdb-min-year"
+              type="number"
+              value={minYear}
+              onChange={(e) => setMinYear(e.target.value)}
+              disabled={!canConfigure}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t('optimized.minYearHint')}</p>
+          </div>
+          <div className="space-y-2 self-center">
+            <OptToggleRow label={t('optimized.importAkas')} checked={importAkas} onChange={setImportAkas} disabled={!canConfigure} />
+            <OptToggleRow label={t('optimized.importCrew')} checked={importCrew} onChange={setImportCrew} disabled={!canConfigure} />
+            <OptToggleRow label={t('optimized.importPeople')} checked={importPeople} onChange={setImportPeople} disabled={!canConfigure} />
+          </div>
+        </div>
+      )}
+
+      {stats && (
+        <div>
+          <p className="text-sm font-medium">{t('optimized.latestStats')}</p>
+          <div className="mt-1.5 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+            <OptStat label={t('optimized.stat.scanned')} value={formatNumber(stats.rowsScanned)} />
+            <OptStat label={t('optimized.stat.imported')} value={formatNumber(stats.rowsImported)} />
+            <OptStat label={t('optimized.stat.skipType')} value={formatNumber(stats.skippedTitleType)} />
+            <OptStat label={t('optimized.stat.skipAdult')} value={formatNumber(stats.skippedAdult)} />
+            <OptStat label={t('optimized.stat.skipYear')} value={formatNumber(stats.skippedMinYear)} />
+            <OptStat label={t('optimized.stat.skipOrphan')} value={formatNumber(stats.skippedParentMissing)} />
+            <OptStat label={t('optimized.stat.errors')} value={formatNumber(stats.errors)} />
+            <OptStat label={t('optimized.stat.duration')} value={`${Math.round(stats.durationMs / 1000)}s`} />
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {canConfigure && (
+          <Button onClick={() => save.mutate()} loading={save.isPending}>
+            <Save className="h-4 w-4" /> {t('optimized.saveBtn')}
+          </Button>
+        )}
+        {canImport && (
+          <>
+            <Button variant="outline" onClick={() => validate.mutate()} loading={validate.isPending}>
+              <ShieldCheck className="h-4 w-4" /> {t('optimized.validateBtn')}
+            </Button>
+            <Button variant="outline" onClick={() => runImport.mutate()} loading={runImport.isPending}>
+              <DownloadCloud className="h-4 w-4" /> {t('optimized.runBtn')}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (window.confirm(t('optimized.resetConfirm'))) reset.mutate();
+              }}
+              loading={reset.isPending}
+            >
+              <Upload className="h-4 w-4" /> {t('optimized.resetBtn')}
+            </Button>
+          </>
+        )}
+      </div>
+    </SectionCard>
+  );
+}
+
+function OptToggleRow({
+  label,
+  checked,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-sm">{label}</span>
+      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
+    </div>
+  );
+}
+
+function OptStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border/60 px-2.5 py-1.5">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="font-semibold tabular-nums">{value}</p>
+    </div>
   );
 }
 
@@ -345,6 +590,15 @@ function DatasetSection({
       queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'imports'] });
       toast.error(t('dataset.importFailedTitle'), p.error ?? undefined);
     });
+    const offCancelled = wsClient.on(WS_EVENTS.IMDB_DATASET_IMPORT_CANCELLED, (p) => {
+      apply(p, 'cancelled');
+      queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'imports'] });
+      queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'status'] });
+      toast.success(
+        t('dataset.stoppedToastTitle'),
+        t('records', { formatted: formatNumber(p.recordsImported ?? 0) }),
+      );
+    });
     return () => {
       offDownloadStarted();
       offDownloadProgress();
@@ -352,6 +606,7 @@ function DatasetSection({
       offProgress();
       offCompleted();
       offFailed();
+      offCancelled();
     };
   }, [queryClient, toast, t]);
 
@@ -364,7 +619,7 @@ function DatasetSection({
   // history row (covers a page reload mid-import, when live state is gone).
   const newestImport = importsQuery.data?.[0];
   const importActive =
-    (live != null && live.status !== 'completed' && live.status !== 'failed') ||
+    (live != null && !isTerminalImport(live.status)) ||
     newestImport?.status === 'running' ||
     newestImport?.status === 'pending' ||
     newestImport?.status === 'validating';
@@ -386,9 +641,9 @@ function DatasetSection({
   // caught the completion, reflect the terminal result and refresh derived status.
   useEffect(() => {
     const n = importsQuery.data?.[0];
-    if (!n || (n.status !== 'completed' && n.status !== 'failed')) return;
+    if (!n || !isTerminalImport(n.status)) return;
     setLive((cur) => {
-      if (!cur || cur.status === 'completed' || cur.status === 'failed') return cur;
+      if (!cur || isTerminalImport(cur.status)) return cur;
       return {
         importId: n.id,
         status: n.status,
@@ -466,9 +721,29 @@ function DatasetSection({
     onError: (err) => toast.error(t('dataset.importStartError'), err instanceof ApiError ? err.message : undefined),
   });
 
+  const stopImport = useMutation({
+    mutationFn: () => api.media.stopImdbImport(),
+    onSuccess: () => {
+      // The worker flips the row to 'cancelled' at its next batch boundary; the
+      // WS cancelled event / polling reconciles the panel. Show intent now.
+      setLive((cur) => (cur ? { ...cur, status: 'stopping' } : cur));
+      toast.info(t('dataset.stopRequestedTitle'), t('dataset.stopRequestedBody'));
+      queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'imports'] });
+    },
+    onError: (err) =>
+      toast.error(t('dataset.stopFailedTitle'), err instanceof ApiError ? err.message : undefined),
+  });
+
   const importInFlight =
-    startImport.isPending ||
-    (live != null && live.status !== 'completed' && live.status !== 'failed');
+    startImport.isPending || (live != null && !isTerminalImport(live.status));
+
+  // Show Stop only while an actual import (not the download phase) is running.
+  const canStopImport =
+    live?.status === 'running' ||
+    live?.status === 'pending' ||
+    live?.status === 'stopping' ||
+    newestImport?.status === 'running' ||
+    newestImport?.status === 'pending';
 
   return (
     <SectionCard
@@ -507,6 +782,16 @@ function DatasetSection({
         >
           <Upload className="h-4 w-4" /> {t('dataset.importBtn')}
         </Button>
+        {canStopImport && (
+          <Button
+            variant="destructive"
+            onClick={() => stopImport.mutate()}
+            loading={stopImport.isPending}
+            disabled={!canImport || live?.status === 'stopping'}
+          >
+            <Square className="h-4 w-4" /> {t('dataset.stopBtn')}
+          </Button>
+        )}
       </div>
 
       {report && <ValidationReport report={report} />}

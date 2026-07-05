@@ -381,12 +381,27 @@ export class MediaController {
     return this.imdb.importDataset(body?.datasetPath ?? '', auditCtx(req));
   }
 
+  @Post('providers/imdb/dataset/import/stop')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_IMPORT_DATASET)
+  stopImdbImport(@Req() req: Request) {
+    // Cooperative stop; 404 if nothing is running. The worker flips the row to
+    // 'cancelled' once it observes the flag (streamed over imdb.*.cancelled WS).
+    return this.imdb.stopImport(auditCtx(req));
+  }
+
   @Post('providers/imdb/dataset/update-now')
   @RequirePermissions(P.MEDIA_MANAGER_IMDB_IMPORT_DATASET)
   updateImdbDatasetNow(@Req() req: Request) {
     // Download the configured datasets then import them — detached; progress
     // streams over the imdb.dataset.download.* / import.* WS events.
     return this.imdb.triggerDatasetUpdate(auditCtx(req));
+  }
+
+  @Post('providers/imdb/dataset/reset')
+  @RequirePermissions(P.MEDIA_MANAGER_IMDB_IMPORT_DATASET)
+  resetImdbData(@Body() body: { reimport?: boolean }, @Req() req: Request) {
+    // Wipe all imported IMDb rows; optionally kick off a fresh import.
+    return this.imdb.resetData(auditCtx(req), Boolean(body?.reimport));
   }
 
   @Get('providers/imdb/dataset/imports')

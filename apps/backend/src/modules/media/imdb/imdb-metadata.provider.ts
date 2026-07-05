@@ -249,7 +249,18 @@ export class ImdbMetadataProvider {
       });
     }
 
-    results.sort((a, b) => b.confidence - a.confidence || (b.numVotes ?? 0) - (a.numVotes ?? 0));
+    // Release-name ranking (see scoreTitleMatch for the title/year signal):
+    //   1. title + year confidence — the primary/original/AKA match, with an
+    //      exact-year match strongly preferred;
+    //   2. vote count — popularity breaks ties between equally-confident titles;
+    //   3. average rating — only once title/year confidence AND popularity agree,
+    //      so a better-rated but less-relevant title never outranks the real one.
+    results.sort(
+      (a, b) =>
+        b.confidence - a.confidence ||
+        (b.numVotes ?? 0) - (a.numVotes ?? 0) ||
+        (b.rating ?? 0) - (a.rating ?? 0),
+    );
     return results.slice(0, limit);
   }
 

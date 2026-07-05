@@ -62,6 +62,11 @@
     "dirHelp": "Dónde se guardan y descargan los archivos de datos. Déjalo en blanco para usar una ubicación predeterminada bajo tu raíz de almacenamiento.",
     "validateBtn": "Validar conjunto de datos",
     "importBtn": "Importar ahora",
+    "stopBtn": "Detener importación",
+    "stopRequestedTitle": "Deteniendo la importación",
+    "stopRequestedBody": "La importación se detendrá tras el lote actual; se conservan los registros ya importados.",
+    "stopFailedTitle": "No se pudo detener la importación",
+    "stoppedToastTitle": "Importación detenida",
     "autoTitle": "Descarga e importación automática",
     "autoDesc": "De forma programada, descarga los archivos de datos de IMDb más recientes y los importa automáticamente.",
     "baseUrlLabel": "URL base de los datos",
@@ -146,5 +151,46 @@
     "includeAdult": "Incluir títulos para adultos",
     "includeAdultHint": "Desactivado por defecto.",
     "saveBtn": "Guardar preferencias"
+  },
+  "optimized": {
+    "title": "Estrategia de importación",
+    "description": "Importa un subconjunto de IMDb ligero y listo para producción, optimizado para adquirir y emparejar películas — en vez de todos los datasets.",
+    "strategyLabel": "Estrategia",
+    "strategy": {
+      "optimized": "Importación optimizada de películas",
+      "full": "Importación completa (todos los datasets)"
+    },
+    "badge": "Importación optimizada de películas",
+    "badgeFull": "Espejo completo",
+    "selectedDatasets": "Datasets importados",
+    "skippedWarning": "Omitidos a propósito: {{files}}. Son muy grandes (Principals tiene ~90M filas) y no se necesitan para adquirir, emparejar ni clasificar películas.",
+    "minYear": "Año mínimo",
+    "minYearHint": "Se omiten los títulos anteriores a este año. Por defecto 1970 (env IMDB_MIN_YEAR).",
+    "importAkas": "Importar títulos alternativos (AKAs)",
+    "importCrew": "Importar equipo (directores/guionistas)",
+    "importPeople": "Importar personas (grande)",
+    "latestStats": "Estadísticas de la última importación",
+    "stat": {
+      "scanned": "Filas escaneadas",
+      "imported": "Filas importadas",
+      "skipType": "Omitidas: tipo",
+      "skipAdult": "Omitidas: adulto",
+      "skipYear": "Omitidas: año",
+      "skipOrphan": "Omitidas: huérfanas",
+      "errors": "Errores",
+      "duration": "Duración"
+    },
+    "saveBtn": "Guardar estrategia",
+    "validateBtn": "Validar datasets",
+    "runBtn": "Ejecutar importación",
+    "resetBtn": "Reiniciar y reimportar",
+    "resetConfirm": "Esto elimina todos los datos de IMDb importados y reimporta desde cero. ¿Continuar?",
+    "importStarted": "Importación de IMDb iniciada",
+    "importBusy": "Ya hay una importación en curso.",
+    "importFailed": "No se pudo iniciar la importación",
+    "validateOk": "Los datasets parecen válidos",
+    "validateFail": "Falló la validación de datasets",
+    "resetDone": "Datos de IMDb reiniciados ({{count}} títulos borrados); reimportación iniciada.",
+    "resetFailed": "No se pudieron reiniciar los datos de IMDb"
   }
 }

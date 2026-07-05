@@ -32,6 +32,7 @@ export const WS_EVENTS = {
   IMDB_DATASET_IMPORT_PROGRESS: 'imdb.dataset.import.progress',
   IMDB_DATASET_IMPORT_COMPLETED: 'imdb.dataset.import.completed',
   IMDB_DATASET_IMPORT_FAILED: 'imdb.dataset.import.failed',
+  IMDB_DATASET_IMPORT_CANCELLED: 'imdb.dataset.import.cancelled',
   IMDB_MATCH_COMPLETED: 'imdb.match.completed',
   IMDB_ENRICHMENT_COMPLETED: 'imdb.enrichment.completed',
 } as const;
