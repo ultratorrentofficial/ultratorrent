@@ -29,6 +29,7 @@ import {
   Server,
   Activity,
   History,
+  BarChart3,
   Users,
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
@@ -118,6 +119,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/media-server-analytics/connections', label: 'Server Connections', icon: Server, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics' },
       { to: '/media-server-analytics/live', label: 'Live Activity', icon: Activity, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY, module: 'media_server_analytics' },
       { to: '/media-server-analytics/watch-history', label: 'Watch History', icon: History, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_HISTORY, module: 'media_server_analytics' },
+      { to: '/media-server-analytics/recently-added', label: 'Recently Added', icon: Clapperboard, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics' },
+      { to: '/media-server-analytics/reports', label: 'Analytics Reports', icon: BarChart3, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS, module: 'media_server_analytics' },
     ],
   },
   {

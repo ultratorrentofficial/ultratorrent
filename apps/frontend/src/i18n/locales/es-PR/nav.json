@@ -39,7 +39,9 @@
     "Media Server Analytics": "Analíticas del servidor multimedia",
     "Server Connections": "Conexiones de servidores",
     "Live Activity": "Actividad en vivo",
-    "Watch History": "Historial de reproducción"
+    "Watch History": "Historial de reproducción",
+    "Recently Added": "Agregado recientemente",
+    "Analytics Reports": "Informes de analíticas"
   },
   "details": {
     "Account": "Cuenta",

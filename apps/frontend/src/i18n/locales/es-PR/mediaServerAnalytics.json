@@ -59,5 +59,42 @@
       "when": "Cuándo",
       "source": "Origen"
     }
+  },
+  "reports": {
+    "title": "Informes",
+    "subtitle": "Analíticas de uso, usuarios, bibliotecas y reproducción.",
+    "loadError": "No se pudieron cargar los informes.",
+    "tab": {
+      "usage": "Uso",
+      "users": "Usuarios",
+      "libraries": "Bibliotecas",
+      "playback": "Reproducción"
+    },
+    "usage": {
+      "plays": "Reproducciones totales",
+      "watchTime": "Tiempo visto",
+      "users": "Usuarios activos"
+    },
+    "col": {
+      "user": "Usuario",
+      "library": "Biblioteca",
+      "plays": "Reproducciones",
+      "watchTime": "Tiempo visto",
+      "lastSeen": "Última vez",
+      "method": "Método",
+      "type": "Tipo"
+    },
+    "empty": "Aún no hay analíticas — la reproducción se captura al usar tus servidores."
+  },
+  "recentlyAdded": {
+    "title": "Agregado recientemente",
+    "subtitle": "Lo más nuevo en tu biblioteca.",
+    "loadError": "No se pudo cargar.",
+    "empty": "No se agregó nada recientemente.",
+    "col": {
+      "title": "Título",
+      "type": "Tipo",
+      "added": "Agregado"
+    }
   }
 }

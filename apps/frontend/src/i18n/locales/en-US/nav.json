@@ -39,7 +39,9 @@
     "Media Server Analytics": "Media Server Analytics",
     "Server Connections": "Server Connections",
     "Live Activity": "Live Activity",
-    "Watch History": "Watch History"
+    "Watch History": "Watch History",
+    "Recently Added": "Recently Added",
+    "Analytics Reports": "Analytics Reports"
   },
   "details": {
     "Account": "Account",

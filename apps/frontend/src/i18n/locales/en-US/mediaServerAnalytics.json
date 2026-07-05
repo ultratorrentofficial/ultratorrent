@@ -59,5 +59,42 @@
       "when": "When",
       "source": "Source"
     }
+  },
+  "reports": {
+    "title": "Reports",
+    "subtitle": "Usage, users, libraries and playback analytics.",
+    "loadError": "Could not load reports.",
+    "tab": {
+      "usage": "Usage",
+      "users": "Users",
+      "libraries": "Libraries",
+      "playback": "Playback"
+    },
+    "usage": {
+      "plays": "Total plays",
+      "watchTime": "Watch time",
+      "users": "Active users"
+    },
+    "col": {
+      "user": "User",
+      "library": "Library",
+      "plays": "Plays",
+      "watchTime": "Watch time",
+      "lastSeen": "Last seen",
+      "method": "Method",
+      "type": "Type"
+    },
+    "empty": "No analytics yet — playback is captured as your servers are used."
+  },
+  "recentlyAdded": {
+    "title": "Recently Added",
+    "subtitle": "The newest media in your library.",
+    "loadError": "Could not load recently added.",
+    "empty": "Nothing added recently.",
+    "col": {
+      "title": "Title",
+      "type": "Type",
+      "added": "Added"
+    }
   }
 }

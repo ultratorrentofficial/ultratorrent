@@ -2758,9 +2758,55 @@ export const api = {
     watchHistory(): Promise<MediaServerWatchHistoryRow[]> {
       return request<MediaServerWatchHistoryRow[]>('/media-server-analytics/watch-history');
     },
+    reportUsage(): Promise<MediaServerUsageReport> {
+      return request<MediaServerUsageReport>('/media-server-analytics/reports/usage');
+    },
+    reportUsers(): Promise<MediaServerUserStat[]> {
+      return request<MediaServerUserStat[]>('/media-server-analytics/reports/users');
+    },
+    reportLibraries(): Promise<MediaServerLibraryStat[]> {
+      return request<MediaServerLibraryStat[]>('/media-server-analytics/reports/libraries');
+    },
+    reportPlayback(): Promise<MediaServerPlaybackReport> {
+      return request<MediaServerPlaybackReport>('/media-server-analytics/reports/playback');
+    },
+    recentlyAdded(): Promise<MediaServerRecentlyAddedItem[]> {
+      return request<MediaServerRecentlyAddedItem[]>('/media-server-analytics/recently-added');
+    },
   },
 
 };
+
+export interface MediaServerUsageReport {
+  totalPlays: number;
+  totalWatchSeconds: number;
+  uniqueUsers: number;
+  byDay: { date: string; plays: number }[];
+}
+export interface MediaServerUserStat {
+  userName: string;
+  plays: number;
+  watchSeconds: number;
+  lastSeen: string | null;
+}
+export interface MediaServerLibraryStat {
+  libraryName: string;
+  plays: number;
+  watchSeconds: number;
+}
+export interface MediaServerPlaybackReport {
+  byMethod: { method: string; plays: number }[];
+  byType: { type: string; plays: number }[];
+}
+export interface MediaServerRecentlyAddedItem {
+  id: string;
+  title: string;
+  mediaType: string;
+  year: number | null;
+  season: number | null;
+  episode: number | null;
+  addedAt: string;
+}
 
 export interface MediaServerLiveSession {
   id: string;

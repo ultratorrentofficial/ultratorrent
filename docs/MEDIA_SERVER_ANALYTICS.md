@@ -58,6 +58,9 @@ Under `/api/media-server-analytics`:
 | `GET /live` | `…view_live_activity` | Current now-playing sessions. |
 | `POST /live/poll` | `…manage_connections` | Reconcile sessions now (also polled every 30s). |
 | `GET /watch-history` | `…view_history` | Completed playback. |
+| `GET /reports/usage` · `/reports/users` · `/reports/libraries` · `/reports/playback` | `…view_reports` | Analytics aggregations. |
+| `GET /users` | `…view_users` | Per-user activity. |
+| `GET /recently-added` | `media_server_analytics.view` | Newest library media (from Media Manager). |
 
 ## Live Activity & Watch History
 
@@ -85,7 +88,9 @@ connection management, and Dashboard + Connections pages. Later phases:
 
 - ~~Live Activity~~ ✅ (Phase 2) — now-playing sessions + `MediaServerSession`.
 - ~~Watch History~~ ✅ (Phase 2) — captured on session end + `MediaServerWatchHistory`.
-- **Recently Added / Library / User / Playback analytics** + snapshots.
+- ~~Recently Added / Library / User / Playback analytics~~ ✅ (Phase 3) — computed
+  on demand from watch history + the Media Manager library. Snapshot persistence
+  (for long-range trends) remains.
 - **Newsletters** — a full SMTP email + scheduled-newsletter system (net-new; no
   email infrastructure exists today).
 - **Tautulli import** — `MediaAnalyticsImportProvider` + import job engine

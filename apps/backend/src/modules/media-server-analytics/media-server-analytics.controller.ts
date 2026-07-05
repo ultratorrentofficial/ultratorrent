@@ -8,6 +8,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { MediaServerIntegrationService } from '../media/media-server-integration.service';
 import { MediaServerAnalyticsService } from './media-server-analytics.service';
 import { MediaServerSessionService } from './media-server-session.service';
+import { MediaServerReportService } from './media-server-report.service';
 
 const P = PERMISSIONS;
 
@@ -25,6 +26,7 @@ export class MediaServerAnalyticsController {
     private readonly service: MediaServerAnalyticsService,
     private readonly integrations: MediaServerIntegrationService,
     private readonly sessions: MediaServerSessionService,
+    private readonly reports: MediaServerReportService,
   ) {}
 
   @Get('dashboard')
@@ -49,6 +51,38 @@ export class MediaServerAnalyticsController {
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_HISTORY)
   watchHistory() {
     return this.service.watchHistory();
+  }
+
+  // --- reports + users + recently added -----------------------------------
+  @Get('reports/usage')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  reportUsage() {
+    return this.reports.usage();
+  }
+  @Get('reports/users')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  reportUsers() {
+    return this.reports.users();
+  }
+  @Get('reports/libraries')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  reportLibraries() {
+    return this.reports.libraries();
+  }
+  @Get('reports/playback')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  reportPlayback() {
+    return this.reports.playback();
+  }
+  @Get('users')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_USERS)
+  users() {
+    return this.reports.users();
+  }
+  @Get('recently-added')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW)
+  recentlyAdded() {
+    return this.reports.recentlyAdded();
   }
 
   // --- connections (reuse the shared integration store) -------------------
