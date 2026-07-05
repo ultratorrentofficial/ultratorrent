@@ -46,13 +46,98 @@ export class DashboardService {
     };
   }
 
-  async recentActivity(limit = 15) {
-    return this.prisma.auditLog.findMany({
+  async recentActivity(limit = 15): Promise<ActivityItem[]> {
+    const rows = await this.prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: { user: { select: { username: true } } },
     });
+    return rows.map((row) => toActivityItem(row));
   }
+}
+
+interface ActivityItem {
+  id: string;
+  type: string;
+  message: string;
+  level: 'info' | 'success' | 'warning' | 'error';
+  at: string;
+}
+
+type AuditRow = {
+  id: string;
+  action: string;
+  objectType: string | null;
+  result: string;
+  metadata: unknown;
+  createdAt: Date;
+  user: { username: string } | null;
+};
+
+const ACRONYMS: Record<string, string> = {
+  imdb: 'IMDb',
+  tmdb: 'TMDb',
+  rss: 'RSS',
+  nfo: 'NFO',
+  api: 'API',
+  url: 'URL',
+  ip: 'IP',
+  scgi: 'SCGI',
+  '2fa': '2FA',
+};
+
+function toActivityItem(row: AuditRow): ActivityItem {
+  // Bare verbs (e.g. "added", "deleted") only make sense with their objectType
+  // prefixed; namespaced actions (e.g. "media.imdb.import.completed") already
+  // carry their own context.
+  const base =
+    row.objectType && !row.action.includes('.')
+      ? `${row.objectType} ${row.action}`
+      : row.action;
+
+  let message = base
+    .replace(/[._]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word, i) => {
+      const lower = word.toLowerCase();
+      if (ACRONYMS[lower]) return ACRONYMS[lower];
+      return i === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
+    })
+    .join(' ');
+
+  const name = activityName(row.metadata);
+  if (name) message += `: ${name}`;
+  if (row.user?.username) message += ` · ${row.user.username}`;
+
+  return {
+    id: row.id,
+    type: row.action,
+    message,
+    level: activityLevel(row.action, row.result),
+    at: row.createdAt.toISOString(),
+  };
+}
+
+function activityLevel(
+  action: string,
+  result: string,
+): ActivityItem['level'] {
+  if (result === 'failure' || /fail|error/i.test(action)) return 'error';
+  if (/complet|created|added|approved|enabled|restore|import/i.test(action))
+    return 'success';
+  return 'info';
+}
+
+function activityName(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== 'object') return null;
+  const meta = metadata as Record<string, unknown>;
+  for (const key of ['name', 'title', 'filename', 'path']) {
+    const value = meta[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
 }
 
 @ApiTags('dashboard')
