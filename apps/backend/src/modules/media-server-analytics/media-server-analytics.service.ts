@@ -17,9 +17,26 @@ export class MediaServerAnalyticsService {
   ) {}
 
   async dashboard() {
-    const servers = await this.prisma.mediaServerIntegration.findMany({ orderBy: { name: 'asc' } });
+    const since7d = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+    const [servers, activeStreams, playAgg, users, mediaItems, recentlyAdded, methods, newsletters] = await Promise.all([
+      this.prisma.mediaServerIntegration.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.mediaServerSession.count(),
+      this.prisma.mediaServerWatchHistory.aggregate({ _count: { _all: true }, _sum: { watchedSeconds: true } }),
+      this.prisma.mediaServerWatchHistory.groupBy({ by: ['userName'], _count: { _all: true } }),
+      this.prisma.mediaItem.count(),
+      this.prisma.mediaItem.count({ where: { createdAt: { gte: since7d } } }),
+      this.prisma.mediaServerWatchHistory.groupBy({ by: ['playbackMethod'], _count: { _all: true } }),
+      this.prisma.mediaServerNewsletter.count({ where: { enabled: true } }),
+    ]);
+
     const byKind: Record<string, number> = {};
     for (const s of servers) byKind[s.kind] = (byKind[s.kind] ?? 0) + 1;
+
+    const totalPlays = playAgg._count._all;
+    const methodTotal = methods.reduce((s, m) => s + m._count._all, 0);
+    const methodCount = (m: string) => methods.find((x) => (x.playbackMethod ?? '').toLowerCase() === m)?._count._all ?? 0;
+    const pct = (n: number) => (methodTotal ? Math.round((n / methodTotal) * 100) : 0);
+
     return {
       servers: {
         total: servers.length,
@@ -29,11 +46,17 @@ export class MediaServerAnalyticsService {
         byKind,
       },
       connections: servers.map((s) => this.safe(s)),
-      // Populated by later phases (live activity / watch history / newsletters / imports):
-      liveSessions: 0,
-      recentlyAdded: 0,
-      newsletters: { active: 0 },
-      imports: { configured: 0 },
+      kpis: {
+        activeStreams,
+        totalPlays,
+        totalWatchSeconds: playAgg._sum.watchedSeconds ?? 0,
+        uniqueUsers: users.length,
+        mediaItems,
+        recentlyAdded7d: recentlyAdded,
+        transcodePct: pct(methodCount('transcode')),
+        directPlayPct: pct(methodCount('directplay') + methodCount('direct play')),
+        activeNewsletters: newsletters,
+      },
     };
   }
 

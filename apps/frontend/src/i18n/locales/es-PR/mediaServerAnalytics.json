@@ -182,5 +182,23 @@
     "created": "Boletín creado",
     "testSent": "Prueba enviada",
     "nextRun": "Próximo: {{date}}"
+  },
+  "kpi": {
+    "activeStreams": "Transmisiones activas",
+    "totalPlays": "Reproducciones totales",
+    "watchTime": "Tiempo visto",
+    "users": "Usuarios",
+    "mediaItems": "Elementos",
+    "recentlyAdded": "Agregado (7d)",
+    "directPlay": "Reproducción directa",
+    "transcode": "Transcodificación"
+  },
+  "charts": {
+    "playsOverTime": "Reproducciones en el tiempo",
+    "plays": "reproducciones",
+    "playbackMethod": "Método de reproducción",
+    "topUsers": "Usuarios principales",
+    "devices": "Dispositivos",
+    "topMedia": "Más visto"
   }
 }

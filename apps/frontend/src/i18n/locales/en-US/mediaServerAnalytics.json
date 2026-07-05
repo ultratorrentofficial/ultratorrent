@@ -182,5 +182,23 @@
     "created": "Newsletter created",
     "testSent": "Test sent",
     "nextRun": "Next: {{date}}"
+  },
+  "kpi": {
+    "activeStreams": "Active streams",
+    "totalPlays": "Total plays",
+    "watchTime": "Watch time",
+    "users": "Users",
+    "mediaItems": "Media items",
+    "recentlyAdded": "Added (7d)",
+    "directPlay": "Direct play",
+    "transcode": "Transcode"
+  },
+  "charts": {
+    "playsOverTime": "Plays over time",
+    "plays": "plays",
+    "playbackMethod": "Playback method",
+    "topUsers": "Top users",
+    "devices": "Devices",
+    "topMedia": "Most watched"
   }
 }

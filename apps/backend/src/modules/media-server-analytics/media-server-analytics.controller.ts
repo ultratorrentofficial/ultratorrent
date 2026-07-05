@@ -80,6 +80,16 @@ export class MediaServerAnalyticsController {
   reportPlayback() {
     return this.reports.playback();
   }
+  @Get('reports/top-media')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  reportTopMedia() {
+    return this.reports.topMedia();
+  }
+  @Get('reports/devices')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  reportDevices() {
+    return this.reports.devices();
+  }
   @Get('users')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_USERS)
   users() {

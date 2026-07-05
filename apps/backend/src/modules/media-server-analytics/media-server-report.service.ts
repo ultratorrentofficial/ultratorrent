@@ -77,6 +77,27 @@ export class MediaServerReportService {
     };
   }
 
+  /** Most-watched titles. */
+  async topMedia(limit = 10) {
+    const grouped = await this.prisma.mediaServerWatchHistory.groupBy({
+      by: ['title', 'mediaType'],
+      _count: { _all: true },
+      _sum: { watchedSeconds: true },
+    });
+    return grouped
+      .map((g) => ({ title: g.title, mediaType: g.mediaType ?? 'other', plays: g._count._all, watchSeconds: g._sum.watchedSeconds ?? 0 }))
+      .sort((a, b) => b.plays - a.plays)
+      .slice(0, limit);
+  }
+
+  /** Device/client distribution. */
+  async devices() {
+    const grouped = await this.prisma.mediaServerWatchHistory.groupBy({ by: ['device'], _count: { _all: true } });
+    return grouped
+      .map((g) => ({ device: g.device ?? 'Unknown', plays: g._count._all }))
+      .sort((a, b) => b.plays - a.plays);
+  }
+
   /**
    * Recently added — sourced from the Media Manager library (the primary source
    * of truth), grouped by media type.

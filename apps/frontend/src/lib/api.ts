@@ -2770,6 +2770,12 @@ export const api = {
     reportPlayback(): Promise<MediaServerPlaybackReport> {
       return request<MediaServerPlaybackReport>('/media-server-analytics/reports/playback');
     },
+    reportTopMedia(): Promise<MediaServerTopMedia[]> {
+      return request<MediaServerTopMedia[]>('/media-server-analytics/reports/top-media');
+    },
+    reportDevices(): Promise<MediaServerDeviceStat[]> {
+      return request<MediaServerDeviceStat[]>('/media-server-analytics/reports/devices');
+    },
     recentlyAdded(): Promise<MediaServerRecentlyAddedItem[]> {
       return request<MediaServerRecentlyAddedItem[]>('/media-server-analytics/recently-added');
     },
@@ -2976,10 +2982,28 @@ export interface MediaServerConnectionSummary {
 export interface MediaServerDashboard {
   servers: { total: number; enabled: number; online: number; offline: number; byKind: Record<string, number> };
   connections: MediaServerConnectionSummary[];
-  liveSessions: number;
-  recentlyAdded: number;
-  newsletters: { active: number };
-  imports: { configured: number };
+  kpis: {
+    activeStreams: number;
+    totalPlays: number;
+    totalWatchSeconds: number;
+    uniqueUsers: number;
+    mediaItems: number;
+    recentlyAdded7d: number;
+    transcodePct: number;
+    directPlayPct: number;
+    activeNewsletters: number;
+  };
+}
+
+export interface MediaServerTopMedia {
+  title: string;
+  mediaType: string;
+  plays: number;
+  watchSeconds: number;
+}
+export interface MediaServerDeviceStat {
+  device: string;
+  plays: number;
 }
 
 export interface MediaServerInfo {
