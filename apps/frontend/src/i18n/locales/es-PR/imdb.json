@@ -70,6 +70,7 @@
     "intervalLabel": "Cada (horas)",
     "intervalHelp": "Con qué frecuencia actualizar. IMDb se actualiza a diario; 168 = semanal.",
     "updateNowBtn": "Actualizar ahora",
+    "updateAlreadyRunning": "Ya hay una descarga/importación de datos en curso.",
     "updateNowStartedTitle": "Actualización de datos iniciada",
     "updateNowStartedBody": "Descargando los datos de IMDb y luego importándolos. El progreso se muestra arriba.",
     "updateNowFailedTitle": "No se pudo iniciar la actualización de datos",

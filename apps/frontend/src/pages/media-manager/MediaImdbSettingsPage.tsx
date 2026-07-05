@@ -360,6 +360,47 @@ function DatasetSection({
     queryFn: api.media.imdbImports,
   });
 
+  // Whether a download/import is in flight — from the live panel OR the newest
+  // history row (covers a page reload mid-import, when live state is gone).
+  const newestImport = importsQuery.data?.[0];
+  const importActive =
+    (live != null && live.status !== 'completed' && live.status !== 'failed') ||
+    newestImport?.status === 'running' ||
+    newestImport?.status === 'pending' ||
+    newestImport?.status === 'validating';
+
+  // Polling fallback: a long import (title.principals is ~90M rows) emits no WS
+  // events for minutes and can outlast a socket reconnect, so the terminal event
+  // may be missed. While anything is active, refresh imports + status so the UI
+  // converges regardless of WS delivery.
+  useEffect(() => {
+    if (!importActive) return;
+    const id = setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'imports'] });
+      void queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'status'] });
+    }, 4000);
+    return () => clearInterval(id);
+  }, [importActive, queryClient]);
+
+  // When the (polled) history shows the import finished but the live panel never
+  // caught the completion, reflect the terminal result and refresh derived status.
+  useEffect(() => {
+    const n = importsQuery.data?.[0];
+    if (!n || (n.status !== 'completed' && n.status !== 'failed')) return;
+    setLive((cur) => {
+      if (!cur || cur.status === 'completed' || cur.status === 'failed') return cur;
+      return {
+        importId: n.id,
+        status: n.status,
+        progress: 100,
+        message: null,
+        recordsImported: n.recordsImported ?? 0,
+        error: n.errorMessage ?? null,
+      };
+    });
+    void queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'status'] });
+  }, [importsQuery.data, queryClient]);
+
   const saveAuto = useMutation({
     mutationFn: (body: ImdbSettingsInput) => api.media.updateImdbSettings(body),
     onSuccess: () => {
@@ -371,7 +412,13 @@ function DatasetSection({
 
   const updateNow = useMutation({
     mutationFn: () => api.media.updateImdbDatasetNow(),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      if (!res.started) {
+        // A download/import is already in flight — the backend rejected the dup.
+        toast.info(t('dataset.updateAlreadyRunning'));
+        queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'imports'] });
+        return;
+      }
       setLive({
         importId: null,
         status: 'downloading',
@@ -532,7 +579,7 @@ function DatasetSection({
               variant="outline"
               onClick={() => updateNow.mutate()}
               loading={updateNow.isPending}
-              disabled={importInFlight}
+              disabled={importInFlight || importActive}
             >
               <DownloadCloud className="h-4 w-4" /> {t('dataset.updateNowBtn')}
             </Button>

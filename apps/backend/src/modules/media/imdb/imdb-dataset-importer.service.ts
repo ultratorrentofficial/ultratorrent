@@ -324,6 +324,18 @@ export class ImdbDatasetImporterService {
    */
   async startImport(datasetPath: string, ctx: AuditContext = {}) {
     const dirAbs = this.assertDir(datasetPath);
+    // Single choke point: never run two imports at once. If one is already
+    // queued/running, return it instead of spawning a concurrent worker (which
+    // would contend on the same tables). Covers Import-now, Update-now, and the
+    // scheduler alike.
+    const active = await this.prisma.iMDbDatasetImport.findFirst({
+      where: { status: { in: ['pending', 'running'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (active) {
+      this.logger.log(`IMDb import already in progress (${active.id}); not starting another.`);
+      return active;
+    }
     const record = await this.prisma.iMDbDatasetImport.create({
       data: { status: 'pending', sourcePath: dirAbs },
     });

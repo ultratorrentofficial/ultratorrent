@@ -161,6 +161,26 @@ describe('ImdbDatasetImporterService streaming', () => {
     await expect(importer.validate('/etc/passwd')).rejects.toThrow(ForbiddenException);
   });
 
+  it('does not start a second import while one is already running', async () => {
+    const active = { id: 'run-1', status: 'running' };
+    const create = jest.fn();
+    const prisma = {
+      iMDbDatasetImport: {
+        findFirst: jest.fn().mockResolvedValue(active),
+        create,
+      },
+    } as any;
+    const importer = new ImdbDatasetImporterService(
+      prisma,
+      filePathStub('/media/allowed'),
+      noopAudit,
+      noopRealtime,
+    );
+    const res = await importer.startImport('/media/allowed/imdb');
+    expect(res).toBe(active); // returns the in-flight import…
+    expect(create).not.toHaveBeenCalled(); // …and never spawns a second worker
+  });
+
   it('produces a validation report for a dataset directory', async () => {
     const dir = await tmpDir();
     const header = IMDB_DATASET_FILES.find((f) => f.key === 'title.basics')!.header;
@@ -508,8 +528,11 @@ describe('ImdbService.triggerDatasetUpdate — dataset destination', () => {
       hardRoots: ['/data'],
       assertWithinHardRoots: (p: string) => p,
     };
+    const prisma = {
+      iMDbDatasetImport: { findFirst: jest.fn().mockResolvedValue(null) }, // no active import
+    };
     const svc = new ImdbService(
-      {} as any, // prisma
+      prisma as any,
       settingsSvc as any,
       importer as any,
       filePath as any,

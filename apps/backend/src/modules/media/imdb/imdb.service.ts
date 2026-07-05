@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import * as path from 'node:path';
@@ -40,8 +41,10 @@ export interface ImdbMatchDto {
  * the streaming importer, and the metadata provider. Never logs secrets.
  */
 @Injectable()
-export class ImdbService {
+export class ImdbService implements OnModuleInit {
   private readonly logger = new Logger(ImdbService.name);
+  /** In-memory guard against overlapping download+import runs (per process). */
+  private datasetUpdateInFlight = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -57,6 +60,32 @@ export class ImdbService {
     // used for a fire-and-forget trigger), which breaks the bootstrap cycle.
     private readonly moduleRef: ModuleRef,
   ) {}
+
+  /**
+   * A detached import worker cannot survive a process restart, so any import row
+   * still marked running/pending at boot is orphaned — fail it so it doesn't
+   * block future runs (the concurrency guard treats such rows as active).
+   */
+  async onModuleInit(): Promise<void> {
+    const stale = await this.prisma.iMDbDatasetImport
+      .updateMany({
+        where: { status: { in: ['pending', 'running'] } },
+        data: { status: 'failed', failedAt: new Date(), errorMessage: 'Interrupted by a server restart.' },
+      })
+      .catch(() => ({ count: 0 }));
+    if (stale.count > 0) {
+      this.logger.warn(`Marked ${stale.count} interrupted IMDb import(s) as failed on startup.`);
+    }
+  }
+
+  /** True while a dataset import is queued/running (guards concurrent updates). */
+  private async activeImportExists(): Promise<boolean> {
+    const active = await this.prisma.iMDbDatasetImport.findFirst({
+      where: { status: { in: ['pending', 'running'] } },
+      select: { id: true },
+    });
+    return Boolean(active);
+  }
 
   /** Build a provider bound to the current settings. */
   private async provider(): Promise<ImdbMetadataProvider> {
@@ -198,10 +227,25 @@ export class ImdbService {
    * scheduler so it can track completion; the import itself runs detached.
    */
   async runDatasetUpdate(ctx: AuditContext = {}): Promise<void> {
-    const dir = await this.resolveDatasetDir();
-    const s = await this.settingsSvc.read();
-    await this.importer.downloadDataset(dir, s.datasetBaseUrl, ctx);
-    await this.importer.startImport(dir, ctx);
+    // Serialise: never run two download+import cycles at once. The flag is set
+    // synchronously (before any await) so racing callers can't both pass; the
+    // DB check additionally rejects an import already running from elsewhere.
+    if (this.datasetUpdateInFlight) return;
+    this.datasetUpdateInFlight = true;
+    try {
+      if (await this.activeImportExists()) {
+        this.logger.log('IMDb dataset update skipped — an import is already in progress.');
+        return;
+      }
+      const dir = await this.resolveDatasetDir();
+      const s = await this.settingsSvc.read();
+      await this.importer.downloadDataset(dir, s.datasetBaseUrl, ctx);
+      await this.importer.startImport(dir, ctx);
+    } finally {
+      // Cleared once the import row exists (startImport returned); the import
+      // continues detached and the DB 'running' row now guards re-entry.
+      this.datasetUpdateInFlight = false;
+    }
   }
 
   /**
@@ -209,7 +253,13 @@ export class ImdbService {
    * return immediately so the HTTP request never blocks on the large transfer.
    * Progress streams over the imdb.dataset.download.* / import.* WS events.
    */
-  async triggerDatasetUpdate(ctx: AuditContext = {}): Promise<{ started: boolean; datasetPath: string }> {
+  async triggerDatasetUpdate(
+    ctx: AuditContext = {},
+  ): Promise<{ started: boolean; datasetPath: string | null }> {
+    // Reject a duplicate click while a download/import is already in flight.
+    if (this.datasetUpdateInFlight || (await this.activeImportExists())) {
+      return { started: false, datasetPath: null };
+    }
     // Resolve (and persist a default) up front so a misconfiguration surfaces
     // synchronously to the caller instead of only in the detached job.
     const datasetPath = await this.resolveDatasetDir();

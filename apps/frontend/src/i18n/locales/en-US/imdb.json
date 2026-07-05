@@ -70,6 +70,7 @@
     "intervalLabel": "Every (hours)",
     "intervalHelp": "How often to refresh. IMDb updates daily; 168 = weekly.",
     "updateNowBtn": "Update now",
+    "updateAlreadyRunning": "A dataset download/import is already running.",
     "updateNowStartedTitle": "Dataset update started",
     "updateNowStartedBody": "Downloading the IMDb datasets, then importing. Progress shows above.",
     "updateNowFailedTitle": "Could not start the dataset update",
