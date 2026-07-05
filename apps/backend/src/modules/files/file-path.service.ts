@@ -165,8 +165,50 @@ export class FilePathService implements OnModuleInit {
     if (existing && !existing.isDirectory()) {
       throw new BadRequestException('That path already exists and is not a directory.');
     }
-    await fs.mkdir(abs, { recursive: true });
+    try {
+      await fs.mkdir(abs, { recursive: true });
+    } catch (err) {
+      throw this.translateMkdirError(abs, err);
+    }
     return this.inspect(abs);
+  }
+
+  /**
+   * Turn a raw `mkdir` failure into an actionable HTTP error instead of letting
+   * it surface as an opaque 500 "Internal server error". The common case is a
+   * root the server user cannot create — e.g. the default `/downloads` root when
+   * `FILE_MANAGER_ROOTS` is unset — which fails with EACCES at the filesystem
+   * root.
+   */
+  private translateMkdirError(abs: string, err: unknown): Error {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    switch (code) {
+      case 'EACCES':
+      case 'EPERM':
+        return new ForbiddenException(
+          `Permission denied creating "${abs}". The server does not have write access there — ` +
+            `check the folder's ownership/permissions, or point the storage root (FILE_MANAGER_ROOTS) at a writable directory.`,
+        );
+      case 'EROFS':
+        return new ForbiddenException(
+          `Cannot create "${abs}" — it lives on a read-only filesystem.`,
+        );
+      case 'ENOSPC':
+        return new BadRequestException(
+          `Cannot create "${abs}" — the disk is full (no space left).`,
+        );
+      case 'ENOTDIR':
+        return new BadRequestException(
+          `Cannot create "${abs}" — one of the parent path segments is a file, not a directory.`,
+        );
+      case 'ENAMETOOLONG':
+        return new BadRequestException(`Cannot create "${abs}" — the path is too long.`);
+      default: {
+        const msg = (err as Error)?.message ?? String(err);
+        this.logger.error(`mkdir failed for "${abs}": ${msg}`);
+        return new BadRequestException(`Could not create "${abs}": ${msg}`);
+      }
+    }
   }
 
   /** Rebuild PathSafety from the DB setting, narrowed within the env roots. */

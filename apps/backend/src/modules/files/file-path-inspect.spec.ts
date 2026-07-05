@@ -66,4 +66,22 @@ describe('FilePathService — inspect + ensureDirectory', () => {
       svc.ensureDirectory(path.join(os.tmpdir(), 'ut-escape-xyz')),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
+
+  it('ensureDirectory translates a permission-denied mkdir into a clean Forbidden error (not a raw 500)', async () => {
+    // A read-only in-root subdirectory: creating a child under it fails EACCES,
+    // mirroring the default `/downloads` root the server user cannot write.
+    const locked = path.join(root, 'locked');
+    await fs.mkdir(locked);
+    await fs.chmod(locked, 0o500);
+    try {
+      let caught: unknown;
+      await svc.ensureDirectory(path.join(locked, 'child')).catch((e) => {
+        caught = e;
+      });
+      expect(caught).toBeInstanceOf(ForbiddenException);
+      expect((caught as Error).message).toMatch(/permission denied/i);
+    } finally {
+      await fs.chmod(locked, 0o700); // let afterEach clean up
+    }
+  });
 });
