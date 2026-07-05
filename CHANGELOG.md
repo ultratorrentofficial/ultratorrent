@@ -45,6 +45,23 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.16.0] - 2026-07-05
+
+### Added
+- Smart Download execution engine (Phase 1): acquisition decisions now actually download — a new SmartDownloadExecutorService turns a download/upgrade decision into a real torrent add (and removes the superseded torrent on an upgrade), wired into evaluate/approve/override; closes the gap where a 'download' decision recorded a pending action that nothing executed
+- Smart Download Phase 2: missing movie & season detection — MissingMoviesService scans movie watchlist items (owned via IMDb link or title+year) into WantedMovie rows; MissingEpisodesService.listSeasons rolls up per-season missing status; new endpoints + WantedMovie model
+- Smart Download Phase 3: multi-dimensional upgrade comparison (resolution/source/HDR/audio, codec as tiebreak) replacing resolution-only logic; a wait-for-better decision + policy; and waiting/upgrade queue endpoints
+- Smart Download Phase 4: Decision Simulator — a dry-run POST /simulate endpoint (no side effects) returning the decision plus a clickable stage-by-stage pipeline explanation, and a Decision Simulator UI page with the visual pipeline
+- Smart Download Phase 5a: a Smart Download dashboard page (widget grid + recent decisions + Waiting/Upgrades/Rejected queue tabs) backed by an extended overview() and a new /rejected endpoint
+- Media Server Analytics module (Phase 1): new core module extending the existing Plex/Jellyfin/Emby/Kodi integration with capability-aware getServerInfo/getLibraries, health checks, a dashboard, and secure multi-server connection management; Dashboard + Connections UI, RBAC, i18n
+- Media Server Analytics Phase 2: live activity + watch history — provider getSessions (Plex/Jellyfin/Emby; Kodi unsupported), a 30s reconciliation poller feeding MediaServerSession + MediaServerWatchHistory, /live and /watch-history endpoints, and Live Activity + Watch History UI pages
+- Media Server Analytics Phase 3: analytics & reports — usage/users/libraries/playback aggregations from watch history + recently-added from Media Manager, with Analytics Reports (tabbed) and Recently Added UI pages
+- Media Server Analytics Phase 4: Tautulli analytics import — a MediaAnalyticsImportProvider + background import job streaming Tautulli watch history into UltraTorrent (encrypted API key, preview, duplicate-safe dedup, progress), with an Import Analytics UI page
+- Media Server Analytics Phase 5: scheduled newsletters — a net-new SMTP email service (nodemailer, encrypted config) + newsletter campaigns of recently-added media with responsive HTML/text rendering, preview, test/send, delivery tracking, and a dispatch scheduler; Newsletters UI page with SMTP settings
+
+### Fixed
+- Smart Download Phase 6 docs: new docs/SMART_DOWNLOAD.md (full engine documentation), API.md endpoint additions + boundary correction, and cross-links from acquisition/media-manager/README
+
 ## [0.15.0] - 2026-07-05
 
 ### Added
