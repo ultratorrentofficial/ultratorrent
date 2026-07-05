@@ -187,8 +187,15 @@ export class RssService {
    * imported into a different install. Candidate feed-scope (which references
    * feed ids) is intentionally dropped — it is meaningless across installs.
    */
-  async exportRules() {
+  async exportRules(feedId?: string) {
+    if (feedId) {
+      const feed = await this.prisma.rssFeed.findUnique({ where: { id: feedId } });
+      if (!feed) {
+        throw new NotFoundException('Feed not found');
+      }
+    }
     const rules = await this.prisma.rssRule.findMany({
+      where: feedId ? { feedId } : undefined,
       include: {
         feed: true,
         matchCandidates: { orderBy: { priorityOrder: 'asc' } },
@@ -1348,6 +1355,11 @@ export class RssController {
   @RequirePermissions(PERMISSIONS.RSS_VIEW)
   exportRules() {
     return this.rss.exportRules();
+  }
+  @Get('feeds/:id/rules-export')
+  @RequirePermissions(PERMISSIONS.RSS_VIEW)
+  exportFeedRules(@Param('id') id: string) {
+    return this.rss.exportRules(id);
   }
   @Post('rules-import')
   @RequirePermissions(PERMISSIONS.RSS_MANAGE)

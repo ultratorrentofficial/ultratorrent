@@ -21,6 +21,7 @@
     "fetchNow": "Fetch now",
     "history": "History",
     "editFeed": "Edit feed",
+    "exportFeed": "Export this feed's rules",
     "deleteFeed": "Delete feed",
     "noRules": "No rules yet — this feed is logged but nothing is auto-downloaded.",
     "auto": "auto",

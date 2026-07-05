@@ -1855,6 +1855,9 @@ export const api = {
     exportRules(): Promise<RssExportBundle> {
       return request<RssExportBundle>('/rss/rules-export');
     },
+    exportFeedRules(feedId: string): Promise<RssExportBundle> {
+      return request<RssExportBundle>(`/rss/feeds/${feedId}/rules-export`);
+    },
     importRules(bundle: unknown, mode: RssImportMode = 'skip'): Promise<RssImportSummary> {
       return request<RssImportSummary>('/rss/rules-import', {
         method: 'POST',

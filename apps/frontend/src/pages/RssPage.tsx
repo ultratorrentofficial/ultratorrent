@@ -54,6 +54,15 @@ function minutes(seconds: number): string {
   return m >= 60 ? `${Math.round(m / 60)}h` : `${m}m`;
 }
 
+// Turn a feed name into a safe, readable download-filename fragment.
+function slugify(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'feed';
+}
+
 export function RssPage() {
   const { t } = useTranslation('rss');
   const toast = useToast();
@@ -65,6 +74,7 @@ export function RssPage() {
   const [editRule, setEditRule] = useState<{ feed: RssFeed; rule: RssRule } | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportingFeedId, setExportingFeedId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [pendingImport, setPendingImport] = useState<{ bundle: unknown; name: string } | null>(
     null,
@@ -72,17 +82,22 @@ export function RssPage() {
   const [importMode, setImportMode] = useState<RssImportMode>('skip');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Trigger a browser download of a bundle as pretty-printed JSON.
+  const saveBundle = (bundle: { rules: unknown[] }, filename: string) => {
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const exportRules = async () => {
     setExporting(true);
     try {
       const bundle = await api.rss.exportRules();
-      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'ultratorrent-rss-rules.json';
-      a.click();
-      URL.revokeObjectURL(url);
+      saveBundle(bundle, 'ultratorrent-rss-rules.json');
       toast.success(
         t('feeds.toast.exported'),
         t('feeds.toast.rulesCount', { count: bundle.rules.length }),
@@ -91,6 +106,23 @@ export function RssPage() {
       toast.error(t('feeds.toast.exportFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setExporting(false);
+    }
+  };
+
+  // Export just one feed's rules — a portable bundle scoped to that feed.
+  const exportFeed = async (feed: RssFeed) => {
+    setExportingFeedId(feed.id);
+    try {
+      const bundle = await api.rss.exportFeedRules(feed.id);
+      saveBundle(bundle, `ultratorrent-rss-${slugify(feed.name)}.json`);
+      toast.success(
+        t('feeds.toast.exported'),
+        t('feeds.toast.rulesCount', { count: bundle.rules.length }),
+      );
+    } catch (err) {
+      toast.error(t('feeds.toast.exportFailed'), err instanceof ApiError ? err.message : undefined);
+    } finally {
+      setExportingFeedId(null);
     }
   };
 
@@ -302,6 +334,17 @@ export function RssPage() {
                       onClick={() => navigate(`/rss/feeds/${feed.id}/history`)}
                     >
                       <History className="h-4 w-4" /> {t('feeds.history')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t('feeds.exportFeed')}
+                      title={t('feeds.exportFeed')}
+                      onClick={() => void exportFeed(feed)}
+                      loading={exportingFeedId === feed.id}
+                      disabled={exportingFeedId !== null || rules.length === 0}
+                    >
+                      <Download className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"

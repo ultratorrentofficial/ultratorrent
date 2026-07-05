@@ -21,6 +21,7 @@
     "fetchNow": "Consultar ahora",
     "history": "Historial",
     "editFeed": "Editar fuente",
+    "exportFeed": "Exportar las reglas de esta fuente",
     "deleteFeed": "Eliminar fuente",
     "noRules": "Aún no hay reglas — esta fuente se registra pero no se descarga nada automáticamente.",
     "auto": "auto",

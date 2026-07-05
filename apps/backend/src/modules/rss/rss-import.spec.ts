@@ -165,3 +165,40 @@ describe('RssService.importRules — import modes', () => {
     expect(prisma._candidates).toHaveLength(0);
   });
 });
+
+describe('RssService.exportRules — per-feed scoping', () => {
+  // Two feeds, one rule each. exportRules(feedId) must return only that feed's
+  // rule; exportRules() (no arg) returns both.
+  const feedA = { id: 'fa', name: 'Feed A', url: 'http://a/rss', refreshInterval: 900 };
+  const feedB = { id: 'fb', name: 'Feed B', url: 'http://b/rss', refreshInterval: 600 };
+  const ruleRows = [
+    { name: 'Rule A', feedId: 'fa', feed: feedA, matchCandidates: [] },
+    { name: 'Rule B', feedId: 'fb', feed: feedB, matchCandidates: [] },
+  ];
+  const prisma = {
+    rssFeed: {
+      findUnique: async ({ where }: any) =>
+        [feedA, feedB].find((f) => f.id === where.id) ?? null,
+    },
+    rssRule: {
+      findMany: async ({ where }: any) =>
+        where?.feedId ? ruleRows.filter((r) => r.feedId === where.feedId) : ruleRows,
+    },
+  };
+
+  it('exports only the requested feed’s rules', async () => {
+    const bundle = await svcWith(prisma).exportRules('fa');
+    expect(bundle.rules).toHaveLength(1);
+    expect(bundle.rules[0].name).toBe('Rule A');
+    expect(bundle.rules[0].feed.url).toBe('http://a/rss');
+  });
+
+  it('exports all rules when no feed is given', async () => {
+    const bundle = await svcWith(prisma).exportRules();
+    expect(bundle.rules).toHaveLength(2);
+  });
+
+  it('rejects an unknown feed id', async () => {
+    await expect(svcWith(prisma).exportRules('nope')).rejects.toThrow(/not found/i);
+  });
+});
