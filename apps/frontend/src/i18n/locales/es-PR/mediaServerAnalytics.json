@@ -200,5 +200,33 @@
     "topUsers": "Usuarios principales",
     "devices": "Dispositivos",
     "topMedia": "Más visto"
+  },
+  "filters": {
+    "range": "Rango de fechas",
+    "mediaType": "Tipo de medio",
+    "refresh": "Auto-actualizar",
+    "refreshNow": "Actualizar",
+    "ranges": {
+      "today": "Hoy",
+      "7d": "Últimos 7 días",
+      "30d": "Últimos 30 días",
+      "90d": "Últimos 90 días",
+      "year": "Último año",
+      "all": "Todo el tiempo"
+    },
+    "mediaTypes": {
+      "all": "Todos los tipos",
+      "movie": "Películas",
+      "episode": "TV",
+      "track": "Música",
+      "other": "Otro"
+    },
+    "refreshes": {
+      "off": "Apagado",
+      "15s": "15s",
+      "30s": "30s",
+      "60s": "1m",
+      "5m": "5m"
+    }
   }
 }

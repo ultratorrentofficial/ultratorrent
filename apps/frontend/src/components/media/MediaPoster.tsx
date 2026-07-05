@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Film } from 'lucide-react';
-import { api, type MediaArtwork } from '@/lib/api';
+import { api, type MediaArtworkRef } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 /**
@@ -17,7 +17,7 @@ export function MediaPoster({
   className,
   iconClassName,
 }: {
-  artwork?: MediaArtwork | null;
+  artwork?: MediaArtworkRef | null;
   alt: string;
   className?: string;
   iconClassName?: string;

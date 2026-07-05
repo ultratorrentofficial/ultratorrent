@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Radio, Play, Clock, Users, Film, Sparkles, Zap, Cpu, Server,
 } from 'lucide-react';
@@ -15,6 +15,9 @@ import { Progress } from '@/components/ui/progress';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { KpiTile, ChartCard } from './analytics-widgets';
 import { CHART, CHART_SERIES, playbackColor, foldTopN } from './analytics-colors';
+import { MediaAnalyticsFilterBar } from './MediaAnalyticsFilterBar';
+import { RecentlyAddedStrip } from './RecentlyAddedStrip';
+import { useAnalyticsFilters } from './analytics-filters';
 
 function watchTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -27,14 +30,20 @@ const axisTick = { fontSize: 11, fill: CHART.tick };
 
 export function MediaServerAnalyticsDashboardPage() {
   const { t } = useTranslation('mediaServerAnalytics');
+  const qc = useQueryClient();
+  const { state, set, filter, refreshMs, filterKey } = useAnalyticsFilters();
+  const liveRefresh = refreshMs || 15000; // live panel always polls (min 15s)
 
-  const dash = useQuery({ queryKey: ['msa', 'dashboard'], queryFn: () => api.mediaServerAnalytics.dashboard() });
-  const live = useQuery({ queryKey: ['msa', 'live'], queryFn: () => api.mediaServerAnalytics.live(), refetchInterval: 15000 });
-  const usage = useQuery({ queryKey: ['msa', 'report', 'usage'], queryFn: () => api.mediaServerAnalytics.reportUsage() });
-  const playback = useQuery({ queryKey: ['msa', 'report', 'playback'], queryFn: () => api.mediaServerAnalytics.reportPlayback() });
-  const users = useQuery({ queryKey: ['msa', 'report', 'users'], queryFn: () => api.mediaServerAnalytics.reportUsers() });
-  const devices = useQuery({ queryKey: ['msa', 'report', 'devices'], queryFn: () => api.mediaServerAnalytics.reportDevices() });
-  const topMedia = useQuery({ queryKey: ['msa', 'report', 'top-media'], queryFn: () => api.mediaServerAnalytics.reportTopMedia() });
+  const dash = useQuery({ queryKey: ['msa', 'dashboard'], queryFn: () => api.mediaServerAnalytics.dashboard(), refetchInterval: refreshMs || false });
+  const live = useQuery({ queryKey: ['msa', 'live'], queryFn: () => api.mediaServerAnalytics.live(), refetchInterval: liveRefresh });
+  const usage = useQuery({ queryKey: ['msa', 'report', 'usage', filterKey], queryFn: () => api.mediaServerAnalytics.reportUsage(filter), refetchInterval: refreshMs || false });
+  const playback = useQuery({ queryKey: ['msa', 'report', 'playback', filterKey], queryFn: () => api.mediaServerAnalytics.reportPlayback(filter), refetchInterval: refreshMs || false });
+  const users = useQuery({ queryKey: ['msa', 'report', 'users', filterKey], queryFn: () => api.mediaServerAnalytics.reportUsers(filter), refetchInterval: refreshMs || false });
+  const devices = useQuery({ queryKey: ['msa', 'report', 'devices', filterKey], queryFn: () => api.mediaServerAnalytics.reportDevices(filter), refetchInterval: refreshMs || false });
+  const topMedia = useQuery({ queryKey: ['msa', 'report', 'top-media', filterKey], queryFn: () => api.mediaServerAnalytics.reportTopMedia(filter), refetchInterval: refreshMs || false });
+
+  const isFetching = [dash, live, usage, playback, users, devices, topMedia].some((q) => q.isFetching);
+  const refreshAll = () => void qc.invalidateQueries({ queryKey: ['msa'] });
 
   if (dash.isLoading) return <CenteredSpinner />;
   if (dash.isError || !dash.data) return <ErrorState title={t('dashboard.loadError')} onRetry={() => void dash.refetch()} />;
@@ -61,6 +70,9 @@ export function MediaServerAnalyticsDashboardPage() {
           <span className="text-muted-foreground">/ {s.total}</span>
         </div>
       </div>
+
+      {/* Filters */}
+      <MediaAnalyticsFilterBar state={state} onChange={set} onRefresh={refreshAll} refreshing={isFetching} />
 
       {/* KPI grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -110,6 +122,9 @@ export function MediaServerAnalyticsDashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Recently added (artwork) */}
+      <RecentlyAddedStrip />
 
       {/* Charts */}
       <div className="grid gap-3 lg:grid-cols-2">

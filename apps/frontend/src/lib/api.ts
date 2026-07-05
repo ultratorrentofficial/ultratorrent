@@ -2758,23 +2758,23 @@ export const api = {
     watchHistory(): Promise<MediaServerWatchHistoryRow[]> {
       return request<MediaServerWatchHistoryRow[]>('/media-server-analytics/watch-history');
     },
-    reportUsage(): Promise<MediaServerUsageReport> {
-      return request<MediaServerUsageReport>('/media-server-analytics/reports/usage');
+    reportUsage(filter?: MediaAnalyticsFilter): Promise<MediaServerUsageReport> {
+      return request<MediaServerUsageReport>(`/media-server-analytics/reports/usage${analyticsQuery(filter)}`);
     },
-    reportUsers(): Promise<MediaServerUserStat[]> {
-      return request<MediaServerUserStat[]>('/media-server-analytics/reports/users');
+    reportUsers(filter?: MediaAnalyticsFilter): Promise<MediaServerUserStat[]> {
+      return request<MediaServerUserStat[]>(`/media-server-analytics/reports/users${analyticsQuery(filter)}`);
     },
-    reportLibraries(): Promise<MediaServerLibraryStat[]> {
-      return request<MediaServerLibraryStat[]>('/media-server-analytics/reports/libraries');
+    reportLibraries(filter?: MediaAnalyticsFilter): Promise<MediaServerLibraryStat[]> {
+      return request<MediaServerLibraryStat[]>(`/media-server-analytics/reports/libraries${analyticsQuery(filter)}`);
     },
-    reportPlayback(): Promise<MediaServerPlaybackReport> {
-      return request<MediaServerPlaybackReport>('/media-server-analytics/reports/playback');
+    reportPlayback(filter?: MediaAnalyticsFilter): Promise<MediaServerPlaybackReport> {
+      return request<MediaServerPlaybackReport>(`/media-server-analytics/reports/playback${analyticsQuery(filter)}`);
     },
-    reportTopMedia(): Promise<MediaServerTopMedia[]> {
-      return request<MediaServerTopMedia[]>('/media-server-analytics/reports/top-media');
+    reportTopMedia(filter?: MediaAnalyticsFilter): Promise<MediaServerTopMedia[]> {
+      return request<MediaServerTopMedia[]>(`/media-server-analytics/reports/top-media${analyticsQuery(filter)}`);
     },
-    reportDevices(): Promise<MediaServerDeviceStat[]> {
-      return request<MediaServerDeviceStat[]>('/media-server-analytics/reports/devices');
+    reportDevices(filter?: MediaAnalyticsFilter): Promise<MediaServerDeviceStat[]> {
+      return request<MediaServerDeviceStat[]>(`/media-server-analytics/reports/devices${analyticsQuery(filter)}`);
     },
     recentlyAdded(): Promise<MediaServerRecentlyAddedItem[]> {
       return request<MediaServerRecentlyAddedItem[]>('/media-server-analytics/recently-added');
@@ -2920,6 +2920,9 @@ export interface MediaServerPlaybackReport {
   byMethod: { method: string; plays: number }[];
   byType: { type: string; plays: number }[];
 }
+/** Lean artwork reference returned inline with analytics rows (subset of MediaArtwork). */
+export type MediaArtworkRef = Pick<MediaArtwork, 'id' | 'url' | 'localPath' | 'type' | 'selected'>;
+
 export interface MediaServerRecentlyAddedItem {
   id: string;
   title: string;
@@ -2928,6 +2931,7 @@ export interface MediaServerRecentlyAddedItem {
   season: number | null;
   episode: number | null;
   addedAt: string;
+  poster: MediaArtworkRef | null;
 }
 
 export interface MediaServerLiveSession {
@@ -3004,6 +3008,24 @@ export interface MediaServerTopMedia {
 export interface MediaServerDeviceStat {
   device: string;
   plays: number;
+}
+
+/** Dashboard filter applied across analytics report queries. */
+export interface MediaAnalyticsFilter {
+  /** Rolling window in days; undefined/0 = all-time. */
+  days?: number;
+  /** Restrict to a single media type (movie/episode/…); undefined = all. */
+  mediaType?: string;
+}
+
+/** Serialize an analytics filter into a `?days=&mediaType=` query string (empty when no filter). */
+function analyticsQuery(filter?: MediaAnalyticsFilter): string {
+  if (!filter) return '';
+  const params = new URLSearchParams();
+  if (filter.days && filter.days > 0) params.set('days', String(filter.days));
+  if (filter.mediaType) params.set('mediaType', filter.mediaType);
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
 }
 
 export interface MediaServerInfo {

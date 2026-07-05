@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -8,12 +8,23 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { MediaServerIntegrationService } from '../media/media-server-integration.service';
 import { MediaServerAnalyticsService } from './media-server-analytics.service';
 import { MediaServerSessionService } from './media-server-session.service';
-import { MediaServerReportService } from './media-server-report.service';
+import { MediaServerReportService, type ReportFilter } from './media-server-report.service';
 import { AnalyticsImportService } from './analytics-import.service';
 import { MediaServerEmailService } from './media-server-email.service';
 import { MediaServerNewsletterService } from './media-server-newsletter.service';
 
 const P = PERMISSIONS;
+
+/** Parse the shared analytics filter (?days=&mediaType=) from query params. */
+function parseFilter(q: Record<string, string> | undefined): ReportFilter | undefined {
+  if (!q) return undefined;
+  const days = q.days ? Number.parseInt(q.days, 10) : undefined;
+  const mediaType = q.mediaType?.trim() || undefined;
+  const filter: ReportFilter = {};
+  if (days && Number.isFinite(days) && days > 0) filter.days = days;
+  if (mediaType) filter.mediaType = mediaType;
+  return filter.days || filter.mediaType ? filter : undefined;
+}
 
 /**
  * Media Server Analytics API. Core module, RBAC-gated. Phase 1: dashboard +
@@ -62,38 +73,38 @@ export class MediaServerAnalyticsController {
   // --- reports + users + recently added -----------------------------------
   @Get('reports/usage')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
-  reportUsage() {
-    return this.reports.usage();
+  reportUsage(@Query() q: Record<string, string>) {
+    return this.reports.usage(parseFilter(q));
   }
   @Get('reports/users')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
-  reportUsers() {
-    return this.reports.users();
+  reportUsers(@Query() q: Record<string, string>) {
+    return this.reports.users(parseFilter(q));
   }
   @Get('reports/libraries')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
-  reportLibraries() {
-    return this.reports.libraries();
+  reportLibraries(@Query() q: Record<string, string>) {
+    return this.reports.libraries(parseFilter(q));
   }
   @Get('reports/playback')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
-  reportPlayback() {
-    return this.reports.playback();
+  reportPlayback(@Query() q: Record<string, string>) {
+    return this.reports.playback(parseFilter(q));
   }
   @Get('reports/top-media')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
-  reportTopMedia() {
-    return this.reports.topMedia();
+  reportTopMedia(@Query() q: Record<string, string>) {
+    return this.reports.topMedia(10, parseFilter(q));
   }
   @Get('reports/devices')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
-  reportDevices() {
-    return this.reports.devices();
+  reportDevices(@Query() q: Record<string, string>) {
+    return this.reports.devices(parseFilter(q));
   }
   @Get('users')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_USERS)
-  users() {
-    return this.reports.users();
+  users(@Query() q: Record<string, string>) {
+    return this.reports.users(parseFilter(q));
   }
   @Get('recently-added')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW)
