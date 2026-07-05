@@ -85,6 +85,30 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
     }
   }
 
+  /**
+   * Validate the API key with a single lightweight call to TMDB's
+   * `/authentication` endpoint. Distinguishes a bad key (401) from an
+   * unreachable service (network/timeout) so the UI can say which.
+   */
+  async verify(): Promise<{ ok: boolean; message: string }> {
+    const url = new URL(this.base + '/authentication');
+    url.searchParams.set('api_key', this.apiKey);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (res.ok) return { ok: true, message: 'TMDB API key is valid.' };
+      if (res.status === 401)
+        return { ok: false, message: 'TMDB rejected the API key (401 Unauthorized).' };
+      return { ok: false, message: `TMDB returned an unexpected response (HTTP ${res.status}).` };
+    } catch (err) {
+      const reason = (err as Error).name === 'AbortError' ? 'request timed out' : (err as Error).message;
+      return { ok: false, message: `Could not reach TMDB: ${reason}.` };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async lookup(q: MediaLookup): Promise<MediaMetadata> {
     try {
       if (q.kind === 'movie') {

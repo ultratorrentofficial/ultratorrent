@@ -336,6 +336,13 @@ export class MediaController {
     return this.integrations.refresh(id, auditCtx(req));
   }
 
+  // --- TMDB metadata provider -------------------------------------------
+  @Post('providers/tmdb/test')
+  @RequirePermissions(P.SETTINGS_MANAGE)
+  testTmdbApi(@Body() body: { apiKey?: string }, @Req() req: Request) {
+    return this.media.testTmdbKey(body?.apiKey, auditCtx(req));
+  }
+
   // --- IMDb metadata provider -------------------------------------------
   @Get('providers/imdb/status')
   @RequirePermissions(P.MEDIA_MANAGER_IMDB_VIEW)

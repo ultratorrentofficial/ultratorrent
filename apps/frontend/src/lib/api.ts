@@ -2400,6 +2400,12 @@ export const api = {
     testImdbApi(): Promise<ImdbApiTestResult> {
       return request<ImdbApiTestResult>('/media/providers/imdb/test', { method: 'POST' });
     },
+    testTmdbKey(apiKey?: string): Promise<{ ok: boolean; message: string }> {
+      return request<{ ok: boolean; message: string }>('/media/providers/tmdb/test', {
+        method: 'POST',
+        body: { apiKey },
+      });
+    },
     validateImdbDataset(body: { datasetPath?: string }): Promise<ImdbDatasetValidationReport> {
       return request<ImdbDatasetValidationReport>('/media/providers/imdb/dataset/validate', {
         method: 'POST',

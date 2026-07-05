@@ -155,9 +155,29 @@ function useSettingField(key: string) {
 
 function MetadataProvidersSection() {
   const { t } = useTranslation('media');
+  const toast = useToast();
   const { canView, canManage, stored, isLoading, save } = useSettingField('media.tmdbApiKey');
   const [value, setValue] = useState('');
+  const [testing, setTesting] = useState(false);
   useEffect(() => setValue(stored), [stored]);
+
+  // Test the key currently in the box; if it's empty the server falls back to
+  // the saved key, so the button also validates an already-saved key.
+  const runTest = async () => {
+    setTesting(true);
+    try {
+      const res = await api.media.testTmdbKey(value.trim() || undefined);
+      if (res.ok) toast.success(t('settings.metadata.testOkTitle'), res.message);
+      else toast.error(t('settings.metadata.testFailTitle'), res.message);
+    } catch (err) {
+      toast.error(
+        t('settings.metadata.testFailTitle'),
+        err instanceof ApiError ? err.message : undefined,
+      );
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
     <SectionCard
@@ -186,9 +206,19 @@ function MetadataProvidersSection() {
             />
           </div>
           {canManage && (
-            <Button onClick={() => save.mutate(value.trim())} loading={save.isPending}>
-              <Save className="h-4 w-4" /> {t('common.save')}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => void runTest()}
+                loading={testing}
+                disabled={save.isPending}
+              >
+                <Plug className="h-4 w-4" /> {t('settings.metadata.testKey')}
+              </Button>
+              <Button onClick={() => save.mutate(value.trim())} loading={save.isPending}>
+                <Save className="h-4 w-4" /> {t('common.save')}
+              </Button>
+            </div>
           )}
         </div>
       )}

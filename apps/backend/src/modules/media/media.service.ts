@@ -19,6 +19,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { SettingsService } from '../settings/settings.module';
 import { AuditService } from '../audit/audit.service';
+import type { AuditContext } from './media-metadata.service';
 import {
   buildRenamePlan,
   MediaFileInput,
@@ -133,6 +134,40 @@ export class MediaService {
       (await this.settings.get<string>('media.tmdbApiKey')) ??
       process.env.TMDB_API_KEY;
     return key ? new TmdbMetadataProvider(key) : new LocalMetadataProvider();
+  }
+
+  /**
+   * Verify a TMDB API key against the live service. When `apiKey` is provided
+   * (the value typed in Settings, possibly unsaved) that is tested; otherwise
+   * the saved/env key is used. Never echoes the key back; audited.
+   */
+  async testTmdbKey(
+    apiKey: string | undefined,
+    ctx: AuditContext = {},
+  ): Promise<{ ok: boolean; message: string }> {
+    const supplied = typeof apiKey === 'string' ? apiKey.trim() : '';
+    const key =
+      supplied ||
+      (await this.settings.get<string>('media.tmdbApiKey')) ||
+      process.env.TMDB_API_KEY ||
+      '';
+    let result: { ok: boolean; message: string };
+    if (!key) {
+      result = { ok: false, message: 'No TMDB API key set — enter or save a key first.' };
+    } else {
+      result = await new TmdbMetadataProvider(key).verify();
+    }
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.tmdb.key_tested',
+      objectType: 'setting',
+      objectId: 'media.tmdbApiKey',
+      result: result.ok ? 'success' : 'failure',
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { usedSuppliedKey: Boolean(supplied), message: result.message },
+    });
+    return result;
   }
 
   // --- plan building -----------------------------------------------------

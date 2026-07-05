@@ -328,7 +328,10 @@
       "noViewPerm": "No tienes permiso para ver los ajustes. Pide a un administrador que configure la clave de la API de TMDB.",
       "loading": "Cargando…",
       "keyLabel": "Clave de la API de TMDB",
-      "keyPlaceholder": "Ingresa la clave de la API de TMDB"
+      "keyPlaceholder": "Ingresa la clave de la API de TMDB",
+      "testKey": "Probar clave",
+      "testOkTitle": "La clave de TMDB funciona",
+      "testFailTitle": "Falló la prueba de la clave de TMDB"
     },
     "requiresSettings": "Requiere acceso a los ajustes.",
     "artworkPref": {

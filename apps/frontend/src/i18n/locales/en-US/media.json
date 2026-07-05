@@ -328,7 +328,10 @@
       "noViewPerm": "You do not have permission to view settings. Ask an administrator to configure the TMDB API key.",
       "loading": "Loading…",
       "keyLabel": "TMDB API key",
-      "keyPlaceholder": "Enter TMDB API key"
+      "keyPlaceholder": "Enter TMDB API key",
+      "testKey": "Test key",
+      "testOkTitle": "TMDB key works",
+      "testFailTitle": "TMDB key test failed"
     },
     "requiresSettings": "Requires settings access.",
     "artworkPref": {
