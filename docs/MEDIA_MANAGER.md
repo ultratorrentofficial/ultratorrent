@@ -11,6 +11,11 @@ post-download workflow — all behind the `media_manager.*` permission block.
 - Backend: `apps/backend/src/modules/media/`
 - Frontend: `apps/frontend/src/pages/media-manager/`
 - Depends on the `auth` and `files` modules.
+
+> **Smart Download** reads this library to compute what's *missing* — its missing
+> movie/season/episode detection diffs the local IMDb catalogue against `MediaItem`s
+> (with a structured `MediaItem.seriesImdbId` link populated at identification time).
+> See [SMART_DOWNLOAD.md](SMART_DOWNLOAD.md) → Missing-media detection.
 - REST surface: [API.md → Media Manager](API.md#media-manager--apimedia)
 - Path safety: [SECURITY.md → File-path validation](SECURITY.md#file-path-validation)
 

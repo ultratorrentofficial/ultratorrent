@@ -86,6 +86,12 @@ architecture.
   renaming (hardlink/symlink/move), duplicate detection, and
   Plex/Jellyfin/Emby/Kodi integrations, with a post-download workflow and live
   job progress over WebSocket.
+- **Smart Download** — an acquisition decision engine that picks the *best*
+  acceptable release instead of the first match: consumes Smart Match preferences
+  and Release Scoring, detects missing movies/seasons/episodes, does
+  multi-dimensional upgrade comparison (resolution/source/HDR/audio), holds out for
+  better releases, and executes/upgrades downloads — with a decision simulator and
+  dashboard. See [docs/SMART_DOWNLOAD.md](docs/SMART_DOWNLOAD.md).
 - **RSS automation** — feeds with include/exclude rules that auto-download
   matches to the default engine.
 - **Rules engine** — condition/action automation triggered by events such as

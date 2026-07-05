@@ -647,8 +647,10 @@ Settings changes, dataset validate/import, matches, and API tests are audited.
 ## Media Acquisition Intelligence — `/api/media-acquisition`
 
 `@Controller('media-acquisition')` (`MediaAcquisitionController`) guarded by
-`JwtAuthGuard` + `PermissionsGuard` — tag `media-acquisition`. Decides **what**
-to acquire with explainable decisions; it **never performs file operations**. See
+`JwtAuthGuard` + `PermissionsGuard` — tag `media-acquisition`. The **Smart Download**
+engine: decides **what** to acquire with explainable decisions and — for auto or
+approved decisions with a download URL — executes them (adds the torrent, removes the
+superseded one on an upgrade). See [SMART_DOWNLOAD.md](SMART_DOWNLOAD.md) and
 [MEDIA_ACQUISITION_INTELLIGENCE.md](MEDIA_ACQUISITION_INTELLIGENCE.md).
 
 | Method | Path | Permission |
@@ -663,7 +665,14 @@ to acquire with explainable decisions; it **never performs file operations**. Se
 | `PATCH`  | `/api/media-acquisition/profiles/:id` | `media_acquisition.manage_profiles` |
 | `DELETE` | `/api/media-acquisition/profiles/:id` | `media_acquisition.manage_profiles` |
 | `POST`   | `/api/media-acquisition/evaluate` | `media_acquisition.evaluate` |
+| `POST`   | `/api/media-acquisition/simulate` | `media_acquisition.view` |
 | `GET`    | `/api/media-acquisition/evaluations` · `/evaluations/:id` | `media_acquisition.view` |
+| `GET`    | `/api/media-acquisition/waiting` · `/upgrades` · `/rejected` | `media_acquisition.view` |
+| `GET`    | `/api/media-acquisition/missing-episodes` · `/missing-episodes/:id` | `media_acquisition.view` |
+| `GET`    | `/api/media-acquisition/missing-episodes/:id/seasons` | `media_acquisition.view` |
+| `POST`   | `/api/media-acquisition/missing-episodes/scan` · `/:id/ignore` · `/:id/unignore` | `media_acquisition.manage_watchlist` |
+| `GET`    | `/api/media-acquisition/missing-movies` | `media_acquisition.view` |
+| `POST`   | `/api/media-acquisition/missing-movies/scan` · `/:id/ignore` · `/:id/unignore` | `media_acquisition.manage_watchlist` |
 | `GET`    | `/api/media-acquisition/approval-queue` | `media_acquisition.view` |
 | `POST`   | `/api/media-acquisition/evaluations/:id/approve` | `media_acquisition.approve` |
 | `POST`   | `/api/media-acquisition/evaluations/:id/reject` | `media_acquisition.reject` |

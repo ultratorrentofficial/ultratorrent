@@ -5,6 +5,13 @@ UltraTorrent should acquire**. It does not match RSS titles in isolation — it
 **orchestrates** the existing modules into an explainable acquisition decision.
 RBAC `media_acquisition.*`.
 
+> **This module is now the foundation of [Smart Download](SMART_DOWNLOAD.md)**, which
+> adds execution (decisions now actually download), a multi-dimensional upgrade
+> comparison, missing movie/season/episode detection, waiting/upgrade queues, a decision
+> simulator, and a dashboard. The "No file operations" boundary below describes the
+> original design; execution is now performed by `SmartDownloadExecutorService` (see
+> SMART_DOWNLOAD.md → Execution).
+
 - [What it decides](#what-it-decides)
 - [Boundary — it orchestrates, never replaces](#boundary--it-orchestrates-never-replaces)
 - [Watchlist](#watchlist)
