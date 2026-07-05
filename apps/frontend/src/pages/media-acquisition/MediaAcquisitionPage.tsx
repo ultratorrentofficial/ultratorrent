@@ -698,12 +698,15 @@ function WatchlistDialog({
     collectionName: '',
     priority: item?.priority != null ? String(item.priority) : '0',
     profileId: item?.profileId ?? '',
+    imdbId: item?.externalIds?.imdb ?? '',
   });
 
   const showYear = form.type !== 'manual_query' && form.type !== 'movie_collection';
   const showSeason = form.type === 'season' || form.type === 'episode';
   const showEpisode = form.type === 'episode';
   const showCollection = form.type === 'movie_collection';
+  // IMDb id makes a series/season monitorable for missing-episode scans.
+  const showImdb = form.type === 'series' || form.type === 'season' || form.type === 'anime';
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -717,6 +720,7 @@ function WatchlistDialog({
           collectionName: showCollection ? form.collectionName.trim() || undefined : undefined,
           priority: num(form.priority),
           profileId: form.profileId || null,
+          externalIds: showImdb ? { imdb: form.imdbId.trim() } : undefined,
         });
       }
       const body: CreateWatchlistInput = {
@@ -728,6 +732,7 @@ function WatchlistDialog({
         collectionName: showCollection ? form.collectionName.trim() || undefined : undefined,
         priority: num(form.priority),
         profileId: form.profileId || undefined,
+        externalIds: showImdb && form.imdbId.trim() ? { imdb: form.imdbId.trim() } : undefined,
       };
       return api.mediaAcquisition.createWatchlist(body);
     },
@@ -811,6 +816,20 @@ function WatchlistDialog({
                 onChange={(e) => setForm((f) => ({ ...f, collectionName: e.target.value }))}
                 placeholder="e.g. The Lord of the Rings"
               />
+            </div>
+          )}
+          {showImdb && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="wl-imdb">{t('acquisition.watchlist.dialog.imdbId')}</Label>
+              <Input
+                id="wl-imdb"
+                value={form.imdbId}
+                onChange={(e) => setForm((f) => ({ ...f, imdbId: e.target.value }))}
+                placeholder="tt0903747"
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('acquisition.watchlist.dialog.imdbIdHint')}
+              </p>
             </div>
           )}
           {showYear && (

@@ -316,6 +316,8 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
       'media_acquisition.approval.required',
       'media_acquisition.watchlist.updated',
       'media_acquisition.recommendation.created',
+      'media_acquisition.missing_episodes.scan.progress',
+      'media_acquisition.missing_episodes.scan.completed',
     ],
     schedulerJobs: ['media_acquisition_rss_sweep', 'media_acquisition_watchlist_sweep', 'media_acquisition_quality_upgrade_sweep'],
     settingsSections: ['media-acquisition'],

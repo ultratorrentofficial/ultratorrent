@@ -913,7 +913,47 @@
         "season": "Season",
         "episode": "Episode",
         "priority": "Priority",
-        "profile": "Quality profile"
+        "profile": "Quality profile",
+        "imdbId": "IMDb ID",
+        "imdbIdHint": "Optional. Required to scan this series for missing episodes (e.g. tt0903747)."
+      }
+    },
+    "missingEpisodes": {
+      "title": "Missing Episodes",
+      "subtitle": "Find episodes of your monitored series that aren't in your library yet, using the local IMDb catalogue.",
+      "scanAll": "Scan all",
+      "scanning": "Scanning…",
+      "scanSeries": "Scan",
+      "scannedAll": "Scanned {{series}} series — {{missing}} episodes missing",
+      "scannedSeries": "{{missing}} episodes missing",
+      "scanFailed": "Scan failed",
+      "loadError": "Could not load missing episodes.",
+      "staleNote": "Computed from the local IMDb mirror ({{date}}). Very recent episodes may not appear until the mirror updates.",
+      "unknownDate": "not yet imported",
+      "empty": {
+        "title": "No monitored series",
+        "body": "Add a series to your watchlist with an IMDb ID to track its missing episodes."
+      },
+      "notMonitorable": "No IMDb ID — edit this watchlist item and add one to enable scanning.",
+      "neverScanned": "Not scanned yet — run a scan to compute missing episodes.",
+      "lastChecked": "Checked {{date}}",
+      "noEpisodes": "No episodes found in the IMDb catalogue for this series.",
+      "season": "Season {{n}}",
+      "ignore": "Ignore",
+      "unignore": "Unignore",
+      "actionFailed": "Could not update episode",
+      "counts": {
+        "missing": "{{count}} missing",
+        "missingLabel": "{{count}} missing",
+        "owned": "{{count}} owned",
+        "unaired": "{{count}} unaired",
+        "ignored": "{{count}} ignored"
+      },
+      "status": {
+        "missing": "Missing",
+        "owned": "Owned",
+        "unaired": "Unaired",
+        "ignored": "Ignored"
       }
     },
     "profiles": {

@@ -1576,6 +1576,7 @@ export interface WatchlistItem {
   status: WatchlistStatus;
   priority: number;
   profileId: string | null;
+  externalIds?: Record<string, string> | null;
   createdAt: string;
 }
 
@@ -1589,6 +1590,7 @@ export interface CreateWatchlistInput {
   status?: WatchlistStatus;
   priority?: number;
   profileId?: string;
+  externalIds?: Record<string, string>;
 }
 
 export interface UpdateWatchlistInput {
@@ -1600,6 +1602,49 @@ export interface UpdateWatchlistInput {
   status?: WatchlistStatus;
   priority?: number;
   profileId?: string | null;
+  externalIds?: Record<string, string>;
+}
+
+// --- missing episodes -------------------------------------------------------
+export type WantedEpisodeStatus = 'missing' | 'unaired' | 'owned' | 'ignored';
+
+export interface SeriesGapSummary {
+  watchlistItemId: string;
+  title: string;
+  seriesTconst: string | null;
+  monitorable: boolean;
+  total: number;
+  owned: number;
+  missing: number;
+  unaired: number;
+  ignored: number;
+  lastCheckedAt: string | null;
+}
+
+export interface WantedEpisode {
+  id: string;
+  watchlistItemId: string;
+  seriesTconst: string;
+  episodeTconst: string | null;
+  seasonNumber: number;
+  episodeNumber: number;
+  episodeTitle: string | null;
+  airYear: number | null;
+  status: WantedEpisodeStatus;
+  lastCheckedAt: string;
+}
+
+/** scanSeries returns a single-series gap; scanAll returns an aggregate. */
+export interface MissingEpisodesScanResult {
+  watchlistItemId?: string;
+  title?: string;
+  seriesTconst?: string;
+  total?: number;
+  owned?: number;
+  missing: number;
+  unaired?: number;
+  ignored?: number;
+  series?: number;
 }
 
 export type AcquisitionMediaType = 'tv' | 'movie' | 'anime' | 'any';
@@ -2604,6 +2649,29 @@ export const api = {
       return request<AcquisitionEvaluation>(`/media-acquisition/evaluations/${id}/override`, {
         method: 'POST',
         body: { decision, ...(reason ? { reason } : {}) },
+      });
+    },
+    // --- missing episodes ---
+    missingEpisodes(): Promise<SeriesGapSummary[]> {
+      return request<SeriesGapSummary[]>('/media-acquisition/missing-episodes');
+    },
+    missingEpisodesForSeries(watchlistItemId: string): Promise<WantedEpisode[]> {
+      return request<WantedEpisode[]>(`/media-acquisition/missing-episodes/${watchlistItemId}`);
+    },
+    scanMissingEpisodes(watchlistItemId?: string): Promise<MissingEpisodesScanResult> {
+      return request<MissingEpisodesScanResult>('/media-acquisition/missing-episodes/scan', {
+        method: 'POST',
+        body: watchlistItemId ? { watchlistItemId } : {},
+      });
+    },
+    ignoreMissingEpisode(id: string): Promise<WantedEpisode> {
+      return request<WantedEpisode>(`/media-acquisition/missing-episodes/${id}/ignore`, {
+        method: 'POST',
+      });
+    },
+    unignoreMissingEpisode(id: string): Promise<WantedEpisode> {
+      return request<WantedEpisode>(`/media-acquisition/missing-episodes/${id}/unignore`, {
+        method: 'POST',
       });
     },
     history(limit = 100): Promise<AcquisitionHistoryEvent[]> {

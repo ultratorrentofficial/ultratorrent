@@ -13,6 +13,7 @@ import { AcquisitionWatchlistService } from './watchlist.service';
 import { AcquisitionProfileService } from './profile.service';
 import { AcquisitionEvaluatorService } from './evaluator.service';
 import { AcquisitionApprovalService } from './approval.service';
+import { MissingEpisodesService } from './missing-episodes.service';
 import { AcquisitionDecision } from './decision.engine';
 import {
   CreateAcquisitionProfileDto,
@@ -42,6 +43,7 @@ export class MediaAcquisitionController {
     private readonly profiles: AcquisitionProfileService,
     private readonly evaluator: AcquisitionEvaluatorService,
     private readonly approval: AcquisitionApprovalService,
+    private readonly missingEpisodes: MissingEpisodesService,
   ) {}
 
   @Get('overview')
@@ -141,6 +143,38 @@ export class MediaAcquisitionController {
   @RequirePermissions(P.MEDIA_ACQUISITION_OVERRIDE)
   override(@Param('id') id: string, @Body() dto: OverrideEvaluationDto, @CurrentUser() u: AuthenticatedUser) {
     return this.approval.override(id, dto.decision as AcquisitionDecision, dto.reason, u?.id);
+  }
+
+  // --- missing episodes ---------------------------------------------------
+  @Get('missing-episodes')
+  @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
+  missingEpisodesOverview() {
+    return this.missingEpisodes.listGrouped();
+  }
+  @Get('missing-episodes/:watchlistItemId')
+  @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
+  missingEpisodesForSeries(@Param('watchlistItemId') watchlistItemId: string) {
+    return this.missingEpisodes.listForSeries(watchlistItemId);
+  }
+  @Post('missing-episodes/scan')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
+  scanMissingEpisodes(
+    @Body() body: { watchlistItemId?: string },
+    @CurrentUser() u: AuthenticatedUser,
+  ) {
+    return body?.watchlistItemId
+      ? this.missingEpisodes.scanSeries(body.watchlistItemId, u?.id)
+      : this.missingEpisodes.scanAll(u?.id);
+  }
+  @Post('missing-episodes/:id/ignore')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
+  ignoreMissingEpisode(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
+    return this.missingEpisodes.ignore(id, u?.id);
+  }
+  @Post('missing-episodes/:id/unignore')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
+  unignoreMissingEpisode(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
+    return this.missingEpisodes.unignore(id, u?.id);
   }
 
   // --- history / recommendations / settings / export ---------------------

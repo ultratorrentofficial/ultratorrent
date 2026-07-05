@@ -913,7 +913,47 @@
         "season": "Temporada",
         "episode": "Episodio",
         "priority": "Prioridad",
-        "profile": "Perfil de calidad"
+        "profile": "Perfil de calidad",
+        "imdbId": "ID de IMDb",
+        "imdbIdHint": "Opcional. Necesario para buscar episodios faltantes de esta serie (p. ej. tt0903747)."
+      }
+    },
+    "missingEpisodes": {
+      "title": "Episodios faltantes",
+      "subtitle": "Encuentra episodios de tus series monitoreadas que aún no están en tu biblioteca, usando el catálogo local de IMDb.",
+      "scanAll": "Escanear todo",
+      "scanning": "Escaneando…",
+      "scanSeries": "Escanear",
+      "scannedAll": "Se escanearon {{series}} series — faltan {{missing}} episodios",
+      "scannedSeries": "faltan {{missing}} episodios",
+      "scanFailed": "Falló el escaneo",
+      "loadError": "No se pudieron cargar los episodios faltantes.",
+      "staleNote": "Calculado desde el espejo local de IMDb ({{date}}). Es posible que los episodios muy recientes no aparezcan hasta que el espejo se actualice.",
+      "unknownDate": "aún no importado",
+      "empty": {
+        "title": "No hay series monitoreadas",
+        "body": "Agrega una serie a tu lista de seguimiento con un ID de IMDb para rastrear sus episodios faltantes."
+      },
+      "notMonitorable": "Sin ID de IMDb — edita este elemento de la lista y agrega uno para habilitar el escaneo.",
+      "neverScanned": "Aún no escaneado — ejecuta un escaneo para calcular los episodios faltantes.",
+      "lastChecked": "Revisado {{date}}",
+      "noEpisodes": "No se encontraron episodios en el catálogo de IMDb para esta serie.",
+      "season": "Temporada {{n}}",
+      "ignore": "Ignorar",
+      "unignore": "No ignorar",
+      "actionFailed": "No se pudo actualizar el episodio",
+      "counts": {
+        "missing": "{{count}} faltantes",
+        "missingLabel": "{{count}} faltantes",
+        "owned": "{{count}} en biblioteca",
+        "unaired": "{{count}} sin estrenar",
+        "ignored": "{{count}} ignorados"
+      },
+      "status": {
+        "missing": "Faltante",
+        "owned": "En biblioteca",
+        "unaired": "Sin estrenar",
+        "ignored": "Ignorado"
       }
     },
     "profiles": {

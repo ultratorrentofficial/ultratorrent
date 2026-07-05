@@ -456,6 +456,7 @@ model MediaItem {
   confidence       Float    @default(0)
   path             String
   duplicateGroupId String?
+  seriesImdbId     String?  // parent series tconst for TV episodes; enables missing-episode diff
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -475,6 +476,7 @@ model MediaItem {
   @@index([libraryId])
   @@index([matchStatus])
   @@index([duplicateGroupId])
+  @@index([seriesImdbId])
   @@map("media_items")
 }
 
@@ -885,6 +887,30 @@ model MediaAcquisitionWatchlistItem {
   @@index([status])
   @@index([normalizedTitle])
   @@map("media_acquisition_watchlist_items")
+}
+
+/// Computed missing/owned-episode diff for a monitored series (a `series`/`season`
+/// watchlist item). One row per catalogued episode; the scan upserts these and the
+/// UI reads them. Loosely coupled to the watchlist item by id (no FK), matching the
+/// module's convention (cf. `profileId`).
+model WantedEpisode {
+  id              String   @id @default(uuid())
+  watchlistItemId String
+  seriesTconst    String
+  episodeTconst   String?
+  seasonNumber    Int
+  episodeNumber   Int
+  episodeTitle    String?
+  airYear         Int?
+  status          String   @default("missing") /// missing | unaired | owned | ignored
+  lastCheckedAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@unique([watchlistItemId, seasonNumber, episodeNumber])
+  @@index([watchlistItemId])
+  @@index([seriesTconst])
+  @@index([status])
+  @@map("wanted_episodes")
 }
 
 model MediaAcquisitionProfile {

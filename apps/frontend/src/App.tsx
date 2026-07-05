@@ -29,6 +29,7 @@ import { MediaImdbSettingsPage } from '@/pages/media-manager/MediaImdbSettingsPa
 import { ModulesPage } from '@/pages/ModulesPage';
 import { EnginesPage } from '@/pages/engines/EnginesPage';
 import { MediaAcquisitionPage } from '@/pages/media-acquisition/MediaAcquisitionPage';
+import { MissingEpisodesPage } from '@/pages/media-acquisition/MissingEpisodesPage';
 import { ReleaseScoringPage } from '@/pages/release-scoring/ReleaseScoringPage';
 import { AutomationPage } from '@/pages/AutomationPage';
 import { FilesPage } from '@/pages/FilesPage';
@@ -223,6 +224,14 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_acquisition_intelligence">
                             <MediaAcquisitionPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media-acquisition/missing-episodes"
+                        element={
+                          <ModuleRoute moduleId="media_acquisition_intelligence">
+                            <MissingEpisodesPage />
                           </ModuleRoute>
                         }
                       />

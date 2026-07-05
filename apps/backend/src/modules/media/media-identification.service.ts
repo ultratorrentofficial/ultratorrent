@@ -37,6 +37,7 @@ export class MediaIdentificationService {
     const parsed = parseTorrentName(path.basename(record.path));
     const confidence = this.scoreConfidence(parsed);
     const mediaType = this.mediaTypeFromParsed(parsed, record.mediaType);
+    const isEpisodic = mediaType === 'tv' || mediaType === 'anime';
 
     return this.prisma.mediaItem.update({
       where: { id: record.id },
@@ -48,8 +49,37 @@ export class MediaIdentificationService {
         episode: parsed.episode ?? parsed.absoluteEpisode ?? null,
         confidence,
         matchStatus: confidence >= MATCH_THRESHOLD ? 'matched' : 'unmatched',
+        seriesImdbId: isEpisodic ? await this.resolveSeriesImdbId(record.id) : null,
       },
     });
+  }
+
+  /**
+   * Best-effort parent-series tconst for a TV/anime episode item, used by the
+   * missing-episodes diff. Resolves the item's own IMDb external id: an episode
+   * tconst maps to its series via `IMDbEpisode.parentTitleId`; a series tconst is
+   * kept as-is. Returns null (never throws) when nothing is resolvable — the scan
+   * falls back to title matching.
+   */
+  private async resolveSeriesImdbId(itemId: string): Promise<string | null> {
+    try {
+      const ext = await this.prisma.mediaExternalId.findUnique({
+        where: { itemId_provider: { itemId, provider: 'imdb' } },
+      });
+      const tconst = ext?.externalId;
+      if (!tconst) return null;
+      const ep = await this.prisma.iMDbEpisode.findUnique({
+        where: { episodeTitleId: tconst },
+      });
+      if (ep) return ep.parentTitleId;
+      const title = await this.prisma.iMDbTitle.findUnique({ where: { tconst } });
+      if (title && (title.titleType === 'tvSeries' || title.titleType === 'tvMiniSeries')) {
+        return tconst;
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   /** Operator override — authoritative identity, always full confidence. */
@@ -57,16 +87,20 @@ export class MediaIdentificationService {
     const record = await this.prisma.mediaItem.findUnique({ where: { id: itemId } });
     if (!record) throw new NotFoundException('Item not found');
 
+    const mediaType = dto.mediaType ?? record.mediaType;
+    const isEpisodic = mediaType === 'tv' || mediaType === 'anime';
+
     return this.prisma.mediaItem.update({
       where: { id: itemId },
       data: {
-        mediaType: dto.mediaType ?? record.mediaType,
+        mediaType,
         title: dto.title ?? record.title,
         year: dto.year ?? record.year,
         season: dto.season ?? record.season,
         episode: dto.episode ?? record.episode,
         matchStatus: 'manual',
         confidence: 1,
+        seriesImdbId: isEpisodic ? await this.resolveSeriesImdbId(itemId) : null,
       },
     });
   }
