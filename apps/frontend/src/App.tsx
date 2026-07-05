@@ -31,6 +31,7 @@ import { EnginesPage } from '@/pages/engines/EnginesPage';
 import { MediaAcquisitionPage } from '@/pages/media-acquisition/MediaAcquisitionPage';
 import { MissingEpisodesPage } from '@/pages/media-acquisition/MissingEpisodesPage';
 import { DecisionSimulatorPage } from '@/pages/media-acquisition/DecisionSimulatorPage';
+import { SmartDownloadDashboardPage } from '@/pages/media-acquisition/SmartDownloadDashboardPage';
 import { ReleaseScoringPage } from '@/pages/release-scoring/ReleaseScoringPage';
 import { AutomationPage } from '@/pages/AutomationPage';
 import { FilesPage } from '@/pages/FilesPage';
@@ -241,6 +242,14 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_acquisition_intelligence">
                             <DecisionSimulatorPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media-acquisition/dashboard"
+                        element={
+                          <ModuleRoute moduleId="media_acquisition_intelligence">
+                            <SmartDownloadDashboardPage />
                           </ModuleRoute>
                         }
                       />

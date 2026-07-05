@@ -1561,8 +1561,9 @@ export interface MediaAcquisitionRecentDecision {
 
 export interface MediaAcquisitionOverview {
   watchlist: { active: number };
-  approvals: { pending: number };
-  decisions: { recommended: number; skipped: number; upgrades: number };
+  approvals: { pending: number; approved: number; rejected: number };
+  decisions: { recommended: number; skipped: number; upgrades: number; waiting: number };
+  missing: { episodes: number; movies: number };
   recent: MediaAcquisitionRecentDecision[];
 }
 
@@ -2644,6 +2645,15 @@ export const api = {
     },
     simulate(body: EvaluateInput): Promise<SimulationResult> {
       return request<SimulationResult>('/media-acquisition/simulate', { method: 'POST', body });
+    },
+    waiting(): Promise<AcquisitionEvaluation[]> {
+      return request<AcquisitionEvaluation[]>('/media-acquisition/waiting');
+    },
+    upgrades(): Promise<AcquisitionEvaluation[]> {
+      return request<AcquisitionEvaluation[]>('/media-acquisition/upgrades');
+    },
+    rejected(): Promise<AcquisitionEvaluation[]> {
+      return request<AcquisitionEvaluation[]>('/media-acquisition/rejected');
     },
     evaluations(
       query: { decision?: string; approvalStatus?: string } = {},

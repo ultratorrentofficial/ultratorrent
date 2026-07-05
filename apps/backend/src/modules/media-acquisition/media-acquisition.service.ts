@@ -19,20 +19,39 @@ export class MediaAcquisitionService {
   ) {}
 
   async overview() {
-    const [activeWatchlist, pendingApprovals, recommended, skipped, upgrades, recent] = await Promise.all([
+    const ev = this.prisma.mediaAcquisitionEvaluation;
+    const [
+      activeWatchlist, pendingApprovals, recommended, skipped, upgrades, waiting,
+      approved, rejected, missingEpisodes, missingMovies, recent,
+    ] = await Promise.all([
       this.prisma.mediaAcquisitionWatchlistItem.count({ where: { status: 'active' } }),
-      this.prisma.mediaAcquisitionEvaluation.count({ where: { approvalStatus: 'pending' } }),
-      this.prisma.mediaAcquisitionEvaluation.count({ where: { decision: 'download' } }),
-      this.prisma.mediaAcquisitionEvaluation.count({ where: { decision: 'skip' } }),
-      this.prisma.mediaAcquisitionEvaluation.count({ where: { decision: 'upgrade_existing' } }),
-      this.prisma.mediaAcquisitionEvaluation.findMany({ orderBy: { createdAt: 'desc' }, take: 10 }),
+      ev.count({ where: { approvalStatus: 'pending' } }),
+      ev.count({ where: { decision: 'download' } }),
+      ev.count({ where: { decision: 'skip' } }),
+      ev.count({ where: { decision: { in: ['upgrade_existing', 'replace_existing'] } } }),
+      ev.count({ where: { decision: 'wait' } }),
+      ev.count({ where: { approvalStatus: 'approved' } }),
+      ev.count({ where: { approvalStatus: 'rejected' } }),
+      this.prisma.wantedEpisode.count({ where: { status: 'missing' } }),
+      this.prisma.wantedMovie.count({ where: { status: 'missing' } }),
+      ev.findMany({ orderBy: { createdAt: 'desc' }, take: 10 }),
     ]);
     return {
       watchlist: { active: activeWatchlist },
-      approvals: { pending: pendingApprovals },
-      decisions: { recommended, skipped, upgrades },
+      approvals: { pending: pendingApprovals, approved, rejected },
+      decisions: { recommended, skipped, upgrades, waiting },
+      missing: { episodes: missingEpisodes, movies: missingMovies },
       recent: recent.map((e) => ({ id: e.id, releaseName: e.releaseName, decision: e.decision, reason: e.decisionReason, createdAt: e.createdAt })),
     };
+  }
+
+  /** Rejected releases: evaluations that were rejected or skipped. */
+  rejected() {
+    return this.prisma.mediaAcquisitionEvaluation.findMany({
+      where: { OR: [{ approvalStatus: 'rejected' }, { decision: 'skip' }] },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
   }
 
   listEvaluations(filter?: { decision?: string; approvalStatus?: string }) {

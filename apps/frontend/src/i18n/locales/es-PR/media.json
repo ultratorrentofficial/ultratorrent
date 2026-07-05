@@ -975,6 +975,31 @@
         "skip": "Omitir"
       }
     },
+    "dashboard": {
+      "title": "Descarga inteligente",
+      "subtitle": "Decisiones de adquisición, colas y vacíos de la biblioteca de un vistazo.",
+      "loadError": "No se pudo cargar el panel.",
+      "recent": "Decisiones recientes",
+      "noRecent": "Aún no hay decisiones.",
+      "widget": {
+        "approved": "Aprobadas",
+        "pendingApproval": "Pendientes de aprobación",
+        "waiting": "En espera",
+        "upgrades": "Mejoras pendientes",
+        "rejected": "Rechazadas",
+        "missingEpisodes": "Episodios faltantes",
+        "missingMovies": "Películas faltantes",
+        "watchlist": "Lista de seguimiento"
+      },
+      "tab": {
+        "waiting": "En espera",
+        "upgrades": "Mejoras",
+        "rejected": "Rechazadas"
+      },
+      "emptyWaiting": "Nada está esperando un mejor lanzamiento.",
+      "emptyUpgrades": "No hay mejoras pendientes.",
+      "emptyRejected": "No hay lanzamientos rechazados."
+    },
     "profiles": {
       "add": "Agregar perfil",
       "loading": "Cargando perfiles…",

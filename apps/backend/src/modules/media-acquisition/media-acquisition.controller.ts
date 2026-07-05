@@ -142,6 +142,11 @@ export class MediaAcquisitionController {
   upgrades() {
     return this.service.upgrades();
   }
+  @Get('rejected')
+  @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
+  rejected() {
+    return this.service.rejected();
+  }
 
   // --- approval queue -----------------------------------------------------
   @Get('approval-queue')

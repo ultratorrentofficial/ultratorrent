@@ -975,6 +975,31 @@
         "skip": "Skip"
       }
     },
+    "dashboard": {
+      "title": "Smart Download",
+      "subtitle": "At-a-glance acquisition decisions, queues and library gaps.",
+      "loadError": "Could not load the dashboard.",
+      "recent": "Recent decisions",
+      "noRecent": "No decisions yet.",
+      "widget": {
+        "approved": "Approved",
+        "pendingApproval": "Pending approval",
+        "waiting": "Waiting",
+        "upgrades": "Pending upgrades",
+        "rejected": "Rejected",
+        "missingEpisodes": "Missing episodes",
+        "missingMovies": "Missing movies",
+        "watchlist": "Watchlist"
+      },
+      "tab": {
+        "waiting": "Waiting",
+        "upgrades": "Upgrades",
+        "rejected": "Rejected"
+      },
+      "emptyWaiting": "Nothing is waiting for a better release.",
+      "emptyUpgrades": "No pending upgrades.",
+      "emptyRejected": "No rejected releases."
+    },
     "profiles": {
       "add": "Add profile",
       "loading": "Loading profiles…",
