@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.13.1] - 2026-07-05
+
+### Fixed
+- fix(files): translate mkdir failures (EACCES/EROFS/ENOSPC/…) into actionable errors instead of an opaque 500 when creating a directory
+- feat(rss): per-feed rule export — download a bundle scoped to a single feed
+
 ## [0.13.0] - 2026-07-05
 
 ### Added
