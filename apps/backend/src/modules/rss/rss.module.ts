@@ -42,6 +42,7 @@ import {
 import {
   parseTorrentName,
   buildSmartCandidates,
+  releaseIdentity,
   type GeneratedCandidate,
 } from './torrent-name-parser';
 import { ruleTargetFeedIds } from './rss-feed-scope';
@@ -740,6 +741,10 @@ export class RssService {
     });
     summary.evaluated = history.length;
 
+    // Info-hashes grabbed during this backfill run, mirroring processFeed so two
+    // matched rows for the same torrent don't both download within one pass.
+    const grabbedHashes = new Set<string>();
+
     // Resolve magnets for legacy rows (no stored magnet) from the live feed,
     // built lazily on first need and reused for the whole batch — mirrors the
     // manual download button so the "Create rule" flow grabs via magnet too.
@@ -773,25 +778,43 @@ export class RssService {
       if (!evaluation.matched) continue;
       summary.matched += 1;
 
-      let action: 'download' | 'none' = 'none';
+      let action: 'download' | 'skipped_duplicate' | 'none' = 'none';
       let torrentHash: string | null = null;
       // Prefer a magnet (stored or resolved from the feed) over a stale
       // .torrent URL that points at one host and can 404.
-      const dl = (rule.autoDownload ? await magnetFor(h) : h.magnet) || h.link;
+      const magnet = rule.autoDownload ? await magnetFor(h) : h.magnet;
+      const dl = magnet || h.link;
+      const infoHash = this.extractInfoHash(magnet);
       if (rule.autoDownload && dl) {
-        torrentHash = await this.download(dl, rule.savePath ?? undefined);
-        if (torrentHash !== null) {
-          summary.downloaded += 1;
-          action = 'download';
-        }
+        // Same dedup/upgrade decision as polling: skip info-hash duplicates,
+        // hold one release per title, upgrade to a higher-priority release.
+        const grab = await this.grabWithDedup({
+          ruleId: rule.id,
+          savePath: rule.savePath ?? undefined,
+          dl,
+          title: h.title,
+          infoHash,
+          identity: releaseIdentity(h.title),
+          priority: evaluation.matchedCandidatePriority,
+          hasCandidates: candidates.length > 0,
+          grabbedHashes,
+        });
+        action = grab.action;
+        torrentHash = grab.torrentHash;
+        if (grab.action === 'download') summary.downloaded += 1;
       }
 
-      // Reflect the match (and any grab) back onto the history row so it is
-      // not re-downloaded on a later backfill or poll.
+      // Reflect the match (and any grab) back onto the history row so it is not
+      // re-downloaded on a later backfill or poll. Backfill the info-hash too so
+      // the persisted dedup key fills in for rows created before it was tracked.
       await this.prisma.rssHistory
         .update({
           where: { id: h.id },
-          data: { matched: true, downloaded: action === 'download' ? true : undefined },
+          data: {
+            matched: true,
+            downloaded: action === 'download' ? true : undefined,
+            infoHash: infoHash ?? undefined,
+          },
         })
         .catch(() => undefined);
 
@@ -1038,6 +1061,115 @@ export class RssService {
   }
 
   /**
+   * Extract the BitTorrent info-hash (btih) from a magnet URI, lowercased so it
+   * compares case-insensitively. This identifies the torrent *content*, unlike
+   * the feed guid/link which can rotate. Returns null for non-magnet links (a
+   * `.torrent` URL's hash can't be known without fetching it). Base32 hashes are
+   * left as-is — trackers that publish magnets (YTS et al.) use 40-char hex.
+   */
+  private extractInfoHash(magnet: string | null): string | null {
+    if (!magnet) return null;
+    const m = /xt=urn:btih:([a-z0-9]+)/i.exec(magnet);
+    return m ? m[1].toLowerCase() : null;
+  }
+
+  /**
+   * Has a torrent with this info-hash already been grabbed on any feed? The
+   * (feedId,itemGuid) uniqueness only stops the *same feed item* from being
+   * processed twice — it does nothing when the same release reappears under a
+   * rotated guid/link or via a second feed. Info-hash identifies the content
+   * itself, so this is the guard that actually prevents grabbing a movie twice.
+   */
+  private async hashAlreadyDownloaded(infoHash: string): Promise<boolean> {
+    const prior = await this.prisma.rssHistory.findFirst({
+      where: { infoHash, downloaded: true },
+      select: { id: true },
+    });
+    return prior !== null;
+  }
+
+  /** Best-effort removal of a torrent superseded by an upgrade (+ its data). */
+  private async removeSupersededTorrent(hash: string): Promise<void> {
+    try {
+      const provider = await this.registry.getDefault();
+      await provider.removeTorrentAndData(hash);
+      this.logger.log(`RSS upgrade: removed superseded torrent ${hash}`);
+    } catch (e) {
+      this.logger.warn(
+        `RSS upgrade: could not remove superseded torrent ${hash}: ${(e as Error).message}`,
+      );
+    }
+  }
+
+  /**
+   * The single auto-download decision, shared by polling and backfill. Layers
+   * three dedup guards before grabbing, then records the grab:
+   *  1. info-hash — the exact same torrent (any guid/feed) is never re-grabbed.
+   *  2. per-title acquisition (only when the rule has a preference list and the
+   *     release identity is known): a rule holds ONE release per logical title.
+   *     A strictly higher-priority candidate than the held one is an *upgrade* —
+   *     it downloads and the superseded torrent is removed; an equal-or-lower
+   *     candidate is skipped as already-satisfied.
+   *  3. otherwise (legacy regex rule or unidentifiable title) it grabs as before.
+   *
+   * `grabbedHashes` accumulates info-hashes grabbed within the current run so a
+   * batch doesn't double-grab before rows are persisted. Returns the action and
+   * the engine hash (null if nothing was downloaded).
+   */
+  private async grabWithDedup(opts: {
+    ruleId: string;
+    savePath?: string;
+    dl: string;
+    title: string;
+    infoHash: string | null;
+    identity: string | null;
+    priority: number | null; // matched candidate priority; null for legacy rules
+    hasCandidates: boolean;
+    grabbedHashes: Set<string>;
+  }): Promise<{ action: 'download' | 'skipped_duplicate' | 'none'; torrentHash: string | null }> {
+    const { ruleId, dl, title, infoHash, identity, priority, hasCandidates, grabbedHashes } = opts;
+
+    // 1. Same torrent already grabbed (rotated guid / re-post / second feed).
+    if (infoHash && (grabbedHashes.has(infoHash) || (await this.hashAlreadyDownloaded(infoHash)))) {
+      return { action: 'skipped_duplicate', torrentHash: null };
+    }
+
+    // 2. Per-title acquisition — only meaningful with a real preference list and
+    // a parseable identity.
+    const titleDedup = hasCandidates && identity != null && priority != null;
+    let held: { priorityOrder: number; torrentHash: string | null } | null = null;
+    if (titleDedup) {
+      held = await this.prisma.rssAcquisition.findUnique({
+        where: { rssRuleId_identity: { rssRuleId: ruleId, identity } },
+        select: { priorityOrder: true, torrentHash: true },
+      });
+      // Already hold this title at an equal-or-better preference — nothing to do.
+      if (held && priority >= held.priorityOrder) {
+        return { action: 'skipped_duplicate', torrentHash: null };
+      }
+    }
+
+    const torrentHash = await this.download(dl, opts.savePath);
+    if (torrentHash === null) return { action: 'none', torrentHash: null };
+
+    if (infoHash) grabbedHashes.add(infoHash);
+    if (titleDedup) {
+      // Upgrade: drop the release we're replacing before recording the new one.
+      if (held?.torrentHash && held.torrentHash !== torrentHash) {
+        await this.removeSupersededTorrent(held.torrentHash);
+      }
+      await this.prisma.rssAcquisition
+        .upsert({
+          where: { rssRuleId_identity: { rssRuleId: ruleId, identity: identity! } },
+          create: { rssRuleId: ruleId, identity: identity!, priorityOrder: priority!, releaseTitle: title, torrentHash },
+          update: { priorityOrder: priority!, releaseTitle: title, torrentHash },
+        })
+        .catch((e) => this.logger.warn(`RSS acquisition upsert failed: ${e.message}`));
+    }
+    return { action: 'download', torrentHash };
+  }
+
+  /**
    * Re-fetch a history item's feed and find its magnet by matching guid/link/
    * title — used when the stored row predates magnet capture. Returns null if
    * the feed is gone or the item has rotated out of it.
@@ -1123,6 +1255,10 @@ export class RssService {
 
     let newItems = 0;
     let grabbed = 0;
+    // Info-hashes grabbed during this run, so two items in the same batch that
+    // resolve to the same torrent (different guids) don't both download before
+    // either has been persisted to history for the DB check to see.
+    const grabbedHashes = new Set<string>();
 
     for (const item of parsed.items ?? []) {
       const guid = item.guid ?? item.link ?? item.title ?? '';
@@ -1136,6 +1272,8 @@ export class RssService {
       const link = (item as any).enclosure?.url ?? item.link ?? '';
       const magnet = this.extractMagnet(item);
       const dl = magnet || link; // prefer the magnet (DHT/trackers, not one host)
+      const infoHash = this.extractInfoHash(magnet);
+      const identity = releaseIdentity(title);
       const sizeBytes = this.parseSize(item);
       const ctx: ItemContext = { title, feedId: feed.id, sizeBytes };
 
@@ -1164,13 +1302,24 @@ export class RssService {
         let torrentHash: string | null = null;
 
         if (rule.autoDownload && dl) {
-          if (!downloaded) {
-            torrentHash = await this.download(dl, rule.savePath ?? undefined);
-            downloaded = torrentHash !== null;
-            action = downloaded ? 'download' : 'none';
-          } else {
-            // Another rule already pulled this item — never download twice.
+          if (downloaded) {
+            // Another rule already pulled this exact item — never download twice.
             action = 'skipped_duplicate';
+          } else {
+            const grab = await this.grabWithDedup({
+              ruleId: rule.id,
+              savePath: rule.savePath ?? undefined,
+              dl,
+              title,
+              infoHash,
+              identity,
+              priority: evaluation.matchedCandidatePriority,
+              hasCandidates: candidates.length > 0,
+              grabbedHashes,
+            });
+            action = grab.action;
+            torrentHash = grab.torrentHash;
+            if (grab.action === 'download') downloaded = true;
           }
         }
 
@@ -1190,7 +1339,7 @@ export class RssService {
       }
 
       await this.prisma.rssHistory.create({
-        data: { feedId: feed.id, itemGuid: guid, title, link, magnet, matched: anyMatch, downloaded },
+        data: { feedId: feed.id, itemGuid: guid, title, link, magnet, infoHash, matched: anyMatch, downloaded },
       });
       newItems += 1;
       if (downloaded) grabbed += 1;

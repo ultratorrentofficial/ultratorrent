@@ -1,5 +1,24 @@
-import { parseTorrentName, buildSmartCandidates } from './torrent-name-parser';
+import { parseTorrentName, buildSmartCandidates, releaseIdentity } from './torrent-name-parser';
 import { evaluateCandidate, MatchCandidateInput } from './match-engine';
+
+describe('releaseIdentity', () => {
+  it('is quality-independent for a movie (same title+year across releases)', () => {
+    const bluray = releaseIdentity('Michael 2024 1080p BluRay x264-GRP');
+    const webrip = releaseIdentity('Michael.2024.1080p.WEBRip.x265-OTHER');
+    expect(bluray).toBe('movie:michael:2024');
+    expect(webrip).toBe(bluray);
+  });
+
+  it('keys an episode by show + season + episode', () => {
+    expect(releaseIdentity('The.Example.Show.S02E05.1080p.WEB-DL.x265-GROUP')).toBe(
+      'ep:the example show:2:5',
+    );
+  });
+
+  it('returns null when the release shape is unidentifiable', () => {
+    expect(releaseIdentity('random blob of text')).toBeNull();
+  });
+});
 
 describe('parseTorrentName', () => {
   it('parses the canonical TV example', () => {

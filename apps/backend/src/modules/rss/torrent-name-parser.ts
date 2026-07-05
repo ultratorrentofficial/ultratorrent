@@ -245,6 +245,35 @@ export function parseTorrentName(raw: string): ParsedTorrentMeta {
   return meta;
 }
 
+// --- logical release identity --------------------------------------------
+
+/**
+ * A stable key for the *logical thing* a release represents — the movie or the
+ * specific episode — independent of quality, source, codec, or release group.
+ * Two releases with the same identity are the same acquisition target, so a rule
+ * should hold only one of them (the highest-priority). Returns null when the
+ * title can't be identified confidently, so callers fall back to per-release
+ * behavior (never wrongly collapse two distinct things).
+ */
+export function releaseIdentity(title: string): string | null {
+  const meta = parseTorrentName(title);
+  if (!meta.title) return null;
+  const t = meta.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  if (!t) return null;
+  switch (meta.contentType) {
+    case 'tv_episode':
+      return `ep:${t}:${meta.season}:${meta.episode}`;
+    case 'anime_episode':
+      return `anime:${t}:${meta.absoluteEpisode}`;
+    case 'daily':
+      return `daily:${t}:${meta.airDate}`;
+    case 'movie':
+      return `movie:${t}:${meta.year ?? ''}`;
+    default:
+      return null; // unknown shape — don't risk collapsing unrelated releases
+  }
+}
+
 // --- candidate generation ------------------------------------------------
 
 function escapeRegex(s: string): string {

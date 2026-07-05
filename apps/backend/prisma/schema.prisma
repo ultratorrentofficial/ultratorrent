@@ -234,8 +234,31 @@ model RssRule {
   matchCandidates  RssRuleMatchCandidate[]
   matchEvaluations RssRuleMatchEvaluation[]
   smartTemplates   RssSmartMatchTemplate[]
+  acquisitions     RssAcquisition[]
 
   @@map("rss_rules")
+}
+
+// One row per logical release (movie / episode) a rule has grabbed. Turns the
+// ranked preference list into a per-title acquisition policy: a rule grabs the
+// best-available release for an identity once, upgrades to a strictly
+// higher-priority release if one later appears (replacing the old torrent), and
+// skips equal-or-lower releases it already satisfied. Without this, each release
+// of the same title is an independent download (BluRay + WEBRip both grabbed).
+model RssAcquisition {
+  id            String   @id @default(uuid())
+  rssRuleId     String
+  identity      String // logical id, e.g. "movie:michael:2024" | "ep:the show:1:3"
+  priorityOrder Int // priority of the candidate currently satisfying it (lower = better)
+  releaseTitle  String // the release title currently held
+  torrentHash   String? // engine hash of the held torrent, so an upgrade can remove it
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rule RssRule @relation(fields: [rssRuleId], references: [id], onDelete: Cascade)
+
+  @@unique([rssRuleId, identity])
+  @@map("rss_acquisitions")
 }
 
 model RssSmartMatchTemplate {
@@ -306,12 +329,14 @@ model RssHistory {
   title       String
   link        String
   magnet      String?  // magnet URI from the feed item, preferred for downloads
+  infoHash    String?  // btih extracted from the magnet, lowercased — cross-feed download-dedup key
   matched     Boolean
   downloaded  Boolean
   createdAt   DateTime @default(now())
   feed        RssFeed  @relation(fields: [feedId], references: [id], onDelete: Cascade)
 
   @@unique([feedId, itemGuid])
+  @@index([infoHash])
   @@map("rss_history")
 }
 
