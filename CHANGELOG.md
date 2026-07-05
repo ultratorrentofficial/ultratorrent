@@ -45,6 +45,17 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.15.0] - 2026-07-05
+
+### Added
+- feat(media): optional TV series & episodes in the optimized IMDb import (importTvShows toggle) — also imports tvSeries/tvMiniSeries/tvEpisode + title.episode; principals still always skipped
+- Missing Episodes — detect which episodes of a monitored TV series are absent from the library by diffing the local IMDb episode catalogue, with a per-series view and season/episode grid
+
+### Fixed
+- Dashboard Recent Activity now renders audit-log entries (map AuditLog rows to the ActivityItem shape the UI expects)
+- feat(rss): treat a rule's match-preference list as a per-title acquisition policy — hold one release per movie/episode, upgrade to a strictly higher-priority release when it appears (removing the superseded torrent), and skip equal-or-lower releases, so a movie is no longer grabbed once per quality variant
+- fix(rss): dedupe auto-downloads by torrent info-hash so a release re-posted under a rotated guid or seen on a second feed is never grabbed twice (poll + backfill)
+
 ## [0.14.0] - 2026-07-05
 
 ### Added
