@@ -9,7 +9,7 @@ const realtime = () => ({ broadcast: jest.fn() });
 const MODELS = [
   'mediaAcquisitionWatchlistItem', 'mediaAcquisitionProfile', 'mediaAcquisitionEvaluation',
   'mediaAcquisitionAction', 'mediaAcquisitionHistory', 'torrentSnapshot', 'setting',
-  'wantedEpisode',
+  'wantedEpisode', 'wantedMovie',
 ];
 
 const executorStub = () => ({

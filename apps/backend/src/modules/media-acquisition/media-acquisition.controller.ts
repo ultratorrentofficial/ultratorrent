@@ -14,6 +14,7 @@ import { AcquisitionProfileService } from './profile.service';
 import { AcquisitionEvaluatorService } from './evaluator.service';
 import { AcquisitionApprovalService } from './approval.service';
 import { MissingEpisodesService } from './missing-episodes.service';
+import { MissingMoviesService } from './missing-movies.service';
 import { AcquisitionDecision } from './decision.engine';
 import {
   CreateAcquisitionProfileDto,
@@ -44,6 +45,7 @@ export class MediaAcquisitionController {
     private readonly evaluator: AcquisitionEvaluatorService,
     private readonly approval: AcquisitionApprovalService,
     private readonly missingEpisodes: MissingEpisodesService,
+    private readonly missingMovies: MissingMoviesService,
   ) {}
 
   @Get('overview')
@@ -175,6 +177,40 @@ export class MediaAcquisitionController {
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
   unignoreMissingEpisode(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
     return this.missingEpisodes.unignore(id, u?.id);
+  }
+
+  // --- missing seasons (rollup of a series' episodes) ---------------------
+  @Get('missing-episodes/:watchlistItemId/seasons')
+  @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
+  missingSeasons(@Param('watchlistItemId') watchlistItemId: string) {
+    return this.missingEpisodes.listSeasons(watchlistItemId);
+  }
+
+  // --- missing movies -----------------------------------------------------
+  @Get('missing-movies')
+  @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
+  missingMoviesOverview() {
+    return this.missingMovies.listMissingMovies();
+  }
+  @Post('missing-movies/scan')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
+  scanMissingMovies(
+    @Body() body: { watchlistItemId?: string },
+    @CurrentUser() u: AuthenticatedUser,
+  ) {
+    return body?.watchlistItemId
+      ? this.missingMovies.scanMovie(body.watchlistItemId, u?.id)
+      : this.missingMovies.scanAll(u?.id);
+  }
+  @Post('missing-movies/:id/ignore')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
+  ignoreMissingMovie(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
+    return this.missingMovies.ignore(id, u?.id);
+  }
+  @Post('missing-movies/:id/unignore')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
+  unignoreMissingMovie(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
+    return this.missingMovies.unignore(id, u?.id);
   }
 
   // --- history / recommendations / settings / export ---------------------

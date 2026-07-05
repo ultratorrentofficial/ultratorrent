@@ -88,8 +88,9 @@ export class AcquisitionWatchlistService {
   async remove(id: string, userId?: string) {
     await this.get(id);
     await this.prisma.mediaAcquisitionWatchlistItem.delete({ where: { id } });
-    // WantedEpisode rows are loosely coupled by id (no FK), so clean them up here.
+    // Wanted rows are loosely coupled by id (no FK), so clean them up here.
     await this.prisma.wantedEpisode.deleteMany({ where: { watchlistItemId: id } });
+    await this.prisma.wantedMovie.deleteMany({ where: { watchlistItemId: id } });
     await this.audit.record({ userId, action: 'media_acquisition.watchlist.deleted', objectType: 'media_acquisition_watchlist', objectId: id });
     this.realtime.broadcast('media_acquisition.watchlist.updated', { id, action: 'deleted' });
     return { ok: true as const };

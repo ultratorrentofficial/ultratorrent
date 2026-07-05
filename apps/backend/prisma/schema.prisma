@@ -938,6 +938,23 @@ model WantedEpisode {
   @@map("wanted_episodes")
 }
 
+/// Computed missing/owned status for a monitored movie (a `movie` watchlist item
+/// carrying an IMDb id). One row per movie watchlist item; the scan upserts it.
+model WantedMovie {
+  id              String   @id @default(uuid())
+  watchlistItemId String   @unique
+  movieTconst     String
+  title           String
+  year            Int?
+  status          String   @default("missing") /// missing | unaired | owned | ignored
+  lastCheckedAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@index([movieTconst])
+  @@index([status])
+  @@map("wanted_movies")
+}
+
 model MediaAcquisitionProfile {
   id                 String   @id @default(uuid())
   name               String

@@ -9,6 +9,7 @@ import { AcquisitionEvaluatorService } from './evaluator.service';
 import { AcquisitionApprovalService } from './approval.service';
 import { SmartDownloadExecutorService } from './smart-download-executor.service';
 import { MissingEpisodesService } from './missing-episodes.service';
+import { MissingMoviesService } from './missing-movies.service';
 import { MediaAcquisitionController } from './media-acquisition.controller';
 
 /**
@@ -50,6 +51,7 @@ export class MediaAcquisitionScheduler {
     AcquisitionApprovalService,
     SmartDownloadExecutorService,
     MissingEpisodesService,
+    MissingMoviesService,
     MediaAcquisitionScheduler,
   ],
   controllers: [MediaAcquisitionController],

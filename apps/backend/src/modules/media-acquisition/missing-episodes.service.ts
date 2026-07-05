@@ -45,6 +45,17 @@ export interface SeriesGapSummary {
   lastCheckedAt: Date | null;
 }
 
+/** Per-season rollup for missing-season detection. */
+export interface SeasonSummary {
+  seasonNumber: number;
+  total: number;
+  owned: number;
+  missing: number;
+  unaired: number;
+  ignored: number;
+  complete: boolean; // no missing episodes
+}
+
 const SPECIAL_SEASON = 0; // season 0 = specials, excluded from missing math (MVP)
 const TITLE_CHUNK = 1000;
 
@@ -207,6 +218,32 @@ export class MissingEpisodesService {
       where: { watchlistItemId },
       orderBy: [{ seasonNumber: 'asc' }, { episodeNumber: 'asc' }],
     });
+  }
+
+  /**
+   * Per-season rollup of a monitored series — missing-season detection. A season
+   * is "incomplete" when it has any missing episode, and "complete" when every
+   * aired episode is owned. Derived from the `WantedEpisode` rows (no extra
+   * storage), so it always reflects the latest scan.
+   */
+  async listSeasons(watchlistItemId: string): Promise<SeasonSummary[]> {
+    const rows = await this.prisma.wantedEpisode.findMany({
+      where: { watchlistItemId },
+      select: { seasonNumber: true, status: true },
+    });
+    const bySeason = new Map<number, SeasonSummary>();
+    for (const r of rows) {
+      let s = bySeason.get(r.seasonNumber);
+      if (!s) {
+        s = { seasonNumber: r.seasonNumber, total: 0, owned: 0, missing: 0, unaired: 0, ignored: 0, complete: true };
+        bySeason.set(r.seasonNumber, s);
+      }
+      s.total += 1;
+      if (r.status in s) (s as unknown as Record<string, number>)[r.status] += 1;
+    }
+    return [...bySeason.values()]
+      .map((s) => ({ ...s, complete: s.missing === 0 }))
+      .sort((a, b) => a.seasonNumber - b.seasonNumber);
   }
 
   /** User opt-out for a single episode; survives future rescans. */
