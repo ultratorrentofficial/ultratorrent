@@ -99,6 +99,14 @@ services:
       context: ./deploy/rtorrent
     profiles: ["rtorrent"]
     restart: unless-stopped
+    # The entrypoint starts as root, chowns the downloads volume, then drops to
+    # PUID:PGID via gosu. Some hosts (notably Synology DSM) strip these two
+    # capabilities from the container's default set, which makes that drop fail
+    # ("operation not permitted") and the entrypoint fall back to running as
+    # root. SETUID/SETGID are part of Docker's default caps — re-adding them here
+    # simply restores that default so the privilege drop works and downloads are
+    # owned by PUID:PGID rather than root.
+    cap_add: ["SETUID", "SETGID"]
     environment:
       # Run rtorrent as this uid/gid so downloads are owned how you want. If your
       # downloads folder belongs to another user (e.g. Plex), set PUID/PGID to
