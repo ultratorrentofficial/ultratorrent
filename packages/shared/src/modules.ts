@@ -128,6 +128,7 @@ export const MODULE_IDS = {
   MEDIA_MANAGER: 'media_manager',
   RELEASE_SCORING: 'release_scoring',
   MEDIA_ACQUISITION_INTELLIGENCE: 'media_acquisition_intelligence',
+  MEDIA_SERVER_ANALYTICS: 'media_server_analytics',
 } as const;
 
 export type ModuleId = (typeof MODULE_IDS)[keyof typeof MODULE_IDS];

@@ -676,6 +676,14 @@ model MediaServerIntegration {
   config        Json      @default("{}")
   isEnabled     Boolean   @default(true)
   lastRefreshAt DateTime?
+  // Media Server Analytics fields
+  isDefault         Boolean   @default(false)
+  status            String? // online | offline | unknown
+  serverVersion     String?
+  platform          String?
+  capabilities      Json?
+  lastHealthCheckAt DateTime?
+  notes             String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

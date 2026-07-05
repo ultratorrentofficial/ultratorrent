@@ -2742,6 +2742,58 @@ export const api = {
     },
   },
 
+  mediaServerAnalytics: {
+    dashboard(): Promise<MediaServerDashboard> {
+      return request<MediaServerDashboard>('/media-server-analytics/dashboard');
+    },
+    testConnection(id: string): Promise<MediaServerInfo> {
+      return request<MediaServerInfo>(`/media-server-analytics/connections/${id}/test`, { method: 'POST' });
+    },
+    libraries(id: string): Promise<MediaServerLibrariesResult> {
+      return request<MediaServerLibrariesResult>(`/media-server-analytics/connections/${id}/libraries`);
+    },
+  },
+
 };
+
+export interface MediaServerConnectionSummary {
+  id: string;
+  name: string;
+  kind: string;
+  enabled: boolean;
+  isDefault: boolean;
+  status: string;
+  serverVersion: string | null;
+  platform: string | null;
+  capabilities: unknown;
+  lastHealthCheckAt: string | null;
+  lastRefreshAt: string | null;
+  notes: string | null;
+}
+
+export interface MediaServerDashboard {
+  servers: { total: number; enabled: number; online: number; offline: number; byKind: Record<string, number> };
+  connections: MediaServerConnectionSummary[];
+  liveSessions: number;
+  recentlyAdded: number;
+  newsletters: { active: number };
+  imports: { configured: number };
+}
+
+export interface MediaServerInfo {
+  kind: string;
+  reachable: boolean;
+  name?: string;
+  version?: string;
+  platform?: string;
+  capabilities: Record<string, boolean>;
+  message?: string;
+}
+
+export interface MediaServerLibrariesResult {
+  supported: boolean;
+  message?: string;
+  libraries: { id: string; name: string; type: string; itemCount?: number }[];
+}
 
 export { API_URL };

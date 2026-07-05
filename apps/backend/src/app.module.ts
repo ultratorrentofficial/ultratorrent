@@ -27,6 +27,7 @@ import { MediaModule } from './modules/media/media.module';
 import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
 import { ReleaseScoringModule } from './modules/release-scoring/release-scoring.module';
 import { MediaAcquisitionModule } from './modules/media-acquisition/media-acquisition.module';
+import { MediaServerAnalyticsModule } from './modules/media-server-analytics/media-server-analytics.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { MediaAcquisitionModule } from './modules/media-acquisition/media-acquis
     RssModule,
     ReleaseScoringModule,
     MediaAcquisitionModule,
+    MediaServerAnalyticsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

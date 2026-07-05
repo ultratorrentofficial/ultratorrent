@@ -1,0 +1,25 @@
+{
+  "dashboard": {
+    "title": "Media Server Analytics",
+    "subtitle": "Monitor your Plex, Jellyfin, Emby and Kodi servers.",
+    "loadError": "Could not load the dashboard.",
+    "widget": { "total": "Servers", "enabled": "Enabled", "online": "Online", "offline": "Offline" },
+    "connections": "Connections",
+    "noConnections": "No media servers connected yet — add one on the Connections page."
+  },
+  "connections": {
+    "title": "Connections",
+    "subtitle": "The media servers UltraTorrent monitors.",
+    "loadError": "Could not load connections.",
+    "empty": "No connections yet.",
+    "test": "Test",
+    "viewLibraries": "Libraries",
+    "status": { "online": "Online", "offline": "Offline", "unknown": "Unknown" },
+    "col": { "name": "Name", "type": "Type", "status": "Status", "version": "Version", "actions": "Actions" },
+    "tested": "Health check complete",
+    "testFailed": "Health check failed",
+    "librariesTitle": "Libraries on {{name}}",
+    "librariesFailed": "Could not list libraries",
+    "unsupported": "This server type does not support listing libraries."
+  }
+}

@@ -13,6 +13,8 @@ import {
   getMediaServerProvider,
   MediaServerConfig,
   MediaServerKind,
+  MediaServerLibrary,
+  UnsupportedCapabilityError,
 } from './media-server-provider';
 
 /** Config keys treated as secrets and encrypted at rest. */
@@ -273,5 +275,45 @@ export class MediaServerIntegrationService {
       metadata: { kind: row.kind },
     });
     return { id, lastRefreshAt: updated.lastRefreshAt };
+  }
+
+  /**
+   * Probe a server and persist its analytics health (status/version/platform/
+   * capabilities). Used by Media Server Analytics.
+   */
+  async healthCheck(id: string) {
+    const row = await this.load(id);
+    const provider = getMediaServerProvider(row.kind);
+    const cfg = this.decryptConfig((row.config as Record<string, unknown>) ?? {});
+    const info = await provider.getServerInfo(cfg);
+    await this.prisma.mediaServerIntegration.update({
+      where: { id },
+      data: {
+        status: info.reachable ? 'online' : 'offline',
+        serverVersion: info.version ?? null,
+        platform: info.platform ?? null,
+        capabilities: info.capabilities as unknown as Prisma.InputJsonValue,
+        lastHealthCheckAt: new Date(),
+      },
+    });
+    return info;
+  }
+
+  /**
+   * List a server's libraries. Providers that can't (e.g. Kodi) return a clean
+   * `{ supported: false }` rather than throwing.
+   */
+  async libraries(id: string): Promise<{ supported: boolean; message?: string; libraries: MediaServerLibrary[] }> {
+    const row = await this.load(id);
+    const provider = getMediaServerProvider(row.kind);
+    const cfg = this.decryptConfig((row.config as Record<string, unknown>) ?? {});
+    try {
+      return { supported: true, libraries: await provider.getLibraries(cfg) };
+    } catch (err) {
+      if (err instanceof UnsupportedCapabilityError) {
+        return { supported: false, message: err.message, libraries: [] };
+      }
+      throw new BadRequestException(`Listing libraries failed: ${(err as Error).message}`);
+    }
   }
 }

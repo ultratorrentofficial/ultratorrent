@@ -35,7 +35,9 @@
     "Settings": "Settings",
     "Audit Log": "Audit Log",
     "Decision Simulator": "Decision Simulator",
-    "Smart Download": "Smart Download"
+    "Smart Download": "Smart Download",
+    "Media Server Analytics": "Media Server Analytics",
+    "Server Connections": "Server Connections"
   },
   "details": {
     "Account": "Account",

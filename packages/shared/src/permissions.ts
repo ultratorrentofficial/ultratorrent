@@ -84,6 +84,21 @@ export const PERMISSIONS = {
   RELEASE_SCORING_VIEW: 'release_scoring.view',
   RELEASE_SCORING_MANAGE: 'release_scoring.manage',
 
+  // Media Server Analytics (core)
+  MEDIA_SERVER_ANALYTICS_VIEW: 'media_server_analytics.view',
+  MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS: 'media_server_analytics.manage_connections',
+  MEDIA_SERVER_ANALYTICS_MANAGE_MAPPINGS: 'media_server_analytics.manage_mappings',
+  MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY: 'media_server_analytics.view_live_activity',
+  MEDIA_SERVER_ANALYTICS_VIEW_USERS: 'media_server_analytics.view_users',
+  MEDIA_SERVER_ANALYTICS_VIEW_HISTORY: 'media_server_analytics.view_history',
+  MEDIA_SERVER_ANALYTICS_VIEW_REPORTS: 'media_server_analytics.view_reports',
+  MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS: 'media_server_analytics.manage_newsletters',
+  MEDIA_SERVER_ANALYTICS_SEND_NEWSLETTERS: 'media_server_analytics.send_newsletters',
+  MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS: 'media_server_analytics.manage_imports',
+  MEDIA_SERVER_ANALYTICS_RUN_IMPORTS: 'media_server_analytics.run_imports',
+  MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS: 'media_server_analytics.manage_settings',
+  MEDIA_SERVER_ANALYTICS_ADMIN: 'media_server_analytics.admin',
+
   // Media Manager (core)
   MEDIA_MANAGER_VIEW: 'media_manager.view',
   MEDIA_MANAGER_MANAGE_LIBRARIES: 'media_manager.manage_libraries',

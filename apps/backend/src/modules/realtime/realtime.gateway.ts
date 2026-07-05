@@ -20,6 +20,7 @@ const SCOPED_PERMISSIONS = [
   PERMISSIONS.FILES_VIEW,
   PERMISSIONS.MEDIA_MANAGER_VIEW,
   PERMISSIONS.MEDIA_ACQUISITION_VIEW,
+  PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW,
 ];
 
 /**
@@ -88,6 +89,9 @@ export class RealtimeGateway
     }
     if (event.startsWith('media_acquisition.')) {
       return `perm:${PERMISSIONS.MEDIA_ACQUISITION_VIEW}`;
+    }
+    if (event.startsWith('media_server.')) {
+      return `perm:${PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW}`;
     }
     // Permission-free events (e.g. notifications) go to all authenticated sockets.
     return 'authenticated';

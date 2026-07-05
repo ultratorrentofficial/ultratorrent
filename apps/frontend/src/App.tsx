@@ -32,6 +32,8 @@ import { MediaAcquisitionPage } from '@/pages/media-acquisition/MediaAcquisition
 import { MissingEpisodesPage } from '@/pages/media-acquisition/MissingEpisodesPage';
 import { DecisionSimulatorPage } from '@/pages/media-acquisition/DecisionSimulatorPage';
 import { SmartDownloadDashboardPage } from '@/pages/media-acquisition/SmartDownloadDashboardPage';
+import { MediaServerAnalyticsDashboardPage } from '@/pages/media-server-analytics/MediaServerAnalyticsDashboardPage';
+import { MediaServerConnectionsPage } from '@/pages/media-server-analytics/MediaServerConnectionsPage';
 import { ReleaseScoringPage } from '@/pages/release-scoring/ReleaseScoringPage';
 import { AutomationPage } from '@/pages/AutomationPage';
 import { FilesPage } from '@/pages/FilesPage';
@@ -250,6 +252,28 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_acquisition_intelligence">
                             <SmartDownloadDashboardPage />
+                          </ModuleRoute>
+                        }
+                      />
+                    </Route>
+                  </Route>
+
+                  {/* Media Server Analytics — module `media_server_analytics`. */}
+                  <Route element={<ProtectedRoute permission={PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW} />}>
+                    <Route element={<AppShell />}>
+                      <Route
+                        path="/media-server-analytics"
+                        element={
+                          <ModuleRoute moduleId="media_server_analytics">
+                            <MediaServerAnalyticsDashboardPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media-server-analytics/connections"
+                        element={
+                          <ModuleRoute moduleId="media_server_analytics">
+                            <MediaServerConnectionsPage />
                           </ModuleRoute>
                         }
                       />

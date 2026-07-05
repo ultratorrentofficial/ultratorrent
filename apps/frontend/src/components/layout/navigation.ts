@@ -25,6 +25,8 @@ import {
   Tv,
   FlaskConical,
   Gauge,
+  MonitorPlay,
+  Server,
   Users,
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
@@ -110,6 +112,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/media-acquisition/missing-episodes', label: 'Missing Episodes', icon: Tv, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence' },
       { to: '/media-acquisition/simulator', label: 'Decision Simulator', icon: FlaskConical, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence' },
       { to: '/release-scoring', label: 'Release Scoring', icon: Award, permission: PERMISSIONS.RELEASE_SCORING_VIEW, module: 'release_scoring' },
+      { to: '/media-server-analytics', label: 'Media Server Analytics', icon: MonitorPlay, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics', end: true },
+      { to: '/media-server-analytics/connections', label: 'Server Connections', icon: Server, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics' },
     ],
   },
   {

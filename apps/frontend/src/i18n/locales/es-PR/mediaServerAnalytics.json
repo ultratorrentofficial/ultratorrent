@@ -1,0 +1,25 @@
+{
+  "dashboard": {
+    "title": "Analíticas del servidor multimedia",
+    "subtitle": "Monitorea tus servidores Plex, Jellyfin, Emby y Kodi.",
+    "loadError": "No se pudo cargar el panel.",
+    "widget": { "total": "Servidores", "enabled": "Habilitados", "online": "En línea", "offline": "Desconectados" },
+    "connections": "Conexiones",
+    "noConnections": "Aún no hay servidores conectados — agrega uno en la página de Conexiones."
+  },
+  "connections": {
+    "title": "Conexiones",
+    "subtitle": "Los servidores multimedia que UltraTorrent monitorea.",
+    "loadError": "No se pudieron cargar las conexiones.",
+    "empty": "Aún no hay conexiones.",
+    "test": "Probar",
+    "viewLibraries": "Bibliotecas",
+    "status": { "online": "En línea", "offline": "Desconectado", "unknown": "Desconocido" },
+    "col": { "name": "Nombre", "type": "Tipo", "status": "Estado", "version": "Versión", "actions": "Acciones" },
+    "tested": "Verificación de estado completa",
+    "testFailed": "Falló la verificación de estado",
+    "librariesTitle": "Bibliotecas en {{name}}",
+    "librariesFailed": "No se pudieron listar las bibliotecas",
+    "unsupported": "Este tipo de servidor no admite listar bibliotecas."
+  }
+}

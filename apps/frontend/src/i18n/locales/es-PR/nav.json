@@ -35,7 +35,9 @@
     "Settings": "Ajustes",
     "Audit Log": "Registro de auditoría",
     "Decision Simulator": "Simulador de decisiones",
-    "Smart Download": "Descarga inteligente"
+    "Smart Download": "Descarga inteligente",
+    "Media Server Analytics": "Analíticas del servidor multimedia",
+    "Server Connections": "Conexiones de servidores"
   },
   "details": {
     "Account": "Cuenta",

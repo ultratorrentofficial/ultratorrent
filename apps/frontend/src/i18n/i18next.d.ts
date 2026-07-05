@@ -4,6 +4,7 @@ import type nav from './locales/en-US/nav.json';
 import type auth from './locales/en-US/auth.json';
 import type shell from './locales/en-US/shell.json';
 import type media from './locales/en-US/media.json';
+import type mediaServerAnalytics from './locales/en-US/mediaServerAnalytics.json';
 import type imdb from './locales/en-US/imdb.json';
 import type rss from './locales/en-US/rss.json';
 import type torrents from './locales/en-US/torrents.json';
@@ -29,6 +30,7 @@ declare module 'i18next' {
       auth: typeof auth;
       shell: typeof shell;
       media: typeof media;
+      mediaServerAnalytics: typeof mediaServerAnalytics;
       imdb: typeof imdb;
       rss: typeof rss;
       torrents: typeof torrents;

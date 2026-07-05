@@ -25,10 +25,69 @@ export interface TestResult {
   version?: string;
 }
 
+/** What read capabilities a provider supports — analytics degrades gracefully. */
+export interface MediaServerCapabilities {
+  libraries: boolean;
+  recentlyAdded: boolean;
+  sessions: boolean;
+  watchHistory: boolean;
+  refresh: boolean;
+}
+
+export interface ServerInfo {
+  kind: MediaServerKind;
+  reachable: boolean;
+  name?: string;
+  version?: string;
+  platform?: string;
+  capabilities: MediaServerCapabilities;
+  message?: string;
+}
+
+export interface MediaServerLibrary {
+  id: string;
+  name: string;
+  type: string; // movie | show | music | photo | mixed | unknown
+  itemCount?: number;
+}
+
+/** Thrown when a provider genuinely cannot serve a capability (not a failure). */
+export class UnsupportedCapabilityError extends Error {
+  constructor(
+    public readonly capability: string,
+    public readonly kind: string,
+  ) {
+    super(`${kind} does not support "${capability}".`);
+    this.name = 'UnsupportedCapabilityError';
+  }
+}
+
 export interface MediaServerProvider {
   readonly kind: MediaServerKind;
+  capabilities(): MediaServerCapabilities;
   testConnection(cfg: MediaServerConfig): Promise<TestResult>;
+  getServerInfo(cfg: MediaServerConfig): Promise<ServerInfo>;
+  /** Throws {@link UnsupportedCapabilityError} when the provider can't list libraries. */
+  getLibraries(cfg: MediaServerConfig): Promise<MediaServerLibrary[]>;
   refreshLibrary(cfg: MediaServerConfig): Promise<void>;
+}
+
+/** Build a ServerInfo from a testConnection result + declared capabilities. */
+async function serverInfoFrom(
+  provider: MediaServerProvider,
+  cfg: MediaServerConfig,
+  platform?: string,
+): Promise<ServerInfo> {
+  const t = await provider.testConnection(cfg);
+  return {
+    kind: provider.kind,
+    reachable: t.ok,
+    name: t.serverName,
+    version: t.version,
+    platform,
+    capabilities: provider.capabilities(),
+    message: t.message,
+  };
 }
 
 async function fetchJson(
@@ -58,9 +117,48 @@ function requireBaseUrl(cfg: MediaServerConfig): string {
   return base;
 }
 
+function mapPlexType(t?: string): string {
+  switch (t) {
+    case 'movie': return 'movie';
+    case 'show': return 'show';
+    case 'artist': return 'music';
+    case 'photo': return 'photo';
+    default: return 'unknown';
+  }
+}
+
+function mapJellyfinType(t?: string): string {
+  switch ((t ?? '').toLowerCase()) {
+    case 'movies': return 'movie';
+    case 'tvshows': return 'show';
+    case 'music': return 'music';
+    case 'photos': case 'homevideos': return 'photo';
+    default: return 'mixed';
+  }
+}
+
 /** Plex Media Server — token auth, XML/JSON endpoints. */
 export class PlexProvider implements MediaServerProvider {
   readonly kind = 'plex' as const;
+
+  capabilities(): MediaServerCapabilities {
+    return { libraries: true, recentlyAdded: true, sessions: true, watchHistory: true, refresh: true };
+  }
+
+  getServerInfo(cfg: MediaServerConfig): Promise<ServerInfo> {
+    return serverInfoFrom(this, cfg, 'Plex Media Server');
+  }
+
+  async getLibraries(cfg: MediaServerConfig): Promise<MediaServerLibrary[]> {
+    const base = requireBaseUrl(cfg);
+    if (!cfg.token) throw new Error('Plex token is required.');
+    const { ok, status, json } = await fetchJson(`${base}/library/sections`, {
+      headers: { Accept: 'application/json', 'X-Plex-Token': cfg.token },
+    });
+    if (!ok) throw new Error(`Plex responded with HTTP ${status}.`);
+    const dirs: any[] = json?.MediaContainer?.Directory ?? [];
+    return dirs.map((d) => ({ id: String(d.key), name: d.title, type: mapPlexType(d.type) }));
+  }
 
   async testConnection(cfg: MediaServerConfig): Promise<TestResult> {
     try {
@@ -127,28 +225,41 @@ class JellyfinEmbyBase {
     });
     if (!ok) throw new Error(`Library refresh failed with HTTP ${status}.`);
   }
+
+  async libraries(cfg: MediaServerConfig): Promise<MediaServerLibrary[]> {
+    const base = requireBaseUrl(cfg);
+    if (!cfg.apiKey) throw new Error('API key is required.');
+    const { ok, status, json } = await fetchJson(`${base}/Library/VirtualFolders`, {
+      headers: { Accept: 'application/json', [this.headerName]: cfg.apiKey },
+    });
+    if (!ok) throw new Error(`Library listing failed with HTTP ${status}.`);
+    const folders: any[] = Array.isArray(json) ? json : [];
+    return folders.map((f) => ({ id: String(f.ItemId ?? f.Name), name: f.Name, type: mapJellyfinType(f.CollectionType) }));
+  }
 }
+
+const JELLYFIN_EMBY_CAPS: MediaServerCapabilities = {
+  libraries: true, recentlyAdded: true, sessions: true, watchHistory: true, refresh: true,
+};
 
 export class JellyfinProvider implements MediaServerProvider {
   readonly kind = 'jellyfin' as const;
   private readonly impl = new JellyfinEmbyBase('X-Emby-Token');
-  testConnection(cfg: MediaServerConfig) {
-    return this.impl.test(cfg, 'Jellyfin');
-  }
-  refreshLibrary(cfg: MediaServerConfig) {
-    return this.impl.refresh(cfg);
-  }
+  capabilities() { return JELLYFIN_EMBY_CAPS; }
+  testConnection(cfg: MediaServerConfig) { return this.impl.test(cfg, 'Jellyfin'); }
+  getServerInfo(cfg: MediaServerConfig) { return serverInfoFrom(this, cfg, 'Jellyfin'); }
+  getLibraries(cfg: MediaServerConfig) { return this.impl.libraries(cfg); }
+  refreshLibrary(cfg: MediaServerConfig) { return this.impl.refresh(cfg); }
 }
 
 export class EmbyProvider implements MediaServerProvider {
   readonly kind = 'emby' as const;
   private readonly impl = new JellyfinEmbyBase('X-Emby-Token');
-  testConnection(cfg: MediaServerConfig) {
-    return this.impl.test(cfg, 'Emby');
-  }
-  refreshLibrary(cfg: MediaServerConfig) {
-    return this.impl.refresh(cfg);
-  }
+  capabilities() { return JELLYFIN_EMBY_CAPS; }
+  testConnection(cfg: MediaServerConfig) { return this.impl.test(cfg, 'Emby'); }
+  getServerInfo(cfg: MediaServerConfig) { return serverInfoFrom(this, cfg, 'Emby'); }
+  getLibraries(cfg: MediaServerConfig) { return this.impl.libraries(cfg); }
+  refreshLibrary(cfg: MediaServerConfig) { return this.impl.refresh(cfg); }
 }
 
 /** Kodi — JSON-RPC over HTTP (optional basic auth). */
@@ -170,6 +281,20 @@ export class KodiProvider implements MediaServerProvider {
       headers: { 'Content-Type': 'application/json', ...this.authHeader(cfg) },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
     });
+  }
+
+  capabilities(): MediaServerCapabilities {
+    // Kodi is a client library, not a multi-user server — no section list,
+    // sessions API, or watch history in the sense the other providers expose.
+    return { libraries: false, recentlyAdded: true, sessions: false, watchHistory: false, refresh: true };
+  }
+
+  getServerInfo(cfg: MediaServerConfig): Promise<ServerInfo> {
+    return serverInfoFrom(this, cfg, 'Kodi');
+  }
+
+  async getLibraries(_cfg: MediaServerConfig): Promise<MediaServerLibrary[]> {
+    throw new UnsupportedCapabilityError('getLibraries', this.kind);
   }
 
   async testConnection(cfg: MediaServerConfig): Promise<TestResult> {
