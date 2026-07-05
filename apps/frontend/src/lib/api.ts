@@ -1736,6 +1736,25 @@ export interface EvaluateInput {
   seeders?: number;
 }
 
+export interface SimulationStage {
+  key: string;
+  label: string;
+  status: 'success' | 'warning' | 'blocked' | 'info';
+  summary: string;
+  detail?: Record<string, unknown>;
+}
+
+export interface SimulationResult {
+  releaseName: string;
+  decision: string;
+  reason: string;
+  confidence: number;
+  requiresApproval: boolean;
+  profile: { id: string; name: string } | null;
+  stages: SimulationStage[];
+  trace: unknown;
+}
+
 export interface AcquisitionHistoryEvent {
   eventType: string;
   message: string;
@@ -2622,6 +2641,9 @@ export const api = {
     },
     evaluate(body: EvaluateInput): Promise<AcquisitionEvaluation> {
       return request<AcquisitionEvaluation>('/media-acquisition/evaluate', { method: 'POST', body });
+    },
+    simulate(body: EvaluateInput): Promise<SimulationResult> {
+      return request<SimulationResult>('/media-acquisition/simulate', { method: 'POST', body });
     },
     evaluations(
       query: { decision?: string; approvalStatus?: string } = {},

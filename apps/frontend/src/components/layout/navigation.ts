@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Sparkles,
   Tv,
+  FlaskConical,
   Users,
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
@@ -105,6 +106,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/media/settings', label: 'Media Settings', icon: SlidersHorizontal, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager' },
       { to: '/media-acquisition', label: 'Media Acquisition', icon: Sparkles, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', end: true },
       { to: '/media-acquisition/missing-episodes', label: 'Missing Episodes', icon: Tv, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence' },
+      { to: '/media-acquisition/simulator', label: 'Decision Simulator', icon: FlaskConical, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence' },
       { to: '/release-scoring', label: 'Release Scoring', icon: Award, permission: PERMISSIONS.RELEASE_SCORING_VIEW, module: 'release_scoring' },
     ],
   },

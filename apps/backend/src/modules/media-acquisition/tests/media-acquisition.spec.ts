@@ -124,3 +124,28 @@ describe('Approval queue', () => {
     expect(b.ctx.exec.executeForEvaluation).toHaveBeenCalledWith(b.ev.id, 'u1');
   });
 });
+
+describe('Decision Simulator (dry-run)', () => {
+  it('returns a staged explanation and persists nothing', async () => {
+    const { evaluator, prisma } = build();
+    const sim = await evaluator.simulate({ releaseName: RELEASE });
+
+    expect(sim.decision).toBeDefined();
+    expect(sim.stages.map((s) => s.key)).toEqual([
+      'identify', 'matching', 'scoring', 'library', 'upgrade', 'decision',
+    ]);
+    // No side effects: no evaluation, action, or history recorded.
+    expect(prisma.mediaAcquisitionEvaluation.rows).toHaveLength(0);
+    expect(prisma.mediaAcquisitionAction.rows).toHaveLength(0);
+  });
+
+  it('reflects a watchlist match + download decision in the stages', async () => {
+    const { evaluator, watchlist, profiles } = build();
+    await watchlist.create({ type: 'series', title: 'The Show' });
+    await profiles.create({ name: 'P', mediaType: 'tv', minimumScore: 50, approvalScore: 0 });
+    const sim = await evaluator.simulate({ releaseName: RELEASE });
+    expect(sim.decision).toBe('download');
+    expect(sim.stages.find((s) => s.key === 'matching')!.status).toBe('success');
+    expect(sim.stages.find((s) => s.key === 'identify')!.summary).toMatch(/The Show/i);
+  });
+});

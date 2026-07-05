@@ -34,6 +34,27 @@ const DOWNLOAD_INTENT: AcquisitionDecision[] = [
   'hold_for_approval',
 ];
 
+/** One clickable stage of the Decision Simulator's visual pipeline. */
+export interface SimulationStage {
+  key: string;
+  label: string;
+  status: 'success' | 'warning' | 'blocked' | 'info';
+  summary: string;
+  detail?: Record<string, unknown>;
+}
+
+/** A dry-run explanation of what the engine would decide — no side effects. */
+export interface SimulationResult {
+  releaseName: string;
+  decision: AcquisitionDecision;
+  reason: string;
+  confidence: number;
+  requiresApproval: boolean;
+  profile: { id: string; name: string } | null;
+  stages: SimulationStage[];
+  trace: unknown;
+}
+
 const arr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
 
 /**
@@ -53,16 +74,19 @@ export class AcquisitionEvaluatorService {
     private readonly executor: SmartDownloadExecutorService,
   ) {}
 
-  async evaluate(input: EvaluateInput, userId?: string) {
+  /**
+   * Gather every acquisition signal and run the pure decision — with NO side
+   * effects (no persistence, no download). Shared by {@link evaluate} (which
+   * persists + executes) and {@link simulate} (which just explains).
+   */
+  private async gather(input: EvaluateInput) {
     const parsed = parseTorrentName(input.releaseName);
     const titleLower = input.releaseName.toLowerCase();
 
-    // --- profile + watchlist -------------------------------------------------
     const watchlist = await this.matchWatchlist(parsed.title);
     const profileRow = await this.resolveProfile(input.profileId ?? watchlist.item?.profileId ?? undefined);
     const profile = this.toDecisionProfile(profileRow);
 
-    // --- release scoring (reuse the scoring engine) --------------------------
     const score = scoreRelease({
       title: input.releaseName,
       preferredResolution: profileRow?.preferredResolution ?? undefined,
@@ -73,7 +97,6 @@ export class AcquisitionEvaluatorService {
       seeders: input.seeders,
     });
 
-    // --- library state + duplicate risk -------------------------------------
     const owned = await this.libraryState(parsed, input.releaseName);
     // A gap is only "needed" if it is WANTED (on the watchlist) and missing. A
     // random release that simply isn't in the library is NOT a tracked gap.
@@ -93,6 +116,12 @@ export class AcquisitionEvaluatorService {
     };
 
     const result = decide(signals, profile);
+    return { parsed, watchlist, profileRow, profile, score, owned, library, duplicate, storage, signals, result };
+  }
+
+  async evaluate(input: EvaluateInput, userId?: string) {
+    const { parsed, watchlist, profileRow, score, owned, library, duplicate, storage, result } =
+      await this.gather(input);
 
     // --- persist -------------------------------------------------------------
     const evaluation = await this.prisma.mediaAcquisitionEvaluation.create({
@@ -149,6 +178,96 @@ export class AcquisitionEvaluatorService {
     await this.audit.record({ userId, action: 'media_acquisition.evaluation.created', objectType: 'media_acquisition_evaluation', objectId: evaluation.id, metadata: { decision: result.decision } });
     this.emit(evaluation.id, result.decision, result.requiresApproval);
     return evaluation;
+  }
+
+  /**
+   * Decision Simulator: run the full pipeline for a release and return the
+   * decision + a clickable, stage-by-stage explanation — WITHOUT persisting an
+   * evaluation, recording an action, or downloading anything.
+   */
+  async simulate(input: EvaluateInput): Promise<SimulationResult> {
+    const g = await this.gather(input);
+    const lib = g.library as typeof g.library & { upgradeReasons?: string[] };
+    const isUpgrade = g.result.decision === 'upgrade_existing' || g.result.decision === 'replace_existing';
+
+    const stages: SimulationStage[] = [
+      {
+        key: 'identify',
+        label: 'Identify media',
+        status: g.parsed.title ? 'success' : 'warning',
+        summary: g.parsed.title
+          ? `${g.parsed.title}${g.parsed.year ? ` (${g.parsed.year})` : ''}` +
+            (g.parsed.season != null ? ` S${g.parsed.season}${g.parsed.episode != null ? `E${g.parsed.episode}` : ''}` : '')
+          : 'Could not parse a title',
+        detail: {
+          title: g.parsed.title, year: g.parsed.year, season: g.parsed.season, episode: g.parsed.episode,
+          contentType: g.parsed.contentType, resolution: g.parsed.resolution, source: g.parsed.source,
+          codec: g.parsed.codec, hdr: g.parsed.hdr, audio: g.parsed.audio,
+        },
+      },
+      {
+        key: 'matching',
+        label: 'Matching preferences',
+        status: g.watchlist.matched ? 'success' : 'info',
+        summary: g.watchlist.matched
+          ? `Matched a watchlist item; profile "${g.profileRow?.name ?? 'default'}"`
+          : 'No watchlist match',
+        detail: {
+          watchlistMatched: g.watchlist.matched,
+          ambiguous: g.watchlist.ambiguous,
+          profile: g.profileRow
+            ? { name: g.profileRow.name, preferredResolution: g.profileRow.preferredResolution, preferredSource: g.profileRow.preferredSource, preferredCodec: g.profileRow.preferredCodec }
+            : null,
+        },
+      },
+      {
+        key: 'scoring',
+        label: 'Release score',
+        status: g.score.decision === 'reject' ? 'blocked' : 'success',
+        summary: `Score ${g.score.score} (${g.score.decision})`,
+        detail: { score: g.score.score, decision: g.score.decision, reasons: g.score.reasons, warnings: g.score.warnings },
+      },
+      {
+        key: 'library',
+        label: 'Library comparison',
+        status: lib.owned ? (lib.newIsBetter ? 'warning' : 'info') : 'info',
+        summary: lib.owned
+          ? lib.newIsBetter
+            ? `Owned, candidate is better: ${lib.upgradeReasons?.join(', ') || 'higher quality'}`
+            : 'Owned in equal/better quality'
+          : lib.needed
+            ? 'Missing from the library (wanted)'
+            : 'Not in the library',
+        detail: { owned: lib.owned, needed: lib.needed, newIsBetter: lib.newIsBetter, ownedResolution: lib.ownedResolution, upgradeReasons: lib.upgradeReasons },
+      },
+      {
+        key: 'upgrade',
+        label: 'Upgrade rules',
+        status: isUpgrade ? 'success' : 'info',
+        summary: lib.owned && lib.newIsBetter
+          ? g.profile.allowUpgrades ? 'Upgrade allowed by profile' : 'Upgrades disabled on this profile'
+          : 'No upgrade applies',
+        detail: { allowUpgrades: g.profile.allowUpgrades, waitForBetter: g.profile.waitForBetter, waitUntilScore: g.profile.waitUntilScore },
+      },
+      {
+        key: 'decision',
+        label: 'Decision',
+        status: g.result.decision === 'skip' ? 'blocked' : 'success',
+        summary: `${g.result.decision} — ${g.result.reason}`,
+        detail: { decision: g.result.decision, confidence: g.result.confidence, requiresApproval: g.result.requiresApproval },
+      },
+    ];
+
+    return {
+      releaseName: input.releaseName,
+      decision: g.result.decision,
+      reason: g.result.reason,
+      confidence: g.result.confidence,
+      requiresApproval: g.result.requiresApproval,
+      profile: g.profileRow ? { id: g.profileRow.id, name: g.profileRow.name } : null,
+      stages,
+      trace: g.result.trace,
+    };
   }
 
   // --- signal gathering ----------------------------------------------------

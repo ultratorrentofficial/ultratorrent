@@ -956,6 +956,25 @@
         "ignored": "Ignored"
       }
     },
+    "simulator": {
+      "title": "Decision Simulator",
+      "subtitle": "Paste a release name to see exactly what Smart Download would decide — and why — without downloading anything.",
+      "releaseName": "Release name",
+      "run": "Simulate",
+      "running": "Simulating…",
+      "failed": "Simulation failed",
+      "confidence": "{{n}}% confidence",
+      "profile": "Profile: {{name}}",
+      "decision": {
+        "download": "Download",
+        "upgrade_existing": "Upgrade",
+        "replace_existing": "Replace",
+        "wait": "Wait",
+        "hold_for_approval": "Hold for approval",
+        "manual_review": "Manual review",
+        "skip": "Skip"
+      }
+    },
     "profiles": {
       "add": "Add profile",
       "loading": "Loading profiles…",

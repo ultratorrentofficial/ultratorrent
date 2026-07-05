@@ -956,6 +956,25 @@
         "ignored": "Ignorado"
       }
     },
+    "simulator": {
+      "title": "Simulador de decisiones",
+      "subtitle": "Pega el nombre de un lanzamiento para ver exactamente qué decidiría Smart Download — y por qué — sin descargar nada.",
+      "releaseName": "Nombre del lanzamiento",
+      "run": "Simular",
+      "running": "Simulando…",
+      "failed": "Falló la simulación",
+      "confidence": "{{n}}% de confianza",
+      "profile": "Perfil: {{name}}",
+      "decision": {
+        "download": "Descargar",
+        "upgrade_existing": "Mejorar",
+        "replace_existing": "Reemplazar",
+        "wait": "Esperar",
+        "hold_for_approval": "Retener para aprobación",
+        "manual_review": "Revisión manual",
+        "skip": "Omitir"
+      }
+    },
     "profiles": {
       "add": "Agregar perfil",
       "loading": "Cargando perfiles…",

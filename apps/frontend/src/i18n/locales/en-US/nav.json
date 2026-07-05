@@ -33,7 +33,8 @@
     "Users": "Users",
     "Modules": "Modules",
     "Settings": "Settings",
-    "Audit Log": "Audit Log"
+    "Audit Log": "Audit Log",
+    "Decision Simulator": "Decision Simulator"
   },
   "details": {
     "Account": "Account",

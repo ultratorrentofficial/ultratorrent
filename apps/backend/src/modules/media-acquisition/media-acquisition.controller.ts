@@ -114,6 +114,12 @@ export class MediaAcquisitionController {
   evaluate(@Body() dto: EvaluateReleaseDto, @CurrentUser() u: AuthenticatedUser) {
     return this.evaluator.evaluate(dto, u?.id);
   }
+  /** Dry-run: full decision + stage-by-stage explanation, no side effects. */
+  @Post('simulate')
+  @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
+  simulate(@Body() dto: EvaluateReleaseDto) {
+    return this.evaluator.simulate(dto);
+  }
   @Get('evaluations')
   @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
   listEvaluations(@Query('decision') decision?: string, @Query('approvalStatus') approvalStatus?: string) {
