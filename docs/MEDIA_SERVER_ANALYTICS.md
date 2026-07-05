@@ -55,6 +55,19 @@ Under `/api/media-server-analytics`:
 | `POST /connections/:id/test` | `…manage_connections` | Probe + persist health (status/version/platform/capabilities). |
 | `POST /connections/:id/sync` | `…manage_connections` | Trigger a library refresh. |
 | `GET /connections/:id/libraries` | `media_server_analytics.view` | List a server's libraries (capability-aware). |
+| `GET /live` | `…view_live_activity` | Current now-playing sessions. |
+| `POST /live/poll` | `…manage_connections` | Reconcile sessions now (also polled every 30s). |
+| `GET /watch-history` | `…view_history` | Completed playback. |
+
+## Live Activity & Watch History
+
+A poller (`media_server_session_poll`, every 30s, active only when the module is
+enabled and connections exist) fetches now-playing sessions from each server
+(`getSessions` — Plex `/status/sessions`, Jellyfin/Emby `/Sessions`; Kodi is
+unsupported and skipped) and reconciles them into `MediaServerSession` rows. When
+a session disappears it is written to `MediaServerWatchHistory` (with
+`watchedSeconds`), and `media_server.session.started/updated/ended` events fire.
+This is the media-server-native watch-history source; Tautulli import is the other.
 
 ## Permissions
 
@@ -70,8 +83,8 @@ Phase 1 (this) delivers the module foundation: registration, the extended
 capability-aware provider (`getServerInfo` / `getLibraries`), secure multi-server
 connection management, and Dashboard + Connections pages. Later phases:
 
-- **Live Activity** — now-playing sessions (`getSessions`) + `MediaServerSession`.
-- **Watch History** — `getWatchHistory` + `MediaServerWatchHistory`.
+- ~~Live Activity~~ ✅ (Phase 2) — now-playing sessions + `MediaServerSession`.
+- ~~Watch History~~ ✅ (Phase 2) — captured on session end + `MediaServerWatchHistory`.
 - **Recently Added / Library / User / Playback analytics** + snapshots.
 - **Newsletters** — a full SMTP email + scheduled-newsletter system (net-new; no
   email infrastructure exists today).

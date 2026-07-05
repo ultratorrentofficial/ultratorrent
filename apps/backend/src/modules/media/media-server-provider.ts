@@ -51,6 +51,25 @@ export interface MediaServerLibrary {
   itemCount?: number;
 }
 
+/** A normalized now-playing session, provider-agnostic. */
+export interface ProviderSession {
+  sessionId: string;
+  userId?: string;
+  userName?: string;
+  title: string;
+  mediaType?: string;
+  libraryName?: string;
+  device?: string;
+  client?: string;
+  ipAddress?: string;
+  playbackState?: string; // playing | paused | buffering
+  progressPercent?: number;
+  playbackMethod?: string; // directplay | directstream | transcode
+  videoCodec?: string;
+  audioCodec?: string;
+  resolution?: string;
+}
+
 /** Thrown when a provider genuinely cannot serve a capability (not a failure). */
 export class UnsupportedCapabilityError extends Error {
   constructor(
@@ -69,7 +88,14 @@ export interface MediaServerProvider {
   getServerInfo(cfg: MediaServerConfig): Promise<ServerInfo>;
   /** Throws {@link UnsupportedCapabilityError} when the provider can't list libraries. */
   getLibraries(cfg: MediaServerConfig): Promise<MediaServerLibrary[]>;
+  /** Now-playing sessions. Throws {@link UnsupportedCapabilityError} where unsupported. */
+  getSessions(cfg: MediaServerConfig): Promise<ProviderSession[]>;
   refreshLibrary(cfg: MediaServerConfig): Promise<void>;
+}
+
+function pct(offset?: number, total?: number): number | undefined {
+  if (!offset || !total) return undefined;
+  return Math.round((offset / total) * 100);
 }
 
 /** Build a ServerInfo from a testConnection result + declared capabilities. */
@@ -160,6 +186,38 @@ export class PlexProvider implements MediaServerProvider {
     return dirs.map((d) => ({ id: String(d.key), name: d.title, type: mapPlexType(d.type) }));
   }
 
+  async getSessions(cfg: MediaServerConfig): Promise<ProviderSession[]> {
+    const base = requireBaseUrl(cfg);
+    if (!cfg.token) throw new Error('Plex token is required.');
+    const { ok, status, json } = await fetchJson(`${base}/status/sessions`, {
+      headers: { Accept: 'application/json', 'X-Plex-Token': cfg.token },
+    });
+    if (!ok) throw new Error(`Plex responded with HTTP ${status}.`);
+    const items: any[] = json?.MediaContainer?.Metadata ?? [];
+    return items.map((m) => {
+      const media = m.Media?.[0] ?? {};
+      const part = media.Part?.[0] ?? {};
+      const decision = (part.decision ?? m.Player?.state) as string | undefined;
+      return {
+        sessionId: String(m.Session?.id ?? m.sessionKey ?? `${m.ratingKey}`),
+        userId: m.User?.id ? String(m.User.id) : undefined,
+        userName: m.User?.title,
+        title: [m.grandparentTitle, m.title].filter(Boolean).join(' — ') || m.title || 'Unknown',
+        mediaType: m.type,
+        libraryName: m.librarySectionTitle,
+        device: m.Player?.device,
+        client: m.Player?.product,
+        ipAddress: m.Player?.address,
+        playbackState: m.Player?.state,
+        progressPercent: pct(m.viewOffset, m.duration),
+        playbackMethod: part.decision === 'transcode' ? 'transcode' : decision,
+        videoCodec: media.videoCodec,
+        audioCodec: media.audioCodec,
+        resolution: media.videoResolution,
+      };
+    });
+  }
+
   async testConnection(cfg: MediaServerConfig): Promise<TestResult> {
     try {
       const base = requireBaseUrl(cfg);
@@ -236,6 +294,41 @@ class JellyfinEmbyBase {
     const folders: any[] = Array.isArray(json) ? json : [];
     return folders.map((f) => ({ id: String(f.ItemId ?? f.Name), name: f.Name, type: mapJellyfinType(f.CollectionType) }));
   }
+
+  async sessions(cfg: MediaServerConfig): Promise<ProviderSession[]> {
+    const base = requireBaseUrl(cfg);
+    if (!cfg.apiKey) throw new Error('API key is required.');
+    const { ok, status, json } = await fetchJson(`${base}/Sessions`, {
+      headers: { Accept: 'application/json', [this.headerName]: cfg.apiKey },
+    });
+    if (!ok) throw new Error(`Sessions request failed with HTTP ${status}.`);
+    const list: any[] = Array.isArray(json) ? json : [];
+    return list
+      .filter((s) => s.NowPlayingItem)
+      .map((s) => {
+        const item = s.NowPlayingItem ?? {};
+        const play = s.PlayState ?? {};
+        const stream = item.MediaStreams ?? [];
+        const video = stream.find((x: any) => x.Type === 'Video');
+        const audio = stream.find((x: any) => x.Type === 'Audio');
+        return {
+          sessionId: String(s.Id),
+          userId: s.UserId ? String(s.UserId) : undefined,
+          userName: s.UserName,
+          title: [item.SeriesName, item.Name].filter(Boolean).join(' — ') || item.Name || 'Unknown',
+          mediaType: (item.Type ?? '').toLowerCase(),
+          device: s.DeviceName,
+          client: s.Client,
+          ipAddress: s.RemoteEndPoint,
+          playbackState: play.IsPaused ? 'paused' : 'playing',
+          progressPercent: pct(play.PositionTicks, item.RunTimeTicks),
+          playbackMethod: play.PlayMethod ? String(play.PlayMethod).toLowerCase() : undefined,
+          videoCodec: video?.Codec,
+          audioCodec: audio?.Codec,
+          resolution: video?.Height ? `${video.Height}p` : undefined,
+        };
+      });
+  }
 }
 
 const JELLYFIN_EMBY_CAPS: MediaServerCapabilities = {
@@ -249,6 +342,7 @@ export class JellyfinProvider implements MediaServerProvider {
   testConnection(cfg: MediaServerConfig) { return this.impl.test(cfg, 'Jellyfin'); }
   getServerInfo(cfg: MediaServerConfig) { return serverInfoFrom(this, cfg, 'Jellyfin'); }
   getLibraries(cfg: MediaServerConfig) { return this.impl.libraries(cfg); }
+  getSessions(cfg: MediaServerConfig) { return this.impl.sessions(cfg); }
   refreshLibrary(cfg: MediaServerConfig) { return this.impl.refresh(cfg); }
 }
 
@@ -259,6 +353,7 @@ export class EmbyProvider implements MediaServerProvider {
   testConnection(cfg: MediaServerConfig) { return this.impl.test(cfg, 'Emby'); }
   getServerInfo(cfg: MediaServerConfig) { return serverInfoFrom(this, cfg, 'Emby'); }
   getLibraries(cfg: MediaServerConfig) { return this.impl.libraries(cfg); }
+  getSessions(cfg: MediaServerConfig) { return this.impl.sessions(cfg); }
   refreshLibrary(cfg: MediaServerConfig) { return this.impl.refresh(cfg); }
 }
 
@@ -295,6 +390,10 @@ export class KodiProvider implements MediaServerProvider {
 
   async getLibraries(_cfg: MediaServerConfig): Promise<MediaServerLibrary[]> {
     throw new UnsupportedCapabilityError('getLibraries', this.kind);
+  }
+
+  async getSessions(_cfg: MediaServerConfig): Promise<ProviderSession[]> {
+    throw new UnsupportedCapabilityError('getSessions', this.kind);
   }
 
   async testConnection(cfg: MediaServerConfig): Promise<TestResult> {

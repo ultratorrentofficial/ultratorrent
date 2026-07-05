@@ -27,6 +27,8 @@ import {
   Gauge,
   MonitorPlay,
   Server,
+  Activity,
+  History,
   Users,
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
@@ -114,6 +116,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/release-scoring', label: 'Release Scoring', icon: Award, permission: PERMISSIONS.RELEASE_SCORING_VIEW, module: 'release_scoring' },
       { to: '/media-server-analytics', label: 'Media Server Analytics', icon: MonitorPlay, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics', end: true },
       { to: '/media-server-analytics/connections', label: 'Server Connections', icon: Server, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics' },
+      { to: '/media-server-analytics/live', label: 'Live Activity', icon: Activity, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY, module: 'media_server_analytics' },
+      { to: '/media-server-analytics/watch-history', label: 'Watch History', icon: History, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_HISTORY, module: 'media_server_analytics' },
     ],
   },
   {

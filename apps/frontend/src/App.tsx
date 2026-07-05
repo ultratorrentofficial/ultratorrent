@@ -34,6 +34,8 @@ import { DecisionSimulatorPage } from '@/pages/media-acquisition/DecisionSimulat
 import { SmartDownloadDashboardPage } from '@/pages/media-acquisition/SmartDownloadDashboardPage';
 import { MediaServerAnalyticsDashboardPage } from '@/pages/media-server-analytics/MediaServerAnalyticsDashboardPage';
 import { MediaServerConnectionsPage } from '@/pages/media-server-analytics/MediaServerConnectionsPage';
+import { LiveActivityPage } from '@/pages/media-server-analytics/LiveActivityPage';
+import { WatchHistoryPage } from '@/pages/media-server-analytics/WatchHistoryPage';
 import { ReleaseScoringPage } from '@/pages/release-scoring/ReleaseScoringPage';
 import { AutomationPage } from '@/pages/AutomationPage';
 import { FilesPage } from '@/pages/FilesPage';
@@ -274,6 +276,22 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_server_analytics">
                             <MediaServerConnectionsPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media-server-analytics/live"
+                        element={
+                          <ModuleRoute moduleId="media_server_analytics">
+                            <LiveActivityPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media-server-analytics/watch-history"
+                        element={
+                          <ModuleRoute moduleId="media_server_analytics">
+                            <WatchHistoryPage />
                           </ModuleRoute>
                         }
                       />

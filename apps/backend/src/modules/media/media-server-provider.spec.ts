@@ -81,4 +81,39 @@ describe('Plex reads', () => {
   it('getLibraries requires a token', async () => {
     await expect(new PlexProvider().getLibraries({ baseUrl: 'http://plex' })).rejects.toThrow(/token/);
   });
+
+  it('getSessions normalizes now-playing metadata', async () => {
+    mockFetch(200, {
+      MediaContainer: {
+        Metadata: [
+          {
+            Session: { id: 'sess1' },
+            User: { id: 7, title: 'alice' },
+            type: 'episode',
+            grandparentTitle: 'The Show',
+            title: 'Pilot',
+            librarySectionTitle: 'TV',
+            viewOffset: 300000,
+            duration: 600000,
+            Player: { state: 'playing', device: 'Living Room', product: 'Plex Web', address: '10.0.0.5' },
+            Media: [{ videoResolution: '1080', videoCodec: 'hevc', audioCodec: 'eac3', Part: [{ decision: 'directplay' }] }],
+          },
+        ],
+      },
+    });
+    const [s] = await new PlexProvider().getSessions({ baseUrl: 'http://plex', token: 't' });
+    expect(s).toMatchObject({
+      sessionId: 'sess1', userName: 'alice', title: 'The Show — Pilot', mediaType: 'episode',
+      libraryName: 'TV', playbackState: 'playing', progressPercent: 50, playbackMethod: 'directplay',
+      videoCodec: 'hevc', audioCodec: 'eac3', resolution: '1080',
+    });
+  });
+});
+
+describe('Kodi unsupported reads', () => {
+  it('getSessions throws UnsupportedCapabilityError', async () => {
+    await expect(new KodiProvider().getSessions({ baseUrl: 'http://kodi' })).rejects.toBeInstanceOf(
+      UnsupportedCapabilityError,
+    );
+  });
 });

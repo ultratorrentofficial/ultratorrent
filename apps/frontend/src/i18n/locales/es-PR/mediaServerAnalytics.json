@@ -3,7 +3,12 @@
     "title": "Analíticas del servidor multimedia",
     "subtitle": "Monitorea tus servidores Plex, Jellyfin, Emby y Kodi.",
     "loadError": "No se pudo cargar el panel.",
-    "widget": { "total": "Servidores", "enabled": "Habilitados", "online": "En línea", "offline": "Desconectados" },
+    "widget": {
+      "total": "Servidores",
+      "enabled": "Habilitados",
+      "online": "En línea",
+      "offline": "Desconectados"
+    },
     "connections": "Conexiones",
     "noConnections": "Aún no hay servidores conectados — agrega uno en la página de Conexiones."
   },
@@ -14,12 +19,45 @@
     "empty": "Aún no hay conexiones.",
     "test": "Probar",
     "viewLibraries": "Bibliotecas",
-    "status": { "online": "En línea", "offline": "Desconectado", "unknown": "Desconocido" },
-    "col": { "name": "Nombre", "type": "Tipo", "status": "Estado", "version": "Versión", "actions": "Acciones" },
+    "status": {
+      "online": "En línea",
+      "offline": "Desconectado",
+      "unknown": "Desconocido"
+    },
+    "col": {
+      "name": "Nombre",
+      "type": "Tipo",
+      "status": "Estado",
+      "version": "Versión",
+      "actions": "Acciones"
+    },
     "tested": "Verificación de estado completa",
     "testFailed": "Falló la verificación de estado",
     "librariesTitle": "Bibliotecas en {{name}}",
     "librariesFailed": "No se pudieron listar las bibliotecas",
     "unsupported": "Este tipo de servidor no admite listar bibliotecas."
+  },
+  "liveActivity": {
+    "title": "Actividad en vivo",
+    "subtitle": "Lo que se está reproduciendo ahora en tus servidores.",
+    "loadError": "No se pudo cargar la actividad en vivo.",
+    "empty": "Nada se está reproduciendo ahora.",
+    "refresh": "Actualizar"
+  },
+  "watchHistory": {
+    "title": "Historial de reproducción",
+    "subtitle": "Reproducciones completadas capturadas del monitoreo en vivo e importaciones.",
+    "loadError": "No se pudo cargar el historial.",
+    "empty": "Aún no hay historial de reproducción.",
+    "col": {
+      "title": "Título",
+      "user": "Usuario",
+      "library": "Biblioteca",
+      "device": "Dispositivo",
+      "method": "Método",
+      "watched": "Visto",
+      "when": "Cuándo",
+      "source": "Origen"
+    }
   }
 }

@@ -7,6 +7,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { MediaServerIntegrationService } from '../media/media-server-integration.service';
 import { MediaServerAnalyticsService } from './media-server-analytics.service';
+import { MediaServerSessionService } from './media-server-session.service';
 
 const P = PERMISSIONS;
 
@@ -23,12 +24,31 @@ export class MediaServerAnalyticsController {
   constructor(
     private readonly service: MediaServerAnalyticsService,
     private readonly integrations: MediaServerIntegrationService,
+    private readonly sessions: MediaServerSessionService,
   ) {}
 
   @Get('dashboard')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW)
   dashboard() {
     return this.service.dashboard();
+  }
+
+  // --- live activity + watch history --------------------------------------
+  @Get('live')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY)
+  live() {
+    return this.sessions.liveActivity();
+  }
+  /** Manually reconcile sessions now (the poller also runs every 30s). */
+  @Post('live/poll')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS)
+  pollLive() {
+    return this.sessions.poll();
+  }
+  @Get('watch-history')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_HISTORY)
+  watchHistory() {
+    return this.service.watchHistory();
   }
 
   // --- connections (reuse the shared integration store) -------------------

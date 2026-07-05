@@ -2752,9 +2752,49 @@ export const api = {
     libraries(id: string): Promise<MediaServerLibrariesResult> {
       return request<MediaServerLibrariesResult>(`/media-server-analytics/connections/${id}/libraries`);
     },
+    live(): Promise<MediaServerLiveSession[]> {
+      return request<MediaServerLiveSession[]>('/media-server-analytics/live');
+    },
+    watchHistory(): Promise<MediaServerWatchHistoryRow[]> {
+      return request<MediaServerWatchHistoryRow[]>('/media-server-analytics/watch-history');
+    },
   },
 
 };
+
+export interface MediaServerLiveSession {
+  id: string;
+  connectionId: string;
+  userName: string | null;
+  title: string;
+  mediaType: string | null;
+  libraryName: string | null;
+  device: string | null;
+  client: string | null;
+  playbackState: string | null;
+  progressPercent: number | null;
+  playbackMethod: string | null;
+  videoCodec: string | null;
+  audioCodec: string | null;
+  resolution: string | null;
+  startedAt: string;
+}
+
+export interface MediaServerWatchHistoryRow {
+  id: string;
+  userName: string | null;
+  title: string;
+  mediaType: string | null;
+  libraryName: string | null;
+  device: string | null;
+  client: string | null;
+  startedAt: string;
+  stoppedAt: string | null;
+  watchedSeconds: number | null;
+  percentComplete: number | null;
+  playbackMethod: string | null;
+  importSource: string | null;
+}
 
 export interface MediaServerConnectionSummary {
   id: string;

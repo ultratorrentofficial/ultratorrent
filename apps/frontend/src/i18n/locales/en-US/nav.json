@@ -37,7 +37,9 @@
     "Decision Simulator": "Decision Simulator",
     "Smart Download": "Smart Download",
     "Media Server Analytics": "Media Server Analytics",
-    "Server Connections": "Server Connections"
+    "Server Connections": "Server Connections",
+    "Live Activity": "Live Activity",
+    "Watch History": "Watch History"
   },
   "details": {
     "Account": "Account",

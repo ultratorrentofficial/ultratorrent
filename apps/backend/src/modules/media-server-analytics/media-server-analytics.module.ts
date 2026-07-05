@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MediaModule } from '../media/media.module';
 import { MediaServerAnalyticsService } from './media-server-analytics.service';
+import { MediaServerSessionService } from './media-server-session.service';
 import { MediaServerAnalyticsController } from './media-server-analytics.controller';
 
 /**
@@ -11,7 +12,7 @@ import { MediaServerAnalyticsController } from './media-server-analytics.control
  */
 @Module({
   imports: [MediaModule],
-  providers: [MediaServerAnalyticsService],
+  providers: [MediaServerAnalyticsService, MediaServerSessionService],
   controllers: [MediaServerAnalyticsController],
 })
 export class MediaServerAnalyticsModule {}

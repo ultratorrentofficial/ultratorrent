@@ -14,6 +14,7 @@ import {
   MediaServerConfig,
   MediaServerKind,
   MediaServerLibrary,
+  ProviderSession,
   UnsupportedCapabilityError,
 } from './media-server-provider';
 
@@ -314,6 +315,24 @@ export class MediaServerIntegrationService {
         return { supported: false, message: err.message, libraries: [] };
       }
       throw new BadRequestException(`Listing libraries failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Now-playing sessions for a saved integration. Unsupported providers (Kodi)
+   * return `{ supported: false }` rather than throwing.
+   */
+  async sessions(id: string): Promise<{ supported: boolean; message?: string; sessions: ProviderSession[] }> {
+    const row = await this.load(id);
+    const provider = getMediaServerProvider(row.kind);
+    const cfg = this.decryptConfig((row.config as Record<string, unknown>) ?? {});
+    try {
+      return { supported: true, sessions: await provider.getSessions(cfg) };
+    } catch (err) {
+      if (err instanceof UnsupportedCapabilityError) {
+        return { supported: false, message: err.message, sessions: [] };
+      }
+      throw new BadRequestException(`Fetching sessions failed: ${(err as Error).message}`);
     }
   }
 }

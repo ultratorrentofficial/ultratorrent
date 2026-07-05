@@ -3,7 +3,12 @@
     "title": "Media Server Analytics",
     "subtitle": "Monitor your Plex, Jellyfin, Emby and Kodi servers.",
     "loadError": "Could not load the dashboard.",
-    "widget": { "total": "Servers", "enabled": "Enabled", "online": "Online", "offline": "Offline" },
+    "widget": {
+      "total": "Servers",
+      "enabled": "Enabled",
+      "online": "Online",
+      "offline": "Offline"
+    },
     "connections": "Connections",
     "noConnections": "No media servers connected yet — add one on the Connections page."
   },
@@ -14,12 +19,45 @@
     "empty": "No connections yet.",
     "test": "Test",
     "viewLibraries": "Libraries",
-    "status": { "online": "Online", "offline": "Offline", "unknown": "Unknown" },
-    "col": { "name": "Name", "type": "Type", "status": "Status", "version": "Version", "actions": "Actions" },
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "unknown": "Unknown"
+    },
+    "col": {
+      "name": "Name",
+      "type": "Type",
+      "status": "Status",
+      "version": "Version",
+      "actions": "Actions"
+    },
     "tested": "Health check complete",
     "testFailed": "Health check failed",
     "librariesTitle": "Libraries on {{name}}",
     "librariesFailed": "Could not list libraries",
     "unsupported": "This server type does not support listing libraries."
+  },
+  "liveActivity": {
+    "title": "Live Activity",
+    "subtitle": "What is playing right now across your servers.",
+    "loadError": "Could not load live activity.",
+    "empty": "Nothing is playing right now.",
+    "refresh": "Refresh"
+  },
+  "watchHistory": {
+    "title": "Watch History",
+    "subtitle": "Completed playback captured from live monitoring and imports.",
+    "loadError": "Could not load watch history.",
+    "empty": "No watch history yet.",
+    "col": {
+      "title": "Title",
+      "user": "User",
+      "library": "Library",
+      "device": "Device",
+      "method": "Method",
+      "watched": "Watched",
+      "when": "When",
+      "source": "Source"
+    }
   }
 }

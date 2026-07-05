@@ -690,6 +690,61 @@ model MediaServerIntegration {
   @@map("media_server_integrations")
 }
 
+/// A live now-playing session snapshot, reconciled by the analytics poller.
+model MediaServerSession {
+  id                String   @id @default(uuid())
+  connectionId      String
+  providerSessionId String
+  providerUserId    String?
+  userName          String?
+  title             String
+  mediaType         String?
+  libraryName       String?
+  device            String?
+  client            String?
+  ipAddress         String?
+  playbackState     String?
+  progressPercent   Int?
+  playbackMethod    String?
+  videoCodec        String?
+  audioCodec        String?
+  resolution        String?
+  startedAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([connectionId, providerSessionId])
+  @@index([connectionId])
+  @@map("media_server_sessions")
+}
+
+/// Completed playback — recorded when a session ends, or imported (Tautulli).
+model MediaServerWatchHistory {
+  id              String    @id @default(uuid())
+  connectionId    String?
+  importSourceId  String?
+  providerUserId  String?
+  userName        String?
+  title           String
+  mediaType       String?
+  libraryName     String?
+  device          String?
+  client          String?
+  ipAddress       String?
+  startedAt       DateTime
+  stoppedAt       DateTime?
+  watchedSeconds  Int?
+  percentComplete Int?
+  playbackMethod  String?
+  importSource    String?
+  importedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([connectionId])
+  @@index([providerUserId])
+  @@index([startedAt])
+  @@map("media_server_watch_history")
+}
+
 model MediaNfoFile {
   id          String   @id @default(uuid())
   itemId      String

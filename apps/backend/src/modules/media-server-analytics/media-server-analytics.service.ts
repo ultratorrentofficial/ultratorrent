@@ -43,6 +43,14 @@ export class MediaServerAnalyticsService {
     return found;
   }
 
+  /** Completed playback, most recent first. */
+  watchHistory(limit = 200) {
+    return this.prisma.mediaServerWatchHistory.findMany({
+      orderBy: { startedAt: 'desc' },
+      take: Math.min(limit, 500),
+    });
+  }
+
   /** Safe projection — never includes the encrypted `config` blob. */
   private safe(s: {
     id: string; name: string; kind: string; isEnabled: boolean; isDefault: boolean;
