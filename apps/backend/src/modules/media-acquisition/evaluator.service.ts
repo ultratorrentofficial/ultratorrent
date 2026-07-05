@@ -11,6 +11,7 @@ import {
   decide,
 } from './decision.engine';
 import { SmartDownloadExecutorService } from './smart-download-executor.service';
+import { compareQuality } from './quality-compare';
 
 export interface EvaluateInput {
   releaseName: string;
@@ -33,7 +34,6 @@ const DOWNLOAD_INTENT: AcquisitionDecision[] = [
   'hold_for_approval',
 ];
 
-const RES_RANK: Record<string, number> = { '2160p': 4, '1080p': 3, '720p': 2, '480p': 1 };
 const arr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
 
 /**
@@ -74,7 +74,7 @@ export class AcquisitionEvaluatorService {
     });
 
     // --- library state + duplicate risk -------------------------------------
-    const owned = await this.libraryState(parsed, score.parsed.resolution);
+    const owned = await this.libraryState(parsed, input.releaseName);
     // A gap is only "needed" if it is WANTED (on the watchlist) and missing. A
     // random release that simply isn't in the library is NOT a tracked gap.
     const needed = watchlist.matched && !owned.owned;
@@ -113,7 +113,8 @@ export class AcquisitionEvaluatorService {
         priority: watchlist.item?.priority ?? 100,
         confidence: result.confidence,
         requiresApproval: result.requiresApproval,
-        approvalStatus: result.requiresApproval ? 'pending' : 'not_required',
+        approvalStatus:
+          result.decision === 'wait' ? 'waiting' : result.requiresApproval ? 'pending' : 'not_required',
         trace: { steps: result.trace } as unknown as object,
       },
     });
@@ -163,7 +164,7 @@ export class AcquisitionEvaluatorService {
   }
 
   /** Whether this exact release is already in the library, and at what quality. */
-  private async libraryState(parsed: { title?: string | null; season?: number | null; episode?: number | null; year?: number | null }, candidateRes: string | null) {
+  private async libraryState(parsed: { title?: string | null; season?: number | null; episode?: number | null; year?: number | null }, candidateTitle: string) {
     if (!parsed.title) return { owned: false, ambiguous: true, reason: 'unparseable title', ownedTorrentHash: null as string | null };
     const title = parsed.title;
     const marker =
@@ -181,14 +182,15 @@ export class AcquisitionEvaluatorService {
     const ownedRow = marker ? existing.find((s) => s.name.toLowerCase().includes(marker)) : existing[0];
     if (!ownedRow) return { owned: false, reason: marker ? `${marker} not in library` : 'not in library', ownedTorrentHash: null as string | null };
 
-    const ownedRes = this.detectResolution(ownedRow.name);
-    const newIsBetter = this.resRank(candidateRes) > this.resRank(ownedRes);
+    // Multi-dimensional comparison (resolution/source/HDR/audio), not just resolution.
+    const cmp = compareQuality(candidateTitle, ownedRow.name);
     return {
       owned: true,
-      newIsBetter,
-      ownedResolution: ownedRes,
+      newIsBetter: cmp.better,
+      ownedResolution: this.detectResolution(ownedRow.name),
       ownedTorrentHash: ownedRow.hash as string | null,
-      reason: newIsBetter ? 'owned, lower quality' : 'owned in equal/better quality',
+      upgradeReasons: cmp.reasons,
+      reason: cmp.better ? `owned, lower quality (${cmp.reasons.join(', ')})` : 'owned in equal/better quality',
     };
   }
 
@@ -202,9 +204,6 @@ export class AcquisitionEvaluatorService {
     const m = /\b(2160p|1080p|720p|480p)\b/i.exec(name);
     return m ? m[1].toLowerCase() : null;
   }
-  private resRank(res: string | null): number {
-    return res ? (RES_RANK[res.toLowerCase()] ?? 0) : 0;
-  }
 
   private async resolveProfile(profileId?: string) {
     if (profileId) {
@@ -216,10 +215,11 @@ export class AcquisitionEvaluatorService {
 
   private toDecisionProfile(p: {
     minimumScore?: number; approvalScore?: number; excludedTerms?: unknown; requiredTerms?: unknown;
-    duplicateRules?: unknown; automationRules?: unknown;
+    duplicateRules?: unknown; automationRules?: unknown; qualityRules?: unknown;
   } | null): DecisionProfile {
     const dup = (p?.duplicateRules ?? {}) as { allowUpgrades?: boolean };
     const auto = (p?.automationRules ?? {}) as { approvalRequired?: boolean };
+    const qual = (p?.qualityRules ?? {}) as { waitForBetter?: boolean; waitUntilScore?: number };
     return {
       minimumScore: p?.minimumScore ?? 0,
       approvalScore: p?.approvalScore ?? 0,
@@ -227,6 +227,8 @@ export class AcquisitionEvaluatorService {
       requiredTerms: arr(p?.requiredTerms),
       allowUpgrades: dup.allowUpgrades ?? true,
       approvalRequired: auto.approvalRequired ?? false,
+      waitForBetter: qual.waitForBetter ?? false,
+      waitUntilScore: qual.waitUntilScore ?? 0,
     };
   }
 
@@ -238,6 +240,7 @@ export class AcquisitionEvaluatorService {
     this.realtime.broadcast('media_acquisition.evaluation.created', { id, decision });
     if (approval) this.realtime.broadcast('media_acquisition.approval.required', { id });
     else if (decision === 'download' || decision === 'upgrade_existing') this.realtime.broadcast('media_acquisition.download.recommended', { id, decision });
+    else if (decision === 'wait') this.realtime.broadcast('media_acquisition.waiting', { id });
     else if (decision === 'skip') this.realtime.broadcast('media_acquisition.download.skipped', { id });
   }
 }

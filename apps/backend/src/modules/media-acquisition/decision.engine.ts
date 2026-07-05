@@ -5,6 +5,7 @@ export const MEDIA_ACQUISITION_MODULE_ID = MODULE_IDS.MEDIA_ACQUISITION_INTELLIG
 export type AcquisitionDecision =
   | 'download'
   | 'skip'
+  | 'wait'
   | 'hold_for_approval'
   | 'upgrade_existing'
   | 'replace_existing'
@@ -17,6 +18,10 @@ export interface DecisionProfile {
   requiredTerms: string[];
   allowUpgrades: boolean;
   approvalRequired: boolean; // profile forces approval
+  /** Hold an acceptable-but-mediocre release, waiting for a better one. */
+  waitForBetter: boolean;
+  /** When waitForBetter is on, a new download scoring below this waits. */
+  waitUntilScore: number;
 }
 
 export interface DecisionSignals {
@@ -117,6 +122,13 @@ export function decide(signals: DecisionSignals, profile: DecisionProfile): Deci
   if (!signals.storage.ok) {
     add({ step: 'storage', status: 'blocked', reason: 'storage rule blocks acquisition' });
     return final('skip', 'Storage rules block this acquisition', 80, false, trace, add);
+  }
+
+  // 7b) Wait-for-better: a fresh, acceptable-but-mediocre release is held so a
+  // higher-quality one can be preferred instead of grabbing this one now.
+  if (profile.waitForBetter && !signals.library.owned && signals.score.value < profile.waitUntilScore) {
+    add({ step: 'wait_policy', status: 'info', reason: `score ${signals.score.value} < wait cutoff ${profile.waitUntilScore}` });
+    return final('wait', `Waiting for a better release (score ${signals.score.value} < ${profile.waitUntilScore})`, 60, false, trace, add);
   }
 
   // 8) Approval triggers → hold.

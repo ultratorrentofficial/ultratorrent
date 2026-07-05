@@ -7,6 +7,8 @@ const profile = (over: Partial<DecisionProfile> = {}): DecisionProfile => ({
   requiredTerms: [],
   allowUpgrades: true,
   approvalRequired: false,
+  waitForBetter: false,
+  waitUntilScore: 0,
   ...over,
 });
 
@@ -27,6 +29,24 @@ describe('decide (explainable acquisition)', () => {
     expect(r.requiresApproval).toBe(false);
     expect(r.trace.some((s) => s.step === 'final_decision' && s.decision === 'download')).toBe(true);
     expect(r.trace.map((s) => s.step)).toEqual(expect.arrayContaining(['release_scoring', 'watchlist_match', 'library_need']));
+  });
+
+  it('waits for a better release when below the wait cutoff', () => {
+    const r = decide(
+      signals({ score: { value: 70, warnings: [], rejected: false } }),
+      profile({ waitForBetter: true, waitUntilScore: 90 }),
+    );
+    expect(r.decision).toBe('wait');
+    expect(r.requiresApproval).toBe(false);
+    expect(r.reason).toMatch(/Waiting for a better release/);
+  });
+
+  it('downloads (no wait) once at or above the wait cutoff', () => {
+    const r = decide(
+      signals({ score: { value: 95, warnings: [], rejected: false } }),
+      profile({ waitForBetter: true, waitUntilScore: 90 }),
+    );
+    expect(r.decision).toBe('download');
   });
 
   it('skips when already owned in equal/better quality', () => {

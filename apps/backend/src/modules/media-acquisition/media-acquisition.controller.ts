@@ -125,6 +125,18 @@ export class MediaAcquisitionController {
     return this.service.getEvaluation(id);
   }
 
+  // --- queues -------------------------------------------------------------
+  @Get('waiting')
+  @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
+  waiting() {
+    return this.service.waiting();
+  }
+  @Get('upgrades')
+  @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
+  upgrades() {
+    return this.service.upgrades();
+  }
+
   // --- approval queue -----------------------------------------------------
   @Get('approval-queue')
   @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)

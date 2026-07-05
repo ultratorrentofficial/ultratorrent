@@ -49,6 +49,30 @@ export class MediaAcquisitionService {
     return ev;
   }
 
+  /** Waiting queue: releases held while a better one is awaited. */
+  waiting() {
+    return this.prisma.mediaAcquisitionEvaluation.findMany({
+      where: { decision: 'wait' },
+      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+      take: 200,
+    });
+  }
+
+  /** Upgrade queue: upgrade decisions whose download hasn't completed yet. */
+  async upgrades() {
+    const evals = await this.prisma.mediaAcquisitionEvaluation.findMany({
+      where: { decision: { in: ['upgrade_existing', 'replace_existing'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: { actions: true },
+    });
+    // Surface whether the upgrade has been executed (an action completed).
+    return evals.map((e) => ({
+      ...e,
+      upgradeStatus: e.actions?.some((a) => a.status === 'completed') ? 'completed' : 'pending',
+    }));
+  }
+
   history(limit = 100) {
     return this.prisma.mediaAcquisitionHistory.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(limit, 500) });
   }

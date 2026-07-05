@@ -322,6 +322,7 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
       'media_acquisition.download.failed',
       'media_acquisition.upgrade.completed',
       'media_acquisition.missing_movies.scan.completed',
+      'media_acquisition.waiting',
     ],
     schedulerJobs: ['media_acquisition_rss_sweep', 'media_acquisition_watchlist_sweep', 'media_acquisition_quality_upgrade_sweep'],
     settingsSections: ['media-acquisition'],
