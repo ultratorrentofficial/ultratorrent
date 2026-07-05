@@ -192,5 +192,15 @@
     "validateFail": "Falló la validación de datasets",
     "resetDone": "Datos de IMDb reiniciados ({{count}} títulos borrados); reimportación iniciada.",
     "resetFailed": "No se pudieron reiniciar los datos de IMDb"
+  },
+  "danger": {
+    "title": "Zona de peligro",
+    "description": "Acciones irreversibles. Úsalas si se importó el dataset equivocado.",
+    "wipeLabel": "Borrar todos los datos de IMDb importados",
+    "wipeHint": "Elimina los {{count}} títulos importados junto con sus calificaciones, títulos alternativos, equipo y personas. No reimporta.",
+    "wipeBtn": "Borrar datos de IMDb",
+    "wipeConfirm": "¿Eliminar permanentemente los {{count}} títulos de IMDb importados y sus datos relacionados? Esto no se puede deshacer.",
+    "wiped": "Datos de IMDb borrados ({{count}} títulos eliminados).",
+    "wipeFailed": "No se pudieron borrar los datos de IMDb"
   }
 }

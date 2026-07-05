@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { WS_EVENTS, type ImdbEventPayload } from '@ultratorrent/shared';
 import {
   Activity,
+  AlertTriangle,
   Database,
   Film,
   Plug,
@@ -12,6 +13,7 @@ import {
   Save,
   ShieldCheck,
   SlidersHorizontal,
+  Trash2,
   Upload,
   Square,
 } from 'lucide-react';
@@ -154,6 +156,7 @@ export function MediaImdbSettingsPage() {
       />
       <OfficialApiSection settings={settingsQuery.data} canConfigure={canConfigure} />
       <MatchingPreferencesSection settings={settingsQuery.data} canConfigure={canConfigure} />
+      {canImport && <DangerZoneSection status={statusQuery.data} />}
     </div>
   );
 }
@@ -420,6 +423,60 @@ function OptStat({ label, value }: { label: string; value: string }) {
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="font-semibold tabular-nums">{value}</p>
     </div>
+  );
+}
+
+/**
+ * Danger zone: irreversibly wipe every imported IMDb row (titles, ratings,
+ * akas, crew, episodes, principals, people) — the escape hatch for when the
+ * wrong dataset was imported. Unlike "Reset & reimport", this does NOT kick off
+ * a fresh import; it just clears the data.
+ */
+function DangerZoneSection({ status }: { status: ImdbStatus }) {
+  const { t } = useTranslation('imdb');
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const wipe = useMutation({
+    mutationFn: () => api.media.resetImdbData(false),
+    onSuccess: (r) => {
+      toast.success(t('danger.wiped', { count: r.clearedTitles }));
+      queryClient.invalidateQueries({ queryKey: ['media', 'imdb'] });
+    },
+    onError: (e) => toast.error(t('danger.wipeFailed'), e instanceof ApiError ? e.message : undefined),
+  });
+
+  return (
+    <Card className="border-destructive/40">
+      <CardContent className="space-y-4 p-5">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <div>
+            <h2 className="text-base font-semibold text-destructive">{t('danger.title')}</h2>
+            <p className="text-sm text-muted-foreground">{t('danger.description')}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+          <div>
+            <p className="text-sm font-medium">{t('danger.wipeLabel')}</p>
+            <p className="text-xs text-muted-foreground">
+              {t('danger.wipeHint', { count: status.datasetTitleCount })}
+            </p>
+          </div>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              if (window.confirm(t('danger.wipeConfirm', { count: status.datasetTitleCount }))) {
+                wipe.mutate();
+              }
+            }}
+            loading={wipe.isPending}
+          >
+            <Trash2 className="h-4 w-4" /> {t('danger.wipeBtn')}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

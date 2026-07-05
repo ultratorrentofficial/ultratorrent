@@ -192,5 +192,15 @@
     "validateFail": "Dataset validation failed",
     "resetDone": "IMDb data reset ({{count}} titles cleared); reimport started.",
     "resetFailed": "Could not reset IMDb data"
+  },
+  "danger": {
+    "title": "Danger zone",
+    "description": "Irreversible actions. Use if the wrong dataset was imported.",
+    "wipeLabel": "Wipe all imported IMDb data",
+    "wipeHint": "Deletes all {{count}} imported titles plus their ratings, alternate titles, crew and people. Does not reimport.",
+    "wipeBtn": "Wipe IMDb data",
+    "wipeConfirm": "Permanently delete all {{count}} imported IMDb titles and related data? This cannot be undone.",
+    "wiped": "IMDb data wiped ({{count}} titles cleared).",
+    "wipeFailed": "Could not wipe IMDb data"
   }
 }
