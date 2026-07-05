@@ -1,6 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
+import { promises as fs } from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { parseSubtitleFilename } from './media-subtitle.service';
 import {
+  MediaArtworkService,
   validateArtworkUpload,
   sniffImageMime,
   MAX_ARTWORK_BYTES,
@@ -297,5 +301,93 @@ describe('parseNfoXml', () => {
     expect(parsed.overview).toBe('Cops & robbers');
     expect(parsed.year).toBe(1995);
     expect(parsed.genres).toEqual(['Crime', 'Drama']);
+  });
+
+  it('extracts external ids from <imdbid>/<tmdbid> and <uniqueid>', () => {
+    const a = parseNfoXml('<movie><imdbid>tt0113277</imdbid><tmdbid>949</tmdbid></movie>');
+    expect(a.externalIds).toEqual({ imdb: 'tt0113277', tmdb: '949' });
+    const b = parseNfoXml(
+      '<movie><uniqueid type="imdb">tt0113277</uniqueid><uniqueid type="tmdb">949</uniqueid></movie>',
+    );
+    expect(b.externalIds).toEqual({ imdb: 'tt0113277', tmdb: '949' });
+  });
+
+  it('extracts original title, directors, writers and cast', () => {
+    const parsed = parseNfoXml(
+      '<movie><originaltitle>Heat</originaltitle><director>Michael Mann</director>' +
+        '<credits>Michael Mann</credits>' +
+        '<actor><name>Al Pacino</name><role>Vincent Hanna</role></actor>' +
+        '<actor><name>Robert De Niro</name></actor></movie>',
+    );
+    expect(parsed.originalTitle).toBe('Heat');
+    expect(parsed.directors).toEqual(['Michael Mann']);
+    expect(parsed.writers).toEqual(['Michael Mann']);
+    expect(parsed.cast).toEqual([
+      { name: 'Al Pacino', role: 'Vincent Hanna' },
+      { name: 'Robert De Niro' },
+    ]);
+  });
+});
+
+describe('MediaArtworkService.importLocal — sidecar artwork detection', () => {
+  async function fixture(knownRelPaths: string[] = []) {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ut-sidecar-'));
+    const dir = path.join(root, 'Heat (1995)');
+    await fs.mkdir(dir, { recursive: true });
+    const video = path.join(dir, 'Heat (1995).mkv');
+    for (const name of [
+      'Heat (1995).mkv',
+      'poster.jpg', // → poster
+      'fanart.jpg', // → fanart
+      'Heat (1995)-banner.png', // → banner (basename-suffixed)
+      'notes.jpg', // unrecognised name → ignored
+      'info.txt', // non-image → ignored
+    ]) {
+      await fs.writeFile(path.join(dir, name), 'x');
+    }
+    // Pre-existing artwork rows, keyed by localPath (type/selected drive dedup).
+    const existingArtwork = knownRelPaths.map((rel) => ({
+      type: 'poster',
+      localPath: path.join(dir, rel),
+      selected: true,
+    }));
+    const created: any[] = [];
+    const prisma = {
+      mediaItem: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'item1',
+          files: [{ path: video }],
+          artwork: existingArtwork,
+        }),
+      },
+      mediaArtwork: {
+        create: jest.fn(async ({ data }: any) => {
+          created.push(data);
+          return data;
+        }),
+      },
+    } as any;
+    const filePath = { assertWithinHardRoots: (p: string) => p, hardRoots: [root] } as any;
+    const svc = new MediaArtworkService(prisma, filePath, {} as any, {} as any);
+    return { svc, created, dir, root };
+  }
+
+  it('imports poster/fanart/basename-suffixed art in place, one selected per type', async () => {
+    const { svc, created, dir, root } = await fixture();
+    const count = await svc.importLocal('item1');
+    expect(count).toBe(3);
+    const byType = Object.fromEntries(created.map((c) => [c.type, c]));
+    expect(Object.keys(byType).sort()).toEqual(['banner', 'fanart', 'poster']);
+    expect(created.every((c) => c.source === 'local' && c.selected === true)).toBe(true);
+    expect(byType.poster.localPath).toBe(path.join(dir, 'poster.jpg'));
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  it('skips artwork whose localPath is already recorded (idempotent)', async () => {
+    const { svc, created, root } = await fixture(['poster.jpg']);
+    const count = await svc.importLocal('item1');
+    expect(count).toBe(2); // poster already known → only fanart + banner
+    expect(created.map((c) => c.type).sort()).toEqual(['banner', 'fanart']);
+    await fs.rm(root, { recursive: true, force: true });
   });
 });

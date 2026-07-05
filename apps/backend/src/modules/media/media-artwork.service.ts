@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { mkdir, writeFile, stat } from 'node:fs/promises';
+import { mkdir, writeFile, stat, readdir } from 'node:fs/promises';
 import { createReadStream, type ReadStream } from 'node:fs';
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -44,6 +44,39 @@ const ARTWORK_CONTENT_TYPES: Record<string, string> = {
 };
 
 export const MAX_ARTWORK_BYTES = 10 * 1024 * 1024; // 10 MB
+
+/** Image extensions recognised for on-disk sidecar artwork. */
+const SIDECAR_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+
+/** Directory-level sidecar artwork basenames (Kodi/Jellyfin) → artwork type. */
+const DIR_ARTWORK_NAMES: Record<string, ArtworkType> = {
+  poster: 'poster',
+  folder: 'poster',
+  cover: 'poster',
+  default: 'poster',
+  fanart: 'fanart',
+  backdrop: 'fanart',
+  background: 'fanart',
+  art: 'fanart',
+  banner: 'banner',
+  logo: 'logo',
+  clearlogo: 'logo',
+  clearart: 'clearart',
+  landscape: 'thumbnail',
+  thumb: 'thumbnail',
+};
+
+/** `<video-basename>-<suffix>.<ext>` sidecar artwork → artwork type. */
+const SUFFIX_ARTWORK_NAMES: Record<string, ArtworkType> = {
+  poster: 'poster',
+  fanart: 'fanart',
+  banner: 'banner',
+  logo: 'logo',
+  clearlogo: 'logo',
+  clearart: 'clearart',
+  landscape: 'thumbnail',
+  thumb: 'thumbnail',
+};
 
 const MIME_EXT: Record<string, string> = {
   'image/png': 'png',
@@ -156,6 +189,90 @@ export class MediaArtworkService {
     const item = await this.prisma.mediaItem.findUnique({ where: { id: itemId } });
     if (!item) throw new NotFoundException('Item not found');
     return item;
+  }
+
+  /**
+   * Import artwork that already sits next to the item's media file — Kodi/
+   * Jellyfin sidecars like `poster.jpg`, `fanart.jpg`, `folder.jpg`, and
+   * `<video-name>-poster.jpg`. Files are referenced in place (their on-disk
+   * path becomes `localPath`, `source: 'local'`) rather than copied, exactly
+   * like subtitle sidecars. Idempotent per `localPath`; a type is auto-selected
+   * only when nothing of that type is selected yet, so operator choices stand.
+   * Returns the number of new artwork rows created.
+   */
+  async importLocal(itemId: string): Promise<number> {
+    const item = await this.prisma.mediaItem.findUnique({
+      where: { id: itemId },
+      include: { files: true, artwork: true },
+    });
+    if (!item) return 0;
+
+    const known = new Set(
+      item.artwork.map((a) => a.localPath).filter((p): p is string => Boolean(p)),
+    );
+    const selectedTypes = new Set(item.artwork.filter((a) => a.selected).map((a) => a.type));
+
+    const dirs = new Set<string>();
+    const basenames = new Set<string>();
+    for (const f of item.files) {
+      dirs.add(path.dirname(f.path));
+      basenames.add(path.basename(f.path, path.extname(f.path)).toLowerCase());
+    }
+
+    // Collect candidate {localPath -> type}, de-duplicated across files/dirs.
+    const candidates = new Map<string, ArtworkType>();
+    for (const dir of dirs) {
+      let safeDir: string;
+      try {
+        safeDir = this.filePath.assertWithinHardRoots(dir);
+      } catch {
+        continue; // outside the storage roots — skip
+      }
+      let entries: import('node:fs').Dirent[];
+      try {
+        entries = await readdir(safeDir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        const ext = path.extname(entry.name).toLowerCase();
+        if (!SIDECAR_IMAGE_EXTS.has(ext)) continue;
+        const name = path.basename(entry.name, ext).toLowerCase();
+        const type = this.classifySidecarArtwork(name, basenames);
+        if (!type) continue;
+        const full = path.join(safeDir, entry.name);
+        if (known.has(full) || candidates.has(full)) continue;
+        candidates.set(full, type);
+      }
+    }
+
+    let created = 0;
+    for (const [localPath, type] of candidates) {
+      const selected = !selectedTypes.has(type);
+      await this.prisma.mediaArtwork.create({
+        data: { itemId, type, localPath, source: 'local', selected },
+      });
+      if (selected) selectedTypes.add(type);
+      created++;
+    }
+    return created;
+  }
+
+  /** Map a sidecar image basename to an artwork type, or null if unrecognised. */
+  private classifySidecarArtwork(
+    name: string,
+    videoBasenames: Set<string>,
+  ): ArtworkType | null {
+    const direct = DIR_ARTWORK_NAMES[name];
+    if (direct) return direct;
+    for (const base of videoBasenames) {
+      if (name.startsWith(`${base}-`)) {
+        const suffix = name.slice(base.length + 1);
+        if (SUFFIX_ARTWORK_NAMES[suffix]) return SUFFIX_ARTWORK_NAMES[suffix];
+      }
+    }
+    return null;
   }
 
   /**

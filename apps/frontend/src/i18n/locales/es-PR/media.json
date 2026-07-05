@@ -97,6 +97,7 @@
     "scanCompleteTitle": "Escaneo completo",
     "scanCompleteBody_one": "{{scanned}} escaneados · {{added}} agregados · {{updated}} actualizados en {{count}} biblioteca.",
     "scanCompleteBody_other": "{{scanned}} escaneados · {{added}} agregados · {{updated}} actualizados en {{count}} bibliotecas.",
+    "scanEnriched": "{{artwork}} carátulas · {{metadata}} metadatos importados",
     "scanFailed": "Falló el escaneo",
     "stat": {
       "total": "Elementos totales",
@@ -134,6 +135,7 @@
     "deleteAria": "Eliminar",
     "scannedToast": "Escaneada “{{name}}”",
     "scanResult": "{{scanned}} escaneados · {{added}} agregados · {{updated}} actualizados.",
+    "scanEnriched": "{{artwork}} carátulas · {{metadata}} metadatos importados",
     "scanFailed": "Falló el escaneo",
     "deleteConfirm": "¿Eliminar la biblioteca \"{{name}}\"? También se eliminan los elementos escaneados de esta biblioteca.",
     "deletedTitle": "Biblioteca eliminada",

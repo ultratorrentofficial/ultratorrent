@@ -83,9 +83,18 @@ export function MediaLibrariesPage() {
     setScanningId(lib.id);
     try {
       const res = await api.media.scanLibrary(lib.id);
+      const enriched =
+        res.artworkImported + res.metadataImported > 0
+          ? ' · ' +
+            t('libraries.scanEnriched', {
+              artwork: res.artworkImported,
+              metadata: res.metadataImported,
+            })
+          : '';
       toast.success(
         t('libraries.scannedToast', { name: lib.name }),
-        t('libraries.scanResult', { scanned: res.scanned, added: res.added, updated: res.updated }),
+        t('libraries.scanResult', { scanned: res.scanned, added: res.added, updated: res.updated }) +
+          enriched,
       );
       invalidate();
     } catch (err) {

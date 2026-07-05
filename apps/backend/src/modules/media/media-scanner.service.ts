@@ -4,6 +4,8 @@ import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { parseTorrentName } from '../rss/torrent-name-parser';
+import { MediaArtworkService } from './media-artwork.service';
+import { MediaMetadataService } from './media-metadata.service';
 
 /** Technical fields derived from a release filename for a MediaFile row. */
 export interface MediaFileTechInfo {
@@ -54,6 +56,10 @@ export interface ScanSummary {
   scanned: number;
   added: number;
   updated: number;
+  /** On-disk sidecar artwork files imported during this scan. */
+  artworkImported: number;
+  /** Items whose local .nfo metadata was imported during this scan. */
+  metadataImported: number;
 }
 
 /**
@@ -67,6 +73,8 @@ export class MediaScannerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly filePath: FilePathService,
+    private readonly artwork: MediaArtworkService,
+    private readonly metadata: MediaMetadataService,
   ) {}
 
   async scanLibrary(libraryId: string): Promise<ScanSummary> {
@@ -81,6 +89,7 @@ export class MediaScannerService {
     const files = await this.walk(root);
     let added = 0;
     let updated = 0;
+    const itemIds: string[] = [];
 
     for (const file of files) {
       const existing = await this.prisma.mediaItem.findFirst({
@@ -103,10 +112,11 @@ export class MediaScannerService {
           },
           update: { size: BigInt(file.size), ...tech },
         });
+        itemIds.push(existing.id);
         updated++;
       } else {
         const title = path.basename(file.path, path.extname(file.path));
-        await this.prisma.mediaItem.create({
+        const created = await this.prisma.mediaItem.create({
           data: {
             libraryId,
             mediaType: this.defaultMediaType(library.kind),
@@ -121,16 +131,60 @@ export class MediaScannerService {
             },
           },
         });
+        itemIds.push(created.id);
         added++;
       }
     }
+
+    const { artworkImported, metadataImported } = await this.importSidecars(
+      itemIds,
+      library.artworkEnabled,
+    );
 
     await this.prisma.mediaLibrary.update({
       where: { id: libraryId },
       data: { lastScanAt: new Date() },
     });
 
-    return { libraryId, scanned: files.length, added, updated };
+    return { libraryId, scanned: files.length, added, updated, artworkImported, metadataImported };
+  }
+
+  /**
+   * Import artwork + `.nfo` metadata that already sit next to the scanned media,
+   * skipping items already fully enriched (have metadata AND artwork) so a
+   * re-scan doesn't re-read every directory. Best-effort per item — one bad
+   * sidecar never fails the scan. Artwork import honours the library flag.
+   */
+  private async importSidecars(
+    itemIds: string[],
+    artworkEnabled: boolean,
+  ): Promise<{ artworkImported: number; metadataImported: number }> {
+    let artworkImported = 0;
+    let metadataImported = 0;
+    if (itemIds.length === 0) return { artworkImported, metadataImported };
+
+    const enriched = await this.prisma.mediaItem.findMany({
+      where: { id: { in: itemIds }, metadata: { isNot: null }, artwork: { some: {} } },
+      select: { id: true },
+    });
+    const skip = new Set(enriched.map((r) => r.id));
+
+    for (const id of itemIds) {
+      if (skip.has(id)) continue;
+      if (artworkEnabled) {
+        try {
+          artworkImported += await this.artwork.importLocal(id);
+        } catch (err) {
+          this.logger.warn(`Sidecar artwork import failed for ${id}: ${(err as Error).message}`);
+        }
+      }
+      try {
+        if (await this.metadata.importLocalNfo(id)) metadataImported++;
+      } catch (err) {
+        this.logger.warn(`Sidecar NFO import failed for ${id}: ${(err as Error).message}`);
+      }
+    }
+    return { artworkImported, metadataImported };
   }
 
   private defaultMediaType(kind: string): string {

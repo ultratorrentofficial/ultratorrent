@@ -97,6 +97,7 @@
     "scanCompleteTitle": "Scan complete",
     "scanCompleteBody_one": "{{scanned}} scanned · {{added}} added · {{updated}} updated across {{count}} library.",
     "scanCompleteBody_other": "{{scanned}} scanned · {{added}} added · {{updated}} updated across {{count}} libraries.",
+    "scanEnriched": "{{artwork}} artwork · {{metadata}} metadata imported",
     "scanFailed": "Scan failed",
     "stat": {
       "total": "Total items",
@@ -134,6 +135,7 @@
     "deleteAria": "Delete",
     "scannedToast": "Scanned “{{name}}”",
     "scanResult": "{{scanned}} scanned · {{added}} added · {{updated}} updated.",
+    "scanEnriched": "{{artwork}} artwork · {{metadata}} metadata imported",
     "scanFailed": "Scan failed",
     "deleteConfirm": "Delete library \"{{name}}\"? Scanned items for this library are removed too.",
     "deletedTitle": "Library deleted",

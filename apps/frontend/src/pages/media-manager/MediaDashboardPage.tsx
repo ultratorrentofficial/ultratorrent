@@ -55,16 +55,24 @@ export function MediaDashboardPage() {
     let scanned = 0;
     let added = 0;
     let updated = 0;
+    let artworkImported = 0;
+    let metadataImported = 0;
     try {
       for (const lib of libs) {
         const res = await api.media.scanLibrary(lib.id);
         scanned += res.scanned;
         added += res.added;
         updated += res.updated;
+        artworkImported += res.artworkImported;
+        metadataImported += res.metadataImported;
       }
+      const enriched =
+        artworkImported + metadataImported > 0
+          ? ' · ' + t('dashboard.scanEnriched', { artwork: artworkImported, metadata: metadataImported })
+          : '';
       toast.success(
         t('dashboard.scanCompleteTitle'),
-        t('dashboard.scanCompleteBody', { scanned, added, updated, count: libs.length }),
+        t('dashboard.scanCompleteBody', { scanned, added, updated, count: libs.length }) + enriched,
       );
       queryClient.invalidateQueries({ queryKey: ['media'] });
     } catch (err) {

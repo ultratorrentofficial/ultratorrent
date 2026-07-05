@@ -74,6 +74,41 @@ export function parseNfoXml(xml: string): Partial<MediaMetadataDetails> {
   if (studios.length) details.studios = studios;
   const cert = pick('mpaa') ?? pick('certification');
   if (cert) details.certification = cert;
+  const originalTitle = pick('originaltitle');
+  if (originalTitle) details.originalTitle = originalTitle;
+  const directors = pickAll('director');
+  if (directors.length) details.directors = directors;
+  const writers = pickAll('credits');
+  if (writers.length) details.writers = writers;
+
+  // <actor><name>..</name><role>..</role></actor> blocks → cast.
+  const cast: Array<{ name: string; role?: string }> = [];
+  const actorRe = /<actor>([\s\S]*?)<\/actor>/gi;
+  let am: RegExpExecArray | null;
+  while ((am = actorRe.exec(xml))) {
+    const name = /<name>([\s\S]*?)<\/name>/i.exec(am[1])?.[1]?.trim();
+    const role = /<role>([\s\S]*?)<\/role>/i.exec(am[1])?.[1]?.trim();
+    if (name) cast.push(role ? { name, role } : { name });
+  }
+  if (cast.length) details.cast = cast;
+
+  // External ids: dedicated <imdbid>/<tmdbid>/<tvdbid> or Kodi <uniqueid type=…>.
+  const uniqueId = (kind: string): string | undefined => {
+    const m = new RegExp(
+      `<uniqueid[^>]*type=["']${kind}["'][^>]*>([^<]+)</uniqueid>`,
+      'i',
+    ).exec(xml);
+    return m ? m[1].trim() : undefined;
+  };
+  const externalIds: Record<string, string> = {};
+  const imdb = pick('imdbid') ?? uniqueId('imdb');
+  if (imdb) externalIds.imdb = imdb;
+  const tmdb = pick('tmdbid') ?? uniqueId('tmdb');
+  if (tmdb) externalIds.tmdb = tmdb;
+  const tvdb = pick('tvdbid') ?? uniqueId('tvdb');
+  if (tvdb) externalIds.tvdb = tvdb;
+  if (Object.keys(externalIds).length) details.externalIds = externalIds;
+
   return details;
 }
 
@@ -141,6 +176,109 @@ export class MediaMetadataService {
       }
     }
     return null;
+  }
+
+  /**
+   * Import metadata from a Kodi/Jellyfin `.nfo` already on disk — the item's
+   * `<basename>.nfo`, or a directory-level `movie.nfo` / `tvshow.nfo`. Purely
+   * local (no network). Only fills gaps: an existing non-null value (e.g. from a
+   * provider fetch) is never clobbered, so it's safe to re-run on every scan.
+   * Records any external ids and logs the sidecar as a MediaNfoFile. Returns
+   * true when an NFO was found and imported.
+   */
+  async importLocalNfo(itemId: string, ctx: AuditContext = {}): Promise<boolean> {
+    const item = await this.prisma.mediaItem.findUnique({
+      where: { id: itemId },
+      include: { files: true, metadata: true },
+    });
+    if (!item) return false;
+
+    // Candidates: per-file <basename>.nfo, then directory-level movie/tvshow.nfo.
+    const candidates: string[] = [];
+    const dirs = new Set<string>();
+    for (const f of item.files) {
+      candidates.push(f.path.replace(/\.[^.]+$/, '') + '.nfo');
+      dirs.add(path.dirname(f.path));
+    }
+    for (const dir of dirs) {
+      candidates.push(path.join(dir, 'movie.nfo'));
+      candidates.push(path.join(dir, 'tvshow.nfo'));
+    }
+
+    let parsed: Partial<MediaMetadataDetails> | null = null;
+    let nfoPath: string | null = null;
+    for (const c of candidates) {
+      try {
+        const abs = this.filePath.assertWithinHardRoots(c);
+        const xml = await readFile(abs, 'utf8');
+        parsed = parseNfoXml(xml);
+        nfoPath = abs;
+        break;
+      } catch {
+        // Missing / outside roots — try the next candidate.
+      }
+    }
+    if (!parsed || !nfoPath) return false;
+
+    const cur = item.metadata;
+    const arr = (existing: unknown, next: unknown[] | undefined): Prisma.InputJsonValue =>
+      (Array.isArray(existing) && existing.length ? existing : (next ?? [])) as Prisma.InputJsonValue;
+    const data: Prisma.MediaMetadataUncheckedCreateInput = {
+      itemId,
+      title: cur?.title ?? parsed.title ?? item.title,
+      originalTitle: cur?.originalTitle ?? parsed.originalTitle ?? null,
+      overview: cur?.overview ?? parsed.overview ?? null,
+      year: cur?.year ?? parsed.year ?? item.year ?? null,
+      runtime: cur?.runtime ?? parsed.runtime ?? null,
+      genres: arr(cur?.genres, parsed.genres),
+      studios: arr(cur?.studios, parsed.studios),
+      cast: arr(cur?.cast, parsed.cast),
+      directors: arr(cur?.directors, parsed.directors),
+      writers: arr(cur?.writers, parsed.writers),
+      rating: cur?.rating ?? parsed.rating ?? null,
+      certification: cur?.certification ?? parsed.certification ?? null,
+      providerName: cur?.providerName ?? 'local-nfo',
+    };
+    await this.prisma.mediaMetadata.upsert({ where: { itemId }, create: data, update: data });
+
+    // External ids — create when absent; never clobber an existing mapping.
+    for (const [prov, extId] of Object.entries(parsed.externalIds ?? {})) {
+      if (!extId) continue;
+      await this.prisma.mediaExternalId.upsert({
+        where: { itemId_provider: { itemId, provider: prov } },
+        create: {
+          itemId,
+          provider: prov,
+          externalId: String(extId),
+          url: this.externalUrl(prov, String(extId), item.mediaType),
+        },
+        update: {},
+      });
+    }
+
+    // Record the imported sidecar (once per path).
+    const already = await this.prisma.mediaNfoFile.findFirst({ where: { itemId, path: nfoPath } });
+    if (!already) {
+      const type = nfoPath.endsWith('tvshow.nfo')
+        ? 'tvshow'
+        : nfoPath.endsWith('movie.nfo')
+          ? 'movie'
+          : item.mediaType === 'tv' || item.mediaType === 'anime'
+            ? 'episode'
+            : 'movie';
+      await this.prisma.mediaNfoFile.create({ data: { itemId, type, path: nfoPath } });
+    }
+
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.metadata.nfo_import',
+      objectType: 'media_item',
+      objectId: itemId,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { nfoPath },
+    });
+    return true;
   }
 
   /** Fetch metadata for an item and upsert MediaMetadata + external ids. */

@@ -909,6 +909,10 @@ export interface MediaScanResult {
   scanned: number;
   added: number;
   updated: number;
+  /** On-disk sidecar artwork files imported during the scan. */
+  artworkImported: number;
+  /** Items whose local .nfo metadata was imported during the scan. */
+  metadataImported: number;
 }
 
 export interface RenamePlanItem {
