@@ -103,7 +103,7 @@ function SeriesRow({ series, filters }: { series: MediaSeriesGroup; filters: Ser
           className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-white/[0.02]"
         >
           <ChevronRight className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-90')} />
-          <MediaPoster artwork={series.poster} alt={series.title} className="h-24 w-16 shrink-0 rounded ring-1 ring-white/10" iconClassName="h-6 w-6" />
+          <MediaPoster artwork={series.poster} alt={series.title} className="h-[7.5rem] w-20 shrink-0 rounded ring-1 ring-white/10" iconClassName="h-7 w-7" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="truncate font-medium">{series.title}</span>
