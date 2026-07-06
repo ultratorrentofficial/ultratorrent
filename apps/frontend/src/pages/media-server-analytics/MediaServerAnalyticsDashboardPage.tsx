@@ -29,6 +29,12 @@ function watchTime(seconds: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+/** De-duplicate selector options by their label, preserving order. */
+function uniqueByLabel(options: { value: string; label: string }[]): { value: string; label: string }[] {
+  const seen = new Set<string>();
+  return options.filter((o) => (seen.has(o.label) ? false : (seen.add(o.label), true)));
+}
+
 const tooltipStyle = { background: CHART.tooltipBg, border: `1px solid ${CHART.tooltipBorder}`, borderRadius: 8, fontSize: 12 };
 const axisTick = { fontSize: 11, fill: CHART.tick };
 
@@ -39,6 +45,7 @@ export function MediaServerAnalyticsDashboardPage() {
   const { state, set, filter, refreshMs, filterKey } = useAnalyticsFilters();
   const liveRefresh = refreshMs || 15000; // live panel always polls (min 15s)
   const [exporting, setExporting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const dash = useQuery({ queryKey: ['msa', 'dashboard'], queryFn: () => api.mediaServerAnalytics.dashboard(), refetchInterval: refreshMs || false });
   const live = useQuery({ queryKey: ['msa', 'live'], queryFn: () => api.mediaServerAnalytics.live(), refetchInterval: liveRefresh });
@@ -49,11 +56,35 @@ export function MediaServerAnalyticsDashboardPage() {
   const topMedia = useQuery({ queryKey: ['msa', 'report', 'top-media', filterKey], queryFn: () => api.mediaServerAnalytics.reportTopMedia(filter), refetchInterval: refreshMs || false });
   const heatmap = useQuery({ queryKey: ['msa', 'report', 'heatmap', filterKey], queryFn: () => api.mediaServerAnalytics.reportHeatmap(filter), refetchInterval: refreshMs || false });
   const trends = useQuery({ queryKey: ['msa', 'report', 'trends', filterKey], queryFn: () => api.mediaServerAnalytics.reportTrends(filter), refetchInterval: refreshMs || false });
+  const bandwidth = useQuery({ queryKey: ['msa', 'report', 'bandwidth', filterKey], queryFn: () => api.mediaServerAnalytics.reportBandwidth(filter), refetchInterval: refreshMs || false });
   const resolutions = useQuery({ queryKey: ['msa', 'report', 'resolutions', filterKey], queryFn: () => api.mediaServerAnalytics.reportResolutions(filter), refetchInterval: refreshMs || false });
   const growth = useQuery({ queryKey: ['msa', 'report', 'library-growth', filterKey], queryFn: () => api.mediaServerAnalytics.reportLibraryGrowth(filter), refetchInterval: refreshMs || false });
+  const metaLibraries = useQuery({ queryKey: ['msa', 'meta', 'libraries'], queryFn: () => api.mediaServerAnalytics.metaLibraries() });
+  const metaUsers = useQuery({ queryKey: ['msa', 'meta', 'users'], queryFn: () => api.mediaServerAnalytics.metaUsers() });
 
-  const isFetching = [dash, live, usage, playback, users, devices, topMedia, heatmap, trends, resolutions, growth].some((q) => q.isFetching);
+  const isFetching = [dash, live, usage, playback, users, devices, topMedia, heatmap, trends, bandwidth, resolutions, growth].some((q) => q.isFetching);
   const refreshAll = () => void qc.invalidateQueries({ queryKey: ['msa'] });
+  const runSync = async () => {
+    setSyncing(true);
+    try {
+      await api.mediaServerAnalytics.runSync();
+      await qc.invalidateQueries({ queryKey: ['msa'] });
+    } catch {
+      toast.error(t('providerStatus.syncFailed'));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Selector options: servers from connections; libraries/users from synced metadata
+  // (libraries narrow to the chosen server; names de-duplicated).
+  const serverOptions = (dash.data?.connections ?? []).map((c) => ({ value: c.id, label: c.name }));
+  const libraryOptions = uniqueByLabel(
+    (metaLibraries.data ?? [])
+      .filter((l) => !state.connectionId || l.connectionId === state.connectionId)
+      .map((l) => ({ value: l.name, label: l.name })),
+  );
+  const userOptions = uniqueByLabel((metaUsers.data ?? []).map((u) => ({ value: u.userName, label: u.userName })));
   const exportCsv = async () => {
     setExporting(true);
     try {
@@ -77,6 +108,7 @@ export function MediaServerAnalyticsDashboardPage() {
   const resolutionData = resolutions.data ?? [];
   const trendData = trends.data ?? [];
   const growthData = growth.data ?? [];
+  const bandwidthData = bandwidth.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -102,6 +134,9 @@ export function MediaServerAnalyticsDashboardPage() {
         refreshing={isFetching}
         onExport={() => void exportCsv()}
         exporting={exporting}
+        servers={serverOptions}
+        libraries={libraryOptions}
+        users={userOptions}
       />
 
       {/* KPI grid */}
@@ -246,6 +281,25 @@ export function MediaServerAnalyticsDashboardPage() {
         </ResponsiveContainer>
       </ChartCard>
 
+      {/* Average bandwidth over time */}
+      <ChartCard title={t('charts.bandwidth')} subtitle={t('charts.bandwidthSub')} loading={bandwidth.isLoading} empty={bandwidthData.length === 0} emptyLabel={t('charts.bandwidthEmpty')}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={bandwidthData} margin={{ top: 8, right: 8, left: -4, bottom: 0 }}>
+            <defs>
+              <linearGradient id="bwGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={CHART_SERIES[2]} stopOpacity={0.4} />
+                <stop offset="100%" stopColor={CHART_SERIES[2]} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+            <XAxis dataKey="date" tick={axisTick} tickLine={false} axisLine={false} />
+            <YAxis tick={axisTick} tickLine={false} axisLine={false} width={48} unit=" Mb" tickFormatter={(v: number) => (v / 1000).toFixed(1)} />
+            <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: CHART.tooltipLabel }} formatter={(v: number) => [`${(v / 1000).toFixed(2)} Mbps`, t('charts.avgBitrate')]} />
+            <Area type="monotone" dataKey="avgKbps" stroke={CHART_SERIES[2]} strokeWidth={2} fill="url(#bwGrad)" name={t('charts.avgBitrate')} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
       {/* Quality distribution + library growth */}
       <div className="grid gap-3 lg:grid-cols-2">
         <ChartCard title={t('charts.resolutions')} loading={resolutions.isLoading} empty={resolutionData.length === 0} emptyLabel={t('reports.empty')}>
@@ -299,7 +353,7 @@ export function MediaServerAnalyticsDashboardPage() {
       </ChartCard>
 
       {/* Provider health */}
-      <ProviderStatusPanel connections={dash.data.connections} />
+      <ProviderStatusPanel connections={dash.data.connections} onSync={() => void runSync()} syncing={syncing} />
     </div>
   );
 }

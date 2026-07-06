@@ -3,6 +3,7 @@ import { MediaModule } from '../media/media.module';
 import { SecretCipher } from '../../common/crypto/secret-cipher';
 import { MediaServerAnalyticsService } from './media-server-analytics.service';
 import { MediaServerSessionService } from './media-server-session.service';
+import { MediaServerSyncService } from './media-server-sync.service';
 import { MediaServerReportService } from './media-server-report.service';
 import { AnalyticsImportService } from './analytics-import.service';
 import { MediaServerEmailService } from './media-server-email.service';
@@ -20,6 +21,7 @@ import { MediaServerAnalyticsController } from './media-server-analytics.control
   providers: [
     MediaServerAnalyticsService,
     MediaServerSessionService,
+    MediaServerSyncService,
     MediaServerReportService,
     AnalyticsImportService,
     MediaServerEmailService,

@@ -80,6 +80,8 @@ export class MediaServerSessionService {
           videoCodec: s.videoCodec ?? null,
           audioCodec: s.audioCodec ?? null,
           resolution: s.resolution ?? null,
+          container: s.container ?? null,
+          bitrateKbps: s.bitrateKbps ?? null,
         };
         const existing = await this.prisma.mediaServerSession.findUnique({
           where: { connectionId_providerSessionId: { connectionId: conn.id, providerSessionId: s.sessionId } },
@@ -126,6 +128,9 @@ export class MediaServerSessionService {
         playbackMethod: c.playbackMethod,
         resolution: c.resolution,
         videoCodec: c.videoCodec,
+        audioCodec: c.audioCodec,
+        container: c.container,
+        bitrateKbps: c.bitrateKbps,
         importSource: 'live',
       },
     });

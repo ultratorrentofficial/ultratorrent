@@ -205,7 +205,11 @@
     "resolutions": "Distribución de calidad",
     "libraryGrowth": "Crecimiento de biblioteca",
     "libraryGrowthSub": "Elementos acumulados en el tiempo",
-    "libraryTotal": "elementos totales"
+    "libraryTotal": "elementos totales",
+    "bandwidth": "Ancho de banda",
+    "bandwidthSub": "Bitrate promedio de transmisión en el tiempo",
+    "bandwidthEmpty": "Aún no hay datos de bitrate — se capturan de la reproducción en vivo.",
+    "avgBitrate": "Bitrate prom."
   },
   "playbackMethods": {
     "directplay": "Reproducción directa",
@@ -229,11 +233,19 @@
   "providerStatus": {
     "title": "Estado de proveedores",
     "empty": "Aún no hay servidores de medios conectados.",
-    "lastCheck": "Última verificación"
+    "lastCheck": "Última verificación",
+    "sync": "Sincronizar",
+    "syncFailed": "La sincronización falló."
   },
   "filters": {
     "range": "Rango de fechas",
     "mediaType": "Tipo de medio",
+    "server": "Servidor",
+    "library": "Biblioteca",
+    "user": "Usuario",
+    "allServers": "Todos los servidores",
+    "allLibraries": "Todas las bibliotecas",
+    "allUsers": "Todos los usuarios",
     "refresh": "Auto-actualizar",
     "refreshNow": "Actualizar",
     "exportCsv": "Exportar CSV",

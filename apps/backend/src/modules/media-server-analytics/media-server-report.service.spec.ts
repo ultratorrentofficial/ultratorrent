@@ -3,11 +3,15 @@ import { MediaServerReportService } from './media-server-report.service';
 /** In-memory watch-history table supporting the aggregate/groupBy the report uses. */
 class WatchHistoryTable {
   constructor(public rows: any[]) {}
-  /** Apply the subset of Prisma `where` the report builds (startedAt.gte + mediaType). */
+  /** Apply the subset of Prisma `where` the report builds. */
   private applyWhere(where: any): any[] {
     let r = this.rows;
     if (where?.startedAt?.gte) r = r.filter((x) => x.startedAt >= where.startedAt.gte);
     if (where?.mediaType) r = r.filter((x) => x.mediaType === where.mediaType);
+    if (where?.connectionId) r = r.filter((x) => x.connectionId === where.connectionId);
+    if (where?.libraryName) r = r.filter((x) => x.libraryName === where.libraryName);
+    if (where?.userName) r = r.filter((x) => x.userName === where.userName);
+    if (where?.bitrateKbps?.not === null) r = r.filter((x) => x.bitrateKbps != null);
     return r;
   }
   async aggregate({ where, _count, _sum }: any) {
@@ -135,6 +139,36 @@ describe('MediaServerReportService', () => {
       const svc = makeService(HISTORY);
       const u = await svc.usage();
       expect(u.totalPlays).toBe(3);
+    });
+
+    it('connectionId / libraryName / userName narrow the reports (Phase 6e)', async () => {
+      const rows = [
+        { connectionId: 'srv-a', libraryName: 'Movies', userName: 'alice', mediaType: 'movie', playbackMethod: 'directplay', watchedSeconds: 10, startedAt: new Date() },
+        { connectionId: 'srv-a', libraryName: 'TV', userName: 'bob', mediaType: 'episode', playbackMethod: 'transcode', watchedSeconds: 20, startedAt: new Date() },
+        { connectionId: 'srv-b', libraryName: 'Movies', userName: 'alice', mediaType: 'movie', playbackMethod: 'directplay', watchedSeconds: 30, startedAt: new Date() },
+      ];
+      const svc = makeService(rows);
+      expect((await svc.usage({ connectionId: 'srv-a' })).totalPlays).toBe(2);
+      expect((await svc.usage({ libraryName: 'Movies' })).totalPlays).toBe(2);
+      expect((await svc.usage({ userName: 'bob' })).totalPlays).toBe(1);
+      // Combined dimensions intersect.
+      expect((await svc.usage({ connectionId: 'srv-a', userName: 'alice' })).totalPlays).toBe(1);
+    });
+  });
+
+  describe('bandwidth', () => {
+    it('averages bitrate per day over plays that reported one', async () => {
+      const rows = [
+        { mediaType: 'movie', bitrateKbps: 4000, startedAt: new Date('2026-07-01T10:00:00Z') },
+        { mediaType: 'movie', bitrateKbps: 6000, startedAt: new Date('2026-07-01T20:00:00Z') },
+        { mediaType: 'movie', bitrateKbps: null, startedAt: new Date('2026-07-01T21:00:00Z') }, // excluded
+        { mediaType: 'movie', bitrateKbps: 8000, startedAt: new Date('2026-07-02T10:00:00Z') },
+      ];
+      const bw = await makeService(rows).bandwidth();
+      expect(bw).toEqual([
+        { date: '2026-07-01', avgKbps: 5000, plays: 2 },
+        { date: '2026-07-02', avgKbps: 8000, plays: 1 },
+      ]);
     });
   });
 

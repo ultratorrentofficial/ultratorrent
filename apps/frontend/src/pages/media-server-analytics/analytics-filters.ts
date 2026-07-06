@@ -32,10 +32,20 @@ export interface AnalyticsFilterState {
   range: RangeKey;
   mediaType: MediaTypeOption;
   refresh: RefreshKey;
+  connectionId: string; // '' = all servers
+  libraryName: string; // '' = all libraries
+  userName: string; // '' = all users
 }
 
 const STORAGE_KEY = 'msa.filters.v1';
-const DEFAULTS: AnalyticsFilterState = { range: '30d', mediaType: '', refresh: '30s' };
+const DEFAULTS: AnalyticsFilterState = {
+  range: '30d',
+  mediaType: '',
+  refresh: '30s',
+  connectionId: '',
+  libraryName: '',
+  userName: '',
+};
 
 function load(): AnalyticsFilterState {
   try {
@@ -48,6 +58,9 @@ function load(): AnalyticsFilterState {
         ? (parsed.mediaType as MediaTypeOption)
         : DEFAULTS.mediaType,
       refresh: REFRESH_OPTIONS.some((r) => r.key === parsed.refresh) ? (parsed.refresh as RefreshKey) : DEFAULTS.refresh,
+      connectionId: typeof parsed.connectionId === 'string' ? parsed.connectionId : '',
+      libraryName: typeof parsed.libraryName === 'string' ? parsed.libraryName : '',
+      userName: typeof parsed.userName === 'string' ? parsed.userName : '',
     };
   } catch {
     return DEFAULTS;
@@ -79,8 +92,11 @@ export function useAnalyticsFilters() {
     return {
       ...(days > 0 ? { days } : {}),
       ...(state.mediaType ? { mediaType: state.mediaType } : {}),
+      ...(state.connectionId ? { connectionId: state.connectionId } : {}),
+      ...(state.libraryName ? { libraryName: state.libraryName } : {}),
+      ...(state.userName ? { userName: state.userName } : {}),
     };
-  }, [state.range, state.mediaType]);
+  }, [state.range, state.mediaType, state.connectionId, state.libraryName, state.userName]);
 
   const refreshMs = useMemo(
     () => REFRESH_OPTIONS.find((r) => r.key === state.refresh)?.ms ?? 0,
@@ -88,7 +104,10 @@ export function useAnalyticsFilters() {
   );
 
   /** Stable key fragment for react-query cache keys. */
-  const filterKey = useMemo(() => `${state.range}:${state.mediaType || 'all'}`, [state.range, state.mediaType]);
+  const filterKey = useMemo(
+    () => `${state.range}:${state.mediaType || 'all'}:${state.connectionId || 'all'}:${state.libraryName || 'all'}:${state.userName || 'all'}`,
+    [state.range, state.mediaType, state.connectionId, state.libraryName, state.userName],
+  );
 
   return { state, set, filter, refreshMs, filterKey } as const;
 }

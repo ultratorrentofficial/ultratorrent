@@ -22,6 +22,9 @@ export function MediaAnalyticsFilterBar({
   refreshing,
   onExport,
   exporting,
+  servers = [],
+  libraries = [],
+  users = [],
 }: {
   state: AnalyticsFilterState;
   onChange: <K extends keyof AnalyticsFilterState>(key: K, value: AnalyticsFilterState[K]) => void;
@@ -29,6 +32,9 @@ export function MediaAnalyticsFilterBar({
   refreshing?: boolean;
   onExport?: () => void;
   exporting?: boolean;
+  servers?: { value: string; label: string }[];
+  libraries?: { value: string; label: string }[];
+  users?: { value: string; label: string }[];
 }) {
   const { t } = useTranslation('mediaServerAnalytics');
 
@@ -54,6 +60,39 @@ export function MediaAnalyticsFilterBar({
           }))}
         />
       </Field>
+
+      {servers.length > 0 && (
+        <Field label={t('filters.server')}>
+          <Select
+            value={state.connectionId}
+            onChange={(e) => onChange('connectionId', e.target.value)}
+            className="h-9"
+            options={[{ value: '', label: t('filters.allServers') }, ...servers]}
+          />
+        </Field>
+      )}
+
+      {libraries.length > 0 && (
+        <Field label={t('filters.library')}>
+          <Select
+            value={state.libraryName}
+            onChange={(e) => onChange('libraryName', e.target.value)}
+            className="h-9"
+            options={[{ value: '', label: t('filters.allLibraries') }, ...libraries]}
+          />
+        </Field>
+      )}
+
+      {users.length > 0 && (
+        <Field label={t('filters.user')}>
+          <Select
+            value={state.userName}
+            onChange={(e) => onChange('userName', e.target.value)}
+            className="h-9"
+            options={[{ value: '', label: t('filters.allUsers') }, ...users]}
+          />
+        </Field>
+      )}
 
       <Field label={t('filters.refresh')}>
         <Select

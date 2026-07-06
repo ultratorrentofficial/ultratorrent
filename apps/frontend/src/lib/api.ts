@@ -2788,6 +2788,21 @@ export const api = {
     reportLibraryGrowth(filter?: MediaAnalyticsFilter): Promise<MediaServerLibraryGrowthPoint[]> {
       return request<MediaServerLibraryGrowthPoint[]>(`/media-server-analytics/reports/library-growth${analyticsQuery(filter)}`);
     },
+    reportBandwidth(filter?: MediaAnalyticsFilter): Promise<MediaServerBandwidthPoint[]> {
+      return request<MediaServerBandwidthPoint[]>(`/media-server-analytics/reports/bandwidth${analyticsQuery(filter)}`);
+    },
+    metaLibraries(): Promise<MediaServerLibraryMeta[]> {
+      return request<MediaServerLibraryMeta[]>('/media-server-analytics/meta/libraries');
+    },
+    metaUsers(): Promise<MediaServerUserMeta[]> {
+      return request<MediaServerUserMeta[]>('/media-server-analytics/meta/users');
+    },
+    metaSyncRuns(): Promise<MediaProviderSyncRunRow[]> {
+      return request<MediaProviderSyncRunRow[]>('/media-server-analytics/meta/sync-runs');
+    },
+    runSync(): Promise<{ connections: number; librariesSynced: number; usersSynced: number }> {
+      return request('/media-server-analytics/meta/sync', { method: 'POST' });
+    },
     /** Download watch-history CSV for the current filter (triggers a browser download). */
     async exportWatchHistoryCsv(filter?: MediaAnalyticsFilter): Promise<void> {
       const token = getAccessToken();
@@ -3060,6 +3075,39 @@ export interface MediaServerLibraryGrowthPoint {
   added: number;
   total: number;
 }
+export interface MediaServerBandwidthPoint {
+  date: string;
+  avgKbps: number;
+  plays: number;
+}
+export interface MediaServerLibraryMeta {
+  id: string;
+  connectionId: string;
+  providerLibraryId: string;
+  name: string;
+  type: string;
+  itemCount: number | null;
+  lastSyncedAt: string;
+}
+export interface MediaServerUserMeta {
+  id: string;
+  connectionId: string | null;
+  providerUserId: string | null;
+  userName: string;
+  plays: number;
+  lastSeenAt: string | null;
+}
+export interface MediaProviderSyncRunRow {
+  id: string;
+  connectionId: string | null;
+  type: string;
+  status: string;
+  librariesSynced: number;
+  usersSynced: number;
+  message: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+}
 
 /** Dashboard filter applied across analytics report queries. */
 export interface MediaAnalyticsFilter {
@@ -3067,14 +3115,23 @@ export interface MediaAnalyticsFilter {
   days?: number;
   /** Restrict to a single media type (movie/episode/…); undefined = all. */
   mediaType?: string;
+  /** Restrict to one media server (connection id); undefined = all. */
+  connectionId?: string;
+  /** Restrict to one library (by name); undefined = all. */
+  libraryName?: string;
+  /** Restrict to one viewer (by name); undefined = all. */
+  userName?: string;
 }
 
-/** Serialize an analytics filter into a `?days=&mediaType=` query string (empty when no filter). */
+/** Serialize an analytics filter into a query string (empty when no filter). */
 function analyticsQuery(filter?: MediaAnalyticsFilter): string {
   if (!filter) return '';
   const params = new URLSearchParams();
   if (filter.days && filter.days > 0) params.set('days', String(filter.days));
   if (filter.mediaType) params.set('mediaType', filter.mediaType);
+  if (filter.connectionId) params.set('connectionId', filter.connectionId);
+  if (filter.libraryName) params.set('libraryName', filter.libraryName);
+  if (filter.userName) params.set('userName', filter.userName);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }

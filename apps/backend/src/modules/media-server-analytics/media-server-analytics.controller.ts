@@ -9,21 +9,24 @@ import { MediaServerIntegrationService } from '../media/media-server-integration
 import { MediaServerAnalyticsService } from './media-server-analytics.service';
 import { MediaServerSessionService } from './media-server-session.service';
 import { MediaServerReportService, type ReportFilter } from './media-server-report.service';
+import { MediaServerSyncService } from './media-server-sync.service';
 import { AnalyticsImportService } from './analytics-import.service';
 import { MediaServerEmailService } from './media-server-email.service';
 import { MediaServerNewsletterService } from './media-server-newsletter.service';
 
 const P = PERMISSIONS;
 
-/** Parse the shared analytics filter (?days=&mediaType=) from query params. */
+/** Parse the shared analytics filter (?days=&mediaType=&connectionId=&libraryName=&userName=). */
 function parseFilter(q: Record<string, string> | undefined): ReportFilter | undefined {
   if (!q) return undefined;
   const days = q.days ? Number.parseInt(q.days, 10) : undefined;
-  const mediaType = q.mediaType?.trim() || undefined;
   const filter: ReportFilter = {};
   if (days && Number.isFinite(days) && days > 0) filter.days = days;
-  if (mediaType) filter.mediaType = mediaType;
-  return filter.days || filter.mediaType ? filter : undefined;
+  if (q.mediaType?.trim()) filter.mediaType = q.mediaType.trim();
+  if (q.connectionId?.trim()) filter.connectionId = q.connectionId.trim();
+  if (q.libraryName?.trim()) filter.libraryName = q.libraryName.trim();
+  if (q.userName?.trim()) filter.userName = q.userName.trim();
+  return Object.keys(filter).length ? filter : undefined;
 }
 
 /**
@@ -41,6 +44,7 @@ export class MediaServerAnalyticsController {
     private readonly integrations: MediaServerIntegrationService,
     private readonly sessions: MediaServerSessionService,
     private readonly reports: MediaServerReportService,
+    private readonly sync: MediaServerSyncService,
     private readonly imports: AnalyticsImportService,
     private readonly email: MediaServerEmailService,
     private readonly newsletters: MediaServerNewsletterService,
@@ -121,12 +125,43 @@ export class MediaServerAnalyticsController {
   reportLibraryGrowth(@Query() q: Record<string, string>) {
     return this.reports.libraryGrowth(parseFilter(q));
   }
+  @Get('reports/bandwidth')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  reportBandwidth(@Query() q: Record<string, string>) {
+    return this.reports.bandwidth(parseFilter(q));
+  }
   @Get('export/watch-history')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_EXPORT)
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="watch-history.csv"')
   exportWatchHistory(@Query() q: Record<string, string>) {
     return this.reports.exportWatchHistoryCsv(parseFilter(q));
+  }
+
+  // --- normalized metadata + sync (Phase 6e) ------------------------------
+  /** Synced libraries — populates the dashboard's library filter. */
+  @Get('meta/libraries')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW)
+  metaLibraries() {
+    return this.sync.listLibraries();
+  }
+  /** Known viewers — populates the dashboard's user filter. */
+  @Get('meta/users')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW)
+  metaUsers() {
+    return this.sync.listUsers();
+  }
+  /** Recent provider sync runs. */
+  @Get('meta/sync-runs')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  metaSyncRuns() {
+    return this.sync.listRuns();
+  }
+  /** Trigger a metadata sync (libraries + users) across all connections now. */
+  @Post('meta/sync')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS)
+  runSync() {
+    return this.sync.syncAll();
   }
   @Get('users')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_USERS)

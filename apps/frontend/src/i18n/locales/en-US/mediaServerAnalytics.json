@@ -205,7 +205,11 @@
     "resolutions": "Quality distribution",
     "libraryGrowth": "Library growth",
     "libraryGrowthSub": "Cumulative items over time",
-    "libraryTotal": "total items"
+    "libraryTotal": "total items",
+    "bandwidth": "Bandwidth",
+    "bandwidthSub": "Average stream bitrate over time",
+    "bandwidthEmpty": "No bitrate data yet — captured from live playback as it happens.",
+    "avgBitrate": "Avg bitrate"
   },
   "playbackMethods": {
     "directplay": "Direct Play",
@@ -229,11 +233,19 @@
   "providerStatus": {
     "title": "Provider status",
     "empty": "No media servers connected yet.",
-    "lastCheck": "Last check"
+    "lastCheck": "Last check",
+    "sync": "Sync",
+    "syncFailed": "Sync failed."
   },
   "filters": {
     "range": "Date range",
     "mediaType": "Media type",
+    "server": "Server",
+    "library": "Library",
+    "user": "User",
+    "allServers": "All servers",
+    "allLibraries": "All libraries",
+    "allUsers": "All users",
     "refresh": "Auto-refresh",
     "refreshNow": "Refresh",
     "exportCsv": "Export CSV",

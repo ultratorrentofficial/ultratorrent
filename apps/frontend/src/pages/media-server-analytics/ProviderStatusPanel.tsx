@@ -1,9 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import { Server } from 'lucide-react';
+import { RefreshCw, Server } from 'lucide-react';
 import type { MediaServerConnectionSummary } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/feedback';
+import { cn } from '@/lib/utils';
 
 function statusVariant(status: string): 'success' | 'destructive' | 'secondary' {
   if (status === 'online') return 'success';
@@ -27,15 +29,31 @@ function relativeTime(iso: string | null): string {
  * status, version, platform, and last health-check time. Sourced from the
  * dashboard's connection summaries (no extra request).
  */
-export function ProviderStatusPanel({ connections }: { connections: MediaServerConnectionSummary[] }) {
+export function ProviderStatusPanel({
+  connections,
+  onSync,
+  syncing,
+}: {
+  connections: MediaServerConnectionSummary[];
+  onSync?: () => void;
+  syncing?: boolean;
+}) {
   const { t } = useTranslation('mediaServerAnalytics');
 
   return (
     <div>
-      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-        <Server className="h-4 w-4 text-muted-foreground" />
-        {t('providerStatus.title')}
-      </h2>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <Server className="h-4 w-4 text-muted-foreground" />
+          {t('providerStatus.title')}
+        </h2>
+        {onSync && (
+          <Button variant="subtle" size="sm" onClick={onSync} loading={syncing}>
+            <RefreshCw className={cn('h-4 w-4', syncing && 'animate-spin')} />
+            {t('providerStatus.sync')}
+          </Button>
+        )}
+      </div>
       {connections.length === 0 ? (
         <EmptyState title={t('providerStatus.empty')} />
       ) : (

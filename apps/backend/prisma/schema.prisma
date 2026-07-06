@@ -709,6 +709,8 @@ model MediaServerSession {
   videoCodec        String?
   audioCodec        String?
   resolution        String?
+  container         String?
+  bitrateKbps       Int?
   startedAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -738,6 +740,9 @@ model MediaServerWatchHistory {
   playbackMethod  String?
   resolution      String?
   videoCodec      String?
+  audioCodec      String?
+  container       String?
+  bitrateKbps     Int?
   importSource    String?
   importedAt      DateTime?
   createdAt       DateTime  @default(now())
@@ -747,6 +752,56 @@ model MediaServerWatchHistory {
   @@index([providerUserId])
   @@index([startedAt])
   @@map("media_server_watch_history")
+}
+
+/// A library/section on a media server — synced from the provider (Phase 6e).
+model MediaServerLibrary {
+  id                String   @id @default(uuid())
+  connectionId      String
+  providerLibraryId String
+  name              String
+  type              String   // movie | show | music | photo | mixed | unknown
+  itemCount         Int?
+  lastSyncedAt      DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([connectionId, providerLibraryId])
+  @@index([connectionId])
+  @@map("media_server_libraries")
+}
+
+/// A distinct viewer on a media server — derived from sessions + watch history.
+model MediaServerUser {
+  id             String    @id @default(uuid())
+  connectionId   String?
+  providerUserId String?
+  userName       String
+  plays          Int       @default(0)
+  lastSeenAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([connectionId, userName])
+  @@index([userName])
+  @@map("media_server_users")
+}
+
+/// A provider sync run — libraries + users refreshed from a connection (Phase 6e).
+model MediaProviderSyncRun {
+  id              String    @id @default(uuid())
+  connectionId    String?
+  type            String    // full | libraries | users
+  status          String    // running | success | partial | failed
+  librariesSynced Int       @default(0)
+  usersSynced     Int       @default(0)
+  message         String?
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+
+  @@index([connectionId])
+  @@index([startedAt])
+  @@map("media_provider_sync_runs")
 }
 
 /// A historical analytics import source (e.g. Tautulli) — NOT a media server.

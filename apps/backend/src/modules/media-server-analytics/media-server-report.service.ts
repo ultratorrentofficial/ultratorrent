@@ -10,6 +10,18 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 export interface ReportFilter {
   days?: number; // rolling window; undefined = all-time
   mediaType?: string;
+  connectionId?: string; // filter to one media server
+  libraryName?: string; // filter to one library
+  userName?: string; // filter to one viewer
+}
+
+/** The subset of Prisma's watch-history `where` the reports build. */
+interface HistoryWhere {
+  startedAt?: { gte: Date };
+  mediaType?: string;
+  connectionId?: string;
+  libraryName?: string;
+  userName?: string;
 }
 
 @Injectable()
@@ -17,10 +29,13 @@ export class MediaServerReportService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Build the shared watch-history `where` clause from the filter. */
-  private where(f?: ReportFilter): { startedAt?: { gte: Date }; mediaType?: string } {
-    const w: { startedAt?: { gte: Date }; mediaType?: string } = {};
+  private where(f?: ReportFilter): HistoryWhere {
+    const w: HistoryWhere = {};
     if (f?.days && f.days > 0) w.startedAt = { gte: new Date(Date.now() - f.days * 24 * 3600 * 1000) };
     if (f?.mediaType) w.mediaType = f.mediaType;
+    if (f?.connectionId) w.connectionId = f.connectionId;
+    if (f?.libraryName) w.libraryName = f.libraryName;
+    if (f?.userName) w.userName = f.userName;
     return w;
   }
 
@@ -210,6 +225,25 @@ export class MediaServerReportService {
       byDay.set(key, b);
     }
     return [...byDay.entries()].sort().map(([date, v]) => ({ date, ...v }));
+  }
+
+  /** Average stream bandwidth (kbps) per day, over plays that reported a bitrate. */
+  async bandwidth(f?: ReportFilter) {
+    const rows = await this.prisma.mediaServerWatchHistory.findMany({
+      where: { ...this.where(f), bitrateKbps: { not: null } },
+      select: { startedAt: true, bitrateKbps: true },
+    });
+    const byDay = new Map<string, { sum: number; count: number }>();
+    for (const r of rows) {
+      const key = r.startedAt.toISOString().slice(0, 10);
+      const b = byDay.get(key) ?? { sum: 0, count: 0 };
+      b.sum += r.bitrateKbps ?? 0;
+      b.count += 1;
+      byDay.set(key, b);
+    }
+    return [...byDay.entries()]
+      .sort()
+      .map(([date, v]) => ({ date, avgKbps: Math.round(v.sum / v.count), plays: v.count }));
   }
 
   /** Resolution/quality distribution, merged into canonical labels and ordered high→low. */

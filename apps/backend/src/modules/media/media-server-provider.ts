@@ -68,6 +68,8 @@ export interface ProviderSession {
   videoCodec?: string;
   audioCodec?: string;
   resolution?: string;
+  container?: string;
+  bitrateKbps?: number; // overall stream bitrate, kbps
 }
 
 /** Thrown when a provider genuinely cannot serve a capability (not a failure). */
@@ -214,6 +216,8 @@ export class PlexProvider implements MediaServerProvider {
         videoCodec: media.videoCodec,
         audioCodec: media.audioCodec,
         resolution: media.videoResolution,
+        container: part.container ?? media.container,
+        bitrateKbps: typeof media.bitrate === 'number' ? media.bitrate : undefined, // Plex reports kbps
       };
     });
   }
@@ -326,6 +330,9 @@ class JellyfinEmbyBase {
           videoCodec: video?.Codec,
           audioCodec: audio?.Codec,
           resolution: video?.Height ? `${video.Height}p` : undefined,
+          container: item.Container,
+          // Jellyfin/Emby report bitrate in bps — normalize to kbps.
+          bitrateKbps: typeof video?.BitRate === 'number' ? Math.round(video.BitRate / 1000) : undefined,
         };
       });
   }
