@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.16.9] - 2026-07-06
+
+### Fixed
+- Media artwork: display each artwork type at its natural aspect ratio. The detail Artwork tab rendered every type in a 2:3 poster frame with object-cover, so wide banners (and fanart/logos/clearart) were cropped to a vertical slice and looked wrong. MediaPoster gained a fit prop ('cover' default / 'contain'); the Artwork tab now frames posters 2:3, banners 16:3, fanart/thumbnails 16:9, and shows banners + transparent logos/clearart with object-contain (no crop)
+- Fix frontend production build (tsc noUnusedLocals) broken by the newsletter content-type toggle: the ContentTypeToggle chip computed an `active` flag but styled off `value.includes(key)` inline, leaving `active` unused. The highlight now uses `active` (so an unscoped newsletter shows every type as on, dimmed), which is also the correct behavior. No functional change beyond the empty-selection visual.
+
 ## [0.16.8] - 2026-07-06
 
 ### Fixed
