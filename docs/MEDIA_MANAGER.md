@@ -118,11 +118,24 @@ carries a `mediaType` — one of `movie`, `tv`, `anime`, `music_video`,
 | `manual` | A user matched it explicitly. |
 
 Identification parses the release name into type / title / year / season /
-episode and records a `confidence` score. Unmatched items surface under **Media →
-Unmatched**; resolve them by:
+episode and records a `confidence` score. When the filename alone omits the
+title — the common case for tidy libraries where the series name lives in the
+folder (`Show/Season 01/S01E01.mkv`) — identification climbs to the first
+meaningful parent folder (skipping generic `Season N` / `Specials` containers)
+to recover it. Confidence is weighted by identity signals: a title plus an
+episodic marker (season+episode, absolute episode, or air date) or a movie year
+clears the match threshold on its own; scene tokens (resolution, source, codec,
+release group) only refine an already-identified item. Unmatched items surface
+under **Media → Unmatched**; resolve them by:
 
 - `POST /api/media/items/:id/match` with an **empty body** to re-run
   auto-identification, or with a body to **match manually** (`media_manager.match`).
+- `POST /api/media/items/reidentify` to **bulk re-run** auto-identification
+  (`media_manager.match`), tracked as a `media_identification` job with WebSocket
+  progress. Body is optional: `{ libraryId?, matchStatus? }` — omit both to
+  re-identify every non-`manual` item, or pass `matchStatus: 'unmatched'` to
+  retry only the failures. `manual` matches are never auto-overwritten. Returns a
+  `{ total, matched, unmatched, failed }` summary.
 - `POST /api/media/items/:id/unmatch` to clear a match (`media_manager.match`).
 - `PATCH /api/media/items/:id` to edit item fields (`media_manager.edit_metadata`).
 

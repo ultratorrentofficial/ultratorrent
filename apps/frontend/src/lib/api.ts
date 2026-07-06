@@ -878,6 +878,22 @@ export interface MediaManualMatchInput {
   episode?: number | null;
 }
 
+/** Optional narrowing for a bulk re-identify pass (`reidentifyItems`). */
+export interface MediaReidentifyInput {
+  /** Restrict to one library (omit to span every library). */
+  libraryId?: string;
+  /** Restrict to a match state, e.g. `'unmatched'` to retry only failures. */
+  matchStatus?: string;
+}
+
+/** Outcome tallies from a bulk re-identify pass. */
+export interface MediaReidentifySummary {
+  total: number;
+  matched: number;
+  unmatched: number;
+  failed: number;
+}
+
 export interface MediaHealth {
   total: number;
   byMediaType: Record<string, number>;
@@ -2385,6 +2401,10 @@ export const api = {
     },
     unmatchItem(id: string): Promise<MediaItem> {
       return request<MediaItem>(`/media/items/${id}/unmatch`, { method: 'POST' });
+    },
+    /** Bulk re-run auto-identification; omit body to re-identify all non-manual items. */
+    reidentifyItems(body: MediaReidentifyInput = {}): Promise<MediaReidentifySummary> {
+      return request<MediaReidentifySummary>('/media/items/reidentify', { method: 'POST', body });
     },
     // --- metadata ---------------------------------------------------------
     fetchMetadata(id: string): Promise<MediaMetadata> {

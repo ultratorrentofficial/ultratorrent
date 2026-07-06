@@ -223,6 +223,9 @@
       "actions": "Acciones"
     },
     "reidentify": "Volver a identificar",
+    "reidentifyAll": "Reidentificar todo",
+    "reidentifyAllDone": "Reidentificación completa",
+    "reidentifyAllSummary": "Se emparejaron {{matched}} de {{total}} elementos.",
     "matchBtn": "Emparejar…",
     "reidentifiedTitle": "Reidentificado",
     "reidentifyError": "No se pudo volver a identificar",

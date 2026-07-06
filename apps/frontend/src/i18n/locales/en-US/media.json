@@ -223,6 +223,9 @@
       "actions": "Actions"
     },
     "reidentify": "Re-identify",
+    "reidentifyAll": "Re-identify all",
+    "reidentifyAllDone": "Re-identification complete",
+    "reidentifyAllSummary": "Matched {{matched}} of {{total}} items.",
     "matchBtn": "Match…",
     "reidentifiedTitle": "Re-identified",
     "reidentifyError": "Could not re-identify",

@@ -63,18 +63,43 @@ export function MediaUnmatchedPage() {
     onError: (err) => toast.error(t('unmatched.reidentifyError'), err instanceof ApiError ? err.message : undefined),
   });
 
+  const reidentifyAll = useMutation({
+    // Scoped to the failures this page shows — retry only unmatched items.
+    mutationFn: () => api.media.reidentifyItems({ matchStatus: 'unmatched' }),
+    onSuccess: (summary) => {
+      toast.success(
+        t('unmatched.reidentifyAllDone'),
+        t('unmatched.reidentifyAllSummary', { matched: summary.matched, total: summary.total }),
+      );
+      invalidate();
+    },
+    onError: (err) => toast.error(t('unmatched.reidentifyError'), err instanceof ApiError ? err.message : undefined),
+  });
+
   const items = data ?? [];
 
   return (
     <div className="space-y-6">
-      <div>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/media')} className="mb-2 -ml-2">
-          {t('common.backToManager')}
-        </Button>
-        <h1 className="text-2xl font-bold tracking-tight">{t('unmatched.title')}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t('unmatched.subtitle')}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/media')} className="mb-2 -ml-2">
+            {t('common.backToManager')}
+          </Button>
+          <h1 className="text-2xl font-bold tracking-tight">{t('unmatched.title')}</h1>
+          <p className="text-sm text-muted-foreground">
+            {t('unmatched.subtitle')}
+          </p>
+        </div>
+        {canMatch && items.length > 0 && (
+          <Button
+            variant="secondary"
+            className="shrink-0 whitespace-nowrap"
+            onClick={() => reidentifyAll.mutate()}
+            loading={reidentifyAll.isPending}
+          >
+            <RotateCw className="h-4 w-4" /> {t('unmatched.reidentifyAll')}
+          </Button>
+        )}
       </div>
 
       <Card>

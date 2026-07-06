@@ -151,6 +151,24 @@ export class MediaController {
     return this.items.update(id, body ?? {});
   }
 
+  @Post('items/reidentify')
+  @RequirePermissions(P.MEDIA_MANAGER_MATCH)
+  reidentifyItems(@Body() body: { libraryId?: string; matchStatus?: string }) {
+    // Bulk re-run of automatic identification (e.g. to recover a library that
+    // scanned as unmatched). Tracked as a media_identification job with WS
+    // progress. Omitting matchStatus re-identifies all non-manual items; pass
+    // matchStatus: 'unmatched' to retry only the failures.
+    const filter = {
+      libraryId: body?.libraryId,
+      matchStatus: body?.matchStatus,
+    };
+    return this.jobs.run(
+      'media_identification',
+      { libraryId: filter.libraryId ?? null, payload: filter },
+      (report) => this.identification.identifyBulk(filter, report),
+    );
+  }
+
   @Post('items/:id/match')
   @RequirePermissions(P.MEDIA_MANAGER_MATCH)
   matchItem(@Param('id') id: string, @Body() body: ManualMatchDto) {
