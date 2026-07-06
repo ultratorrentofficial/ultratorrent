@@ -182,11 +182,25 @@ export class MediaScannerService {
 
     for (const id of itemIds) {
       if (skip.has(id)) continue;
+      // Always pick up local folder artwork (poster/fanart/folder/… sidecars) —
+      // it's a cheap filesystem read and is what a library should display first.
+      try {
+        artworkImported += await this.artwork.importLocal(id);
+      } catch (err) {
+        this.logger.warn(`Sidecar artwork import failed for ${id}: ${(err as Error).message}`);
+      }
+      // Fall back to a provider only when the folder had no poster and the
+      // library opts into artwork fetching. Self-limiting: importFromProvider
+      // no-ops (no network) without a configured key + a metadata external id,
+      // so a fresh un-enriched scan doesn't hammer the provider API.
       if (artworkEnabled) {
         try {
-          artworkImported += await this.artwork.importLocal(id);
+          if (await this.needsProviderArtwork(id)) {
+            const res = await this.artwork.importFromProvider(id);
+            if ('imported' in res) artworkImported += res.imported.length;
+          }
         } catch (err) {
-          this.logger.warn(`Sidecar artwork import failed for ${id}: ${(err as Error).message}`);
+          this.logger.warn(`Provider artwork fetch failed for ${id}: ${(err as Error).message}`);
         }
       }
       try {
@@ -196,6 +210,15 @@ export class MediaScannerService {
       }
     }
     return { artworkImported, metadataImported };
+  }
+
+  /** True when the item has no poster artwork yet (local or otherwise). */
+  private async needsProviderArtwork(itemId: string): Promise<boolean> {
+    const poster = await this.prisma.mediaArtwork.findFirst({
+      where: { itemId, type: 'poster' },
+      select: { id: true },
+    });
+    return !poster;
   }
 
   private defaultMediaType(kind: string): string {

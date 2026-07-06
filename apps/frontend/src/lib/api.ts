@@ -2484,10 +2484,21 @@ export const api = {
      * it can't be an `<img src>` directly). Remote artwork uses its `url`.
      */
     async artworkImage(artworkId: string): Promise<Blob> {
-      const token = getAccessToken();
-      const res = await fetch(buildUrl(`/media/artwork/${artworkId}/image`), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const doFetch = () => {
+        const token = getAccessToken();
+        return fetch(buildUrl(`/media/artwork/${artworkId}/image`), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+      };
+      let res = await doFetch();
+      // Access tokens are short-lived (15 min). This raw fetch bypasses request()'s
+      // auth handling, so without an explicit refresh+retry an expired token makes
+      // every poster silently 401 and fall back to the stub icon until a full page
+      // reload. Refresh once and retry, mirroring request().
+      if (res.status === 401) {
+        const refreshed = await performRefresh();
+        if (refreshed) res = await doFetch();
+      }
       if (!res.ok) throw new ApiError(res.status, `Artwork image failed (${res.status})`);
       return res.blob();
     },
