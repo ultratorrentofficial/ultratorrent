@@ -45,6 +45,15 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.17.0] - 2026-07-06
+
+### Added
+- RSS: TV show airing-status awareness (Phase 1, backend). Pluggable TvShowStatusProvider (TMDB/IMDb/local) + normalization/recommendation, GET/POST /api/rss/show-status lookup endpoints, RSS-rule status snapshot + migration, save validation requiring allowInactiveShowMonitoring for ended/canceled shows, new rss.show_status.* permissions, WS events, and audit. Frontend + automation + background refresh are Phase 2/3.
+- RSS show-status Phase 2 (frontend rule flow): reusable ShowStatusPanel/badge + hook, api.rss.showStatusLookup, a Media type selector + live status panel in the RSS rule create/edit dialog, and a confirmation modal that gates saving a rule for an ended/canceled show (allowInactiveShowMonitoring). i18n en-US + es-PR.
+- RSS: TV show airing-status awareness (Phase 3b, automation triggers + actions). The automation engine gains an event-context path (evaluateEvent) with five RSS triggers (rule created for inactive show, show status changed, became active, ended, canceled) and four actions (refresh RSS show status, disable RSS rule, convert rule to backfill only, notify admin). RSS actions are delegated to a new RssAutomationActions provider; the show-status refresh job and the inactive-show rule save fire the triggers via ModuleRef. Remaining Phase 3b: frontend status-badge placements (Smart Match Builder / Match Preferences Builder / rule list + detail) and the RSS.md/MODULES.md docs.
+- RSS: TV show airing-status awareness (Phase 3b, status badges + docs). The stored rule snapshot now surfaces its airing status on the rule list and the rule-detail header (covering the Smart Match Builder / Match Preferences tabs beneath it), with a recommendation caption for non-recommended shows. New docs/RSS.md documents the RSS module and the full show-status layer; MODULES.md and MEDIA_ACQUISITION_INTELLIGENCE.md updated to match. Completes the TV show airing-status awareness epic.
+- RSS: TV show airing-status awareness (Phase 3a, scheduled background refresh). New RssShowStatusRefreshService re-resolves cached show statuses on a per-status cadence (active 24h / hiatus 7d / ended·canceled 30d / unknown 3d); on a status change it updates every rule that snapshots the show, emits rss.show_status.changed (+ rss.show.ended/canceled/became_active), and audits it — it never disables a rule. New WS events + manifest scheduler job. Automation triggers/actions and remaining frontend badge placements are Phase 3b.
+
 ## [0.16.13] - 2026-07-06
 
 ### Fixed
