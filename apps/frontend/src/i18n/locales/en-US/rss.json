@@ -177,11 +177,18 @@
       "matched": "Matched",
       "seen": "Seen"
     },
+    "filter": {
+      "search": "Search history",
+      "searchPlaceholder": "Search by release title…",
+      "clear": "Clear filters"
+    },
     "loading": "Loading history…",
     "loadError": "Could not load feed history.",
     "empty": {
       "title": "No history yet",
-      "description": "Items appear here after the feed is fetched. Use “Fetch now” to pull it immediately."
+      "description": "Items appear here after the feed is fetched. Use “Fetch now” to pull it immediately.",
+      "filteredTitle": "No matching items",
+      "filteredDescription": "No history items match the current filters. Try a different search or status."
     },
     "col": {
       "release": "Release",

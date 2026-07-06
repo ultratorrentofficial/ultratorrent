@@ -177,11 +177,18 @@
       "matched": "Coincidente",
       "seen": "Visto"
     },
+    "filter": {
+      "search": "Buscar en el historial",
+      "searchPlaceholder": "Buscar por título del lanzamiento…",
+      "clear": "Limpiar filtros"
+    },
     "loading": "Cargando historial…",
     "loadError": "No se pudo cargar el historial de la fuente.",
     "empty": {
       "title": "Aún no hay historial",
-      "description": "Los elementos aparecen aquí después de consultar la fuente. Usa “Consultar ahora” para obtenerla de inmediato."
+      "description": "Los elementos aparecen aquí después de consultar la fuente. Usa “Consultar ahora” para obtenerla de inmediato.",
+      "filteredTitle": "No hay elementos coincidentes",
+      "filteredDescription": "Ningún elemento del historial coincide con los filtros actuales. Prueba otra búsqueda o estado."
     },
     "col": {
       "release": "Lanzamiento",

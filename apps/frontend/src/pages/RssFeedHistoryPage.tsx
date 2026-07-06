@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,14 +9,17 @@ import {
   Download,
   History,
   RefreshCw,
+  Search,
   Sparkles,
   Wand2,
+  X,
 } from 'lucide-react';
 import {
   ApiError,
   api,
   type RssFeed,
   type RssHistoryItem,
+  type RssHistoryStatus,
   type SmartAnalyzeResult,
 } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -67,22 +70,48 @@ export function RssFeedHistoryPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [ruleFor, setRuleFor] = useState<RssHistoryItem | null>(null);
+  const [status, setStatus] = useState<RssHistoryStatus | 'all'>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+
+  // Debounce the title search so we don't refetch on every keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
+  // Any filter change returns to the first page (the old page may not exist).
+  useEffect(() => setPage(1), [status, search]);
 
   const feedsQuery = useQuery({ queryKey: ['rss'], queryFn: api.rss.list });
   const feed = feedsQuery.data?.find((f) => f.id === feedId);
 
-  const historyKey = ['rss', 'history', feedId, page, pageSize];
+  const filtered = status !== 'all' || search !== '';
+  const historyKey = ['rss', 'history', feedId, page, pageSize, status, search];
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: historyKey,
-    queryFn: () => api.rss.history(feedId, { page, pageSize }),
+    queryFn: () =>
+      api.rss.history(feedId, {
+        page,
+        pageSize,
+        status: status === 'all' ? undefined : status,
+        search: search || undefined,
+      }),
     enabled: !!feedId,
     placeholderData: keepPreviousData,
   });
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
-  const counts = data?.counts ?? { downloaded: 0, matched: 0, seen: 0 };
+  const counts = data?.counts ?? { total: 0, downloaded: 0, matched: 0, seen: 0 };
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const toggleStatus = (key: RssHistoryStatus) =>
+    setStatus((s) => (s === key ? 'all' : key));
+  const clearFilters = () => {
+    setStatus('all');
+    setSearchInput('');
+  };
 
   const invalidateHistory = () =>
     queryClient.invalidateQueries({ queryKey: ['rss', 'history', feedId] });
@@ -146,10 +175,52 @@ export function RssFeedHistoryPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label={t('history.stat.total')} value={total} tone="neutral" />
-        <StatTile label={t('history.stat.downloaded')} value={counts.downloaded} tone="success" />
-        <StatTile label={t('history.stat.matched')} value={counts.matched} tone="info" />
-        <StatTile label={t('history.stat.seen')} value={counts.seen} tone="warning" />
+        <StatTile
+          label={t('history.stat.total')}
+          value={counts.total}
+          tone="neutral"
+          active={status === 'all'}
+          onClick={() => setStatus('all')}
+        />
+        <StatTile
+          label={t('history.stat.downloaded')}
+          value={counts.downloaded}
+          tone="success"
+          active={status === 'downloaded'}
+          onClick={() => toggleStatus('downloaded')}
+        />
+        <StatTile
+          label={t('history.stat.matched')}
+          value={counts.matched}
+          tone="info"
+          active={status === 'matched'}
+          onClick={() => toggleStatus('matched')}
+        />
+        <StatTile
+          label={t('history.stat.seen')}
+          value={counts.seen}
+          tone="warning"
+          active={status === 'seen'}
+          onClick={() => toggleStatus('seen')}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[240px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder={t('history.filter.searchPlaceholder')}
+            aria-label={t('history.filter.search')}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
+        </div>
+        {filtered && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="whitespace-nowrap">
+            <X className="h-4 w-4" /> {t('history.filter.clear')}
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -165,9 +236,18 @@ export function RssFeedHistoryPage() {
           ) : items.length === 0 ? (
             <div className="p-6">
               <EmptyState
-                icon={<History className="h-6 w-6" />}
-                title={t('history.empty.title')}
-                description={t('history.empty.description')}
+                icon={filtered ? <Search className="h-6 w-6" /> : <History className="h-6 w-6" />}
+                title={filtered ? t('history.empty.filteredTitle') : t('history.empty.title')}
+                description={
+                  filtered ? t('history.empty.filteredDescription') : t('history.empty.description')
+                }
+                action={
+                  filtered ? (
+                    <Button variant="outline" size="sm" onClick={clearFilters}>
+                      <X className="h-4 w-4" /> {t('history.filter.clear')}
+                    </Button>
+                  ) : undefined
+                }
               />
             </div>
           ) : (
@@ -299,24 +379,38 @@ function StatTile({
   label,
   value,
   tone,
+  active,
+  onClick,
 }: {
   label: string;
   value: number;
   tone: 'neutral' | 'success' | 'info' | 'warning';
+  active?: boolean;
+  onClick?: () => void;
 }) {
   const map = {
-    neutral: { text: 'text-foreground', bg: '', border: 'border-border/60' },
-    success: { text: 'text-success', bg: 'bg-success/5', border: 'border-success/30' },
-    info: { text: 'text-info', bg: 'bg-info/5', border: 'border-info/30' },
-    warning: { text: 'text-warning', bg: 'bg-warning/5', border: 'border-warning/30' },
+    neutral: { text: 'text-foreground', bg: '', border: 'border-border/60', ring: 'ring-foreground/40' },
+    success: { text: 'text-success', bg: 'bg-success/5', border: 'border-success/30', ring: 'ring-success/50' },
+    info: { text: 'text-info', bg: 'bg-info/5', border: 'border-info/30', ring: 'ring-info/50' },
+    warning: { text: 'text-warning', bg: 'bg-warning/5', border: 'border-warning/30', ring: 'ring-warning/50' },
   }[tone];
   return (
-    <div className={cn('rounded-lg border p-4', map.bg, map.border)}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'rounded-lg border p-4 text-left transition hover:bg-white/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-0',
+        map.bg,
+        map.border,
+        active && cn('ring-2', map.ring),
+      )}
+    >
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className={cn('mt-1 text-2xl font-bold tabular-nums', map.text)}>
         {value.toLocaleString()}
       </p>
-    </div>
+    </button>
   );
 }
 
