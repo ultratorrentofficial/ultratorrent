@@ -11,6 +11,7 @@ import enAuth from './locales/en-US/auth.json';
 import enShell from './locales/en-US/shell.json';
 import enMedia from './locales/en-US/media.json';
 import enMediaServerAnalytics from './locales/en-US/mediaServerAnalytics.json';
+import enNotificationCenter from './locales/en-US/notificationCenter.json';
 import enImdb from './locales/en-US/imdb.json';
 import enRss from './locales/en-US/rss.json';
 import enTorrents from './locales/en-US/torrents.json';
@@ -30,6 +31,7 @@ import esAuth from './locales/es-PR/auth.json';
 import esShell from './locales/es-PR/shell.json';
 import esMedia from './locales/es-PR/media.json';
 import esMediaServerAnalytics from './locales/es-PR/mediaServerAnalytics.json';
+import esNotificationCenter from './locales/es-PR/notificationCenter.json';
 import esImdb from './locales/es-PR/imdb.json';
 import esRss from './locales/es-PR/rss.json';
 import esTorrents from './locales/es-PR/torrents.json';
@@ -78,6 +80,7 @@ export const NAMESPACES = [
   'shell',
   'media',
   'mediaServerAnalytics',
+  'notificationCenter',
   'imdb',
   'rss',
   'torrents',
@@ -101,6 +104,7 @@ export const resources = {
     shell: enShell,
     media: enMedia,
     mediaServerAnalytics: enMediaServerAnalytics,
+    notificationCenter: enNotificationCenter,
     imdb: enImdb,
     rss: enRss,
     torrents: enTorrents,
@@ -122,6 +126,7 @@ export const resources = {
     shell: esShell,
     media: esMedia,
     mediaServerAnalytics: esMediaServerAnalytics,
+    notificationCenter: esNotificationCenter,
     imdb: esImdb,
     rss: esRss,
     torrents: esTorrents,

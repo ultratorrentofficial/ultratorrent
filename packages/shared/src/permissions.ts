@@ -125,6 +125,21 @@ export const PERMISSIONS = {
   MEDIA_MANAGER_IMDB_IMPORT_DATASET: 'media_manager.imdb.import_dataset',
   MEDIA_MANAGER_IMDB_SEARCH: 'media_manager.imdb.search',
   MEDIA_MANAGER_IMDB_MATCH: 'media_manager.imdb.match',
+
+  // Notification Center (core) — the centralized messaging platform. Supersedes
+  // the legacy `notifications.manage` umbrella with a granular set.
+  NOTIFICATIONS_VIEW: 'notifications.view',
+  NOTIFICATIONS_MANAGE_CHANNELS: 'notifications.manage_channels',
+  NOTIFICATIONS_MANAGE_TEMPLATES: 'notifications.manage_templates',
+  NOTIFICATIONS_MANAGE_RULES: 'notifications.manage_rules',
+  NOTIFICATIONS_MANAGE_RECIPIENTS: 'notifications.manage_recipients',
+  NOTIFICATIONS_MANAGE_GROUPS: 'notifications.manage_groups',
+  NOTIFICATIONS_VIEW_HISTORY: 'notifications.view_history',
+  NOTIFICATIONS_RETRY: 'notifications.retry',
+  NOTIFICATIONS_SEND_TEST: 'notifications.send_test',
+  NOTIFICATIONS_MANAGE_PREFERENCES: 'notifications.manage_preferences',
+  NOTIFICATIONS_MANAGE_SETTINGS: 'notifications.manage_settings',
+  NOTIFICATIONS_ADMIN: 'notifications.admin',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -198,6 +213,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.MEDIA_MANAGER_IMDB_CONFIGURE,
     PERMISSIONS.MEDIA_MANAGER_IMDB_IMPORT_DATASET,
     PERMISSIONS.MEDIA_MANAGER_IMDB_MATCH,
+    PERMISSIONS.NOTIFICATIONS_VIEW,
+    PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES,
   ],
   [SystemRole.USER]: [
     PERMISSIONS.TORRENTS_VIEW,
@@ -216,6 +233,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.MEDIA_MANAGER_VIEW,
     PERMISSIONS.MEDIA_MANAGER_IMDB_VIEW,
     PERMISSIONS.MEDIA_MANAGER_IMDB_SEARCH,
+    PERMISSIONS.NOTIFICATIONS_VIEW,
+    PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES,
   ],
   [SystemRole.READ_ONLY]: [
     PERMISSIONS.TORRENTS_VIEW,

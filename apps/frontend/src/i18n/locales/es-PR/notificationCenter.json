@@ -1,0 +1,99 @@
+{
+  "dashboard": {
+    "title": "Centro de Notificaciones",
+    "subtitle": "La plataforma de mensajería centralizada — cada módulo publica eventos; las reglas deciden a quién se notifica, cómo y cuándo.",
+    "loadError": "No se pudo cargar el panel.",
+    "channels": "Canales",
+    "recipients": "Destinatarios",
+    "enabledRules": "Reglas activas",
+    "queueSize": "En cola",
+    "successRate": "Tasa de éxito",
+    "recent": "Envíos recientes",
+    "noRecent": "Aún no hay envíos."
+  },
+  "status": {
+    "queued": "En cola",
+    "sending": "Enviando",
+    "sent": "Enviado",
+    "delivered": "Entregado",
+    "failed": "Fallido",
+    "cancelled": "Cancelado",
+    "skipped": "Omitido",
+    "retrying": "Reintentando",
+    "throttled": "Limitado"
+  },
+  "health": {
+    "online": "En línea",
+    "offline": "Desconectado",
+    "degraded": "Degradado",
+    "unknown": "Desconocido"
+  },
+  "severity": {
+    "info": "Información",
+    "warning": "Advertencia",
+    "critical": "Crítico"
+  },
+  "eventGroup": {
+    "media_server": "Servidor Multimedia",
+    "download": "Descargas",
+    "rss": "RSS",
+    "media": "Gestor Multimedia",
+    "system": "Sistema",
+    "legacy": "En la app"
+  },
+  "channels": {
+    "title": "Canales",
+    "subtitle": "Canales de envío — Email, SMS, Telegram, WhatsApp y más. Los secretos se cifran y nunca se muestran.",
+    "loadError": "No se pudieron cargar los canales.",
+    "empty": "Aún no hay canales — agrega uno abajo.",
+    "add": "Agregar un canal",
+    "provider": "Proveedor",
+    "selectProvider": "Selecciona un proveedor…",
+    "name": "Nombre",
+    "createBtn": "Crear canal",
+    "created": "Canal creado",
+    "saveFailed": "No se pudo guardar el canal",
+    "test": "Probar",
+    "testOk": "Conexión correcta",
+    "testFailed": "Falló la conexión",
+    "default": "Predeterminado",
+    "sentFailed": "{{sent}} enviados · {{failed}} fallidos"
+  },
+  "rules": {
+    "title": "Reglas de Notificación",
+    "subtitle": "Cada notificación es una regla configurable. Activa, edita o elimina — nada está fijo en el código.",
+    "loadError": "No se pudieron cargar las reglas.",
+    "empty": "Aún no hay reglas.",
+    "triggered": "activada {{count}}×"
+  },
+  "recipients": {
+    "title": "Destinatarios",
+    "subtitle": "Personas y grupos que reciben notificaciones.",
+    "loadError": "No se pudieron cargar los destinatarios.",
+    "empty": "Aún no hay destinatarios.",
+    "add": "Agregar un destinatario",
+    "displayName": "Nombre",
+    "email": "Correo",
+    "phone": "Teléfono",
+    "telegram": "ID de chat de Telegram",
+    "whatsapp": "Número de WhatsApp",
+    "createBtn": "Agregar destinatario",
+    "created": "Destinatario agregado",
+    "saveFailed": "No se pudo guardar el destinatario"
+  },
+  "history": {
+    "title": "Historial de Envíos",
+    "subtitle": "Envíos de notificaciones enviados, fallidos y en cola.",
+    "loadError": "No se pudo cargar el historial.",
+    "empty": "Aún no hay envíos.",
+    "status": "Estado",
+    "event": "Evento",
+    "provider": "Proveedor",
+    "destination": "Destino",
+    "when": "Cuándo",
+    "retry": "Reintentar",
+    "prev": "Anterior",
+    "next": "Siguiente",
+    "pageOf": "Página {{page}} de {{pages}}"
+  }
+}

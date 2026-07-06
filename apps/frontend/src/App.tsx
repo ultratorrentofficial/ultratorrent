@@ -40,6 +40,11 @@ import { ReportsPage } from '@/pages/media-server-analytics/ReportsPage';
 import { RecentlyAddedPage } from '@/pages/media-server-analytics/RecentlyAddedPage';
 import { ImportAnalyticsPage } from '@/pages/media-server-analytics/ImportAnalyticsPage';
 import { NewslettersPage } from '@/pages/media-server-analytics/NewslettersPage';
+import { NotificationDashboardPage } from '@/pages/notification-center/NotificationDashboardPage';
+import { NotificationChannelsPage } from '@/pages/notification-center/NotificationChannelsPage';
+import { NotificationRulesPage } from '@/pages/notification-center/NotificationRulesPage';
+import { NotificationRecipientsPage } from '@/pages/notification-center/NotificationRecipientsPage';
+import { NotificationHistoryPage } from '@/pages/notification-center/NotificationHistoryPage';
 import { ReleaseScoringPage } from '@/pages/release-scoring/ReleaseScoringPage';
 import { AutomationPage } from '@/pages/AutomationPage';
 import { FilesPage } from '@/pages/FilesPage';
@@ -331,6 +336,17 @@ export function App() {
                           </ModuleRoute>
                         }
                       />
+                    </Route>
+                  </Route>
+
+                  {/* Notification Center — core module `notification_center`. */}
+                  <Route element={<ProtectedRoute permission={PERMISSIONS.NOTIFICATIONS_VIEW} />}>
+                    <Route element={<AppShell />}>
+                      <Route path="/notifications" element={<ModuleRoute moduleId="notification_center"><NotificationDashboardPage /></ModuleRoute>} />
+                      <Route path="/notifications/channels" element={<ModuleRoute moduleId="notification_center"><NotificationChannelsPage /></ModuleRoute>} />
+                      <Route path="/notifications/rules" element={<ModuleRoute moduleId="notification_center"><NotificationRulesPage /></ModuleRoute>} />
+                      <Route path="/notifications/recipients" element={<ModuleRoute moduleId="notification_center"><NotificationRecipientsPage /></ModuleRoute>} />
+                      <Route path="/notifications/history" element={<ModuleRoute moduleId="notification_center"><NotificationHistoryPage /></ModuleRoute>} />
                     </Route>
                   </Route>
 

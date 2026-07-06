@@ -19,7 +19,7 @@ what is active. Access to a module's routes is governed by RBAC.
 
 | Tier | Meaning |
 |------|---------|
-| `core` | Always available, **cannot be disabled** (auth, RBAC, engine, torrents, RSS, files, settings, audit, …). |
+| `core` | Always available, **cannot be disabled** (auth, RBAC, engine, torrents, RSS, files, settings, audit, media server analytics, notification center, …). |
 | `community` | Bundled optional modules, on by default but **toggleable** by an admin (Media Manager, Release Scoring, Media Acquisition Intelligence, …). |
 
 Every module is `core` or `community`, and every module is available in the

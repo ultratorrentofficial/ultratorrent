@@ -1440,3 +1440,270 @@ model IMDbDatasetImport {
 
   @@map("imdb_dataset_imports")
 }
+
+// ---------------------------------------------------------------------------
+// Notification Center — the centralized, provider-driven messaging platform.
+// Cross-references use plain id columns + indexes (no hard FKs) to keep the
+// domain self-contained. Secrets live encrypted inside `config` Json.
+// ---------------------------------------------------------------------------
+
+model NotificationChannel {
+  id                String    @id @default(uuid())
+  name              String
+  description       String?
+  provider          String    // email | sms | telegram | whatsapp | discord | slack | webhook | ...
+  enabled           Boolean   @default(true)
+  isDefault         Boolean   @default(false)
+  priority          Int       @default(0)
+  /// Provider config incl. encrypted secrets (fields named in config.__encrypted). Redacted in API responses.
+  config            Json      @default("{}")
+  /// Capability snapshot from the provider (supportsImages, supportsButtons, …).
+  capabilities      Json      @default("{}")
+  rateLimitPerMin   Int?
+  retryPolicy       Json      @default("{}") // { maxAttempts, backoffMs, backoffFactor }
+  quietHours        Json      @default("{}") // { enabled, start, end, timezone }
+  allowedEvents     Json      @default("[]") // event-name allowlist ([] = all)
+  allowedGroupIds   Json      @default("[]")
+  healthStatus      String    @default("unknown") // unknown | online | offline | degraded
+  lastHealthCheckAt DateTime?
+  lastError         String?
+  sentCount         Int       @default(0)
+  failedCount       Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([provider])
+  @@index([enabled])
+  @@map("notification_channels")
+}
+
+model NotificationRecipient {
+  id                 String   @id @default(uuid())
+  displayName        String
+  email              String?
+  phone              String?
+  telegramChatId     String?
+  whatsappNumber     String?
+  language           String   @default("en-US")
+  timezone           String?
+  preferredChannelId String?
+  enabled            Boolean  @default(true)
+  quietHours         Json     @default("{}")
+  /// Quick per-event opt toggles (fine-grained rows live in NotificationPreference).
+  preferences        Json     @default("{}")
+  /// Mapped UltraTorrent user (optional).
+  userId             String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId])
+  @@index([email])
+  @@map("notification_recipients")
+}
+
+model NotificationRecipientGroup {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  /// Seeded groups (Administrators, Operators, …) that the UI marks as protected.
+  system      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("notification_recipient_groups")
+}
+
+model NotificationRecipientMember {
+  id          String   @id @default(uuid())
+  groupId     String
+  recipientId String
+  createdAt   DateTime @default(now())
+
+  @@unique([groupId, recipientId])
+  @@index([recipientId])
+  @@map("notification_recipient_members")
+}
+
+model NotificationTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  /// Optional binding to a domain event.
+  event       String?
+  subject     String?
+  title       String?
+  subtitle    String?
+  html        String?
+  text        String?
+  markdown    String?
+  sms         String?
+  whatsapp    String?
+  telegram    String?
+  /// Rich-card definition (badge/button/poster/backdrop variable bindings).
+  card        Json     @default("{}")
+  variables   Json     @default("[]")
+  locale      String   @default("en-US")
+  system      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([event])
+  @@map("notification_templates")
+}
+
+model NotificationRule {
+  id                 String    @id @default(uuid())
+  name               String
+  description        String?
+  enabled            Boolean   @default(true)
+  /// Trigger event name (from NOTIFICATION_EVENTS).
+  event              String
+  priority           Int       @default(0)
+  severity           String    @default("info") // info | warning | critical
+  /// [{ field, op, value }] evaluated against the event payload.
+  conditions         Json      @default("[]")
+  /// Recipient selection: { recipientIds:[], groupIds:[], mapEventUser:bool }.
+  recipients         Json      @default("{}")
+  /// Channel selection: channel ids ([] = each recipient's preferred/default).
+  channelIds         Json      @default("[]")
+  templateId         String?
+  variables          Json      @default("{}")
+  quietHoursOverride Boolean   @default(false)
+  dedupeWindowSec    Int       @default(0)
+  retryPolicy        Json      @default("{}")
+  escalationPolicy   Json      @default("{}")
+  rateLimitPerHour   Int?
+  schedule           Json      @default("{}")
+  tags               Json      @default("[]")
+  system             Boolean   @default(false)
+  triggerCount       Int       @default(0)
+  lastTriggeredAt    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([event])
+  @@index([enabled])
+  @@map("notification_rules")
+}
+
+model NotificationDelivery {
+  id                String    @id @default(uuid())
+  ruleId            String?
+  eventId           String?
+  event             String
+  channelId         String?
+  provider          String
+  recipientId       String?
+  /// Resolved destination (email/phone/chat id). Redacted in list views by default.
+  destination       String?
+  templateId        String?
+  subject           String?
+  /// Rendered body snapshot for the chosen channel (omitted/redacted by default).
+  renderedBody      String?
+  card              Json      @default("{}")
+  priority          Int       @default(0)
+  severity          String    @default("info")
+  status            String    @default("queued") // queued|sending|sent|delivered|failed|cancelled|skipped|retrying|throttled
+  attempts          Int       @default(0)
+  maxAttempts       Int       @default(3)
+  dedupeKey         String?
+  scheduledFor      DateTime?
+  nextAttemptAt     DateTime?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  error             String?
+  providerMessageId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status])
+  @@index([channelId])
+  @@index([recipientId])
+  @@index([ruleId])
+  @@index([event])
+  @@index([priority])
+  @@index([createdAt])
+  @@index([dedupeKey])
+  @@map("notification_deliveries")
+}
+
+model NotificationPreference {
+  id          String   @id @default(uuid())
+  recipientId String
+  /// Event name or '*' (all events).
+  event       String
+  /// Provider/channel scope, or null = all channels.
+  channel     String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([recipientId, event, channel])
+  @@index([recipientId])
+  @@map("notification_preferences")
+}
+
+model NotificationQueue {
+  id           String    @id @default(uuid())
+  deliveryId   String    @unique
+  priority     Int       @default(0)
+  scheduledFor DateTime  @default(now())
+  leasedAt     DateTime?
+  attempts     Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  @@index([scheduledFor])
+  @@index([priority])
+  @@map("notification_queue")
+}
+
+model NotificationAttachment {
+  id          String   @id @default(uuid())
+  deliveryId  String?
+  templateId  String?
+  filename    String
+  contentType String?
+  /// A URL or an artwork id reference; bytes fetched at send time.
+  url         String?
+  artworkId   String?
+  cid         String?
+  createdAt   DateTime @default(now())
+
+  @@index([deliveryId])
+  @@map("notification_attachments")
+}
+
+model NotificationEvent {
+  id           String    @id @default(uuid())
+  event        String
+  payload      Json      @default("{}")
+  dedupeKey    String?
+  matchedRules Int       @default(0)
+  processedAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([event])
+  @@index([createdAt])
+  @@index([dedupeKey])
+  @@map("notification_events")
+}
+
+model NotificationStatistics {
+  id        String   @id @default(uuid())
+  /// Rollup bucket date (UTC midnight).
+  date      DateTime
+  provider  String?
+  channelId String?
+  event     String?
+  sent      Int      @default(0)
+  delivered Int      @default(0)
+  failed    Int      @default(0)
+  skipped   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, provider, channelId, event])
+  @@index([date])
+  @@map("notification_statistics")
+}

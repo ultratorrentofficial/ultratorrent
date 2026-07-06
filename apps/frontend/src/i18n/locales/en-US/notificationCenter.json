@@ -1,0 +1,99 @@
+{
+  "dashboard": {
+    "title": "Notification Center",
+    "subtitle": "The centralized messaging platform — every module publishes events; rules decide who is notified, how and when.",
+    "loadError": "Could not load the dashboard.",
+    "channels": "Channels",
+    "recipients": "Recipients",
+    "enabledRules": "Enabled rules",
+    "queueSize": "In queue",
+    "successRate": "Success rate",
+    "recent": "Recent deliveries",
+    "noRecent": "No deliveries yet."
+  },
+  "status": {
+    "queued": "Queued",
+    "sending": "Sending",
+    "sent": "Sent",
+    "delivered": "Delivered",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "skipped": "Skipped",
+    "retrying": "Retrying",
+    "throttled": "Throttled"
+  },
+  "health": {
+    "online": "Online",
+    "offline": "Offline",
+    "degraded": "Degraded",
+    "unknown": "Unknown"
+  },
+  "severity": {
+    "info": "Info",
+    "warning": "Warning",
+    "critical": "Critical"
+  },
+  "eventGroup": {
+    "media_server": "Media Server",
+    "download": "Downloads",
+    "rss": "RSS",
+    "media": "Media Manager",
+    "system": "System",
+    "legacy": "In-app"
+  },
+  "channels": {
+    "title": "Channels",
+    "subtitle": "Delivery channels — Email, SMS, Telegram, WhatsApp and more. Secrets are encrypted and never shown.",
+    "loadError": "Could not load channels.",
+    "empty": "No channels yet — add one below.",
+    "add": "Add a channel",
+    "provider": "Provider",
+    "selectProvider": "Select a provider…",
+    "name": "Name",
+    "createBtn": "Create channel",
+    "created": "Channel created",
+    "saveFailed": "Could not save the channel",
+    "test": "Test",
+    "testOk": "Connection OK",
+    "testFailed": "Connection failed",
+    "default": "Default",
+    "sentFailed": "{{sent}} sent · {{failed}} failed"
+  },
+  "rules": {
+    "title": "Notification Rules",
+    "subtitle": "Every notification is a configurable rule. Toggle, edit or delete — nothing is hardcoded.",
+    "loadError": "Could not load rules.",
+    "empty": "No rules yet.",
+    "triggered": "triggered {{count}}×"
+  },
+  "recipients": {
+    "title": "Recipients",
+    "subtitle": "People and groups who receive notifications.",
+    "loadError": "Could not load recipients.",
+    "empty": "No recipients yet.",
+    "add": "Add a recipient",
+    "displayName": "Display name",
+    "email": "Email",
+    "phone": "Phone",
+    "telegram": "Telegram chat ID",
+    "whatsapp": "WhatsApp number",
+    "createBtn": "Add recipient",
+    "created": "Recipient added",
+    "saveFailed": "Could not save the recipient"
+  },
+  "history": {
+    "title": "Delivery History",
+    "subtitle": "Sent, failed and queued notification deliveries.",
+    "loadError": "Could not load history.",
+    "empty": "No deliveries yet.",
+    "status": "Status",
+    "event": "Event",
+    "provider": "Provider",
+    "destination": "Destination",
+    "when": "When",
+    "retry": "Retry",
+    "prev": "Previous",
+    "next": "Next",
+    "pageOf": "Page {{page}} of {{pages}}"
+  }
+}

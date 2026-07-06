@@ -3023,7 +3023,162 @@ export const api = {
     },
   },
 
+  notificationCenter: {
+    dashboard(): Promise<NotificationDashboard> {
+      return request<NotificationDashboard>('/notifications/dashboard');
+    },
+    providers(): Promise<NotificationProviderInfo[]> {
+      return request<NotificationProviderInfo[]>('/notifications/providers');
+    },
+    channels(): Promise<NotificationChannel[]> {
+      return request<NotificationChannel[]>('/notifications/channels');
+    },
+    createChannel(body: Partial<NotificationChannel> & { config?: Record<string, unknown> }): Promise<NotificationChannel> {
+      return request<NotificationChannel>('/notifications/channels', { method: 'POST', body });
+    },
+    updateChannel(id: string, body: Partial<NotificationChannel> & { config?: Record<string, unknown> }): Promise<NotificationChannel> {
+      return request<NotificationChannel>(`/notifications/channels/${id}`, { method: 'PATCH', body });
+    },
+    deleteChannel(id: string): Promise<void> {
+      return request<void>(`/notifications/channels/${id}`, { method: 'DELETE' });
+    },
+    testChannel(id: string): Promise<{ ok: boolean; status: string; error?: string }> {
+      return request(`/notifications/channels/${id}/test`, { method: 'POST' });
+    },
+    rules(): Promise<NotificationRule[]> {
+      return request<NotificationRule[]>('/notifications/rules');
+    },
+    createRule(body: Partial<NotificationRule>): Promise<NotificationRule> {
+      return request<NotificationRule>('/notifications/rules', { method: 'POST', body });
+    },
+    updateRule(id: string, body: Partial<NotificationRule>): Promise<NotificationRule> {
+      return request<NotificationRule>(`/notifications/rules/${id}`, { method: 'PATCH', body });
+    },
+    deleteRule(id: string): Promise<void> {
+      return request<void>(`/notifications/rules/${id}`, { method: 'DELETE' });
+    },
+    recipients(): Promise<NotificationRecipient[]> {
+      return request<NotificationRecipient[]>('/notifications/recipients');
+    },
+    createRecipient(body: Partial<NotificationRecipient>): Promise<NotificationRecipient> {
+      return request<NotificationRecipient>('/notifications/recipients', { method: 'POST', body });
+    },
+    updateRecipient(id: string, body: Partial<NotificationRecipient>): Promise<NotificationRecipient> {
+      return request<NotificationRecipient>(`/notifications/recipients/${id}`, { method: 'PATCH', body });
+    },
+    deleteRecipient(id: string): Promise<void> {
+      return request<void>(`/notifications/recipients/${id}`, { method: 'DELETE' });
+    },
+    groups(): Promise<NotificationGroup[]> {
+      return request<NotificationGroup[]>('/notifications/groups');
+    },
+    history(params: { page?: number; pageSize?: number; status?: string; channelId?: string; event?: string } = {}): Promise<Paginated<NotificationDelivery>> {
+      return request<Paginated<NotificationDelivery>>('/notifications/history', { query: params as Record<string, string | number> });
+    },
+    retry(id: string): Promise<NotificationDelivery> {
+      return request<NotificationDelivery>(`/notifications/history/${id}/retry`, { method: 'POST' });
+    },
+    test(body: { channelId: string; recipientId?: string }): Promise<{ ok: boolean; error?: string }> {
+      return request('/notifications/test', { method: 'POST', body });
+    },
+  },
+
 };
+
+export interface NotificationProviderInfo {
+  kind: string;
+  name: string;
+  recipientField: string;
+  capabilities: Record<string, boolean>;
+  configFields: { key: string; label: string; type: 'string' | 'number' | 'boolean'; secret?: boolean; required?: boolean; placeholder?: string }[];
+}
+
+export interface NotificationChannel {
+  id: string;
+  name: string;
+  description?: string | null;
+  provider: string;
+  enabled: boolean;
+  isDefault: boolean;
+  priority: number;
+  config: Record<string, unknown>;
+  capabilities: Record<string, boolean>;
+  rateLimitPerMin?: number | null;
+  healthStatus: string;
+  lastHealthCheckAt?: string | null;
+  lastError?: string | null;
+  sentCount: number;
+  failedCount: number;
+}
+
+export interface NotificationRule {
+  id: string;
+  name: string;
+  description?: string | null;
+  enabled: boolean;
+  event: string;
+  priority: number;
+  severity: string;
+  conditions: unknown[];
+  recipients: Record<string, unknown>;
+  channelIds: string[];
+  templateId?: string | null;
+  dedupeWindowSec: number;
+  quietHoursOverride: boolean;
+  system: boolean;
+  triggerCount: number;
+  lastTriggeredAt?: string | null;
+}
+
+export interface NotificationRecipient {
+  id: string;
+  displayName: string;
+  email?: string | null;
+  phone?: string | null;
+  telegramChatId?: string | null;
+  whatsappNumber?: string | null;
+  language: string;
+  timezone?: string | null;
+  preferredChannelId?: string | null;
+  enabled: boolean;
+  userId?: string | null;
+}
+
+export interface NotificationGroup {
+  id: string;
+  name: string;
+  description?: string | null;
+  system: boolean;
+  memberCount: number;
+}
+
+export interface NotificationDelivery {
+  id: string;
+  event: string;
+  provider: string;
+  channelId?: string | null;
+  recipientId?: string | null;
+  destination?: string | null;
+  subject?: string | null;
+  status: string;
+  severity: string;
+  attempts: number;
+  maxAttempts: number;
+  error?: string | null;
+  sentAt?: string | null;
+  createdAt: string;
+}
+
+export interface NotificationDashboard {
+  channels: number;
+  recipients: number;
+  enabledRules: number;
+  queueSize: number;
+  statusCounts: Record<string, number>;
+  successRate: number | null;
+  providerHealth: Record<string, number>;
+  recent: NotificationDelivery[];
+}
 
 export interface Newsletter {
   id: string;

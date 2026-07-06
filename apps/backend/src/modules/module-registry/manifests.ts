@@ -413,6 +413,51 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
     settingsSections: ['media-server-analytics'],
     features: ['media_server_connections', 'provider_capabilities', 'server_health', 'multi_server', 'live_activity', 'watch_history', 'analytics_reports', 'tautulli_import', 'newsletters'],
   },
+  {
+    id: MODULE_IDS.NOTIFICATION_CENTER,
+    name: 'Notification Center',
+    description:
+      'The centralized, provider-driven messaging platform. Every module publishes events; configurable rules decide if/when/how/to-whom notifications are delivered across Email, SMS, Telegram, WhatsApp and future providers — with templates, recipients, groups, a delivery queue, retries, quiet hours, dedup, escalation, and full delivery history.',
+    tier: 'core',
+    enabledByDefault: true,
+    dependencies: [
+      MODULE_IDS.AUTH,
+      MODULE_IDS.RBAC,
+      MODULE_IDS.MODULE_REGISTRY,
+      MODULE_IDS.AUDIT,
+      MODULE_IDS.SETTINGS,
+    ],
+    permissions: [
+      P.NOTIFICATIONS_VIEW,
+      P.NOTIFICATIONS_MANAGE_CHANNELS,
+      P.NOTIFICATIONS_MANAGE_TEMPLATES,
+      P.NOTIFICATIONS_MANAGE_RULES,
+      P.NOTIFICATIONS_MANAGE_RECIPIENTS,
+      P.NOTIFICATIONS_MANAGE_GROUPS,
+      P.NOTIFICATIONS_VIEW_HISTORY,
+      P.NOTIFICATIONS_RETRY,
+      P.NOTIFICATIONS_SEND_TEST,
+      P.NOTIFICATIONS_MANAGE_PREFERENCES,
+      P.NOTIFICATIONS_MANAGE_SETTINGS,
+      P.NOTIFICATIONS_ADMIN,
+    ],
+    menu: [
+      { label: 'Notification Center', path: '/notifications', icon: 'Bell', permission: P.NOTIFICATIONS_VIEW },
+    ],
+    routes: ['/api/notifications'],
+    websocketEvents: [
+      'notification.sent',
+      'notification.failed',
+      'notification.retry',
+      'notification.queue.updated',
+      'notification.provider.online',
+      'notification.provider.offline',
+      'notification.rule.triggered',
+    ],
+    schedulerJobs: ['notification_delivery_worker', 'notification_provider_health'],
+    settingsSections: ['notification-center'],
+    features: ['providers', 'channels', 'recipients', 'recipient_groups', 'notification_rules', 'templates', 'delivery_queue', 'delivery_history', 'provider_health', 'quiet_hours', 'rate_limiting', 'deduplication', 'escalation', 'rich_cards', 'event_bus'],
+  },
 ];
 
 export const ALL_MANIFESTS: ModuleManifest[] = [

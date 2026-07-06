@@ -12,7 +12,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { WS_EVENTS } from '@ultratorrent/shared';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { NOTIFICATION_BUS_CHANNEL, WS_EVENTS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -46,6 +47,7 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
     private readonly settings: SettingsService,
+    private readonly eventBus: EventEmitter2,
   ) {}
 
   /** Persist a notification, push in-app, and fan out to external channels. */
@@ -72,6 +74,14 @@ export class NotificationsService {
     } else {
       this.realtime.broadcast(WS_EVENTS.NOTIFICATION, payload);
     }
+
+    // Supersede path: publish onto the bus so the Notification Center can apply
+    // its rules/channels. The legacy in-app + fan-out above stay for back-compat.
+    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
+      event: 'legacy.notification',
+      payload: { title: input.title, message: input.message, level: input.level, eventType: input.eventType ?? null, userId: input.userId ?? null, userDisplayName: input.title },
+      at: new Date().toISOString(),
+    });
 
     await this.fanOut(input).catch((err) =>
       this.logger.warn(`External notification failed: ${err.message}`),

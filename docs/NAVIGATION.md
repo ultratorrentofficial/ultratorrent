@@ -33,7 +33,7 @@ translated at render time via the `nav` i18n namespace (`groups`, `items`,
 | **RSS & Acquisition** | RSS Feeds → `/rss` · Release Scoring → `/release-scoring` · Acquisition Intelligence → `/media-acquisition` (sub-menu: Smart Download, Missing Episodes, Decision Simulator) |
 | **Media Management** | Media Dashboard → `/media` · Media Items → `/media/items` · Libraries → `/media/libraries` · Unmatched Media → `/media/unmatched` · Duplicates → `/media/duplicates` · Rename Engine → `/media/rename-preview` · IMDb Settings → `/media/settings/imdb` · Media Settings → `/media/settings` |
 | **Media Server Analytics** *(module-gated)* | Analytics Dashboard → `/media-server-analytics` · Live Activity → `/live` · Recently Added → `/recently-added` · Watch History → `/watch-history` · Analytics Reports → `/reports` · Newsletters → `/newsletters` · Import Analytics → `/import` · Server Connections → `/connections` |
-| **Automation** | Automation Rules → `/automation` |
+| **Automation** | Automation Rules → `/automation` · Notification Center → `/notifications` · Notification Channels → `/notifications/channels` · Notification Rules → `/notifications/rules` · Notification Recipients → `/notifications/recipients` · Delivery History → `/notifications/history` |
 | **Files** | File Manager → `/files` |
 | **Administration** | Users → `/users` · Modules → `/modules` · Settings → `/settings` · Audit Log → `/audit` |
 | **Account** | Profile → `/account` |

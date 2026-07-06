@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { MODULE_IDS } from '@ultratorrent/shared';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { MODULE_IDS, NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
 import type { MediaServerSession } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -23,7 +24,13 @@ export class MediaServerSessionService {
     private readonly integrations: MediaServerIntegrationService,
     private readonly realtime: RealtimeGateway,
     private readonly registry: ModuleRegistryService,
+    private readonly eventBus: EventEmitter2,
   ) {}
+
+  /** Publish a domain event onto the Notification Center bus (fire-and-forget). */
+  private emit(event: string, payload: Record<string, unknown>): void {
+    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload, at: new Date().toISOString() });
+  }
 
   /** Live activity = the current reconciled session snapshot. */
   liveActivity() {
@@ -101,6 +108,19 @@ export class MediaServerSessionService {
             data: { connectionId: conn.id, providerSessionId: s.sessionId, ...data },
           });
           this.realtime.broadcast('media_server.session.started', { connectionId: conn.id, title: s.title, userName: s.userName });
+          const startPayload = {
+            mediaTitle: s.title, episodeTitle: null, mediaType: s.mediaType ?? null,
+            userDisplayName: s.userName, userId: s.userId ?? null,
+            serverName: conn.name ?? conn.id, libraryName: s.libraryName ?? null,
+            device: s.device ?? null, client: s.client ?? null,
+            playbackMethod: s.playbackMethod ?? null, resolution: s.resolution ?? null,
+            videoCodec: s.videoCodec ?? null, audioCodec: s.audioCodec ?? null, bitrate: s.bitrateKbps ?? null,
+            startedAt: new Date().toISOString(),
+          };
+          this.emit(NOTIFICATION_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING, startPayload);
+          if ((s.playbackMethod ?? '').toLowerCase().includes('transcode')) {
+            this.emit(NOTIFICATION_EVENTS.MEDIA_SERVER_TRANSCODE_DETECTED, startPayload);
+          }
         }
       }
 
@@ -144,5 +164,10 @@ export class MediaServerSessionService {
     });
     await this.prisma.mediaServerSession.delete({ where: { id: c.id } });
     this.realtime.broadcast('media_server.session.ended', { connectionId: c.connectionId, title: c.title });
+    this.emit(NOTIFICATION_EVENTS.MEDIA_SERVER_USER_FINISHED_WATCHING, {
+      mediaTitle: c.title, mediaType: c.mediaType, userDisplayName: c.userName, userId: c.providerUserId ?? null,
+      libraryName: c.libraryName ?? null, watchedSeconds, completionPercent: c.progressPercent ?? null,
+      stoppedAt: new Date().toISOString(),
+    });
   }
 }
