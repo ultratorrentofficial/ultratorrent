@@ -185,6 +185,14 @@
       "monthly": "Mensual",
       "manual": "Manual"
     },
+    "window": {
+      "label": "Ventana de contenido",
+      "since_last_send": "Desde el último envío",
+      "last_days": "Últimos N días",
+      "since_date": "Desde una fecha",
+      "days": "Días",
+      "startDate": "Fecha de inicio"
+    },
     "empty": "Aún no hay boletines.",
     "preview": "Vista previa",
     "testSend": "Enviar prueba",

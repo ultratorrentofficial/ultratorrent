@@ -66,7 +66,7 @@ export function NewslettersPage() {
   const { t } = useTranslation('mediaServerAnalytics');
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: '', frequency: 'weekly', recipients: '' });
+  const [form, setForm] = useState({ name: '', frequency: 'weekly', recipients: '', dateRangeMode: 'since_last_send', lastDays: 7, startDate: '' });
   const [preview, setPreview] = useState<{ id: string; data: NewsletterPreview } | null>(null);
   const [testTo, setTestTo] = useState<Record<string, string>>({});
 
@@ -74,8 +74,19 @@ export function NewslettersPage() {
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['msa', 'newsletters'] });
 
   const create = useMutation({
-    mutationFn: () => api.mediaServerAnalytics.createNewsletter({ name: form.name.trim(), frequency: form.frequency, recipientEmails: form.recipients.split(',').map((s) => s.trim()).filter(Boolean) } as Partial<Newsletter>),
-    onSuccess: () => { setForm({ name: '', frequency: 'weekly', recipients: '' }); toast.success(t('newsletter.created')); invalidate(); },
+    mutationFn: () => api.mediaServerAnalytics.createNewsletter({
+      name: form.name.trim(),
+      frequency: form.frequency,
+      recipientEmails: form.recipients.split(',').map((s) => s.trim()).filter(Boolean),
+      dateRangeMode: form.dateRangeMode,
+      lastDays: form.lastDays,
+      startDate: form.dateRangeMode === 'since_date' && form.startDate ? new Date(form.startDate).toISOString() : null,
+    } as Partial<Newsletter>),
+    onSuccess: () => { setForm({ name: '', frequency: 'weekly', recipients: '', dateRangeMode: 'since_last_send', lastDays: 7, startDate: '' }); toast.success(t('newsletter.created')); invalidate(); },
+  });
+  const update = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<Newsletter> }) => api.mediaServerAnalytics.updateNewsletter(id, patch),
+    onSuccess: invalidate,
   });
   const doPreview = useMutation({ mutationFn: (id: string) => api.mediaServerAnalytics.previewNewsletter(id) });
   const send = useMutation({
@@ -91,6 +102,7 @@ export function NewslettersPage() {
   const remove = useMutation({ mutationFn: (id: string) => api.mediaServerAnalytics.deleteNewsletter(id), onSuccess: invalidate });
 
   const freqOptions = (['daily', 'weekly', 'monthly', 'manual'] as const).map((v) => ({ value: v, label: t(`newsletter.freq.${v}`) }));
+  const windowOptions = (['since_last_send', 'last_days', 'since_date'] as const).map((v) => ({ value: v, label: t(`newsletter.window.${v}`) }));
 
   return (
     <div className="space-y-6">
@@ -105,16 +117,40 @@ export function NewslettersPage() {
         <>
           {(q.data ?? []).map((n) => (
             <Card key={n.id}>
-              <CardContent className="flex flex-wrap items-center gap-3 p-3">
-                <span className="font-medium">{n.name}</span>
-                <Badge variant="secondary">{t(`newsletter.freq.${n.frequency}`, { defaultValue: n.frequency })}</Badge>
-                <span className="text-xs text-muted-foreground">{n.recipientEmails.length} · {n.nextRunAt ? t('newsletter.nextRun', { date: formatDateTime(n.nextRunAt) }) : ''}</span>
-                <span className="flex-1" />
-                <Button variant="secondary" size="sm" onClick={() => doPreview.mutate(n.id, { onSuccess: (data) => setPreview({ id: n.id, data }) })}><Eye className="h-3.5 w-3.5" />{t('newsletter.preview')}</Button>
-                <Input className="w-40" value={testTo[n.id] ?? ''} onChange={(e) => setTestTo((s) => ({ ...s, [n.id]: e.target.value }))} placeholder={t('newsletter.email.testRecipient')} />
-                <Button variant="secondary" size="sm" onClick={() => testSend.mutate({ id: n.id, to: testTo[n.id] ?? '' })} disabled={!testTo[n.id]?.trim()}><Send className="h-3.5 w-3.5" />{t('newsletter.testSend')}</Button>
-                <Button size="sm" onClick={() => send.mutate(n.id)} disabled={send.isPending}><Play className="h-3.5 w-3.5" />{t('newsletter.sendNow')}</Button>
-                <Button variant="ghost" size="sm" onClick={() => remove.mutate(n.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+              <CardContent className="flex flex-col gap-3 p-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-medium">{n.name}</span>
+                  <Badge variant="secondary">{t(`newsletter.freq.${n.frequency}`, { defaultValue: n.frequency })}</Badge>
+                  <span className="text-xs text-muted-foreground">{n.recipientEmails.length} · {n.nextRunAt ? t('newsletter.nextRun', { date: formatDateTime(n.nextRunAt) }) : ''}</span>
+                  <span className="flex-1" />
+                  <Button variant="secondary" size="sm" onClick={() => doPreview.mutate(n.id, { onSuccess: (data) => setPreview({ id: n.id, data }) })}><Eye className="h-3.5 w-3.5" />{t('newsletter.preview')}</Button>
+                  <Input className="w-40" value={testTo[n.id] ?? ''} onChange={(e) => setTestTo((s) => ({ ...s, [n.id]: e.target.value }))} placeholder={t('newsletter.email.testRecipient')} />
+                  <Button variant="secondary" size="sm" onClick={() => testSend.mutate({ id: n.id, to: testTo[n.id] ?? '' })} disabled={!testTo[n.id]?.trim()}><Send className="h-3.5 w-3.5" />{t('newsletter.testSend')}</Button>
+                  <Button size="sm" onClick={() => send.mutate(n.id)} disabled={send.isPending}><Play className="h-3.5 w-3.5" />{t('newsletter.sendNow')}</Button>
+                  <Button variant="ghost" size="sm" onClick={() => remove.mutate(n.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                </div>
+                {/* Content window (which additions to include) */}
+                <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-2 text-xs">
+                  <span className="text-muted-foreground">{t('newsletter.window.label')}</span>
+                  <Select
+                    className="h-8 w-44"
+                    value={n.dateRangeMode}
+                    onChange={(e) => update.mutate({ id: n.id, patch: { dateRangeMode: e.target.value } })}
+                    options={windowOptions}
+                  />
+                  {n.dateRangeMode === 'last_days' && (
+                    <Input
+                      type="number" min={1} className="h-8 w-24" defaultValue={n.lastDays}
+                      onBlur={(e) => update.mutate({ id: n.id, patch: { lastDays: Math.max(1, Number(e.target.value) || 7) } })}
+                    />
+                  )}
+                  {n.dateRangeMode === 'since_date' && (
+                    <Input
+                      type="date" className="h-8 w-44" defaultValue={n.startDate ? n.startDate.slice(0, 10) : ''}
+                      onChange={(e) => update.mutate({ id: n.id, patch: { startDate: e.target.value ? new Date(e.target.value).toISOString() : null } })}
+                    />
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -127,6 +163,13 @@ export function NewslettersPage() {
                 <div className="space-y-1.5"><Label htmlFor="n-name">{t('newsletter.add.name')}</Label><Input id="n-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
                 <div className="space-y-1.5"><Label htmlFor="n-freq">{t('newsletter.add.frequency')}</Label><Select id="n-freq" value={form.frequency} onChange={(e) => setForm((f) => ({ ...f, frequency: e.target.value }))} options={freqOptions} /></div>
                 <div className="space-y-1.5"><Label htmlFor="n-rec">{t('newsletter.add.recipients')}</Label><Input id="n-rec" value={form.recipients} onChange={(e) => setForm((f) => ({ ...f, recipients: e.target.value }))} /></div>
+                <div className="space-y-1.5"><Label htmlFor="n-window">{t('newsletter.window.label')}</Label><Select id="n-window" value={form.dateRangeMode} onChange={(e) => setForm((f) => ({ ...f, dateRangeMode: e.target.value }))} options={windowOptions} /></div>
+                {form.dateRangeMode === 'last_days' && (
+                  <div className="space-y-1.5"><Label htmlFor="n-days">{t('newsletter.window.days')}</Label><Input id="n-days" type="number" min={1} value={form.lastDays} onChange={(e) => setForm((f) => ({ ...f, lastDays: Math.max(1, Number(e.target.value) || 7) }))} /></div>
+                )}
+                {form.dateRangeMode === 'since_date' && (
+                  <div className="space-y-1.5"><Label htmlFor="n-start">{t('newsletter.window.startDate')}</Label><Input id="n-start" type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} /></div>
+                )}
               </div>
               <Button onClick={() => create.mutate()} disabled={!form.name.trim() || create.isPending}>{t('newsletter.add.submit')}</Button>
             </CardContent>

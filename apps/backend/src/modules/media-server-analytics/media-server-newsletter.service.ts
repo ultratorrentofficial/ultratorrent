@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { MODULE_IDS } from '@ultratorrent/shared';
@@ -6,7 +7,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
-import { MediaServerEmailService } from './media-server-email.service';
+import { MediaServerEmailService, type EmailAttachment } from './media-server-email.service';
 import { buildContent, renderHtml, renderText, NewsletterContent, NewsletterItem } from './newsletter-render';
 
 interface NewsletterInput {
@@ -18,9 +19,20 @@ interface NewsletterInput {
   subjectTemplate?: string;
   dateRangeMode?: string;
   lastDays?: number;
+  startDate?: string | null;
 }
 
 const VERSION = '0.15.0';
+const MAX_ITEMS = 60; // items rendered in the email
+const MAX_POSTERS = 30; // posters attached (keeps the email a sane size)
+const MAX_POSTER_BYTES = 500 * 1024;
+
+/** A built newsletter ready to send: content + assembled inline poster attachments. */
+interface RenderedNewsletter {
+  content: NewsletterContent;
+  attachments: EmailAttachment[];
+  subtitle: string;
+}
 
 @Injectable()
 export class MediaServerNewsletterService {
@@ -56,6 +68,7 @@ export class MediaServerNewsletterService {
         subjectTemplate: input.subjectTemplate,
         dateRangeMode: input.dateRangeMode ?? 'since_last_send',
         lastDays: input.lastDays ?? 7,
+        startDate: input.startDate ? new Date(input.startDate) : null,
       },
     });
     await this.audit.record({ userId, action: 'media_server_analytics.newsletter.created', objectType: 'media_server_newsletter', objectId: row.id });
@@ -68,6 +81,7 @@ export class MediaServerNewsletterService {
     for (const k of ['name', 'enabled', 'frequency', 'subjectTemplate', 'dateRangeMode', 'lastDays'] as const) {
       if (input[k] !== undefined) data[k] = input[k];
     }
+    if (input.startDate !== undefined) data.startDate = input.startDate ? new Date(input.startDate) : null;
     if (input.recipientEmails !== undefined) data.recipientEmails = input.recipientEmails as object;
     if (input.contentSections !== undefined) data.contentSections = input.contentSections as object;
     const row = await this.prisma.mediaServerNewsletter.update({ where: { id }, data });
@@ -86,21 +100,105 @@ export class MediaServerNewsletterService {
     return this.prisma.mediaServerNewsletterDelivery.findMany({ where: { newsletterId: id }, orderBy: { createdAt: 'desc' }, take: 200 });
   }
 
-  /** Build the "added since" content for a newsletter from the Media Manager library. */
-  private async content(n: MediaServerNewsletter): Promise<NewsletterContent> {
+  /** Resolve the "included since" date for a newsletter's configured range mode. */
+  private since(n: MediaServerNewsletter): Date {
     const now = Date.now();
-    const since =
-      n.dateRangeMode === 'since_last_send' && n.lastSuccessfulSendAt
-        ? n.lastSuccessfulSendAt
-        : new Date(now - n.lastDays * 24 * 3600 * 1000);
-    const items = await this.prisma.mediaItem.findMany({
+    if (n.dateRangeMode === 'since_date' && n.startDate) return n.startDate;
+    if (n.dateRangeMode === 'since_last_send' && n.lastSuccessfulSendAt) return n.lastSuccessfulSendAt;
+    return new Date(now - n.lastDays * 24 * 3600 * 1000);
+  }
+
+  private rangeSubtitle(since: Date): string {
+    const fmt = since.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `Everything added since ${fmt}`;
+  }
+
+  /**
+   * Build the "added since" content from the Media Manager library, enriched with
+   * metadata (overview/rating/runtime/genres/certification) and inline poster
+   * artwork (attached as CID images so they render without public URLs).
+   */
+  private async build(n: MediaServerNewsletter): Promise<RenderedNewsletter> {
+    const since = this.since(n);
+    const rows = await this.prisma.mediaItem.findMany({
       where: { createdAt: { gte: since } },
       orderBy: { createdAt: 'desc' },
-      take: 200,
-      select: { title: true, mediaType: true, year: true, season: true, episode: true, createdAt: true },
+      take: MAX_ITEMS,
+      select: {
+        id: true, title: true, mediaType: true, year: true, season: true, episode: true, createdAt: true,
+        metadata: { select: { overview: true, rating: true, runtime: true, certification: true, genres: true } },
+        artwork: { where: { type: 'poster' }, orderBy: { selected: 'desc' }, take: 1, select: { url: true, localPath: true } },
+      },
     });
-    const mapped: NewsletterItem[] = items.map((i) => ({ title: i.title, mediaType: i.mediaType, year: i.year, season: i.season, episode: i.episode, addedAt: i.createdAt }));
-    return buildContent(mapped, since);
+
+    const posters = new Map<string, { url: string | null; localPath: string | null }>();
+    const items: NewsletterItem[] = rows.map((r) => {
+      if (r.artwork[0]) posters.set(r.id, r.artwork[0]);
+      const g = r.metadata?.genres;
+      return {
+        id: r.id,
+        title: r.title,
+        mediaType: r.mediaType,
+        year: r.year,
+        season: r.season,
+        episode: r.episode,
+        addedAt: r.createdAt,
+        overview: r.metadata?.overview ?? null,
+        rating: r.metadata?.rating ?? null,
+        runtime: r.metadata?.runtime ?? null,
+        certification: r.metadata?.certification ?? null,
+        genres: Array.isArray(g) ? (g as string[]) : [],
+      };
+    });
+
+    const content = buildContent(items, since);
+    const attachments = await this.assemblePosters(content, posters);
+    return { content, attachments, subtitle: this.rangeSubtitle(since) };
+  }
+
+  /**
+   * Fetch poster bytes (remote URL or local file) for the first MAX_POSTERS items
+   * in render order, attach them as CID images, and stamp `posterCid` on the item.
+   * Best-effort: a poster that fails to load simply falls back to a placeholder.
+   */
+  private async assemblePosters(
+    content: NewsletterContent,
+    posters: Map<string, { url: string | null; localPath: string | null }>,
+  ): Promise<EmailAttachment[]> {
+    const ordered = content.sections.flatMap((s) => s.items).slice(0, MAX_POSTERS);
+    const attachments: EmailAttachment[] = [];
+    for (const item of ordered) {
+      const art = item.id ? posters.get(item.id) : undefined;
+      if (!art) continue;
+      const loaded = await this.loadPoster(art);
+      if (!loaded) continue;
+      const cid = `poster-${item.id}`;
+      const ext = loaded.contentType.includes('png') ? 'png' : 'jpg';
+      attachments.push({ cid, filename: `${cid}.${ext}`, content: loaded.buf, contentType: loaded.contentType });
+      item.posterCid = cid;
+    }
+    return attachments;
+  }
+
+  private async loadPoster(art: { url: string | null; localPath: string | null }): Promise<{ buf: Buffer; contentType: string } | null> {
+    try {
+      if (art.url) {
+        const res = await fetch(art.url, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) return null;
+        const contentType = res.headers.get('content-type') ?? 'image/jpeg';
+        if (!contentType.startsWith('image/')) return null;
+        const buf = Buffer.from(await res.arrayBuffer());
+        return buf.length > MAX_POSTER_BYTES ? null : { buf, contentType };
+      }
+      if (art.localPath) {
+        const buf = await readFile(art.localPath);
+        if (buf.length > MAX_POSTER_BYTES) return null;
+        return { buf, contentType: art.localPath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg' };
+      }
+    } catch {
+      return null; // artwork is best-effort — never block a send
+    }
+    return null;
   }
 
   private subject(n: MediaServerNewsletter, content: NewsletterContent): string {
@@ -109,17 +207,23 @@ export class MediaServerNewsletterService {
 
   async preview(id: string) {
     const n = await this.get(id);
-    const content = await this.content(n);
-    const opts = { title: n.name, version: VERSION };
-    return { subject: this.subject(n, content), html: renderHtml(content, opts), text: renderText(content, opts), count: content.totalItems, since: content.since };
+    const { content, attachments, subtitle } = await this.build(n);
+    const opts = { title: n.name, version: VERSION, subtitle };
+    // The in-app preview iframe can't resolve `cid:` refs, so inline the poster
+    // bytes as data URIs — a faithful, self-contained preview of the sent email.
+    let html = renderHtml(content, opts);
+    for (const a of attachments) {
+      html = html.split(`cid:${a.cid}`).join(`data:${a.contentType ?? 'image/jpeg'};base64,${a.content.toString('base64')}`);
+    }
+    return { subject: this.subject(n, content), html, text: renderText(content, opts), count: content.totalItems, since: content.since };
   }
 
   async testSend(id: string, recipient: string, userId?: string) {
     if (!recipient) throw new BadRequestException('A recipient email is required.');
     const n = await this.get(id);
-    const content = await this.content(n);
-    const opts = { title: n.name, version: VERSION };
-    await this.email.send({ to: recipient, subject: `[TEST] ${this.subject(n, content)}`, html: renderHtml(content, opts), text: renderText(content, opts) });
+    const { content, attachments, subtitle } = await this.build(n);
+    const opts = { title: n.name, version: VERSION, subtitle };
+    await this.email.send({ to: recipient, subject: `[TEST] ${this.subject(n, content)}`, html: renderHtml(content, opts), text: renderText(content, opts), attachments });
     await this.audit.record({ userId, action: 'media_server_analytics.newsletter.test_sent', objectType: 'media_server_newsletter', objectId: id, metadata: { recipient } });
     return { ok: true as const };
   }
@@ -130,8 +234,8 @@ export class MediaServerNewsletterService {
     const recipients = (n.recipientEmails as string[]) ?? [];
     if (recipients.length === 0) throw new BadRequestException('This newsletter has no recipients.');
 
-    const content = await this.content(n);
-    const opts = { title: n.name, version: VERSION };
+    const { content, attachments, subtitle } = await this.build(n);
+    const opts = { title: n.name, version: VERSION, subtitle };
     const subject = this.subject(n, content);
     const html = renderHtml(content, opts);
     const text = renderText(content, opts);
@@ -141,7 +245,7 @@ export class MediaServerNewsletterService {
     let failed = 0;
     for (const to of recipients) {
       try {
-        await this.email.send({ to, subject, html, text });
+        await this.email.send({ to, subject, html, text, attachments });
         await this.prisma.mediaServerNewsletterDelivery.create({ data: { newsletterId: id, recipientEmail: to, status: 'sent', subject, sentAt: new Date() } });
         sent += 1;
       } catch (err) {

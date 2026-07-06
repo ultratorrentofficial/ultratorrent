@@ -185,6 +185,14 @@
       "monthly": "Monthly",
       "manual": "Manual"
     },
+    "window": {
+      "label": "Content window",
+      "since_last_send": "Since last send",
+      "last_days": "Last N days",
+      "since_date": "Since a date",
+      "days": "Days",
+      "startDate": "Start date"
+    },
     "empty": "No newsletters yet.",
     "preview": "Preview",
     "testSend": "Test send",

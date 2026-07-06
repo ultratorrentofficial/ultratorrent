@@ -2917,6 +2917,7 @@ export interface Newsletter {
   subjectTemplate: string | null;
   dateRangeMode: string;
   lastDays: number;
+  startDate: string | null;
   lastSuccessfulSendAt: string | null;
   nextRunAt: string | null;
 }

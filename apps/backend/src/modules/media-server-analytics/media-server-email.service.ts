@@ -16,11 +16,20 @@ interface EmailConfig {
   fromAddress?: string;
 }
 
+/** An inline image attachment referenced from the HTML via `cid:<cid>`. */
+export interface EmailAttachment {
+  cid: string;
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+}
+
 export interface OutgoingEmail {
   to: string;
   subject: string;
   html: string;
   text: string;
+  attachments?: EmailAttachment[];
 }
 
 /**
@@ -97,6 +106,12 @@ export class MediaServerEmailService {
       subject: email.subject,
       html: email.html,
       text: email.text,
+      attachments: email.attachments?.map((a) => ({
+        cid: a.cid,
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType,
+      })),
     });
   }
 

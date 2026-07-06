@@ -865,8 +865,9 @@ model MediaServerNewsletter {
   recipientEmails      Json      @default("[]")
   contentSections      Json      @default("[]")
   subjectTemplate      String?
-  dateRangeMode        String    @default("since_last_send") // since_last_send | last_days
+  dateRangeMode        String    @default("since_last_send") // since_last_send | last_days | since_date
   lastDays             Int       @default(7)
+  startDate            DateTime? // fixed "included since" date for the since_date mode
   lastSuccessfulSendAt DateTime?
   nextRunAt            DateTime?
   createdAt            DateTime  @default(now())
