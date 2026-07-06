@@ -31,6 +31,11 @@ const MAX_ITEMS = 60; // items rendered in the email
 const MAX_POSTERS = 30; // posters attached (keeps the email a sane size)
 const MAX_POSTER_BYTES = 500 * 1024;
 
+/** Media types whose episodes render as grouped shows (see NEWSLETTER_GROUPS). */
+const TV_MEDIA_TYPES = new Set<string>(NEWSLETTER_GROUPS.find((g) => g.key === 'tv')!.types);
+/** Artwork types accepted for a show poster, in preference order (best first). */
+const SHOW_POSTER_TYPES = ['poster', 'season_poster', 'thumbnail', 'fanart'];
+
 /** A built newsletter ready to send: content + inline poster attachments + render opts. */
 interface RenderedNewsletter {
   content: NewsletterContent;
@@ -173,17 +178,35 @@ export class MediaServerNewsletterService {
       },
     });
 
+    // Episodes are frequently stored with a raw release title ("Show - S02E01 -
+    // Name") and null season/episode when imported unidentified. Normalize the
+    // show name + S/E from the title so those episodes collapse into one show
+    // (and match the library's real show item for artwork), reusing the RSS
+    // release-name parser.
+    const { parseTorrentName } = await import('../rss/torrent-name-parser');
+
     const posters = new Map<string, { url: string | null; localPath: string | null }>();
     const items: NewsletterItem[] = rows.map((r) => {
       if (r.artwork[0]) posters.set(r.id, r.artwork[0]);
+      let title = r.title;
+      let season = r.season;
+      let episode = r.episode;
+      if (TV_MEDIA_TYPES.has(r.mediaType)) {
+        const p = parseTorrentName(r.title);
+        if (p.title && (p.season != null || p.episode != null)) {
+          title = p.title;
+          season = season ?? p.season;
+          episode = episode ?? p.episode;
+        }
+      }
       const g = r.metadata?.genres;
       return {
         id: r.id,
-        title: r.title,
+        title,
         mediaType: r.mediaType,
         year: r.year,
-        season: r.season,
-        episode: r.episode,
+        season,
+        episode,
         addedAt: r.createdAt,
         overview: r.metadata?.overview ?? null,
         rating: r.metadata?.rating ?? null,
@@ -195,7 +218,14 @@ export class MediaServerNewsletterService {
     });
 
     const content = buildContent(items, since, until);
-    const attachments = await this.assemblePosters(content, posters);
+    // Resolve each show's poster from the whole library by its (normalized)
+    // title — the newest episodes are often artwork-less, but the show's real
+    // item carries the poster.
+    const showTitles = [
+      ...new Set(content.sections.filter((s) => s.layout === 'shows').flatMap((s) => s.shows.map((sh) => sh.title))),
+    ];
+    const showPosters = await this.fetchShowPosters(showTitles);
+    const attachments = await this.assemblePosters(content, posters, showPosters);
     return { content, attachments, opts: await this.renderOpts(since, until) };
   }
 
@@ -204,23 +234,62 @@ export class MediaServerNewsletterService {
    * in render order, attach them as CID images, and stamp `posterCid` on the item.
    * Best-effort: a poster that fails to load simply falls back to a placeholder.
    */
+  /**
+   * Best show poster from the library for each (normalized) show title, trying
+   * `poster` → `season_poster` → `thumbnail` → `fanart` and preferring a
+   * selected artwork with a usable path/URL. Lets an artwork-less recent episode
+   * still show its show's poster.
+   */
+  private async fetchShowPosters(titles: string[]): Promise<Map<string, { url: string | null; localPath: string | null }>> {
+    const chosen = new Map<string, { url: string | null; localPath: string | null }>();
+    if (titles.length === 0) return chosen;
+    const arts = await this.prisma.mediaArtwork.findMany({
+      where: {
+        type: { in: SHOW_POSTER_TYPES },
+        OR: [{ localPath: { not: null } }, { url: { not: null } }],
+        item: { title: { in: titles }, mediaType: { in: [...TV_MEDIA_TYPES] } },
+      },
+      select: { url: true, localPath: true, type: true, selected: true, item: { select: { title: true } } },
+    });
+    // Lower score = better: earlier type in the preference list, selected first.
+    const score = (type: string, selected: boolean) => SHOW_POSTER_TYPES.indexOf(type) * 2 + (selected ? 0 : 1);
+    const best = new Map<string, number>();
+    for (const a of arts) {
+      const t = a.item.title;
+      const s = score(a.type, a.selected);
+      if (!best.has(t) || s < best.get(t)!) {
+        best.set(t, s);
+        chosen.set(t, { url: a.url, localPath: a.localPath });
+      }
+    }
+    return chosen;
+  }
+
   private async assemblePosters(
     content: NewsletterContent,
     posters: Map<string, { url: string | null; localPath: string | null }>,
+    showPosters: Map<string, { url: string | null; localPath: string | null }>,
   ): Promise<EmailAttachment[]> {
-    // One poster per show + per movie across all sections, in render order, capped.
-    const targets: { id?: string; set: (cid: string) => void }[] = content.sections.flatMap((sec) => [
-      ...sec.shows.map((s) => ({ id: s.posterItemId, set: (cid: string) => (s.posterCid = cid) })),
-      ...sec.movies.map((m) => ({ id: m.id, set: (cid: string) => (m.posterCid = cid) })),
-    ]);
+    // One poster per show (by show title, falling back to the representative
+    // item) + per movie (by id), across all sections, in render order, capped.
+    const targets: { art?: { url: string | null; localPath: string | null }; set: (cid: string) => void }[] =
+      content.sections.flatMap((sec) => [
+        ...sec.shows.map((s) => ({
+          art: showPosters.get(s.title) ?? (s.posterItemId ? posters.get(s.posterItemId) : undefined),
+          set: (cid: string) => (s.posterCid = cid),
+        })),
+        ...sec.movies.map((m) => ({
+          art: m.id ? posters.get(m.id) : undefined,
+          set: (cid: string) => (m.posterCid = cid),
+        })),
+      ]);
     const attachments: EmailAttachment[] = [];
     for (const tgt of targets) {
       if (attachments.length >= MAX_POSTERS) break;
-      const art = tgt.id ? posters.get(tgt.id) : undefined;
-      if (!art) continue;
-      const loaded = await this.loadPoster(art);
+      if (!tgt.art) continue;
+      const loaded = await this.loadPoster(tgt.art);
       if (!loaded) continue;
-      const cid = `poster-${tgt.id}`;
+      const cid = `nlposter-${attachments.length}`;
       const ext = loaded.contentType.includes('png') ? 'png' : 'jpg';
       attachments.push({ cid, filename: `${cid}.${ext}`, content: loaded.buf, contentType: loaded.contentType });
       tgt.set(cid);
