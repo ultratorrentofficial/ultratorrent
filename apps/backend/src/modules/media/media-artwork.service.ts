@@ -6,6 +6,7 @@ import {
 import { mkdir, writeFile, stat, readdir } from 'node:fs/promises';
 import { createReadStream, type ReadStream } from 'node:fs';
 import * as path from 'node:path';
+import sharp from 'sharp';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { AuditService } from '../audit/audit.service';
@@ -44,6 +45,9 @@ const ARTWORK_CONTENT_TYPES: Record<string, string> = {
 };
 
 export const MAX_ARTWORK_BYTES = 10 * 1024 * 1024; // 10 MB
+
+/** Width of generated poster thumbnails; height scales to keep aspect. */
+export const THUMBNAIL_WIDTH = 400;
 
 /** Image extensions recognised for on-disk sidecar artwork. */
 const SIDECAR_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
@@ -299,6 +303,59 @@ export class MediaArtworkService {
       contentType: ARTWORK_CONTENT_TYPES[path.extname(safe).toLowerCase()] ?? 'application/octet-stream',
       size: st.size,
     };
+  }
+
+  /**
+   * Serve a small, cached WebP thumbnail of a locally-stored artwork image, for
+   * fast grid rendering (full-size posters can be several MB). Generated lazily
+   * on first request and cached under `.ultratorrent/media-artwork/thumbs/`
+   * (a dot-dir the scanner ignores); regenerated when the source is newer. If
+   * resizing fails (corrupt/unsupported image) it falls back to the original so
+   * the poster still renders rather than reverting to the stub.
+   */
+  async thumbnail(
+    artworkId: string,
+  ): Promise<{ stream: ReadStream; contentType: string; size: number }> {
+    const art = await this.prisma.mediaArtwork.findUnique({ where: { id: artworkId } });
+    if (!art) throw new NotFoundException('Artwork not found');
+    if (!art.localPath) {
+      throw new NotFoundException('This artwork has no locally stored image.');
+    }
+    const source = this.filePath.assertWithinHardRoots(art.localPath);
+    const srcStat = await stat(source).catch(() => null);
+    if (!srcStat || !srcStat.isFile()) {
+      throw new NotFoundException('The artwork image file is missing.');
+    }
+
+    const root = this.filePath.hardRoots[0];
+    if (!root) throw new BadRequestException('No storage root is configured.');
+    const cacheDir = path.join(root, '.ultratorrent', 'media-artwork', 'thumbs');
+    const cachePath = this.filePath.assertWithinHardRoots(
+      path.join(cacheDir, `${artworkId}.webp`),
+    );
+
+    try {
+      // (Re)generate when the cache is missing or older than the source image.
+      const cacheStat = await stat(cachePath).catch(() => null);
+      if (!cacheStat || cacheStat.mtimeMs < srcStat.mtimeMs) {
+        await mkdir(cacheDir, { recursive: true });
+        const buf = await sharp(source)
+          .rotate() // honour EXIF orientation
+          .resize({ width: THUMBNAIL_WIDTH, withoutEnlargement: true })
+          .webp({ quality: 78 })
+          .toBuffer();
+        await writeFile(cachePath, buf);
+      }
+      const finalStat = await stat(cachePath);
+      return {
+        stream: createReadStream(cachePath),
+        contentType: 'image/webp',
+        size: finalStat.size,
+      };
+    } catch {
+      // Thumbnailing failed — serve the original so the image still shows.
+      return this.readImage(artworkId);
+    }
   }
 
   /** List an item's artwork with the current selection per type. */

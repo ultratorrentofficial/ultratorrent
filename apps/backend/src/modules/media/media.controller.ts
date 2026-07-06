@@ -290,8 +290,13 @@ export class MediaController {
   async artworkImage(
     @Param('artworkId') artworkId: string,
     @Res({ passthrough: true }) res: Response,
+    @Query('thumb') thumb?: string,
   ): Promise<StreamableFile> {
-    const { stream, contentType, size } = await this.artwork.readImage(artworkId);
+    // `?thumb=1` serves a small cached WebP thumbnail for fast grid rendering;
+    // otherwise the full-size original.
+    const { stream, contentType, size } = thumb
+      ? await this.artwork.thumbnail(artworkId)
+      : await this.artwork.readImage(artworkId);
     res.set({
       'Content-Type': contentType,
       'Content-Length': String(size),

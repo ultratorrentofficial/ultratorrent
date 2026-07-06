@@ -16,11 +16,15 @@ export function MediaPoster({
   alt,
   className,
   iconClassName,
+  size = 'thumb',
 }: {
   artwork?: MediaArtworkRef | null;
   alt: string;
   className?: string;
   iconClassName?: string;
+  /** 'thumb' (default) serves a small cached thumbnail — fast for grids;
+   *  'full' serves the original, for large detail views. */
+  size?: 'thumb' | 'full';
 }) {
   const remote = artwork?.url ?? null;
   // Only fetch a blob when there's a local image and no directly-usable url.
@@ -35,7 +39,7 @@ export function MediaPoster({
     let active = true;
     let objectUrl: string | undefined;
     api.media
-      .artworkImage(localId)
+      .artworkImage(localId, size === 'thumb')
       .then((blob) => {
         if (!active) return;
         objectUrl = URL.createObjectURL(blob);
@@ -48,7 +52,7 @@ export function MediaPoster({
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [localId]);
+  }, [localId, size]);
 
   const src = remote ?? blobUrl;
 

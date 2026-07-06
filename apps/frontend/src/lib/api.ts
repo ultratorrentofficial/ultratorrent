@@ -2483,10 +2483,11 @@ export const api = {
      * Fetch a locally-stored artwork image as a Blob (bearer-authenticated, so
      * it can't be an `<img src>` directly). Remote artwork uses its `url`.
      */
-    async artworkImage(artworkId: string): Promise<Blob> {
+    async artworkImage(artworkId: string, thumb = false): Promise<Blob> {
+      const suffix = thumb ? '?thumb=1' : '';
       const doFetch = () => {
         const token = getAccessToken();
-        return fetch(buildUrl(`/media/artwork/${artworkId}/image`), {
+        return fetch(buildUrl(`/media/artwork/${artworkId}/image${suffix}`), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
       };
