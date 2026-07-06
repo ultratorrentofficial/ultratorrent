@@ -278,6 +278,7 @@ ultratorrent/
 |----------|-------------|
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Core clean-architecture layers, the engine provider abstraction, data flow, real-time design, RBAC |
 | [MEDIA_MANAGER.md](docs/MEDIA_MANAGER.md) | Media libraries, identification, metadata/artwork/subtitles, rename templates, NFO, media-server integrations, automation, security |
+| [RSS.md](docs/RSS.md)                   | Feeds, rules, match candidates, and TV show airing-status awareness (providers, save validation, background refresh, automation) |
 | [INSTALL.md](docs/INSTALL.md)           | Prerequisites, env setup, Prisma, running dev, connecting rTorrent |
 | [DOCKER.md](docs/DOCKER.md)             | Docker Compose services, volumes, env, health checks, commands |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md)   | Local workflow, adding an engine provider, adding a module, testing, standards |

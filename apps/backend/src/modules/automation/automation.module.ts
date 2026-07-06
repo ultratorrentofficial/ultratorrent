@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  forwardRef,
   Get,
   Global,
   Injectable,
@@ -30,6 +31,11 @@ import { EngineRegistryService } from '../engine/engine-registry.service';
 import { NotificationsService } from '../notifications/notifications.module';
 import { MediaService } from '../media/media.service';
 import { MediaAutomationActions } from '../media/media-automation.actions';
+import { RssModule } from '../rss/rss.module';
+import {
+  RssAutomationActions,
+  RSS_ACTION_TYPES,
+} from '../rss/tv-show-status/rss-automation.actions';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -52,6 +58,11 @@ export const AUTOMATION_TRIGGERS = [
   { id: 'media.missing_subtitles', label: 'When a media item is missing subtitles', category: 'media' },
   { id: 'media.rename_completed', label: 'When a media rename/move completes', category: 'media' },
   { id: 'media.server_refresh_failed', label: 'When a media-server refresh fails', category: 'media' },
+  { id: 'rss.rule.created_for_inactive_show', label: 'When an RSS rule is created for an inactive show', category: 'rss' },
+  { id: 'rss.show_status.changed', label: "When a monitored show's airing status changes", category: 'rss' },
+  { id: 'rss.show.became_active', label: 'When a monitored show becomes active again', category: 'rss' },
+  { id: 'rss.show.ended', label: 'When a monitored show ends', category: 'rss' },
+  { id: 'rss.show.canceled', label: 'When a monitored show is canceled', category: 'rss' },
 ] as const;
 
 /** Catalog of actions the engine can execute (metadata for the UI). */
@@ -73,6 +84,10 @@ export const AUTOMATION_ACTIONS = [
   { id: 'media_move', label: 'Move media into the library', category: 'media' },
   { id: 'media_notify', label: 'Send media notification', category: 'media' },
   { id: 'media_server_refresh', label: 'Refresh a media server', category: 'media' },
+  { id: 'refresh_rss_show_status', label: 'Refresh RSS show status', category: 'rss' },
+  { id: 'disable_rss_rule', label: 'Disable RSS rule', category: 'rss' },
+  { id: 'convert_rule_to_backfill', label: 'Convert rule to backfill only', category: 'rss' },
+  { id: 'notify_admin', label: 'Notify admin', category: 'rss' },
 ] as const;
 
 /** Media action ids delegated to MediaAutomationActions. */
@@ -119,6 +134,7 @@ export class AutomationEngine {
     private readonly notifications: NotificationsService,
     private readonly media: MediaService,
     private readonly mediaActions: MediaAutomationActions,
+    private readonly rssActions: RssAutomationActions,
   ) {}
 
   /** Evaluate every enabled rule for a trigger against a single torrent. */
@@ -145,6 +161,89 @@ export class AutomationEngine {
     for (const { context, previous } of items) {
       await this.applyRules(rules, context, previous);
     }
+  }
+
+  /**
+   * Evaluate rules for a NON-torrent trigger against a plain event context
+   * (e.g. RSS show-status changes). Conditions match against the context object's
+   * fields; only event-safe actions (notify/webhook + the `rss_*` delegated
+   * actions) may run — torrent engine actions (move/pause/…) need a real torrent
+   * and will error, which is caught and logged per rule. Best-effort: never
+   * throws to its caller.
+   */
+  async evaluateEvent(
+    trigger: string,
+    context: Record<string, unknown>,
+  ): Promise<void> {
+    const rules = await this.loadRules(trigger);
+    for (const rule of rules) {
+      const conditions = (rule.conditions as unknown as Condition[]) ?? [];
+      if (
+        !conditions.every((c) =>
+          this.applyOperator(c.op, context[c.field as string], c.value),
+        )
+      ) {
+        continue;
+      }
+      try {
+        for (const action of (rule.actions as unknown as Action[]) ?? []) {
+          await this.runEventAction(action, context);
+        }
+        await this.logEvent(rule.id, 'success', context, null);
+      } catch (err) {
+        await this.logEvent(rule.id, 'failed', context, (err as Error).message);
+        await this.notifications.dispatch({
+          level: 'error',
+          title: 'Automation failed',
+          message: `Rule "${rule.name}" failed: ${(err as Error).message}`,
+          eventType: 'automation.failed',
+        });
+      }
+    }
+  }
+
+  /** Actions runnable without a torrent: notifications, webhooks, RSS delegates. */
+  private async runEventAction(
+    action: Action,
+    context: Record<string, unknown>,
+  ): Promise<void> {
+    const params = action.params ?? {};
+
+    if (RSS_ACTION_TYPES.has(action.type)) {
+      await this.rssActions.execute(action.type, params, context);
+      return;
+    }
+
+    switch (action.type) {
+      case 'notify':
+      case 'notify_admin':
+        await this.notifications.dispatch({
+          level: action.type === 'notify_admin' ? 'warning' : 'info',
+          title: String(params.title ?? 'Automation'),
+          message: String(params.message ?? context.title ?? ''),
+        });
+        break;
+      case 'webhook':
+        await fetch(String(params.url), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: context, params }),
+        });
+        break;
+      default:
+        throw new Error(`Action "${action.type}" is not valid for an event trigger`);
+    }
+  }
+
+  private async logEvent(
+    ruleId: string,
+    status: string,
+    context: Record<string, unknown>,
+    message: string | null,
+  ): Promise<void> {
+    await this.prisma.automationLog.create({
+      data: { ruleId, status, message, context: context as object },
+    });
   }
 
   private loadRules(trigger: string) {
@@ -199,25 +298,29 @@ export class AutomationEngine {
   }
 
   private checkCondition(c: Condition, t: NormalizedTorrent): boolean {
-    const actual = t[c.field] as unknown;
-    switch (c.op) {
+    return this.applyOperator(c.op, t[c.field] as unknown, c.value);
+  }
+
+  /** The comparison logic shared by torrent-context and event-context rules. */
+  private applyOperator(op: string, actual: unknown, value: unknown): boolean {
+    switch (op) {
       case 'eq':
-        return actual === c.value;
+        return actual === value;
       case 'neq':
-        return actual !== c.value;
+        return actual !== value;
       case 'gt':
-        return Number(actual) > Number(c.value);
+        return Number(actual) > Number(value);
       case 'gte':
-        return Number(actual) >= Number(c.value);
+        return Number(actual) >= Number(value);
       case 'lt':
-        return Number(actual) < Number(c.value);
+        return Number(actual) < Number(value);
       case 'lte':
-        return Number(actual) <= Number(c.value);
+        return Number(actual) <= Number(value);
       case 'contains':
-        return String(actual).includes(String(c.value));
+        return String(actual).includes(String(value));
       case 'matches':
         try {
-          return new RegExp(String(c.value), 'i').test(String(actual));
+          return new RegExp(String(value), 'i').test(String(actual));
         } catch {
           return false;
         }
@@ -398,6 +501,11 @@ export class AutomationController {
 
 @Global()
 @Module({
+  // forwardRef guards the ES-module load-order cycle: RSS files import
+  // AutomationEngine (for ModuleRef-based trigger firing) while this module
+  // imports RssModule (for the RssAutomationActions delegate). The DI graph
+  // itself is acyclic (RssModule never imports AutomationModule).
+  imports: [forwardRef(() => RssModule)],
   providers: [AutomationEngine, AutomationService],
   controllers: [AutomationController],
   exports: [AutomationEngine],

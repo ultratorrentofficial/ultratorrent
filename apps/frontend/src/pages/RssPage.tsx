@@ -47,6 +47,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { Select } from '@/components/ui/select';
+import {
+  ShowStatusBadge,
+  ShowStatusPanel,
+  showStatusIsInactive,
+  useShowStatusLookup,
+} from '@/components/rss/ShowStatusPanel';
 import { rulesForFeed } from './rssGrouping';
 
 function minutes(seconds: number): string {
@@ -384,6 +391,7 @@ export function RssPage() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{rule.name}</span>
+                            {rule.showStatus && <ShowStatusBadge status={rule.showStatus} />}
                             {rule.autoDownload && (
                               <Badge variant="info" dot>
                                 <Download className="h-3 w-3" /> {t('feeds.auto')}
@@ -708,13 +716,32 @@ function RuleDialog({
   const [excludeRegex, setExcludeRegex] = useState(rule?.excludeRegex ?? '');
   const [savePath, setSavePath] = useState(rule?.savePath ?? '');
   const [autoDownload, setAutoDownload] = useState(rule?.autoDownload ?? true);
+  const [mediaType, setMediaType] = useState(rule?.mediaType ?? '');
   const [saving, setSaving] = useState(false);
+  const [confirmInactive, setConfirmInactive] = useState(false);
 
-  const submit = async () => {
+  const isTv = mediaType === 'tv' || mediaType === 'anime';
+  // Check the show's airing status live once a TV media type + a name are set.
+  const statusQuery = useShowStatusLookup(name, null, isTv);
+  const status = statusQuery.data;
+
+  const doSave = async (allowInactive: boolean) => {
     // Validate the save path against the hard roots and offer to create it if missing.
     if (savePath.trim() && !(await ensureDirectory(savePath))) return;
     setSaving(true);
     try {
+      // Carry the resolved show-status snapshot so the server persists + gates it.
+      const showFields =
+        isTv && status && status.provider !== 'none' && status.providerShowId
+          ? {
+              mediaType,
+              showStatusProvider: status.provider,
+              showStatusProviderId: status.providerShowId,
+              allowInactiveShowMonitoring: allowInactive,
+            }
+          : mediaType
+            ? { mediaType }
+            : {};
       if (editing) {
         // Send trimmed values incl. empty strings so cleared patterns persist.
         const body: UpdateRuleInput = {
@@ -723,6 +750,7 @@ function RuleDialog({
           excludeRegex: excludeRegex.trim(),
           savePath: savePath.trim(),
           autoDownload,
+          ...showFields,
         };
         await api.rss.updateRule(rule.id, body);
         toast.success(t('ruleDialog.toast.updated'), body.name);
@@ -734,6 +762,7 @@ function RuleDialog({
           excludeRegex: excludeRegex.trim() || undefined,
           savePath: savePath.trim() || undefined,
           autoDownload,
+          ...showFields,
         };
         await api.rss.createRule(body);
         toast.success(t('ruleDialog.toast.added'), body.name);
@@ -747,6 +776,15 @@ function RuleDialog({
     } finally {
       setSaving(false);
     }
+  };
+
+  const submit = () => {
+    // An ended/canceled show requires explicit confirmation before saving.
+    if (isTv && showStatusIsInactive(status?.normalizedStatus)) {
+      setConfirmInactive(true);
+      return;
+    }
+    void doSave(false);
   };
 
   return (
@@ -767,6 +805,21 @@ function RuleDialog({
           <Label htmlFor="rule-name">{t('ruleDialog.name')}</Label>
           <Input id="rule-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('ruleDialog.namePlaceholder')} />
         </div>
+        <div>
+          <Label htmlFor="rule-mediatype">{t('showStatus.mediaType.label')}</Label>
+          <Select
+            id="rule-mediatype"
+            value={mediaType}
+            onChange={(e) => setMediaType(e.target.value)}
+            options={[
+              { value: '', label: t('showStatus.mediaType.none') },
+              { value: 'tv', label: t('showStatus.mediaType.tv') },
+              { value: 'anime', label: t('showStatus.mediaType.anime') },
+              { value: 'movie', label: t('showStatus.mediaType.movie') },
+            ]}
+          />
+        </div>
+        {isTv && name.trim().length > 1 && <ShowStatusPanel query={statusQuery} />}
         <div>
           <Label htmlFor="rule-include">{t('ruleDialog.include')}</Label>
           <Input id="rule-include" value={includeRegex} onChange={(e) => setIncludeRegex(e.target.value)} placeholder={t('ruleDialog.includePlaceholder')} className="font-mono" />
@@ -798,6 +851,35 @@ function RuleDialog({
         </Button>
       </DialogFooter>
     </Dialog>
+    {confirmInactive && status && (
+      <Dialog open onClose={() => setConfirmInactive(false)} className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t('showStatus.confirm.title')}</DialogTitle>
+          <DialogDescription>
+            {t('showStatus.confirm.body', {
+              title: status.title,
+              status: t(`showStatus.status.${status.normalizedStatus}` as 'showStatus.status.ended'),
+            })}
+          </DialogDescription>
+        </DialogHeader>
+        <p className="px-1 text-sm text-muted-foreground">{t('showStatus.backfillSuggestion')}</p>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setConfirmInactive(false)}>
+            {t('showStatus.confirm.cancel')}
+          </Button>
+          <Button
+            variant="destructive"
+            loading={saving}
+            onClick={() => {
+              setConfirmInactive(false);
+              void doSave(true);
+            }}
+          >
+            {t('showStatus.confirm.confirm')}
+          </Button>
+        </DialogFooter>
+      </Dialog>
+    )}
     {ensureDirectoryDialog}
     </>
   );

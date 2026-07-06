@@ -72,7 +72,8 @@ const showA = () => ({
   ],
 });
 
-const svcWith = (prisma: any) => new RssService(prisma as any, {} as any);
+const svcWith = (prisma: any) =>
+  new RssService(prisma as any, {} as any, {} as any, {} as any, {} as any, {} as any);
 
 describe('RssService.importRules — import modes', () => {
   it('creates a new rule + its candidates', async () => {

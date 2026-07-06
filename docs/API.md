@@ -375,9 +375,18 @@ duplicate detection via `RssHistory`).
 
 | Method | Path | Permission | Body |
 |--------|------|------------|------|
-| `POST`   | `/api/rss/rules` | `rss.manage` | `CreateRuleDto` — `{ feedId, name, includeRegex?, excludeRegex?, savePath?, autoDownload? }` |
+| `POST`   | `/api/rss/rules` | `rss.manage` | `CreateRuleDto` — `{ feedId, name, includeRegex?, excludeRegex?, savePath?, autoDownload?, mediaType?, showStatusProvider?, showStatusProviderId?, allowInactiveShowMonitoring? }` |
 | `PATCH`  | `/api/rss/rules/:id` | `rss.manage` | `UpdateRuleDto` (all fields optional) |
 | `DELETE` | `/api/rss/rules/:id` | `rss.manage` | — |
+
+For a TV rule (`mediaType ∈ tv/anime/episode/series`) whose resolved show is **ended/canceled**, the save returns `400` unless `allowInactiveShowMonitoring: true` is passed (the override is audited). Unknown status saves with a stored warning; active shows save normally. The resolved airing-status snapshot is persisted on the rule.
+
+### TV show airing status
+
+| Method | Path | Permission | Body / Query |
+|--------|------|------------|------|
+| `GET`  | `/api/rss/show-status/lookup` | `rss.show_status.lookup` | `?title=&year=&provider=` → `ShowStatusResult` (`normalizedStatus`, `recommendation`, `confidence`, first/last/next-episode dates, `posterUrl`, `warnings`, …) |
+| `POST` | `/api/rss/show-status/lookup-batch` | `rss.show_status.lookup` | `{ queries: [{ title, year? }] }` → `ShowStatusResult[]` |
 | `GET`    | `/api/rss/rules-export` | `rss.view` | — export all rules (and their match filters) |
 | `POST`   | `/api/rss/rules-import` | `rss.manage` | previously-exported rules payload |
 | `GET`    | `/api/rss/rules/:id/match-history` | `rss.view` | — items this rule has matched |

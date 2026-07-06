@@ -38,11 +38,26 @@ single-tier product — there is no licensing, product key, or gated tier.
   tier: 'core',
   enabledByDefault: true,
   dependencies: ['auth', 'engine'],
-  permissions: ['rss.view', 'rss.manage'],
+  permissions: [
+    'rss.view',
+    'rss.manage',
+    'rss.show_status.lookup',
+    'rss.show_status.refresh',
+    'rss.show_status.override',
+  ],
   menu: [{ label: 'RSS', path: '/rss', icon: 'Rss', permission: 'rss.view' }],
   routes: ['/api/rss'],
-  schedulerJobs: ['rss_poll'],
-  features: ['smart_match_builder', 'match_preferences'],
+  websocketEvents: [
+    'rss.show_status.lookup.completed',
+    'rss.show_status.lookup.failed',
+    'rss.rule.created_for_inactive_show',
+    'rss.show_status.changed',
+    'rss.show.became_active',
+    'rss.show.ended',
+    'rss.show.canceled',
+  ],
+  schedulerJobs: ['rss_poll', 'rss_show_status_refresh'],
+  features: ['smart_match_builder', 'match_preferences', 'show_status_awareness'],
 }
 ```
 
