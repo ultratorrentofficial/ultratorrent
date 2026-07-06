@@ -9,6 +9,7 @@ interface EmailConfig {
   host?: string;
   port?: number;
   secure?: boolean;
+  auth?: boolean; // whether to send SMTP AUTH (user/pass); some relays reject it
   user?: string;
   encryptedPass?: string;
   fromName?: string;
@@ -40,6 +41,8 @@ export class MediaServerEmailService {
       host: cfg.host ?? '',
       port: cfg.port ?? 587,
       secure: cfg.secure ?? false,
+      // Back-compat: pre-existing configs enabled auth implicitly via a username.
+      auth: cfg.auth ?? Boolean(cfg.user),
       user: cfg.user ?? '',
       fromName: cfg.fromName ?? 'UltraTorrent',
       fromAddress: cfg.fromAddress ?? '',
@@ -48,7 +51,7 @@ export class MediaServerEmailService {
   }
 
   async updateSettings(input: {
-    host?: string; port?: number; secure?: boolean; user?: string;
+    host?: string; port?: number; secure?: boolean; auth?: boolean; user?: string;
     password?: string; fromName?: string; fromAddress?: string;
   }) {
     const cur = await this.raw();
@@ -57,6 +60,7 @@ export class MediaServerEmailService {
       host: input.host ?? cur.host,
       port: input.port ?? cur.port,
       secure: input.secure ?? cur.secure,
+      auth: input.auth ?? cur.auth,
       user: input.user ?? cur.user,
       fromName: input.fromName ?? cur.fromName,
       fromAddress: input.fromAddress ?? cur.fromAddress,
@@ -79,11 +83,13 @@ export class MediaServerEmailService {
   async send(email: OutgoingEmail): Promise<void> {
     const cfg = await this.raw();
     if (!cfg.host || !cfg.fromAddress) throw new BadRequestException('Email is not configured.');
+    // Explicit auth toggle (back-compat: implied by a username on older configs).
+    const useAuth = cfg.auth ?? Boolean(cfg.user);
     const transport = nodemailer.createTransport({
       host: cfg.host,
       port: cfg.port ?? 587,
       secure: cfg.secure ?? false,
-      auth: cfg.user ? { user: cfg.user, pass: cfg.encryptedPass ? this.cipher.decrypt(cfg.encryptedPass) : '' } : undefined,
+      auth: useAuth ? { user: cfg.user ?? '', pass: cfg.encryptedPass ? this.cipher.decrypt(cfg.encryptedPass) : '' } : undefined,
     });
     await transport.sendMail({
       from: `"${cfg.fromName ?? 'UltraTorrent'}" <${cfg.fromAddress}>`,

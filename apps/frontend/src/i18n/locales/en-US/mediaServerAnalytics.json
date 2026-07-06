@@ -158,6 +158,8 @@
       "host": "SMTP host",
       "port": "Port",
       "secure": "Use TLS/SSL",
+      "auth": "Use authentication",
+      "authHint": "Turn off for relays that don't require a login.",
       "user": "Username",
       "password": "Password",
       "fromName": "From name",

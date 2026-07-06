@@ -158,6 +158,8 @@
       "host": "Servidor SMTP",
       "port": "Puerto",
       "secure": "Usar TLS/SSL",
+      "auth": "Usar autenticación",
+      "authHint": "Desactívalo para relays que no requieren inicio de sesión.",
       "user": "Usuario",
       "password": "Contraseña",
       "fromName": "Nombre del remitente",

@@ -2913,6 +2913,7 @@ export interface MediaServerEmailSettings {
   host: string;
   port: number;
   secure: boolean;
+  auth: boolean;
   user: string;
   fromName: string;
   fromAddress: string;
