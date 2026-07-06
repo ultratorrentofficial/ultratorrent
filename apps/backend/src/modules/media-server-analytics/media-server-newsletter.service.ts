@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import sharp from 'sharp';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { paginate, parsePage } from '../../common/pagination';
 import { Interval } from '@nestjs/schedule';
@@ -29,7 +30,9 @@ interface NewsletterInput {
 const VERSION = '0.15.0';
 const MAX_ITEMS = 60; // items rendered in the email
 const MAX_POSTERS = 30; // posters attached (keeps the email a sane size)
-const MAX_POSTER_BYTES = 500 * 1024;
+const POSTER_TARGET_WIDTH = 240; // downscale target — the card slot is ~84–120px
+const MAX_RAW_POSTER_BYTES = 12 * 1024 * 1024; // guard before handing a file to sharp
+const MAX_POSTER_BYTES = 500 * 1024; // final cap (only hit if resizing is skipped)
 
 /** Media types whose episodes render as grouped shows (see NEWSLETTER_GROUPS). */
 const TV_MEDIA_TYPES = new Set<string>(NEWSLETTER_GROUPS.find((g) => g.key === 'tv')!.types);
@@ -299,23 +302,30 @@ export class MediaServerNewsletterService {
 
   private async loadPoster(art: { url: string | null; localPath: string | null }): Promise<{ buf: Buffer; contentType: string } | null> {
     try {
+      let raw: Buffer | null = null;
       if (art.url) {
         const res = await fetch(art.url, { signal: AbortSignal.timeout(8000) });
         if (!res.ok) return null;
-        const contentType = res.headers.get('content-type') ?? 'image/jpeg';
-        if (!contentType.startsWith('image/')) return null;
-        const buf = Buffer.from(await res.arrayBuffer());
-        return buf.length > MAX_POSTER_BYTES ? null : { buf, contentType };
+        if (!(res.headers.get('content-type') ?? '').startsWith('image/')) return null;
+        raw = Buffer.from(await res.arrayBuffer());
+      } else if (art.localPath) {
+        raw = await readFile(art.localPath);
       }
-      if (art.localPath) {
-        const buf = await readFile(art.localPath);
-        if (buf.length > MAX_POSTER_BYTES) return null;
-        return { buf, contentType: art.localPath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg' };
+      if (!raw || raw.length === 0 || raw.length > MAX_RAW_POSTER_BYTES) return null;
+      // Full-size library posters run 250KB–1MB+, but the card slot is only
+      // ~84–120px, so downscale to a small JPEG — this keeps inline attachments
+      // tiny (a full poster otherwise blows past MAX_POSTER_BYTES and is dropped).
+      try {
+        const buf = await sharp(raw).rotate().resize({ width: POSTER_TARGET_WIDTH, withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer();
+        return { buf, contentType: 'image/jpeg' };
+      } catch {
+        // Resizing failed (unsupported format?) — fall back to the original if small.
+        if (raw.length > MAX_POSTER_BYTES) return null;
+        return { buf: raw, contentType: art.localPath?.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg' };
       }
     } catch {
       return null; // artwork is best-effort — never block a send
     }
-    return null;
   }
 
   private subject(n: MediaServerNewsletter, content: NewsletterContent): string {
