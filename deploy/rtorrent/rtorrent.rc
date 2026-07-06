@@ -4,6 +4,16 @@ system.daemon.set = true
 session.path.set = /downloads/.session
 directory.default.set = /downloads
 
+# Persist session state promptly so a sporadic libtorrent crash (caught +
+# auto-restarted by the container's restart policy) does NOT lose recently-added
+# torrents. Without this, rtorrent only writes full session state on a *clean*
+# shutdown, so anything added since the last graceful stop vanishes after a crash
+# — exactly the "grabbed but no torrent shows up" symptom. Two safeguards:
+#   1. Save each torrent's full state the instant it's added (event hook), and
+#   2. Save the whole session every 5 min as a backstop.
+method.set_key = event.download.inserted_new, save_full_session, "d.save_full_session="
+schedule2 = session_save, 300, 300, ((session.save))
+
 # SCGI over TCP — bind ALL interfaces so the backend container can reach it at
 # rtorrent:5000 across the compose network. (Do NOT publish this port to the
 # host; it is an unauthenticated control socket.)
