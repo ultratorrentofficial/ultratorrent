@@ -1,0 +1,5 @@
+---
+"ultratorrent": patch
+---
+
+Admin-selectable newsletter poster hosting + dark-canvas fix. Posters were always CID inline attachments, which Gmail lists in the attachment strip (unlike Tautulli's hosted-URL images), and the dark background dropped to white in clients that ignore CSS backgrounds on <body>/tables. Admins can now choose, in Settings → Newsletter poster images, how posters reach the inbox: embed (CID attachment, default, self-contained), serve from this instance (a signed, expiring, public image URL — no attachments), or upload to an external image host (Imgur, client id stored encrypted). Self-hosted images are served by a new unguarded endpoint (mail clients can't authenticate) gated by an HMAC-signed, expiring per-image token that only ever serves a downscaled MediaArtwork by id — no arbitrary paths, no library structure leaked; any mode missing its config degrades to embedding. Posters are downscaled to ~240px regardless. The email now also sets bgcolor attributes so the dark canvas holds in Gmail/Outlook.

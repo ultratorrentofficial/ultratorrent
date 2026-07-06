@@ -125,12 +125,32 @@ connection management, and Dashboard + Connections pages. Later phases:
   - **Footer** — three areas: unsubscribe (left), brand + tagline + instance URL
     (center), preferences (right).
 
-  Accent `#f5a623`; 720px centered container. **Poster fallback:** the Media
-  Manager poster (server / imported / metadata-provider artwork all land in
-  `MediaArtwork`) is attached as a **CID inline image** (no public/authenticated
-  URL leaves the server, no remote tracking); a missing poster degrades to a
-  gradient-initial placeholder — the layout never breaks. **Sample data** renders
-  in the preview when the library has no new items, and the Newsletters page offers
+  Accent `#f5a623`; 720px centered container. Backgrounds are set with both CSS
+  `background-color` **and** `bgcolor` attributes so the dark canvas holds in
+  clients that ignore CSS on `<body>`/tables (Gmail, Outlook). Cards are laid out
+  with the panel on the row **cell** (not a nested table) so paired cards render at
+  equal height (Gmail/Outlook honour equal-height sibling cells, unlike
+  `height:100%` on a nested table).
+
+  **Poster hosting is admin-selectable** (`NewsletterImageService`, Settings →
+  *Newsletter poster images*, stored in the `Setting` store). Posters are always
+  downscaled to a ~240px JPEG (via `sharp`) first, then delivered per the chosen
+  mode:
+  - **Embed (`attach`, default)** — a **CID inline attachment** (self-contained, no
+    remote fetch); Gmail lists these in the attachment strip.
+  - **Serve from this instance (`self_hosted`)** — a **signed, expiring, public
+    image URL** (`GET /api/media-server-analytics/nl-image/:artworkId?e&s`, served by
+    `NewsletterImageController` — a separate **unguarded** controller since mail
+    clients can't send a bearer token; access is gated by an HMAC-SHA256 token over
+    `(artworkId, expiry)` and it only ever serves a downscaled `MediaArtwork` by id,
+    never an arbitrary path). No attachments; requires the instance to be reachable
+    at the configured **public base URL**.
+  - **External host (`external`)** — uploads the downscaled poster to Imgur (client
+    id stored **encrypted**) and links the returned URL. No attachments; works even
+    if the instance is private. Any mode with missing config silently degrades to
+    `attach` so a send never produces broken images. A missing poster degrades to a
+    gradient-initial placeholder — the layout never breaks. **Sample data** renders
+    in the preview when the library has no new items, and the Newsletters page offers
   a **desktop/mobile** preview toggle. All template text is localized via
   `newsletter-strings.ts` (`en-US` + `es-PR`); a plain-text alternative is always
   generated. Style toggles (ratings / genres / runtime / overview / library badges,
