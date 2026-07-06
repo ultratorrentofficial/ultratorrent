@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.16.5] - 2026-07-06
+
+### Fixed
+- Re-engineered the frontend navigation into a declarative typed tree with logical collapsible groups and nested sub-menus (Overview, Downloads, RSS & Acquisition, Media Management, Media Server Analytics, Automation, Files, Administration, Account), RBAC- and module-aware visibility with empty-group pruning, persisted collapse state + auto-expanded active branch, icon-rail tooltips, mobile drawer, tree-derived breadcrumbs, and a Ctrl/Cmd+K command palette that only surfaces pages the user can access. Full en-US/es-PR i18n parity and accessibility
+- SMTP settings: add an explicit 'Use authentication' toggle so newsletters can send through relays that reject AUTH (e.g. internal/localhost postfix). When off, no user/pass is sent regardless of a saved username; back-compat: existing configs with a username keep authenticating
+- Media Manager: fix cleanly-organised TV libraries scanning entirely as unmatched. Identification now recovers the series title from the parent folder when the episode filename omits it (Show/Season 01/S01E01.mkv), and confidence is weighted by identity signals (title + season/episode, or movie year) instead of the count of scene tokens (resolution/source/codec/group) — so a tidy personal library matches without needing release-scene junk in the filename
+- Media Manager: add bulk re-identify endpoint (POST /api/media/items/reidentify) to re-run auto-identification across a whole library at once — the recovery path for libraries that scanned as unmatched. Optional { libraryId, matchStatus } body (omit to re-identify all non-manual items, or matchStatus:'unmatched' to retry only failures); runs as a tracked media_identification job with WebSocket progress and returns a { total, matched, unmatched, failed } summary. Manual matches are never auto-overwritten. The Unmatched page gains a "Re-identify all" button (scoped to unmatched items) that reports how many matched; `api.media.reidentifyItems()` client method added. i18n en-US + es-PR
+
 ## [0.16.4] - 2026-07-06
 
 ### Fixed
