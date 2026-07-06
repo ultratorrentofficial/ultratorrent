@@ -193,6 +193,17 @@
       "days": "Días",
       "startDate": "Fecha de inicio"
     },
+    "content": {
+      "label": "Tipos de contenido",
+      "allHint": "Todos los tipos",
+      "type": {
+        "tv": "Series",
+        "movie": "Películas",
+        "music": "Música y Conciertos",
+        "documentary": "Documentales",
+        "other": "Otros"
+      }
+    },
     "empty": "Aún no hay boletines.",
     "preview": "Vista previa",
     "testSend": "Enviar prueba",

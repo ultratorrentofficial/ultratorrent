@@ -102,10 +102,20 @@ connection management, and Dashboard + Connections pages. Later phases:
   query) for broad email-client support. Structure:
   - **Header** — UT icon, `ULTRATORRENT NEWSLETTER`, the default connected media
     server's name, the date range (`YYYY-MM-DD - YYYY-MM-DD`), and an amber divider.
-  - **Sections** — *Recently Added TV Shows* (episodes grouped into shows by
-    `groupShows()`, with an "N Shows / M Episodes" count summary) and *Recently
-    Added Movies* (a count summary). Section headers show an icon + title + amber
-    count numbers.
+  - **Sections (per content type, Tautulli-style)** — `buildContent()` splits the
+    recently-added items into **one section per content-type group** present
+    (`NEWSLETTER_GROUPS`: TV/anime/episode → *TV Shows*, movie → *Movies*,
+    music_video/music/concert → *Music & Concerts*, documentary → *Documentaries*,
+    other_video/other → *Recently Added*). **Episodic groups collapse into show
+    cards** — episodes are grouped by show via `groupShows()` and the summary reads
+    "N Shows / M Episodes" (never a flat per-episode list); every non-episodic group
+    renders as a poster grid with an "N Movies" / "N Items" summary. Empty groups are
+    omitted, and section order follows `NEWSLETTER_GROUPS`. Section headers show a
+    per-type icon + title + amber count numbers. A newsletter can be **scoped to a
+    subset of types** via `contentSections` — the service filters the media query by
+    the selected groups' `mediaType`s (an empty selection means all types), so a
+    "TV Shows" newsletter only ever contains grouped shows, a "Movies" one only
+    movies, etc.
   - **TV cards** — poster on the left, title, episode count, season/episode range,
     overview, metadata badges (year · seasons · runtime · genres · library) bottom-left,
     and a **5-star rating** bottom-right (`renderRating()` normalizes the 0–10 provider

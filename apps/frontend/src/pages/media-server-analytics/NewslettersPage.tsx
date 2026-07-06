@@ -13,6 +13,40 @@ import { Select } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 
+/** Content-type groups a newsletter can cover (mirrors backend NEWSLETTER_GROUPS keys). */
+const CONTENT_GROUP_KEYS = ['tv', 'movie', 'music', 'documentary', 'other'] as const;
+
+/**
+ * Toggle chips for the content types a newsletter covers. An empty selection
+ * means "all types" — the newsletter isn't scoped and every group is included.
+ */
+function ContentTypeToggle({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
+  const { t } = useTranslation('mediaServerAnalytics');
+  const toggle = (key: string) => onChange(value.includes(key) ? value.filter((k) => k !== key) : [...value, key]);
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {CONTENT_GROUP_KEYS.map((key) => {
+        const active = value.length === 0 || value.includes(key);
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => toggle(key)}
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+              value.includes(key)
+                ? 'border-amber-400/50 bg-amber-400/15 text-amber-300'
+                : 'border-white/10 text-muted-foreground hover:text-foreground'
+            } ${value.length === 0 ? 'opacity-70' : ''}`}
+          >
+            {t(`newsletter.content.type.${key}`)}
+          </button>
+        );
+      })}
+      <span className="text-[11px] text-muted-foreground">{value.length === 0 ? t('newsletter.content.allHint') : ''}</span>
+    </div>
+  );
+}
+
 function EmailSettingsCard() {
   const { t } = useTranslation('mediaServerAnalytics');
   const toast = useToast();
@@ -66,7 +100,7 @@ export function NewslettersPage() {
   const { t } = useTranslation('mediaServerAnalytics');
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: '', frequency: 'weekly', recipients: '', dateRangeMode: 'since_last_send', lastDays: 7, startDate: '' });
+  const [form, setForm] = useState({ name: '', frequency: 'weekly', recipients: '', dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] as string[] });
   const [preview, setPreview] = useState<{ id: string; data: NewsletterPreview } | null>(null);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
   const [testTo, setTestTo] = useState<Record<string, string>>({});
@@ -82,8 +116,9 @@ export function NewslettersPage() {
       dateRangeMode: form.dateRangeMode,
       lastDays: form.lastDays,
       startDate: form.dateRangeMode === 'since_date' && form.startDate ? new Date(form.startDate).toISOString() : null,
+      contentSections: form.contentSections,
     } as Partial<Newsletter>),
-    onSuccess: () => { setForm({ name: '', frequency: 'weekly', recipients: '', dateRangeMode: 'since_last_send', lastDays: 7, startDate: '' }); toast.success(t('newsletter.created')); invalidate(); },
+    onSuccess: () => { setForm({ name: '', frequency: 'weekly', recipients: '', dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] }); toast.success(t('newsletter.created')); invalidate(); },
   });
   const update = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<Newsletter> }) => api.mediaServerAnalytics.updateNewsletter(id, patch),
@@ -152,6 +187,14 @@ export function NewslettersPage() {
                     />
                   )}
                 </div>
+                {/* Content types this newsletter covers (Tautulli-style per-type sections) */}
+                <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-2 text-xs">
+                  <span className="text-muted-foreground">{t('newsletter.content.label')}</span>
+                  <ContentTypeToggle
+                    value={n.contentSections ?? []}
+                    onChange={(next) => update.mutate({ id: n.id, patch: { contentSections: next } })}
+                  />
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -171,6 +214,10 @@ export function NewslettersPage() {
                 {form.dateRangeMode === 'since_date' && (
                   <div className="space-y-1.5"><Label htmlFor="n-start">{t('newsletter.window.startDate')}</Label><Input id="n-start" type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} /></div>
                 )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t('newsletter.content.label')}</Label>
+                <ContentTypeToggle value={form.contentSections} onChange={(next) => setForm((f) => ({ ...f, contentSections: next }))} />
               </div>
               <Button onClick={() => create.mutate()} disabled={!form.name.trim() || create.isPending}>{t('newsletter.add.submit')}</Button>
             </CardContent>

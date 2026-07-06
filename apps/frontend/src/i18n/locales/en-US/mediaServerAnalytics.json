@@ -193,6 +193,17 @@
       "days": "Days",
       "startDate": "Start date"
     },
+    "content": {
+      "label": "Content types",
+      "allHint": "All types",
+      "type": {
+        "tv": "TV Shows",
+        "movie": "Movies",
+        "music": "Music & Concerts",
+        "documentary": "Documentaries",
+        "other": "Other"
+      }
+    },
     "empty": "No newsletters yet.",
     "preview": "Preview",
     "testSend": "Test send",

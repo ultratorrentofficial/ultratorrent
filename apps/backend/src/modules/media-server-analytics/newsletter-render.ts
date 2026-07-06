@@ -28,7 +28,21 @@ const C = {
   badgeText: '#c9c9d4',
 } as const;
 
-const TV_TYPES = ['tv', 'anime', 'episode', 'documentary'];
+/**
+ * Content-type groups a newsletter can cover. Episodic types render as grouped
+ * Show cards (title + episode count); the rest render as a poster grid. A
+ * newsletter can be scoped to any subset (see `contentSections`); when it
+ * covers several, each becomes its own section — Tautulli-style.
+ */
+export const NEWSLETTER_GROUPS = [
+  { key: 'tv', types: ['tv', 'anime', 'episode'], layout: 'shows' as const, titleKey: 'tvShowsTitle' as const },
+  { key: 'movie', types: ['movie'], layout: 'grid' as const, titleKey: 'moviesTitle' as const },
+  { key: 'music', types: ['music_video', 'music', 'concert'], layout: 'grid' as const, titleKey: 'musicTitle' as const },
+  { key: 'documentary', types: ['documentary'], layout: 'grid' as const, titleKey: 'documentariesTitle' as const },
+  { key: 'other', types: ['other_video', 'other'], layout: 'grid' as const, titleKey: 'otherTitle' as const },
+] as const;
+
+export type NewsletterGroupKey = (typeof NEWSLETTER_GROUPS)[number]['key'];
 
 // --- types ---------------------------------------------------------------
 export interface NewsletterItem {
@@ -67,10 +81,19 @@ export interface NewsletterShow {
   posterCid?: string | null;
 }
 
-export interface NewsletterContent {
+/** One rendered section of a newsletter (one content-type group). */
+export interface NewsletterSection {
+  key: string;
+  titleKey: keyof NewsletterStrings;
+  layout: 'shows' | 'grid';
   shows: NewsletterShow[];
   movies: NewsletterItem[];
-  episodeCount: number;
+  /** Count summary parts, e.g. [{n:11,labelKey:'shows'},{n:37,labelKey:'episodes'}]. */
+  count: { n: number; labelKey: keyof NewsletterStrings }[];
+}
+
+export interface NewsletterContent {
+  sections: NewsletterSection[];
   totalItems: number;
   since: Date;
   until: Date;
@@ -81,9 +104,13 @@ export interface NewsletterStrings {
   brandTitle: string; // "ULTRATORRENT NEWSLETTER"
   tvShowsTitle: string;
   moviesTitle: string;
+  musicTitle: string;
+  documentariesTitle: string;
+  otherTitle: string;
   shows: string; // "Shows"
   episodes: string; // "Episodes"
   movies: string; // "Movies"
+  items: string; // "Items"
   seasonsOne: string; // "Season {{n}}"
   seasonsRange: string; // "Seasons {{a}}–{{b}}"
   empty: string;
@@ -174,10 +201,41 @@ export function groupShows(items: NewsletterItem[]): NewsletterShow[] {
   return shows.sort((a, b) => b.episodeCount - a.episodeCount);
 }
 
+/**
+ * Group items into one section per content type present. Episodic types collapse
+ * into Show cards ("N Shows / M Episodes"); everything else lists as a poster
+ * grid ("N Movies" / "N Items"). Section order follows `NEWSLETTER_GROUPS`.
+ */
 export function buildContent(items: NewsletterItem[], since: Date, until: Date): NewsletterContent {
-  const movies = items.filter((i) => i.mediaType === 'movie');
-  const tvItems = items.filter((i) => TV_TYPES.includes(i.mediaType));
-  return { shows: groupShows(tvItems), movies, episodeCount: tvItems.length, totalItems: items.length, since, until };
+  const sections: NewsletterSection[] = [];
+  for (const group of NEWSLETTER_GROUPS) {
+    const groupItems = items.filter((i) => (group.types as readonly string[]).includes(i.mediaType));
+    if (groupItems.length === 0) continue;
+    if (group.layout === 'shows') {
+      const shows = groupShows(groupItems);
+      sections.push({
+        key: group.key,
+        titleKey: group.titleKey,
+        layout: 'shows',
+        shows,
+        movies: [],
+        count: [
+          { n: shows.length, labelKey: 'shows' },
+          { n: groupItems.length, labelKey: 'episodes' },
+        ],
+      });
+    } else {
+      sections.push({
+        key: group.key,
+        titleKey: group.titleKey,
+        layout: 'grid',
+        shows: [],
+        movies: groupItems,
+        count: [{ n: groupItems.length, labelKey: group.key === 'movie' ? 'movies' : 'items' }],
+      });
+    }
+  }
+  return { sections, totalItems: items.length, since, until };
 }
 
 // --- component renderers -------------------------------------------------
@@ -329,19 +387,19 @@ const MOBILE_STYLE = `@media only screen and (max-width:600px){
   .fcol{display:block!important;width:100%!important;text-align:center!important;padding:6px 0!important}
 }`;
 
+const SECTION_ICON: Record<string, string> = { tv: '📺', movie: '🎬', music: '🎵', documentary: '🎥', other: '📦' };
+
 export function renderHtml(content: NewsletterContent, opts: RenderOptions): string {
   const accent = opts.style?.accent ?? C.amber;
   const cap = opts.style?.maxItemsPerSection ?? 24;
   const s = opts.strings;
   const sections: string[] = [];
 
-  if (content.shows.length) {
-    sections.push(sectionHeader('📺', s.tvShowsTitle, countSummary([{ n: content.shows.length, label: s.shows }, { n: content.episodeCount, label: s.episodes }], accent)));
-    sections.push(tvGrid(content.shows.slice(0, cap), opts));
-  }
-  if (content.movies.length) {
-    sections.push(sectionHeader('🎬', s.moviesTitle, countSummary([{ n: content.movies.length, label: s.movies }], accent)));
-    sections.push(movieGrid(content.movies.slice(0, cap), opts));
+  for (const section of content.sections) {
+    const summary = countSummary(section.count.map((c) => ({ n: c.n, label: s[c.labelKey] })), accent);
+    sections.push(sectionHeader(SECTION_ICON[section.key] ?? '📦', s[section.titleKey], summary));
+    if (section.layout === 'shows') sections.push(tvGrid(section.shows.slice(0, cap), opts));
+    else sections.push(movieGrid(section.movies.slice(0, cap), opts));
   }
   const empty = `<tr><td style="padding:40px 24px;text-align:center;font:400 14px system-ui,-apple-system,sans-serif;color:${C.muted}">${escapeHtml(s.empty)}</td></tr>`;
 
@@ -359,18 +417,19 @@ export function renderHtml(content: NewsletterContent, opts: RenderOptions): str
 </body></html>`;
 }
 
-/** Representative sample content for the preview when the library has no new items. */
+/** Representative sample content (TV + Movies) for the empty-library preview. */
 export function sampleContent(): NewsletterContent {
   const now = new Date();
-  const shows: NewsletterShow[] = [
-    { title: 'Silverpeak', year: 2024, overview: 'A frontier town keeps a secret buried under the snow.', rating: 8.4, runtime: 52, genres: ['Drama', 'Mystery'], episodeCount: 8, seasonCount: 1, seasonRange: 'S01', episodeRange: 'E01–E08' },
-    { title: 'Orbital', year: 2023, overview: 'Six astronauts, one failing station, zero room for error.', rating: 7.9, runtime: 48, genres: ['Sci-Fi', 'Thriller'], episodeCount: 5, seasonCount: 1, seasonRange: 'S02', episodeRange: 'E01–E05' },
+  const episodes: NewsletterItem[] = [
+    { id: 't1', title: 'Silverpeak', mediaType: 'tv', year: 2024, season: 1, episode: 1, addedAt: now, overview: 'A frontier town keeps a secret buried under the snow.', rating: 8.4, runtime: 52, genres: ['Drama', 'Mystery'] },
+    ...Array.from({ length: 7 }, (_, i) => ({ id: `t${i + 2}`, title: 'Silverpeak', mediaType: 'tv', year: 2024, season: 1, episode: i + 2, addedAt: now })),
+    ...Array.from({ length: 5 }, (_, i) => ({ id: `o${i}`, title: 'Orbital', mediaType: 'tv', year: 2023, season: 2, episode: i + 1, addedAt: now, overview: i === 0 ? 'Six astronauts, one failing station, zero room for error.' : null, rating: i === 0 ? 7.9 : null, runtime: i === 0 ? 48 : null, genres: i === 0 ? ['Sci-Fi', 'Thriller'] : [] })),
   ];
   const movies: NewsletterItem[] = [
-    { title: 'The Long Night', mediaType: 'movie', year: 2024, season: null, episode: null, addedAt: now, rating: 8.1, runtime: 124, genres: ['Drama'] },
-    { title: 'Afterglow', mediaType: 'movie', year: 2023, season: null, episode: null, addedAt: now, rating: 7.2, runtime: 98, genres: ['Romance'] },
+    { id: 'm1', title: 'The Long Night', mediaType: 'movie', year: 2024, season: null, episode: null, addedAt: now, rating: 8.1, runtime: 124, genres: ['Drama'] },
+    { id: 'm2', title: 'Afterglow', mediaType: 'movie', year: 2023, season: null, episode: null, addedAt: now, rating: 7.2, runtime: 98, genres: ['Romance'] },
   ];
-  return { shows, movies, episodeCount: 13, totalItems: 15, since: new Date(now.getTime() - 7 * 864e5), until: now };
+  return buildContent([...episodes, ...movies], new Date(now.getTime() - 7 * 864e5), now);
 }
 
 export function renderText(content: NewsletterContent, opts: RenderOptions): string {
@@ -382,18 +441,18 @@ export function renderText(content: NewsletterContent, opts: RenderOptions): str
   if (content.totalItems === 0) {
     lines.push(s.empty);
   } else {
-    if (content.shows.length) {
-      lines.push(`## ${s.tvShowsTitle} — ${content.shows.length} ${s.shows} / ${content.episodeCount} ${s.episodes}`);
-      for (const show of content.shows) {
-        lines.push(`  - ${show.title}${show.year ? ` (${show.year})` : ''} — ${show.episodeCount} ${s.episodes} · ${show.seasonRange}${show.rating ? ` · ★${show.rating.toFixed(1)}` : ''}`);
-        if (opts.style?.showOverview !== false && show.overview) lines.push(`      ${truncate(show.overview, 140)}`);
-      }
-      lines.push('');
-    }
-    if (content.movies.length) {
-      lines.push(`## ${s.moviesTitle} — ${content.movies.length} ${s.movies}`);
-      for (const m of content.movies) {
-        lines.push(`  - ${m.title}${m.year ? ` (${m.year})` : ''}${m.rating ? ` · ★${m.rating.toFixed(1)}` : ''}`);
+    for (const section of content.sections) {
+      const summary = section.count.map((c) => `${c.n} ${s[c.labelKey]}`).join(' / ');
+      lines.push(`## ${s[section.titleKey]} — ${summary}`);
+      if (section.layout === 'shows') {
+        for (const show of section.shows) {
+          lines.push(`  - ${show.title}${show.year ? ` (${show.year})` : ''} — ${show.episodeCount} ${s.episodes} · ${show.seasonRange}${show.rating ? ` · ★${show.rating.toFixed(1)}` : ''}`);
+          if (opts.style?.showOverview !== false && show.overview) lines.push(`      ${truncate(show.overview, 140)}`);
+        }
+      } else {
+        for (const m of section.movies) {
+          lines.push(`  - ${m.title}${m.year ? ` (${m.year})` : ''}${m.rating ? ` · ★${m.rating.toFixed(1)}` : ''}`);
+        }
       }
       lines.push('');
     }

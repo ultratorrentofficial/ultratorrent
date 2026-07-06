@@ -45,12 +45,33 @@ describe('newsletter content grouping', () => {
     expect(shows[0].rating).toBeCloseTo(8.2, 1);
   });
 
-  it('splits movies from shows in buildContent', () => {
+  it('splits content into one section per type (Tautulli-style)', () => {
     const c = buildContent([...episodes, movie], since, until);
-    expect(c.shows).toHaveLength(1);
-    expect(c.movies.map((m) => m.title)).toEqual(['The Long Night']);
-    expect(c.episodeCount).toBe(3);
+    expect(c.sections.map((s) => s.key)).toEqual(['tv', 'movie']);
+    const tv = c.sections.find((s) => s.key === 'tv')!;
+    expect(tv.layout).toBe('shows');
+    expect(tv.shows).toHaveLength(1);
+    expect(tv.count).toEqual([
+      { n: 1, labelKey: 'shows' },
+      { n: 3, labelKey: 'episodes' },
+    ]);
+    const movies = c.sections.find((s) => s.key === 'movie')!;
+    expect(movies.layout).toBe('grid');
+    expect(movies.movies.map((m) => m.title)).toEqual(['The Long Night']);
+    expect(movies.count).toEqual([{ n: 1, labelKey: 'movies' }]);
     expect(c.totalItems).toBe(4);
+  });
+
+  it('creates a music section (grid, "items" count) for concert/music types', () => {
+    const concert: NewsletterItem = { id: 'c1', title: 'Live at Roadburn', mediaType: 'concert', year: 2025, season: null, episode: null, addedAt: since };
+    const c = buildContent([concert], since, until);
+    expect(c.sections.map((s) => s.key)).toEqual(['music']);
+    expect(c.sections[0]).toMatchObject({ layout: 'grid', titleKey: 'musicTitle', count: [{ n: 1, labelKey: 'items' }] });
+  });
+
+  it('omits sections for types with no new items', () => {
+    const c = buildContent([movie], since, until);
+    expect(c.sections.map((s) => s.key)).toEqual(['movie']);
   });
 });
 
@@ -144,10 +165,12 @@ describe('renderText (plain-text fallback)', () => {
 });
 
 describe('sampleContent', () => {
-  it('produces representative shows + movies for the empty preview', () => {
+  it('produces representative TV + movie sections for the empty preview', () => {
     const c = sampleContent();
-    expect(c.shows.length).toBeGreaterThan(0);
-    expect(c.movies.length).toBeGreaterThan(0);
+    const tv = c.sections.find((s) => s.key === 'tv');
+    const movies = c.sections.find((s) => s.key === 'movie');
+    expect(tv?.shows.length).toBeGreaterThan(0);
+    expect(movies?.movies.length).toBeGreaterThan(0);
     expect(renderHtml(c, opts())).toContain('Silverpeak');
   });
 });

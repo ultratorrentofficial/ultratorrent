@@ -9,7 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerEmailService, type EmailAttachment } from './media-server-email.service';
-import { buildContent, renderHtml, renderText, sampleContent, type NewsletterContent, type NewsletterItem, type RenderOptions } from './newsletter-render';
+import { buildContent, renderHtml, renderText, sampleContent, NEWSLETTER_GROUPS, type NewsletterContent, type NewsletterItem, type RenderOptions } from './newsletter-render';
 import { newsletterStrings } from './newsletter-strings';
 
 const ACCENT = '#f5a623';
@@ -148,11 +148,21 @@ export class MediaServerNewsletterService {
    * grouped into shows, movies kept flat — enriched with metadata and inline
    * poster artwork (CID images, so they render without public URLs).
    */
+  /** Media types this newsletter covers (from `contentSections`); null = everything. */
+  private mediaTypeFilter(n: MediaServerNewsletter): string[] | null {
+    const selected = (n.contentSections as string[] | null) ?? [];
+    const keys = new Set(selected);
+    if (keys.size === 0) return null;
+    const types = NEWSLETTER_GROUPS.filter((g) => keys.has(g.key)).flatMap((g) => g.types as readonly string[]);
+    return types.length ? [...new Set(types)] : null;
+  }
+
   private async build(n: MediaServerNewsletter): Promise<RenderedNewsletter> {
     const since = this.since(n);
     const until = new Date();
+    const types = this.mediaTypeFilter(n);
     const rows = await this.prisma.mediaItem.findMany({
-      where: { createdAt: { gte: since } },
+      where: { createdAt: { gte: since }, ...(types ? { mediaType: { in: types } } : {}) },
       orderBy: { createdAt: 'desc' },
       take: MAX_ITEMS,
       select: {
@@ -198,11 +208,11 @@ export class MediaServerNewsletterService {
     content: NewsletterContent,
     posters: Map<string, { url: string | null; localPath: string | null }>,
   ): Promise<EmailAttachment[]> {
-    // One poster per show + per movie, in render order, capped for email size.
-    const targets: { id?: string; set: (cid: string) => void }[] = [
-      ...content.shows.map((s) => ({ id: s.posterItemId, set: (cid: string) => (s.posterCid = cid) })),
-      ...content.movies.map((m) => ({ id: m.id, set: (cid: string) => (m.posterCid = cid) })),
-    ];
+    // One poster per show + per movie across all sections, in render order, capped.
+    const targets: { id?: string; set: (cid: string) => void }[] = content.sections.flatMap((sec) => [
+      ...sec.shows.map((s) => ({ id: s.posterItemId, set: (cid: string) => (s.posterCid = cid) })),
+      ...sec.movies.map((m) => ({ id: m.id, set: (cid: string) => (m.posterCid = cid) })),
+    ]);
     const attachments: EmailAttachment[] = [];
     for (const tgt of targets) {
       if (attachments.length >= MAX_POSTERS) break;
