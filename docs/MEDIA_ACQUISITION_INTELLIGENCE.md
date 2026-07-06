@@ -161,7 +161,11 @@ reject, override, history, export, settings}`.
 
 - **RSS**: an RSS item can be passed to `POST /evaluate` with
   `sourceType: "rss"`; the existing RSS rules are unchanged and keep working.
-  The evaluation is optional and module-gated.
+  The evaluation is optional and module-gated. The RSS module's
+  [TV show airing-status awareness](RSS.md#tv-show-airing-status-awareness) is
+  complementary: it steers rule creation away from ended/canceled shows (prefer
+  backfill/upgrade), reinforcing the same "acquire only what's worth acquiring"
+  goal at rule-authoring time.
 - **Automation**: the module emits triggers
   (`media_acquisition.evaluation_created`, `…approval_required`,
   `…download_recommended`, `…release_skipped`, `…upgrade_available`) as WebSocket

@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { ShowStatusBadge } from '@/components/rss/ShowStatusPanel';
 import { CandidateCard } from './rss-match/CandidateCard';
 import { CandidateEditorDialog } from './rss-match/CandidateEditorDialog';
 import { TestingPanel } from './rss-match/TestingPanel';
@@ -160,13 +161,25 @@ export function RssRulePage() {
         </Button>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              {rule ? t('rule.titleWithName', { name: rule.name }) : t('rule.title')}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight">
+                {rule ? t('rule.titleWithName', { name: rule.name }) : t('rule.title')}
+              </h1>
+              {rule?.showStatus && <ShowStatusBadge status={rule.showStatus} />}
+            </div>
             <p className="text-sm text-muted-foreground">
               {feed ? t('rule.subtitleFeedPrefix', { name: feed.name }) : ''}
               {t('rule.subtitle')}
             </p>
+            {rule?.showStatus &&
+              rule.showStatusRecommendation &&
+              rule.showStatusRecommendation !== 'recommended' && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t(
+                    `showStatus.recommendation.${rule.showStatusRecommendation}` as 'showStatus.recommendation.caution',
+                  )}
+                </p>
+              )}
           </div>
           <Button onClick={() => setEditor({ mode: 'create', source: null })}>
             <Plus className="h-4 w-4" /> {t('rule.addCandidate')}

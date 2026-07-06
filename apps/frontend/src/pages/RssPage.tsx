@@ -49,6 +49,7 @@ import {
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { Select } from '@/components/ui/select';
 import {
+  ShowStatusBadge,
   ShowStatusPanel,
   showStatusIsInactive,
   useShowStatusLookup,
@@ -390,6 +391,7 @@ export function RssPage() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{rule.name}</span>
+                            {rule.showStatus && <ShowStatusBadge status={rule.showStatus} />}
                             {rule.autoDownload && (
                               <Badge variant="info" dot>
                                 <Download className="h-3 w-3" /> {t('feeds.auto')}
