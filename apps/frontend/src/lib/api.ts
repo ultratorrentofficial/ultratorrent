@@ -2776,6 +2776,35 @@ export const api = {
     reportDevices(filter?: MediaAnalyticsFilter): Promise<MediaServerDeviceStat[]> {
       return request<MediaServerDeviceStat[]>(`/media-server-analytics/reports/devices${analyticsQuery(filter)}`);
     },
+    reportHeatmap(filter?: MediaAnalyticsFilter): Promise<MediaServerHeatmap> {
+      return request<MediaServerHeatmap>(`/media-server-analytics/reports/heatmap${analyticsQuery(filter)}`);
+    },
+    reportTrends(filter?: MediaAnalyticsFilter): Promise<MediaServerTrendPoint[]> {
+      return request<MediaServerTrendPoint[]>(`/media-server-analytics/reports/trends${analyticsQuery(filter)}`);
+    },
+    reportResolutions(filter?: MediaAnalyticsFilter): Promise<MediaServerResolutionStat[]> {
+      return request<MediaServerResolutionStat[]>(`/media-server-analytics/reports/resolutions${analyticsQuery(filter)}`);
+    },
+    reportLibraryGrowth(filter?: MediaAnalyticsFilter): Promise<MediaServerLibraryGrowthPoint[]> {
+      return request<MediaServerLibraryGrowthPoint[]>(`/media-server-analytics/reports/library-growth${analyticsQuery(filter)}`);
+    },
+    /** Download watch-history CSV for the current filter (triggers a browser download). */
+    async exportWatchHistoryCsv(filter?: MediaAnalyticsFilter): Promise<void> {
+      const token = getAccessToken();
+      const res = await fetch(buildUrl(`/media-server-analytics/export/watch-history${analyticsQuery(filter)}`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new ApiError(res.status, `Export failed (${res.status})`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = 'watch-history.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    },
     recentlyAdded(): Promise<MediaServerRecentlyAddedItem[]> {
       return request<MediaServerRecentlyAddedItem[]>('/media-server-analytics/recently-added');
     },
@@ -3008,6 +3037,28 @@ export interface MediaServerTopMedia {
 export interface MediaServerDeviceStat {
   device: string;
   plays: number;
+}
+export interface MediaServerHeatmap {
+  cells: { dow: number; hour: number; plays: number }[];
+  max: number;
+  total: number;
+}
+export interface MediaServerTrendPoint {
+  date: string;
+  directplay: number;
+  directstream: number;
+  transcode: number;
+  other: number;
+  total: number;
+}
+export interface MediaServerResolutionStat {
+  resolution: string;
+  plays: number;
+}
+export interface MediaServerLibraryGrowthPoint {
+  month: string;
+  added: number;
+  total: number;
 }
 
 /** Dashboard filter applied across analytics report queries. */

@@ -736,6 +736,8 @@ model MediaServerWatchHistory {
   watchedSeconds  Int?
   percentComplete Int?
   playbackMethod  String?
+  resolution      String?
+  videoCodec      String?
   importSource    String?
   importedAt      DateTime?
   createdAt       DateTime  @default(now())

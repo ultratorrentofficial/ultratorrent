@@ -199,13 +199,45 @@
     "playbackMethod": "Método de reproducción",
     "topUsers": "Usuarios principales",
     "devices": "Dispositivos",
-    "topMedia": "Más visto"
+    "topMedia": "Más visto",
+    "streamTrend": "Tendencia de transmisión",
+    "streamTrendSub": "Reproducción directa vs. transcodificación en el tiempo",
+    "resolutions": "Distribución de calidad",
+    "libraryGrowth": "Crecimiento de biblioteca",
+    "libraryGrowthSub": "Elementos acumulados en el tiempo",
+    "libraryTotal": "elementos totales"
+  },
+  "playbackMethods": {
+    "directplay": "Reproducción directa",
+    "directstream": "Transmisión directa",
+    "transcode": "Transcodificación",
+    "other": "Otro"
+  },
+  "heatmap": {
+    "title": "Mapa de calor de actividad",
+    "subtitle": "Cuándo la gente ve, por día y hora.",
+    "days": {
+      "sun": "Dom",
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mié",
+      "thu": "Jue",
+      "fri": "Vie",
+      "sat": "Sáb"
+    }
+  },
+  "providerStatus": {
+    "title": "Estado de proveedores",
+    "empty": "Aún no hay servidores de medios conectados.",
+    "lastCheck": "Última verificación"
   },
   "filters": {
     "range": "Rango de fechas",
     "mediaType": "Tipo de medio",
     "refresh": "Auto-actualizar",
     "refreshNow": "Actualizar",
+    "exportCsv": "Exportar CSV",
+    "exportFailed": "La exportación falló.",
     "ranges": {
       "today": "Hoy",
       "7d": "Últimos 7 días",

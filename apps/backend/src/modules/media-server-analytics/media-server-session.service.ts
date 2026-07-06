@@ -124,6 +124,8 @@ export class MediaServerSessionService {
         watchedSeconds,
         percentComplete: c.progressPercent,
         playbackMethod: c.playbackMethod,
+        resolution: c.resolution,
+        videoCodec: c.videoCodec,
         importSource: 'live',
       },
     });

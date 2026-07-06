@@ -56,6 +56,25 @@ export function mediaTypeColor(type?: string | null): string {
   return MEDIA_TYPE_COLORS[(type ?? 'other').toLowerCase()] ?? MEDIA_TYPE_COLORS.other;
 }
 
+/** Ordered playback-method series for the transcode trend — reserved colors, stable order. */
+export const TREND_METHODS = [
+  { key: 'directplay', color: '#0ca30c' },
+  { key: 'directstream', color: '#3987e5' },
+  { key: 'transcode', color: '#d95926' },
+  { key: 'other', color: OTHER_COLOR },
+] as const;
+
+/**
+ * Single-hue sequential ramp for the activity heatmap: an empty cell sits just
+ * above the surface; busier cells deepen toward a saturated blue. `intensity` is
+ * 0..1 (cell plays / peak). One hue, light→dark — a proper sequential scale.
+ */
+export function heatColor(intensity: number): string {
+  if (intensity <= 0) return 'hsl(240 14% 12%)';
+  const alpha = 0.12 + 0.88 * Math.min(1, intensity);
+  return `rgba(57, 135, 229, ${alpha.toFixed(3)})`;
+}
+
 /** Cap a distribution to the top N slices, folding the rest into a gray "Other". */
 export function foldTopN<T extends { plays: number }>(
   items: T[],

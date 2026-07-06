@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { RefreshCw } from 'lucide-react';
+import { Download, RefreshCw } from 'lucide-react';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -20,11 +20,15 @@ export function MediaAnalyticsFilterBar({
   onChange,
   onRefresh,
   refreshing,
+  onExport,
+  exporting,
 }: {
   state: AnalyticsFilterState;
   onChange: <K extends keyof AnalyticsFilterState>(key: K, value: AnalyticsFilterState[K]) => void;
   onRefresh: () => void;
   refreshing?: boolean;
+  onExport?: () => void;
+  exporting?: boolean;
 }) {
   const { t } = useTranslation('mediaServerAnalytics');
 
@@ -64,6 +68,13 @@ export function MediaAnalyticsFilterBar({
         <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
         {t('filters.refreshNow')}
       </Button>
+
+      {onExport && (
+        <Button variant="subtle" size="sm" onClick={onExport} className="h-9" loading={exporting}>
+          <Download className="h-4 w-4" />
+          {t('filters.exportCsv')}
+        </Button>
+      )}
     </div>
   );
 }

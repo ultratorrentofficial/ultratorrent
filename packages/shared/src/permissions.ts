@@ -92,6 +92,7 @@ export const PERMISSIONS = {
   MEDIA_SERVER_ANALYTICS_VIEW_USERS: 'media_server_analytics.view_users',
   MEDIA_SERVER_ANALYTICS_VIEW_HISTORY: 'media_server_analytics.view_history',
   MEDIA_SERVER_ANALYTICS_VIEW_REPORTS: 'media_server_analytics.view_reports',
+  MEDIA_SERVER_ANALYTICS_EXPORT: 'media_server_analytics.export',
   MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS: 'media_server_analytics.manage_newsletters',
   MEDIA_SERVER_ANALYTICS_SEND_NEWSLETTERS: 'media_server_analytics.send_newsletters',
   MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS: 'media_server_analytics.manage_imports',

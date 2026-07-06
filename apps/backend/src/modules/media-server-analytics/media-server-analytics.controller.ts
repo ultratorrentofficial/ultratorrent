@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -100,6 +100,33 @@ export class MediaServerAnalyticsController {
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
   reportDevices(@Query() q: Record<string, string>) {
     return this.reports.devices(parseFilter(q));
+  }
+  @Get('reports/heatmap')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  reportHeatmap(@Query() q: Record<string, string>) {
+    return this.reports.heatmap(parseFilter(q));
+  }
+  @Get('reports/trends')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  reportTrends(@Query() q: Record<string, string>) {
+    return this.reports.trends(parseFilter(q));
+  }
+  @Get('reports/resolutions')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  reportResolutions(@Query() q: Record<string, string>) {
+    return this.reports.resolutions(parseFilter(q));
+  }
+  @Get('reports/library-growth')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  reportLibraryGrowth(@Query() q: Record<string, string>) {
+    return this.reports.libraryGrowth(parseFilter(q));
+  }
+  @Get('export/watch-history')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_EXPORT)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="watch-history.csv"')
+  exportWatchHistory(@Query() q: Record<string, string>) {
+    return this.reports.exportWatchHistoryCsv(parseFilter(q));
   }
   @Get('users')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_USERS)

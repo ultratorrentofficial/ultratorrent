@@ -42,8 +42,26 @@ class WatchHistoryTable {
   }
 }
 
+/** In-memory media-item table supporting the findMany/count the library-growth report uses. */
+class MediaItemTable {
+  constructor(public rows: any[]) {}
+  private applyWhere(where: any): any[] {
+    let r = this.rows;
+    if (where?.mediaType) r = r.filter((x) => x.mediaType === where.mediaType);
+    if (where?.createdAt?.gte) r = r.filter((x) => x.createdAt >= where.createdAt.gte);
+    if (where?.createdAt?.lt) r = r.filter((x) => x.createdAt < where.createdAt.lt);
+    return r;
+  }
+  async findMany({ where }: any = {}) {
+    return [...this.applyWhere(where)].sort((a, b) => +a.createdAt - +b.createdAt);
+  }
+  async count({ where }: any = {}) {
+    return this.applyWhere(where).length;
+  }
+}
+
 function makeService(rows: any[], items: any[] = []) {
-  const prisma = { mediaServerWatchHistory: new WatchHistoryTable(rows), mediaItem: { findMany: async () => items } };
+  const prisma = { mediaServerWatchHistory: new WatchHistoryTable(rows), mediaItem: new MediaItemTable(items) };
   return new MediaServerReportService(prisma as any);
 }
 
@@ -117,6 +135,86 @@ describe('MediaServerReportService', () => {
       const svc = makeService(HISTORY);
       const u = await svc.usage();
       expect(u.totalPlays).toBe(3);
+    });
+  });
+
+  describe('heatmap', () => {
+    it('buckets plays by day-of-week and hour with a peak', async () => {
+      // Two plays Wed 14:00, one Fri 09:00 (local time).
+      const rows = [
+        { mediaType: 'movie', startedAt: new Date(2026, 6, 1, 14, 5) }, // Wed
+        { mediaType: 'movie', startedAt: new Date(2026, 6, 1, 14, 40) }, // Wed
+        { mediaType: 'movie', startedAt: new Date(2026, 6, 3, 9, 0) }, // Fri
+      ];
+      const hm = await makeService(rows).heatmap();
+      expect(hm.total).toBe(3);
+      expect(hm.max).toBe(2);
+      expect(hm.cells).toHaveLength(7 * 24);
+      const wed14 = hm.cells.find((c) => c.dow === 3 && c.hour === 14);
+      expect(wed14?.plays).toBe(2);
+      const fri9 = hm.cells.find((c) => c.dow === 5 && c.hour === 9);
+      expect(fri9?.plays).toBe(1);
+    });
+  });
+
+  describe('trends', () => {
+    it('splits playback methods per day and normalizes spellings', async () => {
+      const rows = [
+        { playbackMethod: 'Direct Play', startedAt: new Date('2026-07-01T10:00:00Z') },
+        { playbackMethod: 'transcode', startedAt: new Date('2026-07-01T12:00:00Z') },
+        { playbackMethod: 'directstream', startedAt: new Date('2026-07-02T12:00:00Z') },
+      ];
+      const tr = await makeService(rows).trends();
+      const d1 = tr.find((d) => d.date === '2026-07-01');
+      expect(d1).toMatchObject({ directplay: 1, transcode: 1, total: 2 });
+      const d2 = tr.find((d) => d.date === '2026-07-02');
+      expect(d2).toMatchObject({ directstream: 1, total: 1 });
+    });
+  });
+
+  describe('resolutions', () => {
+    it('merges resolution spellings into canonical labels ordered high→low', async () => {
+      const rows = [
+        { mediaType: 'movie', resolution: '1920x1080', startedAt: new Date() },
+        { mediaType: 'movie', resolution: '1080p', startedAt: new Date() },
+        { mediaType: 'movie', resolution: '4K', startedAt: new Date() },
+        { mediaType: 'movie', resolution: null, startedAt: new Date() },
+      ];
+      const res = await makeService(rows).resolutions();
+      expect(res.find((r) => r.resolution === '1080p')?.plays).toBe(2);
+      expect(res.find((r) => r.resolution === '4K')?.plays).toBe(1);
+      expect(res.find((r) => r.resolution === 'Unknown')?.plays).toBe(1);
+      // 4K sorts before 1080p; Unknown last.
+      expect(res[0].resolution).toBe('4K');
+      expect(res[res.length - 1].resolution).toBe('Unknown');
+    });
+  });
+
+  describe('libraryGrowth', () => {
+    it('produces cumulative monthly totals from a zero baseline', async () => {
+      const items = [
+        { mediaType: 'movie', createdAt: new Date('2026-05-10') },
+        { mediaType: 'movie', createdAt: new Date('2026-06-02') },
+        { mediaType: 'movie', createdAt: new Date('2026-06-20') },
+      ];
+      const g = await makeService([], items).libraryGrowth();
+      expect(g).toEqual([
+        { month: '2026-05', added: 1, total: 1 },
+        { month: '2026-06', added: 2, total: 3 },
+      ]);
+    });
+  });
+
+  describe('exportWatchHistoryCsv', () => {
+    it('emits a header row and escapes commas/quotes', async () => {
+      const rows = [
+        { startedAt: new Date('2026-07-01T00:00:00Z'), stoppedAt: null, userName: 'alice', title: 'Movie, The "Best"', mediaType: 'movie', libraryName: 'Movies', device: 'TV', client: 'Plex', playbackMethod: 'directplay', resolution: '1080p', videoCodec: 'h264', watchedSeconds: 100, percentComplete: 90, importSource: 'live' },
+      ];
+      const csv = await makeService(rows).exportWatchHistoryCsv();
+      const lines = csv.split('\r\n');
+      expect(lines[0]).toBe('startedAt,stoppedAt,user,title,mediaType,library,device,client,playbackMethod,resolution,videoCodec,watchedSeconds,percentComplete,source');
+      expect(lines[1]).toContain('"Movie, The ""Best"""');
+      expect(lines[1]).toContain('2026-07-01T00:00:00.000Z');
     });
   });
 

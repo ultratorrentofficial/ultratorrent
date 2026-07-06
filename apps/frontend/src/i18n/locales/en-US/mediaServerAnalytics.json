@@ -199,13 +199,45 @@
     "playbackMethod": "Playback method",
     "topUsers": "Top users",
     "devices": "Devices",
-    "topMedia": "Most watched"
+    "topMedia": "Most watched",
+    "streamTrend": "Streaming trend",
+    "streamTrendSub": "Direct play vs. transcode over time",
+    "resolutions": "Quality distribution",
+    "libraryGrowth": "Library growth",
+    "libraryGrowthSub": "Cumulative items over time",
+    "libraryTotal": "total items"
+  },
+  "playbackMethods": {
+    "directplay": "Direct Play",
+    "directstream": "Direct Stream",
+    "transcode": "Transcode",
+    "other": "Other"
+  },
+  "heatmap": {
+    "title": "Activity heatmap",
+    "subtitle": "When people watch, by day and hour.",
+    "days": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    }
+  },
+  "providerStatus": {
+    "title": "Provider status",
+    "empty": "No media servers connected yet.",
+    "lastCheck": "Last check"
   },
   "filters": {
     "range": "Date range",
     "mediaType": "Media type",
     "refresh": "Auto-refresh",
     "refreshNow": "Refresh",
+    "exportCsv": "Export CSV",
+    "exportFailed": "Export failed.",
     "ranges": {
       "today": "Today",
       "7d": "Last 7 days",
