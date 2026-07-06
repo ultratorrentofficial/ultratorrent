@@ -169,13 +169,25 @@ export function parseTorrentName(raw: string): ParsedTorrentMeta {
     }
   }
 
-  // Year (avoid matching a 4-digit that is part of a resolution; \b handles it)
-  const yearMatch = /\b(19|20)\d{2}\b/.exec(ws);
-  if (yearMatch) {
-    meta.year = +yearMatch[0];
+  // Year — a title can *start* with a 4-digit year (e.g. "1917 (2019)"), so
+  // collect every candidate and choose deliberately rather than taking the
+  // first: prefer a parenthesized "(YYYY)" (the release-year convention), else
+  // the last one. Crucially, never treat a year at position 0 as the title
+  // boundary — that would collapse the whole title to empty. (\b already keeps
+  // this from matching a resolution's digits.)
+  const yearMatches = [...ws.matchAll(/\b(19|20)\d{2}\b/g)];
+  if (yearMatches.length) {
+    const parenYear = yearMatches.find(
+      (ym) => ws[ym.index - 1] === '(' && ws[ym.index + 4] === ')',
+    );
+    const chosen = parenYear ?? yearMatches[yearMatches.length - 1];
+    meta.year = +chosen[0];
     explain('Year', String(meta.year), `Detected four-digit year "${meta.year}".`);
-    // Year is a title boundary only when there's no episode marker.
-    if (meta.season === null && meta.absoluteEpisode === null) setCut(yearMatch.index);
+    // Year is a title boundary only when there's no episode marker and it isn't
+    // the leading token (a leading year is part of the title, not a boundary).
+    if (meta.season === null && meta.absoluteEpisode === null && chosen.index > 0) {
+      setCut(chosen.index);
+    }
   }
 
   // Resolution

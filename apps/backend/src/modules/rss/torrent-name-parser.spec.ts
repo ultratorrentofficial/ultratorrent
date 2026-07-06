@@ -65,6 +65,22 @@ describe('parseTorrentName', () => {
     expect(m.title).toBe('Dune Part Two');
   });
 
+  it('keeps a numeric title when it collides with a parenthesized year', () => {
+    // "1917" is a valid year, but here it is the title; the real year is (2019).
+    const m = parseTorrentName('1917 (2019) [1080p].mp4');
+    expect(m.title).toBe('1917');
+    expect(m.year).toBe(2019);
+    expect(m.contentType).toBe('movie');
+    expect(m.resolution).toBe('1080p');
+  });
+
+  it('prefers the parenthesized release year over a leading numeric title', () => {
+    const m = parseTorrentName('1992 (2024) 1080p AAC.mp4');
+    expect(m.title).toBe('1992');
+    expect(m.year).toBe(2024);
+    expect(m.contentType).toBe('movie');
+  });
+
   it('parses an anime absolute-episode release with fansub tag', () => {
     const m = parseTorrentName('[SubsPlease] Some Anime - 05 (1080p) [ABCD1234].mkv');
     expect(m.absoluteEpisode).toBe(5);

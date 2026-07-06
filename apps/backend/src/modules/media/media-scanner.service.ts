@@ -39,6 +39,17 @@ export function deriveFileTechInfo(filePath: string): MediaFileTechInfo {
   };
 }
 
+/**
+ * Directories the scan skips entirely. Hidden/dot folders hold trash or sidecar
+ * metadata rather than library content — e.g. tinyMediaManager's `.deletedByTMM`
+ * (deleted items) and `.actors`, macOS `.Trashes` — and Synology litters every
+ * share with `@eaDir` thumbnail folders. Indexing these surfaces phantom,
+ * unmatchable items. Pure — exported for unit testing.
+ */
+export function isIgnoredScanDir(name: string): boolean {
+  return name.startsWith('.') || name === '@eaDir';
+}
+
 const VIDEO_EXT = new Set([
   '.mkv',
   '.mp4',
@@ -212,6 +223,7 @@ export class MediaScannerService {
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
+        if (isIgnoredScanDir(entry.name)) continue;
         out.push(...(await this.walk(full)));
       } else if (VIDEO_EXT.has(path.extname(entry.name).toLowerCase())) {
         const info = await stat(full).catch(() => null);
