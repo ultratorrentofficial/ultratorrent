@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { PathPicker } from '@/components/PathPicker';
 import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { EmailSettingsCard } from '@/pages/media-server-analytics/EmailSettingsCard';
 
 /** Owned by the dedicated Default Root Path section — not the generic list. */
 const ROOT_PATH_KEY = 'fileManager.defaultRootPath';
@@ -70,6 +71,8 @@ export function SettingsPage() {
       </div>
 
       <RootPathSection canManageRoot={hasPermission(PERMISSIONS.SETTINGS_MANAGE_ROOT_PATH)} />
+
+      {hasPermission(PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS) && <EmailSettingsCard />}
 
       {isLoading ? (
         <CenteredSpinner label={t('page.loading')} />

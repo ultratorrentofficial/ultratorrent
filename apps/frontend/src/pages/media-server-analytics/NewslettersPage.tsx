@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, Mail, Play, Send, Trash2 } from 'lucide-react';
+import { Eye, Play, Send, Trash2 } from 'lucide-react';
 import { api, ApiError, type Newsletter, type NewsletterPreview } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 
 /** Content-type groups a newsletter can cover (mirrors backend NEWSLETTER_GROUPS keys). */
@@ -44,55 +43,6 @@ function ContentTypeToggle({ value, onChange }: { value: string[]; onChange: (ne
       })}
       <span className="text-[11px] text-muted-foreground">{value.length === 0 ? t('newsletter.content.allHint') : ''}</span>
     </div>
-  );
-}
-
-function EmailSettingsCard() {
-  const { t } = useTranslation('mediaServerAnalytics');
-  const toast = useToast();
-  const q = useQuery({ queryKey: ['msa', 'email'], queryFn: () => api.mediaServerAnalytics.emailSettings() });
-  const [form, setForm] = useState({ host: '', port: 587, secure: false, auth: true, user: '', password: '', fromName: '', fromAddress: '' });
-  const [testTo, setTestTo] = useState('');
-  useEffect(() => {
-    if (q.data) setForm((f) => ({ ...f, host: q.data.host, port: q.data.port, secure: q.data.secure, auth: q.data.auth, user: q.data.user, fromName: q.data.fromName, fromAddress: q.data.fromAddress }));
-  }, [q.data]);
-
-  const save = useMutation({
-    mutationFn: () => api.mediaServerAnalytics.updateEmailSettings(form),
-    onSuccess: () => toast.success(t('newsletter.email.saved')),
-    onError: (e) => toast.error(t('newsletter.email.testFailed'), e instanceof ApiError ? e.message : undefined),
-  });
-  const test = useMutation({
-    mutationFn: () => api.mediaServerAnalytics.testEmail(testTo),
-    onSuccess: () => toast.success(t('newsletter.email.tested')),
-    onError: (e) => toast.error(t('newsletter.email.testFailed'), e instanceof ApiError ? e.message : undefined),
-  });
-
-  return (
-    <Card>
-      <CardContent className="space-y-3 p-4">
-        <h2 className="flex items-center gap-2 text-sm font-semibold"><Mail className="h-4 w-4" />{t('newsletter.email.title')}</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1.5"><Label htmlFor="e-host">{t('newsletter.email.host')}</Label><Input id="e-host" value={form.host} onChange={(e) => setForm((f) => ({ ...f, host: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label htmlFor="e-port">{t('newsletter.email.port')}</Label><Input id="e-port" type="number" value={form.port} onChange={(e) => setForm((f) => ({ ...f, port: Number(e.target.value) }))} /></div>
-          <div className="flex items-end gap-2"><Switch checked={form.secure} onCheckedChange={(v) => setForm((f) => ({ ...f, secure: v }))} /><span className="text-sm">{t('newsletter.email.secure')}</span></div>
-          <div className="flex items-end gap-2 sm:col-span-3"><Switch checked={form.auth} onCheckedChange={(v) => setForm((f) => ({ ...f, auth: v }))} /><span className="text-sm">{t('newsletter.email.auth')}</span><span className="text-xs text-muted-foreground">{t('newsletter.email.authHint')}</span></div>
-          {form.auth && (
-            <>
-              <div className="space-y-1.5"><Label htmlFor="e-user">{t('newsletter.email.user')}</Label><Input id="e-user" value={form.user} onChange={(e) => setForm((f) => ({ ...f, user: e.target.value }))} /></div>
-              <div className="space-y-1.5"><Label htmlFor="e-pass">{t('newsletter.email.password')}</Label><Input id="e-pass" type="password" value={form.password} placeholder={q.data?.hasPassword ? '••••••••' : ''} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} /></div>
-            </>
-          )}
-          <div className="space-y-1.5"><Label htmlFor="e-fn">{t('newsletter.email.fromName')}</Label><Input id="e-fn" value={form.fromName} onChange={(e) => setForm((f) => ({ ...f, fromName: e.target.value }))} /></div>
-          <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="e-fa">{t('newsletter.email.fromAddress')}</Label><Input id="e-fa" value={form.fromAddress} onChange={(e) => setForm((f) => ({ ...f, fromAddress: e.target.value }))} placeholder="ultratorrent@example.com" /></div>
-        </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <Button onClick={() => save.mutate()} disabled={save.isPending}>{t('newsletter.email.save')}</Button>
-          <Input className="w-56" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder={t('newsletter.email.testRecipient')} />
-          <Button variant="secondary" onClick={() => test.mutate()} disabled={!testTo.trim() || test.isPending}>{t('newsletter.email.test')}</Button>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -146,8 +96,6 @@ export function NewslettersPage() {
         <h1 className="text-2xl font-semibold tracking-tight">{t('newsletter.title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('newsletter.subtitle')}</p>
       </div>
-
-      <EmailSettingsCard />
 
       {q.isLoading ? <CenteredSpinner /> : q.isError ? <ErrorState title={t('newsletter.loadError')} onRetry={() => void q.refetch()} /> : (
         <>
