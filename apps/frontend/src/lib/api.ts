@@ -341,12 +341,21 @@ export interface RssImportSummary {
 }
 
 /** A page of feed history plus whole-feed status counts (mutually exclusive). */
+export type RssHistoryStatus = 'downloaded' | 'matched' | 'seen';
+
+export interface RssHistoryQuery {
+  page?: number;
+  pageSize?: number;
+  status?: RssHistoryStatus;
+  search?: string;
+}
+
 export interface RssHistoryPage {
   items: RssHistoryItem[];
   total: number;
   page: number;
   pageSize: number;
-  counts: { downloaded: number; matched: number; seen: number };
+  counts: { total: number; downloaded: number; matched: number; seen: number };
 }
 
 export interface CreateFeedInput {
@@ -1974,9 +1983,11 @@ export const api = {
     },
     history(
       feedId: string,
-      query: { page?: number; pageSize?: number } = {},
+      query: RssHistoryQuery = {},
     ): Promise<RssHistoryPage> {
-      return request<RssHistoryPage>(`/rss/feeds/${feedId}/history`, { query });
+      return request<RssHistoryPage>(`/rss/feeds/${feedId}/history`, {
+        query: query as QueryParams,
+      });
     },
     refreshFeed(feedId: string): Promise<{ newItems: number; downloaded: number }> {
       return request<{ newItems: number; downloaded: number }>(

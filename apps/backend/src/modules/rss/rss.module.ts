@@ -27,6 +27,7 @@ import {
 import type { Request } from 'express';
 import Parser from 'rss-parser';
 import { PERMISSIONS } from '@ultratorrent/shared';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
 import { EngineRegistryService } from '../engine/engine-registry.service';
@@ -403,32 +404,74 @@ export class RssService {
     return summary;
   }
   /**
-   * Paginated feed history, newest first (default 25 per page, max 100), plus
-   * status counts across the whole feed for the summary tiles. The three status
-   * buckets are mutually exclusive: downloaded, matched-but-not-downloaded, and
-   * seen (neither).
+   * Paginated feed history, newest first (default 25 per page, max 100), with
+   * optional filtering by status and a case-insensitive title search.
+   *
+   * `total` reflects the active filters (drives pagination), while `counts`
+   * (total + the three mutually-exclusive status buckets: downloaded,
+   * matched-but-not-downloaded, and seen) are scoped to the search only — never
+   * to the status filter — so the summary tiles keep showing the full breakdown
+   * and can double as status toggles even while one status is selected.
    */
-  async history(feedId: string, page = 1, pageSize = 25) {
+  async history(
+    feedId: string,
+    page = 1,
+    pageSize = 25,
+    filter: { status?: string; search?: string } = {},
+  ) {
     const take = Math.min(Math.max(Math.trunc(pageSize) || 25, 1), 100);
     const current = Math.max(Math.trunc(page) || 1, 1);
-    const [items, total, downloaded, matchedOnly] = await this.prisma.$transaction([
-      this.prisma.rssHistory.findMany({
-        where: { feedId },
-        orderBy: { createdAt: 'desc' },
-        skip: (current - 1) * take,
-        take,
-      }),
-      this.prisma.rssHistory.count({ where: { feedId } }),
-      this.prisma.rssHistory.count({ where: { feedId, downloaded: true } }),
-      this.prisma.rssHistory.count({ where: { feedId, matched: true, downloaded: false } }),
-    ]);
+
+    // Search-scoped base (applies to both the list and the count tiles).
+    const searchWhere: Prisma.RssHistoryWhereInput = { feedId };
+    const search = filter.search?.trim();
+    if (search) searchWhere.title = { contains: search, mode: 'insensitive' };
+
+    // The status filter narrows the list/pagination only, not the tiles.
+    const statusWhere = this.statusWhere(filter.status);
+    const listWhere: Prisma.RssHistoryWhereInput = { ...searchWhere, ...statusWhere };
+
+    const [items, total, grandTotal, downloaded, matchedOnly] =
+      await this.prisma.$transaction([
+        this.prisma.rssHistory.findMany({
+          where: listWhere,
+          orderBy: { createdAt: 'desc' },
+          skip: (current - 1) * take,
+          take,
+        }),
+        this.prisma.rssHistory.count({ where: listWhere }),
+        this.prisma.rssHistory.count({ where: searchWhere }),
+        this.prisma.rssHistory.count({ where: { ...searchWhere, downloaded: true } }),
+        this.prisma.rssHistory.count({
+          where: { ...searchWhere, matched: true, downloaded: false },
+        }),
+      ]);
     return {
       items,
       total,
       page: current,
       pageSize: take,
-      counts: { downloaded, matched: matchedOnly, seen: total - downloaded - matchedOnly },
+      counts: {
+        total: grandTotal,
+        downloaded,
+        matched: matchedOnly,
+        seen: grandTotal - downloaded - matchedOnly,
+      },
     };
+  }
+
+  /** Prisma `where` fragment for a history status filter (empty = all). */
+  private statusWhere(status?: string): Prisma.RssHistoryWhereInput {
+    switch (status) {
+      case 'downloaded':
+        return { downloaded: true };
+      case 'matched':
+        return { matched: true, downloaded: false };
+      case 'seen':
+        return { matched: false, downloaded: false };
+      default:
+        return {};
+    }
   }
 
   // --- match candidates --------------------------------------------------
@@ -650,11 +693,15 @@ export class RssService {
     const candidates = (rule.matchCandidates ?? []).map((c) => this.toEngineCandidate(c));
     const feedIds = ruleTargetFeedIds(rule, rule.matchCandidates);
 
+    // Scan a generous window of the feed history, not just the newest 200 — a
+    // single episode can produce a dozen release variants, so a busy feed pushes
+    // a rule's real matches well past 200 rows and the test would wrongly report
+    // "no matches". 5000 covers realistic feed history with a bounded worst case.
     const history = feedIds.length
       ? await this.prisma.rssHistory.findMany({
           where: { feedId: { in: feedIds } },
           orderBy: { createdAt: 'desc' },
-          take: 200,
+          take: 5000,
         })
       : [];
 
@@ -1482,8 +1529,13 @@ export class RssController {
     @Param('id') id: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
   ) {
-    return this.rss.history(id, Number(page) || 1, Number(pageSize) || 25);
+    return this.rss.history(id, Number(page) || 1, Number(pageSize) || 25, {
+      status,
+      search,
+    });
   }
   @Post('feeds/:id/refresh')
   @RequirePermissions(PERMISSIONS.RSS_MANAGE)
