@@ -207,7 +207,7 @@ export class MediaArtworkService {
   async importLocal(itemId: string): Promise<number> {
     const item = await this.prisma.mediaItem.findUnique({
       where: { id: itemId },
-      include: { files: true, artwork: true },
+      include: { files: true, artwork: true, library: true },
     });
     if (!item) return 0;
 
@@ -216,15 +216,17 @@ export class MediaArtworkService {
     );
     const selectedTypes = new Set(item.artwork.filter((a) => a.selected).map((a) => a.type));
 
-    const dirs = new Set<string>();
     const basenames = new Set<string>();
     for (const f of item.files) {
-      dirs.add(path.dirname(f.path));
       basenames.add(path.basename(f.path, path.extname(f.path)).toLowerCase());
     }
+    // Scan each file's own directory AND its ancestors up to the library root:
+    // TV show/season artwork (poster.jpg, fanart.jpg, season01-poster.jpg, …)
+    // lives in the show root, one or more levels above the episode file.
+    const dirs = this.artworkSearchDirs(item.files.map((f) => f.path), item.library?.path);
 
-    // Collect candidate {localPath -> type}, de-duplicated across files/dirs.
-    const candidates = new Map<string, ArtworkType>();
+    // Collect candidate {localPath -> {type, seasonNumber}}, de-duplicated.
+    const candidates = new Map<string, { type: ArtworkType; seasonNumber: number | null }>();
     for (const dir of dirs) {
       let safeDir: string;
       try {
@@ -243,19 +245,19 @@ export class MediaArtworkService {
         const ext = path.extname(entry.name).toLowerCase();
         if (!SIDECAR_IMAGE_EXTS.has(ext)) continue;
         const name = path.basename(entry.name, ext).toLowerCase();
-        const type = this.classifySidecarArtwork(name, basenames);
-        if (!type) continue;
+        const classified = this.classifySidecarArtwork(name, basenames);
+        if (!classified) continue;
         const full = path.join(safeDir, entry.name);
         if (known.has(full) || candidates.has(full)) continue;
-        candidates.set(full, type);
+        candidates.set(full, classified);
       }
     }
 
     let created = 0;
-    for (const [localPath, type] of candidates) {
+    for (const [localPath, { type, seasonNumber }] of candidates) {
       const selected = !selectedTypes.has(type);
       await this.prisma.mediaArtwork.create({
-        data: { itemId, type, localPath, source: 'local', selected },
+        data: { itemId, type, localPath, source: 'local', selected, seasonNumber },
       });
       if (selected) selectedTypes.add(type);
       created++;
@@ -263,17 +265,51 @@ export class MediaArtworkService {
     return created;
   }
 
-  /** Map a sidecar image basename to an artwork type, or null if unrecognised. */
+  /**
+   * Directories to scan for an item's sidecar artwork: each media file's own
+   * directory plus every ancestor up to (and including) the library root. This
+   * is what lets a TV episode in `Show/Season 01/` pick up the show-level
+   * `poster.jpg`/`fanart.jpg` that sit in `Show/`. Bounded by the library root
+   * so it never climbs into unrelated parts of the filesystem.
+   */
+  private artworkSearchDirs(filePaths: string[], libraryRoot?: string | null): Set<string> {
+    const dirs = new Set<string>();
+    const root = libraryRoot ? path.resolve(libraryRoot) : null;
+    for (const fp of filePaths) {
+      let cur = path.resolve(path.dirname(fp));
+      dirs.add(cur);
+      if (!root || !(cur === root || cur.startsWith(root + path.sep))) continue;
+      while (cur !== root) {
+        const parent = path.dirname(cur);
+        if (parent === cur) break; // hit the filesystem root — stop
+        cur = parent;
+        dirs.add(cur);
+        if (cur === root) break;
+      }
+    }
+    return dirs;
+  }
+
+  /**
+   * Map a sidecar image basename to an artwork type (+ season number for season
+   * posters), or null if unrecognised.
+   */
   private classifySidecarArtwork(
     name: string,
     videoBasenames: Set<string>,
-  ): ArtworkType | null {
+  ): { type: ArtworkType; seasonNumber: number | null } | null {
+    // Season poster: "season01-poster", "season1-poster", or bare "season01".
+    const seasonMatch =
+      /^season[\s._-]*(\d{1,3})[\s._-]*poster$/.exec(name) ?? /^season[\s._-]*(\d{1,3})$/.exec(name);
+    if (seasonMatch) return { type: 'season_poster', seasonNumber: Number(seasonMatch[1]) };
     const direct = DIR_ARTWORK_NAMES[name];
-    if (direct) return direct;
+    if (direct) return { type: direct, seasonNumber: null };
     for (const base of videoBasenames) {
       if (name.startsWith(`${base}-`)) {
         const suffix = name.slice(base.length + 1);
-        if (SUFFIX_ARTWORK_NAMES[suffix]) return SUFFIX_ARTWORK_NAMES[suffix];
+        if (SUFFIX_ARTWORK_NAMES[suffix]) {
+          return { type: SUFFIX_ARTWORK_NAMES[suffix], seasonNumber: null };
+        }
       }
     }
     return null;

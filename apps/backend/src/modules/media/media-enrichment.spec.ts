@@ -390,4 +390,61 @@ describe('MediaArtworkService.importLocal — sidecar artwork detection', () => 
     expect(created.map((c) => c.type).sort()).toEqual(['banner', 'fanart']);
     await fs.rm(root, { recursive: true, force: true });
   });
+
+  it('imports show/season-level art from parent dirs for a TV episode', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ut-tv-'));
+    const libRoot = path.join(root, 'TV Shows');
+    const showDir = path.join(libRoot, '3 Body Problem (2024)');
+    const seasonDir = path.join(showDir, 'Season 1');
+    await fs.mkdir(seasonDir, { recursive: true });
+    const video = path.join(seasonDir, '3 Body Problem - S01E01 - Countdown.mkv');
+    await fs.writeFile(video, 'x');
+    // Per-episode thumbnail lives next to the episode…
+    await fs.writeFile(
+      path.join(seasonDir, '3 Body Problem - S01E01 - Countdown-thumb.jpg'),
+      'x',
+    );
+    // …while show/season-level art sits in the show root, one level up.
+    for (const n of ['poster.jpg', 'fanart.jpg', 'banner.jpg', 'season01-poster.jpg']) {
+      await fs.writeFile(path.join(showDir, n), 'x');
+    }
+
+    const created: any[] = [];
+    const prisma = {
+      mediaItem: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'ep1',
+          files: [{ path: video }],
+          artwork: [],
+          library: { path: libRoot },
+        }),
+      },
+      mediaArtwork: {
+        create: jest.fn(async ({ data }: any) => {
+          created.push(data);
+          return data;
+        }),
+      },
+    } as any;
+    const filePath = { assertWithinHardRoots: (p: string) => p, hardRoots: [root] } as any;
+    const svc = new MediaArtworkService(prisma, filePath, {} as any, {} as any);
+
+    const count = await svc.importLocal('ep1');
+    const byType = Object.fromEntries(created.map((c) => [c.type, c]));
+    expect(Object.keys(byType).sort()).toEqual([
+      'banner',
+      'fanart',
+      'poster',
+      'season_poster',
+      'thumbnail',
+    ]);
+    // Show poster comes from the show root; the thumbnail from the episode sidecar.
+    expect(byType.poster.localPath).toBe(path.join(showDir, 'poster.jpg'));
+    expect(byType.thumbnail.localPath).toBe(
+      path.join(seasonDir, '3 Body Problem - S01E01 - Countdown-thumb.jpg'),
+    );
+    expect(byType.season_poster.seasonNumber).toBe(1);
+    expect(count).toBe(5);
+    await fs.rm(root, { recursive: true, force: true });
+  });
 });

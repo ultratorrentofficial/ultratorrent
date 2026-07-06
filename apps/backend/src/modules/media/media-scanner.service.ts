@@ -174,8 +174,16 @@ export class MediaScannerService {
     let metadataImported = 0;
     if (itemIds.length === 0) return { artworkImported, metadataImported };
 
+    // Consider an item "done" only when it has BOTH local metadata AND a poster.
+    // Requiring a poster (not just any artwork) means items that only picked up,
+    // say, an episode thumbnail still get re-scanned so show/season-level art in
+    // a parent directory (poster.jpg in the show root) is imported.
     const enriched = await this.prisma.mediaItem.findMany({
-      where: { id: { in: itemIds }, metadata: { isNot: null }, artwork: { some: {} } },
+      where: {
+        id: { in: itemIds },
+        metadata: { isNot: null },
+        artwork: { some: { type: 'poster' } },
+      },
       select: { id: true },
     });
     const skip = new Set(enriched.map((r) => r.id));
