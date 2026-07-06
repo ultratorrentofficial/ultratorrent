@@ -45,6 +45,16 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.16.6] - 2026-07-06
+
+### Fixed
+- Media Server Analytics newsletter overhaul: Tautulli-style dark, poster-driven HTML email (gradient header, colour-accented sections, per-title cards with artwork, rating/runtime/certification chips, genres and overview from media metadata; posters attached as inline CID images with graceful fallback), plus a selectable start date (new since_date range mode + startDate) alongside since-last-send and last-N-days, editable on the create form and inline per newsletter
+- Media Items page performance: paginate GET /media/items instead of loading every item at once (28k+ item libraries made the page take many seconds). Server-side page/pageSize (default 60) + total + case-insensitive title search; frontend gains a search box and prev/next pager on both the Media Items and Unmatched pages. ~170x faster DB fetch and a bounded payload/render
+- Paginate every growing result-page endpoint (watch history, users, duplicates, import jobs, newsletter deliveries, sync runs, RSS match-history, automation logs, media rename history, notifications) via a shared page helper + reusable Pagination component, so large lists no longer load thousands of rows at once. Also: the RSS history match-test now shows only matching rows, not the full history
+- Media Manager: two identification edge-case fixes. (1) Numeric-title/year collision — a movie whose title is a 4-digit year (e.g. '1917 (2019)') no longer parses the leading number as the year and collapses the title to empty; the parser now prefers a parenthesized (YYYY) release year, falls back to the last year candidate, and never treats a year at position 0 as the title boundary. (2) The library scanner now skips hidden/dot directories (tinyMediaManager '.deletedByTMM'/'.actors', macOS '.Trashes') and Synology '@eaDir' thumbnail folders, which were surfacing phantom unmatchable items
+- rTorrent engine: confirm a torrent actually registers before reporting an add as successful. addMagnet/addTorrentFile issued a fire-and-forget load.start (which returns 0 immediately and loads asynchronously) and then returned a hash derived from the magnet/torrent — so if rtorrent silently dropped the torrent or crashed mid-announce, the RSS/download flow recorded a phantom 'downloaded' with no torrent in the engine. Both add paths now poll the download list (case-insensitive) until the info-hash appears and throw if it never does, so the manual path surfaces an error and the auto path skips marking it downloaded
+- Bundled rtorrent engine image: replace Debian's apt rtorrent 0.9.8 / libtorrent 0.13.8 (which sporadically crashes on tracker announce with 'priority_queue_insert(...) called on an invalid item', and on DHT) with the maintained jesec/rtorrent static binary (pinned v0.9.8-r16). Same SCGI-TCP:5000 wiring, rc, entrypoint, uid-drop, and /downloads/.session persistence — only the rtorrent binary changes
+
 ## [0.16.5] - 2026-07-06
 
 ### Fixed
