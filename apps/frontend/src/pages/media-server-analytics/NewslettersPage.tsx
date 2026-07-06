@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, Play, Send, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Play, Send, Trash2 } from 'lucide-react';
 import { api, ApiError, type Newsletter, type NewsletterPreview } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
@@ -54,6 +54,10 @@ export function NewslettersPage() {
   const [preview, setPreview] = useState<{ id: string; data: NewsletterPreview } | null>(null);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
   const [testTo, setTestTo] = useState<Record<string, string>>({});
+  // Per-campaign edit of the core fields (name / frequency / recipients) that
+  // aren't otherwise inline-editable.
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', frequency: 'weekly', recipients: '' });
 
   const q = useQuery({ queryKey: ['msa', 'newsletters'], queryFn: () => api.mediaServerAnalytics.newsletters() });
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['msa', 'newsletters'] });
@@ -111,8 +115,46 @@ export function NewslettersPage() {
                   <Input className="w-40" value={testTo[n.id] ?? ''} onChange={(e) => setTestTo((s) => ({ ...s, [n.id]: e.target.value }))} placeholder={t('newsletter.email.testRecipient')} />
                   <Button variant="secondary" size="sm" onClick={() => testSend.mutate({ id: n.id, to: testTo[n.id] ?? '' })} disabled={!testTo[n.id]?.trim()}><Send className="h-3.5 w-3.5" />{t('newsletter.testSend')}</Button>
                   <Button size="sm" onClick={() => send.mutate(n.id)} disabled={send.isPending}><Play className="h-3.5 w-3.5" />{t('newsletter.sendNow')}</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title={t('newsletter.edit')}
+                    onClick={() =>
+                      editId === n.id
+                        ? setEditId(null)
+                        : (setEditId(n.id),
+                          setEditForm({ name: n.name, frequency: n.frequency, recipients: n.recipientEmails.join(', ') }))
+                    }
+                  ><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button variant="ghost" size="sm" onClick={() => remove.mutate(n.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
+                {editId === n.id && (
+                  <div className="grid gap-2 border-t border-white/5 pt-2 sm:grid-cols-3">
+                    <div className="space-y-1"><Label htmlFor={`ed-name-${n.id}`}>{t('newsletter.add.name')}</Label><Input id={`ed-name-${n.id}`} value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} /></div>
+                    <div className="space-y-1"><Label htmlFor={`ed-freq-${n.id}`}>{t('newsletter.add.frequency')}</Label><Select id={`ed-freq-${n.id}`} value={editForm.frequency} onChange={(e) => setEditForm((f) => ({ ...f, frequency: e.target.value }))} options={freqOptions} /></div>
+                    <div className="space-y-1"><Label htmlFor={`ed-rec-${n.id}`}>{t('newsletter.add.recipients')}</Label><Input id={`ed-rec-${n.id}`} value={editForm.recipients} onChange={(e) => setEditForm((f) => ({ ...f, recipients: e.target.value }))} /></div>
+                    <div className="flex gap-2 sm:col-span-3">
+                      <Button
+                        size="sm"
+                        disabled={!editForm.name.trim() || update.isPending}
+                        onClick={() =>
+                          update.mutate(
+                            {
+                              id: n.id,
+                              patch: {
+                                name: editForm.name.trim(),
+                                frequency: editForm.frequency,
+                                recipientEmails: editForm.recipients.split(',').map((s) => s.trim()).filter(Boolean),
+                              },
+                            },
+                            { onSuccess: () => setEditId(null) },
+                          )
+                        }
+                      >{t('newsletter.saveEdit')}</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setEditId(null)}>{t('newsletter.cancel')}</Button>
+                    </div>
+                  </div>
+                )}
                 {/* Content window (which additions to include) */}
                 <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-2 text-xs">
                   <span className="text-muted-foreground">{t('newsletter.window.label')}</span>
