@@ -123,8 +123,12 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
       'rss.show_status.lookup.completed',
       'rss.show_status.lookup.failed',
       'rss.rule.created_for_inactive_show',
+      'rss.show_status.changed',
+      'rss.show.became_active',
+      'rss.show.ended',
+      'rss.show.canceled',
     ],
-    schedulerJobs: ['rss_poll'],
+    schedulerJobs: ['rss_poll', 'rss_show_status_refresh'],
     features: ['smart_match_builder', 'match_preferences', 'show_status_awareness'],
   },
   {

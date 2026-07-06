@@ -38,6 +38,7 @@ import {
   TvShowStatusService,
   type StatusLookupContext,
 } from './tv-show-status/tv-show-status.service';
+import { RssShowStatusRefreshService } from './tv-show-status/rss-show-status-refresh.service';
 import {
   TV_MEDIA_TYPES,
   isInactiveStatus,
@@ -1886,7 +1887,7 @@ export class RssController {
 
 @Module({
   imports: [SettingsModule],
-  providers: [RssService, TvShowStatusService],
+  providers: [RssService, TvShowStatusService, RssShowStatusRefreshService],
   controllers: [RssController],
 })
 export class RssModule {}

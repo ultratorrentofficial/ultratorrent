@@ -136,11 +136,17 @@ export class TvShowStatusService {
    * Authoritative status for a rule save: read the cache by provider + id (fast),
    * else re-resolve live. Returns null when the id can't be resolved.
    */
-  async resolveByProviderId(provider: string, providerShowId: string): Promise<ShowStatusResult | null> {
-    const cached = await this.prisma.tvShowStatus.findUnique({
-      where: { provider_providerShowId: { provider, providerShowId } },
-    });
-    if (cached) return this.fromCacheRow(cached);
+  async resolveByProviderId(
+    provider: string,
+    providerShowId: string,
+    force = false,
+  ): Promise<ShowStatusResult | null> {
+    if (!force) {
+      const cached = await this.prisma.tvShowStatus.findUnique({
+        where: { provider_providerShowId: { provider, providerShowId } },
+      });
+      if (cached) return this.fromCacheRow(cached);
+    }
     const impl = (await this.buildProviders()).find((p) => p.name === provider);
     if (!impl) return null;
     const details = await impl.getShowDetails(providerShowId);
