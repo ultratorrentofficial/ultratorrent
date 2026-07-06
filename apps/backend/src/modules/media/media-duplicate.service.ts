@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { pageOf, parsePage } from '../../common/pagination';
 
 /** Reasons two items are considered duplicates, in descending confidence. */
 export type DuplicateReason =
@@ -186,14 +187,20 @@ export class MediaDuplicateService {
     return this.list();
   }
 
-  /** List current duplicate groups with a per-item quality comparison. */
-  async list() {
-    const groups = await this.prisma.mediaDuplicateGroup.findMany({
-      include: { items: { include: { files: true, externalIds: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+  /** List current duplicate groups (paginated) with a per-item quality comparison. */
+  async list(page?: string, pageSize?: string) {
+    const params = parsePage(page, pageSize, 25);
+    const [total, groups] = await Promise.all([
+      this.prisma.mediaDuplicateGroup.count(),
+      this.prisma.mediaDuplicateGroup.findMany({
+        include: { items: { include: { files: true, externalIds: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip: params.skip,
+        take: params.take,
+      }),
+    ]);
 
-    return groups.map((g) => {
+    const items = groups.map((g) => {
       const scored = g.items.map((item) => {
         const score = qualityScore({
           id: item.id,
@@ -234,5 +241,6 @@ export class MediaDuplicateService {
         items: scored,
       };
     });
+    return pageOf(items, total, params);
   }
 }

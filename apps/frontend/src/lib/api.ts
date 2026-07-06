@@ -114,6 +114,12 @@ function storeLoginResponse(res: LoginResponse): void {
 
 type QueryParams = Record<string, string | number | boolean | undefined | null>;
 
+/** Common `page`/`pageSize` query params for list endpoints (`Paginated<T>` lives in @ultratorrent/shared). */
+export interface PageQuery {
+  page?: number;
+  pageSize?: number;
+}
+
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
   /** Skip attaching the bearer token (used by login/refresh). */
@@ -2067,8 +2073,8 @@ export const api = {
         { method: 'POST' },
       );
     },
-    matchHistory(ruleId: string): Promise<RssRuleMatchEvaluation[]> {
-      return request<RssRuleMatchEvaluation[]>(`/rss/rules/${ruleId}/match-history`);
+    matchHistory(ruleId: string, query: PageQuery = {}): Promise<Paginated<RssRuleMatchEvaluation>> {
+      return request<Paginated<RssRuleMatchEvaluation>>(`/rss/rules/${ruleId}/match-history`, { query: query as QueryParams });
     },
     convertToRegex(text: string): Promise<{ pattern: string }> {
       return request<{ pattern: string }>('/rss/convert-to-regex', {
@@ -2122,8 +2128,8 @@ export const api = {
     remove(id: string): Promise<void> {
       return request<void>(`/automation/rules/${id}`, { method: 'DELETE' });
     },
-    logs(id: string): Promise<AutomationLog[]> {
-      return request<AutomationLog[]>(`/automation/rules/${id}/logs`);
+    logs(id: string, query: PageQuery = {}): Promise<Paginated<AutomationLog>> {
+      return request<Paginated<AutomationLog>>(`/automation/rules/${id}/logs`, { query: query as QueryParams });
     },
   },
 
@@ -2330,8 +2336,8 @@ export const api = {
   },
 
   users: {
-    list(): Promise<User[]> {
-      return request<User[]>('/users');
+    list(query: PageQuery = {}): Promise<Paginated<User>> {
+      return request<Paginated<User>>('/users', { query: query as QueryParams });
     },
     roles(): Promise<Role[]> {
       return request<Role[]>('/users/roles');
@@ -2476,11 +2482,11 @@ export const api = {
       });
     },
     // --- duplicates -------------------------------------------------------
-    listDuplicates(): Promise<MediaDuplicateGroup[]> {
-      return request<MediaDuplicateGroup[]>('/media/duplicates');
+    listDuplicates(query: PageQuery = {}): Promise<Paginated<MediaDuplicateGroup>> {
+      return request<Paginated<MediaDuplicateGroup>>('/media/duplicates', { query: query as QueryParams });
     },
-    detectDuplicates(): Promise<MediaDuplicateGroup[]> {
-      return request<MediaDuplicateGroup[]>('/media/duplicates/detect', { method: 'POST' });
+    detectDuplicates(): Promise<Paginated<MediaDuplicateGroup>> {
+      return request<Paginated<MediaDuplicateGroup>>('/media/duplicates/detect', { method: 'POST' });
     },
     // --- media-server integrations ---------------------------------------
     listServerIntegrations(): Promise<MediaServerIntegration[]> {
@@ -2517,8 +2523,8 @@ export const api = {
     apply(body: RenameRequest): Promise<RenameApplyResult> {
       return request<RenameApplyResult>('/media/apply', { method: 'POST', body });
     },
-    history(): Promise<MediaRenameOperation[]> {
-      return request<MediaRenameOperation[]>('/media/history');
+    history(query: PageQuery = {}): Promise<Paginated<MediaRenameOperation>> {
+      return request<Paginated<MediaRenameOperation>>('/media/history', { query: query as QueryParams });
     },
     // --- IMDb provider ----------------------------------------------------
     imdbStatus(): Promise<ImdbStatus> {
@@ -2794,8 +2800,8 @@ export const api = {
       if (!res.ok) throw new ApiError(res.status, `Live artwork failed (${res.status})`);
       return res.blob();
     },
-    watchHistory(): Promise<MediaServerWatchHistoryRow[]> {
-      return request<MediaServerWatchHistoryRow[]>('/media-server-analytics/watch-history');
+    watchHistory(query: PageQuery = {}): Promise<Paginated<MediaServerWatchHistoryRow>> {
+      return request<Paginated<MediaServerWatchHistoryRow>>('/media-server-analytics/watch-history', { query: query as QueryParams });
     },
     reportUsage(filter?: MediaAnalyticsFilter): Promise<MediaServerUsageReport> {
       return request<MediaServerUsageReport>(`/media-server-analytics/reports/usage${analyticsQuery(filter)}`);
@@ -2836,8 +2842,8 @@ export const api = {
     metaUsers(): Promise<MediaServerUserMeta[]> {
       return request<MediaServerUserMeta[]>('/media-server-analytics/meta/users');
     },
-    metaSyncRuns(): Promise<MediaProviderSyncRunRow[]> {
-      return request<MediaProviderSyncRunRow[]>('/media-server-analytics/meta/sync-runs');
+    metaSyncRuns(query: PageQuery = {}): Promise<Paginated<MediaProviderSyncRunRow>> {
+      return request<Paginated<MediaProviderSyncRunRow>>('/media-server-analytics/meta/sync-runs', { query: query as QueryParams });
     },
     runSync(): Promise<{ connections: number; librariesSynced: number; usersSynced: number }> {
       return request('/media-server-analytics/meta/sync', { method: 'POST' });
@@ -2880,8 +2886,8 @@ export const api = {
     runImport(id: string): Promise<AnalyticsImportJob> {
       return request<AnalyticsImportJob>(`/media-server-analytics/import-sources/${id}/import`, { method: 'POST' });
     },
-    importJobs(): Promise<AnalyticsImportJob[]> {
-      return request<AnalyticsImportJob[]>('/media-server-analytics/import-jobs');
+    importJobs(query: PageQuery = {}): Promise<Paginated<AnalyticsImportJob>> {
+      return request<Paginated<AnalyticsImportJob>>('/media-server-analytics/import-jobs', { query: query as QueryParams });
     },
     newsletters(): Promise<Newsletter[]> {
       return request<Newsletter[]>('/media-server-analytics/newsletters');

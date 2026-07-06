@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FolderTree,
   History,
@@ -41,6 +41,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { Pagination } from '@/components/ui/pagination';
 import { cn } from '@/lib/utils';
 import {
   kindLabel,
@@ -564,14 +565,17 @@ function PlanView({ plan }: { plan: RenamePlan }) {
 
 function HistoryTab() {
   const { t } = useTranslation('media');
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['media', 'history'],
-    queryFn: api.media.history,
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ['media', 'history', page],
+    queryFn: () => api.media.history({ page, pageSize: 50 }),
+    placeholderData: keepPreviousData,
   });
+  const ops = data?.items ?? [];
 
   if (isLoading) return <CenteredSpinner label={t('renamer.history.loading')} />;
   if (isError) return <ErrorState message={t('renamer.history.error')} onRetry={() => refetch()} />;
-  if (!data || data.length === 0) {
+  if (ops.length === 0) {
     return (
       <Card>
         <CardContent>
@@ -594,7 +598,7 @@ function HistoryTab() {
 
   return (
     <div className="space-y-2">
-      {data.map((op) => (
+      {ops.map((op) => (
         <Card key={op.id}>
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -615,6 +619,7 @@ function HistoryTab() {
           </CardContent>
         </Card>
       ))}
+      <Pagination page={page} pageSize={50} total={data?.total ?? 0} onPage={setPage} busy={isFetching} />
     </div>
   );
 }

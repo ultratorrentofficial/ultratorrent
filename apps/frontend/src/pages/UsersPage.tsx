@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Shield, Trash2, Users } from 'lucide-react';
+import { Pagination } from '@/components/ui/pagination';
+
+const USERS_PAGE_SIZE = 50;
 import {
   ApiError,
   api,
@@ -34,10 +37,13 @@ export function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['users'],
-    queryFn: api.users.list,
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ['users', page],
+    queryFn: () => api.users.list({ page, pageSize: USERS_PAGE_SIZE }),
+    placeholderData: keepPreviousData,
   });
+  const users = data?.items ?? [];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['users'] });
 
@@ -70,7 +76,7 @@ export function UsersPage() {
         <CenteredSpinner label={t('list.loading')} />
       ) : isError ? (
         <ErrorState message={t('list.error')} onRetry={() => refetch()} />
-      ) : !data || data.length === 0 ? (
+      ) : users.length === 0 ? (
         <Card>
           <CardContent>
             <EmptyState
@@ -87,7 +93,7 @@ export function UsersPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {data.map((user) => (
+          {users.map((user) => (
             <Card key={user.id}>
               <CardContent className="flex flex-wrap items-start justify-between gap-4 p-4">
                 <div className="min-w-0 flex-1">
@@ -133,6 +139,7 @@ export function UsersPage() {
               </CardContent>
             </Card>
           ))}
+          <Pagination page={page} pageSize={USERS_PAGE_SIZE} total={data?.total ?? 0} onPage={setPage} busy={isFetching} />
         </div>
       )}
 

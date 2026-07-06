@@ -1,4 +1,10 @@
 {
+  "pagination": {
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "page": "Page {{page}} / {{totalPages}}",
+    "prev": "Previous",
+    "next": "Next"
+  },
   "actions": {
     "save": "Save",
     "cancel": "Cancel",

@@ -80,8 +80,8 @@ export class MediaServerAnalyticsController {
   }
   @Get('watch-history')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_HISTORY)
-  watchHistory() {
-    return this.service.watchHistory();
+  watchHistory(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.service.watchHistory(page, pageSize);
   }
 
   // --- reports + users + recently added -----------------------------------
@@ -164,8 +164,8 @@ export class MediaServerAnalyticsController {
   /** Recent provider sync runs. */
   @Get('meta/sync-runs')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
-  metaSyncRuns() {
-    return this.sync.listRuns();
+  metaSyncRuns(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.sync.listRuns(page, pageSize);
   }
   /** Trigger a metadata sync (libraries + users) across all connections now. */
   @Post('meta/sync')
@@ -227,8 +227,8 @@ export class MediaServerAnalyticsController {
   }
   @Get('import-jobs')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
-  listImportJobs() {
-    return this.imports.listJobs();
+  listImportJobs(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.imports.listJobs(page, pageSize);
   }
   @Get('import-jobs/:id')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS)
@@ -279,8 +279,8 @@ export class MediaServerAnalyticsController {
   }
   @Get('newsletters/:id/deliveries')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
-  newsletterDeliveries(@Param('id') id: string) {
-    return this.newsletters.deliveries(id);
+  newsletterDeliveries(@Param('id') id: string, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.newsletters.deliveries(id, page, pageSize);
   }
 
   // --- email settings -----------------------------------------------------

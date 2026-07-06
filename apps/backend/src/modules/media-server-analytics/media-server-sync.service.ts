@@ -5,6 +5,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerIntegrationService } from '../media/media-server-integration.service';
+import { paginate, parsePage } from '../../common/pagination';
 
 /**
  * Phase 6e sync overhaul. Normalizes provider metadata into queryable tables so
@@ -167,7 +168,7 @@ export class MediaServerSyncService {
   }
 
   /** Recent sync runs for the status panel. */
-  listRuns(limit = 20) {
-    return this.prisma.mediaProviderSyncRun.findMany({ orderBy: { startedAt: 'desc' }, take: Math.min(limit, 100) });
+  listRuns(page?: string, pageSize?: string) {
+    return paginate(this.prisma.mediaProviderSyncRun, { orderBy: { startedAt: 'desc' } }, parsePage(page, pageSize, 20));
   }
 }

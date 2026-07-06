@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { MediaAnalyticsImportSource } from '@prisma/client';
+import { paginate, parsePage } from '../../common/pagination';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { SecretCipher } from '../../common/crypto/secret-cipher';
 import { AuditService } from '../audit/audit.service';
@@ -106,8 +107,8 @@ export class AnalyticsImportService {
     return provider.getImportSourceInfo(this.ctx(source));
   }
 
-  listJobs() {
-    return this.prisma.mediaAnalyticsImportJob.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
+  listJobs(page?: string, pageSize?: string) {
+    return paginate(this.prisma.mediaAnalyticsImportJob, { orderBy: { createdAt: 'desc' } }, parsePage(page, pageSize));
   }
 
   async getJob(id: string) {

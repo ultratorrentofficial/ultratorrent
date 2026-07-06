@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Pagination } from '@/components/ui/pagination';
+
+const JOBS_PAGE_SIZE = 25;
 import { Download, Play, RefreshCw, Trash2 } from 'lucide-react';
 import { api, ApiError, type AnalyticsImportPreview } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -26,12 +29,15 @@ export function ImportAnalyticsPage() {
   const [form, setForm] = useState({ name: 'Tautulli', baseUrl: '', apiKey: '' });
   const [preview, setPreview] = useState<Record<string, AnalyticsImportPreview>>({});
 
+  const [jobsPage, setJobsPage] = useState(1);
   const sources = useQuery({ queryKey: ['msa', 'import-sources'], queryFn: () => api.mediaServerAnalytics.importSources() });
   const jobs = useQuery({
-    queryKey: ['msa', 'import-jobs'],
-    queryFn: () => api.mediaServerAnalytics.importJobs(),
-    refetchInterval: (q) => ((q.state.data ?? []).some((j) => j.status === 'running' || j.status === 'pending') ? 2000 : false),
+    queryKey: ['msa', 'import-jobs', jobsPage],
+    queryFn: () => api.mediaServerAnalytics.importJobs({ page: jobsPage, pageSize: JOBS_PAGE_SIZE }),
+    placeholderData: keepPreviousData,
+    refetchInterval: (q) => ((q.state.data?.items ?? []).some((j) => j.status === 'running' || j.status === 'pending') ? 2000 : false),
   });
+  const jobItems = jobs.data?.items ?? [];
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['msa', 'import-sources'] });
@@ -135,11 +141,11 @@ export function ImportAnalyticsPage() {
           {/* Import jobs */}
           <div>
             <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{t('import.jobs')}</h2>
-            {(jobs.data ?? []).length === 0 ? (
+            {jobItems.length === 0 ? (
               <EmptyState title={t('import.noJobs')} />
             ) : (
               <ul className="space-y-2">
-                {jobs.data!.map((j) => (
+                {jobItems.map((j) => (
                   <li key={j.id}>
                     <Card>
                       <CardContent className="flex flex-wrap items-center gap-3 p-3 text-sm">
@@ -155,6 +161,7 @@ export function ImportAnalyticsPage() {
                 ))}
               </ul>
             )}
+            <Pagination page={jobsPage} pageSize={JOBS_PAGE_SIZE} total={jobs.data?.total ?? 0} onPage={setJobsPage} busy={jobs.isFetching} className="mt-3" />
           </div>
         </>
       )}

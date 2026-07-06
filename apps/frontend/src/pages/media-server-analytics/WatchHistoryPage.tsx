@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { Pagination } from '@/components/ui/pagination';
+
+const PAGE_SIZE = 50;
 
 function duration(seconds: number | null): string {
   if (seconds == null) return '—';
@@ -13,7 +17,13 @@ function duration(seconds: number | null): string {
 
 export function WatchHistoryPage() {
   const { t } = useTranslation('mediaServerAnalytics');
-  const q = useQuery({ queryKey: ['mediaServerAnalytics', 'watch-history'], queryFn: () => api.mediaServerAnalytics.watchHistory() });
+  const [page, setPage] = useState(1);
+  const q = useQuery({
+    queryKey: ['mediaServerAnalytics', 'watch-history', page],
+    queryFn: () => api.mediaServerAnalytics.watchHistory({ page, pageSize: PAGE_SIZE }),
+    placeholderData: keepPreviousData,
+  });
+  const rows = q.data?.items ?? [];
 
   return (
     <div className="space-y-6">
@@ -26,9 +36,10 @@ export function WatchHistoryPage() {
         <CenteredSpinner />
       ) : q.isError ? (
         <ErrorState title={t('watchHistory.loadError')} onRetry={() => void q.refetch()} />
-      ) : !q.data || q.data.length === 0 ? (
+      ) : rows.length === 0 ? (
         <EmptyState title={t('watchHistory.empty')} />
       ) : (
+        <div className="space-y-3">
         <div className="overflow-x-auto rounded-md border border-white/5">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-muted-foreground">
@@ -43,7 +54,7 @@ export function WatchHistoryPage() {
               </tr>
             </thead>
             <tbody>
-              {q.data.map((h) => (
+              {rows.map((h) => (
                 <tr key={h.id} className="border-b border-white/5 last:border-0">
                   <td className="max-w-[20rem] truncate px-3 py-2">{h.title}</td>
                   <td className="px-3 py-2 text-muted-foreground">{h.userName ?? '—'}</td>
@@ -56,6 +67,8 @@ export function WatchHistoryPage() {
               ))}
             </tbody>
           </table>
+        </div>
+        <Pagination page={page} pageSize={PAGE_SIZE} total={q.data?.total ?? 0} onPage={setPage} busy={q.isFetching} />
         </div>
       )}
     </div>

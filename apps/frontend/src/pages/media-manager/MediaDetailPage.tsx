@@ -1168,21 +1168,21 @@ function NfoTab({ item }: { item: MediaItemDetail }) {
 function ItemHistoryTab({ item }: { item: MediaItemDetail }) {
   const { t } = useTranslation('media');
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['media', 'history'],
-    queryFn: api.media.history,
+    queryKey: ['media', 'history', 'detail'],
+    queryFn: () => api.media.history({ pageSize: 200 }),
   });
 
   if (isLoading) return <CenteredSpinner label={t('detail.history.loading')} />;
   if (isError) return <ErrorState message={t('detail.history.error')} onRetry={() => refetch()} />;
 
   const filePaths = new Set(item.files.map((f) => f.path));
-  const related = (data ?? []).filter(
+  const related = (data?.items ?? []).filter(
     (op) =>
       op.source === item.path ||
       op.source.startsWith(item.path) ||
       filePaths.has(op.source),
   );
-  const rows = related.length > 0 ? related : (data ?? []).slice(0, 20);
+  const rows = related.length > 0 ? related : (data?.items ?? []).slice(0, 20);
 
   if (rows.length === 0) {
     return (

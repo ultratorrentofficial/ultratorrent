@@ -16,6 +16,7 @@ import {
 } from 'node:fs/promises';
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { paginate, parsePage } from '../../common/pagination';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { SettingsService } from '../settings/settings.module';
 import { AuditService } from '../audit/audit.service';
@@ -98,11 +99,8 @@ export class MediaService {
     return this.prisma.mediaLibrary.delete({ where: { id } });
   }
 
-  history(limit = 100) {
-    return this.prisma.mediaRenameOperation.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
+  history(page?: string, pageSize?: string) {
+    return paginate(this.prisma.mediaRenameOperation, { orderBy: { createdAt: 'desc' } }, parsePage(page, pageSize));
   }
 
   // --- path safety -------------------------------------------------------

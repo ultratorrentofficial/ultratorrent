@@ -8,11 +8,13 @@ import {
   Module,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { WS_EVENTS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { paginate, parsePage } from '../../common/pagination';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { SettingsModule, SettingsService } from '../settings/settings.module';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -125,12 +127,12 @@ export class NotificationsService {
     await Promise.allSettled(jobs);
   }
 
-  async listForUser(userId: string) {
-    return this.prisma.notification.findMany({
-      where: { OR: [{ userId }, { userId: null }] },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+  async listForUser(userId: string, page?: string, pageSize?: string) {
+    return paginate(
+      this.prisma.notification,
+      { where: { OR: [{ userId }, { userId: null }] }, orderBy: { createdAt: 'desc' } },
+      parsePage(page, pageSize),
+    );
   }
 
   async markRead(id: string, userId: string) {
@@ -152,8 +154,8 @@ export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}
 
   @Get()
-  list(@CurrentUser() user: AuthenticatedUser) {
-    return this.notifications.listForUser(user.id);
+  list(@CurrentUser() user: AuthenticatedUser, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.notifications.listForUser(user.id, page, pageSize);
   }
 
   @Post(':id/read')

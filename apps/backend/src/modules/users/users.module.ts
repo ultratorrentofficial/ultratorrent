@@ -10,10 +10,12 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
   BadRequestException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { pageOf, parsePage } from '../../common/pagination';
 import {
   IsArray,
   IsBoolean,
@@ -65,12 +67,18 @@ export class UsersService {
     };
   }
 
-  async list() {
-    const users = await this.prisma.user.findMany({
-      include: { roles: { include: { role: true } } },
-      orderBy: { createdAt: 'asc' },
-    });
-    return users.map((u) => this.serialize(u));
+  async list(page?: string, pageSize?: string) {
+    const params = parsePage(page, pageSize);
+    const [total, users] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.findMany({
+        include: { roles: { include: { role: true } } },
+        orderBy: { createdAt: 'asc' },
+        skip: params.skip,
+        take: params.take,
+      }),
+    ]);
+    return pageOf(users.map((u) => this.serialize(u)), total, params);
   }
 
   private async resolveRoleIds(roleNames: string[]): Promise<string[]> {
@@ -182,8 +190,8 @@ export class UsersController {
 
   @Get()
   @RequirePermissions(PERMISSIONS.USERS_VIEW)
-  list() {
-    return this.users.list();
+  list(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.users.list(page, pageSize);
   }
 
   @Get('roles')

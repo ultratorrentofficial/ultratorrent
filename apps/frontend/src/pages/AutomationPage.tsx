@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bot,
   Pencil,
@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { Pagination } from '@/components/ui/pagination';
 
 /** Loose `t` so builders below can resolve dynamic namespace keys. */
 type AnyT = (key: string, options?: Record<string, unknown>) => string;
@@ -502,10 +503,13 @@ function ActionParams({
 
 function LogsDialog({ rule, onClose }: { rule: AutomationRule; onClose: () => void }) {
   const { t } = useTranslation('automation');
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['automation', 'logs', rule.id],
-    queryFn: () => api.automation.logs(rule.id),
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ['automation', 'logs', rule.id, page],
+    queryFn: () => api.automation.logs(rule.id, { page, pageSize: 50 }),
+    placeholderData: keepPreviousData,
   });
+  const logs = data?.items ?? [];
 
   const badge = (status: string) =>
     status === 'success' ? 'success' : status === 'failed' ? 'destructive' : 'secondary';
@@ -521,11 +525,11 @@ function LogsDialog({ rule, onClose }: { rule: AutomationRule; onClose: () => vo
           <CenteredSpinner label={t('logs.loading')} />
         ) : isError ? (
           <ErrorState message={t('logs.loadError')} onRetry={() => refetch()} />
-        ) : !data || data.length === 0 ? (
+        ) : logs.length === 0 ? (
           <EmptyState icon={<ScrollText className="h-6 w-6" />} title={t('logs.emptyTitle')} description={t('logs.emptyDescription')} />
         ) : (
           <ul className="divide-y divide-border/60">
-            {data.map((log) => (
+            {logs.map((log) => (
               <li key={log.id} className="flex items-start justify-between gap-3 py-2">
                 <div className="min-w-0">
                   <p className="text-sm">{log.message ?? (log.context?.name as string) ?? '—'}</p>
@@ -535,6 +539,9 @@ function LogsDialog({ rule, onClose }: { rule: AutomationRule; onClose: () => vo
               </li>
             ))}
           </ul>
+        )}
+        {!isLoading && !isError && logs.length > 0 && (
+          <Pagination page={page} pageSize={50} total={data?.total ?? 0} onPage={setPage} busy={isFetching} className="mt-3" />
         )}
       </div>
       <DialogFooter>

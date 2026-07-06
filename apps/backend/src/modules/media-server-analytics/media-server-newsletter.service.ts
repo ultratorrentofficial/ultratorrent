@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { paginate, parsePage } from '../../common/pagination';
 import { Interval } from '@nestjs/schedule';
 import { MODULE_IDS } from '@ultratorrent/shared';
 import type { MediaServerNewsletter } from '@prisma/client';
@@ -96,8 +97,12 @@ export class MediaServerNewsletterService {
     return { ok: true as const };
   }
 
-  deliveries(id: string) {
-    return this.prisma.mediaServerNewsletterDelivery.findMany({ where: { newsletterId: id }, orderBy: { createdAt: 'desc' }, take: 200 });
+  deliveries(id: string, page?: string, pageSize?: string) {
+    return paginate(
+      this.prisma.mediaServerNewsletterDelivery,
+      { where: { newsletterId: id }, orderBy: { createdAt: 'desc' } },
+      parsePage(page, pageSize),
+    );
   }
 
   /** Resolve the "included since" date for a newsletter's configured range mode. */

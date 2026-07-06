@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Pagination } from '@/components/ui/pagination';
+
+const DUPES_PAGE_SIZE = 25;
 import { Copy, ScanSearch, Star } from 'lucide-react';
 import { ApiError, api, type MediaDuplicateGroup } from '@/lib/api';
 import { formatBytes } from '@/lib/format';
@@ -26,25 +29,28 @@ export function MediaDuplicatesPage() {
   const queryClient = useQueryClient();
   const { t } = useTranslation('media');
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['media', 'duplicates'],
-    queryFn: api.media.listDuplicates,
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ['media', 'duplicates', page],
+    queryFn: () => api.media.listDuplicates({ page, pageSize: DUPES_PAGE_SIZE }),
+    placeholderData: keepPreviousData,
   });
 
   const detect = useMutation({
     mutationFn: api.media.detectDuplicates,
-    onSuccess: (groups) => {
+    onSuccess: (result) => {
       toast.success(
         t('duplicates.detectionCompleteTitle'),
-        t('duplicates.detectionCompleteBody', { count: groups.length }),
+        t('duplicates.detectionCompleteBody', { count: result.total }),
       );
-      queryClient.setQueryData(['media', 'duplicates'], groups);
+      setPage(1);
+      void queryClient.invalidateQueries({ queryKey: ['media', 'duplicates'] });
     },
     onError: (err) =>
       toast.error(t('duplicates.detectionFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
-  const groups = data ?? [];
+  const groups = data?.items ?? [];
 
   return (
     <div className="space-y-6">
@@ -87,6 +93,7 @@ export function MediaDuplicatesPage() {
           {groups.map((group) => (
             <DuplicateGroupCard key={group.id} group={group} />
           ))}
+          <Pagination page={page} pageSize={DUPES_PAGE_SIZE} total={data?.total ?? 0} onPage={setPage} busy={isFetching} />
         </div>
       )}
     </div>

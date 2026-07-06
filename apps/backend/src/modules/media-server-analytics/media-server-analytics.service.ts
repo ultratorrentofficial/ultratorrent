@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { paginate, parsePage } from '../../common/pagination';
 import { MediaServerIntegrationService } from '../media/media-server-integration.service';
 
 /**
@@ -67,11 +68,8 @@ export class MediaServerAnalyticsService {
   }
 
   /** Completed playback, most recent first. */
-  watchHistory(limit = 200) {
-    return this.prisma.mediaServerWatchHistory.findMany({
-      orderBy: { startedAt: 'desc' },
-      take: Math.min(limit, 500),
-    });
+  watchHistory(page?: string, pageSize?: string) {
+    return paginate(this.prisma.mediaServerWatchHistory, { orderBy: { startedAt: 'desc' } }, parsePage(page, pageSize));
   }
 
   /** Safe projection — never includes the encrypted `config` blob. */

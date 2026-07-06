@@ -10,6 +10,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -24,6 +25,7 @@ import {
 import type { Request } from 'express';
 import { NormalizedTorrent, PERMISSIONS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { paginate, parsePage } from '../../common/pagination';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { NotificationsService } from '../notifications/notifications.module';
 import { MediaService } from '../media/media.service';
@@ -341,12 +343,12 @@ export class AutomationService {
   remove(id: string) {
     return this.prisma.automationRule.delete({ where: { id } });
   }
-  logs(ruleId: string) {
-    return this.prisma.automationLog.findMany({
-      where: { ruleId },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+  logs(ruleId: string, page?: string, pageSize?: string) {
+    return paginate(
+      this.prisma.automationLog,
+      { where: { ruleId }, orderBy: { createdAt: 'desc' } },
+      parsePage(page, pageSize),
+    );
   }
 }
 
@@ -389,8 +391,8 @@ export class AutomationController {
   }
   @Get('rules/:id/logs')
   @RequirePermissions(PERMISSIONS.AUTOMATION_VIEW)
-  logs(@Param('id') id: string) {
-    return this.svc.logs(id);
+  logs(@Param('id') id: string, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.svc.logs(id, page, pageSize);
   }
 }
 

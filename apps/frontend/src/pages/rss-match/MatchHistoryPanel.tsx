@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, History } from 'lucide-react';
 import { api, type RssRuleMatchEvaluation } from '@/lib/api';
 import { formatRelativeTime } from '@/lib/format';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { Pagination } from '@/components/ui/pagination';
 import { cn } from '@/lib/utils';
 import { CandidateResultBadge, CheckList, ParsedDebug } from './shared';
 
@@ -20,10 +21,13 @@ const RESULT_TONE: Record<RssRuleMatchEvaluation['result'], Tone> = {
 
 export function MatchHistoryPanel({ ruleId }: { ruleId: string }) {
   const { t } = useTranslation('rss');
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['rss', 'match-history', ruleId],
-    queryFn: () => api.rss.matchHistory(ruleId),
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ['rss', 'match-history', ruleId, page],
+    queryFn: () => api.rss.matchHistory(ruleId, { page, pageSize: 50 }),
+    placeholderData: keepPreviousData,
   });
+  const rows = data?.items ?? [];
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggle = (id: string) =>
@@ -36,7 +40,7 @@ export function MatchHistoryPanel({ ruleId }: { ruleId: string }) {
 
   if (isLoading) return <CenteredSpinner label={t('matchHistory.loading')} />;
   if (isError) return <ErrorState message={t('matchHistory.loadError')} onRetry={() => refetch()} />;
-  if (!data || data.length === 0) {
+  if (rows.length === 0) {
     return (
       <Card>
         <CardContent>
@@ -52,7 +56,7 @@ export function MatchHistoryPanel({ ruleId }: { ruleId: string }) {
 
   return (
     <div className="space-y-2">
-      {data.map((evaluation) => {
+      {rows.map((evaluation) => {
         const open = expanded.has(evaluation.id);
         const matchedName =
           evaluation.matchedCandidateId != null
@@ -140,6 +144,7 @@ export function MatchHistoryPanel({ ruleId }: { ruleId: string }) {
           </Card>
         );
       })}
+      <Pagination page={page} pageSize={50} total={data?.total ?? 0} onPage={setPage} busy={isFetching} />
     </div>
   );
 }

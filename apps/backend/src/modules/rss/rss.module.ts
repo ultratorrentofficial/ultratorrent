@@ -28,6 +28,7 @@ import type { Request } from 'express';
 import Parser from 'rss-parser';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { paginate, parsePage } from '../../common/pagination';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -661,15 +662,20 @@ export class RssService {
     // passes); every other check runs exactly as during polling. Each result
     // carries the history id + downloaded state so a matched row can be
     // grabbed for real straight from the Test tab (not just simulated).
-    const results = history.map((h) => ({
-      historyId: h.id,
-      downloaded: h.downloaded,
-      hasMagnet: !!h.magnet,
-      title: h.title,
-      ...(candidates.length
-        ? evaluatePreferenceList(candidates, { title: h.title, feedId: h.feedId })
-        : this.legacyEvaluation(rule, h.title)),
-    }));
+    // Only matching rows are returned — the test answers "what would this rule
+    // have grabbed", so non-matches are noise. `historyCount` stays the full
+    // scanned total so the caller can still fall back to manual titles.
+    const results = history
+      .map((h) => ({
+        historyId: h.id,
+        downloaded: h.downloaded,
+        hasMagnet: !!h.magnet,
+        title: h.title,
+        ...(candidates.length
+          ? evaluatePreferenceList(candidates, { title: h.title, feedId: h.feedId })
+          : this.legacyEvaluation(rule, h.title)),
+      }))
+      .filter((r) => r.matched);
 
     return { results, historyCount: history.length };
   }
@@ -841,12 +847,12 @@ export class RssService {
     return summary;
   }
 
-  matchHistory(ruleId: string) {
-    return this.prisma.rssRuleMatchEvaluation.findMany({
-      where: { rssRuleId: ruleId },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+  matchHistory(ruleId: string, page?: string, pageSize?: string) {
+    return paginate(
+      this.prisma.rssRuleMatchEvaluation,
+      { where: { rssRuleId: ruleId }, orderBy: { createdAt: 'desc' } },
+      parsePage(page, pageSize),
+    );
   }
 
   // --- smart match builder ----------------------------------------------
@@ -1587,8 +1593,8 @@ export class RssController {
 
   @Get('rules/:id/match-history')
   @RequirePermissions(PERMISSIONS.RSS_VIEW)
-  matchHistory(@Param('id') id: string) {
-    return this.rss.matchHistory(id);
+  matchHistory(@Param('id') id: string, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.rss.matchHistory(id, page, pageSize);
   }
 
   @Post('convert-to-regex')

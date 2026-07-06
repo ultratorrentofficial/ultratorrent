@@ -313,8 +313,8 @@ export class MediaController {
   // --- duplicates --------------------------------------------------------
   @Get('duplicates')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  listDuplicates() {
-    return this.duplicates.list();
+  listDuplicates(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.duplicates.list(page, pageSize);
   }
 
   @Post('duplicates/detect')
@@ -495,7 +495,7 @@ export class MediaController {
 
   @Get('history')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  history() {
-    return this.media.history();
+  history(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.media.history(page, pageSize);
   }
 }
