@@ -4,6 +4,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { AboutDialog } from './AboutDialog';
 
+vi.mock('@/auth/AuthContext', () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));
+
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ success: () => {}, error: () => {}, info: () => {} }),
+}));
+
 vi.mock('@/lib/api', () => ({
   api: {
     system: {

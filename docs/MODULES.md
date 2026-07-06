@@ -150,6 +150,14 @@ module's UI is hidden; the authoritative access decision on the backend is RBAC.
    `@RequirePermissions(...)`.
 4. Declare new permissions in `packages/shared/src/permissions.ts` (or rely on
    manifest permission-sync for module-only keys).
+5. **Add the client navigation entry** in `apps/frontend/src/components/layout/navigation.ts`
+   — a `NavItem` (or nested `children`) under the right `NavGroup`, gated with the
+   same `permission` and `module` id. Add its `nav` i18n keys to **both**
+   `en-US/nav.json` and `es-PR/nav.json` (`groups`/`items`/`descriptions`).
+   Visibility, breadcrumbs, and the Ctrl+K command palette all derive from this
+   tree — see [NAVIGATION.md](NAVIGATION.md). The route still gates itself with
+   `ProtectedRoute` + `ModuleRoute`; the nav entry is convenience only.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the registry fits into the wider
-system, and [BUILD.md](BUILD.md) for building and running the monorepo.
+system, [NAVIGATION.md](NAVIGATION.md) for the navigation tree, and
+[BUILD.md](BUILD.md) for building and running the monorepo.

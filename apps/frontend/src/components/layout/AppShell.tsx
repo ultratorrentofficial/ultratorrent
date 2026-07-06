@@ -1,16 +1,20 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { SystemRole } from '@ultratorrent/shared';
+import { PERMISSIONS } from '@ultratorrent/shared';
 import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  ChevronRight,
   Info,
   LogOut,
   UserCog,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  Search,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/auth/AuthContext';
@@ -19,18 +23,32 @@ import { useRealtime } from '@/realtime/RealtimeContext';
 import { useVersion } from '@/hooks/useVersion';
 import { AboutDialog } from '@/components/AboutDialog';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
+import { CommandPalette } from '@/components/layout/CommandPalette';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
-import { isItemActive, tNav, visibleGroups, type NavItem, type NavGroup } from '@/components/layout/navigation';
+import {
+  flattenForSearch,
+  isBranchActive,
+  isItemActive,
+  tNav,
+  visibleGroups,
+  type NavItem,
+  type NavGroup,
+} from '@/components/layout/navigation';
 import { formatSpeedCompact } from '@/lib/format';
+import { readStringSet, toggleInSet } from '@/lib/persist-set';
 import { cn } from '@/lib/utils';
 
 const COLLAPSE_KEY = 'ut.sidebar.collapsed';
+const GROUPS_COLLAPSED_KEY = 'ut.nav.groups.collapsed';
+const ITEMS_EXPANDED_KEY = 'ut.nav.items.expanded';
 
 export function AppShell() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const { isEnabled } = useModules();
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(COLLAPSE_KEY) === '1';
@@ -50,7 +68,30 @@ export function AppShell() {
       return next;
     });
 
-  const groups = visibleGroups(hasPermission, isEnabled);
+  const groups = useMemo(
+    () =>
+      visibleGroups({
+        hasPermission,
+        isEnabled,
+        canManageModules: hasPermission(PERMISSIONS.MODULES_MANAGE),
+        isSuperAdmin: Boolean(user?.roles?.includes(SystemRole.SUPER_ADMIN)),
+      }),
+    [hasPermission, isEnabled, user],
+  );
+
+  const searchEntries = useMemo(() => flattenForSearch(groups), [groups]);
+
+  // Global Ctrl/Cmd+K opens the command palette.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -60,10 +101,11 @@ export function AppShell() {
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
         onAbout={() => setAboutOpen(true)}
+        onOpenCommand={() => setPaletteOpen(true)}
         className="hidden lg:flex"
       />
 
-      {/* Mobile sidebar */}
+      {/* Mobile sidebar drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div
@@ -78,6 +120,10 @@ export function AppShell() {
               setMobileOpen(false);
               setAboutOpen(true);
             }}
+            onOpenCommand={() => {
+              setMobileOpen(false);
+              setPaletteOpen(true);
+            }}
             className="absolute left-0 top-0 bottom-0 z-10 animate-slide-in-right"
             onNavigate={() => setMobileOpen(false)}
           />
@@ -85,7 +131,11 @@ export function AppShell() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar onMenu={() => setMobileOpen(true)} onAbout={() => setAboutOpen(true)} />
+        <TopBar
+          onMenu={() => setMobileOpen(true)}
+          onAbout={() => setAboutOpen(true)}
+          onOpenCommand={() => setPaletteOpen(true)}
+        />
         <main className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
             <Outlet />
@@ -94,74 +144,222 @@ export function AppShell() {
       </div>
 
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        entries={searchEntries}
+        onNavigate={(to) => navigate(to)}
+      />
     </div>
   );
 }
 
+/** A single leaf row (a real route or the Search action). */
 function NavRow({
   item,
   collapsed,
+  depth = 0,
   onNavigate,
+  onOpenCommand,
 }: {
   item: NavItem;
   collapsed?: boolean;
+  depth?: number;
   onNavigate?: () => void;
+  onOpenCommand?: () => void;
 }) {
   const Icon = item.icon;
   const location = useLocation();
   const { t } = useTranslation('nav');
   const isActive = isItemActive(item, location.pathname, location.search);
   const label = tNav(t, 'items', item.label);
+
+  const classes = cn(
+    'group flex items-center gap-3 rounded-lg text-sm font-medium transition-all',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
+    !collapsed && depth > 0 && 'ml-3 pl-6',
+    isActive
+      ? 'bg-primary/15 text-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.25)]'
+      : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
+  );
+  const iconEl = (
+    <Icon
+      className={cn(
+        'h-[18px] w-[18px] shrink-0 transition-colors',
+        depth > 0 && !collapsed && 'h-4 w-4',
+        isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
+      )}
+    />
+  );
+
+  // The Search entry is an action (opens the command palette), not a route.
+  if (item.action === 'command') {
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenCommand?.()}
+        title={collapsed ? label : undefined}
+        aria-label={label}
+        className={cn(classes, 'w-full text-left')}
+      >
+        {iconEl}
+        {!collapsed && <span className="truncate">{label}</span>}
+        {!collapsed && (
+          <kbd className="ml-auto hidden rounded border border-border/60 px-1 py-0.5 text-[9px] text-muted-foreground/70 xl:inline">⌘K</kbd>
+        )}
+      </button>
+    );
+  }
+
   return (
     <Link
-      to={item.to}
+      to={item.to ?? '#'}
       onClick={onNavigate}
       title={collapsed ? label : undefined}
       aria-label={label}
       aria-current={isActive ? 'page' : undefined}
-      className={cn(
-        'group flex items-center gap-3 rounded-lg text-sm font-medium transition-all',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
-        isActive
-          ? 'bg-primary/15 text-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.25)]'
-          : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
-      )}
+      className={classes}
     >
-      <Icon
-        className={cn(
-          'h-[18px] w-[18px] shrink-0 transition-colors',
-          isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
-        )}
-      />
+      {iconEl}
       {!collapsed && <span className="truncate">{label}</span>}
     </Link>
+  );
+}
+
+/** A parent row with a collapsible sub-menu (chevron toggles children). */
+function NavParent({
+  item,
+  collapsed,
+  expanded,
+  onToggle,
+  onNavigate,
+  onOpenCommand,
+}: {
+  item: NavItem;
+  collapsed?: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  onNavigate?: () => void;
+  onOpenCommand?: () => void;
+}) {
+  const location = useLocation();
+  const { t } = useTranslation('nav');
+  const { t: tShell } = useTranslation('shell');
+  const branchActive = isBranchActive(item, location.pathname, location.search);
+  const selfActive = isItemActive(item, location.pathname, location.search);
+  const label = tNav(t, 'items', item.label);
+  const Icon = item.icon;
+
+  // In the icon rail, just show the parent as a link to its landing route.
+  if (collapsed) {
+    return <NavRow item={item} collapsed onNavigate={onNavigate} onOpenCommand={onOpenCommand} />;
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div
+        className={cn(
+          'group flex items-center rounded-lg text-sm font-medium transition-all',
+          branchActive && !selfActive ? 'text-foreground' : '',
+          selfActive
+            ? 'bg-primary/15 text-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.25)]'
+            : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
+        )}
+      >
+        <Link
+          to={item.to ?? '#'}
+          onClick={onNavigate}
+          aria-current={selfActive ? 'page' : undefined}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Icon className={cn('h-[18px] w-[18px] shrink-0', selfActive || branchActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
+          <span className="truncate">{label}</span>
+        </Link>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-label={expanded ? tShell('nav.collapseItem', { name: label }) : tShell('nav.expandItem', { name: label })}
+          className="mr-1 shrink-0 rounded-md p-1.5 text-muted-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ChevronRight className={cn('h-4 w-4 transition-transform', expanded && 'rotate-90')} />
+        </button>
+      </div>
+      {expanded && (
+        <div className="flex flex-col gap-0.5">
+          {(item.children ?? []).map((child) => (
+            <NavRow key={child.id} item={child} depth={1} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
 function NavGroupBlock({
   group,
   collapsed,
+  groupOpen,
+  onToggleGroup,
+  expandedItems,
+  onToggleItem,
   onNavigate,
+  onOpenCommand,
 }: {
   group: NavGroup;
   collapsed?: boolean;
+  groupOpen: boolean;
+  onToggleGroup: () => void;
+  expandedItems: Set<string>;
+  onToggleItem: (id: string) => void;
   onNavigate?: () => void;
+  onOpenCommand?: () => void;
 }) {
   const { t } = useTranslation('nav');
+  const { t: tShell } = useTranslation('shell');
+  const location = useLocation();
   const title = tNav(t, 'groups', group.title);
+  const groupActive = group.items.some((i) => isBranchActive(i, location.pathname, location.search));
+  // Auto-expand a group that contains the active route, even if user-collapsed.
+  const open = groupOpen || groupActive;
+
+  const renderItem = (item: NavItem) => {
+    if (item.children && item.children.length > 0) {
+      const itemActive = item.children.some((c) => isBranchActive(c, location.pathname, location.search)) ||
+        isItemActive(item, location.pathname, location.search);
+      return (
+        <NavParent
+          key={item.id}
+          item={item}
+          collapsed={collapsed}
+          expanded={expandedItems.has(item.id) || itemActive}
+          onToggle={() => onToggleItem(item.id)}
+          onNavigate={onNavigate}
+          onOpenCommand={onOpenCommand}
+        />
+      );
+    }
+    return <NavRow key={item.id} item={item} collapsed={collapsed} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />;
+  };
+
   return (
     <div role="group" aria-label={title} className="flex flex-col gap-1">
       {collapsed ? (
         <div className="mx-2 my-1 h-px bg-border/40" aria-hidden />
       ) : (
-        <p className="px-3 pb-0.5 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-          {title}
-        </p>
+        <button
+          type="button"
+          onClick={onToggleGroup}
+          aria-expanded={open}
+          aria-label={open ? tShell('nav.collapseGroup', { name: title }) : tShell('nav.expandGroup', { name: title })}
+          className="flex items-center gap-1 px-3 pb-0.5 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+        >
+          <ChevronDown className={cn('h-3 w-3 transition-transform', !open && '-rotate-90')} />
+          <span>{title}</span>
+        </button>
       )}
-      {group.items.map((item) => (
-        <NavRow key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
-      ))}
+      {(collapsed || open) && group.items.map(renderItem)}
     </div>
   );
 }
@@ -173,6 +371,7 @@ function Sidebar({
   onNavigate,
   onToggleCollapsed,
   onAbout,
+  onOpenCommand,
 }: {
   groups: NavGroup[];
   collapsed: boolean;
@@ -180,8 +379,20 @@ function Sidebar({
   onNavigate?: () => void;
   onToggleCollapsed?: () => void;
   onAbout?: () => void;
+  onOpenCommand?: () => void;
 }) {
   const { t } = useTranslation('shell');
+  const [collapsedGroups, setCollapsedGroups] = useState(() => readStringSet(GROUPS_COLLAPSED_KEY));
+  const [expandedItems, setExpandedItems] = useState(() => readStringSet(ITEMS_EXPANDED_KEY));
+  const toggleGroup = useCallback(
+    (id: string) => setCollapsedGroups((s) => toggleInSet(GROUPS_COLLAPSED_KEY, s, id)),
+    [],
+  );
+  const toggleItem = useCallback(
+    (id: string) => setExpandedItems((s) => toggleInSet(ITEMS_EXPANDED_KEY, s, id)),
+    [],
+  );
+
   return (
     <aside
       className={cn(
@@ -216,10 +427,15 @@ function Sidebar({
       >
         {groups.map((group) => (
           <NavGroupBlock
-            key={group.title}
+            key={group.id}
             group={group}
             collapsed={collapsed}
+            groupOpen={!collapsedGroups.has(group.id)}
+            onToggleGroup={() => toggleGroup(group.id)}
+            expandedItems={expandedItems}
+            onToggleItem={toggleItem}
             onNavigate={onNavigate}
+            onOpenCommand={onOpenCommand}
           />
         ))}
       </nav>
@@ -306,7 +522,7 @@ function EngineMini({ collapsed }: { collapsed?: boolean }) {
   );
 }
 
-function TopBar({ onMenu, onAbout }: { onMenu: () => void; onAbout: () => void }) {
+function TopBar({ onMenu, onAbout, onOpenCommand }: { onMenu: () => void; onAbout: () => void; onOpenCommand: () => void }) {
   const { stats, status } = useRealtime();
   const { t } = useTranslation('shell');
   return (
@@ -323,6 +539,17 @@ function TopBar({ onMenu, onAbout }: { onMenu: () => void; onAbout: () => void }
       <Breadcrumbs />
 
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={onOpenCommand}
+          aria-label={t('command.open')}
+          title={t('command.open')}
+          className="flex items-center gap-2 rounded-lg border border-border/60 bg-white/[0.02] px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Search className="h-4 w-4" />
+          <span className="hidden md:inline">{t('command.search')}</span>
+          <kbd className="hidden rounded border border-border/60 px-1 py-0.5 text-[9px] md:inline">⌘K</kbd>
+        </button>
         <SpeedPill
           icon={<ArrowDown className="h-3.5 w-3.5" />}
           value={formatSpeedCompact(stats?.downloadRate)}

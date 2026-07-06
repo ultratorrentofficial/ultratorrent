@@ -12,28 +12,55 @@ export interface Crumb {
 const DETAIL_LABELS: { prefix: string; label: string }[] = [
   { prefix: '/account', label: 'Account' },
   { prefix: '/rss/rules/', label: 'Rule' },
+  { prefix: '/rss/feeds/', label: 'History' },
+  { prefix: '/media/items/', label: 'Details' },
 ];
 
-/**
- * Build a breadcrumb trail for a pathname by matching it against the sidebar
- * information architecture (`NAV_GROUPS`). Returns `Group › Item [› Detail]`.
- * Exported for tests.
- */
-export function crumbsFor(pathname: string): Crumb[] {
-  let best: { group: string; label: string; base: string } | null = null;
+interface FlatEntry {
+  group: string;
+  parent?: string;
+  label: string;
+  base: string;
+  parentBase?: string;
+}
+
+/** Flatten NAV_GROUPS (incl. nested children) into path-matchable entries. */
+function flatEntries(): FlatEntry[] {
+  const out: FlatEntry[] = [];
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
-      const base = item.to.split('?')[0];
-      if (pathname === base || pathname.startsWith(base + '/')) {
-        if (!best || base.length > best.base.length) {
-          best = { group: group.title, label: item.label, base };
+      if (item.to) out.push({ group: group.title, label: item.label, base: item.to.split('?')[0] });
+      for (const child of item.children ?? []) {
+        if (child.to) {
+          out.push({
+            group: group.title,
+            parent: item.label,
+            parentBase: item.to?.split('?')[0],
+            label: child.label,
+            base: child.to.split('?')[0],
+          });
         }
       }
     }
   }
+  return out;
+}
+
+/**
+ * Build a breadcrumb trail for a pathname by matching it against the navigation
+ * information architecture (`NAV_GROUPS`, including nested sub-menus). Returns
+ * `Group › [Parent ›] Item [› Detail]`. Exported for tests.
+ */
+export function crumbsFor(pathname: string): Crumb[] {
+  let best: FlatEntry | null = null;
+  for (const entry of flatEntries()) {
+    if (pathname === entry.base || pathname.startsWith(entry.base + '/')) {
+      if (!best || entry.base.length > best.base.length) best = entry;
+    }
+  }
 
   if (!best) {
-    // Not in the nav (e.g. /account) — derive a single crumb from the path.
+    // Not in the nav (e.g. /account detail) — derive a single crumb from the path.
     const detail = DETAIL_LABELS.find((d) => pathname.startsWith(d.prefix));
     if (detail) return [{ label: detail.label }];
     const seg = pathname.split('/').filter(Boolean)[0];
@@ -41,7 +68,9 @@ export function crumbsFor(pathname: string): Crumb[] {
     return [{ label: seg.charAt(0).toUpperCase() + seg.slice(1) }];
   }
 
-  const crumbs: Crumb[] = [{ label: best.group }, { label: best.label, to: best.base }];
+  const crumbs: Crumb[] = [{ label: best.group }];
+  if (best.parent && best.parentBase) crumbs.push({ label: best.parent, to: best.parentBase });
+  crumbs.push({ label: best.label, to: best.base });
 
   // Deeper than the matched nav route → a detail page.
   if (pathname.length > best.base.length) {

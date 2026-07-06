@@ -1,7 +1,18 @@
 {
   "nav": {
     "primary": "Primary",
-    "breadcrumb": "Breadcrumb"
+    "breadcrumb": "Breadcrumb",
+    "expandGroup": "Expand {{name}}",
+    "collapseGroup": "Collapse {{name}}",
+    "expandItem": "Expand {{name}} sub-menu",
+    "collapseItem": "Collapse {{name}} sub-menu"
+  },
+  "command": {
+    "title": "Command menu",
+    "open": "Open command menu",
+    "search": "Search",
+    "placeholder": "Search menus and pages…",
+    "empty": "No matching pages."
   },
   "menu": {
     "open": "Open menu",

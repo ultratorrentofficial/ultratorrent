@@ -1,99 +1,131 @@
 import { describe, expect, it } from 'vitest';
 import { PERMISSIONS } from '@ultratorrent/shared';
-import { NAV_GROUPS, isItemActive, visibleGroups, type NavItem } from './navigation';
+import {
+  NAV_GROUPS,
+  flattenForSearch,
+  isBranchActive,
+  isItemActive,
+  visibleGroups,
+  type NavItem,
+  type NavVisibilityCtx,
+} from './navigation';
 
-const allItems = NAV_GROUPS.flatMap((g) => g.items);
-const item = (to: string): NavItem => {
-  const found = allItems.find((i) => i.to === to);
+/** Recursively find a nav item by its route. */
+function findItem(to: string): NavItem {
+  const walk = (items: NavItem[]): NavItem | undefined => {
+    for (const i of items) {
+      if (i.to === to) return i;
+      const c = walk(i.children ?? []);
+      if (c) return c;
+    }
+    return undefined;
+  };
+  const found = walk(NAV_GROUPS.flatMap((g) => g.items));
   if (!found) throw new Error(`no nav item for ${to}`);
   return found;
-};
+}
 
-const allow =
-  (...held: string[]) =>
-  (p: string) =>
-    held.includes(p);
-const enabled =
-  (...mods: string[]) =>
-  (m: string) =>
-    mods.includes(m);
+function ctx(o: Partial<NavVisibilityCtx> & { perms?: string[]; mods?: string[] }): NavVisibilityCtx {
+  return {
+    hasPermission: (p) => (o.perms ?? []).includes(p),
+    isEnabled: (m) => (o.mods ?? []).includes(m),
+    canManageModules: o.canManageModules ?? false,
+    isSuperAdmin: o.isSuperAdmin ?? false,
+  };
+}
+
+const ALL: NavVisibilityCtx = { hasPermission: () => true, isEnabled: () => true, canManageModules: true, isSuperAdmin: true };
 
 describe('visibleGroups (RBAC + module gating)', () => {
-  it('shows every group when all permissions and modules are granted', () => {
-    const groups = visibleGroups(
-      () => true,
-      () => true,
-    );
-    expect(groups.map((g) => g.title)).toEqual([
+  it('shows every group in order when all permissions and modules are granted', () => {
+    expect(visibleGroups(ALL).map((g) => g.title)).toEqual([
       'Overview',
-      'Torrents',
+      'Downloads',
+      'RSS & Acquisition',
+      'Media Management',
+      'Media Server Analytics',
       'Automation',
-      'Files & Media',
-      'Infrastructure',
+      'Files',
       'Administration',
-      'System',
+      'Account',
     ]);
   });
 
-  it('hides everything when the user holds no permissions and no modules are enabled', () => {
-    const groups = visibleGroups(
-      () => false,
-      () => false,
-    );
-    expect(groups).toHaveLength(0);
+  it('keeps only ungated entries (Search, Profile) when the user holds nothing', () => {
+    const groups = visibleGroups(ctx({}));
+    expect(groups.map((g) => g.title)).toEqual(['Overview', 'Account']);
+    expect(groups[0].items.map((i) => i.id)).toEqual(['search']); // Dashboard needs the module
+    expect(groups[1].items.map((i) => i.id)).toEqual(['account']);
   });
 
-  it('shows only the Torrents group (with all sub-views) for a torrents-only user', () => {
-    const groups = visibleGroups(allow(PERMISSIONS.TORRENTS_VIEW), enabled('torrents'));
-    expect(groups.map((g) => g.title)).toEqual(['Torrents']);
-    expect(groups[0].items.map((i) => i.label)).toEqual([
-      'All Torrents',
-      'Downloading',
-      'Seeding',
-      'Completed',
-      'Paused',
-      'Errors',
-    ]);
+  it('shows Downloads with the Torrents sub-menu for a torrents-only user', () => {
+    const groups = visibleGroups(ctx({ perms: [PERMISSIONS.TORRENTS_VIEW], mods: ['torrents'] }));
+    const downloads = groups.find((g) => g.title === 'Downloads');
+    expect(downloads).toBeTruthy();
+    const torrents = downloads!.items.find((i) => i.id === 'torrents')!;
+    expect(torrents.children!.map((c) => c.label)).toEqual(['Downloading', 'Seeding', 'Completed', 'Paused', 'Errors']);
+    // Engines (needs SYSTEM_VIEW) is filtered out of Downloads.
+    expect(downloads!.items.map((i) => i.id)).not.toContain('engines');
   });
 
-  it('drops a group whose module is disabled even when the permission is held', () => {
-    // All permissions, but the torrents module is off → Torrents group vanishes.
-    const groups = visibleGroups(
-      () => true,
-      (m) => m !== 'torrents',
-    );
-    expect(groups.map((g) => g.title)).not.toContain('Torrents');
-    // A permission-only item with no module gate still shows.
-    expect(groups.map((g) => g.title)).toContain('Administration');
+  it('hides a module-gated group when the module is disabled and the user cannot manage modules', () => {
+    const groups = visibleGroups(ctx({ perms: [PERMISSIONS.MEDIA_MANAGER_VIEW], mods: [] }));
+    expect(groups.map((g) => g.title)).not.toContain('Media Management');
   });
 
-  it('keeps permission-gated, module-less items visible without any modules', () => {
-    const groups = visibleGroups(allow(PERMISSIONS.MODULES_VIEW), () => false);
-    const admin = groups.find((g) => g.title === 'Administration');
-    expect(admin?.items.map((i) => i.label)).toEqual(['Modules']);
+  it('keeps disabled-module entries visible for a module manager (they lead to the locked page)', () => {
+    const groups = visibleGroups(ctx({ perms: [PERMISSIONS.MEDIA_MANAGER_VIEW], mods: [], canManageModules: true }));
+    expect(groups.map((g) => g.title)).toContain('Media Management');
+  });
+
+  it('prunes hidden children while keeping a permitted parent', () => {
+    // Media Acquisition parent + only its permitted children survive.
+    const groups = visibleGroups(ctx({ perms: [PERMISSIONS.MEDIA_ACQUISITION_VIEW], mods: ['media_acquisition_intelligence'] }));
+    const parent = groups.flatMap((g) => g.items).find((i) => i.id === 'acquisition-intelligence')!;
+    expect(parent.children!.map((c) => c.id)).toEqual(['smart-download', 'missing-episodes', 'decision-simulator']);
   });
 });
 
-describe('isItemActive (query-aware)', () => {
-  it('marks "All Torrents" active only with no state filter', () => {
-    expect(isItemActive(item('/torrents'), '/torrents', '')).toBe(true);
-    expect(isItemActive(item('/torrents'), '/torrents', '?state=downloading')).toBe(false);
+describe('flattenForSearch', () => {
+  it('flattens nested items into navigable entries (children included)', () => {
+    const entries = flattenForSearch(visibleGroups(ALL));
+    const ids = entries.map((e) => e.id);
+    expect(ids).toContain('smart-download'); // nested child is searchable
+    expect(ids).toContain('search'); // the action launcher is present (palette filters it out)
+    // Every entry carries its group context.
+    expect(entries.every((e) => e.groupId && e.groupTitle)).toBe(true);
+  });
+
+  it('excludes entries the user cannot see', () => {
+    const entries = flattenForSearch(visibleGroups(ctx({ perms: [PERMISSIONS.TORRENTS_VIEW], mods: ['torrents'] })));
+    expect(entries.some((e) => e.id === 'users')).toBe(false);
+    expect(entries.some((e) => e.id === 'torrents')).toBe(true);
+  });
+});
+
+describe('isItemActive (query-aware, nested + detail)', () => {
+  it('marks "Torrents" active only with no state filter', () => {
+    expect(isItemActive(findItem('/torrents'), '/torrents', '')).toBe(true);
+    expect(isItemActive(findItem('/torrents'), '/torrents', '?state=downloading')).toBe(false);
   });
 
   it('marks a sub-view active only for its own state param', () => {
-    const dl = item('/torrents?state=downloading');
+    const dl = findItem('/torrents?state=downloading');
     expect(isItemActive(dl, '/torrents', '?state=downloading')).toBe(true);
     expect(isItemActive(dl, '/torrents', '?state=seeding')).toBe(false);
-    expect(isItemActive(dl, '/torrents', '')).toBe(false);
   });
 
-  it('treats an `end` route as exact', () => {
-    expect(isItemActive(item('/dashboard'), '/dashboard', '')).toBe(true);
-    expect(isItemActive(item('/dashboard'), '/dashboard/settings', '')).toBe(false);
+  it('treats an `end` route as exact and a non-`end` route as a prefix (detail pages)', () => {
+    expect(isItemActive(findItem('/media'), '/media', '')).toBe(true);
+    expect(isItemActive(findItem('/media'), '/media/items', '')).toBe(false); // end
+    expect(isItemActive(findItem('/media/items'), '/media/items/abc', '')).toBe(true); // prefix → detail
   });
+});
 
-  it('treats a non-`end` route as a prefix (covers detail pages)', () => {
-    expect(isItemActive(item('/engines'), '/engines', '')).toBe(true);
-    expect(isItemActive(item('/engines'), '/engines/abc123', '')).toBe(true);
+describe('isBranchActive (parent highlight + auto-expand)', () => {
+  it('is active when a descendant route is active', () => {
+    const parent = findItem('/media-acquisition');
+    expect(isBranchActive(parent, '/media-acquisition/dashboard', '')).toBe(true);
+    expect(isBranchActive(parent, '/settings', '')).toBe(false);
   });
 });

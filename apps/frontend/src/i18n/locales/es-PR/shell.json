@@ -1,7 +1,18 @@
 {
   "nav": {
     "primary": "Principal",
-    "breadcrumb": "Ruta de navegación"
+    "breadcrumb": "Ruta de navegación",
+    "expandGroup": "Expandir {{name}}",
+    "collapseGroup": "Colapsar {{name}}",
+    "expandItem": "Expandir submenú de {{name}}",
+    "collapseItem": "Colapsar submenú de {{name}}"
+  },
+  "command": {
+    "title": "Menú de comandos",
+    "open": "Abrir menú de comandos",
+    "search": "Buscar",
+    "placeholder": "Busca menús y páginas…",
+    "empty": "No hay páginas coincidentes."
   },
   "menu": {
     "open": "Abrir menú",
