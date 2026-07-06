@@ -98,8 +98,15 @@ export function MediaItemsPage() {
   // Any filter/search change resets to the first page.
   useEffect(() => setPage(1), [mediaType, matchStatus, libraryId, search]);
 
-  // TV types render as a collapsible Show → Season → Episode tree instead of a flat list.
-  const isTvGrouped = mediaType === 'tv' || mediaType === 'anime';
+  // TV types render as a collapsible Show → Season → Episode tree instead of a
+  // flat list — triggered by the type filter OR by selecting a TV/anime-kind
+  // library (the natural way to browse "TV Shows"), unless an explicit non-TV
+  // type filter is active.
+  const selectedLibraryKind = (librariesQuery.data ?? []).find((l) => l.id === libraryId)?.kind;
+  const isTvGrouped =
+    mediaType === 'tv' ||
+    mediaType === 'anime' ||
+    (!mediaType && (selectedLibraryKind === 'tv' || selectedLibraryKind === 'anime'));
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['media', 'items', { mediaType, matchStatus, libraryId, search, page }],
     queryFn: () => api.media.listItems({ mediaType, matchStatus, libraryId, search, page, pageSize: PAGE_SIZE }),
