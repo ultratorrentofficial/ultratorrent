@@ -33,10 +33,10 @@ function ContentTypeToggle({ value, onChange }: { value: string[]; onChange: (ne
             type="button"
             onClick={() => toggle(key)}
             className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-              value.includes(key)
+              active
                 ? 'border-amber-400/50 bg-amber-400/15 text-amber-300'
                 : 'border-white/10 text-muted-foreground hover:text-foreground'
-            } ${value.length === 0 ? 'opacity-70' : ''}`}
+            } ${value.length === 0 ? 'opacity-60' : ''}`}
           >
             {t(`newsletter.content.type.${key}`)}
           </button>
