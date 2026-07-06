@@ -1,5 +1,6 @@
 import {
   normalizeTautulliHistory,
+  normalizeBaseUrl,
   getAnalyticsImportProvider,
   TautulliAnalyticsImportProvider,
 } from './analytics-import-provider';
@@ -8,6 +9,24 @@ describe('analytics import provider', () => {
   it('resolves the Tautulli provider and rejects unknown', () => {
     expect(getAnalyticsImportProvider('tautulli')).toBeInstanceOf(TautulliAnalyticsImportProvider);
     expect(() => getAnalyticsImportProvider('plex')).toThrow(/Unsupported analytics import/);
+  });
+
+  describe('normalizeBaseUrl', () => {
+    it('defaults a scheme-less host to http://', () => {
+      expect(normalizeBaseUrl('192.168.99.10:8181')).toBe('http://192.168.99.10:8181');
+      expect(normalizeBaseUrl('tautulli:8181')).toBe('http://tautulli:8181');
+    });
+
+    it('preserves an explicit http/https scheme (case-insensitive)', () => {
+      expect(normalizeBaseUrl('http://tautulli:8181')).toBe('http://tautulli:8181');
+      expect(normalizeBaseUrl('https://tautulli.example.com')).toBe('https://tautulli.example.com');
+      expect(normalizeBaseUrl('HTTPS://Host:8181')).toBe('HTTPS://Host:8181');
+    });
+
+    it('trims whitespace and trailing slashes', () => {
+      expect(normalizeBaseUrl('  http://tautulli:8181/  ')).toBe('http://tautulli:8181');
+      expect(normalizeBaseUrl('192.168.99.10:8181///')).toBe('http://192.168.99.10:8181');
+    });
   });
 
   it('normalizes a Tautulli get_history row', () => {

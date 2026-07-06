@@ -55,8 +55,19 @@ export interface MediaAnalyticsImportProvider {
   getWatchHistory(ctx: ImportContext, opts: { start: number; length: number }): Promise<HistoryPage>;
 }
 
+/**
+ * Normalize a user-entered base URL: strip trailing slashes and default the
+ * scheme to http:// when omitted. Tautulli hosts are commonly entered as
+ * `host:8181` — without a scheme `fetch` throws an opaque "Failed to parse URL".
+ * Pure — unit-tested.
+ */
+export function normalizeBaseUrl(input: string): string {
+  const trimmed = (input ?? '').trim().replace(/\/+$/, '');
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+}
+
 async function tautulliCmd(ctx: ImportContext, cmd: string, params: Record<string, string | number> = {}) {
-  const base = ctx.baseUrl.replace(/\/+$/, '');
+  const base = normalizeBaseUrl(ctx.baseUrl);
   const qs = new URLSearchParams({ apikey: ctx.apiKey, cmd, ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])) });
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000);
