@@ -26,11 +26,22 @@ import {
 } from 'class-validator';
 import type { Request } from 'express';
 import Parser from 'rss-parser';
-import { PERMISSIONS } from '@ultratorrent/shared';
+import { PERMISSIONS, WS_EVENTS } from '@ultratorrent/shared';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
 import { EngineRegistryService } from '../engine/engine-registry.service';
+import { AuditService } from '../audit/audit.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { SettingsModule } from '../settings/settings.module';
+import {
+  TvShowStatusService,
+  type StatusLookupContext,
+} from './tv-show-status/tv-show-status.service';
+import {
+  TV_MEDIA_TYPES,
+  isInactiveStatus,
+} from './tv-show-status/tv-show-status-provider';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -78,6 +89,11 @@ class CreateRuleDto {
   @IsOptional() @IsString() excludeRegex?: string;
   @IsOptional() @IsString() savePath?: string;
   @IsOptional() @IsBoolean() autoDownload?: boolean;
+  // TV show airing-status awareness (optional; supplied from the lookup panel).
+  @IsOptional() @IsString() mediaType?: string;
+  @IsOptional() @IsString() showStatusProvider?: string;
+  @IsOptional() @IsString() showStatusProviderId?: string;
+  @IsOptional() @IsBoolean() allowInactiveShowMonitoring?: boolean;
 }
 
 class UpdateRuleDto {
@@ -86,6 +102,10 @@ class UpdateRuleDto {
   @IsOptional() @IsString() excludeRegex?: string;
   @IsOptional() @IsString() savePath?: string;
   @IsOptional() @IsBoolean() autoDownload?: boolean;
+  @IsOptional() @IsString() mediaType?: string;
+  @IsOptional() @IsString() showStatusProvider?: string;
+  @IsOptional() @IsString() showStatusProviderId?: string;
+  @IsOptional() @IsBoolean() allowInactiveShowMonitoring?: boolean;
 }
 
 @Injectable()
@@ -109,6 +129,9 @@ export class RssService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: EngineRegistryService,
+    private readonly showStatus: TvShowStatusService,
+    private readonly audit: AuditService,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   async listFeeds() {
@@ -152,12 +175,28 @@ export class RssService {
   deleteFeed(id: string) {
     return this.prisma.rssFeed.delete({ where: { id } });
   }
-  createRule(dto: CreateRuleDto) {
-    return this.prisma.rssRule.create({ data: dto });
+  async createRule(dto: CreateRuleDto, ctx: StatusLookupContext = {}) {
+    const snapshot = await this.resolveShowStatusSnapshot(dto, dto.name, ctx);
+    return this.prisma.rssRule.create({
+      data: {
+        feedId: dto.feedId,
+        name: dto.name,
+        includeRegex: dto.includeRegex ?? null,
+        excludeRegex: dto.excludeRegex ?? null,
+        savePath: dto.savePath ?? null,
+        autoDownload: dto.autoDownload ?? undefined,
+        ...snapshot,
+      },
+    });
   }
-  async updateRule(id: string, dto: UpdateRuleDto) {
+  async updateRule(id: string, dto: UpdateRuleDto, ctx: StatusLookupContext = {}) {
     const rule = await this.prisma.rssRule.findUnique({ where: { id } });
     if (!rule) throw new NotFoundException(`Unknown RSS rule: ${id}`);
+    // Only re-resolve the show-status snapshot when show fields are being edited.
+    const snapshot =
+      dto.mediaType !== undefined || dto.showStatusProviderId !== undefined
+        ? await this.resolveShowStatusSnapshot(dto, dto.name ?? rule.name, ctx)
+        : {};
     // Undefined = leave unchanged; empty string clears the optional patterns.
     const updated = await this.prisma.rssRule.update({
       where: { id },
@@ -167,6 +206,7 @@ export class RssService {
         excludeRegex: dto.excludeRegex === undefined ? undefined : dto.excludeRegex || null,
         savePath: dto.savePath === undefined ? undefined : dto.savePath || null,
         autoDownload: dto.autoDownload === undefined ? undefined : dto.autoDownload,
+        ...snapshot,
       },
     });
 
@@ -177,6 +217,107 @@ export class RssService {
     );
 
     return updated;
+  }
+
+  private toDate(iso: string | null): Date | null {
+    if (!iso) return null;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  /**
+   * Resolve the airing-status snapshot columns for a rule save. For a TV-shaped
+   * rule with a resolved show id it fetches the authoritative status (cache or
+   * provider) and **requires** `allowInactiveShowMonitoring` when the show is
+   * ended/canceled (throws otherwise). Unknown status is allowed with a warning.
+   * Non-TV rules just carry their `mediaType`. Returns the columns to persist.
+   */
+  private async resolveShowStatusSnapshot(
+    input: {
+      mediaType?: string;
+      showStatusProvider?: string;
+      showStatusProviderId?: string;
+      allowInactiveShowMonitoring?: boolean;
+    },
+    ruleName: string,
+    ctx: StatusLookupContext,
+  ): Promise<Partial<Prisma.RssRuleUncheckedCreateInput>> {
+    const mediaType = input.mediaType ?? null;
+    if (!mediaType || !TV_MEDIA_TYPES.has(mediaType)) return { mediaType };
+    if (!input.showStatusProviderId) return { mediaType };
+
+    const provider = input.showStatusProvider ?? 'tmdb';
+    const status = await this.showStatus.resolveByProviderId(
+      provider,
+      input.showStatusProviderId,
+    );
+    if (!status) {
+      return {
+        mediaType,
+        showStatus: 'unknown',
+        showStatusRecommendation: 'unknown',
+        showStatusProvider: provider,
+        showStatusProviderId: input.showStatusProviderId,
+        showStatusCheckedAt: new Date(),
+        showStatusWarnings: ['status_unconfirmed'],
+        allowInactiveShowMonitoring: !!input.allowInactiveShowMonitoring,
+      };
+    }
+
+    const inactive = isInactiveStatus(status.normalizedStatus);
+    if (inactive && !input.allowInactiveShowMonitoring) {
+      throw new BadRequestException(
+        `"${status.title}" appears to be ${status.normalizedStatus}. ` +
+          `Confirm to monitor an inactive show (allowInactiveShowMonitoring), ` +
+          `or create a backfill/upgrade rule instead.`,
+      );
+    }
+    if (inactive) {
+      await this.audit.record({
+        userId: ctx.userId,
+        action: 'rss.rule.created_for_inactive_show',
+        objectType: 'rss_rule',
+        objectId: status.providerShowId ?? ruleName,
+        result: 'success',
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        metadata: { ruleName, normalizedStatus: status.normalizedStatus, provider: status.provider },
+      });
+      this.realtime.broadcast(WS_EVENTS.RSS_RULE_CREATED_FOR_INACTIVE_SHOW, {
+        ruleName,
+        normalizedStatus: status.normalizedStatus,
+        provider: status.provider,
+        at: new Date().toISOString(),
+      });
+    }
+    return {
+      mediaType,
+      showStatus: status.normalizedStatus,
+      showStatusProvider: status.provider,
+      showStatusProviderId: status.providerShowId,
+      showStatusCheckedAt: new Date(),
+      showStatusRecommendation: status.recommendation,
+      showFirstAirDate: this.toDate(status.firstAirDate),
+      showLastAirDate: this.toDate(status.lastAirDate),
+      showNextEpisodeAirDate: this.toDate(status.nextEpisodeAirDate),
+      showStatusWarnings: status.warnings,
+      allowInactiveShowMonitoring: !!input.allowInactiveShowMonitoring,
+    };
+  }
+
+  /** Delegate a show-status lookup (used by the controller). */
+  lookupShowStatus(
+    query: { title: string; year?: number | null; provider?: string },
+    ctx: StatusLookupContext = {},
+  ) {
+    return this.showStatus.lookup(query, ctx);
+  }
+
+  lookupShowStatusBatch(
+    queries: Array<{ title: string; year?: number | null; provider?: string }>,
+    ctx: StatusLookupContext = {},
+  ) {
+    return this.showStatus.lookupBatch(queries, ctx);
   }
   deleteRule(id: string) {
     return this.prisma.rssRule.delete({ where: { id } });
@@ -1529,6 +1670,42 @@ export class RssService {
 export class RssController {
   constructor(private readonly rss: RssService) {}
 
+  private ctx(req: Request): StatusLookupContext {
+    const u = req.user as { id?: string } | undefined;
+    return {
+      userId: u?.id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'] as string | undefined,
+    };
+  }
+
+  // --- TV show airing-status awareness -----------------------------------
+  @Get('show-status/lookup')
+  @RequirePermissions(PERMISSIONS.RSS_SHOW_STATUS_LOOKUP)
+  lookupShowStatus(
+    @Req() req: Request,
+    @Query('title') title?: string,
+    @Query('year') year?: string,
+    @Query('provider') provider?: string,
+  ) {
+    if (!title?.trim()) throw new BadRequestException('title is required');
+    const parsedYear = year ? Number.parseInt(year, 10) : undefined;
+    return this.rss.lookupShowStatus(
+      { title: title.trim(), year: Number.isFinite(parsedYear) ? parsedYear : null, provider },
+      this.ctx(req),
+    );
+  }
+
+  @Post('show-status/lookup-batch')
+  @RequirePermissions(PERMISSIONS.RSS_SHOW_STATUS_LOOKUP)
+  lookupShowStatusBatch(
+    @Body() body: { queries?: Array<{ title: string; year?: number | null; provider?: string }> },
+    @Req() req: Request,
+  ) {
+    const queries = (body?.queries ?? []).filter((q) => q?.title?.trim());
+    return this.rss.lookupShowStatusBatch(queries, this.ctx(req));
+  }
+
   @Get('feeds')
   @RequirePermissions(PERMISSIONS.RSS_VIEW)
   feeds() {
@@ -1574,13 +1751,13 @@ export class RssController {
   }
   @Post('rules')
   @RequirePermissions(PERMISSIONS.RSS_MANAGE)
-  createRule(@Body() dto: CreateRuleDto) {
-    return this.rss.createRule(dto);
+  createRule(@Body() dto: CreateRuleDto, @Req() req: Request) {
+    return this.rss.createRule(dto, this.ctx(req));
   }
   @Patch('rules/:id')
   @RequirePermissions(PERMISSIONS.RSS_MANAGE)
-  updateRule(@Param('id') id: string, @Body() dto: UpdateRuleDto) {
-    return this.rss.updateRule(id, dto);
+  updateRule(@Param('id') id: string, @Body() dto: UpdateRuleDto, @Req() req: Request) {
+    return this.rss.updateRule(id, dto, this.ctx(req));
   }
   @Delete('rules/:id')
   @RequirePermissions(PERMISSIONS.RSS_MANAGE)
@@ -1708,7 +1885,8 @@ export class RssController {
 }
 
 @Module({
-  providers: [RssService],
+  imports: [SettingsModule],
+  providers: [RssService, TvShowStatusService],
   controllers: [RssController],
 })
 export class RssModule {}

@@ -72,14 +72,14 @@ function makeService(prisma: any, items: any[]) {
   const registry = {
     getDefault: async () => ({ addMagnet, addTorrentURL: jest.fn(), removeTorrentAndData }),
   };
-  const svc = new RssService(prisma as any, registry as any);
+  const svc = new RssService(prisma as any, registry as any, {} as any, {} as any, {} as any);
   (svc as any).parser = { parseURL: async () => ({ items }) };
   return { svc, addMagnet, removeTorrentAndData };
 }
 
 describe('RssService info-hash dedup in processFeed', () => {
   it('extracts a lowercased btih info-hash from a magnet, null for non-magnets', () => {
-    const svc = new RssService({} as any, {} as any) as any;
+    const svc = new RssService({} as any, {} as any, {} as any, {} as any, {} as any) as any;
     expect(svc.extractInfoHash(magnet(HASH.toUpperCase(), 'x'))).toBe(HASH);
     expect(svc.extractInfoHash('https://tracker/file.torrent')).toBeNull();
     expect(svc.extractInfoHash(null)).toBeNull();

@@ -172,7 +172,16 @@ grouping mirrors [NAVIGATION.md](NAVIGATION.md):
   appears (removing the superseded torrent + data), and skips equal-or-lower
   releases. Release identity (`releaseIdentity`) is parsed to
   `movie:<title>:<year>` / `ep:<title>:<season>:<episode>`; unparseable titles
-  fall back to per-release behavior.
+  fall back to per-release behavior. **TV show airing-status awareness**
+  (`rss/tv-show-status/`): a pluggable `TvShowStatusProvider` (TMDB → IMDb
+  dataset → local, tried in confidence order) resolves a show's airing status,
+  which `TvShowStatusService` normalizes (`continuing`/`returning`/`planned`/
+  `on_hiatus`/`ended`/`canceled`/`unknown`) into a monitoring recommendation.
+  `GET /rss/show-status/lookup` (+ `lookup-batch`) power a pre-save status panel;
+  saving a TV rule for an ended/canceled show **requires**
+  `allowInactiveShowMonitoring` (audited) — no provider-specific status rules
+  live in `RssService`. The resolved snapshot is stored on the rule and cached in
+  `tv_show_status`.
 - **automation** — condition/action rules triggered by events. Torrent triggers
   (`torrent.completed`, `ratio.reached`) and actions
   (stop/delete/move/notify/webhook/`rename_for_media`) plus the Media Manager
@@ -493,6 +502,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-07-06 | **RSS — TV show airing-status awareness (Phase 1, backend).** New pluggable `TvShowStatusProvider` layer (`apps/backend/src/modules/rss/tv-show-status/`): `TmdbTvShowStatusProvider` (status + next/last episode), `ImdbTvShowStatusProvider` (dataset `endYear`/`titleType`), `LocalNfoTvShowStatusProvider` fallback, aggregated by `TvShowStatusService` in confidence order. Pure `normalizeShowStatus()`/`recommendationFor()` map any provider's answer to a provider-agnostic status (`continuing`/`returning`/`planned`/`on_hiatus`/`ended`/`canceled`/`unknown`) and recommendation (`recommended`/`caution`/`not_recommended`/`unknown`) — no provider rules leak into `RssService`. Endpoints `GET /api/rss/show-status/lookup` + `POST …/lookup-batch` (perm `rss.show_status.lookup`). Creating/editing a TV rule (`mediaType ∈ tv/anime/episode/series`) captures a **status snapshot** on `RssRule` and **requires `allowInactiveShowMonitoring`** for ended/canceled shows (else 400) — override is audited (`rss.rule.created_for_inactive_show`) + emits a WS event; unknown status saves with a warning; active saves normally. New `tv_show_status` cache table (migration `20260706210000_rss_show_status`, validated no-drift). New perms `rss.show_status.{lookup,refresh,override}` (manifest + role grants); `rss.*` WS events scoped to `rss.view`. Tests: normalization/recommendation, service lookup + provider fallback, and save-validation (ended requires override, unknown warns, active saves, non-TV skips) — 91 RSS specs green. **Phase 2/3 (not in this change): frontend status panel/badges/confirm modal, automation triggers/actions, background status-refresh job, and RSS.md/MODULES.md docs.** |
 | 2026-07-06 | **Media Server Analytics — equal-height newsletter card grid (Gmail-safe).** Two cards in a row rendered at their own content heights, so a show with a long overview left its paired card's amber panel visibly shorter/ragged. The card "panel" (background/border/padding) now lives on the grid **cell** (`CARD_PANEL` on the `.col` `<td>`) instead of a nested table — sibling cells in a table row are always drawn at equal height, which Gmail/Outlook honour (unlike `height:100%` on a nested table, which only browsers respect). `tvCard`/`movieCard` now return just the inner content; a shared `twoColGrid()` lays out panel-cell · gutter-cell (`.gut`, 14px) · panel-cell rows with 12px spacer rows between, and `MOBILE_STYLE` collapses `.col` to full width (keeping the panel padding) and hides `.gut`. `renderHtml`/`renderText` and all 23 render specs unchanged/green. |
 | 2026-07-06 | **Media Items grouped TV browser — larger posters + smaller default page.** `SeriesGroupedList` show posters enlarged (`h-14 w-10` → `h-[7.5rem] w-20`, 2:3) and the default page size dropped 30 → 10 shows per page (`SERIES_PAGE_SIZE`). |
 | 2026-07-06 | **Media Server Analytics — downscale newsletter poster attachments so they render.** Full-size library posters run 250KB–1MB+, but the inline size cap (`MAX_POSTER_BYTES`, 500KB) silently dropped anything larger — so after the grouping/artwork fix most cards *still* fell back to the gradient placeholder (a real test send showed 4 correct show cards but only 1 poster + 3 placeholders, because only one poster was under 500KB). `loadPoster()` now resizes each poster to a small JPEG (`POSTER_TARGET_WIDTH` 240px, via **sharp**) before attaching — the card slot is only ~84–120px, so a full-resolution poster was massive overkill. Real posters drop from 250KB–1.1MB to ~20KB, so every card gets its artwork and a full 30-poster email stays well under 1MB; a raw-input guard (`MAX_RAW_POSTER_BYTES` 12MB) protects sharp, and it falls back to the original image (if within the cap) when resizing fails. |

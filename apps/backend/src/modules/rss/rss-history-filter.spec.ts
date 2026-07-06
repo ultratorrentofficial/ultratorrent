@@ -15,7 +15,13 @@ describe('RssService.history filtering', () => {
       rssHistory,
       $transaction: (ops: unknown[]) => Promise.all(ops as Promise<unknown>[]),
     };
-    const svc = new RssService(prisma as never, undefined as never);
+    const svc = new RssService(
+      prisma as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+    );
     return { svc, rssHistory };
   }
 

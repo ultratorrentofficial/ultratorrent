@@ -230,6 +230,20 @@ model RssRule {
   isEnabled     Boolean  @default(true)
   createdAt     DateTime @default(now())
 
+  // TV show airing-status snapshot, captured when the rule was created/edited so
+  // the recommendation shown at save time is preserved. Null for non-TV rules.
+  mediaType                   String?
+  showStatus                  String? // normalized: continuing|returning|planned|on_hiatus|ended|canceled|unknown
+  showStatusProvider          String?
+  showStatusProviderId        String?
+  showStatusCheckedAt         DateTime?
+  showStatusRecommendation    String? // recommended|caution|not_recommended|unknown
+  showFirstAirDate            DateTime?
+  showLastAirDate             DateTime?
+  showNextEpisodeAirDate      DateTime?
+  showStatusWarnings          Json      @default("[]")
+  allowInactiveShowMonitoring Boolean   @default(false)
+
   feed             RssFeed                  @relation(fields: [feedId], references: [id], onDelete: Cascade)
   matchCandidates  RssRuleMatchCandidate[]
   matchEvaluations RssRuleMatchEvaluation[]
@@ -237,6 +251,36 @@ model RssRule {
   acquisitions     RssAcquisition[]
 
   @@map("rss_rules")
+}
+
+/// Cache of a resolved TV-show airing-status lookup, keyed by provider + the
+/// provider's show id. Serves the RSS show-status lookup (avoids re-hitting the
+/// provider) and the future background refresh job.
+model TvShowStatus {
+  id                 String    @id @default(uuid())
+  provider           String
+  providerShowId     String
+  title              String
+  normalizedTitle    String
+  originalStatus     String?
+  normalizedStatus   String // continuing|returning|planned|on_hiatus|ended|canceled|unknown
+  recommendation     String // recommended|caution|not_recommended|unknown
+  confidence         Float     @default(0)
+  firstAirDate       DateTime?
+  lastAirDate        DateTime?
+  nextEpisodeAirDate DateTime?
+  lastEpisodeTitle   String?
+  nextEpisodeTitle   String?
+  totalSeasons       Int?
+  totalEpisodes      Int?
+  overview           String?
+  posterUrl          String?
+  warnings           Json      @default("[]")
+  checkedAt          DateTime  @default(now())
+
+  @@unique([provider, providerShowId])
+  @@index([normalizedTitle])
+  @@map("tv_show_status")
 }
 
 // One row per logical release (movie / episode) a rule has grabbed. Turns the

@@ -35,6 +35,10 @@ export const WS_EVENTS = {
   IMDB_DATASET_IMPORT_CANCELLED: 'imdb.dataset.import.cancelled',
   IMDB_MATCH_COMPLETED: 'imdb.match.completed',
   IMDB_ENRICHMENT_COMPLETED: 'imdb.enrichment.completed',
+  // RSS TV-show airing-status awareness (scoped to rss.view).
+  RSS_SHOW_STATUS_LOOKUP_COMPLETED: 'rss.show_status.lookup.completed',
+  RSS_SHOW_STATUS_LOOKUP_FAILED: 'rss.show_status.lookup.failed',
+  RSS_RULE_CREATED_FOR_INACTIVE_SHOW: 'rss.rule.created_for_inactive_show',
 } as const;
 
 /**
