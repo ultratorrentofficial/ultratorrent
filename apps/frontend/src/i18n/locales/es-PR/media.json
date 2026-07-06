@@ -177,9 +177,17 @@
       "type": "Tipo",
       "status": "Estado de emparejamiento",
       "library": "Biblioteca",
+      "search": "Buscar",
+      "searchPlaceholder": "Buscar por título…",
       "allTypes": "Todos los tipos",
       "allStatuses": "Todos los estados",
       "allLibraries": "Todas las bibliotecas"
+    },
+    "pagination": {
+      "showing": "Mostrando {{from}}–{{to}} de {{total}}",
+      "page": "Página {{page}} / {{totalPages}}",
+      "prev": "Anterior",
+      "next": "Siguiente"
     },
     "loading": "Cargando elementos…",
     "error": "No se pudieron cargar los elementos de medios.",

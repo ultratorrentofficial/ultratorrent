@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/input';
+import { Input, Label } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { MediaPoster } from '@/components/media/MediaPoster';
@@ -85,9 +85,21 @@ export function MediaItemsPage() {
 
   const librariesQuery = useQuery({ queryKey: ['media', 'libraries'], queryFn: api.media.listLibraries });
 
+  const PAGE_SIZE = 60;
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  // Debounce the search box so we don't refetch on every keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+  // Any filter/search change resets to the first page.
+  useEffect(() => setPage(1), [mediaType, matchStatus, libraryId, search]);
+
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
-    queryKey: ['media', 'items', { mediaType, matchStatus, libraryId }],
-    queryFn: () => api.media.listItems({ mediaType, matchStatus, libraryId }),
+    queryKey: ['media', 'items', { mediaType, matchStatus, libraryId, search, page }],
+    queryFn: () => api.media.listItems({ mediaType, matchStatus, libraryId, search, page, pageSize: PAGE_SIZE }),
     placeholderData: keepPreviousData,
   });
 
@@ -122,8 +134,10 @@ export function MediaItemsPage() {
     onError: (err) => toast.error(t('items.unmatchError'), err instanceof ApiError ? err.message : undefined),
   });
 
-  const items = data ?? [];
-  const hasFilters = Boolean(mediaType || matchStatus || libraryId);
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasFilters = Boolean(mediaType || matchStatus || libraryId || search);
   const open = (id: string) => navigate(`/media/items/${id}`);
 
   return (
@@ -137,7 +151,17 @@ export function MediaItemsPage() {
       </div>
 
       <Card>
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-3">
+        <CardContent className="space-y-3 p-4">
+          <div>
+            <Label htmlFor="filter-search">{t('items.filter.search')}</Label>
+            <Input
+              id="filter-search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder={t('items.filter.searchPlaceholder')}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <Label htmlFor="filter-type">{t('items.filter.type')}</Label>
             <Select
@@ -164,6 +188,7 @@ export function MediaItemsPage() {
               onChange={(e) => setFilter('libraryId', e.target.value)}
               options={libraryOptions}
             />
+          </div>
           </div>
         </CardContent>
       </Card>
@@ -353,6 +378,26 @@ export function MediaItemsPage() {
                 );
               })}
             </ul>
+          )}
+          {!isLoading && !isError && total > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 p-3">
+              <span className="text-xs text-muted-foreground">
+                {t('items.pagination.showing', {
+                  from: (page - 1) * PAGE_SIZE + 1,
+                  to: Math.min(page * PAGE_SIZE, total),
+                  total,
+                })}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={page <= 1 || isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                  {t('items.pagination.prev')}
+                </Button>
+                <span className="text-xs tabular-nums text-muted-foreground">{t('items.pagination.page', { page, totalPages })}</span>
+                <Button variant="outline" size="sm" disabled={page >= totalPages || isFetching} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+                  {t('items.pagination.next')}
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -858,6 +858,16 @@ export interface MediaItemQuery {
   mediaType?: string;
   matchStatus?: string;
   libraryId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface MediaItemPage {
+  items: MediaItem[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface MediaItemUpdateInput {
@@ -2387,8 +2397,8 @@ export const api = {
     scanLibrary(id: string): Promise<MediaScanResult> {
       return request<MediaScanResult>(`/media/libraries/${id}/scan`, { method: 'POST' });
     },
-    listItems(query: MediaItemQuery = {}): Promise<MediaItem[]> {
-      return request<MediaItem[]>('/media/items', { query: query as QueryParams });
+    listItems(query: MediaItemQuery = {}): Promise<MediaItemPage> {
+      return request<MediaItemPage>('/media/items', { query: query as QueryParams });
     },
     getItem(id: string): Promise<MediaItemDetail> {
       return request<MediaItemDetail>(`/media/items/${id}`);

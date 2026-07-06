@@ -6,7 +6,13 @@ export interface ItemFilters {
   mediaType?: string;
   matchStatus?: string;
   libraryId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
 }
+
+const DEFAULT_PAGE_SIZE = 60;
+const MAX_PAGE_SIZE = 200;
 
 export interface ItemUpdateDto {
   title?: string;
@@ -22,28 +28,38 @@ export interface ItemUpdateDto {
 export class MediaItemService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(filters: ItemFilters) {
+  /**
+   * Paginated item listing for the media browser. Libraries can hold tens of
+   * thousands of items, so this NEVER returns the whole set — it pages
+   * (`page`/`pageSize`, capped) and returns a `total` for the pager. Only the
+   * relations a row renders are eagerly loaded, artwork narrowed to one poster.
+   */
+  async list(filters: ItemFilters) {
     const where: Prisma.MediaItemWhereInput = {};
     if (filters.mediaType) where.mediaType = filters.mediaType;
     if (filters.matchStatus) where.matchStatus = filters.matchStatus;
     if (filters.libraryId) where.libraryId = filters.libraryId;
-    return this.prisma.mediaItem.findMany({
-      where,
-      orderBy: [{ title: 'asc' }, { createdAt: 'asc' }],
-      // Rich list: the media browser renders posters + metadata per row, so
-      // eagerly load the display relations. Artwork is narrowed to the poster
-      // (selected first) to keep the payload small; the detail view loads all.
-      include: {
-        files: true,
-        metadata: true,
-        externalIds: true,
-        artwork: {
-          where: { type: 'poster' },
-          orderBy: { selected: 'desc' },
-          take: 1,
+    if (filters.search?.trim()) where.title = { contains: filters.search.trim(), mode: 'insensitive' };
+
+    const page = Math.max(1, filters.page ?? 1);
+    const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? DEFAULT_PAGE_SIZE));
+
+    const [total, items] = await Promise.all([
+      this.prisma.mediaItem.count({ where }),
+      this.prisma.mediaItem.findMany({
+        where,
+        orderBy: [{ title: 'asc' }, { createdAt: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          files: true,
+          metadata: true,
+          externalIds: true,
+          artwork: { where: { type: 'poster' }, orderBy: { selected: 'desc' }, take: 1 },
         },
-      },
-    });
+      }),
+    ]);
+    return { items, total, page, pageSize };
   }
 
   async get(id: string) {

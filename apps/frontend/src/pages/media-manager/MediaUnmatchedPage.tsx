@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Film, RotateCw, Search, Star } from 'lucide-react';
 import {
   ApiError,
@@ -47,9 +47,12 @@ export function MediaUnmatchedPage() {
   const canMatch = hasPermission(PERMISSIONS.MEDIA_MANAGER_MATCH);
   const [matching, setMatching] = useState<MediaItem | null>(null);
 
+  const PAGE_SIZE = 60;
+  const [page, setPage] = useState(1);
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
-    queryKey: ['media', 'items', { matchStatus: 'unmatched' }],
-    queryFn: () => api.media.listItems({ matchStatus: 'unmatched' }),
+    queryKey: ['media', 'items', { matchStatus: 'unmatched', page }],
+    queryFn: () => api.media.listItems({ matchStatus: 'unmatched', page, pageSize: PAGE_SIZE }),
+    placeholderData: keepPreviousData,
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['media', 'items'] });
@@ -76,7 +79,9 @@ export function MediaUnmatchedPage() {
     onError: (err) => toast.error(t('unmatched.reidentifyError'), err instanceof ApiError ? err.message : undefined),
   });
 
-  const items = data ?? [];
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="space-y-6">
@@ -183,10 +188,23 @@ export function MediaUnmatchedPage() {
         </CardContent>
       </Card>
 
-      <p className="text-xs text-muted-foreground">
-        {t('unmatched.count', { count: items.length })}
-        {isFetching && <span className="opacity-70"> · {t('common.updating')}</span>}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          {t('unmatched.count', { count: total })}
+          {isFetching && <span className="opacity-70"> · {t('common.updating')}</span>}
+        </p>
+        {total > PAGE_SIZE && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1 || isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              {t('items.pagination.prev')}
+            </Button>
+            <span className="text-xs tabular-nums text-muted-foreground">{t('items.pagination.page', { page, totalPages })}</span>
+            <Button variant="outline" size="sm" disabled={page >= totalPages || isFetching} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+              {t('items.pagination.next')}
+            </Button>
+          </div>
+        )}
+      </div>
 
       {matching && (
         <ManualMatchDialog

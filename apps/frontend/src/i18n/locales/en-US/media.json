@@ -177,9 +177,17 @@
       "type": "Type",
       "status": "Match status",
       "library": "Library",
+      "search": "Search",
+      "searchPlaceholder": "Search by title…",
       "allTypes": "All types",
       "allStatuses": "All statuses",
       "allLibraries": "All libraries"
+    },
+    "pagination": {
+      "showing": "Showing {{from}}–{{to}} of {{total}}",
+      "page": "Page {{page}} / {{totalPages}}",
+      "prev": "Previous",
+      "next": "Next"
     },
     "loading": "Loading items…",
     "error": "Could not load media items.",

@@ -135,8 +135,18 @@ export class MediaController {
     @Query('mediaType') mediaType?: string,
     @Query('matchStatus') matchStatus?: string,
     @Query('libraryId') libraryId?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
-    return this.items.list({ mediaType, matchStatus, libraryId });
+    return this.items.list({
+      mediaType,
+      matchStatus,
+      libraryId,
+      search,
+      page: page ? Number.parseInt(page, 10) : undefined,
+      pageSize: pageSize ? Number.parseInt(pageSize, 10) : undefined,
+    });
   }
 
   @Get('items/:id')
