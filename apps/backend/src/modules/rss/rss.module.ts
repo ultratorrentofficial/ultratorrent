@@ -15,6 +15,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { Interval } from '@nestjs/schedule';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
@@ -39,6 +40,8 @@ import {
   type StatusLookupContext,
 } from './tv-show-status/tv-show-status.service';
 import { RssShowStatusRefreshService } from './tv-show-status/rss-show-status-refresh.service';
+import { RssAutomationActions } from './tv-show-status/rss-automation.actions';
+import { AutomationEngine } from '../automation/automation.module';
 import {
   TV_MEDIA_TYPES,
   isInactiveStatus,
@@ -133,7 +136,26 @@ export class RssService {
     private readonly showStatus: TvShowStatusService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  /**
+   * Fire an RSS automation trigger with an event context. Resolved lazily via
+   * ModuleRef (the engine depends on RSS, so a static inject would cycle) and
+   * best-effort — automation must never break a rule save.
+   */
+  private fireAutomation(trigger: string, context: Record<string, unknown>): void {
+    try {
+      this.moduleRef
+        .get(AutomationEngine, { strict: false })
+        .evaluateEvent(trigger, context)
+        .catch((err: unknown) =>
+          this.logger.warn(`automation ${trigger} failed: ${(err as Error).message}`),
+        );
+    } catch (err) {
+      this.logger.warn(`automation ${trigger} unavailable: ${(err as Error).message}`);
+    }
+  }
 
   async listFeeds() {
     const feeds = await this.prisma.rssFeed.findMany({
@@ -289,6 +311,14 @@ export class RssService {
         normalizedStatus: status.normalizedStatus,
         provider: status.provider,
         at: new Date().toISOString(),
+      });
+      this.fireAutomation('rss.rule.created_for_inactive_show', {
+        ruleName,
+        title: status.title,
+        normalizedStatus: status.normalizedStatus,
+        recommendation: status.recommendation,
+        provider: status.provider,
+        providerShowId: status.providerShowId,
       });
     }
     return {
@@ -1887,7 +1917,13 @@ export class RssController {
 
 @Module({
   imports: [SettingsModule],
-  providers: [RssService, TvShowStatusService, RssShowStatusRefreshService],
+  providers: [
+    RssService,
+    TvShowStatusService,
+    RssShowStatusRefreshService,
+    RssAutomationActions,
+  ],
   controllers: [RssController],
+  exports: [RssAutomationActions],
 })
 export class RssModule {}

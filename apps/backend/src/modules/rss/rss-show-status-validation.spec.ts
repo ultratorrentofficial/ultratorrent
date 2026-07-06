@@ -33,8 +33,17 @@ function makeRss(resolved: ShowStatusResult | null) {
   const showStatus = { resolveByProviderId: jest.fn().mockResolvedValue(resolved) };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const realtime = { broadcast: jest.fn() };
-  const svc = new RssService(prisma as never, {} as never, showStatus as never, audit as never, realtime as never);
-  return { svc, created, showStatus, audit, realtime };
+  const engine = { evaluateEvent: jest.fn().mockResolvedValue(undefined) };
+  const moduleRef = { get: jest.fn().mockReturnValue(engine) };
+  const svc = new RssService(
+    prisma as never,
+    {} as never,
+    showStatus as never,
+    audit as never,
+    realtime as never,
+    moduleRef as never,
+  );
+  return { svc, created, showStatus, audit, realtime, engine };
 }
 
 const tvDto = {

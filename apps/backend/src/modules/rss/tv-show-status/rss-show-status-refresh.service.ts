@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { Interval } from '@nestjs/schedule';
 import { MODULE_IDS, WS_EVENTS } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { AuditService } from '../../audit/audit.service';
 import { ModuleRegistryService } from '../../module-registry/module-registry.service';
+import { AutomationEngine } from '../../automation/automation.module';
 import { TvShowStatusService } from './tv-show-status.service';
 import {
   isInactiveStatus,
@@ -46,6 +48,7 @@ export class RssShowStatusRefreshService {
     private readonly registry: ModuleRegistryService,
     private readonly realtime: RealtimeGateway,
     private readonly audit: AuditService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   private get enabled(): boolean {
@@ -149,12 +152,16 @@ export class RssShowStatusRefreshService {
     };
 
     this.realtime.broadcast(WS_EVENTS.RSS_SHOW_STATUS_CHANGED, payload);
+    this.fire('rss.show_status.changed', payload);
     if (fresh.normalizedStatus === 'ended') {
       this.realtime.broadcast(WS_EVENTS.RSS_SHOW_ENDED, payload);
+      this.fire('rss.show.ended', payload);
     } else if (fresh.normalizedStatus === 'canceled') {
       this.realtime.broadcast(WS_EVENTS.RSS_SHOW_CANCELED, payload);
+      this.fire('rss.show.canceled', payload);
     } else if (isInactiveStatus(before) && !isInactiveStatus(fresh.normalizedStatus)) {
       this.realtime.broadcast(WS_EVENTS.RSS_SHOW_BECAME_ACTIVE, payload);
+      this.fire('rss.show.became_active', payload);
     }
 
     await this.audit.record({
@@ -173,6 +180,24 @@ export class RssShowStatusRefreshService {
     this.logger.log(
       `show-status changed: "${fresh.title}" ${before} → ${fresh.normalizedStatus} (${affected.count} rule(s))`,
     );
+  }
+
+  /**
+   * Fire an RSS automation trigger with the change payload as context.
+   * Resolved lazily via ModuleRef (the engine depends on RSS, so a static inject
+   * would cycle) and best-effort — automation must not disrupt the refresh loop.
+   */
+  private fire(trigger: string, context: Record<string, unknown>): void {
+    try {
+      this.moduleRef
+        .get(AutomationEngine, { strict: false })
+        .evaluateEvent(trigger, context)
+        .catch((err: unknown) =>
+          this.logger.warn(`automation ${trigger} failed: ${(err as Error).message}`),
+        );
+    } catch (err) {
+      this.logger.warn(`automation ${trigger} unavailable: ${(err as Error).message}`);
+    }
   }
 
   private toDate(iso: string | null): Date | null {

@@ -38,14 +38,17 @@ function build() {
   const registry = { getStatus: jest.fn().mockReturnValue({ enabled: true }) };
   const realtime = { broadcast: jest.fn() };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  const engine = { evaluateEvent: jest.fn().mockResolvedValue(undefined) };
+  const moduleRef = { get: jest.fn().mockReturnValue(engine) };
   const svc = new RssShowStatusRefreshService(
     prisma as any,
     showStatus as any,
     registry as any,
     realtime as any,
     audit as any,
+    moduleRef as any,
   );
-  return { svc, prisma, showStatus, registry, realtime, audit };
+  return { svc, prisma, showStatus, registry, realtime, audit, engine };
 }
 
 describe('RssShowStatusRefreshService.isDue', () => {
@@ -96,7 +99,7 @@ describe('RssShowStatusRefreshService.refreshDue', () => {
   });
 
   it('propagates a change: updates rules, emits generic + specific events, audits', async () => {
-    const { svc, prisma, showStatus, realtime, audit } = build();
+    const { svc, prisma, showStatus, realtime, audit, engine } = build();
     prisma.tvShowStatus.findMany.mockResolvedValue([
       { provider: 'tmdb', providerShowId: '42', normalizedStatus: 'returning', checkedAt: new Date(now.getTime() - 2 * DAY) },
     ]);
@@ -119,6 +122,9 @@ describe('RssShowStatusRefreshService.refreshDue', () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'rss.show_status.changed', result: 'success' }),
     );
+    const firedTriggers = engine.evaluateEvent.mock.calls.map((c) => c[0]);
+    expect(firedTriggers).toContain('rss.show_status.changed');
+    expect(firedTriggers).toContain('rss.show.ended');
   });
 
   it('emits became_active when an inactive show returns', async () => {
