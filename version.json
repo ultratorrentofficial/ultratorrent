@@ -1,8 +1,8 @@
 {
   "$comment": "Single source of truth for UltraTorrent versions (SemVer). `version` is the product line; per-edition versions track the repos: community (public UltraTorrent) and sdk (public UltraTorrent-SDK = packages/shared contracts). Managed by `npm run version:*`; consumed by GET /api/system/version.",
-  "version": "0.16.6",
+  "version": "0.16.7",
   "editions": {
-    "community": "0.16.6",
-    "sdk": "0.16.6"
+    "community": "0.16.7",
+    "sdk": "0.16.7"
   }
 }

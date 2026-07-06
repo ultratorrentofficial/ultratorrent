@@ -45,6 +45,15 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.16.7] - 2026-07-06
+
+### Fixed
+- RSS feed history: add filtering. The history view can now be filtered by status (Downloaded / Matched / Seen) via clickable summary tiles and by a case-insensitive release-title search. GET /rss/feeds/:id/history gains optional status + search query params; pagination total reflects the active filter while the count tiles stay scoped to the search (never the status) so they keep the full breakdown and double as toggles. i18n en-US + es-PR
+- Media Items page: group TV episodes into a collapsible Show → Season → Episode tree, paginated by show (a 24k-episode library becomes ~638 show rows). New /media/series grouping endpoint + exact-title episode fetch, lazy-loaded season/episode expansion, posters and season/episode counts per show
+- RSS feed history: add a date-range filter (from/to on when the item was seen), complementing the status + title-search filters. GET /rss/feeds/:id/history gains from/to query params (inclusive, whole-day, UTC); the range scopes both the list and the count tiles, like search. Frontend adds two date pickers to the history filter bar. i18n en-US + es-PR
+- Bundled rtorrent: persist session state promptly so a crash no longer loses recently-added torrents. The rc had no session-save schedule, so rtorrent only wrote full state on a clean shutdown — any torrent added since the last graceful stop was lost when the (sporadic, auto-restarted) libtorrent crash hit, which is why RSS-grabbed torrents 'downloaded' but never appeared. rtorrent.rc now saves each torrent's full state on add (event.download.inserted_new -> d.save_full_session) plus a 5-minute periodic session.save backstop
+- RSS history match-test now scans the newest 5000 feed-history rows instead of 200, so on busy feeds a rule's real matches (many release variants per episode push past 200 rows) are found instead of wrongly reporting no matches
+
 ## [0.16.6] - 2026-07-06
 
 ### Fixed
