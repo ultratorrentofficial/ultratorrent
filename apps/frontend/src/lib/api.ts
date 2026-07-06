@@ -3015,6 +3015,12 @@ export const api = {
     testEmail(recipient: string): Promise<{ ok: boolean }> {
       return request<{ ok: boolean }>('/media-server-analytics/settings/email/test', { method: 'POST', body: { recipient } });
     },
+    newsletterImageSettings(): Promise<NewsletterImageSettings> {
+      return request<NewsletterImageSettings>('/media-server-analytics/settings/newsletter-images');
+    },
+    updateNewsletterImageSettings(body: Partial<Omit<NewsletterImageSettings, 'hasImgurClientId'>> & { imgurClientId?: string }): Promise<NewsletterImageSettings> {
+      return request<NewsletterImageSettings>('/media-server-analytics/settings/newsletter-images', { method: 'PATCH', body });
+    },
   },
 
 };
@@ -3053,6 +3059,15 @@ export interface MediaServerEmailSettings {
   fromName: string;
   fromAddress: string;
   hasPassword: boolean;
+}
+
+export type PosterHostingMode = 'attach' | 'self_hosted' | 'external';
+
+export interface NewsletterImageSettings {
+  mode: PosterHostingMode;
+  publicBaseUrl: string;
+  externalProvider: 'imgur';
+  hasImgurClientId: boolean;
 }
 
 export interface AnalyticsImportSource {

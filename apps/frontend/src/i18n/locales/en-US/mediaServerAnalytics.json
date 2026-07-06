@@ -172,6 +172,31 @@
       "testFailed": "Could not send test",
       "notConfigured": "Configure SMTP to enable sending."
     },
+    "images": {
+      "title": "Newsletter poster images",
+      "subtitle": "How posters reach the inbox. Embedded is self-contained; serving from this instance or an image host avoids the attachment strip (like Tautulli).",
+      "save": "Save",
+      "saved": "Image settings saved",
+      "saveFailed": "Could not save image settings",
+      "mode": {
+        "attach": {
+          "label": "Embed in the email (attachments)",
+          "desc": "Self-contained — always renders, even offline. Gmail lists each poster in the attachment strip."
+        },
+        "self_hosted": {
+          "label": "Serve from this instance",
+          "desc": "Signed, expiring image URLs — no attachments, no third party. Requires the instance to be reachable from the public internet at the URL below."
+        },
+        "external": {
+          "label": "Upload to an image host (Imgur)",
+          "desc": "No attachments and works even if this instance is private, but posters pass through a third party."
+        }
+      },
+      "publicBaseUrl": "Public base URL",
+      "publicBaseUrlHint": "Externally-reachable base for image links, including the port you expose, e.g. http://your-host:65080. Must be reachable by the recipient's mail provider (Gmail fetches images via its proxy).",
+      "imgurClientId": "Imgur Client ID",
+      "imgurClientIdHint": "From an Imgur application (OAuth2, anonymous uploads). Stored encrypted."
+    },
     "add": {
       "title": "New newsletter",
       "name": "Name",

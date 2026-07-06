@@ -172,6 +172,31 @@
       "testFailed": "No se pudo enviar la prueba",
       "notConfigured": "Configura SMTP para poder enviar."
     },
+    "images": {
+      "title": "Imágenes (pósters) del boletín",
+      "subtitle": "Cómo llegan los pósters al correo. Incrustado es autónomo; servir desde esta instancia o un host de imágenes evita que aparezcan como adjuntos (como Tautulli).",
+      "save": "Guardar",
+      "saved": "Ajustes de imágenes guardados",
+      "saveFailed": "No se pudieron guardar los ajustes",
+      "mode": {
+        "attach": {
+          "label": "Incrustar en el correo (adjuntos)",
+          "desc": "Autónomo — siempre se muestra, incluso sin conexión. Gmail lista cada póster como adjunto."
+        },
+        "self_hosted": {
+          "label": "Servir desde esta instancia",
+          "desc": "URLs de imagen firmadas y con expiración — sin adjuntos, sin terceros. Requiere que la instancia sea accesible desde Internet en la URL de abajo."
+        },
+        "external": {
+          "label": "Subir a un host de imágenes (Imgur)",
+          "desc": "Sin adjuntos y funciona aunque la instancia sea privada, pero los pósters pasan por un tercero."
+        }
+      },
+      "publicBaseUrl": "URL base pública",
+      "publicBaseUrlHint": "Base accesible externamente para los enlaces de imagen, incluyendo el puerto que expongas, p. ej. http://tu-host:65080. Debe ser accesible por el proveedor de correo del destinatario (Gmail obtiene las imágenes vía su proxy).",
+      "imgurClientId": "Client ID de Imgur",
+      "imgurClientIdHint": "De una aplicación de Imgur (OAuth2, subidas anónimas). Se almacena cifrado."
+    },
     "add": {
       "title": "Nuevo boletín",
       "name": "Nombre",

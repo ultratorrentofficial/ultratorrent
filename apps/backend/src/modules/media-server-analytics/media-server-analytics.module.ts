@@ -8,7 +8,9 @@ import { MediaServerReportService } from './media-server-report.service';
 import { AnalyticsImportService } from './analytics-import.service';
 import { MediaServerEmailService } from './media-server-email.service';
 import { MediaServerNewsletterService } from './media-server-newsletter.service';
+import { NewsletterImageService } from './newsletter-image.service';
 import { MediaServerAnalyticsController } from './media-server-analytics.controller';
+import { NewsletterImageController } from './newsletter-image.controller';
 
 /**
  * Media Server Analytics (`media_server_analytics`). A core module that reuses
@@ -26,8 +28,9 @@ import { MediaServerAnalyticsController } from './media-server-analytics.control
     AnalyticsImportService,
     MediaServerEmailService,
     MediaServerNewsletterService,
+    NewsletterImageService,
     SecretCipher,
   ],
-  controllers: [MediaServerAnalyticsController],
+  controllers: [MediaServerAnalyticsController, NewsletterImageController],
 })
 export class MediaServerAnalyticsModule {}

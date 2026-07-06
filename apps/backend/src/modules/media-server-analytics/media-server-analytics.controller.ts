@@ -14,6 +14,7 @@ import { MediaServerSyncService } from './media-server-sync.service';
 import { AnalyticsImportService } from './analytics-import.service';
 import { MediaServerEmailService } from './media-server-email.service';
 import { MediaServerNewsletterService } from './media-server-newsletter.service';
+import { NewsletterImageService } from './newsletter-image.service';
 
 const P = PERMISSIONS;
 
@@ -49,6 +50,7 @@ export class MediaServerAnalyticsController {
     private readonly imports: AnalyticsImportService,
     private readonly email: MediaServerEmailService,
     private readonly newsletters: MediaServerNewsletterService,
+    private readonly images: NewsletterImageService,
   ) {}
 
   @Get('dashboard')
@@ -298,6 +300,18 @@ export class MediaServerAnalyticsController {
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS)
   testEmail(@Body() body: { recipient?: string }) {
     return this.email.testEmail(body?.recipient ?? '');
+  }
+
+  // --- newsletter image (poster) hosting settings -------------------------
+  @Get('settings/newsletter-images')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS)
+  getNewsletterImageSettings() {
+    return this.images.getSettings();
+  }
+  @Patch('settings/newsletter-images')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS)
+  updateNewsletterImageSettings(@Body() body: Record<string, unknown>) {
+    return this.images.updateSettings(body ?? {});
   }
 
   // --- connections (reuse the shared integration store) -------------------

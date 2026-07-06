@@ -61,6 +61,7 @@ export interface NewsletterItem {
   library?: string | null;
   upgraded?: boolean;
   posterCid?: string | null;
+  posterUrl?: string | null;
 }
 
 /** A recently-added TV show: episodes grouped under one show. */
@@ -79,6 +80,7 @@ export interface NewsletterShow {
   /** Item id whose artwork represents the show (used by the poster proxy). */
   posterItemId?: string;
   posterCid?: string | null;
+  posterUrl?: string | null;
 }
 
 /** One rendered section of a newsletter (one content-type group). */
@@ -256,10 +258,12 @@ export function renderBadges(badges: string[]): string {
   return badges.filter(Boolean).map((b) => badge(b)).join('');
 }
 
-function poster(cid: string | null | undefined, initial: string, w: number, accent: string): string {
+/** A poster image: a hosted URL, an inline `cid:` attachment, or neither. */
+function poster(src: { url?: string | null; cid?: string | null }, initial: string, w: number, accent: string): string {
   const h = Math.round(w * 1.5);
-  if (cid) {
-    return `<img src="cid:${escapeHtml(cid)}" width="${w}" alt="" style="display:block;width:${w}px;max-width:100%;height:auto;border-radius:8px;border:1px solid ${C.divider}" />`;
+  const imgSrc = src.url ? escapeHtml(src.url) : src.cid ? `cid:${escapeHtml(src.cid)}` : null;
+  if (imgSrc) {
+    return `<img src="${imgSrc}" width="${w}" alt="" style="display:block;width:${w}px;max-width:100%;height:auto;border-radius:8px;border:1px solid ${C.divider}" />`;
   }
   return `<div style="width:${w}px;height:${h}px;border-radius:8px;background:${C.cardAlt};border:1px solid ${C.divider};text-align:center;line-height:${h}px;color:${accent};font:700 ${Math.round(w / 3)}px system-ui,-apple-system,sans-serif">${escapeHtml(initial.toUpperCase())}</div>`;
 }
@@ -304,7 +308,7 @@ function tvCard(show: NewsletterShow, opts: RenderOptions): string {
   const overview = style.showOverview !== false && show.overview ? truncate(show.overview, 160) : '';
 
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td valign="top" width="84" style="width:84px;padding-right:12px">${poster(show.posterCid, show.title[0] ?? '?', 84, accent)}</td>
+      <td valign="top" width="84" style="width:84px;padding-right:12px">${poster({ url: show.posterUrl, cid: show.posterCid }, show.title[0] ?? '?', 84, accent)}</td>
       <td valign="top">
         <div style="font:700 14px system-ui,-apple-system,sans-serif;color:${C.text};margin-bottom:2px">${escapeHtml(show.title)}</div>
         <div style="font:600 12px system-ui,-apple-system,sans-serif;color:${accent};margin-bottom:6px">${show.episodeCount} ${escapeHtml(opts.strings.episodes)}</div>
@@ -324,7 +328,7 @@ function movieCard(m: NewsletterItem, opts: RenderOptions): string {
   const rt = style.showRuntime !== false ? runtimeLabel(m.runtime) : null;
   const rating = style.showRatings !== false ? renderRating(m.rating, accent) : '';
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-    <tr><td align="center" valign="top">${poster(m.posterCid, m.title[0] ?? '?', 120, accent)}</td></tr>
+    <tr><td align="center" valign="top">${poster({ url: m.posterUrl, cid: m.posterCid }, m.title[0] ?? '?', 120, accent)}</td></tr>
     <tr><td style="padding-top:8px;text-align:center">
       <div style="font:700 13px system-ui,-apple-system,sans-serif;color:${C.text}">${escapeHtml(m.title)}</div>
       <div style="font:600 11px system-ui,-apple-system,sans-serif;color:${C.muted};margin-top:2px">${[m.year, rt].filter(Boolean).join(' · ')}</div>
@@ -340,9 +344,9 @@ function twoColGrid(cards: string[]): string {
     const left = cards[i];
     const right = cards[i + 1];
     rows.push(`<tr>
-      <td class="col" valign="top" width="49%" style="${CARD_PANEL}">${left}</td>
+      <td class="col" valign="top" width="49%" bgcolor="${C.card}" style="${CARD_PANEL}">${left}</td>
       <td class="gut" width="14" style="width:14px;font-size:0;line-height:0">&nbsp;</td>
-      <td class="col" valign="top" width="49%"${right != null ? ` style="${CARD_PANEL}"` : ''}>${right ?? '&nbsp;'}</td>
+      <td class="col" valign="top" width="49%"${right != null ? ` bgcolor="${C.card}" style="${CARD_PANEL}"` : ''}>${right ?? '&nbsp;'}</td>
     </tr>`);
     if (i + 2 < cards.length) rows.push(`<tr><td colspan="3" height="12" style="height:12px;font-size:0;line-height:0">&nbsp;</td></tr>`);
   }
@@ -408,11 +412,11 @@ export function renderHtml(content: NewsletterContent, opts: RenderOptions): str
   }
   const empty = `<tr><td style="padding:40px 24px;text-align:center;font:400 14px system-ui,-apple-system,sans-serif;color:${C.muted}">${escapeHtml(s.empty)}</td></tr>`;
 
-  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="color-scheme" content="dark"/><style>${MOBILE_STYLE}</style></head>
-<body style="margin:0;padding:0;background:${C.page}">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.page}">
-    <tr><td align="center" style="padding:24px 12px">
-      <table role="presentation" class="container" width="720" cellpadding="0" cellspacing="0" style="width:720px;max-width:100%;background:${C.page};border:1px solid ${C.border};border-radius:16px;overflow:hidden">
+  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="color-scheme" content="dark"/><meta name="supported-color-schemes" content="dark"/><style>${MOBILE_STYLE}</style></head>
+<body bgcolor="${C.page}" style="margin:0;padding:0;width:100%;background-color:${C.page}">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.page}" style="background-color:${C.page}">
+    <tr><td align="center" bgcolor="${C.page}" style="padding:24px 12px;background-color:${C.page}">
+      <table role="presentation" class="container" width="720" cellpadding="0" cellspacing="0" bgcolor="${C.page}" style="width:720px;max-width:100%;background-color:${C.page};border:1px solid ${C.border};border-radius:16px;overflow:hidden">
         ${header(content, opts)}
         ${content.totalItems === 0 ? empty : sections.join('')}
         ${footer(opts)}

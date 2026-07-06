@@ -1,5 +1,3 @@
-import { readFile } from 'node:fs/promises';
-import sharp from 'sharp';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { paginate, parsePage } from '../../common/pagination';
 import { Interval } from '@nestjs/schedule';
@@ -10,6 +8,7 @@ import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerEmailService, type EmailAttachment } from './media-server-email.service';
+import { NewsletterImageService, type PosterArt } from './newsletter-image.service';
 import { buildContent, renderHtml, renderText, sampleContent, NEWSLETTER_GROUPS, type NewsletterContent, type NewsletterItem, type RenderOptions } from './newsletter-render';
 import { newsletterStrings } from './newsletter-strings';
 
@@ -29,10 +28,7 @@ interface NewsletterInput {
 
 const VERSION = '0.15.0';
 const MAX_ITEMS = 60; // items rendered in the email
-const MAX_POSTERS = 30; // posters attached (keeps the email a sane size)
-const POSTER_TARGET_WIDTH = 240; // downscale target — the card slot is ~84–120px
-const MAX_RAW_POSTER_BYTES = 12 * 1024 * 1024; // guard before handing a file to sharp
-const MAX_POSTER_BYTES = 500 * 1024; // final cap (only hit if resizing is skipped)
+const MAX_POSTERS = 30; // posters per email (keeps a CID-attached email a sane size)
 
 /** Media types whose episodes render as grouped shows (see NEWSLETTER_GROUPS). */
 const TV_MEDIA_TYPES = new Set<string>(NEWSLETTER_GROUPS.find((g) => g.key === 'tv')!.types);
@@ -57,6 +53,7 @@ export class MediaServerNewsletterService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
     private readonly registry: ModuleRegistryService,
+    private readonly images: NewsletterImageService,
   ) {}
 
   list() {
@@ -177,7 +174,7 @@ export class MediaServerNewsletterService {
         id: true, title: true, mediaType: true, year: true, season: true, episode: true, createdAt: true,
         library: { select: { name: true } },
         metadata: { select: { overview: true, rating: true, runtime: true, certification: true, genres: true } },
-        artwork: { where: { type: 'poster' }, orderBy: { selected: 'desc' }, take: 1, select: { url: true, localPath: true } },
+        artwork: { where: { type: 'poster' }, orderBy: { selected: 'desc' }, take: 1, select: { id: true, url: true, localPath: true } },
       },
     });
 
@@ -188,7 +185,7 @@ export class MediaServerNewsletterService {
     // release-name parser.
     const { parseTorrentName } = await import('../rss/torrent-name-parser');
 
-    const posters = new Map<string, { url: string | null; localPath: string | null }>();
+    const posters = new Map<string, PosterArt>();
     const items: NewsletterItem[] = rows.map((r) => {
       if (r.artwork[0]) posters.set(r.id, r.artwork[0]);
       let title = r.title;
@@ -233,18 +230,13 @@ export class MediaServerNewsletterService {
   }
 
   /**
-   * Fetch poster bytes (remote URL or local file) for the first MAX_POSTERS items
-   * in render order, attach them as CID images, and stamp `posterCid` on the item.
-   * Best-effort: a poster that fails to load simply falls back to a placeholder.
-   */
-  /**
    * Best show poster from the library for each (normalized) show title, trying
    * `poster` → `season_poster` → `thumbnail` → `fanart` and preferring a
    * selected artwork with a usable path/URL. Lets an artwork-less recent episode
    * still show its show's poster.
    */
-  private async fetchShowPosters(titles: string[]): Promise<Map<string, { url: string | null; localPath: string | null }>> {
-    const chosen = new Map<string, { url: string | null; localPath: string | null }>();
+  private async fetchShowPosters(titles: string[]): Promise<Map<string, PosterArt>> {
+    const chosen = new Map<string, PosterArt>();
     if (titles.length === 0) return chosen;
     const arts = await this.prisma.mediaArtwork.findMany({
       where: {
@@ -252,7 +244,7 @@ export class MediaServerNewsletterService {
         OR: [{ localPath: { not: null } }, { url: { not: null } }],
         item: { title: { in: titles }, mediaType: { in: [...TV_MEDIA_TYPES] } },
       },
-      select: { url: true, localPath: true, type: true, selected: true, item: { select: { title: true } } },
+      select: { id: true, url: true, localPath: true, type: true, selected: true, item: { select: { title: true } } },
     });
     // Lower score = better: earlier type in the preference list, selected first.
     const score = (type: string, selected: boolean) => SHOW_POSTER_TYPES.indexOf(type) * 2 + (selected ? 0 : 1);
@@ -262,70 +254,73 @@ export class MediaServerNewsletterService {
       const s = score(a.type, a.selected);
       if (!best.has(t) || s < best.get(t)!) {
         best.set(t, s);
-        chosen.set(t, { url: a.url, localPath: a.localPath });
+        chosen.set(t, { id: a.id, url: a.url, localPath: a.localPath });
       }
     }
     return chosen;
   }
 
+  /**
+   * Resolve one poster per show + per movie and stamp it onto the content in the
+   * admin-chosen hosting mode: a signed self-hosted URL (`posterUrl`, no bytes
+   * sent), an external-host upload (`posterUrl`), or an embedded CID attachment
+   * (`posterCid`, the returned attachments). Best-effort per poster.
+   */
   private async assemblePosters(
     content: NewsletterContent,
-    posters: Map<string, { url: string | null; localPath: string | null }>,
-    showPosters: Map<string, { url: string | null; localPath: string | null }>,
+    posters: Map<string, PosterArt>,
+    showPosters: Map<string, PosterArt>,
   ): Promise<EmailAttachment[]> {
     // One poster per show (by show title, falling back to the representative
     // item) + per movie (by id), across all sections, in render order, capped.
-    const targets: { art?: { url: string | null; localPath: string | null }; set: (cid: string) => void }[] =
+    const targets: { art?: PosterArt; setCid: (cid: string) => void; setUrl: (url: string) => void }[] =
       content.sections.flatMap((sec) => [
         ...sec.shows.map((s) => ({
           art: showPosters.get(s.title) ?? (s.posterItemId ? posters.get(s.posterItemId) : undefined),
-          set: (cid: string) => (s.posterCid = cid),
+          setCid: (cid: string) => (s.posterCid = cid),
+          setUrl: (url: string) => (s.posterUrl = url),
         })),
         ...sec.movies.map((m) => ({
           art: m.id ? posters.get(m.id) : undefined,
-          set: (cid: string) => (m.posterCid = cid),
+          setCid: (cid: string) => (m.posterCid = cid),
+          setUrl: (url: string) => (m.posterUrl = url),
         })),
       ]);
+
+    const { mode, publicBaseUrl } = await this.images.effectiveMode();
     const attachments: EmailAttachment[] = [];
+    let used = 0;
     for (const tgt of targets) {
-      if (attachments.length >= MAX_POSTERS) break;
+      if (used >= MAX_POSTERS) break;
       if (!tgt.art) continue;
-      const loaded = await this.loadPoster(tgt.art);
+
+      // Self-hosted: just link to the signed image endpoint (no bytes needed).
+      if (mode === 'self_hosted' && publicBaseUrl) {
+        tgt.setUrl(this.images.imageUrl(publicBaseUrl, tgt.art.id));
+        used++;
+        continue;
+      }
+
+      const loaded = await this.images.loadAndResize(tgt.art);
       if (!loaded) continue;
+
+      // External host: upload the downscaled bytes, link to the returned URL.
+      if (mode === 'external') {
+        const url = await this.images.uploadExternal(loaded.buf);
+        if (!url) continue;
+        tgt.setUrl(url);
+        used++;
+        continue;
+      }
+
+      // Default (attach): embed as a CID inline attachment.
       const cid = `nlposter-${attachments.length}`;
       const ext = loaded.contentType.includes('png') ? 'png' : 'jpg';
       attachments.push({ cid, filename: `${cid}.${ext}`, content: loaded.buf, contentType: loaded.contentType });
-      tgt.set(cid);
+      tgt.setCid(cid);
+      used++;
     }
     return attachments;
-  }
-
-  private async loadPoster(art: { url: string | null; localPath: string | null }): Promise<{ buf: Buffer; contentType: string } | null> {
-    try {
-      let raw: Buffer | null = null;
-      if (art.url) {
-        const res = await fetch(art.url, { signal: AbortSignal.timeout(8000) });
-        if (!res.ok) return null;
-        if (!(res.headers.get('content-type') ?? '').startsWith('image/')) return null;
-        raw = Buffer.from(await res.arrayBuffer());
-      } else if (art.localPath) {
-        raw = await readFile(art.localPath);
-      }
-      if (!raw || raw.length === 0 || raw.length > MAX_RAW_POSTER_BYTES) return null;
-      // Full-size library posters run 250KB–1MB+, but the card slot is only
-      // ~84–120px, so downscale to a small JPEG — this keeps inline attachments
-      // tiny (a full poster otherwise blows past MAX_POSTER_BYTES and is dropped).
-      try {
-        const buf = await sharp(raw).rotate().resize({ width: POSTER_TARGET_WIDTH, withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer();
-        return { buf, contentType: 'image/jpeg' };
-      } catch {
-        // Resizing failed (unsupported format?) — fall back to the original if small.
-        if (raw.length > MAX_POSTER_BYTES) return null;
-        return { buf: raw, contentType: art.localPath?.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg' };
-      }
-    } catch {
-      return null; // artwork is best-effort — never block a send
-    }
   }
 
   private subject(n: MediaServerNewsletter, content: NewsletterContent): string {
