@@ -75,6 +75,9 @@ export class MediaServerIntegrationService {
         out[k] = v;
       }
     }
+    // Back-compat: the settings form persists the server address as `url`, but
+    // every provider reads `baseUrl`. Alias it so both stored shapes work.
+    if (out.baseUrl == null && typeof out.url === 'string') out.baseUrl = out.url;
     return out as MediaServerConfig;
   }
 

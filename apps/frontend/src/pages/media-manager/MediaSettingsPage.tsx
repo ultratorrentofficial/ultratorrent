@@ -504,7 +504,7 @@ function IntegrationDialog({
   const [name, setName] = useState(integration?.name ?? '');
   const [kind, setKind] = useState(integration?.kind ?? 'plex');
   const [enabled, setEnabled] = useState(integration?.isEnabled ?? true);
-  const [host, setHost] = useState(String(cfg.url ?? cfg.host ?? ''));
+  const [host, setHost] = useState(String(cfg.baseUrl ?? cfg.url ?? cfg.host ?? ''));
   const [token, setToken] = useState('');
 
   const isPlex = kind === 'plex';
@@ -517,7 +517,7 @@ function IntegrationDialog({
 
   const save = useMutation({
     mutationFn: () => {
-      const config: Record<string, unknown> = { url: host.trim() };
+      const config: Record<string, unknown> = { baseUrl: host.trim() };
       // Only send a secret when the user typed one (avoids clobbering on edit).
       if (token.trim()) config[isPlex ? 'token' : 'apiKey'] = token.trim();
       const body: MediaServerIntegrationInput = {
