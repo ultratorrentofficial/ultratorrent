@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.16.4] - 2026-07-06
+
+### Fixed
+- Live Activity overhaul: real-time updates (WebSocket session-event push + 8s poll; backend session poll 30s→15s) so it no longer needs a manual reload, now-playing poster artwork via an auth-injected backend image proxy (Plex/Jellyfin/Emby), a summary KPI strip (streams/watchers/bandwidth/transcodes), a stream-mix proportion bar, and redesigned session cards with posters, playback-method colors, quality chips (resolution/codec/bitrate/container) and progress
+- Fix Tautulli analytics import failing with "Failed to parse URL" when the source address is entered without a scheme (e.g. `192.168.99.10:8181`). The import provider now normalizes the base URL, defaulting to `http://` when no scheme is present and stripping trailing slashes. Regression test covers scheme-less, explicit-scheme, and trailing-slash cases.
+
 ## [0.16.3] - 2026-07-06
 
 ### Fixed
