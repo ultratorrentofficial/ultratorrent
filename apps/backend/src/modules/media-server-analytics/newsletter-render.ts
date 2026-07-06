@@ -284,6 +284,13 @@ function countSummary(parts: { n: number; label: string }[], accent: string): st
     .join(' <span style="color:' + C.faint + '">/</span> ');
 }
 
+// The card "panel" (background/border) lives on the grid CELL, not a nested
+// table — sibling cells in a table row are always rendered at equal height
+// (which Gmail/Outlook honour, unlike `height:100%` on a nested table), so two
+// cards in a row stay the same height even with different overview lengths.
+const CARD_PANEL = `background:${C.card};border:1px solid ${C.border};border-radius:12px;padding:12px`;
+
+/** Inner content of a TV show card (the panel is supplied by the grid cell). */
 function tvCard(show: NewsletterShow, opts: RenderOptions): string {
   const style = opts.style ?? {};
   const accent = style.accent ?? C.amber;
@@ -296,8 +303,7 @@ function tvCard(show: NewsletterShow, opts: RenderOptions): string {
   const rating = style.showRatings !== false ? renderRating(show.rating, accent) : '';
   const overview = style.showOverview !== false && show.overview ? truncate(show.overview, 160) : '';
 
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.card};border:1px solid ${C.border};border-radius:12px">
-    <tr><td style="padding:12px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
       <td valign="top" width="84" style="width:84px;padding-right:12px">${poster(show.posterCid, show.title[0] ?? '?', 84, accent)}</td>
       <td valign="top">
         <div style="font:700 14px system-ui,-apple-system,sans-serif;color:${C.text};margin-bottom:2px">${escapeHtml(show.title)}</div>
@@ -308,31 +314,18 @@ function tvCard(show: NewsletterShow, opts: RenderOptions): string {
           <td valign="bottom" align="right" style="white-space:nowrap">${rating}</td>
         </tr></table>
       </td>
-    </tr></table></td></tr>
-  </table>`;
+    </tr></table>`;
 }
 
-function tvGrid(shows: NewsletterShow[], opts: RenderOptions): string {
-  const rows: string[] = [];
-  for (let i = 0; i < shows.length; i += 2) {
-    const left = tvCard(shows[i], opts);
-    const right = shows[i + 1] ? tvCard(shows[i + 1], opts) : '';
-    rows.push(`<tr>
-      <td class="col" valign="top" width="50%" style="padding:0 6px 12px 0">${left}</td>
-      <td class="col" valign="top" width="50%" style="padding:0 0 12px 6px">${right}</td>
-    </tr>`);
-  }
-  return `<tr><td style="padding:0 24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows.join('')}</table></td></tr>`;
-}
-
+/** Inner content of a movie card (the panel is supplied by the grid cell). */
 function movieCard(m: NewsletterItem, opts: RenderOptions): string {
   const style = opts.style ?? {};
   const accent = style.accent ?? C.amber;
   const rt = style.showRuntime !== false ? runtimeLabel(m.runtime) : null;
   const rating = style.showRatings !== false ? renderRating(m.rating, accent) : '';
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.card};border:1px solid ${C.border};border-radius:12px">
-    <tr><td align="center" style="padding:12px 12px 8px">${poster(m.posterCid, m.title[0] ?? '?', 120, accent)}</td></tr>
-    <tr><td style="padding:0 12px 12px;text-align:center">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr><td align="center" valign="top">${poster(m.posterCid, m.title[0] ?? '?', 120, accent)}</td></tr>
+    <tr><td style="padding-top:8px;text-align:center">
       <div style="font:700 13px system-ui,-apple-system,sans-serif;color:${C.text}">${escapeHtml(m.title)}</div>
       <div style="font:600 11px system-ui,-apple-system,sans-serif;color:${C.muted};margin-top:2px">${[m.year, rt].filter(Boolean).join(' · ')}</div>
       ${rating ? `<div style="margin-top:6px">${rating}</div>` : ''}
@@ -340,17 +333,28 @@ function movieCard(m: NewsletterItem, opts: RenderOptions): string {
   </table>`;
 }
 
-function movieGrid(movies: NewsletterItem[], opts: RenderOptions): string {
+/** Two-up grid: panel on each cell (equal height by the row model) + a gutter. */
+function twoColGrid(cards: string[]): string {
   const rows: string[] = [];
-  for (let i = 0; i < movies.length; i += 2) {
-    const left = movieCard(movies[i], opts);
-    const right = movies[i + 1] ? movieCard(movies[i + 1], opts) : '';
+  for (let i = 0; i < cards.length; i += 2) {
+    const left = cards[i];
+    const right = cards[i + 1];
     rows.push(`<tr>
-      <td class="col" valign="top" width="50%" style="padding:0 6px 12px 0">${left}</td>
-      <td class="col" valign="top" width="50%" style="padding:0 0 12px 6px">${right}</td>
+      <td class="col" valign="top" width="49%" style="${CARD_PANEL}">${left}</td>
+      <td class="gut" width="14" style="width:14px;font-size:0;line-height:0">&nbsp;</td>
+      <td class="col" valign="top" width="49%"${right != null ? ` style="${CARD_PANEL}"` : ''}>${right ?? '&nbsp;'}</td>
     </tr>`);
+    if (i + 2 < cards.length) rows.push(`<tr><td colspan="3" height="12" style="height:12px;font-size:0;line-height:0">&nbsp;</td></tr>`);
   }
   return `<tr><td style="padding:0 24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows.join('')}</table></td></tr>`;
+}
+
+function tvGrid(shows: NewsletterShow[], opts: RenderOptions): string {
+  return twoColGrid(shows.map((s) => tvCard(s, opts)));
+}
+
+function movieGrid(movies: NewsletterItem[], opts: RenderOptions): string {
+  return twoColGrid(movies.map((m) => movieCard(m, opts)));
 }
 
 function header(content: NewsletterContent, opts: RenderOptions): string {
@@ -383,7 +387,8 @@ function footer(opts: RenderOptions): string {
 
 const MOBILE_STYLE = `@media only screen and (max-width:600px){
   .container{width:100%!important}
-  .col{display:block!important;width:100%!important;padding:0 0 12px 0!important}
+  .col{display:block!important;width:100%!important;box-sizing:border-box!important;margin-bottom:12px!important}
+  .gut{display:none!important}
   .fcol{display:block!important;width:100%!important;text-align:center!important;padding:6px 0!important}
 }`;
 
