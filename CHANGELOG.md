@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.16.3] - 2026-07-06
+
+### Fixed
+- Fix media-server connections failing with 'baseUrl is required': the integration settings form persisted the server address under 'url' but providers read 'baseUrl'. decryptConfig now aliases url→baseUrl (repairs already-saved connections), and the form writes baseUrl going forward
+
 ## [0.16.2] - 2026-07-06
 
 ### Fixed
