@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.16.10] - 2026-07-06
+
+### Fixed
+- Move the newsletter Email/SMTP setup out of the Newsletters page onto the Settings page. The EmailSettingsCard (SMTP host/port/secure/auth/from + test-send) is extracted to its own component and rendered on SettingsPage, gated by the media_server_analytics.manage_settings permission; removed from NewslettersPage. Self-contained (keeps its mediaServerAnalytics i18n + API), no behavior change
+- Newsletters: add an edit button for campaigns. A per-campaign Edit (pencil) toggle now reveals name / frequency / recipients fields with Save/Cancel, patching via the existing updateNewsletter endpoint — previously those core fields couldn't be changed after creation (only the content window + sections were inline-editable). i18n en-US + es-PR
+- Fix TV newsletter grouping and artwork for unidentified episodes. Episodes imported with a raw release title ("Show - S02E01 - Name") and null season/episode were grouped by exact title, so each became its own one-episode "show" (blank season/episode ranges, no poster) — the newsletter looked like a wall of broken cards with almost all artwork missing. The newsletter build now normalizes the show name + season/episode from the title (reusing the RSS release-name parser) so those episodes collapse into their real show, and resolves each show's poster from the whole library by (normalized) show title — trying poster → season_poster → thumbnail → fanart — instead of relying on the newest (often artwork-less) episode's own artwork. Verified against real data: a 9-broken-card / 1-poster TV section becomes 4 correct show cards, each with its real poster.
+
 ## [0.16.9] - 2026-07-06
 
 ### Fixed
