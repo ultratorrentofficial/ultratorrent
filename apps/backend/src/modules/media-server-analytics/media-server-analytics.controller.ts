@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, NotFoundException, Param, Patch, Post, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -67,6 +68,15 @@ export class MediaServerAnalyticsController {
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS)
   pollLive() {
     return this.sessions.poll();
+  }
+  /** Proxy the now-playing poster for a live session (provider auth injected server-side). */
+  @Get('live/:id/artwork')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY)
+  async liveArtwork(@Param('id') id: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    const img = await this.sessions.artwork(id);
+    if (!img) throw new NotFoundException('No artwork for this session.');
+    res.set({ 'Content-Type': img.contentType, 'Cache-Control': 'private, max-age=120' });
+    return new StreamableFile(img.body);
   }
   @Get('watch-history')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_HISTORY)

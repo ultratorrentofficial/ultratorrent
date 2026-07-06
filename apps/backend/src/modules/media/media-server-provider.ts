@@ -70,6 +70,7 @@ export interface ProviderSession {
   resolution?: string;
   container?: string;
   bitrateKbps?: number; // overall stream bitrate, kbps
+  artPath?: string; // provider-relative poster/thumb path (fetched via the authed proxy)
 }
 
 /** Thrown when a provider genuinely cannot serve a capability (not a failure). */
@@ -218,6 +219,8 @@ export class PlexProvider implements MediaServerProvider {
         resolution: media.videoResolution,
         container: part.container ?? media.container,
         bitrateKbps: typeof media.bitrate === 'number' ? media.bitrate : undefined, // Plex reports kbps
+        // Prefer the show poster for episodes, else the item's own thumb.
+        artPath: m.grandparentThumb ?? m.thumb ?? m.parentThumb,
       };
     });
   }
@@ -315,6 +318,9 @@ class JellyfinEmbyBase {
         const stream = item.MediaStreams ?? [];
         const video = stream.find((x: any) => x.Type === 'Video');
         const audio = stream.find((x: any) => x.Type === 'Audio');
+        // Prefer the series poster for episodes, else the item's primary image.
+        const imgId = item.SeriesId ?? item.Id;
+        const imgTag = item.SeriesPrimaryImageTag ?? item.ImageTags?.Primary;
         return {
           sessionId: String(s.Id),
           userId: s.UserId ? String(s.UserId) : undefined,
@@ -333,6 +339,7 @@ class JellyfinEmbyBase {
           container: item.Container,
           // Jellyfin/Emby report bitrate in bps — normalize to kbps.
           bitrateKbps: typeof video?.BitRate === 'number' ? Math.round(video.BitRate / 1000) : undefined,
+          artPath: imgId && imgTag ? `/Items/${imgId}/Images/Primary?tag=${imgTag}` : undefined,
         };
       });
   }

@@ -91,12 +91,14 @@ describe('Plex reads', () => {
             User: { id: 7, title: 'alice' },
             type: 'episode',
             grandparentTitle: 'The Show',
+            grandparentThumb: '/library/metadata/42/thumb/99',
+            thumb: '/library/metadata/7/thumb/1',
             title: 'Pilot',
             librarySectionTitle: 'TV',
             viewOffset: 300000,
             duration: 600000,
             Player: { state: 'playing', device: 'Living Room', product: 'Plex Web', address: '10.0.0.5' },
-            Media: [{ videoResolution: '1080', videoCodec: 'hevc', audioCodec: 'eac3', Part: [{ decision: 'directplay' }] }],
+            Media: [{ videoResolution: '1080', videoCodec: 'hevc', audioCodec: 'eac3', bitrate: 8000, container: 'mkv', Part: [{ decision: 'directplay' }] }],
           },
         ],
       },
@@ -106,6 +108,8 @@ describe('Plex reads', () => {
       sessionId: 'sess1', userName: 'alice', title: 'The Show — Pilot', mediaType: 'episode',
       libraryName: 'TV', playbackState: 'playing', progressPercent: 50, playbackMethod: 'directplay',
       videoCodec: 'hevc', audioCodec: 'eac3', resolution: '1080',
+      // Phase: stream detail + poster (prefers the show thumb for episodes).
+      bitrateKbps: 8000, container: 'mkv', artPath: '/library/metadata/42/thumb/99',
     });
   });
 });

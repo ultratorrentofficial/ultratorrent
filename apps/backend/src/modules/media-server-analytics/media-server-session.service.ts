@@ -30,11 +30,18 @@ export class MediaServerSessionService {
     return this.prisma.mediaServerSession.findMany({ orderBy: { updatedAt: 'desc' } });
   }
 
+  /** Proxy the now-playing poster for a session through the provider's auth. */
+  async artwork(sessionId: string): Promise<{ body: Buffer; contentType: string } | null> {
+    const session = await this.prisma.mediaServerSession.findUnique({ where: { id: sessionId } });
+    if (!session?.artPath) return null;
+    return this.integrations.fetchArtwork(session.connectionId, session.artPath);
+  }
+
   private get enabled(): boolean {
     return this.registry.getStatus(MODULE_IDS.MEDIA_SERVER_ANALYTICS)?.enabled ?? false;
   }
 
-  @Interval('media_server_session_poll', 30_000)
+  @Interval('media_server_session_poll', 15_000)
   async scheduledPoll(): Promise<void> {
     if (!this.enabled || this.polling) return;
     this.polling = true;
@@ -82,6 +89,7 @@ export class MediaServerSessionService {
           resolution: s.resolution ?? null,
           container: s.container ?? null,
           bitrateKbps: s.bitrateKbps ?? null,
+          artPath: s.artPath ?? null,
         };
         const existing = await this.prisma.mediaServerSession.findUnique({
           where: { connectionId_providerSessionId: { connectionId: conn.id, providerSessionId: s.sessionId } },

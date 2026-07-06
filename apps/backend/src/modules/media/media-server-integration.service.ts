@@ -338,4 +338,40 @@ export class MediaServerIntegrationService {
       throw new BadRequestException(`Fetching sessions failed: ${(err as Error).message}`);
     }
   }
+
+  /**
+   * Fetch a provider image (e.g. a now-playing poster) with the connection's
+   * credentials injected server-side, so the token/API key never reaches the
+   * browser. `relPath` is a provider-relative path captured from the provider
+   * itself (not client input), so the target host stays bounded to the
+   * configured server. Returns null on any failure — artwork is best-effort.
+   */
+  async fetchArtwork(
+    connectionId: string,
+    relPath: string,
+  ): Promise<{ body: Buffer; contentType: string } | null> {
+    if (!relPath) return null;
+    let row;
+    try {
+      row = await this.load(connectionId);
+    } catch {
+      return null;
+    }
+    const cfg = this.decryptConfig((row.config as Record<string, unknown>) ?? {});
+    const base = (cfg.baseUrl ?? '').replace(/\/+$/, '');
+    if (!base) return null;
+    try {
+      const url = new URL(/^https?:\/\//.test(relPath) ? relPath : base + (relPath.startsWith('/') ? relPath : `/${relPath}`));
+      const headers: Record<string, string> = {};
+      if (row.kind === 'plex' && cfg.token) url.searchParams.set('X-Plex-Token', cfg.token);
+      if ((row.kind === 'jellyfin' || row.kind === 'emby') && cfg.apiKey) headers['X-Emby-Token'] = cfg.apiKey;
+      const res = await fetch(url.toString(), { headers, signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return null;
+      const contentType = res.headers.get('content-type') ?? 'image/jpeg';
+      if (!contentType.startsWith('image/')) return null;
+      return { body: Buffer.from(await res.arrayBuffer()), contentType };
+    } catch {
+      return null;
+    }
+  }
 }

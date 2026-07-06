@@ -45,6 +45,9 @@ export interface WsEventMap {
   [WS_EVENTS.IMDB_DATASET_IMPORT_CANCELLED]: ImdbEventPayload;
   [WS_EVENTS.IMDB_MATCH_COMPLETED]: ImdbEventPayload;
   [WS_EVENTS.IMDB_ENRICHMENT_COMPLETED]: ImdbEventPayload;
+  // Media Server Analytics live activity (broadcast by the session poller).
+  'media_server.session.started': { connectionId: string; title: string; userName: string | null };
+  'media_server.session.ended': { connectionId: string; title: string };
 }
 
 export type WsStatus = 'connecting' | 'connected' | 'disconnected';

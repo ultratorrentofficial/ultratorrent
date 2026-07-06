@@ -711,6 +711,7 @@ model MediaServerSession {
   resolution        String?
   container         String?
   bitrateKbps       Int?
+  artPath           String?
   startedAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

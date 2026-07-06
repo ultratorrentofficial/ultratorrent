@@ -42,7 +42,20 @@
     "subtitle": "What is playing right now across your servers.",
     "loadError": "Could not load live activity.",
     "empty": "Nothing is playing right now.",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "liveLabel": "LIVE",
+    "reconnecting": "Reconnecting…",
+    "streamMix": "Stream mix",
+    "kpi": {
+      "streams": "Active streams",
+      "watchers": "Watchers",
+      "bandwidth": "Bandwidth",
+      "transcodes": "Transcodes"
+    },
+    "state": {
+      "playing": "Playing",
+      "paused": "Paused"
+    }
   },
   "watchHistory": {
     "title": "Watch History",

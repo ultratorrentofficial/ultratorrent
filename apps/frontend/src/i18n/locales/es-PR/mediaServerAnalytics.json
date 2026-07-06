@@ -42,7 +42,20 @@
     "subtitle": "Lo que se está reproduciendo ahora en tus servidores.",
     "loadError": "No se pudo cargar la actividad en vivo.",
     "empty": "Nada se está reproduciendo ahora.",
-    "refresh": "Actualizar"
+    "refresh": "Actualizar",
+    "liveLabel": "EN VIVO",
+    "reconnecting": "Reconectando…",
+    "streamMix": "Mezcla de transmisiones",
+    "kpi": {
+      "streams": "Transmisiones activas",
+      "watchers": "Espectadores",
+      "bandwidth": "Ancho de banda",
+      "transcodes": "Transcodificaciones"
+    },
+    "state": {
+      "playing": "Reproduciendo",
+      "paused": "Pausado"
+    }
   },
   "watchHistory": {
     "title": "Historial de reproducción",

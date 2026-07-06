@@ -2755,6 +2755,15 @@ export const api = {
     live(): Promise<MediaServerLiveSession[]> {
       return request<MediaServerLiveSession[]>('/media-server-analytics/live');
     },
+    /** Now-playing poster for a session, proxied through the provider's auth (bearer-fetched blob). */
+    async liveArtwork(sessionId: string): Promise<Blob> {
+      const token = getAccessToken();
+      const res = await fetch(buildUrl(`/media-server-analytics/live/${sessionId}/artwork`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new ApiError(res.status, `Live artwork failed (${res.status})`);
+      return res.blob();
+    },
     watchHistory(): Promise<MediaServerWatchHistoryRow[]> {
       return request<MediaServerWatchHistoryRow[]>('/media-server-analytics/watch-history');
     },
@@ -2993,6 +3002,9 @@ export interface MediaServerLiveSession {
   videoCodec: string | null;
   audioCodec: string | null;
   resolution: string | null;
+  container: string | null;
+  bitrateKbps: number | null;
+  artPath: string | null;
   startedAt: string;
 }
 
