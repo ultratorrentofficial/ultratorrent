@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.16.11] - 2026-07-06
+
+### Fixed
+- Media Items: group TV shows when a TV/anime-kind library is selected, not only when the media-type filter is TV/anime. Browsing the 'TV Shows' library (via the library filter) showed a flat episode list because the grouped Show->Season->Episode view only triggered on the type filter; it now also triggers from the selected library's kind (unless an explicit non-TV type filter is active)
+- Downscale newsletter poster attachments so they actually render. Full-size library posters run 250KB–1MB+, but the newsletter's inline size cap (MAX_POSTER_BYTES, 500KB) silently dropped anything larger — so most show/movie cards fell back to the gradient placeholder even after their poster was found (a real test send showed 4 correct show cards but only 1 poster, 3 placeholders). `loadPoster()` now resizes each poster to a small JPEG (240px wide, via sharp) before attaching — the card slot is only ~84–120px, so a full-resolution poster was massive overkill. Real posters drop from 250KB–1.1MB to ~20KB, so every card gets its artwork and a full 30-poster email stays well under 1MB. Falls back to the original image (if within the cap) when resizing fails.
+
 ## [0.16.10] - 2026-07-06
 
 ### Fixed
