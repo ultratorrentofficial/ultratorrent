@@ -180,6 +180,9 @@
     "filter": {
       "search": "Search history",
       "searchPlaceholder": "Search by release title…",
+      "from": "From date",
+      "to": "to",
+      "toLabel": "To date",
       "clear": "Clear filters"
     },
     "loading": "Loading history…",

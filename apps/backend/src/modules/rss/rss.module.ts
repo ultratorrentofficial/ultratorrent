@@ -1557,10 +1557,14 @@ export class RssController {
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     return this.rss.history(id, Number(page) || 1, Number(pageSize) || 25, {
       status,
       search,
+      from,
+      to,
     });
   }
   @Post('feeds/:id/refresh')

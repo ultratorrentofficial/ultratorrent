@@ -180,6 +180,9 @@
     "filter": {
       "search": "Buscar en el historial",
       "searchPlaceholder": "Buscar por título del lanzamiento…",
+      "from": "Fecha desde",
+      "to": "a",
+      "toLabel": "Fecha hasta",
       "clear": "Limpiar filtros"
     },
     "loading": "Cargando historial…",

@@ -84,4 +84,28 @@ describe('RssService.history filtering', () => {
     await svc.history('f');
     expect(rssHistory.findMany.mock.calls[0][0].where).toEqual({ feedId: 'f' });
   });
+
+  it('applies an inclusive date range to the base filter (list + count tiles)', async () => {
+    const { svc, rssHistory } = make();
+    primeCounts(rssHistory);
+    await svc.history('f', 1, 25, { from: '2026-07-01', to: '2026-07-02' });
+
+    const expected = {
+      gte: new Date('2026-07-01'),
+      // `to` inclusive through the whole day (UTC): 07-02 00:00 + 1 day - 1ms.
+      lte: new Date(new Date('2026-07-02').getTime() + 24 * 60 * 60 * 1000 - 1),
+    };
+    expect(rssHistory.findMany.mock.calls[0][0].where.createdAt).toEqual(expected);
+    // The grand-total tile (2nd count) is date-scoped too.
+    expect(rssHistory.count.mock.calls[1][0].where.createdAt).toEqual(expected);
+  });
+
+  it('supports an open-ended (from-only) range and ignores an invalid bound', async () => {
+    const { svc, rssHistory } = make();
+    primeCounts(rssHistory);
+    await svc.history('f', 1, 25, { from: '2026-07-01', to: 'not-a-date' });
+    expect(rssHistory.findMany.mock.calls[0][0].where.createdAt).toEqual({
+      gte: new Date('2026-07-01'),
+    });
+  });
 });

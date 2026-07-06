@@ -73,6 +73,8 @@ export function RssFeedHistoryPage() {
   const [status, setStatus] = useState<RssHistoryStatus | 'all'>('all');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
   // Debounce the title search so we don't refetch on every keystroke.
   useEffect(() => {
@@ -81,13 +83,13 @@ export function RssFeedHistoryPage() {
   }, [searchInput]);
 
   // Any filter change returns to the first page (the old page may not exist).
-  useEffect(() => setPage(1), [status, search]);
+  useEffect(() => setPage(1), [status, search, from, to]);
 
   const feedsQuery = useQuery({ queryKey: ['rss'], queryFn: api.rss.list });
   const feed = feedsQuery.data?.find((f) => f.id === feedId);
 
-  const filtered = status !== 'all' || search !== '';
-  const historyKey = ['rss', 'history', feedId, page, pageSize, status, search];
+  const filtered = status !== 'all' || search !== '' || from !== '' || to !== '';
+  const historyKey = ['rss', 'history', feedId, page, pageSize, status, search, from, to];
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: historyKey,
     queryFn: () =>
@@ -96,6 +98,8 @@ export function RssFeedHistoryPage() {
         pageSize,
         status: status === 'all' ? undefined : status,
         search: search || undefined,
+        from: from || undefined,
+        to: to || undefined,
       }),
     enabled: !!feedId,
     placeholderData: keepPreviousData,
@@ -111,6 +115,8 @@ export function RssFeedHistoryPage() {
   const clearFilters = () => {
     setStatus('all');
     setSearchInput('');
+    setFrom('');
+    setTo('');
   };
 
   const invalidateHistory = () =>
@@ -214,6 +220,27 @@ export function RssFeedHistoryPage() {
             aria-label={t('history.filter.search')}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Input
+            type="date"
+            className="w-[150px]"
+            aria-label={t('history.filter.from')}
+            title={t('history.filter.from')}
+            value={from}
+            max={to || undefined}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+          <span className="text-xs text-muted-foreground">{t('history.filter.to')}</span>
+          <Input
+            type="date"
+            className="w-[150px]"
+            aria-label={t('history.filter.toLabel')}
+            title={t('history.filter.toLabel')}
+            value={to}
+            min={from || undefined}
+            onChange={(e) => setTo(e.target.value)}
           />
         </div>
         {filtered && (

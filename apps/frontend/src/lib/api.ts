@@ -348,6 +348,9 @@ export interface RssHistoryQuery {
   pageSize?: number;
   status?: RssHistoryStatus;
   search?: string;
+  /** Inclusive date range (YYYY-MM-DD) on when the item was seen. */
+  from?: string;
+  to?: string;
 }
 
 export interface RssHistoryPage {
