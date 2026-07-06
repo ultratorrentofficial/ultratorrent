@@ -68,6 +68,7 @@ export function NewslettersPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ name: '', frequency: 'weekly', recipients: '', dateRangeMode: 'since_last_send', lastDays: 7, startDate: '' });
   const [preview, setPreview] = useState<{ id: string; data: NewsletterPreview } | null>(null);
+  const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
   const [testTo, setTestTo] = useState<Record<string, string>>({});
 
   const q = useQuery({ queryKey: ['msa', 'newsletters'], queryFn: () => api.mediaServerAnalytics.newsletters() });
@@ -177,10 +178,36 @@ export function NewslettersPage() {
 
           {preview && (
             <Card>
-              <CardContent className="space-y-2 p-4">
-                <h2 className="text-sm font-semibold">{t('newsletter.previewTitle', { subject: preview.data.subject })}</h2>
-                <p className="text-xs text-muted-foreground">{t('newsletter.itemCount', { count: preview.data.count })}</p>
-                <iframe title="newsletter-preview" srcDoc={preview.data.html} className="h-96 w-full rounded-md border border-white/10 bg-white" />
+              <CardContent className="space-y-3 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-semibold">{t('newsletter.previewTitle', { subject: preview.data.subject })}</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {t('newsletter.itemCount', { count: preview.data.count })}
+                      {preview.data.sample && <span className="ml-2 rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">{t('newsletter.previewMode.sample')}</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 rounded-lg border border-white/10 p-0.5">
+                    {(['desktop', 'mobile'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setPreviewMode(m)}
+                        className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${previewMode === m ? 'bg-white/10 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        {t(`newsletter.previewMode.${m}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex justify-center rounded-md bg-black/20 p-3">
+                  <iframe
+                    title="newsletter-preview"
+                    srcDoc={preview.data.html}
+                    className="h-[32rem] rounded-md border border-white/10 bg-white transition-all"
+                    style={{ width: previewMode === 'mobile' ? 390 : '100%', maxWidth: '100%' }}
+                  />
+                </div>
               </CardContent>
             </Card>
           )}

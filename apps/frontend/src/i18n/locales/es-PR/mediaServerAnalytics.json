@@ -200,6 +200,11 @@
     "delete": "Eliminar",
     "previewTitle": "Vista previa: {{subject}}",
     "itemCount": "{{count}} elementos",
+    "previewMode": {
+      "desktop": "Escritorio",
+      "mobile": "Móvil",
+      "sample": "Datos de muestra"
+    },
     "sent": "Enviado a {{sent}} ({{failed}} fallidos)",
     "sendFailed": "No se pudo enviar",
     "created": "Boletín creado",

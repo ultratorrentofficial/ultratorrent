@@ -200,6 +200,11 @@
     "delete": "Delete",
     "previewTitle": "Preview: {{subject}}",
     "itemCount": "{{count}} items",
+    "previewMode": {
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "sample": "Sample data"
+    },
     "sent": "Sent to {{sent}} ({{failed}} failed)",
     "sendFailed": "Could not send",
     "created": "Newsletter created",

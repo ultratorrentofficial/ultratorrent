@@ -9,7 +9,10 @@ import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerEmailService, type EmailAttachment } from './media-server-email.service';
-import { buildContent, renderHtml, renderText, NewsletterContent, NewsletterItem } from './newsletter-render';
+import { buildContent, renderHtml, renderText, sampleContent, type NewsletterContent, type NewsletterItem, type RenderOptions } from './newsletter-render';
+import { newsletterStrings } from './newsletter-strings';
+
+const ACCENT = '#f5a623';
 
 interface NewsletterInput {
   name?: string;
@@ -28,11 +31,11 @@ const MAX_ITEMS = 60; // items rendered in the email
 const MAX_POSTERS = 30; // posters attached (keeps the email a sane size)
 const MAX_POSTER_BYTES = 500 * 1024;
 
-/** A built newsletter ready to send: content + assembled inline poster attachments. */
+/** A built newsletter ready to send: content + inline poster attachments + render opts. */
 interface RenderedNewsletter {
   content: NewsletterContent;
   attachments: EmailAttachment[];
-  subtitle: string;
+  opts: RenderOptions;
 }
 
 @Injectable()
@@ -113,24 +116,48 @@ export class MediaServerNewsletterService {
     return new Date(now - n.lastDays * 24 * 3600 * 1000);
   }
 
-  private rangeSubtitle(since: Date): string {
-    const fmt = since.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    return `Everything added since ${fmt}`;
+  private dateRange(since: Date, until: Date): string {
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    return `${fmt(since)} - ${fmt(until)}`;
+  }
+
+  /** The default/first connected media server's name (shown in the header). */
+  private async serverName(): Promise<string | undefined> {
+    const conn = await this.prisma.mediaServerIntegration.findFirst({
+      where: { isEnabled: true },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: { name: true },
+    });
+    return conn?.name ?? undefined;
+  }
+
+  /** Assemble the render options (localized strings, server, date range, style). */
+  private async renderOpts(since: Date, until: Date): Promise<RenderOptions> {
+    return {
+      strings: newsletterStrings('en-US'),
+      version: VERSION,
+      serverName: await this.serverName(),
+      dateRange: this.dateRange(since, until),
+      brand: 'UltraTorrent',
+      style: { accent: ACCENT },
+    };
   }
 
   /**
-   * Build the "added since" content from the Media Manager library, enriched with
-   * metadata (overview/rating/runtime/genres/certification) and inline poster
-   * artwork (attached as CID images so they render without public URLs).
+   * Build the "added since" content from the Media Manager library — episodes
+   * grouped into shows, movies kept flat — enriched with metadata and inline
+   * poster artwork (CID images, so they render without public URLs).
    */
   private async build(n: MediaServerNewsletter): Promise<RenderedNewsletter> {
     const since = this.since(n);
+    const until = new Date();
     const rows = await this.prisma.mediaItem.findMany({
       where: { createdAt: { gte: since } },
       orderBy: { createdAt: 'desc' },
       take: MAX_ITEMS,
       select: {
         id: true, title: true, mediaType: true, year: true, season: true, episode: true, createdAt: true,
+        library: { select: { name: true } },
         metadata: { select: { overview: true, rating: true, runtime: true, certification: true, genres: true } },
         artwork: { where: { type: 'poster' }, orderBy: { selected: 'desc' }, take: 1, select: { url: true, localPath: true } },
       },
@@ -153,12 +180,13 @@ export class MediaServerNewsletterService {
         runtime: r.metadata?.runtime ?? null,
         certification: r.metadata?.certification ?? null,
         genres: Array.isArray(g) ? (g as string[]) : [],
+        library: r.library?.name ?? null,
       };
     });
 
-    const content = buildContent(items, since);
+    const content = buildContent(items, since, until);
     const attachments = await this.assemblePosters(content, posters);
-    return { content, attachments, subtitle: this.rangeSubtitle(since) };
+    return { content, attachments, opts: await this.renderOpts(since, until) };
   }
 
   /**
@@ -170,17 +198,22 @@ export class MediaServerNewsletterService {
     content: NewsletterContent,
     posters: Map<string, { url: string | null; localPath: string | null }>,
   ): Promise<EmailAttachment[]> {
-    const ordered = content.sections.flatMap((s) => s.items).slice(0, MAX_POSTERS);
+    // One poster per show + per movie, in render order, capped for email size.
+    const targets: { id?: string; set: (cid: string) => void }[] = [
+      ...content.shows.map((s) => ({ id: s.posterItemId, set: (cid: string) => (s.posterCid = cid) })),
+      ...content.movies.map((m) => ({ id: m.id, set: (cid: string) => (m.posterCid = cid) })),
+    ];
     const attachments: EmailAttachment[] = [];
-    for (const item of ordered) {
-      const art = item.id ? posters.get(item.id) : undefined;
+    for (const tgt of targets) {
+      if (attachments.length >= MAX_POSTERS) break;
+      const art = tgt.id ? posters.get(tgt.id) : undefined;
       if (!art) continue;
       const loaded = await this.loadPoster(art);
       if (!loaded) continue;
-      const cid = `poster-${item.id}`;
+      const cid = `poster-${tgt.id}`;
       const ext = loaded.contentType.includes('png') ? 'png' : 'jpg';
       attachments.push({ cid, filename: `${cid}.${ext}`, content: loaded.buf, contentType: loaded.contentType });
-      item.posterCid = cid;
+      tgt.set(cid);
     }
     return attachments;
   }
@@ -212,22 +245,25 @@ export class MediaServerNewsletterService {
 
   async preview(id: string) {
     const n = await this.get(id);
-    const { content, attachments, subtitle } = await this.build(n);
-    const opts = { title: n.name, version: VERSION, subtitle };
+    const built = await this.build(n);
+    // When nothing was added yet, show a representative sample so the operator
+    // still sees the full styled template (never sent — preview only).
+    const isSample = built.content.totalItems === 0;
+    const content = isSample ? sampleContent() : built.content;
+    const attachments = isSample ? [] : built.attachments;
     // The in-app preview iframe can't resolve `cid:` refs, so inline the poster
     // bytes as data URIs — a faithful, self-contained preview of the sent email.
-    let html = renderHtml(content, opts);
+    let html = renderHtml(content, built.opts);
     for (const a of attachments) {
       html = html.split(`cid:${a.cid}`).join(`data:${a.contentType ?? 'image/jpeg'};base64,${a.content.toString('base64')}`);
     }
-    return { subject: this.subject(n, content), html, text: renderText(content, opts), count: content.totalItems, since: content.since };
+    return { subject: this.subject(n, built.content), html, text: renderText(content, built.opts), count: built.content.totalItems, since: built.content.since, sample: isSample };
   }
 
   async testSend(id: string, recipient: string, userId?: string) {
     if (!recipient) throw new BadRequestException('A recipient email is required.');
     const n = await this.get(id);
-    const { content, attachments, subtitle } = await this.build(n);
-    const opts = { title: n.name, version: VERSION, subtitle };
+    const { content, attachments, opts } = await this.build(n);
     await this.email.send({ to: recipient, subject: `[TEST] ${this.subject(n, content)}`, html: renderHtml(content, opts), text: renderText(content, opts), attachments });
     await this.audit.record({ userId, action: 'media_server_analytics.newsletter.test_sent', objectType: 'media_server_newsletter', objectId: id, metadata: { recipient } });
     return { ok: true as const };
@@ -239,8 +275,7 @@ export class MediaServerNewsletterService {
     const recipients = (n.recipientEmails as string[]) ?? [];
     if (recipients.length === 0) throw new BadRequestException('This newsletter has no recipients.');
 
-    const { content, attachments, subtitle } = await this.build(n);
-    const opts = { title: n.name, version: VERSION, subtitle };
+    const { content, attachments, opts } = await this.build(n);
     const subject = this.subject(n, content);
     const html = renderHtml(content, opts);
     const text = renderText(content, opts);

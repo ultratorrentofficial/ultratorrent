@@ -2985,6 +2985,8 @@ export interface NewsletterPreview {
   text: string;
   count: number;
   since: string;
+  /** True when the library had no new items, so representative sample data is shown. */
+  sample: boolean;
 }
 
 export interface MediaServerEmailSettings {

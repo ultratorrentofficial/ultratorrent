@@ -96,6 +96,36 @@ connection management, and Dashboard + Connections pages. Later phases:
   campaigns of recently-added media (responsive HTML + plain-text, preview, test
   send, send now, delivery tracking, a 15-min dispatch scheduler). Subscription
   management + Tautulli newsletter import remain.
+
+  **Newsletter template** (`newsletter-render.ts`, pure/unit-tested): an original
+  dark "media digest" email built from tables + inline styles (plus a mobile media
+  query) for broad email-client support. Structure:
+  - **Header** — UT icon, `ULTRATORRENT NEWSLETTER`, the default connected media
+    server's name, the date range (`YYYY-MM-DD - YYYY-MM-DD`), and an amber divider.
+  - **Sections** — *Recently Added TV Shows* (episodes grouped into shows by
+    `groupShows()`, with an "N Shows / M Episodes" count summary) and *Recently
+    Added Movies* (a count summary). Section headers show an icon + title + amber
+    count numbers.
+  - **TV cards** — poster on the left, title, episode count, season/episode range,
+    overview, metadata badges (year · seasons · runtime · genres · library) bottom-left,
+    and a **5-star rating** bottom-right (`renderRating()` normalizes the 0–10 provider
+    rating to 5 stars, omitted when unrated). Two-column grid on desktop → one column on mobile.
+  - **Movie grid** — poster cards (poster, title, year · runtime, stars) in a
+    responsive two-up grid.
+  - **Footer** — three areas: unsubscribe (left), brand + tagline + instance URL
+    (center), preferences (right).
+
+  Accent `#f5a623`; 720px centered container. **Poster fallback:** the Media
+  Manager poster (server / imported / metadata-provider artwork all land in
+  `MediaArtwork`) is attached as a **CID inline image** (no public/authenticated
+  URL leaves the server, no remote tracking); a missing poster degrades to a
+  gradient-initial placeholder — the layout never breaks. **Sample data** renders
+  in the preview when the library has no new items, and the Newsletters page offers
+  a **desktop/mobile** preview toggle. All template text is localized via
+  `newsletter-strings.ts` (`en-US` + `es-PR`); a plain-text alternative is always
+  generated. Style toggles (ratings / genres / runtime / overview / library badges,
+  accent, max items per section) are supported via `RenderOptions.style` with the
+  reference-matching defaults.
 - ~~Tautulli import~~ ✅ (Phase 4, watch history) — `MediaAnalyticsImportProvider`
   + a background import job with preview, duplicate-safe streaming, and progress.
   See [TAUTULLI_IMPORT.md](TAUTULLI_IMPORT.md). Users/libraries/statistics/
