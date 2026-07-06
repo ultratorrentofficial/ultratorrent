@@ -92,6 +92,43 @@ describe('RTorrentProvider mapping', () => {
     expect(calls).not.toContain('execute.throw'); // guard blocks the rm
   });
 
+  describe('add confirmation (no phantom downloads)', () => {
+    const HASH = 'e6e045969cbd8d8744f3589cba20b2440a009380';
+    const MAGNET = `magnet:?xt=urn:btih:${HASH.toUpperCase()}`;
+    // A well-formed d.multicall2 row whose d.hash (index 0) is our target.
+    const row = [
+      HASH.toUpperCase(), 'Interview.With.The.Vampire.S03E05', 1000, 0, 0, 0, 0, 0, 1000,
+      1, 1, 0, 1, 0, '', 2, '/downloads', '', 1700000000, 0, 0, 0, 0, 0,
+    ];
+
+    it('resolves with the info-hash once rtorrent registers the torrent', async () => {
+      const provider = providerWithRows([row]); // appears on first poll
+      await expect(provider.addMagnet(MAGNET)).resolves.toBe(HASH);
+    });
+
+    it('throws when rtorrent never registers the torrent (was a false success)', async () => {
+      const provider = providerWithRows([]); // load.* "succeeds" but nothing loads
+      (provider as any).addConfirmAttempts = 2;
+      (provider as any).addConfirmIntervalMs = 1;
+      await expect(provider.addMagnet(MAGNET)).rejects.toThrow(/never registered/i);
+    });
+
+    it('waits for a slightly delayed registration', async () => {
+      let polls = 0;
+      const provider = providerWithRows([]);
+      (provider as any).addConfirmAttempts = 5;
+      (provider as any).addConfirmIntervalMs = 1;
+      (provider as any).transport = {
+        call: jest.fn(async (method: string) => {
+          if (method === 'd.multicall2') return ++polls >= 2 ? [row] : [];
+          return 0;
+        }),
+      };
+      await expect(provider.addMagnet(MAGNET)).resolves.toBe(HASH);
+      expect(polls).toBeGreaterThanOrEqual(2);
+    });
+  });
+
   it('classifies a stopped torrent', async () => {
     const stoppedRow = [
       'AAA', 'X', 100, 10, 0, 0, 0, 0, 90,

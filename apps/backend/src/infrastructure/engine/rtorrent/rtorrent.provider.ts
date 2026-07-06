@@ -105,6 +105,17 @@ export class RTorrentProvider implements TorrentEngineProvider {
   readonly engineId: string;
   private readonly transport: RtorrentTransport;
 
+  /**
+   * How long to wait for rtorrent to actually register an added torrent before
+   * treating the add as failed. `load.*` is fire-and-forget (returns 0
+   * immediately and loads asynchronously), so without this an add that rtorrent
+   * silently dropped — a bad magnet, or an engine crash mid-announce — would be
+   * reported as success and the caller would record a phantom download.
+   * ~6s total; overridden to tiny values in tests.
+   */
+  private addConfirmAttempts = 20;
+  private addConfirmIntervalMs = 300;
+
   constructor(cfg: EngineConnectionConfig) {
     this.engineId = cfg.engineId;
     this.transport = createRtorrentTransport({
@@ -366,14 +377,15 @@ export class RTorrentProvider implements TorrentEngineProvider {
   }
 
   async addMagnet(magnet: string, options?: AddTorrentOptions): Promise<string> {
+    const hash = magnetHash(magnet);
+    if (!hash) throw new Error('Could not derive info-hash from magnet URI');
     const method = options?.startPaused ? 'load.normal' : 'load.start';
     await this.transport.call(method, [
       '',
       magnet,
       ...this.buildLoadCommands(options),
     ]);
-    const hash = magnetHash(magnet);
-    if (!hash) throw new Error('Could not derive info-hash from magnet URI');
+    await this.confirmTorrentLoaded(hash);
     return hash;
   }
 
@@ -387,7 +399,37 @@ export class RTorrentProvider implements TorrentEngineProvider {
       new XmlRpcBase64(file),
       ...this.buildLoadCommands(options),
     ]);
-    return infoHashFromTorrent(file);
+    const hash = infoHashFromTorrent(file);
+    await this.confirmTorrentLoaded(hash);
+    return hash;
+  }
+
+  /**
+   * Poll rtorrent until the added info-hash shows up in the download list, so a
+   * successful return genuinely means "rtorrent has this torrent". Throws if it
+   * never appears within the confirm window — callers must treat that as a
+   * failed add and NOT record a download. Compares case-insensitively:
+   * `magnetHash`/`infoHashFromTorrent` yield lowercase and `listTorrents`
+   * lowercases too, but rtorrent stores hashes uppercase, so normalize.
+   */
+  private async confirmTorrentLoaded(hash: string): Promise<void> {
+    const target = hash.toLowerCase();
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const list = await this.listTorrents();
+        if (list.some((t) => t.hash.toLowerCase() === target)) return;
+      } catch {
+        // Transport error (engine busy, crashed, or mid-restart) — keep polling
+        // within the window; a persistent failure falls through to the throw.
+      }
+      if (attempt >= this.addConfirmAttempts - 1) break;
+      await new Promise((r) => setTimeout(r, this.addConfirmIntervalMs));
+    }
+    throw new Error(
+      `rtorrent accepted the request but never registered torrent ${hash} ` +
+        `within ${(this.addConfirmAttempts * this.addConfirmIntervalMs) / 1000}s ` +
+        `— it likely failed to load (e.g. an engine crash or an unusable magnet/torrent)`,
+    );
   }
 
   async addTorrentURL(
