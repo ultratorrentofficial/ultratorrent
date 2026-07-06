@@ -526,5 +526,48 @@
       "reasons": "Razones",
       "warnings": "Advertencias"
     }
-  }
+  },
+  "showStatus": {
+      "checking": "Verificando el estado de la serie…",
+      "lookupError": "No se pudo verificar el estado de emisión de la serie.",
+      "refresh": "Actualizar",
+      "nextEpisode": "Próximo episodio: {{date}}",
+      "lastAired": "Última emisión: {{date}}",
+      "providerConfidence": "{{provider}} · {{pct}}% de confianza",
+      "backfillSuggestion": "Esta serie parece haber terminado. Considera una regla de relleno/mejora en lugar de monitoreo continuo.",
+      "mediaType": {
+        "label": "Tipo de medio",
+        "none": "Estándar (sin verificación de estado)",
+        "tv": "Serie de TV",
+        "anime": "Anime",
+        "movie": "Película"
+      },
+      "status": {
+        "continuing": "En emisión",
+        "returning": "Regresa",
+        "planned": "Planificada",
+        "on_hiatus": "En pausa",
+        "ended": "Finalizada",
+        "canceled": "Cancelada",
+        "unknown": "Desconocido"
+      },
+      "recommendation": {
+        "recommended": "Recomendado",
+        "caution": "Con precaución",
+        "not_recommended": "No recomendado",
+        "unknown": "Desconocido"
+      },
+      "banner": {
+        "recommended": "Segura para monitorear con RSS — se esperan nuevos episodios.",
+        "caution": "Esta serie está en pausa. El monitoreo está bien, pero los nuevos episodios pueden tardar.",
+        "not_recommended": "Esta serie parece haber finalizado o sido cancelada — monitorear episodios futuros probablemente no sea necesario.",
+        "unknown": "No se pudo confirmar si esta serie sigue activa. Puedes continuar, pero revisa la regla con cuidado."
+      },
+      "confirm": {
+        "title": "¿Monitorear una serie inactiva?",
+        "body": "\"{{title}}\" parece estar {{status}}. ¿Crear una regla de monitoreo RSS de todos modos?",
+        "confirm": "Crear regla de todos modos",
+        "cancel": "Cancelar"
+      }
+    }
 }

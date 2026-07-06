@@ -292,6 +292,14 @@ export interface RssRule {
   autoDownload: boolean;
   isEnabled: boolean;
   createdAt: string;
+  // TV show airing-status snapshot (null for non-TV rules).
+  mediaType?: string | null;
+  showStatus?: RssShowStatus | null;
+  showStatusRecommendation?: RssShowRecommendation | null;
+  showStatusProvider?: string | null;
+  showStatusProviderId?: string | null;
+  showNextEpisodeAirDate?: string | null;
+  allowInactiveShowMonitoring?: boolean;
 }
 
 export interface RssFeed {
@@ -377,10 +385,48 @@ export interface CreateRuleInput {
   excludeRegex?: string;
   savePath?: string;
   autoDownload?: boolean;
+  // TV show airing-status awareness (optional).
+  mediaType?: string;
+  showStatusProvider?: string;
+  showStatusProviderId?: string;
+  allowInactiveShowMonitoring?: boolean;
 }
 
 /** Editable fields of an RSS rule (feed is fixed). Empty string clears a pattern. */
 export type UpdateRuleInput = Partial<Omit<CreateRuleInput, 'feedId'>>;
+
+/** Provider-agnostic TV show airing status. */
+export type RssShowStatus =
+  | 'continuing'
+  | 'returning'
+  | 'planned'
+  | 'on_hiatus'
+  | 'ended'
+  | 'canceled'
+  | 'unknown';
+
+export type RssShowRecommendation = 'recommended' | 'caution' | 'not_recommended' | 'unknown';
+
+export interface ShowStatusResult {
+  title: string;
+  normalizedTitle: string;
+  provider: string;
+  providerShowId: string | null;
+  originalStatus: string | null;
+  normalizedStatus: RssShowStatus;
+  recommendation: RssShowRecommendation;
+  confidence: number;
+  firstAirDate: string | null;
+  lastAirDate: string | null;
+  nextEpisodeAirDate: string | null;
+  lastEpisodeTitle: string | null;
+  nextEpisodeTitle: string | null;
+  totalSeasons: number | null;
+  totalEpisodes: number | null;
+  overview: string | null;
+  posterUrl: string | null;
+  warnings: string[];
+}
 
 export interface AutomationCondition {
   field: string;
@@ -2012,6 +2058,15 @@ export const api = {
     },
     createRule(body: CreateRuleInput): Promise<RssRule> {
       return request<RssRule>('/rss/rules', { method: 'POST', body });
+    },
+    showStatusLookup(
+      title: string,
+      opts: { year?: number | null; provider?: string } = {},
+    ): Promise<ShowStatusResult> {
+      const query: QueryParams = { title };
+      if (opts.year != null) query.year = opts.year;
+      if (opts.provider) query.provider = opts.provider;
+      return request<ShowStatusResult>('/rss/show-status/lookup', { query });
     },
     exportRules(): Promise<RssExportBundle> {
       return request<RssExportBundle>('/rss/rules-export');

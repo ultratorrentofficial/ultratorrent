@@ -526,5 +526,48 @@
       "reasons": "Reasons",
       "warnings": "Warnings"
     }
-  }
+  },
+  "showStatus": {
+      "checking": "Checking show status…",
+      "lookupError": "Could not check the show's airing status.",
+      "refresh": "Refresh",
+      "nextEpisode": "Next episode: {{date}}",
+      "lastAired": "Last aired: {{date}}",
+      "providerConfidence": "{{provider}} · {{pct}}% confidence",
+      "backfillSuggestion": "This show appears to be over. Consider a backfill/upgrade rule instead of continuous monitoring.",
+      "mediaType": {
+        "label": "Media type",
+        "none": "Standard (no show-status check)",
+        "tv": "TV show",
+        "anime": "Anime",
+        "movie": "Movie"
+      },
+      "status": {
+        "continuing": "Continuing",
+        "returning": "Returning",
+        "planned": "Planned",
+        "on_hiatus": "On hiatus",
+        "ended": "Ended",
+        "canceled": "Canceled",
+        "unknown": "Unknown"
+      },
+      "recommendation": {
+        "recommended": "Recommended",
+        "caution": "Use caution",
+        "not_recommended": "Not recommended",
+        "unknown": "Unknown"
+      },
+      "banner": {
+        "recommended": "Safe to monitor with RSS — new episodes are expected.",
+        "caution": "This show is on hiatus. Monitoring is fine, but new episodes may be a while off.",
+        "not_recommended": "This show appears to be ended or canceled — future-episode monitoring is probably unnecessary.",
+        "unknown": "Couldn't confirm whether this show is still active. You may continue, but review the rule carefully."
+      },
+      "confirm": {
+        "title": "Monitor an inactive show?",
+        "body": "\"{{title}}\" appears to be {{status}}. Create an RSS monitoring rule anyway?",
+        "confirm": "Create rule anyway",
+        "cancel": "Cancel"
+      }
+    }
 }
