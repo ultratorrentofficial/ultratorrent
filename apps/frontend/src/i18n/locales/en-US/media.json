@@ -189,6 +189,18 @@
       "prev": "Previous",
       "next": "Next"
     },
+    "series": {
+      "seasons": "{{count}} season",
+      "seasons_other": "{{count}} seasons",
+      "episodes": "{{count}} episode",
+      "episodes_other": "{{count}} episodes",
+      "season": "Season {{season}}",
+      "specials": "Specials",
+      "loadingEpisodes": "Loading episodes…",
+      "unmatched": "Unmatched",
+      "emptyTitle": "No shows found",
+      "emptyBody": "No TV shows match these filters."
+    },
     "loading": "Loading items…",
     "error": "Could not load media items.",
     "emptyFilteredTitle": "No items match these filters",

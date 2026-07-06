@@ -136,10 +136,33 @@ export class MediaController {
     @Query('matchStatus') matchStatus?: string,
     @Query('libraryId') libraryId?: string,
     @Query('search') search?: string,
+    @Query('title') title?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     return this.items.list({
+      mediaType,
+      matchStatus,
+      libraryId,
+      search,
+      title,
+      page: page ? Number.parseInt(page, 10) : undefined,
+      pageSize: pageSize ? Number.parseInt(pageSize, 10) : undefined,
+    });
+  }
+
+  /** Paginated TV browser: episodes grouped by show (collapsible Show → Season → Episode). */
+  @Get('series')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  listSeries(
+    @Query('mediaType') mediaType?: string,
+    @Query('matchStatus') matchStatus?: string,
+    @Query('libraryId') libraryId?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.items.series({
       mediaType,
       matchStatus,
       libraryId,

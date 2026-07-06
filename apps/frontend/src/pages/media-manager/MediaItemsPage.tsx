@@ -14,6 +14,7 @@ import { Input, Label } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { MediaPoster } from '@/components/media/MediaPoster';
+import { SeriesGroupedList } from './SeriesGroupedList';
 import { formatBytes } from '@/lib/format';
 import {
   matchStatusLabel,
@@ -97,10 +98,13 @@ export function MediaItemsPage() {
   // Any filter/search change resets to the first page.
   useEffect(() => setPage(1), [mediaType, matchStatus, libraryId, search]);
 
+  // TV types render as a collapsible Show → Season → Episode tree instead of a flat list.
+  const isTvGrouped = mediaType === 'tv' || mediaType === 'anime';
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['media', 'items', { mediaType, matchStatus, libraryId, search, page }],
     queryFn: () => api.media.listItems({ mediaType, matchStatus, libraryId, search, page, pageSize: PAGE_SIZE }),
     placeholderData: keepPreviousData,
+    enabled: !isTvGrouped,
   });
 
   const libraryOptions = useMemo(
@@ -193,6 +197,9 @@ export function MediaItemsPage() {
         </CardContent>
       </Card>
 
+      {isTvGrouped ? (
+        <SeriesGroupedList mediaType={mediaType} matchStatus={matchStatus} libraryId={libraryId} search={search} />
+      ) : (
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
@@ -401,6 +408,7 @@ export function MediaItemsPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Sparkles className="h-3.5 w-3.5" />

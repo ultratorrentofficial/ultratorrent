@@ -405,31 +405,35 @@ export class RssService {
   }
   /**
    * Paginated feed history, newest first (default 25 per page, max 100), with
-   * optional filtering by status and a case-insensitive title search.
+   * optional filtering by status, a case-insensitive title search, and a
+   * `from`/`to` date range (on when the item was seen).
    *
    * `total` reflects the active filters (drives pagination), while `counts`
    * (total + the three mutually-exclusive status buckets: downloaded,
-   * matched-but-not-downloaded, and seen) are scoped to the search only — never
-   * to the status filter — so the summary tiles keep showing the full breakdown
-   * and can double as status toggles even while one status is selected.
+   * matched-but-not-downloaded, and seen) are scoped to the base filters
+   * (search + date range) but NEVER to the status filter — so the summary tiles
+   * keep showing the full breakdown and can double as status toggles even while
+   * one status is selected.
    */
   async history(
     feedId: string,
     page = 1,
     pageSize = 25,
-    filter: { status?: string; search?: string } = {},
+    filter: { status?: string; search?: string; from?: string; to?: string } = {},
   ) {
     const take = Math.min(Math.max(Math.trunc(pageSize) || 25, 1), 100);
     const current = Math.max(Math.trunc(page) || 1, 1);
 
-    // Search-scoped base (applies to both the list and the count tiles).
-    const searchWhere: Prisma.RssHistoryWhereInput = { feedId };
+    // Base filters (search + date range) apply to both the list and the tiles.
+    const baseWhere: Prisma.RssHistoryWhereInput = { feedId };
     const search = filter.search?.trim();
-    if (search) searchWhere.title = { contains: search, mode: 'insensitive' };
+    if (search) baseWhere.title = { contains: search, mode: 'insensitive' };
+    const createdAt = this.dateRangeWhere(filter.from, filter.to);
+    if (createdAt) baseWhere.createdAt = createdAt;
 
     // The status filter narrows the list/pagination only, not the tiles.
     const statusWhere = this.statusWhere(filter.status);
-    const listWhere: Prisma.RssHistoryWhereInput = { ...searchWhere, ...statusWhere };
+    const listWhere: Prisma.RssHistoryWhereInput = { ...baseWhere, ...statusWhere };
 
     const [items, total, grandTotal, downloaded, matchedOnly] =
       await this.prisma.$transaction([
@@ -440,10 +444,10 @@ export class RssService {
           take,
         }),
         this.prisma.rssHistory.count({ where: listWhere }),
-        this.prisma.rssHistory.count({ where: searchWhere }),
-        this.prisma.rssHistory.count({ where: { ...searchWhere, downloaded: true } }),
+        this.prisma.rssHistory.count({ where: baseWhere }),
+        this.prisma.rssHistory.count({ where: { ...baseWhere, downloaded: true } }),
         this.prisma.rssHistory.count({
-          where: { ...searchWhere, matched: true, downloaded: false },
+          where: { ...baseWhere, matched: true, downloaded: false },
         }),
       ]);
     return {
@@ -472,6 +476,28 @@ export class RssService {
       default:
         return {};
     }
+  }
+
+  /**
+   * Inclusive `createdAt` range from date-only `from`/`to` strings (UTC). `to`
+   * covers the whole day. Invalid/absent bounds are ignored; returns undefined
+   * when neither is usable so no date clause is applied.
+   */
+  private dateRangeWhere(
+    from?: string,
+    to?: string,
+  ): Prisma.RssHistoryWhereInput['createdAt'] {
+    const parse = (s?: string) => {
+      if (!s?.trim()) return undefined;
+      const d = new Date(s);
+      return Number.isNaN(d.getTime()) ? undefined : d;
+    };
+    const gte = parse(from);
+    const toDate = parse(to);
+    // Extend an inclusive `to` to the end of that day (date-only input).
+    const lte = toDate ? new Date(toDate.getTime() + 24 * 60 * 60 * 1000 - 1) : undefined;
+    if (!gte && !lte) return undefined;
+    return { ...(gte ? { gte } : {}), ...(lte ? { lte } : {}) };
   }
 
   // --- match candidates --------------------------------------------------

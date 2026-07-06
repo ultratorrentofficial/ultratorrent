@@ -189,6 +189,18 @@
       "prev": "Anterior",
       "next": "Siguiente"
     },
+    "series": {
+      "seasons": "{{count}} temporada",
+      "seasons_other": "{{count}} temporadas",
+      "episodes": "{{count}} episodio",
+      "episodes_other": "{{count}} episodios",
+      "season": "Temporada {{season}}",
+      "specials": "Especiales",
+      "loadingEpisodes": "Cargando episodios…",
+      "unmatched": "Sin coincidencia",
+      "emptyTitle": "No se encontraron series",
+      "emptyBody": "Ninguna serie de TV coincide con estos filtros."
+    },
     "loading": "Cargando elementos…",
     "error": "No se pudieron cargar los elementos de medios.",
     "emptyFilteredTitle": "Ningún elemento coincide con estos filtros",

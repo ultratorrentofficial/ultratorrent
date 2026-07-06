@@ -874,6 +874,8 @@ export interface MediaItemQuery {
   matchStatus?: string;
   libraryId?: string;
   search?: string;
+  /** Exact show title — fetch one series' episodes for the grouped TV view. */
+  title?: string;
   page?: number;
   pageSize?: number;
 }
@@ -883,6 +885,16 @@ export interface MediaItemPage {
   total: number;
   page: number;
   pageSize: number;
+}
+
+/** One show in the grouped TV browser. */
+export interface MediaSeriesGroup {
+  title: string;
+  year: number | null;
+  episodeCount: number;
+  seasonCount: number;
+  lastAddedAt: string;
+  poster: MediaArtworkRef | null;
 }
 
 export interface MediaItemUpdateInput {
@@ -2416,6 +2428,9 @@ export const api = {
     },
     listItems(query: MediaItemQuery = {}): Promise<MediaItemPage> {
       return request<MediaItemPage>('/media/items', { query: query as QueryParams });
+    },
+    listSeries(query: MediaItemQuery = {}): Promise<Paginated<MediaSeriesGroup>> {
+      return request<Paginated<MediaSeriesGroup>>('/media/series', { query: query as QueryParams });
     },
     getItem(id: string): Promise<MediaItemDetail> {
       return request<MediaItemDetail>(`/media/items/${id}`);
