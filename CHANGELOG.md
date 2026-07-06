@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.16.1] - 2026-07-06
+
+### Fixed
+- Media Server Analytics premium dashboard overhaul: dataviz-validated color system, KPI grid, real-time Now Playing panel, and Recharts graphs (plays-over-time, playback-method donut, top users, devices, most-watched) with real KPI aggregation + top-media/devices endpoints
+- Media Server Analytics dashboard: artwork-rich Recently Added strip (provider posters via MediaPoster with lazy-load/skeleton/graceful fallback) and a persistent filter bar (date range, media type, auto-refresh interval, manual refresh) wired end-to-end into report aggregation (days/mediaType where-clauses)
+- Media Server Analytics dashboard (Phase 6d): activity heatmap (day×hour, single-hue sequential), streaming trend (transcode vs direct-play stacked area over time), quality/resolution distribution, cumulative library-growth chart, provider-status health panel, and watch-history CSV export (new media_server_analytics.export permission). Watch history now captures resolution + video codec on session close; all new aggregations honor the shared date/media-type filter
+
 ## [0.16.0] - 2026-07-05
 
 ### Added
