@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.16.12] - 2026-07-06
+
+### Fixed
+- Media Items grouped TV browser: enlarge show posters (h-14 w-10 -> h-24 w-16) and default to 10 shows per page (was 30)
+- Media Items grouped TV browser: enlarge show posters a bit more (h-24 w-16 -> h-[7.5rem] w-20, 2:3)
+- Equal-height newsletter card grid (Gmail-safe). Two cards in a row rendered at their own content heights, so a show with a long overview left its paired card's panel visibly shorter/ragged. The card panel (background/border/padding) now lives on the grid cell instead of a nested table — sibling cells in a table row are always drawn at equal height, which Gmail/Outlook honour (unlike height:100% on a nested table, which only browsers respect). A shared twoColGrid() lays out panel-cell / gutter-cell / panel-cell rows; on mobile the columns collapse to full width (panel padding preserved) and the gutter is hidden.
+
 ## [0.16.11] - 2026-07-06
 
 ### Fixed
