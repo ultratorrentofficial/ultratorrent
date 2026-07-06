@@ -879,7 +879,9 @@ function ArtworkTab({ itemId }: { itemId: string }) {
         </Card>
       ) : (
         <div className="space-y-4">
-          {[...byType.entries()].map(([type, arts]) => (
+          {[...byType.entries()].map(([type, arts]) => {
+            const frame = artworkFrame(type);
+            return (
             <Card key={type}>
               <CardContent className="space-y-3 p-4">
                 <p className="text-sm font-semibold">{artworkTypeLabel(t, type)}</p>
@@ -894,7 +896,8 @@ function ArtworkTab({ itemId }: { itemId: string }) {
                       <MediaPoster
                         artwork={a}
                         alt={artworkTypeLabel(t, type)}
-                        className="aspect-[2/3] rounded"
+                        className={`${frame.className} rounded`}
+                        fit={frame.fit}
                         iconClassName="h-6 w-6"
                       />
                       {a.selected ? (
@@ -919,11 +922,35 @@ function ArtworkTab({ itemId }: { itemId: string }) {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
+}
+
+/**
+ * Frame (aspect ratio + object-fit) for displaying an artwork type at its
+ * natural shape: portrait posters, wide banners, 16:9 fanart/thumbnails, and
+ * "contain" (no crop) for wide banners + transparent logos/clearart.
+ */
+function artworkFrame(type: string): { className: string; fit: 'cover' | 'contain' } {
+  switch (type) {
+    case 'banner':
+      return { className: 'aspect-[16/3]', fit: 'contain' };
+    case 'logo':
+    case 'clearart':
+      return { className: 'aspect-[16/9]', fit: 'contain' };
+    case 'fanart':
+    case 'thumbnail':
+    case 'episode_thumbnail':
+      return { className: 'aspect-[16/9]', fit: 'cover' };
+    case 'poster':
+    case 'season_poster':
+    default:
+      return { className: 'aspect-[2/3]', fit: 'cover' };
+  }
 }
 
 // ---------------------------------------------------------------------------

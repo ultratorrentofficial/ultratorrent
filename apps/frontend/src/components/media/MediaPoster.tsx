@@ -17,6 +17,7 @@ export function MediaPoster({
   className,
   iconClassName,
   size = 'thumb',
+  fit = 'cover',
 }: {
   artwork?: MediaArtworkRef | null;
   alt: string;
@@ -25,6 +26,9 @@ export function MediaPoster({
   /** 'thumb' (default) serves a small cached thumbnail — fast for grids;
    *  'full' serves the original, for large detail views. */
   size?: 'thumb' | 'full';
+  /** 'cover' (default) fills the frame; 'contain' shows the whole image without
+   *  cropping — right for wide banners/fanart and transparent logos/clearart. */
+  fit?: 'cover' | 'contain';
 }) {
   const remote = artwork?.url ?? null;
   // Only fetch a blob when there's a local image and no directly-usable url.
@@ -64,7 +68,12 @@ export function MediaPoster({
       )}
     >
       {src ? (
-        <img src={src} alt={alt} className="h-full w-full object-cover" loading="lazy" />
+        <img
+          src={src}
+          alt={alt}
+          className={cn('h-full w-full', fit === 'contain' ? 'object-contain' : 'object-cover')}
+          loading="lazy"
+        />
       ) : (
         <Film className={cn('h-5 w-5 text-muted-foreground', iconClassName)} />
       )}
