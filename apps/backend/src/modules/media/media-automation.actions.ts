@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { MediaScannerService } from './media-scanner.service';
 import { MediaIdentificationService } from './media-identification.service';
@@ -175,6 +176,32 @@ export class MediaAutomationActions {
       mode: (modeOverride ?? item.library.mode ?? 'hardlink') as RenameMode,
       libraryPath: item.library.path,
       template: item.library.template ?? undefined,
+      // Feed the already-identified title into the parse so a bare filename
+      // (e.g. `S01E01.mkv`) still resolves its series title + episode metadata.
+      // Prepending the title mirrors the folder-climb the identifier does; the
+      // basename keeps the SxxEyy / resolution / group tokens intact.
+      sourceName: this.identitySourceName(item),
     });
+  }
+
+  /**
+   * Build the identity name a rename should parse from the item's persisted
+   * (folder-recovered) title and the file's basename. Returns undefined when
+   * there is no resolved title to prepend, leaving the basename as-is.
+   */
+  private identitySourceName(item: {
+    title: string | null;
+    year: number | null;
+    path: string;
+    files: { path: string }[];
+  }): string | undefined {
+    const base = path.basename(item.files[0]?.path ?? item.path);
+    const title = item.title?.trim();
+    if (!title) return undefined;
+    // Append the identified year (movies) so `{Movie Title} ({year})` and the
+    // TMDB query resolve even when the filename omits it; TV items carry a null
+    // year, so the episode's SxxEyy in the basename still drives the parse.
+    const year = item.year ? ` (${item.year})` : '';
+    return `${title}${year} ${base}`;
   }
 }

@@ -98,29 +98,29 @@ export interface PresetTemplates {
 
 export const PRESET_TEMPLATES: Record<Exclude<Preset, 'custom'>, PresetTemplates> = {
   plex: {
-    tv: '{Series Title}/Season {season:00}/{Series Title} - S{season:00}E{episode:00}{episodeEnd? - E{episodeEnd:00}} - {Episode Title}.{ext}',
-    anime: '{Series Title}/Season {season:00}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
+    tv: '{Series Title}/Season {season}/{Series Title} - S{season:00}E{episode:00}{episodeEnd? - E{episodeEnd:00}} - {Episode Title}.{ext}',
+    anime: '{Series Title}/Season {season}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
     movie: '{Movie Title} ({year})/{Movie Title} ({year}) - {Resolution}.{ext}',
     music: '{Artist}/{Album}/{Track:00} {Title}.{ext}',
     audiobook: '{Artist}/{Album}/{Album}.{ext}',
   },
   jellyfin: {
-    tv: '{Series Title}/Season {season:00}/{Series Title} S{season:00}E{episode:00} {Episode Title}.{ext}',
-    anime: '{Series Title}/Season {season:00}/{Series Title} S{season:00}E{episode:00} {Episode Title}.{ext}',
+    tv: '{Series Title}/Season {season}/{Series Title} S{season:00}E{episode:00} {Episode Title}.{ext}',
+    anime: '{Series Title}/Season {season}/{Series Title} S{season:00}E{episode:00} {Episode Title}.{ext}',
     movie: '{Movie Title} ({year})/{Movie Title} ({year}) [{Resolution}].{ext}',
     music: '{Artist}/{Album}/{Track:00} - {Title}.{ext}',
     audiobook: '{Artist}/{Album}/{Album}.{ext}',
   },
   emby: {
-    tv: '{Series Title}/Season {season:00}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
-    anime: '{Series Title}/Season {season:00}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
+    tv: '{Series Title}/Season {season}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
+    anime: '{Series Title}/Season {season}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
     movie: '{Movie Title} ({year})/{Movie Title} ({year}).{ext}',
     music: '{Artist}/{Album}/{Track:00} {Title}.{ext}',
     audiobook: '{Artist}/{Album}/{Album}.{ext}',
   },
   kodi: {
-    tv: '{Series Title}/Season {season:00}/{Series Title} S{season:00}E{episode:00}.{ext}',
-    anime: '{Series Title}/Season {season:00}/{Series Title} S{season:00}E{episode:00}.{ext}',
+    tv: '{Series Title}/Season {season}/{Series Title} S{season:00}E{episode:00}.{ext}',
+    anime: '{Series Title}/Season {season}/{Series Title} S{season:00}E{episode:00}.{ext}',
     movie: '{Movie Title} ({year})/{Movie Title} ({year}) {Resolution}.{ext}',
     music: '{Artist}/{Album}/{Track:00} - {Title}.{ext}',
     audiobook: '{Artist}/{Album}/{Album}.{ext}',
@@ -241,6 +241,9 @@ function episodeRange(sourceName: string): { start: number; end: number } | null
   return null;
 }
 
+// NB: season *folders* are unpadded ("Season 8"); the SxxEyy in filenames stays
+// zero-padded (the media-server convention). `reuseExistingSeasonDir` in the
+// executor also folds a differently-padded existing folder into this one.
 function buildTokens(
   parsed: ParsedTorrentMeta,
   kind: MediaKind,
@@ -364,7 +367,7 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
 
     // Specials (season 0)
     if ((c.kind === 'tv' || c.kind === 'anime') && parsed.season === 0) {
-      rel = rel.replace(/Season 00/i, 'Specials');
+      rel = rel.replace(/Season 0+\b/i, 'Specials');
     }
 
     const destination = resolveDestination(ctx, f.path, rel);

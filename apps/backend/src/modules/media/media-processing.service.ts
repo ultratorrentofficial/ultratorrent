@@ -154,20 +154,22 @@ export class MediaProcessingService {
     // Unmatched items stop here — we never reorganise something we can't name.
     if (!matched) return;
 
-    // Stage 3 — rename/move into the library structure per its mode.
+    // Stage 3 — metadata, fetched *before* the rename so the new filename can
+    // draw on the fullest identity we have (episode title, canonical series
+    // title, year) rather than whatever the raw filename happened to carry.
+    try {
+      await this.actions.execute('media_fetch_metadata', { itemId });
+    } catch (err) {
+      this.logger.warn(`Metadata failed for ${itemId}: ${(err as Error).message}`);
+    }
+
+    // Stage 4 — rename/move into the library structure per its mode.
     try {
       await this.actions.execute('media_rename', { itemId });
       this.fire('media.rename_completed', t);
       this.emitEvent(NOTIFICATION_EVENTS.MEDIA_RENAMED, t, { itemId, libraryName: library.name });
     } catch (err) {
       this.logger.warn(`Rename failed for ${itemId}: ${(err as Error).message}`);
-    }
-
-    // Stage 4 — metadata.
-    try {
-      await this.actions.execute('media_fetch_metadata', { itemId });
-    } catch (err) {
-      this.logger.warn(`Metadata failed for ${itemId}: ${(err as Error).message}`);
     }
 
     // Stage 5a — artwork (when the library wants it).

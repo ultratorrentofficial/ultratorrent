@@ -43,6 +43,13 @@ export interface RenameRequest {
   mode?: RenameMode;
   libraryPath?: string;
   template?: string;
+  /**
+   * Override the name parsed for show/movie identity (title, season, episode).
+   * The caller supplies the already-identified name (e.g. `"Breaking Bad S01E01
+   * 1080p.mkv"`) so a bare filename like `S01E01.mkv` still resolves its series
+   * title + metadata. Files are still gathered from `path`/`hash` as usual.
+   */
+  sourceName?: string;
 }
 
 @Injectable()
@@ -217,13 +224,18 @@ export class MediaService {
     const mode: RenameMode = req.mode ?? 'preview';
     if (!req.libraryPath) throw new BadRequestException('libraryPath is required');
 
-    const { sourceName, files } = req.hash
+    const gathered = req.hash
       ? await this.gatherTorrentFiles(req.hash, req.engineId)
       : req.path
         ? await this.gatherPathFiles(req.path)
         : (() => {
             throw new BadRequestException('Provide a torrent hash or a path');
           })();
+    const files = gathered.files;
+    // Prefer a caller-supplied identity name (the already-identified series +
+    // SxxEyy) over the bare gathered basename, so metadata resolves even when the
+    // filename omits the title.
+    const sourceName = req.sourceName?.trim() || gathered.sourceName;
 
     // Metadata enrichment (best-effort).
     const { parseTorrentName } = await import('./../rss/torrent-name-parser');

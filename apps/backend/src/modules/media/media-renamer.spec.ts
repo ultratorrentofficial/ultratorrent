@@ -64,12 +64,12 @@ describe('buildRenamePlan — TV', () => {
 
   it('renames the episode into a Plex path', () => {
     const v = plan.items.find((i) => i.source.endsWith('GROUP.mkv'));
-    expect(v?.destination).toBe('/media/TV/The Example Show/Season 02/The Example Show - S02E05 - The Reckoning.mkv');
+    expect(v?.destination).toBe('/media/TV/The Example Show/Season 2/The Example Show - S02E05 - The Reckoning.mkv');
     expect(v?.action).toBe('move');
   });
   it('matches the subtitle to the video and keeps the language tag', () => {
     const s = plan.items.find((i) => i.isSubtitle);
-    expect(s?.destination).toBe('/media/TV/The Example Show/Season 02/The Example Show - S02E05 - The Reckoning.en.srt');
+    expect(s?.destination).toBe('/media/TV/The Example Show/Season 2/The Example Show - S02E05 - The Reckoning.en.srt');
   });
   it('skips the sample file', () => {
     const sample = plan.items.find((i) => i.isSample);
@@ -137,7 +137,34 @@ describe('buildRenamePlan — edge cases', () => {
       mode: 'preview', libraryPath: '/m',
     }));
     expect(plan.mode).toBe('preview');
-    expect(plan.items[0].destination).toContain('/m/Show/Season 01/');
+    expect(plan.items[0].destination).toContain('/m/Show/Season 1/');
+  });
+});
+
+describe('buildRenamePlan — identity name resolves a bare filename', () => {
+  // A file whose name carries no title (e.g. `S01E01.mkv`) would fall back to an
+  // "Unknown" series folder. The processing pipeline prepends the already-
+  // identified title to the name (via RenameRequest.sourceName) so the plan
+  // resolves the real series + a padded, unpadded-folder Plex path.
+  it('falls back to Unknown when the name has no title', () => {
+    const plan = buildRenamePlan(ctx({
+      sourceName: 'S01E01.1080p.x265-GRP.mkv',
+      files: [{ path: 'S01E01.1080p.x265-GRP.mkv', size: 2e9 }],
+      libraryPath: '/tv',
+    }));
+    expect(plan.items[0].destination).toContain('/tv/Unknown/Season 1/');
+  });
+
+  it('resolves the series once the identified title is fed in', () => {
+    const plan = buildRenamePlan(ctx({
+      sourceName: 'Breaking Bad S01E01.1080p.x265-GRP.mkv',
+      files: [{ path: 'S01E01.1080p.x265-GRP.mkv', size: 2e9 }],
+      libraryPath: '/tv',
+      meta: { episodeTitle: 'Pilot' },
+    }));
+    expect(plan.items[0].destination).toBe(
+      '/tv/Breaking Bad/Season 1/Breaking Bad - S01E01 - Pilot.mkv',
+    );
   });
 });
 
@@ -171,9 +198,9 @@ describe('buildRenamePlan — rename_in_place keeps the show folder', () => {
       files: [{ path: '/downloads/TV/TV_Shows/The Rookie (2018)/The.Rookie.S08E16.Out.of.Time.1080p.x265-MeGusta.mkv', size: 2e9 }],
     }));
     // Stays in "The Rookie (2018)" (never forks to a year-less "The Rookie"),
-    // just organised into Season 08 and renamed.
+    // just organised into Season 8 and renamed.
     expect(primary(plan).destination).toBe(
-      '/downloads/TV/TV_Shows/The Rookie (2018)/Season 08/The Rookie - S08E16 - Out of Time.mkv',
+      '/downloads/TV/TV_Shows/The Rookie (2018)/Season 8/The Rookie - S08E16 - Out of Time.mkv',
     );
     expect(primary(plan).action).toBe('rename');
   });
@@ -185,7 +212,7 @@ describe('buildRenamePlan — rename_in_place keeps the show folder', () => {
       files: [{ path: '/downloads/TV/TV_Shows/The Rookie (2018)/Season 8/The Rookie - S08E16.mkv', size: 2e9 }],
     }));
     expect(primary(plan).destination).toBe(
-      '/downloads/TV/TV_Shows/The Rookie (2018)/Season 08/The Rookie - S08E16 - Out of Time.mkv',
+      '/downloads/TV/TV_Shows/The Rookie (2018)/Season 8/The Rookie - S08E16 - Out of Time.mkv',
     );
   });
 
@@ -196,7 +223,7 @@ describe('buildRenamePlan — rename_in_place keeps the show folder', () => {
       files: [{ path: '/downloads/TV/TV_Shows/The Rookie (2018)/The.Rookie.S08E16.mkv', size: 2e9 }],
     }));
     expect(primary(plan).destination).toBe(
-      '/downloads/TV/TV_Shows/The Rookie/Season 08/The Rookie - S08E16 - Out of Time.mkv',
+      '/downloads/TV/TV_Shows/The Rookie/Season 8/The Rookie - S08E16 - Out of Time.mkv',
     );
     expect(primary(plan).action).toBe('move');
   });
@@ -208,7 +235,7 @@ describe('buildRenamePlan — rename_in_place keeps the show folder', () => {
       files: [{ path: 'The.Rookie.S08E16.Out.of.Time.1080p.x265-MeGusta.mkv', size: 2e9 }],
     }));
     expect(primary(plan).destination).toBe(
-      '/downloads/TV/TV_Shows/The Rookie/Season 08/The Rookie - S08E16 - Out of Time.mkv',
+      '/downloads/TV/TV_Shows/The Rookie/Season 8/The Rookie - S08E16 - Out of Time.mkv',
     );
   });
 });

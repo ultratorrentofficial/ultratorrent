@@ -409,7 +409,7 @@ rewritten to `Specials`.
 **TV example (Plex preset):**
 
 ```
-{Series Title}/Season {season:00}/{Series Title} - S{season:00}E{episode:00}{episodeEnd? - E{episodeEnd:00}} - {Episode Title}.{ext}
+{Series Title}/Season {season}/{Series Title} - S{season:00}E{episode:00}{episodeEnd? - E{episodeEnd:00}} - {Episode Title}.{ext}
 ```
 
 ### Modes and workflow
