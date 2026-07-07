@@ -44,6 +44,21 @@ describe('duplicateKeys — episode discrimination', () => {
     expect(groups).toHaveLength(0);
   });
 
+  it('does NOT group different shows that share one (corrupt) external id', () => {
+    // Real case: many shows' S01E01 all carried the SAME external id.
+    const sharedId = [{ provider: 'imdb', externalId: 'tt0000000' }];
+    const s = (id: string, show: string, season: number) => ep(id, show, season, 1, { externalIds: sharedId });
+    const groups = detectDuplicateGroups([s('1', 'Dickinson', 1), s('2', 'Hawkeye', 1), s('3', 'Extrapolations', 1)]);
+    expect(groups).toHaveLength(0);
+  });
+
+  it('does NOT group different shows sharing one id even when unidentified', () => {
+    const sharedId = [{ provider: 'imdb', externalId: 'tt0000000' }];
+    const raw = (id: string, show: string): DuplicateItemLike =>
+      ({ id, mediaType: 'tv', title: `${show} - S01E01 - Pilot`, year: null, season: null, episode: null, externalIds: sharedId, files: [] });
+    expect(detectDuplicateGroups([raw('1', 'Dickinson'), raw('2', 'Hawkeye')])).toHaveLength(0);
+  });
+
   it('still groups two files of the same unidentified episode', () => {
     const seriesId = [{ provider: 'imdb', externalId: 'tt2686424' }];
     const raw = (id: string): DuplicateItemLike =>

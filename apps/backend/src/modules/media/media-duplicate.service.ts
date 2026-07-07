@@ -34,23 +34,16 @@ export function normalizeTitle(title: string): string {
 }
 
 /**
- * A per-item episode discriminator so two distinct episodes never share a key.
- * Precedence: (1) the structured season/episode; (2) an `SxxEyy` marker parsed
- * from the raw title — essential for *unidentified* episodes whose season/episode
- * columns are null but whose filename still carries the marker (and which often
- * share a series-level external id); (3) for any other non-movie without episode
- * info, the normalized title, so a series-level id can't collapse distinct items.
- * Returns '' for movies with no episode info, where the base keys already suffice.
- * Pure — exported for unit testing.
+ * The season/episode marker for an item: the structured `season`/`episode`
+ * columns, else an `SxxEyy` parsed from the raw title (unidentified episodes keep
+ * it in their filename). '' when neither is present. Pure — exported for testing.
  */
-export function episodeDiscriminator(item: DuplicateItemLike, normTitle: string): string {
+export function episodeMarker(item: DuplicateItemLike): string {
   if (item.season != null || item.episode != null) {
     return `:s${item.season ?? 'x'}:e${item.episode ?? 'x'}`;
   }
   const m = /\bs(\d{1,2})[ ._-]?e(\d{1,3})\b/i.exec(item.title);
-  if (m) return `:s${Number(m[1])}:e${Number(m[2])}`;
-  if (item.mediaType && item.mediaType !== 'movie') return `:${normTitle}`;
-  return '';
+  return m ? `:s${Number(m[1])}:e${Number(m[2])}` : '';
 }
 
 const RES_RANK: Record<string, number> = {
@@ -85,19 +78,18 @@ export function duplicateKeys(item: DuplicateItemLike): Array<{
 }> {
   const keys: Array<{ reason: DuplicateReason; key: string }> = [];
   const normTitle = normalizeTitle(item.title);
+  const isMovie = !item.mediaType || item.mediaType === 'movie';
+  const epMarker = episodeMarker(item);
 
-  // Episode discriminator: distinct episodes of a show must NEVER share a key,
-  // even when they carry a series-level external id (e.g. the same TVDB series
-  // number on every episode) or an identical show title. Prefer the structured
-  // season/episode; when those are null (unidentified episodes) parse the SxxEyy
-  // that survives in the raw title; and for any other non-movie without episode
-  // markers, fall back to the title so a series-level id can't collapse it.
-  const epSuffix = episodeDiscriminator(item, normTitle);
-
-  // (c) external id — strongest signal (but still episode-scoped for episodes,
-  // because providers store series-level ids on episode rows).
+  // (c) external id — the strongest signal for MOVIES (entity-level ids). For
+  // TV it is unreliable: providers store series-level ids on episode rows, and
+  // some data even repeats one id across *different* shows. So for non-movies we
+  // scope the external-id key by the show title AND the episode number, so a bad
+  // shared id can never collapse distinct episodes/shows, while two files of the
+  // same episode still match.
   for (const ext of item.externalIds ?? []) {
-    keys.push({ reason: 'external_id', key: `external_id:${ext.provider}:${ext.externalId}${epSuffix}` });
+    const scope = isMovie ? '' : `:${normTitle}${epMarker}`;
+    keys.push({ reason: 'external_id', key: `external_id:${ext.provider}:${ext.externalId}${scope}` });
   }
 
   // (b) show + season + episode.
@@ -121,7 +113,7 @@ export function duplicateKeys(item: DuplicateItemLike): Array<{
   // different episodes of a series AND different films that share a title (e.g.
   // Aladdin 1992 vs 2019) are never grouped together.
   if (normTitle) {
-    const discriminator = epSuffix || `:${item.year ?? 'na'}`;
+    const discriminator = epMarker || `:${item.year ?? 'na'}`;
     keys.push({ reason: 'similar_filename', key: `fn:${normTitle}${discriminator}` });
   }
 
