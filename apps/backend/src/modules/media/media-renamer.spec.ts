@@ -1,8 +1,10 @@
 import {
   buildRenamePlan,
   classifyFile,
+  isSeasonContainer,
   renderTemplate,
   sanitizeSegment,
+  showFolderRoot,
   RenameContext,
 } from './media-renamer';
 
@@ -136,5 +138,77 @@ describe('buildRenamePlan — edge cases', () => {
     }));
     expect(plan.mode).toBe('preview');
     expect(plan.items[0].destination).toContain('/m/Show/Season 01/');
+  });
+});
+
+describe('isSeasonContainer / showFolderRoot', () => {
+  it('recognises season/specials containers', () => {
+    expect(isSeasonContainer('Season 8')).toBe(true);
+    expect(isSeasonContainer('Season 08')).toBe(true);
+    expect(isSeasonContainer('Specials')).toBe(true);
+    expect(isSeasonContainer('The Rookie (2018)')).toBe(false);
+  });
+  it('climbs past a season folder to the show root', () => {
+    expect(showFolderRoot('/tv/The Rookie (2018)/Season 8/ep.mkv')).toBe('/tv/The Rookie (2018)');
+    expect(showFolderRoot('/tv/The Rookie (2018)/ep.mkv')).toBe('/tv/The Rookie (2018)');
+  });
+});
+
+describe('buildRenamePlan — rename_in_place keeps the show folder', () => {
+  const common = {
+    sourceName: 'The.Rookie.S08E16.Out.of.Time.1080p.x265-MeGusta',
+    libraryPath: '/downloads/TV/TV_Shows',
+    meta: { episodeTitle: 'Out of Time' } as never,
+  };
+  const primary = (plan: ReturnType<typeof buildRenamePlan>) =>
+    plan.items.find((i) => !i.skipped && !i.isSubtitle)!;
+
+  it('re-homes into the season subdir WITHIN the existing show folder (no year re-derivation)', () => {
+    // File dropped in the show-folder root by the RSS rule.
+    const plan = buildRenamePlan(ctx({
+      ...common,
+      mode: 'rename_in_place',
+      files: [{ path: '/downloads/TV/TV_Shows/The Rookie (2018)/The.Rookie.S08E16.Out.of.Time.1080p.x265-MeGusta.mkv', size: 2e9 }],
+    }));
+    // Stays in "The Rookie (2018)" (never forks to a year-less "The Rookie"),
+    // just organised into Season 08 and renamed.
+    expect(primary(plan).destination).toBe(
+      '/downloads/TV/TV_Shows/The Rookie (2018)/Season 08/The Rookie - S08E16 - Out of Time.mkv',
+    );
+    expect(primary(plan).action).toBe('rename');
+  });
+
+  it('climbs past an existing season folder to keep the show folder', () => {
+    const plan = buildRenamePlan(ctx({
+      ...common,
+      mode: 'rename_in_place',
+      files: [{ path: '/downloads/TV/TV_Shows/The Rookie (2018)/Season 8/The Rookie - S08E16.mkv', size: 2e9 }],
+    }));
+    expect(primary(plan).destination).toBe(
+      '/downloads/TV/TV_Shows/The Rookie (2018)/Season 08/The Rookie - S08E16 - Out of Time.mkv',
+    );
+  });
+
+  it('rename_move re-roots to the full templated library path', () => {
+    const plan = buildRenamePlan(ctx({
+      ...common,
+      mode: 'rename_move',
+      files: [{ path: '/downloads/TV/TV_Shows/The Rookie (2018)/The.Rookie.S08E16.mkv', size: 2e9 }],
+    }));
+    expect(primary(plan).destination).toBe(
+      '/downloads/TV/TV_Shows/The Rookie/Season 08/The Rookie - S08E16 - Out of Time.mkv',
+    );
+    expect(primary(plan).action).toBe('move');
+  });
+
+  it('rename_in_place with a base-relative source still re-roots (torrent post-download flow)', () => {
+    const plan = buildRenamePlan(ctx({
+      ...common,
+      mode: 'rename_in_place',
+      files: [{ path: 'The.Rookie.S08E16.Out.of.Time.1080p.x265-MeGusta.mkv', size: 2e9 }],
+    }));
+    expect(primary(plan).destination).toBe(
+      '/downloads/TV/TV_Shows/The Rookie/Season 08/The Rookie - S08E16 - Out of Time.mkv',
+    );
   });
 });

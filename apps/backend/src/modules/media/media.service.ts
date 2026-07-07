@@ -285,7 +285,14 @@ export class MediaService {
         // Reject symlink escapes from the real source location.
         const realSrc = await realpath(src).catch(() => src);
         this.assertWithin(realSrc, roots, 'source');
-        const dest = this.assertWithin(item.destination, roots, 'destination');
+        let dest = this.assertWithin(item.destination, roots, 'destination');
+
+        // In-place TV renames land in the show folder's season subdir. Reuse an
+        // existing, differently-padded season folder ("Season 8" vs "Season 08")
+        // so we never create a second folder for the same season.
+        if (plan.mode === 'rename_in_place') {
+          dest = this.assertWithin(await this.reuseExistingSeasonDir(dest), roots, 'destination');
+        }
 
         await mkdir(path.dirname(dest), { recursive: true });
         await this.execute(item.action, realSrc, dest);
@@ -307,6 +314,33 @@ export class MediaService {
     });
 
     return { applied, skipped, failed, plan };
+  }
+
+  /**
+   * If `dest` targets a `Season NN` subfolder and the show folder already holds
+   * a folder for the same season number under a different name (e.g. `Season 8`
+   * vs the template's `Season 08`), redirect `dest` into that existing folder so
+   * an in-place rename doesn't create a duplicate season directory. No-op for
+   * movie/Specials destinations or when no sibling matches.
+   */
+  private async reuseExistingSeasonDir(dest: string): Promise<string> {
+    const seasonDir = path.dirname(dest);
+    const seasonName = path.basename(seasonDir);
+    const want = seasonName.match(/^season\s*0*(\d+)$/i);
+    if (!want) return dest;
+    const showRoot = path.dirname(seasonDir);
+    try {
+      for (const e of await readdir(showRoot, { withFileTypes: true })) {
+        if (!e.isDirectory() || e.name === seasonName) continue;
+        const m = e.name.match(/^season\s*0*(\d+)$/i);
+        if (m && Number(m[1]) === Number(want[1])) {
+          return path.join(showRoot, e.name, path.basename(dest));
+        }
+      }
+    } catch {
+      // Show root not readable yet — fall back to the templated season folder.
+    }
+    return dest;
   }
 
   private async execute(action: string, src: string, dest: string): Promise<void> {

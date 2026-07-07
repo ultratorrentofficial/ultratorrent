@@ -281,6 +281,47 @@ function modeToAction(mode: RenameMode): PlanAction {
   }
 }
 
+/** A "Season N" / "Specials" style container folder that groups episodes. */
+export function isSeasonContainer(name: string): boolean {
+  return (
+    /^(season|series|saison|staffel|temporada|stagione|serie)[\s._-]*\d+$/i.test(name) ||
+    /^specials$/i.test(name)
+  );
+}
+
+/**
+ * The show (or movie) folder a source file already lives in — i.e. its parent
+ * directory, climbing past a "Season NN"/"Specials" container if present.
+ */
+export function showFolderRoot(source: string): string {
+  const dir = path.dirname(source);
+  return isSeasonContainer(path.basename(dir)) ? path.dirname(dir) : dir;
+}
+
+/**
+ * Resolve a plan item's destination path for a `source` and its templated
+ * relative path `rel` (e.g. `Show/Season 08/Show - S08E16 - Title.mkv`).
+ *
+ * `rename_in_place` keeps the file inside the **show folder it already lives in**
+ * — whatever the RSS rule / existing library named it (with or without a year).
+ * It only re-homes the file into the correct **season subfolder** and corrects
+ * the filename; the template's leading show-folder segment is discarded, so a
+ * missing/blank year can never fork `Show (year)/` into a bare `Show/`. Every
+ * other mode re-roots the file under the library at the full templated path.
+ * (Separate from `modeToAction`, which picks the filesystem verb.)
+ *
+ * In-place applies only to **absolute** sources (the media-library flow). The
+ * torrent post-download flow passes base-relative paths and must re-root.
+ */
+function resolveDestination(ctx: RenameContext, source: string, rel: string): string {
+  if (ctx.mode === 'rename_in_place' && path.isAbsolute(source)) {
+    const parts = rel.split(path.sep);
+    const belowShow = parts.length > 1 ? parts.slice(1).join(path.sep) : rel;
+    return path.join(showFolderRoot(source), belowShow);
+  }
+  return path.join(ctx.libraryPath, rel);
+}
+
 /** Build a rename plan (no IO). */
 export function buildRenamePlan(ctx: RenameContext): RenamePlan {
   const parsed = parseTorrentName(ctx.sourceName);
@@ -317,7 +358,7 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
       // Route extras into an Extras/ subfolder beside the title folder.
       const dir = path.dirname(rel);
       rel = path.join(dir, 'Extras', sanitizeSegment(path.basename(f.path)));
-      items.push({ source: f.path, destination: path.join(ctx.libraryPath, rel), action, kind: c.kind, reason: 'extra/featurette', skipped: false, isSubtitle: false, isSample: false, isExtra: true });
+      items.push({ source: f.path, destination: resolveDestination(ctx, f.path, rel), action, kind: c.kind, reason: 'extra/featurette', skipped: false, isSubtitle: false, isSample: false, isExtra: true });
       continue;
     }
 
@@ -326,7 +367,7 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
       rel = rel.replace(/Season 00/i, 'Specials');
     }
 
-    const destination = path.join(ctx.libraryPath, rel);
+    const destination = resolveDestination(ctx, f.path, rel);
     if (destSeen.has(destination)) {
       warnings.push(`Duplicate destination "${destination}" from "${f.path}" and "${destSeen.get(destination)}".`);
     }
