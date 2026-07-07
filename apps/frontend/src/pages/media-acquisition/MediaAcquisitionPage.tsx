@@ -65,6 +65,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { AddSeriesFromLibraryDialog } from './AddSeriesFromLibraryDialog';
 import { cn } from '@/lib/utils';
 
 type BadgeVariant = NonNullable<BadgeProps['variant']>;
@@ -464,6 +465,7 @@ function WatchlistTab() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [editing, setEditing] = useState<WatchlistItem | null>(null);
 
   const watchlistQuery = useQuery({
@@ -530,9 +532,14 @@ function WatchlistTab() {
           />
         </div>
         {canManage && (
-          <Button onClick={() => setShowAdd(true)}>
-            <Plus className="h-4 w-4" /> {t('acquisition.watchlist.add')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => setShowBulkAdd(true)}>
+              <Plus className="h-4 w-4" /> {t('acquisition.librarySeries.addFromLibrary')}
+            </Button>
+            <Button onClick={() => setShowAdd(true)}>
+              <Plus className="h-4 w-4" /> {t('acquisition.watchlist.add')}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -660,6 +667,7 @@ function WatchlistTab() {
         </CardContent>
       </Card>
 
+      <AddSeriesFromLibraryDialog open={showBulkAdd} onClose={() => setShowBulkAdd(false)} />
       {showAdd && (
         <WatchlistDialog profiles={profiles} onClose={() => setShowAdd(false)} onSaved={invalidate} />
       )}

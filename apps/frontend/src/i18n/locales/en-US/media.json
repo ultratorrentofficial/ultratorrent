@@ -1211,7 +1211,8 @@
       "add": "Add {{count}} series",
       "added": "Added {{added}} series ({{skipped}} skipped)",
       "addFailed": "Could not add series",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "addFromLibrary": "Add from library"
     }
   }
 }

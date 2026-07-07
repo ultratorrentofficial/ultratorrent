@@ -1211,7 +1211,8 @@
       "add": "Agregar {{count}} series",
       "added": "Se agregaron {{added}} series ({{skipped}} omitidas)",
       "addFailed": "No se pudieron agregar las series",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "addFromLibrary": "Agregar desde la biblioteca"
     }
   }
 }
