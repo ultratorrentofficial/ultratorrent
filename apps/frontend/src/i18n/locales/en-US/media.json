@@ -428,6 +428,27 @@
   "renamer": {
     "title": "Media renamer",
     "subtitle": "Organize downloads into media-server layouts. Hardlink and symlink modes keep torrents seeding.",
+    "tokensHelp": {
+      "title": "Available template variables",
+      "padding": "zero-pad numbers to a fixed width (e.g. 01, 005)",
+      "optional": "optional block — shown only when the token has a value",
+      "folders": "creates a subfolder",
+      "desc": {
+        "seriesTitle": "TV / anime show name",
+        "movieTitle": "Movie name",
+        "episodeTitle": "Episode name",
+        "season": "Season number",
+        "episode": "Episode number",
+        "episodeEnd": "Last episode number for a multi-episode file",
+        "year": "Release year",
+        "resolution": "Video resolution (1080p, 2160p…)",
+        "source": "Source (BluRay, WEB-DL, HDTV…)",
+        "codec": "Video codec (x264, x265…)",
+        "releaseGroup": "Release group",
+        "general": "Generic title (same as Series Title)",
+        "ext": "File extension, without the dot"
+      }
+    },
     "tab": {
       "libraries": "Libraries",
       "rename": "Quick Rename",

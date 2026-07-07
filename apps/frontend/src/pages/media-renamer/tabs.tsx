@@ -34,6 +34,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Textarea } from '@/components/ui/input';
+import { RenameTokensHelp } from './RenameTokensHelp';
 import { PathPicker } from '@/components/PathPicker';
 import { Select } from '@/components/ui/select';
 import {
@@ -295,7 +296,7 @@ export function DryRunTab() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="mr-template">{t('renamer.dryRun.template')}</Label>
+              <div className="flex items-center gap-1.5"><Label htmlFor="mr-template">{t('renamer.dryRun.template')}</Label><RenameTokensHelp /></div>
               <Input
                 id="mr-template"
                 value={form.template}
@@ -879,7 +880,7 @@ function TemplateDialog({
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="tpl-template">{t('renamer.templateDialog.template')}</Label>
+          <div className="flex items-center gap-1.5"><Label htmlFor="tpl-template">{t('renamer.templateDialog.template')}</Label><RenameTokensHelp /></div>
           <Textarea
             id="tpl-template"
             value={form.template}

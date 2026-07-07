@@ -24,6 +24,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
+import { RenameTokensHelp } from '@/pages/media-renamer/RenameTokensHelp';
 import { PathPicker } from '@/components/PathPicker';
 import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { Select } from '@/components/ui/select';
@@ -489,12 +490,15 @@ function ActionParams({
           pickerTitle={t('params.libraryPathPicker')}
           className="min-w-[10rem] flex-1"
         />
-        <Input
-          value={String(p.template ?? '')}
-          onChange={(e) => set('template', e.target.value)}
-          placeholder={t('params.templatePlaceholder')}
-          className="min-w-[10rem] flex-1 font-mono"
-        />
+        <div className="flex min-w-[10rem] flex-1 items-center gap-1.5">
+          <Input
+            value={String(p.template ?? '')}
+            onChange={(e) => set('template', e.target.value)}
+            placeholder={t('params.templatePlaceholder')}
+            className="flex-1 font-mono"
+          />
+          <RenameTokensHelp />
+        </div>
       </div>
     );
   }

@@ -428,6 +428,27 @@
   "renamer": {
     "title": "Renombrador de medios",
     "subtitle": "Organiza las descargas en diseños de servidores de medios. Los modos de enlace fijo y simbólico mantienen los torrents compartiendo.",
+    "tokensHelp": {
+      "title": "Variables de plantilla disponibles",
+      "padding": "rellena números con ceros a un ancho fijo (p. ej. 01, 005)",
+      "optional": "bloque opcional — se muestra solo cuando la variable tiene valor",
+      "folders": "crea una subcarpeta",
+      "desc": {
+        "seriesTitle": "Nombre de la serie / anime",
+        "movieTitle": "Nombre de la película",
+        "episodeTitle": "Nombre del episodio",
+        "season": "Número de temporada",
+        "episode": "Número de episodio",
+        "episodeEnd": "Último número de episodio en un archivo multi-episodio",
+        "year": "Año de estreno",
+        "resolution": "Resolución de video (1080p, 2160p…)",
+        "source": "Fuente (BluRay, WEB-DL, HDTV…)",
+        "codec": "Códec de video (x264, x265…)",
+        "releaseGroup": "Grupo de lanzamiento",
+        "general": "Título genérico (igual que Nombre de la serie)",
+        "ext": "Extensión del archivo, sin el punto"
+      }
+    },
     "tab": {
       "libraries": "Bibliotecas",
       "rename": "Renombrado rápido",

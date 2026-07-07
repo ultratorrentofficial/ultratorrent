@@ -20,6 +20,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Textarea } from '@/components/ui/input';
+import { RenameTokensHelp } from '@/pages/media-renamer/RenameTokensHelp';
 import { PathPicker } from '@/components/PathPicker';
 import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { Select } from '@/components/ui/select';
@@ -329,7 +330,7 @@ function LibraryDialog({
           </div>
         </div>
         <div>
-          <Label htmlFor="lib-template">{t('libraries.field.template')}</Label>
+          <div className="flex items-center gap-1.5"><Label htmlFor="lib-template">{t('libraries.field.template')}</Label><RenameTokensHelp /></div>
           <Textarea
             id="lib-template"
             value={template}
