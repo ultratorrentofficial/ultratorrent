@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { SystemRole } from '@ultratorrent/shared';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import {
@@ -8,6 +9,7 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   Info,
   LogOut,
   UserCog,
@@ -17,6 +19,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
+import { api } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useModules } from '@/modules/ModuleContext';
 import { useRealtime } from '@/realtime/RealtimeContext';
@@ -68,6 +71,23 @@ export function AppShell() {
       return next;
     });
 
+  // Prowlarr companion shortcut: only fetch when the user may view it; the nav
+  // item shows only when the integration is enabled with a public URL set.
+  const canViewProwlarr = hasPermission(PERMISSIONS.INTEGRATIONS_PROWLARR_VIEW);
+  const { data: prowlarr } = useQuery({
+    queryKey: ['prowlarr', 'settings'],
+    queryFn: () => api.prowlarr.get(),
+    enabled: canViewProwlarr,
+    staleTime: 60_000,
+  });
+  const externalHref = useCallback(
+    (id: string): string | null => {
+      if (id === 'prowlarr') return prowlarr?.enabled && prowlarr.publicUrl ? prowlarr.publicUrl : null;
+      return null;
+    },
+    [prowlarr],
+  );
+
   const groups = useMemo(
     () =>
       visibleGroups({
@@ -75,8 +95,9 @@ export function AppShell() {
         isEnabled,
         canManageModules: hasPermission(PERMISSIONS.MODULES_MANAGE),
         isSuperAdmin: Boolean(user?.roles?.includes(SystemRole.SUPER_ADMIN)),
+        externalHref,
       }),
-    [hasPermission, isEnabled, user],
+    [hasPermission, isEnabled, user, externalHref],
   );
 
   const searchEntries = useMemo(() => flattenForSearch(groups), [groups]);
@@ -209,6 +230,25 @@ function NavRow({
           <kbd className="ml-auto hidden rounded border border-border/60 px-1 py-0.5 text-[9px] text-muted-foreground/70 xl:inline">⌘K</kbd>
         )}
       </button>
+    );
+  }
+
+  // External link (e.g. the Prowlarr companion) — opens in a new tab.
+  if (item.external && item.href) {
+    return (
+      <a
+        href={item.href}
+        target="_blank"
+        rel="noreferrer"
+        onClick={onNavigate}
+        title={collapsed ? label : undefined}
+        aria-label={label}
+        className={classes}
+      >
+        {iconEl}
+        {!collapsed && <span className="truncate">{label}</span>}
+        {!collapsed && <ExternalLink className="ml-auto h-3.5 w-3.5 shrink-0 opacity-60" />}
+      </a>
     );
   }
 

@@ -29,8 +29,8 @@ translated at render time via the `nav` i18n namespace (`groups`, `items`,
 | Group | Entries (→ route) |
 |-------|-------------------|
 | **Overview** | Dashboard → `/dashboard` · Search → command palette |
-| **Downloads** | Torrents → `/torrents` (sub-menu: Downloading/Seeding/Completed/Paused/Errors) · Engines → `/engines` |
-| **RSS & Acquisition** | RSS Feeds → `/rss` · Release Scoring → `/release-scoring` · Acquisition Intelligence → `/media-acquisition` (sub-menu: Smart Download, Missing Episodes, Decision Simulator) |
+| **Downloads** | Torrents → `/torrents` (sub-menu: Downloading/Seeding/Completed/Paused/Errors) · Engines → `/engines` · Indexers → `/indexers` |
+| **RSS & Acquisition** | RSS Feeds → `/rss` · Release Scoring → `/release-scoring` · Acquisition Intelligence → `/media-acquisition` (sub-menu: Smart Download, Missing Episodes, Decision Simulator) · **Prowlarr** *(external link — shown only when the [Prowlarr integration](PROWLARR.md) is enabled and the user has `integrations.prowlarr.open`; opens the configured public URL in a new tab)* |
 | **Media Management** | Media Dashboard → `/media` · Media Items → `/media/items` · Libraries → `/media/libraries` · Unmatched Media → `/media/unmatched` · Duplicates → `/media/duplicates` · Rename Engine → `/media/rename-preview` · IMDb Settings → `/media/settings/imdb` · Media Settings → `/media/settings` |
 | **Media Server Analytics** *(module-gated)* | Analytics Dashboard → `/media-server-analytics` · Live Activity → `/live` · Recently Added → `/recently-added` · Watch History → `/watch-history` · Analytics Reports → `/reports` · Newsletters → `/newsletters` · Import Analytics → `/import` · Server Connections → `/connections` |
 | **Automation** | Automation Rules → `/automation` · Notification Center → `/notifications` · Notification Channels → `/notifications/channels` · Notification Rules → `/notifications/rules` · Notification Recipients → `/notifications/recipients` · Delivery History → `/notifications/history` |

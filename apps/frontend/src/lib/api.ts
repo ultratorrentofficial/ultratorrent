@@ -2035,6 +2035,46 @@ export interface IndexerCandidate {
   categories: number[];
 }
 
+export type ProwlarrStatus = 'unknown' | 'disabled' | 'unconfigured' | 'ok' | 'error';
+
+export interface ProwlarrSettings {
+  enabled: boolean;
+  internalUrl: string;
+  publicUrl: string;
+  /** True when an API key is stored; the key itself is never returned. */
+  hasApiKey: boolean;
+  /** Redacted mask (`••••••••`) when a key exists, else empty. */
+  apiKey: string;
+  status: ProwlarrStatus;
+  statusMessage: string | null;
+  version: string | null;
+  indexerCount: number | null;
+  lastCheckedAt: string | null;
+}
+
+export interface ProwlarrSettingsInput {
+  enabled?: boolean;
+  internalUrl?: string;
+  publicUrl?: string;
+  /** Send only when changed; omit or send the mask to keep the stored key. */
+  apiKey?: string;
+}
+
+export interface ProwlarrTestResult {
+  ok: boolean;
+  version?: string | null;
+  indexerCount?: number | null;
+  message: string;
+}
+
+export interface ProwlarrStatusResult {
+  status: ProwlarrStatus;
+  version: string | null;
+  indexerCount: number | null;
+  lastCheckedAt: string | null;
+  message: string;
+}
+
 export const api = {
   auth: {
     async login(
@@ -2574,6 +2614,24 @@ export const api = {
     },
     search(id: string, q: string, season?: number, ep?: number): Promise<IndexerCandidate[]> {
       return request<IndexerCandidate[]>(`/indexers/${id}/search`, { query: { q, season, ep } });
+    },
+  },
+
+  prowlarr: {
+    get(): Promise<ProwlarrSettings> {
+      return request<ProwlarrSettings>('/integrations/prowlarr');
+    },
+    update(body: ProwlarrSettingsInput): Promise<ProwlarrSettings> {
+      return request<ProwlarrSettings>('/integrations/prowlarr', { method: 'PATCH', body });
+    },
+    test(body: ProwlarrSettingsInput = {}): Promise<ProwlarrTestResult> {
+      return request<ProwlarrTestResult>('/integrations/prowlarr/test', { method: 'POST', body });
+    },
+    status(): Promise<ProwlarrStatusResult> {
+      return request<ProwlarrStatusResult>('/integrations/prowlarr/status');
+    },
+    open(): Promise<{ url: string }> {
+      return request<{ url: string }>('/integrations/prowlarr/open', { method: 'POST' });
     },
   },
 

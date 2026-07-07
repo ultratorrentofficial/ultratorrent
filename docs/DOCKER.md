@@ -1,8 +1,9 @@
 # Docker Deployment
 
 UltraTorrent ships a complete Compose stack: a database, a cache, the API, and
-the web UI — plus two optional services (a bundled rTorrent engine and an edge
-reverse proxy) behind Compose **profiles**. The real files at the repo root are
+the web UI — plus three optional services (a bundled rTorrent engine, a Prowlarr
+indexer manager, and an edge reverse proxy) behind Compose **profiles**. The real
+files at the repo root are
 `docker-compose.yml` (full stack), `docker-compose.dev.yml` (dependencies only),
 `apps/backend/Dockerfile`, `apps/frontend/Dockerfile`,
 `apps/frontend/nginx.conf`, `deploy/Caddyfile`, and `.env.example`.
@@ -29,6 +30,7 @@ From `docker-compose.yml`:
 | `backend` | build `apps/backend/Dockerfile` | NestJS API + WebSocket gateway | `4000:4000` | always |
 | `frontend` | build `apps/frontend/Dockerfile` (nginx) | Built React SPA + `/api` & `/ws` proxy | `8080:80` | always |
 | `rtorrent` | `crazymax/rtorrent-rutorrent:latest` | Bundled torrent engine exposing SCGI `5000` | internal | `rtorrent` |
+| `prowlarr` | `lscr.io/linuxserver/prowlarr:latest` | Optional Prowlarr indexer manager (companion) | `9696:9696` | `prowlarr` |
 | `proxy` | `caddy:2-alpine` | Edge reverse proxy / automatic TLS | `80:80`, `443:443` | `proxy` |
 
 All services share an `internal` bridge network. The `backend` waits for
@@ -92,6 +94,12 @@ ADMIN_PASSWORD=changeme123!
 
 # File manager allow-list (comma-separated absolute roots)
 FILE_MANAGER_ROOTS=/downloads
+
+# Optional Prowlarr companion (profile `prowlarr`) — see docs/PROWLARR.md
+PROWLARR_PORT=9696
+PROWLARR_BASE_URL=http://prowlarr:9696
+PROWLARR_PUBLIC_URL=http://localhost:9696
+TZ=Etc/UTC                                   # timezone for companion containers
 ```
 
 The **frontend** image takes its API/WS targets at **build time** via build args
@@ -110,6 +118,7 @@ defaults so the SPA uses relative URLs proxied by nginx.
 | `redis_data` | `redis` | Redis AOF persistence |
 | `downloads` | `backend`, `rtorrent` | Shared download tree — same path in both so engine `savePath`s line up with `FILE_MANAGER_ROOTS` |
 | `rtorrent_data` | `rtorrent` | rTorrent session/state |
+| `prowlarr_config` | `prowlarr` | Prowlarr database, indexer definitions & settings |
 | `caddy_data` | `proxy` | Caddy certificates / state |
 
 Network: a single `internal` bridge connects every service.
@@ -125,18 +134,23 @@ Network: a single `internal` bridge connects every service.
 
 ## Optional profiles
 
-The two optional services are behind Compose profiles and are **off by default**:
+The optional services are behind Compose profiles and are **off by default**:
 
 ```bash
 # Bring up the stack plus a bundled rTorrent engine
 docker compose --profile rtorrent up -d --build
 # Then register it in UltraTorrent: mode "scgi-tcp", host "rtorrent", port 5000.
 
+# Add the Prowlarr indexer manager (companion container)
+docker compose --profile prowlarr up -d
+# Then link it in UltraTorrent: Settings → Integrations → Prowlarr
+# (internal URL http://prowlarr:9696 + the Prowlarr API key). See docs/PROWLARR.md.
+
 # Add the Caddy edge proxy (TLS termination, single 80/443 entrypoint)
 docker compose --profile proxy up -d
 
-# Both
-docker compose --profile rtorrent --profile proxy up -d --build
+# Several at once
+docker compose --profile rtorrent --profile prowlarr --profile proxy up -d --build
 ```
 
 The `deploy/Caddyfile` routes `/api/*` and `/ws/*` to `backend:4000` and

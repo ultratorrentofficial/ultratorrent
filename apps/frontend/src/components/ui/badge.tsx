@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 
-type BadgeVariant =
+export type BadgeVariant =
   | 'default'
   | 'secondary'
   | 'success'

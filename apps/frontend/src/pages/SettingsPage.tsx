@@ -16,6 +16,7 @@ import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { EmailSettingsCard } from '@/pages/media-server-analytics/EmailSettingsCard';
 import { NewsletterImagesCard } from '@/pages/media-server-analytics/NewsletterImagesCard';
+import { ProwlarrSettingsCard } from '@/pages/settings/ProwlarrSettingsCard';
 
 /** Owned by the dedicated Default Root Path section — not the generic list. */
 const ROOT_PATH_KEY = 'fileManager.defaultRootPath';
@@ -75,6 +76,7 @@ export function SettingsPage() {
 
       {hasPermission(PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS) && <EmailSettingsCard />}
       {hasPermission(PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS) && <NewsletterImagesCard />}
+      {hasPermission(PERMISSIONS.INTEGRATIONS_PROWLARR_VIEW) && <ProwlarrSettingsCard />}
 
       {isLoading ? (
         <CenteredSpinner label={t('page.loading')} />

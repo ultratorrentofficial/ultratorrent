@@ -129,3 +129,35 @@ describe('isBranchActive (parent highlight + auto-expand)', () => {
     expect(isBranchActive(parent, '/settings', '')).toBe(false);
   });
 });
+
+describe('external companion shortcut (Prowlarr)', () => {
+  const OPEN = PERMISSIONS.INTEGRATIONS_PROWLARR_OPEN;
+  const base = (over: Partial<NavVisibilityCtx>): NavVisibilityCtx => ({
+    hasPermission: () => false,
+    isEnabled: () => true,
+    canManageModules: false,
+    isSuperAdmin: false,
+    ...over,
+  });
+  const findProwlarr = (groups: ReturnType<typeof visibleGroups>) =>
+    groups.flatMap((g) => g.items).find((i) => i.id === 'prowlarr');
+
+  it('is hidden when the user lacks the open permission (even if enabled)', () => {
+    const groups = visibleGroups(base({ hasPermission: () => false, externalHref: () => 'http://host:9696' }));
+    expect(findProwlarr(groups)).toBeUndefined();
+  });
+
+  it('is hidden when enabled/unconfigured resolves no URL (even with permission)', () => {
+    const groups = visibleGroups(base({ hasPermission: (p) => p === OPEN, externalHref: () => null }));
+    expect(findProwlarr(groups)).toBeUndefined();
+  });
+
+  it('is shown with the resolved external href when permitted and configured', () => {
+    const groups = visibleGroups(base({ hasPermission: (p) => p === OPEN, externalHref: () => 'http://localhost:9696' }));
+    const item = findProwlarr(groups);
+    expect(item).toBeDefined();
+    expect(item?.external).toBe(true);
+    expect(item?.href).toBe('http://localhost:9696');
+    expect(item?.to).toBeUndefined();
+  });
+});

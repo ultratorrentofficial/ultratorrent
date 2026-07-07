@@ -1,6 +1,7 @@
 # UltraTorrent — full stack composition.
 # Usage: cp .env.example .env && docker compose up -d --build
-# Profiles: `rtorrent` (bundled engine), `proxy` (edge reverse proxy).
+# Profiles: `rtorrent` (bundled engine), `prowlarr` (indexer manager),
+#           `proxy` (edge reverse proxy).
 
 services:
   postgres:
@@ -122,6 +123,28 @@ services:
     expose: ["5000"]
     networks: [internal]
 
+  # Optional bundled Prowlarr indexer manager. Enable with: --profile prowlarr
+  # A separate companion container (not part of UltraTorrent) that manages
+  # Torznab/Newznab indexers. UltraTorrent links to it via Settings →
+  # Integrations → Prowlarr; the backend reaches it at http://prowlarr:9696 over
+  # the internal network. Off by default; UltraTorrent boots fine without it.
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    profiles: ["prowlarr"]
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Etc/UTC}
+    volumes:
+      - prowlarr_config:/config
+    # Published so operators can reach the Prowlarr web UI directly. Change
+    # PROWLARR_PORT in .env if 9696 is taken. Remove this mapping to keep it
+    # reachable only from inside the internal network (via the UltraTorrent link).
+    ports:
+      - "${PROWLARR_PORT:-9696}:9696"
+    networks: [internal]
+
   # Optional edge reverse proxy (TLS termination). Enable with: --profile proxy
   proxy:
     image: caddy:2-alpine
@@ -141,6 +164,7 @@ volumes:
   redis_data:
   downloads:
   caddy_data:
+  prowlarr_config:
 
 networks:
   internal:

@@ -28,6 +28,7 @@ import {
   Tv,
   FlaskConical,
   Gauge,
+  Globe,
   MonitorPlay,
   Server,
   Activity,
@@ -76,6 +77,15 @@ export interface NavItem {
   to?: string;
   /** A non-navigation action instead of a route. */
   action?: 'command';
+  /**
+   * External link — opens in a new tab instead of routing. The live URL is
+   * resolved at filter time via {@link NavVisibilityCtx.externalHref} (so a
+   * companion app like Prowlarr appears only when configured/enabled); the
+   * resolved value is written back onto {@link href}.
+   */
+  external?: boolean;
+  /** Resolved external URL (runtime-populated for `external` items). */
+  href?: string;
   /** Nested sub-menu. */
   children?: NavItem[];
   /** RBAC gate — hidden unless the user holds this permission. */
@@ -171,6 +181,9 @@ export const NAV_GROUPS: NavGroup[] = [
           { id: 'decision-simulator', to: '/media-acquisition/simulator', label: 'Decision Simulator', icon: FlaskConical, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Decision Simulator' },
         ],
       },
+      // Optional Prowlarr companion — shown only when configured + enabled (its
+      // live URL is resolved at filter time) and the user may open it.
+      { id: 'prowlarr', label: 'Prowlarr', icon: Globe, external: true, permission: PERMISSIONS.INTEGRATIONS_PROWLARR_OPEN, descriptionKey: 'Prowlarr' },
     ],
   },
   {
@@ -258,6 +271,13 @@ export interface NavVisibilityCtx {
   /** Users who can manage modules still see disabled-module entries (they lead to the locked page). */
   canManageModules: boolean;
   isSuperAdmin: boolean;
+  /**
+   * Resolve an `external` item's live target URL by id. Return a non-empty URL
+   * to show the item (linking there), or null/undefined to hide it (e.g. the
+   * companion app is disabled or unconfigured). Optional — items without
+   * `external` ignore it.
+   */
+  externalHref?: (id: string) => string | null | undefined;
 }
 
 /** Whether a single item passes its own gates (ignoring children). */
@@ -274,12 +294,20 @@ function selfVisible(item: NavItem, ctx: NavVisibilityCtx): boolean {
 /** Recursively filter an item; returns null when it (and all children) are hidden. */
 function filterItem(item: NavItem, ctx: NavVisibilityCtx): NavItem | null {
   if (!selfVisible(item, ctx)) return null;
+  // External items resolve their live URL at filter time; a missing URL means
+  // "not configured/enabled" → hidden. The resolved URL rides on `href`.
+  let resolved = item;
+  if (item.external) {
+    const href = ctx.externalHref?.(item.id) ?? undefined;
+    if (!href) return null;
+    resolved = { ...item, href };
+  }
   const children = (item.children ?? [])
     .map((c) => filterItem(c, ctx))
     .filter((c): c is NavItem => c !== null);
-  // A pure parent (no destination/action) with no visible children is dropped.
-  if (!item.to && !item.action && children.length === 0) return null;
-  return item.children ? { ...item, children } : item;
+  // A pure parent (no destination/action/link) with no visible children is dropped.
+  if (!resolved.to && !resolved.action && !resolved.href && children.length === 0) return null;
+  return resolved.children ? { ...resolved, children } : resolved;
 }
 
 /**

@@ -198,6 +198,11 @@ docker compose exec backend npx prisma db seed
 Then open the UI (frontend, default `http://localhost:8080`) and sign in with the
 [admin account](#admin-account) you configured.
 
+**Optional companions** run behind Compose profiles (off by default): a bundled
+rTorrent engine (`--profile rtorrent`), a **Prowlarr indexer manager**
+(`--profile prowlarr` — see [`docs/PROWLARR.md`](docs/PROWLARR.md)), and a Caddy
+edge proxy (`--profile proxy`).
+
 ### Option B — Manual / local dev
 
 Prerequisites: **Node.js ≥ 20**, **PostgreSQL**, and **Redis** running locally.
@@ -281,6 +286,7 @@ ultratorrent/
 | [RSS.md](docs/RSS.md)                   | Feeds, rules, match candidates, and TV show airing-status awareness (providers, save validation, background refresh, automation) |
 | [INSTALL.md](docs/INSTALL.md)           | Prerequisites, env setup, Prisma, running dev, connecting rTorrent |
 | [DOCKER.md](docs/DOCKER.md)             | Docker Compose services, volumes, env, health checks, commands |
+| [PROWLARR.md](docs/PROWLARR.md)         | Optional Prowlarr companion container: profile, ports/volumes, UI integration, security |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md)   | Local workflow, adding an engine provider, adding a module, testing, standards |
 | [CONTRIBUTING.md](docs/CONTRIBUTING.md) | Branching, conventional commits, PRs, DCO, CLA |
 | [CHANGELOG.md](CHANGELOG.md)            | Release notes (Keep a Changelog) |

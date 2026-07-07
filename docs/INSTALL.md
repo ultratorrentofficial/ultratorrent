@@ -74,6 +74,11 @@ docker compose exec backend npx prisma db seed
 **5. Open** `http://<host>:8080` and sign in as `admin` with your `ADMIN_PASSWORD`.
 Then add the engine (see [Connecting an rTorrent engine](#connecting-an-rtorrent-engine)).
 
+> **Optional: Prowlarr indexer manager.** Add `--profile prowlarr` to the start
+> command to also run a bundled [Prowlarr](docs/PROWLARR.md) companion container
+> (`http://<host>:9696`), then link it in UltraTorrent under **Settings →
+> Integrations → Prowlarr**. It is entirely optional and off by default.
+
 > The frontend (port **8080**) internally proxies `/api` and `/ws` to the
 > backend, so **8080 is the only port published to the host**. If 8080 is
 > already in use, set `FRONTEND_PORT=<free port>` in `.env`. The backend is

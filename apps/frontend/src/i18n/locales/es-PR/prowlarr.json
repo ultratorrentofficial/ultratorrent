@@ -1,0 +1,42 @@
+{
+  "title": "Prowlarr",
+  "description": "Conecta UltraTorrent con un contenedor complementario opcional de Prowlarr para gestionar indexadores. Prowlarr se ejecuta como un servicio aparte — esto solo guarda la conexión y verifica su estado.",
+  "status": {
+    "ok": "Conectado",
+    "error": "Error",
+    "disabled": "Deshabilitado",
+    "unconfigured": "Sin configurar",
+    "unknown": "Desconocido"
+  },
+  "fields": {
+    "enabled": "Habilitar la integración con Prowlarr",
+    "internalUrl": "URL interna",
+    "internalUrlHint": "Cómo el backend alcanza a Prowlarr (p. ej. http://prowlarr:9696 en la red de Docker).",
+    "publicUrl": "URL pública",
+    "publicUrlHint": "La URL que usa tu navegador para el enlace Abrir Prowlarr (p. ej. http://localhost:9696).",
+    "apiKey": "Clave de API",
+    "apiKeyKeep": "Déjalo en blanco para conservar la clave actual",
+    "apiKeyNew": "Clave de API de Prowlarr",
+    "apiKeyHint": "La encuentras en Prowlarr en Settings → General → Security. Se guarda cifrada; no se vuelve a mostrar."
+  },
+  "info": {
+    "version": "Prowlarr {{version}}",
+    "indexers": "{{count}} indexadores"
+  },
+  "actions": {
+    "save": "Guardar",
+    "test": "Probar conexión",
+    "open": "Abrir Prowlarr"
+  },
+  "toast": {
+    "saved": "Configuración de Prowlarr guardada",
+    "saveFailed": "No se pudo guardar la configuración de Prowlarr",
+    "testOk": "Conectado a Prowlarr {{version}}",
+    "testFailed": "Falló la conexión con Prowlarr",
+    "openFailed": "No se pudo abrir Prowlarr"
+  },
+  "help": {
+    "title": "Contenedor complementario opcional",
+    "body": "Prowlarr no viene incluido en UltraTorrent. Para ejecutar el servicio complementario Prowlarr, habilita el perfil de Docker:"
+  }
+}

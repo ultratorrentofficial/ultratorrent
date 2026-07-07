@@ -16,6 +16,7 @@ import type users from './locales/en-US/users.json';
 import type modules from './locales/en-US/modules.json';
 import type engines from './locales/en-US/engines.json';
 import type indexers from './locales/en-US/indexers.json';
+import type prowlarr from './locales/en-US/prowlarr.json';
 import type audit from './locales/en-US/audit.json';
 import type dashboard from './locales/en-US/dashboard.json';
 import type account from './locales/en-US/account.json';
@@ -44,6 +45,7 @@ declare module 'i18next' {
       modules: typeof modules;
       engines: typeof engines;
       indexers: typeof indexers;
+      prowlarr: typeof prowlarr;
       audit: typeof audit;
       dashboard: typeof dashboard;
       account: typeof account;

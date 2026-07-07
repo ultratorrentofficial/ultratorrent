@@ -1,0 +1,42 @@
+{
+  "title": "Prowlarr",
+  "description": "Link UltraTorrent to an optional Prowlarr companion container for indexer management. Prowlarr runs as a separate service — this only stores the connection and checks its health.",
+  "status": {
+    "ok": "Connected",
+    "error": "Error",
+    "disabled": "Disabled",
+    "unconfigured": "Not configured",
+    "unknown": "Unknown"
+  },
+  "fields": {
+    "enabled": "Enable Prowlarr integration",
+    "internalUrl": "Internal URL",
+    "internalUrlHint": "How the backend reaches Prowlarr (e.g. http://prowlarr:9696 on the Docker network).",
+    "publicUrl": "Public URL",
+    "publicUrlHint": "The URL your browser uses for the Open Prowlarr link (e.g. http://localhost:9696).",
+    "apiKey": "API key",
+    "apiKeyKeep": "Leave blank to keep the current key",
+    "apiKeyNew": "Prowlarr API key",
+    "apiKeyHint": "Find it in Prowlarr under Settings → General → Security. Stored encrypted; never shown again."
+  },
+  "info": {
+    "version": "Prowlarr {{version}}",
+    "indexers": "{{count}} indexers"
+  },
+  "actions": {
+    "save": "Save",
+    "test": "Test connection",
+    "open": "Open Prowlarr"
+  },
+  "toast": {
+    "saved": "Prowlarr settings saved",
+    "saveFailed": "Could not save Prowlarr settings",
+    "testOk": "Connected to Prowlarr {{version}}",
+    "testFailed": "Prowlarr connection failed",
+    "openFailed": "Could not open Prowlarr"
+  },
+  "help": {
+    "title": "Optional companion container",
+    "body": "Prowlarr is not bundled into UltraTorrent. To run the bundled Prowlarr companion service, enable the Docker profile:"
+  }
+}

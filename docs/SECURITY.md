@@ -283,6 +283,14 @@ engine actually writes to.
 - The **IMDb licensed-API key** (`media.imdb.apiKey`) is AES-GCM encrypted at
   rest, **redacted** (`••••••••`) in every API response, and never written to
   logs (see [IMDb metadata provider](#imdb-metadata-provider)).
+- **Indexer API keys** (`indexers` module) and the **Prowlarr companion API key**
+  (`prowlarr.settings`) are AES-256-GCM encrypted at rest (`SecretCipher`),
+  **redacted** (`••••••••`) on every read, kept on masked-update, and never
+  logged — the outbound request carries the key in a header, never the URL. The
+  Prowlarr health check additionally validates the URL (http/https, no embedded
+  credentials), blocks cloud instance-metadata addresses, refuses redirects,
+  times out, and caps the response size (SSRF hardening); it does not proxy
+  arbitrary Prowlarr endpoints. See [PROWLARR.md](PROWLARR.md).
 - Refresh tokens are stored hashed (SHA-256); passwords are stored hashed
   (Argon2id); 2FA recovery codes are stored hashed (SHA-256). None is ever logged.
 - **TOTP secrets** are encrypted at rest with AES-256-GCM using `ENCRYPTION_KEY`

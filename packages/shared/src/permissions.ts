@@ -144,6 +144,12 @@ export const PERMISSIONS = {
   NOTIFICATIONS_MANAGE_PREFERENCES: 'notifications.manage_preferences',
   NOTIFICATIONS_MANAGE_SETTINGS: 'notifications.manage_settings',
   NOTIFICATIONS_ADMIN: 'notifications.admin',
+
+  // Integrations — Prowlarr companion (optional external indexer manager).
+  INTEGRATIONS_PROWLARR_VIEW: 'integrations.prowlarr.view',
+  INTEGRATIONS_PROWLARR_MANAGE: 'integrations.prowlarr.manage',
+  INTEGRATIONS_PROWLARR_TEST: 'integrations.prowlarr.test',
+  INTEGRATIONS_PROWLARR_OPEN: 'integrations.prowlarr.open',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -193,6 +199,10 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.INDEXERS_VIEW,
     PERMISSIONS.INDEXERS_MANAGE,
     PERMISSIONS.INDEXERS_TEST,
+    PERMISSIONS.INTEGRATIONS_PROWLARR_VIEW,
+    PERMISSIONS.INTEGRATIONS_PROWLARR_MANAGE,
+    PERMISSIONS.INTEGRATIONS_PROWLARR_TEST,
+    PERMISSIONS.INTEGRATIONS_PROWLARR_OPEN,
     PERMISSIONS.FILES_VIEW,
     PERMISSIONS.FILES_MANAGE,
     PERMISSIONS.FILES_PREVIEW,
