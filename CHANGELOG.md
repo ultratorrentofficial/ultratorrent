@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.21.1] - 2026-07-07
+
+### Fixed
+- Torznab client: parse Prowlarr/Jackett feeds that advertise <rss version=1.0> (rss-parser rejected them, breaking all indexer searches through Prowlarr/Jackett)
+
 ## [0.21.0] - 2026-07-07
 
 ### Added
