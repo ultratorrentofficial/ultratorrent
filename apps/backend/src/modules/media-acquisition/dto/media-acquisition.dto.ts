@@ -31,6 +31,15 @@ export class CreateWatchlistItemDto {
 }
 export class UpdateWatchlistItemDto extends PartialType(CreateWatchlistItemDto) {}
 
+export class BulkAddSeriesItemDto {
+  @IsString() @MinLength(1) @MaxLength(300) title!: string;
+  @IsOptional() @IsInt() year?: number | null;
+  @IsOptional() @IsString() @MaxLength(30) imdbId?: string | null;
+}
+export class BulkAddWatchlistDto {
+  @IsArray() series!: BulkAddSeriesItemDto[];
+}
+
 export class CreateAcquisitionProfileDto {
   @IsString() @MinLength(1) @MaxLength(120) name!: string;
   @IsOptional() @IsString() @MaxLength(500) description?: string;

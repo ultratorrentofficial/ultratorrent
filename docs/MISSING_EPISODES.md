@@ -19,6 +19,14 @@ module, and [IMDB_IMPORT.md](IMDB_IMPORT.md) for the episode data it relies on.
    (e.g. `tt0903747`). The watchlist add/edit dialog has an **IMDb ID** field for this.
    Without an IMDb ID the series shows as *not monitorable*.
 
+   **Bulk-add from the library:** rather than hand-typing each show, the Missing Episodes
+   page has an **Add from library** picker (`AddSeriesFromLibraryDialog`) — a searchable
+   multi-select of the TV series already in your libraries, with their IMDb IDs resolved
+   automatically (from each show's `seriesImdbId`, or an episode's `imdb` external id).
+   Select the shows to monitor and add them all at once (`POST /watchlist/bulk`); series
+   already on the watchlist are shown pre-checked and locked, and shows with no resolvable
+   IMDb ID are flagged (addable, but re-identify the library to make them scannable).
+
 ## How the diff works
 
 For each monitored series the scan:

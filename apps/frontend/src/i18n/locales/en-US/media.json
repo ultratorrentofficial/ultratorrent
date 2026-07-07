@@ -998,7 +998,8 @@
         "owned": "Owned",
         "unaired": "Unaired",
         "ignored": "Ignored"
-      }
+      },
+      "addFromLibrary": "Add from library"
     },
     "simulator": {
       "title": "Decision Simulator",
@@ -1194,6 +1195,23 @@
         "exported": "Export downloaded",
         "exportFailed": "Export failed"
       }
+    },
+    "librarySeries": {
+      "title": "Add series from your libraries",
+      "subtitle": "Select shows to monitor for missing episodes. Series already in your libraries are listed with their IMDb IDs resolved automatically.",
+      "search": "Search series…",
+      "selectAll": "Select all",
+      "clear": "Clear",
+      "loading": "Loading series…",
+      "loadError": "Could not load library series.",
+      "empty": "No series found in your libraries.",
+      "onWatchlist": "Monitored",
+      "noImdb": "No IMDb ID",
+      "episodes": "{{count}} episodes",
+      "add": "Add {{count}} series",
+      "added": "Added {{added}} series ({{skipped}} skipped)",
+      "addFailed": "Could not add series",
+      "cancel": "Cancel"
     }
   }
 }

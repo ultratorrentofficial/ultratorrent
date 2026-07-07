@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, RefreshCw } from 'lucide-react';
 import {
   api,
   ApiError,
@@ -16,6 +16,7 @@ import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { AddSeriesFromLibraryDialog } from './AddSeriesFromLibraryDialog';
 
 const STATUS_VARIANT: Record<WantedEpisodeStatus, BadgeProps['variant']> = {
   owned: 'success',
@@ -30,6 +31,7 @@ export function MissingEpisodesPage() {
   const { t } = useTranslation('media');
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const gaps = useQuery({ queryKey: QK, queryFn: () => api.mediaAcquisition.missingEpisodes() });
   const imdb = useQuery({ queryKey: ['media', 'imdbStatus'], queryFn: () => api.media.imdbStatus() });
@@ -65,13 +67,22 @@ export function MissingEpisodesPage() {
             {t('acquisition.missingEpisodes.subtitle')}
           </p>
         </div>
-        <Button onClick={() => scanAll.mutate()} disabled={scanAll.isPending}>
-          <RefreshCw className={scanAll.isPending ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-          {scanAll.isPending
-            ? t('acquisition.missingEpisodes.scanning')
-            : t('acquisition.missingEpisodes.scanAll')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={() => setPickerOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {t('acquisition.missingEpisodes.addFromLibrary')}
+          </Button>
+          <Button onClick={() => scanAll.mutate()} disabled={scanAll.isPending}>
+            <RefreshCw className={scanAll.isPending ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+            {scanAll.isPending
+              ? t('acquisition.missingEpisodes.scanning')
+              : t('acquisition.missingEpisodes.scanAll')}
+          </Button>
+        </div>
       </div>
+
+      <AddSeriesFromLibraryDialog open={pickerOpen} onClose={() => setPickerOpen(false)} />
+      {/* end header */}
 
       <p className="text-xs text-muted-foreground">
         {t('acquisition.missingEpisodes.staleNote', {

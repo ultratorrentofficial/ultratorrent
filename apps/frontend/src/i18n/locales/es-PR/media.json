@@ -998,7 +998,8 @@
         "owned": "En biblioteca",
         "unaired": "Sin estrenar",
         "ignored": "Ignorado"
-      }
+      },
+      "addFromLibrary": "Agregar desde la biblioteca"
     },
     "simulator": {
       "title": "Simulador de decisiones",
@@ -1194,6 +1195,23 @@
         "exported": "Exportación descargada",
         "exportFailed": "La exportación falló"
       }
+    },
+    "librarySeries": {
+      "title": "Agregar series desde tus bibliotecas",
+      "subtitle": "Selecciona programas para monitorear episodios faltantes. Las series ya en tus bibliotecas se listan con su IMDb ID resuelto automáticamente.",
+      "search": "Buscar series…",
+      "selectAll": "Seleccionar todo",
+      "clear": "Limpiar",
+      "loading": "Cargando series…",
+      "loadError": "No se pudieron cargar las series de la biblioteca.",
+      "empty": "No se encontraron series en tus bibliotecas.",
+      "onWatchlist": "Monitoreada",
+      "noImdb": "Sin IMDb ID",
+      "episodes": "{{count}} episodios",
+      "add": "Agregar {{count}} series",
+      "added": "Se agregaron {{added}} series ({{skipped}} omitidas)",
+      "addFailed": "No se pudieron agregar las series",
+      "cancel": "Cancelar"
     }
   }
 }

@@ -18,6 +18,7 @@ import { MissingMoviesService } from './missing-movies.service';
 import { AcquisitionDecision } from './decision.engine';
 import {
   CreateAcquisitionProfileDto,
+  BulkAddWatchlistDto,
   CreateWatchlistItemDto,
   EvaluateReleaseDto,
   ExportAcquisitionDataDto,
@@ -59,6 +60,16 @@ export class MediaAcquisitionController {
   @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
   listWatchlist(@Query('status') status?: string) {
     return this.watchlist.list(status);
+  }
+  @Get('watchlist/library-series')
+  @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
+  librarySeries(@Query('search') search?: string) {
+    return this.watchlist.librarySeries(search);
+  }
+  @Post('watchlist/bulk')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
+  bulkAddWatchlist(@Body() dto: BulkAddWatchlistDto, @CurrentUser() u: AuthenticatedUser) {
+    return this.watchlist.bulkCreate(dto.series, u?.id);
   }
   @Post('watchlist')
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)

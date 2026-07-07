@@ -1683,6 +1683,21 @@ export interface WatchlistItem {
   createdAt: string;
 }
 
+/** A distinct series in the media libraries, for the watchlist "add from library" picker. */
+export interface LibrarySeries {
+  title: string;
+  year: number | null;
+  episodeCount: number;
+  imdbId: string | null;
+  monitorable: boolean;
+  onWatchlist: boolean;
+}
+export interface BulkAddSeriesInput {
+  title: string;
+  year?: number | null;
+  imdbId?: string | null;
+}
+
 export interface CreateWatchlistInput {
   type: WatchlistItemType;
   title: string;
@@ -2750,6 +2765,15 @@ export const api = {
     },
     deleteWatchlist(id: string): Promise<void> {
       return request<void>(`/media-acquisition/watchlist/${id}`, { method: 'DELETE' });
+    },
+    librarySeries(search?: string): Promise<LibrarySeries[]> {
+      return request<LibrarySeries[]>('/media-acquisition/watchlist/library-series', { query: { search } });
+    },
+    bulkAddWatchlist(series: BulkAddSeriesInput[]): Promise<{ added: number; skipped: number }> {
+      return request<{ added: number; skipped: number }>('/media-acquisition/watchlist/bulk', {
+        method: 'POST',
+        body: { series },
+      });
     },
     profiles(mediaType?: string): Promise<AcquisitionProfile[]> {
       return request<AcquisitionProfile[]>('/media-acquisition/profiles', { query: { mediaType } });
