@@ -65,9 +65,19 @@ export function duplicateKeys(item: DuplicateItemLike): Array<{
 }> {
   const keys: Array<{ reason: DuplicateReason; key: string }> = [];
 
-  // (c) external id — strongest signal.
+  // Episode discriminator: distinct episodes of a show must NEVER share a key,
+  // even when they carry a series-level external id (e.g. the same TVDB series
+  // number on every episode) or an identical show title. Applied to every
+  // strategy so an episodic item's keys always include its season/episode.
+  const epSuffix =
+    item.season != null || item.episode != null
+      ? `:s${item.season ?? 'x'}:e${item.episode ?? 'x'}`
+      : '';
+
+  // (c) external id — strongest signal (but still episode-scoped for episodes,
+  // because providers store series-level ids on episode rows).
   for (const ext of item.externalIds ?? []) {
-    keys.push({ reason: 'external_id', key: `external_id:${ext.provider}:${ext.externalId}` });
+    keys.push({ reason: 'external_id', key: `external_id:${ext.provider}:${ext.externalId}${epSuffix}` });
   }
 
   const normTitle = normalizeTitle(item.title);
@@ -88,9 +98,10 @@ export function duplicateKeys(item: DuplicateItemLike): Array<{
     });
   }
 
-  // (d) similar filename — normalised title as a loose fallback signal.
+  // (d) similar filename — normalised title as a loose fallback, still scoped to
+  // the episode so different episodes of a show are never grouped together.
   if (normTitle) {
-    keys.push({ reason: 'similar_filename', key: `fn:${normTitle}` });
+    keys.push({ reason: 'similar_filename', key: `fn:${normTitle}${epSuffix}` });
   }
 
   return keys;
