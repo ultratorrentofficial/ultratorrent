@@ -205,7 +205,44 @@ export class RssService {
   deleteFeed(id: string) {
     return this.prisma.rssFeed.delete({ where: { id } });
   }
+  /**
+   * Guard against duplicate rules: a rule name must be unique (case-insensitive)
+   * and a non-empty savePath must not already be claimed by another rule — so you
+   * can neither reuse an existing name nor point a differently-named rule at a
+   * folder another rule already targets. `excludeId` skips the rule being edited.
+   */
+  private async assertUniqueRule(
+    params: { name?: string; savePath?: string | null; excludeId?: string },
+  ): Promise<void> {
+    const notSelf = params.excludeId ? { id: { not: params.excludeId } } : {};
+    const name = params.name?.trim();
+    if (name) {
+      const clash = await this.prisma.rssRule.findFirst({
+        where: { name: { equals: name, mode: 'insensitive' }, ...notSelf },
+        select: { name: true },
+      });
+      if (clash) {
+        throw new BadRequestException(
+          `A rule named "${clash.name}" already exists. Rule names must be unique.`,
+        );
+      }
+    }
+    const savePath = params.savePath?.trim();
+    if (savePath) {
+      const clash = await this.prisma.rssRule.findFirst({
+        where: { savePath, ...notSelf },
+        select: { name: true },
+      });
+      if (clash) {
+        throw new BadRequestException(
+          `That path is already used by the rule "${clash.name}". Each rule must use a distinct path.`,
+        );
+      }
+    }
+  }
+
   async createRule(dto: CreateRuleDto, ctx: StatusLookupContext = {}) {
+    await this.assertUniqueRule({ name: dto.name, savePath: dto.savePath });
     const snapshot = await this.resolveShowStatusSnapshot(dto, dto.name, ctx);
     return this.prisma.rssRule.create({
       data: {
@@ -222,6 +259,11 @@ export class RssService {
   async updateRule(id: string, dto: UpdateRuleDto, ctx: StatusLookupContext = {}) {
     const rule = await this.prisma.rssRule.findUnique({ where: { id } });
     if (!rule) throw new NotFoundException(`Unknown RSS rule: ${id}`);
+    await this.assertUniqueRule({
+      name: dto.name,
+      savePath: dto.savePath,
+      excludeId: id,
+    });
     // Only re-resolve the show-status snapshot when show fields are being edited.
     const snapshot =
       dto.mediaType !== undefined || dto.showStatusProviderId !== undefined

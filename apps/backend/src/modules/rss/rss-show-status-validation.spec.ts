@@ -28,7 +28,11 @@ function statusResult(over: Partial<ShowStatusResult>): ShowStatusResult {
 function makeRss(resolved: ShowStatusResult | null) {
   const created: any[] = [];
   const prisma = {
-    rssRule: { create: jest.fn(async ({ data }: any) => { created.push(data); return { id: 'r1', ...data }; }) },
+    rssRule: {
+      // No pre-existing rule clashes in these tests — the uniqueness guard passes.
+      findFirst: jest.fn(async () => null),
+      create: jest.fn(async ({ data }: any) => { created.push(data); return { id: 'r1', ...data }; }),
+    },
   };
   const showStatus = { resolveByProviderId: jest.fn().mockResolvedValue(resolved) };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
