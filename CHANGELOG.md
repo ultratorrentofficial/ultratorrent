@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.20.0] - 2026-07-07
+
+### Added
+- Optional Prowlarr companion container (Compose profile) + link-only integration: Settings → Integrations → Prowlarr (encrypted API key, SSRF-hardened health check), RBAC perms integrations.prowlarr.*, conditional nav shortcut, and docs/PROWLARR.md
+
 ## [0.19.0] - 2026-07-07
 
 ### Added
