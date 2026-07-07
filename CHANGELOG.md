@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.18.1] - 2026-07-07
+
+### Fixed
+- TV renames use unpadded season folders ('Season 8', not 'Season 08') and fetch metadata before renaming, feeding the identified series title into the rename so a bare filename (e.g. S01E01.mkv) resolves its show, episode title, and year instead of landing under 'Unknown'.
+- rss: reject duplicate rule names (case-insensitive) and rules reusing another rule's save path
+
 ## [0.18.0] - 2026-07-07
 
 ### Added
