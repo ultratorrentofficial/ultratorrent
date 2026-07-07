@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.17.6] - 2026-07-07
+
+### Fixed
+- RSS feeds page: per-feed rule lists are now collapsible and collapsed by default (toggle via the rule count), and each feed's Add rule button moved up into the top-right action row.
+
 ## [0.17.5] - 2026-07-07
 
 ### Fixed
