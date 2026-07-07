@@ -2,11 +2,8 @@ import { AcquisitionWatchlistService } from '../watchlist.service';
 
 function build() {
   const prisma = {
-    mediaItem: {
-      groupBy: jest.fn().mockResolvedValue([]),
-      findMany: jest.fn().mockResolvedValue([]),
-    },
-    mediaExternalId: { findMany: jest.fn().mockResolvedValue([]) },
+    mediaItem: { findMany: jest.fn().mockResolvedValue([]) },
+    mediaLibrary: { findMany: jest.fn().mockResolvedValue([{ path: '/tv' }]) },
     mediaAcquisitionWatchlistItem: {
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation(({ data }: any) => ({ id: 'w_' + data.title, ...data })),
@@ -18,39 +15,93 @@ function build() {
   return { svc, prisma };
 }
 
+const item = (over: Partial<{ title: string; year: number | null; path: string; seriesImdbId: string | null; ext: string | null }>) => ({
+  title: over.title ?? 'Ep',
+  year: over.year ?? null,
+  path: over.path ?? '/tv/Show/Season 01/ep.mkv',
+  seriesImdbId: over.seriesImdbId ?? null,
+  externalIds: over.ext ? [{ externalId: over.ext }] : [],
+});
+
 describe('AcquisitionWatchlistService.librarySeries', () => {
-  it('resolves a per-series IMDb id (seriesImdbId preferred, external id fallback) + flags', async () => {
+  it('groups episodes of one folder-organised show into a single row (9-1-1 regression)', async () => {
     const { svc, prisma } = build();
-    prisma.mediaItem.groupBy.mockResolvedValue([
-      { title: 'Foo', _count: { _all: 5 }, _min: { year: 2020 } },
-      { title: 'The Rookie', _count: { _all: 144 }, _min: { year: 2018 } },
+    // Three episodes whose parsed titles are the *episode* names, all under the
+    // same "9-1-1 (2018)" show folder across two seasons.
+    prisma.mediaItem.findMany.mockResolvedValue([
+      item({ title: 'The Searchers', year: 2021, path: '/tv/9-1-1 (2018)/Season 05/The Searchers.mkv', seriesImdbId: 'tt7587890' }),
+      item({ title: 'Ohana', year: 2021, path: '/tv/9-1-1 (2018)/Season 05/Ohana.mkv' }),
+      item({ title: 'Pilot', year: 2018, path: '/tv/9-1-1 (2018)/Season 01/Pilot.mkv', ext: 'tt-episode' }),
     ]);
-    prisma.mediaItem.findMany.mockResolvedValue([{ title: 'Foo', seriesImdbId: 'tt999' }]); // resolved id
-    prisma.mediaExternalId.findMany.mockResolvedValue([
-      { externalId: 'tt7587890', item: { title: 'The Rookie' } }, // fallback id
-    ]);
-    prisma.mediaAcquisitionWatchlistItem.findMany.mockResolvedValue([{ normalizedTitle: 'foo' }]);
 
     const rows = await svc.librarySeries();
 
-    const foo = rows.find((r) => r.title === 'Foo')!;
-    const rookie = rows.find((r) => r.title === 'The Rookie')!;
-    expect(foo).toMatchObject({ imdbId: 'tt999', monitorable: true, onWatchlist: true, episodeCount: 5 });
-    expect(rookie).toMatchObject({ imdbId: 'tt7587890', monitorable: true, onWatchlist: false, year: 2018 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      title: '9-1-1',           // clean folder title, parenthesised year stripped
+      year: 2018,               // earliest year across the group
+      episodeCount: 3,
+      imdbId: 'tt7587890',      // resolved seriesImdbId preferred over the episode ext id
+      monitorable: true,
+      onWatchlist: false,
+    });
   });
 
-  it('marks a series with no resolvable id as not monitorable', async () => {
+  it('falls back to an episode external imdb id when no seriesImdbId exists', async () => {
     const { svc, prisma } = build();
-    prisma.mediaItem.groupBy.mockResolvedValue([{ title: 'Mystery Show', _count: { _all: 3 }, _min: { year: null } }]);
+    prisma.mediaItem.findMany.mockResolvedValue([
+      item({ title: 'Ep1', path: '/tv/Some Show/Season 01/Ep1.mkv', ext: 'tt12345' }),
+      item({ title: 'Ep2', path: '/tv/Some Show/Season 01/Ep2.mkv' }),
+    ]);
     const rows = await svc.librarySeries();
-    expect(rows[0]).toMatchObject({ imdbId: null, monitorable: false, year: null });
+    expect(rows[0]).toMatchObject({ title: 'Some Show', imdbId: 'tt12345', monitorable: true, episodeCount: 2 });
   });
 
-  it('returns [] with no shows (no extra queries)', async () => {
+  it('marks a show with no resolvable id as not monitorable', async () => {
+    const { svc, prisma } = build();
+    prisma.mediaItem.findMany.mockResolvedValue([
+      item({ title: 'ep', path: '/tv/Mystery Show/Season 01/ep.mkv' }),
+    ]);
+    const rows = await svc.librarySeries();
+    expect(rows[0]).toMatchObject({ title: 'Mystery Show', imdbId: null, monitorable: false, year: null });
+  });
+
+  it('flags shows already on the watchlist (by normalized title)', async () => {
+    const { svc, prisma } = build();
+    prisma.mediaItem.findMany.mockResolvedValue([
+      item({ title: 'ep', path: '/tv/9-1-1 (2018)/Season 01/ep.mkv', seriesImdbId: 'tt1' }),
+    ]);
+    prisma.mediaAcquisitionWatchlistItem.findMany.mockResolvedValue([{ normalizedTitle: '9-1-1' }]);
+    const rows = await svc.librarySeries();
+    expect(rows[0]).toMatchObject({ title: '9-1-1', onWatchlist: true });
+  });
+
+  it('falls back to the parsed title for a loose file at a library root', async () => {
+    const { svc, prisma } = build();
+    // No show folder — the file sits directly in the "/tv" library root, so its
+    // own parsed title (the series, for an SxxExx name) is the group key.
+    prisma.mediaItem.findMany.mockResolvedValue([
+      item({ title: 'The Rookie', year: 2018, path: '/tv/The Rookie.mkv', seriesImdbId: 'tt7587890' }),
+    ]);
+    const rows = await svc.librarySeries();
+    expect(rows[0]).toMatchObject({ title: 'The Rookie', year: 2018, imdbId: 'tt7587890', episodeCount: 1 });
+  });
+
+  it('applies the search filter to the resolved series title', async () => {
+    const { svc, prisma } = build();
+    prisma.mediaItem.findMany.mockResolvedValue([
+      item({ title: 'a', path: '/tv/9-1-1 (2018)/Season 01/a.mkv' }),
+      item({ title: 'b', path: '/tv/The Rookie (2018)/Season 01/b.mkv' }),
+    ]);
+    const rows = await svc.librarySeries('rookie');
+    expect(rows.map((r) => r.title)).toEqual(['The Rookie']);
+  });
+
+  it('returns [] with no shows (no library query)', async () => {
     const { svc, prisma } = build();
     const rows = await svc.librarySeries();
     expect(rows).toEqual([]);
-    expect(prisma.mediaExternalId.findMany).not.toHaveBeenCalled();
+    expect(prisma.mediaLibrary.findMany).not.toHaveBeenCalled();
   });
 });
 

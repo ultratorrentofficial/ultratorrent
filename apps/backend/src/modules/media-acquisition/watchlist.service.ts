@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import * as path from 'node:path';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { isSeasonContainer, showFolderRoot } from '../media/media-renamer';
 
 /** A distinct series in the media libraries, for the watchlist "add from library" picker. */
 export interface LibrarySeries {
@@ -79,56 +81,98 @@ export class AcquisitionWatchlistService {
    * best-effort series IMDb id (the resolved `seriesImdbId` if present, else an
    * episode's `imdb` external id), whether it's monitorable (has an id), and
    * whether it's already on the watchlist.
+   *
+   * Series are grouped by their **show folder** (the item's path climbed past any
+   * `Season NN`/`Specials` container), not by `MediaItem.title`: for a
+   * folder-organised show like "9-1-1" the parsed per-file title is the *episode*
+   * name (the identifier keeps the basename title when it finds one), so grouping
+   * by title emitted a bogus row per episode. The folder name is the authoritative
+   * series title. Files sitting directly at a library root (no show folder) fall
+   * back to their parsed title, which for a `SxxExx` filename is the series.
    */
   async librarySeries(search?: string): Promise<LibrarySeries[]> {
     const TV_TYPES = ['tv', 'anime', 'episode'];
-    const where: Prisma.MediaItemWhereInput = { mediaType: { in: TV_TYPES } };
-    if (search?.trim()) where.title = { contains: search.trim(), mode: 'insensitive' };
-
-    const groups = await this.prisma.mediaItem.groupBy({
-      by: ['title'],
-      where,
-      _count: { _all: true },
-      _min: { year: true },
-      orderBy: { title: 'asc' },
+    const items = await this.prisma.mediaItem.findMany({
+      where: { mediaType: { in: TV_TYPES } },
+      select: {
+        title: true,
+        year: true,
+        path: true,
+        seriesImdbId: true,
+        externalIds: { where: { provider: 'imdb' }, select: { externalId: true }, take: 1 },
+      },
     });
-    const titles = groups.map((g) => g.title);
-    if (titles.length === 0) return [];
+    if (items.length === 0) return [];
 
-    // Preferred id: a resolved series tconst on any episode of the show.
-    const withSeriesId = await this.prisma.mediaItem.findMany({
-      where: { ...where, title: { in: titles }, seriesImdbId: { not: null } },
-      select: { title: true, seriesImdbId: true },
-      distinct: ['title'],
-    });
-    const seriesIdByTitle = new Map(withSeriesId.map((r) => [r.title, r.seriesImdbId as string]));
+    // Library roots: a file whose show folder *is* a library root has no show
+    // folder of its own — group it by its parsed title instead.
+    const libraries = await this.prisma.mediaLibrary.findMany({ select: { path: true } });
+    const roots = new Set(libraries.map((l) => this.normPath(l.path)));
 
-    // Fallback id: an `imdb` external id on any episode of the show.
-    const extRows = await this.prisma.mediaExternalId.findMany({
-      where: { provider: 'imdb', item: { title: { in: titles }, mediaType: { in: TV_TYPES } } },
-      select: { externalId: true, item: { select: { title: true } } },
-    });
-    const extByTitle = new Map<string, string>();
-    for (const r of extRows) if (!extByTitle.has(r.item.title)) extByTitle.set(r.item.title, r.externalId);
+    type Acc = { title: string; year: number | null; count: number; seriesId: string | null; extId: string | null };
+    const groups = new Map<string, Acc>();
 
-    // Already monitored? (active-or-any series watchlist item by normalized title.)
+    for (const it of items) {
+      const dir = showFolderRoot(it.path);
+      const folder = path.basename(dir);
+      // A genuine show folder: below a library root and not itself a season container.
+      const isShowFolder = folder !== '' && !roots.has(this.normPath(dir)) && !isSeasonContainer(folder);
+      const parsed = isShowFolder ? this.parseFolderTitle(folder) : { title: it.title, year: null };
+      const key = isShowFolder ? `dir:${this.normPath(dir)}` : `title:${it.title.toLowerCase().trim()}`;
+
+      const acc = groups.get(key);
+      const extId = it.externalIds[0]?.externalId ?? null;
+      const year = parsed.year ?? it.year ?? null;
+      if (!acc) {
+        groups.set(key, { title: parsed.title, year, count: 1, seriesId: it.seriesImdbId ?? null, extId });
+      } else {
+        acc.count += 1;
+        acc.seriesId ??= it.seriesImdbId ?? null;
+        acc.extId ??= extId;
+        // Keep the earliest known year for the show.
+        if (year != null && (acc.year == null || year < acc.year)) acc.year = year;
+      }
+    }
+
+    // Already monitored? (any series watchlist item, by normalized title.)
     const existing = await this.prisma.mediaAcquisitionWatchlistItem.findMany({
       where: { type: 'series' },
       select: { normalizedTitle: true },
     });
     const onWatchlist = new Set(existing.map((e) => e.normalizedTitle));
 
-    return groups.map((g) => {
-      const imdbId = seriesIdByTitle.get(g.title) ?? extByTitle.get(g.title) ?? null;
-      return {
-        title: g.title,
-        year: g._min.year ?? null,
-        episodeCount: g._count._all,
-        imdbId,
-        monitorable: imdbId != null,
-        onWatchlist: onWatchlist.has(g.title.toLowerCase().trim()),
-      };
-    });
+    const q = search?.trim().toLowerCase();
+    return [...groups.values()]
+      .filter((g) => !q || g.title.toLowerCase().includes(q))
+      .map((g) => {
+        const imdbId = g.seriesId ?? g.extId ?? null;
+        return {
+          title: g.title,
+          year: g.year,
+          episodeCount: g.count,
+          imdbId,
+          monitorable: imdbId != null,
+          onWatchlist: onWatchlist.has(g.title.toLowerCase().trim()),
+        };
+      })
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  /** Normalize a filesystem path for use as a grouping key (drop trailing slash, lowercase). */
+  private normPath(p: string): string {
+    return p.replace(/[/\\]+$/, '').toLowerCase();
+  }
+
+  /**
+   * Split a show-folder name into a clean title + optional year, e.g.
+   * `"9-1-1 (2018)"` → `{ title: '9-1-1', year: 2018 }`. Only a parenthesised
+   * 4-digit year is stripped, so numeric/hyphenated titles ("9-1-1", "1899")
+   * are left intact.
+   */
+  private parseFolderTitle(name: string): { title: string; year: number | null } {
+    const m = name.match(/^(.*?)[\s._]*\((\d{4})\)\s*$/);
+    if (m) return { title: m[1].trim(), year: Number(m[2]) };
+    return { title: name.trim(), year: null };
   }
 
   /**
