@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.18.3] - 2026-07-07
+
+### Fixed
+- media-acquisition: group the Add-series-from-library picker by show folder, not per-episode title (fixes 9-1-1 showing episodes instead of one series row)
+
 ## [0.18.2] - 2026-07-07
 
 ### Fixed
