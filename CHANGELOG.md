@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.19.0] - 2026-07-07
+
+### Added
+- indexers: Torznab/Newznab indexer subsystem + Missing-Episode auto-acquire bridge (scan → search → evaluate → profile-gated download), opt-in and default OFF
+
 ## [0.18.3] - 2026-07-07
 
 ### Fixed
