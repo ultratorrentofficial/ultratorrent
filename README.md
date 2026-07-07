@@ -200,8 +200,9 @@ Then open the UI (frontend, default `http://localhost:8080`) and sign in with th
 
 **Optional companions** run behind Compose profiles (off by default): a bundled
 rTorrent engine (`--profile rtorrent`), a **Prowlarr indexer manager**
-(`--profile prowlarr` — see [`docs/PROWLARR.md`](docs/PROWLARR.md)), and a Caddy
-edge proxy (`--profile proxy`).
+(`--profile prowlarr`) with an optional **FlareSolverr** Cloudflare solver
+(`--profile flaresolverr` — see [`docs/PROWLARR.md`](docs/PROWLARR.md)), and a
+Caddy edge proxy (`--profile proxy`).
 
 ### Option B — Manual / local dev
 

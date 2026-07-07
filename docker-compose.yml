@@ -1,7 +1,7 @@
 # UltraTorrent — full stack composition.
 # Usage: cp .env.example .env && docker compose up -d --build
 # Profiles: `rtorrent` (bundled engine), `prowlarr` (indexer manager),
-#           `proxy` (edge reverse proxy).
+#           `flaresolverr` (Cloudflare solver for Prowlarr), `proxy` (edge proxy).
 
 services:
   postgres:
@@ -143,6 +143,24 @@ services:
     # reachable only from inside the internal network (via the UltraTorrent link).
     ports:
       - "${PROWLARR_PORT:-9696}:9696"
+    networks: [internal]
+
+  # Optional FlareSolverr — solves Cloudflare anti-bot challenges for Prowlarr
+  # indexers (e.g. EZTV) that would otherwise fail with a "blocked by Cloudflare"
+  # error. A backend helper (like rtorrent): internal-network only, no host port.
+  # Enable with: --profile flaresolverr (alongside --profile prowlarr). Then in
+  # Prowlarr add an indexer proxy of type FlareSolverr at http://flaresolverr:8191
+  # and tag the Cloudflare-protected indexers with it.
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    profiles: ["flaresolverr"]
+    restart: unless-stopped
+    # Headless Chromium can crash with Docker's default 64MB /dev/shm.
+    shm_size: "256m"
+    environment:
+      LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
+      TZ: ${TZ:-Etc/UTC}
+    expose: ["8191"]
     networks: [internal]
 
   # Optional edge reverse proxy (TLS termination). Enable with: --profile proxy

@@ -1,9 +1,9 @@
 # Docker Deployment
 
 UltraTorrent ships a complete Compose stack: a database, a cache, the API, and
-the web UI — plus three optional services (a bundled rTorrent engine, a Prowlarr
-indexer manager, and an edge reverse proxy) behind Compose **profiles**. The real
-files at the repo root are
+the web UI — plus optional services (a bundled rTorrent engine, a Prowlarr
+indexer manager, a FlareSolverr Cloudflare solver, and an edge reverse proxy)
+behind Compose **profiles**. The real files at the repo root are
 `docker-compose.yml` (full stack), `docker-compose.dev.yml` (dependencies only),
 `apps/backend/Dockerfile`, `apps/frontend/Dockerfile`,
 `apps/frontend/nginx.conf`, `deploy/Caddyfile`, and `.env.example`.
@@ -31,6 +31,7 @@ From `docker-compose.yml`:
 | `frontend` | build `apps/frontend/Dockerfile` (nginx) | Built React SPA + `/api` & `/ws` proxy | `8080:80` | always |
 | `rtorrent` | `crazymax/rtorrent-rutorrent:latest` | Bundled torrent engine exposing SCGI `5000` | internal | `rtorrent` |
 | `prowlarr` | `lscr.io/linuxserver/prowlarr:latest` | Optional Prowlarr indexer manager (companion) | `9696:9696` | `prowlarr` |
+| `flaresolverr` | `ghcr.io/flaresolverr/flaresolverr:latest` | Optional Cloudflare solver for Prowlarr indexers | internal | `flaresolverr` |
 | `proxy` | `caddy:2-alpine` | Edge reverse proxy / automatic TLS | `80:80`, `443:443` | `proxy` |
 
 All services share an `internal` bridge network. The `backend` waits for
@@ -145,6 +146,11 @@ docker compose --profile rtorrent up -d --build
 docker compose --profile prowlarr up -d
 # Then link it in UltraTorrent: Settings → Integrations → Prowlarr
 # (internal URL http://prowlarr:9696 + the Prowlarr API key). See docs/PROWLARR.md.
+
+# Add FlareSolverr so Prowlarr can reach Cloudflare-protected indexers (e.g. EZTV)
+docker compose --profile prowlarr --profile flaresolverr up -d
+# Then in Prowlarr: Settings → Indexers → add a FlareSolverr proxy at
+# http://flaresolverr:8191, tag it, and tag the Cloudflare indexers. See docs/PROWLARR.md.
 
 # Add the Caddy edge proxy (TLS termination, single 80/443 entrypoint)
 docker compose --profile proxy up -d

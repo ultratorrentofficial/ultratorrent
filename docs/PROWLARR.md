@@ -14,6 +14,7 @@ the main stack, and link to it from the UI.
 - [Enable the container](#enable-the-container)
 - [Connect UltraTorrent](#connect-ultratorrent)
 - [Environment, ports & volumes](#environment-ports--volumes)
+- [Cloudflare-protected indexers (FlareSolverr)](#cloudflare-protected-indexers-flaresolverr)
 - [Security](#security)
 - [Backup & upgrade](#backup--upgrade)
 - [How it fits the indexer subsystem](#how-it-fits-the-indexer-subsystem)
@@ -95,6 +96,42 @@ settings form; the authoritative values are whatever you save in the UI.
 | Network | `internal` (shared with backend/frontend/rtorrent) |
 | Restart policy | `unless-stopped` |
 
+## Cloudflare-protected indexers (FlareSolverr)
+
+Some trackers (e.g. **EZTV** / `eztvx.to`) sit behind **Cloudflare's anti-bot
+challenge**. Prowlarr can't solve that on its own, so testing such an indexer
+fails with *"blocked by Cloudflare Protection."* The fix is the standard *arr
+helper, **FlareSolverr** — a headless-browser proxy that solves the challenge and
+returns the cookies to Prowlarr.
+
+It ships as another **optional companion**, behind the `flaresolverr` profile
+(a backend helper like rTorrent — **internal-network only, no host port**):
+
+```bash
+docker compose --profile prowlarr --profile flaresolverr up -d
+```
+
+| Item | Value |
+|------|-------|
+| Image | `ghcr.io/flaresolverr/flaresolverr:latest` |
+| Address (from Prowlarr) | `http://flaresolverr:8191` (internal network) |
+| Env | `FLARESOLVERR_LOG_LEVEL` (default `info`), `TZ` |
+| State | none (stateless — no volume) |
+
+Then wire it up **in Prowlarr**:
+
+1. **Settings → Indexers → + (Add Indexer Proxy) → FlareSolverr.**
+2. **Host**: `http://flaresolverr:8191`. Give it a **Tag** (e.g. `cloudflare`). Save.
+3. Open the Cloudflare-protected indexer (e.g. EZTV) and add the **same tag** to
+   it. Prowlarr now routes that indexer's requests through FlareSolverr; re-test
+   and it should pass.
+
+> **Caveat:** Cloudflare periodically tightens its challenges and FlareSolverr can
+> lag behind — it usually works for EZTV but isn't guaranteed. If it can't solve
+> the challenge, try a different mirror for that indexer in Prowlarr, or rely on
+> your other indexers. FlareSolverr runs a headless Chromium, so it uses more RAM
+> (~200–400 MB) and gets a 256 MB `/dev/shm` in the Compose file to avoid crashes.
+
 ## Security
 
 - The Prowlarr **API key is AES-256-GCM encrypted at rest** (via `SecretCipher`),
@@ -113,6 +150,10 @@ settings form; the authoritative values are whatever you save in the UI.
 - **Do not expose Prowlarr publicly** unless you deliberately map/route its port;
   by default it is reachable on the host at `PROWLARR_PORT` and over the internal
   network.
+- **FlareSolverr is internal-only** (no published host port) — only Prowlarr on
+  the internal network reaches it. It executes remote pages in a headless browser
+  to defeat bot checks, so keep it off the host/LAN and don't point it at
+  untrusted URLs.
 - Settings views/updates, API-key changes, connection tests, and opens are
   **audited**.
 
