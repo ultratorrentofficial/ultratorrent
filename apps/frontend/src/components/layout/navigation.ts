@@ -19,6 +19,7 @@ import {
   Upload,
   LayoutDashboard,
   ListChecks,
+  Radar,
   Rss,
   Search,
   Settings,
@@ -145,6 +146,7 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
       },
       { id: 'engines', to: '/engines', label: 'Engines', icon: Cpu, permission: PERMISSIONS.SYSTEM_VIEW, descriptionKey: 'Engines' },
+      { id: 'indexers', to: '/indexers', label: 'Indexers', icon: Radar, permission: PERMISSIONS.INDEXERS_VIEW, descriptionKey: 'Indexers' },
     ],
   },
   {

@@ -999,6 +999,21 @@
         "unaired": "Unaired",
         "ignored": "Ignored"
       },
+      "searchNow": "Search now",
+      "searchAll": "Search all",
+      "searchStatus": {
+        "idle": "Not searched",
+        "searching": "Searching…",
+        "grabbed": "Grabbed",
+        "pending_approval": "Awaiting approval",
+        "no_results": "No release",
+        "failed": "Search failed"
+      },
+      "searchGrabbed": "Grabbed {{title}}",
+      "searchQueued": "Queued for approval",
+      "searchNoResults": "No matching release found",
+      "searchFailed": "Search failed",
+      "searchSeriesDone": "Searched {{count}} episodes — {{grabbed}} grabbed",
       "addFromLibrary": "Add from library"
     },
     "simulator": {

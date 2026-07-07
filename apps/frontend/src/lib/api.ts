@@ -1725,6 +1725,7 @@ export interface UpdateWatchlistInput {
 
 // --- missing episodes -------------------------------------------------------
 export type WantedEpisodeStatus = 'missing' | 'unaired' | 'owned' | 'ignored';
+export type WantedSearchStatus = 'idle' | 'searching' | 'grabbed' | 'pending_approval' | 'no_results' | 'failed';
 
 export interface SeriesGapSummary {
   watchlistItemId: string;
@@ -1749,7 +1750,21 @@ export interface WantedEpisode {
   episodeTitle: string | null;
   airYear: number | null;
   status: WantedEpisodeStatus;
+  // Auto-acquire bridge state.
+  searchStatus: WantedSearchStatus;
+  lastSearchedAt: string | null;
+  grabbedAt: string | null;
+  grabbedEvaluationId: string | null;
+  releaseTitle: string | null;
   lastCheckedAt: string;
+}
+
+/** Result of a manual missing-episode search trigger. */
+export interface EpisodeSearchOutcome {
+  wantedEpisodeId: string;
+  searchStatus: WantedSearchStatus;
+  releaseTitle?: string;
+  evaluationId?: string;
 }
 
 /** scanSeries returns a single-series gap; scanAll returns an aggregate. */
@@ -1890,6 +1905,11 @@ export interface AcquisitionSettings {
   defaultProfileId: string | null;
   approvalExpiryHours: number;
   notifyOnApprovalRequired: boolean;
+  // Missing-episode auto-acquire bridge (opt-in, default OFF).
+  autoSearchMissing: boolean;
+  searchIntervalMinutes: number;
+  missingSearchProfileId: string | null;
+  maxSearchesPerSweep: number;
 }
 
 export interface AcquisitionExportInput {
@@ -1950,6 +1970,69 @@ export interface EngineHealthStatus {
   version: string | null;
   error: string | null;
   checkedAt: string;
+}
+
+// --- Indexers (Torznab/Newznab release-search sources) ---------------------
+export interface IndexerCapabilities {
+  server?: { title?: string };
+  tvSearch: boolean;
+  movieSearch: boolean;
+  supportedParams: string[];
+  categories: { id: number; name: string }[];
+  limits?: { default?: number; max?: number };
+}
+
+export interface Indexer {
+  id: string;
+  name: string;
+  implementation: string;
+  protocol: string;
+  baseUrl: string;
+  enabled: boolean;
+  priority: number;
+  categories: number[];
+  capabilities: IndexerCapabilities | null;
+  minSeeders: number | null;
+  timeoutMs: number;
+  status: string;
+  statusMessage: string | null;
+  lastTestedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** Masked (`••••••••`) when a key is stored, else ''. Never the real value. */
+  apiKey: string;
+}
+
+export interface CreateIndexerInput {
+  name: string;
+  implementation?: string;
+  protocol?: string;
+  baseUrl: string;
+  apiKey?: string;
+  enabled?: boolean;
+  priority?: number;
+  categories?: number[];
+  minSeeders?: number | null;
+  timeoutMs?: number;
+}
+
+export type UpdateIndexerInput = Partial<CreateIndexerInput>;
+
+export interface IndexerTestResult {
+  indexer: Indexer;
+  capabilities: IndexerCapabilities | null;
+  error?: string;
+}
+
+export interface IndexerCandidate {
+  indexerId: string;
+  indexerName: string;
+  title: string;
+  downloadUrl: string | null;
+  infoHash: string | null;
+  sizeBytes: number | null;
+  seeders: number | null;
+  categories: number[];
 }
 
 export const api = {
@@ -2470,6 +2553,30 @@ export const api = {
     },
   },
 
+  indexers: {
+    list(): Promise<Indexer[]> {
+      return request<Indexer[]>('/indexers');
+    },
+    get(id: string): Promise<Indexer> {
+      return request<Indexer>(`/indexers/${id}`);
+    },
+    create(body: CreateIndexerInput): Promise<Indexer> {
+      return request<Indexer>('/indexers', { method: 'POST', body });
+    },
+    update(id: string, body: UpdateIndexerInput): Promise<Indexer> {
+      return request<Indexer>(`/indexers/${id}`, { method: 'PATCH', body });
+    },
+    remove(id: string): Promise<void> {
+      return request<void>(`/indexers/${id}`, { method: 'DELETE' });
+    },
+    test(id: string): Promise<IndexerTestResult> {
+      return request<IndexerTestResult>(`/indexers/${id}/test`, { method: 'POST' });
+    },
+    search(id: string, q: string, season?: number, ep?: number): Promise<IndexerCandidate[]> {
+      return request<IndexerCandidate[]>(`/indexers/${id}/search`, { query: { q, season, ep } });
+    },
+  },
+
   media: {
     presets(): Promise<MediaPresets> {
       return request<MediaPresets>('/media/presets');
@@ -2861,6 +2968,17 @@ export const api = {
       return request<WantedEpisode>(`/media-acquisition/missing-episodes/${id}/unignore`, {
         method: 'POST',
       });
+    },
+    searchMissingEpisode(id: string): Promise<EpisodeSearchOutcome> {
+      return request<EpisodeSearchOutcome>(`/media-acquisition/missing-episodes/${id}/search`, {
+        method: 'POST',
+      });
+    },
+    searchMissingEpisodesForSeries(watchlistItemId: string): Promise<{ results: EpisodeSearchOutcome[] }> {
+      return request<{ results: EpisodeSearchOutcome[] }>(
+        `/media-acquisition/missing-episodes/series/${watchlistItemId}/search`,
+        { method: 'POST' },
+      );
     },
     history(limit = 100): Promise<AcquisitionHistoryEvent[]> {
       return request<AcquisitionHistoryEvent[]>('/media-acquisition/history', { query: { limit } });

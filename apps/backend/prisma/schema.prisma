@@ -1185,6 +1185,13 @@ model WantedEpisode {
   episodeTitle    String?
   airYear         Int?
   status          String   @default("missing") /// missing | unaired | owned | ignored
+  // Auto-acquire bridge state (preserved across rescans for still-missing rows).
+  searchStatus        String    @default("idle") /// idle | searching | grabbed | pending_approval | no_results | failed
+  lastSearchedAt      DateTime?
+  grabbedAt           DateTime?
+  grabbedEvaluationId String?
+  downloadUrl         String?
+  releaseTitle        String?
   lastCheckedAt   DateTime @default(now())
   createdAt       DateTime @default(now())
 
@@ -1204,12 +1211,45 @@ model WantedMovie {
   title           String
   year            Int?
   status          String   @default("missing") /// missing | unaired | owned | ignored
+  // Auto-acquire bridge state (mirrors WantedEpisode; reserved for movie auto-search).
+  searchStatus        String    @default("idle") /// idle | searching | grabbed | pending_approval | no_results | failed
+  lastSearchedAt      DateTime?
+  grabbedAt           DateTime?
+  grabbedEvaluationId String?
+  downloadUrl         String?
+  releaseTitle        String?
   lastCheckedAt   DateTime @default(now())
   createdAt       DateTime @default(now())
 
   @@index([movieTconst])
   @@index([status])
   @@map("wanted_movies")
+}
+
+/// A Torznab/Newznab indexer the acquisition bridge searches for releases. The
+/// API key is AES-256-GCM encrypted inside `config` (SecretCipher) and never
+/// returned by the API. `capabilities` caches the last `t=caps` negotiation.
+model Indexer {
+  id             String    @id @default(uuid())
+  name           String
+  implementation String    @default("torznab") /// torznab | newznab
+  protocol       String    @default("torrent") /// torrent | usenet
+  baseUrl        String
+  config         Json      @default("{}") /// { apiKey: <ciphertext>, __encrypted: ["apiKey"] }
+  enabled        Boolean   @default(true)
+  priority       Int       @default(25)
+  categories     Int[]     @default([5000, 5030, 5040])
+  capabilities   Json?
+  minSeeders     Int?
+  timeoutMs      Int       @default(15000)
+  status         String    @default("unknown") /// ok | error | unknown
+  statusMessage  String?
+  lastTestedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([enabled])
+  @@map("indexers")
 }
 
 model MediaAcquisitionProfile {

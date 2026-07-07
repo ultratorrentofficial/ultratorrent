@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, Plus, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, RefreshCw, Search } from 'lucide-react';
+import { PERMISSIONS } from '@ultratorrent/shared';
 import {
   api,
   ApiError,
   type SeriesGapSummary,
   type WantedEpisode,
   type WantedEpisodeStatus,
+  type WantedSearchStatus,
 } from '@/lib/api';
 import { formatDateTime, formatNumber } from '@/lib/format';
+import { useAuth } from '@/auth/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -23,6 +26,16 @@ const STATUS_VARIANT: Record<WantedEpisodeStatus, BadgeProps['variant']> = {
   missing: 'destructive',
   unaired: 'info',
   ignored: 'secondary',
+};
+
+// Auto-acquire search state → badge variant (idle renders no badge).
+const SEARCH_STATUS_VARIANT: Record<WantedSearchStatus, BadgeProps['variant']> = {
+  idle: 'secondary',
+  searching: 'info',
+  grabbed: 'success',
+  pending_approval: 'outline',
+  no_results: 'secondary',
+  failed: 'destructive',
 };
 
 const QK = ['mediaAcquisition', 'missingEpisodes'] as const;
@@ -117,6 +130,8 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
   const { t } = useTranslation('media');
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { hasPermission } = useAuth();
+  const canEvaluate = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_EVALUATE);
   const [open, setOpen] = useState(false);
 
   const episodes = useQuery({
@@ -141,6 +156,22 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
     onError: (err) =>
       toast.error(
         t('acquisition.missingEpisodes.scanFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
+  });
+
+  const searchAll = useMutation({
+    mutationFn: () => api.mediaAcquisition.searchMissingEpisodesForSeries(series.watchlistItemId),
+    onSuccess: ({ results }) => {
+      const grabbed = results.filter((r) => r.searchStatus === 'grabbed').length;
+      toast.success(
+        t('acquisition.missingEpisodes.searchSeriesDone', { count: results.length, grabbed }),
+      );
+      invalidate();
+    },
+    onError: (err) =>
+      toast.error(
+        t('acquisition.missingEpisodes.searchFailed'),
         err instanceof ApiError ? err.message : undefined,
       ),
   });
@@ -171,6 +202,17 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
               <Badge variant="destructive">
                 {t('acquisition.missingEpisodes.counts.missing', { count: series.missing })}
               </Badge>
+            )}
+            {canEvaluate && series.monitorable && series.missing > 0 && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => searchAll.mutate()}
+                disabled={searchAll.isPending}
+              >
+                <Search className={searchAll.isPending ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+                {t('acquisition.missingEpisodes.searchAll')}
+              </Button>
             )}
             <Button
               variant="secondary"
@@ -231,6 +273,8 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
 function EpisodeGrid({ rows, onChanged }: { rows: WantedEpisode[]; onChanged: () => void }) {
   const { t } = useTranslation('media');
   const toast = useToast();
+  const { hasPermission } = useAuth();
+  const canEvaluate = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_EVALUATE);
 
   const bySeason = new Map<number, WantedEpisode[]>();
   for (const r of rows) {
@@ -248,6 +292,25 @@ function EpisodeGrid({ rows, onChanged }: { rows: WantedEpisode[]; onChanged: ()
     onError: (err) =>
       toast.error(
         t('acquisition.missingEpisodes.actionFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
+  });
+
+  const searchNow = useMutation({
+    mutationFn: (row: WantedEpisode) => api.mediaAcquisition.searchMissingEpisode(row.id),
+    onSuccess: (outcome) => {
+      if (outcome.searchStatus === 'grabbed') {
+        toast.success(t('acquisition.missingEpisodes.searchGrabbed', { title: outcome.releaseTitle ?? '' }));
+      } else if (outcome.searchStatus === 'pending_approval') {
+        toast.success(t('acquisition.missingEpisodes.searchQueued'));
+      } else {
+        toast.success(t('acquisition.missingEpisodes.searchNoResults'));
+      }
+      onChanged();
+    },
+    onError: (err) =>
+      toast.error(
+        t('acquisition.missingEpisodes.searchFailed'),
         err instanceof ApiError ? err.message : undefined,
       ),
   });
@@ -274,6 +337,23 @@ function EpisodeGrid({ rows, onChanged }: { rows: WantedEpisode[]; onChanged: ()
                 <Badge variant={STATUS_VARIANT[row.status]}>
                   {t(`acquisition.missingEpisodes.status.${row.status}`)}
                 </Badge>
+                {row.searchStatus && row.searchStatus !== 'idle' && (
+                  <Badge variant={SEARCH_STATUS_VARIANT[row.searchStatus]}>
+                    {t(`acquisition.missingEpisodes.searchStatus.${row.searchStatus}`)}
+                  </Badge>
+                )}
+                {canEvaluate && row.status === 'missing' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={t('acquisition.missingEpisodes.searchNow')}
+                    title={t('acquisition.missingEpisodes.searchNow')}
+                    onClick={() => searchNow.mutate(row)}
+                    disabled={searchNow.isPending && searchNow.variables?.id === row.id}
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                  </Button>
+                )}
                 {row.status !== 'owned' && (
                   <Button
                     variant="ghost"

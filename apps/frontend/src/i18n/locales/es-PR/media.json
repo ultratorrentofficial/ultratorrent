@@ -999,6 +999,21 @@
         "unaired": "Sin estrenar",
         "ignored": "Ignorado"
       },
+      "searchNow": "Buscar ahora",
+      "searchAll": "Buscar todos",
+      "searchStatus": {
+        "idle": "Sin buscar",
+        "searching": "Buscando…",
+        "grabbed": "Obtenido",
+        "pending_approval": "Esperando aprobación",
+        "no_results": "Sin lanzamiento",
+        "failed": "Búsqueda fallida"
+      },
+      "searchGrabbed": "Obtenido {{title}}",
+      "searchQueued": "En cola para aprobación",
+      "searchNoResults": "No se encontró un lanzamiento coincidente",
+      "searchFailed": "La búsqueda falló",
+      "searchSeriesDone": "Se buscaron {{count}} episodios — {{grabbed}} obtenidos",
       "addFromLibrary": "Agregar desde la biblioteca"
     },
     "simulator": {

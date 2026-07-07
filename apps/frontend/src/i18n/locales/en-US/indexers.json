@@ -1,0 +1,64 @@
+{
+  "page": {
+    "title": "Indexers",
+    "subtitle": "Torznab/Newznab search sources for automatic episode acquisition."
+  },
+  "actions": {
+    "add": "Add indexer",
+    "test": "Test",
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel"
+  },
+  "list": {
+    "loading": "Loading indexers…",
+    "error": "Could not load indexers."
+  },
+  "empty": {
+    "title": "No indexers configured",
+    "description": "Add a Torznab or Newznab indexer so Missing Episodes can search for releases."
+  },
+  "badge": {
+    "disabled": "Disabled"
+  },
+  "status": {
+    "ok": "OK",
+    "error": "Error",
+    "unknown": "Untested"
+  },
+  "field": {
+    "name": "Name",
+    "namePlaceholder": "My Indexer",
+    "implementation": "Type",
+    "baseUrl": "Base URL",
+    "apiKey": "API key",
+    "apiKeyKeep": "Leave blank to keep the existing key",
+    "apiKeyNew": "Indexer API key",
+    "categories": "Categories",
+    "categoriesHint": "Comma-separated Newznab category ids (TV defaults: 5000, 5030, 5040).",
+    "priority": "Priority",
+    "minSeeders": "Min seeders",
+    "timeout": "Timeout (ms)",
+    "enabled": "Enabled"
+  },
+  "dialog": {
+    "addTitle": "Add indexer",
+    "editTitle": "Edit {{name}}",
+    "description": "The API key is encrypted at rest and never shown again after saving.",
+    "save": "Save changes"
+  },
+  "confirm": {
+    "delete": "Delete indexer \"{{name}}\"?"
+  },
+  "toast": {
+    "added": "Indexer added",
+    "updated": "Indexer updated",
+    "removed": "Indexer removed",
+    "removeFailed": "Could not remove indexer",
+    "addFailed": "Could not add indexer",
+    "updateFailed": "Could not update indexer",
+    "testOk": "Connection OK",
+    "testCaps": "{{count}} categories advertised",
+    "testFailed": "Test failed"
+  }
+}

@@ -27,6 +27,7 @@ import { AccountModule } from './modules/account/account.module';
 import { MediaModule } from './modules/media/media.module';
 import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
 import { ReleaseScoringModule } from './modules/release-scoring/release-scoring.module';
+import { IndexersModule } from './modules/indexers/indexers.module';
 import { MediaAcquisitionModule } from './modules/media-acquisition/media-acquisition.module';
 import { MediaServerAnalyticsModule } from './modules/media-server-analytics/media-server-analytics.module';
 import { NotificationCenterModule } from './modules/notification-center/notification-center.module';
@@ -63,6 +64,7 @@ import { NotificationCenterModule } from './modules/notification-center/notifica
     FilesModule,
     RssModule,
     ReleaseScoringModule,
+    IndexersModule,
     MediaAcquisitionModule,
     MediaServerAnalyticsModule,
     NotificationCenterModule,

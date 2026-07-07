@@ -1,6 +1,7 @@
 import { Injectable, Logger, Module } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
+import { IndexersModule } from '../indexers/indexers.module';
 import { MEDIA_ACQUISITION_MODULE_ID } from './decision.engine';
 import { MediaAcquisitionService } from './media-acquisition.service';
 import { AcquisitionWatchlistService } from './watchlist.service';
@@ -10,6 +11,7 @@ import { AcquisitionApprovalService } from './approval.service';
 import { SmartDownloadExecutorService } from './smart-download-executor.service';
 import { MissingEpisodesService } from './missing-episodes.service';
 import { MissingMoviesService } from './missing-movies.service';
+import { MissingEpisodeSearchService } from './missing-episode-search.service';
 import { MediaAcquisitionController } from './media-acquisition.controller';
 
 /**
@@ -21,7 +23,10 @@ import { MediaAcquisitionController } from './media-acquisition.controller';
 @Injectable()
 export class MediaAcquisitionScheduler {
   private readonly logger = new Logger(MediaAcquisitionScheduler.name);
-  constructor(private readonly registry: ModuleRegistryService) {}
+  constructor(
+    private readonly registry: ModuleRegistryService,
+    private readonly missingSearch: MissingEpisodeSearchService,
+  ) {}
 
   private get enabled(): boolean {
     return this.registry.getStatus(MEDIA_ACQUISITION_MODULE_ID)?.enabled ?? false;
@@ -30,8 +35,16 @@ export class MediaAcquisitionScheduler {
   @Interval('media_acquisition_rss_sweep', 5 * 60_000)
   rssSweep(): void { if (this.enabled) this.logger.debug('RSS acquisition sweep tick (operator-driven evaluation for now)'); }
 
+  // The static 15-min tick drives the missing-episode auto-acquire sweep; the
+  // operator's `searchIntervalMinutes` is enforced by the service's per-episode
+  // lastSearchedAt backoff, and the sweep itself no-ops unless opted in.
   @Interval('media_acquisition_watchlist_sweep', 15 * 60_000)
-  watchlistSweep(): void { if (this.enabled) this.logger.debug('Watchlist acquisition sweep tick'); }
+  watchlistSweep(): void {
+    if (!this.enabled) return;
+    this.missingSearch.sweep().catch((err) =>
+      this.logger.warn(`Missing-episode sweep failed: ${(err as Error).message}`),
+    );
+  }
 
   @Interval('media_acquisition_quality_upgrade_sweep', 30 * 60_000)
   upgradeSweep(): void { if (this.enabled) this.logger.debug('Quality upgrade sweep tick'); }
@@ -43,6 +56,7 @@ export class MediaAcquisitionScheduler {
  * recommendations only).
  */
 @Module({
+  imports: [IndexersModule],
   providers: [
     MediaAcquisitionService,
     AcquisitionWatchlistService,
@@ -52,6 +66,7 @@ export class MediaAcquisitionScheduler {
     SmartDownloadExecutorService,
     MissingEpisodesService,
     MissingMoviesService,
+    MissingEpisodeSearchService,
     MediaAcquisitionScheduler,
   ],
   controllers: [MediaAcquisitionController],

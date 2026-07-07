@@ -8,6 +8,11 @@ const DEFAULT_SETTINGS = {
   defaultProfileId: null as string | null,
   approvalExpiryHours: 72,
   notifyOnApprovalRequired: true,
+  // Missing-episode auto-acquire bridge (opt-in, default OFF).
+  autoSearchMissing: false,
+  searchIntervalMinutes: 60,
+  missingSearchProfileId: null as string | null,
+  maxSearchesPerSweep: 50,
 };
 
 /** Aggregation: overview, evaluations list, recommendations, history, settings, export. */

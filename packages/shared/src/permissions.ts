@@ -36,6 +36,10 @@ export const PERMISSIONS = {
   RSS_SHOW_STATUS_OVERRIDE: 'rss.show_status.override',
   AUTOMATION_VIEW: 'automation.view',
   AUTOMATION_MANAGE: 'automation.manage',
+  // Indexers (Torznab/Newznab release-search sources)
+  INDEXERS_VIEW: 'indexers.view',
+  INDEXERS_MANAGE: 'indexers.manage',
+  INDEXERS_TEST: 'indexers.test',
 
   // File manager
   FILES_VIEW: 'files.view',
@@ -186,6 +190,9 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.RSS_SHOW_STATUS_OVERRIDE,
     PERMISSIONS.AUTOMATION_VIEW,
     PERMISSIONS.AUTOMATION_MANAGE,
+    PERMISSIONS.INDEXERS_VIEW,
+    PERMISSIONS.INDEXERS_MANAGE,
+    PERMISSIONS.INDEXERS_TEST,
     PERMISSIONS.FILES_VIEW,
     PERMISSIONS.FILES_MANAGE,
     PERMISSIONS.FILES_PREVIEW,

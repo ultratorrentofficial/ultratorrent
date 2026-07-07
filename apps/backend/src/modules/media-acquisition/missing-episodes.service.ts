@@ -127,6 +127,24 @@ export class MissingEpisodesService {
     const ignoredKeys = new Set(
       existing.filter((w) => w.status === 'ignored').map((w) => this.key(w.seasonNumber, w.episodeNumber)),
     );
+    // Also preserve acquisition (search/grab) state — otherwise the delete+recreate
+    // below would forget that a still-missing episode was already searched or
+    // grabbed and re-trigger it. Only carried onto rows that remain `missing`.
+    const grabStateByKey = new Map(
+      existing
+        .filter((w) => w.status !== 'ignored' && w.searchStatus !== 'idle')
+        .map((w) => [
+          this.key(w.seasonNumber, w.episodeNumber),
+          {
+            searchStatus: w.searchStatus,
+            lastSearchedAt: w.lastSearchedAt,
+            grabbedAt: w.grabbedAt,
+            grabbedEvaluationId: w.grabbedEvaluationId,
+            downloadUrl: w.downloadUrl,
+            releaseTitle: w.releaseTitle,
+          },
+        ]),
+    );
     await this.prisma.wantedEpisode.deleteMany({
       where: { watchlistItemId, status: { not: 'ignored' } },
     });
@@ -135,20 +153,28 @@ export class MissingEpisodesService {
     const rows = scoped
       .filter((ep) => ep.seasonNumber !== SPECIAL_SEASON)
       .filter((ep) => !ignoredKeys.has(this.key(ep.seasonNumber, ep.episodeNumber)))
-      .map((ep) => ({
-        watchlistItemId,
-        seriesTconst,
-        episodeTconst: ep.episodeTconst,
-        seasonNumber: ep.seasonNumber,
-        episodeNumber: ep.episodeNumber,
-        episodeTitle: ep.episodeTitle,
-        airYear: ep.airYear,
-        status: owned.has(this.key(ep.seasonNumber, ep.episodeNumber))
+      .map((ep) => {
+        const status = owned.has(this.key(ep.seasonNumber, ep.episodeNumber))
           ? 'owned'
           : ep.airYear == null || ep.airYear > currentYear
             ? 'unaired'
-            : 'missing',
-      }));
+            : 'missing';
+        const base = {
+          watchlistItemId,
+          seriesTconst,
+          episodeTconst: ep.episodeTconst,
+          seasonNumber: ep.seasonNumber,
+          episodeNumber: ep.episodeNumber,
+          episodeTitle: ep.episodeTitle,
+          airYear: ep.airYear,
+          status,
+        };
+        // A now-owned episode's grab succeeded (or it was sideloaded) — drop the
+        // grab-state; an unaired one resets to idle. Only a still-missing episode
+        // keeps its prior search/grab state.
+        const preserved = status === 'missing' ? grabStateByKey.get(this.key(ep.seasonNumber, ep.episodeNumber)) : undefined;
+        return preserved ? { ...base, ...preserved } : base;
+      });
 
     if (rows.length) {
       await this.prisma.wantedEpisode.createMany({ data: rows, skipDuplicates: true });

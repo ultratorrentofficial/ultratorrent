@@ -28,6 +28,7 @@ import { MediaSettingsPage } from '@/pages/media-manager/MediaSettingsPage';
 import { MediaImdbSettingsPage } from '@/pages/media-manager/MediaImdbSettingsPage';
 import { ModulesPage } from '@/pages/ModulesPage';
 import { EnginesPage } from '@/pages/engines/EnginesPage';
+import { IndexersPage } from '@/pages/indexers/IndexersPage';
 import { MediaAcquisitionPage } from '@/pages/media-acquisition/MediaAcquisitionPage';
 import { MissingEpisodesPage } from '@/pages/media-acquisition/MissingEpisodesPage';
 import { DecisionSimulatorPage } from '@/pages/media-acquisition/DecisionSimulatorPage';
@@ -99,6 +100,12 @@ export function App() {
                   <Route element={<ProtectedRoute permission={PERMISSIONS.SYSTEM_VIEW} />}>
                     <Route element={<AppShell />}>
                       <Route path="/engines" element={<EnginesPage />} />
+                    </Route>
+                  </Route>
+
+                  <Route element={<ProtectedRoute permission={PERMISSIONS.INDEXERS_VIEW} />}>
+                    <Route element={<AppShell />}>
+                      <Route path="/indexers" element={<IndexersPage />} />
                     </Route>
                   </Route>
 

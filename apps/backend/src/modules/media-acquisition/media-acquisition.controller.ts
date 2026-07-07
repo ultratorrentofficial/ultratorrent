@@ -15,6 +15,7 @@ import { AcquisitionEvaluatorService } from './evaluator.service';
 import { AcquisitionApprovalService } from './approval.service';
 import { MissingEpisodesService } from './missing-episodes.service';
 import { MissingMoviesService } from './missing-movies.service';
+import { MissingEpisodeSearchService } from './missing-episode-search.service';
 import { AcquisitionDecision } from './decision.engine';
 import {
   CreateAcquisitionProfileDto,
@@ -47,6 +48,7 @@ export class MediaAcquisitionController {
     private readonly approval: AcquisitionApprovalService,
     private readonly missingEpisodes: MissingEpisodesService,
     private readonly missingMovies: MissingMoviesService,
+    private readonly missingSearch: MissingEpisodeSearchService,
   ) {}
 
   @Get('overview')
@@ -201,6 +203,18 @@ export class MediaAcquisitionController {
     return body?.watchlistItemId
       ? this.missingEpisodes.scanSeries(body.watchlistItemId, u?.id)
       : this.missingEpisodes.scanAll(u?.id);
+  }
+  // Auto-acquire bridge: search indexers for a wanted episode (or a whole series)
+  // and hand the best release to the evaluator (profile-gated auto-grab).
+  @Post('missing-episodes/series/:watchlistItemId/search')
+  @RequirePermissions(P.MEDIA_ACQUISITION_EVALUATE)
+  searchMissingEpisodesForSeries(@Param('watchlistItemId') watchlistItemId: string, @CurrentUser() u: AuthenticatedUser) {
+    return this.missingSearch.searchSeries(watchlistItemId, u?.id);
+  }
+  @Post('missing-episodes/:id/search')
+  @RequirePermissions(P.MEDIA_ACQUISITION_EVALUATE)
+  searchMissingEpisode(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
+    return this.missingSearch.searchEpisode(id, u?.id);
   }
   @Post('missing-episodes/:id/ignore')
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)

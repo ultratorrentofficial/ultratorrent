@@ -186,6 +186,42 @@ describe('MissingEpisodesService', () => {
     expect(after.status).toBe('ignored');
   });
 
+  it('preserves acquisition grab-state on a still-missing episode across a rescan', async () => {
+    const prisma = makePrisma();
+    const svc = makeService(prisma);
+    await svc.scanSeries('wl1');
+    const s1e1 = (await svc.listForSeries('wl1')).find((r) => r.seasonNumber === 1 && r.episodeNumber === 1)!;
+    // Simulate the auto-acquire bridge having grabbed a release for this episode.
+    await prisma.wantedEpisode.update({
+      where: { id: s1e1.id },
+      data: { searchStatus: 'grabbed', grabbedAt: new Date(), grabbedEvaluationId: 'ev1', downloadUrl: 'magnet:x', releaseTitle: 'The Wire S01E01' },
+    });
+
+    await svc.scanSeries('wl1'); // rescan — S1E1 is still missing from the library
+
+    const after = (await svc.listForSeries('wl1')).find((r) => r.seasonNumber === 1 && r.episodeNumber === 1)!;
+    expect(after.status).toBe('missing');
+    expect(after.searchStatus).toBe('grabbed');
+    expect(after.grabbedEvaluationId).toBe('ev1');
+    expect(after.releaseTitle).toBe('The Wire S01E01');
+  });
+
+  it('drops grab-state once a grabbed episode is owned', async () => {
+    const prisma = makePrisma();
+    const svc = makeService(prisma);
+    await svc.scanSeries('wl1');
+    const s1e1 = (await svc.listForSeries('wl1')).find((r) => r.seasonNumber === 1 && r.episodeNumber === 1)!;
+    await prisma.wantedEpisode.update({ where: { id: s1e1.id }, data: { searchStatus: 'grabbed', grabbedEvaluationId: 'ev1' } });
+    // The library now owns S1E1 (the grab landed).
+    prisma.mediaItem.seed([{ id: 'own', seriesImdbId: 'ttSERIES', mediaType: 'tv', title: 'The Wire', season: 1, episode: 1 }]);
+
+    await svc.scanSeries('wl1');
+
+    const after = (await svc.listForSeries('wl1')).find((r) => r.seasonNumber === 1 && r.episodeNumber === 1)!;
+    expect(after.status).toBe('owned');
+    expect(after.searchStatus).not.toBe('grabbed'); // grab-state not carried onto an owned row
+  });
+
   it('rejects a series watchlist item with no IMDb id', async () => {
     const prisma = makePrisma();
     const svc = makeService(prisma);

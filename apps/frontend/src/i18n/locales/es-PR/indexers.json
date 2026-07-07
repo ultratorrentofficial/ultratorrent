@@ -1,0 +1,64 @@
+{
+  "page": {
+    "title": "Indexadores",
+    "subtitle": "Fuentes de búsqueda Torznab/Newznab para la adquisición automática de episodios."
+  },
+  "actions": {
+    "add": "Agregar indexador",
+    "test": "Probar",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "cancel": "Cancelar"
+  },
+  "list": {
+    "loading": "Cargando indexadores…",
+    "error": "No se pudieron cargar los indexadores."
+  },
+  "empty": {
+    "title": "No hay indexadores configurados",
+    "description": "Agrega un indexador Torznab o Newznab para que Episodios Faltantes pueda buscar lanzamientos."
+  },
+  "badge": {
+    "disabled": "Deshabilitado"
+  },
+  "status": {
+    "ok": "OK",
+    "error": "Error",
+    "unknown": "Sin probar"
+  },
+  "field": {
+    "name": "Nombre",
+    "namePlaceholder": "Mi indexador",
+    "implementation": "Tipo",
+    "baseUrl": "URL base",
+    "apiKey": "Clave API",
+    "apiKeyKeep": "Déjalo en blanco para mantener la clave existente",
+    "apiKeyNew": "Clave API del indexador",
+    "categories": "Categorías",
+    "categoriesHint": "Ids de categorías Newznab separados por comas (por defecto TV: 5000, 5030, 5040).",
+    "priority": "Prioridad",
+    "minSeeders": "Seeders mín.",
+    "timeout": "Tiempo de espera (ms)",
+    "enabled": "Habilitado"
+  },
+  "dialog": {
+    "addTitle": "Agregar indexador",
+    "editTitle": "Editar {{name}}",
+    "description": "La clave API se cifra en reposo y no se vuelve a mostrar después de guardar.",
+    "save": "Guardar cambios"
+  },
+  "confirm": {
+    "delete": "¿Eliminar el indexador \"{{name}}\"?"
+  },
+  "toast": {
+    "added": "Indexador agregado",
+    "updated": "Indexador actualizado",
+    "removed": "Indexador eliminado",
+    "removeFailed": "No se pudo eliminar el indexador",
+    "addFailed": "No se pudo agregar el indexador",
+    "updateFailed": "No se pudo actualizar el indexador",
+    "testOk": "Conexión OK",
+    "testCaps": "{{count}} categorías anunciadas",
+    "testFailed": "La prueba falló"
+  }
+}
