@@ -117,8 +117,20 @@ export class TorznabClient {
         };
     if (cats.length) params.cat = cats.join(',');
     const xml = await this.httpGet(this.buildUrl(conn, params), conn.timeoutMs, conn);
-    const feed = await this.rss.parseString(xml);
+    const feed = await this.rss.parseString(this.normalizeRssVersion(xml));
     return (feed.items ?? []).map((item) => this.normalize(conn, item as any));
+  }
+
+  /**
+   * Prowlarr and Jackett emit `<rss version="1.0">` for Torznab feeds, but
+   * `rss-parser` only accepts `version="2.x"` (or a true RDF-based RSS 1) and
+   * otherwise throws "Feed not recognized as RSS 1 or 2." Rewrite the version
+   * attribute on the root `<rss>` element to `2.0` so these standard Torznab
+   * servers parse — the same leniency Sonarr/Radarr apply. Non-RSS roots
+   * (`<feed>` Atom) don't match and are left untouched.
+   */
+  private normalizeRssVersion(xml: string): string {
+    return xml.replace(/(<rss\b[^>]*\bversion=["'])[^"']*(["'])/i, (_m, pre, quote) => `${pre}2.0${quote}`);
   }
 
   /** `Show S01E02` style query for indexers without tvsearch season/ep support. */

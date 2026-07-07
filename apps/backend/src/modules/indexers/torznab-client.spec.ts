@@ -40,6 +40,24 @@ describe('TorznabClient.search', () => {
     expect(c.categories).toContain(5030);
   });
 
+  it('parses a Prowlarr/Jackett feed advertised as <rss version="1.0"> (rss-parser would otherwise reject it)', async () => {
+    // Prowlarr and Jackett always emit version="1.0"; rss-parser only accepts
+    // "2.x" and throws "Feed not recognized as RSS 1 or 2" without normalization.
+    mockFetch(`<?xml version="1.0" encoding="UTF-8"?>
+      <rss version="1.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:torznab="http://torznab.com/schemas/2015/feed">
+      <channel><title>Prowlarr</title>
+        <item>
+          <title>The Show S01E05 1080p WEB-DL x265-GRP</title>
+          <link>magnet:?xt=urn:btih:1234567890ABCDEF1234567890ABCDEF12345678&amp;dn=x</link>
+          <torznab:attr name="seeders" value="42"/>
+        </item>
+      </channel></rss>`);
+    const results = await client.search(conn, { q: 'The Show', season: 1, ep: 5 });
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe('The Show S01E05 1080p WEB-DL x265-GRP');
+    expect(results[0].seeders).toBe(42);
+  });
+
   it('normalizes a .torrent enclosure item (size from enclosure length)', async () => {
     mockFetch(feed(`
       <item>
