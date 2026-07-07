@@ -140,14 +140,37 @@ manage_preferences, manage_settings, admin`. Enforced server-side
 provider.offline · rule.triggered`, scoped to the `notifications.view` room
 (`RealtimeGateway.roomForEvent`).
 
-## Media Server Analytics integration
+## Module event integration
 
-MSA publishes `media_server.user_started_watching`, `user_finished_watching`,
-`transcode_detected`, `newsletter_sent`, `newsletter_failed` onto the bus (session
-poller + newsletter dispatcher). Remaining catalog events (`media_added`,
-`server_online/offline`, `high_bandwidth`) and the Downloads / RSS / Media Manager
-/ System publishers are the next integration wave — the rules are already seeded
-and become live the moment those modules emit.
+Publishers emit `eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload })` at
+their existing hook points (fully decoupled — no reference to the Center):
+
+- **Media Server Analytics** — `user_started_watching`, `user_finished_watching`,
+  `transcode_detected`, `newsletter_sent`, `newsletter_failed` (session poller + newsletter dispatcher).
+- **Downloads** — `download.torrent_completed` (torrent-sync completion edge).
+- **RSS** — `rss.feed_failed` (poll catch), `rss.rule_matched` (grab path).
+- **Media Manager** — `media.processing_completed` / `processing_failed` /
+  `metadata_match_failed` / `renamed` / `missing_artwork` / `missing_subtitles`
+  (post-download workflow) and `media.library_scan_completed` (scanner).
+- **System** — `system.settings_changed` (Setting store), `system.api_key_created`,
+  and a new resource monitor (`@Interval system_health_monitor`, edge-fired):
+  `system.disk_space_low` / `cpu_high` / `memory_high`.
+- **Auth** — `system.new_login` / `system.failed_login` (login controller).
+
+Remaining catalog events (`media_added`, `server_online/offline`, `download.torrent_added/failed/stalled`,
+`ratio_reached`, `rss.new_episode_available`, `media.duplicate`, `system.update_available` …)
+are follow-ups — their rules are seeded and go live the moment those hooks emit.
+
+## Automation integration
+
+The Automation module exposes a **`send_notification`** action (category
+`notification`, in `AUTOMATION_ACTIONS`, dispatched by both the torrent- and
+event-context executors). Its params (`channelIds`, `recipientIds`, `groupIds`,
+`templateId`, `variables`, `priority`, `title`, `message`) flow to
+`NotificationCenterService.dispatchDirect()` (resolved lazily via `ModuleRef`),
+which resolves the audience + channels (falling back to the Administrators group
+and default channels), renders per-channel, and enqueues — so an automation rule
+can send a fully-templated notification through any channel.
 
 ## Security
 

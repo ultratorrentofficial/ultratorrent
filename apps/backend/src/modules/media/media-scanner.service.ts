@@ -1,6 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { readdir, stat } from 'node:fs/promises';
 import * as path from 'node:path';
+import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { parseTorrentName } from '../rss/torrent-name-parser';
@@ -86,6 +88,7 @@ export class MediaScannerService {
     private readonly filePath: FilePathService,
     private readonly artwork: MediaArtworkService,
     private readonly metadata: MediaMetadataService,
+    private readonly eventBus: EventEmitter2,
   ) {}
 
   async scanLibrary(libraryId: string): Promise<ScanSummary> {
@@ -157,6 +160,11 @@ export class MediaScannerService {
       data: { lastScanAt: new Date() },
     });
 
+    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
+      event: NOTIFICATION_EVENTS.MEDIA_LIBRARY_SCAN_COMPLETED,
+      payload: { libraryName: library.name, mediaTitle: library.name, libraryId, scanned: files.length, added, updated },
+      at: new Date().toISOString(),
+    });
     return { libraryId, scanned: files.length, added, updated, artworkImported, metadataImported };
   }
 

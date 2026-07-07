@@ -27,7 +27,8 @@ import {
 } from 'class-validator';
 import type { Request } from 'express';
 import Parser from 'rss-parser';
-import { PERMISSIONS, WS_EVENTS } from '@ultratorrent/shared';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { PERMISSIONS, WS_EVENTS, NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
@@ -137,7 +138,13 @@ export class RssService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
     private readonly moduleRef: ModuleRef,
+    private readonly eventBus: EventEmitter2,
   ) {}
+
+  /** Publish a domain event onto the Notification Center bus (fire-and-forget). */
+  private emitEvent(event: string, payload: Record<string, unknown>): void {
+    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload, at: new Date().toISOString() });
+  }
 
   /**
    * Fire an RSS automation trigger with an event context. Resolved lazily via
@@ -1252,9 +1259,10 @@ export class RssService {
       const due =
         !feed.lastFetchedAt ||
         now - feed.lastFetchedAt.getTime() >= feed.refreshInterval * 1000;
-      if (due) await this.processFeed(feed).catch((e) =>
-        this.logger.warn(`RSS feed ${feed.name} failed: ${e.message}`),
-      );
+      if (due) await this.processFeed(feed).catch((e) => {
+        this.logger.warn(`RSS feed ${feed.name} failed: ${e.message}`);
+        this.emitEvent(NOTIFICATION_EVENTS.RSS_FEED_FAILED, { rssRule: feed.name, feedName: feed.name, mediaTitle: feed.name, url: feed.url, errorMessage: e.message });
+      });
     }
   }
 
@@ -1586,6 +1594,9 @@ export class RssService {
 
         if (candidates.length) {
           await this.recordEvaluation(rule.id, guid, evaluation, action, torrentHash);
+          this.emitEvent(NOTIFICATION_EVENTS.RSS_RULE_MATCHED, {
+            rssRule: rule.name, mediaTitle: title, torrentName: title, feedName: feed.name, action, torrentHash: torrentHash ?? null,
+          });
         }
       }
 

@@ -106,13 +106,15 @@ describe('MediaProcessingService.handleTorrentCompleted', () => {
     const queue = queueStub();
     const svc = new MediaProcessingService(
       prisma,
-      automation as any,
+      // `fire()` resolves AutomationEngine lazily via ModuleRef — mock its .get().
+      { get: () => automation } as any,
       scanner as any,
       identification as any,
       subtitles as any,
       integrations as any,
       actions as any,
       queue,
+      { emit() {} } as any,
     );
     return { svc, scanner, automation, prisma };
   }

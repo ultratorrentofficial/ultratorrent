@@ -3081,6 +3081,45 @@ export const api = {
     test(body: { channelId: string; recipientId?: string }): Promise<{ ok: boolean; error?: string }> {
       return request('/notifications/test', { method: 'POST', body });
     },
+    templates(): Promise<NotificationTemplate[]> {
+      return request<NotificationTemplate[]>('/notifications/templates');
+    },
+    createTemplate(body: Partial<NotificationTemplate>): Promise<NotificationTemplate> {
+      return request<NotificationTemplate>('/notifications/templates', { method: 'POST', body });
+    },
+    updateTemplate(id: string, body: Partial<NotificationTemplate>): Promise<NotificationTemplate> {
+      return request<NotificationTemplate>(`/notifications/templates/${id}`, { method: 'PATCH', body });
+    },
+    deleteTemplate(id: string): Promise<void> {
+      return request<void>(`/notifications/templates/${id}`, { method: 'DELETE' });
+    },
+    previewTemplate(body: { templateId?: string; body?: Record<string, unknown>; kind?: string; variables?: Record<string, unknown> }): Promise<NotificationRenderedMessage> {
+      return request<NotificationRenderedMessage>('/notifications/templates/preview', { method: 'POST', body });
+    },
+    createGroup(body: { name: string; description?: string }): Promise<NotificationGroup> {
+      return request<NotificationGroup>('/notifications/groups', { method: 'POST', body });
+    },
+    deleteGroup(id: string): Promise<void> {
+      return request<void>(`/notifications/groups/${id}`, { method: 'DELETE' });
+    },
+    setGroupMembers(id: string, recipientIds: string[]): Promise<{ ok: boolean }> {
+      return request(`/notifications/groups/${id}/members`, { method: 'PUT', body: { recipientIds } });
+    },
+    queue(params: { page?: number; pageSize?: number } = {}): Promise<Paginated<NotificationDelivery>> {
+      return request<Paginated<NotificationDelivery>>('/notifications/queue', { query: params as Record<string, string | number> });
+    },
+    preferences(recipientId: string): Promise<NotificationPreference[]> {
+      return request<NotificationPreference[]>(`/notifications/preferences/${recipientId}`);
+    },
+    setPreference(body: { recipientId: string; event: string; channel?: string | null; enabled: boolean }): Promise<NotificationPreference> {
+      return request<NotificationPreference>('/notifications/preferences', { method: 'PUT', body });
+    },
+    settings(): Promise<NotificationSettings> {
+      return request<NotificationSettings>('/notifications/settings');
+    },
+    updateSettings(body: Partial<NotificationSettings>): Promise<NotificationSettings> {
+      return request<NotificationSettings>('/notifications/settings', { method: 'PATCH', body });
+    },
   },
 
 };
@@ -3178,6 +3217,47 @@ export interface NotificationDashboard {
   successRate: number | null;
   providerHealth: Record<string, number>;
   recent: NotificationDelivery[];
+}
+
+export interface NotificationTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  event?: string | null;
+  subject?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  html?: string | null;
+  text?: string | null;
+  markdown?: string | null;
+  sms?: string | null;
+  whatsapp?: string | null;
+  telegram?: string | null;
+  locale: string;
+  system: boolean;
+}
+
+export interface NotificationRenderedMessage {
+  subject?: string | null;
+  text: string;
+  html?: string | null;
+  markdown?: string | null;
+  card: Record<string, unknown>;
+}
+
+export interface NotificationPreference {
+  id: string;
+  recipientId: string;
+  event: string;
+  channel?: string | null;
+  enabled: boolean;
+}
+
+export interface NotificationSettings {
+  brand: string;
+  defaultLocale: string;
+  logNotificationBodies: boolean;
+  globalRateLimitPerMin?: number | null;
 }
 
 export interface Newsletter {

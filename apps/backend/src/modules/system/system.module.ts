@@ -10,9 +10,11 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { Interval } from '@nestjs/schedule';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { statfs } from 'node:fs/promises';
 import * as os from 'node:os';
-import { PERMISSIONS } from '@ultratorrent/shared';
+import { PERMISSIONS, NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -24,11 +26,55 @@ import { SystemUpdateService } from './system-update.service';
 
 @Injectable()
 export class SystemService {
+  /** Conditions currently in an alerting state (edge-fire: emit once on cross). */
+  private alerting = new Set<string>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: EngineRegistryService,
     private readonly config: ConfigService,
+    private readonly eventBus: EventEmitter2,
   ) {}
+
+  /**
+   * Periodic resource-health monitor. Emits `system.disk_space_low` / `cpu_high`
+   * / `memory_high` on the rising edge only (and clears on recovery), so rules
+   * fire once per incident rather than every minute.
+   */
+  @Interval('system_health_monitor', 60_000)
+  async monitorHealth(): Promise<void> {
+    try {
+      const emit = (key: string, event: string, payload: Record<string, unknown>) => {
+        if (!this.alerting.has(key)) {
+          this.alerting.add(key);
+          this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload, at: new Date().toISOString() });
+        }
+      };
+      const clear = (key: string) => this.alerting.delete(key);
+
+      // Disk: any root under 10% free.
+      const roots = this.config.get<string[]>('fileManager.roots') ?? [];
+      for (const path of roots) {
+        try {
+          const fs = await statfs(path);
+          const total = fs.blocks * fs.bsize;
+          const freePct = total ? (fs.bfree * fs.bsize) / total * 100 : 100;
+          if (freePct < 10) emit(`disk:${path}`, NOTIFICATION_EVENTS.SYSTEM_DISK_SPACE_LOW, { mediaTitle: path, path, freePercent: Math.round(freePct) });
+          else clear(`disk:${path}`);
+        } catch { /* unavailable root — ignore */ }
+      }
+
+      // CPU: 1-min load average per core > 0.9.
+      const loadPct = os.loadavg()[0] / Math.max(1, os.cpus().length) * 100;
+      if (loadPct > 90) emit('cpu', NOTIFICATION_EVENTS.SYSTEM_CPU_HIGH, { mediaTitle: 'CPU', loadPercent: Math.round(loadPct) });
+      else clear('cpu');
+
+      // Memory: system memory > 90% used.
+      const memPct = os.totalmem() ? (1 - os.freemem() / os.totalmem()) * 100 : 0;
+      if (memPct > 90) emit('mem', NOTIFICATION_EVENTS.SYSTEM_MEMORY_HIGH, { mediaTitle: 'Memory', usedPercent: Math.round(memPct) });
+      else clear('mem');
+    } catch { /* health monitor must never throw */ }
+  }
 
   async liveness() {
     return { status: 'ok', uptime: process.uptime() };

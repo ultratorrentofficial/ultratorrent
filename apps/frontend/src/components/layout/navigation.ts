@@ -38,6 +38,7 @@ import {
   Users,
   Bell,
   Send,
+  FileText,
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { Permission } from '@ultratorrent/shared';
@@ -209,8 +210,14 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: 'nc-dashboard', to: '/notifications', label: 'Notification Center', icon: Bell, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', end: true, descriptionKey: 'Notification Center' },
       { id: 'nc-channels', to: '/notifications/channels', label: 'Notification Channels', icon: Send, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Channels' },
       { id: 'nc-rules', to: '/notifications/rules', label: 'Notification Rules', icon: ListChecks, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Rules' },
+      { id: 'nc-templates', to: '/notifications/templates', label: 'Notification Templates', icon: FileText, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Templates' },
       { id: 'nc-recipients', to: '/notifications/recipients', label: 'Notification Recipients', icon: Users, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Recipients' },
+      { id: 'nc-groups', to: '/notifications/groups', label: 'Recipient Groups', icon: Users, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Recipient Groups' },
       { id: 'nc-history', to: '/notifications/history', label: 'Delivery History', icon: History, permission: PERMISSIONS.NOTIFICATIONS_VIEW_HISTORY, module: 'notification_center', descriptionKey: 'Delivery History' },
+      { id: 'nc-queue', to: '/notifications/queue', label: 'Queue Monitor', icon: Gauge, permission: PERMISSIONS.NOTIFICATIONS_VIEW_HISTORY, module: 'notification_center', descriptionKey: 'Queue Monitor' },
+      { id: 'nc-health', to: '/notifications/provider-health', label: 'Provider Health', icon: Activity, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Provider Health' },
+      { id: 'nc-prefs', to: '/notifications/preferences', label: 'Notification Preferences', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES, module: 'notification_center', descriptionKey: 'Notification Preferences' },
+      { id: 'nc-settings', to: '/notifications/settings', label: 'Notification Settings', icon: Settings, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_SETTINGS, module: 'notification_center', descriptionKey: 'Notification Settings' },
     ],
   },
   {

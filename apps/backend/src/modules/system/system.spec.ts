@@ -2,7 +2,7 @@ import { SystemService } from './system.module';
 
 function svc(values: Record<string, unknown> = {}) {
   const config = { get: (k: string) => values[k] } as any;
-  return new SystemService({} as any, {} as any, config);
+  return new SystemService({} as any, {} as any, config, { emit() {} } as any);
 }
 
 describe('SystemService.version', () => {

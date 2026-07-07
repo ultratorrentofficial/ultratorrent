@@ -46,6 +46,7 @@ describe('AutomationEngine — ratio.reached edge trigger', () => {
       media,
       mediaActions,
       rssActions,
+      { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
     );
     return { engine, provider, mediaActions };
   }
@@ -110,6 +111,7 @@ describe('AutomationEngine — media action dispatch', () => {
       media,
       mediaActions,
       rssActions,
+      { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
     );
 
     await engine.evaluate('torrent.completed', torrent());
@@ -135,7 +137,7 @@ describe('AutomationEngine — evaluateEvent (non-torrent event context)', () =>
     const media = {} as any;
     const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const rssActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
-    const engine = new AutomationEngine(prisma, registry, notifications, media, mediaActions, rssActions);
+    const engine = new AutomationEngine(prisma, registry, notifications, media, mediaActions, rssActions, { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any);
     return { engine, prisma, notifications, rssActions };
   }
 

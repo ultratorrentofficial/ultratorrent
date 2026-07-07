@@ -28,7 +28,9 @@ import { NormalizedTorrent, PERMISSIONS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
 import { EngineRegistryService } from '../engine/engine-registry.service';
+import { ModuleRef } from '@nestjs/core';
 import { NotificationsService } from '../notifications/notifications.module';
+import { NotificationCenterService } from '../notification-center/notification-center.service';
 import { MediaService } from '../media/media.service';
 import { MediaAutomationActions } from '../media/media-automation.actions';
 import { RssModule } from '../rss/rss.module';
@@ -68,6 +70,7 @@ export const AUTOMATION_TRIGGERS = [
 /** Catalog of actions the engine can execute (metadata for the UI). */
 export const AUTOMATION_ACTIONS = [
   { id: 'notify', label: 'Send notification', category: 'torrent' },
+  { id: 'send_notification', label: 'Send via Notification Center', category: 'notification' },
   { id: 'move', label: 'Move data', category: 'torrent' },
   { id: 'pause', label: 'Pause torrent', category: 'torrent' },
   { id: 'stop', label: 'Stop torrent', category: 'torrent' },
@@ -135,6 +138,7 @@ export class AutomationEngine {
     private readonly media: MediaService,
     private readonly mediaActions: MediaAutomationActions,
     private readonly rssActions: RssAutomationActions,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /** Evaluate every enabled rule for a trigger against a single torrent. */
@@ -223,6 +227,9 @@ export class AutomationEngine {
           message: String(params.message ?? context.title ?? ''),
         });
         break;
+      case 'send_notification':
+        await this.sendViaCenter(params, context);
+        break;
       case 'webhook':
         await fetch(String(params.url), {
           method: 'POST',
@@ -233,6 +240,20 @@ export class AutomationEngine {
       default:
         throw new Error(`Action "${action.type}" is not valid for an event trigger`);
     }
+  }
+
+  /** Dispatch through the Notification Center (the `send_notification` action). */
+  private async sendViaCenter(params: Record<string, unknown>, context: Record<string, unknown>): Promise<void> {
+    await this.moduleRef.get(NotificationCenterService, { strict: false }).dispatchDirect({
+      channelIds: params.channelIds as string[] | undefined,
+      recipientIds: params.recipientIds as string[] | undefined,
+      groupIds: params.groupIds as string[] | undefined,
+      templateId: params.templateId as string | undefined,
+      variables: { ...context, ...((params.variables as Record<string, unknown>) ?? {}) },
+      priority: params.priority as number | undefined,
+      title: (params.title as string) ?? (context.title as string) ?? undefined,
+      message: (params.message as string) ?? undefined,
+    });
   }
 
   private async logEvent(
@@ -369,6 +390,9 @@ export class AutomationEngine {
           title: String(params.title ?? 'Automation'),
           message: String(params.message ?? t.name),
         });
+        break;
+      case 'send_notification':
+        await this.sendViaCenter(params, { title: t.name, mediaTitle: t.name, torrentName: t.name, hash: t.hash });
         break;
       case 'webhook':
         await fetch(String(params.url), {

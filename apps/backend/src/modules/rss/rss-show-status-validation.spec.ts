@@ -42,6 +42,7 @@ function makeRss(resolved: ShowStatusResult | null) {
     audit as never,
     realtime as never,
     moduleRef as never,
+    { emit() {} } as never,
   );
   return { svc, created, showStatus, audit, realtime, engine };
 }

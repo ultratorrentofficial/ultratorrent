@@ -95,5 +95,80 @@
     "prev": "Previous",
     "next": "Next",
     "pageOf": "Page {{page}} of {{pages}}"
+  },
+  "templates": {
+    "title": "Templates",
+    "subtitle": "Reusable message templates with {{variables}}, conditional blocks, per-channel bodies and preview.",
+    "loadError": "Could not load templates.",
+    "empty": "No templates yet.",
+    "add": "New template",
+    "varsHint": "Use {{userDisplayName}}, {{mediaTitle}}, {{overview}}, {{serverName}}, {{watchUrl}} … in any field.",
+    "name": "Name",
+    "event": "Event (optional)",
+    "subject": "Subject / title",
+    "text": "Text body",
+    "sms": "SMS body",
+    "telegram": "Telegram body",
+    "createBtn": "Create template",
+    "preview": "Preview",
+    "system": "Built-in",
+    "created": "Template created",
+    "saveFailed": "Could not save the template"
+  },
+  "groups": {
+    "title": "Recipient Groups",
+    "subtitle": "Group recipients for bulk targeting in rules.",
+    "loadError": "Could not load groups.",
+    "empty": "No groups yet.",
+    "name": "Group name",
+    "createBtn": "Create group",
+    "created": "Group created",
+    "saveFailed": "Could not save the group",
+    "system": "Built-in",
+    "members": "{{count}} members",
+    "editMembers": "Members",
+    "saveMembers": "Save members",
+    "membersSaved": "Members updated",
+    "cancel": "Cancel",
+    "noRecipients": "No recipients to add yet."
+  },
+  "queue": {
+    "title": "Queue Monitor",
+    "subtitle": "{{total}} notifications waiting to be delivered.",
+    "loadError": "Could not load the queue.",
+    "empty": "The queue is empty.",
+    "attempts": "Attempts"
+  },
+  "providerHealth": {
+    "title": "Provider Health",
+    "subtitle": "Live health of each notification channel (checked every 5 minutes).",
+    "loadError": "Could not load provider health.",
+    "empty": "No channels configured yet.",
+    "never": "Never checked"
+  },
+  "preferences": {
+    "title": "Notification Preferences",
+    "subtitle": "Per-recipient opt-outs — a disabled preference suppresses that event for the recipient.",
+    "loadError": "Could not load preferences.",
+    "recipient": "Recipient",
+    "selectRecipient": "Select a recipient…",
+    "none": "No preferences set — this recipient receives everything their rules allow.",
+    "allEvents": "All events",
+    "event": "Event to opt out of",
+    "addOptOut": "Add opt-out",
+    "saved": "Preference saved"
+  },
+  "settings": {
+    "title": "Notification Settings",
+    "subtitle": "Branding, locale and delivery defaults for the Notification Center.",
+    "loadError": "Could not load settings.",
+    "brand": "Brand name",
+    "defaultLocale": "Default locale",
+    "globalRateLimit": "Global rate limit (per minute)",
+    "logBodies": "Log notification bodies",
+    "logBodiesHint": "Off by default for privacy — enable only for debugging.",
+    "save": "Save",
+    "saved": "Settings saved",
+    "saveFailed": "Could not save settings"
   }
 }

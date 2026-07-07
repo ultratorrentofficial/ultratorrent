@@ -132,4 +132,61 @@ export class NotificationCenterService {
   toEnvelope(event: string, payload: Record<string, unknown>): DomainEventEnvelope {
     return { event, payload, at: new Date().toISOString() };
   }
+
+  /**
+   * Direct dispatch used by the Automation "Send Notification" action — resolves
+   * the given recipients/groups (or the Administrators group as a fallback) and
+   * channels (or the default channels), renders, and enqueues. Bypasses rule
+   * matching since the automation rule IS the decision.
+   */
+  async dispatchDirect(input: {
+    channelIds?: string[];
+    recipientIds?: string[];
+    groupIds?: string[];
+    templateId?: string;
+    variables?: Record<string, unknown>;
+    priority?: number;
+    title?: string;
+    message?: string;
+  }): Promise<{ enqueued: number }> {
+    let recips = await this.recipients.resolve({ recipientIds: input.recipientIds, groupIds: input.groupIds }, {});
+    if (recips.length === 0) {
+      const admins = await this.prisma.notificationRecipientGroup.findUnique({ where: { name: 'Administrators' } });
+      if (admins) recips = await this.recipients.resolve({ groupIds: [admins.id] }, {});
+    }
+    const channelIds = input.channelIds ?? [];
+    const channels = channelIds.length
+      ? await this.prisma.notificationChannel.findMany({ where: { id: { in: channelIds }, enabled: true } })
+      : await this.prisma.notificationChannel.findMany({ where: { enabled: true, isDefault: true } });
+
+    const template = input.templateId ? await this.prisma.notificationTemplate.findUnique({ where: { id: input.templateId } }) : null;
+    const tpl = (template as unknown as TemplateBodies) ?? {};
+    const baseVars: TemplateVars = { mediaTitle: input.title ?? 'Notification', title: input.title ?? 'Notification', overview: input.message ?? '', eventTime: new Date().toISOString(), ...(input.variables ?? {}) };
+
+    let enqueued = 0;
+    for (const recipient of recips) {
+      for (const channel of channels) {
+        const provider = getNotificationProvider(channel.provider as NotificationKind);
+        const addr = this.recipients.addressFor(recipient);
+        if (!provider.validateRecipient(addr)) continue;
+        const msg = buildMessage(tpl, { ...baseVars, userDisplayName: recipient.displayName }, channel.provider as NotificationKind);
+        const body = channel.provider === 'telegram' ? (msg.markdown ?? msg.text) : msg.text;
+        const enq = await this.delivery.enqueue({
+          event: 'automation.send_notification',
+          channelId: channel.id,
+          provider: channel.provider as NotificationKind,
+          recipientId: recipient.id,
+          destination: provider.normalizeRecipient(addr),
+          templateId: input.templateId ?? null,
+          subject: msg.subject,
+          card: msg.card,
+          body,
+          priority: input.priority ?? 0,
+          severity: 'info',
+        });
+        if (enq) enqueued++;
+      }
+    }
+    return { enqueued };
+  }
 }

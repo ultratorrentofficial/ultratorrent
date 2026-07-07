@@ -18,6 +18,8 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuditService } from '../audit/audit.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
 
 function ctx(req: Request) {
   return {
@@ -32,6 +34,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly audit: AuditService,
+    private readonly eventBus: EventEmitter2,
   ) {}
 
   @Public()
@@ -52,6 +55,11 @@ export class AuthController {
         result: 'success',
         ...ctx(req),
       });
+      this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
+        event: NOTIFICATION_EVENTS.SYSTEM_NEW_LOGIN,
+        payload: { userDisplayName: result.user.displayName ?? result.user.username, mediaTitle: result.user.username, userId: result.user.id, ...ctx(req) },
+        at: new Date().toISOString(),
+      });
       return result;
     } catch (err) {
       // A pending 2FA challenge is not a failed login — don't audit it as one.
@@ -61,6 +69,11 @@ export class AuthController {
           result: 'failure',
           metadata: { username: dto.username },
           ...ctx(req),
+        });
+        this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
+          event: NOTIFICATION_EVENTS.SYSTEM_FAILED_LOGIN,
+          payload: { userDisplayName: dto.username, mediaTitle: dto.username, ...ctx(req) },
+          at: new Date().toISOString(),
         });
       }
       throw err;
