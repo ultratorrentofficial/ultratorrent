@@ -69,6 +69,8 @@ export interface ScanSummary {
   scanned: number;
   added: number;
   updated: number;
+  /** Items removed because their file no longer exists on disk. */
+  removed: number;
   /** On-disk sidecar artwork files imported during this scan. */
   artworkImported: number;
   /** Items whose local .nfo metadata was imported during this scan. */
@@ -150,6 +152,22 @@ export class MediaScannerService {
       }
     }
 
+    // Reconcile deletions: drop items whose file is no longer on disk (e.g. a
+    // file removed outside UltraTorrent, or now living under a skipped dot-folder
+    // like tinyMediaManager's `.deletedByTMM`). Guard: only prune when the walk
+    // returned files — an empty walk usually means an unreadable/unmounted root,
+    // and we must never wipe a whole library because a mount dropped.
+    let removed = 0;
+    if (files.length > 0) {
+      const present = new Set(files.map((f) => f.path));
+      const existingItems = await this.prisma.mediaItem.findMany({ where: { libraryId }, select: { id: true, path: true } });
+      const staleIds = existingItems.filter((i) => !present.has(i.path)).map((i) => i.id);
+      if (staleIds.length > 0) {
+        removed = (await this.prisma.mediaItem.deleteMany({ where: { id: { in: staleIds } } })).count;
+        this.logger.log(`Scan of ${library.name}: pruned ${removed} item(s) whose files no longer exist`);
+      }
+    }
+
     const { artworkImported, metadataImported } = await this.importSidecars(
       itemIds,
       library.artworkEnabled,
@@ -162,10 +180,10 @@ export class MediaScannerService {
 
     this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
       event: NOTIFICATION_EVENTS.MEDIA_LIBRARY_SCAN_COMPLETED,
-      payload: { libraryName: library.name, mediaTitle: library.name, libraryId, scanned: files.length, added, updated },
+      payload: { libraryName: library.name, mediaTitle: library.name, libraryId, scanned: files.length, added, updated, removed },
       at: new Date().toISOString(),
     });
-    return { libraryId, scanned: files.length, added, updated, artworkImported, metadataImported };
+    return { libraryId, scanned: files.length, added, updated, removed, artworkImported, metadataImported };
   }
 
   /**
