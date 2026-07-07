@@ -33,6 +33,25 @@ describe('duplicateKeys — episode discrimination', () => {
     );
     expect(detectDuplicateGroups(episodes)).toHaveLength(0);
   });
+
+  it('separates UNIDENTIFIED episodes (null season/episode) by the SxxEyy in the title', () => {
+    // Real case: Chicago P.D. episodes with null season/episode columns but the
+    // marker in the title, all sharing a series-level external id.
+    const seriesId = [{ provider: 'imdb', externalId: 'tt2686424' }];
+    const raw = (id: string, s: string): DuplicateItemLike =>
+      ({ id, mediaType: 'tv', title: `Chicago P.D. - ${s} - Ep`, year: null, season: null, episode: null, externalIds: seriesId, files: [] });
+    const groups = detectDuplicateGroups([raw('1', 'S01E01'), raw('2', 'S01E02'), raw('3', 'S13E21')]);
+    expect(groups).toHaveLength(0);
+  });
+
+  it('still groups two files of the same unidentified episode', () => {
+    const seriesId = [{ provider: 'imdb', externalId: 'tt2686424' }];
+    const raw = (id: string): DuplicateItemLike =>
+      ({ id, mediaType: 'tv', title: 'Chicago P.D. - S01E01 - Stepping Stone', year: null, season: null, episode: null, externalIds: seriesId, files: [] });
+    const groups = detectDuplicateGroups([raw('a'), raw('b')]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].itemIds.sort()).toEqual(['a', 'b']);
+  });
 });
 
 describe('duplicateKeys — movies still work', () => {

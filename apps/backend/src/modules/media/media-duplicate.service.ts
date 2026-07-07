@@ -33,6 +33,26 @@ export function normalizeTitle(title: string): string {
     .trim();
 }
 
+/**
+ * A per-item episode discriminator so two distinct episodes never share a key.
+ * Precedence: (1) the structured season/episode; (2) an `SxxEyy` marker parsed
+ * from the raw title — essential for *unidentified* episodes whose season/episode
+ * columns are null but whose filename still carries the marker (and which often
+ * share a series-level external id); (3) for any other non-movie without episode
+ * info, the normalized title, so a series-level id can't collapse distinct items.
+ * Returns '' for movies with no episode info, where the base keys already suffice.
+ * Pure — exported for unit testing.
+ */
+export function episodeDiscriminator(item: DuplicateItemLike, normTitle: string): string {
+  if (item.season != null || item.episode != null) {
+    return `:s${item.season ?? 'x'}:e${item.episode ?? 'x'}`;
+  }
+  const m = /\bs(\d{1,2})[ ._-]?e(\d{1,3})\b/i.exec(item.title);
+  if (m) return `:s${Number(m[1])}:e${Number(m[2])}`;
+  if (item.mediaType && item.mediaType !== 'movie') return `:${normTitle}`;
+  return '';
+}
+
 const RES_RANK: Record<string, number> = {
   '2160p': 5,
   '1080p': 4,
@@ -64,23 +84,21 @@ export function duplicateKeys(item: DuplicateItemLike): Array<{
   key: string;
 }> {
   const keys: Array<{ reason: DuplicateReason; key: string }> = [];
+  const normTitle = normalizeTitle(item.title);
 
   // Episode discriminator: distinct episodes of a show must NEVER share a key,
   // even when they carry a series-level external id (e.g. the same TVDB series
-  // number on every episode) or an identical show title. Applied to every
-  // strategy so an episodic item's keys always include its season/episode.
-  const epSuffix =
-    item.season != null || item.episode != null
-      ? `:s${item.season ?? 'x'}:e${item.episode ?? 'x'}`
-      : '';
+  // number on every episode) or an identical show title. Prefer the structured
+  // season/episode; when those are null (unidentified episodes) parse the SxxEyy
+  // that survives in the raw title; and for any other non-movie without episode
+  // markers, fall back to the title so a series-level id can't collapse it.
+  const epSuffix = episodeDiscriminator(item, normTitle);
 
   // (c) external id — strongest signal (but still episode-scoped for episodes,
   // because providers store series-level ids on episode rows).
   for (const ext of item.externalIds ?? []) {
     keys.push({ reason: 'external_id', key: `external_id:${ext.provider}:${ext.externalId}${epSuffix}` });
   }
-
-  const normTitle = normalizeTitle(item.title);
 
   // (b) show + season + episode.
   if (item.season != null && item.episode != null) {
