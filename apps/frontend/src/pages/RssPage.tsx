@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ChevronDown,
+  ChevronRight,
   Clock,
   Download,
   ExternalLink,
@@ -87,6 +89,14 @@ export function RssPage() {
     null,
   );
   const [importMode, setImportMode] = useState<RssImportMode>('skip');
+  // Rules under each feed are collapsed by default; a feed id present here is expanded.
+  const [expandedFeeds, setExpandedFeeds] = useState<Set<string>>(new Set());
+  const toggleFeed = (id: string) =>
+    setExpandedFeeds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Trigger a browser download of a bundle as pretty-printed JSON.
@@ -287,6 +297,7 @@ export function RssPage() {
         <div className="space-y-4">
           {data.map((feed) => {
             const rules = rulesForFeed(allRules, feed.id);
+            const expanded = expandedFeeds.has(feed.id);
             return (
             <Card key={feed.id}>
               <CardContent className="p-4">
@@ -322,10 +333,29 @@ export function RssPage() {
                         <Clock className="h-3 w-3" /> {t('feeds.everyInterval', { interval: minutes(feed.refreshInterval) })}
                       </span>
                       <span>{t('feeds.checked', { time: formatRelativeTime(feed.lastFetchedAt) })}</span>
-                      <span>{t('feeds.ruleCount', { count: rules.length })}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleFeed(feed.id)}
+                        aria-expanded={expanded}
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                      >
+                        {expanded ? (
+                          <ChevronDown className="h-3 w-3" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3" />
+                        )}
+                        {t('feeds.ruleCount', { count: rules.length })}
+                      </button>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      variant="subtle"
+                      size="sm"
+                      onClick={() => setRuleForFeed(feed)}
+                    >
+                      <Plus className="h-4 w-4" /> {t('feeds.addRule')}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -372,7 +402,8 @@ export function RssPage() {
                   </div>
                 </div>
 
-                {/* Rules */}
+                {/* Rules (collapsed by default; toggled via the rule count) */}
+                {expanded && (
                 <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
                   {rules.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
@@ -459,10 +490,8 @@ export function RssPage() {
                       );
                     })
                   )}
-                  <Button variant="subtle" size="sm" onClick={() => setRuleForFeed(feed)}>
-                    <Plus className="h-4 w-4" /> {t('feeds.addRule')}
-                  </Button>
                 </div>
+                )}
               </CardContent>
             </Card>
             );
