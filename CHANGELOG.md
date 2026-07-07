@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.17.3] - 2026-07-07
+
+### Fixed
+- Fix duplicate detection grouping different films that share a title (e.g. Aladdin 1992 vs 2019). The similar_filename fallback key was title-only for movies, so same-title/different-year films collided even though title_year already separated them. The fallback is now year-scoped for movies (and episode-scoped for shows), matching the precision of the primary keys.
+- Library scans now reconcile deletions: items whose file no longer exists on disk are pruned (guarded so an unreadable/unmounted root never wipes a library). Previously scans only added/updated, so files removed on disk (or under a skipped dot-folder like tinyMediaManager's .deletedByTMM) lingered as phantom library items forever. ScanSummary gains a removed count. Combined with the existing dot-directory skip, hidden trash folders are neither indexed nor left behind.
+
 ## [0.17.2] - 2026-07-07
 
 ### Fixed
