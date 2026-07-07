@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.18.2] - 2026-07-07
+
+### Fixed
+- Missing Episodes / Watchlist: surface the 'Add from library' multi-select picker on the Watchlist page too (Media Acquisition -> Watchlist), next to the single Add button — previously it was only on the Missing Episodes page, so users adding to the watchlist saw only the old one-at-a-time form.
+
 ## [0.18.1] - 2026-07-07
 
 ### Fixed
