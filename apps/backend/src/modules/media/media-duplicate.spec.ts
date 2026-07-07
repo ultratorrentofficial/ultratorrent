@@ -36,10 +36,18 @@ describe('duplicateKeys — episode discrimination', () => {
 });
 
 describe('duplicateKeys — movies still work', () => {
+  const movie = (id: string, title: string, year: number | null): DuplicateItemLike => ({ id, mediaType: 'movie', title, year, season: null, episode: null, externalIds: [], files: [] });
+
   it('groups the same movie by title + year', () => {
-    const movie = (id: string): DuplicateItemLike => ({ id, mediaType: 'movie', title: 'The Long Night', year: 2024, season: null, episode: null, externalIds: [], files: [] });
-    const groups = detectDuplicateGroups([movie('m1'), movie('m2')]);
+    const groups = detectDuplicateGroups([movie('m1', 'The Long Night', 2024), movie('m2', 'The Long Night', 2024)]);
     expect(groups).toHaveLength(1);
     expect(groups[0].itemIds.sort()).toEqual(['m1', 'm2']);
+  });
+
+  it('does NOT group different films that share a title (Aladdin 1992 vs 2019)', () => {
+    const a1 = duplicateKeys(movie('a', 'Aladdin', 2019)).map((k) => k.key);
+    const a2 = duplicateKeys(movie('b', 'Aladdin', 1992)).map((k) => k.key);
+    expect(a1.some((k) => a2.includes(k))).toBe(false);
+    expect(detectDuplicateGroups([movie('a', 'Aladdin', 2019), movie('b', 'Aladdin', 1992)])).toHaveLength(0);
   });
 });

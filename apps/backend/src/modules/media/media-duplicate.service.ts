@@ -98,10 +98,13 @@ export function duplicateKeys(item: DuplicateItemLike): Array<{
     });
   }
 
-  // (d) similar filename — normalised title as a loose fallback, still scoped to
-  // the episode so different episodes of a show are never grouped together.
+  // (d) similar filename — a fallback signal, but it must stay as specific as the
+  // primary keys: scoped to the episode for shows, and to the YEAR for movies, so
+  // different episodes of a series AND different films that share a title (e.g.
+  // Aladdin 1992 vs 2019) are never grouped together.
   if (normTitle) {
-    keys.push({ reason: 'similar_filename', key: `fn:${normTitle}${epSuffix}` });
+    const discriminator = epSuffix || `:${item.year ?? 'na'}`;
+    keys.push({ reason: 'similar_filename', key: `fn:${normTitle}${discriminator}` });
   }
 
   return keys;
