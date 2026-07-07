@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.21.0] - 2026-07-07
+
+### Added
+- Optional FlareSolverr companion (Compose profile flaresolverr) so Prowlarr can reach Cloudflare-protected indexers like EZTV; internal-only backend helper, docs updated
+
 ## [0.20.0] - 2026-07-07
 
 ### Added
