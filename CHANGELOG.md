@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.17.7] - 2026-07-07
+
+### Fixed
+- Add a 'variables available' help popover (Info icon) next to every rename-template input — the renamer Quick Rename + template dialog, the Media Manager library form, the MediaPage library form, and the Automation rename-for-media action. Lists all template tokens with descriptions plus the padding/optional-block/folder syntax, in en-US + es-PR.
+
 ## [0.17.6] - 2026-07-07
 
 ### Fixed
