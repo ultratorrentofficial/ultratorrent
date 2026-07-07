@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.17.2] - 2026-07-07
+
+### Fixed
+- Notification Center Phase 2: wire the event bus into Downloads, RSS, Media Manager, System and Auth so the seeded rules actually fire; add an Automation 'send_notification' action that dispatches through the Notification Center; and add the remaining UI pages (Templates with live preview, Recipient Groups, Queue Monitor, Provider Health, Preferences, Settings) with routes, nav and en-US/es-PR i18n. Adds an edge-fired system resource monitor (disk/cpu/memory). Also fixes a pre-existing media-processing test mock.
+- Fix duplicate detection grouping different episodes of a series as duplicates. The similar_filename key used only the show title, and the external_id key used the raw provider id — but providers store a series-level id (e.g. the same TVDB number) on every episode row, so both keys collapsed every episode of a show into one duplicate group. Both keys are now episode-scoped (season/episode appended for episodic items), so distinct episodes never group while two files of the same episode still do. Recomputed on the next Detect run.
+
 ## [0.17.1] - 2026-07-06
 
 ### Fixed
