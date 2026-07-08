@@ -1679,8 +1679,47 @@ export interface WatchlistItem {
   status: WatchlistStatus;
   priority: number;
   profileId: string | null;
+  rssRuleId: string | null;
   externalIds?: Record<string, string> | null;
   createdAt: string;
+}
+
+/** Quality + size gates on an auto-download match candidate (RSS match model). */
+export interface MatchQualityRules {
+  quality?: string;
+  source?: string;
+  codec?: string;
+  resolution?: string;
+}
+export interface MatchSizeRules {
+  minBytes?: number;
+  maxBytes?: number;
+}
+/** A global auto-download match-preference candidate (ranked; lower = preferred). */
+export interface AcquisitionMatchCandidate {
+  id: string;
+  priorityOrder: number;
+  name: string;
+  description?: string | null;
+  enabled: boolean;
+  matchType: string;
+  pattern?: string | null;
+  requiredTerms: string[];
+  excludedTerms: string[];
+  qualityRules: MatchQualityRules;
+  sizeRules: MatchSizeRules;
+}
+export interface MatchCandidateInput {
+  name?: string;
+  description?: string | null;
+  priorityOrder?: number;
+  enabled?: boolean;
+  matchType?: string;
+  pattern?: string | null;
+  requiredTerms?: string[];
+  excludedTerms?: string[];
+  qualityRules?: MatchQualityRules;
+  sizeRules?: MatchSizeRules;
 }
 
 /** A distinct series in the media libraries, for the watchlist "add from library" picker. */
@@ -1708,6 +1747,7 @@ export interface CreateWatchlistInput {
   status?: WatchlistStatus;
   priority?: number;
   profileId?: string;
+  rssRuleId?: string | null;
   externalIds?: Record<string, string>;
 }
 
@@ -1720,6 +1760,7 @@ export interface UpdateWatchlistInput {
   status?: WatchlistStatus;
   priority?: number;
   profileId?: string | null;
+  rssRuleId?: string | null;
   externalIds?: Record<string, string>;
 }
 
@@ -3062,6 +3103,18 @@ export const api = {
     },
     updateSettings(body: Partial<AcquisitionSettings>): Promise<AcquisitionSettings> {
       return request<AcquisitionSettings>('/media-acquisition/settings', { method: 'PATCH', body });
+    },
+    matchPreferences(): Promise<AcquisitionMatchCandidate[]> {
+      return request<AcquisitionMatchCandidate[]>('/media-acquisition/match-preferences');
+    },
+    createMatchPreference(body: MatchCandidateInput): Promise<AcquisitionMatchCandidate> {
+      return request<AcquisitionMatchCandidate>('/media-acquisition/match-preferences', { method: 'POST', body });
+    },
+    updateMatchPreference(id: string, body: MatchCandidateInput): Promise<AcquisitionMatchCandidate> {
+      return request<AcquisitionMatchCandidate>(`/media-acquisition/match-preferences/${id}`, { method: 'PATCH', body });
+    },
+    removeMatchPreference(id: string): Promise<void> {
+      return request<void>(`/media-acquisition/match-preferences/${id}`, { method: 'DELETE' });
     },
     /** POST /export → JSON blob; triggers a browser download. */
     async export(body: AcquisitionExportInput): Promise<void> {

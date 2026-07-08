@@ -16,9 +16,12 @@ import { AcquisitionApprovalService } from './approval.service';
 import { MissingEpisodesService } from './missing-episodes.service';
 import { MissingMoviesService } from './missing-movies.service';
 import { MissingEpisodeSearchService } from './missing-episode-search.service';
+import { AcquisitionMatchPreferenceService } from './acquisition-match-preference.service';
 import { AcquisitionDecision } from './decision.engine';
 import {
   CreateAcquisitionProfileDto,
+  CreateMatchCandidateDto,
+  UpdateMatchCandidateDto,
   BulkAddWatchlistDto,
   CreateWatchlistItemDto,
   EvaluateReleaseDto,
@@ -49,6 +52,7 @@ export class MediaAcquisitionController {
     private readonly missingEpisodes: MissingEpisodesService,
     private readonly missingMovies: MissingMoviesService,
     private readonly missingSearch: MissingEpisodeSearchService,
+    private readonly matchPrefs: AcquisitionMatchPreferenceService,
   ) {}
 
   @Get('overview')
@@ -119,6 +123,30 @@ export class MediaAcquisitionController {
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_PROFILES)
   deleteProfile(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
     return this.profiles.remove(id, u?.id);
+  }
+
+  // --- auto-download match preferences (global defaults) ------------------
+  // The ranked candidate list (quality + size cap) the missing-episode sweep
+  // uses when a show isn't linked to an RSS rule. Same model as RSS rules.
+  @Get('match-preferences')
+  @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
+  listMatchPreferences() {
+    return this.matchPrefs.list();
+  }
+  @Post('match-preferences')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_PROFILES)
+  createMatchPreference(@Body() dto: CreateMatchCandidateDto) {
+    return this.matchPrefs.create(dto as never);
+  }
+  @Patch('match-preferences/:id')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_PROFILES)
+  updateMatchPreference(@Param('id') id: string, @Body() dto: UpdateMatchCandidateDto) {
+    return this.matchPrefs.update(id, dto as never);
+  }
+  @Delete('match-preferences/:id')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_PROFILES)
+  deleteMatchPreference(@Param('id') id: string) {
+    return this.matchPrefs.remove(id);
   }
 
   // --- evaluations --------------------------------------------------------

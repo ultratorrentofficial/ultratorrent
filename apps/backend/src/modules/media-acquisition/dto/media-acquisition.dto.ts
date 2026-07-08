@@ -26,10 +26,28 @@ export class CreateWatchlistItemDto {
   @IsOptional() @IsIn(['active', 'paused', 'completed', 'archived']) status?: string;
   @IsOptional() @IsInt() @Min(0) priority?: number;
   @IsOptional() @IsString() profileId?: string;
+  @IsOptional() @IsString() rssRuleId?: string | null;
   @IsOptional() @IsString() targetLibraryId?: string;
   @IsOptional() @IsObject() settings?: Record<string, unknown>;
 }
 export class UpdateWatchlistItemDto extends PartialType(CreateWatchlistItemDto) {}
+
+const MATCH_TYPES = ['exact_text', 'contains_text', 'regex', 'wildcard', 'smart_episode_match', 'smart_movie_match', 'fuzzy_match'];
+
+/** A global auto-download match-preference candidate (RSS match-engine shape). */
+export class CreateMatchCandidateDto {
+  @IsString() @MinLength(1) @MaxLength(200) name!: string;
+  @IsOptional() @IsString() @MaxLength(500) description?: string;
+  @IsOptional() @IsInt() @Min(0) priorityOrder?: number;
+  @IsOptional() @IsBoolean() enabled?: boolean;
+  @IsOptional() @IsIn(MATCH_TYPES) matchType?: string;
+  @IsOptional() @IsString() @MaxLength(500) pattern?: string | null;
+  @IsOptional() @IsArray() @IsString({ each: true }) requiredTerms?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) excludedTerms?: string[];
+  @IsOptional() @IsObject() qualityRules?: Record<string, unknown>;
+  @IsOptional() @IsObject() sizeRules?: Record<string, unknown>;
+}
+export class UpdateMatchCandidateDto extends PartialType(CreateMatchCandidateDto) {}
 
 export class BulkAddSeriesItemDto {
   @IsString() @MinLength(1) @MaxLength(300) title!: string;

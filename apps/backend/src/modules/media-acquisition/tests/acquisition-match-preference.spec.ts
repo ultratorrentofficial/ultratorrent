@@ -80,3 +80,41 @@ describe('AcquisitionMatchPreferenceService.select', () => {
     expect(res).not.toBeNull();
   });
 });
+
+describe('AcquisitionMatchPreferenceService.resolveCandidates', () => {
+  const rssRow = { id: 'rc1', name: 'RSS pref', priorityOrder: 0, enabled: true, matchType: 'smart_episode_match', pattern: null, requiredTerms: [], excludedTerms: [], qualityRules: { resolution: '2160p' }, sizeRules: {} };
+  const defaultRow = { id: 'dc1', name: 'default', priorityOrder: 0, enabled: true, matchType: 'smart_episode_match', pattern: null, requiredTerms: [], excludedTerms: [], qualityRules: { resolution: '1080p' }, sizeRules: {} };
+
+  function withPrisma() {
+    const prisma = {
+      rssRuleMatchCandidate: { findMany: jest.fn(async () => [rssRow]) },
+      acquisitionMatchCandidate: { findMany: jest.fn(async () => [defaultRow]) },
+    };
+    return { svc: new AcquisitionMatchPreferenceService(prisma as any), prisma };
+  }
+
+  it('uses the linked RSS rule’s candidates when the show has an rssRuleId', async () => {
+    const { svc, prisma } = withPrisma();
+    const prefs = await svc.resolveCandidates({ rssRuleId: 'rule-1' } as any);
+    expect(prisma.rssRuleMatchCandidate.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { rssRuleId: 'rule-1', enabled: true } }));
+    expect(prefs).toHaveLength(1);
+    expect(prefs[0].qualityRules?.resolution).toBe('2160p'); // came from the RSS rule
+  });
+
+  it('falls back to the global defaults when the show has no rssRuleId', async () => {
+    const { svc, prisma } = withPrisma();
+    const prefs = await svc.resolveCandidates({ rssRuleId: null } as any);
+    expect(prisma.rssRuleMatchCandidate.findMany).not.toHaveBeenCalled();
+    expect(prefs[0].qualityRules?.resolution).toBe('1080p'); // the default
+  });
+
+  it('falls back to defaults when the linked rule has no enabled candidates', async () => {
+    const prisma = {
+      rssRuleMatchCandidate: { findMany: jest.fn(async () => []) },
+      acquisitionMatchCandidate: { findMany: jest.fn(async () => [defaultRow]) },
+    };
+    const svc2 = new AcquisitionMatchPreferenceService(prisma as any);
+    const prefs = await svc2.resolveCandidates({ rssRuleId: 'rule-empty' } as any);
+    expect(prefs[0].qualityRules?.resolution).toBe('1080p');
+  });
+});

@@ -849,7 +849,8 @@
       "approvals": "Cola de aprobación",
       "recommendations": "Recomendaciones",
       "history": "Historial",
-      "settings": "Configuración"
+      "settings": "Configuración",
+      "autoDownload": "Descarga automática"
     },
     "common": {
       "yes": "Sí",
@@ -1228,6 +1229,34 @@
       "addFailed": "No se pudieron agregar las series",
       "cancel": "Cancelar",
       "addFromLibrary": "Agregar desde la biblioteca"
+    },
+    "autoDownload": {
+      "intro": "Preferencias de descarga automática por orden: el barrido de episodios faltantes toma el primer lanzamiento que coincida (calidad + límite de tamaño), de arriba hacia abajo. Se usa cuando un programa no está vinculado a una regla RSS.",
+      "add": "Agregar preferencia",
+      "loading": "Cargando preferencias…",
+      "error": "No se pudieron cargar las preferencias de descarga automática.",
+      "emptyTitle": "Aún no hay preferencias",
+      "emptyBody": "Agrega una preferencia para controlar qué lanzamientos se descargan automáticamente.",
+      "confirmDelete": "¿Eliminar la preferencia «{{name}}»?",
+      "editTitle": "Editar preferencia",
+      "addTitle": "Agregar preferencia",
+      "dialogDescription": "Un lanzamiento debe coincidir con la calidad de este candidato y mantenerse dentro de sus límites de tamaño para ser tomado.",
+      "nameRequired": "El nombre es obligatorio",
+      "name": "Nombre",
+      "priority": "Prioridad",
+      "resolution": "Resolución",
+      "codec": "Códec",
+      "source": "Fuente",
+      "maxMb": "Tamaño máx. (MB)",
+      "minMb": "Tamaño mín. (MB)",
+      "excludedTerms": "Términos excluidos (separados por comas)",
+      "requiredTerms": "Términos requeridos (separados por comas)",
+      "enabled": "Habilitado",
+      "toast": {
+        "saved": "Preferencia guardada",
+        "saveFailed": "No se pudo guardar la preferencia",
+        "deleted": "Preferencia eliminada"
+      }
     }
   }
 }

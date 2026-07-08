@@ -66,6 +66,7 @@ import {
 } from '@/components/ui/table';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { AddSeriesFromLibraryDialog } from './AddSeriesFromLibraryDialog';
+import { AutoDownloadPreferencesTab } from './AutoDownloadPreferencesTab';
 import { cn } from '@/lib/utils';
 
 type BadgeVariant = NonNullable<BadgeProps['variant']>;
@@ -187,6 +188,7 @@ export function MediaAcquisitionPage() {
             <TabsTrigger value="overview">{t('acquisition.tabs.overview')}</TabsTrigger>
             <TabsTrigger value="watchlist">{t('acquisition.tabs.watchlist')}</TabsTrigger>
             <TabsTrigger value="profiles">{t('acquisition.tabs.profiles')}</TabsTrigger>
+            <TabsTrigger value="auto-download">{t('acquisition.tabs.autoDownload')}</TabsTrigger>
             <TabsTrigger value="evaluations">{t('acquisition.tabs.evaluations')}</TabsTrigger>
             <TabsTrigger value="approvals">{t('acquisition.tabs.approvals')}</TabsTrigger>
             <TabsTrigger value="recommendations">{t('acquisition.tabs.recommendations')}</TabsTrigger>
@@ -204,6 +206,9 @@ export function MediaAcquisitionPage() {
           </TabsContent>
           <TabsContent value="profiles">
             <ProfilesTab />
+          </TabsContent>
+          <TabsContent value="auto-download">
+            <AutoDownloadPreferencesTab />
           </TabsContent>
           <TabsContent value="evaluations">
             <EvaluationsTab />

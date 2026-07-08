@@ -849,7 +849,8 @@
       "approvals": "Approval Queue",
       "recommendations": "Recommendations",
       "history": "History",
-      "settings": "Settings"
+      "settings": "Settings",
+      "autoDownload": "Auto-Download"
     },
     "common": {
       "yes": "Yes",
@@ -1228,6 +1229,34 @@
       "addFailed": "Could not add series",
       "cancel": "Cancel",
       "addFromLibrary": "Add from library"
+    },
+    "autoDownload": {
+      "intro": "Ranked auto-download preferences: the missing-episode sweep grabs the first release that matches (quality + size cap), top to bottom. Used when a show isn't linked to an RSS rule.",
+      "add": "Add preference",
+      "loading": "Loading preferences…",
+      "error": "Could not load auto-download preferences.",
+      "emptyTitle": "No preferences yet",
+      "emptyBody": "Add a preference to control which releases auto-download.",
+      "confirmDelete": "Delete preference “{{name}}”?",
+      "editTitle": "Edit preference",
+      "addTitle": "Add preference",
+      "dialogDescription": "A release must match this candidate's quality and stay within its size limits to be grabbed.",
+      "nameRequired": "A name is required",
+      "name": "Name",
+      "priority": "Priority",
+      "resolution": "Resolution",
+      "codec": "Codec",
+      "source": "Source",
+      "maxMb": "Max size (MB)",
+      "minMb": "Min size (MB)",
+      "excludedTerms": "Excluded terms (comma-separated)",
+      "requiredTerms": "Required terms (comma-separated)",
+      "enabled": "Enabled",
+      "toast": {
+        "saved": "Preference saved",
+        "saveFailed": "Could not save preference",
+        "deleted": "Preference deleted"
+      }
     }
   }
 }

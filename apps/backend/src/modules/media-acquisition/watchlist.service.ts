@@ -27,6 +27,7 @@ export interface WatchlistInput {
   status?: string;
   priority?: number;
   profileId?: string;
+  rssRuleId?: string | null;
   targetLibraryId?: string;
   settings?: Record<string, unknown>;
 }
@@ -64,6 +65,7 @@ export class AcquisitionWatchlistService {
         status: input.status ?? 'active',
         priority: input.priority ?? 100,
         profileId: input.profileId,
+        rssRuleId: input.rssRuleId ?? undefined,
         targetLibraryId: input.targetLibraryId,
         settings: (input.settings ?? undefined) as object | undefined,
         createdBy: userId,
@@ -227,6 +229,7 @@ export class AcquisitionWatchlistService {
         status: input.status ?? undefined,
         priority: input.priority === undefined ? undefined : input.priority,
         profileId: input.profileId === undefined ? undefined : input.profileId,
+        rssRuleId: input.rssRuleId === undefined ? undefined : input.rssRuleId,
         targetLibraryId: input.targetLibraryId === undefined ? undefined : input.targetLibraryId,
         settings: input.settings === undefined ? undefined : (input.settings as object),
       },

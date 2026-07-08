@@ -1,5 +1,10 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
-import type { AcquisitionMatchCandidate, MediaAcquisitionWatchlistItem, Prisma } from '@prisma/client';
+import type {
+  AcquisitionMatchCandidate,
+  MediaAcquisitionWatchlistItem,
+  Prisma,
+  RssRuleMatchCandidate,
+} from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { parseTorrentName } from '../rss/torrent-name-parser';
 import {
@@ -72,11 +77,37 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
     return rows.map((r) => this.toInput(r));
   }
 
+  private toRssInput(row: RssRuleMatchCandidate): MatchCandidateInput {
+    return {
+      id: row.id,
+      name: row.name,
+      priorityOrder: row.priorityOrder,
+      enabled: row.enabled,
+      matchType: row.matchType as MatchType,
+      pattern: row.pattern,
+      requiredTerms: (row.requiredTerms as string[]) ?? [],
+      excludedTerms: (row.excludedTerms as string[]) ?? [],
+      qualityRules: (row.qualityRules as QualityRules) ?? {},
+      sizeRules: (row.sizeRules as SizeRules) ?? {},
+      // feedScope intentionally omitted — acquisition candidates carry no feedId,
+      // so a rule's feed scoping never filters an indexer release.
+    };
+  }
+
   /**
-   * Resolve the preference list for a watchlist item. Phase 1 returns the global
-   * defaults; the per-show RSS-rule link is wired in a later phase.
+   * Resolve the preference list for a monitored show: if it's linked to an RSS
+   * rule (`rssRuleId`), use that rule's enabled match candidates so the show is
+   * auto-downloaded with the same preferences its RSS rule uses; otherwise fall
+   * back to the global defaults.
    */
-  async resolveCandidates(_item: MediaAcquisitionWatchlistItem): Promise<MatchCandidateInput[]> {
+  async resolveCandidates(item: MediaAcquisitionWatchlistItem): Promise<MatchCandidateInput[]> {
+    if (item.rssRuleId) {
+      const rows = await this.prisma.rssRuleMatchCandidate.findMany({
+        where: { rssRuleId: item.rssRuleId, enabled: true },
+        orderBy: { priorityOrder: 'asc' },
+      });
+      if (rows.length) return rows.map((r) => this.toRssInput(r));
+    }
     return this.defaults();
   }
 
