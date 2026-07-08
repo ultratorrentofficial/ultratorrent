@@ -5,9 +5,13 @@ import { MediaAutomationActions } from './media-automation.actions';
  * + items) and apply (returns a rename plan) to verify the gating, the dry-run
  * (preview) path, and the move/delete aggregation.
  */
-function make(mode: string) {
+const LOOSE_ITEMS = [
+  { id: 'i1', season: 1, episode: 1, path: '/tv/Show/i1.mkv', files: [{ path: '/tv/Show/i1.mkv' }] },
+  { id: 'i2', season: 1, episode: 2, path: '/tv/Show/i2.mkv', files: [{ path: '/tv/Show/i2.mkv' }] },
+];
+
+function make(mode: string, items: any[] = LOOSE_ITEMS) {
   const library = { id: 'lib1', mode, path: '/tv', preset: 'plex', template: null };
-  const items = [{ id: 'i1' }, { id: 'i2' }];
   const prisma = {
     mediaLibrary: { findUnique: jest.fn(async () => library) },
     mediaItem: {
@@ -61,6 +65,17 @@ describe('MediaAutomationActions.organizeLibrary', () => {
     expect(res).toMatchObject({ applied: 2, deleted: 2 });
     // Executed with the library's own mode.
     expect(apply.mock.calls[0][0].mode).toBe('rename_in_place');
+  });
+
+  it('skips episodes already in a Season NN dir (no plan build, no move)', async () => {
+    const placed = [
+      { id: 'p1', season: 1, episode: 1, path: '/tv/Show/Season 01/p1.mkv', files: [{ path: '/tv/Show/Season 01/p1.mkv' }] },
+      { id: 'p2', season: 2, episode: 5, path: '/tv/Show/Specials/p2.mkv', files: [{ path: '/tv/Show/Specials/p2.mkv' }] },
+    ];
+    const { svc, apply } = make('rename_in_place', placed);
+    const res = await svc.organizeLibrary('lib1', { dryRun: false });
+    expect(res).toMatchObject({ eligible: true, moves: [], deletes: [], applied: 0 });
+    expect(apply).not.toHaveBeenCalled(); // no expensive per-item plan build
   });
 
   it('dryRun previews via preview mode without executing', async () => {

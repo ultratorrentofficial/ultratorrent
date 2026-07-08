@@ -9,7 +9,7 @@ import { MediaNfoService } from './media-nfo.service';
 import { MediaServerIntegrationService } from './media-server-integration.service';
 import { MediaService } from './media.service';
 import { MediaProcessingQueueService } from './media-processing-queue.service';
-import type { Preset, RenameMode } from './media-renamer';
+import { isSeasonContainer, type Preset, type RenameMode } from './media-renamer';
 
 /**
  * Executes the Media Manager automation actions dispatched by the AutomationEngine.
@@ -248,7 +248,21 @@ export class MediaAutomationActions {
       return { libraryId, mode: library.mode, eligible: false, dryRun, moves, deletes, applied, deleted, skipped, failed };
     }
 
-    const items = await this.prisma.mediaItem.findMany({ where: { libraryId }, select: { id: true } });
+    // Only items that actually need organizing: an episodic file whose parent
+    // dir is NOT already a `Season NN`/`Specials` container (i.e. it's loose in
+    // the show root or a library root). Correctly-placed episodes — the vast
+    // majority — are filtered out here, BEFORE the expensive per-item plan build
+    // (which does a metadata provider lookup), so a scan of an organized library
+    // is near-instant instead of re-planning thousands of files.
+    const all = await this.prisma.mediaItem.findMany({
+      where: { libraryId },
+      select: { id: true, season: true, episode: true, path: true, files: { select: { path: true }, take: 1 } },
+    });
+    const items = all.filter((it) => {
+      if (it.season == null && it.episode == null) return false; // not an episode
+      const filePath = it.files[0]?.path ?? it.path;
+      return !isSeasonContainer(path.basename(path.dirname(filePath)));
+    });
     for (let i = 0; i < items.length; i++) {
       try {
         const res = (await this.renameItem(items[i].id, dryRun ? 'preview' : undefined, ctx)) as {
