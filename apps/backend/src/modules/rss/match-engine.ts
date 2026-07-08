@@ -232,12 +232,22 @@ function coreMatch(
       // "Agent Kim Reactivated XviD-AFG" still matches
       // "Agent Kim Reactivated S01E03 XviD-AFG": the episode token in the
       // middle no longer breaks it.
+      //
+      // Numeric words are the exception: they must match a WHOLE title token,
+      // not a loose substring. Otherwise a hyphenated numeric show title like
+      // "9-1-1" (which normalizes to the words "9","1","1") matches virtually
+      // every release, since "9"/"1" appear inside "S09E07", "1080p", etc. —
+      // dissolving the title constraint entirely (see 9-1-1 over-match).
       const normTitle = normalize(title);
+      const titleTokens = new Set(tokens(title));
       const words = tokens(pattern);
       if (words.length === 0) {
         return { label: 'contains text', passed: false, detail: 'empty pattern' };
       }
-      const missing = words.filter((w) => !normTitle.includes(w));
+      const isNumeric = (w: string) => /^\d+$/.test(w);
+      const missing = words.filter((w) =>
+        isNumeric(w) ? !titleTokens.has(w) : !normTitle.includes(w),
+      );
       const passed = missing.length === 0;
       return {
         label: 'contains text',

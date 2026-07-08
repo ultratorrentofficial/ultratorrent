@@ -85,6 +85,21 @@ describe('match types', () => {
     expect(r.result).toBe('failed');
     expect(r.reason).toMatch(/1080p/);
   });
+
+  it('contains_text: numeric words match whole title tokens, not substrings (9-1-1 over-match)', () => {
+    // "9-1-1" normalizes to the words "9","1","1". These must match whole title
+    // tokens — NOT appear as digits buried inside S09E07 / 1080p / etc.
+    const c = cand({
+      matchType: 'contains_text',
+      pattern: '9-1-1 x265-MeGusta',
+      qualityRules: { codec: 'x265' },
+    });
+    // Unrelated shows that merely contain the digits 9 and 1 somewhere → reject.
+    expect(evaluateCandidate(c, { title: 'Rick and Morty S09E07 1080p HEVC x265-MeGusta' }).result).toBe('failed');
+    expect(evaluateCandidate(c, { title: 'Law and Order S01E09 1080p HEVC x265-MeGusta' }).result).toBe('failed');
+    // The real show, whose title tokenizes to standalone 9/1/1 → match.
+    expect(evaluateCandidate(c, { title: '9-1-1 S08E05 1080p HEVC x265-MeGusta' }).result).toBe('matched');
+  });
   it('wildcard', () => {
     expect(evaluateCandidate(cand({ matchType: 'wildcard', pattern: 'The.Example.Show*1080p*' }), { title }).result).toBe('matched');
   });
