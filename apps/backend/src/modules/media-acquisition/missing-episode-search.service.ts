@@ -147,6 +147,11 @@ export class MissingEpisodeSearchService {
     });
     if (!item) throw new NotFoundException('Watchlist item not found');
 
+    // Download directory comes from the Show Rule (the RSS rule that is the parent
+    // of this show's match candidates), so grabbed episodes land in the same folder
+    // the show's RSS rule uses — not the engine's default /downloads.
+    const savePath = await this.resolveSavePath(item.rssRuleId);
+
     const candidates = await this.indexers.searchAll({
       q: item.title,
       season: wanted.seasonNumber,
@@ -175,6 +180,7 @@ export class MissingEpisodeSearchService {
         sourceId: wanted.id,
         priority: item.priority,
         reason: best.reason,
+        savePath,
       },
       userId,
     );
@@ -197,6 +203,20 @@ export class MissingEpisodeSearchService {
       metadata: { releaseTitle: rel.title, evaluationId: evaluation.id, via: 'match_preferences' },
     });
     return { wantedEpisodeId: wanted.id, searchStatus: 'grabbed', releaseTitle: rel.title, evaluationId: evaluation.id };
+  }
+
+  /**
+   * The download directory for a grabbed episode: the parent Show Rule's
+   * `savePath`. Returns undefined when the show isn't linked to an RSS rule or the
+   * rule has no save path set, letting the torrent engine use its own default.
+   */
+  private async resolveSavePath(rssRuleId: string | null): Promise<string | undefined> {
+    if (!rssRuleId) return undefined;
+    const rule = await this.prisma.rssRule.findUnique({
+      where: { id: rssRuleId },
+      select: { savePath: true },
+    });
+    return rule?.savePath?.trim() || undefined;
   }
 
   private setState(id: string, data: Partial<WantedEpisode>): Promise<unknown> {

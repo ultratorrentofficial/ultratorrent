@@ -18,6 +18,8 @@ function build(over: {
   settings?: Record<string, unknown>;
   enabled?: boolean;
   wanted?: Record<string, unknown>;
+  item?: Record<string, unknown>;
+  rssRule?: Record<string, unknown> | null;
 } = {}) {
   const wanted = {
     id: 'w1', watchlistItemId: 'wl1', seriesTconst: 'ttS', seasonNumber: 1, episodeNumber: 1,
@@ -31,7 +33,10 @@ function build(over: {
       update: jest.fn(async ({ data }: any) => { updates.push(data); return { ...wanted, ...data }; }),
     },
     mediaAcquisitionWatchlistItem: {
-      findUnique: jest.fn(async () => ({ id: 'wl1', title: 'The Wire', priority: 100 })),
+      findUnique: jest.fn(async () => ({ id: 'wl1', title: 'The Wire', priority: 100, rssRuleId: null, ...over.item })),
+    },
+    rssRule: {
+      findUnique: jest.fn(async () => ('rssRule' in over ? over.rssRule : { savePath: '/media/tv/The Wire' })),
     },
   };
   const indexers = { searchAll: jest.fn(async () => over.candidates ?? []) };
@@ -96,6 +101,45 @@ describe('MissingEpisodeSearchService.sweep — grab flow', () => {
     expect(last).toMatchObject({ searchStatus: 'grabbed', grabbedEvaluationId: 'ev1', releaseTitle: 'The Wire S01E01 1080p WEB-DL x265-GRP' });
     expect(eventBus.emit).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ event: NOTIFICATION_EVENTS.MEDIA_MISSING_EPISODE_FILLED }));
     expect(realtime.broadcast).toHaveBeenCalledWith('media_acquisition.missing_episode.grabbed', expect.anything());
+  });
+
+  it('grabs into the parent Show Rule save path when the show is linked to an RSS rule', async () => {
+    const { svc, evaluator, prisma } = build({
+      candidates: [cand()],
+      item: { rssRuleId: 'rule1' },
+      rssRule: { savePath: '/media/tv/The Wire' },
+    });
+    await svc.sweep();
+    expect(prisma.rssRule.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'rule1' } }),
+    );
+    expect(evaluator.grabSelected).toHaveBeenCalledWith(
+      expect.objectContaining({ savePath: '/media/tv/The Wire' }),
+      undefined,
+    );
+  });
+
+  it('leaves save path undefined (engine default) when the show has no RSS rule', async () => {
+    const { svc, evaluator, prisma } = build({ candidates: [cand()] });
+    await svc.sweep();
+    expect(prisma.rssRule.findUnique).not.toHaveBeenCalled();
+    expect(evaluator.grabSelected).toHaveBeenCalledWith(
+      expect.objectContaining({ savePath: undefined }),
+      undefined,
+    );
+  });
+
+  it('leaves save path undefined when the linked Show Rule has an empty save path', async () => {
+    const { svc, evaluator } = build({
+      candidates: [cand()],
+      item: { rssRuleId: 'rule1' },
+      rssRule: { savePath: '   ' },
+    });
+    await svc.sweep();
+    expect(evaluator.grabSelected).toHaveBeenCalledWith(
+      expect.objectContaining({ savePath: undefined }),
+      undefined,
+    );
   });
 
   it('records no_results and never grabs when nothing matches the preferences', async () => {
