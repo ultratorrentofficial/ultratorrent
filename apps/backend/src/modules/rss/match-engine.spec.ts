@@ -100,6 +100,21 @@ describe('match types', () => {
     // The real show, whose title tokenizes to standalone 9/1/1 → match.
     expect(evaluateCandidate(c, { title: '9-1-1 S08E05 1080p HEVC x265-MeGusta' }).result).toBe('matched');
   });
+
+  it('contains_text: single-letter words match whole title tokens, not substrings (M.I.A over-match)', () => {
+    // "M.I.A" normalizes to the words "m","i","a" — each present as a substring
+    // in almost every release ("megusta" alone gives "m"+"a"). They must match
+    // whole title tokens instead.
+    const c = cand({
+      matchType: 'contains_text',
+      pattern: 'M.I.A x265-MeGusta',
+      qualityRules: { codec: 'x265' },
+    });
+    expect(evaluateCandidate(c, { title: 'Law and Order S02E07 In Memory Of 1080p HEVC x265-MeGusta' }).result).toBe('failed');
+    expect(evaluateCandidate(c, { title: 'MasterChef Australia S18E46 1080p HEVC x265-MeGusta' }).result).toBe('failed');
+    // The real show, whose title tokenizes to standalone m/i/a → match.
+    expect(evaluateCandidate(c, { title: 'M.I.A. S01E05 1080p HEVC x265-MeGusta' }).result).toBe('matched');
+  });
   it('wildcard', () => {
     expect(evaluateCandidate(cand({ matchType: 'wildcard', pattern: 'The.Example.Show*1080p*' }), { title }).result).toBe('matched');
   });
