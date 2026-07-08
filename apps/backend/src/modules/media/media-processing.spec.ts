@@ -138,3 +138,96 @@ describe('MediaProcessingService.handleTorrentCompleted', () => {
     expect(scanner.scanLibrary).not.toHaveBeenCalled();
   });
 });
+
+describe('MediaProcessingService.processLibrary (periodic scan + enrich)', () => {
+  function make(opts: {
+    library?: Record<string, unknown> | null;
+    enrichTargets?: Array<{ id: string }>;
+    itemState?: Record<string, { matchStatus: string; metadata: { id: string } | null; artwork: Array<{ id: string }> }>;
+    identifyResult?: { matchStatus: string };
+  }) {
+    const library = opts.library === undefined ? { id: 'L', name: 'TV', isEnabled: true, artworkEnabled: true } : opts.library;
+    const prisma = {
+      mediaLibrary: { findUnique: jest.fn().mockResolvedValue(library) },
+      mediaItem: {
+        findMany: jest.fn().mockResolvedValue(opts.enrichTargets ?? []),
+        findUnique: jest.fn(async ({ where }: any) => opts.itemState?.[where.id] ?? null),
+      },
+    } as any;
+    const scanner = { scanLibrary: jest.fn().mockResolvedValue({ scanned: 4 }) };
+    const identification = { identify: jest.fn().mockResolvedValue(opts.identifyResult ?? { matchStatus: 'matched' }) };
+    const actions = { execute: jest.fn().mockResolvedValue(undefined) };
+    const queue = queueStub();
+    const svc = new MediaProcessingService(
+      prisma,
+      { get: () => ({ evaluate: jest.fn() }) } as any,
+      scanner as any,
+      identification as any,
+      { scan: jest.fn(), detectMissing: jest.fn() } as any,
+      {} as any,
+      actions as any,
+      queue,
+      { emit() {} } as any,
+    );
+    return { svc, prisma, scanner, identification, actions };
+  }
+
+  it('does nothing for a disabled or missing library', async () => {
+    const disabled = make({ library: { id: 'L', name: 'TV', isEnabled: false, artworkEnabled: true } });
+    const r = await disabled.svc.processLibrary('L');
+    expect(disabled.scanner.scanLibrary).not.toHaveBeenCalled();
+    expect(r.scanned).toBe(0);
+
+    const missing = make({ library: null });
+    await missing.svc.processLibrary('L');
+    expect(missing.scanner.scanLibrary).not.toHaveBeenCalled();
+  });
+
+  it('scans, then identifies + fills metadata and artwork for an unmatched item', async () => {
+    const { svc, actions, identification } = make({
+      enrichTargets: [{ id: 'I1' }],
+      itemState: { I1: { matchStatus: 'unmatched', metadata: null, artwork: [] } },
+      identifyResult: { matchStatus: 'matched' },
+    });
+    const r = await svc.processLibrary('L');
+    expect(identification.identify).toHaveBeenCalledWith('I1');
+    expect(actions.execute).toHaveBeenCalledWith('media_fetch_metadata', { itemId: 'I1' });
+    expect(actions.execute).toHaveBeenCalledWith('media_fetch_artwork', { itemId: 'I1' });
+    // Periodic scan enriches in place — it must NOT rename/move files.
+    expect(actions.execute).not.toHaveBeenCalledWith('media_rename', expect.anything());
+    expect(r).toMatchObject({ scanned: 4, identified: 1, metadataFetched: 1, artworkFetched: 1, processed: 1 });
+  });
+
+  it('leaves a fully-enriched matched item alone', async () => {
+    const { svc, actions } = make({
+      enrichTargets: [{ id: 'I1' }],
+      itemState: { I1: { matchStatus: 'matched', metadata: { id: 'm1' }, artwork: [{ id: 'a1' }] } },
+    });
+    const r = await svc.processLibrary('L');
+    expect(actions.execute).not.toHaveBeenCalled();
+    expect(r.metadataFetched).toBe(0);
+    expect(r.artworkFetched).toBe(0);
+  });
+
+  it('does not fetch artwork when the library opts out', async () => {
+    const { svc, actions } = make({
+      library: { id: 'L', name: 'TV', isEnabled: true, artworkEnabled: false },
+      enrichTargets: [{ id: 'I1' }],
+      itemState: { I1: { matchStatus: 'matched', metadata: null, artwork: [] } },
+    });
+    await svc.processLibrary('L');
+    expect(actions.execute).toHaveBeenCalledWith('media_fetch_metadata', { itemId: 'I1' });
+    expect(actions.execute).not.toHaveBeenCalledWith('media_fetch_artwork', expect.anything());
+  });
+
+  it('stops at identify for an item that still cannot be named', async () => {
+    const { svc, actions } = make({
+      enrichTargets: [{ id: 'I1' }],
+      itemState: { I1: { matchStatus: 'unmatched', metadata: null, artwork: [] } },
+      identifyResult: { matchStatus: 'unmatched' },
+    });
+    const r = await svc.processLibrary('L');
+    expect(actions.execute).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ identified: 0, metadataFetched: 0, artworkFetched: 0, processed: 1 });
+  });
+});

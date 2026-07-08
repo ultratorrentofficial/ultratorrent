@@ -304,6 +304,24 @@ their own condition/action rules (e.g. "on `media.missing_subtitles`, notify").
 This makes the whole media workflow both automatic (the post-download pipeline)
 and user-programmable (automation rules) over the same event surface.
 
+### Periodic library scan
+
+Beyond the download-triggered pipeline, `MediaLibraryScanScheduler` scans +
+auto-enriches libraries on a timer so **manually-added or externally-dropped
+folders** get metadata and artwork without waiting for a download. A cheap
+five-minute tick selects enabled libraries whose scan is **due** — never scanned,
+or `lastScanAt` older than their `scanIntervalMinutes` — and runs
+`MediaProcessingService.processLibrary`, which scans the tree, then for each item
+still lacking identity/metadata/art fills the gap: `identify → metadata → poster
+artwork`. It differs from the post-download workflow in two deliberate ways: it
+carries **no torrent context** (so it fires no `media.*` automation triggers) and
+it **never renames or moves files** — a routine scan enriches in place; renaming
+remains the download organizer's job. Only gaps are filled (existing metadata/art
+is left alone), so steady-state scans do almost no work and never re-hammer the
+providers. **Opt-in per library:** a null/zero `scanIntervalMinutes` means
+"manual scans only" and is never auto-scanned. Runs are serialized (a long scan
+never overlaps the next tick) and each library is isolated.
+
 ## Event-Driven Architecture
 
 Modules communicate through **domain events**, not tight coupling: a module
@@ -528,6 +546,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-07-08 | **Media library — periodic scan that auto-populates metadata + artwork for new folders.** Library scans were manual-only: `MediaLibrary.scanIntervalMinutes`/`lastScanAt` were stored and editable but nothing consumed them, and even a manual scan only indexed files + imported *local* sidecars — the full identify→metadata→artwork enrichment lived solely in the download-triggered `MediaProcessingService`, so manually-added or externally-dropped folders never got metadata/art. New `MediaLibraryScanScheduler` (a 5-min `@Interval`, `media_library_periodic_scan`) selects enabled libraries whose scan is **due** (never scanned, or `lastScanAt` older than `scanIntervalMinutes`) and runs the new `MediaProcessingService.processLibrary(libraryId)`: it scans, then for each item still lacking identity/metadata/poster fills the gap (`identify → media_fetch_metadata → media_fetch_artwork`). Two deliberate differences from the post-download pipeline: **no torrent context** (fires no `media.*` triggers) and it **never renames/moves files** (routine scans enrich in place; renaming stays the organizer's job). Only gaps are filled — existing metadata/art is untouched, so steady-state scans do near-zero work and never re-hammer providers. **Opt-in per library:** null/zero `scanIntervalMinutes` = manual-only, never auto-scanned (existing libraries untouched until an operator sets an interval). Runs serialized via an airtight re-entrancy guard (claimed before the first await) + per-library isolation. Tests: `processLibrary` (disabled/missing library, unmatched→identify+metadata+artwork, fully-enriched skip, artwork opt-out, unidentifiable stops at identify) + scheduler (due-selection across never/stale/fresh/opt-out, failure isolation, re-entrancy) — 19 media-processing specs green; tsc clean. |
 | 2026-07-08 | **Missing-episode auto-download — layered save-path resolution (episodes stop landing in `/downloads`).** The earlier fix resolved the download folder only from the watchlist item's linked `rssRuleId`, but almost no monitored shows carry that link (617/617 unlinked on synoplex, all grabbing to the engine default `/downloads`). `MissingEpisodeSearchService.resolveSavePath(item)` now tries, in order: (1) the linked Show Rule's `savePath`; (2) an **RSS rule whose name matches the show title** (unlinked but a rule exists); (3) the show's **existing library folder** (`showFolderRoot(existing episode path)`, climbing past `Season NN`); (4) a constructed **`<TV library>/<Title> (Year)`** under the item's `targetLibraryId` (else the default `tv`/`anime` library). Only returns undefined (engine default) when none resolve. `processEpisode` now passes the whole item. Reuses `media-renamer`'s `showFolderRoot`. Tests: rule-by-title, existing-folder, constructed-path fallbacks + the existing linked/blank/none cases (12 specs). |
 | 2026-07-08 | **Media library — TV browsing is a true Show → Season → Episode hierarchy (episodes never roam the top level).** `MediaItemService.series()` (`GET /media/series`) grouped by `MediaItem.title`, so a folder-organised show — whose episode rows carry the *episode* title — fragmented into one "show" per episode. It now groups by the show **folder** derived from `path` (climbing past `Season NN`/`Specials` via `showFolderRoot`/`isSeasonContainer`), falling back to title only for files directly at a library root — the same robust key `librarySeries()` uses, extracted into a shared `media/series-grouping.ts` (`resolveGroup`, `encode/decodeSeriesKey`). Each show row now carries a round-trippable `key` + `seriesImdbId`. New `GET /media/series/episodes?key=…` (`MediaItemService.episodesForSeries`) returns a show's episodes grouped into ordered seasons (specials last) with a per-season poster (`season_poster` artwork else the show poster); `dir:` keys fetch via a `path startsWith <folder>/` prefix, `title:` keys by exact title. Frontend `SeriesGroupedList` now keys rows by `key`, lazy-loads seasons via the new endpoint, and renders season posters; episode click still opens the existing item detail. Movies keep the flat list. Backend tests: folder-collapse regression, title fallback, poster attach, season grouping/ordering, key reject (11 media-item specs; 175 media specs green). tsc clean FE+BE. |
 | 2026-07-08 | **Media Acquisition — watchlist lists alphabetically by title.** `AcquisitionWatchlistService.list()` ordered by `priority asc, createdAt desc`, so the watchlist view read as an arbitrary (newest-first-within-priority) order. It now orders by `normalizedTitle asc` (the lower-cased title → case-insensitive alphabetical) with `createdAt` as the tiebreaker; the per-item `priority` field still drives the evaluator, just not the display order. Backend-only; the frontend renders in received order. |

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as path from 'node:path';
-import type { MediaLibrary } from '@prisma/client';
+import type { MediaLibrary, Prisma } from '@prisma/client';
 import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS, type NormalizedTorrent } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AutomationEngine } from '../automation/automation.module';
@@ -18,6 +18,21 @@ export function isWithin(child: string, parent: string): boolean {
   const c = path.resolve(child);
   const p = path.resolve(parent);
   return c === p || c.startsWith(p + path.sep);
+}
+
+/** Outcome of a periodic scan + in-place enrichment of one library. */
+export interface LibraryEnrichmentSummary {
+  libraryId: string;
+  /** Video files the scan reconciled into MediaItems. */
+  scanned: number;
+  /** Previously-unmatched items the enrichment could identify. */
+  identified: number;
+  /** Items that received provider metadata this pass. */
+  metadataFetched: number;
+  /** Items that received provider artwork this pass. */
+  artworkFetched: number;
+  /** Items considered for enrichment (needed identify/metadata/artwork). */
+  processed: number;
 }
 
 /**
@@ -94,6 +109,128 @@ export class MediaProcessingService {
       );
       this.emitEvent(NOTIFICATION_EVENTS.MEDIA_PROCESSING_FAILED, t, { errorMessage: (err as Error).message });
     }
+  }
+
+  /**
+   * Scan a library and auto-populate metadata + artwork for the items that
+   * still need it — the periodic-scan counterpart to {@link handleTorrentCompleted}.
+   *
+   * Two deliberate differences from the post-download workflow:
+   *  - **No torrent context** — driven by the scheduler on a timer, so it fires
+   *    no `media.*` automation triggers (those carry a torrent) and only emits
+   *    the scan-completed event the scanner already raises.
+   *  - **Never renames or moves files** — a routine scan should enrich what's on
+   *    disk in place, not reorganise a user's folders behind their back. Renaming
+   *    stays the job of the post-download organiser.
+   *
+   * Only *gaps* are filled: unmatched items are identified, and matched items get
+   * metadata / a poster only if they lack them. So repeated scans converge and
+   * don't re-hammer the providers. Best-effort — every stage is isolated and a
+   * single item's failure never aborts the sweep. Never throws.
+   */
+  async processLibrary(libraryId: string): Promise<LibraryEnrichmentSummary> {
+    const empty: LibraryEnrichmentSummary = { libraryId, scanned: 0, identified: 0, metadataFetched: 0, artworkFetched: 0, processed: 0 };
+    const library = await this.prisma.mediaLibrary.findUnique({ where: { id: libraryId } });
+    if (!library || !library.isEnabled) return empty;
+
+    // Stage 1 — scan so new files on disk become MediaItems (also imports local
+    // sidecar art + .nfo). Without a scan there is nothing to enrich.
+    try {
+      const summary = await this.queue.run('library_scan', { libraryId }, () =>
+        this.scanner.scanLibrary(libraryId),
+      );
+      empty.scanned = summary.scanned;
+    } catch (err) {
+      this.logger.warn(`Periodic scan of ${library.name} failed: ${(err as Error).message}`);
+      return empty;
+    }
+
+    // Enrichment targets: unmatched items (need identifying), or matched items
+    // still missing metadata or a poster. Anything already enriched is skipped,
+    // so a steady-state library does almost no work per pass.
+    const or: Prisma.MediaItemWhereInput[] = [
+      { matchStatus: 'unmatched' },
+      { metadata: { is: null } },
+    ];
+    if (library.artworkEnabled) or.push({ artwork: { none: { type: 'poster' } } });
+    const items = await this.prisma.mediaItem.findMany({
+      where: { libraryId, OR: or },
+      select: { id: true },
+    });
+
+    const result: LibraryEnrichmentSummary = { ...empty };
+    for (const item of items) {
+      const r = await this.enrichLibraryItem(library, item.id);
+      if (r.identified) result.identified++;
+      if (r.metadataFetched) result.metadataFetched++;
+      if (r.artworkFetched) result.artworkFetched++;
+      result.processed++;
+    }
+    return result;
+  }
+
+  /**
+   * Enrich a single item in place: identify (if unmatched) → fetch metadata (if
+   * missing) → fetch poster artwork (if missing and the library opts in). No
+   * rename, no subtitle/NFO side effects — this only fills the gaps that power
+   * the browse experience. Each stage is isolated; never throws.
+   */
+  private async enrichLibraryItem(
+    library: MediaLibrary,
+    itemId: string,
+  ): Promise<{ identified: boolean; metadataFetched: boolean; artworkFetched: boolean }> {
+    const out = { identified: false, metadataFetched: false, artworkFetched: false };
+
+    const item = await this.prisma.mediaItem.findUnique({
+      where: { id: itemId },
+      select: {
+        matchStatus: true,
+        metadata: { select: { id: true } },
+        artwork: { where: { type: 'poster' }, select: { id: true } },
+      },
+    });
+    if (!item) return out;
+
+    let matched = item.matchStatus === 'matched' || item.matchStatus === 'manual';
+
+    // Identify unmatched items so we know what they are.
+    if (!matched) {
+      try {
+        const identified = await this.queue.run('media_identification', { itemId }, () =>
+          this.identification.identify(itemId),
+        );
+        matched = identified.matchStatus === 'matched' || identified.matchStatus === 'manual';
+        out.identified = matched;
+      } catch (err) {
+        this.logger.warn(`Identify failed for ${itemId}: ${(err as Error).message}`);
+      }
+    }
+
+    // Can't enrich something we couldn't name.
+    if (!matched) return out;
+
+    // Fill missing metadata (a freshly-identified item has none yet). Existing
+    // metadata is left alone — periodic scan fills gaps, it doesn't re-fetch.
+    if (!item.metadata) {
+      try {
+        await this.actions.execute('media_fetch_metadata', { itemId });
+        out.metadataFetched = true;
+      } catch (err) {
+        this.logger.warn(`Metadata fetch failed for ${itemId}: ${(err as Error).message}`);
+      }
+    }
+
+    // Fill a missing poster when the library opts into artwork.
+    if (library.artworkEnabled && item.artwork.length === 0) {
+      try {
+        await this.actions.execute('media_fetch_artwork', { itemId });
+        out.artworkFetched = true;
+      } catch (err) {
+        this.logger.warn(`Artwork fetch failed for ${itemId}: ${(err as Error).message}`);
+      }
+    }
+
+    return out;
   }
 
   private async runWorkflow(

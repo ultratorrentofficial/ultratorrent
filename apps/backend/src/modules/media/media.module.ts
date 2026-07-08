@@ -17,6 +17,7 @@ import { MediaServerIntegrationService } from './media-server-integration.servic
 import { MediaProcessingQueueService } from './media-processing-queue.service';
 import { MediaAutomationActions } from './media-automation.actions';
 import { MediaProcessingService } from './media-processing.service';
+import { MediaLibraryScanScheduler } from './media-library-scan-scheduler.service';
 import { ImdbSettingsService } from './imdb/imdb-settings.service';
 import { ImdbDatasetImporterService } from './imdb/imdb-dataset-importer.service';
 import { ImdbOptimizedImportService } from './imdb/imdb-optimized-import.service';
@@ -54,6 +55,7 @@ import { MediaController } from './media.controller';
     MediaProcessingQueueService,
     MediaAutomationActions,
     MediaProcessingService,
+    MediaLibraryScanScheduler,
     ImdbSettingsService,
     ImdbDatasetImporterService,
     ImdbOptimizedImportService,
