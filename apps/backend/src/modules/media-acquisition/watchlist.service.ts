@@ -49,7 +49,10 @@ export class AcquisitionWatchlistService {
   ) {}
 
   list(status?: string) {
-    return this.prisma.mediaAcquisitionWatchlistItem.findMany({ where: { status }, orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }] });
+    // Alphabetical by title for the watchlist view. `normalizedTitle` is the
+    // lower-cased title, so ordering by it is case-insensitive (e.g. "apple"
+    // and "Apple" sort together, not all-caps first). `createdAt` breaks ties.
+    return this.prisma.mediaAcquisitionWatchlistItem.findMany({ where: { status }, orderBy: [{ normalizedTitle: 'asc' }, { createdAt: 'desc' }] });
   }
 
   async get(id: string) {
