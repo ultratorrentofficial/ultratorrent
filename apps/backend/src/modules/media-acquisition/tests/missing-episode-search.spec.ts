@@ -20,6 +20,9 @@ function build(over: {
   wanted?: Record<string, unknown>;
   item?: Record<string, unknown>;
   rssRule?: Record<string, unknown> | null;
+  rules?: Array<{ name: string; savePath: string | null }>;
+  existingItem?: { path: string } | null;
+  library?: { path: string } | null;
 } = {}) {
   const wanted = {
     id: 'w1', watchlistItemId: 'wl1', seriesTconst: 'ttS', seasonNumber: 1, episodeNumber: 1,
@@ -33,10 +36,18 @@ function build(over: {
       update: jest.fn(async ({ data }: any) => { updates.push(data); return { ...wanted, ...data }; }),
     },
     mediaAcquisitionWatchlistItem: {
-      findUnique: jest.fn(async () => ({ id: 'wl1', title: 'The Wire', priority: 100, rssRuleId: null, ...over.item })),
+      findUnique: jest.fn(async () => ({ id: 'wl1', title: 'The Wire', normalizedTitle: 'the wire', year: null, targetLibraryId: null, priority: 100, rssRuleId: null, ...over.item })),
     },
     rssRule: {
       findUnique: jest.fn(async () => ('rssRule' in over ? over.rssRule : { savePath: '/media/tv/The Wire' })),
+      findMany: jest.fn(async () => over.rules ?? []),
+    },
+    mediaItem: {
+      findFirst: jest.fn(async () => over.existingItem ?? null),
+    },
+    mediaLibrary: {
+      findUnique: jest.fn(async () => over.library ?? null),
+      findFirst: jest.fn(async () => over.library ?? null),
     },
   };
   const indexers = { searchAll: jest.fn(async () => over.candidates ?? []) };
@@ -138,6 +149,47 @@ describe('MissingEpisodeSearchService.sweep — grab flow', () => {
     await svc.sweep();
     expect(evaluator.grabSelected).toHaveBeenCalledWith(
       expect.objectContaining({ savePath: undefined }),
+      undefined,
+    );
+  });
+
+  // --- layered fallback when the show is NOT linked to an RSS rule -------------
+  it('falls back to an RSS rule matched by the show title (unlinked show)', async () => {
+    const { svc, evaluator } = build({
+      candidates: [cand()],
+      rules: [
+        { name: 'Some Other Show', savePath: '/x' },
+        { name: 'The Wire', savePath: '/media/tv/The Wire (2002)' },
+      ],
+    });
+    await svc.sweep();
+    expect(evaluator.grabSelected).toHaveBeenCalledWith(
+      expect.objectContaining({ savePath: '/media/tv/The Wire (2002)' }),
+      undefined,
+    );
+  });
+
+  it("falls back to the show's existing library folder (past a Season NN container)", async () => {
+    const { svc, evaluator } = build({
+      candidates: [cand()],
+      existingItem: { path: '/downloads/TV Shows/The Wire (2002)/Season 01/The Wire - S01E01.mkv' },
+    });
+    await svc.sweep();
+    expect(evaluator.grabSelected).toHaveBeenCalledWith(
+      expect.objectContaining({ savePath: '/downloads/TV Shows/The Wire (2002)' }),
+      undefined,
+    );
+  });
+
+  it('constructs <TV library>/<Title> (Year) when there is no rule or existing folder', async () => {
+    const { svc, evaluator } = build({
+      candidates: [cand()],
+      item: { year: 2002 },
+      library: { path: '/downloads/TV Shows/' },
+    });
+    await svc.sweep();
+    expect(evaluator.grabSelected).toHaveBeenCalledWith(
+      expect.objectContaining({ savePath: '/downloads/TV Shows/The Wire (2002)' }),
       undefined,
     );
   });

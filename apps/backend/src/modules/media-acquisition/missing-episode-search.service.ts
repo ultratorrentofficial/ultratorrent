@@ -11,6 +11,7 @@ import { AcquisitionEvaluatorService } from './evaluator.service';
 import { AcquisitionMatchPreferenceService } from './acquisition-match-preference.service';
 import { MediaAcquisitionService } from './media-acquisition.service';
 import { MEDIA_ACQUISITION_MODULE_ID } from './decision.engine';
+import { showFolderRoot } from '../media/media-renamer';
 
 type WantedSearchStatus = 'idle' | 'searching' | 'grabbed' | 'pending_approval' | 'no_results' | 'failed';
 
@@ -150,7 +151,7 @@ export class MissingEpisodeSearchService {
     // Download directory comes from the Show Rule (the RSS rule that is the parent
     // of this show's match candidates), so grabbed episodes land in the same folder
     // the show's RSS rule uses — not the engine's default /downloads.
-    const savePath = await this.resolveSavePath(item.rssRuleId);
+    const savePath = await this.resolveSavePath(item);
 
     const candidates = await this.indexers.searchAll({
       q: item.title,
@@ -206,17 +207,79 @@ export class MissingEpisodeSearchService {
   }
 
   /**
-   * The download directory for a grabbed episode: the parent Show Rule's
-   * `savePath`. Returns undefined when the show isn't linked to an RSS rule or the
-   * rule has no save path set, letting the torrent engine use its own default.
+   * The download directory for a grabbed episode, resolved with a layered
+   * fallback so episodes land in the show's own folder even when the watchlist
+   * item was never explicitly linked to an RSS rule (the common case — most
+   * monitored shows carry no `rssRuleId`):
+   *
+   *   1. the linked Show Rule's `savePath` (explicit link);
+   *   2. else an RSS rule whose **name matches the show title** — many shows have
+   *      a rule that just isn't wired to the watchlist item;
+   *   3. else the show's **existing library folder** (climbed past any `Season NN`
+   *      container) so new episodes land beside the ones already there;
+   *   4. else a constructed `<TV library>/<Title> (Year)` under the target (or the
+   *      default TV/anime) library, matching the standard show-folder convention.
+   *
+   * Returns undefined only when none of these resolve, letting the engine use its
+   * own default.
    */
-  private async resolveSavePath(rssRuleId: string | null): Promise<string | undefined> {
-    if (!rssRuleId) return undefined;
-    const rule = await this.prisma.rssRule.findUnique({
-      where: { id: rssRuleId },
-      select: { savePath: true },
+  private async resolveSavePath(item: {
+    rssRuleId: string | null;
+    title: string;
+    normalizedTitle: string;
+    year: number | null;
+    targetLibraryId: string | null;
+  }): Promise<string | undefined> {
+    // 1. Explicit Show Rule link.
+    if (item.rssRuleId) {
+      const rule = await this.prisma.rssRule.findUnique({
+        where: { id: item.rssRuleId },
+        select: { savePath: true },
+      });
+      const sp = rule?.savePath?.trim();
+      if (sp) return sp;
+    }
+
+    // 2. RSS rule whose name matches the show title.
+    const norm = item.normalizedTitle?.trim().toLowerCase();
+    if (norm) {
+      const rules = await this.prisma.rssRule.findMany({
+        where: { savePath: { not: null } },
+        select: { name: true, savePath: true },
+      });
+      const match = rules.find(
+        (r) => r.name.trim().toLowerCase() === norm && r.savePath?.trim(),
+      );
+      if (match?.savePath) return match.savePath.trim();
+    }
+
+    // 3. The show's existing folder in the library.
+    const existing = await this.prisma.mediaItem.findFirst({
+      where: { title: item.title, mediaType: { in: ['tv', 'anime', 'episode'] } },
+      select: { path: true },
     });
-    return rule?.savePath?.trim() || undefined;
+    if (existing?.path) {
+      const folder = showFolderRoot(existing.path);
+      if (folder && folder !== '.' && folder !== '/') return folder;
+    }
+
+    // 4. Constructed "<TV library>/<Title> (Year)".
+    const library = item.targetLibraryId
+      ? await this.prisma.mediaLibrary.findUnique({
+          where: { id: item.targetLibraryId },
+          select: { path: true },
+        })
+      : await this.prisma.mediaLibrary.findFirst({
+          where: { kind: { in: ['tv', 'anime'] } },
+          select: { path: true },
+          orderBy: { createdAt: 'asc' },
+        });
+    if (library?.path?.trim()) {
+      const folderName = item.year ? `${item.title} (${item.year})` : item.title;
+      return `${library.path.trim().replace(/\/+$/, '')}/${folderName}`;
+    }
+
+    return undefined;
   }
 
   private setState(id: string, data: Partial<WantedEpisode>): Promise<unknown> {
