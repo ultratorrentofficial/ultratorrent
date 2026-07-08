@@ -204,4 +204,76 @@ export class MediaAutomationActions {
     const year = item.year ? ` (${item.year})` : '';
     return `${title}${year} ${base}`;
   }
+
+  /** Library modes that mean "organize my files into the Show/Season layout". */
+  private static readonly ORGANIZE_MODES = ['rename_in_place', 'rename_move'];
+
+  /**
+   * Organize a whole library: move every not-yet-placed file into the library's
+   * `Show/Season NN/` structure and apply junk cleanup (delete-globs, samples,
+   * leftover .torrent, empty dirs — via the renamer's cleanup rules). Only
+   * `rename_in_place`/`rename_move` libraries are eligible; link/copy/preview
+   * libraries are left untouched. Files already correctly placed are skipped, so
+   * a re-run is a near no-op. `dryRun` previews the moves + deletes WITHOUT
+   * touching disk (each item is planned in `preview` mode).
+   */
+  async organizeLibrary(
+    libraryId: string,
+    opts: { dryRun?: boolean } = {},
+    ctx: AuditContext = {},
+    report?: (pct: number, msg?: string) => void | Promise<void>,
+  ): Promise<{
+    libraryId: string;
+    mode: string;
+    eligible: boolean;
+    dryRun: boolean;
+    moves: { itemId: string; from: string; to: string }[];
+    deletes: { itemId: string; path: string }[];
+    applied: number;
+    deleted: number;
+    skipped: number;
+    failed: number;
+  }> {
+    const library = await this.prisma.mediaLibrary.findUnique({ where: { id: libraryId } });
+    if (!library) throw new BadRequestException('Library not found');
+    const dryRun = !!opts.dryRun;
+    const eligible = MediaAutomationActions.ORGANIZE_MODES.includes(library.mode);
+    const moves: { itemId: string; from: string; to: string }[] = [];
+    const deletes: { itemId: string; path: string }[] = [];
+    let applied = 0;
+    let deleted = 0;
+    let skipped = 0;
+    let failed = 0;
+    if (!eligible) {
+      return { libraryId, mode: library.mode, eligible: false, dryRun, moves, deletes, applied, deleted, skipped, failed };
+    }
+
+    const items = await this.prisma.mediaItem.findMany({ where: { libraryId }, select: { id: true } });
+    for (let i = 0; i < items.length; i++) {
+      try {
+        const res = (await this.renameItem(items[i].id, dryRun ? 'preview' : undefined, ctx)) as {
+          applied: number;
+          skipped: number;
+          failed: number;
+          deleted: number;
+          plan: { items: { source: string; destination: string | null; action: string; skipped: boolean }[] };
+        };
+        for (const p of res.plan.items) {
+          if (p.action === 'delete') deletes.push({ itemId: items[i].id, path: p.source });
+          else if (!p.skipped && p.destination && p.destination !== p.source) {
+            moves.push({ itemId: items[i].id, from: p.source, to: p.destination });
+          }
+        }
+        applied += res.applied;
+        deleted += res.deleted;
+        skipped += res.skipped;
+        failed += res.failed;
+      } catch (err) {
+        failed++;
+        this.logger.warn(`organize item ${items[i].id} failed: ${(err as Error).message}`);
+      }
+      if (report && items.length) await report(((i + 1) / items.length) * 100);
+    }
+    return { libraryId, mode: library.mode, eligible: true, dryRun, moves, deletes, applied, deleted, skipped, failed };
+  }
 }

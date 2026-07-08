@@ -28,6 +28,7 @@ import {
   ManualMatchDto,
 } from './media-identification.service';
 import { MediaItemService, ItemUpdateDto } from './media-item.service';
+import { MediaAutomationActions } from './media-automation.actions';
 import { MediaHealthService } from './media-health.service';
 import {
   MediaMetadataService,
@@ -80,6 +81,7 @@ export class MediaController {
     private readonly integrations: MediaServerIntegrationService,
     private readonly jobs: MediaProcessingQueueService,
     private readonly imdb: ImdbService,
+    private readonly mediaActions: MediaAutomationActions,
   ) {}
 
   // --- overview ----------------------------------------------------------
@@ -122,11 +124,34 @@ export class MediaController {
 
   @Post('libraries/:id/scan')
   @RequirePermissions(P.MEDIA_MANAGER_SCAN)
-  scanLibrary(@Param('id') id: string) {
+  scanLibrary(@Param('id') id: string, @Req() req: Request) {
     // Tracked as a MediaProcessingJob; the scanner streams progress + a per-file
-    // action log over the media_manager.job.progress WS event.
-    return this.jobs.run('library_scan', { libraryId: id }, (report) =>
-      this.scanner.scanLibrary(id, report),
+    // action log over the media_manager.job.progress WS event. For an
+    // organize-mode library (rename_in_place/rename_move) the scan then moves
+    // in-place files into Show/Season NN and applies junk cleanup; a no-op for
+    // link/preview libraries (organizeLibrary self-gates on the library mode).
+    return this.jobs.run('library_scan', { libraryId: id }, async (report) => {
+      const scan = await this.scanner.scanLibrary(id, (p, m) => report(p * 0.8, m));
+      const organized = await this.mediaActions.organizeLibrary(id, { dryRun: false }, auditCtx(req), (p, m) =>
+        report(80 + p * 0.2, m),
+      );
+      return { ...scan, organized };
+    });
+  }
+
+  /**
+   * Organize a library's in-place files into Show/Season NN + junk cleanup,
+   * WITHOUT a scan. `?dryRun=1` previews the moves/deletes (touches no disk);
+   * otherwise it executes, tracked as a job. Only rename_in_place/rename_move
+   * libraries are eligible.
+   */
+  @Post('libraries/:id/organize')
+  @RequirePermissions(P.MEDIA_MANAGER_RENAME)
+  organizeLibrary(@Param('id') id: string, @Query('dryRun') dryRun: string | undefined, @Req() req: Request) {
+    const dry = dryRun === 'true' || dryRun === '1';
+    if (dry) return this.mediaActions.organizeLibrary(id, { dryRun: true }, auditCtx(req));
+    return this.jobs.run('library_organize', { libraryId: id }, (report) =>
+      this.mediaActions.organizeLibrary(id, { dryRun: false }, auditCtx(req), report),
     );
   }
 

@@ -12,6 +12,7 @@ export type MediaJobType =
   | 'artwork_fetch'
   | 'subtitle_scan'
   | 'rename_execute'
+  | 'library_organize'
   | 'nfo_generate'
   | 'media_server_refresh';
 
