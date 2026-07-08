@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.21.2] - 2026-07-08
+
+### Fixed
+- Fix Media Acquisition page crash (React #31): render evaluation releaseScore breakdown object's .value instead of the object; surfaced once evaluations existed
+
 ## [0.21.1] - 2026-07-07
 
 ### Fixed
