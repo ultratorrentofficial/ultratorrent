@@ -45,6 +45,15 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.25.0] - 2026-07-08
+
+### Added
+- Add-from-library picker shows each show's TV airing-status badge (cached tv_show_status + bounded background warm)
+
+### Fixed
+- Media identification: make the library's declared kind authoritative for movie-vs-TV classification, and strip a parenthesized `(Year)` from episode titles. Fixes shows like "9-1-1 (2018)" scanning as a movie (and titled "9-1-1 2018") while their episodes still grouped into seasons.
+- Missing-episode auto-downloader now saves grabbed episodes into the parent Show Rule's download directory (RssRule.savePath) instead of the torrent engine's default /downloads. Falls back to the engine default when the show isn't linked to an RSS rule or the rule has no save path.
+
 ## [0.24.0] - 2026-07-08
 
 ### Added
