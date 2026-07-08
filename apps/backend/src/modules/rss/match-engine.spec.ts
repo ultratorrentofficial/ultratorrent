@@ -115,6 +115,29 @@ describe('match types', () => {
     // The real show, whose title tokenizes to standalone m/i/a → match.
     expect(evaluateCandidate(c, { title: 'M.I.A. S01E05 1080p HEVC x265-MeGusta' }).result).toBe('matched');
   });
+  it('contains_text: multi-char title words match whole tokens, not substrings (boys ⊄ cowboys)', () => {
+    const c = cand({ matchType: 'contains_text', pattern: 'The Boys 1080p x265-MeGusta', qualityRules: { codec: 'x265' } });
+    // "boys" is a substring of "cowboys" but not a whole token → reject.
+    expect(evaluateCandidate(c, { title: 'The McBee Dynasty Real American Cowboys S03E04 1080p HEVC x265-MeGusta' }).result).toBe('failed');
+    // Real release → match.
+    expect(evaluateCandidate(c, { title: 'The Boys S04E01 1080p HEVC x265-MeGusta' }).result).toBe('matched');
+  });
+
+  it('contains_text: title anchored to the show region, not the episode title (Severance collision)', () => {
+    const c = cand({ matchType: 'contains_text', pattern: 'Severance 1080p x265-MeGusta', qualityRules: { codec: 'x265' } });
+    // A Law & Order episode *titled* "Severance" — the word is after SxxEyy → reject.
+    expect(evaluateCandidate(c, { title: 'Law and Order S02E13 Severance 1080p HEVC x265-MeGusta' }).result).toBe('failed');
+    // The real show → match.
+    expect(evaluateCandidate(c, { title: 'Severance S02E01 1080p HEVC x265-MeGusta' }).result).toBe('matched');
+  });
+
+  it('smart_episode_match anchors on the show title, not the episode title', () => {
+    const c = cand({ matchType: 'smart_episode_match', pattern: 'Severance', qualityRules: { season: 2, episode: 13 } });
+    // L&O S02E13 titled "Severance" has matching S/E but wrong show → reject.
+    expect(evaluateCandidate(c, { title: 'Law and Order S02E13 Severance 1080p x265-MeGusta' }).result).toBe('failed');
+    expect(evaluateCandidate(c, { title: 'Severance S02E13 1080p x265-MeGusta' }).result).toBe('matched');
+  });
+
   it('wildcard', () => {
     expect(evaluateCandidate(cand({ matchType: 'wildcard', pattern: 'The.Example.Show*1080p*' }), { title }).result).toBe('matched');
   });

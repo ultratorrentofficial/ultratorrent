@@ -117,6 +117,29 @@ function tokens(input: string): string[] {
   return normalize(input).split(' ').filter(Boolean);
 }
 
+/**
+ * Tokens of a release's *show-title region* — everything before the first
+ * episode marker (`S02E13`, `2x13`, `Season 2`). For a release with no episode
+ * marker (a movie) this is the whole name. Used to anchor title matching to the
+ * show name so a rule for "Severance" doesn't match a *Law & Order* episode
+ * whose own title happens to be "Severance" (the word only appears *after* the
+ * SxxEyy). Quality/format words are still matched against the full name.
+ */
+function showRegionTokens(input: string): string[] {
+  const norm = normalize(input);
+  const cut = norm.search(/\bs\d{1,2}e\d{1,3}\b|\b\d{1,2}x\d{1,3}\b|\bseason\b/);
+  return (cut >= 0 ? norm.slice(0, cut) : norm).split(' ').filter(Boolean);
+}
+
+/**
+ * A pattern word that denotes quality/format/episode metadata rather than the
+ * title. Everything *before* the first such word is the title; the rest are
+ * quality tokens. Bare digits/years are deliberately excluded — they can be
+ * part of a title (`9-1-1`, `1917`, `1883`).
+ */
+const FORMAT_TOKEN =
+  /^(2160p|1080p|1080i|720p|480p|x265|h265|hevc|x264|h264|avc|av1|xvid|web|webdl|webrip|bluray|bdrip|brrip|hdtv|hdrip|dvd|dvdrip|remux|proper|repack|hdr|hdr10|10bit|multi|s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3})$/;
+
 // --- release metadata detection -----------------------------------------
 
 const SOURCE_ALIASES: Array<[RegExp, string]> = [
@@ -227,30 +250,35 @@ function coreMatch(
       return { label: 'exact text', passed, detail: passed ? 'exact match' : 'title does not equal pattern' };
     }
     case 'contains_text': {
-      // Token-AND: the title must contain EVERY word of the pattern (each as a
-      // normalized substring), in any order — not one contiguous run. So
-      // "Agent Kim Reactivated XviD-AFG" still matches
-      // "Agent Kim Reactivated S01E03 XviD-AFG": the episode token in the
-      // middle no longer breaks it.
+      // Token-AND with WHOLE-token matching, split into title vs quality:
       //
-      // Numeric words and single-character words are the exception: they must
-      // match a WHOLE title token, not a loose substring. Otherwise a
-      // separator-heavy short title matches virtually every release, since the
-      // fragments appear inside unrelated tokens — dissolving the title
-      // constraint entirely. E.g. "9-1-1" → words "9","1","1" (found in
-      // "S09E07"/"1080p"), and "M.I.A" → words "m","i","a" (found in almost any
-      // title; "megusta" alone supplies "m" and "a"). Whole-token matching also
-      // does the right thing for acronym titles like "S.W.A.T"/"M.A.S.H".
-      const normTitle = normalize(title);
-      const titleTokens = new Set(tokens(title));
+      //  - The pattern's leading *title* words (everything before the first
+      //    quality/format token) must each appear as a WHOLE token in the
+      //    release's SHOW-TITLE region (before its SxxEyy). This anchors the
+      //    match to the show name: it rejects both substring bleed
+      //    ("boys" inside "cow­boys"; "9"/"1" inside "S09E07"/"1080p"; "m"/"a"
+      //    from "megusta") AND episode-title collisions (a "Severance" rule
+      //    must not grab a Law & Order episode *titled* "Severance", since that
+      //    word sits after the SxxEyy, outside the show-title region).
+      //  - The trailing *quality* words (resolution/codec/source/group) must
+      //    each appear as a whole token anywhere in the release.
+      //
+      // Whole tokens are order/gap-insensitive, so an episode token between the
+      // title and the group still matches (Agent.Kim.Reactivated.S01E03.XviD-AFG).
       const words = tokens(pattern);
       if (words.length === 0) {
         return { label: 'contains text', passed: false, detail: 'empty pattern' };
       }
-      const wholeTokenOnly = (w: string) => /^\d+$/.test(w) || w.length === 1;
-      const missing = words.filter((w) =>
-        wholeTokenOnly(w) ? !titleTokens.has(w) : !normTitle.includes(w),
-      );
+      let split = words.findIndex((w) => FORMAT_TOKEN.test(w));
+      if (split < 0) split = words.length;
+      const titleWords = words.slice(0, split);
+      const qualityWords = words.slice(split);
+      const showTokens = new Set(showRegionTokens(title));
+      const releaseTokens = new Set(tokens(title));
+      const missing = [
+        ...titleWords.filter((w) => !showTokens.has(w)),
+        ...qualityWords.filter((w) => !releaseTokens.has(w)),
+      ];
       const passed = missing.length === 0;
       return {
         label: 'contains text',
@@ -276,7 +304,10 @@ function coreMatch(
       return { label: 'wildcard', passed, detail: passed ? 'wildcard matched' : 'wildcard did not match' };
     }
     case 'smart_episode_match': {
-      const titleOk = !pattern || normalize(title).includes(normalize(pattern));
+      // Anchor the title to the show-title region (before SxxEyy), so a rule
+      // never matches on a word that only appears in the *episode* title.
+      const epShow = new Set(showRegionTokens(title));
+      const titleOk = !pattern || tokens(pattern).every((w) => epShow.has(w));
       if (!titleOk) return { label: 'smart episode', passed: false, detail: `show title “${pattern}” not found` };
       if (qr.season != null && parsed.season !== qr.season)
         return { label: 'smart episode', passed: false, detail: `season ${qr.season} not found (got ${parsed.season ?? 'none'})` };
@@ -285,7 +316,9 @@ function coreMatch(
       return { label: 'smart episode', passed: true, detail: `matched S${qr.season}E${qr.episode}` };
     }
     case 'smart_movie_match': {
-      const titleOk = !pattern || normalize(title).includes(normalize(pattern));
+      // A movie has no SxxEyy, so the show-title region is the whole name.
+      const mvShow = new Set(showRegionTokens(title));
+      const titleOk = !pattern || tokens(pattern).every((w) => mvShow.has(w));
       if (!titleOk) return { label: 'smart movie', passed: false, detail: `movie title “${pattern}” not found` };
       if (qr.year != null && parsed.year !== qr.year)
         return { label: 'smart movie', passed: false, detail: `year ${qr.year} not found (got ${parsed.year ?? 'none'})` };
