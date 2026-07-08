@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.25.2] - 2026-07-08
+
+### Fixed
+- RSS match engine: extend `contains_text` whole-token matching to single-character words (previously only numeric). A separator-heavy short title like "M.I.A" normalizes to "m","i","a", which as substrings appear in almost every release ("megusta" alone supplies "m" and "a") — the same over-match class as "9-1-1". Single-letter pattern words now require a standalone title token; also does the right thing for acronym titles (S.W.A.T, M.A.S.H).
+- Build tooling: git commit/tag/build-time stamping is now folded into a canonical `ops/scripts/docker-build.sh` wrapper used by every build path (new `npm run build:docker`, the `package` script, and the deploy scripts), so images self-stamp their commit without remembering to pass build args. A bare `docker compose build` still works and falls back to the plain version (correct for throwaway dev builds).
+- Show the short git commit next to the version in the sidebar version badge and the About menu entry (e.g. `v0.25.1 · 4045eef`), so two deploys reporting the same version number but running different commits are distinguishable at a glance. The commit/tag/build-time are stamped into the backend image at build via the `GIT_SHA`/`GIT_TAG`/`BUILD_TIME` build args (new `BUILD_TIME` arg added); when unstamped, only the version shows (unchanged behavior).
+
 ## [0.25.1] - 2026-07-08
 
 ### Fixed
