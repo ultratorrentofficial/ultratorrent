@@ -63,6 +63,26 @@ describe('parseTorrentName', () => {
     expect(m.contentType).toBe('tv_episode');
   });
 
+  it('strips a bare year that sits right before the episode marker (Hijack)', () => {
+    // "Hijack.2023.S02E03" — the bare 2023 is the series year, not part of the
+    // title. Left in, it forks the show into "Hijack 2023" and misses the
+    // provider lookup (no episode titles). Adjacency to S02E03 is what marks it.
+    const m = parseTorrentName('Hijack.2023.S02E03.1080p.HEVC.x265-MeGusta');
+    expect(m.title).toBe('Hijack');
+    expect(m.year).toBe(2023);
+    expect(m.season).toBe(2);
+    expect(m.episode).toBe(3);
+    expect(m.contentType).toBe('tv_episode');
+  });
+
+  it('keeps a leading numeric/year title before an episode marker (1883-style)', () => {
+    // A year at position 0 is the title, never a boundary.
+    const m = parseTorrentName('2020.S01E01.1080p.WEB.h264-GRP');
+    expect(m.title).toBe('2020');
+    expect(m.season).toBe(1);
+    expect(m.episode).toBe(1);
+  });
+
   it('parses a movie with year', () => {
     const m = parseTorrentName('Dune.Part.Two.2024.2160p.BluRay.x265.DTS-HD.HDR-RARBG');
     expect(m.contentType).toBe('movie');

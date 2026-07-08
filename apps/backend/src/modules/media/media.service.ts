@@ -54,6 +54,14 @@ export interface RenameRequest {
    * title + metadata. Files are still gathered from `path`/`hash` as usual.
    */
   sourceName?: string;
+  /**
+   * Build the plan under the real `mode` but do NOT touch disk — a faithful
+   * preview. Unlike `mode: 'preview'` (which changes destination resolution,
+   * e.g. re-rooting an in-place move under the library instead of reusing the
+   * file's existing show folder), this keeps the exact destinations the execute
+   * would produce, so a caller can inspect them before committing.
+   */
+  dryRun?: boolean;
 }
 
 @Injectable()
@@ -318,7 +326,7 @@ export class MediaService {
     let failed = 0;
     let deleted = 0;
 
-    if (plan.mode === 'preview') {
+    if (plan.mode === 'preview' || req.dryRun) {
       return { applied: 0, skipped: plan.items.length, failed: 0, deleted: 0, plan };
     }
 

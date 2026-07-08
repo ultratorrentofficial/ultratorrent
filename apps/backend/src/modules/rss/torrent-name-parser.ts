@@ -187,9 +187,21 @@ export function parseTorrentName(raw: string): ParsedTorrentMeta {
     // part of the title, not a boundary). A *parenthesized* "(YYYY)" is the
     // release-year convention and always ends the title — otherwise a name like
     // "9-1-1 (2018) S01E01" folds the year into the title as "9-1-1 2018". A bare
-    // trailing year is only a boundary when no episode marker precedes it.
+    // trailing year is a boundary when no episode marker precedes it. A bare year
+    // that sits *immediately* before the season/episode marker is the series year
+    // too ("Hijack.2023.S02E03" → "Hijack" + 2023) — required so the title, the
+    // provider lookup and the show folder don't fork into "Hijack 2023". The
+    // adjacency check (only separators between the year and the marker) keeps a
+    // genuine year-in-name away from the marker (e.g. "Class of 2023 …") intact.
+    const hasEpisode =
+      meta.season !== null || meta.absoluteEpisode !== null;
+    const yearEnd = chosen.index + 4;
+    const episodeAdjacent =
+      hasEpisode &&
+      yearEnd <= cutIndex &&
+      ws.slice(yearEnd, cutIndex).trim() === '';
     if (
-      (parenYear || (meta.season === null && meta.absoluteEpisode === null)) &&
+      (parenYear || !hasEpisode || episodeAdjacent) &&
       chosen.index > 0
     ) {
       setCut(chosen.index);

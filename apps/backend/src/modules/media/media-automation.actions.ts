@@ -161,6 +161,7 @@ export class MediaAutomationActions {
     itemId: string,
     modeOverride: RenameMode | undefined,
     ctx: AuditContext = {},
+    dryRun = false,
   ) {
     const item = await this.prisma.mediaItem.findUnique({
       where: { id: itemId },
@@ -174,6 +175,7 @@ export class MediaAutomationActions {
       path: src,
       preset: (item.library.preset ?? 'plex') as Preset,
       mode: (modeOverride ?? item.library.mode ?? 'hardlink') as RenameMode,
+      dryRun,
       libraryPath: item.library.path,
       template: item.library.template ?? undefined,
       // Feed the already-identified title into the parse so a bare filename
@@ -292,10 +294,14 @@ export class MediaAutomationActions {
     for (let i = 0; i < items.length; i++) {
       const itemId = items[i].id;
       try {
-        // Always plan in preview first to inspect the destination (cheap after
-        // the pre-filter; provider lookups are cached, so the later execute
-        // re-plan is a cache hit).
-        const preview = (await this.renameItem(itemId, 'preview', ctx)) as PlanResult;
+        // Plan under the library's REAL mode (dryRun = no disk writes) to inspect
+        // the destination the execute would actually produce. Using mode
+        // 'preview' here would mis-resolve an in-place move (re-rooting it under
+        // the library instead of reusing the file's own show folder), tripping
+        // the guard below for every show whose release name embeds a bare year
+        // (e.g. "Hijack.2023.S02E03"). Provider lookups are cached, so the later
+        // execute re-plan is a cache hit.
+        const preview = (await this.renameItem(itemId, undefined, ctx, true)) as PlanResult;
         const move = preview.plan.items.find(
           (p) => p.action !== 'delete' && !p.skipped && p.destination && p.destination !== p.source,
         );
