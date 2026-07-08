@@ -398,4 +398,61 @@ export class MissingEpisodesService {
     const value = (externalIds as Record<string, unknown>).imdb;
     return typeof value === 'string' && value.startsWith('tt') ? value : null;
   }
+
+  /**
+   * Best-effort auto-resolution of a monitored series' IMDb tconst from the local
+   * catalogue, by exact title (+year when the watchlist item has one), preferring
+   * the candidate with the most catalogued episodes (the real, long-running
+   * series over same-named stubs — e.g. "9-1-1" 2018/143 eps beats "9-1-1"
+   * 1991/0 eps). Persists the id onto the item's `externalIds` and audits it, so
+   * scanning self-enables on the next scheduled run. Returns null when there is
+   * no confident match (no title match, or no candidate has any episodes).
+   */
+  private async resolveAndPersistImdbId(
+    item: { id: string; title: string; year: number | null; externalIds: unknown },
+    userId?: string,
+  ): Promise<string | null> {
+    const candidates = await this.prisma.iMDbTitle.findMany({
+      where: {
+        primaryTitle: { equals: item.title, mode: 'insensitive' },
+        titleType: { in: ['tvSeries', 'tvMiniSeries'] },
+        ...(item.year ? { startYear: item.year } : {}),
+      },
+      select: { tconst: true, startYear: true },
+      take: 10,
+    });
+    if (candidates.length === 0) return null;
+
+    let best: { tconst: string; startYear: number | null } | null = null;
+    let bestEpisodes = -1;
+    for (const c of candidates) {
+      const episodes = await this.prisma.iMDbEpisode.count({ where: { parentTitleId: c.tconst } });
+      if (episodes > bestEpisodes || (episodes === bestEpisodes && (c.startYear ?? 0) > (best?.startYear ?? 0))) {
+        best = c;
+        bestEpisodes = episodes;
+      }
+    }
+    // Require at least one catalogued episode: an empty match can't be scanned
+    // and is far more likely to be the wrong (stub) title.
+    if (!best || bestEpisodes <= 0) return null;
+
+    const base = typeof item.externalIds === 'object' && item.externalIds ? (item.externalIds as object) : {};
+    await this.prisma.mediaAcquisitionWatchlistItem.update({
+      where: { id: item.id },
+      data: { externalIds: { ...base, imdb: best.tconst } },
+    });
+    this.logger.log(
+      `Auto-resolved IMDb id ${best.tconst} for watchlist series "${item.title}" (${bestEpisodes} catalogued episodes)`,
+    );
+    await this.audit
+      .record({
+        userId,
+        action: 'media_acquisition.watchlist.imdb_resolved',
+        objectType: 'media_acquisition_watchlist_item',
+        objectId: item.id,
+        metadata: { imdbId: best.tconst, title: item.title, episodes: bestEpisodes, via: 'missing_episode_scan' },
+      })
+      .catch(() => undefined);
+    return best.tconst;
+  }
 }

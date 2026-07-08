@@ -66,6 +66,9 @@ class Table {
     if (where.id) return this.rows.find((r) => r.id === where.id) ?? null;
     return this.rows.find((r) => matches(where, r)) ?? null;
   }
+  async count({ where }: any = {}) {
+    return this.rows.filter((r) => matches(where, r)).length;
+  }
   async update({ where, data }: any) {
     const row = this.rows.find((r) => r.id === where.id);
     Object.assign(row, data);
@@ -155,6 +158,42 @@ describe('MissingEpisodesService', () => {
     expect(byKey(1, 2).status).toBe('owned');
     expect(byKey(1, 3).status).toBe('missing');
     expect(byKey(2, 1).status).toBe('unaired'); // future air year
+  });
+
+  it('self-heals a series with no IMDb id: resolves from the catalogue, persists, and scans', async () => {
+    const prisma = makePrisma();
+    // A watchlist series with no IMDb id, plus a catalogue title that matches it
+    // (the real 2-episode series) and an empty same-named stub that must lose.
+    prisma.mediaAcquisitionWatchlistItem.seed([
+      { id: 'wlH', type: 'series', status: 'active', title: 'Heal Me Show', normalizedTitle: 'heal me show', externalIds: {}, seasonNumber: null, priority: 100 },
+    ]);
+    prisma.iMDbTitle.seed([
+      { tconst: 'ttHEAL', primaryTitle: 'Heal Me Show', startYear: 2020, titleType: 'tvSeries' },
+      { tconst: 'ttHEALSTUB', primaryTitle: 'Heal Me Show', startYear: 1990, titleType: 'tvSeries' },
+      { tconst: 'ttHL1', primaryTitle: 'H Pilot', startYear: 2020 },
+      { tconst: 'ttHL2', primaryTitle: 'H Two', startYear: 2020 },
+    ]);
+    prisma.iMDbEpisode.seed([
+      { episodeTitleId: 'ttHL1', parentTitleId: 'ttHEAL', seasonNumber: 1, episodeNumber: 1 },
+      { episodeTitleId: 'ttHL2', parentTitleId: 'ttHEAL', seasonNumber: 1, episodeNumber: 2 },
+    ]);
+    const svc = makeService(prisma);
+
+    const gap = await svc.scanSeries('wlH', 'u1');
+
+    // Resolved to the real series (2 eps), not the empty same-named stub.
+    expect(gap.seriesTconst).toBe('ttHEAL');
+    expect(gap.total).toBe(2);
+    // Persisted onto the watchlist item so future runs skip resolution.
+    const wlH = await prisma.mediaAcquisitionWatchlistItem.findUnique({ where: { id: 'wlH' } });
+    expect(wlH.externalIds).toMatchObject({ imdb: 'ttHEAL' });
+  });
+
+  it('leaves a series unscannable when no catalogue title matches (self-heal finds nothing)', async () => {
+    const prisma = makePrisma();
+    const svc = makeService(prisma);
+    // wl2 "No Imdb Show" has externalIds {} and no matching catalogue title.
+    await expect(svc.scanSeries('wl2')).rejects.toThrow(/no imdb id/i);
   });
 
   it('falls back to title matching when seriesImdbId is absent', async () => {
