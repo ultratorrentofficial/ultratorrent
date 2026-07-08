@@ -722,8 +722,16 @@ function WatchlistDialog({
     collectionName: '',
     priority: item?.priority != null ? String(item.priority) : '0',
     profileId: item?.profileId ?? '',
+    rssRuleId: item?.rssRuleId ?? '',
     imdbId: item?.externalIds?.imdb ?? '',
   });
+
+  // For linking a show to an RSS rule's auto-download match preferences.
+  const rulesQuery = useQuery({ queryKey: ['rss', 'rules', 'all'], queryFn: () => api.rss.rules() });
+  const ruleOptions = [
+    { value: '', label: t('acquisition.watchlist.dialog.rssRuleNone') },
+    ...(rulesQuery.data ?? []).map((r) => ({ value: r.id, label: `${r.name} (${r.feedName})` })),
+  ];
 
   const showYear = form.type !== 'manual_query' && form.type !== 'movie_collection';
   const showSeason = form.type === 'season' || form.type === 'episode';
@@ -744,6 +752,7 @@ function WatchlistDialog({
           collectionName: showCollection ? form.collectionName.trim() || undefined : undefined,
           priority: num(form.priority),
           profileId: form.profileId || null,
+          rssRuleId: form.rssRuleId || null,
           externalIds: showImdb ? { imdb: form.imdbId.trim() } : undefined,
         });
       }
@@ -756,6 +765,7 @@ function WatchlistDialog({
         collectionName: showCollection ? form.collectionName.trim() || undefined : undefined,
         priority: num(form.priority),
         profileId: form.profileId || undefined,
+        rssRuleId: form.rssRuleId || undefined,
         externalIds: showImdb && form.imdbId.trim() ? { imdb: form.imdbId.trim() } : undefined,
       };
       return api.mediaAcquisition.createWatchlist(body);
@@ -909,6 +919,16 @@ function WatchlistDialog({
               onChange={(e) => setForm((f) => ({ ...f, profileId: e.target.value }))}
               options={profileOptions}
             />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="wl-rule">{t('acquisition.watchlist.dialog.rssRule')}</Label>
+            <Select
+              id="wl-rule"
+              value={form.rssRuleId}
+              onChange={(e) => setForm((f) => ({ ...f, rssRuleId: e.target.value }))}
+              options={ruleOptions}
+            />
+            <p className="text-[11px] text-muted-foreground">{t('acquisition.watchlist.dialog.rssRuleHint')}</p>
           </div>
         </div>
         <DialogFooter>

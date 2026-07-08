@@ -164,6 +164,31 @@ export class RssService {
     }
   }
 
+  /**
+   * Flat list of every rule across all feeds — a lightweight picker source
+   * (e.g. linking a monitored show to a rule's auto-download match preferences).
+   */
+  async listAllRules() {
+    const rows = await this.prisma.rssRule.findMany({
+      select: {
+        id: true,
+        name: true,
+        isEnabled: true,
+        mediaType: true,
+        feed: { select: { id: true, name: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      isEnabled: r.isEnabled,
+      mediaType: r.mediaType,
+      feedId: r.feed.id,
+      feedName: r.feed.name,
+    }));
+  }
+
   async listFeeds() {
     const feeds = await this.prisma.rssFeed.findMany({
       include: {
@@ -1794,6 +1819,11 @@ export class RssController {
   @RequirePermissions(PERMISSIONS.RSS_VIEW)
   feeds() {
     return this.rss.listFeeds();
+  }
+  @Get('rules')
+  @RequirePermissions(PERMISSIONS.RSS_VIEW)
+  allRules() {
+    return this.rss.listAllRules();
   }
   @Post('feeds')
   @RequirePermissions(PERMISSIONS.RSS_MANAGE)

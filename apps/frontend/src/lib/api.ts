@@ -1722,6 +1722,16 @@ export interface MatchCandidateInput {
   sizeRules?: MatchSizeRules;
 }
 
+/** A rule across any feed, for pickers (e.g. link a show to its RSS preferences). */
+export interface RssRuleSummary {
+  id: string;
+  name: string;
+  isEnabled: boolean;
+  mediaType: string | null;
+  feedId: string;
+  feedName: string;
+}
+
 /** A distinct series in the media libraries, for the watchlist "add from library" picker. */
 export interface LibrarySeries {
   title: string;
@@ -2224,6 +2234,10 @@ export const api = {
   rss: {
     list(): Promise<RssFeed[]> {
       return request<RssFeed[]>('/rss/feeds');
+    },
+    /** Flat list of every rule across feeds (for pickers). */
+    rules(): Promise<RssRuleSummary[]> {
+      return request<RssRuleSummary[]>('/rss/rules');
     },
     createFeed(body: CreateFeedInput): Promise<RssFeed> {
       return request<RssFeed>('/rss/feeds', { method: 'POST', body });

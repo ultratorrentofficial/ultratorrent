@@ -960,7 +960,10 @@
         "priority": "Priority",
         "profile": "Quality profile",
         "imdbId": "IMDb ID",
-        "imdbIdHint": "Optional. Required to scan this series for missing episodes (e.g. tt0903747)."
+        "imdbIdHint": "Optional. Required to scan this series for missing episodes (e.g. tt0903747).",
+        "rssRule": "Auto-download from RSS rule",
+        "rssRuleNone": "Use default auto-download preferences",
+        "rssRuleHint": "Optionally use an RSS rule's match preferences to decide auto-downloads for this show; otherwise the global Auto-Download preferences apply."
       }
     },
     "missingEpisodes": {

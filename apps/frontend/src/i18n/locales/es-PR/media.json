@@ -960,7 +960,10 @@
         "priority": "Prioridad",
         "profile": "Perfil de calidad",
         "imdbId": "ID de IMDb",
-        "imdbIdHint": "Opcional. Necesario para buscar episodios faltantes de esta serie (p. ej. tt0903747)."
+        "imdbIdHint": "Opcional. Necesario para buscar episodios faltantes de esta serie (p. ej. tt0903747).",
+        "rssRule": "Descarga automática desde regla RSS",
+        "rssRuleNone": "Usar preferencias de descarga automática predeterminadas",
+        "rssRuleHint": "Opcionalmente usa las preferencias de coincidencia de una regla RSS para decidir las descargas automáticas de este programa; de lo contrario se aplican las preferencias globales de Descarga automática."
       }
     },
     "missingEpisodes": {
