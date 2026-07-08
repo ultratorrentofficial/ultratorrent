@@ -9,7 +9,7 @@ import { MediaNfoService } from './media-nfo.service';
 import { MediaServerIntegrationService } from './media-server-integration.service';
 import { MediaService } from './media.service';
 import { MediaProcessingQueueService } from './media-processing-queue.service';
-import { isSeasonContainer, type Preset, type RenameMode } from './media-renamer';
+import { isSeasonContainer, showFolderRoot, type Preset, type RenameMode } from './media-renamer';
 
 /**
  * Executes the Media Manager automation actions dispatched by the AutomationEngine.
@@ -216,6 +216,14 @@ export class MediaAutomationActions {
    * libraries are left untouched. Files already correctly placed are skipped, so
    * a re-run is a near no-op. `dryRun` previews the moves + deletes WITHOUT
    * touching disk (each item is planned in `preview` mode).
+   *
+   * SAFETY GUARD: a move is only applied when it stays **within the file's own
+   * show folder** (relocating into a `Season NN/` subdir). A plan that would
+   * move the file to a *different* show folder — because the renamer re-derived
+   * a different title/year from the release name (e.g. `Tracker (2024)` →
+   * `Tracker 2024 (2024)`, or a wrong-year match) — is NOT applied; it's
+   * reported under `needsReview` so a genuine mis-identification is never
+   * silently turned into a duplicate/wrong folder.
    */
   async organizeLibrary(
     libraryId: string,
@@ -229,6 +237,7 @@ export class MediaAutomationActions {
     dryRun: boolean;
     moves: { itemId: string; from: string; to: string }[];
     deletes: { itemId: string; path: string }[];
+    needsReview: { itemId: string; from: string; to: string }[];
     applied: number;
     deleted: number;
     skipped: number;
@@ -240,12 +249,13 @@ export class MediaAutomationActions {
     const eligible = MediaAutomationActions.ORGANIZE_MODES.includes(library.mode);
     const moves: { itemId: string; from: string; to: string }[] = [];
     const deletes: { itemId: string; path: string }[] = [];
+    const needsReview: { itemId: string; from: string; to: string }[] = [];
     let applied = 0;
     let deleted = 0;
     let skipped = 0;
     let failed = 0;
     if (!eligible) {
-      return { libraryId, mode: library.mode, eligible: false, dryRun, moves, deletes, applied, deleted, skipped, failed };
+      return { libraryId, mode: library.mode, eligible: false, dryRun, moves, deletes, needsReview, applied, deleted, skipped, failed };
     }
 
     // Only items that actually need organizing: an episodic file whose parent
@@ -263,31 +273,42 @@ export class MediaAutomationActions {
       const filePath = it.files[0]?.path ?? it.path;
       return !isSeasonContainer(path.basename(path.dirname(filePath)));
     });
+    type PlanResult = {
+      applied: number; skipped: number; failed: number; deleted: number;
+      plan: { items: { source: string; destination: string | null; action: string; skipped: boolean }[] };
+    };
     for (let i = 0; i < items.length; i++) {
+      const itemId = items[i].id;
       try {
-        const res = (await this.renameItem(items[i].id, dryRun ? 'preview' : undefined, ctx)) as {
-          applied: number;
-          skipped: number;
-          failed: number;
-          deleted: number;
-          plan: { items: { source: string; destination: string | null; action: string; skipped: boolean }[] };
-        };
-        for (const p of res.plan.items) {
-          if (p.action === 'delete') deletes.push({ itemId: items[i].id, path: p.source });
-          else if (!p.skipped && p.destination && p.destination !== p.source) {
-            moves.push({ itemId: items[i].id, from: p.source, to: p.destination });
-          }
+        // Always plan in preview first to inspect the destination (cheap after
+        // the pre-filter; provider lookups are cached, so the later execute
+        // re-plan is a cache hit).
+        const preview = (await this.renameItem(itemId, 'preview', ctx)) as PlanResult;
+        const move = preview.plan.items.find(
+          (p) => p.action !== 'delete' && !p.skipped && p.destination && p.destination !== p.source,
+        );
+        // GUARD: refuse any move that would leave the file's own show folder.
+        if (move && showFolderRoot(move.destination!) !== showFolderRoot(move.source)) {
+          needsReview.push({ itemId, from: move.source, to: move.destination! });
+          continue;
         }
-        applied += res.applied;
-        deleted += res.deleted;
-        skipped += res.skipped;
-        failed += res.failed;
+        if (move) moves.push({ itemId, from: move.source, to: move.destination! });
+        for (const p of preview.plan.items) {
+          if (p.action === 'delete') deletes.push({ itemId, path: p.source });
+        }
+        if (!dryRun && (move || preview.plan.items.some((p) => p.action === 'delete'))) {
+          const res = (await this.renameItem(itemId, undefined, ctx)) as PlanResult;
+          applied += res.applied;
+          deleted += res.deleted;
+          skipped += res.skipped;
+          failed += res.failed;
+        }
       } catch (err) {
         failed++;
-        this.logger.warn(`organize item ${items[i].id} failed: ${(err as Error).message}`);
+        this.logger.warn(`organize item ${itemId} failed: ${(err as Error).message}`);
       }
       if (report && items.length) await report(((i + 1) / items.length) * 100);
     }
-    return { libraryId, mode: library.mode, eligible: true, dryRun, moves, deletes, applied, deleted, skipped, failed };
+    return { libraryId, mode: library.mode, eligible: true, dryRun, moves, deletes, needsReview, applied, deleted, skipped, failed };
   }
 }
