@@ -10,7 +10,8 @@
   ],
   "scripts": {
     "build": "npm run build --workspace @ultratorrent/shared && npm run build --workspace @ultratorrent/backend && npm run build --workspace @ultratorrent/frontend",
-    "package": "V=$(node -e \"process.stdout.write(require('./version.json').version)\"); docker build --build-arg ULTRATORRENT_VERSION=$V -f apps/backend/Dockerfile -t ultratorrent/backend:$V -t ultratorrent/backend . && docker build -f apps/frontend/Dockerfile -t ultratorrent/frontend:$V -t ultratorrent/frontend .",
+    "package": "V=$(node -e \"process.stdout.write(require('./version.json').version)\"); GS=$(git rev-parse HEAD 2>/dev/null); GT=$(git describe --tags --always --dirty 2>/dev/null); BT=$(date -u +%Y-%m-%dT%H:%M:%SZ); docker build --build-arg ULTRATORRENT_VERSION=$V --build-arg GIT_SHA=$GS --build-arg GIT_TAG=$GT --build-arg BUILD_TIME=$BT -f apps/backend/Dockerfile -t ultratorrent/backend:$V -t ultratorrent/backend . && docker build -f apps/frontend/Dockerfile -t ultratorrent/frontend:$V -t ultratorrent/frontend .",
+    "build:docker": "ops/scripts/docker-build.sh",
     "dev": "npm run dev --workspace @ultratorrent/backend & npm run dev --workspace @ultratorrent/frontend",
     "dev:backend": "npm run dev --workspace @ultratorrent/backend",
     "dev:frontend": "npm run dev --workspace @ultratorrent/frontend",
