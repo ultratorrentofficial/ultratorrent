@@ -2760,8 +2760,11 @@ export const api = {
     deleteLibrary(id: string): Promise<void> {
       return request<void>(`/media/libraries/${id}`, { method: 'DELETE' });
     },
-    scanLibrary(id: string): Promise<MediaScanResult> {
-      return request<MediaScanResult>(`/media/libraries/${id}/scan`, { method: 'POST' });
+    // Fire-and-forget: returns the job id immediately (the scan runs in the
+    // background). Track progress + completion via the media_manager.job.* WS
+    // events; the `completed` event's `result` is the MediaScanResult.
+    scanLibrary(id: string): Promise<{ jobId: string }> {
+      return request<{ jobId: string }>(`/media/libraries/${id}/scan`, { method: 'POST' });
     },
     listItems(query: MediaItemQuery = {}): Promise<MediaItemPage> {
       return request<MediaItemPage>('/media/items', { query: query as QueryParams });

@@ -124,6 +124,34 @@ export class MediaProcessingQueueService {
     }
   }
 
+  /**
+   * Start a job WITHOUT waiting for it to finish: create + start the row, run
+   * `fn` in the background, and return `{ jobId }` immediately. Callers return
+   * that to the client at once so a long job (e.g. scanning a 20k-file library)
+   * can't time the HTTP request out at the gateway (504); progress + completion
+   * arrive over the `media_manager.job.*` WS events. Failures are recorded and
+   * broadcast, never thrown — there is no caller left to catch them.
+   */
+  async runDetached(
+    type: MediaJobType,
+    opts: CreateJobOptions,
+    fn: (report: JobReporter) => Promise<unknown>,
+  ): Promise<{ jobId: string }> {
+    const created = await this.create(type, opts);
+    void (async () => {
+      await this.start(created.id);
+      const report: JobReporter = (progress, message) =>
+        this.progress(created.id, progress, message);
+      try {
+        const result = await fn(report);
+        await this.complete(created.id, result);
+      } catch (err) {
+        await this.fail(created.id, (err as Error).message);
+      }
+    })();
+    return { jobId: created.id };
+  }
+
   private emit(
     event: string,
     job: MediaProcessingJob,

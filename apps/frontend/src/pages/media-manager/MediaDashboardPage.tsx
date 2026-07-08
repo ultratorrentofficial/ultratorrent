@@ -52,27 +52,14 @@ export function MediaDashboardPage() {
       return;
     }
     setScanning(true);
-    let scanned = 0;
-    let added = 0;
-    let updated = 0;
-    let artworkImported = 0;
-    let metadataImported = 0;
     try {
-      for (const lib of libs) {
-        const res = await api.media.scanLibrary(lib.id);
-        scanned += res.scanned;
-        added += res.added;
-        updated += res.updated;
-        artworkImported += res.artworkImported;
-        metadataImported += res.metadataImported;
-      }
-      const enriched =
-        artworkImported + metadataImported > 0
-          ? ' · ' + t('dashboard.scanEnriched', { artwork: artworkImported, metadata: metadataImported })
-          : '';
+      // Each scan runs in the background (returns a jobId immediately) — no
+      // gateway timeout on large libraries. Live progress shows per-library on
+      // the Libraries page; the dashboard refreshes as jobs complete.
+      await Promise.all(libs.map((lib) => api.media.scanLibrary(lib.id)));
       toast.success(
-        t('dashboard.scanCompleteTitle'),
-        t('dashboard.scanCompleteBody', { scanned, added, updated, count: libs.length }) + enriched,
+        t('dashboard.scanStartedTitle'),
+        t('dashboard.scanStartedBody', { count: libs.length }),
       );
       queryClient.invalidateQueries({ queryKey: ['media'] });
     } catch (err) {

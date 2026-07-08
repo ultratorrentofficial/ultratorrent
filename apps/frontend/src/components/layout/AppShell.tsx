@@ -525,7 +525,7 @@ function VersionBadge({ collapsed, onClick }: { collapsed?: boolean; onClick?: (
   // in white — so every build's exact commit is visible, releases included.
   // Only absent when the build wasn't git-stamped (no gitSha).
   const commit = data?.gitSha ? data.gitSha.slice(0, 7) : '';
-  const ariaVersion = commit ? `${version} ${commit}` : version;
+  const ariaVersion = commit ? `${version} - (${commit})` : version;
   return (
     <button
       type="button"
@@ -542,7 +542,7 @@ function VersionBadge({ collapsed, onClick }: { collapsed?: boolean; onClick?: (
         (version ? (
           <span className="tabular-nums">
             <span className="text-emerald-300">{version}</span>
-            {commit && <span className="text-white"> {commit}</span>}
+            {commit && <span className="text-white"> - ({commit})</span>}
           </span>
         ) : (
           <span className="tabular-nums">{t('about.trigger')}</span>
@@ -741,7 +741,7 @@ function UserMenu({ onAbout }: { onAbout: () => void }) {
               {version?.version && (
                 <span className="text-[10px] font-medium tabular-nums text-muted-foreground">
                   v{version.version}
-                  {version.gitSha ? ` · ${version.gitSha.slice(0, 7)}` : ''}
+                  {version.gitSha ? ` - (${version.gitSha.slice(0, 7)})` : ''}
                 </span>
               )}
             </button>

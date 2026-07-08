@@ -2137,6 +2137,9 @@ function SettingsTab() {
       defaultProfileId: current.defaultProfileId,
       approvalExpiryHours: current.approvalExpiryHours,
       notifyOnApprovalRequired: current.notifyOnApprovalRequired,
+      autoSearchMissing: current.autoSearchMissing,
+      searchIntervalMinutes: current.searchIntervalMinutes,
+      maxSearchesPerSweep: current.maxSearchesPerSweep,
     });
   };
 
@@ -2207,6 +2210,49 @@ function SettingsTab() {
                 </span>
               </span>
             </label>
+
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={current.autoSearchMissing}
+                disabled={!canManage}
+                onChange={(e) => update({ autoSearchMissing: e.target.checked })}
+                className="mt-0.5 h-4 w-4 rounded border-input bg-white/[0.02]"
+              />
+              <span>
+                <span className="text-sm font-medium">{t('acquisition.settings.autoSearchMissing')}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {t('acquisition.settings.autoSearchMissingHint')}
+                </span>
+              </span>
+            </label>
+
+            {current.autoSearchMissing && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="set-search-interval">{t('acquisition.settings.searchInterval')}</Label>
+                  <Input
+                    id="set-search-interval"
+                    type="number"
+                    min={5}
+                    value={String(current.searchIntervalMinutes)}
+                    disabled={!canManage}
+                    onChange={(e) => update({ searchIntervalMinutes: Number(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="set-max-searches">{t('acquisition.settings.maxSearchesPerSweep')}</Label>
+                  <Input
+                    id="set-max-searches"
+                    type="number"
+                    min={1}
+                    value={String(current.maxSearchesPerSweep)}
+                    disabled={!canManage}
+                    onChange={(e) => update({ maxSearchesPerSweep: Number(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+            )}
 
             {canManage && (
               <div className="flex justify-end">

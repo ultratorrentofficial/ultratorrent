@@ -97,8 +97,17 @@ export function MediaLibrariesPage() {
       });
     const offStarted = wsClient.on(WS_EVENTS.MEDIA_JOB_STARTED, (p) => apply(p, 'running'));
     const offProgress = wsClient.on(WS_EVENTS.MEDIA_JOB_PROGRESS, (p) => apply(p));
-    const offCompleted = wsClient.on(WS_EVENTS.MEDIA_JOB_COMPLETED, (p) => apply({ ...p, progress: 100 }, 'completed'));
-    const offFailed = wsClient.on(WS_EVENTS.MEDIA_JOB_FAILED, (p) => apply(p, 'failed'));
+    const offCompleted = wsClient.on(WS_EVENTS.MEDIA_JOB_COMPLETED, (p) => {
+      apply({ ...p, progress: 100 }, 'completed');
+      if (p.type === 'library_scan') {
+        queryClient.invalidateQueries({ queryKey: ['media'] });
+        setScanningId((cur) => (cur === p.libraryId ? null : cur));
+      }
+    });
+    const offFailed = wsClient.on(WS_EVENTS.MEDIA_JOB_FAILED, (p) => {
+      apply(p, 'failed');
+      if (p.type === 'library_scan') setScanningId((cur) => (cur === p.libraryId ? null : cur));
+    });
     return () => {
       offStarted();
       offProgress();
@@ -125,32 +134,17 @@ export function MediaLibrariesPage() {
     setScanningId(lib.id);
     setScanLive({ libraryId: lib.id, name: lib.name, progress: 0, status: 'running', log: [], error: null });
     try {
-      const res = await api.media.scanLibrary(lib.id);
-      setScanLive((cur) =>
-        cur && cur.libraryId === lib.id ? { ...cur, status: 'completed', progress: 100 } : cur,
-      );
-      const enriched =
-        res.artworkImported + res.metadataImported > 0
-          ? ' · ' +
-            t('libraries.scanEnriched', {
-              artwork: res.artworkImported,
-              metadata: res.metadataImported,
-            })
-          : '';
-      toast.success(
-        t('libraries.scannedToast', { name: lib.name }),
-        t('libraries.scanResult', { scanned: res.scanned, added: res.added, updated: res.updated }) +
-          enriched,
-      );
-      invalidate();
+      // Fire-and-forget: the endpoint returns a jobId immediately (no gateway
+      // timeout on huge libraries). Progress + completion arrive over the WS
+      // events, which drive the live panel and clear the spinner.
+      await api.media.scanLibrary(lib.id);
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : undefined;
       setScanLive((cur) =>
         cur && cur.libraryId === lib.id ? { ...cur, status: 'failed', error: msg ?? 'error' } : cur,
       );
+      setScanningId((cur) => (cur === lib.id ? null : cur));
       toast.error(t('libraries.scanFailed'), msg);
-    } finally {
-      setScanningId(null);
     }
   };
 

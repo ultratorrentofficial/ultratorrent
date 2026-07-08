@@ -130,7 +130,10 @@ export class MediaController {
     // organize-mode library (rename_in_place/rename_move) the scan then moves
     // in-place files into Show/Season NN and applies junk cleanup; a no-op for
     // link/preview libraries (organizeLibrary self-gates on the library mode).
-    return this.jobs.run('library_scan', { libraryId: id }, async (report) => {
+    // Detached: return { jobId } immediately so a large-library scan can't time
+    // the HTTP request out at the gateway (504). Progress + the final result
+    // arrive over the media_manager.job.* WS events.
+    return this.jobs.runDetached('library_scan', { libraryId: id }, async (report) => {
       const scan = await this.scanner.scanLibrary(id, (p, m) => report(p * 0.8, m));
       const organized = await this.mediaActions.organizeLibrary(id, { dryRun: false }, auditCtx(req), (p, m) =>
         report(80 + p * 0.2, m),

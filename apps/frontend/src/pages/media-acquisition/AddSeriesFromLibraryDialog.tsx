@@ -54,8 +54,12 @@ export function AddSeriesFromLibraryDialog({ open, onClose }: { open: boolean; o
     },
     onSuccess: (r) => {
       toast.success(t('acquisition.librarySeries.added', { added: r.added, skipped: r.skipped }));
+      // Refresh the Media Acquisition page (watchlist/overview — keyed
+      // 'media-acquisition') AND the Missing Episodes gaps list + per-series
+      // queries (keyed 'mediaAcquisition' → the previous 'acquisition','missing-
+      // episodes' key matched nothing, so the list stayed stale until a reload).
       void queryClient.invalidateQueries({ queryKey: ['media-acquisition'] });
-      void queryClient.invalidateQueries({ queryKey: ['acquisition', 'missing-episodes'] });
+      void queryClient.invalidateQueries({ queryKey: ['mediaAcquisition'] });
       setSelected(new Set());
       onClose();
     },
