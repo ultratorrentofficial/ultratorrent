@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.25.1] - 2026-07-08
+
+### Fixed
+- RSS match engine: `contains_text` now matches numeric pattern words against whole title tokens instead of loose substrings. A hyphenated numeric show title like "9-1-1" normalizes to the words "9","1","1", which as substrings appear inside almost every release ("S09E07", "1080p", …) — dissolving the title constraint and causing the rule to grab unrelated shows. Numeric words now require a standalone token match; alphabetic words keep substring matching.
+- Media identification: for episodic files in a `Show/Season NN/episode` layout, take the series title from the show folder instead of the filename (which often carries only the episode title). Fixes shows like "9-1-1 (2018)" fragmenting into one series per episode. A loose scene release not inside a season container keeps its filename title.
+
 ## [0.25.0] - 2026-07-08
 
 ### Added
