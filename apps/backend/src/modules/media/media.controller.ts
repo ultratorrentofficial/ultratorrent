@@ -172,6 +172,17 @@ export class MediaController {
     });
   }
 
+  /** One show's episodes, grouped into seasons — the browser's lazy drill-down. */
+  @Get('series/episodes')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  seriesEpisodes(
+    @Query('key') key: string,
+    @Query('matchStatus') matchStatus?: string,
+    @Query('libraryId') libraryId?: string,
+  ) {
+    return this.items.episodesForSeries(key, { matchStatus, libraryId });
+  }
+
   @Get('items/:id')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   getItem(@Param('id') id: string) {

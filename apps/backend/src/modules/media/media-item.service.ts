@@ -1,6 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import {
+  TV_TYPES,
+  decodeSeriesKey,
+  encodeSeriesKey,
+  normPath,
+  resolveGroup,
+} from './series-grouping';
 
 export interface ItemFilters {
   mediaType?: string;
@@ -15,8 +22,6 @@ export interface ItemFilters {
 
 const DEFAULT_PAGE_SIZE = 60;
 const MAX_PAGE_SIZE = 200;
-/** Media types presented as collapsible Show → Season → Episode groups. */
-const TV_TYPES = ['tv', 'anime', 'episode'];
 
 export interface ItemUpdateDto {
   title?: string;
@@ -68,65 +73,140 @@ export class MediaItemService {
   }
 
   /**
-   * Paginated TV browser: episodes grouped by show. Returns one row per distinct
-   * show title (with season/episode counts, year, last-added and a poster) so the
-   * UI can render a collapsed Show → Season → Episode tree, expanding each show
-   * on demand via `list({ title })`. Movies keep the flat `list()`.
+   * Paginated TV browser: one row per SHOW (never a bare episode). Episodes are
+   * grouped by their show FOLDER (falling back to title for library-root files)
+   * so a folder-organised show — whose episode rows carry the *episode* title —
+   * collapses into a single show instead of fragmenting into one "show" per
+   * episode. Each row carries a round-trippable `key` the UI passes to
+   * {@link episodesForSeries} to lazily load that show's seasons + episodes.
    */
   async series(filters: ItemFilters) {
     const where: Prisma.MediaItemWhereInput = { mediaType: { in: TV_TYPES } };
     if (filters.mediaType) where.mediaType = filters.mediaType;
     if (filters.matchStatus) where.matchStatus = filters.matchStatus;
     if (filters.libraryId) where.libraryId = filters.libraryId;
-    if (filters.search?.trim()) where.title = { contains: filters.search.trim(), mode: 'insensitive' };
 
     const page = Math.max(1, filters.page ?? 1);
     const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? 30));
 
-    // All distinct shows (title + episode count + year + last-added). At library
-    // scale this is ~hundreds–low-thousands of groups, so paginate in memory.
-    const groups = await this.prisma.mediaItem.groupBy({
-      by: ['title'],
-      where,
-      _count: { _all: true },
-      _max: { createdAt: true },
-      _min: { year: true },
-      orderBy: { title: 'asc' },
-    });
-    const total = groups.length;
-    const pageGroups = groups.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
-    const titles = pageGroups.map((g) => g.title);
-
-    // Season counts + a poster, only for the shows on this page.
-    const [seasonGroups, posterRows] = await Promise.all([
-      titles.length
-        ? this.prisma.mediaItem.groupBy({ by: ['title', 'season'], where: { ...where, title: { in: titles } }, _count: { _all: true } })
-        : Promise.resolve([]),
-      titles.length
-        ? this.prisma.mediaItem.findMany({
-            where: { ...where, title: { in: titles }, artwork: { some: { type: 'poster' } } },
-            select: { title: true, artwork: { where: { type: 'poster' }, orderBy: { selected: 'desc' }, take: 1, select: { id: true, url: true, localPath: true, type: true, selected: true } } },
-          })
-        : Promise.resolve([]),
+    const [rows, libraries] = await Promise.all([
+      this.prisma.mediaItem.findMany({
+        where,
+        select: { id: true, title: true, year: true, path: true, season: true, seriesImdbId: true, createdAt: true },
+      }),
+      this.prisma.mediaLibrary.findMany({ select: { path: true } }),
     ]);
+    const roots = new Set(libraries.map((l) => normPath(l.path)));
 
-    const seasonsByTitle = new Map<string, Set<number | null>>();
-    for (const sg of seasonGroups) {
-      if (!seasonsByTitle.has(sg.title)) seasonsByTitle.set(sg.title, new Set());
-      seasonsByTitle.get(sg.title)!.add(sg.season);
+    type Acc = {
+      kind: 'dir' | 'title'; value: string; title: string; year: number | null;
+      itemIds: string[]; seasons: Set<number | null>; lastAddedAt: Date; seriesImdbId: string | null;
+    };
+    const groups = new Map<string, Acc>();
+    for (const r of rows) {
+      const g = resolveGroup(r, roots);
+      const acc = groups.get(g.dedupKey);
+      const year = g.year ?? r.year ?? null;
+      if (!acc) {
+        groups.set(g.dedupKey, {
+          kind: g.kind, value: g.value, title: g.title, year,
+          itemIds: [r.id], seasons: new Set([r.season]), lastAddedAt: r.createdAt, seriesImdbId: r.seriesImdbId ?? null,
+        });
+      } else {
+        acc.itemIds.push(r.id);
+        acc.seasons.add(r.season);
+        if (r.createdAt > acc.lastAddedAt) acc.lastAddedAt = r.createdAt;
+        acc.seriesImdbId ??= r.seriesImdbId ?? null;
+        if (year != null && (acc.year == null || year < acc.year)) acc.year = year;
+      }
     }
-    const posterByTitle = new Map<string, unknown>();
-    for (const r of posterRows) if (!posterByTitle.has(r.title) && r.artwork[0]) posterByTitle.set(r.title, r.artwork[0]);
+
+    const q = filters.search?.trim().toLowerCase();
+    const all = [...groups.values()]
+      .filter((g) => !q || g.title.toLowerCase().includes(q))
+      .sort((a, b) => a.title.localeCompare(b.title));
+    const total = all.length;
+    const pageGroups = all.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+
+    // One poster per show on this page, from any of its items.
+    const pageItemIds = pageGroups.flatMap((g) => g.itemIds);
+    const posterRows = pageItemIds.length
+      ? await this.prisma.mediaArtwork.findMany({
+          where: { itemId: { in: pageItemIds }, type: 'poster' },
+          orderBy: { selected: 'desc' },
+          select: { itemId: true, id: true, url: true, localPath: true, type: true, selected: true },
+        })
+      : [];
+    const posterByItem = new Map(posterRows.map((p) => [p.itemId, p]));
 
     const items = pageGroups.map((g) => ({
+      key: encodeSeriesKey(g.kind, g.value),
       title: g.title,
-      year: g._min.year,
-      episodeCount: g._count._all,
-      seasonCount: seasonsByTitle.get(g.title)?.size ?? 0,
-      lastAddedAt: g._max.createdAt,
-      poster: posterByTitle.get(g.title) ?? null,
+      year: g.year,
+      seriesImdbId: g.seriesImdbId,
+      episodeCount: g.itemIds.length,
+      seasonCount: g.seasons.size,
+      lastAddedAt: g.lastAddedAt,
+      poster: g.itemIds.map((id) => posterByItem.get(id)).find(Boolean) ?? null,
     }));
     return { items, total, page, pageSize };
+  }
+
+  /**
+   * A single show's episodes, grouped into seasons, for the browser's lazy
+   * drill-down. `key` is the opaque token from {@link series} (a show folder or a
+   * title). Returns seasons ordered numerically (specials/season 0 last) with a
+   * per-season poster (a `season_poster` artwork for that season, else the show
+   * poster) and the full episode rows (with files, metadata, artwork).
+   */
+  async episodesForSeries(key: string, filters: Pick<ItemFilters, 'matchStatus' | 'libraryId'> = {}) {
+    let decoded: { kind: 'dir' | 'title'; value: string };
+    try {
+      decoded = decodeSeriesKey(key);
+    } catch {
+      throw new BadRequestException('Invalid series key');
+    }
+    const where: Prisma.MediaItemWhereInput = { mediaType: { in: TV_TYPES } };
+    if (filters.matchStatus) where.matchStatus = filters.matchStatus;
+    if (filters.libraryId) where.libraryId = filters.libraryId;
+    // dir → every item under the show folder; title → the library-root files.
+    if (decoded.kind === 'dir') where.path = { startsWith: `${decoded.value}/` };
+    else where.title = decoded.value;
+
+    const episodes = await this.prisma.mediaItem.findMany({
+      where,
+      orderBy: [{ season: 'asc' }, { episode: 'asc' }, { title: 'asc' }],
+      include: {
+        files: true,
+        metadata: true,
+        externalIds: true,
+        artwork: { orderBy: { selected: 'desc' } },
+      },
+    });
+
+    // Bucket by season; a null season sorts last (specials/unknown).
+    const bySeason = new Map<number, typeof episodes>();
+    for (const ep of episodes) {
+      const s = ep.season ?? 0;
+      if (!bySeason.has(s)) bySeason.set(s, []);
+      bySeason.get(s)!.push(ep);
+    }
+    const showPoster = episodes
+      .flatMap((e) => e.artwork)
+      .find((a) => a.type === 'poster') ?? null;
+
+    const seasons = [...bySeason.entries()]
+      .sort(([a], [b]) => (a === 0 ? Infinity : a) - (b === 0 ? Infinity : b))
+      .map(([seasonNumber, eps]) => ({
+        seasonNumber,
+        episodeCount: eps.length,
+        poster:
+          eps.flatMap((e) => e.artwork).find((a) => a.type === 'season_poster' && (a.seasonNumber ?? seasonNumber) === seasonNumber) ??
+          showPoster,
+        episodes: eps,
+      }));
+
+    return { key, seasons };
   }
 
   async get(id: string) {

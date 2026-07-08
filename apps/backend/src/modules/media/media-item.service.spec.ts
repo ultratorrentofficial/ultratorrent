@@ -7,48 +7,88 @@ function make(total = 0, rows: unknown[] = []) {
   return { svc: new MediaItemService(prisma as any), findMany, count };
 }
 
-describe('MediaItemService.series (TV grouping)', () => {
-  function makeSeries() {
-    const groupBy = jest.fn().mockImplementation(({ by }: { by: string[] }) => {
-      if (by.length === 1) {
-        // distinct shows
-        return Promise.resolve([
-          { title: 'Interview with the Vampire', _count: { _all: 12 }, _max: { createdAt: new Date('2026-06-01') }, _min: { year: 2022 } },
-          { title: 'Reginald the Vampire', _count: { _all: 20 }, _max: { createdAt: new Date('2026-05-01') }, _min: { year: 2022 } },
-        ]);
-      }
-      // title + season
-      return Promise.resolve([
-        { title: 'Interview with the Vampire', season: 1, _count: { _all: 7 } },
-        { title: 'Interview with the Vampire', season: 2, _count: { _all: 5 } },
-        { title: 'Reginald the Vampire', season: 1, _count: { _all: 10 } },
-        { title: 'Reginald the Vampire', season: 2, _count: { _all: 10 } },
-      ]);
-    });
-    const findMany = jest.fn().mockResolvedValue([
-      { title: 'Interview with the Vampire', artwork: [{ id: 'a1', url: 'http://x/p.jpg', localPath: null, type: 'poster', selected: true }] },
-    ]);
-    const prisma = { mediaItem: { groupBy, findMany, count: jest.fn() } };
-    return { svc: new MediaItemService(prisma as any), groupBy };
+import { decodeSeriesKey } from './series-grouping';
+
+describe('MediaItemService.series (folder-based TV grouping)', () => {
+  // Two episodes of one folder-organised show whose *titles* are the episode
+  // names (the fragmentation trap), plus a loose file at a library root.
+  const ROWS = [
+    { id: 'e1', title: 'Pilot',        year: null, season: 1, seriesImdbId: 'tt7235466', createdAt: new Date('2026-05-01'), path: '/tv/9-1-1 (2018)/Season 1/9-1-1 - S01E01.mkv' },
+    { id: 'e2', title: 'Let Go',       year: null, season: 1, seriesImdbId: null,         createdAt: new Date('2026-05-03'), path: '/tv/9-1-1 (2018)/Season 1/9-1-1 - S01E02.mkv' },
+    { id: 'e3', title: 'Next of Kin',  year: null, season: 2, seriesImdbId: null,         createdAt: new Date('2026-05-05'), path: '/tv/9-1-1 (2018)/Season 2/9-1-1 - S02E01.mkv' },
+    { id: 'x1', title: 'Loose Show',   year: 2020, season: 1, seriesImdbId: null,         createdAt: new Date('2026-05-02'), path: '/tv/Loose Show - S01E01.mkv' },
+  ];
+  function makeSeries(rows = ROWS, posters: any[] = []) {
+    const prisma = {
+      mediaItem: { findMany: jest.fn().mockResolvedValue(rows), count: jest.fn() },
+      mediaLibrary: { findMany: jest.fn().mockResolvedValue([{ path: '/tv' }]) },
+      mediaArtwork: { findMany: jest.fn().mockResolvedValue(posters) },
+    };
+    return { svc: new MediaItemService(prisma as any), prisma };
   }
 
-  it('returns one row per show with season + episode counts and a poster', async () => {
+  it('collapses episode-titled files into ONE show by folder — never per-episode rows', async () => {
     const { svc } = makeSeries();
     const res = await svc.series({});
-    expect(res).toMatchObject({ total: 2, page: 1, pageSize: 30 });
-    const interview = res.items.find((s) => s.title === 'Interview with the Vampire')!;
-    expect(interview).toMatchObject({ episodeCount: 12, seasonCount: 2, year: 2022 });
-    expect(interview.poster).toMatchObject({ id: 'a1', type: 'poster' });
-    // A show without a poster row falls back to null.
-    expect(res.items.find((s) => s.title === 'Reginald the Vampire')!.poster).toBeNull();
+    // Two shows total: the 9-1-1 folder (3 eps) + the loose-root file.
+    expect(res.total).toBe(2);
+    const show = res.items.find((s) => s.title === '9-1-1')!;
+    expect(show).toMatchObject({ title: '9-1-1', year: 2018, episodeCount: 3, seasonCount: 2, seriesImdbId: 'tt7235466' });
+    // The episode titles ("Pilot"/"Let Go"/"Next of Kin") must NOT appear as shows.
+    expect(res.items.some((s) => ['Pilot', 'Let Go', 'Next of Kin'].includes(s.title))).toBe(false);
+    // The show key round-trips to the folder for episode fetching.
+    expect(decodeSeriesKey(show.key)).toEqual({ kind: 'dir', value: '/tv/9-1-1 (2018)' });
   });
 
-  it('filters to TV media types and honors matchStatus/library filters', async () => {
-    const { svc, groupBy } = makeSeries();
+  it('falls back to title grouping for files directly at a library root', async () => {
+    const { svc } = makeSeries();
+    const res = await svc.series({});
+    const loose = res.items.find((s) => s.title === 'Loose Show')!;
+    expect(loose).toMatchObject({ episodeCount: 1 });
+    expect(decodeSeriesKey(loose.key)).toEqual({ kind: 'title', value: 'Loose Show' });
+  });
+
+  it('attaches one poster per show from any of its items', async () => {
+    const { svc } = makeSeries(ROWS, [{ itemId: 'e2', id: 'a1', url: 'http://x/p.jpg', localPath: null, type: 'poster', selected: true }]);
+    const res = await svc.series({});
+    expect(res.items.find((s) => s.title === '9-1-1')!.poster).toMatchObject({ id: 'a1', type: 'poster' });
+  });
+
+  it('filters to TV media types on the item query', async () => {
+    const { svc, prisma } = makeSeries();
     await svc.series({ matchStatus: 'unmatched', libraryId: 'lib1' });
-    const where = groupBy.mock.calls[0][0].where;
+    const where = prisma.mediaItem.findMany.mock.calls[0][0].where;
     expect(where.mediaType).toEqual({ in: ['tv', 'anime', 'episode'] });
     expect(where).toMatchObject({ matchStatus: 'unmatched', libraryId: 'lib1' });
+  });
+});
+
+describe('MediaItemService.episodesForSeries', () => {
+  function make(episodes: any[]) {
+    const findMany = jest.fn().mockResolvedValue(episodes);
+    const prisma = { mediaItem: { findMany } };
+    return { svc: new MediaItemService(prisma as any), findMany };
+  }
+  const key = Buffer.from('dir:/tv/9-1-1 (2018)', 'utf8').toString('base64url');
+
+  it('queries by the folder path prefix and groups episodes into ordered seasons (specials last)', async () => {
+    const eps = [
+      { id: 'e1', season: 1, episode: 1, artwork: [] },
+      { id: 'e2', season: 1, episode: 2, artwork: [{ type: 'season_poster', seasonNumber: 1, id: 'sp1' }] },
+      { id: 'e3', season: 2, episode: 1, artwork: [] },
+      { id: 'e0', season: 0, episode: 1, artwork: [] }, // special → last
+    ];
+    const { svc, findMany } = make(eps);
+    const res = await svc.episodesForSeries(key);
+    expect(findMany.mock.calls[0][0].where.path).toEqual({ startsWith: '/tv/9-1-1 (2018)/' });
+    expect(res.seasons.map((s) => s.seasonNumber)).toEqual([1, 2, 0]);
+    expect(res.seasons[0]).toMatchObject({ seasonNumber: 1, episodeCount: 2 });
+    expect(res.seasons[0].poster).toMatchObject({ type: 'season_poster' });
+  });
+
+  it('rejects a malformed key', async () => {
+    const { svc } = make([]);
+    await expect(svc.episodesForSeries('!!!not-base64!!!')).rejects.toThrow(/invalid series key/i);
   });
 });
 

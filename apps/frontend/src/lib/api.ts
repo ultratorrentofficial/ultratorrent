@@ -938,12 +938,29 @@ export interface MediaItemPage {
 
 /** One show in the grouped TV browser. */
 export interface MediaSeriesGroup {
+  /** Opaque round-trip token identifying this show (folder or title) — pass to `seriesEpisodes`. */
+  key: string;
   title: string;
   year: number | null;
+  seriesImdbId: string | null;
   episodeCount: number;
   seasonCount: number;
   lastAddedAt: string;
   poster: MediaArtworkRef | null;
+}
+
+/** One season of a show, with its episodes and a season poster (falls back to the show poster). */
+export interface MediaSeasonGroup {
+  seasonNumber: number;
+  episodeCount: number;
+  poster: MediaArtworkRef | null;
+  episodes: MediaItem[];
+}
+
+/** A show's episodes, grouped into ordered seasons — from `GET /media/series/episodes`. */
+export interface MediaSeriesEpisodes {
+  key: string;
+  seasons: MediaSeasonGroup[];
 }
 
 export interface MediaItemUpdateInput {
@@ -2742,6 +2759,9 @@ export const api = {
     },
     listSeries(query: MediaItemQuery = {}): Promise<Paginated<MediaSeriesGroup>> {
       return request<Paginated<MediaSeriesGroup>>('/media/series', { query: query as QueryParams });
+    },
+    seriesEpisodes(key: string, opts: { matchStatus?: string; libraryId?: string } = {}): Promise<MediaSeriesEpisodes> {
+      return request<MediaSeriesEpisodes>('/media/series/episodes', { query: { key, ...opts } as QueryParams });
     },
     getItem(id: string): Promise<MediaItemDetail> {
       return request<MediaItemDetail>(`/media/items/${id}`);

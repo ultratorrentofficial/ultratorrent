@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ChevronRight, Clapperboard, Layers, Tv } from 'lucide-react';
-import { api, type MediaItem, type MediaSeriesGroup } from '@/lib/api';
+import { api, type MediaItem, type MediaSeasonGroup, type MediaSeriesGroup } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
@@ -20,31 +20,11 @@ interface SeriesFilters {
   search?: string;
 }
 
-/** A season bucket of a show's episodes, sorted. */
-interface SeasonBucket {
-  season: number | null;
-  episodes: MediaItem[];
-}
-
-function groupBySeason(episodes: MediaItem[]): SeasonBucket[] {
-  const bySeason = new Map<number | null, MediaItem[]>();
-  for (const ep of episodes) {
-    const key = ep.season ?? null;
-    if (!bySeason.has(key)) bySeason.set(key, []);
-    bySeason.get(key)!.push(ep);
-  }
-  return [...bySeason.entries()]
-    .map(([season, eps]) => ({
-      season,
-      episodes: eps.sort((a, b) => (a.episode ?? 0) - (b.episode ?? 0)),
-    }))
-    // Specials (null / 0) last, otherwise ascending.
-    .sort((a, b) => (a.season ?? 9999) - (b.season ?? 9999));
-}
-
 /**
  * TV browser: shows grouped into a collapsible Show → Season → Episode tree,
- * paginated by show. A show's episodes are fetched lazily on first expand.
+ * paginated by show. Grouping is done server-side by show folder (so a folder
+ * of episode-titled files reads as one show, never a row per episode); a show's
+ * seasons + episodes are fetched lazily on first expand.
  */
 export function SeriesGroupedList({ mediaType, matchStatus, libraryId, search }: SeriesFilters) {
   const { t } = useTranslation('media');
@@ -73,7 +53,7 @@ export function SeriesGroupedList({ mediaType, matchStatus, libraryId, search }:
     <div className="space-y-3">
       <ul className="space-y-2">
         {series.map((s) => (
-          <SeriesRow key={s.title} series={s} filters={{ mediaType, matchStatus, libraryId }} />
+          <SeriesRow key={s.key} series={s} filters={{ matchStatus, libraryId }} />
         ))}
       </ul>
       <Pagination page={page} pageSize={SERIES_PAGE_SIZE} total={q.data?.total ?? 0} onPage={setPage} busy={q.isFetching} />
@@ -81,17 +61,16 @@ export function SeriesGroupedList({ mediaType, matchStatus, libraryId, search }:
   );
 }
 
-function SeriesRow({ series, filters }: { series: MediaSeriesGroup; filters: SeriesFilters }) {
+function SeriesRow({ series, filters }: { series: MediaSeriesGroup; filters: { matchStatus?: string; libraryId?: string } }) {
   const { t } = useTranslation('media');
   const [open, setOpen] = useState(false);
 
   const epQ = useQuery({
-    queryKey: ['media', 'series', 'episodes', series.title, filters],
-    // A show's episodes are bounded; fetch them all in one page for grouping.
-    queryFn: () => api.media.listItems({ ...filters, title: series.title, pageSize: 1000 }),
+    queryKey: ['media', 'series', 'episodes', series.key, filters],
+    queryFn: () => api.media.seriesEpisodes(series.key, filters),
     enabled: open,
   });
-  const seasons = useMemo(() => groupBySeason(epQ.data?.items ?? []), [epQ.data]);
+  const seasons = epQ.data?.seasons ?? [];
 
   return (
     <li>
@@ -124,8 +103,8 @@ function SeriesRow({ series, filters }: { series: MediaSeriesGroup; filters: Ser
               <ErrorState message={t('items.error')} onRetry={() => epQ.refetch()} />
             ) : (
               <div className="space-y-1">
-                {seasons.map((bucket) => (
-                  <SeasonRow key={String(bucket.season)} bucket={bucket} />
+                {seasons.map((s) => (
+                  <SeasonRow key={s.seasonNumber} season={s} />
                 ))}
               </div>
             )}
@@ -136,11 +115,11 @@ function SeriesRow({ series, filters }: { series: MediaSeriesGroup; filters: Ser
   );
 }
 
-function SeasonRow({ bucket }: { bucket: SeasonBucket }) {
+function SeasonRow({ season }: { season: MediaSeasonGroup }) {
   const { t } = useTranslation('media');
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const label = bucket.season == null || bucket.season === 0 ? t('items.series.specials') : t('items.series.season', { season: bucket.season });
+  const label = season.seasonNumber === 0 ? t('items.series.specials') : t('items.series.season', { season: season.seasonNumber });
 
   return (
     <div className="rounded-md">
@@ -151,12 +130,13 @@ function SeasonRow({ bucket }: { bucket: SeasonBucket }) {
         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-white/[0.03]"
       >
         <ChevronRight className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', open && 'rotate-90')} />
+        <MediaPoster artwork={season.poster} alt={label} className="h-9 w-6 shrink-0 rounded-sm ring-1 ring-white/10" iconClassName="h-3.5 w-3.5" />
         <span className="font-medium">{label}</span>
-        <span className="text-xs text-muted-foreground">{t('items.series.episodes', { count: bucket.episodes.length })}</span>
+        <span className="text-xs text-muted-foreground">{t('items.series.episodes', { count: season.episodeCount })}</span>
       </button>
       {open && (
-        <ul className="ml-5 border-l border-white/5 pl-2">
-          {bucket.episodes.map((ep) => (
+        <ul className="ml-6 border-l border-white/5 pl-2">
+          {season.episodes.map((ep) => (
             <li key={ep.id}>
               <button
                 type="button"
