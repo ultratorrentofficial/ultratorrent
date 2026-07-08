@@ -1833,6 +1833,19 @@ export interface AcquisitionTraceStep {
   decision?: string;
 }
 
+/**
+ * Release score breakdown persisted with an evaluation. The backend stores this
+ * as a JSON object (numeric `value` plus the reasons/warnings that produced it),
+ * so consumers must read `.value` for the numeric score — never render the
+ * object directly. A plain number is tolerated for forward/backward safety.
+ */
+export interface ReleaseScoreBreakdown {
+  value: number;
+  decision?: string;
+  reasons?: string[];
+  warnings?: string[];
+}
+
 export interface AcquisitionEvaluation {
   id: string;
   releaseName: string;
@@ -1842,7 +1855,7 @@ export interface AcquisitionEvaluation {
   requiresApproval: boolean;
   approvalStatus: AcquisitionApprovalStatus;
   trace: { steps: AcquisitionTraceStep[] };
-  releaseScore: number;
+  releaseScore: ReleaseScoreBreakdown | number;
   libraryMatch: unknown;
   duplicateRisk: unknown;
   createdAt?: string;

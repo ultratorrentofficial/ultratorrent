@@ -146,6 +146,17 @@ function approvalVariant(status: string): BadgeVariant {
   }
 }
 
+/**
+ * An evaluation's `releaseScore` is a breakdown object ({value, reasons, …}),
+ * not a bare number — rendering it directly throws React #31. Read the numeric
+ * `value` (tolerating a plain number for safety).
+ */
+export function scoreValue(s: AcquisitionEvaluation['releaseScore'] | null | undefined): number | string {
+  if (s == null) return '—';
+  if (typeof s === 'number') return s;
+  return s.value ?? '—';
+}
+
 function renderMeta(value: unknown, yes: string, no: string): string {
   if (value == null) return '—';
   if (typeof value === 'boolean') return value ? yes : no;
@@ -1376,7 +1387,7 @@ function EvaluationsTab() {
                   <span className="ml-auto text-xs tabular-nums text-muted-foreground">
                     {t('acquisition.evaluations.confidenceScore', {
                       confidence: formatPercent(testResult.confidence),
-                      score: testResult.releaseScore,
+                      score: scoreValue(testResult.releaseScore),
                     })}
                   </span>
                 </div>
@@ -1468,7 +1479,7 @@ function EvaluationsTab() {
                         {formatPercent(ev.confidence)}
                       </TableCell>
                       <TableCell className="pr-4 text-xs tabular-nums text-muted-foreground">
-                        {ev.releaseScore}
+                        {scoreValue(ev.releaseScore)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1533,7 +1544,7 @@ function EvaluationDetailDialog({
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
                 {t('acquisition.evaluations.detail.score')}
               </p>
-              <p className="text-sm font-semibold tabular-nums">{ev.releaseScore}</p>
+              <p className="text-sm font-semibold tabular-nums">{scoreValue(ev.releaseScore)}</p>
             </div>
             <div className="rounded-md border border-border/60 bg-white/[0.02] px-3 py-2">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -1673,7 +1684,7 @@ function ApprovalQueueTab() {
                       <span className="text-xs text-muted-foreground">{ev.decisionReason}</span>
                       <span className="text-xs tabular-nums text-muted-foreground">
                         {t('acquisition.approvals.scoreConfidence', {
-                          score: ev.releaseScore,
+                          score: scoreValue(ev.releaseScore),
                           confidence: formatPercent(ev.confidence),
                         })}
                       </span>
