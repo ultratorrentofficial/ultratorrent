@@ -1018,7 +1018,11 @@
       "searchNoResults": "No matching release found",
       "searchFailed": "Search failed",
       "searchSeriesDone": "Searched {{count}} episodes — {{grabbed}} grabbed",
-      "addFromLibrary": "Add from library"
+      "addFromLibrary": "Add from library",
+      "remove": "Remove {{title}} from the watchlist",
+      "confirmRemove": "Remove “{{title}}” from the Missing Episodes watchlist? Tracking for this show will stop.",
+      "removed": "Removed “{{title}}” from the watchlist",
+      "removeFailed": "Could not remove the show from the watchlist"
     },
     "simulator": {
       "title": "Decision Simulator",

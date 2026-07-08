@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, Plus, RefreshCw, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import {
   api,
@@ -132,6 +132,7 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
   const canEvaluate = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_EVALUATE);
+  const canManage = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_MANAGE_WATCHLIST);
   const [open, setOpen] = useState(false);
 
   const episodes = useQuery({
@@ -172,6 +173,19 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
     onError: (err) =>
       toast.error(
         t('acquisition.missingEpisodes.searchFailed'),
+        err instanceof ApiError ? err.message : undefined,
+      ),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => api.mediaAcquisition.deleteWatchlist(series.watchlistItemId),
+    onSuccess: () => {
+      toast.success(t('acquisition.missingEpisodes.removed', { title: series.title }));
+      void queryClient.invalidateQueries({ queryKey: QK });
+    },
+    onError: (err) =>
+      toast.error(
+        t('acquisition.missingEpisodes.removeFailed'),
         err instanceof ApiError ? err.message : undefined,
       ),
   });
@@ -223,6 +237,22 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
               <RefreshCw className={scan.isPending ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
               {t('acquisition.missingEpisodes.scanSeries')}
             </Button>
+            {canManage && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (window.confirm(t('acquisition.missingEpisodes.confirmRemove', { title: series.title })))
+                    remove.mutate();
+                }}
+                disabled={remove.isPending}
+                aria-label={t('acquisition.missingEpisodes.remove', { title: series.title })}
+                title={t('acquisition.missingEpisodes.remove', { title: series.title })}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className={remove.isPending ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+              </Button>
+            )}
           </div>
         </div>
 

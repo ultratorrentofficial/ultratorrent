@@ -1018,7 +1018,11 @@
       "searchNoResults": "No se encontró un lanzamiento coincidente",
       "searchFailed": "La búsqueda falló",
       "searchSeriesDone": "Se buscaron {{count}} episodios — {{grabbed}} obtenidos",
-      "addFromLibrary": "Agregar desde la biblioteca"
+      "addFromLibrary": "Agregar desde la biblioteca",
+      "remove": "Quitar {{title}} de la lista",
+      "confirmRemove": "¿Quitar «{{title}}» de la lista de Episodios Faltantes? Se detendrá el seguimiento de este programa.",
+      "removed": "Se quitó «{{title}}» de la lista",
+      "removeFailed": "No se pudo quitar el programa de la lista"
     },
     "simulator": {
       "title": "Simulador de decisiones",
