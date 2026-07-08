@@ -1143,7 +1143,8 @@
         "libraryMatch": "Coincidencia en biblioteca",
         "duplicateRisk": "Riesgo de duplicado",
         "decisionTrace": "Rastro de decisión",
-        "actions": "Acciones"
+        "actions": "Acciones",
+        "size": "Tamaño"
       }
     },
     "approvals": {

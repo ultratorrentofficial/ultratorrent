@@ -1910,6 +1910,8 @@ export interface AcquisitionEvaluation {
   approvalStatus: AcquisitionApprovalStatus;
   trace: { steps: AcquisitionTraceStep[] };
   releaseScore: ReleaseScoreBreakdown | number;
+  /** Parsed release metadata; carries the release file size for review. */
+  parsedMetadata?: { sizeBytes?: number | null; [key: string]: unknown } | null;
   libraryMatch: unknown;
   duplicateRisk: unknown;
   createdAt?: string;

@@ -1143,7 +1143,8 @@
         "libraryMatch": "Library match",
         "duplicateRisk": "Duplicate risk",
         "decisionTrace": "Decision trace",
-        "actions": "Actions"
+        "actions": "Actions",
+        "size": "Size"
       }
     },
     "approvals": {

@@ -129,7 +129,9 @@ export class AcquisitionEvaluatorService {
         sourceType: input.sourceType ?? 'manual',
         sourceId: input.sourceId,
         releaseName: input.releaseName,
-        parsedMetadata: parsed as unknown as object,
+        // Persist the file size alongside the parsed release metadata so the
+        // approval queue can surface it as part of the info to review.
+        parsedMetadata: { ...(parsed as object), sizeBytes: input.sizeBytes ?? null } as unknown as object,
         watchlistItemId: watchlist.item?.id,
         profileId: profileRow?.id,
         libraryMatch: library as unknown as object,
@@ -207,6 +209,7 @@ export class AcquisitionEvaluatorService {
         sourceType: input.sourceType ?? 'watchlist_sweep',
         sourceId: input.sourceId,
         releaseName: input.releaseName,
+        parsedMetadata: { sizeBytes: input.sizeBytes ?? null } as object,
         watchlistItemId: input.watchlistItemId,
         releaseScore: { value: null, source: 'match_preferences', reason: input.reason } as object,
         decision: 'download',

@@ -65,6 +65,14 @@ describe('Acquisition evaluation', () => {
     expect(rt.broadcast).toHaveBeenCalledWith('media_acquisition.download.recommended', expect.any(Object));
   });
 
+  it('persists the release file size on the evaluation (for the approval queue to surface)', async () => {
+    const { evaluator, watchlist, profiles } = build();
+    await watchlist.create({ type: 'series', title: 'The Show' });
+    await profiles.create({ name: 'P', mediaType: 'tv', minimumScore: 50, approvalScore: 0 });
+    const ev = await evaluator.evaluate({ releaseName: RELEASE, sizeBytes: 734003200 }, 'u1');
+    expect((ev.parsedMetadata as any).sizeBytes).toBe(734003200);
+  });
+
   it('skips when the episode is already owned in equal quality', async () => {
     const { evaluator, watchlist, profiles, prisma } = build();
     await watchlist.create({ type: 'series', title: 'The Show' });

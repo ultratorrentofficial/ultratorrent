@@ -40,7 +40,7 @@ import {
   type WatchlistItem,
   type WatchlistItemType,
 } from '@/lib/api';
-import { formatDateTime, formatNumber, formatPercent } from '@/lib/format';
+import { formatBytes, formatDateTime, formatNumber, formatPercent } from '@/lib/format';
 import { useAuth } from '@/auth/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
@@ -1573,6 +1573,14 @@ function EvaluationDetailDialog({
             </div>
             <div className="rounded-md border border-border/60 bg-white/[0.02] px-3 py-2">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                {t('acquisition.evaluations.detail.size')}
+              </p>
+              <p className="text-sm font-semibold tabular-nums">
+                {ev.parsedMetadata?.sizeBytes != null ? formatBytes(ev.parsedMetadata.sizeBytes) : '—'}
+              </p>
+            </div>
+            <div className="rounded-md border border-border/60 bg-white/[0.02] px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
                 {t('acquisition.evaluations.detail.libraryMatch')}
               </p>
               <p
@@ -1713,6 +1721,11 @@ function ApprovalQueueTab() {
                           confidence: formatPercent(ev.confidence),
                         })}
                       </span>
+                      {ev.parsedMetadata?.sizeBytes != null && (
+                        <Badge variant="outline" className="tabular-nums" title={t('acquisition.evaluations.detail.size')}>
+                          {formatBytes(ev.parsedMetadata.sizeBytes)}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
