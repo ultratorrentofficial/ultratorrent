@@ -48,8 +48,12 @@ const MATCH_THRESHOLD = 0.5;
 export class MediaIdentificationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Parse the item's filename and persist the derived identity. */
-  async identify(item: MediaItem | string) {
+  /**
+   * Parse the item's filename and persist the derived identity. `libraryKind` is
+   * the item's library kind; pass it to skip a per-item lookup (bulk runs do),
+   * otherwise it is resolved from the record's library.
+   */
+  async identify(item: MediaItem | string, libraryKind?: string) {
     const record =
       typeof item === 'string'
         ? await this.prisma.mediaItem.findUnique({ where: { id: item } })
@@ -58,7 +62,8 @@ export class MediaIdentificationService {
 
     const parsed = this.parseFromPath(record.path);
     const confidence = this.scoreConfidence(parsed);
-    const mediaType = this.mediaTypeFromParsed(parsed, record.mediaType);
+    const kind = libraryKind ?? (await this.libraryKind(record.libraryId));
+    const mediaType = this.mediaTypeFromParsed(parsed, record.mediaType, kind);
     const isEpisodic = mediaType === 'tv' || mediaType === 'anime';
 
     return this.prisma.mediaItem.update({
@@ -102,9 +107,16 @@ export class MediaIdentificationService {
       failed: 0,
     };
 
+    // Prefetch each library's declared kind once so classification doesn't do a
+    // lookup per item (see {@link mediaTypeFromParsed}).
+    const libraries = await this.prisma.mediaLibrary.findMany({
+      select: { id: true, kind: true },
+    });
+    const kindByLibrary = new Map(libraries.map((l) => [l.id, l.kind]));
+
     for (let i = 0; i < items.length; i++) {
       try {
-        const updated = await this.identify(items[i]);
+        const updated = await this.identify(items[i], kindByLibrary.get(items[i].libraryId));
         if (updated.matchStatus === 'matched') summary.matched++;
         else summary.unmatched++;
       } catch {
@@ -224,7 +236,28 @@ export class MediaIdentificationService {
     );
   }
 
-  private mediaTypeFromParsed(parsed: ParsedTorrentMeta, fallback: string): string {
+  /**
+   * Decide an item's mediaType. The library declares what it holds, so its
+   * `kind` is authoritative for the movie/tv/anime axis: a name like
+   * `9-1-1 (2018)` carries a year but no episode marker and would otherwise be
+   * inferred as a *movie*, misclassifying a whole TV show. The filename parse
+   * still supplies episode *structure* (season/episode/absolute) downstream; it
+   * just no longer decides the category when the library already declares it.
+   * Only mixed/general libraries (no clear video kind) fall back to inference.
+   */
+  private mediaTypeFromParsed(
+    parsed: ParsedTorrentMeta,
+    fallback: string,
+    libraryKind?: string,
+  ): string {
+    switch (libraryKind) {
+      case 'movie':
+        return 'movie';
+      case 'tv':
+        return 'tv';
+      case 'anime':
+        return 'anime';
+    }
     switch (parsed.contentType) {
       case 'tv_episode':
       case 'daily':
@@ -236,6 +269,20 @@ export class MediaIdentificationService {
       default:
         return fallback;
     }
+  }
+
+  /**
+   * The declared kind of the item's library (`tv | anime | movie | ...`), used to
+   * anchor classification. Fetched fresh (not cached) so a library whose kind was
+   * just changed re-classifies correctly on the next identify; bulk runs pass a
+   * prefetched value instead to avoid a lookup per item.
+   */
+  private async libraryKind(libraryId: string): Promise<string | undefined> {
+    const lib = await this.prisma.mediaLibrary.findUnique({
+      where: { id: libraryId },
+      select: { kind: true },
+    });
+    return lib?.kind;
   }
 
   /**

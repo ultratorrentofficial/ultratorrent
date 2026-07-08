@@ -52,6 +52,17 @@ describe('parseTorrentName', () => {
     expect(m.title).toBe('The Example Show');
   });
 
+  it('strips a parenthesized (Year) from an episode title (9-1-1)', () => {
+    // The "(2018)" release year must end the title even though S01E01 follows,
+    // otherwise the title folds it in as "9-1-1 2018" and splits the show.
+    const m = parseTorrentName('9-1-1 (2018) - S01E01 - Pilot.mkv');
+    expect(m.title).toBe('9-1-1');
+    expect(m.year).toBe(2018);
+    expect(m.season).toBe(1);
+    expect(m.episode).toBe(1);
+    expect(m.contentType).toBe('tv_episode');
+  });
+
   it('parses a movie with year', () => {
     const m = parseTorrentName('Dune.Part.Two.2024.2160p.BluRay.x265.DTS-HD.HDR-RARBG');
     expect(m.contentType).toBe('movie');

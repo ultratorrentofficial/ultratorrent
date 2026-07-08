@@ -15,15 +15,21 @@ describe('MediaIdentificationService.identify', () => {
       update: jest.fn().mockImplementation(({ data }: { data: unknown }) => data),
       findUnique: jest.fn(),
     },
+    mediaLibrary: { findUnique: jest.fn().mockResolvedValue(null) },
     mediaExternalId: { findUnique: jest.fn().mockResolvedValue(null) },
     iMDbEpisode: { findUnique: jest.fn().mockResolvedValue(null) },
     iMDbTitle: { findUnique: jest.fn().mockResolvedValue(null) },
   });
 
-  const identify = (path: string, mediaType = 'tv') => {
+  // `libraryKind` (when set) is passed straight through, so classification tests
+  // don't need to mock the library lookup.
+  const identify = (path: string, mediaType = 'tv', libraryKind?: string) => {
     const prisma = makePrisma();
     const service = new MediaIdentificationService(prisma as never);
-    return service.identify({ id: 'I1', path, title: '', mediaType } as never);
+    return service.identify(
+      { id: 'I1', libraryId: 'L1', path, title: '', mediaType } as never,
+      libraryKind,
+    );
   };
 
   it('recovers the series title from the folder for a title-less episode file', async () => {
@@ -69,6 +75,39 @@ describe('MediaIdentificationService.identify', () => {
     expect(res.matchStatus).toBe('unmatched');
     expect(res.confidence).toBeLessThan(0.5);
   });
+
+  // A TV library holds shows: a name carrying a year but no episode marker
+  // (e.g. the show folder "9-1-1 (2018)") must not be inferred as a movie.
+  it("classifies a year-only name in a TV library as tv, not movie (9-1-1)", async () => {
+    const res: any = await identify(
+      '/media/TV/9-1-1 (2018)/9-1-1 (2018).mkv',
+      'movie', // stale ingest guess — the library kind must win
+      'tv',
+    );
+    expect(res.mediaType).toBe('tv');
+    expect(res.title).toBe('9-1-1');
+    expect(res.year).toBe(2018);
+  });
+
+  // The parenthesized release year must be stripped from the title even when an
+  // episode marker follows — otherwise the title becomes "9-1-1 2018" and splits
+  // the show / breaks the metadata lookup.
+  it('keeps the title clean for "Show (Year) - SxxEyy" episodes (9-1-1)', async () => {
+    const res: any = await identify(
+      '/media/TV/9-1-1 (2018)/Season 01/9-1-1 (2018) - S01E01 - Pilot.mkv',
+      'tv',
+      'tv',
+    );
+    expect(res.mediaType).toBe('tv');
+    expect(res.title).toBe('9-1-1');
+    expect(res.season).toBe(1);
+    expect(res.episode).toBe(1);
+  });
+
+  it('respects a movie library even for an episode-shaped name', async () => {
+    const res: any = await identify('/media/Movies/Some.Film.S01E01.mkv', 'movie', 'movie');
+    expect(res.mediaType).toBe('movie');
+  });
 });
 
 describe('MediaIdentificationService.identifyBulk', () => {
@@ -85,6 +124,7 @@ describe('MediaIdentificationService.identifyBulk', () => {
       update: jest.fn().mockImplementation(({ data }: { data: unknown }) => data),
       findUnique: jest.fn(),
     },
+    mediaLibrary: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
     mediaExternalId: { findUnique: jest.fn().mockResolvedValue(null) },
     iMDbEpisode: { findUnique: jest.fn().mockResolvedValue(null) },
     iMDbTitle: { findUnique: jest.fn().mockResolvedValue(null) },

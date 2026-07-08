@@ -183,9 +183,15 @@ export function parseTorrentName(raw: string): ParsedTorrentMeta {
     const chosen = parenYear ?? yearMatches[yearMatches.length - 1];
     meta.year = +chosen[0];
     explain('Year', String(meta.year), `Detected four-digit year "${meta.year}".`);
-    // Year is a title boundary only when there's no episode marker and it isn't
-    // the leading token (a leading year is part of the title, not a boundary).
-    if (meta.season === null && meta.absoluteEpisode === null && chosen.index > 0) {
+    // Year is a title boundary when it isn't the leading token (a leading year is
+    // part of the title, not a boundary). A *parenthesized* "(YYYY)" is the
+    // release-year convention and always ends the title — otherwise a name like
+    // "9-1-1 (2018) S01E01" folds the year into the title as "9-1-1 2018". A bare
+    // trailing year is only a boundary when no episode marker precedes it.
+    if (
+      (parenYear || (meta.season === null && meta.absoluteEpisode === null)) &&
+      chosen.index > 0
+    ) {
       setCut(chosen.index);
     }
   }
