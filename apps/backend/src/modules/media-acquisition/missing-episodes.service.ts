@@ -109,7 +109,14 @@ export class MissingEpisodesService {
     if (item.type !== 'series' && item.type !== 'season') {
       throw new BadRequestException('Watchlist item is not a monitorable series');
     }
-    const seriesTconst = this.imdbId(item.externalIds);
+    let seriesTconst = this.imdbId(item.externalIds);
+    if (!seriesTconst) {
+      // Self-heal: a series added without an IMDb id can't be scanned. Try to
+      // resolve one from the local IMDb catalogue by title (+year) and persist
+      // it, so the scheduled scan auto-enables monitoring on the next run
+      // instead of silently skipping the show forever.
+      seriesTconst = await this.resolveAndPersistImdbId(item, userId);
+    }
     if (!seriesTconst) {
       throw new BadRequestException('Watchlist item has no IMDb id to scan');
     }

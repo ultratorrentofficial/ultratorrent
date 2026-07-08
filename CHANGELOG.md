@@ -45,6 +45,16 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.26.0] - 2026-07-08
+
+### Added
+- Approval Queue shows the release file size (persist sizeBytes on evaluations + surface it in the queue and evaluation detail)
+- Missing Episodes page: remove a show from the watchlist inline (trash button, manage_watchlist-gated)
+
+### Fixed
+- RSS matching: `contains_text` and the smart match types now match title words as whole tokens against the release's show-title region (before the SxxEyy), not as substrings of the whole name. Fixes two false-match classes the single-char fix missed: multi-char substring bleed (a "The Boys" rule grabbing "…Cowboys…") and episode-title collisions (a "Severance" rule grabbing a Law & Order episode titled "Severance"). Quality/format words are still matched anywhere in the release.
+- Missing-episode scan now self-heals a monitored TV series that has no IMDb id: on each scan it resolves the series' tconst from the local IMDb catalogue by exact title (+year when known), preferring the candidate with the most catalogued episodes (so the real long-running series wins over a same-named stub), then persists it onto the watchlist item — so the scheduled scan auto-enables monitoring instead of skipping the show forever. No confident match (no title match, or no candidate has any episodes) leaves the item unscannable as before.
+
 ## [0.25.2] - 2026-07-08
 
 ### Fixed
