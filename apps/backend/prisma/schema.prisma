@@ -1160,6 +1160,9 @@ model MediaAcquisitionWatchlistItem {
   status          String   @default("active") // active | paused | completed | archived
   priority        Int      @default(100)
   profileId       String?
+  // Optional link to an RSS rule whose match preferences drive auto-download for
+  // this show. Null → fall back to the global AcquisitionMatchCandidate defaults.
+  rssRuleId       String?
   targetLibraryId String?
   settings        Json?
   createdBy       String?
@@ -1279,6 +1282,33 @@ model MediaAcquisitionProfile {
   updatedAt          DateTime @updatedAt
 
   @@map("media_acquisition_profiles")
+}
+
+/// Global default auto-download match preferences — an ordered candidate list
+/// (lower priorityOrder = higher preference) reusing the RSS match-engine model
+/// (`qualityRules` + `sizeRules` + required/excluded terms). Used by the
+/// missing-episode auto-acquire bridge to decide which release to grab, so
+/// preferences (incl. a real size cap) are configured the same way as RSS rules.
+/// When a monitored show is linked to an RSS rule, that rule's candidates are
+/// used instead; this is the fallback for shows without one.
+model AcquisitionMatchCandidate {
+  id            String    @id @default(uuid())
+  priorityOrder Int       @default(0)
+  name          String
+  description   String?
+  enabled       Boolean   @default(true)
+  matchType     String    @default("smart_episode_match") // exact_text | contains_text | regex | wildcard | smart_episode_match | smart_movie_match | fuzzy_match
+  pattern       String?
+  requiredTerms Json      @default("[]")
+  excludedTerms Json      @default("[]")
+  qualityRules  Json      @default("{}") // { quality, source, codec, resolution, season, episode, year }
+  sizeRules     Json      @default("{}") // { minBytes, maxBytes }
+  lastMatchedAt DateTime?
+  matchCount    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("acquisition_match_candidates")
 }
 
 model MediaAcquisitionEvaluation {

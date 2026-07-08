@@ -9,8 +9,11 @@ const cand = (over: Partial<IndexerCandidate> = {}): IndexerCandidate => ({
   sizeBytes: 1_000_000_000, seeders: 100, categories: [5030], ...over,
 });
 
+const selection = (c: IndexerCandidate) => ({ candidate: c, matchedPriority: 0, reason: 'matched “1080p x265 (≤1 GB)”' });
+
 function build(over: {
   candidates?: IndexerCandidate[];
+  selected?: any; // pass `null` to force no-match; omit to auto-select the first candidate
   evaluation?: any;
   settings?: Record<string, unknown>;
   enabled?: boolean;
@@ -28,11 +31,18 @@ function build(over: {
       update: jest.fn(async ({ data }: any) => { updates.push(data); return { ...wanted, ...data }; }),
     },
     mediaAcquisitionWatchlistItem: {
-      findUnique: jest.fn(async () => ({ id: 'wl1', title: 'The Wire', profileId: 'wlProfile' })),
+      findUnique: jest.fn(async () => ({ id: 'wl1', title: 'The Wire', priority: 100 })),
     },
   };
   const indexers = { searchAll: jest.fn(async () => over.candidates ?? []) };
-  const evaluator = { evaluate: jest.fn(async () => over.evaluation ?? { id: 'ev1', decision: 'download', requiresApproval: false }) };
+  const evaluator = { grabSelected: jest.fn(async () => over.evaluation ?? { id: 'ev1' }) };
+  const matchPrefs = {
+    resolveCandidates: jest.fn(async () => []),
+    select: jest.fn((candidates: IndexerCandidate[]) => {
+      if ('selected' in over) return over.selected;
+      return candidates.length ? selection(candidates[0]) : null;
+    }),
+  };
   const acquisition = {
     getSettings: jest.fn(async () => ({
       autoSearchMissing: true, searchIntervalMinutes: 60, missingSearchProfileId: null, maxSearchesPerSweep: 50,
@@ -44,10 +54,10 @@ function build(over: {
   const eventBus = { emit: jest.fn() };
   const registry = { getStatus: jest.fn(() => ({ enabled: over.enabled ?? true })) };
   const svc = new MissingEpisodeSearchService(
-    prisma as any, indexers as any, evaluator as any, acquisition as any,
+    prisma as any, indexers as any, evaluator as any, matchPrefs as any, acquisition as any,
     audit as any, realtime as any, eventBus as any, registry as any,
   );
-  return { svc, prisma, indexers, evaluator, acquisition, audit, realtime, eventBus, updates };
+  return { svc, prisma, indexers, evaluator, matchPrefs, acquisition, audit, realtime, eventBus, updates };
 }
 
 describe('MissingEpisodeSearchService.sweep — gating', () => {
@@ -55,31 +65,30 @@ describe('MissingEpisodeSearchService.sweep — gating', () => {
     const { svc, evaluator, acquisition } = build({ enabled: false });
     expect(await svc.sweep()).toBeNull();
     expect(acquisition.getSettings).not.toHaveBeenCalled();
-    expect(evaluator.evaluate).not.toHaveBeenCalled();
+    expect(evaluator.grabSelected).not.toHaveBeenCalled();
   });
 
   it('no-ops when autoSearchMissing is off', async () => {
     const { svc, evaluator } = build({ settings: { autoSearchMissing: false } });
     expect(await svc.sweep()).toBeNull();
-    expect(evaluator.evaluate).not.toHaveBeenCalled();
+    expect(evaluator.grabSelected).not.toHaveBeenCalled();
   });
 });
 
 describe('MissingEpisodeSearchService.sweep — grab flow', () => {
-  it('auto-grabs when the evaluator downloads without approval', async () => {
-    const { svc, updates, evaluator, eventBus, realtime } = build({
-      candidates: [cand()],
-      evaluation: { id: 'ev1', decision: 'download', requiresApproval: false },
-    });
+  it('grabs the release the match preferences selected', async () => {
+    const { svc, updates, evaluator, matchPrefs, eventBus, realtime } = build({ candidates: [cand()] });
     const summary = await svc.sweep();
     expect(summary).toMatchObject({ scanned: 1, grabbed: 1 });
-    // evaluate got the candidate release + magnet, with the missing_episode source.
-    expect(evaluator.evaluate).toHaveBeenCalledWith(
+    // preferences decided the pick; grabSelected got the release + magnet + source.
+    expect(matchPrefs.select).toHaveBeenCalled();
+    expect(evaluator.grabSelected).toHaveBeenCalledWith(
       expect.objectContaining({
         releaseName: 'The Wire S01E01 1080p WEB-DL x265-GRP',
         downloadUrl: 'magnet:?xt=urn:btih:aaaa',
         sourceType: 'missing_episode_sweep',
         sourceId: 'w1',
+        reason: expect.stringContaining('1080p'),
       }),
       undefined,
     );
@@ -89,37 +98,13 @@ describe('MissingEpisodeSearchService.sweep — grab flow', () => {
     expect(realtime.broadcast).toHaveBeenCalledWith('media_acquisition.missing_episode.grabbed', expect.anything());
   });
 
-  it('queues for approval when the evaluator requires it (no grab event)', async () => {
-    const { svc, updates, eventBus } = build({
-      candidates: [cand()],
-      evaluation: { id: 'ev2', decision: 'hold_for_approval', requiresApproval: true },
-    });
-    const summary = await svc.sweep();
-    expect(summary).toMatchObject({ pendingApproval: 1 });
-    expect(updates[updates.length - 1]).toMatchObject({ searchStatus: 'pending_approval', grabbedEvaluationId: 'ev2' });
-    expect(eventBus.emit).not.toHaveBeenCalled();
-  });
-
-  it('records no_results and never evaluates when no candidate matches the SxxEyy', async () => {
-    const { svc, updates, evaluator } = build({
-      candidates: [cand({ title: 'The Wire S02E05 1080p WEB-DL x265-GRP' })], // wrong episode
-    });
+  it('records no_results and never grabs when nothing matches the preferences', async () => {
+    const { svc, updates, evaluator, eventBus } = build({ candidates: [cand()], selected: null });
     const summary = await svc.sweep();
     expect(summary).toMatchObject({ noResults: 1, grabbed: 0 });
-    expect(evaluator.evaluate).not.toHaveBeenCalled();
+    expect(evaluator.grabSelected).not.toHaveBeenCalled();
+    expect(eventBus.emit).not.toHaveBeenCalled();
     expect(updates[updates.length - 1]).toMatchObject({ searchStatus: 'no_results' });
-  });
-
-  it('passes the configured missingSearchProfileId to the evaluator', async () => {
-    const { svc, evaluator } = build({ candidates: [cand()], settings: { missingSearchProfileId: 'p1' } });
-    await svc.sweep();
-    expect(evaluator.evaluate).toHaveBeenCalledWith(expect.objectContaining({ profileId: 'p1' }), undefined);
-  });
-
-  it('falls back to the watchlist item profile when no setting is configured', async () => {
-    const { svc, evaluator } = build({ candidates: [cand()], settings: { missingSearchProfileId: null } });
-    await svc.sweep();
-    expect(evaluator.evaluate).toHaveBeenCalledWith(expect.objectContaining({ profileId: 'wlProfile' }), undefined);
   });
 });
 

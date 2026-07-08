@@ -12,6 +12,7 @@ import { SmartDownloadExecutorService } from './smart-download-executor.service'
 import { MissingEpisodesService } from './missing-episodes.service';
 import { MissingMoviesService } from './missing-movies.service';
 import { MissingEpisodeSearchService } from './missing-episode-search.service';
+import { AcquisitionMatchPreferenceService } from './acquisition-match-preference.service';
 import { MediaAcquisitionController } from './media-acquisition.controller';
 
 /**
@@ -67,6 +68,7 @@ export class MediaAcquisitionScheduler {
     MissingEpisodesService,
     MissingMoviesService,
     MissingEpisodeSearchService,
+    AcquisitionMatchPreferenceService,
     MediaAcquisitionScheduler,
   ],
   controllers: [MediaAcquisitionController],

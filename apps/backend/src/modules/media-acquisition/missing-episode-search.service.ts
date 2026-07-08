@@ -6,15 +6,11 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
-import { parseTorrentName } from '../rss/torrent-name-parser';
 import { IndexerService } from '../indexers/indexer.service';
-import type { IndexerCandidate } from '../indexers/torznab-client';
 import { AcquisitionEvaluatorService } from './evaluator.service';
+import { AcquisitionMatchPreferenceService } from './acquisition-match-preference.service';
 import { MediaAcquisitionService } from './media-acquisition.service';
 import { MEDIA_ACQUISITION_MODULE_ID } from './decision.engine';
-
-/** Decisions that mean "a download was (or will be) issued". */
-const DOWNLOAD_INTENT = ['download', 'upgrade_existing', 'replace_existing'];
 
 type WantedSearchStatus = 'idle' | 'searching' | 'grabbed' | 'pending_approval' | 'no_results' | 'failed';
 
@@ -25,15 +21,14 @@ export interface EpisodeSearchOutcome {
   evaluationId?: string;
 }
 
-const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-
 /**
  * The missing-episode auto-acquire bridge: for each `missing` WantedEpisode it
- * searches the configured Torznab/Newznab indexers, filters candidates to the
- * exact SxxEyy, and hands the best release to {@link AcquisitionEvaluatorService}
- * — which scores it, applies the quality profile, and either auto-downloads
- * (profile satisfied, no approval) or queues it for approval. Grab-state is
- * written back onto the WantedEpisode (and preserved across rescans).
+ * searches the configured Torznab/Newznab indexers and picks a release using the
+ * **auto-download match preferences** ({@link AcquisitionMatchPreferenceService})
+ * — the same ranked candidate + quality + **size-cap** model RSS rules use — then
+ * grabs the winner via {@link AcquisitionEvaluatorService.grabSelected}. Nothing
+ * matches the preferences → `no_results`. Grab-state is written back onto the
+ * WantedEpisode (and preserved across rescans).
  *
  * The scheduled `sweep()` is opt-in (`settings.autoSearchMissing`, default OFF);
  * the manual triggers run whenever the module is enabled.
@@ -47,6 +42,7 @@ export class MissingEpisodeSearchService {
     private readonly prisma: PrismaService,
     private readonly indexers: IndexerService,
     private readonly evaluator: AcquisitionEvaluatorService,
+    private readonly matchPrefs: AcquisitionMatchPreferenceService,
     private readonly acquisition: MediaAcquisitionService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
@@ -141,7 +137,7 @@ export class MissingEpisodeSearchService {
 
   private async processEpisode(
     wanted: WantedEpisode,
-    settingsProfileId: string | null,
+    _settingsProfileId: string | null,
     userId?: string,
   ): Promise<EpisodeSearchOutcome> {
     await this.setState(wanted.id, { searchStatus: 'searching' });
@@ -150,94 +146,57 @@ export class MissingEpisodeSearchService {
       where: { id: wanted.watchlistItemId },
     });
     if (!item) throw new NotFoundException('Watchlist item not found');
-    const profileId = settingsProfileId ?? item.profileId ?? undefined;
 
     const candidates = await this.indexers.searchAll({
       q: item.title,
       season: wanted.seasonNumber,
       ep: wanted.episodeNumber,
     });
-    const best = this.pickCandidate(candidates, item.title, wanted.seasonNumber, wanted.episodeNumber);
+    // Match preferences (ranked candidate list + quality + size cap) decide which
+    // release to grab — a quality profile is no longer consulted here.
+    const prefs = await this.matchPrefs.resolveCandidates(item);
+    const best = this.matchPrefs.select(candidates, prefs, item.title, wanted.seasonNumber, wanted.episodeNumber);
 
     if (!best) {
+      // Nothing matched the preferences (e.g. everything over the size cap).
       await this.setState(wanted.id, { searchStatus: 'no_results', lastSearchedAt: new Date() });
       return { wantedEpisodeId: wanted.id, searchStatus: 'no_results' };
     }
 
-    const evaluation = await this.evaluator.evaluate(
+    const rel = best.candidate;
+    const evaluation = await this.evaluator.grabSelected(
       {
-        releaseName: best.title,
-        downloadUrl: best.downloadUrl ?? undefined,
-        sizeBytes: best.sizeBytes ?? undefined,
-        seeders: best.seeders ?? undefined,
-        profileId,
+        releaseName: rel.title,
+        downloadUrl: rel.downloadUrl ?? undefined,
+        sizeBytes: rel.sizeBytes ?? undefined,
+        seeders: rel.seeders ?? undefined,
+        watchlistItemId: item.id,
         sourceType: 'missing_episode_sweep',
         sourceId: wanted.id,
+        priority: item.priority,
+        reason: best.reason,
       },
       userId,
     );
 
-    const grabbed = DOWNLOAD_INTENT.includes(evaluation.decision) && !evaluation.requiresApproval;
     const now = new Date();
-
-    if (grabbed) {
-      await this.setState(wanted.id, {
-        searchStatus: 'grabbed',
-        lastSearchedAt: now,
-        grabbedAt: now,
-        grabbedEvaluationId: evaluation.id,
-        downloadUrl: best.downloadUrl,
-        releaseTitle: best.title,
-      });
-      this.emitGrabbed(wanted, best.title, evaluation.id);
-      await this.audit.record({
-        userId,
-        action: 'media_acquisition.missing_episode.grabbed',
-        objectType: 'wanted_episode',
-        objectId: wanted.id,
-        metadata: { releaseTitle: best.title, evaluationId: evaluation.id },
-      });
-      return { wantedEpisodeId: wanted.id, searchStatus: 'grabbed', releaseTitle: best.title, evaluationId: evaluation.id };
-    }
-
-    if (evaluation.requiresApproval) {
-      await this.setState(wanted.id, {
-        searchStatus: 'pending_approval',
-        lastSearchedAt: now,
-        grabbedEvaluationId: evaluation.id,
-        releaseTitle: best.title,
-      });
-      return { wantedEpisodeId: wanted.id, searchStatus: 'pending_approval', releaseTitle: best.title, evaluationId: evaluation.id };
-    }
-
-    // skip / wait / manual_review with no approval → nothing grabbed; retry later.
-    await this.setState(wanted.id, { searchStatus: 'no_results', lastSearchedAt: now });
-    return { wantedEpisodeId: wanted.id, searchStatus: 'no_results' };
-  }
-
-  /**
-   * Filter candidates to the exact SxxEyy of the wanted episode (via
-   * `parseTorrentName`) and a loose title match, then pick the best — a real
-   * download URL is required; magnet is preferred, then higher seeders (the
-   * list is already seeders-sorted).
-   */
-  private pickCandidate(
-    candidates: IndexerCandidate[],
-    showTitle: string,
-    season: number,
-    episode: number,
-  ): IndexerCandidate | null {
-    const show = norm(showTitle);
-    const matches = candidates.filter((c) => {
-      if (!c.downloadUrl) return false;
-      const parsed = parseTorrentName(c.title);
-      if (parsed.season !== season || parsed.episode !== episode) return false;
-      const t = norm(parsed.title ?? c.title);
-      return t.includes(show) || show.includes(t);
+    await this.setState(wanted.id, {
+      searchStatus: 'grabbed',
+      lastSearchedAt: now,
+      grabbedAt: now,
+      grabbedEvaluationId: evaluation.id,
+      downloadUrl: rel.downloadUrl,
+      releaseTitle: rel.title,
     });
-    if (matches.length === 0) return null;
-    const magnet = matches.find((c) => c.downloadUrl?.startsWith('magnet:'));
-    return magnet ?? matches[0];
+    this.emitGrabbed(wanted, rel.title, evaluation.id);
+    await this.audit.record({
+      userId,
+      action: 'media_acquisition.missing_episode.grabbed',
+      objectType: 'wanted_episode',
+      objectId: wanted.id,
+      metadata: { releaseTitle: rel.title, evaluationId: evaluation.id, via: 'match_preferences' },
+    });
+    return { wantedEpisodeId: wanted.id, searchStatus: 'grabbed', releaseTitle: rel.title, evaluationId: evaluation.id };
   }
 
   private setState(id: string, data: Partial<WantedEpisode>): Promise<unknown> {

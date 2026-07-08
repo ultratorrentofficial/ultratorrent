@@ -181,6 +181,72 @@ export class AcquisitionEvaluatorService {
   }
 
   /**
+   * Record + execute a grab whose accept decision was already made upstream
+   * (e.g. the missing-episode bridge's match-preference engine, which applies
+   * quality + size gating itself). Skips the profile scorer/decision engine
+   * entirely — it just persists a `download` evaluation, records the action, and
+   * runs the executor. Used so match preferences, not a quality profile, decide.
+   */
+  async grabSelected(
+    input: {
+      releaseName: string;
+      downloadUrl?: string;
+      sizeBytes?: number;
+      seeders?: number;
+      watchlistItemId?: string;
+      sourceType?: string;
+      sourceId?: string;
+      priority?: number;
+      reason: string;
+      savePath?: string;
+    },
+    userId?: string,
+  ) {
+    const evaluation = await this.prisma.mediaAcquisitionEvaluation.create({
+      data: {
+        sourceType: input.sourceType ?? 'watchlist_sweep',
+        sourceId: input.sourceId,
+        releaseName: input.releaseName,
+        watchlistItemId: input.watchlistItemId,
+        releaseScore: { value: null, source: 'match_preferences', reason: input.reason } as object,
+        decision: 'download',
+        decisionReason: input.reason,
+        priority: input.priority ?? 100,
+        confidence: 100,
+        requiresApproval: false,
+        approvalStatus: 'not_required',
+        trace: { steps: [{ step: 'match_preferences', status: 'success', reason: input.reason }] } as object,
+      },
+    });
+    if (input.downloadUrl) {
+      const action = await this.prisma.mediaAcquisitionAction.create({
+        data: {
+          evaluationId: evaluation.id,
+          actionType: 'download_torrent',
+          status: 'pending',
+          payload: {
+            releaseName: input.releaseName,
+            downloadUrl: input.downloadUrl,
+            savePath: input.savePath,
+          } as object,
+          createdBy: userId,
+        },
+      });
+      await this.executor.executeAction(action.id, userId);
+    }
+    await this.history(input.watchlistItemId, evaluation.id, 'evaluation.download', input.reason);
+    await this.audit.record({
+      userId,
+      action: 'media_acquisition.evaluation.created',
+      objectType: 'media_acquisition_evaluation',
+      objectId: evaluation.id,
+      metadata: { decision: 'download', via: 'match_preferences' },
+    });
+    this.emit(evaluation.id, 'download', false);
+    return evaluation;
+  }
+
+  /**
    * Decision Simulator: run the full pipeline for a release and return the
    * decision + a clickable, stage-by-stage explanation — WITHOUT persisting an
    * evaluation, recording an action, or downloading anything.
