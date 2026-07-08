@@ -520,23 +520,38 @@ function Sidebar({
 function VersionBadge({ collapsed, onClick }: { collapsed?: boolean; onClick?: () => void }) {
   const { data } = useVersion();
   const { t } = useTranslation('shell');
-  // Short commit next to the version so identical version numbers on different
-  // deploys (e.g. one commit ahead of the tag) are still distinguishable.
-  const shortSha = data?.gitSha ? data.gitSha.slice(0, 7) : '';
-  const label = data?.version ? `v${data.version}${shortSha ? ` · ${shortSha}` : ''}` : '';
+  const version = data?.version ? `v${data.version}` : '';
+  // The exact build identity from `git describe` (e.g. "v0.26.0-3-ge877a84").
+  // Fall back to the short commit; hide it when it merely repeats the version
+  // (an exact release) or when the build wasn't git-stamped.
+  const tag =
+    data?.gitTag && data.gitTag !== version
+      ? data.gitTag
+      : data?.gitSha
+        ? data.gitSha.slice(0, 7)
+        : '';
+  const ariaVersion = tag ? `${version} ${tag}` : version;
   return (
     <button
       type="button"
       onClick={onClick}
       title={t('about.triggerLabel')}
-      aria-label={label ? t('about.triggerLabelWithVersion', { version: label }) : t('about.triggerLabel')}
+      aria-label={version ? t('about.triggerLabelWithVersion', { version: ariaVersion }) : t('about.triggerLabel')}
       className={cn(
         'flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         collapsed && 'px-2',
       )}
     >
       <Info className="h-[18px] w-[18px] shrink-0" />
-      {!collapsed && <span className="tabular-nums">{label || t('about.trigger')}</span>}
+      {!collapsed &&
+        (version ? (
+          <span className="tabular-nums">
+            <span className="text-emerald-300">{version}</span>
+            {tag && <span className="text-white"> {tag}</span>}
+          </span>
+        ) : (
+          <span className="tabular-nums">{t('about.trigger')}</span>
+        ))}
     </button>
   );
 }
