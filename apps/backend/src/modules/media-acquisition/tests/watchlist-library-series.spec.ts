@@ -8,10 +8,13 @@ function build() {
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation(({ data }: any) => ({ id: 'w_' + data.title, ...data })),
     },
+    tvShowStatus: { findMany: jest.fn().mockResolvedValue([]) },
   };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const realtime = { broadcast: jest.fn() };
-  const svc = new AcquisitionWatchlistService(prisma as any, audit as any, realtime as any);
+  // moduleRef.get throws here → status warming is skipped (best-effort), which is fine.
+  const moduleRef = { get: jest.fn(() => { throw new Error('no TvShowStatusService in test'); }) };
+  const svc = new AcquisitionWatchlistService(prisma as any, audit as any, realtime as any, moduleRef as any);
   return { svc, prisma };
 }
 
@@ -131,5 +134,26 @@ describe('AcquisitionWatchlistService.bulkCreate', () => {
     expect(prisma.mediaAcquisitionWatchlistItem.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ title: 'No Id Show', externalIds: undefined }) }),
     );
+  });
+
+  it('attaches cached airing status by normalized title', async () => {
+    const { svc, prisma } = build();
+    prisma.mediaItem.findMany.mockResolvedValue([
+      item({ title: 'Pilot', path: '/tv/Severance/Season 01/Pilot.mkv', ext: 'tt1' }),
+    ]);
+    prisma.tvShowStatus.findMany.mockResolvedValue([
+      { normalizedTitle: 'severance', normalizedStatus: 'returning', recommendation: 'recommended' },
+    ]);
+    const rows = await svc.librarySeries();
+    expect(rows[0]).toMatchObject({ title: 'Severance', showStatus: 'returning', recommendation: 'recommended' });
+  });
+
+  it('leaves showStatus null when the show is not cached', async () => {
+    const { svc, prisma } = build();
+    prisma.mediaItem.findMany.mockResolvedValue([
+      item({ title: 'Pilot', path: '/tv/Unknown Show/Season 01/Pilot.mkv', ext: 'tt2' }),
+    ]);
+    const rows = await svc.librarySeries();
+    expect(rows[0].showStatus).toBeNull();
   });
 });

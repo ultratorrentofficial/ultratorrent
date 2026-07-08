@@ -1740,6 +1740,9 @@ export interface LibrarySeries {
   imdbId: string | null;
   monitorable: boolean;
   onWatchlist: boolean;
+  /** Cached TV airing status (or null if not yet resolved). */
+  showStatus: RssShowStatus | null;
+  recommendation: string | null;
 }
 export interface BulkAddSeriesInput {
   title: string;

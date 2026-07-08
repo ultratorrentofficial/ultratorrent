@@ -22,7 +22,8 @@ function build() {
   const rt = realtime();
   const exec = executorStub();
   const evaluator = new AcquisitionEvaluatorService(prisma as any, audit() as any, rt as any, exec as any);
-  const watchlist = new AcquisitionWatchlistService(prisma as any, audit() as any, rt as any);
+  const moduleRef = { get: jest.fn(() => { throw new Error('no TvShowStatusService in test'); }) };
+  const watchlist = new AcquisitionWatchlistService(prisma as any, audit() as any, rt as any, moduleRef as any);
   const profiles = new AcquisitionProfileService(prisma as any, audit() as any);
   const approval = new AcquisitionApprovalService(prisma as any, audit() as any, rt as any, exec as any);
   return { prisma, rt, exec, evaluator, watchlist, profiles, approval };

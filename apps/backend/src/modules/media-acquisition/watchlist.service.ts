@@ -1,10 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import type { Prisma } from '@prisma/client';
 import * as path from 'node:path';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { isSeasonContainer, showFolderRoot } from '../media/media-renamer';
+import { TvShowStatusService } from '../rss/tv-show-status/tv-show-status.service';
+import { normalizeTitle } from '../rss/tv-show-status/tv-show-status-provider';
 
 /** A distinct series in the media libraries, for the watchlist "add from library" picker. */
 export interface LibrarySeries {
@@ -14,6 +17,9 @@ export interface LibrarySeries {
   imdbId: string | null;
   monitorable: boolean;
   onWatchlist: boolean;
+  /** Cached TV airing status (continuing|returning|ended|canceled|on_hiatus|planned|unknown) or null if not yet resolved. */
+  showStatus: string | null;
+  recommendation: string | null;
 }
 
 export interface WatchlistInput {
@@ -39,6 +45,7 @@ export class AcquisitionWatchlistService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   list(status?: string) {
@@ -143,11 +150,18 @@ export class AcquisitionWatchlistService {
     });
     const onWatchlist = new Set(existing.map((e) => e.normalizedTitle));
 
+    // Cached TV airing status, keyed by normalized title (fast; no provider calls).
+    const statusRows = await this.prisma.tvShowStatus.findMany({
+      select: { normalizedTitle: true, normalizedStatus: true, recommendation: true },
+    });
+    const statusByTitle = new Map(statusRows.map((r) => [r.normalizedTitle, r]));
+
     const q = search?.trim().toLowerCase();
-    return [...groups.values()]
+    const result = [...groups.values()]
       .filter((g) => !q || g.title.toLowerCase().includes(q))
       .map((g) => {
         const imdbId = g.seriesId ?? g.extId ?? null;
+        const st = statusByTitle.get(normalizeTitle(g.title));
         return {
           title: g.title,
           year: g.year,
@@ -155,9 +169,30 @@ export class AcquisitionWatchlistService {
           imdbId,
           monitorable: imdbId != null,
           onWatchlist: onWatchlist.has(g.title.toLowerCase().trim()),
+          showStatus: st?.normalizedStatus ?? null,
+          recommendation: st?.recommendation ?? null,
         };
       })
       .sort((a, b) => a.title.localeCompare(b.title));
+
+    // Warm the status cache for shows we don't know yet — best-effort and in the
+    // background so the list returns immediately; a later open shows the badge.
+    const uncached = result.filter((r) => !r.showStatus).slice(0, 10);
+    if (uncached.length) void this.warmShowStatuses(uncached);
+
+    return result;
+  }
+
+  /** Background: resolve + cache airing status for a bounded set of shows. */
+  private async warmShowStatuses(series: { title: string; year: number | null }[]): Promise<void> {
+    try {
+      const svc = this.moduleRef.get(TvShowStatusService, { strict: false });
+      for (const s of series) {
+        await svc.lookup({ title: s.title, year: s.year ?? undefined }).catch(() => undefined);
+      }
+    } catch {
+      /* status warming is best-effort — never blocks the picker */
+    }
   }
 
   /** Normalize a filesystem path for use as a grouping key (drop trailing slash, lowercase). */

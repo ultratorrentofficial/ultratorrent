@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { ShowStatusBadge } from '@/components/rss/ShowStatusPanel';
 
 /**
  * Multi-select picker that lists the TV series already in the media libraries so
@@ -111,6 +112,7 @@ export function AddSeriesFromLibraryDialog({ open, onClose }: { open: boolean; o
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-medium">{r.title}</span>
                   {r.year != null && <span className="text-xs text-muted-foreground">({r.year})</span>}
+                  {r.showStatus && <ShowStatusBadge status={r.showStatus} />}
                   {r.onWatchlist && <Badge variant="success" dot>{t('acquisition.librarySeries.onWatchlist')}</Badge>}
                   {!r.monitorable && !r.onWatchlist && (
                     <Badge variant="warning">{t('acquisition.librarySeries.noImdb')}</Badge>
