@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.24.0] - 2026-07-08
+
+### Added
+- Per-show RSS-rule picker: flat GET /api/rss/rules endpoint + 'Auto-download from RSS rule' dropdown in the watchlist dialog, wiring rssRuleId end-to-end (Phase 2 follow-up)
+
 ## [0.23.0] - 2026-07-08
 
 ### Added
