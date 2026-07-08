@@ -108,6 +108,29 @@ describe('MediaIdentificationService.identify', () => {
     const res: any = await identify('/media/Movies/Some.Film.S01E01.mkv', 'movie', 'movie');
     expect(res.mediaType).toBe('movie');
   });
+
+  // The 9-1-1 (2018) case: episode files named by *episode* title (no show name)
+  // in a "Show/Season N/" layout must adopt the show-folder title, not fragment.
+  it('adopts the show-folder title when the filename leads with the episode name (9-1-1)', async () => {
+    const res: any = await identify(
+      "/downloads/TV Shows/9-1-1 (2018)/Season 9/Contraband Seized at the Border - S09E04 - The Meth Doesn't Add Up.mkv",
+      'tv',
+      'tv',
+    );
+    expect(res.title).toBe('9-1-1');
+    expect(res.season).toBe(9);
+    expect(res.episode).toBe(4);
+    expect(res.mediaType).toBe('tv');
+  });
+
+  // Guard: a loose scene release NOT inside a Season container keeps its filename
+  // title — the parent is a junk/download dir, not the show folder.
+  it('keeps the filename title for a loose scene release (no Season container)', async () => {
+    const res: any = await identify('/downloads/Show.Name.S02E05.1080p.WEB-DL.x264-GRP.mkv');
+    expect(res.title).toBe('Show Name');
+    expect(res.season).toBe(2);
+    expect(res.episode).toBe(5);
+  });
 });
 
 describe('MediaIdentificationService.identifyBulk', () => {

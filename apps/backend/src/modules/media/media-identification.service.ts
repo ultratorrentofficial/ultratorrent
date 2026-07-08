@@ -49,21 +49,30 @@ export class MediaIdentificationService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Parse the item's filename and persist the derived identity. `libraryKind` is
-   * the item's library kind; pass it to skip a per-item lookup (bulk runs do),
-   * otherwise it is resolved from the record's library.
+   * Parse the item's filename and persist the derived identity. `libraryKind`
+   * and `libraryPath` describe the owning library; pass them to skip a per-item
+   * lookup (bulk runs do), otherwise they are resolved from the record's library.
+   * `libraryKind` anchors classification (see {@link mediaTypeFromParsed});
+   * `libraryPath` bounds the show-folder climb (see {@link parseFromPath}).
    */
-  async identify(item: MediaItem | string, libraryKind?: string) {
+  async identify(
+    item: MediaItem | string,
+    libraryKind?: string,
+    libraryPath?: string,
+  ) {
     const record =
       typeof item === 'string'
         ? await this.prisma.mediaItem.findUnique({ where: { id: item } })
         : item;
     if (!record) throw new NotFoundException('Item not found');
 
-    const parsed = this.parseFromPath(record.path);
+    const lib =
+      libraryKind !== undefined || libraryPath !== undefined
+        ? { kind: libraryKind, path: libraryPath }
+        : await this.libraryInfo(record.libraryId);
+    const parsed = this.parseFromPath(record.path, lib?.path ?? undefined);
     const confidence = this.scoreConfidence(parsed);
-    const kind = libraryKind ?? (await this.libraryKind(record.libraryId));
-    const mediaType = this.mediaTypeFromParsed(parsed, record.mediaType, kind);
+    const mediaType = this.mediaTypeFromParsed(parsed, record.mediaType, lib?.kind ?? undefined);
     const isEpisodic = mediaType === 'tv' || mediaType === 'anime';
 
     return this.prisma.mediaItem.update({
@@ -107,16 +116,17 @@ export class MediaIdentificationService {
       failed: 0,
     };
 
-    // Prefetch each library's declared kind once so classification doesn't do a
-    // lookup per item (see {@link mediaTypeFromParsed}).
+    // Prefetch each library's kind + path once so per-item identify doesn't do a
+    // lookup (see {@link mediaTypeFromParsed} and {@link parseFromPath}).
     const libraries = await this.prisma.mediaLibrary.findMany({
-      select: { id: true, kind: true },
+      select: { id: true, kind: true, path: true },
     });
-    const kindByLibrary = new Map(libraries.map((l) => [l.id, l.kind]));
+    const libraryById = new Map(libraries.map((l) => [l.id, l]));
 
     for (let i = 0; i < items.length; i++) {
       try {
-        const updated = await this.identify(items[i], kindByLibrary.get(items[i].libraryId));
+        const lib = libraryById.get(items[i].libraryId);
+        const updated = await this.identify(items[i], lib?.kind, lib?.path);
         if (updated.matchStatus === 'matched') summary.matched++;
         else summary.unmatched++;
       } catch {
@@ -199,29 +209,71 @@ export class MediaIdentificationService {
   /**
    * Parse a media file's identity from its name *and* folder context.
    *
-   * Well-organised libraries carry the series/movie title in the folder — e.g.
-   * `Breaking Bad/Season 01/S01E01.mkv` — leaving the filename with no title of
-   * its own. Parsing the basename alone loses that title, so we recover it by
-   * climbing to the first meaningful parent folder (skipping generic "Season N"
-   * / "Specials" containers) and re-parsing `<folder> <filename>`. The season
-   * and episode still come from the filename; the folder only supplies the
-   * title the file omits. When the filename already names a title we keep it.
+   * In a `Show/Season NN/episode` layout the **series title lives in the show
+   * folder**, and the filename often carries only the *episode* title — e.g.
+   * `9-1-1 (2018)/Season 9/Contraband Seized at the Border - S09E04.mkv`, whose
+   * basename parses to the title "Contraband Seized at the Border" and would
+   * fragment the show into one series per episode. So for an **episodic** file
+   * that sits inside a `Season NN`/`Specials` container (the strong signal of an
+   * organised library), or whose filename yields no title at all, we take the
+   * series title (and year) from the first meaningful parent folder (climbing
+   * past the generic containers, bounded by the library root so we never grab the
+   * library folder itself). Season/episode/quality still come from the filename.
+   *
+   * When the file is *not* in such a container and the filename already names a
+   * title (a loose scene release like `Show.Name.S02E05...`), that filename title
+   * is authoritative — the folder is likely a junk/download dir, not the show.
    */
-  private parseFromPath(filePath: string): ParsedTorrentMeta {
+  private parseFromPath(filePath: string, libraryPath?: string): ParsedTorrentMeta {
     const base = path.basename(filePath);
     const parsed = parseTorrentName(base);
+
+    const episodic =
+      (parsed.season !== null && parsed.episode !== null) ||
+      parsed.absoluteEpisode !== null ||
+      parsed.airDate !== null;
+    const parentIsContainer = this.isGenericContainer(
+      path.basename(path.dirname(filePath)),
+    );
+
+    if (episodic && (parentIsContainer || !parsed.title)) {
+      const folder = this.showFolderName(filePath, libraryPath);
+      const folderParsed = folder ? parseTorrentName(folder) : null;
+      if (folderParsed?.title) {
+        // Series identity from the folder; episode structure from the filename.
+        return { ...parsed, title: folderParsed.title, year: folderParsed.year ?? parsed.year };
+      }
+    }
+
     if (parsed.title) return parsed;
 
-    const segments = filePath.split(/[/\\]+/).filter(Boolean);
-    segments.pop(); // drop the filename itself
-    for (let i = segments.length - 1; i >= 0; i--) {
-      if (this.isGenericContainer(segments[i])) continue;
-      const combined = parseTorrentName(`${segments[i]} ${base}`);
-      // Use the folder-enriched parse only if it actually recovered a title;
-      // otherwise fall back to the filename-only result.
-      return combined.title ? combined : parsed;
+    // Filename yielded no title and the folder above didn't parse to a series —
+    // last resort: re-parse `<folder> <filename>` to recover something.
+    const folder = this.showFolderName(filePath, libraryPath);
+    if (folder) {
+      const combined = parseTorrentName(`${folder} ${base}`);
+      if (combined.title) return combined;
     }
     return parsed;
+  }
+
+  /**
+   * The name of the show folder for a file — the first parent that isn't a
+   * generic `Season NN`/`Specials`/`Disc N` container, climbing upward but never
+   * past the library root (so a file sitting directly under the library never
+   * adopts the library folder's name as its title). Null when none qualifies.
+   */
+  private showFolderName(filePath: string, libraryPath?: string): string | null {
+    const segments = filePath.split(/[/\\]+/).filter(Boolean);
+    segments.pop(); // drop the filename itself
+    const rootDepth = libraryPath
+      ? libraryPath.split(/[/\\]+/).filter(Boolean).length
+      : 0;
+    for (let i = segments.length - 1; i >= rootDepth; i--) {
+      if (this.isGenericContainer(segments[i])) continue;
+      return segments[i];
+    }
+    return null;
   }
 
   /**
@@ -272,17 +324,19 @@ export class MediaIdentificationService {
   }
 
   /**
-   * The declared kind of the item's library (`tv | anime | movie | ...`), used to
-   * anchor classification. Fetched fresh (not cached) so a library whose kind was
-   * just changed re-classifies correctly on the next identify; bulk runs pass a
-   * prefetched value instead to avoid a lookup per item.
+   * The item's library `kind` (anchors classification) and `path` (bounds the
+   * show-folder climb). Fetched fresh (not cached) so a library edited between
+   * scans re-identifies correctly; bulk runs pass prefetched values instead to
+   * avoid a lookup per item.
    */
-  private async libraryKind(libraryId: string): Promise<string | undefined> {
+  private async libraryInfo(
+    libraryId: string,
+  ): Promise<{ kind: string; path: string } | undefined> {
     const lib = await this.prisma.mediaLibrary.findUnique({
       where: { id: libraryId },
-      select: { kind: true },
+      select: { kind: true, path: true },
     });
-    return lib?.kind;
+    return lib ?? undefined;
   }
 
   /**
