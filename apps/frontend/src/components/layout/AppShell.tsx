@@ -520,7 +520,10 @@ function Sidebar({
 function VersionBadge({ collapsed, onClick }: { collapsed?: boolean; onClick?: () => void }) {
   const { data } = useVersion();
   const { t } = useTranslation('shell');
-  const label = data?.version ? `v${data.version}` : '';
+  // Short commit next to the version so identical version numbers on different
+  // deploys (e.g. one commit ahead of the tag) are still distinguishable.
+  const shortSha = data?.gitSha ? data.gitSha.slice(0, 7) : '';
+  const label = data?.version ? `v${data.version}${shortSha ? ` · ${shortSha}` : ''}` : '';
   return (
     <button
       type="button"
@@ -728,6 +731,7 @@ function UserMenu({ onAbout }: { onAbout: () => void }) {
               {version?.version && (
                 <span className="text-[10px] font-medium tabular-nums text-muted-foreground">
                   v{version.version}
+                  {version.gitSha ? ` · ${version.gitSha.slice(0, 7)}` : ''}
                 </span>
               )}
             </button>

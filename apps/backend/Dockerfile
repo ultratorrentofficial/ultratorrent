@@ -40,11 +40,14 @@ ARG GIT_SHA=
 # Optional exact `git describe` tag (.git is not in the build context, so it must
 # be passed in). Empty → backend falls back to `v<VERSION>`.
 ARG GIT_TAG=
+# Optional ISO build timestamp, surfaced in About. Empty → backend reports "dev".
+ARG BUILD_TIME=
 ENV NODE_ENV=production \
     ULTRATORRENT_EDITION=community \
     ULTRATORRENT_VERSION=${ULTRATORRENT_VERSION} \
     GIT_SHA=${GIT_SHA} \
-    GIT_TAG=${GIT_TAG}
+    GIT_TAG=${GIT_TAG} \
+    BUILD_TIME=${BUILD_TIME}
 WORKDIR /app
 
 # OpenSSL so Prisma detects the right query engine at runtime (else it warns and

@@ -37,12 +37,14 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
-      # Optionally stamp the exact git tag/sha into the image:
-      #   GIT_TAG=$(git describe --tags --always --dirty) GIT_SHA=$(git rev-parse HEAD) docker compose up -d --build
+      # Optionally stamp the exact git tag/sha/build-time into the image:
+      #   GIT_TAG=$(git describe --tags --always --dirty) GIT_SHA=$(git rev-parse HEAD) \
+      #   BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) docker compose up -d --build
       # Left empty, the backend falls back to `v<VERSION>` for the tag.
       args:
         GIT_TAG: ${GIT_TAG:-}
         GIT_SHA: ${GIT_SHA:-}
+        BUILD_TIME: ${BUILD_TIME:-}
     restart: unless-stopped
     depends_on:
       postgres:
