@@ -9,7 +9,7 @@ import { MediaNfoService } from './media-nfo.service';
 import { MediaServerIntegrationService } from './media-server-integration.service';
 import { MediaService } from './media.service';
 import { MediaProcessingQueueService } from './media-processing-queue.service';
-import { isSeasonContainer, showFolderRoot, type Preset, type RenameMode } from './media-renamer';
+import { isSeasonContainer, type Preset, type RenameMode } from './media-renamer';
 
 /**
  * Executes the Media Manager automation actions dispatched by the AutomationEngine.
@@ -273,6 +273,18 @@ export class MediaAutomationActions {
       const filePath = it.files[0]?.path ?? it.path;
       return !isSeasonContainer(path.basename(path.dirname(filePath)));
     });
+    // The file's SHOW folder: the first path segment under the library root.
+    // Null when the file sits directly at the library root (no show folder of
+    // its own — organizing it would *create* one, which we treat as needsReview
+    // rather than guess). Used by the guard below to keep a file in its folder.
+    const libRoot = library.path.replace(/[/\\]+$/, '');
+    const showDir = (p: string): string | null => {
+      const norm = p.replace(/[/\\]+$/, '');
+      if (!norm.startsWith(`${libRoot}/`)) return null;
+      const rel = norm.slice(libRoot.length + 1);
+      return rel.includes('/') ? rel.split('/')[0] : null;
+    };
+
     type PlanResult = {
       applied: number; skipped: number; failed: number; deleted: number;
       plan: { items: { source: string; destination: string | null; action: string; skipped: boolean }[] };
@@ -287,10 +299,15 @@ export class MediaAutomationActions {
         const move = preview.plan.items.find(
           (p) => p.action !== 'delete' && !p.skipped && p.destination && p.destination !== p.source,
         );
-        // GUARD: refuse any move that would leave the file's own show folder.
-        if (move && showFolderRoot(move.destination!) !== showFolderRoot(move.source)) {
-          needsReview.push({ itemId, from: move.source, to: move.destination! });
-          continue;
+        // GUARD: only relocate WITHIN the file's own show folder. A move to a
+        // different (re-derived) show folder — or one that would create a show
+        // folder for a file loose at the library root — is held for review.
+        if (move) {
+          const fromShow = showDir(move.source);
+          if (fromShow === null || fromShow !== showDir(move.destination!)) {
+            needsReview.push({ itemId, from: move.source, to: move.destination! });
+            continue;
+          }
         }
         if (move) moves.push({ itemId, from: move.source, to: move.destination! });
         for (const p of preview.plan.items) {
