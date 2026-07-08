@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.23.0] - 2026-07-08
+
+### Added
+- Auto-download match preferences: editable Auto-Download tab (ranked list, size caps) + per-show RSS-rule reuse (watchlistItem.rssRuleId) + match-preferences CRUD API (Phase 2)
+
 ## [0.22.0] - 2026-07-08
 
 ### Added
