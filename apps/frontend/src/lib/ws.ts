@@ -12,6 +12,7 @@ import {
   type EngineStatusPayload,
   type FileOperationEventPayload,
   type ImdbEventPayload,
+  type MediaJobEventPayload,
   type NotificationPayload,
   type StatsUpdatePayload,
   type TorrentsUpdatePayload,
@@ -45,6 +46,11 @@ export interface WsEventMap {
   [WS_EVENTS.IMDB_DATASET_IMPORT_CANCELLED]: ImdbEventPayload;
   [WS_EVENTS.IMDB_MATCH_COMPLETED]: ImdbEventPayload;
   [WS_EVENTS.IMDB_ENRICHMENT_COMPLETED]: ImdbEventPayload;
+  // Media Manager job lifecycle (library scan, identify, etc.) — progress + log.
+  [WS_EVENTS.MEDIA_JOB_STARTED]: MediaJobEventPayload;
+  [WS_EVENTS.MEDIA_JOB_PROGRESS]: MediaJobEventPayload;
+  [WS_EVENTS.MEDIA_JOB_COMPLETED]: MediaJobEventPayload;
+  [WS_EVENTS.MEDIA_JOB_FAILED]: MediaJobEventPayload;
   // Media Server Analytics live activity (broadcast by the session poller).
   'media_server.session.started': { connectionId: string; title: string; userName: string | null };
   'media_server.session.ended': { connectionId: string; title: string };

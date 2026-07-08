@@ -80,6 +80,7 @@ export function MediaSettingsPage() {
       <ArtworkPreferencesSection />
       <SubtitlePreferencesSection />
       <RenameTemplatesSection />
+      <CleanupRulesSection />
       {canManageIntegrations ? (
         <IntegrationsSection />
       ) : (
@@ -332,6 +333,117 @@ function RenameTemplatesSection() {
           {t('settings.renameTemplates.engineBtn')}
         </Button>
       </div>
+    </SectionCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cleanup rules (junk deletion during rename/move)
+// ---------------------------------------------------------------------------
+
+function CleanupRulesSection() {
+  const { t } = useTranslation('media');
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.MEDIA_MANAGER_MANAGE_LIBRARIES);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['media', 'cleanup'],
+    queryFn: api.media.getCleanup,
+  });
+
+  const [enabled, setEnabled] = useState(false);
+  const [globs, setGlobs] = useState('');
+  const [langs, setLangs] = useState('');
+  const [prune, setPrune] = useState(false);
+  const [removeTorrent, setRemoveTorrent] = useState(false);
+
+  useEffect(() => {
+    if (!data) return;
+    setEnabled(data.enabled);
+    setGlobs(data.deleteGlobs.join('\n'));
+    setLangs(data.subtitleKeepLanguages.join(', '));
+    setPrune(data.pruneEmptyDirs);
+    setRemoveTorrent(data.removeLeftoverTorrent);
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      api.media.updateCleanup({
+        enabled,
+        deleteGlobs: globs.split(/[\n,]/).map((s) => s.trim()).filter(Boolean),
+        subtitleKeepLanguages: langs.split(/[\s,]+/).map((s) => s.trim().toLowerCase()).filter(Boolean),
+        pruneEmptyDirs: prune,
+        removeLeftoverTorrent: removeTorrent,
+      }),
+    onSuccess: () => {
+      toast.success(t('common.saved'));
+      queryClient.invalidateQueries({ queryKey: ['media', 'cleanup'] });
+    },
+    onError: (err) => toast.error(t('common.couldNotSave'), err instanceof ApiError ? err.message : undefined),
+  });
+
+  return (
+    <SectionCard
+      icon={<Trash2 className="h-5 w-5" />}
+      title={t('settings.cleanup.title')}
+      description={t('settings.cleanup.description')}
+    >
+      {isLoading ? (
+        <CenteredSpinner label={t('settings.metadata.loading')} />
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+            <div>
+              <Label htmlFor="cleanup-enabled">{t('settings.cleanup.enabledLabel')}</Label>
+              <p className="text-xs text-muted-foreground">{t('settings.cleanup.enabledHint')}</p>
+            </div>
+            <Switch id="cleanup-enabled" checked={enabled} onCheckedChange={setEnabled} disabled={!canManage} />
+          </div>
+
+          <div>
+            <Label htmlFor="cleanup-globs">{t('settings.cleanup.globsLabel')}</Label>
+            <textarea
+              id="cleanup-globs"
+              className="mt-1 min-h-[90px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+              value={globs}
+              onChange={(e) => setGlobs(e.target.value)}
+              placeholder={t('settings.cleanup.globsPlaceholder')}
+              disabled={!canManage}
+              spellCheck={false}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t('settings.cleanup.globsHint')}</p>
+          </div>
+
+          <div>
+            <Label htmlFor="cleanup-langs">{t('settings.cleanup.langsLabel')}</Label>
+            <Input
+              id="cleanup-langs"
+              value={langs}
+              onChange={(e) => setLangs(e.target.value)}
+              placeholder={t('settings.cleanup.langsPlaceholder')}
+              disabled={!canManage}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t('settings.cleanup.langsHint')}</p>
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+            <Label htmlFor="cleanup-prune">{t('settings.cleanup.pruneLabel')}</Label>
+            <Switch id="cleanup-prune" checked={prune} onCheckedChange={setPrune} disabled={!canManage} />
+          </div>
+          <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+            <Label htmlFor="cleanup-torrent">{t('settings.cleanup.removeTorrentLabel')}</Label>
+            <Switch id="cleanup-torrent" checked={removeTorrent} onCheckedChange={setRemoveTorrent} disabled={!canManage} />
+          </div>
+
+          {canManage && (
+            <Button onClick={() => save.mutate()} loading={save.isPending}>
+              <Save className="h-4 w-4" /> {t('common.save')}
+            </Button>
+          )}
+        </div>
+      )}
     </SectionCard>
   );
 }

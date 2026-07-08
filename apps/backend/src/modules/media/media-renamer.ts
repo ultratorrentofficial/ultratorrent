@@ -32,6 +32,43 @@ export interface EpisodeMeta {
   year?: number;
 }
 
+/**
+ * Junk-cleanup rules applied during a rename/move: files that should be **erased**
+ * from the download folder before the important files are relocated. Global by
+ * design (one list for every library). Only ever consulted for the two modes that
+ * relocate the original (`rename_in_place`/`rename_move`) — never for copy/link,
+ * where deleting the source would touch the seeding copy.
+ */
+export interface CleanupRules {
+  /** Master switch — nothing is ever deleted when false. */
+  enabled: boolean;
+  /**
+   * Basename globs (`*`/`?`) whose matches are deleted, e.g. `YTS*.txt`,
+   * `RARBG.txt`, `www.*`, `*.jpg`. A primary video file is NEVER deleted even if
+   * a pattern would match it.
+   */
+  deleteGlobs: string[];
+  /**
+   * ISO-639 language codes to KEEP among subtitles (2- or 3-letter, e.g.
+   * `["en","es"]`). Any subtitle whose parsed language tag isn't in this list is
+   * deleted. Empty = keep every subtitle. A subtitle with no detectable language
+   * tag is always kept (can't safely classify it).
+   */
+  subtitleKeepLanguages: string[];
+  /** Remove the source folder after a move if it's left empty. */
+  pruneEmptyDirs: boolean;
+  /** Delete a leftover `.torrent` file sitting in the source folder. */
+  removeLeftoverTorrent: boolean;
+}
+
+export const DEFAULT_CLEANUP_RULES: CleanupRules = {
+  enabled: false,
+  deleteGlobs: [],
+  subtitleKeepLanguages: [],
+  pruneEmptyDirs: false,
+  removeLeftoverTorrent: false,
+};
+
 export interface RenameContext {
   /** The release/folder name to parse for show/movie identity. */
   sourceName: string;
@@ -46,6 +83,8 @@ export interface RenameContext {
   meta?: EpisodeMeta;
   /** Min bytes for a file to NOT be treated as a sample (default 50 MB). */
   sampleMaxBytes?: number;
+  /** Optional junk-cleanup rules (delete patterns + subtitle language filter). */
+  cleanup?: CleanupRules;
 }
 
 export type PlanAction =
@@ -54,6 +93,7 @@ export type PlanAction =
   | 'copy'
   | 'hardlink'
   | 'symlink'
+  | 'delete'
   | 'skip';
 
 export interface RenamePlanItem {
@@ -140,6 +180,40 @@ export function sanitizeSegment(input: string): string {
 
 function pad(value: number | string, width: number): string {
   return String(value).padStart(width, '0');
+}
+
+/**
+ * Compile a filename glob (`*` = any run, `?` = one char) into a whole-string,
+ * case-insensitive RegExp. All other regex metacharacters are escaped, so a
+ * pattern like `YTS*.txt` matches literally except for its wildcards.
+ */
+export function globToRegExp(glob: string): RegExp {
+  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
+  return new RegExp(`^${escaped}$`, 'i');
+}
+
+/** True when `basename` matches any of the (best-effort compiled) globs. */
+export function matchesAnyGlob(basename: string, globs: string[]): boolean {
+  return globs.some((g) => {
+    try {
+      return globToRegExp(g).test(basename);
+    } catch {
+      return false; // a malformed pattern never matches (and never throws)
+    }
+  });
+}
+
+/** Common ISO-639-2 → 639-1 aliases so a `.eng`/`.spa` sub matches a `en`/`es` keep-list. */
+const LANG_ALIASES: Record<string, string> = {
+  eng: 'en', spa: 'es', fre: 'fr', fra: 'fr', ger: 'de', deu: 'de', ita: 'it',
+  por: 'pt', dut: 'nl', nld: 'nl', jpn: 'ja', chi: 'zh', zho: 'zh', rus: 'ru',
+  kor: 'ko', ara: 'ar', hin: 'hi', swe: 'sv', nor: 'no', dan: 'da', fin: 'fi', pol: 'pl',
+};
+
+/** Normalize a language code to its 639-1 form when known (else lower-cased as-is). */
+export function normalizeLang(code: string): string {
+  const c = code.toLowerCase();
+  return LANG_ALIASES[c] ?? c;
 }
 
 /** Classify a single file by extension + name hints. */
@@ -340,8 +414,40 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
   // Primary video destinations remembered so subtitles can mirror them.
   const videoDest: { source: string; destNoExt: string }[] = [];
 
+  // Cleanup pass: mark junk for deletion BEFORE anything is moved. Only for the
+  // two modes that relocate the original — deleting the source under copy/link
+  // would touch the seeding copy. A primary video is never deletable.
+  const toDelete = new Set<string>();
+  const cleanup = ctx.cleanup;
+  const cleanupActive = !!cleanup?.enabled && (ctx.mode === 'rename_in_place' || ctx.mode === 'rename_move');
+  if (cleanupActive && cleanup) {
+    const keepLangs = cleanup.subtitleKeepLanguages.map(normalizeLang);
+    for (const f of ctx.files) {
+      const c = classifyFile(f.path, kind, sampleMax, f.size);
+      const base = path.basename(f.path);
+      // Protect real content: never delete a non-sample video (a primary file).
+      if (VIDEO_EXT.has(c.ext) && !c.isSample) continue;
+
+      let reason = '';
+      if (matchesAnyGlob(base, cleanup.deleteGlobs)) {
+        reason = 'matched cleanup pattern';
+      } else if (c.isSubtitle && keepLangs.length > 0) {
+        const langMatch = LANG_TAG.exec(path.basename(f.path, c.ext));
+        const lang = langMatch ? normalizeLang(langMatch[1]) : null;
+        // Untagged subtitles are kept — we can't safely classify their language.
+        if (lang && !keepLangs.includes(lang)) reason = `subtitle language "${lang}" not in keep-list`;
+      }
+
+      if (reason) {
+        toDelete.add(f.path);
+        items.push({ source: f.path, destination: null, action: 'delete', kind: c.kind, reason, skipped: false, isSubtitle: c.isSubtitle, isSample: c.isSample, isExtra: c.isExtra });
+      }
+    }
+  }
+
   // First pass: videos + audio (the renamable primaries).
   for (const f of ctx.files) {
+    if (toDelete.has(f.path)) continue; // slated for cleanup
     const c = classifyFile(f.path, kind, sampleMax, f.size);
     if (c.isSubtitle) continue; // handled in second pass
 
@@ -381,6 +487,7 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
 
   // Second pass: subtitles → match to a primary by shared base name; keep lang tag.
   for (const f of ctx.files) {
+    if (toDelete.has(f.path)) continue; // slated for cleanup
     const ext = path.extname(f.path).toLowerCase();
     if (!SUBTITLE_EXT.has(ext)) continue;
     const subBase = path.basename(f.path, ext).toLowerCase();

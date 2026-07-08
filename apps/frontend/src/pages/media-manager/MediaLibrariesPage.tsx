@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +14,8 @@ import {
   type RenameMode,
 } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
-import { PERMISSIONS } from '@ultratorrent/shared';
+import { PERMISSIONS, WS_EVENTS, type MediaJobEventPayload } from '@ultratorrent/shared';
+import { wsClient } from '@/lib/ws';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +44,15 @@ import {
   presetOptions,
 } from './constants';
 
+interface ScanLive {
+  libraryId: string;
+  name: string;
+  progress: number;
+  status: 'running' | 'completed' | 'failed';
+  log: string[];
+  error?: string | null;
+}
+
 function presetTemplate(
   presets: MediaPresets | undefined,
   preset: Preset,
@@ -65,6 +75,37 @@ export function MediaLibrariesPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<MediaLibrary | null>(null);
   const [scanningId, setScanningId] = useState<string | null>(null);
+  const [scanLive, setScanLive] = useState<ScanLive | null>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [scanLive?.log.length]);
+
+  // Live scan progress + action log, streamed over the media_manager.job WS
+  // events. Only events for the library currently being scanned update the panel.
+  useEffect(() => {
+    const apply = (p: MediaJobEventPayload, status?: ScanLive['status']) =>
+      setScanLive((cur) => {
+        if (!cur || p.type !== 'library_scan' || p.libraryId !== cur.libraryId) return cur;
+        return {
+          ...cur,
+          progress: typeof p.progress === 'number' ? p.progress : cur.progress,
+          status: status ?? cur.status,
+          error: p.error ?? cur.error,
+          log: p.message ? [...cur.log, p.message].slice(-300) : cur.log,
+        };
+      });
+    const offStarted = wsClient.on(WS_EVENTS.MEDIA_JOB_STARTED, (p) => apply(p, 'running'));
+    const offProgress = wsClient.on(WS_EVENTS.MEDIA_JOB_PROGRESS, (p) => apply(p));
+    const offCompleted = wsClient.on(WS_EVENTS.MEDIA_JOB_COMPLETED, (p) => apply({ ...p, progress: 100 }, 'completed'));
+    const offFailed = wsClient.on(WS_EVENTS.MEDIA_JOB_FAILED, (p) => apply(p, 'failed'));
+    return () => {
+      offStarted();
+      offProgress();
+      offCompleted();
+      offFailed();
+    };
+  }, []);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['media', 'libraries'],
@@ -82,8 +123,12 @@ export function MediaLibrariesPage() {
 
   const scan = async (lib: MediaLibrary) => {
     setScanningId(lib.id);
+    setScanLive({ libraryId: lib.id, name: lib.name, progress: 0, status: 'running', log: [], error: null });
     try {
       const res = await api.media.scanLibrary(lib.id);
+      setScanLive((cur) =>
+        cur && cur.libraryId === lib.id ? { ...cur, status: 'completed', progress: 100 } : cur,
+      );
       const enriched =
         res.artworkImported + res.metadataImported > 0
           ? ' · ' +
@@ -99,7 +144,11 @@ export function MediaLibrariesPage() {
       );
       invalidate();
     } catch (err) {
-      toast.error(t('libraries.scanFailed'), err instanceof ApiError ? err.message : undefined);
+      const msg = err instanceof ApiError ? err.message : undefined;
+      setScanLive((cur) =>
+        cur && cur.libraryId === lib.id ? { ...cur, status: 'failed', error: msg ?? 'error' } : cur,
+      );
+      toast.error(t('libraries.scanFailed'), msg);
     } finally {
       setScanningId(null);
     }
@@ -229,6 +278,58 @@ export function MediaLibrariesPage() {
             invalidate();
           }}
         />
+      )}
+
+      {scanLive && (
+        <Dialog open onClose={() => setScanLive(null)} className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t('libraries.scanProgress.title', { name: scanLive.name })}</DialogTitle>
+            <DialogDescription>
+              {scanLive.status === 'running'
+                ? t('libraries.scanProgress.running')
+                : scanLive.status === 'completed'
+                  ? t('libraries.scanProgress.done')
+                  : t('libraries.scanProgress.failed')}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-2">
+            <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+              <span>{t('libraries.scanProgress.progressLabel')}</span>
+              <span>{Math.round(scanLive.progress)}%</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded bg-muted">
+              <div
+                className={`h-full transition-all ${scanLive.status === 'failed' ? 'bg-destructive' : 'bg-primary'}`}
+                style={{ width: `${Math.min(100, Math.max(0, scanLive.progress))}%` }}
+              />
+            </div>
+          </div>
+
+          <div
+            ref={logRef}
+            className="mt-3 h-64 overflow-y-auto rounded border border-border bg-muted/30 p-2 font-mono text-xs leading-relaxed"
+          >
+            {scanLive.log.length === 0 ? (
+              <div className="text-muted-foreground">{t('libraries.scanProgress.waiting')}</div>
+            ) : (
+              scanLive.log.map((line, i) => (
+                <div key={i} className="whitespace-pre-wrap break-all">
+                  {line}
+                </div>
+              ))
+            )}
+            {scanLive.error && <div className="text-destructive">{scanLive.error}</div>}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScanLive(null)}>
+              {scanLive.status === 'running'
+                ? t('libraries.scanProgress.hide')
+                : t('libraries.scanProgress.close')}
+            </Button>
+          </DialogFooter>
+        </Dialog>
       )}
     </div>
   );

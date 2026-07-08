@@ -137,6 +137,16 @@
     "scanResult": "{{scanned}} scanned · {{added}} added · {{updated}} updated.",
     "scanEnriched": "{{artwork}} artwork · {{metadata}} metadata imported",
     "scanFailed": "Scan failed",
+    "scanProgress": {
+      "title": "Scanning “{{name}}”",
+      "running": "Scanning in progress — you can hide this and it keeps running.",
+      "done": "Scan complete.",
+      "failed": "Scan failed.",
+      "progressLabel": "Progress",
+      "waiting": "Waiting for the scanner to start…",
+      "hide": "Hide (keeps running)",
+      "close": "Close"
+    },
     "deleteConfirm": "Delete library \"{{name}}\"? Scanned items for this library are removed too.",
     "deletedTitle": "Library deleted",
     "deleteError": "Could not delete library",
@@ -373,6 +383,20 @@
       "description": "Naming templates are configured per library and in the rename engine.",
       "libraryBtn": "Library templates",
       "engineBtn": "Rename engine templates"
+    },
+    "cleanup": {
+      "title": "Cleanup rules",
+      "description": "Erase junk files (and unwanted-language subtitles) before moving the important files during a rename/move.",
+      "enabledLabel": "Enable cleanup during rename/move",
+      "enabledHint": "Only applies to the Rename in place and Move modes — never to copy/hardlink/symlink, where the source is your seeding copy.",
+      "globsLabel": "Delete patterns",
+      "globsPlaceholder": "YTS*.txt\nRARBG.txt\nwww.*\n*.jpg",
+      "globsHint": "One filename pattern per line (or comma-separated). Wildcards: * (any run), ? (one character). A video file is never deleted even if a pattern matches it.",
+      "langsLabel": "Keep subtitle languages",
+      "langsPlaceholder": "en, es",
+      "langsHint": "ISO-639 codes to keep (e.g. en, es). Subtitles in other languages are deleted; untagged subtitles are always kept. Leave blank to keep every subtitle.",
+      "pruneLabel": "Remove the source folder if it's left empty",
+      "removeTorrentLabel": "Delete a leftover .torrent in the source folder"
     },
     "integrations": {
       "noPermTitle": "Media Server Integrations",

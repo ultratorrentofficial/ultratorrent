@@ -1254,6 +1254,15 @@ export interface MediaNfoGenerateResult {
   files: MediaNfoFile[];
 }
 
+/** Global junk-cleanup rules applied during a rename/move. */
+export interface MediaCleanupRules {
+  enabled: boolean;
+  deleteGlobs: string[];
+  subtitleKeepLanguages: string[];
+  pruneEmptyDirs: boolean;
+  removeLeftoverTorrent: boolean;
+}
+
 /** One item within a detected duplicate group (already quality-scored). */
 export interface MediaDuplicateItem {
   id: string;
@@ -2849,6 +2858,13 @@ export const api = {
         method: 'POST',
         body: { itemId },
       });
+    },
+    // --- cleanup rules ----------------------------------------------------
+    getCleanup(): Promise<MediaCleanupRules> {
+      return request<MediaCleanupRules>('/media/settings/cleanup');
+    },
+    updateCleanup(patch: Partial<MediaCleanupRules>): Promise<MediaCleanupRules> {
+      return request<MediaCleanupRules>('/media/settings/cleanup', { method: 'PATCH', body: patch });
     },
     // --- duplicates -------------------------------------------------------
     listDuplicates(query: PageQuery = {}): Promise<Paginated<MediaDuplicateGroup>> {

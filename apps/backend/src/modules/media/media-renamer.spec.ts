@@ -1,7 +1,10 @@
 import {
   buildRenamePlan,
   classifyFile,
+  globToRegExp,
   isSeasonContainer,
+  matchesAnyGlob,
+  normalizeLang,
   renderTemplate,
   sanitizeSegment,
   showFolderRoot,
@@ -17,7 +20,10 @@ const ctx = (over: Partial<RenameContext>): RenameContext => ({
   template: over.template,
   meta: over.meta,
   sampleMaxBytes: over.sampleMaxBytes,
+  cleanup: over.cleanup,
 });
+
+const BIG = 2_000_000_000; // 2 GB — never a "sample"
 
 describe('sanitizeSegment', () => {
   it('strips illegal characters and trailing dots/spaces', () => {
@@ -237,5 +243,130 @@ describe('buildRenamePlan — rename_in_place keeps the show folder', () => {
     expect(primary(plan).destination).toBe(
       '/downloads/TV/TV_Shows/The Rookie/Season 8/The Rookie - S08E16 - Out of Time.mkv',
     );
+  });
+});
+
+describe('cleanup helpers', () => {
+  it('globToRegExp matches literally except for wildcards', () => {
+    expect(globToRegExp('YTS*.txt').test('YTS.MX.txt')).toBe(true);
+    expect(globToRegExp('YTS*.txt').test('readme.txt')).toBe(false);
+    expect(globToRegExp('*.jpg').test('poster.jpg')).toBe(true);
+    expect(globToRegExp('sample?.mkv').test('sample1.mkv')).toBe(true);
+    expect(globToRegExp('sample?.mkv').test('sample.mkv')).toBe(false);
+    // A dot in the pattern is literal, not "any char".
+    expect(globToRegExp('a.txt').test('axtxt')).toBe(false);
+  });
+
+  it('matchesAnyGlob is case-insensitive and swallows bad patterns', () => {
+    expect(matchesAnyGlob('RARBG.TXT', ['rarbg.txt'])).toBe(true);
+    expect(matchesAnyGlob('x.txt', ['[', '*.txt'])).toBe(true); // '[' never throws
+    expect(matchesAnyGlob('x.mkv', ['*.txt'])).toBe(false);
+  });
+
+  it('normalizeLang maps 639-2 to 639-1 when known', () => {
+    expect(normalizeLang('eng')).toBe('en');
+    expect(normalizeLang('SPA')).toBe('es');
+    expect(normalizeLang('en')).toBe('en');
+    expect(normalizeLang('xx')).toBe('xx');
+  });
+});
+
+describe('buildRenamePlan — cleanup', () => {
+  const rules = (over = {}) => ({
+    enabled: true,
+    deleteGlobs: [] as string[],
+    subtitleKeepLanguages: [] as string[],
+    pruneEmptyDirs: false,
+    removeLeftoverTorrent: false,
+    ...over,
+  });
+  const byAction = (plan: ReturnType<typeof buildRenamePlan>, action: string) =>
+    plan.items.filter((i) => i.action === action).map((i) => i.source);
+
+  it('deletes files matching cleanup globs but still moves the video', () => {
+    const plan = buildRenamePlan(
+      ctx({
+        sourceName: 'The Movie 2020 1080p',
+        mode: 'rename_move',
+        files: [
+          { path: '/dl/The Movie 2020 1080p.mkv', size: BIG },
+          { path: '/dl/YTS.MX.txt', size: 500 },
+          { path: '/dl/poster.jpg', size: 9000 },
+        ],
+        cleanup: rules({ deleteGlobs: ['YTS*.txt', '*.jpg'] }),
+      }),
+    );
+    expect(byAction(plan, 'delete').sort()).toEqual(['/dl/YTS.MX.txt', '/dl/poster.jpg'].sort());
+    const video = plan.items.find((i) => i.source.endsWith('.mkv'))!;
+    expect(video.action).not.toBe('delete');
+    expect(video.destination).toContain('The Movie (2020)');
+  });
+
+  it('deletes subtitles whose language is not in the keep-list, keeps kept + untagged', () => {
+    const plan = buildRenamePlan(
+      ctx({
+        sourceName: 'The Movie 2020 1080p',
+        mode: 'rename_move',
+        files: [
+          { path: '/dl/The Movie 2020 1080p.mkv', size: BIG },
+          { path: '/dl/The Movie 2020 1080p.en.srt', size: 100 },
+          { path: '/dl/The Movie 2020 1080p.spa.srt', size: 100 }, // 639-2 alias of es
+          { path: '/dl/The Movie 2020 1080p.fr.srt', size: 100 },
+          { path: '/dl/The Movie 2020 1080p.srt', size: 100 }, // untagged
+        ],
+        cleanup: rules({ subtitleKeepLanguages: ['en', 'es'] }),
+      }),
+    );
+    expect(byAction(plan, 'delete')).toEqual(['/dl/The Movie 2020 1080p.fr.srt']);
+    // en, spa(→es) and the untagged sub are NOT deleted.
+    const deleted = new Set(byAction(plan, 'delete'));
+    expect(deleted.has('/dl/The Movie 2020 1080p.en.srt')).toBe(false);
+    expect(deleted.has('/dl/The Movie 2020 1080p.spa.srt')).toBe(false);
+    expect(deleted.has('/dl/The Movie 2020 1080p.srt')).toBe(false);
+  });
+
+  it('never deletes a primary video even if a glob would match it', () => {
+    const plan = buildRenamePlan(
+      ctx({
+        sourceName: 'The Movie 2020 1080p',
+        mode: 'rename_move',
+        files: [{ path: '/dl/The Movie 2020 1080p.mkv', size: BIG }],
+        cleanup: rules({ deleteGlobs: ['*.mkv'] }),
+      }),
+    );
+    expect(byAction(plan, 'delete')).toEqual([]);
+    expect(plan.items[0].action).not.toBe('delete');
+  });
+
+  it('is inert for copy/hardlink/symlink modes (source is the seeding copy)', () => {
+    for (const mode of ['copy', 'hardlink', 'symlink'] as const) {
+      const plan = buildRenamePlan(
+        ctx({
+          sourceName: 'The Movie 2020 1080p',
+          mode,
+          files: [
+            { path: '/dl/The Movie 2020 1080p.mkv', size: BIG },
+            { path: '/dl/YTS.MX.txt', size: 500 },
+          ],
+          cleanup: rules({ deleteGlobs: ['YTS*.txt'] }),
+        }),
+      );
+      expect(byAction(plan, 'delete')).toEqual([]);
+    }
+  });
+
+  it('deletes nothing when cleanup is disabled', () => {
+    const plan = buildRenamePlan(
+      ctx({
+        sourceName: 'The Movie 2020 1080p',
+        mode: 'rename_move',
+        files: [
+          { path: '/dl/The Movie 2020 1080p.mkv', size: BIG },
+          { path: '/dl/YTS.MX.txt', size: 500 },
+        ],
+        cleanup: rules({ enabled: false, deleteGlobs: ['YTS*.txt'] }),
+      }),
+    );
+    expect(byAction(plan, 'delete')).toEqual([]);
   });
 });

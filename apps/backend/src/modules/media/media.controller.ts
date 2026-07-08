@@ -20,6 +20,7 @@ import { ImdbService, ImdbMatchDto } from './imdb/imdb.service';
 import { ImdbSettingsPatch } from './imdb/imdb-settings.service';
 import type { ImdbTitleKind } from './imdb/imdb-match';
 import { MediaService, RenameRequest } from './media.service';
+import type { CleanupRules } from './media-renamer';
 import { MediaLibraryService, LibraryInput } from './media-library.service';
 import { MediaScannerService } from './media-scanner.service';
 import {
@@ -122,9 +123,10 @@ export class MediaController {
   @Post('libraries/:id/scan')
   @RequirePermissions(P.MEDIA_MANAGER_SCAN)
   scanLibrary(@Param('id') id: string) {
-    // Tracked as a MediaProcessingJob with WS progress on the media_manager channel.
-    return this.jobs.run('library_scan', { libraryId: id }, () =>
-      this.scanner.scanLibrary(id),
+    // Tracked as a MediaProcessingJob; the scanner streams progress + a per-file
+    // action log over the media_manager.job.progress WS event.
+    return this.jobs.run('library_scan', { libraryId: id }, (report) =>
+      this.scanner.scanLibrary(id, report),
     );
   }
 
@@ -536,5 +538,18 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   history(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
     return this.media.history(page, pageSize);
+  }
+
+  // --- cleanup rules (junk deletion during rename) ----------------------
+  @Get('settings/cleanup')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  getCleanup() {
+    return this.media.getCleanup();
+  }
+
+  @Patch('settings/cleanup')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_LIBRARIES)
+  updateCleanup(@Body() body: Partial<CleanupRules>, @Req() req: Request) {
+    return this.media.setCleanup(body ?? {}, auditCtx(req));
   }
 }

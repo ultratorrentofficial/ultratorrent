@@ -93,7 +93,10 @@ export class MediaScannerService {
     private readonly eventBus: EventEmitter2,
   ) {}
 
-  async scanLibrary(libraryId: string): Promise<ScanSummary> {
+  async scanLibrary(
+    libraryId: string,
+    report?: (progress: number, message?: string) => void | Promise<void>,
+  ): Promise<ScanSummary> {
     const library = await this.prisma.mediaLibrary.findUnique({
       where: { id: libraryId },
     });
@@ -102,18 +105,25 @@ export class MediaScannerService {
     // The library root must live inside the allowed storage roots.
     const root = this.filePath.assertWithinHardRoots(library.path);
 
+    await report?.(2, `Reading “${library.name}” folder tree…`);
     const files = await this.walk(root);
+    await report?.(5, `Found ${files.length} file(s) to process`);
     let added = 0;
     let updated = 0;
     const itemIds: string[] = [];
+    // Throttle per-file progress to ~150 updates so a large library streams a
+    // readable action log without flooding the socket.
+    const step = Math.max(1, Math.floor(files.length / 150));
 
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       const existing = await this.prisma.mediaItem.findFirst({
         where: { libraryId, path: file.path },
         include: { files: true },
       });
 
       const tech = deriveFileTechInfo(file.path);
+      const action = existing ? 'Updated' : 'Added';
 
       if (existing) {
         await this.prisma.mediaFile.upsert({
@@ -150,6 +160,11 @@ export class MediaScannerService {
         itemIds.push(created.id);
         added++;
       }
+
+      if (i % step === 0 || i === files.length - 1) {
+        const pct = 5 + Math.round((i / (files.length || 1)) * 80); // 5..85
+        await report?.(pct, `${i + 1}/${files.length} · ${action}: ${path.basename(file.path)}`);
+      }
     }
 
     // Reconcile deletions: drop items whose file is no longer on disk (e.g. a
@@ -165,12 +180,20 @@ export class MediaScannerService {
       if (staleIds.length > 0) {
         removed = (await this.prisma.mediaItem.deleteMany({ where: { id: { in: staleIds } } })).count;
         this.logger.log(`Scan of ${library.name}: pruned ${removed} item(s) whose files no longer exist`);
+        await report?.(88, `Pruned ${removed} stale item(s) whose files were gone`);
       }
     }
 
+    await report?.(92, 'Importing artwork & metadata sidecars…');
     const { artworkImported, metadataImported } = await this.importSidecars(
       itemIds,
       library.artworkEnabled,
+    );
+    await report?.(
+      100,
+      `Done — ${files.length} scanned, ${added} added, ${updated} updated, ${removed} removed` +
+        (artworkImported ? `, ${artworkImported} artwork` : '') +
+        (metadataImported ? `, ${metadataImported} metadata` : ''),
     );
 
     await this.prisma.mediaLibrary.update({

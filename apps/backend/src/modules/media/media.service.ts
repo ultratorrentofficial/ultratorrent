@@ -13,6 +13,8 @@ import {
   stat,
   readdir,
   realpath,
+  unlink,
+  rmdir,
 } from 'node:fs/promises';
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -23,6 +25,8 @@ import { AuditService } from '../audit/audit.service';
 import type { AuditContext } from './media-metadata.service';
 import {
   buildRenamePlan,
+  CleanupRules,
+  DEFAULT_CLEANUP_RULES,
   MediaFileInput,
   Preset,
   PRESET_TEMPLATES,
@@ -264,7 +268,40 @@ export class MediaService {
       libraryPath: req.libraryPath,
       template: req.template,
       meta,
+      cleanup: await this.getCleanup(),
     });
+  }
+
+  // --- cleanup rules -----------------------------------------------------
+  /** Read the global junk-cleanup rules (with defaults for any missing field). */
+  async getCleanup(): Promise<CleanupRules> {
+    const stored = await this.settings.get<Partial<CleanupRules>>('media.cleanup');
+    return { ...DEFAULT_CLEANUP_RULES, ...(stored ?? {}) };
+  }
+
+  /** Persist the global junk-cleanup rules (merged over current). Audited. */
+  async setCleanup(patch: Partial<CleanupRules>, ctx: AuditContext = {}): Promise<CleanupRules> {
+    const next: CleanupRules = { ...(await this.getCleanup()), ...patch };
+    // Normalize: trim/drop blank patterns + language codes.
+    next.deleteGlobs = (next.deleteGlobs ?? []).map((g) => g.trim()).filter(Boolean);
+    next.subtitleKeepLanguages = (next.subtitleKeepLanguages ?? [])
+      .map((l) => l.trim().toLowerCase())
+      .filter(Boolean);
+    await this.settings.set('media.cleanup', next);
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.cleanup.updated',
+      objectType: 'setting',
+      objectId: 'media.cleanup',
+      metadata: {
+        enabled: next.enabled,
+        deleteGlobs: next.deleteGlobs.length,
+        keepLanguages: next.subtitleKeepLanguages,
+        pruneEmptyDirs: next.pruneEmptyDirs,
+        removeLeftoverTorrent: next.removeLeftoverTorrent,
+      },
+    });
+    return next;
   }
 
   // --- execution ---------------------------------------------------------
@@ -272,22 +309,46 @@ export class MediaService {
     applied: number;
     skipped: number;
     failed: number;
+    deleted: number;
     plan: RenamePlan;
   }> {
     const plan = await this.buildPlan(req);
     let applied = 0;
     let skipped = 0;
     let failed = 0;
+    let deleted = 0;
 
     if (plan.mode === 'preview') {
-      return { applied: 0, skipped: plan.items.length, failed: 0, plan };
+      return { applied: 0, skipped: plan.items.length, failed: 0, deleted: 0, plan };
     }
 
     const roots = await this.allowedRoots();
     // The chosen library must itself live under an allowed root.
     this.assertWithin(plan.libraryPath, roots, 'libraryPath');
 
+    // Source folders touched, so we can prune the leftovers after moving.
+    const sourceDirs = new Set<string>();
+
     for (const item of plan.items) {
+      // Cleanup deletions: erase junk before/around the moves. Scoped to the
+      // allowed roots and resolved through symlinks, exactly like a move source.
+      if (item.action === 'delete') {
+        try {
+          const src = this.assertWithin(item.source, roots, 'source');
+          const realSrc = await realpath(src).catch(() => src);
+          this.assertWithin(realSrc, roots, 'source');
+          sourceDirs.add(path.dirname(realSrc));
+          await unlink(realSrc);
+          deleted++;
+          await this.log(item, plan.mode, 'success', req.hash, null);
+        } catch (err) {
+          failed++;
+          await this.log(item, plan.mode, 'failed', req.hash, (err as Error).message);
+          this.logger.warn(`cleanup delete failed: ${(err as Error).message}`);
+        }
+        continue;
+      }
+
       if (item.skipped || !item.destination) {
         skipped++;
         continue;
@@ -308,6 +369,7 @@ export class MediaService {
 
         await mkdir(path.dirname(dest), { recursive: true });
         await this.execute(item.action, realSrc, dest);
+        sourceDirs.add(path.dirname(realSrc));
         applied++;
         await this.log(item, plan.mode, 'success', req.hash, null);
       } catch (err) {
@@ -317,15 +379,65 @@ export class MediaService {
       }
     }
 
+    // Post-move tidy (opt-in): stray .torrent + prune now-empty source folders.
+    // Only for the relocating modes; never touches a root or a library folder.
+    const rules = await this.getCleanup();
+    if (rules.enabled && (plan.mode === 'rename_in_place' || plan.mode === 'rename_move')) {
+      await this.postMoveCleanup([...sourceDirs], rules, roots);
+    }
+
     await this.audit.record({
       action: 'media.rename',
       result: failed > 0 ? 'failure' : 'success',
       objectType: 'torrent',
       objectId: req.hash,
-      metadata: { applied, skipped, failed, mode: plan.mode, libraryPath: plan.libraryPath },
+      metadata: { applied, skipped, failed, deleted, mode: plan.mode, libraryPath: plan.libraryPath },
     });
 
-    return { applied, skipped, failed, plan };
+    return { applied, skipped, failed, deleted, plan };
+  }
+
+  /**
+   * After a move, optionally remove a stray `.torrent` left in a source folder
+   * and prune the folder if it's now empty. Deliberately conservative: every dir
+   * is re-validated against the allowed roots, and a root or a library folder
+   * itself is never removed (only strictly-nested, empty folders are pruned).
+   */
+  private async postMoveCleanup(dirs: string[], rules: CleanupRules, roots: string[]): Promise<void> {
+    const libraries = await this.prisma.mediaLibrary.findMany({ select: { path: true } });
+    const protectedPaths = new Set(
+      [...roots, ...libraries.map((l) => l.path)].map((p) => path.resolve(p)),
+    );
+    for (const dir of dirs) {
+      let abs: string;
+      try {
+        abs = this.assertWithin(dir, roots, 'cleanup dir');
+      } catch {
+        continue; // outside the allowed roots — never touch
+      }
+      if (protectedPaths.has(path.resolve(abs))) continue; // never a root/library
+
+      if (rules.removeLeftoverTorrent) {
+        try {
+          for (const e of await readdir(abs)) {
+            if (e.toLowerCase().endsWith('.torrent')) {
+              await unlink(path.join(abs, e)).catch(() => undefined);
+            }
+          }
+        } catch {
+          /* unreadable dir — skip */
+        }
+      }
+
+      if (rules.pruneEmptyDirs) {
+        try {
+          const remaining = await readdir(abs);
+          if (remaining.length === 0) await rmdir(abs).catch(() => undefined);
+        } catch {
+          /* unreadable dir — skip */
+        }
+      }
+    }
   }
 
   /**

@@ -137,6 +137,16 @@
     "scanResult": "{{scanned}} escaneados · {{added}} agregados · {{updated}} actualizados.",
     "scanEnriched": "{{artwork}} carátulas · {{metadata}} metadatos importados",
     "scanFailed": "Falló el escaneo",
+    "scanProgress": {
+      "title": "Escaneando “{{name}}”",
+      "running": "Escaneo en progreso — puedes ocultar esto y seguirá corriendo.",
+      "done": "Escaneo completado.",
+      "failed": "Falló el escaneo.",
+      "progressLabel": "Progreso",
+      "waiting": "Esperando a que el escáner comience…",
+      "hide": "Ocultar (sigue corriendo)",
+      "close": "Cerrar"
+    },
     "deleteConfirm": "¿Eliminar la biblioteca \"{{name}}\"? También se eliminan los elementos escaneados de esta biblioteca.",
     "deletedTitle": "Biblioteca eliminada",
     "deleteError": "No se pudo eliminar la biblioteca",
@@ -373,6 +383,20 @@
       "description": "Las plantillas de nombres se configuran por biblioteca y en el motor de renombrado.",
       "libraryBtn": "Plantillas de biblioteca",
       "engineBtn": "Plantillas del motor de renombrado"
+    },
+    "cleanup": {
+      "title": "Reglas de limpieza",
+      "description": "Borra archivos basura (y subtítulos de idiomas no deseados) antes de mover los archivos importantes durante un renombrado/movimiento.",
+      "enabledLabel": "Activar limpieza durante renombrar/mover",
+      "enabledHint": "Solo aplica a los modos Renombrar en el lugar y Mover — nunca a copiar/enlace duro/enlace simbólico, donde el origen es tu copia en siembra.",
+      "globsLabel": "Patrones a eliminar",
+      "globsPlaceholder": "YTS*.txt\nRARBG.txt\nwww.*\n*.jpg",
+      "globsHint": "Un patrón de nombre por línea (o separados por comas). Comodines: * (cualquier secuencia), ? (un carácter). Un archivo de video nunca se elimina aunque un patrón coincida.",
+      "langsLabel": "Conservar idiomas de subtítulos",
+      "langsPlaceholder": "en, es",
+      "langsHint": "Códigos ISO-639 a conservar (p. ej. en, es). Los subtítulos en otros idiomas se eliminan; los subtítulos sin etiqueta siempre se conservan. Déjalo en blanco para conservar todos.",
+      "pruneLabel": "Eliminar la carpeta de origen si queda vacía",
+      "removeTorrentLabel": "Eliminar un .torrent sobrante en la carpeta de origen"
     },
     "integrations": {
       "noPermTitle": "Integraciones con servidores de medios",
