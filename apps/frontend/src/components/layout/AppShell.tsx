@@ -521,16 +521,11 @@ function VersionBadge({ collapsed, onClick }: { collapsed?: boolean; onClick?: (
   const { data } = useVersion();
   const { t } = useTranslation('shell');
   const version = data?.version ? `v${data.version}` : '';
-  // The exact build identity from `git describe` (e.g. "v0.26.0-3-ge877a84").
-  // Fall back to the short commit; hide it when it merely repeats the version
-  // (an exact release) or when the build wasn't git-stamped.
-  const tag =
-    data?.gitTag && data.gitTag !== version
-      ? data.gitTag
-      : data?.gitSha
-        ? data.gitSha.slice(0, 7)
-        : '';
-  const ariaVersion = tag ? `${version} ${tag}` : version;
+  // Always show the abbreviated commit hash (short git SHA) next to the version,
+  // in white — so every build's exact commit is visible, releases included.
+  // Only absent when the build wasn't git-stamped (no gitSha).
+  const commit = data?.gitSha ? data.gitSha.slice(0, 7) : '';
+  const ariaVersion = commit ? `${version} ${commit}` : version;
   return (
     <button
       type="button"
@@ -547,7 +542,7 @@ function VersionBadge({ collapsed, onClick }: { collapsed?: boolean; onClick?: (
         (version ? (
           <span className="tabular-nums">
             <span className="text-emerald-300">{version}</span>
-            {tag && <span className="text-white"> {tag}</span>}
+            {commit && <span className="text-white"> {commit}</span>}
           </span>
         ) : (
           <span className="tabular-nums">{t('about.trigger')}</span>
