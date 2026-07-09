@@ -55,6 +55,13 @@ export interface RenameRequest {
    */
   sourceName?: string;
   /**
+   * Human-friendly media name (e.g. `"9-1-1 (2018)"`) for activity/audit
+   * surfaces. Callers that already know the identified title+year pass it so the
+   * dashboard's Recent activity can read "Renamed media for 9-1-1 (2018)" rather
+   * than a bare "Media rename". Purely cosmetic — it never affects the plan.
+   */
+  label?: string;
+  /**
    * Build the plan under the real `mode` but do NOT touch disk — a faithful
    * preview. Unlike `mode: 'preview'` (which changes destination resolution,
    * e.g. re-rooting an in-place move under the library instead of reusing the
@@ -394,12 +401,30 @@ export class MediaService {
       await this.postMoveCleanup([...sourceDirs], rules, roots);
     }
 
+    // The representative file for the activity feed's "from → to": the first
+    // real (non-skip, non-delete) move that actually landed a destination.
+    const primary = plan.items.find(
+      (i) => i.action !== 'delete' && !i.skipped && i.destination,
+    );
+    const fromTo = primary?.destination
+      ? renameFromTo(primary.source, primary.destination)
+      : null;
+
     await this.audit.record({
       action: 'media.rename',
       result: failed > 0 ? 'failure' : 'success',
       objectType: 'torrent',
       objectId: req.hash,
-      metadata: { applied, skipped, failed, deleted, mode: plan.mode, libraryPath: plan.libraryPath },
+      metadata: {
+        applied,
+        skipped,
+        failed,
+        deleted,
+        mode: plan.mode,
+        libraryPath: plan.libraryPath,
+        ...(req.label ? { name: req.label } : {}),
+        ...(fromTo ?? {}),
+      },
     });
 
     return { applied, skipped, failed, deleted, plan };
@@ -521,4 +546,20 @@ export class MediaService {
       })
       .catch(() => undefined);
   }
+}
+
+/**
+ * Short, human-readable `{ from, to }` for the activity feed. Prefers the
+ * filenames (a rename usually changes the basename); when only the folder moved
+ * and the basenames match, it qualifies each with its parent folder so the pair
+ * still reads as a change rather than "X → X".
+ */
+function renameFromTo(source: string, destination: string): { from: string; to: string } {
+  const from = path.basename(source);
+  const to = path.basename(destination);
+  if (from !== to) return { from, to };
+  return {
+    from: path.join(path.basename(path.dirname(source)), from),
+    to: path.join(path.basename(path.dirname(destination)), to),
+  };
 }

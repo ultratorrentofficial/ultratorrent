@@ -183,7 +183,16 @@ export class MediaAutomationActions {
       // Prepending the title mirrors the folder-climb the identifier does; the
       // basename keeps the SxxEyy / resolution / group tokens intact.
       sourceName: this.identitySourceName(item),
+      // Feeds the dashboard activity row: "Renamed media for {title (year)}".
+      label: this.mediaLabel(item),
     });
+  }
+
+  /** `"{title} ({year})"` (year omitted for TV) for activity/audit display. */
+  private mediaLabel(item: { title: string | null; year: number | null }): string | undefined {
+    const title = item.title?.trim();
+    if (!title) return undefined;
+    return item.year ? `${title} (${item.year})` : title;
   }
 
   /**

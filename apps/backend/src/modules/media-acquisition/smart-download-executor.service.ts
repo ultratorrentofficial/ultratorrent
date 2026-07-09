@@ -122,7 +122,7 @@ export class SmartDownloadExecutorService {
         action: removedHash ? 'media_acquisition.upgrade.executed' : 'media_acquisition.download.executed',
         objectType: 'media_acquisition_action',
         objectId: actionId,
-        metadata: { torrentHash: hash, removedHash },
+        metadata: { torrentHash: hash, removedHash, releaseName: payload.releaseName },
       });
       return { status: 'completed', torrentHash: hash, removedHash };
     } catch (e) {
@@ -139,7 +139,7 @@ export class SmartDownloadExecutorService {
         objectType: 'media_acquisition_action',
         objectId: actionId,
         result: 'failure',
-        metadata: { error: msg },
+        metadata: { error: msg, releaseName: payload.releaseName },
       });
       this.logger.warn(`Smart Download execution failed for action ${actionId}: ${msg}`);
       return { status: 'failed', error: msg };

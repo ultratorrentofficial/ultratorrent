@@ -60,11 +60,17 @@ interface ActivityItem {
   id: string;
   type: string;
   message: string;
+  /**
+   * Optional secondary line with the specifics of the operation — e.g. the
+   * `from → to` of a media rename or the error of a failed download. Rendered
+   * muted under the message so the main list stays scannable.
+   */
+  detail: string | null;
   level: 'info' | 'success' | 'warning' | 'error';
   at: string;
 }
 
-type AuditRow = {
+export type AuditRow = {
   id: string;
   action: string;
   objectType: string | null;
@@ -86,7 +92,63 @@ const ACRONYMS: Record<string, string> = {
   '2fa': '2FA',
 };
 
-function toActivityItem(row: AuditRow): ActivityItem {
+export function toActivityItem(row: AuditRow): ActivityItem {
+  const meta = asMeta(row.metadata);
+  const described = describeActivity(row, meta);
+  let message = described.message;
+  if (row.user?.username) message += ` · ${row.user.username}`;
+
+  return {
+    id: row.id,
+    type: row.action,
+    message,
+    detail: described.detail,
+    level: activityLevel(row.action, row.result),
+    at: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Turn one audit row into the activity feed's `{ message, detail }`. A handful
+ * of media operations get purpose-built, plain-language phrasing (so the feed
+ * says exactly what media was handled and what was attempted); everything else
+ * falls back to the generic verb-from-action rendering.
+ */
+function describeActivity(
+  row: AuditRow,
+  meta: Record<string, unknown>,
+): { message: string; detail: string | null } {
+  const name = activityName(meta);
+  const from = str(meta.from);
+  const to = str(meta.to);
+  const fromTo = from && to ? `${from} → ${to}` : null;
+  const failed = row.result === 'failure';
+
+  switch (row.action) {
+    case 'media.rename':
+      return {
+        message: `${failed ? 'Rename failed' : 'Renamed media'}${name ? ` for ${name}` : ''}`,
+        detail: fromTo ?? renameCounts(meta),
+      };
+    case 'media_acquisition.download.executed':
+      return { message: `Downloaded ${name ?? 'release'}`, detail: null };
+    case 'media_acquisition.upgrade.executed':
+      return { message: `Upgraded ${name ?? 'release'}`, detail: null };
+    case 'media_acquisition.download.failed':
+      return {
+        message: `Download failed${name ? ` for ${name}` : ''}`,
+        detail: str(meta.error),
+      };
+    default: {
+      let message = genericMessage(row);
+      if (name) message += `: ${name}`;
+      return { message, detail: fromTo };
+    }
+  }
+}
+
+/** Generic "verb from action name" rendering used for un-specialized events. */
+function genericMessage(row: AuditRow): string {
   // Bare verbs (e.g. "added", "deleted") only make sense with their objectType
   // prefixed; namespaced actions (e.g. "media.imdb.import.completed") already
   // carry their own context.
@@ -95,7 +157,7 @@ function toActivityItem(row: AuditRow): ActivityItem {
       ? `${row.objectType} ${row.action}`
       : row.action;
 
-  let message = base
+  return base
     .replace(/[._]/g, ' ')
     .trim()
     .split(/\s+/)
@@ -106,18 +168,26 @@ function toActivityItem(row: AuditRow): ActivityItem {
       return i === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
     })
     .join(' ');
+}
 
-  const name = activityName(row.metadata);
-  if (name) message += `: ${name}`;
-  if (row.user?.username) message += ` · ${row.user.username}`;
+/** Fallback detail for a rename with no single from→to (multi-file / all skipped). */
+function renameCounts(meta: Record<string, unknown>): string | null {
+  const parts: string[] = [];
+  for (const key of ['applied', 'skipped', 'failed', 'deleted'] as const) {
+    const n = meta[key];
+    if (typeof n === 'number' && n > 0) parts.push(`${n} ${key}`);
+  }
+  return parts.length ? parts.join(' · ') : null;
+}
 
-  return {
-    id: row.id,
-    type: row.action,
-    message,
-    level: activityLevel(row.action, row.result),
-    at: row.createdAt.toISOString(),
-  };
+function asMeta(metadata: unknown): Record<string, unknown> {
+  return metadata && typeof metadata === 'object'
+    ? (metadata as Record<string, unknown>)
+    : {};
+}
+
+function str(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function activityLevel(
@@ -130,10 +200,8 @@ function activityLevel(
   return 'info';
 }
 
-function activityName(metadata: unknown): string | null {
-  if (!metadata || typeof metadata !== 'object') return null;
-  const meta = metadata as Record<string, unknown>;
-  for (const key of ['name', 'title', 'filename', 'path']) {
+function activityName(meta: Record<string, unknown>): string | null {
+  for (const key of ['name', 'title', 'releaseName', 'filename', 'path']) {
     const value = meta[key];
     if (typeof value === 'string' && value.trim()) return value.trim();
   }

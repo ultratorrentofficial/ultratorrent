@@ -319,12 +319,22 @@ function ActivityRow({ item }: { item: ActivityItem }) {
     error: 'text-destructive',
   };
   return (
-    <li className="flex items-center gap-3 py-2.5">
+    <li className="flex items-start gap-3 py-2.5">
       <span
-        className={cn('h-1.5 w-1.5 shrink-0 rounded-full bg-current', tone[item.level ?? 'info'])}
+        className={cn(
+          'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current',
+          tone[item.level ?? 'info'],
+        )}
       />
-      <span className="min-w-0 flex-1 truncate text-sm text-foreground/90">{item.message}</span>
-      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm text-foreground/90">{item.message}</span>
+        {item.detail && (
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+            {item.detail}
+          </span>
+        )}
+      </span>
+      <span className="mt-0.5 shrink-0 text-xs text-muted-foreground tabular-nums">
         {formatRelativeTime(item.at)}
       </span>
     </li>
