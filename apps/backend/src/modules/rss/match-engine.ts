@@ -140,18 +140,36 @@ function dropLeadingArticle(toks: string[]): string[] {
 }
 
 /**
- * A "smart" show/movie pattern IS the title, so it must be the **leading tokens**
- * (a prefix) of the release's show-title region — not merely appear somewhere
- * inside it. Set-membership alone lets a short title bleed into a longer one:
- * "Rise" grabbing "The Pendragon Cycle Rise of the Merlin S01E04". Trailing region
- * tokens (a release year, etc.) are allowed; leading-article differences ignored.
+ * A "smart" show/movie pattern IS the title, so it must equal the release's
+ * **pure title** — the show-title region tokens up to the first release year or
+ * quality/format token. Two failure modes this closes:
+ *  - Set-membership / mid-title bleed: "Rise" must not grab "The Pendragon Cycle
+ *    Rise of the Merlin" (the title isn't just "Rise").
+ *  - Spinoff bleed: "9-1-1" must not grab "9-1-1 Lone Star" even though it IS a
+ *    prefix — the extra title words "Lone Star" make it a different show. It still
+ *    matches "9-1-1", "9-1-1 2018", and the Lone Star rule matches Lone Star.
+ * A trailing year ("The Equalizer 2021") and, for movies (no SxxEyy to bound the
+ * region), the quality tail ("Dune Part Two 2024 2160p BluRay x265 DTS-HD-RARBG")
+ * are stripped before comparing; leading-article differences are ignored. A
+ * *leading* year is kept — it can be the whole title ("2020").
  */
-function showTitlePrefixMatch(pattern: string, title: string): boolean {
+function showTitleMatch(pattern: string, title: string): boolean {
   if (!pattern) return true;
   const pat = dropLeadingArticle(tokens(pattern));
   if (pat.length === 0) return true;
   const region = dropLeadingArticle(showRegionTokens(title));
-  return pat.every((w, i) => region[i] === w);
+  let end = region.length;
+  for (let i = 0; i < region.length; i++) {
+    const isYear = /^(19|20)\d{2}$/.test(region[i]);
+    // A year only bounds the title when it isn't the leading (title) token;
+    // a quality/format token never belongs to a title, so it always bounds it.
+    if ((isYear && i > 0) || FORMAT_TOKEN.test(region[i])) {
+      end = i;
+      break;
+    }
+  }
+  const pureTitle = region.slice(0, end);
+  return pat.length === pureTitle.length && pat.every((w, i) => pureTitle[i] === w);
 }
 
 /**
@@ -331,7 +349,7 @@ function coreMatch(
       // so a rule never matches on a word that only appears in the *episode* title
       // AND never bleeds a short title into a longer one ("Rise" ⊄ "The Pendragon
       // Cycle Rise of the Merlin").
-      const titleOk = showTitlePrefixMatch(pattern, title);
+      const titleOk = showTitleMatch(pattern, title);
       if (!titleOk) return { label: 'smart episode', passed: false, detail: `show title “${pattern}” not found` };
       if (qr.season != null && parsed.season !== qr.season)
         return { label: 'smart episode', passed: false, detail: `season ${qr.season} not found (got ${parsed.season ?? 'none'})` };
@@ -342,7 +360,7 @@ function coreMatch(
     case 'smart_movie_match': {
       // A movie has no SxxEyy, so the show-title region is the whole name; the
       // pattern must be its leading tokens (prefix), not a word buried inside.
-      const titleOk = showTitlePrefixMatch(pattern, title);
+      const titleOk = showTitleMatch(pattern, title);
       if (!titleOk) return { label: 'smart movie', passed: false, detail: `movie title “${pattern}” not found` };
       if (qr.year != null && parsed.year !== qr.year)
         return { label: 'smart movie', passed: false, detail: `year ${qr.year} not found (got ${parsed.year ?? 'none'})` };

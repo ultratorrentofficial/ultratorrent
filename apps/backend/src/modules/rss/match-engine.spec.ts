@@ -148,6 +148,20 @@ describe('match types', () => {
     expect(evaluateCandidate(c, { title: 'Rise.2017.S01E04.1080p.HEVC.x265-MeGusta' }).result).toBe('matched');
   });
 
+  it('smart_episode_match rejects a spinoff that only shares the title prefix (9-1-1 vs Lone Star)', () => {
+    // "9-1-1" IS a prefix of "9-1-1 Lone Star", but the extra "Lone Star" tokens
+    // mean it's a different show — must not grab it.
+    const c = cand({ matchType: 'smart_episode_match', pattern: '9-1-1', qualityRules: { season: 1, episode: 2 } });
+    expect(evaluateCandidate(c, { title: '9-1-1.Lone.Star.S01E02.Yee-Haw.1080p.HEVC.x265-MeGusta' }).result).toBe('failed');
+    // The real 9-1-1 (bare, or with its year) still matches.
+    expect(evaluateCandidate(c, { title: '9-1-1.S01E02.1080p.HEVC.x265-MeGusta' }).result).toBe('matched');
+    expect(evaluateCandidate(c, { title: '9-1-1.2018.S01E02.1080p.x265-MeGusta' }).result).toBe('matched');
+    // ...and the Lone Star rule matches only Lone Star.
+    const ls = cand({ matchType: 'smart_episode_match', pattern: '9-1-1 Lone Star', qualityRules: { season: 1, episode: 2 } });
+    expect(evaluateCandidate(ls, { title: '9-1-1.Lone.Star.S01E02.Yee-Haw.1080p.x265-MeGusta' }).result).toBe('matched');
+    expect(evaluateCandidate(ls, { title: '9-1-1.S01E02.1080p.x265-MeGusta' }).result).toBe('failed');
+  });
+
   it('smart_episode_match is leading-article insensitive and allows a trailing year', () => {
     const c = cand({ matchType: 'smart_episode_match', pattern: 'The Equalizer', qualityRules: { season: 5, episode: 5 } });
     expect(evaluateCandidate(c, { title: 'The.Equalizer.2021.S05E05.720p.x265-MeGusta' }).result).toBe('matched');
