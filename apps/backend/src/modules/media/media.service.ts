@@ -409,6 +409,10 @@ export class MediaService {
     const fromTo = primary?.destination
       ? renameFromTo(primary.source, primary.destination)
       : null;
+    // Prefer the caller's label (the DB-resolved item title from automation);
+    // fall back to the release identity parsed from the plan so an ad-hoc/manual
+    // rename still names the media in the activity feed.
+    const name = req.label ?? mediaNameFromParsed(plan.parsed);
 
     await this.audit.record({
       action: 'media.rename',
@@ -422,7 +426,7 @@ export class MediaService {
         deleted,
         mode: plan.mode,
         libraryPath: plan.libraryPath,
-        ...(req.label ? { name: req.label } : {}),
+        ...(name ? { name } : {}),
         ...(fromTo ?? {}),
       },
     });
@@ -554,6 +558,13 @@ export class MediaService {
  * and the basenames match, it qualifies each with its parent folder so the pair
  * still reads as a change rather than "X → X".
  */
+/** `"{title} ({year})"` (year omitted when unknown) from the plan's parsed identity. */
+function mediaNameFromParsed(parsed: { title: string | null; year: number | null }): string | undefined {
+  const title = parsed.title?.trim();
+  if (!title) return undefined;
+  return parsed.year ? `${title} (${parsed.year})` : title;
+}
+
 function renameFromTo(source: string, destination: string): { from: string; to: string } {
   const from = path.basename(source);
   const to = path.basename(destination);
