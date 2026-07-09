@@ -2,6 +2,7 @@ import {
   buildRenamePlan,
   classifyFile,
   globToRegExp,
+  isRenderedPathSafe,
   isSeasonContainer,
   matchesAnyGlob,
   normalizeLang,
@@ -144,6 +145,36 @@ describe('buildRenamePlan — edge cases', () => {
     }));
     expect(plan.mode).toBe('preview');
     expect(plan.items[0].destination).toContain('/m/Show/Season 1/');
+  });
+
+  it('never renames a primary video onto a corrupt-template path (the "{" clobber)', () => {
+    const plan = buildRenamePlan(ctx({
+      sourceName: 'Show.S01E01.1080p-G',
+      files: [{ path: 'Show.S01E01.1080p-G.mkv', size: 2e9 }],
+      libraryPath: '/m',
+      template: '{', // corrupted library template
+    }));
+    const primary = plan.items.find((i) => i.source.endsWith('.mkv'));
+    expect(primary?.action).toBe('skip');
+    expect(primary?.destination).toBeNull();
+    expect(primary?.reason).toMatch(/invalid naming template/i);
+    expect(plan.warnings.some((w) => /unsafe destination/i.test(w))).toBe(true);
+  });
+});
+
+describe('isRenderedPathSafe', () => {
+  it('accepts a normal rendered path', () => {
+    expect(isRenderedPathSafe('Show/Season 1/Show - S01E01.mkv', '.mkv')).toBe(true);
+  });
+  it('rejects a bare "{" (unclosed token survives sanitization)', () => {
+    expect(isRenderedPathSafe('{', '.mkv')).toBe(false);
+  });
+  it('rejects unresolved braces from a truncated template', () => {
+    expect(isRenderedPathSafe('Show/{', '.mkv')).toBe(false);
+  });
+  it('rejects an empty render and an extension-less basename', () => {
+    expect(isRenderedPathSafe('', '.mkv')).toBe(false);
+    expect(isRenderedPathSafe('Show/Season 1/Show - S01E01', '.mkv')).toBe(false);
   });
 });
 

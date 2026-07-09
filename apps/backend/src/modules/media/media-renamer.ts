@@ -294,6 +294,21 @@ export function renderTemplate(template: string, tokens: TemplateTokens): string
   return segments.filter((s) => s.length > 0).join('/');
 }
 
+/**
+ * A rendered relative path is safe to rename a *primary media file* onto only if
+ * it has real content, carries no unresolved template braces (`{`/`}` — the
+ * signature of a corrupt template), and ends in the file's own extension. A bare
+ * `{` template, an empty render, or a truncated template all fail this and must
+ * never be used as a destination (they would overwrite the source file's name).
+ */
+export function isRenderedPathSafe(rel: string, ext: string): boolean {
+  if (!rel || !rel.trim()) return false;
+  if (/[{}]/.test(rel)) return false;
+  const base = path.basename(rel);
+  if (!base || base === ext) return false;
+  return ext ? base.toLowerCase().endsWith(ext.toLowerCase()) : true;
+}
+
 function templateForKind(preset: Preset, kind: MediaKind, override?: string): string {
   if (override && override.trim()) return override;
   const p = preset === 'custom' ? 'plex' : preset;
@@ -462,6 +477,21 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
 
     const tokens = buildTokens(parsed, c.kind, c.ext, ctx.meta, range);
     let rel = renderTemplate(template, tokens);
+
+    // Guard: a corrupt/misconfigured template can render to garbage (e.g. a bare
+    // `{` — an unclosed token is not a legal token AND `{` is not an illegal
+    // filename char, so it survives sanitization). Renaming a primary video onto
+    // such a name silently clobbers the file (every episode collapses to the same
+    // `{`). Never move a primary onto an unresolved-brace or extension-less path —
+    // leave it untouched and warn so the operator can fix the naming template.
+    if (!isRenderedPathSafe(rel, c.ext)) {
+      warnings.push(
+        `Naming template produced an unsafe destination "${rel}" for "${f.path}"; ` +
+          `file left untouched. Check this library's naming template.`,
+      );
+      items.push({ source: f.path, destination: null, action: 'skip', kind: c.kind, reason: 'invalid naming template', skipped: true, isSubtitle: false, isSample: false, isExtra: c.isExtra });
+      continue;
+    }
 
     if (c.isExtra) {
       // Route extras into an Extras/ subfolder beside the title folder.
