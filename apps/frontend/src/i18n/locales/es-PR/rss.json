@@ -201,6 +201,14 @@
     },
     "createRule": "Crear regla",
     "download": "Descargar",
+    "downloadDialog": {
+      "title": "Elige la ubicación de descarga",
+      "location": "Guardar en",
+      "locationPlaceholder": "Predeterminado del motor (dejar en blanco)",
+      "pickerTitle": "Elige la carpeta de descarga",
+      "hint": "Dónde se guardarán los archivos del torrent. Déjalo en blanco para usar el directorio de descargas predeterminado del motor.",
+      "cancel": "Cancelar"
+    },
     "rowsPerPage": "Filas por página",
     "updating": "actualizando…",
     "pageInfo_one": "Página {{page}} de {{totalPages}} · {{total}} elemento",

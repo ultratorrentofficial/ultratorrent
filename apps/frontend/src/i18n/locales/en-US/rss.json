@@ -201,6 +201,14 @@
     },
     "createRule": "Create rule",
     "download": "Download",
+    "downloadDialog": {
+      "title": "Choose download location",
+      "location": "Save to",
+      "locationPlaceholder": "Engine default (leave blank)",
+      "pickerTitle": "Choose download folder",
+      "hint": "Where the torrent's files will be saved. Leave blank to use the engine's default download directory.",
+      "cancel": "Cancel"
+    },
     "rowsPerPage": "Rows per page",
     "updating": "updating…",
     "pageInfo_one": "Page {{page}} of {{totalPages}} · {{total}} item",

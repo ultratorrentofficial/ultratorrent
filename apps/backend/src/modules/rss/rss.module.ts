@@ -1000,7 +1000,7 @@ export class RssService {
   }
 
   /** Manually grab a single feed-history item from the history browser. */
-  async downloadHistoryItem(historyId: string) {
+  async downloadHistoryItem(historyId: string, savePath?: string) {
     const item = await this.prisma.rssHistory.findUnique({ where: { id: historyId } });
     if (!item) throw new NotFoundException('RSS history item not found');
 
@@ -1021,7 +1021,7 @@ export class RssService {
 
     let torrentHash: string | null;
     try {
-      torrentHash = await this.addToEngine(dl);
+      torrentHash = await this.addToEngine(dl, savePath?.trim() || undefined);
     } catch (e) {
       // Surface the real reason (dead link 404, engine unreachable, no default
       // engine, …) instead of a generic guess.
@@ -1960,8 +1960,11 @@ export class RssController {
 
   @Post('history/:id/download')
   @RequirePermissions(PERMISSIONS.RSS_MANAGE)
-  downloadHistoryItem(@Param('id') id: string) {
-    return this.rss.downloadHistoryItem(id);
+  downloadHistoryItem(
+    @Param('id') id: string,
+    @Body() body: { savePath?: string } = {},
+  ) {
+    return this.rss.downloadHistoryItem(id, body?.savePath);
   }
 
   @Get('rules/:id/match-history')

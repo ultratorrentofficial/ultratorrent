@@ -45,6 +45,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CenteredSpinner, EmptyState, ErrorState, Spinner } from '@/components/ui/feedback';
+import { PathPicker } from '@/components/PathPicker';
 import { formatRelativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -69,6 +70,9 @@ export function RssFeedHistoryPage() {
   const [pageSize, setPageSize] = useState(25);
   const [refreshing, setRefreshing] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadFor, setDownloadFor] = useState<RssHistoryItem | null>(null);
+  // Remembered across grabs this session so the picker pre-fills the last choice.
+  const [savePath, setSavePath] = useState('');
   const [ruleFor, setRuleFor] = useState<RssHistoryItem | null>(null);
   const [status, setStatus] = useState<RssHistoryStatus | 'all'>('all');
   const [searchInput, setSearchInput] = useState('');
@@ -141,11 +145,12 @@ export function RssFeedHistoryPage() {
     }
   };
 
-  const download = async (item: RssHistoryItem) => {
+  const download = async (item: RssHistoryItem, location: string) => {
     setDownloadingId(item.id);
     try {
-      await api.rss.downloadHistoryItem(item.id);
+      await api.rss.downloadHistoryItem(item.id, location.trim() || undefined);
       toast.success(t('history.toast.downloadStarted'), item.title);
+      setDownloadFor(null);
       invalidateHistory();
     } catch (err) {
       toast.error(t('history.toast.downloadFailed'), err instanceof ApiError ? err.message : undefined);
@@ -324,7 +329,7 @@ export function RssFeedHistoryPage() {
                                   variant="outline"
                                   size="sm"
                                   className="whitespace-nowrap"
-                                  onClick={() => void download(item)}
+                                  onClick={() => setDownloadFor(item)}
                                   loading={downloadingId === item.id}
                                   disabled={downloadingId !== null}
                                 >
@@ -385,6 +390,42 @@ export function RssFeedHistoryPage() {
           )}
         </CardContent>
       </Card>
+
+      {downloadFor && (
+        <Dialog open onClose={() => setDownloadFor(null)} className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{t('history.downloadDialog.title')}</DialogTitle>
+            <DialogDescription className="break-all font-mono text-xs">
+              {downloadFor.title}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            <Label htmlFor="rss-download-path">{t('history.downloadDialog.location')}</Label>
+            <PathPicker
+              id="rss-download-path"
+              value={savePath}
+              onChange={setSavePath}
+              mode="directory"
+              placeholder={t('history.downloadDialog.locationPlaceholder')}
+              pickerTitle={t('history.downloadDialog.pickerTitle')}
+            />
+            <p className="text-xs text-muted-foreground">{t('history.downloadDialog.hint')}</p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDownloadFor(null)}>
+              {t('history.downloadDialog.cancel')}
+            </Button>
+            <Button
+              onClick={() => void download(downloadFor, savePath)}
+              loading={downloadingId === downloadFor.id}
+            >
+              <Download className="h-4 w-4" /> {t('history.download')}
+            </Button>
+          </DialogFooter>
+        </Dialog>
+      )}
 
       {ruleFor && feed && (
         <QuickRuleDialog

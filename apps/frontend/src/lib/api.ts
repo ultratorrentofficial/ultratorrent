@@ -255,6 +255,7 @@ export interface ActivityItem {
   id: string;
   type: string;
   message: string;
+  detail?: string | null;
   hash?: string | null;
   level?: 'info' | 'success' | 'warning' | 'error';
   at: string;
@@ -2385,10 +2386,13 @@ export const api = {
         method: 'POST',
       });
     },
-    downloadHistoryItem(historyId: string): Promise<RssHistoryItem & { torrentHash: string }> {
+    downloadHistoryItem(
+      historyId: string,
+      savePath?: string,
+    ): Promise<RssHistoryItem & { torrentHash: string }> {
       return request<RssHistoryItem & { torrentHash: string }>(
         `/rss/history/${historyId}/download`,
-        { method: 'POST' },
+        { method: 'POST', body: savePath ? { savePath } : {} },
       );
     },
     matchHistory(ruleId: string, query: PageQuery = {}): Promise<Paginated<RssRuleMatchEvaluation>> {
