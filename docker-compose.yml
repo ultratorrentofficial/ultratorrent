@@ -68,6 +68,10 @@ services:
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
       FILE_MANAGER_ROOTS: ${FILE_MANAGER_ROOTS:-/downloads}
+      # Comma-separated hosts/IPs/CIDRs whose torrent URLs may resolve to
+      # private/internal addresses (e.g. a self-hosted Prowlarr on the LAN that
+      # returns .torrent proxy links). Empty = full SSRF protection.
+      SSRF_ALLOW_HOSTS: ${SSRF_ALLOW_HOSTS:-}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ultratorrent.local}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}

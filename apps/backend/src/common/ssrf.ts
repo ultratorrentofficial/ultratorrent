@@ -42,6 +42,52 @@ export function isBlockedAddress(ip: string): boolean {
   return true; // not a valid IP → block
 }
 
+function ipv4ToInt(ip: string): number | null {
+  const p = ip.split('.').map(Number);
+  if (p.length !== 4 || p.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return null;
+  return ((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]) >>> 0;
+}
+
+/** IPv4 membership in a CIDR block (e.g. "192.168.99.10" ∈ "192.168.0.0/16"). */
+function ipv4InCidr(ip: string, cidr: string): boolean {
+  const [net, bitsStr] = cidr.split('/');
+  const bits = Number(bitsStr);
+  const ipInt = ipv4ToInt(ip);
+  const netInt = ipv4ToInt(net);
+  if (ipInt === null || netInt === null || !Number.isInteger(bits) || bits < 0 || bits > 32) {
+    return false;
+  }
+  if (bits === 0) return true;
+  const mask = (~((1 << (32 - bits)) - 1)) >>> 0;
+  return (ipInt & mask) === (netInt & mask);
+}
+
+/**
+ * Operator allowlist of trusted torrent hosts whose URLs may resolve to
+ * otherwise-blocked private/internal addresses — e.g. a self-hosted Prowlarr /
+ * Jackett on the LAN or Docker network that hands back `.torrent` proxy links.
+ * Configured via the comma-separated `SSRF_ALLOW_HOSTS` env (hostnames, IPs, or
+ * IPv4 CIDRs); empty by default, so the full SSRF protection is on unless the
+ * operator explicitly trusts a host. This only relaxes the *private-address*
+ * check — scheme allow-list, redirect refusal, and size caps still apply.
+ */
+export function isAllowlistedTorrentHost(hostname: string, resolvedIps: string[]): boolean {
+  const entries = (process.env.SSRF_ALLOW_HOSTS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (entries.length === 0) return false;
+  const host = hostname.toLowerCase();
+  for (const entry of entries) {
+    if (entry.toLowerCase() === host) return true; // hostname match
+    if (resolvedIps.includes(entry)) return true; // exact IP match
+    if (entry.includes('/') && resolvedIps.some((ip) => isIP(ip) === 4 && ipv4InCidr(ip, entry))) {
+      return true; // CIDR match
+    }
+  }
+  return false;
+}
+
 /**
  * SSRF-safe fetch of a remote .torrent. Rejects non-http(s) schemes, hosts that
  * resolve to internal/loopback/metadata addresses, redirects (which could bounce
@@ -68,9 +114,13 @@ export async function fetchRemoteTorrent(
   if (addresses.length === 0) {
     throw new BadRequestException('Could not resolve torrent URL host');
   }
-  for (const ip of addresses) {
-    if (isBlockedAddress(ip)) {
-      throw new BadRequestException('Torrent URL resolves to a blocked internal address');
+  // A host the operator has explicitly trusted (SSRF_ALLOW_HOSTS) — e.g. a
+  // self-hosted Prowlarr on the LAN — bypasses the private-address block.
+  if (!isAllowlistedTorrentHost(host, addresses)) {
+    for (const ip of addresses) {
+      if (isBlockedAddress(ip)) {
+        throw new BadRequestException('Torrent URL resolves to a blocked internal address');
+      }
     }
   }
 

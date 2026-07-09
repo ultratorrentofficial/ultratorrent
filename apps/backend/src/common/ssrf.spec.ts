@@ -1,5 +1,31 @@
 import { BadRequestException } from '@nestjs/common';
-import { isBlockedAddress, fetchRemoteTorrent } from './ssrf';
+import { isBlockedAddress, isAllowlistedTorrentHost, fetchRemoteTorrent } from './ssrf';
+
+describe('isAllowlistedTorrentHost (SSRF_ALLOW_HOSTS)', () => {
+  const orig = process.env.SSRF_ALLOW_HOSTS;
+  afterEach(() => {
+    if (orig === undefined) delete process.env.SSRF_ALLOW_HOSTS;
+    else process.env.SSRF_ALLOW_HOSTS = orig;
+  });
+
+  it('nothing is allowlisted by default (empty env)', () => {
+    delete process.env.SSRF_ALLOW_HOSTS;
+    expect(isAllowlistedTorrentHost('prowlarr', ['192.168.99.10'])).toBe(false);
+  });
+
+  it('matches by hostname (case-insensitive)', () => {
+    process.env.SSRF_ALLOW_HOSTS = 'prowlarr, jackett';
+    expect(isAllowlistedTorrentHost('Prowlarr', ['172.29.4.9'])).toBe(true);
+    expect(isAllowlistedTorrentHost('evil.example', ['1.2.3.4'])).toBe(false);
+  });
+
+  it('matches by exact IP and by IPv4 CIDR', () => {
+    process.env.SSRF_ALLOW_HOSTS = '192.168.99.10, 172.29.0.0/16';
+    expect(isAllowlistedTorrentHost('some.host', ['192.168.99.10'])).toBe(true); // exact IP
+    expect(isAllowlistedTorrentHost('prowlarr', ['172.29.4.9'])).toBe(true); // CIDR
+    expect(isAllowlistedTorrentHost('prowlarr', ['192.168.1.5'])).toBe(false); // outside
+  });
+});
 
 describe('isBlockedAddress', () => {
   it('blocks the cloud metadata address', () => {
