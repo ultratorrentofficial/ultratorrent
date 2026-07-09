@@ -138,6 +138,28 @@ describe('match types', () => {
     expect(evaluateCandidate(c, { title: 'Severance S02E13 1080p x265-MeGusta' }).result).toBe('matched');
   });
 
+  it('smart_episode_match anchors to the START of the title, not a mid-title word (Rise over-match)', () => {
+    // Show rule "Rise" must NOT grab a release whose title merely contains "rise".
+    const c = cand({ matchType: 'smart_episode_match', pattern: 'Rise', qualityRules: { season: 1, episode: 4 } });
+    expect(
+      evaluateCandidate(c, { title: 'The.Pendragon.Cycle.Rise.of.the.Merlin.S01E04.1080p.HEVC.x265-MeGusta' }).result,
+    ).toBe('failed');
+    // The real show "Rise" (leading token) still matches.
+    expect(evaluateCandidate(c, { title: 'Rise.2017.S01E04.1080p.HEVC.x265-MeGusta' }).result).toBe('matched');
+  });
+
+  it('smart_episode_match is leading-article insensitive and allows a trailing year', () => {
+    const c = cand({ matchType: 'smart_episode_match', pattern: 'The Equalizer', qualityRules: { season: 5, episode: 5 } });
+    expect(evaluateCandidate(c, { title: 'The.Equalizer.2021.S05E05.720p.x265-MeGusta' }).result).toBe('matched');
+    expect(evaluateCandidate(c, { title: 'Equalizer.S05E05.720p.x265-MeGusta' }).result).toBe('matched');
+  });
+
+  it('smart_movie_match anchors to the leading title tokens, not a mid-name word', () => {
+    const c = cand({ matchType: 'smart_movie_match', pattern: 'Rise', qualityRules: { year: 2017 } });
+    expect(evaluateCandidate(c, { title: 'The.Pendragon.Cycle.Rise.of.the.Merlin.2017.1080p.x265' }).result).toBe('failed');
+    expect(evaluateCandidate(c, { title: 'Rise.2017.1080p.x265' }).result).toBe('matched');
+  });
+
   it('wildcard', () => {
     expect(evaluateCandidate(cand({ matchType: 'wildcard', pattern: 'The.Example.Show*1080p*' }), { title }).result).toBe('matched');
   });

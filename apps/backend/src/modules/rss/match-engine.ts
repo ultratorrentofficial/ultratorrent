@@ -131,6 +131,29 @@ function showRegionTokens(input: string): string[] {
   return (cut >= 0 ? norm.slice(0, cut) : norm).split(' ').filter(Boolean);
 }
 
+/** Drop a single leading English article so "The Equalizer" and "Equalizer"
+ * anchor identically. Never empties the list. */
+function dropLeadingArticle(toks: string[]): string[] {
+  return toks.length > 1 && (toks[0] === 'the' || toks[0] === 'a' || toks[0] === 'an')
+    ? toks.slice(1)
+    : toks;
+}
+
+/**
+ * A "smart" show/movie pattern IS the title, so it must be the **leading tokens**
+ * (a prefix) of the release's show-title region — not merely appear somewhere
+ * inside it. Set-membership alone lets a short title bleed into a longer one:
+ * "Rise" grabbing "The Pendragon Cycle Rise of the Merlin S01E04". Trailing region
+ * tokens (a release year, etc.) are allowed; leading-article differences ignored.
+ */
+function showTitlePrefixMatch(pattern: string, title: string): boolean {
+  if (!pattern) return true;
+  const pat = dropLeadingArticle(tokens(pattern));
+  if (pat.length === 0) return true;
+  const region = dropLeadingArticle(showRegionTokens(title));
+  return pat.every((w, i) => region[i] === w);
+}
+
 /**
  * A pattern word that denotes quality/format/episode metadata rather than the
  * title. Everything *before* the first such word is the title; the rest are
@@ -304,10 +327,11 @@ function coreMatch(
       return { label: 'wildcard', passed, detail: passed ? 'wildcard matched' : 'wildcard did not match' };
     }
     case 'smart_episode_match': {
-      // Anchor the title to the show-title region (before SxxEyy), so a rule
-      // never matches on a word that only appears in the *episode* title.
-      const epShow = new Set(showRegionTokens(title));
-      const titleOk = !pattern || tokens(pattern).every((w) => epShow.has(w));
+      // Anchor the pattern to the START of the show-title region (before SxxEyy),
+      // so a rule never matches on a word that only appears in the *episode* title
+      // AND never bleeds a short title into a longer one ("Rise" ⊄ "The Pendragon
+      // Cycle Rise of the Merlin").
+      const titleOk = showTitlePrefixMatch(pattern, title);
       if (!titleOk) return { label: 'smart episode', passed: false, detail: `show title “${pattern}” not found` };
       if (qr.season != null && parsed.season !== qr.season)
         return { label: 'smart episode', passed: false, detail: `season ${qr.season} not found (got ${parsed.season ?? 'none'})` };
@@ -316,9 +340,9 @@ function coreMatch(
       return { label: 'smart episode', passed: true, detail: `matched S${qr.season}E${qr.episode}` };
     }
     case 'smart_movie_match': {
-      // A movie has no SxxEyy, so the show-title region is the whole name.
-      const mvShow = new Set(showRegionTokens(title));
-      const titleOk = !pattern || tokens(pattern).every((w) => mvShow.has(w));
+      // A movie has no SxxEyy, so the show-title region is the whole name; the
+      // pattern must be its leading tokens (prefix), not a word buried inside.
+      const titleOk = showTitlePrefixMatch(pattern, title);
       if (!titleOk) return { label: 'smart movie', passed: false, detail: `movie title “${pattern}” not found` };
       if (qr.year != null && parsed.year !== qr.year)
         return { label: 'smart movie', passed: false, detail: `year ${qr.year} not found (got ${parsed.year ?? 'none'})` };
