@@ -29,7 +29,7 @@ From `docker-compose.yml`:
 | `redis` | `redis:7-alpine` (AOF on) | Cache / jobs | internal | always |
 | `backend` | build `apps/backend/Dockerfile` | NestJS API + WebSocket gateway | `4000:4000` | always |
 | `frontend` | build `apps/frontend/Dockerfile` (nginx) | Built React SPA + `/api` & `/ws` proxy | `8080:80` | always |
-| `rtorrent` | `crazymax/rtorrent-rutorrent:latest` | Bundled torrent engine exposing SCGI `5000` | internal | `rtorrent` |
+| `rtorrent` | built locally from `deploy/rtorrent/` (jesec/rtorrent `v0.9.8-r16` static binary) | Bundled torrent engine exposing SCGI `5000` | internal | `rtorrent` |
 | `prowlarr` | `lscr.io/linuxserver/prowlarr:latest` | Optional Prowlarr indexer manager (companion) | `9696:9696` | `prowlarr` |
 | `flaresolverr` | `ghcr.io/flaresolverr/flaresolverr:latest` | Optional Cloudflare solver for Prowlarr indexers | internal | `flaresolverr` |
 | `proxy` | `caddy:2-alpine` | Edge reverse proxy / automatic TLS | `80:80`, `443:443` | `proxy` |
@@ -145,8 +145,7 @@ defaults so the SPA uses relative URLs proxied by nginx.
 |--------|---------|---------|
 | `postgres_data` | `postgres` | Persistent database |
 | `redis_data` | `redis` | Redis AOF persistence |
-| `downloads` | `backend`, `rtorrent` | Shared download tree — same path in both so engine `savePath`s line up with `FILE_MANAGER_ROOTS` |
-| `rtorrent_data` | `rtorrent` | rTorrent session/state |
+| `downloads` | `backend`, `rtorrent` | Shared download tree — same path in both so engine `savePath`s line up with `FILE_MANAGER_ROOTS`. rTorrent's session/state lives here too at `/downloads/.session` (no separate volume). |
 | `prowlarr_config` | `prowlarr` | Prowlarr database, indexer definitions & settings |
 | `caddy_data` | `proxy` | Caddy certificates / state |
 
@@ -190,6 +189,24 @@ docker compose --profile rtorrent --profile prowlarr --profile proxy up -d --bui
 The `deploy/Caddyfile` routes `/api/*` and `/ws/*` to `backend:4000` and
 everything else to `frontend:80`; replace the `:80` site label with your domain
 to get automatic HTTPS via Let's Encrypt.
+
+> **Bundled rTorrent — stability at scale.** The bundled engine is rTorrent
+> `0.9.8` (the maintained jesec `v0.9.8-r16` static binary — the newest release;
+> it replaced Debian's crashier apt build). That codebase has a long-standing
+> upstream bug — `internal_error: priority_queue_insert(...) called on an invalid
+> item`, fired during tracker-announce scheduling — that has **no fix in the
+> 0.9.8 lineage** and gets **more frequent the more active torrents you run**
+> (observed: ~0 crashes at a handful of torrents, ~10/day at ~750). A crash
+> exits the process and the `restart: unless-stopped` policy relaunches it,
+> reloading the saved session (no torrents lost), but transfers briefly pause and
+> everything re-announces. Mitigations, in order of impact: **(1) keep the active
+> torrent count modest** — remove/stop completed seeds; **(2) for a large
+> library, use a sturdier engine** — UltraTorrent's engine layer is
+> multi-engine, and qBittorrent handles thousands of torrents comfortably; **(3)**
+> UDP tracker announces are disabled in `deploy/rtorrent/rtorrent.rc` to remove a
+> secondary `TrackerList::receive_failed` crash variant (HTTP/HTTPS trackers +
+> PEX still find peers). DHT is also off by default for the same reason
+> (`RT_DHT=on` to enable).
 
 ## Development dependencies only
 

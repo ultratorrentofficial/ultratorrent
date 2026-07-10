@@ -1,0 +1,5 @@
+---
+"ultratorrent": patch
+---
+
+Bundled rTorrent stability mitigations. The engine is jesec `v0.9.8-r16` (the newest rtorrent build), whose `internal_error: priority_queue_insert(...) called on an invalid item` is an unfixed upstream 0.9.8 bug fired on tracker-announce scheduling that grows more frequent with the active-torrent count. Disable UDP tracker announces in `deploy/rtorrent/rtorrent.rc` (`trackers.use_udp.set = no`) to remove the secondary `TrackerList::receive_failed` crash variant (HTTP/HTTPS trackers + PEX still find peers), add a Compose healthcheck on the rtorrent service (SCGI port-listen) to surface a wedged-but-running engine, and document the limitation and its mitigations (keep the active-torrent count modest, or use a sturdier engine for large libraries) in `docs/DOCKER.md` and `docs/INSTALL.md` — also correcting stale DOCKER.md references (the rtorrent image is built locally from `deploy/rtorrent/`, not `crazymax/rtorrent-rutorrent`, and session state lives in the shared `downloads` volume at `/downloads/.session`, not a separate `rtorrent_data` volume). No fix for the dominant `priority_queue_insert` crash exists in the 0.9.8 lineage.

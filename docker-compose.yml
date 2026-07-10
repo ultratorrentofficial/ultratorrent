@@ -134,6 +134,17 @@ services:
       - downloads:/downloads
     expose: ["5000"]
     networks: [internal]
+    # rtorrent 0.9.8 can hit a fatal internal_error and exit (the restart policy
+    # above then relaunches it). A crash exits the process so Docker already
+    # recovers it; this healthcheck surfaces the rarer "process alive but SCGI
+    # wedged" state as `unhealthy`. Checks the SCGI control port is listening
+    # (`ss` ships with the iproute2 package in deploy/rtorrent/Dockerfile).
+    healthcheck:
+      test: ["CMD-SHELL", "ss -H -ltn 'sport = :5000' | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   # Optional bundled Prowlarr indexer manager. Enable with: --profile prowlarr
   # A separate companion container (not part of UltraTorrent) that manages

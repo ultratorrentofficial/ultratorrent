@@ -19,12 +19,22 @@ schedule2 = session_save, 300, 300, ((session.save))
 # host; it is an unauthenticated control socket.)
 network.scgi.open_port = 0.0.0.0:5000
 
-# Sensible defaults: PEX + UDP trackers on, fixed peer port range.
+# Sensible defaults: PEX on, fixed peer port range.
 encoding.add = utf8
 network.port_range.set = 6890-6999
 network.port_random.set = no
 protocol.pex.set = yes
-trackers.use_udp.set = yes
+# UDP trackers OFF: this rtorrent-0.9.8 build (jesec v0.9.8-r16, the newest
+# available) can hit a fatal `internal_error: TrackerList::receive_failed(...)
+# called but the iterator is invalid` while handling tracker responses, which
+# exits the process (the container then restarts). Disabling UDP tracker
+# announces removes that crash variant; HTTP/HTTPS trackers + PEX still find
+# peers. NOTE: this does NOT fix the dominant `priority_queue_insert(...) called
+# on an invalid item` crash — that is an unfixed upstream scheduler bug in the
+# 0.9.8 lineage, triggered by tracker-announce churn and aggravated by a high
+# active-torrent count. For a large library, run fewer active torrents or use a
+# sturdier engine (e.g. qBittorrent). See docs/DOCKER.md and docs/INSTALL.md.
+trackers.use_udp.set = no
 # DHT is set by the entrypoint from the RT_DHT env var (default OFF) — this
 # rtorrent build can crash on a DHT internal_error, so it's opt-in. Trackers +
 # PEX still discover peers without it.
