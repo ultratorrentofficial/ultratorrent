@@ -1,4 +1,4 @@
-import { toActivityItem, AuditRow } from './dashboard.module';
+import { toActivityItem, collapseActivity, AuditRow } from './dashboard.module';
 
 const at = new Date('2026-07-09T12:00:00.000Z');
 
@@ -115,5 +115,59 @@ describe('dashboard activity — toActivityItem', () => {
     );
     expect(item.message).toBe('Torrent added · dennis');
     expect(item.detail).toBeNull();
+  });
+});
+
+describe('dashboard activity — collapseActivity (bursty enrichment)', () => {
+  // The real burst: metadata/artwork/imdb enrichment, interleaved per item.
+  const ENRICH = ['media.artwork.import', 'media.imdb.enrichment.completed', 'media.metadata.fetch'];
+  function burst(n: number): AuditRow[] {
+    const rows: AuditRow[] = [];
+    for (let i = 0; i < n; i++) {
+      for (const action of ENRICH) {
+        rows.push(row({ id: `${action}-${i}`, action, createdAt: new Date(at.getTime() - i * 1000) }));
+      }
+    }
+    return rows;
+  }
+
+  it('collapses each interleaved system burst into one line with a count', () => {
+    const items = collapseActivity(burst(16), 15);
+    // 48 interleaved rows → 3 collapsed lines.
+    expect(items).toHaveLength(3);
+    const artwork = items.find((i) => i.type === 'media.artwork.import')!;
+    expect(artwork.message).toBe('Media artwork import');
+    expect(artwork.detail).toBe('16 events');
+    expect(items.map((i) => i.type)).toEqual(ENRICH); // order preserved (newest first)
+  });
+
+  it('keeps a burst from crowding out other events in the window', () => {
+    const rows = [
+      row({ id: 'auto', action: 'automation.rule.executed', objectType: 'torrent', metadata: { rule: 'Remove torrent after download' } }),
+      ...burst(20),
+      row({ id: 'login', action: 'auth.login', user: { username: 'dennis' } }),
+    ];
+    const items = collapseActivity(rows, 15);
+    // automation + 3 collapsed enrichment groups + the login = 5 lines, not 62.
+    expect(items).toHaveLength(5);
+    expect(items[0].type).toBe('automation.rule.executed');
+    expect(items.some((i) => i.type === 'auth.login')).toBe(true);
+  });
+
+  it('does NOT collapse repeated user-attributed actions', () => {
+    const rows = Array.from({ length: 4 }, (_, i) =>
+      row({ id: `add-${i}`, action: 'torrents.add', user: { username: 'dennis' } }),
+    );
+    const items = collapseActivity(rows, 15);
+    expect(items).toHaveLength(4); // each user action stays its own row
+  });
+
+  it('does not collapse a system action that occurs only once', () => {
+    const items = collapseActivity(
+      [row({ id: 's1', action: 'media.integration.refresh' }), ...burst(3)],
+      15,
+    );
+    const refresh = items.find((i) => i.type === 'media.integration.refresh')!;
+    expect(refresh.detail).toBeNull(); // rendered individually, not as a burst
   });
 });

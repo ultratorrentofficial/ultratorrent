@@ -47,12 +47,16 @@ export class DashboardService {
   }
 
   async recentActivity(limit = 15): Promise<ActivityItem[]> {
+    // Scan a wider window than we return so bursts of identical background
+    // events — the metadata/artwork/IMDb enrichment sweeps write one audit row
+    // per media item, interleaved — can be collapsed into a single line each
+    // rather than flooding the feed and crowding out everything else.
     const rows = await this.prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
-      take: limit,
+      take: Math.max(limit * 8, 120),
       include: { user: { select: { username: true } } },
     });
-    return rows.map((row) => toActivityItem(row));
+    return collapseActivity(rows, limit);
   }
 }
 
@@ -105,6 +109,52 @@ export function toActivityItem(row: AuditRow): ActivityItem {
     detail: described.detail,
     level: activityLevel(row.action, row.result),
     at: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Collapse bursty background events into one line each. A system-generated
+ * action (no user) that recurs within the scanned window — e.g. the enrichment
+ * sweeps that write one row per media item — is shown once, at its most recent
+ * occurrence, with an "N events" count; everything else, and every
+ * user-attributed action, stays an individual row. Rows arrive newest-first, so
+ * emitting each collapsed group at its first sighting preserves the ordering.
+ */
+export function collapseActivity(rows: AuditRow[], limit: number): ActivityItem[] {
+  const burstKey = (r: AuditRow) => `${r.action}|${r.result}`;
+
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    if (r.user) continue; // only automated/system events collapse
+    counts.set(burstKey(r), (counts.get(burstKey(r)) ?? 0) + 1);
+  }
+
+  const out: ActivityItem[] = [];
+  const emitted = new Set<string>();
+  for (const r of rows) {
+    const key = burstKey(r);
+    const count = r.user ? 0 : counts.get(key) ?? 0;
+    if (count >= 2) {
+      if (emitted.has(key)) continue; // group already represented
+      emitted.add(key);
+      out.push(burstActivityItem(r, count));
+    } else {
+      out.push(toActivityItem(r));
+    }
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/** A single collapsed line for a burst: the action's generic label + a count. */
+function burstActivityItem(rep: AuditRow, count: number): ActivityItem {
+  return {
+    id: rep.id,
+    type: rep.action,
+    message: genericMessage(rep),
+    detail: `${count} events`,
+    level: activityLevel(rep.action, rep.result),
+    at: rep.createdAt.toISOString(),
   };
 }
 
