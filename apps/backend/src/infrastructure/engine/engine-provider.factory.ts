@@ -4,6 +4,7 @@ import {
   TorrentEngineProvider,
 } from '../../domain/engine/torrent-engine-provider.interface';
 import { RTorrentProvider } from './rtorrent/rtorrent.provider';
+import { QbittorrentProvider } from './qbittorrent/qbittorrent.provider';
 
 /**
  * Instantiates a concrete {@link TorrentEngineProvider} from stored connection
@@ -16,6 +17,7 @@ export class EngineProviderFactory {
       case 'rtorrent':
         return new RTorrentProvider(config);
       case 'qbittorrent':
+        return new QbittorrentProvider(config);
       case 'transmission':
       case 'deluge':
         throw new Error(

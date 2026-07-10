@@ -66,13 +66,13 @@ describe('EngineService', () => {
     it('degrades to an offline result when the engine kind is unimplemented', async () => {
       const factory = {
         create: jest.fn(() => {
-          throw new Error('Engine "qbittorrent" is planned but not yet implemented');
+          throw new Error('Engine "transmission" is planned but not yet implemented');
         }),
       } as any;
       const svc = new EngineService({} as any, {} as any, factory);
 
       const res = await svc.test({
-        kind: 'qbittorrent',
+        kind: 'transmission',
         config: { mode: 'http', url: 'http://x' },
       });
 

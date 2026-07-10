@@ -85,4 +85,8 @@ export interface EngineConnectionConfig {
   socketPath?: string;
   url?: string;
   timeoutMs?: number;
+  // qBittorrent Web API transport
+  baseUrl?: string;
+  username?: string;
+  password?: string;
 }
