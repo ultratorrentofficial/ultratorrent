@@ -125,6 +125,18 @@ export class RTorrentProvider implements TorrentEngineProvider {
   private addConfirmAttempts = 20;
   private addConfirmIntervalMs = 300;
 
+  /**
+   * `d.erase` is unreliable on rtorrent (observed on 0.9.8): it can return with
+   * no error yet leave the download loaded, especially during bursts of erases
+   * (e.g. an automation "delete on complete" rule firing across many finished
+   * torrents at once). Trusting the return value records a phantom success and
+   * the torrent seeds forever. So we erase, verify it's actually gone, and retry
+   * — throwing if it survives so the caller logs a real failure and retries.
+   * ~2s total; overridden to tiny values in tests.
+   */
+  private removeConfirmAttempts = 5;
+  private removeConfirmIntervalMs = 400;
+
   constructor(cfg: EngineConnectionConfig) {
     this.engineId = cfg.engineId;
     this.transport = createRtorrentTransport({
@@ -477,7 +489,46 @@ export class RTorrentProvider implements TorrentEngineProvider {
 
   // --- removal -------------------------------------------------------------
   async removeTorrent(hash: string): Promise<void> {
-    await this.transport.call('d.erase', [hash]);
+    await this.eraseAndConfirm(hash);
+  }
+
+  /**
+   * Erase a torrent and confirm it's actually gone, retrying to work around
+   * rtorrent silently dropping `d.erase` under load (see `removeConfirmAttempts`).
+   * Throws if the torrent is still loaded after all attempts.
+   */
+  private async eraseAndConfirm(hash: string): Promise<void> {
+    for (let attempt = 0; attempt < this.removeConfirmAttempts; attempt++) {
+      await this.transport.call('d.erase', [hash]);
+      await new Promise((r) => setTimeout(r, this.removeConfirmIntervalMs));
+      if (!(await this.isLoaded(hash))) return;
+    }
+    throw new Error(
+      `rtorrent reported d.erase for ${hash} but it is still loaded after ` +
+        `${this.removeConfirmAttempts} attempts — the engine dropped the call ` +
+        `(rtorrent is prone to this under load); leaving it for the next retry`,
+    );
+  }
+
+  /**
+   * Cheap presence check for a single info-hash via a one-field d.multicall2.
+   * A transport error is treated as "still loaded" (conservative) so a transient
+   * blip can never be mistaken for a successful removal.
+   */
+  private async isLoaded(hash: string): Promise<boolean> {
+    const target = hash.toLowerCase();
+    try {
+      const rows = (await this.transport.call('d.multicall2', [
+        '',
+        'main',
+        'd.hash=',
+      ])) as XmlRpcValue[];
+      return (rows ?? []).some(
+        (row) => str((row as XmlRpcValue[])[0]).toLowerCase() === target,
+      );
+    } catch {
+      return true;
+    }
   }
 
   async removeTorrentAndData(hash: string): Promise<void> {
@@ -490,8 +541,10 @@ export class RTorrentProvider implements TorrentEngineProvider {
     const basePath = str(await this.transport.call('d.base_path', [hash]));
 
     // Stop and remove from the session first so rTorrent releases the files.
+    // eraseAndConfirm throws if the torrent survives — we must NOT delete the
+    // data while it's still loaded and seeding, so let that propagate.
     await this.stopTorrent(hash).catch(() => undefined);
-    await this.transport.call('d.erase', [hash]);
+    await this.eraseAndConfirm(hash);
 
     // Guard against pathological paths before a recursive delete.
     const unsafe =

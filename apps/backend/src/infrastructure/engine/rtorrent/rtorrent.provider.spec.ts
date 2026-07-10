@@ -57,11 +57,13 @@ describe('RTorrentProvider mapping', () => {
   it('scopes removeTorrentAndData to d.base_path, never d.directory', async () => {
     const calls: Array<{ method: string; params: unknown[] }> = [];
     const provider = providerWithRows([]);
+    (provider as any).removeConfirmIntervalMs = 0;
     (provider as any).transport = {
       call: jest.fn(async (method: string, params: unknown[] = []) => {
         calls.push({ method, params });
         if (method === 'd.base_path')
           return '/downloads/movies/film.mkv'; // single torrent's own path
+        if (method === 'd.multicall2') return []; // erase confirmed: gone
         return 0;
       }),
     };
@@ -80,16 +82,71 @@ describe('RTorrentProvider mapping', () => {
   it('refuses to delete a filesystem-root-level base_path', async () => {
     const calls: string[] = [];
     const provider = providerWithRows([]);
+    (provider as any).removeConfirmIntervalMs = 0;
     (provider as any).transport = {
       call: jest.fn(async (method: string) => {
         calls.push(method);
         if (method === 'd.base_path') return '/'; // pathological
+        if (method === 'd.multicall2') return []; // erase confirmed: gone
         return 0;
       }),
     };
     await provider.removeTorrentAndData('abc');
     expect(calls).toContain('d.erase');
     expect(calls).not.toContain('execute.throw'); // guard blocks the rm
+  });
+
+  describe('removeTorrent — reliable erase (rtorrent drops d.erase under load)', () => {
+    const HASH = 'abcabcabcabcabcabcabcabcabcabcabcabcabca';
+    const row = [HASH.toUpperCase()];
+
+    it('retries d.erase until the torrent is actually gone', async () => {
+      let erases = 0;
+      let present = true;
+      const provider = providerWithRows([]);
+      (provider as any).removeConfirmIntervalMs = 0;
+      (provider as any).transport = {
+        call: jest.fn(async (method: string) => {
+          if (method === 'd.erase') {
+            erases++;
+            if (erases >= 2) present = false; // first erase is silently dropped
+            return 0;
+          }
+          if (method === 'd.multicall2') return present ? [row] : [];
+          return 0;
+        }),
+      };
+      await expect(provider.removeTorrent(HASH)).resolves.toBeUndefined();
+      expect(erases).toBe(2); // one dropped, one that stuck
+    });
+
+    it('throws when the torrent never leaves (so the caller logs a real failure)', async () => {
+      const provider = providerWithRows([]);
+      (provider as any).removeConfirmAttempts = 3;
+      (provider as any).removeConfirmIntervalMs = 0;
+      (provider as any).transport = {
+        call: jest.fn(async (method: string) => {
+          if (method === 'd.multicall2') return [row]; // always still present
+          return 0;
+        }),
+      };
+      await expect(provider.removeTorrent(HASH)).rejects.toThrow(/still loaded/i);
+    });
+
+    it('succeeds on the first try when the erase takes immediately', async () => {
+      let erases = 0;
+      const provider = providerWithRows([]);
+      (provider as any).removeConfirmIntervalMs = 0;
+      (provider as any).transport = {
+        call: jest.fn(async (method: string) => {
+          if (method === 'd.erase') erases++;
+          if (method === 'd.multicall2') return []; // gone right away
+          return 0;
+        }),
+      };
+      await provider.removeTorrent(HASH);
+      expect(erases).toBe(1);
+    });
   });
 
   describe('add confirmation (no phantom downloads)', () => {
