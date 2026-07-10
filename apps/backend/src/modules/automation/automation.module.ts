@@ -172,6 +172,87 @@ export class AutomationEngine {
   }
 
   /**
+   * Backfill pass for the `torrent.completed` trigger.
+   *
+   * The edge-fired path (TorrentSyncService.detectTransitions) only fires the
+   * trigger on the exact poll where a torrent's persisted progress crosses to
+   * 100%. Torrents that were ALREADY complete when first snapshotted, that
+   * completed while the app wasn't polling, or that finished before the rule
+   * existed never cross that edge — so their completion rules would never run
+   * and the torrent sits there seeding forever.
+   *
+   * This re-evaluates already-complete torrents against every enabled
+   * `torrent.completed` rule. AutomationLog is used as an idempotency ledger —
+   * shared with the edge-fired path, which logs the same `{ hash }` context on
+   * success — so each rule runs at most once per torrent no matter how often
+   * the poll loop calls this. A failed run is NOT recorded as done, so a rule
+   * blocked by a transient error (engine offline) retries on the next cycle.
+   */
+  async reconcileCompleted(torrents: NormalizedTorrent[]): Promise<void> {
+    const completed = torrents.filter((t) => t.progress >= 1);
+    if (completed.length === 0) return;
+
+    const rules = await this.loadRules('torrent.completed');
+    if (rules.length === 0) return;
+
+    const done = await this.loadCompletedLedger(
+      rules.map((r) => r.id),
+      completed.map((t) => t.hash),
+    );
+
+    for (const t of completed) {
+      for (const rule of rules) {
+        const key = `${rule.id}::${t.hash}`;
+        if (done.has(key)) continue;
+
+        const conditions = (rule.conditions as unknown as Condition[]) ?? [];
+        if (!conditions.every((c) => this.checkCondition(c, t))) continue;
+
+        try {
+          for (const action of (rule.actions as unknown as Action[]) ?? []) {
+            await this.runAction(action, t);
+          }
+          await this.log(rule, 'success', t, null);
+          done.add(key); // don't re-run this rule for the same torrent this pass
+        } catch (err) {
+          await this.log(rule, 'failed', t, (err as Error).message);
+          await this.notifications.dispatch({
+            level: 'error',
+            title: 'Automation failed',
+            message: `Rule "${rule.name}" failed: ${(err as Error).message}`,
+            eventType: 'automation.failed',
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Build the "already ran" set (`ruleId::hash`) from successful AutomationLog
+   * rows for the given rules and torrent hashes. Bounded by the current
+   * completed-torrent set, so the OR list stays small.
+   */
+  private async loadCompletedLedger(
+    ruleIds: string[],
+    hashes: string[],
+  ): Promise<Set<string>> {
+    const logs = await this.prisma.automationLog.findMany({
+      where: {
+        status: 'success',
+        ruleId: { in: ruleIds },
+        OR: hashes.map((h) => ({ context: { path: ['hash'], equals: h } })),
+      },
+      select: { ruleId: true, context: true },
+    });
+    const done = new Set<string>();
+    for (const l of logs) {
+      const hash = (l.context as { hash?: string } | null)?.hash;
+      if (hash) done.add(`${l.ruleId}::${hash}`);
+    }
+    return done;
+  }
+
+  /**
    * Evaluate rules for a NON-torrent trigger against a plain event context
    * (e.g. RSS show-status changes). Conditions match against the context object's
    * fields; only event-safe actions (notify/webhook + the `rss_*` delegated

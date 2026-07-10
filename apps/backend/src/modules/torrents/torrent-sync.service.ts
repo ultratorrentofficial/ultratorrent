@@ -111,12 +111,16 @@ export class TorrentSyncService {
       context: NormalizedTorrent;
       previous: NormalizedTorrent;
     }> = [];
+    // Torrents that crossed to 100% on THIS tick — handled by the edge path
+    // below and excluded from the reconcile backfill so they can't double-fire.
+    const risingEdges = new Set<string>();
 
     for (const t of torrents) {
       const prev = priorMap.get(t.hash);
       if (!prev) continue; // no baseline yet — establish one, act next cycle
 
       if (prev.progress < 1 && t.progress >= 1) {
+        risingEdges.add(t.hash);
         await this.notifications.dispatch({
           level: 'success',
           title: 'Download complete',
@@ -150,6 +154,20 @@ export class TorrentSyncService {
       .evaluateMany('ratio.reached', ratioItems)
       .catch((err) =>
         this.logger.warn(`Automation ratio.reached failed: ${err.message}`),
+      );
+
+    // Backfill: fire `torrent.completed` rules for torrents that are already at
+    // 100% but did NOT cross the edge on this tick — those first seen already
+    // complete, that finished while the app was down, or whose rule was created
+    // after completion. The edge path above never covers these, which is why
+    // completed torrents would otherwise seed forever instead of being removed.
+    // Idempotent via AutomationLog, so it's safe to call every cycle.
+    await this.automation
+      .reconcileCompleted(
+        torrents.filter((t) => t.progress >= 1 && !risingEdges.has(t.hash)),
+      )
+      .catch((err) =>
+        this.logger.warn(`Automation reconcile failed: ${err.message}`),
       );
   }
 

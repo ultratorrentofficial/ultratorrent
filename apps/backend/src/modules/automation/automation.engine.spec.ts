@@ -159,6 +159,93 @@ describe('AutomationEngine — media action dispatch', () => {
   });
 });
 
+describe('AutomationEngine — reconcileCompleted (completion backfill)', () => {
+  // "Delete on complete" rule with no conditions — should fire on any
+  // already-complete torrent that hasn't had it run yet.
+  const DELETE_RULE = {
+    id: 'd1',
+    name: 'Delete on complete',
+    conditions: [],
+    actions: [{ type: 'delete' }],
+  };
+
+  function make(rules: unknown[], existingLogs: unknown[] = []) {
+    const provider = { removeTorrent: jest.fn().mockResolvedValue(undefined) };
+    const prisma = {
+      automationRule: { findMany: jest.fn().mockResolvedValue(rules) },
+      automationLog: {
+        create: jest.fn().mockResolvedValue(undefined),
+        findMany: jest.fn().mockResolvedValue(existingLogs),
+      },
+    } as any;
+    const registry = { resolve: jest.fn().mockResolvedValue(provider) } as any;
+    const notifications = { dispatch: jest.fn().mockResolvedValue(undefined) } as any;
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const engine = new AutomationEngine(
+      prisma,
+      registry,
+      notifications,
+      {} as any,
+      { execute: jest.fn() } as any,
+      { execute: jest.fn() } as any,
+      audit,
+      { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
+    );
+    return { engine, provider, prisma };
+  }
+
+  it('fires a completion rule for an already-complete torrent (no prior edge)', async () => {
+    const { engine, provider } = make([DELETE_RULE]);
+    await engine.reconcileCompleted([torrent({ hash: 'A', progress: 1 })]);
+    expect(provider.removeTorrent).toHaveBeenCalledWith('A');
+  });
+
+  it('ignores torrents that are not yet complete', async () => {
+    const { engine, provider } = make([DELETE_RULE]);
+    await engine.reconcileCompleted([torrent({ hash: 'A', progress: 0.5 })]);
+    expect(provider.removeTorrent).not.toHaveBeenCalled();
+  });
+
+  it('does not re-run when the rule already succeeded for that torrent', async () => {
+    const { engine, provider } = make([DELETE_RULE], [
+      { ruleId: 'd1', context: { hash: 'A' } },
+    ]);
+    await engine.reconcileCompleted([torrent({ hash: 'A', progress: 1 })]);
+    expect(provider.removeTorrent).not.toHaveBeenCalled();
+  });
+
+  it('skips a torrent whose conditions do not match', async () => {
+    const { engine, provider } = make([
+      {
+        id: 'd2',
+        name: 'Only 4K',
+        conditions: [{ field: 'name', op: 'contains', value: '2160p' }],
+        actions: [{ type: 'delete' }],
+      },
+    ]);
+    await engine.reconcileCompleted([torrent({ hash: 'A', name: '1080p', progress: 1 })]);
+    expect(provider.removeTorrent).not.toHaveBeenCalled();
+  });
+
+  it('does no work (no ledger query) when no completion rules exist', async () => {
+    const { engine, prisma } = make([]);
+    await engine.reconcileCompleted([torrent({ hash: 'A', progress: 1 })]);
+    expect(prisma.automationLog.findMany).not.toHaveBeenCalled();
+  });
+
+  it('retries next cycle on a failed run (not recorded as done)', async () => {
+    const { engine, provider, prisma } = make([DELETE_RULE]);
+    provider.removeTorrent.mockRejectedValueOnce(new Error('engine offline'));
+    await engine.reconcileCompleted([torrent({ hash: 'A', progress: 1 })]);
+    expect(prisma.automationLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'failed' }) }),
+    );
+    // No success ledger row was written, so a later cycle would try again.
+    await engine.reconcileCompleted([torrent({ hash: 'A', progress: 1 })]);
+    expect(provider.removeTorrent).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('AutomationEngine — evaluateEvent (non-torrent event context)', () => {
   const CTX = { provider: 'tmdb', providerShowId: '42', to: 'ended', title: 'Show' };
 
