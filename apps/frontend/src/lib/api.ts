@@ -1819,6 +1819,8 @@ export interface SeriesGapSummary {
   unaired: number;
   ignored: number;
   lastCheckedAt: string | null;
+  /** Cached TV airing status, or null until resolved. */
+  showStatus: RssShowStatus | null;
 }
 
 export interface WantedEpisode {

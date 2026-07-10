@@ -19,6 +19,7 @@ import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { ShowStatusBadge } from '@/components/rss/ShowStatusPanel';
 import { AddSeriesFromLibraryDialog } from './AddSeriesFromLibraryDialog';
 
 const STATUS_VARIANT: Record<WantedEpisodeStatus, BadgeProps['variant']> = {
@@ -212,6 +213,9 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
             <span className="truncate font-medium">{series.title}</span>
           </button>
           <div className="flex items-center gap-2">
+            {series.showStatus && series.showStatus !== 'unknown' && (
+              <ShowStatusBadge status={series.showStatus} />
+            )}
             {series.monitorable && series.missing > 0 && (
               <Badge variant="destructive">
                 {t('acquisition.missingEpisodes.counts.missing', { count: series.missing })}

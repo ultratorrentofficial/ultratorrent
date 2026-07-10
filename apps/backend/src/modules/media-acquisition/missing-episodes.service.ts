@@ -4,10 +4,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import type { WantedEpisode } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { TvShowStatusService } from '../rss/tv-show-status/tv-show-status.service';
+import { normalizeTitle } from '../rss/tv-show-status/tv-show-status-provider';
 
 /** One episode from the local IMDb catalogue for a series. */
 interface CatalogEpisode {
@@ -43,6 +46,13 @@ export interface SeriesGapSummary {
   unaired: number;
   ignored: number;
   lastCheckedAt: Date | null;
+  /**
+   * Cached TV airing status (continuing|returning|planned|on_hiatus|ended|
+   * canceled|unknown) or null if not yet resolved. Read from the shared
+   * `tv_show_status` cache; uncached shows are warmed in the background so a
+   * later load shows the badge.
+   */
+  showStatus: string | null;
 }
 
 /** Per-season rollup for missing-season detection. */
@@ -73,6 +83,7 @@ export class MissingEpisodesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /** Scan every active `series` watchlist item. Skips ones without an IMDb id. */
@@ -226,7 +237,14 @@ export class MissingEpisodesService {
     });
     const lastByItem = new Map(lastChecked.map((r) => [r.watchlistItemId, r._max.lastCheckedAt]));
 
-    return items.map((item) => {
+    // Cached TV airing status, keyed by normalized title (fast; no provider
+    // calls). Same read-only cache the "add from library" picker uses.
+    const statusRows = await this.prisma.tvShowStatus.findMany({
+      select: { normalizedTitle: true, normalizedStatus: true },
+    });
+    const statusByTitle = new Map(statusRows.map((r) => [r.normalizedTitle, r.normalizedStatus]));
+
+    const summaries = items.map((item) => {
       const counts = { total: 0, owned: 0, missing: 0, unaired: 0, ignored: 0 };
       for (const g of grouped) {
         if (g.watchlistItemId !== item.id) continue;
@@ -241,8 +259,32 @@ export class MissingEpisodesService {
         monitorable: this.imdbId(item.externalIds) != null,
         ...counts,
         lastCheckedAt: lastByItem.get(item.id) ?? null,
+        showStatus: statusByTitle.get(normalizeTitle(item.title)) ?? null,
       };
     });
+
+    // Warm the status cache for shows we don't know yet — bounded, best-effort,
+    // and in the background so the list returns immediately; a later load shows
+    // the badge.
+    const uncached = items
+      .filter((item) => !statusByTitle.has(normalizeTitle(item.title)))
+      .slice(0, 10)
+      .map((item) => ({ title: item.title, year: item.year }));
+    if (uncached.length) void this.warmShowStatuses(uncached);
+
+    return summaries;
+  }
+
+  /** Background: resolve + cache airing status for a bounded set of shows. */
+  private async warmShowStatuses(series: { title: string; year: number | null }[]): Promise<void> {
+    try {
+      const svc = this.moduleRef.get(TvShowStatusService, { strict: false });
+      for (const s of series) {
+        await svc.lookup({ title: s.title, year: s.year ?? undefined }).catch(() => undefined);
+      }
+    } catch {
+      /* status warming is best-effort — never blocks the overview */
+    }
   }
 
   /** All wanted-episode rows for one series, for the season/episode grid. */

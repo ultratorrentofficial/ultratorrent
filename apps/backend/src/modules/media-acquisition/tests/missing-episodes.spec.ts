@@ -1,4 +1,5 @@
 import { MissingEpisodesService } from '../missing-episodes.service';
+import { normalizeTitle } from '../../rss/tv-show-status/tv-show-status-provider';
 
 /**
  * Focused in-memory Prisma stub for the missing-episodes diff. Implements only
@@ -131,13 +132,16 @@ function makePrisma() {
     ]),
     mediaItem: new Table('item'),
     wantedEpisode: new Table('wanted'),
+    tvShowStatus: new Table('status'),
   } as any;
 }
 
 function makeService(prisma: any) {
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const realtime = { broadcast: jest.fn() };
-  return new MissingEpisodesService(prisma, audit as any, realtime as any);
+  // ModuleRef stub: background status-warming resolves a no-op lookup.
+  const moduleRef = { get: () => ({ lookup: jest.fn().mockResolvedValue(undefined) }) };
+  return new MissingEpisodesService(prisma, audit as any, realtime as any, moduleRef as any);
 }
 
 describe('MissingEpisodesService', () => {
@@ -270,6 +274,10 @@ describe('MissingEpisodesService', () => {
   it('summarises per-series counts and flags unmonitorable items', async () => {
     const prisma = makePrisma();
     prisma.mediaItem.seed([{ id: 'i1', seriesImdbId: 'ttSERIES', mediaType: 'tv', title: 'The Wire', season: 1, episode: 2 }]);
+    // Cached airing status for "The Wire" (keyed by the provider's normalized title).
+    prisma.tvShowStatus.seed([
+      { normalizedTitle: normalizeTitle('The Wire'), normalizedStatus: 'ended' },
+    ]);
     const svc = makeService(prisma);
     await svc.scanSeries('wl1');
 
@@ -277,6 +285,8 @@ describe('MissingEpisodesService', () => {
     const wl1 = summary.find((s) => s.watchlistItemId === 'wl1')!;
     const wl2 = summary.find((s) => s.watchlistItemId === 'wl2')!;
     expect(wl1).toMatchObject({ monitorable: true, total: 4, owned: 1, missing: 2, unaired: 1 });
+    expect(wl1.showStatus).toBe('ended'); // joined from the tv_show_status cache
     expect(wl2.monitorable).toBe(false); // no imdb id
+    expect(wl2.showStatus).toBeNull(); // not in the cache
   });
 });
