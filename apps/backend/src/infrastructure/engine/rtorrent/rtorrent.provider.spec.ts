@@ -106,11 +106,29 @@ describe('RTorrentProvider mapping', () => {
       await expect(provider.addMagnet(MAGNET)).resolves.toBe(HASH);
     });
 
-    it('throws when rtorrent never registers the torrent (was a false success)', async () => {
+    it('a magnet that is not yet registered resolves as accepted/pending (metadata still resolving), does NOT throw', async () => {
+      // rtorrent doesn't list a magnet's hash until it fetches metadata from
+      // DHT/peers (minutes, not the ~6s window), so a timeout must not be a
+      // failure — the add was accepted and the info-hash is known.
+      const provider = providerWithRows([]); // hash never appears within the window
+      (provider as any).addConfirmAttempts = 2;
+      (provider as any).addConfirmIntervalMs = 1;
+      await expect(provider.addMagnet(MAGNET)).resolves.toBe(HASH);
+    });
+
+    it('a .torrent FILE that never registers still throws (real failure — metadata is present, so it should register fast)', async () => {
       const provider = providerWithRows([]); // load.* "succeeds" but nothing loads
       (provider as any).addConfirmAttempts = 2;
       (provider as any).addConfirmIntervalMs = 1;
-      await expect(provider.addMagnet(MAGNET)).rejects.toThrow(/never registered/i);
+      // Minimal valid bencoded torrent: d4:info<info>e, info keys sorted.
+      const pieces = Buffer.alloc(20, 0);
+      const info = Buffer.concat([
+        Buffer.from('d6:lengthi1e4:name4:test12:piece lengthi16384e6:pieces20:'),
+        pieces,
+        Buffer.from('e'),
+      ]);
+      const torrent = Buffer.concat([Buffer.from('d4:info'), info, Buffer.from('e')]);
+      await expect(provider.addTorrentFile(torrent)).rejects.toThrow(/never registered/i);
     });
 
     it('waits for a slightly delayed registration', async () => {

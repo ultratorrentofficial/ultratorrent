@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   AddTorrentOptions,
   EngineHealth,
@@ -104,14 +105,22 @@ export class RTorrentProvider implements TorrentEngineProvider {
   readonly kind: EngineKind = 'rtorrent';
   readonly engineId: string;
   private readonly transport: RtorrentTransport;
+  private readonly logger = new Logger(RTorrentProvider.name);
 
   /**
    * How long to wait for rtorrent to actually register an added torrent before
    * treating the add as failed. `load.*` is fire-and-forget (returns 0
    * immediately and loads asynchronously), so without this an add that rtorrent
-   * silently dropped — a bad magnet, or an engine crash mid-announce — would be
-   * reported as success and the caller would record a phantom download.
+   * silently dropped — a bad .torrent, or an engine crash mid-announce — would
+   * be reported as success and the caller would record a phantom download.
    * ~6s total; overridden to tiny values in tests.
+   *
+   * NOTE: this is a HARD failure for .torrent files (metadata is present, so
+   * they register near-instantly) but NOT for magnets — a magnet carries only
+   * the info-hash and rtorrent doesn't list it until it fetches metadata from
+   * DHT/peers, which routinely takes far longer than 6s (observed median ~53s).
+   * For magnets a timeout means "still loading", not "failed" — see
+   * `confirmTorrentLoaded`.
    */
   private addConfirmAttempts = 20;
   private addConfirmIntervalMs = 300;
@@ -385,7 +394,8 @@ export class RTorrentProvider implements TorrentEngineProvider {
       magnet,
       ...this.buildLoadCommands(options),
     ]);
-    await this.confirmTorrentLoaded(hash);
+    // Magnet: a confirm-timeout means "metadata not fetched yet", not "failed".
+    await this.confirmTorrentLoaded(hash, { magnet: true });
     return hash;
   }
 
@@ -405,14 +415,29 @@ export class RTorrentProvider implements TorrentEngineProvider {
   }
 
   /**
-   * Poll rtorrent until the added info-hash shows up in the download list, so a
-   * successful return genuinely means "rtorrent has this torrent". Throws if it
-   * never appears within the confirm window — callers must treat that as a
-   * failed add and NOT record a download. Compares case-insensitively:
-   * `magnetHash`/`infoHashFromTorrent` yield lowercase and `listTorrents`
-   * lowercases too, but rtorrent stores hashes uppercase, so normalize.
+   * Poll rtorrent until the added info-hash shows up in the download list.
+   *
+   * For a **.torrent file** (`opts.magnet` false/omitted) a successful return
+   * genuinely means "rtorrent has this torrent"; if it never appears within the
+   * confirm window we throw so the caller treats it as a failed add and does NOT
+   * record a download (a bad file or an engine crash mid-load).
+   *
+   * For a **magnet** (`opts.magnet: true`) a timeout is EXPECTED, not a failure:
+   * rtorrent doesn't list the hash until it fetches metadata from DHT/peers,
+   * commonly minutes later. rtorrent accepted the `load.*` and the info-hash is
+   * known, so we return normally (add accepted / loading) and let the 2s
+   * torrent-sync reconcile once it registers. Throwing here previously produced
+   * a flood of false `download.failed` records for magnets that downloaded fine
+   * (observed: 256/257 "failures" actually loaded, median ~53s later).
+   *
+   * Compares case-insensitively: `magnetHash`/`infoHashFromTorrent` yield
+   * lowercase and `listTorrents` lowercases too, but rtorrent stores hashes
+   * uppercase, so normalize.
    */
-  private async confirmTorrentLoaded(hash: string): Promise<void> {
+  private async confirmTorrentLoaded(
+    hash: string,
+    opts?: { magnet?: boolean },
+  ): Promise<void> {
     const target = hash.toLowerCase();
     for (let attempt = 0; ; attempt++) {
       try {
@@ -420,15 +445,24 @@ export class RTorrentProvider implements TorrentEngineProvider {
         if (list.some((t) => t.hash.toLowerCase() === target)) return;
       } catch {
         // Transport error (engine busy, crashed, or mid-restart) — keep polling
-        // within the window; a persistent failure falls through to the throw.
+        // within the window; a persistent failure falls through below.
       }
       if (attempt >= this.addConfirmAttempts - 1) break;
       await new Promise((r) => setTimeout(r, this.addConfirmIntervalMs));
     }
+    const secs = (this.addConfirmAttempts * this.addConfirmIntervalMs) / 1000;
+    if (opts?.magnet) {
+      // Not a failure — the magnet is accepted and resolving metadata.
+      this.logger.debug(
+        `Magnet ${hash} not yet registered after ${secs}s — still fetching ` +
+          `metadata (DHT/peers); leaving it to load. Not treating as a failure.`,
+      );
+      return;
+    }
     throw new Error(
       `rtorrent accepted the request but never registered torrent ${hash} ` +
-        `within ${(this.addConfirmAttempts * this.addConfirmIntervalMs) / 1000}s ` +
-        `— it likely failed to load (e.g. an engine crash or an unusable magnet/torrent)`,
+        `within ${secs}s ` +
+        `— it likely failed to load (e.g. an engine crash or an unusable torrent)`,
     );
   }
 
