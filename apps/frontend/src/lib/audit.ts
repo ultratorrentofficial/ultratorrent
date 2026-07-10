@@ -36,7 +36,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { AuditEntry } from './api';
-import { formatBytes } from './format';
+import { formatBytes, formatDateTime, formatNumber } from './format';
 
 export type AuditTone = 'neutral' | 'positive' | 'info' | 'warning' | 'destructive';
 
@@ -252,6 +252,97 @@ export function describeAudit(entry: AuditEntry): AuditDescription {
     tone: failed ? 'destructive' : built.tone ?? cat.tone,
     category: cat.label,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Metadata humanization
+// ---------------------------------------------------------------------------
+
+/** One humanized metadata field for the details table. */
+export interface AuditMetaField {
+  /** Human label derived from the key, e.g. `libraryPath` → "Library path". */
+  label: string;
+  /** Humanized scalar value; `null` when this field is a nested `json` blob. */
+  value: string | null;
+  /** Pretty-printed JSON — the deliberate fallback for nested/complex values. */
+  json?: string;
+  /** Render the value monospaced (hashes, ids, paths). */
+  mono?: boolean;
+}
+
+const META_ACRONYMS: Record<string, string> = {
+  id: 'ID', url: 'URL', ip: 'IP', imdb: 'IMDb', tmdb: 'TMDb', nfo: 'NFO',
+  api: 'API', rss: 'RSS', scgi: 'SCGI', uuid: 'UUID', os: 'OS', db: 'DB',
+  tv: 'TV', hd: 'HD', sd: 'SD', '2fa': '2FA', ok: 'OK',
+};
+
+/** `libraryPath` / `library_path` / `library.path` → "Library path". */
+function prettifyKey(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[._-]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w, i) => {
+      const fix = META_ACRONYMS[w.toLowerCase()];
+      if (fix) return fix;
+      return i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w.toLowerCase();
+    })
+    .join(' ');
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2})/;
+const BYTES_KEY = /bytes|size|freed|reclaimed/i;
+const HASH_LIKE = /^[a-f0-9]{16,}$/i;
+
+/** Format a single scalar value, using the key for unit/format hints. */
+function formatScalar(key: string, v: string | number | boolean): { value: string; mono?: boolean } {
+  if (typeof v === 'boolean') return { value: v ? 'Yes' : 'No' };
+  if (typeof v === 'number') {
+    return { value: BYTES_KEY.test(key) ? formatBytes(v) : formatNumber(v) };
+  }
+  if (ISO_DATE.test(v) && !Number.isNaN(new Date(v).getTime())) {
+    return { value: formatDateTime(v) };
+  }
+  return { value: v, mono: HASH_LIKE.test(v) || v.includes('/') };
+}
+
+const isScalar = (x: unknown): x is string | number | boolean =>
+  x === null || ['string', 'number', 'boolean'].includes(typeof x);
+
+/**
+ * Turn a raw audit `metadata` object into human-readable fields: labels are
+ * de-camelCased/acronym-fixed, and values are formatted by type (bytes, counts,
+ * dates, Yes/No, scalar arrays joined). The **one** deliberate exception — the
+ * "good reason" to keep JSON — is a genuinely nested value (an object, or an
+ * array of objects), which has no flat human form; those are returned as
+ * pretty-printed `json` so nothing is lost. Empty/null fields are dropped.
+ */
+export function humanizeMetadata(metadata: unknown): AuditMetaField[] {
+  if (!metadata || typeof metadata !== 'object') return [];
+  const out: AuditMetaField[] = [];
+  for (const [key, raw] of Object.entries(metadata as Record<string, unknown>)) {
+    if (raw === null || raw === undefined || raw === '') continue;
+    const label = prettifyKey(key);
+
+    if (Array.isArray(raw)) {
+      if (raw.length === 0) continue;
+      if (raw.every(isScalar)) {
+        out.push({ label, value: raw.filter((x) => x != null).map(String).join(', ') });
+      } else {
+        out.push({ label, value: null, json: JSON.stringify(raw, null, 2) });
+      }
+      continue;
+    }
+    if (typeof raw === 'object') {
+      out.push({ label, value: null, json: JSON.stringify(raw, null, 2) });
+      continue;
+    }
+    const { value, mono } = formatScalar(key, raw as string | number | boolean);
+    out.push({ label, value, mono });
+  }
+  return out;
 }
 
 /** Tailwind classes for an icon chip per tone. */

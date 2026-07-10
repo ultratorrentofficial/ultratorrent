@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronLeft, ChevronRight, ScrollText } from 'lucide-react';
 import { api, type AuditEntry } from '@/lib/api';
-import { describeAudit, toneChipClasses } from '@/lib/audit';
+import { describeAudit, humanizeMetadata, toneChipClasses } from '@/lib/audit';
 import { formatDateTime, formatRelativeTime } from '@/lib/format';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -87,7 +87,8 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
   const d = describeAudit(entry);
   const Icon = d.Icon;
   const actor = entry.user?.username ?? 'system';
-  const hasDetails = !!entry.metadata || !!entry.objectId || !!entry.userAgent;
+  const metaFields = humanizeMetadata(entry.metadata);
+  const hasDetails = metaFields.length > 0 || !!entry.objectId || !!entry.userAgent;
 
   return (
     <li className={cn(d.tone === 'destructive' && 'bg-red-500/[0.03]')}>
@@ -167,15 +168,21 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
                 <dd className="break-all text-muted-foreground">{entry.userAgent}</dd>
               </>
             )}
+            {metaFields.map((f) => (
+              <React.Fragment key={f.label}>
+                <dt className="text-muted-foreground">{f.label}</dt>
+                {f.json !== undefined ? (
+                  <dd>
+                    <pre className="overflow-x-auto rounded-md bg-black/40 p-2 font-mono text-[11px] leading-relaxed text-foreground/80">
+                      {f.json}
+                    </pre>
+                  </dd>
+                ) : (
+                  <dd className={cn('break-words', f.mono && 'break-all font-mono')}>{f.value}</dd>
+                )}
+              </React.Fragment>
+            ))}
           </dl>
-          {entry.metadata && Object.keys(entry.metadata).length > 0 && (
-            <div>
-              <p className="mb-1 text-muted-foreground">{t('details.metadata')}</p>
-              <pre className="overflow-x-auto rounded-md bg-black/40 p-2 font-mono text-[11px] leading-relaxed text-foreground/80">
-                {JSON.stringify(entry.metadata, null, 2)}
-              </pre>
-            </div>
-          )}
         </div>
       )}
     </li>
