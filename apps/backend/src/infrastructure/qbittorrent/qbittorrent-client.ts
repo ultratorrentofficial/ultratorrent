@@ -2,11 +2,13 @@
  * Minimal HTTP client for the qBittorrent Web API v2.
  *
  * qBittorrent authenticates with a session cookie: POST /api/v2/auth/login with
- * form username/password returns an `SID` cookie that must ride on every later
- * call. Node's global `fetch` does NOT persist cookies, so this client caches
- * the SID, attaches it, and transparently re-logs-in once on a 403 (expired
- * session). A `Referer` matching the base URL is sent so qBittorrent's
- * CSRF/DNS-rebind protection accepts the request.
+ * form username/password returns a session cookie that must ride on every later
+ * call. The cookie is named `SID` on older builds and `QBT_SID` / `QBT_SID_<port>`
+ * on newer ones, and a successful login answers either `200 "Ok."` (older) or
+ * `204 No Content` (newer). Node's global `fetch` does NOT persist cookies, so
+ * this client caches the whole `name=value` cookie, attaches it, and
+ * transparently re-logs-in once on a 403 (expired session). A `Referer` matching
+ * the base URL is sent so qBittorrent's CSRF/DNS-rebind protection accepts it.
  *
  * This is the qBittorrent analogue of `infrastructure/rtorrent/scgi-client.ts`.
  */
@@ -54,7 +56,8 @@ export class QbittorrentClient implements QbittorrentApi {
   private readonly username: string;
   private readonly password: string;
   private readonly timeoutMs: number;
-  private sid: string | null = null;
+  /** The full session cookie `name=value` (e.g. `QBT_SID_8080=…`), or null. */
+  private cookie: string | null = null;
 
   constructor(opts: QbittorrentClientOptions) {
     this.base = opts.baseUrl.replace(/\/+$/, '');
@@ -80,26 +83,31 @@ export class QbittorrentClient implements QbittorrentApi {
         'qBittorrent login failed: 403 (Web UI banned this client for too many failed attempts, or host-header validation rejected it)',
       );
     }
-    if (res.status !== 200 || text !== 'Ok.') {
+    // Success is `200 "Ok."` (older) or `204 No Content` (newer). `200 "Fails."`
+    // is bad credentials.
+    const ok = res.status === 204 || (res.status === 200 && /^ok\.?$/i.test(text));
+    if (!ok) {
       throw new Error(
         `qBittorrent login failed (${res.status}): ${text || 'check username/password'}`,
       );
     }
-    const sid = this.extractSid(res);
-    if (!sid) {
-      throw new Error('qBittorrent login succeeded but returned no SID cookie');
+    const cookie = this.extractCookie(res);
+    if (!cookie) {
+      throw new Error(
+        'qBittorrent login succeeded but returned no session cookie',
+      );
     }
-    this.sid = sid;
+    this.cookie = cookie;
   }
 
   async logout(): Promise<void> {
-    if (!this.sid) return;
+    if (!this.cookie) return;
     try {
       await this.fetchRaw('POST', '/auth/logout', { withAuth: true });
     } catch {
       /* best-effort */
     }
-    this.sid = null;
+    this.cookie = null;
   }
 
   async getText(
@@ -169,11 +177,11 @@ export class QbittorrentClient implements QbittorrentApi {
       contentType?: string;
     } = {},
   ): Promise<Response> {
-    if (!this.sid) await this.login();
+    if (!this.cookie) await this.login();
     let res = await this.fetchRaw(method, path, { ...opts, withAuth: true });
     if (res.status === 403) {
       // Session expired/invalidated — re-authenticate and retry once.
-      this.sid = null;
+      this.cookie = null;
       await this.login();
       res = await this.fetchRaw(method, path, { ...opts, withAuth: true });
     }
@@ -201,7 +209,7 @@ export class QbittorrentClient implements QbittorrentApi {
     try {
       const headers: Record<string, string> = { Referer: this.base };
       if (opts.contentType) headers['Content-Type'] = opts.contentType;
-      if (opts.withAuth && this.sid) headers['Cookie'] = `SID=${this.sid}`;
+      if (opts.withAuth && this.cookie) headers['Cookie'] = this.cookie;
       return await fetch(`${this.api}${path}`, {
         method,
         headers,
@@ -223,7 +231,8 @@ export class QbittorrentClient implements QbittorrentApi {
     }
   }
 
-  private extractSid(res: Response): string | null {
+  /** Return the session cookie as `name=value` (`QBT_SID`/`QBT_SID_<port>`/`SID`). */
+  private extractCookie(res: Response): string | null {
     // Node 20+ exposes getSetCookie(); fall back to the combined header.
     const cookies: string[] =
       typeof (res.headers as { getSetCookie?: () => string[] }).getSetCookie ===
@@ -231,7 +240,7 @@ export class QbittorrentClient implements QbittorrentApi {
         ? (res.headers as { getSetCookie: () => string[] }).getSetCookie()
         : [res.headers.get('set-cookie') ?? ''];
     for (const c of cookies) {
-      const m = /(?:^|;\s*)SID=([^;]+)/.exec(c);
+      const m = /(?:^|;\s*)((?:QBT_SID(?:_\d+)?|SID)=[^;]+)/.exec(c);
       if (m) return m[1];
     }
     return null;
