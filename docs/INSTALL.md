@@ -384,6 +384,7 @@ FILE_MANAGER_ROOTS=/downloads                # comma-separated allowed roots
 CORS_ORIGIN=http://localhost:8080
 ADMIN_USERNAME=admin
 ADMIN_EMAIL=admin@ultratorrent.local
+SSRF_ALLOW_HOSTS=prowlarr                     # trust these hosts' private-IP .torrent links (see below)
 ```
 
 | Variable | Required | Purpose |
@@ -396,6 +397,7 @@ ADMIN_EMAIL=admin@ultratorrent.local
 | `ADMIN_PASSWORD` | ✅ | Bootstrap super-admin password |
 | `FILE_MANAGER_ROOTS` | – | Allow-list of directories the file manager may access (default `/downloads`) |
 | `CORS_ORIGIN` | – | Allowed browser origin |
+| `SSRF_ALLOW_HOSTS` | – | Hosts/IPs/CIDRs whose torrent links may resolve to a private/internal address (comma-separated). **Defaults to `prowlarr`** so the bundled indexer's auto-downloads work; add your own self-hosted indexer host here (keep `prowlarr` if you use it). Without it, grabs from a private-IP indexer fail with *"resolves to a blocked internal address"*. See [Troubleshooting](#troubleshooting). |
 
 ---
 
@@ -600,6 +602,7 @@ npm run build             # production build (skip if you run `npm run dev`)
 | "Invalid username or password" right after install | Log in with the **username** (`admin` by default), not the email. Make sure you ran the seed: `docker compose exec backend npx prisma db seed`. |
 | Admin password won't work / forgot it | The seed only sets the password when it **first** creates the admin (it won't overwrite a later change). Reset it to your current `.env` value: `docker compose exec backend node -e 'const argon2=require("argon2");const{PrismaClient}=require("@prisma/client");(async()=>{const p=new PrismaClient();const u=process.env.ADMIN_USERNAME\|\|"admin";const h=await argon2.hash(process.env.ADMIN_PASSWORD,{type:argon2.argon2id});const r=await p.user.update({where:{username:u},data:{passwordHash:h,isActive:true}});console.log("reset:",r.username);await p.$disconnect()})().catch(e=>{console.error(e.message);process.exit(1)})'` |
 | `/api/engines/health` returns `online: false` (or "Could not load torrents") | No engine configured, or rTorrent SCGI not reachable. Add an engine under **Infrastructure → Engines** (kind rtorrent, mode scgi-tcp, host `rtorrent`, port `5000` for the bundled engine) and use **Test connection**. The bundled engine only runs if you started the stack with `--profile rtorrent`. |
+| Auto-downloads do nothing; grabs fail with "Torrent URL resolves to a blocked internal address" | The indexer's `.torrent` link resolves to a private IP and the SSRF guard blocked it. Add the indexer host to `SSRF_ALLOW_HOSTS` (comma-separated hosts/IPs/CIDRs) and recreate the backend. The bundled Prowlarr is trusted by default (`SSRF_ALLOW_HOSTS=prowlarr`); for another self-hosted indexer use e.g. `SSRF_ALLOW_HOSTS=prowlarr,indexer.lan`. Note the Prowlarr **connection test still passes** without this — that health check trusts private hosts; the torrent *fetch* is a separate, stricter guard. |
 | "The app process cannot write to this path" when setting Default Root Path | The folder isn't writable by the app's user (id 1000). If it's a plain folder, `chown -R 1000:1000 <folder>`. If it's owned by another app (e.g. Plex), **don't** chown it — set `PUID`/`PGID` to that user so rtorrent writes as them, and optionally add the backend to that group (see *Downloads folder owned by another user*). It's a warning, not a blocker — saving still works. |
 | Bundled rTorrent crash-loops: "Could not lock session directory … held by …" | A previous rTorrent crash left a stale `rtorrent.lock`. Current images auto-clear it on startup — `git pull` + `docker compose --profile rtorrent up -d --build rtorrent`. To clear it by hand: `sudo rm -f <downloads>/.session/rtorrent.lock`. |
 | Bundled rTorrent crashes with "DhtServer::event_write … both write queues are empty" | Known DHT bug in this rTorrent build. DHT is **off by default** for this reason; if you enabled it (`RT_DHT=on`) and hit this, set `RT_DHT=off` in `.env` and recreate rtorrent. Trackers + PEX still find peers. |

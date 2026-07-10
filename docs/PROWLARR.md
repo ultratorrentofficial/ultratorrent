@@ -72,6 +72,19 @@ Once enabled with a public URL, a **Prowlarr** shortcut appears in the sidebar
 under **RSS & Acquisition** (for users with `integrations.prowlarr.open`), opening
 Prowlarr in a new tab.
 
+> **Required for auto-downloads: `SSRF_ALLOW_HOSTS`.** A green *Connected* badge
+> only proves UltraTorrent can reach Prowlarr's **API** — it does **not** mean
+> grabs will download. When an RSS rule / Smart Download / missing-episode sweep
+> grabs a release, the backend fetches Prowlarr's `.torrent` proxy link, which
+> resolves to a **private Docker/LAN IP**. The SSRF guard blocks private-IP
+> fetches unless the host is allow-listed, so without this the grab fails with
+> *"Torrent URL resolves to a blocked internal address"* and **auto-downloads
+> silently do nothing**. The bundled stack **defaults `SSRF_ALLOW_HOSTS=prowlarr`**
+> (in `docker-compose.yml`), so this works out of the box. If you override the
+> variable or run Prowlarr under a different host/IP, list it — keeping `prowlarr`
+> if you use the bundled one, e.g. `SSRF_ALLOW_HOSTS=prowlarr,indexer.lan`. See
+> [DOCKER.md → SSRF & self-hosted indexers](DOCKER.md#ssrf--self-hosted-indexers).
+
 ## Environment, ports & volumes
 
 Configured in `.env` (see `.env.example`):
@@ -145,6 +158,13 @@ Then wire it up **in Prowlarr**:
   (e.g. `169.254.169.254`), refuse redirects, use a short timeout, and cap the
   response size. Private/Docker hosts (`prowlarr:9696`) are intentionally allowed
   — that is the intended target.
+- **Torrent fetches are a separate, stricter guard** (`common/ssrf.ts`): the
+  connection **health check** trusts private hosts, but actually **downloading**
+  a grabbed `.torrent` blocks private/internal addresses unless the host is in
+  **`SSRF_ALLOW_HOSTS`** (default `prowlarr`). Scheme allow-list, redirect
+  refusal, and the 20 MB body cap still apply to allow-listed hosts. This is why
+  a passing connection test can still coexist with failing auto-downloads — see
+  the callout under [Connect UltraTorrent](#connect-ultratorrent).
 - UltraTorrent **does not proxy arbitrary Prowlarr endpoints** and **does not
   auto-configure indexers** — those are explicit operator actions in Prowlarr.
 - **Do not expose Prowlarr publicly** unless you deliberately map/route its port;

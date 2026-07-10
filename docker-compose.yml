@@ -69,9 +69,15 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
       FILE_MANAGER_ROOTS: ${FILE_MANAGER_ROOTS:-/downloads}
       # Comma-separated hosts/IPs/CIDRs whose torrent URLs may resolve to
-      # private/internal addresses (e.g. a self-hosted Prowlarr on the LAN that
-      # returns .torrent proxy links). Empty = full SSRF protection.
-      SSRF_ALLOW_HOSTS: ${SSRF_ALLOW_HOSTS:-}
+      # private/internal addresses (e.g. a self-hosted indexer that returns
+      # .torrent proxy links). Defaults to `prowlarr` so the BUNDLED Prowlarr
+      # (profile `prowlarr`, reached at http://prowlarr:9696) works out of the
+      # box — its proxy links resolve to a private Docker IP that the SSRF guard
+      # would otherwise block, silently failing auto-downloads. If you override
+      # this to trust another indexer, KEEP `prowlarr` in the list when you use
+      # the bundled one, e.g. SSRF_ALLOW_HOSTS=prowlarr,indexer.lan. Set it empty
+      # for full SSRF protection when you don't use a private-IP indexer.
+      SSRF_ALLOW_HOSTS: ${SSRF_ALLOW_HOSTS:-prowlarr}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ultratorrent.local}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}

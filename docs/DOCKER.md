@@ -96,12 +96,40 @@ ADMIN_PASSWORD=changeme123!
 # File manager allow-list (comma-separated absolute roots)
 FILE_MANAGER_ROOTS=/downloads
 
+# SSRF allow-list for torrent fetches — hosts/IPs/CIDRs whose .torrent links may
+# resolve to a private/internal address. Defaults to `prowlarr` so the bundled
+# indexer works; add your own private-IP indexer host here (keep `prowlarr` if
+# you use it). Empty = full SSRF protection. See "SSRF & self-hosted indexers".
+SSRF_ALLOW_HOSTS=prowlarr
+
 # Optional Prowlarr companion (profile `prowlarr`) — see docs/PROWLARR.md
 PROWLARR_PORT=9696
 PROWLARR_BASE_URL=http://prowlarr:9696
 PROWLARR_PUBLIC_URL=http://localhost:9696
 TZ=Etc/UTC                                   # timezone for companion containers
 ```
+
+### SSRF & self-hosted indexers
+
+Auto-downloads (RSS rules, Smart Download, missing-episode acquisition) fetch the
+indexer's `.torrent` link over HTTP. The backend's SSRF guard (`common/ssrf.ts`)
+**blocks any URL that resolves to a private/internal address** unless its host is
+in `SSRF_ALLOW_HOSTS`. This matters because a self-hosted indexer — including the
+**bundled Prowlarr** at `http://prowlarr:9696` — returns proxy links on a private
+Docker/LAN IP.
+
+- The stack **defaults `SSRF_ALLOW_HOSTS=prowlarr`**, so the bundled indexer works
+  out of the box.
+- Using a **different** self-hosted indexer (Prowlarr/Jackett on your LAN, etc.)?
+  Add its host: `SSRF_ALLOW_HOSTS=prowlarr,indexer.lan,10.0.0.0/24`. Entries are
+  comma-separated hostnames, IPs, or IPv4 CIDRs.
+- **Symptom if missing:** grabs fail with *"Torrent URL resolves to a blocked
+  internal address"* and auto-downloads silently do nothing (the Prowlarr
+  connection test still passes — that health check trusts private hosts; the
+  torrent *fetch* is the stricter, separate guard).
+- Scheme allow-list (`http(s)` only), redirect refusal, and the 20 MB body cap
+  **still apply** to allow-listed hosts; only the private-address block is lifted,
+  and only for the hosts you list.
 
 The **frontend** image takes its API/WS targets at **build time** via build args
 (`VITE_API_URL=/api`, `VITE_WS_URL=/`); the compose file passes same-origin

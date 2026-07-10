@@ -340,7 +340,13 @@ delete-with-data). Treat it as a privileged internal endpoint:
 **Torrent add & save paths.** Adding a torrent by URL is SSRF-guarded
 (`common/ssrf.ts`): only `http(s)` schemes, hosts resolving to loopback/private/
 link-local/CGNAT/metadata addresses are blocked, redirects are refused, and the
-body is size-capped (20 MB, streamed). `savePath`/`category`/move destinations
+body is size-capped (20 MB, streamed). A **self-hosted indexer on a private IP**
+(the bundled Prowlarr, or your own Prowlarr/Jackett) legitimately returns
+`.torrent` links on such an address, so the private-address block is lifted only
+for hosts you explicitly list in **`SSRF_ALLOW_HOSTS`** (comma-separated
+hostnames/IPs/IPv4 CIDRs; defaults to `prowlarr` for the bundled indexer). The
+scheme allow-list, redirect refusal, and size cap still apply to those hosts, and
+the block stays in force for every host you did **not** list. `savePath`/`category`/move destinations
 are validated against `FILE_MANAGER_ROOTS` and rejected if they contain quote or
 control characters (which could otherwise break out of the quoted rTorrent
 command string). Bulk actions (`/torrents/bulk`) enforce the **same permission
