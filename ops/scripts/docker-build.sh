@@ -24,5 +24,9 @@ GIT_TAG="$(git describe --tags --always --dirty 2>/dev/null || true)"
 BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 export GIT_SHA GIT_TAG BUILD_TIME
 
+# Also stamp build-info.json (baked into the image) so the commit is reported
+# even if the build args don't reach the container — belt-and-suspenders.
+node ops/scripts/stamp-build-info.js || true
+
 echo "docker-build: GIT_TAG=${GIT_TAG:-<none>} GIT_SHA=${GIT_SHA:0:12}${GIT_SHA:+…} BUILD_TIME=${BUILD_TIME}"
 exec docker compose build "$@"

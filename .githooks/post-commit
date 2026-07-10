@@ -1,0 +1,4 @@
+#!/bin/sh
+# Refresh build-info.json after a commit so a subsequent image build bakes the
+# current commit into GET /api/system/version. Best-effort — never blocks git.
+node ops/scripts/stamp-build-info.js >/dev/null 2>&1 || true

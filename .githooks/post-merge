@@ -1,0 +1,5 @@
+#!/bin/sh
+# Refresh build-info.json after a pull/merge so a subsequent image build bakes
+# the current commit into GET /api/system/version (the UI version badge).
+# Best-effort — never blocks the git operation.
+node ops/scripts/stamp-build-info.js >/dev/null 2>&1 || true

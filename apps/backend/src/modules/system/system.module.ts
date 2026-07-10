@@ -23,6 +23,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { Public } from '../../common/decorators/public.decorator';
 import { SettingsModule } from '../settings/settings.module';
 import { SystemUpdateService } from './system-update.service';
+import { resolveBuildInfo } from '../../config/build-info';
 
 @Injectable()
 export class SystemService {
@@ -83,17 +84,20 @@ export class SystemService {
   /** Product/edition version — drives the UI version badge and ops tooling. */
   version() {
     const version = this.config.get<string>('node.productVersion') ?? '0.10.0';
+    // Git commit / tag / build-time resolve env (Docker build args) → baked-in
+    // build-info.json → null, so the badge can ALWAYS render `v<version> -
+    // (<short-sha>)` even for a plain `docker compose build`. See config/build-info.ts.
+    const build = resolveBuildInfo();
     return {
       product: 'UltraTorrent',
       version,
       edition: this.config.get<string>('edition') ?? 'community',
       apiVersion: 'v1',
-      // Exact `git describe` tag when supplied at build time (GIT_TAG); otherwise
-      // fall back to the tag implied by VERSION (`v<version>`) — every commit is
-      // tagged vX.Y.Z, so this matches the release.
-      gitTag: process.env.GIT_TAG || `v${version}`,
-      gitSha: process.env.GIT_SHA ?? null,
-      buildTime: process.env.BUILD_TIME ?? null,
+      // Exact `git describe` tag when known; otherwise fall back to the tag
+      // implied by VERSION (`v<version>`) — every commit is tagged vX.Y.Z.
+      gitTag: build.gitTag || `v${version}`,
+      gitSha: build.gitSha,
+      buildTime: build.buildTime,
       node: process.version,
     };
   }

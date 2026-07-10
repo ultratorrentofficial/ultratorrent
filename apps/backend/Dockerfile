@@ -14,6 +14,14 @@ COPY tsconfig.base.json ./
 # VERSION is the source of truth for the product version; baked in so the
 # runtime resolver reports the right version without a build arg.
 COPY VERSION ./VERSION
+# build-info.json (git sha/tag/build-time) is stamped by the build
+# (ops/scripts/stamp-build-info.js) and read at runtime so the version badge can
+# show the commit WITHOUT build args. Optional-file glob: `build-info.jso[n]`
+# copies it when present and is a no-op when absent, so a bare `docker compose
+# build` (no stamp) still builds — it just falls back to no commit. The `||`
+# writes a placeholder so the runtime COPY below always has a file to copy.
+COPY build-info.jso[n] ./
+RUN [ -f build-info.json ] || echo '{}' > build-info.json
 COPY packages/shared/package.json packages/shared/
 COPY apps/backend/package.json apps/backend/
 # npm may keep some workspace deps NESTED (e.g. otplib under apps/backend/
@@ -59,6 +67,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl \
 # `--chown=node:node` so the non-root user below can write the Prisma engine
 # cache under node_modules at runtime.
 COPY --from=build --chown=node:node /app/VERSION ./VERSION
+# Baked build stamp read by config/build-info.ts (GET /api/system/version).
+COPY --from=build --chown=node:node /app/build-info.json ./build-info.json
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 # Nested (non-hoisted) workspace deps live here — must be copied too or Node
 # can't resolve them at runtime (e.g. `Cannot find module 'otplib'`).

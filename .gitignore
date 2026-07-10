@@ -8,6 +8,10 @@ dist/
 build/
 *.tsbuildinfo
 
+# Git build stamp — generated per-build from git (ops/scripts/stamp-build-info.js),
+# baked into the image and read by GET /api/system/version. Never committed.
+build-info.json
+
 # Environment
 .env
 .env.local
