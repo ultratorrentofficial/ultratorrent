@@ -94,6 +94,26 @@ npm run package
 
 To run the stack with Docker Compose, see [DOCKER.md](DOCKER.md).
 
+### Build stamp (git commit in the version badge)
+
+The UI version badge shows `v<version> - (<short-sha>)` — the exact commit an
+image was built from (`GET /api/system/version`). The commit is stamped
+automatically; you don't pass build args by hand:
+
+- **`npm run package` / `npm run build:docker` (`ops/scripts/docker-build.sh`)**
+  stamp the git sha/tag/build-time into the image (build args **and** a baked-in
+  `build-info.json`). Prefer these over a bare `docker compose build`.
+- A bare **`docker compose build`** still stamps the commit *if* `build-info.json`
+  is present at the repo root. Run `ops/scripts/install-git-hooks.sh` once per
+  clone: the `.githooks` then refresh `build-info.json` on every `git pull` /
+  checkout / commit, so even a plain `docker compose up --build` after a pull
+  carries the commit.
+- Building from a **source tarball with no `.git`** (and no `build-info.json`)?
+  The image still runs; the badge just shows the version without a commit. Pass
+  `GIT_SHA`/`GIT_TAG`/`BUILD_TIME` build args if you want the commit anyway.
+
+`build-info.json` is generated (gitignored) — never commit it.
+
 ## Versioning
 
 `version.json` is the single source of truth for the product version; every
