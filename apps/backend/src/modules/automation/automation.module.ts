@@ -28,6 +28,7 @@ import { NormalizedTorrent, PERMISSIONS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
 import { EngineRegistryService } from '../engine/engine-registry.service';
+import { AuditService } from '../audit/audit.service';
 import { ModuleRef } from '@nestjs/core';
 import { NotificationsService } from '../notifications/notifications.module';
 import { NotificationCenterService } from '../notification-center/notification-center.service';
@@ -44,6 +45,8 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 
 type Condition = { field: keyof NormalizedTorrent; op: string; value: unknown };
 type Action = { type: string; params?: Record<string, unknown> };
+/** Minimal rule shape the run-logging + audit-mirroring needs. */
+type AutomationRuleRef = { id: string; name: string; actions: unknown };
 
 /**
  * Catalog of automation triggers the engine understands. Triggers are matched by
@@ -138,6 +141,7 @@ export class AutomationEngine {
     private readonly media: MediaService,
     private readonly mediaActions: MediaAutomationActions,
     private readonly rssActions: RssAutomationActions,
+    private readonly audit: AuditService,
     private readonly moduleRef: ModuleRef,
   ) {}
 
@@ -193,9 +197,9 @@ export class AutomationEngine {
         for (const action of (rule.actions as unknown as Action[]) ?? []) {
           await this.runEventAction(action, context);
         }
-        await this.logEvent(rule.id, 'success', context, null);
+        await this.logEvent(rule, 'success', context, null);
       } catch (err) {
-        await this.logEvent(rule.id, 'failed', context, (err as Error).message);
+        await this.logEvent(rule, 'failed', context, (err as Error).message);
         await this.notifications.dispatch({
           level: 'error',
           title: 'Automation failed',
@@ -257,13 +261,52 @@ export class AutomationEngine {
   }
 
   private async logEvent(
-    ruleId: string,
+    rule: AutomationRuleRef,
     status: string,
     context: Record<string, unknown>,
     message: string | null,
   ): Promise<void> {
     await this.prisma.automationLog.create({
-      data: { ruleId, status, message, context: context as object },
+      data: { ruleId: rule.id, status, message, context: context as object },
+    });
+    // Surface the run in the audit trail + Recent activity. objectType is the
+    // rule itself (event triggers have no torrent to key on).
+    await this.recordAudit(rule, status, message, {
+      name: typeof context.title === 'string' ? context.title : undefined,
+    }, 'automation_rule', rule.id);
+  }
+
+  /** Action `type` strings of a rule, for the audit metadata. */
+  private actionTypes(actions: unknown): string[] {
+    return Array.isArray(actions)
+      ? (actions as Action[]).map((a) => a?.type).filter((t): t is string => !!t)
+      : [];
+  }
+
+  /**
+   * Mirror an automation-rule run into the audit log so it shows up in the audit
+   * trail and the dashboard's Recent activity. Best-effort — `AuditService.record`
+   * never throws into the automation path.
+   */
+  private async recordAudit(
+    rule: AutomationRuleRef,
+    status: string,
+    message: string | null,
+    extra: Record<string, unknown>,
+    objectType: string,
+    objectId: string | undefined,
+  ): Promise<void> {
+    await this.audit.record({
+      action: 'automation.rule.executed',
+      result: status === 'failed' ? 'failure' : 'success',
+      objectType,
+      objectId,
+      metadata: {
+        rule: rule.name,
+        actions: this.actionTypes(rule.actions),
+        ...extra,
+        ...(message ? { error: message } : {}),
+      },
     });
   }
 
@@ -305,9 +348,9 @@ export class AutomationEngine {
         for (const action of (rule.actions as unknown as Action[]) ?? []) {
           await this.runAction(action, context);
         }
-        await this.log(rule.id, 'success', context, null);
+        await this.log(rule, 'success', context, null);
       } catch (err) {
-        await this.log(rule.id, 'failed', context, (err as Error).message);
+        await this.log(rule, 'failed', context, (err as Error).message);
         await this.notifications.dispatch({
           level: 'error',
           title: 'Automation failed',
@@ -417,19 +460,27 @@ export class AutomationEngine {
   }
 
   private async log(
-    ruleId: string,
+    rule: AutomationRuleRef,
     status: string,
     context: NormalizedTorrent,
     message: string | null,
   ): Promise<void> {
     await this.prisma.automationLog.create({
       data: {
-        ruleId,
+        ruleId: rule.id,
         status,
         message,
         context: { hash: context.hash, name: context.name } as object,
       },
     });
+    await this.recordAudit(
+      rule,
+      status,
+      message,
+      { name: context.name, hash: context.hash },
+      'torrent',
+      context.hash,
+    );
   }
 }
 

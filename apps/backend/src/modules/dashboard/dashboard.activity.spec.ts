@@ -84,6 +84,31 @@ describe('dashboard activity — toActivityItem', () => {
     expect(item.level).toBe('error');
   });
 
+  it('renders an automation rule run with the rule name and the torrent as detail', () => {
+    const item = toActivityItem(
+      row({
+        action: 'automation.rule.executed',
+        objectType: 'torrent',
+        metadata: { rule: 'Remove torrent after download', actions: ['delete'], name: 'Criminal.Minds.S19E01.mkv' },
+      }),
+    );
+    expect(item.message).toBe('Automation: Remove torrent after download');
+    expect(item.detail).toBe('Criminal.Minds.S19E01.mkv');
+  });
+
+  it('marks a failed automation run as an error with the failure reason', () => {
+    const item = toActivityItem(
+      row({
+        action: 'automation.rule.executed',
+        result: 'failure',
+        metadata: { rule: 'Remove torrent after download', error: 'Could not find info-hash' },
+      }),
+    );
+    expect(item.message).toBe('Automation failed: Remove torrent after download');
+    expect(item.detail).toBe('Could not find info-hash');
+    expect(item.level).toBe('error');
+  });
+
   it('still humanizes generic events with objectType-prefixed bare verbs', () => {
     const item = toActivityItem(
       row({ action: 'added', objectType: 'torrent', user: { username: 'dennis' } }),

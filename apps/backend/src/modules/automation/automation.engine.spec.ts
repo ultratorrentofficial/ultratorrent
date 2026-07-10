@@ -39,6 +39,7 @@ describe('AutomationEngine — ratio.reached edge trigger', () => {
     const media = {} as any;
     const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const rssActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
     const engine = new AutomationEngine(
       prisma,
       registry,
@@ -46,9 +47,10 @@ describe('AutomationEngine — ratio.reached edge trigger', () => {
       media,
       mediaActions,
       rssActions,
+      audit,
       { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
     );
-    return { engine, provider, mediaActions };
+    return { engine, provider, mediaActions, audit };
   }
 
   it('fires when the ratio first crosses the threshold', async () => {
@@ -57,6 +59,37 @@ describe('AutomationEngine — ratio.reached edge trigger', () => {
       { context: torrent({ ratio: 2.1 }), previous: torrent({ ratio: 1.9 }) },
     ]);
     expect(provider.stopTorrent).toHaveBeenCalledTimes(1);
+  });
+
+  it('mirrors a successful run into the audit trail', async () => {
+    const { engine, audit } = make();
+    await engine.evaluateMany('ratio.reached', [
+      { context: torrent({ hash: 'HH', name: 'My Torrent', ratio: 2.1 }), previous: torrent({ ratio: 1.9 }) },
+    ]);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'automation.rule.executed',
+        result: 'success',
+        objectType: 'torrent',
+        objectId: 'HH',
+        metadata: expect.objectContaining({ rule: 'Stop at 2.0', actions: ['stop'], name: 'My Torrent' }),
+      }),
+    );
+  });
+
+  it('records a failed run with result=failure and the error', async () => {
+    const { engine, provider, audit } = make();
+    provider.stopTorrent.mockRejectedValueOnce(new Error('engine offline'));
+    await engine.evaluateMany('ratio.reached', [
+      { context: torrent({ ratio: 2.1 }), previous: torrent({ ratio: 1.9 }) },
+    ]);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'automation.rule.executed',
+        result: 'failure',
+        metadata: expect.objectContaining({ rule: 'Stop at 2.0', error: 'engine offline' }),
+      }),
+    );
   });
 
   it('does NOT re-fire once the ratio was already above the threshold', async () => {
@@ -104,6 +137,7 @@ describe('AutomationEngine — media action dispatch', () => {
     const media = {} as any;
     const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const rssActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
     const engine = new AutomationEngine(
       prisma,
       registry,
@@ -111,6 +145,7 @@ describe('AutomationEngine — media action dispatch', () => {
       media,
       mediaActions,
       rssActions,
+      audit,
       { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
     );
 
@@ -137,7 +172,8 @@ describe('AutomationEngine — evaluateEvent (non-torrent event context)', () =>
     const media = {} as any;
     const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const rssActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
-    const engine = new AutomationEngine(prisma, registry, notifications, media, mediaActions, rssActions, { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any);
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const engine = new AutomationEngine(prisma, registry, notifications, media, mediaActions, rssActions, audit, { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any);
     return { engine, prisma, notifications, rssActions };
   }
 

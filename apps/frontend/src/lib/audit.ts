@@ -89,6 +89,8 @@ function categoryFor(action: string): { label: string; Icon: LucideIcon; tone: A
       return { label: 'API Keys', Icon: KeyRound, tone: 'neutral' };
     case 'engines':
       return { label: 'Engines', Icon: ServerCog, tone: 'neutral' };
+    case 'automation':
+      return { label: 'Automation', Icon: Sparkles, tone: 'neutral' };
     default:
       return { label: 'System', Icon: Activity, tone: 'neutral' };
   }
@@ -174,6 +176,15 @@ const TEMPLATES: Record<string, Builder> = {
     return { title: `Ran the media renamer${applied != null ? ` (${applied} file${applied === 1 ? '' : 's'})` : ''}`, Icon: Film };
   },
 
+  // --- automation ---
+  'automation.rule.executed': (e) => {
+    const m = meta(e);
+    const rule = str(m.rule);
+    // Success shows the torrent handled; failure shows why.
+    const detail = str(m.error) ?? str(m.name);
+    return { title: `Automation${rule ? `: ${rule}` : ''}`, detail, Icon: Sparkles, tone: 'neutral' };
+  },
+
   // --- modules ---
   'module.enabled': (e) => ({ title: `Enabled the ${baseName(e.objectId) || 'module'} module`, Icon: Boxes, tone: 'positive' }),
   'module.disabled': (e) => ({ title: `Disabled the ${baseName(e.objectId) || 'module'} module`, Icon: Boxes, tone: 'warning' }),
@@ -224,11 +235,13 @@ export function describeAudit(entry: AuditEntry): AuditDescription {
   let built = TEMPLATES[entry.action]?.(entry) ?? bulkTitle(entry.action, entry) ?? null;
   if (!built) built = { title: prettify(entry.action), Icon: cat.Icon, tone: cat.tone };
 
-  // The detail line prefers an explicit target, else a metadata summary.
+  // The detail line prefers a template-supplied one, then an explicit target,
+  // else a metadata summary.
   const detail =
-    entry.objectId && !built.title.includes(baseName(entry.objectId))
+    built.detail ??
+    (entry.objectId && !built.title.includes(baseName(entry.objectId))
       ? entry.objectId
-      : metaSummary(entry);
+      : metaSummary(entry));
 
   // A failed result always wins the tone and is flagged in the title.
   const failed = entry.result === 'failure';

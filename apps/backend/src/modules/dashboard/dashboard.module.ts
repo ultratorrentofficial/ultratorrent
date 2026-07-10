@@ -139,6 +139,13 @@ function describeActivity(
         message: `Download failed${name ? ` for ${name}` : ''}`,
         detail: str(meta.error),
       };
+    case 'automation.rule.executed': {
+      const rule = str(meta.rule);
+      return {
+        message: `${failed ? 'Automation failed' : 'Automation'}${rule ? `: ${rule}` : ''}`,
+        detail: failed ? (str(meta.error) ?? name) : name,
+      };
+    }
     default: {
       let message = genericMessage(row);
       if (name) message += `: ${name}`;
