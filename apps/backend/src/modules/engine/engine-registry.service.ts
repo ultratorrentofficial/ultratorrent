@@ -7,6 +7,8 @@ import {
 import { EngineKind } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineProviderFactory } from '../../infrastructure/engine/engine-provider.factory';
+import { SecretCipher } from '../../common/crypto/secret-cipher';
+import { decryptEngineConfig } from './engine-secrets';
 import {
   EngineConnectionConfig,
   TorrentEngineProvider,
@@ -25,6 +27,7 @@ export class EngineRegistryService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly factory: EngineProviderFactory,
+    private readonly cipher: SecretCipher,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -39,7 +42,12 @@ export class EngineRegistryService implements OnModuleInit {
     });
     for (const engine of engines) {
       try {
-        const cfg = engine.config as Record<string, unknown>;
+        // Decrypt any at-rest secrets (e.g. qBittorrent password) before the
+        // provider connects.
+        const cfg = decryptEngineConfig(
+          this.cipher,
+          engine.config as Record<string, unknown>,
+        );
         const provider = this.factory.create({
           kind: engine.kind as EngineKind,
           engineId: engine.id,
@@ -49,6 +57,9 @@ export class EngineRegistryService implements OnModuleInit {
           socketPath: cfg.socketPath as string | undefined,
           url: cfg.url as string | undefined,
           timeoutMs: cfg.timeoutMs as number | undefined,
+          baseUrl: cfg.baseUrl as string | undefined,
+          username: cfg.username as string | undefined,
+          password: cfg.password as string | undefined,
         });
         this.providers.set(engine.id, provider);
       } catch (err) {

@@ -30,6 +30,7 @@ From `docker-compose.yml`:
 | `backend` | build `apps/backend/Dockerfile` | NestJS API + WebSocket gateway | `4000:4000` | always |
 | `frontend` | build `apps/frontend/Dockerfile` (nginx) | Built React SPA + `/api` & `/ws` proxy | `8080:80` | always |
 | `rtorrent` | built locally from `deploy/rtorrent/` (jesec/rtorrent `v0.9.8-r16` static binary) | Bundled torrent engine exposing SCGI `5000` | internal | `rtorrent` |
+| `qbittorrent` | `lscr.io/linuxserver/qbittorrent:latest` | Bundled torrent engine (Web API) — sturdier than rTorrent at scale | `${QBITTORRENT_PORT:-8081}:8080` | `qbittorrent` |
 | `prowlarr` | `lscr.io/linuxserver/prowlarr:latest` | Optional Prowlarr indexer manager (companion) | `9696:9696` | `prowlarr` |
 | `flaresolverr` | `ghcr.io/flaresolverr/flaresolverr:latest` | Optional Cloudflare solver for Prowlarr indexers | internal | `flaresolverr` |
 | `proxy` | `caddy:2-alpine` | Edge reverse proxy / automatic TLS | `80:80`, `443:443` | `proxy` |
@@ -168,6 +169,17 @@ The optional services are behind Compose profiles and are **off by default**:
 # Bring up the stack plus a bundled rTorrent engine
 docker compose --profile rtorrent up -d --build
 # Then register it in UltraTorrent: mode "scgi-tcp", host "rtorrent", port 5000.
+
+# ...or the bundled qBittorrent engine (recommended for large libraries)
+docker compose --profile qbittorrent up -d
+# 1. Get the first-run temporary password: docker compose logs qbittorrent
+# 2. Open the Web UI (http://<host>:8081), log in as admin with that password,
+#    and set your own username/password under Options → Web UI.
+# 3. If a later "Test connection" fails with 401/unauthorized, disable
+#    "Enable Host header validation" (or set Server domains to *) under
+#    Options → Web UI — the backend connects by the service name qbittorrent.
+# 4. Register it in UltraTorrent: Infrastructure → Engines → qBittorrent,
+#    base URL http://qbittorrent:8080 + those credentials.
 
 # Add the Prowlarr indexer manager (companion container)
 docker compose --profile prowlarr up -d

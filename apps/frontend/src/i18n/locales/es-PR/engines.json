@@ -42,19 +42,20 @@
   },
   "kinds": {
     "rtorrent": "rTorrent",
-    "qbittorrent": "qBittorrent (próximamente)",
+    "qbittorrent": "qBittorrent",
     "transmission": "Transmission (próximamente)",
     "deluge": "Deluge (próximamente)"
   },
   "modes": {
     "scgiTcp": "SCGI sobre TCP (host + puerto)",
     "scgiUnix": "SCGI sobre socket Unix",
-    "http": "HTTP / URL XML-RPC"
+    "http": "HTTP / URL XML-RPC",
+    "webApi": "Web API"
   },
   "dialog": {
     "addTitle": "Agregar motor",
     "editTitle": "Editar {{name}}",
-    "description": "Para el rTorrent incluido en Docker, usa SCGI sobre TCP con host <code>rtorrent</code> y puerto <code>5000</code>.",
+    "description": "Para el rTorrent incluido en Docker, usa SCGI sobre TCP con host <code>rtorrent</code> y puerto <code>5000</code>. Para el qBittorrent incluido, usa la URL base <code>http://qbittorrent:8080</code>.",
     "name": "Nombre",
     "namePlaceholder": "rTorrent local",
     "client": "Cliente",
@@ -63,6 +64,10 @@
     "url": "URL XML-RPC",
     "host": "Host",
     "port": "Puerto",
+    "baseUrl": "URL base",
+    "username": "Usuario",
+    "password": "Contraseña",
+    "passwordKeep": "Deja en blanco para conservar la actual",
     "timeout": "Tiempo de espera (ms)",
     "defaultEngine": "Motor predeterminado",
     "enabled": "Habilitado",

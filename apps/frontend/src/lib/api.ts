@@ -2025,12 +2025,19 @@ export type EngineKind = 'rtorrent' | 'qbittorrent' | 'transmission' | 'deluge';
 export type EngineMode = 'scgi-tcp' | 'scgi-unix' | 'http';
 
 export interface EngineConnectionInput {
-  mode: EngineMode;
+  // rTorrent transport (mode-based). Optional because qBittorrent uses the
+  // baseUrl/username/password fields instead.
+  mode?: EngineMode;
   host?: string;
   port?: number;
   socketPath?: string;
   url?: string;
   timeoutMs?: number;
+  // qBittorrent Web API transport.
+  baseUrl?: string;
+  username?: string;
+  /** Send only when set/changed; blank on edit keeps the stored password. */
+  password?: string;
 }
 
 export interface EngineSummary {
@@ -2045,6 +2052,10 @@ export interface EngineSummary {
   socketPath?: string;
   url?: string;
   timeoutMs?: number;
+  baseUrl?: string;
+  username?: string;
+  /** True when a qBittorrent password is stored (the value itself is never returned). */
+  hasPassword?: boolean;
 }
 
 export interface CreateEngineInput {

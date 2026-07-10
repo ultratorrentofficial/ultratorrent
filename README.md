@@ -50,9 +50,10 @@ data. That single seam (the `TorrentEngineProvider` interface) is one of several
 provider abstractions that let UltraTorrent add engines, metadata sources, and
 integrations without touching any UI or business logic.
 
-The current release ships a complete **rTorrent** provider (XML-RPC over SCGI);
-qBittorrent, Transmission, and Deluge are first-class targets of the same
-interface and are planned. See
+The current release ships complete **rTorrent** (XML-RPC over SCGI) and
+**qBittorrent** (Web API v2) providers — both bundlable via Docker Compose
+profiles; qBittorrent is recommended for large libraries. Transmission and
+Deluge are first-class targets of the same interface and are planned. See
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full platform
 architecture.
 

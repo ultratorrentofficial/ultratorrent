@@ -12,8 +12,12 @@ const ENGINE_KINDS = ['rtorrent', 'qbittorrent', 'transmission', 'deluge'];
 const MODES = ['scgi-tcp', 'scgi-unix', 'http'];
 
 export class EngineConnectionDto {
+  // rTorrent transport. Optional because qBittorrent uses baseUrl/username/
+  // password instead; the provider surfaces a bad/incomplete config via its
+  // healthCheck (Test connection) rather than a 400.
+  @IsOptional()
   @IsIn(MODES)
-  mode!: 'scgi-tcp' | 'scgi-unix' | 'http';
+  mode?: 'scgi-tcp' | 'scgi-unix' | 'http';
 
   @IsOptional()
   @IsString()
@@ -34,6 +38,22 @@ export class EngineConnectionDto {
   @IsOptional()
   @IsInt()
   timeoutMs?: number;
+
+  // qBittorrent Web API transport.
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  baseUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  username?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  password?: string;
 }
 
 export class CreateEngineDto {

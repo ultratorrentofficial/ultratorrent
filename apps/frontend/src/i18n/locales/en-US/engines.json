@@ -42,19 +42,20 @@
   },
   "kinds": {
     "rtorrent": "rTorrent",
-    "qbittorrent": "qBittorrent (coming soon)",
+    "qbittorrent": "qBittorrent",
     "transmission": "Transmission (coming soon)",
     "deluge": "Deluge (coming soon)"
   },
   "modes": {
     "scgiTcp": "SCGI over TCP (host + port)",
     "scgiUnix": "SCGI over Unix socket",
-    "http": "HTTP / XML-RPC URL"
+    "http": "HTTP / XML-RPC URL",
+    "webApi": "Web API"
   },
   "dialog": {
     "addTitle": "Add engine",
     "editTitle": "Edit {{name}}",
-    "description": "For the bundled Docker rTorrent, use SCGI over TCP with host <code>rtorrent</code> and port <code>5000</code>.",
+    "description": "For the bundled Docker rTorrent, use SCGI over TCP with host <code>rtorrent</code> and port <code>5000</code>. For the bundled qBittorrent, use base URL <code>http://qbittorrent:8080</code>.",
     "name": "Name",
     "namePlaceholder": "Local rTorrent",
     "client": "Client",
@@ -63,6 +64,10 @@
     "url": "XML-RPC URL",
     "host": "Host",
     "port": "Port",
+    "baseUrl": "Base URL",
+    "username": "Username",
+    "password": "Password",
+    "passwordKeep": "Leave blank to keep current",
     "timeout": "Timeout (ms)",
     "defaultEngine": "Default engine",
     "enabled": "Enabled",

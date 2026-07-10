@@ -39,7 +39,7 @@ import { CenteredSpinner, EmptyState, ErrorState, Spinner } from '@/components/u
 
 const KIND_OPTIONS: { value: string; disabled?: boolean }[] = [
   { value: 'rtorrent' },
-  { value: 'qbittorrent', disabled: true },
+  { value: 'qbittorrent' },
   { value: 'transmission', disabled: true },
   { value: 'deluge', disabled: true },
 ];
@@ -139,15 +139,24 @@ export function EnginesPage() {
                     <HealthBadge engineId={engine.id} enabled={engine.isEnabled} />
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>{engine.mode}</span>
-                    {engine.mode === 'scgi-unix' ? (
-                      <span className="font-mono">{engine.socketPath}</span>
-                    ) : engine.mode === 'http' ? (
-                      <span className="font-mono">{engine.url}</span>
+                    {engine.kind === 'qbittorrent' ? (
+                      <>
+                        <span>{t('modes.webApi')}</span>
+                        <span className="font-mono">{engine.baseUrl}</span>
+                      </>
                     ) : (
-                      <span className="font-mono">
-                        {engine.host}:{engine.port}
-                      </span>
+                      <>
+                        <span>{engine.mode}</span>
+                        {engine.mode === 'scgi-unix' ? (
+                          <span className="font-mono">{engine.socketPath}</span>
+                        ) : engine.mode === 'http' ? (
+                          <span className="font-mono">{engine.url}</span>
+                        ) : (
+                          <span className="font-mono">
+                            {engine.host}:{engine.port}
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -267,11 +276,16 @@ function EngineDialog({
   ];
   const [name, setName] = useState(engine?.name ?? '');
   const [kind, setKind] = useState(engine?.kind ?? 'rtorrent');
-  const [mode, setMode] = useState<EngineMode>(engine?.mode ?? DEFAULTS.mode);
+  const isQbit = kind === 'qbittorrent';
+  const [mode, setMode] = useState<EngineMode>(engine?.mode ?? (DEFAULTS.mode as EngineMode));
   const [host, setHost] = useState(engine?.host ?? DEFAULTS.host ?? '');
   const [port, setPort] = useState(String(engine?.port ?? DEFAULTS.port ?? ''));
   const [socketPath, setSocketPath] = useState(engine?.socketPath ?? '');
   const [url, setUrl] = useState(engine?.url ?? '');
+  // qBittorrent Web API fields.
+  const [baseUrl, setBaseUrl] = useState(engine?.baseUrl ?? 'http://qbittorrent:8080');
+  const [username, setUsername] = useState(engine?.username ?? '');
+  const [password, setPassword] = useState('');
   const [timeoutMs, setTimeoutMs] = useState(String(engine?.timeoutMs ?? DEFAULTS.timeoutMs ?? ''));
   const [isDefault, setIsDefault] = useState(engine?.isDefault ?? false);
   const [isEnabled, setIsEnabled] = useState(engine?.isEnabled ?? true);
@@ -280,6 +294,17 @@ function EngineDialog({
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   const buildConfig = (): EngineConnectionInput => {
+    if (isQbit) {
+      const cfg: EngineConnectionInput = {
+        baseUrl: baseUrl.trim(),
+        username: username.trim(),
+      };
+      // Send the password only when typed; a blank field on edit keeps the
+      // stored one.
+      if (password) cfg.password = password;
+      if (timeoutMs.trim()) cfg.timeoutMs = Number(timeoutMs);
+      return cfg;
+    }
     const cfg: EngineConnectionInput = { mode };
     if (mode === 'scgi-unix') {
       cfg.socketPath = socketPath.trim();
@@ -293,8 +318,12 @@ function EngineDialog({
     return cfg;
   };
 
-  const connectionValid =
-    mode === 'scgi-unix'
+  const connectionValid = isQbit
+    ? baseUrl.trim().length > 0 &&
+      username.trim().length > 0 &&
+      // A password is required to create; on edit a blank keeps the stored one.
+      (isEdit || password.length > 0)
+    : mode === 'scgi-unix'
       ? socketPath.trim().length > 0
       : mode === 'http'
         ? url.trim().length > 0
@@ -395,61 +424,101 @@ function EngineDialog({
           </div>
         </div>
 
-        <div>
-          <Label htmlFor="e-mode">{t('dialog.connection')}</Label>
-          <Select
-            id="e-mode"
-            value={mode}
-            onChange={(e) => setMode(e.target.value as EngineMode)}
-            options={modeOptions}
-          />
-        </div>
-
-        {mode === 'scgi-unix' ? (
-          <div>
-            <Label htmlFor="e-socket">{t('dialog.socketPath')}</Label>
-            <Input
-              id="e-socket"
-              value={socketPath}
-              onChange={(e) => setSocketPath(e.target.value)}
-              placeholder="/var/run/rtorrent/rpc.socket"
-              className="font-mono"
-            />
-          </div>
-        ) : mode === 'http' ? (
-          <div>
-            <Label htmlFor="e-url">{t('dialog.url')}</Label>
-            <Input
-              id="e-url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="http://rtorrent:8080/RPC2"
-              className="font-mono"
-            />
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+        {isQbit ? (
+          <>
             <div>
-              <Label htmlFor="e-host">{t('dialog.host')}</Label>
+              <Label htmlFor="e-baseurl">{t('dialog.baseUrl')}</Label>
               <Input
-                id="e-host"
-                value={host}
-                onChange={(e) => setHost(e.target.value)}
-                placeholder="rtorrent"
+                id="e-baseurl"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="http://qbittorrent:8080"
                 className="font-mono"
               />
             </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="e-username">{t('dialog.username')}</Label>
+                <Input
+                  id="e-username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="admin"
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <Label htmlFor="e-password">{t('dialog.password')}</Label>
+                <Input
+                  id="e-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={engine?.hasPassword ? t('dialog.passwordKeep') : ''}
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
             <div>
-              <Label htmlFor="e-port">{t('dialog.port')}</Label>
-              <Input
-                id="e-port"
-                type="number"
-                value={port}
-                onChange={(e) => setPort(e.target.value)}
-                placeholder="5000"
+              <Label htmlFor="e-mode">{t('dialog.connection')}</Label>
+              <Select
+                id="e-mode"
+                value={mode}
+                onChange={(e) => setMode(e.target.value as EngineMode)}
+                options={modeOptions}
               />
             </div>
-          </div>
+
+            {mode === 'scgi-unix' ? (
+              <div>
+                <Label htmlFor="e-socket">{t('dialog.socketPath')}</Label>
+                <Input
+                  id="e-socket"
+                  value={socketPath}
+                  onChange={(e) => setSocketPath(e.target.value)}
+                  placeholder="/var/run/rtorrent/rpc.socket"
+                  className="font-mono"
+                />
+              </div>
+            ) : mode === 'http' ? (
+              <div>
+                <Label htmlFor="e-url">{t('dialog.url')}</Label>
+                <Input
+                  id="e-url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="http://rtorrent:8080/RPC2"
+                  className="font-mono"
+                />
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="e-host">{t('dialog.host')}</Label>
+                  <Input
+                    id="e-host"
+                    value={host}
+                    onChange={(e) => setHost(e.target.value)}
+                    placeholder="rtorrent"
+                    className="font-mono"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="e-port">{t('dialog.port')}</Label>
+                  <Input
+                    id="e-port"
+                    type="number"
+                    value={port}
+                    onChange={(e) => setPort(e.target.value)}
+                    placeholder="5000"
+                  />
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         <div>
