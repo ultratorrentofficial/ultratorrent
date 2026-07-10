@@ -70,6 +70,16 @@ const SPECIAL_SEASON = 0; // season 0 = specials, excluded from missing math (MV
 const TITLE_CHUNK = 1000;
 
 /**
+ * Punctuation-insensitive title key for matching against the IMDb catalogue.
+ * Lowercases, turns `&` into `and`, then strips every non-alphanumeric char (incl.
+ * spaces) so `:` / `.` / `'` / spacing differences collapse — e.g. "Chicago P.D."
+ * and "Chicago PD", or "FBI: Most Wanted" and "FBI Most Wanted", share a key.
+ */
+function catalogueTitleKey(title: string): string {
+  return title.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+}
+
+/**
  * Sonarr-style missing-episode detection. For a monitored series (a `series`/
  * `season` watchlist item carrying an IMDb id), it enumerates the local IMDb
  * episode catalogue, diffs it against what the library owns, and persists the
@@ -470,7 +480,7 @@ export class MissingEpisodesService {
     item: { id: string; title: string; year: number | null; externalIds: unknown },
     userId?: string,
   ): Promise<string | null> {
-    const candidates = await this.prisma.iMDbTitle.findMany({
+    let candidates = await this.prisma.iMDbTitle.findMany({
       where: {
         primaryTitle: { equals: item.title, mode: 'insensitive' },
         titleType: { in: ['tvSeries', 'tvMiniSeries'] },
@@ -479,6 +489,29 @@ export class MissingEpisodesService {
       select: { tconst: true, startYear: true },
       take: 10,
     });
+    // Fallback: punctuation-insensitive match. Names sourced from RSS rules strip
+    // ':' '&' '.' etc. ("FBI Most Wanted" vs IMDb "FBI: Most Wanted", "Chicago PD"
+    // vs "Chicago P.D."), so the exact match above misses. Gated on `year` and a
+    // first-word prefix so it stays on the (titleType, startYear) index and never
+    // scans the full catalogue; matched by a punctuation-stripped key.
+    if (candidates.length === 0 && item.year) {
+      const firstWord = item.title.match(/[a-z0-9]+/i)?.[0];
+      if (firstWord) {
+        const want = catalogueTitleKey(item.title);
+        const pool = await this.prisma.iMDbTitle.findMany({
+          where: {
+            titleType: { in: ['tvSeries', 'tvMiniSeries'] },
+            startYear: item.year,
+            primaryTitle: { startsWith: firstWord, mode: 'insensitive' },
+          },
+          select: { tconst: true, primaryTitle: true, startYear: true },
+          take: 200,
+        });
+        candidates = pool
+          .filter((c) => catalogueTitleKey(c.primaryTitle) === want)
+          .map((c) => ({ tconst: c.tconst, startYear: c.startYear }));
+      }
+    }
     if (candidates.length === 0) return null;
 
     let best: { tconst: string; startYear: number | null } | null = null;

@@ -32,6 +32,12 @@ function matches(where: any, row: any): boolean {
         if (a !== b) return false;
         continue;
       }
+      if ('startsWith' in cond) {
+        const a = cond.mode === 'insensitive' ? String(row[k] ?? '').toLowerCase() : String(row[k] ?? '');
+        const b = cond.mode === 'insensitive' ? String(cond.startsWith).toLowerCase() : String(cond.startsWith);
+        if (!a.startsWith(b)) return false;
+        continue;
+      }
       continue; // unknown object operator → treat as match
     }
     if (row[k] !== cond) return false;
@@ -219,6 +225,33 @@ describe('MissingEpisodesService', () => {
     expect(gap.total).toBe(2);
     const wlS = await prisma.mediaAcquisitionWatchlistItem.findUnique({ where: { id: 'wlS' } });
     expect(wlS.externalIds).toMatchObject({ imdb: 'ttSILO' }); // persisted correction
+  });
+
+  it('self-heals a series whose title differs only by punctuation (RSS-derived name)', async () => {
+    const prisma = makePrisma();
+    // "FBI Most Wanted" (from an RSS rule, punctuation stripped) has no exact
+    // catalogue match, but "FBI: Most Wanted" (same year) does.
+    prisma.mediaAcquisitionWatchlistItem.seed([
+      { id: 'wlF', type: 'series', status: 'active', title: 'FBI Most Wanted', normalizedTitle: 'fbi most wanted', externalIds: {}, year: 2020, seasonNumber: null, priority: 100 },
+    ]);
+    prisma.iMDbTitle.seed([
+      { tconst: 'ttFBI', primaryTitle: 'FBI: Most Wanted', startYear: 2020, titleType: 'tvSeries' },
+      { tconst: 'ttFX', primaryTitle: 'Farming Life', startYear: 2020, titleType: 'tvSeries' }, // same year, different first word
+      { tconst: 'ttF1', primaryTitle: 'F One', startYear: 2020 },
+      { tconst: 'ttF2', primaryTitle: 'F Two', startYear: 2020 },
+    ]);
+    prisma.iMDbEpisode.seed([
+      { episodeTitleId: 'ttF1', parentTitleId: 'ttFBI', seasonNumber: 1, episodeNumber: 1 },
+      { episodeTitleId: 'ttF2', parentTitleId: 'ttFBI', seasonNumber: 1, episodeNumber: 2 },
+    ]);
+    const svc = makeService(prisma);
+
+    const gap = await svc.scanSeries('wlF', 'u1');
+
+    expect(gap.seriesTconst).toBe('ttFBI'); // matched across the ':' punctuation
+    expect(gap.total).toBe(2);
+    const wlF = await prisma.mediaAcquisitionWatchlistItem.findUnique({ where: { id: 'wlF' } });
+    expect(wlF.externalIds).toMatchObject({ imdb: 'ttFBI' });
   });
 
   it('leaves a series unscannable when no catalogue title matches (self-heal finds nothing)', async () => {
