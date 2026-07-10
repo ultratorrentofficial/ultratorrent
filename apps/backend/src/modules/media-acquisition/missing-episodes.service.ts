@@ -491,21 +491,19 @@ export class MissingEpisodesService {
     });
     // Fallback: punctuation-insensitive match. Names sourced from RSS rules strip
     // ':' '&' '.' etc. ("FBI Most Wanted" vs IMDb "FBI: Most Wanted", "Chicago PD"
-    // vs "Chicago P.D."), so the exact match above misses. Gated on `year` and a
-    // first-word prefix so it stays on the (titleType, startYear) index and never
-    // scans the full catalogue; matched by a punctuation-stripped key.
+    // vs "Chicago P.D.", "The Walking Dead Dead City" vs "…: Dead City"), so the
+    // exact match above misses. Gated on `year` so it rides the
+    // (titleType, startYear) index — a single year is ~15k TV titles, cheap to
+    // pull and compare by a punctuation-stripped key (a title prefix can't be used:
+    // a leading "The" isn't selective, and the ':' can fall right after the first
+    // word). Only runs for the rare unresolved item, during a scan.
     if (candidates.length === 0 && item.year) {
-      const firstWord = item.title.match(/[a-z0-9]+/i)?.[0];
-      if (firstWord) {
-        const want = catalogueTitleKey(item.title);
+      const want = catalogueTitleKey(item.title);
+      if (want) {
         const pool = await this.prisma.iMDbTitle.findMany({
-          where: {
-            titleType: { in: ['tvSeries', 'tvMiniSeries'] },
-            startYear: item.year,
-            primaryTitle: { startsWith: firstWord, mode: 'insensitive' },
-          },
+          where: { titleType: { in: ['tvSeries', 'tvMiniSeries'] }, startYear: item.year },
           select: { tconst: true, primaryTitle: true, startYear: true },
-          take: 200,
+          take: 25000,
         });
         candidates = pool
           .filter((c) => catalogueTitleKey(c.primaryTitle) === want)
