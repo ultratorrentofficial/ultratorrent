@@ -80,13 +80,13 @@ describe('ProwlarrIntegrationService — settings & secrets', () => {
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'prowlarr.apikey.changed' }));
   });
 
-  it('audits settings updates and views', async () => {
+  it('audits settings updates but NOT reads (a polled GET must not spam the audit trail)', async () => {
     const { svc, audit } = build();
     await svc.update({ enabled: true }, { userId: 'u1' });
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'prowlarr.settings.updated' }));
     audit.record.mockClear();
     await svc.get({ userId: 'u1' });
-    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'prowlarr.settings.viewed' }));
+    expect(audit.record).not.toHaveBeenCalled();
   });
 });
 

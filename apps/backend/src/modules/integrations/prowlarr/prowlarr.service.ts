@@ -116,16 +116,12 @@ export class ProwlarrIntegrationService {
 
   // --- settings CRUD --------------------------------------------------------
 
-  async get(ctx: AuditCtx = {}) {
+  async get(_ctx: AuditCtx = {}) {
+    // Reads are NOT audited: the settings page polls this endpoint, so a
+    // `prowlarr.settings.viewed` per GET floods the audit trail (and the
+    // dashboard's Recent activity) with meaningless noise. Only mutations
+    // (`update`/`testConnection`) are audited.
     const stored = await this.loadRaw();
-    if (ctx.userId) {
-      await this.audit.record({
-        userId: ctx.userId,
-        action: 'prowlarr.settings.viewed',
-        objectType: 'setting',
-        objectId: SETTINGS_KEY,
-      });
-    }
     return this.serialize(stored);
   }
 

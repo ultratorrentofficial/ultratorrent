@@ -113,27 +113,51 @@ export function toActivityItem(row: AuditRow): ActivityItem {
 }
 
 /**
- * Collapse bursty background events into one line each. A system-generated
- * action (no user) that recurs within the scanned window — e.g. the enrichment
- * sweeps that write one row per media item — is shown once, at its most recent
- * occurrence, with an "N events" count; everything else, and every
- * user-attributed action, stays an individual row. Rows arrive newest-first, so
- * emitting each collapsed group at its first sighting preserves the ordering.
+ * Actions kept as individual rows even when they repeat: the events we
+ * deliberately surface per-occurrence (a rename names its show, a download names
+ * its release). Everything else that recurs within the window is collapsed.
+ */
+const NEVER_COLLAPSE = new Set([
+  'media.rename',
+  'media_acquisition.download.executed',
+  'media_acquisition.upgrade.executed',
+  'media_acquisition.download.failed',
+]);
+
+/**
+ * Grouping key for collapsing repeats. Same action + result + actor collapse
+ * together; automation additionally keys on the rule name so distinct rules
+ * stay separate lines and keep their name.
+ */
+function burstSignature(r: AuditRow): string {
+  const user = r.user?.username ?? '';
+  if (r.action === 'automation.rule.executed') {
+    return `${r.action}|${r.result}|${user}|${str(asMeta(r.metadata).rule) ?? ''}`;
+  }
+  return `${r.action}|${r.result}|${user}`;
+}
+
+/**
+ * Collapse bursty events into one line each. Any action that recurs within the
+ * scanned window — the enrichment sweeps (one row per media item), a polled read
+ * event, or a rule firing on every completed torrent — is shown once, at its
+ * most recent occurrence, with an "N events" count; {@link NEVER_COLLAPSE}
+ * actions and one-off events stay individual. Rows arrive newest-first, so
+ * emitting each group at its first sighting preserves the ordering.
  */
 export function collapseActivity(rows: AuditRow[], limit: number): ActivityItem[] {
-  const burstKey = (r: AuditRow) => `${r.action}|${r.result}`;
-
   const counts = new Map<string, number>();
   for (const r of rows) {
-    if (r.user) continue; // only automated/system events collapse
-    counts.set(burstKey(r), (counts.get(burstKey(r)) ?? 0) + 1);
+    if (NEVER_COLLAPSE.has(r.action)) continue;
+    const key = burstSignature(r);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
   const out: ActivityItem[] = [];
   const emitted = new Set<string>();
   for (const r of rows) {
-    const key = burstKey(r);
-    const count = r.user ? 0 : counts.get(key) ?? 0;
+    const key = burstSignature(r);
+    const count = NEVER_COLLAPSE.has(r.action) ? 0 : counts.get(key) ?? 0;
     if (count >= 2) {
       if (emitted.has(key)) continue; // group already represented
       emitted.add(key);
@@ -146,16 +170,30 @@ export function collapseActivity(rows: AuditRow[], limit: number): ActivityItem[
   return out;
 }
 
-/** A single collapsed line for a burst: the action's generic label + a count. */
+/** A single collapsed line for a burst: a name-less label (+ actor) and a count. */
 function burstActivityItem(rep: AuditRow, count: number): ActivityItem {
   return {
     id: rep.id,
     type: rep.action,
-    message: genericMessage(rep),
+    message: burstLabel(rep),
     detail: `${count} events`,
     level: activityLevel(rep.action, rep.result),
     at: rep.createdAt.toISOString(),
   };
+}
+
+/** The collapsed-line label: no per-item name, but keep the rule + actor. */
+function burstLabel(rep: AuditRow): string {
+  let label: string;
+  if (rep.action === 'automation.rule.executed') {
+    const rule = str(asMeta(rep.metadata).rule);
+    const base = rep.result === 'failure' ? 'Automation failed' : 'Automation';
+    label = rule ? `${base}: ${rule}` : base;
+  } else {
+    label = genericMessage(rep);
+  }
+  if (rep.user?.username) label += ` · ${rep.user.username}`;
+  return label;
 }
 
 /**

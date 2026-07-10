@@ -154,12 +154,41 @@ describe('dashboard activity — collapseActivity (bursty enrichment)', () => {
     expect(items.some((i) => i.type === 'auth.login')).toBe(true);
   });
 
-  it('does NOT collapse repeated user-attributed actions', () => {
-    const rows = Array.from({ length: 4 }, (_, i) =>
-      row({ id: `add-${i}`, action: 'torrents.add', user: { username: 'dennis' } }),
+  it('collapses repeated user-attributed events, keeping the actor', () => {
+    const rows = Array.from({ length: 7 }, (_, i) =>
+      row({ id: `view-${i}`, action: 'prowlarr.settings.viewed', user: { username: 'admin' } }),
     );
     const items = collapseActivity(rows, 15);
-    expect(items).toHaveLength(4); // each user action stays its own row
+    expect(items).toHaveLength(1);
+    expect(items[0].message).toBe('Prowlarr settings viewed · admin');
+    expect(items[0].detail).toBe('7 events');
+  });
+
+  it('collapses automation runs per rule, keeping the rule name', () => {
+    const rows = [
+      ...Array.from({ length: 12 }, (_, i) =>
+        row({ id: `a-${i}`, action: 'automation.rule.executed', objectType: 'torrent', metadata: { rule: 'Remove torrent after download' } }),
+      ),
+      ...Array.from({ length: 3 }, (_, i) =>
+        row({ id: `b-${i}`, action: 'automation.rule.executed', objectType: 'torrent', metadata: { rule: 'Notify on completion' } }),
+      ),
+    ];
+    const items = collapseActivity(rows, 15);
+    expect(items).toHaveLength(2); // one line per distinct rule
+    expect(items[0].message).toBe('Automation: Remove torrent after download');
+    expect(items[0].detail).toBe('12 events');
+    expect(items[1].message).toBe('Automation: Notify on completion');
+    expect(items[1].detail).toBe('3 events');
+  });
+
+  it('never collapses renames — each names its show individually', () => {
+    const rows = ['9-1-1 (2018)', 'Tracker (2024)', 'The Wire (2002)'].map((name, i) =>
+      row({ id: `rn-${i}`, action: 'media.rename', metadata: { name } }),
+    );
+    const items = collapseActivity(rows, 15);
+    expect(items).toHaveLength(3);
+    expect(items.every((i) => i.detail !== '3 events')).toBe(true);
+    expect(items[0].message).toBe('Renamed media for 9-1-1 (2018)');
   });
 
   it('does not collapse a system action that occurs only once', () => {
