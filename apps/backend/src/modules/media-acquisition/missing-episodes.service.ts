@@ -121,18 +121,34 @@ export class MissingEpisodesService {
       throw new BadRequestException('Watchlist item is not a monitorable series');
     }
     let seriesTconst = this.imdbId(item.externalIds);
+    let healed = false;
     if (!seriesTconst) {
       // Self-heal: a series added without an IMDb id can't be scanned. Try to
       // resolve one from the local IMDb catalogue by title (+year) and persist
       // it, so the scheduled scan auto-enables monitoring on the next run
       // instead of silently skipping the show forever.
       seriesTconst = await this.resolveAndPersistImdbId(item, userId);
+      healed = true;
     }
     if (!seriesTconst) {
       throw new BadRequestException('Watchlist item has no IMDb id to scan');
     }
 
-    const catalog = await this.listSeriesEpisodes(seriesTconst);
+    let catalog = await this.listSeriesEpisodes(seriesTconst);
+    // Self-heal a present-but-WRONG id: a stored tconst with no catalogue
+    // episodes is almost always an episode/movie/stub id (the show was
+    // mis-identified when it was added — e.g. "Silo" pinned to an episode
+    // tt16091606 instead of the series tt14688458), not the series parent, so
+    // the scan would silently find nothing forever. Re-resolve from the title
+    // once and retry; the resolver only accepts a tvSeries/tvMiniSeries that has
+    // episodes and persists the correction.
+    if (catalog.length === 0 && !healed) {
+      const corrected = await this.resolveAndPersistImdbId(item, userId);
+      if (corrected && corrected !== seriesTconst) {
+        seriesTconst = corrected;
+        catalog = await this.listSeriesEpisodes(seriesTconst);
+      }
+    }
     const scoped =
       item.type === 'season' && item.seasonNumber != null
         ? catalog.filter((e) => e.seasonNumber === item.seasonNumber)

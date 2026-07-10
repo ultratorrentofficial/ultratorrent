@@ -193,6 +193,34 @@ describe('MissingEpisodesService', () => {
     expect(wlH.externalIds).toMatchObject({ imdb: 'ttHEAL' });
   });
 
+  it('self-heals a series whose IMDb id points at an episode (0 catalogue episodes)', async () => {
+    const prisma = makePrisma();
+    // "Silo" mis-identified to an episode tconst (an episode has no child
+    // episodes → 0 catalogue), plus the real series matched by title.
+    prisma.mediaAcquisitionWatchlistItem.seed([
+      { id: 'wlS', type: 'series', status: 'active', title: 'Silo', normalizedTitle: 'silo', externalIds: { imdb: 'ttEPISODE' }, seasonNumber: null, priority: 100 },
+    ]);
+    prisma.iMDbTitle.seed([
+      { tconst: 'ttEPISODE', primaryTitle: 'Truth', startYear: 2023, titleType: 'tvEpisode' }, // the wrong (episode) id
+      { tconst: 'ttSILO', primaryTitle: 'Silo', startYear: 2023, titleType: 'tvSeries' },
+      { tconst: 'ttSL1', primaryTitle: 'S Freedom Day', startYear: 2023 },
+      { tconst: 'ttSL2', primaryTitle: 'S Holston', startYear: 2023 },
+    ]);
+    prisma.iMDbEpisode.seed([
+      { episodeTitleId: 'ttSL1', parentTitleId: 'ttSILO', seasonNumber: 1, episodeNumber: 1 },
+      { episodeTitleId: 'ttSL2', parentTitleId: 'ttSILO', seasonNumber: 1, episodeNumber: 2 },
+    ]);
+    const svc = makeService(prisma);
+
+    const gap = await svc.scanSeries('wlS', 'u1');
+
+    // Corrected away from the episode id to the real series.
+    expect(gap.seriesTconst).toBe('ttSILO');
+    expect(gap.total).toBe(2);
+    const wlS = await prisma.mediaAcquisitionWatchlistItem.findUnique({ where: { id: 'wlS' } });
+    expect(wlS.externalIds).toMatchObject({ imdb: 'ttSILO' }); // persisted correction
+  });
+
   it('leaves a series unscannable when no catalogue title matches (self-heal finds nothing)', async () => {
     const prisma = makePrisma();
     const svc = makeService(prisma);
