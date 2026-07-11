@@ -254,6 +254,34 @@ describe('MissingEpisodesService', () => {
     expect(wlF.externalIds).toMatchObject({ imdb: 'ttFBI' });
   });
 
+  it('self-heals an accented catalogue title with no year ("90 Day Fiance" -> IMDb "90 Day Fiancé")', async () => {
+    const prisma = makePrisma();
+    // The library/watchlist title is unaccented and carries NO year; IMDb spells it
+    // with an é. Stripping the accent (instead of folding it) yielded "90dayfianc"
+    // vs "90dayfiance" — a silent non-match that left the show unmonitorable.
+    prisma.mediaAcquisitionWatchlistItem.seed([
+      { id: 'wl90', type: 'series', status: 'active', title: '90 Day Fiance', normalizedTitle: '90 day fiance', externalIds: {}, seasonNumber: null, priority: 100 },
+    ]);
+    prisma.iMDbTitle.seed([
+      { tconst: 'tt90', primaryTitle: '90 Day Fiancé', startYear: 2014, titleType: 'tvSeries' },
+      { tconst: 'tt90PT', primaryTitle: '90 Day Fiancé: Pillow Talk', startYear: 2019, titleType: 'tvSeries' }, // spin-off must NOT win
+      { tconst: 'tt90E1', primaryTitle: 'Ep A', startYear: 2014 },
+      { tconst: 'tt90E2', primaryTitle: 'Ep B', startYear: 2014 },
+    ]);
+    prisma.iMDbEpisode.seed([
+      { episodeTitleId: 'tt90E1', parentTitleId: 'tt90', seasonNumber: 1, episodeNumber: 1 },
+      { episodeTitleId: 'tt90E2', parentTitleId: 'tt90', seasonNumber: 1, episodeNumber: 2 },
+    ]);
+    const svc = makeService(prisma);
+
+    const gap = await svc.scanSeries('wl90', 'u1');
+
+    expect(gap.seriesTconst).toBe('tt90'); // accent-folded match, not the spin-off
+    expect(gap.total).toBe(2);
+    const wl90 = await prisma.mediaAcquisitionWatchlistItem.findUnique({ where: { id: 'wl90' } });
+    expect(wl90.externalIds).toMatchObject({ imdb: 'tt90' });
+  });
+
   it('leaves a series unscannable when no catalogue title matches (self-heal finds nothing)', async () => {
     const prisma = makePrisma();
     const svc = makeService(prisma);

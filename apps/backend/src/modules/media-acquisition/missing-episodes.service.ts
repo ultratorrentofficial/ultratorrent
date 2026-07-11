@@ -70,13 +70,22 @@ const SPECIAL_SEASON = 0; // season 0 = specials, excluded from missing math (MV
 const TITLE_CHUNK = 1000;
 
 /**
- * Punctuation-insensitive title key for matching against the IMDb catalogue.
- * Lowercases, turns `&` into `and`, then strips every non-alphanumeric char (incl.
- * spaces) so `:` / `.` / `'` / spacing differences collapse — e.g. "Chicago P.D."
- * and "Chicago PD", or "FBI: Most Wanted" and "FBI Most Wanted", share a key.
+ * Punctuation- AND accent-insensitive title key for matching against the IMDb
+ * catalogue. Folds accents to their base letter (NFD + drop combining marks), then
+ * lowercases, turns `&` into `and`, and strips every remaining non-alphanumeric
+ * char (incl. spaces) so `:` / `.` / `'` / spacing / diacritic differences all
+ * collapse — e.g. "Chicago P.D." ↔ "Chicago PD", "FBI: Most Wanted" ↔ "FBI Most
+ * Wanted", and (crucially) IMDb's "90 Day Fiancé" ↔ a library's "90 Day Fiance".
+ * Folding must precede the strip: otherwise `é` is simply deleted, yielding
+ * "90dayfianc" vs "90dayfiance" — a silent non-match.
  */
 function catalogueTitleKey(title: string): string {
-  return title.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+  return title
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // drop combining diacritical marks
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]/g, '');
 }
 
 /**
@@ -489,19 +498,30 @@ export class MissingEpisodesService {
       select: { tconst: true, startYear: true },
       take: 10,
     });
-    // Fallback: punctuation-insensitive match. Names sourced from RSS rules strip
-    // ':' '&' '.' etc. ("FBI Most Wanted" vs IMDb "FBI: Most Wanted", "Chicago PD"
-    // vs "Chicago P.D.", "The Walking Dead Dead City" vs "…: Dead City"), so the
-    // exact match above misses. Gated on `year` so it rides the
-    // (titleType, startYear) index — a single year is ~15k TV titles, cheap to
-    // pull and compare by a punctuation-stripped key (a title prefix can't be used:
-    // a leading "The" isn't selective, and the ':' can fall right after the first
-    // word). Only runs for the rare unresolved item, during a scan.
-    if (candidates.length === 0 && item.year) {
+    // Fallback: punctuation/accent-insensitive match, since the exact match above
+    // misses on ':' '&' '.' ("FBI Most Wanted" vs IMDb "FBI: Most Wanted") and on
+    // diacritics ("90 Day Fiance" vs IMDb "90 Day Fiancé"). Compare by
+    // catalogueTitleKey over an index-backed pool; only runs for the rare
+    // unresolved item, during a scan.
+    if (candidates.length === 0) {
       const want = catalogueTitleKey(item.title);
-      if (want) {
+      // With a year: pull that year's TV titles via the (titleType, startYear)
+      // index — ~15k rows, complete, and no title prefix needed (a leading "The"
+      // isn't selective, and a ':' can fall right after the first word).
+      // Without a year: narrow by the title's first word instead — best-effort,
+      // but selective for names like "90 Day Fiance" whose first token is stable.
+      const firstWord = item.year ? null : item.title.match(/[\p{L}\p{N}]+/u)?.[0];
+      const where = item.year
+        ? { titleType: { in: ['tvSeries', 'tvMiniSeries'] }, startYear: item.year }
+        : firstWord
+          ? {
+              titleType: { in: ['tvSeries', 'tvMiniSeries'] },
+              primaryTitle: { startsWith: firstWord, mode: 'insensitive' as const },
+            }
+          : null;
+      if (want && where) {
         const pool = await this.prisma.iMDbTitle.findMany({
-          where: { titleType: { in: ['tvSeries', 'tvMiniSeries'] }, startYear: item.year },
+          where,
           select: { tconst: true, primaryTitle: true, startYear: true },
           take: 25000,
         });
