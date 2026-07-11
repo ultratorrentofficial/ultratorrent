@@ -76,6 +76,20 @@ interface QbTorrentInfo {
 const QB_INFINITE_ETA = 8640000;
 
 /**
+ * Compare dotted WebAPI versions ("2.15.1" vs "2.11.0"). Returns <0, 0 or >0.
+ * A missing or malformed component counts as 0, so "2.11" == "2.11.0".
+ */
+export function compareApiVersion(a: string, b: string): number {
+  const parse = (v: string) => v.trim().split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const [x, y] = [parse(a), parse(b)];
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const diff = (x[i] ?? 0) - (y[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+/**
  * Map qBittorrent's rich `state` string enum onto the normalized `TorrentState`.
  * https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)
  */
@@ -151,6 +165,8 @@ export class QbittorrentProvider implements TorrentEngineProvider {
    */
   private addConfirmAttempts = 20;
   private addConfirmIntervalMs = 300;
+  /** null until the server's WebAPI version has been read once. See {@link lifecycle}. */
+  private startStopApi: boolean | null = null;
 
   constructor(cfgOrClient: EngineConnectionConfig | QbittorrentApi) {
     if ('kind' in cfgOrClient) {
@@ -482,16 +498,46 @@ export class QbittorrentProvider implements TorrentEngineProvider {
 
   // --- state transitions ---------------------------------------------------
   async startTorrent(hash: string): Promise<void> {
-    await this.client.postForm('/torrents/resume', { hashes: hash.toLowerCase() });
+    await this.lifecycle(hash, 'start');
   }
   async stopTorrent(hash: string): Promise<void> {
-    await this.client.postForm('/torrents/pause', { hashes: hash.toLowerCase() });
+    await this.lifecycle(hash, 'stop');
   }
   async pauseTorrent(hash: string): Promise<void> {
-    await this.client.postForm('/torrents/pause', { hashes: hash.toLowerCase() });
+    await this.lifecycle(hash, 'stop');
   }
   async resumeTorrent(hash: string): Promise<void> {
-    await this.client.postForm('/torrents/resume', { hashes: hash.toLowerCase() });
+    await this.lifecycle(hash, 'start');
+  }
+
+  /**
+   * qBittorrent 5.0 (WebAPI 2.11) renamed pause/resume to stop/start and **removed
+   * the old endpoints** — on a 5.x server `/torrents/pause` 404s, so pause, stop,
+   * resume and start were all silently failing. Speak whichever dialect this server
+   * actually implements; the semantics are identical, only the names changed.
+   */
+  private async lifecycle(hash: string, action: 'start' | 'stop'): Promise<void> {
+    const modern = await this.usesStartStopApi();
+    const path = modern
+      ? action === 'start'
+        ? '/torrents/start'
+        : '/torrents/stop'
+      : action === 'start'
+        ? '/torrents/resume'
+        : '/torrents/pause';
+    await this.client.postForm(path, { hashes: hash.toLowerCase() });
+  }
+
+  /** Resolved once per provider instance — the server's API version doesn't move. */
+  private async usesStartStopApi(): Promise<boolean> {
+    if (this.startStopApi === null) {
+      try {
+        this.startStopApi = compareApiVersion(await this.client.getText('/app/webapiVersion'), '2.11.0') >= 0;
+      } catch {
+        this.startStopApi = false; // unreadable → assume the older, legacy pair
+      }
+    }
+    return this.startStopApi;
   }
   async forceStart(hash: string, value = true): Promise<void> {
     await this.client.postForm('/torrents/setForceStart', {
