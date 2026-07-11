@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import type { MediaProcessingJob, Prisma } from '@prisma/client';
 import { WS_EVENTS, type MediaJobEventPayload } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -33,13 +33,43 @@ export type JobReporter = (progress: number, message?: string) => Promise<void>;
  * async model is sufficient for these bounded, best-effort operations.
  */
 @Injectable()
-export class MediaProcessingQueueService {
+export class MediaProcessingQueueService implements OnModuleInit {
   private readonly logger = new Logger(MediaProcessingQueueService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
   ) {}
+
+  /**
+   * Reconcile orphaned jobs at boot. Job bodies run **in-process** (see
+   * {@link runDetached}) — they are not durable work items a worker picks back up.
+   * So any row still `queued`/`running` belongs to a process that is already gone
+   * (a deploy, restart or crash): its work died with that process and will never
+   * resume, yet the row would otherwise sit "running" forever. Left unhandled they
+   * pile up and make the job list meaningless — a live host had 30 of them, some
+   * 5+ hours old. Fail them out so the state reflects reality.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      const { count } = await this.prisma.mediaProcessingJob.updateMany({
+        where: { status: { in: ['queued', 'running'] } },
+        data: {
+          status: 'failed',
+          finishedAt: new Date(),
+          error: 'Interrupted by a service restart',
+        },
+      });
+      if (count > 0) {
+        this.logger.warn(
+          `Reconciled ${count} orphaned job(s) left ${'queued/running'} by a previous process`,
+        );
+      }
+    } catch (err) {
+      // Never block boot on this best-effort cleanup.
+      this.logger.warn(`Could not reconcile orphaned jobs: ${(err as Error).message}`);
+    }
+  }
 
   /** Create a queued job row. */
   async create(type: MediaJobType, opts: CreateJobOptions = {}) {
