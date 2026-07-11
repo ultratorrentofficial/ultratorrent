@@ -95,6 +95,12 @@ export interface LibraryImdbHealSummary {
   resolved: number;
   /** Attempted but not confidently matched in the catalogue. */
   unresolved: number;
+  /**
+   * True when another sweep was already running and this call did nothing. Without
+   * it, "a sweep is in flight" and "there was nothing to heal" both look like a row
+   * of zeros to the caller.
+   */
+  skipped: boolean;
 }
 
 export interface WatchlistInput {
@@ -260,8 +266,14 @@ export class AcquisitionWatchlistService {
   async healLibraryImdbIds(
     opts: { limit?: number; userId?: string } = {},
   ): Promise<LibraryImdbHealSummary> {
-    const summary: LibraryImdbHealSummary = { candidates: 0, attempted: 0, resolved: 0, unresolved: 0 };
-    if (this.healing) return summary; // a sweep is already running
+    const summary: LibraryImdbHealSummary = {
+      candidates: 0,
+      attempted: 0,
+      resolved: 0,
+      unresolved: 0,
+      skipped: false,
+    };
+    if (this.healing) return { ...summary, skipped: true }; // a sweep is already running
     this.healing = true;
     try {
       const groups = await this.groupLibraryShows();

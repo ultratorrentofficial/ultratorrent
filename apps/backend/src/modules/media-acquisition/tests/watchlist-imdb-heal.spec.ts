@@ -113,15 +113,17 @@ describe('AcquisitionWatchlistService.healLibraryImdbIds', () => {
     );
   });
 
-  it('does not run two sweeps concurrently', async () => {
+  it('does not run two sweeps concurrently, and says so rather than reporting a false zero', async () => {
     const { svc, prisma } = build();
     episode(prisma, 'i1', 'Batwoman (2019)', 'Batwoman - S01E01');
     seedSeries(prisma, 'ttBW', 'Batwoman', 2019, 51);
 
     const [first, second] = await Promise.all([svc.healLibraryImdbIds(), svc.healLibraryImdbIds()]);
 
-    // Whichever lost the race bailed out immediately rather than double-resolving.
-    const attempted = [first.attempted, second.attempted].sort();
-    expect(attempted).toEqual([0, 1]);
+    // Whichever lost the race bailed out immediately rather than double-resolving —
+    // and is flagged `skipped`, so the caller can't read it as "nothing to heal".
+    const [ran, bailed] = first.skipped ? [second, first] : [first, second];
+    expect(ran).toMatchObject({ attempted: 1, resolved: 1, skipped: false });
+    expect(bailed).toMatchObject({ candidates: 0, attempted: 0, skipped: true });
   });
 });
