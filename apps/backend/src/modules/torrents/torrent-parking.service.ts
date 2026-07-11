@@ -18,6 +18,14 @@ export interface ParkingRules {
   minSeeders: number;
   /** Grace period after a torrent is added, before it may be judged dead. */
   deadAfterMinutes: number;
+  /**
+   * Park a torrent that has moved **nothing** for this long with no seed connected,
+   * *even if its tracker claims seeders exist*. Trackers lie: on synoplex 66 of the
+   * 100 active slots were held by torrents whose tracker reported a seeder while
+   * they sat at 0 bytes for 24 hours — the seeder-count rule alone can never free
+   * those. 0 disables the rule.
+   */
+  stalledAfterMinutes: number;
   /** Parked torrents force-started per tick to refresh their seeder count. */
   probeBatchSize: number;
   /** Minimum gap before re-probing a torrent that is still dead. */
@@ -30,6 +38,7 @@ export const DEFAULT_PARKING_RULES: ParkingRules = {
   enabled: false,
   minSeeders: 1,
   deadAfterMinutes: 30,
+  stalledAfterMinutes: 180,
   probeBatchSize: 20,
   probeIntervalMinutes: 60,
   maxProbeIntervalMinutes: 1440,
@@ -91,6 +100,7 @@ export class TorrentParkingService {
     const next: ParkingRules = { ...(await this.getRules()), ...patch };
     next.minSeeders = Math.max(0, Math.trunc(next.minSeeders));
     next.deadAfterMinutes = Math.max(1, Math.trunc(next.deadAfterMinutes));
+    next.stalledAfterMinutes = Math.max(0, Math.trunc(next.stalledAfterMinutes)); // 0 = rule off
     next.probeBatchSize = Math.max(1, Math.trunc(next.probeBatchSize));
     next.probeIntervalMinutes = Math.max(1, Math.trunc(next.probeIntervalMinutes));
     next.maxProbeIntervalMinutes = Math.max(next.probeIntervalMinutes, Math.trunc(next.maxProbeIntervalMinutes));
@@ -168,25 +178,45 @@ export class TorrentParkingService {
   }
 
   /**
-   * A torrent is dead when it is *actively holding a slot* yet nothing is
-   * happening: no bytes moving, nobody connected, and the tracker knows of no
-   * seeders — after a grace period, since a freshly-added torrent legitimately
-   * looks like this for a moment.
+   * Why this torrent should be pulled out of the active queue, or null to leave it.
    *
-   * Only `DOWNLOADING` counts (qBittorrent maps `metaDL`/`stalledDL` to it) —
+   * Only `DOWNLOADING` is judged (qBittorrent maps `metaDL`/`stalledDL` to it) —
    * those are the states that consume an active slot. A QUEUED torrent isn't
-   * costing anything and hasn't announced recently enough to be judged fairly,
-   * and a PAUSED one was paused by someone; leave both alone.
+   * costing anything and hasn't announced recently enough to be judged fairly, and
+   * a PAUSED one was paused by someone; leave both alone.
+   *
+   * Two ways to be dead:
+   *
+   * - `no_seeders` — nobody connected and the tracker knows of no seeders. Quick to
+   *   call (a short grace period), because there is nothing to wait for.
+   * - `stalled` — moving no bytes at all with no seed connected, for hours, **even
+   *   though the tracker claims seeders exist**. This second rule is not redundant:
+   *   trackers report stale counts, and on synoplex 66 of the 100 active slots were
+   *   held by torrents whose tracker advertised a seeder while they sat at zero
+   *   bytes for 24 hours. Judged only on hard evidence — zero throughput and zero
+   *   connected seeds — so a torrent that is merely slow is never touched.
    */
-  isDead(t: NormalizedTorrent, rules: ParkingRules, now = Date.now()): boolean {
-    if (t.state !== TorrentState.DOWNLOADING) return false;
-    if (t.progress >= 1) return false;
-    if (t.downloadRate > 0) return false;
-    if (t.seedsConnected > 0 || t.peersConnected > 0) return false;
-    if (t.seedsTotal >= rules.minSeeders) return false; // the swarm exists; give it time
+  deadReason(t: NormalizedTorrent, rules: ParkingRules, now = Date.now()): 'no_seeders' | 'stalled' | null {
+    if (t.state !== TorrentState.DOWNLOADING) return null;
+    if (t.progress >= 1) return null;
+    if (t.downloadRate > 0) return null; // moving bytes → alive, however slowly
+    if (t.seedsConnected > 0) return null; // a seed is connected → it can still deliver
+
     const addedAt = t.addedAt ? Date.parse(t.addedAt) : NaN;
-    if (Number.isNaN(addedAt)) return false; // unknown age → don't judge
-    return now - addedAt >= rules.deadAfterMinutes * 60_000;
+    if (Number.isNaN(addedAt)) return null; // unknown age → don't judge
+    const ageMs = now - addedAt;
+
+    if (
+      t.peersConnected === 0 &&
+      t.seedsTotal < rules.minSeeders &&
+      ageMs >= rules.deadAfterMinutes * 60_000
+    ) {
+      return 'no_seeders';
+    }
+    if (rules.stalledAfterMinutes > 0 && ageMs >= rules.stalledAfterMinutes * 60_000) {
+      return 'stalled';
+    }
+    return null;
   }
 
   /** Pause + record every dead torrent, freeing its active slot. */
@@ -203,10 +233,12 @@ export class TorrentParkingService {
     );
 
     let parked = 0;
+    const byReason: Record<string, number> = {};
     for (const t of torrents) {
       const hash = t.hash.toLowerCase();
       if (alreadyParked.has(hash)) continue; // includes anything mid-probe
-      if (!this.isDead(t, rules)) continue;
+      const reason = this.deadReason(t, rules);
+      if (!reason) continue;
       try {
         await provider.pauseTorrent(hash);
         await this.prisma.parkedTorrent.create({
@@ -214,11 +246,12 @@ export class TorrentParkingService {
             hash,
             engineId: provider.engineId,
             name: t.name,
-            reason: 'no_seeders',
+            reason,
             lastSeeders: t.seedsTotal,
           },
         });
         parked++;
+        byReason[reason] = (byReason[reason] ?? 0) + 1;
       } catch (err) {
         this.logger.warn(`Failed to park ${t.name}: ${(err as Error).message}`);
       }
@@ -229,7 +262,7 @@ export class TorrentParkingService {
           action: 'torrents.parking.parked',
           objectType: 'torrent_engine',
           objectId: provider.engineId,
-          metadata: { count: parked, reason: 'no_seeders' },
+          metadata: { count: parked, ...byReason },
         })
         .catch(() => undefined);
     }
@@ -258,7 +291,13 @@ export class TorrentParkingService {
         await this.forget(provider.engineId, row.hash);
         continue;
       }
-      const alive = t.seedsTotal >= rules.minSeeders || t.seedsConnected > 0 || t.downloadRate > 0;
+      // Revive on EVIDENCE, never on the tracker's claim. `seedsTotal` is exactly the
+      // number that lies — a torrent parked as `stalled` has a tracker advertising
+      // seeders while nothing connects, so trusting it here would revive the torrent
+      // every probe and re-park it every tick, forever. A force-started probe that
+      // has genuinely found a swarm shows it: a seed actually connected, or bytes
+      // actually moving.
+      const alive = t.seedsConnected > 0 || t.downloadRate > 0;
       try {
         if (alive) {
           // Hand it back to the engine's normal queue: drop force-start (so it
@@ -267,7 +306,9 @@ export class TorrentParkingService {
           await provider.resumeTorrent(row.hash);
           await this.forget(provider.engineId, row.hash);
           revived++;
-          this.logger.log(`Revived "${row.name}" — ${t.seedsTotal} seeder(s) reappeared`);
+          this.logger.log(
+            `Revived "${row.name}" — ${t.seedsConnected} seed(s) connected, ${t.downloadRate} B/s`,
+          );
         } else {
           await provider.forceStart(row.hash, false);
           await provider.pauseTorrent(row.hash);

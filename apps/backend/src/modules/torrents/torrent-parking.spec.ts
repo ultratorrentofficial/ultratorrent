@@ -63,42 +63,72 @@ function build(torrents: any[] = [], parked: any[] = []) {
   return { svc, provider, prisma, rows, settings };
 }
 
-describe('TorrentParkingService.isDead', () => {
+describe('TorrentParkingService.deadReason', () => {
   it('flags an active torrent with no seeders, no peers and no progress', () => {
     const { svc } = build();
-    expect(svc.isDead(dead(), RULES)).toBe(true);
+    expect(svc.deadReason(dead(), RULES)).toBe('no_seeders');
   });
 
   it('spares a torrent still inside its grace period', () => {
     const { svc } = build();
-    expect(svc.isDead(dead({ addedAt: JUST_NOW }), RULES)).toBe(false);
+    expect(svc.deadReason(dead({ addedAt: JUST_NOW }), RULES)).toBeNull();
   });
 
-  it('spares a torrent whose tracker reports seeders (the swarm exists; give it time)', () => {
+  it('spares a torrent that is actually moving bytes, however slowly', () => {
     const { svc } = build();
-    expect(svc.isDead(dead({ seedsTotal: 3 }), RULES)).toBe(false);
+    expect(svc.deadReason(dead({ downloadRate: 5000 }), RULES)).toBeNull();
   });
 
-  it('spares a torrent that is actually moving bytes', () => {
+  it('spares a torrent with a seed actually connected — it can still deliver', () => {
     const { svc } = build();
-    expect(svc.isDead(dead({ downloadRate: 5000 }), RULES)).toBe(false);
-    expect(svc.isDead(dead({ seedsConnected: 1 }), RULES)).toBe(false);
-    expect(svc.isDead(dead({ peersConnected: 2 }), RULES)).toBe(false);
+    expect(svc.deadReason(dead({ seedsConnected: 1 }), RULES)).toBeNull();
   });
 
   it('never touches a QUEUED torrent — it costs no slot and has not announced', () => {
     const { svc } = build();
-    expect(svc.isDead(dead({ state: TorrentState.QUEUED }), RULES)).toBe(false);
+    expect(svc.deadReason(dead({ state: TorrentState.QUEUED }), RULES)).toBeNull();
   });
 
   it('never touches a PAUSED torrent — somebody paused that on purpose', () => {
     const { svc } = build();
-    expect(svc.isDead(dead({ state: TorrentState.PAUSED }), RULES)).toBe(false);
+    expect(svc.deadReason(dead({ state: TorrentState.PAUSED }), RULES)).toBeNull();
   });
 
   it('never touches a completed/seeding torrent', () => {
     const { svc } = build();
-    expect(svc.isDead(dead({ state: TorrentState.SEEDING, progress: 1 }), RULES)).toBe(false);
+    expect(svc.deadReason(dead({ state: TorrentState.SEEDING, progress: 1 }), RULES)).toBeNull();
+  });
+});
+
+describe('TorrentParkingService.deadReason — the stall rule (trackers lie)', () => {
+  // The synoplex case: 66 of 100 slots held by torrents whose tracker advertised a
+  // seeder while they sat at 0 bytes for 24h. minSeeders alone can never free those.
+  const claimsSeeders = { seedsTotal: 3, peersConnected: 1 };
+
+  it('spares a tracker-claims-seeders torrent early on — it may yet connect', () => {
+    const { svc } = build();
+    const oneHourOld = new Date(Date.now() - 3600_000).toISOString();
+    expect(svc.deadReason(dead({ ...claimsSeeders, addedAt: oneHourOld }), RULES)).toBeNull();
+  });
+
+  it('parks it as stalled once it has moved nothing for hours despite the claim', () => {
+    const { svc } = build();
+    const day = new Date(Date.now() - 24 * 3600_000).toISOString();
+    expect(svc.deadReason(dead({ ...claimsSeeders, addedAt: day }), RULES)).toBe('stalled');
+  });
+
+  it('still spares a long-lived torrent that is genuinely downloading', () => {
+    const { svc } = build();
+    const day = new Date(Date.now() - 24 * 3600_000).toISOString();
+    expect(svc.deadReason(dead({ ...claimsSeeders, addedAt: day, downloadRate: 1 }), RULES)).toBeNull();
+    expect(svc.deadReason(dead({ ...claimsSeeders, addedAt: day, seedsConnected: 1 }), RULES)).toBeNull();
+  });
+
+  it('honours stalledAfterMinutes=0 as "rule off"', () => {
+    const { svc } = build();
+    const day = new Date(Date.now() - 24 * 3600_000).toISOString();
+    const off = { ...RULES, stalledAfterMinutes: 0 };
+    expect(svc.deadReason(dead({ ...claimsSeeders, addedAt: day }), off)).toBeNull();
   });
 });
 
@@ -157,10 +187,10 @@ describe('TorrentParkingService — probing and revival', () => {
     expect(rows[0].probingSince).toBeInstanceOf(Date);
   });
 
-  it('releases a probed torrent back into the queue once seeders reappear', async () => {
-    // Mid-probe (force-started), and the tracker now reports seeders.
+  it('releases a probed torrent back into the queue once a seed actually connects', async () => {
+    // Mid-probe (force-started), and a real seed is now connected.
     const { svc, provider, rows } = build(
-      [dead({ seedsTotal: 4 })],
+      [dead({ seedsConnected: 2 })],
       [{ hash: 'aaa', engineId: 'e1', name: 'x', probingSince: new Date(), lastProbedAt: null, probeCount: 0 }],
     );
 
@@ -170,6 +200,22 @@ describe('TorrentParkingService — probing and revival', () => {
     expect(provider.forceStart).toHaveBeenCalledWith('aaa', false); // back to normal queueing
     expect(provider.resumeTorrent).toHaveBeenCalledWith('aaa');
     expect(rows).toHaveLength(0); // no longer parked
+  });
+
+  it('does NOT revive on the tracker\'s claim alone — that is the number that lies', async () => {
+    // Tracker says 4 seeders, but nothing is connected and nothing is moving. Reviving
+    // here would re-park it next tick, forever.
+    const { svc, provider, rows } = build(
+      [dead({ seedsTotal: 4 })],
+      [{ hash: 'aaa', engineId: 'e1', name: 'x', probingSince: new Date(), lastProbedAt: null, probeCount: 0 }],
+    );
+
+    const summary = await svc.tick();
+
+    expect(summary.revived).toBe(0);
+    expect(summary.stillDead).toBe(1);
+    expect(provider.resumeTorrent).not.toHaveBeenCalled();
+    expect(rows).toHaveLength(1); // still parked
   });
 
   it('re-parks a probed torrent that is still dead, and counts the failure for backoff', async () => {
