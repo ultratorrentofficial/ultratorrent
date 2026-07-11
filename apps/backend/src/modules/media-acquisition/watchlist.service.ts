@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Prisma } from '@prisma/client';
 import * as path from 'node:path';
@@ -9,6 +9,19 @@ import { isSeasonContainer, showFolderRoot } from '../media/media-renamer';
 import { TvShowStatusService } from '../rss/tv-show-status/tv-show-status.service';
 import { normalizeTitle } from '../rss/tv-show-status/tv-show-status-provider';
 import { parseTorrentName } from '../rss/torrent-name-parser';
+import { ImdbSeriesResolver, type ResolvedSeries } from './imdb-series-resolver.service';
+
+/** Shows healed per picker load. Bounded so the background pass stays cheap; the
+ * rest are picked up on the next open (or in one shot via the explicit sweep). */
+const BACKGROUND_HEAL_LIMIT = 200;
+/** Ceiling for an explicitly-triggered sweep. */
+const DEFAULT_HEAL_LIMIT = 2000;
+/**
+ * Minimum gap between *background* heals. Shows the catalogue can't match stay
+ * candidates forever, so without this every picker load would re-attempt them —
+ * and each attempt re-reads the catalogue's TV slice. The explicit sweep ignores it.
+ */
+const BACKGROUND_HEAL_COOLDOWN_MS = 10 * 60_000;
 
 /**
  * The **series** title for a monitored show, collapsing an episode-formatted
@@ -60,6 +73,30 @@ export interface LibrarySeries {
   recommendation: string | null;
 }
 
+/** One show as the library sees it, collapsed from its `MediaItem` rows. */
+interface LibraryShowGroup {
+  title: string;
+  year: number | null;
+  count: number;
+  /** IMDb id from the item's own `seriesImdbId` … */
+  seriesId: string | null;
+  /** … or from a linked `imdb` external id. */
+  extId: string | null;
+  /** Every `MediaItem` of this show — the rows a healed id is written back to. */
+  itemIds: string[];
+}
+
+/** Outcome of an IMDb-id heal pass over the library. */
+export interface LibraryImdbHealSummary {
+  /** Shows with no IMDb id at all. */
+  candidates: number;
+  /** Of those, how many this pass tried (bounded by `limit`). */
+  attempted: number;
+  resolved: number;
+  /** Attempted but not confidently matched in the catalogue. */
+  unresolved: number;
+}
+
 export interface WatchlistInput {
   type: string;
   title: string;
@@ -79,11 +116,17 @@ export interface WatchlistInput {
 /** Watchlist CRUD: what the user wants UltraTorrent to acquire. Audited. */
 @Injectable()
 export class AcquisitionWatchlistService {
+  private readonly logger = new Logger(AcquisitionWatchlistService.name);
+  /** Claimed synchronously so two overlapping picker loads can't sweep at once. */
+  private healing = false;
+  private lastBackgroundHealAt = 0;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
     private readonly moduleRef: ModuleRef,
+    private readonly resolver: ImdbSeriesResolver,
   ) {}
 
   list(status?: string) {
@@ -148,55 +191,8 @@ export class AcquisitionWatchlistService {
    * back to their parsed title, which for a `SxxExx` filename is the series.
    */
   async librarySeries(search?: string): Promise<LibrarySeries[]> {
-    const TV_TYPES = ['tv', 'anime', 'episode'];
-    const items = await this.prisma.mediaItem.findMany({
-      where: { mediaType: { in: TV_TYPES } },
-      select: {
-        title: true,
-        year: true,
-        path: true,
-        seriesImdbId: true,
-        externalIds: { where: { provider: 'imdb' }, select: { externalId: true }, take: 1 },
-      },
-    });
-    if (items.length === 0) return [];
-
-    // Library roots: a file whose show folder *is* a library root has no show
-    // folder of its own — group it by its parsed title instead.
-    const libraries = await this.prisma.mediaLibrary.findMany({ select: { path: true } });
-    const roots = new Set(libraries.map((l) => this.normPath(l.path)));
-
-    type Acc = { title: string; year: number | null; count: number; seriesId: string | null; extId: string | null };
-    const groups = new Map<string, Acc>();
-
-    for (const it of items) {
-      const dir = showFolderRoot(it.path);
-      const folder = path.basename(dir);
-      // A genuine show folder: below a library root and not itself a season container.
-      const isShowFolder = folder !== '' && !roots.has(this.normPath(dir)) && !isSeasonContainer(folder);
-      // Loose file at a library root (no show folder): parse the series out of
-      // its title so an episode name ("90 Day Fiance - S12E09") groups under the
-      // series, not as its own bogus "show".
-      const parsed = isShowFolder
-        ? this.parseFolderTitle(folder)
-        : { title: seriesTitleOf(it.title), year: null };
-      // Key loose files by their parsed series title so every episode of a show
-      // collapses into one group (not one bogus "show" per episode).
-      const key = isShowFolder ? `dir:${this.normPath(dir)}` : `title:${parsed.title.toLowerCase().trim()}`;
-
-      const acc = groups.get(key);
-      const extId = it.externalIds[0]?.externalId ?? null;
-      const year = parsed.year ?? it.year ?? null;
-      if (!acc) {
-        groups.set(key, { title: parsed.title, year, count: 1, seriesId: it.seriesImdbId ?? null, extId });
-      } else {
-        acc.count += 1;
-        acc.seriesId ??= it.seriesImdbId ?? null;
-        acc.extId ??= extId;
-        // Keep the earliest known year for the show.
-        if (year != null && (acc.year == null || year < acc.year)) acc.year = year;
-      }
-    }
+    const groups = await this.groupLibraryShows();
+    if (groups.size === 0) return [];
 
     // Already monitored? (any series watchlist item, by normalized title.)
     const existing = await this.prisma.mediaAcquisitionWatchlistItem.findMany({
@@ -235,7 +231,158 @@ export class AcquisitionWatchlistService {
     const uncached = result.filter((r) => !r.showStatus).slice(0, 10);
     if (uncached.length) void this.warmShowStatuses(uncached);
 
+    // Same idea for missing IMDb ids: a show identified against TVDB (or never
+    // identified at all) has no tconst, so it reads as unmonitorable here and the
+    // user can't add it. Heal a bounded batch from the local IMDb catalogue in the
+    // background — the list returns now, and the next open shows the ids.
+    const now = Date.now();
+    if (result.some((r) => !r.imdbId) && now - this.lastBackgroundHealAt > BACKGROUND_HEAL_COOLDOWN_MS) {
+      this.lastBackgroundHealAt = now;
+      void this.healLibraryImdbIds({ limit: BACKGROUND_HEAL_LIMIT });
+    }
+
     return result;
+  }
+
+  /**
+   * Fill in `MediaItem.seriesImdbId` for library shows that have no IMDb id, by
+   * resolving their title (+year) against the local IMDb catalogue.
+   *
+   * Why this is needed: identification may have matched a show against TVDB (or
+   * not at all), which leaves the IMDb tconst null. Everything downstream —
+   * the add-from-library picker's `monitorable` flag, missing-episode scans — keys
+   * off the IMDb id, so those shows are silently un-addable and un-scannable.
+   *
+   * The id is written onto every `MediaItem` of the show, so the heal is permanent
+   * and also repairs owned-episode matching. Shows the catalogue can't confidently
+   * resolve are left alone (and simply retried on a later pass).
+   */
+  async healLibraryImdbIds(
+    opts: { limit?: number; userId?: string } = {},
+  ): Promise<LibraryImdbHealSummary> {
+    const summary: LibraryImdbHealSummary = { candidates: 0, attempted: 0, resolved: 0, unresolved: 0 };
+    if (this.healing) return summary; // a sweep is already running
+    this.healing = true;
+    try {
+      const groups = await this.groupLibraryShows();
+      const missing = [...groups.values()].filter((g) => !(g.seriesId ?? g.extId));
+      summary.candidates = missing.length;
+
+      const batch = missing.slice(0, opts.limit ?? DEFAULT_HEAL_LIMIT);
+      summary.attempted = batch.length;
+
+      for (const show of batch) {
+        let best: ResolvedSeries | null = null;
+        try {
+          best = await this.resolver.resolve(show.title, show.year);
+        } catch (err) {
+          // One bad title must not abort the sweep.
+          this.logger.warn(`IMDb heal failed for "${show.title}": ${(err as Error).message}`);
+        }
+        if (!best) {
+          summary.unresolved += 1;
+          continue;
+        }
+        await this.prisma.mediaItem.updateMany({
+          where: { id: { in: show.itemIds } },
+          data: { seriesImdbId: best.tconst },
+        });
+        summary.resolved += 1;
+        this.logger.log(
+          `Healed IMDb id ${best.tconst} for library show "${show.title}"` +
+            ` (${show.itemIds.length} items, ${best.episodes} catalogued episodes)`,
+        );
+        await this.audit
+          .record({
+            userId: opts.userId,
+            action: 'media_acquisition.library.imdb_resolved',
+            objectType: 'media_item',
+            objectId: show.itemIds[0],
+            metadata: {
+              imdbId: best.tconst,
+              title: show.title,
+              year: show.year,
+              items: show.itemIds.length,
+              episodes: best.episodes,
+              via: 'library_imdb_heal',
+            },
+          })
+          .catch(() => undefined);
+      }
+
+      if (summary.resolved > 0) {
+        this.realtime.broadcast('media_acquisition.library.imdb_healed', summary);
+      }
+      return summary;
+    } finally {
+      this.healing = false;
+    }
+  }
+
+  /**
+   * Collapse the TV items in every library into one entry per **show**, keyed by
+   * its show folder (or, for a loose file at a library root, its parsed series
+   * title). Shared by the add-from-library picker and the IMDb heal so both agree
+   * on what a "show" is.
+   */
+  private async groupLibraryShows(): Promise<Map<string, LibraryShowGroup>> {
+    const TV_TYPES = ['tv', 'anime', 'episode'];
+    const groups = new Map<string, LibraryShowGroup>();
+    const items = await this.prisma.mediaItem.findMany({
+      where: { mediaType: { in: TV_TYPES } },
+      select: {
+        id: true,
+        title: true,
+        year: true,
+        path: true,
+        seriesImdbId: true,
+        externalIds: { where: { provider: 'imdb' }, select: { externalId: true }, take: 1 },
+      },
+    });
+    if (items.length === 0) return groups;
+
+    // Library roots: a file whose show folder *is* a library root has no show
+    // folder of its own — group it by its parsed title instead.
+    const libraries = await this.prisma.mediaLibrary.findMany({ select: { path: true } });
+    const roots = new Set(libraries.map((l) => this.normPath(l.path)));
+
+    for (const it of items) {
+      const dir = showFolderRoot(it.path);
+      const folder = path.basename(dir);
+      // A genuine show folder: below a library root and not itself a season container.
+      const isShowFolder = folder !== '' && !roots.has(this.normPath(dir)) && !isSeasonContainer(folder);
+      // Loose file at a library root (no show folder): parse the series out of
+      // its title so an episode name ("90 Day Fiance - S12E09") groups under the
+      // series, not as its own bogus "show".
+      const parsed = isShowFolder
+        ? this.parseFolderTitle(folder)
+        : { title: seriesTitleOf(it.title), year: null };
+      // Key loose files by their parsed series title so every episode of a show
+      // collapses into one group (not one bogus "show" per episode).
+      const key = isShowFolder ? `dir:${this.normPath(dir)}` : `title:${parsed.title.toLowerCase().trim()}`;
+
+      const acc = groups.get(key);
+      const extId = it.externalIds[0]?.externalId ?? null;
+      const year = parsed.year ?? it.year ?? null;
+      if (!acc) {
+        groups.set(key, {
+          title: parsed.title,
+          year,
+          count: 1,
+          seriesId: it.seriesImdbId ?? null,
+          extId,
+          itemIds: [it.id],
+        });
+      } else {
+        acc.count += 1;
+        acc.seriesId ??= it.seriesImdbId ?? null;
+        acc.extId ??= extId;
+        acc.itemIds.push(it.id);
+        // Keep the earliest known year for the show.
+        if (year != null && (acc.year == null || year < acc.year)) acc.year = year;
+      }
+    }
+    return groups;
   }
 
   /** Background: resolve + cache airing status for a bounded set of shows. */

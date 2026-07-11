@@ -1,4 +1,5 @@
 import { AcquisitionWatchlistService } from '../watchlist.service';
+import { ImdbSeriesResolver } from '../imdb-series-resolver.service';
 
 function build() {
   const prisma = {
@@ -14,7 +15,8 @@ function build() {
   const realtime = { broadcast: jest.fn() };
   // moduleRef.get throws here → status warming is skipped (best-effort), which is fine.
   const moduleRef = { get: jest.fn(() => { throw new Error('no TvShowStatusService in test'); }) };
-  const svc = new AcquisitionWatchlistService(prisma as any, audit as any, realtime as any, moduleRef as any);
+  const resolver = new ImdbSeriesResolver(prisma as any);
+  const svc = new AcquisitionWatchlistService(prisma as any, audit as any, realtime as any, moduleRef as any, resolver);
   return { svc, prisma };
 }
 

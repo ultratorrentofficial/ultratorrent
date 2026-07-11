@@ -2,6 +2,7 @@ import { AcquisitionEvaluatorService } from '../evaluator.service';
 import { AcquisitionWatchlistService } from '../watchlist.service';
 import { AcquisitionProfileService } from '../profile.service';
 import { AcquisitionApprovalService } from '../approval.service';
+import { ImdbSeriesResolver } from '../imdb-series-resolver.service';
 import { makeFakePrisma } from './fake-prisma';
 
 const audit = () => ({ record: jest.fn().mockResolvedValue(undefined) });
@@ -23,7 +24,8 @@ function build() {
   const exec = executorStub();
   const evaluator = new AcquisitionEvaluatorService(prisma as any, audit() as any, rt as any, exec as any);
   const moduleRef = { get: jest.fn(() => { throw new Error('no TvShowStatusService in test'); }) };
-  const watchlist = new AcquisitionWatchlistService(prisma as any, audit() as any, rt as any, moduleRef as any);
+  const resolver = new ImdbSeriesResolver(prisma as any);
+  const watchlist = new AcquisitionWatchlistService(prisma as any, audit() as any, rt as any, moduleRef as any, resolver);
   const profiles = new AcquisitionProfileService(prisma as any, audit() as any);
   const approval = new AcquisitionApprovalService(prisma as any, audit() as any, rt as any, exec as any);
   return { prisma, rt, exec, evaluator, watchlist, profiles, approval };

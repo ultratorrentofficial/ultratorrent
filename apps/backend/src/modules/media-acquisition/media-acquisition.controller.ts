@@ -72,6 +72,17 @@ export class MediaAcquisitionController {
   librarySeries(@Query('search') search?: string) {
     return this.watchlist.librarySeries(search);
   }
+  /**
+   * Resolve IMDb ids for library shows that have none, from the local catalogue.
+   * The picker heals a bounded batch in the background on every load; this runs the
+   * whole backlog in one pass. Declared before `watchlist/:id` so the literal path
+   * wins over the param route.
+   */
+  @Post('watchlist/library/resolve-imdb')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
+  resolveLibraryImdbIds(@Body() body: { limit?: number }, @CurrentUser() u: AuthenticatedUser) {
+    return this.watchlist.healLibraryImdbIds({ limit: body?.limit, userId: u?.id });
+  }
   @Post('watchlist/bulk')
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
   bulkAddWatchlist(@Body() dto: BulkAddWatchlistDto, @CurrentUser() u: AuthenticatedUser) {

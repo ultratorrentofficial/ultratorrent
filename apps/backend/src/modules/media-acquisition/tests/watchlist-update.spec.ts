@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { AcquisitionWatchlistService } from '../watchlist.service';
+import { ImdbSeriesResolver } from '../imdb-series-resolver.service';
 
 function build(existing: Record<string, unknown> | null = null) {
   const prisma = {
@@ -11,7 +12,8 @@ function build(existing: Record<string, unknown> | null = null) {
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const realtime = { broadcast: jest.fn() };
   const moduleRef = { get: jest.fn() };
-  const svc = new AcquisitionWatchlistService(prisma as any, audit as any, realtime as any, moduleRef as any);
+  const resolver = new ImdbSeriesResolver(prisma as any);
+  const svc = new AcquisitionWatchlistService(prisma as any, audit as any, realtime as any, moduleRef as any, resolver);
   return { svc, prisma };
 }
 

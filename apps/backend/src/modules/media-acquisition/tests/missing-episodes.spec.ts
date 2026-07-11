@@ -1,4 +1,5 @@
 import { MissingEpisodesService } from '../missing-episodes.service';
+import { ImdbSeriesResolver } from '../imdb-series-resolver.service';
 import { normalizeTitle } from '../../rss/tv-show-status/tv-show-status-provider';
 
 /**
@@ -147,7 +148,8 @@ function makeService(prisma: any) {
   const realtime = { broadcast: jest.fn() };
   // ModuleRef stub: background status-warming resolves a no-op lookup.
   const moduleRef = { get: () => ({ lookup: jest.fn().mockResolvedValue(undefined) }) };
-  return new MissingEpisodesService(prisma, audit as any, realtime as any, moduleRef as any);
+  const resolver = new ImdbSeriesResolver(prisma);
+  return new MissingEpisodesService(prisma, audit as any, realtime as any, moduleRef as any, resolver);
 }
 
 describe('MissingEpisodesService', () => {

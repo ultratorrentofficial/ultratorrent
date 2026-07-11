@@ -11,6 +11,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { TvShowStatusService } from '../rss/tv-show-status/tv-show-status.service';
 import { normalizeTitle } from '../rss/tv-show-status/tv-show-status-provider';
+import { ImdbSeriesResolver } from './imdb-series-resolver.service';
 
 /** One episode from the local IMDb catalogue for a series. */
 interface CatalogEpisode {
@@ -70,25 +71,6 @@ const SPECIAL_SEASON = 0; // season 0 = specials, excluded from missing math (MV
 const TITLE_CHUNK = 1000;
 
 /**
- * Punctuation- AND accent-insensitive title key for matching against the IMDb
- * catalogue. Folds accents to their base letter (NFD + drop combining marks), then
- * lowercases, turns `&` into `and`, and strips every remaining non-alphanumeric
- * char (incl. spaces) so `:` / `.` / `'` / spacing / diacritic differences all
- * collapse — e.g. "Chicago P.D." ↔ "Chicago PD", "FBI: Most Wanted" ↔ "FBI Most
- * Wanted", and (crucially) IMDb's "90 Day Fiancé" ↔ a library's "90 Day Fiance".
- * Folding must precede the strip: otherwise `é` is simply deleted, yielding
- * "90dayfianc" vs "90dayfiance" — a silent non-match.
- */
-function catalogueTitleKey(title: string): string {
-  return title
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // drop combining diacritical marks
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/[^a-z0-9]/g, '');
-}
-
-/**
  * Sonarr-style missing-episode detection. For a monitored series (a `series`/
  * `season` watchlist item carrying an IMDb id), it enumerates the local IMDb
  * episode catalogue, diffs it against what the library owns, and persists the
@@ -103,6 +85,7 @@ export class MissingEpisodesService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
     private readonly moduleRef: ModuleRef,
+    private readonly resolver: ImdbSeriesResolver,
   ) {}
 
   /** Scan every active `series` watchlist item. Skips ones without an IMDb id. */
@@ -478,72 +461,16 @@ export class MissingEpisodesService {
 
   /**
    * Best-effort auto-resolution of a monitored series' IMDb tconst from the local
-   * catalogue, by exact title (+year when the watchlist item has one), preferring
-   * the candidate with the most catalogued episodes (the real, long-running
-   * series over same-named stubs — e.g. "9-1-1" 2018/143 eps beats "9-1-1"
-   * 1991/0 eps). Persists the id onto the item's `externalIds` and audits it, so
-   * scanning self-enables on the next scheduled run. Returns null when there is
-   * no confident match (no title match, or no candidate has any episodes).
+   * catalogue (see {@link ImdbSeriesResolver} for the matching rules). Persists the
+   * id onto the item's `externalIds` and audits it, so scanning self-enables on the
+   * next scheduled run. Returns null when there is no confident match.
    */
   private async resolveAndPersistImdbId(
     item: { id: string; title: string; year: number | null; externalIds: unknown },
     userId?: string,
   ): Promise<string | null> {
-    let candidates = await this.prisma.iMDbTitle.findMany({
-      where: {
-        primaryTitle: { equals: item.title, mode: 'insensitive' },
-        titleType: { in: ['tvSeries', 'tvMiniSeries'] },
-        ...(item.year ? { startYear: item.year } : {}),
-      },
-      select: { tconst: true, startYear: true },
-      take: 10,
-    });
-    // Fallback: punctuation/accent-insensitive match, since the exact match above
-    // misses on ':' '&' '.' ("FBI Most Wanted" vs IMDb "FBI: Most Wanted") and on
-    // diacritics ("90 Day Fiance" vs IMDb "90 Day Fiancé"). Compare by
-    // catalogueTitleKey over an index-backed pool; only runs for the rare
-    // unresolved item, during a scan.
-    if (candidates.length === 0) {
-      const want = catalogueTitleKey(item.title);
-      // With a year: pull that year's TV titles via the (titleType, startYear)
-      // index — ~15k rows, complete, and no title prefix needed (a leading "The"
-      // isn't selective, and a ':' can fall right after the first word).
-      // Without a year: narrow by the title's first word instead — best-effort,
-      // but selective for names like "90 Day Fiance" whose first token is stable.
-      const firstWord = item.year ? null : item.title.match(/[\p{L}\p{N}]+/u)?.[0];
-      const where = item.year
-        ? { titleType: { in: ['tvSeries', 'tvMiniSeries'] }, startYear: item.year }
-        : firstWord
-          ? {
-              titleType: { in: ['tvSeries', 'tvMiniSeries'] },
-              primaryTitle: { startsWith: firstWord, mode: 'insensitive' as const },
-            }
-          : null;
-      if (want && where) {
-        const pool = await this.prisma.iMDbTitle.findMany({
-          where,
-          select: { tconst: true, primaryTitle: true, startYear: true },
-          take: 25000,
-        });
-        candidates = pool
-          .filter((c) => catalogueTitleKey(c.primaryTitle) === want)
-          .map((c) => ({ tconst: c.tconst, startYear: c.startYear }));
-      }
-    }
-    if (candidates.length === 0) return null;
-
-    let best: { tconst: string; startYear: number | null } | null = null;
-    let bestEpisodes = -1;
-    for (const c of candidates) {
-      const episodes = await this.prisma.iMDbEpisode.count({ where: { parentTitleId: c.tconst } });
-      if (episodes > bestEpisodes || (episodes === bestEpisodes && (c.startYear ?? 0) > (best?.startYear ?? 0))) {
-        best = c;
-        bestEpisodes = episodes;
-      }
-    }
-    // Require at least one catalogued episode: an empty match can't be scanned
-    // and is far more likely to be the wrong (stub) title.
-    if (!best || bestEpisodes <= 0) return null;
+    const best = await this.resolver.resolve(item.title, item.year);
+    if (!best) return null;
 
     const base = typeof item.externalIds === 'object' && item.externalIds ? (item.externalIds as object) : {};
     await this.prisma.mediaAcquisitionWatchlistItem.update({
@@ -551,7 +478,7 @@ export class MissingEpisodesService {
       data: { externalIds: { ...base, imdb: best.tconst } },
     });
     this.logger.log(
-      `Auto-resolved IMDb id ${best.tconst} for watchlist series "${item.title}" (${bestEpisodes} catalogued episodes)`,
+      `Auto-resolved IMDb id ${best.tconst} for watchlist series "${item.title}" (${best.episodes} catalogued episodes)`,
     );
     await this.audit
       .record({
@@ -559,7 +486,7 @@ export class MissingEpisodesService {
         action: 'media_acquisition.watchlist.imdb_resolved',
         objectType: 'media_acquisition_watchlist_item',
         objectId: item.id,
-        metadata: { imdbId: best.tconst, title: item.title, episodes: bestEpisodes, via: 'missing_episode_scan' },
+        metadata: { imdbId: best.tconst, title: item.title, episodes: best.episodes, via: 'missing_episode_scan' },
       })
       .catch(() => undefined);
     return best.tconst;
