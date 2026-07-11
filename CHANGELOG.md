@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.27.2] - 2026-07-11
+
+### Fixed
+- Audit log entries now name the show and episode they acted on. Previously the Target column showed only an opaque id (a uuid or torrent info-hash), so you couldn't tell what an entry was about without looking the id up. Each entry now also shows a readable name — for example "Silo (2023) — S01E03" — both in the collapsed row and beside the raw target in the details.
+- **qBittorrent 5 support: pause, resume, start and stop now actually work.** qBittorrent 5.0 (WebAPI 2.11) renamed `pause`/`resume` to `stop`/`start` and *removed* the old endpoints, so against a 5.x server every one of those four calls hit a `404 Endpoint does not exist` — pausing or resuming a torrent from the UI, and automation rules that pause, all failed silently. The provider now reads the server's WebAPI version once and speaks whichever dialect it implements, keeping `pause`/`resume` for pre-5.0 servers.
+- New **parking queue** for dead torrents. A torrent engine has a limited number of active-download slots (qBittorrent's `max_active_downloads`), and a magnet with no seeders can never even fetch its metadata — yet it occupies a slot the entire time it tries. Grab enough dead releases and every slot fills with torrents that will never finish, while every healthy torrent behind them waits in the queue forever. Seen in production: 100 slots held by dead magnets, 1,034 torrents queued behind them, zero bytes moving.
+- The IMDb search indexes are now built in the background while the app runs, instead of during database migration. Building them on a fully imported catalogue takes minutes, and doing that inside a migration blocked startup — worse, if the build was interrupted the app would refuse to boot at all. They now build concurrently and idempotently after startup, with no downtime, and a build interrupted by a restart is detected and retried.
+
 ## [0.27.1] - 2026-07-11
 
 ### Fixed
