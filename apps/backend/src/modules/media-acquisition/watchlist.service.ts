@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import * as path from 'node:path';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -22,6 +22,29 @@ function seriesTitleOf(raw: string): string {
   const hasEpisodeToken =
     parsed.season != null || parsed.episode != null || parsed.absoluteEpisode != null;
   return hasEpisodeToken && parsed.title?.trim() ? parsed.title.trim() : raw.trim();
+}
+
+/**
+ * Fold the submitted provider ids into the stored ones. Merging rather than
+ * replacing means an edit form that only carries `imdb` can't wipe a `tvdb`/`tmdb`
+ * id it never showed the user. A blank value clears just that provider; once no
+ * provider is left the column goes back to NULL.
+ */
+export function mergeExternalIds(
+  current: Prisma.JsonValue | null | undefined,
+  patch: Record<string, unknown> | null | undefined,
+): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined {
+  if (patch == null) return undefined;
+  const base =
+    current && typeof current === 'object' && !Array.isArray(current)
+      ? (current as Record<string, unknown>)
+      : {};
+  const merged: Record<string, string> = {};
+  for (const [provider, raw] of Object.entries({ ...base, ...patch })) {
+    const value = typeof raw === 'string' ? raw.trim() : raw == null ? '' : String(raw);
+    if (value) merged[provider] = value;
+  }
+  return Object.keys(merged).length > 0 ? merged : Prisma.JsonNull;
 }
 
 /** A distinct series in the media libraries, for the watchlist "add from library" picker. */
@@ -284,7 +307,7 @@ export class AcquisitionWatchlistService {
   }
 
   async update(id: string, input: Partial<WatchlistInput>, userId?: string) {
-    await this.get(id);
+    const existing = await this.get(id);
     const item = await this.prisma.mediaAcquisitionWatchlistItem.update({
       where: { id },
       data: {
@@ -292,6 +315,7 @@ export class AcquisitionWatchlistService {
         title: input.title ?? undefined,
         normalizedTitle: input.title ? input.title.toLowerCase().trim() : undefined,
         year: input.year === undefined ? undefined : input.year,
+        externalIds: mergeExternalIds(existing.externalIds, input.externalIds),
         seasonNumber: input.seasonNumber === undefined ? undefined : input.seasonNumber,
         episodeNumber: input.episodeNumber === undefined ? undefined : input.episodeNumber,
         collectionName: input.collectionName === undefined ? undefined : input.collectionName,
