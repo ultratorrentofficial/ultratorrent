@@ -90,6 +90,18 @@ describe('AcquisitionWatchlistService.librarySeries', () => {
     expect(rows[0]).toMatchObject({ title: 'The Rookie', year: 2018, imdbId: 'tt7587890', episodeCount: 1 });
   });
 
+  it('collapses loose episode-titled files at a library root into one series (90 Day Fiance)', async () => {
+    const { svc, prisma } = build();
+    // Two episodes sitting loose in the library root, named as episodes.
+    prisma.mediaItem.findMany.mockResolvedValue([
+      item({ title: '90 Day Fiance - S12E09', path: '/tv/90 Day Fiance - S12E09.mkv' }),
+      item({ title: '90 Day Fiance - S12E10', path: '/tv/90 Day Fiance - S12E10.mkv' }),
+    ]);
+    const rows = await svc.librarySeries();
+    expect(rows).toHaveLength(1); // one show, not one per episode
+    expect(rows[0]).toMatchObject({ title: '90 Day Fiance', episodeCount: 2 });
+  });
+
   it('applies the search filter to the resolved series title', async () => {
     const { svc, prisma } = build();
     prisma.mediaItem.findMany.mockResolvedValue([
@@ -126,6 +138,28 @@ describe('AcquisitionWatchlistService.bulkCreate', () => {
         data: expect.objectContaining({ type: 'series', title: 'New Show', externalIds: { imdb: 'tt1' } }),
       }),
     );
+  });
+
+  it('collapses an episode-formatted title to the series (no episode-as-series) and dedups within the batch', async () => {
+    const { svc, prisma } = build();
+    const res = await svc.bulkCreate([
+      { title: '90 Day Fiance - S12E09' },
+      { title: '90 Day Fiance - S12E10' }, // same show, different episode
+    ]);
+    expect(res).toEqual({ added: 1, skipped: 1 }); // one series, second deduped
+    expect(prisma.mediaAcquisitionWatchlistItem.create).toHaveBeenCalledTimes(1);
+    expect(prisma.mediaAcquisitionWatchlistItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ type: 'series', title: '90 Day Fiance', normalizedTitle: '90 day fiance' }),
+      }),
+    );
+  });
+
+  it('leaves a clean show title untouched (numeric/SxxExx-looking names)', async () => {
+    const { svc, prisma } = build();
+    await svc.bulkCreate([{ title: '9-1-1' }, { title: '1923' }]);
+    const titles = prisma.mediaAcquisitionWatchlistItem.create.mock.calls.map((c: any) => c[0].data.title);
+    expect(titles).toEqual(['9-1-1', '1923']);
   });
 
   it('adds a series with no IMDb id (externalIds undefined)', async () => {

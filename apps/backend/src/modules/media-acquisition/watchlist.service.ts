@@ -8,6 +8,21 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { isSeasonContainer, showFolderRoot } from '../media/media-renamer';
 import { TvShowStatusService } from '../rss/tv-show-status/tv-show-status.service';
 import { normalizeTitle } from '../rss/tv-show-status/tv-show-status-provider';
+import { parseTorrentName } from '../rss/torrent-name-parser';
+
+/**
+ * The **series** title for a monitored show, collapsing an episode-formatted
+ * value to its series name so a downloaded episode ("90 Day Fiance - S12E09")
+ * can't masquerade as its own series on the watchlist. Only rewrites when the
+ * release parser actually detects a season/episode token — a clean show title
+ * (incl. numeric/`SxxExx`-looking names like "9-1-1", "1923") is left untouched.
+ */
+function seriesTitleOf(raw: string): string {
+  const parsed = parseTorrentName(raw);
+  const hasEpisodeToken =
+    parsed.season != null || parsed.episode != null || parsed.absoluteEpisode != null;
+  return hasEpisodeToken && parsed.title?.trim() ? parsed.title.trim() : raw.trim();
+}
 
 /** A distinct series in the media libraries, for the watchlist "add from library" picker. */
 export interface LibrarySeries {
@@ -62,11 +77,18 @@ export class AcquisitionWatchlistService {
   }
 
   async create(input: WatchlistInput, userId?: string) {
+    // A series/season monitors a whole show — never a single episode. Collapse an
+    // episode-formatted title to its series name so "90 Day Fiance - S12E09" is
+    // stored (and monitored) as "90 Day Fiance".
+    const title =
+      input.type === 'series' || input.type === 'season'
+        ? seriesTitleOf(input.title)
+        : input.title;
     const item = await this.prisma.mediaAcquisitionWatchlistItem.create({
       data: {
         type: input.type,
-        title: input.title,
-        normalizedTitle: input.title.toLowerCase().trim(),
+        title,
+        normalizedTitle: title.toLowerCase().trim(),
         year: input.year,
         externalIds: (input.externalIds ?? undefined) as object | undefined,
         seasonNumber: input.seasonNumber,
@@ -129,8 +151,15 @@ export class AcquisitionWatchlistService {
       const folder = path.basename(dir);
       // A genuine show folder: below a library root and not itself a season container.
       const isShowFolder = folder !== '' && !roots.has(this.normPath(dir)) && !isSeasonContainer(folder);
-      const parsed = isShowFolder ? this.parseFolderTitle(folder) : { title: it.title, year: null };
-      const key = isShowFolder ? `dir:${this.normPath(dir)}` : `title:${it.title.toLowerCase().trim()}`;
+      // Loose file at a library root (no show folder): parse the series out of
+      // its title so an episode name ("90 Day Fiance - S12E09") groups under the
+      // series, not as its own bogus "show".
+      const parsed = isShowFolder
+        ? this.parseFolderTitle(folder)
+        : { title: seriesTitleOf(it.title), year: null };
+      // Key loose files by their parsed series title so every episode of a show
+      // collapses into one group (not one bogus "show" per episode).
+      const key = isShowFolder ? `dir:${this.normPath(dir)}` : `title:${parsed.title.toLowerCase().trim()}`;
 
       const acc = groups.get(key);
       const extId = it.externalIds[0]?.externalId ?? null;
@@ -232,7 +261,9 @@ export class AcquisitionWatchlistService {
     let added = 0;
     let skipped = 0;
     for (const s of series) {
-      const norm = s.title.toLowerCase().trim();
+      // Dedup on the collapsed series title (matching what `create` stores), so
+      // two episodes of one show don't each add a duplicate "series".
+      const norm = seriesTitleOf(s.title).toLowerCase().trim();
       if (!norm || have.has(norm)) {
         skipped++;
         continue;
