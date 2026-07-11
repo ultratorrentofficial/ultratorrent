@@ -54,7 +54,13 @@ export interface TorrentEngineProvider {
   stopTorrent(hash: string): Promise<void>;
   pauseTorrent(hash: string): Promise<void>;
   resumeTorrent(hash: string): Promise<void>;
-  forceStart(hash: string): Promise<void>;
+  /**
+   * Run regardless of the engine's queue limits. Pass `false` to clear the flag and
+   * hand the torrent back to the normal queue — the parking sweep needs both halves:
+   * force-start to guarantee a parked torrent actually announces (a plain resume on a
+   * full queue lands it in `queued`, where it never would), then clear it afterwards.
+   */
+  forceStart(hash: string, value?: boolean): Promise<void>;
   recheckTorrent(hash: string): Promise<void>;
 
   // Mutation

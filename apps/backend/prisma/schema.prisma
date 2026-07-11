@@ -131,6 +131,7 @@ model TorrentEngine {
   updatedAt DateTime @updatedAt
 
   snapshots TorrentSnapshot[]
+  parked    ParkedTorrent[]
 
   @@map("torrent_engines")
 }
@@ -163,6 +164,37 @@ model TorrentSnapshot {
   @@index([state])
   @@index([categoryId])
   @@map("torrent_snapshots")
+}
+
+/// A torrent held OUT of the engine's active queue because its swarm is dead
+/// (no seeders, no peers, no progress). It is paused in the engine — so it can't
+/// occupy one of the engine's limited active-download slots — and re-probed
+/// periodically; the moment seeders reappear it is released back into the queue.
+/// Without this, a handful of dead magnets stuck fetching metadata fill every
+/// active slot and head-of-line block every healthy torrent behind them.
+model ParkedTorrent {
+  hash     String
+  engineId String
+  name     String
+  /// no_seeders | stalled
+  reason   String @default("no_seeders")
+
+  parkedAt   DateTime @default(now())
+  /// Set while a probe is in flight (the torrent is force-started so it announces
+  /// and refreshes its seeder count); cleared when the next tick judges the result.
+  probingSince DateTime?
+  lastProbedAt DateTime?
+  /// Consecutive failed probes — drives the backoff between re-probes.
+  probeCount   Int       @default(0)
+  /// Tracker-reported seeders as of the last probe.
+  lastSeeders  Int       @default(0)
+  updatedAt    DateTime  @updatedAt
+
+  engine TorrentEngine @relation(fields: [engineId], references: [id], onDelete: Cascade)
+
+  @@id([engineId, hash])
+  @@index([lastProbedAt])
+  @@map("parked_torrents")
 }
 
 model TorrentCategory {

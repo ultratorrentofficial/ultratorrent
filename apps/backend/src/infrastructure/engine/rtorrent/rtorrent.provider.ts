@@ -573,9 +573,11 @@ export class RTorrentProvider implements TorrentEngineProvider {
   async resumeTorrent(hash: string): Promise<void> {
     await this.transport.call('d.resume', [hash]);
   }
-  async forceStart(hash: string): Promise<void> {
-    await this.transport.call('d.priority.set', [hash, 3]);
-    await this.transport.call('d.start', [hash]);
+  async forceStart(hash: string, value = true): Promise<void> {
+    // rTorrent has no force flag; priority 3 (high) is the closest equivalent, and
+    // 2 (normal) hands the torrent back to ordinary scheduling.
+    await this.transport.call('d.priority.set', [hash, value ? 3 : 2]);
+    if (value) await this.transport.call('d.start', [hash]);
   }
   async recheckTorrent(hash: string): Promise<void> {
     await this.transport.call('d.check_hash', [hash]);

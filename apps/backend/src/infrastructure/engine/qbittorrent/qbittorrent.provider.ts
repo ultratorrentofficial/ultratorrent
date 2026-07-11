@@ -493,10 +493,10 @@ export class QbittorrentProvider implements TorrentEngineProvider {
   async resumeTorrent(hash: string): Promise<void> {
     await this.client.postForm('/torrents/resume', { hashes: hash.toLowerCase() });
   }
-  async forceStart(hash: string): Promise<void> {
+  async forceStart(hash: string, value = true): Promise<void> {
     await this.client.postForm('/torrents/setForceStart', {
       hashes: hash.toLowerCase(),
-      value: 'true',
+      value: value ? 'true' : 'false',
     });
   }
   async recheckTorrent(hash: string): Promise<void> {

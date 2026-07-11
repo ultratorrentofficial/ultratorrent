@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -21,6 +22,7 @@ import {
   TorrentState,
 } from '@ultratorrent/shared';
 import { TorrentsService } from './torrents.service';
+import { TorrentParkingService, type ParkingRules } from './torrent-parking.service';
 import {
   AddTorrentDto,
   BulkActionDto,
@@ -49,7 +51,53 @@ function reqCtx(req: Request) {
 @Controller('torrents')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class TorrentsController {
-  constructor(private readonly torrents: TorrentsService) {}
+  constructor(
+    private readonly torrents: TorrentsService,
+    private readonly parking: TorrentParkingService,
+  ) {}
+
+  // --- parking (dead-swarm holding queue) --------------------------------
+  // Declared before `:hash`, or "parking" would be swallowed by the param route.
+
+  /** Torrents currently held out of the active queue because their swarm is dead. */
+  @Get('parking')
+  @RequirePermissions(PERMISSIONS.TORRENTS_VIEW)
+  listParked(@Query('engineId') engineId?: string) {
+    return this.parking.listParked(engineId);
+  }
+
+  @Get('parking/settings')
+  @RequirePermissions(PERMISSIONS.TORRENTS_VIEW)
+  getParkingRules() {
+    return this.parking.getRules();
+  }
+
+  @Patch('parking/settings')
+  @RequirePermissions(PERMISSIONS.TORRENTS_PAUSE)
+  updateParkingRules(
+    @Body() body: Partial<ParkingRules>,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.parking.setRules(body ?? {}, user?.id);
+  }
+
+  /** Run a parking sweep now instead of waiting for the 5-minute tick. */
+  @Post('parking/run')
+  @RequirePermissions(PERMISSIONS.TORRENTS_PAUSE)
+  runParkingSweep(@CurrentUser() user: AuthenticatedUser) {
+    return this.parking.runNow(user?.id);
+  }
+
+  /** Release one torrent from parking by hand. */
+  @Post('parking/:hash/unpark')
+  @RequirePermissions(PERMISSIONS.TORRENTS_RESUME)
+  unpark(
+    @Param('hash') hash: string,
+    @Body() body: { engineId: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.parking.unpark(body.engineId, hash, user?.id);
+  }
 
   @Get()
   @RequirePermissions(PERMISSIONS.TORRENTS_VIEW)
