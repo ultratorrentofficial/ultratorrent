@@ -1,5 +1,0 @@
----
-"ultratorrent": patch
----
-
-rTorrent: the `delete` / `delete_with_data` actions now verify the torrent is actually gone and retry, instead of trusting `d.erase`'s return value. rtorrent (observed on 0.9.8) intermittently accepts `d.erase`, returns no error, yet leaves the download loaded and seeding — especially during bursts of erases (an automation "delete on complete" rule firing across many finished torrents at once). The old one-shot `removeTorrent` recorded a phantom `success`, so the torrent seeded forever and the automation ledger marked it done, never retrying. `removeTorrent`/`removeTorrentAndData` now erase, confirm removal via a cheap one-field `d.multicall2`, and retry a few times; if the torrent survives they throw, so the automation run logs a real `failure` and reconcile retries it on the next cycle. `removeTorrentAndData` only deletes the data once removal is confirmed (never while the torrent is still loaded). A transport error during the check is treated as "still loaded" so a transient blip can't be mistaken for a successful removal.
