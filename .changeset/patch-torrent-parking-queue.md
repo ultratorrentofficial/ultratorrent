@@ -1,5 +1,5 @@
 ---
-"ultratorrent": minor
+"ultratorrent": patch
 ---
 
 New **parking queue** for dead torrents. A torrent engine has a limited number of active-download slots (qBittorrent's `max_active_downloads`), and a magnet with no seeders can never even fetch its metadata — yet it occupies a slot the entire time it tries. Grab enough dead releases and every slot fills with torrents that will never finish, while every healthy torrent behind them waits in the queue forever. Seen in production: 100 slots held by dead magnets, 1,034 torrents queued behind them, zero bytes moving.
