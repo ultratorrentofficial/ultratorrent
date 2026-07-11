@@ -23,6 +23,7 @@ import { ImdbDatasetImporterService } from './imdb/imdb-dataset-importer.service
 import { ImdbOptimizedImportService } from './imdb/imdb-optimized-import.service';
 import { ImdbDatasetScheduler } from './imdb/imdb-dataset-scheduler.service';
 import { ImdbService } from './imdb/imdb.service';
+import { ImdbTrigramIndexService } from './imdb/imdb-trigram-index.service';
 import { MediaController } from './media.controller';
 
 /**
@@ -39,6 +40,7 @@ import { MediaController } from './media.controller';
 @Module({
   imports: [SettingsModule, FilesModule],
   providers: [
+    ImdbTrigramIndexService,
     SecretCipher,
     MediaService,
     MediaLibraryService,
