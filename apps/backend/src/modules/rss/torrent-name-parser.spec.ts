@@ -182,3 +182,38 @@ describe('buildSmartCandidates', () => {
     expect(mv[0].qualityRules.year).toBe(2024);
   });
 });
+
+describe('parseTorrentName — dotted acronyms in titles', () => {
+  it("keeps an acronym's dots instead of shattering it into letters", () => {
+    // The '.'/'_' → space pass exists for scene releases; it must not destroy a
+    // title whose dots are part of an acronym.
+    expect(parseTorrentName("L.A.'s Finest - S02E10 - Deliver Us From Evil.avi").title).toBe(
+      "L.A.'s Finest",
+    ); // was "L A 's Finest"
+    expect(parseTorrentName('Chicago P.D. - S01E01 - Stepping Stone.mkv').title).toBe(
+      'Chicago P.D.',
+    ); // was "Chicago P D"
+  });
+
+  it('handles a dot-separated scene release whose title is an acronym', () => {
+    const p = parseTorrentName('S.W.A.T.2017.S01E01.1080p.WEB.x264-GRP.mkv');
+    expect(p.title).toBe('S.W.A.T.');
+    expect(p.year).toBe(2017);
+    expect(p.season).toBe(1);
+    expect(p.episode).toBe(1);
+  });
+
+  it('still collapses ordinary scene-release dot separators to spaces', () => {
+    expect(parseTorrentName('Show.Name.S01E01.1080p.WEB-DL.x264-GRP.mkv').title).toBe('Show Name');
+    expect(parseTorrentName('Person.of.Interest.S01E01.720p.HDTV.x264-CTU.mkv').title).toBe(
+      'Person of Interest',
+    );
+  });
+
+  it('does not mistake a leading single-letter word for an acronym', () => {
+    // "A." is one letter+dot — an acronym needs at least two, so this stays a word.
+    const p = parseTorrentName('A.Quiet.Place.2018.1080p.BluRay.x264-GRP.mkv');
+    expect(p.title).toBe('A Quiet Place');
+    expect(p.year).toBe(2018);
+  });
+});

@@ -96,6 +96,12 @@ function stripExtension(name: string): string {
   return name.replace(/\.(mkv|mp4|avi|ts|m2ts|torrent)$/i, '');
 }
 
+/**
+ * Sentinel standing in for a dot *inside an acronym* while `.`/`_` separators are
+ * normalized to spaces. A control char that never appears in a release name.
+ */
+const ACRONYM_DOT = '\u0000';
+
 // --- parser --------------------------------------------------------------
 
 export function parseTorrentName(raw: string): ParsedTorrentMeta {
@@ -123,8 +129,20 @@ export function parseTorrentName(raw: string): ParsedTorrentMeta {
     warnings.push('No release group detected (name may not be a scene/p2p release).');
   }
 
-  // Work on a separator-normalized copy for marker positions.
-  const ws = name.replace(/[._]+/g, ' ').replace(/\s+/g, ' ').trim();
+  // Work on a separator-normalized copy for marker positions. Scene releases use
+  // '.'/'_' as word separators (`Show.Name.S01E01`), so those collapse to spaces —
+  // but that would also shatter an acronym that legitimately contains dots
+  // ("L.A.'s Finest" → "L A 's Finest", "Chicago P.D." → "Chicago P D"). Protect a
+  // run of *single letter + dot* repeated at least twice (L.A. / P.D. / S.W.A.T. /
+  // E.T.) behind a sentinel, normalize, then restore. A separator dot always
+  // follows a multi-letter word, so it never matches.
+  const ws = name
+    .replace(/\b(?:[A-Za-z]\.){2,}/g, (m) => m.replace(/\./g, ACRONYM_DOT))
+    .replace(/[._]+/g, ' ')
+    .split(ACRONYM_DOT)
+    .join('.')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   // Episode / season
   let cutIndex = ws.length;
