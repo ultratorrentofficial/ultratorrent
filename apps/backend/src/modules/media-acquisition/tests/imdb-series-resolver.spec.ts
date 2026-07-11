@@ -96,6 +96,22 @@ describe('ImdbSeriesResolver.resolveFolder', () => {
     });
   });
 
+  it('drops a country qualifier the catalogue does not carry, using the year to pick the version', async () => {
+    const { prisma, resolver } = build();
+    seedSeries(prisma, 'ttUK', 'The Office', 2001, 14); // the UK original
+    seedSeries(prisma, 'ttUS', 'The Office', 2005, 188); // the US remake
+
+    await expect(resolver.resolveFolder('The Office (US)', 2005)).resolves.toMatchObject({ tconst: 'ttUS' });
+    await expect(resolver.resolveFolder('The Office (UK)', 2001)).resolves.toMatchObject({ tconst: 'ttUK' });
+  });
+
+  it('resolves a country-qualified show with a year (The Cleaning Lady regression)', async () => {
+    const { prisma, resolver } = build();
+    seedSeries(prisma, 'ttCL', 'The Cleaning Lady', 2022, 31);
+
+    await expect(resolver.resolveFolder('The Cleaning Lady (US)', 2022)).resolves.toMatchObject({ tconst: 'ttCL' });
+  });
+
   it('never brand-strips a show that really is named that way', async () => {
     const { prisma, resolver } = build();
     seedSeries(prisma, 'ttBOB', "Bob's Burgers", 2011, 290);

@@ -53,6 +53,13 @@ const TRAILING_SEASON = /[\s._-]+S\d{1,2}(?:\s*E\d{1,3})?\s*$/i;
  * long before we get here.
  */
 const BRAND_PREFIX = /^[A-Za-z]{2,}'?s\s+/;
+/**
+ * A country qualifier libraries add to tell remakes apart ("The Office (US)",
+ * "The Cleaning Lady (US)"). IMDb carries neither — both versions are catalogued
+ * under the bare title and told apart by year. Tried after the full title, so the
+ * year (or, failing that, the episode count) picks the right one.
+ */
+const COUNTRY_QUALIFIER = /\s*\((?:US|UK|GB|AU|CA|NZ|IE|ZA)\)\s*/gi;
 
 /**
  * Ordered lookup attempts for a library folder name, most trustworthy first: the
@@ -80,9 +87,13 @@ export function seriesLookupCandidates(
   const parsed = parseTorrentName(cleaned);
   add(parsed.title, parsed.year ?? year);
   add(cleaned, year);
+  // Then the same attempts without a country qualifier the catalogue doesn't carry.
+  for (const attempt of [...attempts]) {
+    add(attempt.title.replace(COUNTRY_QUALIFIER, ' ').replace(/\s+/g, ' ').trim(), attempt.year);
+  }
   // Last resort only — see BRAND_PREFIX.
-  const branded = attempts[attempts.length - 1]?.title ?? '';
-  if (BRAND_PREFIX.test(branded)) add(branded.replace(BRAND_PREFIX, ''), parsed.year ?? year);
+  const last = attempts[attempts.length - 1]?.title ?? '';
+  if (BRAND_PREFIX.test(last)) add(last.replace(BRAND_PREFIX, ''), parsed.year ?? year);
   return attempts;
 }
 
