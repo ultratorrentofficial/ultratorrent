@@ -34,6 +34,8 @@ function build(over: {
       findMany: jest.fn(async () => [wanted]),
       findUnique: jest.fn(async ({ where }: any) => (where.id === wanted.id ? wanted : null)),
       update: jest.fn(async ({ data }: any) => { updates.push(data); return { ...wanted, ...data }; }),
+      // setState uses updateMany (no-throw on a vanished row); track it like update.
+      updateMany: jest.fn(async ({ data }: any) => { updates.push(data); return { count: 1 }; }),
     },
     mediaAcquisitionWatchlistItem: {
       findUnique: jest.fn(async () => ({ id: 'wl1', title: 'The Wire', normalizedTitle: 'the wire', year: null, targetLibraryId: null, priority: 100, rssRuleId: null, ...over.item })),
@@ -192,6 +194,18 @@ describe('MissingEpisodeSearchService.sweep — grab flow', () => {
       expect.objectContaining({ savePath: '/downloads/TV Shows/The Wire (2002)' }),
       undefined,
     );
+  });
+
+  it('does not abort the tick when a wanted row vanished mid-sweep (setState no-ops, not throws)', async () => {
+    const { svc, prisma } = build({ candidates: [cand()] });
+    // A concurrent library/watchlist scan deleted+recreated the rows: writes now
+    // match nothing. updateMany returns count 0 instead of throwing.
+    prisma.wantedEpisode.updateMany = jest.fn(async (_args: any) => ({ count: 0 }));
+    // Guard against a regression to `update`, which WOULD throw "record not found".
+    prisma.wantedEpisode.update = jest.fn(async (_args: any) => { throw new Error('Record to update not found'); });
+    const summary = await svc.sweep();
+    expect(summary).toMatchObject({ scanned: 1 }); // tick completed, not aborted
+    expect(prisma.wantedEpisode.update).not.toHaveBeenCalled();
   });
 
   it('records no_results and never grabs when nothing matches the preferences', async () => {

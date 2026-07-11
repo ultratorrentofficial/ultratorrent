@@ -282,8 +282,16 @@ export class MissingEpisodeSearchService {
     return undefined;
   }
 
+  /**
+   * Update one wanted episode's search state. Uses `updateMany` (not `update`) so
+   * a row that vanished mid-sweep is a no-op (`count: 0`) instead of throwing
+   * "Record to update not found": a concurrent library/watchlist scan deletes and
+   * recreates the WantedEpisode rows, and a plain `update` on a since-deleted id
+   * would abort the whole sweep tick (its per-episode error handler calls
+   * `setState` too, so the throw escapes the loop).
+   */
   private setState(id: string, data: Partial<WantedEpisode>): Promise<unknown> {
-    return this.prisma.wantedEpisode.update({ where: { id }, data });
+    return this.prisma.wantedEpisode.updateMany({ where: { id }, data });
   }
 
   private emitGrabbed(wanted: WantedEpisode, releaseTitle: string, evaluationId: string): void {
