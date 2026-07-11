@@ -86,13 +86,22 @@ describe('ImdbSeriesResolver.resolveFolder', () => {
     ).resolves.toMatchObject({ tconst: 'ttBS' });
   });
 
-  it('matches an apostrophe in the catalogue title that the folder drops', async () => {
+  it('strips a studio brand IMDb does not carry ("Marvel\'s The Punisher" is just "The Punisher")', async () => {
     const { prisma, resolver } = build();
-    seedSeries(prisma, 'ttPUN', "Marvel's The Punisher", 2017, 26);
+    seedSeries(prisma, 'ttPUN', 'The Punisher', 2017, 26); // the real tt5675620 shape
+    seedSeries(prisma, 'ttPUN24', 'The Punisher', 2024, 1); // a newer same-named stub must lose
 
     await expect(resolver.resolveFolder('Marvels.The.Punisher.S01.WEBRip.x265-ION265', null)).resolves.toMatchObject({
       tconst: 'ttPUN',
     });
+  });
+
+  it('never brand-strips a show that really is named that way', async () => {
+    const { prisma, resolver } = build();
+    seedSeries(prisma, 'ttBOB', "Bob's Burgers", 2011, 290);
+    seedSeries(prisma, 'ttBURG', 'Burgers', 2011, 5); // must not win via a brand strip
+
+    await expect(resolver.resolveFolder("Bob's Burgers", null)).resolves.toMatchObject({ tconst: 'ttBOB' });
   });
 });
 

@@ -45,6 +45,14 @@ const TRACKER_PREFIX = /^\s*(?:www\.)?[\w-]+\.(?:com|org|net|info|me|to|tv|io|cc
  * which the RSS match rules depend on.
  */
 const TRAILING_SEASON = /[\s._-]+S\d{1,2}(?:\s*E\d{1,3})?\s*$/i;
+/**
+ * A possessive studio brand the distributor bolts on but IMDb doesn't carry —
+ * "Marvel's The Punisher" is catalogued as plain "The Punisher" (tt5675620).
+ * Only ever tried *last*, after the full title has failed, so a show that really
+ * is named this way ("Bob's Burgers", "Grey's Anatomy") matches on its own name
+ * long before we get here.
+ */
+const BRAND_PREFIX = /^[A-Za-z]{2,}'?s\s+/;
 
 /**
  * Ordered lookup attempts for a library folder name, most trustworthy first: the
@@ -72,6 +80,9 @@ export function seriesLookupCandidates(
   const parsed = parseTorrentName(cleaned);
   add(parsed.title, parsed.year ?? year);
   add(cleaned, year);
+  // Last resort only — see BRAND_PREFIX.
+  const branded = attempts[attempts.length - 1]?.title ?? '';
+  if (BRAND_PREFIX.test(branded)) add(branded.replace(BRAND_PREFIX, ''), parsed.year ?? year);
   return attempts;
 }
 
