@@ -85,6 +85,17 @@ describe('AcquisitionWatchlistService.healLibraryImdbIds', () => {
     expect(prisma.mediaItem.rows[0].seriesImdbId).toBe('tt90');
   });
 
+  it('resolves a folder that is still a raw scene-release name (never renamed)', async () => {
+    const { svc, prisma } = build();
+    episode(prisma, 'i1', 'Ahsoka.S01E03.WEB.x264-TORRENTGALAXY[TGx]', 'Ahsoka - S01E03');
+    seedSeries(prisma, 'ttAH', 'Ahsoka', 2023, 8);
+
+    const summary = await svc.healLibraryImdbIds();
+
+    expect(summary).toMatchObject({ resolved: 1, unresolved: 0 });
+    expect(prisma.mediaItem.rows[0].seriesImdbId).toBe('ttAH'); // parsed out of the release name
+  });
+
   it('honours the batch limit, leaving the rest for a later pass', async () => {
     const { svc, prisma } = build();
     episode(prisma, 'i1', 'Show A (2020)', 'Show A - S01E01');
