@@ -6,6 +6,7 @@ import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/sha
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { parseTorrentName } from '../rss/torrent-name-parser';
+import { parseItemIdentity } from './media-identification.service';
 import { MediaArtworkService } from './media-artwork.service';
 import { MediaMetadataService } from './media-metadata.service';
 
@@ -125,6 +126,16 @@ export class MediaScannerService {
       const tech = deriveFileTechInfo(file.path);
       const action = existing ? 'Updated' : 'Added';
 
+      // Identity from the file's name AND folder context — the series title lives
+      // in the show folder for an organised `Show/Season NN/episode` layout, while
+      // season/episode come from the filename. Without this the item was stored
+      // with the raw filename as its title and null season/episode, which
+      // fragmented a show into one bogus "series" per episode and broke
+      // owned-episode detection until some later identification pass ran.
+      const identity = parseItemIdentity(file.path, library.path);
+      const parsedSeason = identity.season ?? null;
+      const parsedEpisode = identity.episode ?? identity.absoluteEpisode ?? null;
+
       if (existing) {
         await this.prisma.mediaFile.upsert({
           where: {
@@ -138,15 +149,34 @@ export class MediaScannerService {
           },
           update: { size: BigInt(file.size), ...tech },
         });
+        // Self-heal a never-identified episodic item: it still carries the raw
+        // filename as its title and no season/episode. Only touched when the item
+        // has NO episode structure stored and the path clearly yields one, so a
+        // matched/user-corrected item is never clobbered.
+        if (
+          existing.season == null &&
+          existing.episode == null &&
+          parsedSeason != null &&
+          parsedEpisode != null &&
+          identity.title
+        ) {
+          await this.prisma.mediaItem.update({
+            where: { id: existing.id },
+            data: { title: identity.title, season: parsedSeason, episode: parsedEpisode },
+          });
+        }
         itemIds.push(existing.id);
         updated++;
       } else {
-        const title = path.basename(file.path, path.extname(file.path));
+        const title = identity.title ?? path.basename(file.path, path.extname(file.path));
         const created = await this.prisma.mediaItem.create({
           data: {
             libraryId,
             mediaType: this.defaultMediaType(library.kind),
             title,
+            year: identity.year ?? undefined,
+            season: parsedSeason,
+            episode: parsedEpisode,
             path: file.path,
             files: {
               create: {

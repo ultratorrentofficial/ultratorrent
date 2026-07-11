@@ -15,6 +15,91 @@ export interface ManualMatchDto {
   episode?: number | null;
 }
 
+// ---------------------------------------------------------------------------
+// Pure path→identity parsing. Exported (and used by the library scanner) so a
+// newly-scanned item gets a real series title + season/episode immediately,
+// instead of storing the raw filename as the title and waiting for a later
+// identification pass that may never run.
+// ---------------------------------------------------------------------------
+
+/**
+ * True for folders that group episodes but never name the title themselves, so
+ * the title climb skips past them (e.g. "Season 01", "Specials", "Disc 2").
+ */
+export function isGenericContainer(name: string): boolean {
+  const n = name.trim();
+  return (
+    /^(season|series|saison|staffel|temporada|disc|disk|cd|part|vol|volume)[\s._-]*\d+$/i.test(n) ||
+    /^specials?$/i.test(n)
+  );
+}
+
+/**
+ * The name of the show folder for a file — the first parent that isn't a generic
+ * `Season NN`/`Specials`/`Disc N` container, climbing upward but never past the
+ * library root (so a file sitting directly under the library never adopts the
+ * library folder's name as its title). Null when none qualifies.
+ */
+export function showFolderName(filePath: string, libraryPath?: string): string | null {
+  const segments = filePath.split(/[/\\]+/).filter(Boolean);
+  segments.pop(); // drop the filename itself
+  const rootDepth = libraryPath ? libraryPath.split(/[/\\]+/).filter(Boolean).length : 0;
+  for (let i = segments.length - 1; i >= rootDepth; i--) {
+    if (isGenericContainer(segments[i])) continue;
+    return segments[i];
+  }
+  return null;
+}
+
+/**
+ * Parse a media file's identity from its name *and* folder context.
+ *
+ * In a `Show/Season NN/episode` layout the **series title lives in the show
+ * folder**, and the filename often carries only the *episode* title — e.g.
+ * `9-1-1 (2018)/Season 9/Contraband Seized at the Border - S09E04.mkv`, whose
+ * basename parses to the title "Contraband Seized at the Border" and would
+ * fragment the show into one series per episode. So for an **episodic** file that
+ * sits inside a `Season NN`/`Specials` container (the strong signal of an
+ * organised library), or whose filename yields no title at all, we take the series
+ * title (and year) from the first meaningful parent folder (climbing past the
+ * generic containers, bounded by the library root). Season/episode/quality still
+ * come from the filename.
+ *
+ * When the file is *not* in such a container and the filename already names a
+ * title (a loose scene release like `Show.Name.S02E05...`), that filename title is
+ * authoritative — the folder is likely a junk/download dir, not the show.
+ */
+export function parseItemIdentity(filePath: string, libraryPath?: string): ParsedTorrentMeta {
+  const base = path.basename(filePath);
+  const parsed = parseTorrentName(base);
+
+  const episodic =
+    (parsed.season !== null && parsed.episode !== null) ||
+    parsed.absoluteEpisode !== null ||
+    parsed.airDate !== null;
+  const parentIsContainer = isGenericContainer(path.basename(path.dirname(filePath)));
+
+  if (episodic && (parentIsContainer || !parsed.title)) {
+    const folder = showFolderName(filePath, libraryPath);
+    const folderParsed = folder ? parseTorrentName(folder) : null;
+    if (folderParsed?.title) {
+      // Series identity from the folder; episode structure from the filename.
+      return { ...parsed, title: folderParsed.title, year: folderParsed.year ?? parsed.year };
+    }
+  }
+
+  if (parsed.title) return parsed;
+
+  // Filename yielded no title and the folder above didn't parse to a series —
+  // last resort: re-parse `<folder> <filename>` to recover something.
+  const folder = showFolderName(filePath, libraryPath);
+  if (folder) {
+    const combined = parseTorrentName(`${folder} ${base}`);
+    if (combined.title) return combined;
+  }
+  return parsed;
+}
+
 /** Narrowing filter for a bulk re-identification pass. */
 export interface BulkIdentifyFilter {
   /** Restrict to one library (omit to span every library). */
@@ -225,36 +310,7 @@ export class MediaIdentificationService {
    * is authoritative — the folder is likely a junk/download dir, not the show.
    */
   private parseFromPath(filePath: string, libraryPath?: string): ParsedTorrentMeta {
-    const base = path.basename(filePath);
-    const parsed = parseTorrentName(base);
-
-    const episodic =
-      (parsed.season !== null && parsed.episode !== null) ||
-      parsed.absoluteEpisode !== null ||
-      parsed.airDate !== null;
-    const parentIsContainer = this.isGenericContainer(
-      path.basename(path.dirname(filePath)),
-    );
-
-    if (episodic && (parentIsContainer || !parsed.title)) {
-      const folder = this.showFolderName(filePath, libraryPath);
-      const folderParsed = folder ? parseTorrentName(folder) : null;
-      if (folderParsed?.title) {
-        // Series identity from the folder; episode structure from the filename.
-        return { ...parsed, title: folderParsed.title, year: folderParsed.year ?? parsed.year };
-      }
-    }
-
-    if (parsed.title) return parsed;
-
-    // Filename yielded no title and the folder above didn't parse to a series —
-    // last resort: re-parse `<folder> <filename>` to recover something.
-    const folder = this.showFolderName(filePath, libraryPath);
-    if (folder) {
-      const combined = parseTorrentName(`${folder} ${base}`);
-      if (combined.title) return combined;
-    }
-    return parsed;
+    return parseItemIdentity(filePath, libraryPath);
   }
 
   /**
@@ -264,28 +320,11 @@ export class MediaIdentificationService {
    * adopts the library folder's name as its title). Null when none qualifies.
    */
   private showFolderName(filePath: string, libraryPath?: string): string | null {
-    const segments = filePath.split(/[/\\]+/).filter(Boolean);
-    segments.pop(); // drop the filename itself
-    const rootDepth = libraryPath
-      ? libraryPath.split(/[/\\]+/).filter(Boolean).length
-      : 0;
-    for (let i = segments.length - 1; i >= rootDepth; i--) {
-      if (this.isGenericContainer(segments[i])) continue;
-      return segments[i];
-    }
-    return null;
+    return showFolderName(filePath, libraryPath);
   }
 
-  /**
-   * True for folders that group episodes but never name the title themselves,
-   * so the title climb skips past them (e.g. "Season 01", "Specials", "Disc 2").
-   */
   private isGenericContainer(name: string): boolean {
-    const n = name.trim();
-    return (
-      /^(season|series|saison|staffel|temporada|disc|disk|cd|part|vol|volume)[\s._-]*\d+$/i.test(n) ||
-      /^specials?$/i.test(n)
-    );
+    return isGenericContainer(name);
   }
 
   /**
