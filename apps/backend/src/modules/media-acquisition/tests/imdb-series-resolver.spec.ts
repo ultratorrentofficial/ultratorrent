@@ -1,4 +1,4 @@
-import { ImdbSeriesResolver, catalogueTitleKey } from '../imdb-series-resolver.service';
+import { ImdbSeriesResolver, catalogueTitleKey, seriesLookupCandidates } from '../imdb-series-resolver.service';
 import { Table } from './fake-prisma';
 
 function build() {
@@ -39,6 +39,60 @@ describe('catalogueTitleKey', () => {
 
   it('keeps genuinely different shows apart', () => {
     expect(catalogueTitleKey('90 Day Fiance')).not.toBe(catalogueTitleKey('90 Day Fiance: Pillow Talk'));
+  });
+});
+
+describe('seriesLookupCandidates', () => {
+  // Every one of these is a real never-renamed folder that the sweep left unmatched.
+  const titles = (raw: string) => seriesLookupCandidates(raw, null).map((a) => a.title);
+
+  it('drops the season token a season pack leaves in the parsed title', () => {
+    expect(titles('Criminal.Minds.S18.1080p.x265-ELiTE')).toContain('Criminal Minds');
+    expect(titles('The.Peripheral.S01.WEBRip.x265-ION265')).toContain('The Peripheral');
+    expect(titles('From.S04.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir')).toContain('From');
+  });
+
+  it('drops a tracker/site stamp glued to the front', () => {
+    expect(titles('www.Torrenting.com - Black.Snow.S02E04.720p.HEVC.x265-MeGusta')).toContain('Black Snow');
+    expect(titles('www.UIndex.org    -    Ancient Aliens S22E04 720p WEB H264-JFF')).toContain('Ancient Aliens');
+  });
+
+  it('pulls the show out of an episode release name', () => {
+    expect(titles('Ahsoka.S01E03.WEB.x264-TORRENTGALAXY[TGx]')).toContain('Ahsoka');
+  });
+
+  it('tries the folder name as-is first, and leaves a clean title untouched', () => {
+    expect(seriesLookupCandidates('Supergirl', 2015)[0]).toEqual({ title: 'Supergirl', year: 2015 });
+    expect(titles('Supergirl')).toEqual(['Supergirl']);
+  });
+});
+
+describe('ImdbSeriesResolver.resolveFolder', () => {
+  it('resolves a season pack whose folder was never renamed', async () => {
+    const { prisma, resolver } = build();
+    seedSeries(prisma, 'ttCM', 'Criminal Minds', 2005, 331);
+
+    await expect(resolver.resolveFolder('Criminal.Minds.S18.1080p.x265-ELiTE', null)).resolves.toMatchObject({
+      tconst: 'ttCM',
+    });
+  });
+
+  it('resolves through a tracker prefix', async () => {
+    const { prisma, resolver } = build();
+    seedSeries(prisma, 'ttBS', 'Black Snow', 2022, 12);
+
+    await expect(
+      resolver.resolveFolder('www.Torrenting.com - Black.Snow.S02E04.720p.HEVC.x265-MeGusta', null),
+    ).resolves.toMatchObject({ tconst: 'ttBS' });
+  });
+
+  it('matches an apostrophe in the catalogue title that the folder drops', async () => {
+    const { prisma, resolver } = build();
+    seedSeries(prisma, 'ttPUN', "Marvel's The Punisher", 2017, 26);
+
+    await expect(resolver.resolveFolder('Marvels.The.Punisher.S01.WEBRip.x265-ION265', null)).resolves.toMatchObject({
+      tconst: 'ttPUN',
+    });
   });
 });
 

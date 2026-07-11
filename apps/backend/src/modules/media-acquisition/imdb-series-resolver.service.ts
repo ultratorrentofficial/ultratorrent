@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { parseTorrentName } from '../rss/torrent-name-parser';
 
 /** The IMDb title types a TV show can legitimately resolve to. */
 const SERIES_TYPES = ['tvSeries', 'tvMiniSeries'];
@@ -32,6 +33,46 @@ export function catalogueTitleKey(title: string): string {
     .toLowerCase()
     .replace(/&/g, 'and')
     .replace(/[^a-z0-9]/g, '');
+}
+
+/** A tracker/site stamp glued to the front of a release name ("www.UIndex.org - "). */
+const TRACKER_PREFIX = /^\s*(?:www\.)?[\w-]+\.(?:com|org|net|info|me|to|tv|io|cc|eu|xyz)\s*-\s*/i;
+/**
+ * A trailing season (or season+episode) token. The release parser extracts the
+ * season *number* but leaves the token in the title for a season pack — so
+ * "Criminal.Minds.S18.1080p…" parses to the title "Criminal Minds S18", which
+ * matches nothing. Stripping it here keeps that quirk out of the shared parser,
+ * which the RSS match rules depend on.
+ */
+const TRAILING_SEASON = /[\s._-]+S\d{1,2}(?:\s*E\d{1,3})?\s*$/i;
+
+/**
+ * Ordered lookup attempts for a library folder name, most trustworthy first: the
+ * name as-is, then the release-parsed title, then those with scene debris stripped.
+ * A folder the renamer never touched is a raw release name
+ * ("Ahsoka.S01E03.WEB.x264-TORRENTGALAXY[TGx]", "www.Torrenting.com - Black.Snow.S02E04…"),
+ * and the catalogue holds none of that — it holds "Ahsoka" and "Black Snow".
+ */
+export function seriesLookupCandidates(
+  rawTitle: string,
+  year: number | null,
+): Array<{ title: string; year: number | null }> {
+  const attempts: Array<{ title: string; year: number | null }> = [];
+  const add = (title: string | null | undefined, y: number | null) => {
+    const t = title?.replace(TRAILING_SEASON, '').trim();
+    if (!t) return;
+    if (attempts.some((a) => a.title.toLowerCase() === t.toLowerCase())) return;
+    attempts.push({ title: t, year: y });
+  };
+
+  add(rawTitle, year);
+  // Strip the tracker stamp *before* parsing: the parser turns the dots into
+  // spaces, after which "www.UIndex.org" no longer looks like a domain.
+  const cleaned = rawTitle.replace(TRACKER_PREFIX, '').trim();
+  const parsed = parseTorrentName(cleaned);
+  add(parsed.title, parsed.year ?? year);
+  add(cleaned, year);
+  return attempts;
 }
 
 interface SeriesCandidate {
@@ -107,6 +148,19 @@ export class ImdbSeriesResolver {
     // A title with no catalogued episodes can't be scanned, and is far more likely
     // to be the wrong (stub) entry than the show the caller means.
     return best;
+  }
+
+  /**
+   * Resolve a **library folder name**, which may still be a raw scene release the
+   * renamer never touched. Tries {@link seriesLookupCandidates} in order and takes
+   * the first confident match.
+   */
+  async resolveFolder(rawTitle: string, year: number | null): Promise<ResolvedSeries | null> {
+    for (const attempt of seriesLookupCandidates(rawTitle, year)) {
+      const hit = await this.resolve(attempt.title, attempt.year);
+      if (hit) return hit;
+    }
+    return null;
   }
 
   /** Drop the cached index (tests; and frees the memory immediately). */

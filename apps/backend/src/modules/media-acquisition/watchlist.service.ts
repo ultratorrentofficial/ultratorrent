@@ -286,18 +286,9 @@ export class AcquisitionWatchlistService {
       for (const show of batch) {
         let best: ResolvedSeries | null = null;
         try {
-          best = await this.resolver.resolve(show.title, show.year);
-          if (!best) {
-            // The "show folder" is often a raw scene-release name that the renamer
-            // never touched ("Ahsoka.S01E03.WEB.x264-TORRENTGALAXY[TGx]"), which of
-            // course matches nothing in the catalogue. The release parser already
-            // knows how to pull "Ahsoka" out of that — so try the parsed title too.
-            const parsed = parseTorrentName(show.title);
-            const cleaned = parsed.title?.trim();
-            if (cleaned && cleaned.toLowerCase() !== show.title.toLowerCase()) {
-              best = await this.resolver.resolve(cleaned, parsed.year ?? show.year);
-            }
-          }
+          // resolveFolder, not resolve: a show folder the renamer never touched is
+          // still a raw scene release name, which matches nothing as-is.
+          best = await this.resolver.resolveFolder(show.title, show.year);
         } catch (err) {
           // One bad title must not abort the sweep.
           this.logger.warn(`IMDb heal failed for "${show.title}": ${(err as Error).message}`);
