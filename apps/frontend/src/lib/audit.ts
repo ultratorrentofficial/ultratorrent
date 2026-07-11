@@ -235,10 +235,12 @@ export function describeAudit(entry: AuditEntry): AuditDescription {
   let built = TEMPLATES[entry.action]?.(entry) ?? bulkTitle(entry.action, entry) ?? null;
   if (!built) built = { title: prettify(entry.action), Icon: cat.Icon, tone: cat.tone };
 
-  // The detail line prefers a template-supplied one, then an explicit target,
-  // else a metadata summary.
+  // The detail line prefers a template-supplied one, then the humanized media the
+  // row targeted ("Silo (2023) — S01E03" beats an opaque uuid/info-hash), then the
+  // raw target id, else a metadata summary.
   const detail =
     built.detail ??
+    entry.target?.label ??
     (entry.objectId && !built.title.includes(baseName(entry.objectId))
       ? entry.objectId
       : metaSummary(entry));

@@ -261,6 +261,15 @@ export interface ActivityItem {
   at: string;
 }
 
+/** Humanized media an audit row acted on, resolved server-side from its target. */
+export interface AuditTarget {
+  /** Ready-to-render, e.g. "Silo (2023) — S01E03". */
+  label: string;
+  title: string;
+  season: number | null;
+  episode: number | null;
+}
+
 export interface AuditEntry {
   id: string;
   userId: string | null;
@@ -273,6 +282,8 @@ export interface AuditEntry {
   metadata?: Record<string, unknown> | null;
   createdAt: string;
   user?: { username: string } | null;
+  /** The show/episode this row targeted, when it targets media. */
+  target?: AuditTarget | null;
 }
 
 export interface RssRule {

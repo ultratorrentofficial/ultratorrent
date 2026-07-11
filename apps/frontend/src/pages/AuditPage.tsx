@@ -154,6 +154,12 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
                 <dd className="break-all font-mono">{entry.objectId}</dd>
               </>
             )}
+            {entry.target && (
+              <>
+                <dt className="text-muted-foreground">{t('details.media')}</dt>
+                <dd className="break-words font-medium">{entry.target.label}</dd>
+              </>
+            )}
             <dt className="text-muted-foreground">{t('details.result')}</dt>
             <dd>
               <Badge variant={entry.result === 'failure' ? 'destructive' : 'success'} className="text-[10px]">

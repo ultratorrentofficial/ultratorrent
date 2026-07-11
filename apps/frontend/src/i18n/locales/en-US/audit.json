@@ -21,6 +21,7 @@
     "result": "Result",
     "when": "When",
     "userAgent": "User agent",
-    "metadata": "Metadata"
+    "metadata": "Metadata",
+    "media": "Media"
   }
 }
