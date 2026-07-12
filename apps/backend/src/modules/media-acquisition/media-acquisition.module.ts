@@ -6,6 +6,7 @@ import { MEDIA_ACQUISITION_MODULE_ID } from './decision.engine';
 import { MediaAcquisitionService } from './media-acquisition.service';
 import { AcquisitionWatchlistService } from './watchlist.service';
 import { ImdbSeriesResolver } from './imdb-series-resolver.service';
+import { WantedSearchReconciler } from './wanted-search-reconciler.service';
 import { AcquisitionProfileService } from './profile.service';
 import { AcquisitionEvaluatorService } from './evaluator.service';
 import { AcquisitionApprovalService } from './approval.service';
@@ -62,6 +63,7 @@ export class MediaAcquisitionScheduler {
   providers: [
     MediaAcquisitionService,
     ImdbSeriesResolver,
+    WantedSearchReconciler,
     AcquisitionWatchlistService,
     AcquisitionProfileService,
     AcquisitionEvaluatorService,
