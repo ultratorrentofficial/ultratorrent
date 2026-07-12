@@ -38,8 +38,11 @@ RUN npm ci
 # English only. es-PR is scaffolded but not yet translated, so bundling it would
 # add ~20MB of duplicate English to every image for no reader benefit. Add it here
 # once the translations actually exist.
+# DOCS_NO_GIT: .dockerignore excludes .git, and Docusaurus' last-updated-time
+# feature reads git history — it hard-fails without a worktree rather than
+# degrading, so turn it off for this build only.
 RUN npm run gen \
-  && DOCS_URL=http://localhost:8080 DOCS_BASE_URL=/docs/ npm run build:en
+  && DOCS_URL=http://localhost:8080 DOCS_BASE_URL=/docs/ DOCS_NO_GIT=1 npm run build:en
 
 # ---- Runtime stage (unprivileged nginx) --------------------------------
 # nginx-unprivileged runs as uid 101 and listens on 8080 (no root needed).

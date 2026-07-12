@@ -96,7 +96,11 @@ const config: Config = {
           routeBasePath: '/', // the docs *are* the site
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/damirabal/ultratorrent-core/tree/main/website/',
-          showLastUpdateTime: true,
+          // Derived from git history, so it needs a worktree. The copy baked into
+          // the application image is built inside Docker, where `.dockerignore`
+          // excludes `.git` — Docusaurus hard-fails there rather than degrading.
+          // Off for that build, on everywhere else (dev, CI, GitHub Pages).
+          showLastUpdateTime: process.env.DOCS_NO_GIT !== '1',
           breadcrumbs: true,
           // Versioning: `current` is the unreleased doc set (what's on main).
           // Cut a release snapshot with: npm run docusaurus docs:version 0.28
