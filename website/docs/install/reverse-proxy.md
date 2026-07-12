@@ -462,11 +462,13 @@ Anything else — `200`, `400`, `404`, `502` — means your proxy is **eating th
 
 **4. The real test.** Open the UI, start a download, and watch the progress bar move **without refreshing**. If you have to hit F5 to see progress, the WebSocket is not connected.
 
-![Browser devtools showing the /ws/ connection with a 101 Switching Protocols status](/img/screenshots/reverse-proxy-ws-101.png)
+![DevTools Network panel, Socket filter: the /ws/ request returns 101 Switching Protocols](/img/screenshots/reverse-proxy-ws-101.png)
 
-:::note Screenshot needed
-Browser DevTools → Network → WS tab, showing the `/ws/` request with status **101 Switching Protocols** and frames flowing.
-:::
+To check it yourself: **DevTools → Network → Socket**, then reload. The
+`ws/?EIO=4&transport=websocket` request must report **`101 Switching Protocols`**, with
+`Connection: upgrade` and `Upgrade: websocket` in the response headers. Anything else —
+most often a `200` or a `400` — means your proxy stripped the upgrade headers, and no
+amount of restarting UltraTorrent will fix it.
 
 ## HTTPS
 

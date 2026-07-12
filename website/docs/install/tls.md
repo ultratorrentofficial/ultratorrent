@@ -379,10 +379,13 @@ curl -s https://torrents.example.com/api/system/live
 
 Then open the UI and confirm a download's progress bar updates live — that proves `wss://` is tunnelling correctly through your TLS terminator.
 
-![Browser address bar showing a valid padlock on the UltraTorrent UI](/img/screenshots/tls-padlock.png)
+![Chrome's site information popover on the UltraTorrent UI, reporting "Connection is secure"](/img/screenshots/tls-padlock.png)
 
-:::note Screenshot needed
-The UltraTorrent dashboard in a browser, with the address bar showing `https://` and a valid padlock — and the certificate popover open showing the issuer.
+:::tip Where did the padlock go?
+Chrome 117 and later replaced the padlock icon with a **site information** icon (the two
+sliders). Click it: a working certificate reads **"Connection is secure"**, and
+*Connection is secure → Certificate is valid* shows the issuer. A misconfigured chain
+says "Not secure" here even when the page still loads.
 :::
 
 ## Reverse proxy
