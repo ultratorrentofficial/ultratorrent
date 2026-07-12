@@ -176,7 +176,7 @@ sequenceDiagram
     alt @Public() route
         J->>C: skip auth
     end
-    J->>S: verify JWT (HS256, pinned; type must be "access")
+    J->>S: verify JWT (HS256, pinned — type must be "access")
     S-->>J: { id, username, roles[], permissions[] }  ← from CLAIMS, no DB read
     J->>P: request.user populated
     P->>P: read @RequirePermissions metadata

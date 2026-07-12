@@ -789,6 +789,8 @@ Table: `media_acquisition_profiles`
 | `requiredTerms` | `Json?` |
 | `excludedTerms` | `Json?` |
 | `preferredGroups` | `Json?` |
+| `minSizeBytes` | `BigInt?` |
+| `maxSizeBytes` | `BigInt?` |
 | `qualityRules` | `Json?` |
 | `duplicateRules` | `Json?` |
 | `storageRules` | `Json?` |

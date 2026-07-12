@@ -84,7 +84,7 @@ sequenceDiagram
 
   U->>FE: Torrents → Add torrent (magnet)
   FE->>BE: POST /api/torrents
-  BE->>BE: validate; SSRF-guard any URL fetch
+  BE->>BE: validate and SSRF-guard any URL fetch
   BE->>EN: add (XML-RPC/SCGI or Web API)
   BE->>DB: persist the torrent snapshot
   EN->>TR: announce
@@ -260,7 +260,7 @@ sequenceDiagram
 
   SC->>CAT: enumerate every episode of the series
   SC->>LIB: which does the library own?
-  Note over SC,LIB: primary signal = MediaItem.seriesImdbId;<br/>falls back to a case-insensitive title match
+  Note over SC,LIB: primary signal = MediaItem.seriesImdbId<br/>falls back to a case-insensitive title match
   SC->>W: classify: owned / missing / unaired / ignored
 
   Note over SR: Triggered by "Search now",<br/>"Search all", or the scheduled<br/>sweep (OPT-IN, OFF by default)

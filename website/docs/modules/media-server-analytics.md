@@ -88,8 +88,8 @@ flowchart TD
     RA --> NL[Newsletter dispatcher<br/>media_server_newsletter_dispatch<br/>every 15 min]
     NL -->|SMTP| MAIL[(Email)]
 
-    SESS -.media_server.session.started/updated/ended.-> NC[Notification Center]
-    NL -.newsletter.sent / failed.-> NC
+    SESS -.->|media_server.session.*| NC[Notification Center]
+    NL -.->|newsletter.sent / failed| NC
 
     style KODI fill:#2b2b2b,stroke:#666,color:#aaa
 ```

@@ -107,8 +107,8 @@ flowchart TD
   MM -.library state.-> MAI
 
   MAI -.grabs via.-> ENG
-  TOR -.torrent.completed.-> MM
-  TOR -.torrent.completed.-> AUTO
+  TOR -.->|torrent.completed| MM
+  TOR -.->|torrent.completed| AUTO
 
   MM -.events.-> NC
   MSA -.events.-> NC

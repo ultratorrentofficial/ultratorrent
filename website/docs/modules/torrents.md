@@ -55,7 +55,7 @@ flowchart LR
     end
 
     subgraph Backend
-      API[/api/torrents]
+      API["/api/torrents"]
       SYNC[TorrentSyncService<br/>every 2s]
       PARK[TorrentParkingService<br/>every 5 min]
       WS[Realtime gateway<br/>room: perm:torrents.view]
@@ -73,7 +73,7 @@ flowchart LR
     SYNC -- persist --> DB[(TorrentSnapshot)]
     PARK -- pause dead swarms --> E
     PARK -- torrents.parking.updated --> WS
-    DB -.searchable.-> SEARCH[/api/search]
+    DB -.searchable.-> SEARCH["/api/search"]
 ```
 
 The list you see is pushed to you: the sync job polls the engine every 2 seconds and broadcasts `torrents:update`, `stats:update`, and `engine:status` into the `perm:torrents.view` room — so a user without `torrents.view` never receives a single byte of torrent data over the socket. The browser also does a slower safety-net poll (every 10 seconds) in case the socket drops.

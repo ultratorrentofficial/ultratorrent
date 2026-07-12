@@ -1,4 +1,8 @@
 {
   "label": "Learn",
-  "position": 1
+  "position": 1,
+  "link": {
+    "type": "doc",
+    "id": "learn/index"
+  }
 }

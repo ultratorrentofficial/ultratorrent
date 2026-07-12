@@ -88,6 +88,10 @@ const BANNER = (source) =>
 
 const esc = (s) => String(s ?? '').replace(/\|/g, '\\|');
 
+/** `media_manager` → `media_manager["media_manager"]`, safe for a Mermaid graph. */
+const mermaidNode = (id) =>
+  `${String(id).replace(/[^A-Za-z0-9_]/g, '_')}["${String(id).replace(/"/g, '')}"]`;
+
 // ---------------------------------------------------------------------------
 // 1. Permissions + role matrix
 // ---------------------------------------------------------------------------
@@ -200,7 +204,10 @@ dependency, so a broken module can never half-load.
 graph LR
 ${manifests
   .flatMap((x) =>
-    (x.dependencies ?? []).map((d) => `  ${JSON.stringify(d)} --> ${JSON.stringify(x.id)}`),
+    // A module id is not necessarily a valid Mermaid node id (dots, dashes), and a
+    // *quoted* bare id is a syntax error — so declare a sanitised node with the real
+    // id as its label.
+    (x.dependencies ?? []).map((d) => `  ${mermaidNode(d)} --> ${mermaidNode(x.id)}`),
   )
   .join('\n') || '  none[No declared dependencies]'}
 \`\`\`

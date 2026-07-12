@@ -350,7 +350,7 @@ sequenceDiagram
             Q->>DB: failed, error
             Q->>W: media_manager.job.failed
         else PROCESS RESTARTS
-            Note over Q,DB: work is gone; row stays "running"
+            Note over Q,DB: work is gone — the row stays running
             Note over DB: next boot → onModuleInit fails it out
         end
     end
