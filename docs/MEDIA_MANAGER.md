@@ -229,13 +229,14 @@ is required for `official_api`/`hybrid` and is only ever entered in Settings.
 1. **Obtain the datasets.** UltraTorrent recognises IMDb's seven non-commercial
    `.tsv.gz` files (`title.basics`, `title.akas`, `title.crew`, `title.episode`,
    `title.principals`, `title.ratings`, `name.basics`). You can drop them in
-   yourself, or let UltraTorrent **download them for you** from the configured
+   yourself, or let UltraTorrent **fetch them for you** from the configured
    `datasetBaseUrl` (default `https://datasets.imdbws.com/`, subject to IMDb's
-   terms) — that is what **Run import** and the auto-update job do when a file is
-   missing. Only **`title.basics.tsv.gz`** is strictly required (it is the
-   minimum viable input the validator checks for); which of the rest are actually
-   read depends on the import strategy — see
-   [IMDB_IMPORT.md](IMDB_IMPORT.md).
+   terms) — that is what the UI's **Run import** button (`…/dataset/update-now`)
+   and the auto-update job do: download all seven, then import. (`POST
+   …/dataset/import` imports from disk and downloads nothing.) Only
+   **`title.basics.tsv.gz`** is strictly required — it is the minimum viable
+   input the validator checks for; which of the rest are actually read depends on
+   the import strategy — see [IMDB_IMPORT.md](IMDB_IMPORT.md).
 2. **Choose where they live.** A **dataset path** set in Settings must live
    **under one of your `FILE_MANAGER_ROOTS`** — it is canonicalised and confined
    by `FilePathService`, and a path outside the roots is rejected. Leave it unset

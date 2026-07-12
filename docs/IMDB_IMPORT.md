@@ -99,9 +99,12 @@ already-imported titles without re-touching the rest.
 
 ## Running an import
 
-- **Run import** — download the datasets (if missing) then import them; progress
-  streams over WebSocket.
-- **Validate datasets** — check the `.tsv.gz` files are present and well-formed.
+- **Run import** — downloads the dataset files from the configured base URL
+  (overwriting what's there), then imports them; runs detached, with progress
+  streaming over WebSocket. A run in flight can be stopped (cooperative cancel —
+  the import row flips to `cancelled`).
+- **Validate datasets** — check the `.tsv.gz` files are present and well-formed
+  (`title.basics` is the minimum viable input).
 - **Reset & reimport** — wipe all imported IMDb rows and reimport from scratch
   (use after changing the minimum year or strategy).
 
