@@ -5,10 +5,16 @@ import { TorrentsService } from './torrents.service';
 import { TorrentsController } from './torrents.controller';
 import { TorrentSyncService } from './torrent-sync.service';
 import { TorrentParkingService } from './torrent-parking.service';
+import { TorrentNameRepairService } from './torrent-name-repair.service';
 
 @Module({
   imports: [FilesModule, SettingsModule], // FilePathService: validate save/move paths vs roots
-  providers: [TorrentsService, TorrentSyncService, TorrentParkingService],
+  providers: [
+    TorrentsService,
+    TorrentSyncService,
+    TorrentParkingService,
+    TorrentNameRepairService,
+  ],
   controllers: [TorrentsController],
   exports: [TorrentsService, TorrentParkingService],
 })

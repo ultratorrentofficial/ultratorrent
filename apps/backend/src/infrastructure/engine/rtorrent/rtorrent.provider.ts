@@ -587,8 +587,14 @@ export class RTorrentProvider implements TorrentEngineProvider {
   async moveStorage(hash: string, destination: string): Promise<void> {
     await this.transport.call('d.directory.set', [hash, destination]);
   }
-  async renameTorrent(hash: string, name: string): Promise<void> {
-    await this.transport.call('d.custom.set', [hash, 'name', name]);
+  async renameTorrent(): Promise<void> {
+    // rTorrent has no setter for a download's name: `d.name` is derived from the
+    // metadata and is read-only. The previous implementation called
+    // `d.custom.set(hash, 'name', …)`, which writes an arbitrary custom key that
+    // *nothing reads back* — `listTorrents` maps `d.name=` — so the rename
+    // reported success and changed nothing. Fail loudly instead of lying; the
+    // caller (e.g. the placeholder-name repair) then degrades gracefully.
+    throw new Error('rTorrent does not support renaming a torrent');
   }
   async renameFile(): Promise<void> {
     // rTorrent does not expose per-file rename via XML-RPC; surfaced as

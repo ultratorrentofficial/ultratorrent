@@ -8,6 +8,7 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AutomationEngine } from '../automation/automation.module';
 import { NotificationsService } from '../notifications/notifications.module';
 import { MediaProcessingService } from '../media/media-processing.service';
+import { TorrentNameRepairService } from './torrent-name-repair.service';
 
 /**
  * Background synchroniser. On a fixed cadence it pulls live torrent + stats
@@ -30,6 +31,7 @@ export class TorrentSyncService {
     private readonly notifications: NotificationsService,
     private readonly mediaProcessing: MediaProcessingService,
     private readonly eventBus: EventEmitter2,
+    private readonly nameRepair: TorrentNameRepairService,
   ) {}
 
   @Interval(2000)
@@ -68,6 +70,7 @@ export class TorrentSyncService {
 
       await this.detectTransitions(provider.engineId, torrents);
       await this.persistSnapshots(provider.engineId, torrents);
+      await this.nameRepair.repair(provider, torrents);
       this.realtime.broadcast(WS_EVENTS.ENGINE_STATUS, {
         engineId: provider.engineId,
         online: true,
@@ -213,5 +216,17 @@ export class TorrentSyncService {
         }),
       ),
     );
+
+    // Drop snapshots for torrents this engine no longer has. Without this the
+    // table only ever grows: every torrent ever removed from the engine stays
+    // behind forever, and the consumers of these rows (search, and acquisition's
+    // "do we already have this?" dedupe) go on matching torrents that are gone.
+    //
+    // Safe to run with an empty list: `listTorrents()` throwing is handled by the
+    // caller, so reaching here with zero torrents means the engine genuinely has
+    // none, and its snapshots *should* all go.
+    await this.prisma.torrentSnapshot.deleteMany({
+      where: { engineId, hash: { notIn: torrents.map((t) => t.hash) } },
+    });
   }
 }
