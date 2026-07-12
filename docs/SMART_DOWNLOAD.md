@@ -28,6 +28,7 @@ watchlist/profile/approval foundations this builds on.
 - [API](#api)
 - [Data model](#data-model)
 - [Not yet implemented](#not-yet-implemented)
+- [Active indexer search (shipped)](#active-indexer-search-shipped)
 
 ## Decision pipeline
 
@@ -164,7 +165,23 @@ Smart Download is built in phases; these remain:
 - **Automation triggers** — firing workflow triggers (Smart Download Approved/Rejected/
   Upgrade…) into the Automation engine.
 - **User notifications** — per-user notifications on decision events.
-- **Active indexer search** — proactively *searching* for a missing/wanted release
-  (today, gaps are filled only when a release appears via RSS/manual).
 - **`replace_existing`** generation — the decision type exists but `decide()` does not yet
   emit it.
+
+## Active indexer search (shipped)
+
+Gaps are **not** only filled when a release happens to appear via RSS. `MissingEpisodeSearchService`
+searches your indexers for a wanted episode (`indexers.searchAll`), filters the results to the exact
+`SxxEyy`, and hands the candidates to the evaluator, which applies your acquisition profile — so a
+missing episode can be found and grabbed proactively.
+
+Two ways in:
+
+- **On demand** — **Search now** on a missing episode, or **Search all** on a series. Always available.
+- **Scheduled sweep** — `sweep()` walks the wanted list on an interval. It is **opt-in**
+  (`settings.autoSearchMissing`, default **OFF**), so nothing searches behind your back until you
+  turn it on.
+
+Still episode-only: missing *movies* are detected (`WantedMovie`) but nothing sweeps them yet.
+
+See [MISSING_EPISODES.md](MISSING_EPISODES.md) and [INDEXERS.md](INDEXERS.md).
