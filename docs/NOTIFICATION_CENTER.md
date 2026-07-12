@@ -152,6 +152,8 @@ their existing hook points (fully decoupled — no reference to the Center):
 - **Media Manager** — `media.processing_completed` / `processing_failed` /
   `metadata_match_failed` / `renamed` / `missing_artwork` / `missing_subtitles`
   (post-download workflow) and `media.library_scan_completed` (scanner).
+- **Media Acquisition** — `media.missing_episode_filled` (missing-episode search,
+  when an auto-acquired episode is grabbed).
 - **System** — `system.settings_changed` (Setting store), `system.api_key_created`,
   and a new resource monitor (`@Interval system_health_monitor`, edge-fired):
   `system.disk_space_low` / `cpu_high` / `memory_high`.

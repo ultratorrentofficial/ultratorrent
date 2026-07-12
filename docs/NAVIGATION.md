@@ -12,8 +12,10 @@ enablement. The server remains authoritative; UI hiding is a convenience layer.
 - `NAV_GROUPS: NavGroup[]` — the information architecture (groups → items →
   optional nested children). Every `to` maps to a real route in `App.tsx`.
 - `NavGroup` — `{ id, title, icon, items }`.
-- `NavItem` — `{ id, label, icon, to?, action?, children?, permission?, module?,
-  end?, adminOnly?, superAdminOnly?, descriptionKey? }`.
+- `NavItem` — `{ id, label, icon, to?, action?, external?, href?, children?,
+  permission?, module?, end?, adminOnly?, superAdminOnly?, descriptionKey? }`.
+  `external` marks an off-app link (the Prowlarr entry); `href` is its
+  runtime-resolved URL.
 - `visibleGroups(ctx)` — filters the tree for the current user.
 - `flattenForSearch(groups)` — flattens (filtered) groups into command-palette entries.
 - `isItemActive` / `isBranchActive` — query-aware active + branch-active checks.
@@ -32,8 +34,8 @@ translated at render time via the `nav` i18n namespace (`groups`, `items`,
 | **Downloads** | Torrents → `/torrents` (sub-menu: Downloading/Seeding/Completed/Paused/Errors) · Engines → `/engines` · Indexers → `/indexers` |
 | **RSS & Acquisition** | RSS Feeds → `/rss` · Release Scoring → `/release-scoring` · Acquisition Intelligence → `/media-acquisition` (sub-menu: Smart Download, Missing Episodes, Decision Simulator) · **Prowlarr** *(external link — shown only when the [Prowlarr integration](PROWLARR.md) is enabled and the user has `integrations.prowlarr.open`; opens the configured public URL in a new tab)* |
 | **Media Management** | Media Dashboard → `/media` · Media Items → `/media/items` · Libraries → `/media/libraries` · Unmatched Media → `/media/unmatched` · Duplicates → `/media/duplicates` · Rename Engine → `/media/rename-preview` · IMDb Settings → `/media/settings/imdb` · Media Settings → `/media/settings` |
-| **Media Server Analytics** *(module-gated)* | Analytics Dashboard → `/media-server-analytics` · Live Activity → `/live` · Recently Added → `/recently-added` · Watch History → `/watch-history` · Analytics Reports → `/reports` · Newsletters → `/newsletters` · Import Analytics → `/import` · Server Connections → `/connections` |
-| **Automation** | Automation Rules → `/automation` · Notification Center → `/notifications` · Notification Channels → `/notifications/channels` · Notification Rules → `/notifications/rules` · Notification Recipients → `/notifications/recipients` · Delivery History → `/notifications/history` |
+| **Media Server Analytics** *(module-gated)* | Analytics Dashboard → `/media-server-analytics` · Live Activity → `/media-server-analytics/live` · Recently Added → `/media-server-analytics/recently-added` · Watch History → `/media-server-analytics/watch-history` · Analytics Reports → `/media-server-analytics/reports` · Newsletters → `/media-server-analytics/newsletters` · Import Analytics → `/media-server-analytics/import` · Server Connections → `/media-server-analytics/connections` |
+| **Automation** | Automation Rules → `/automation` · Notification Center → `/notifications` · Notification Channels → `/notifications/channels` · Notification Rules → `/notifications/rules` · Notification Templates → `/notifications/templates` · Notification Recipients → `/notifications/recipients` · Recipient Groups → `/notifications/groups` · Delivery History → `/notifications/history` · Queue Monitor → `/notifications/queue` · Provider Health → `/notifications/provider-health` · Notification Preferences → `/notifications/preferences` · Notification Settings → `/notifications/settings` |
 | **Files** | File Manager → `/files` |
 | **Administration** | Users → `/users` · Modules → `/modules` · Settings → `/settings` · Audit Log → `/audit` |
 | **Account** | Profile → `/account` |
@@ -44,14 +46,25 @@ Some finer sub-features live **inside** a page rather than as standalone routes,
 so they appear under their page entry rather than as dead links:
 
 - **Media Settings** hosts Metadata Providers, Artwork preferences, Subtitle
-  preferences, NFO tooling and Media Server Integrations.
-- **Automation Rules** hosts Triggers & Actions and Job History.
-- **File Manager** hosts Root Paths and Trash / Cleanup.
-- **Settings** hosts API Keys, Webhooks, Integrations, Notifications and system
-  health surfaces.
-- **Users** hosts Roles & Permissions; **Profile** hosts Change Password,
-  Two-Factor Authentication and Sessions. **Language** and **Sign out** live in
+  preferences and Media Server Integrations. (**NFO generation** is *not* here —
+  it lives on the media-item detail page, `/media/items/:id`.)
+- **Automation Rules** hosts Triggers & Actions (the rule editor) and Job History
+  (the per-rule logs dialog).
+- **File Manager** hosts Trash and the Cleanup Wizard.
+- **Settings** hosts the **Default Root Path** section (its own validated, audited
+  `PUT /api/files/root` route), the Prowlarr integration card, the Media Server
+  Analytics email + newsletter-image cards, and the generic key/value settings
+  list.
+- **Users** hosts Roles & Permissions (role assignment); **Profile** hosts Change
+  Password and Two-Factor Authentication. **Language** and **Sign out** live in
   the top-bar user menu.
+
+> **No UI, despite a backend:** **API Keys** have a working REST surface
+> (`/api/api-keys`) but **no frontend page or section at all** — and the keys they
+> mint cannot authenticate a request anyway (see
+> [SECURITY.md](SECURITY.md#api-keys-are-not-a-credential-yet)). There is likewise
+> no Webhooks page and no Sessions section on Profile. Do not link to them from
+> the nav until they exist.
 
 When any of these graduates to its own route, add a `NavItem` (ideally a nested
 child under the page's entry) plus its `nav` keys.

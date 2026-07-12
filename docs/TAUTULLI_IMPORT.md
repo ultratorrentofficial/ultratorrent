@@ -57,5 +57,7 @@ Under `/api/media-server-analytics`:
 ## Retirement
 
 After a successful import, UltraTorrent provides unified media acquisition, media
-server analytics, watch history, and (coming) newsletters. UltraTorrent does not
-uninstall or disable Tautulli for you — it simply reports the migration complete.
+server analytics, watch history, and newsletters (scheduled recently-added
+digests — see [MEDIA_SERVER_ANALYTICS.md](MEDIA_SERVER_ANALYTICS.md)).
+UltraTorrent does not uninstall or disable Tautulli for you — it simply reports
+the migration complete.

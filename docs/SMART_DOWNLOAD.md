@@ -11,9 +11,9 @@ It is the evolution of the **Media Acquisition Intelligence** module
 watchlist/profile/approval foundations this builds on.
 
 > **It orchestrates, it does not duplicate.** Smart Download consumes the RSS module's
-> **Smart Match** preference lists (`match-engine.ts` / `buildSmartCandidates`) and the
-> Release Scoring engine as the source of truth — it never re-implements quality
-> preferences. See the RSS Smart Match endpoints in [API.md](API.md).
+> **Smart Match** preference engine (`match-engine.ts` → `evaluatePreferenceList`) and the
+> Release Scoring engine (`scoreRelease`) as the source of truth — it never re-implements
+> quality preferences. See the RSS Smart Match endpoints in [API.md](API.md).
 
 ## Contents
 - [Decision pipeline](#decision-pipeline)
@@ -42,9 +42,15 @@ Candidate → Identify media → Matching preferences → Release score
 
 Each stage is recorded as a `TraceStep`, and the **Decision Simulator** renders them as a
 clickable pipeline. The engine is invoked with a release name (+ optional
-`downloadUrl`, `profileId`, `sizeBytes`, `seeders`) and can be driven from RSS matches,
-manual/API evaluation, and the missing-media scanners; the watchlist item is what marks
-content as *wanted*.
+`downloadUrl`, `profileId`, `sizeBytes`, `seeders`) via `POST /evaluate` (or `POST
+/simulate` for a dry run) — e.g. an RSS item passed in with `sourceType: "rss"`; the
+watchlist item is what marks content as *wanted*.
+
+> **The missing-episode bridge does not run this pipeline.** It selects a release with the
+> ranked **match preferences** (quality + size cap) and grabs it through
+> `AcquisitionEvaluatorService.grabSelected()`, which records the `download` evaluation and
+> runs the executor **without** the scorer/`decide()`. See
+> [Active indexer search](#active-indexer-search-shipped).
 
 ## Decisions
 
@@ -149,12 +155,15 @@ All under `/api/media-acquisition` (see [API.md](API.md) for the full list):
 | `GET /overview` | Dashboard metrics. `media_acquisition.view` |
 | `GET/POST /missing-movies*`, `/missing-movies/:id/ignore\|unignore` | Missing movies. |
 | `GET /missing-episodes/:id/seasons` | Missing-season rollup. |
+| `GET /match-preferences` · `POST/PATCH/DELETE` | The global auto-download match-preference list the missing-episode sweep grabs by. `media_acquisition.view` / `…manage_profiles` |
 
 ## Data model
 
 New tables added by Smart Download (all additive migrations):
 
 - `WantedEpisode` / `WantedMovie` — computed missing-media status per monitored item.
+- `AcquisitionMatchCandidate` — the global ranked auto-download match preferences
+  (mirrors `RssRuleMatchCandidate`: `matchType`, `qualityRules`, `sizeRules`, priority).
 - (existing) `MediaAcquisitionEvaluation` / `MediaAcquisitionAction` carry the decision,
   trace, approval status, and the execution result (`torrentHash`, `removedHash`).
 
@@ -163,8 +172,11 @@ New tables added by Smart Download (all additive migrations):
 Smart Download is built in phases; these remain:
 
 - **Automation triggers** — firing workflow triggers (Smart Download Approved/Rejected/
-  Upgrade…) into the Automation engine.
-- **User notifications** — per-user notifications on decision events.
+  Upgrade…) into the Automation engine. The engine's trigger catalogue still has no
+  acquisition entries; decisions are broadcast over WebSocket only.
+- **User notifications** — per-user notifications on decision events (approval required,
+  skipped, upgrade available). The one exception that *does* ship: a filled gap raises
+  `media.missing_episode_filled` on the Notification Center bus (seeded disabled).
 - **`replace_existing`** generation — the decision type exists but `decide()` does not yet
   emit it.
 
@@ -172,15 +184,21 @@ Smart Download is built in phases; these remain:
 
 Gaps are **not** only filled when a release happens to appear via RSS. `MissingEpisodeSearchService`
 searches your indexers for a wanted episode (`indexers.searchAll`), filters the results to the exact
-`SxxEyy`, and hands the candidates to the evaluator, which applies your acquisition profile — so a
-missing episode can be found and grabbed proactively.
+`SxxEyy`, and picks the winner with the **auto-download match preferences** — the same ranked
+candidate list + `qualityRules` + `sizeRules` model RSS rules use (a show linked to a Show Rule uses
+that rule's list; otherwise the global defaults under **Acquisition Intelligence → Auto-download**).
+So a missing episode can be found and grabbed proactively.
 
 Two ways in:
 
 - **On demand** — **Search now** on a missing episode, or **Search all** on a series. Always available.
-- **Scheduled sweep** — `sweep()` walks the wanted list on an interval. It is **opt-in**
+- **Scheduled sweep** — `sweep()` walks the wanted list on the acquisition scheduler's 15-minute
+  tick (with a per-episode `searchIntervalMinutes` backoff). It is **opt-in**
   (`settings.autoSearchMissing`, default **OFF**), so nothing searches behind your back until you
   turn it on.
+
+The winner is grabbed via `grabSelected()`, so it never lands in the approval queue: the preference
+list *is* the gate, and nothing matching it ⇒ `no_results`.
 
 Still episode-only: missing *movies* are detected (`WantedMovie`) but nothing sweeps them yet.
 

@@ -16,6 +16,9 @@ directly from the NestJS controllers.
 - [RSS — `/api/rss`](#rss--apirss)
 - [Automation — `/api/automation`](#automation--apiautomation)
 - [Notifications — `/api/notifications`](#notifications--apinotifications)
+- [Indexers — `/api/indexers`](#indexers--apiindexers)
+- [Prowlarr integration — `/api/integrations/prowlarr`](#prowlarr-integration--apiintegrationsprowlarr)
+- [Media Server Analytics — `/api/media-server-analytics`](#media-server-analytics--apimedia-server-analytics)
 - [Settings — `/api/settings`](#settings--apisettings)
 - [Account — `/api/account`](#account--apiaccount)
 - [Users & Roles — `/api/users`](#users--roles--apiusers)
@@ -182,9 +185,15 @@ Both return `{ "hash": "<info-hash>" }`.
 | `POST` | `/api/torrents/bulk` | `torrents.view` | `{ hashes: string[], action, engineId? }` |
 
 `action` is one of `start`, `stop`, `pause`, `resume`, `recheck`, `remove`,
-`removeData`. Returns `{ succeeded, failed }` counts. The bulk route is gated only
-by `torrents.view`; the per-hash routes below enforce the action-specific
-permission.
+`removeData`. Returns `{ succeeded, failed }` counts.
+
+The route decorator only declares `torrents.view`, but that is **not** the whole
+gate: `TorrentsService.bulk` then enforces the **same permission as the action's
+dedicated single-torrent route** before executing anything
+(`BULK_ACTION_PERMISSIONS` — `remove` → `torrents.delete`, `removeData` →
+`torrents.delete_data`, `start` → `torrents.start`, …). A caller missing it gets
+`403 Missing permission: <key>` and an audited `torrents.bulk.<action>` failure
+row. A viewer therefore cannot bulk-delete.
 
 ### State transitions & mutations
 
@@ -421,14 +430,13 @@ For a TV rule (`mediaType ∈ tv/anime/episode/series`) whose resolved show is *
 ## Automation — `/api/automation`
 
 `@Controller('automation')` guarded — tag `automation`. Rules are evaluated by
-the `AutomationEngine` against trigger events fired by the sync loop — see
-[ARCHITECTURE.md](ARCHITECTURE.md#real-time-sync-design). Triggers:
-`torrent.completed` (edge-fired once when progress hits 100%) and `ratio.reached`
-(re-checked each poll, edge-fired once when a torrent first satisfies a
-ratio-based condition — pair with a `stop`/`delete` action to cap seeding).
+the `AutomationEngine` against trigger events fired by the sync loop and by the
+media/RSS subsystems — see
+[ARCHITECTURE.md](ARCHITECTURE.md#real-time-sync-design).
 
 | Method | Path | Permission | Body |
 |--------|------|------------|------|
+| `GET`    | `/api/automation/catalog` | `automation.view` | — the authoritative trigger + action catalog |
 | `GET`    | `/api/automation/rules` | `automation.view` | — |
 | `POST`   | `/api/automation/rules` | `automation.manage` | `UpsertRuleDto` |
 | `PATCH`  | `/api/automation/rules/:id` | `automation.manage` | `UpsertRuleDto` |
@@ -441,29 +449,182 @@ ratio-based condition — pair with a `stop`/`delete` action to cap seeding).
 {
   name: string;
   description?: string;
-  trigger: string;                                 // "torrent.completed" | "ratio.reached"
+  trigger: string;                                 // a trigger id — see the catalog
   conditions: { field, op, value }[];              // op: eq|neq|gt|gte|lt|lte|contains|matches
-  actions: { type, params? }[];                    // type: move|pause|stop|delete|delete_with_data|notify|webhook
+  actions: { type, params? }[];                    // an action id — see the catalog
   isEnabled?: boolean;
   priority?: number;                               // higher runs first
 }
 ```
 
+**Triggers and actions.** `trigger` and `action.type` are validated as free
+strings by the DTO; the registered ids live in `AUTOMATION_TRIGGERS` /
+`AUTOMATION_ACTIONS` (`modules/automation/automation.module.ts`) and are served
+by `GET /api/automation/catalog` — treat that route, not this doc, as the source
+of truth. There are **14** triggers in three categories:
+
+- **torrent** — `torrent.completed` (edge-fired once when progress hits 100%) and
+  `ratio.reached` (re-checked each poll, edge-fired once when a torrent first
+  satisfies a ratio-based condition — pair with a `stop`/`delete` action to cap
+  seeding).
+- **media** — `media.detected`, `media.matched`, `media.unmatched`,
+  `media.missing_artwork`, `media.missing_subtitles`, `media.rename_completed`,
+  `media.server_refresh_failed`.
+- **rss** — `rss.rule.created_for_inactive_show`, `rss.show_status.changed`,
+  `rss.show.became_active`, `rss.show.ended`, `rss.show.canceled`.
+
+Actions likewise span torrent (`move`, `pause`, `stop`, `delete`,
+`delete_with_data`, `notify`, `webhook`), notification (`send_notification`),
+media (`rename_for_media`, `media_scan_library`, `media_match`,
+`media_fetch_metadata`, `media_fetch_artwork`, `media_generate_nfo`,
+`media_rename`, `media_move`, `media_notify`, `media_server_refresh`) and rss
+(`refresh_rss_show_status`, `disable_rss_rule`, `convert_rule_to_backfill`,
+`notify_admin`) categories.
+
+> The **Automation Rules UI currently only offers the two torrent triggers**
+> (`torrent.completed`, `ratio.reached`); the remaining triggers and the media/rss
+> actions are reachable over the API but have no picker in the frontend yet.
+
 ---
 
 ## Notifications — `/api/notifications`
 
-`@Controller('notifications')` guarded by `JwtAuthGuard` only (any authenticated
-user) — tag `notifications`.
+Two controllers share the `/api/notifications` prefix.
+
+### In-app inbox
+
+`NotificationsController` (`modules/notifications`), guarded by `JwtAuthGuard`
+only (any authenticated user) — tag `notifications`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET`  | `/api/notifications` | Bearer | The current user's notifications (and broadcasts), newest first, max 100 |
 | `POST` | `/api/notifications/:id/read` | Bearer | Mark a notification read |
 
-Notifications are also pushed in real time over WebSocket (`notification` event)
-and may be fanned out to external channels (webhook, Discord, Slack, Telegram)
-configured under the `notifications.channels` setting.
+These are pushed in real time over WebSocket (the permission-free `notification`
+event, delivered to every authenticated socket).
+
+### Notification Center
+
+`NotificationCenterController` (`modules/notification-center`), guarded by
+`JwtAuthGuard` + `PermissionsGuard`. This is the delivery subsystem — channels,
+recipients, groups, templates, rules, queue and delivery history. Every route
+below is `RequirePermissions`-gated with a `notifications.*` permission.
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET`    | `/api/notifications/dashboard` | `notifications.view` |
+| `GET`    | `/api/notifications/providers` | `notifications.view` |
+| `GET`    | `/api/notifications/channels` · `/channels/:id` | `notifications.view` |
+| `POST`   | `/api/notifications/channels` | `notifications.manage_channels` |
+| `PATCH`  | `/api/notifications/channels/:id` | `notifications.manage_channels` |
+| `DELETE` | `/api/notifications/channels/:id` | `notifications.manage_channels` |
+| `POST`   | `/api/notifications/channels/:id/test` | `notifications.send_test` |
+| `GET`    | `/api/notifications/recipients` | `notifications.view` |
+| `POST`   | `/api/notifications/recipients` | `notifications.manage_recipients` |
+| `PATCH`  | `/api/notifications/recipients/:id` | `notifications.manage_recipients` |
+| `DELETE` | `/api/notifications/recipients/:id` | `notifications.manage_recipients` |
+| `GET`    | `/api/notifications/groups` | `notifications.view` |
+| `POST`   | `/api/notifications/groups` | `notifications.manage_groups` |
+| `DELETE` | `/api/notifications/groups/:id` | `notifications.manage_groups` |
+| `PUT`    | `/api/notifications/groups/:id/members` | `notifications.manage_groups` |
+| `GET`    | `/api/notifications/templates` | `notifications.view` |
+| `POST`   | `/api/notifications/templates` | `notifications.manage_templates` |
+| `PATCH`  | `/api/notifications/templates/:id` | `notifications.manage_templates` |
+| `DELETE` | `/api/notifications/templates/:id` | `notifications.manage_templates` |
+| `POST`   | `/api/notifications/templates/preview` | `notifications.manage_templates` |
+| `GET`    | `/api/notifications/rules` · `/rules/:id` | `notifications.view` |
+| `POST`   | `/api/notifications/rules` | `notifications.manage_rules` |
+| `PATCH`  | `/api/notifications/rules/:id` | `notifications.manage_rules` |
+| `DELETE` | `/api/notifications/rules/:id` | `notifications.manage_rules` |
+| `GET`    | `/api/notifications/history` · `/queue` | `notifications.view_history` |
+| `POST`   | `/api/notifications/history/:id/retry` | `notifications.retry` |
+| `GET`    | `/api/notifications/preferences/:recipientId` | `notifications.view` |
+| `PUT`    | `/api/notifications/preferences` | `notifications.manage_preferences` |
+| `GET`    | `/api/notifications/settings` | `notifications.manage_settings` |
+| `PATCH`  | `/api/notifications/settings` | `notifications.manage_settings` |
+| `POST`   | `/api/notifications/test` | `notifications.send_test` |
+
+Modules stay decoupled from the Center: they publish a `DomainEventEnvelope` onto
+the single internal bus channel (`NOTIFICATION_BUS_CHANNEL`) using a name from
+`NOTIFICATION_EVENTS` (`packages/shared/src/events.ts`), and the Center is the
+sole subscriber — it evaluates rules and fans out to the configured channels.
+
+---
+
+## Indexers — `/api/indexers`
+
+`@Controller('indexers')` (`IndexersController`) guarded by `JwtAuthGuard` +
+`PermissionsGuard`. Torznab/Newznab indexer definitions and active search.
+
+> Indexers are **not** a module-registry module — there is no `indexers` manifest
+> and no module toggle. They are an always-present, purely RBAC-gated subsystem.
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET`    | `/api/indexers` · `/api/indexers/:id` | `indexers.view` |
+| `POST`   | `/api/indexers` | `indexers.manage` |
+| `PATCH`  | `/api/indexers/:id` | `indexers.manage` |
+| `DELETE` | `/api/indexers/:id` | `indexers.manage` |
+| `POST`   | `/api/indexers/:id/test` | `indexers.test` |
+| `GET`    | `/api/indexers/:id/search` | `indexers.test` |
+
+Indexer API keys are AES-256-GCM encrypted at rest and redacted on read — see
+[SECURITY.md](SECURITY.md#secrets-management).
+
+---
+
+## Prowlarr integration — `/api/integrations/prowlarr`
+
+`@Controller('integrations/prowlarr')` (`ProwlarrController`) guarded by
+`JwtAuthGuard` + `PermissionsGuard`. Like Indexers, this is an RBAC-gated
+subsystem rather than a registry module. See [PROWLARR.md](PROWLARR.md).
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET`   | `/api/integrations/prowlarr` | `integrations.prowlarr.view` — settings (API key redacted) |
+| `PATCH` | `/api/integrations/prowlarr` | `integrations.prowlarr.manage` |
+| `POST`  | `/api/integrations/prowlarr/test` | `integrations.prowlarr.test` |
+| `GET`   | `/api/integrations/prowlarr/status` | `integrations.prowlarr.view` — health probe |
+| `POST`  | `/api/integrations/prowlarr/open` | `integrations.prowlarr.open` — resolve the public URL for the nav's external link |
+
+---
+
+## Media Server Analytics — `/api/media-server-analytics`
+
+`@Controller('media-server-analytics')` (`MediaServerAnalyticsController`) guarded
+by `JwtAuthGuard` + `PermissionsGuard`. Plex/Jellyfin/Emby watch analytics: server
+connections, live activity, watch history, reports, importers and newsletters.
+Every route is gated by a `media_server_analytics.*` permission.
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET`  | `/api/media-server-analytics/dashboard` | `media_server_analytics.view` |
+| `GET`  | `/api/media-server-analytics/live` · `/live/:id/artwork` | `media_server_analytics.view_live_activity` |
+| `POST` | `/api/media-server-analytics/live/poll` | `media_server_analytics.manage_connections` |
+| `GET`  | `/api/media-server-analytics/watch-history` | `media_server_analytics.view_history` |
+| `GET`  | `/api/media-server-analytics/reports/{usage,users,libraries,playback,top-media,devices,heatmap,trends,resolutions,library-growth,bandwidth}` | `media_server_analytics.view_reports` |
+| `GET`  | `/api/media-server-analytics/export/watch-history` | `media_server_analytics.export` |
+| `GET`  | `/api/media-server-analytics/meta/libraries` · `/meta/users` | `media_server_analytics.view` |
+| `GET`  | `/api/media-server-analytics/meta/sync-runs` | `media_server_analytics.view_reports` |
+| `POST` | `/api/media-server-analytics/meta/sync` | `media_server_analytics.manage_connections` |
+| `GET`  | `/api/media-server-analytics/users` | `media_server_analytics.view_users` |
+| `GET`  | `/api/media-server-analytics/recently-added` | `media_server_analytics.view` |
+| `GET`·`POST`·`PATCH`·`DELETE` | `/api/media-server-analytics/import-sources[/:id]`, `/:id/test`, `/:id/preview`, `/import-jobs[/:id]` | `media_server_analytics.manage_imports` |
+| `POST` | `/api/media-server-analytics/import-sources/:id/import` | `media_server_analytics.run_imports` |
+| `GET`·`POST`·`PATCH`·`DELETE` | `/api/media-server-analytics/newsletters[/:id]`, `/:id/preview`, `/:id/deliveries` | `media_server_analytics.manage_newsletters` |
+| `POST` | `/api/media-server-analytics/newsletters/:id/test-send` · `/send-now` | `media_server_analytics.send_newsletters` |
+| `GET`·`PATCH` | `/api/media-server-analytics/settings/email` · `/settings/newsletter-images` | `media_server_analytics.manage_settings` |
+| `POST` | `/api/media-server-analytics/settings/email/test` | `media_server_analytics.manage_settings` |
+| `GET`  | `/api/media-server-analytics/connections[/:id]` · `/connections/:id/libraries` | `media_server_analytics.view` |
+| `POST`·`PATCH`·`DELETE` | `/api/media-server-analytics/connections[/:id]`, `/:id/test`, `/:id/sync` | `media_server_analytics.manage_connections` |
+
+**One deliberately public route.** `GET /api/media-server-analytics/nl-image/:id?e=&s=`
+(`NewsletterImageController`) carries **no auth guard** — mail clients and Gmail's
+image proxy cannot send a bearer token. It is instead gated by a per-image,
+HMAC-signed, expiring token (`e`/`s`), serves only a downscaled `MediaArtwork` row
+by id (never an arbitrary file or library path), and returns `404` — not `403` —
+on a bad or expired token so it reveals nothing.
 
 ---
 
@@ -540,6 +701,18 @@ user.
 `POST` returns the **full key exactly once**: `{ prefix, key: "<prefix>.<secret>",
 name }`. Only the Argon2id hash of the secret is stored. `GET` lists keys without
 the secret; `DELETE` revokes (soft, sets `revokedAt`).
+
+> **An API key cannot currently authenticate a request.** These three routes only
+> *mint, list and revoke* key records — nothing consumes them. No guard, Passport
+> strategy or middleware ever reads `ApiKey.keyHash`: the only authentication path
+> is `JwtStrategy`, which extracts a **bearer JWT** and nothing else. Presenting a
+> `ut_….<secret>` key on any endpoint yields `401`.
+>
+> Consequently the stored `scopes` are **never enforced**, and `lastUsedAt` /
+> `expiresAt` are **never written or checked** — `scopes` and `lastUsedAt` are
+> merely echoed back by `GET /api/api-keys`. Treat this module as a
+> not-yet-wired-up placeholder, not as a credential mechanism, and do not model
+> access control around it. All programmatic access must use the JWT flow above.
 
 ---
 
@@ -740,6 +913,9 @@ module is available and access is governed only by RBAC. This reports the single
 | `GET` | `/api/system/ready` | **Public** | — | Readiness: `{ status, database }` (DB ping) |
 | `GET` | `/api/system/version` | **Public** | — | `{ product, version, edition, apiVersion, gitSha, buildTime, node }` — `edition` is `community` |
 | `GET` | `/api/system/health` | Bearer | `system.view` | Detailed: process info, per-engine health, and disk usage for each file-manager root |
+| `GET` | `/api/system/update` | Bearer | `system.view` | Current update status (last check, available version) |
+| `POST` | `/api/system/update/check` | Bearer | `system.view` | Check for an update now |
+| `PATCH` | `/api/system/update/settings` | Bearer | `system.manage` | Update the update-check settings |
 
 The public `live`/`ready` probes are designed for container/orchestrator health
 checks (the backend Docker image probes `/api/system/live`).
@@ -758,22 +934,41 @@ const socket = io('/', { path: '/ws', auth: { token: accessToken } });
 // also accepted: ?token=<accessToken> in the handshake query
 ```
 
-On a valid token the client joins a shared `broadcast` room and a private
-`user:<id>` room; an invalid token disconnects the socket. Events
+On a valid token the socket joins three kinds of room; an invalid token
+disconnects it (`modules/realtime/realtime.gateway.ts`):
+
+- **`authenticated`** — every authenticated socket. Permission-free events (the
+  in-app `notification`) are emitted here.
+- **`user:<id>`** — private, for per-user delivery.
+- **`perm:<key>`** — one room per *view* permission the socket actually holds, out
+  of `torrents.view`, `files.view`, `media_manager.view`,
+  `media_acquisition.view`, `media_server_analytics.view`, `rss.view`,
+  `notifications.view`. A `SUPER_ADMIN` joins all of them.
+
+Every event is routed to exactly one room by its name prefix, so a client never
+receives realtime data it could not read over REST. Events
 (`packages/shared/src/events.ts`):
 
-| Event (`WS_EVENTS`) | Payload | Emitted when |
+| Event (`WS_EVENTS`) | Payload | Room / scope |
 |---------------------|---------|--------------|
-| `torrents:update` (`TORRENTS_UPDATE`) | `{ engineId, torrents: NormalizedTorrent[], at }` | Each sync tick (~2 s) |
-| `stats:update` (`STATS_UPDATE`) | `{ engineId, stats: GlobalStats, at }` | Each sync tick |
-| `engine:status` (`ENGINE_STATUS`) | `{ engineId, online, error, at }` | Each sync tick / on engine failure |
-| `notification` (`NOTIFICATION`) | `{ id, level, title, message, createdAt }` | On dispatch (broadcast or per-user) |
-| `media_manager.job.{started,progress,completed,failed}` | `MediaJobEventPayload` | Media Manager background jobs (scoped to `media_manager.view`) |
-| `imdb.dataset.validate.{started,completed,failed}` | `ImdbEventPayload` | IMDb dataset validation lifecycle (scoped to `media_manager.view`) |
-| `imdb.dataset.import.{progress,completed,failed}` | `ImdbEventPayload` | IMDb dataset import lifecycle + live progress |
-| `imdb.match.completed` | `ImdbEventPayload` | A media item was matched to an IMDb id |
-| `imdb.enrichment.completed` | `ImdbEventPayload` | Cross-provider enrichment (TMDB/OMDb) finished for an IMDb id |
-| `torrent:update` / `system:health` | — | Reserved |
+| `torrents:update` (`TORRENTS_UPDATE`) | `{ engineId, torrents: NormalizedTorrent[], at }` | `torrents.view` — each sync tick (~2 s) |
+| `stats:update` (`STATS_UPDATE`) | `{ engineId, stats: GlobalStats, at }` | `torrents.view` — each sync tick |
+| `engine:status` (`ENGINE_STATUS`) | `{ engineId, online, error, at }` | `torrents.view` — each sync tick / on engine failure |
+| `files.operation.{started,progress,completed,failed}`, `files.cleanup.completed`, `files.trash.updated` | — | `files.view` |
+| `media_manager.job.{started,progress,completed,failed}` | `MediaJobEventPayload` | `media_manager.view` |
+| `imdb.dataset.validate.{started,completed,failed}` | `ImdbEventPayload` | `media_manager.view` |
+| `imdb.dataset.download.{started,progress,completed,failed}` | `ImdbEventPayload` | `media_manager.view` |
+| `imdb.dataset.import.{progress,completed,failed,cancelled}` | `ImdbEventPayload` | `media_manager.view` |
+| `imdb.match.completed` · `imdb.enrichment.completed` | `ImdbEventPayload` | `media_manager.view` |
+| `rss.show_status.{lookup.completed,lookup.failed,changed}`, `rss.rule.created_for_inactive_show`, `rss.show.{became_active,ended,canceled}` | — | `rss.view` |
+| `notification.{sent,failed,retry,rule.triggered}`, `notification.queue.updated`, `notification.provider.{online,offline}` | — | `notifications.view` (Notification Center) |
+| `notification` (`NOTIFICATION`) | `{ id, level, title, message, createdAt }` | **Permission-free** — the `authenticated` room, or `user:<id>` for a targeted notification |
+| `torrent:update` / `system:health` | — | Declared in `WS_EVENTS` but never emitted (reserved) |
+
+Note the two distinct notification families: the dotless `notification` event is
+the in-app inbox item and is *not* permission-scoped, while the dotted
+`notification.*` events are Notification Center delivery telemetry and require
+`notifications.view`.
 
 The `imdb.*` events never carry secrets; `ImdbEventPayload` fields include
 `id`/`itemId`/`imdbId`, `status`, `progress`, `message`, `recordsImported`,
@@ -783,10 +978,19 @@ The `imdb.*` events never carry secrets; `ImdbEventPayload` fields include
 
 ## Not yet exposed
 
-The MVP now exposes the large majority of the data model over HTTP. A few items
-remain modeled in the schema without a dedicated endpoint: **download paths**
-(`DownloadPath`) and **system events** (`SystemEvent`) have no controller yet, and
-**API-key authentication** is issuable/revocable but is not yet accepted as an
-alternative credential on requests (all routes authenticate via JWT). The
-`torrents.rename` permission and the provider's `renameTorrent`/`renameFile`
-capabilities also have no dedicated REST route yet.
+The API now exposes the large majority of the data model over HTTP. A few items
+remain modeled in the schema without a dedicated endpoint:
+
+- **Download paths** (`DownloadPath`) and **system events** (`SystemEvent`) have no
+  controller.
+- **API-key authentication.** Keys are issuable and revocable
+  ([above](#api-keys--apiapi-keys)) but are **not accepted as a credential on any
+  request** — no guard or strategy reads `ApiKey.keyHash`, so `scopes`,
+  `expiresAt` and `lastUsedAt` are inert. Every route authenticates via JWT.
+- **Torrent rename.** The `torrents.rename` permission exists in the catalog (and
+  is granted to `POWER_USER`), but no REST route consumes it. The provider
+  capability is uneven: qBittorrent implements `renameTorrent`/`renameFile`,
+  while **rTorrent throws for both** — `d.name` is derived from the metadata and
+  is read-only, so the provider now fails loudly rather than silently no-op'ing.
+  The only in-tree caller is the internal placeholder-name repair
+  (`TorrentNameRepairService`), which degrades gracefully on that error.

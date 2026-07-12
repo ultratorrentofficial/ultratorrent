@@ -77,13 +77,21 @@ declares how items in it should be organized.
 | `template` | Optional per-library rename template (overrides the preset). |
 | `mode` | Rename mode — `preview`, `rename_in_place`, `rename_move`, `copy`, `hardlink`, or `symlink` (default `hardlink`). |
 | `isEnabled` | Whether the library participates in scans and the post-download workflow. |
-| `scanIntervalMinutes` | Optional periodic re-scan interval. |
+| `scanIntervalMinutes` | Optional periodic re-scan interval. Null/zero = manual scans only. When set, `MediaLibraryScanScheduler` (a 5-minute tick) runs a scan-and-enrich sweep on that cadence: it indexes new files, identifies unmatched items, and fills *missing* metadata/artwork only. A periodic scan never renames or moves files. |
 | `nfoEnabled` | Generate NFO sidecars during the workflow (default off). |
 | `artworkEnabled` | Fetch artwork during the workflow (default on). |
 
 Manage libraries under **Media → Libraries** (`POST/PATCH/DELETE
 /api/media/libraries`, permission `media_manager.manage_libraries`) and trigger a
-scan with `POST /api/media/libraries/:id/scan` (`media_manager.scan`).
+scan with `POST /api/media/libraries/:id/scan` (`media_manager.scan`) — a
+detached job that returns `{ jobId }` immediately and streams progress over
+WebSocket. For an **organize-mode** library (`rename_in_place` / `rename_move`)
+the scan then folds in-place files into `Show/Season NN` and applies junk
+cleanup; it is a no-op for link/preview libraries. That organize pass is also
+available on its own via `POST /api/media/libraries/:id/organize`
+(`media_manager.rename`, `?dryRun=1` to preview the moves/deletes without
+touching disk). The junk-cleanup rules it applies live under
+`GET`/`PATCH /api/media/settings/cleanup`.
 
 ### Secure root-path restriction
 
@@ -107,7 +115,10 @@ directory picker only offers in-root paths.
 
 ## Media identification & matching
 
-Scanning discovers media files and creates a `MediaItem` per title. Each item
+Scanning discovers media files and creates a `MediaItem` per title. The scanner
+parses each path through `parseItemIdentity` (`media-identification.service.ts`)
+as it goes, so a newly-scanned item carries a real title / year / season /
+episode immediately rather than the raw filename. Each item
 carries a `mediaType` — one of `movie`, `tv`, `anime`, `music_video`,
 `documentary`, `other_video` (default `other_video`) — and a `matchStatus`:
 
@@ -215,21 +226,21 @@ is required for `official_api`/`hybrid` and is only ever entered in Settings.
 
 ### Dataset import setup
 
-1. **Obtain the datasets.** Download IMDb's non-commercial datasets from
-   IMDb's official datasets page (`https://datasets.imdbws.com/`), subject to
-   IMDb's terms. Seven `.tsv.gz` files are required:
-   - `title.basics.tsv.gz`
-   - `title.akas.tsv.gz`
-   - `title.crew.tsv.gz`
-   - `title.episode.tsv.gz`
-   - `title.principals.tsv.gz`
-   - `title.ratings.tsv.gz`
-   - `name.basics.tsv.gz`
-2. **Place them under the Default Root Path.** Put all seven files in a folder
-   that lives **under one of your `FILE_MANAGER_ROOTS`** (the Default Root
-   Path). Set that folder as the **dataset path** in Settings. The path is
-   canonicalised and confined by `FilePathService` — a path outside the roots is
-   rejected.
+1. **Obtain the datasets.** UltraTorrent recognises IMDb's seven non-commercial
+   `.tsv.gz` files (`title.basics`, `title.akas`, `title.crew`, `title.episode`,
+   `title.principals`, `title.ratings`, `name.basics`). You can drop them in
+   yourself, or let UltraTorrent **download them for you** from the configured
+   `datasetBaseUrl` (default `https://datasets.imdbws.com/`, subject to IMDb's
+   terms) — that is what **Run import** and the auto-update job do when a file is
+   missing. Only **`title.basics.tsv.gz`** is strictly required (it is the
+   minimum viable input the validator checks for); which of the rest are actually
+   read depends on the import strategy — see
+   [IMDB_IMPORT.md](IMDB_IMPORT.md).
+2. **Choose where they live.** A **dataset path** set in Settings must live
+   **under one of your `FILE_MANAGER_ROOTS`** — it is canonicalised and confined
+   by `FilePathService`, and a path outside the roots is rejected. Leave it unset
+   and the importer falls back to a managed folder under the first storage root
+   (and persists it), so auto-download works out of the box.
 3. **Validate.** Click **Validate** (or `POST
    /api/media/providers/imdb/dataset/validate`). The server checks each file
    exists, is under the root, and is a readable gzip/TSV with the expected
@@ -241,9 +252,22 @@ is required for `official_api`/`hybrid` and is only ever entered in Settings.
    `imdb.dataset.import.completed`. The endpoint returns the import record
    immediately; the job continues in the background.
 
-An optional **import schedule** (`media.imdb.importSchedule`, a cron-style
-string) can be stored to document a periodic refresh cadence; it is **off by
-default** (unset) and there is no scheduled-jobs seed to enable.
+An import in flight can be halted with `POST
+/api/media/providers/imdb/dataset/import/stop`, and `POST
+/api/media/providers/imdb/dataset/reset` wipes the imported IMDb rows so the next
+run reimports from scratch (both `media_manager.imdb.import_dataset`).
+
+### Automatic dataset refresh
+
+Turn on **auto-download** (`media.imdb.autoDownloadEnabled`, **off by default**)
+and the `imdb_dataset_auto_update` job (`ImdbDatasetScheduler`) keeps the
+catalogue fresh: an hourly tick does nothing unless the provider is in `dataset`
+or `hybrid` mode *and* auto-download is on, and it then downloads + imports at
+most once per `media.imdb.autoUpdateIntervalHours` (default **168** = weekly),
+measured from the most recent import. Runs are serialised, and `POST
+/api/media/providers/imdb/dataset/update-now` forces an immediate run. The
+legacy `media.imdb.importSchedule` string is still stored but is not what drives
+the scheduler.
 
 ### Official API setup
 
@@ -281,8 +305,17 @@ Matches and enrichment finish with the `imdb.match.completed` /
 | `mode` | `disabled` / `dataset` / `official_api` / `hybrid` | `disabled` |
 | `apiBaseUrl` | Licensed IMDb REST API base URL | `null` |
 | `apiKey` | Licensed IMDb API key (AES-GCM encrypted, redacted) | `null` |
-| `datasetPath` | Folder of `.tsv.gz` files, **under the Default Root Path** | `null` |
-| `importSchedule` | Optional cron-style refresh cadence (off) | `null` |
+| `datasetPath` | Folder of `.tsv.gz` files, **under the Default Root Path** (unset = managed folder under the first storage root) | `null` |
+| `datasetBaseUrl` | Where dataset files are downloaded from (http(s), SSRF-validated) | `https://datasets.imdbws.com/` |
+| `autoDownloadEnabled` | Run the scheduled download + import job | `false` |
+| `autoUpdateIntervalHours` | Auto-update cadence, in hours (min 1) | `168` |
+| `importStrategy` | `optimized_movies` / `full` — see [IMDB_IMPORT.md](IMDB_IMPORT.md) | `optimized_movies` |
+| `minImportYear` | Optimized import: minimum `startYear` (env `IMDB_MIN_YEAR` overrides the built-in default) | `1970` |
+| `importTvShows` | Optimized import: also keep TV series/mini-series/episodes (+ `title.episode`) | `false` |
+| `importAkas` | Optimized import: also import alternate titles | `true` |
+| `importCrew` | Optimized import: also import `title.crew` | `false` |
+| `importPeople` | Optimized import: also import `name.basics` (large) | `false` |
+| `importSchedule` | Legacy cron-style string; not what drives the scheduler | `null` |
 | `preferredRegion` | Preferred AKA region | `null` |
 | `preferredLanguage` | Preferred AKA language | `null` |
 | `includeAdult` | Include adult titles | `false` |
@@ -456,8 +489,10 @@ Per covering library, per item:
 1. **Scan** (`library_scan` job) → fires `media.detected`.
 2. **Identify** (`media_identification`) → fires `media.matched` or
    `media.unmatched`; unmatched items stop here.
-3. **Rename/move** per `library.mode` → fires `media.rename_completed`.
-4. **Metadata** fetch.
+3. **Metadata** fetch — deliberately **before** the rename, so the new filename
+   can draw on the fullest identity available (episode title, canonical series
+   title, year) rather than whatever the raw filename carried.
+4. **Rename/move** per `library.mode` → fires `media.rename_completed`.
 5. **Artwork** fetch (if `artworkEnabled`) → fires `media.missing_artwork` on gaps.
 6. **Subtitles** scan → fires `media.missing_subtitles` on gaps.
 7. **NFO** generation (if `nfoEnabled`).
@@ -530,7 +565,7 @@ the automation engine's own notification path.
 
 Long-running operations run through an in-process queue that persists each unit
 as a `MediaProcessingJob` (`type` ∈ `library_scan | media_identification |
-metadata_fetch | artwork_fetch | subtitle_scan | rename_preview | rename_execute |
+metadata_fetch | artwork_fetch | subtitle_scan | rename_execute | library_organize |
 nfo_generate | media_server_refresh`; `status` ∈ `queued | running | completed |
 failed`) and streams lifecycle events over the RealtimeGateway:
 
@@ -544,6 +579,13 @@ These events are **permission-scoped**: they are emitted only to the room
 holds `media_manager.view`. The payload (`MediaJobEventPayload` in
 `@ultratorrent/shared`) carries `jobId`, `type`, `status`, `progress`, optional
 `libraryId`/`itemId`/`message`/`result`/`error`, and a timestamp.
+
+**Restart reconciliation.** Job bodies run in-process — they are not durable work
+items a worker picks back up — so any row left `queued`/`running` belongs to a
+process that is already gone (deploy, restart, crash). On boot the queue fails
+those rows out (`error: "Interrupted by a service restart"`,
+`MediaProcessingQueueService.onModuleInit`) instead of letting them sit "running"
+forever. Best-effort: the cleanup never blocks boot.
 
 ---
 
@@ -586,11 +628,14 @@ holds `media_manager.view`. The payload (`MediaJobEventPayload` in
 | `media_manager.imdb.search` | Search the IMDb catalogue. |
 | `media_manager.imdb.match` | Match a media item to an IMDb id. |
 
-Default role grants: Power User holds view through `generate_nfo` (not
-integrations/delete/admin); User and Read-Only hold only `media_manager.view`;
-Administrator and Super Admin hold all. `move_files`, `delete`, and `admin` are
-declared in the catalog and reserved for planned routes — they are not enforced by
-any endpoint yet.
+Default role grants (`ROLE_PERMISSIONS` in `@ultratorrent/shared`): Power User
+holds `view` through `generate_nfo` (including `move_files`) plus all five
+`media_manager.imdb.*` permissions — but not `manage_integrations`, `delete`, or
+`admin`; User holds `media_manager.view` + `imdb.view` + `imdb.search`; Read-Only
+holds only `media_manager.view`; Administrator and Super Admin hold all.
+`move_files`, `delete`, and `admin` are declared in the
+module manifest and reserved for planned routes — they are not enforced by any
+endpoint yet.
 
 ---
 
@@ -607,10 +652,14 @@ All paths are under the global `/api` prefix, `@Controller('media')`, guarded by
 | POST | `/api/media/libraries` | `media_manager.manage_libraries` |
 | PATCH | `/api/media/libraries/:id` | `media_manager.manage_libraries` |
 | DELETE | `/api/media/libraries/:id` | `media_manager.manage_libraries` |
-| POST | `/api/media/libraries/:id/scan` | `media_manager.scan` |
-| GET | `/api/media/items` | `media_manager.view` (`?mediaType`, `?matchStatus`, `?libraryId`) |
+| POST | `/api/media/libraries/:id/scan` | `media_manager.scan` (detached → `{ jobId }`) |
+| POST | `/api/media/libraries/:id/organize` | `media_manager.rename` (`?dryRun=1` previews) |
+| GET | `/api/media/items` | `media_manager.view` (`?mediaType`, `?matchStatus`, `?libraryId`, `?search`, `?page`, `?pageSize`) |
+| GET | `/api/media/series` | `media_manager.view` (paginated TV browser: episodes grouped by show) |
+| GET | `/api/media/series/episodes` | `media_manager.view` (`?key` — one show's episodes, grouped by season) |
 | GET | `/api/media/items/:id` | `media_manager.view` |
 | PATCH | `/api/media/items/:id` | `media_manager.edit_metadata` |
+| POST | `/api/media/items/reidentify` | `media_manager.match` (bulk re-identify) |
 | POST | `/api/media/items/:id/match` | `media_manager.match` |
 | POST | `/api/media/items/:id/unmatch` | `media_manager.match` |
 | POST | `/api/media/items/:id/metadata/fetch` | `media_manager.edit_metadata` |
@@ -618,7 +667,9 @@ All paths are under the global `/api` prefix, `@Controller('media')`, guarded by
 | GET | `/api/media/items/:id/artwork` | `media_manager.view` |
 | POST | `/api/media/items/:id/artwork/select` | `media_manager.manage_artwork` |
 | POST | `/api/media/items/:id/artwork/upload` | `media_manager.manage_artwork` |
+| POST | `/api/media/items/:id/artwork/import` | `media_manager.manage_artwork` (fetch from the provider) |
 | GET | `/api/media/items/:id/artwork/missing` | `media_manager.view` |
+| GET | `/api/media/artwork/:artworkId/image` | `media_manager.view` (streams the local image; `?thumb=1` for a cached WebP thumbnail) |
 | GET | `/api/media/items/:id/subtitles` | `media_manager.view` |
 | POST | `/api/media/items/:id/subtitles/scan` | `media_manager.manage_subtitles` |
 | GET | `/api/media/items/:id/subtitles/missing` | `media_manager.view` (`?preferred`) |
@@ -635,12 +686,18 @@ All paths are under the global `/api` prefix, `@Controller('media')`, guarded by
 | POST | `/api/media/preview` | `media_manager.view` |
 | POST | `/api/media/apply` | `media_manager.rename` |
 | GET | `/api/media/history` | `media_manager.view` |
+| GET | `/api/media/settings/cleanup` | `media_manager.view` (junk-deletion rules) |
+| PATCH | `/api/media/settings/cleanup` | `media_manager.manage_libraries` |
+| POST | `/api/media/providers/tmdb/test` | `settings.manage` |
 | GET | `/api/media/providers/imdb/status` | `media_manager.imdb.view` |
 | GET | `/api/media/providers/imdb/settings` | `media_manager.imdb.view` |
 | PATCH | `/api/media/providers/imdb/settings` | `media_manager.imdb.configure` |
 | POST | `/api/media/providers/imdb/test` | `media_manager.imdb.configure` |
 | POST | `/api/media/providers/imdb/dataset/validate` | `media_manager.imdb.import_dataset` |
 | POST | `/api/media/providers/imdb/dataset/import` | `media_manager.imdb.import_dataset` |
+| POST | `/api/media/providers/imdb/dataset/import/stop` | `media_manager.imdb.import_dataset` |
+| POST | `/api/media/providers/imdb/dataset/update-now` | `media_manager.imdb.import_dataset` (download + import now) |
+| POST | `/api/media/providers/imdb/dataset/reset` | `media_manager.imdb.import_dataset` (wipe imported rows) |
 | GET | `/api/media/providers/imdb/dataset/imports` | `media_manager.imdb.view` |
 | GET | `/api/media/providers/imdb/search` | `media_manager.imdb.search` (`?title`,`?year`,`?type`,`?season`,`?episode`; 30/min) |
 | GET | `/api/media/providers/imdb/title/:imdbId` | `media_manager.imdb.view` |
@@ -670,8 +727,8 @@ Prisma models (`apps/backend/prisma/schema.prisma`):
 | `IMDbTitle` / `IMDbAka` / `IMDbCrew` / `IMDbEpisode` / `IMDbPrincipal` / `IMDbPerson` / `IMDbRating` | Imported IMDb dataset tables (titles, AKAs, crew, episodes, principals, people, ratings). |
 | `IMDbDatasetImport` | An IMDb dataset import job/history record. |
 
-Duplicate groups are formed by reason: `title_year`, `show_season_episode`,
-`external_id`, `file_hash`, or `similar_filename`.
+Duplicate groups are formed by reason: `external_id`, `show_season_episode`,
+`title_year`, or `similar_filename` (the four the detector emits).
 
 ---
 
@@ -689,6 +746,7 @@ All routes are wrapped in `<ModuleRoute moduleId="media_manager">` and gated on
 | `/media/unmatched` | Unmatched items |
 | `/media/duplicates` | Duplicate groups |
 | `/media/rename-preview` | Rename preview / dry-run |
+| `/media/rename` | Rename engine (preview/apply/history, dry-run, jobs, templates) |
 | `/media/settings` | Media settings (incl. TMDB key) |
 | `/media/settings/imdb` | IMDb provider settings (mode, dataset, licensed API, compliance notice) |
 

@@ -15,16 +15,16 @@ MissingEpisodeSearchService
         ▼
   candidate releases ─▶ filter to exact SxxEyy (parseTorrentName)
         │
-        ▼  AcquisitionEvaluatorService.evaluate({ releaseName, downloadUrl, … })
-   quality profile + decision engine
-        ├─ auto-download (profile satisfied, no approval)  ─▶ torrent client
-        └─ hold for approval  ─▶ approval queue
+        ▼  AcquisitionMatchPreferenceService.select() — the ranked match-preference
+        │  list (quality + size cap), the same model RSS rules use
+        ├─ a candidate matches ─▶ AcquisitionEvaluatorService.grabSelected() ─▶ torrent client
+        └─ nothing matches (e.g. all over the size cap) ─▶ no_results
 ```
 
 Two independent halves are wired together here: **detection** (Missing Episodes,
 which enumerates a series' episodes from the local IMDb catalogue and diffs the
-library) and the **download pipeline** (the evaluator/decision-engine/executor
-that scores a release and adds it to the torrent client). The indexer subsystem
+library) and the **download pipeline** (the match-preference selector + executor
+that picks a release and adds it to the torrent client). The indexer subsystem
 is the missing search step between them.
 
 ## Indexers
@@ -75,19 +75,33 @@ the full URL is never logged.
 
 `MissingEpisodeSearchService` searches for `WantedEpisode`s with `status=missing`:
 
-1. For each episode it queries the indexers (`show title` + season + ep),
-   filters candidates to the exact `SxxEyy` via `parseTorrentName`, and picks the
-   best (magnet preferred, then seeders).
-2. It hands the winner to `AcquisitionEvaluatorService.evaluate()` — the *same*
-   pipeline RSS/manual grabs use. The quality profile decides: a satisfied,
-   non-approval decision **auto-downloads**; otherwise it lands in the
-   **approval queue**.
-3. Grab-state is written back onto the `WantedEpisode` (`searchStatus`,
+1. For each episode it queries the indexers (`show title` + season + ep) and
+   filters candidates to the exact `SxxEyy` (plus a loose show-title match) via
+   `parseTorrentName`.
+2. The survivors are gated through the **auto-download match preferences**
+   (`AcquisitionMatchPreferenceService`) — the same ranked candidate list +
+   `qualityRules` + `sizeRules` model RSS rules use. The winner is the one
+   matching the highest-priority candidate, tie-broken by magnet, then seeders.
+   The show's linked **Show Rule** (`rssRuleId`) supplies the list when set;
+   otherwise the **global defaults** apply. A quality profile is **not**
+   consulted here.
+3. The winner is grabbed via `AcquisitionEvaluatorService.grabSelected()`, which
+   records a `download` evaluation + action and runs the Smart Download executor
+   — bypassing the scorer/decision engine, since the preference list already
+   applied quality + size gating. Nothing matching the preferences (e.g.
+   everything over the size cap) ⇒ `no_results`.
+4. The save path is resolved with a layered fallback (linked Show Rule's
+   `savePath` → an RSS rule named after the show → the show's existing library
+   folder → `<TV library>/<Title> (Year)`), so grabbed episodes land beside the
+   show's other files rather than in the engine's default download dir.
+5. Grab-state is written back onto the `WantedEpisode` (`searchStatus`,
    `grabbedAt`, `grabbedEvaluationId`, `releaseTitle`) and **preserved across
    rescans** (like user `ignored` overrides), so a grabbed/searched episode is
    not re-searched. State drops automatically once the episode is owned.
 
-`searchStatus`: `idle → searching → grabbed | pending_approval | no_results | failed`.
+`searchStatus`: `idle → searching → grabbed | no_results | failed`. (The column
+also still allows `pending_approval` from when the bridge routed through the
+approval queue; the match-preference path never sets it.)
 
 ### Triggers
 - **Scheduled sweep** — runs on the acquisition scheduler tick, **opt-in and OFF
@@ -104,13 +118,17 @@ the full URL is never logged.
 |-----|---------|---------|
 | `autoSearchMissing` | `false` | Enable the scheduled sweep |
 | `searchIntervalMinutes` | `60` | Per-episode re-search backoff |
-| `missingSearchProfileId` | `null` | Quality profile for grabs (else the watchlist item's) |
+| `missingSearchProfileId` | `null` | Legacy — the bridge now selects via match preferences and no longer reads a quality profile |
 | `maxSearchesPerSweep` | `50` | Episodes searched per sweep tick |
 
+Which *release* gets grabbed is configured under **Acquisition Intelligence →
+Auto-download** (the global match-preference list), or by linking the show to an
+RSS rule and using that rule's Match Preferences.
+
 ### Duplicate-grab safeguards (layered)
-`searchStatus` excludes grabbed/pending rows · `lastSearchedAt` backoff · a
-re-entrancy guard on the sweep · cross-indexer dedup in `searchAll` · and the
-evaluator's own **owned** check (it returns `skip` if the library already has it).
+The sweep only considers `status=missing` rows (an owned episode is reclassified
+by the scan) · `searchStatus` excludes already-grabbed rows · `lastSearchedAt`
+backoff · a re-entrancy guard on the sweep · cross-indexer dedup in `searchAll`.
 
 ## UI
 
@@ -119,9 +137,13 @@ evaluator's own **owned** check (it returns `skip` if the library already has it
   and a status badge per indexer. The API-key field is write-only (masked
   `••••••••`); leaving it blank on edit keeps the stored key.
 - **Missing Episodes** page: each missing episode shows a **Search now** button and
-  a `searchStatus` badge (searching / grabbed / awaiting approval / no release /
-  failed); each series has a **Search all** button. Both require
-  `media_acquisition.evaluate`.
+  a `searchStatus` badge (searching / grabbed / no release / failed); each series
+  has a **Search all** button. Both require `media_acquisition.evaluate`.
+- **Acquisition Intelligence → Auto-download** tab (`AutoDownloadPreferencesTab`):
+  the ranked global match-preference list the sweep grabs by (quality + size cap
+  per candidate). Seeded on first boot with *1080p x265 (≤1 GB)* then *720p x265
+  (≤700 MB)*. Editing requires `media_acquisition.manage_profiles`
+  (`/api/media-acquisition/match-preferences`).
 
 ## Notifications & events
 A successful grab emits `media.missing_episode_filled` on the Notification Center

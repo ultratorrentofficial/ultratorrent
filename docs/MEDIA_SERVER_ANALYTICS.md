@@ -32,7 +32,10 @@ gracefully per server.
 
 Tautulli is **not** a media server — it is a historical analytics/newsletter
 **import** source, behind a separate `MediaAnalyticsImportProvider` abstraction.
-See [TAUTULLI_IMPORT.md](TAUTULLI_IMPORT.md). *(Import lands in a later phase.)*
+**Watch-history import has shipped** (import sources, test, preview, and a
+background import job under `/import-sources` + `/import-jobs`); users,
+libraries, statistics and newsletter import are still to come. See
+[TAUTULLI_IMPORT.md](TAUTULLI_IMPORT.md).
 
 ## Multi-server
 
@@ -43,28 +46,44 @@ reusing the `MediaServerIntegration` model (extended with the analytics fields).
 Secrets are AES-256-GCM encrypted at rest (`SecretCipher`) and redacted from API
 responses.
 
-## API (Phase 1)
+## API
 
 Under `/api/media-server-analytics`:
 
 | Method + path | Permission | Purpose |
 |---|---|---|
 | `GET /dashboard` | `media_server_analytics.view` | Server counts + health + connection summaries. |
-| `GET /connections` | `media_server_analytics.view` | List connections (secrets redacted). |
+| `GET /connections` · `GET /connections/:id` | `media_server_analytics.view` | List/read connections (secrets redacted). |
 | `POST /connections` · `PATCH /connections/:id` · `DELETE /connections/:id` | `…manage_connections` | Connection CRUD. |
 | `POST /connections/:id/test` | `…manage_connections` | Probe + persist health (status/version/platform/capabilities). |
 | `POST /connections/:id/sync` | `…manage_connections` | Trigger a library refresh. |
 | `GET /connections/:id/libraries` | `media_server_analytics.view` | List a server's libraries (capability-aware). |
 | `GET /live` | `…view_live_activity` | Current now-playing sessions. |
-| `POST /live/poll` | `…manage_connections` | Reconcile sessions now (also polled every 30s). |
+| `GET /live/:id/artwork` | `…view_live_activity` | Proxy a session's poster. |
+| `POST /live/poll` | `…manage_connections` | Reconcile sessions now (also polled every 15s). |
 | `GET /watch-history` | `…view_history` | Completed playback. |
-| `GET /reports/usage` · `/reports/users` · `/reports/libraries` · `/reports/playback` | `…view_reports` | Analytics aggregations. |
+| `GET /reports/usage` · `/users` · `/libraries` · `/playback` · `/top-media` · `/devices` · `/heatmap` · `/trends` · `/resolutions` · `/library-growth` · `/bandwidth` | `…view_reports` | Analytics aggregations. |
+| `GET /export/watch-history` | `…export` | Export watch history. |
+| `GET /meta/libraries` · `/meta/users` | `media_server_analytics.view` | Synced library/user entities (dashboard filters). |
+| `GET /meta/sync-runs` | `…view_reports` | Metadata-sync run history. |
+| `POST /meta/sync` | `…manage_connections` | Run the metadata sync now (also hourly). |
 | `GET /users` | `…view_users` | Per-user activity. |
 | `GET /recently-added` | `media_server_analytics.view` | Newest library media (from Media Manager). |
+| `GET/POST /import-sources` · `GET/PATCH/DELETE /import-sources/:id` · `POST /import-sources/:id/test` · `/preview` | `…manage_imports` | Tautulli import sources ([TAUTULLI_IMPORT.md](TAUTULLI_IMPORT.md)). |
+| `POST /import-sources/:id/import` | `…run_imports` | Start an import. |
+| `GET /import-jobs` · `/import-jobs/:id` | `…manage_imports` | Import job history + progress. |
+| `GET/POST /newsletters` · `GET/PATCH/DELETE /newsletters/:id` · `POST /newsletters/:id/preview` · `GET /newsletters/:id/deliveries` | `…manage_newsletters` | Newsletter campaigns + delivery tracking. |
+| `POST /newsletters/:id/test-send` · `/send-now` | `…send_newsletters` | Send a test / send now. |
+| `GET/PATCH /settings/email` · `POST /settings/email/test` | `…manage_settings` | SMTP config (password encrypted). |
+| `GET/PATCH /settings/newsletter-images` | `…manage_settings` | Poster-hosting mode (see below). |
+
+`GET /api/media-server-analytics/nl-image/:artworkId` is the one **unguarded**
+route (a separate `NewsletterImageController`) — mail clients can't send a bearer
+token, so access is gated by an HMAC-signed, expiring token instead.
 
 ## Live Activity & Watch History
 
-A poller (`media_server_session_poll`, every 30s, active only when the module is
+A poller (`media_server_session_poll`, every 15s, active only when the module is
 enabled and connections exist) fetches now-playing sessions from each server
 (`getSessions` — Plex `/status/sessions`, Jellyfin/Emby `/Sessions`; Kodi is
 unsupported and skipped) and reconciles them into `MediaServerSession` rows. When
@@ -72,10 +91,26 @@ a session disappears it is written to `MediaServerWatchHistory` (with
 `watchedSeconds`), and `media_server.session.started/updated/ended` events fire.
 This is the media-server-native watch-history source; Tautulli import is the other.
 
+The poller also publishes onto the Notification Center's event bus
+(`media_server.user_started_watching` / `user_finished_watching` /
+`transcode_detected`), as does the newsletter dispatcher
+(`newsletter_sent` / `newsletter_failed`) — see
+[NOTIFICATION_CENTER.md](NOTIFICATION_CENTER.md).
+
+## Metadata sync
+
+A second job (`media_server_metadata_sync`, hourly and on demand via `POST
+/meta/sync`) normalizes provider metadata into queryable entities so the
+dashboard filters are backed by real rows: **libraries** are pulled from each
+connection's provider (capability-aware) into `MediaServerLibrary`, and **users**
+are derived from durable watch history into `MediaServerUser` (provider-agnostic,
+so Tautulli-imported history with no live connection still yields users). Every
+run is recorded as a `MediaProviderSyncRun`; one bad server never aborts the sweep.
+
 ## Permissions
 
 `media_server_analytics.` + `view`, `manage_connections`, `manage_mappings`,
-`view_live_activity`, `view_users`, `view_history`, `view_reports`,
+`view_live_activity`, `view_users`, `view_history`, `view_reports`, `export`,
 `manage_newsletters`, `send_newsletters`, `manage_imports`, `run_imports`,
 `manage_settings`, `admin`. Enforced server-side (`@RequirePermissions`) and
 frontend-side (nav/route gating). Auto-synced to the `Permission` table at boot.
@@ -160,4 +195,9 @@ connection management, and Dashboard + Connections pages. Later phases:
   + a background import job with preview, duplicate-safe streaming, and progress.
   See [TAUTULLI_IMPORT.md](TAUTULLI_IMPORT.md). Users/libraries/statistics/
   newsletter import, mapping, and incremental sync remain.
-- **Automation triggers/actions**, notifications, and the remaining UI pages.
+- ~~Notifications~~ ✅ — the session poller and newsletter dispatcher publish
+  `media_server.*` events onto the Notification Center bus.
+- ~~UI pages~~ ✅ — Dashboard, Connections, Live Activity, Watch History,
+  Recently Added, Reports, Import, Newsletters.
+- **Automation triggers/actions** — still to come: the automation catalog
+  registers no `media_server.*` trigger or action yet.

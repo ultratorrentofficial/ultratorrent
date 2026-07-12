@@ -75,15 +75,24 @@ docker compose exec backend npx prisma db seed
 Then add the engine (see [Connecting an rTorrent engine](#connecting-an-rtorrent-engine)).
 
 > **Optional: Prowlarr indexer manager.** Add `--profile prowlarr` to the start
-> command to also run a bundled [Prowlarr](docs/PROWLARR.md) companion container
+> command to also run a bundled [Prowlarr](PROWLARR.md) companion container
 > (`http://<host>:9696`), then link it in UltraTorrent under **Settings →
 > Integrations → Prowlarr**. It is entirely optional and off by default.
+
+> **Optional: bundled qBittorrent engine.** `--profile qbittorrent` starts a
+> qBittorrent container instead of (or alongside) rTorrent — the sturdier choice
+> for a large library. Its Web UI is published on `${QBITTORRENT_PORT:-8081}`;
+> register it under **Infrastructure → Engines** (kind qBittorrent, base URL
+> `http://qbittorrent:8080`). See [DOCKER.md](DOCKER.md#optional-profiles).
 
 > The frontend (port **8080**) internally proxies `/api` and `/ws` to the
 > backend, so **8080 is the only port published to the host**. If 8080 is
 > already in use, set `FRONTEND_PORT=<free port>` in `.env`. The backend is
 > **not** published to the host (nothing external needs it); add a `ports`
 > mapping to `docker-compose.yml` only if you want direct API access.
+
+> **The full manual ships inside the app.** Once it's running, browse it offline
+> at `http://<host>:8080/docs/` — it matches the exact version you installed.
 
 ### Linux PC (Docker)
 

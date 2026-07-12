@@ -3,8 +3,8 @@
 UltraTorrent can tell you which episodes of a TV series you **don't** have yet, by
 diffing the local IMDb episode catalogue against your media library — a Sonarr-style
 "missing episodes" view. It **detects the gaps and can acquire them**: the wanted list
-feeds an indexer sweep that searches, scores, and grabs releases automatically. See
-[INDEXERS.md](INDEXERS.md) for the auto-acquisition bridge.
+feeds an indexer sweep that searches, ranks candidates against your match preferences, and
+grabs the winner. See [INDEXERS.md](INDEXERS.md) for the auto-acquisition bridge.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for where this sits in the Media Acquisition
 module, and [IMDB_IMPORT.md](IMDB_IMPORT.md) for the episode data it relies on.
@@ -83,11 +83,20 @@ All under `/api/media-acquisition`:
 | `GET  /missing-episodes/:watchlistItemId` | `media_acquisition.view` | Episode grid for one series. |
 | `POST /missing-episodes/scan` | `media_acquisition.manage_watchlist` | `{ watchlistItemId? }` — scan one series, or all if omitted. |
 | `POST /missing-episodes/:id/ignore` · `/unignore` | `media_acquisition.manage_watchlist` | Toggle an episode's ignore state. |
+| `POST /missing-episodes/:id/search` | `media_acquisition.evaluate` | Search indexers for one episode now. |
+| `POST /missing-episodes/series/:watchlistItemId/search` | `media_acquisition.evaluate` | Search every missing episode of a series. |
+| `GET  /missing-episodes/:watchlistItemId/seasons` | `media_acquisition.view` | Per-season rollup of the episode gaps. |
 
 ## Shipped since this doc was first written
 
-- **Auto-acquisition.** The wanted list *is* fed into the acquisition pipeline: a periodic
-  sweep searches the configured indexers for each wanted episode, scores the candidates, and
-  grabs the best one. See [INDEXERS.md](INDEXERS.md).
-- **Active search.** `MissingEpisodeSearchService` searches indexers for a named episode.
-- **Scheduled rescans.** The sweep runs on an interval; scanning is no longer manual-only.
+- **Auto-acquisition.** The wanted list *is* fed into the acquisition pipeline: a sweep
+  searches the configured indexers for each wanted episode, ranks the candidates against
+  your auto-download **match preferences** (quality + size cap), and grabs the winner.
+  See [INDEXERS.md](INDEXERS.md).
+- **Active search.** `MissingEpisodeSearchService` searches indexers for a named episode —
+  on demand (**Search now** / **Search all**) or on the scheduled sweep, which is **opt-in**
+  (`autoSearchMissing`, default OFF) and runs on the acquisition scheduler's 15-minute tick.
+
+**Still manual:** the *scan* itself (the catalogue↔library diff) has no scheduler — nothing
+rescans on an interval or on library change. Use **Scan** / **Scan all** to refresh the
+wanted list; only the *search* half is automated.

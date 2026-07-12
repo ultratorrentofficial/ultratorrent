@@ -39,7 +39,27 @@ Per-workspace scripts:
 > @ultratorrent/shared`) or rebuild so the backend/frontend pick up changes.
 
 Swagger lives at `http://localhost:4000/api/docs` for poking at endpoints while
-developing.
+developing. It is **disabled when `NODE_ENV=production`** (`bootstrap.ts`), so it
+is a dev-only tool.
+
+### Documentation site
+
+The Docusaurus site lives in `website/` — a separate package with its own
+lockfile (`npm ci --prefix website` once), not an npm workspace:
+
+| Command | Effect |
+|---------|--------|
+| `npm run docs:dev` | generate the reference, then hot-reloading dev server on `:3000` |
+| `npm run docs:build` | production build → `website/build` |
+| `npm run docs:serve` | serve the built site |
+
+The reference pages (endpoints, permissions, modules, env vars, schema) are
+**generated** from the real sources by `npm run gen`, which `docs:dev` and
+`docs:build` run first — so changing a controller, a manifest, `schema.prisma` or
+`.env.example` changes the docs. The generator reads the compiled shared package,
+so build `@ultratorrent/shared` first. The site ships inside the frontend image at
+`/docs` and is published to GitHub Pages by `.github/workflows/docs.yml` (broken
+links fail the build). See [BUILD.md](BUILD.md#documentation-site).
 
 ## Monorepo layout
 
@@ -47,6 +67,7 @@ developing.
 apps/backend     @ultratorrent/backend   NestJS API (Clean Architecture layers)
 apps/frontend    @ultratorrent/frontend  React + Vite SPA
 packages/shared  @ultratorrent/shared    types, permission catalog, WS events (used by both)
+website/         Docusaurus docs site — its own package, NOT an npm workspace
 ```
 
 Inside `apps/backend/src`, code is organized by Clean Architecture layer:
@@ -67,9 +88,14 @@ the lingua franca across the whole stack.
 ## Adding a new TorrentEngineProvider
 
 This is the headline extension point. Because every part of UltraTorrent talks to
-engines **only** through the `TorrentEngineProvider` interface, adding qBittorrent,
-Transmission, or Deluge touches just two files — and **no** controllers, services,
-DTOs, or UI.
+engines **only** through the `TorrentEngineProvider` interface, adding an engine
+touches just two files — and **no** controllers, services, DTOs, or UI.
+
+**rTorrent and qBittorrent already ship** (`src/infrastructure/engine/rtorrent/`
+and `src/infrastructure/engine/qbittorrent/`). `EngineKind` also declares
+`transmission` and `deluge`, which the factory currently rejects as "planned but
+not yet implemented" — those are the open slots, and the walkthrough below uses
+Transmission as its example.
 
 ### 1. Implement the interface
 
@@ -85,8 +111,8 @@ import {
   TorrentEngineProvider,
 } from '../../../domain/engine/torrent-engine-provider.interface';
 
-export class QbittorrentProvider implements TorrentEngineProvider {
-  readonly kind: EngineKind = 'qbittorrent';
+export class TransmissionProvider implements TorrentEngineProvider {
+  readonly kind: EngineKind = 'transmission';
   readonly engineId: string;
 
   constructor(cfg: EngineConnectionConfig) {
@@ -112,20 +138,21 @@ export class QbittorrentProvider implements TorrentEngineProvider {
 engine-specific field escape the provider. Capabilities the engine genuinely
 cannot support should `throw` a clear "not supported" error (as
 `RTorrentProvider.renameFile` does), so the application layer can degrade
-gracefully. Use `RTorrentProvider` as the reference implementation.
+gracefully. Use `RTorrentProvider` (SCGI/XML-RPC) or `QbittorrentProvider` (HTTP
+Web API) as the reference implementation — whichever transport is closer to yours.
 
 ### 2. Register it in the factory
 
 Add a `case` to `EngineProviderFactory`
-(`src/infrastructure/engine/engine-provider.factory.ts`):
+(`src/infrastructure/engine/engine-provider.factory.ts`) — today it looks like:
 
 ```ts
 switch (config.kind) {
   case 'rtorrent':
     return new RTorrentProvider(config);
   case 'qbittorrent':
-    return new QbittorrentProvider(config);   // ← new
-  case 'transmission':
+    return new QbittorrentProvider(config);
+  case 'transmission':                          // ← replace with your provider
   case 'deluge':
     throw new Error(`Engine "${config.kind}" is planned but not yet implemented`);
   default:

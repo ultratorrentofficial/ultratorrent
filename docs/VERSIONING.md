@@ -90,7 +90,7 @@ Authoring a changeset does **not** bump anything; changesets pile up, one per
 shipped task, and are consumed only when a release is cut. Nothing
 auto-releases — it is always an explicit operator action.
 
-### The step (run on `master`, tree clean)
+### The step (run on `main`, tree clean)
 
 1. **Plan (read-only).** Prints pending changesets, the bump level, and
    `current → next`. Writes nothing:
@@ -124,4 +124,5 @@ auto-releases — it is always an explicit operator action.
 
 > **No npm publish.** Packages are `private` and there is no registry step —
 > "release" here means *bump + changelog + sync + commit + tag*, distributed by
-> the dev → `master` → customer `git pull` flow.
+> the dev → `main` → operator `git pull` flow. `release:apply` commits, tags
+> `vX.Y.Z`, and pushes **the current branch** plus the tag to `origin`.

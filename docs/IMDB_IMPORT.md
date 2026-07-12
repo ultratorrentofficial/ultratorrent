@@ -6,8 +6,8 @@ datasets** (the `.tsv.gz` files distributed at `datasets.imdbws.com`). It does
 compliance boundary.
 
 By default UltraTorrent runs the **Optimized Movie Import** strategy
-(`imdb_import_strategy = optimized_movies`) instead of blindly importing every
-dataset. This page explains what it imports, why, and how to change it.
+(`media.imdb.importStrategy = optimized_movies`) instead of blindly importing
+every dataset. This page explains what it imports, why, and how to change it.
 
 ## Why an optimized subset?
 
@@ -112,9 +112,26 @@ batches, **idempotent** (safe to re-run — natural-key dedup per table), and
 `skippedMinYear`, `skippedParentMissing`, `errors`, `durationMs`) are persisted
 on each import record.
 
+Imports can also run **unattended**: enable auto-download and the hourly
+`imdb_dataset_auto_update` job downloads + imports the datasets on your configured
+cadence (see [MEDIA_MANAGER.md](MEDIA_MANAGER.md) → Automatic dataset refresh).
+
+### Search indexes
+
+Case-insensitive title lookups compile to `ILIKE`, which no btree index can
+serve — on a multi-million-row catalogue that turns every lookup into a full
+table scan. So `ImdbTrigramIndexService` builds GIN `pg_trgm` indexes on
+`imdb_titles.primaryTitle`, `imdb_titles.originalTitle`, and `imdb_akas.title`
+**at boot, with `CREATE INDEX CONCURRENTLY`, off the boot path** (it cannot live
+in a Prisma migration — `CONCURRENTLY` can't run in a transaction, and a killed
+build would fail the migration and block startup). The app serves normally while
+they build; the step is idempotent, self-heals an interrupted (`INVALID`) index
+by dropping and rebuilding it, and is best-effort — a missing index costs speed,
+never correctness.
+
 ## Full import
 
-Setting the strategy to **Full import** (`imdb_import_strategy = full`) restores
+Setting the strategy to **Full import** (`media.imdb.importStrategy = full`) restores
 the legacy behaviour: every present dataset file is imported as-is, including
 `title.principals` and `title.episode`. This is available for operators who want
 the complete mirror; expect a much larger database and longer import time.

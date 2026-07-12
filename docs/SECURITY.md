@@ -63,6 +63,28 @@ login ──► access JWT (15m)            refresh ──► rotate (revoke old
 > built-in development defaults are insecure and must be overridden in any shared
 > deployment.
 
+### API keys are not a credential (yet)
+
+**A JWT bearer token is the *only* way to authenticate a request.** UltraTorrent
+ships an API-key surface — an `api_keys` table, DTOs, and
+`GET`/`POST`/`DELETE /api/api-keys` — but it is **not wired into authentication**:
+
+- No guard, Passport strategy or middleware ever reads `ApiKey.keyHash`. The sole
+  strategy is `JwtStrategy`, which extracts a bearer JWT
+  (`ExtractJwt.fromAuthHeaderAsBearerToken()`) and nothing else. Presenting a
+  minted `ut_….<secret>` key on any endpoint yields `401`.
+- Because nothing authenticates with a key, the stored **`scopes` are never
+  enforced**, and **`expiresAt` and `lastUsedAt` are never written or checked** —
+  an "expired" or "revoked" key is not rejected on any request path, because no
+  request path consults keys at all.
+
+The minting side is nonetheless done safely (the secret is shown exactly once and
+only its Argon2id hash is persisted), so the feature is inert rather than
+insecure. But **do not build an access-control story on API keys**: they grant
+nothing today. If you need machine access, use the JWT login/refresh flow and
+treat the resulting tokens as secrets. Wiring keys into a real guard — including
+scope enforcement, expiry and revocation checks — remains outstanding work.
+
 ## Two-factor authentication (2FA)
 
 UltraTorrent supports **TOTP** (time-based one-time passwords, RFC 6238) as an
@@ -116,6 +138,9 @@ the only access-control mechanism.
 
 ### Permission catalog
 
+The catalog holds **116** keys across 22 groups. The core groups are enumerated
+below; the feature-module groups are summarised after the table.
+
 | Group | Permission key | Constant |
 |-------|----------------|----------|
 | **Torrents** | `torrents.view` | `TORRENTS_VIEW` |
@@ -157,9 +182,30 @@ the only access-control mechanism.
 | | `audit.view` | `AUDIT_VIEW` |
 | | `system.view` | `SYSTEM_VIEW` |
 | | `system.manage` | `SYSTEM_MANAGE` |
+| | `settings.manage_root_path` | `SETTINGS_MANAGE_ROOT_PATH` |
 | | `apikeys.manage` | `APIKEYS_MANAGE` |
 | | `engines.manage` | `ENGINES_MANAGE` |
-| | `notifications.manage` | `NOTIFICATIONS_MANAGE` |
+| | `modules.view` / `modules.manage` | `MODULES_VIEW` / `MODULES_MANAGE` |
+| | `notifications.manage` | `NOTIFICATIONS_MANAGE` (legacy umbrella) |
+
+The remaining groups follow the same `<group>.<action>` shape and are declared in
+the same file (several are also declared on their module's manifest and synced
+into the catalog at load):
+
+| Group | Keys |
+|-------|------|
+| `rss.*` | `view`, `manage`, plus `show_status.{lookup,refresh,override}` |
+| `indexers.*` | `view`, `manage`, `test` |
+| `integrations.prowlarr.*` | `view`, `manage`, `test`, `open` |
+| `media_manager.*` | `view`, `manage_libraries`, `scan`, `match`, `edit_metadata`, `manage_artwork`, `manage_subtitles`, `rename`, `move_files`, `generate_nfo`, `manage_integrations`, `delete`, `admin`, plus `imdb.{view,configure,import_dataset,search,match}` |
+| `media_renamer.*` | `view`, `preview`, `execute`, `rollback`, `manage_templates` |
+| `media_acquisition.*` | `view`, `manage_watchlist`, `manage_profiles`, `evaluate`, `approve`, `reject`, `override`, `history`, `settings`, `export` |
+| `release_scoring.*` | `view`, `manage` |
+| `media_server_analytics.*` | `view`, `view_live_activity`, `view_history`, `view_reports`, `view_users`, `export`, `manage_connections`, `manage_imports`, `run_imports`, `manage_newsletters`, `send_newsletters`, `manage_settings` |
+| `notifications.*` (Notification Center) | `view`, `view_history`, `retry`, `send_test`, `manage_channels`, `manage_recipients`, `manage_groups`, `manage_templates`, `manage_rules`, `manage_preferences`, `manage_settings`, `admin` |
+
+`packages/shared/src/permissions.ts` remains the single source of truth — read it,
+not this table, when you need the exact key list.
 
 ### System roles
 
@@ -167,9 +213,14 @@ the only access-control mechanism.
 |------|-------------|
 | `SUPER_ADMIN` | **All** permissions; additionally bypasses granular checks in the guard |
 | `ADMINISTRATOR` | All permissions **except** `system.manage` |
-| `POWER_USER` | All torrent actions + categories/tags + RSS + automation + **all `files.*`** (full file management incl. delete/bulk/cleanup) + `system.view` (no admin/user/role management) |
-| `USER` | View/add torrents, basic state changes (pause/resume/start/stop), categories/tags, `rss.view`, and read-only files (`files.view`/`preview`/`download`) |
-| `READ_ONLY` | `torrents.view`, `rss.view`, `automation.view`, read-only files (`files.view`/`preview`/`download`), `system.view` |
+| `POWER_USER` | Every torrent action **except `torrents.delete_data`** (it can remove a torrent, but not its files on disk) + categories/tags + all `rss.*` + automation + all `indexers.*` + all `integrations.prowlarr.*` + **all `files.*`** (full file management incl. delete/bulk/cleanup) + `system.view` + `media_manager.*` (incl. IMDb, but **not** `delete`/`admin`) + `notifications.view`/`manage_preferences`. No admin/user/role management, no Media Server Analytics, no Media Acquisition, no Release Scoring. |
+| `USER` | View/add torrents, basic state changes (pause/resume/start/stop), categories/tags, `rss.view` + `rss.show_status.lookup`, read-only files (`files.view`/`preview`/`download`), `media_manager.view` + IMDb view/search, `notifications.view`/`manage_preferences` |
+| `READ_ONLY` | `torrents.view`, `rss.view` + `rss.show_status.lookup`, `automation.view`, read-only files (`files.view`/`preview`/`download`), `system.view`, `media_manager.view` |
+
+> `POWER_USER` deliberately withholds `torrents.delete_data`: the destructive
+> delete-with-data path (which shells out on rTorrent) is reserved for
+> administrators. Because `/torrents/bulk` enforces the per-action permission, a
+> `POWER_USER` cannot reach it through the bulk route either.
 
 The exact mappings live in `ROLE_PERMISSIONS` and are applied verbatim by the
 seed. Because the same catalog drives the frontend, the UI can hide actions a
@@ -354,10 +405,16 @@ as their dedicated route** per action (e.g. `removeData` requires
 `torrents.delete_data`), so a viewer cannot trigger destructive operations.
 
 **Realtime (WebSocket).** The `/ws` gateway authenticates the JWT on handshake
-and joins each socket only to `perm:<key>` rooms for the **view permissions it
-holds** (`torrents.view`/`files.view`; SUPER_ADMIN all). Live
-events are emitted only to the matching room, so a user never receives realtime
-data they could not read over REST.
+(an invalid token disconnects the socket) and joins each socket to a `perm:<key>`
+room for **each view permission it actually holds**, out of `torrents.view`,
+`files.view`, `media_manager.view`, `media_acquisition.view`,
+`media_server_analytics.view`, `rss.view` and `notifications.view` (`SUPER_ADMIN`
+joins all). Every event is routed to exactly one room by its name prefix, so a
+user never receives realtime data they could not read over REST. Two rooms are
+*not* permission-scoped: the private `user:<id>` room, and a shared
+`authenticated` room used only for permission-free events (the in-app
+`notification` inbox item) — the dotted `notification.*` Notification Center
+telemetry is scoped to `notifications.view` like everything else.
 
 **Privilege-escalation guards.** Only a SUPER_ADMIN may grant the SUPER_ADMIN
 role, and no user may edit their own roles (`users.manage` alone cannot

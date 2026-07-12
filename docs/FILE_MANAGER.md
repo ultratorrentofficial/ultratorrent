@@ -19,7 +19,9 @@ granular `files.*` RBAC permissions.
 | Properties (size, item count, ext, sha-256) | `GET /api/files/properties` | `files.view` |
 | Preview text (≤ 256 KB) | `GET /api/files/preview` | `files.preview` |
 | Download a file | `GET /api/files/download` | `files.download` |
+| Inspect a path (in-root? exists? readable/writable?) | `GET /api/files/inspect` | `files.view` |
 | Create folder | `POST /api/files/folders` | `files.create_folder` |
+| Ensure a directory exists (recursive, idempotent) | `POST /api/files/ensure-dir` | `files.create_folder` |
 | Rename file/folder | `POST /api/files/rename` | `files.rename` |
 | Move file/folder | `POST /api/files/move` | `files.move` |
 | Copy file/folder (recursive) | `POST /api/files/copy` | `files.copy` |
@@ -117,15 +119,16 @@ The preview returns per-category groups (item count + bytes) and an
 ## Real-time & auditing
 
 Mutating operations broadcast over the `/ws` channel:
-`files.operation.started`, `files.operation.completed`, `files.operation.failed`,
-`files.cleanup.completed`, and `files.trash.updated`. The frontend uses these to
-live-refresh the current listing.
+`files.operation.started`, `files.operation.progress`,
+`files.operation.completed`, `files.operation.failed`, `files.cleanup.completed`,
+and `files.trash.updated`. The frontend uses these to live-refresh the current
+listing.
 
 Every operation writes an audit row (`AuditService`): `file.created_folder`,
 `file.renamed`, `file.moved`, `file.copied`, `file.deleted`,
-`file.cleanup_execute`, `file.restore`, `file.trash_empty`, `file.bulk.<op>`, and
-`file.operation_failed` (with the intended action + error) — including the user,
-source/destination, byte count, and result.
+`file.cleanup_execute`, `file.restore`, `file.trash_empty`, `file.bulk.<op>`,
+`files.ensure_dir`, and `file.operation_failed` (with the intended action +
+error) — including the user, source/destination, byte count, and result.
 
 ---
 

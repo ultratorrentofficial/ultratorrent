@@ -17,13 +17,22 @@ what is active. Access to a module's routes is governed by RBAC.
 
 ## Tiers
 
-| Tier | Meaning |
-|------|---------|
-| `core` | Always available, **cannot be disabled** (auth, RBAC, engine, torrents, RSS, files, settings, audit, media server analytics, notification center, …). |
-| `community` | Bundled optional modules, on by default but **toggleable** by an admin (Media Manager, Release Scoring, Media Acquisition Intelligence, …). |
+There are **23** manifests in `manifests.ts`, split across two tiers:
+
+| Tier | Count | Meaning |
+|------|-------|---------|
+| `core` | 20 | Always available, **cannot be disabled** — auth, RBAC, account, users, engine, dashboard, torrents, search, taxonomy, RSS, automation, files, notifications, API keys, audit, system, settings, module registry, **media server analytics**, **notification center**. |
+| `community` | 3 | Bundled optional modules, on by default but **toggleable** by an admin — **Media Manager**, **Release Scoring**, **Media Acquisition Intelligence**. These three are the *complete* community set. |
 
 Every module is `core` or `community`, and every module is available in the
 single-tier product — there is no licensing, product key, or gated tier.
+
+> **Not every subsystem is a module.** **Indexers** (`/api/indexers`) and the
+> **Prowlarr integration** (`/api/integrations/prowlarr`) ship real controllers and
+> navigation entries but have **no manifest** — they are not in the registry, have
+> no module id, and cannot be enabled or disabled. They are gated purely by RBAC
+> (`indexers.*`, `integrations.prowlarr.*`). Don't look for them in
+> `GET /api/modules`.
 
 ## Manifest format
 
@@ -81,6 +90,10 @@ permission catalog so RBAC can assign them.
     'media_manager.manage_subtitles', 'media_manager.rename', 'media_manager.move_files',
     'media_manager.generate_nfo', 'media_manager.manage_integrations',
     'media_manager.delete', 'media_manager.admin',
+    // IMDb metadata provider (compliant dataset / licensed-API).
+    'media_manager.imdb.view', 'media_manager.imdb.configure',
+    'media_manager.imdb.import_dataset', 'media_manager.imdb.search',
+    'media_manager.imdb.match',
   ],
   menu: [{ label: 'Media', path: '/media', icon: 'Clapperboard', permission: 'media_manager.view' }],
   routes: ['/api/media'],

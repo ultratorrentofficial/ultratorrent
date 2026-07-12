@@ -135,9 +135,9 @@ load-order cycle only).
 | --- | --- |
 | `rss.view` | See feeds/rules; receive `rss.*` WS events. |
 | `rss.manage` | Create/edit/delete feeds and rules. |
-| `rss.show_status.lookup` | Call the lookup endpoints (granted to view-capable roles). |
-| `rss.show_status.refresh` | Trigger a manual status refresh. |
-| `rss.show_status.override` | Save a rule for an inactive show. |
+| `rss.show_status.lookup` | Call the lookup endpoints (granted to view-capable roles). The panel's **Refresh** button just re-runs the lookup, so it needs only this. |
+| `rss.show_status.refresh` | **Reserved** — declared in the module manifest and granted to admin roles, but no endpoint gates on it yet (there is no manual-refresh route; the background refresher is a scheduler job). |
+| `rss.show_status.override` | **Reserved** — same story: declared/granted, but the inactive-show override is currently gated only by `rss.manage` + the explicit `allowInactiveShowMonitoring` confirmation, not by this permission. |
 
 ## Events
 

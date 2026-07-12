@@ -12,8 +12,8 @@ version bump + CHANGELOG entry.
 `VERSION` for the running app):
 
 ```jsonc
-{ "version": "0.11.5",
-  "editions": { "community": "0.11.5", "sdk": "0.11.5" } }
+{ "version": "X.Y.Z",
+  "editions": { "community": "X.Y.Z", "sdk": "X.Y.Z" } }
 ```
 
 - `version` — the one canonical product version. Every workspace `package.json`
@@ -101,9 +101,12 @@ and `latest`-style bare name:
 
 GitHub Actions under `.github/workflows/`:
 
-- **core-ci.yml** (name "CI") — a `build-test` job (install → lint → prisma
-  generate → `test` → `build`) and a `docker` job that builds the backend +
-  frontend images.
+- **core-ci.yml** (name "CI") — a `build-test` job (install → build
+  `@ultratorrent/shared` → lint → prisma generate → `test` → `build`) and a
+  `docker` job that builds the backend + frontend images.
+- **docs.yml** (name "Docs") — builds the `website/` documentation site (broken
+  links fail the build) and publishes it to GitHub Pages on `main`; pull requests
+  build it as a check but never publish.
 - **security.yml** — secret scan, `npm audit`, license report, container scan.
 - **cla.yml** — contributor licence agreement check.
 

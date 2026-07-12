@@ -8,6 +8,7 @@ see [DEVELOPMENT.md](DEVELOPMENT.md).
 - [Branching](#branching)
 - [Conventional commits](#conventional-commits)
 - [Code style](#code-style)
+- [Changesets](#changesets)
 - [Pull request process](#pull-request-process)
 - [Developer Certificate of Origin (DCO)](#developer-certificate-of-origin-dco)
 - [License of contributions](#license-of-contributions)
@@ -88,7 +89,25 @@ e.g. `feat(api)!: …`).
   services, normalized provider data, permissions from the shared catalog, DTO
   validation on all input, and audit logging for destructive actions.
 - Update or add tests for behavior you change.
-- Update relevant docs (`docs/*`, this guide, the `CHANGELOG.md`) in the same PR.
+- Update relevant docs in the same PR (`docs/*`, the `website/` documentation
+  site, this guide). Don't hand-edit `CHANGELOG.md` — it is generated from
+  changesets when a release is cut (see below).
+
+## Changesets
+
+Every user-facing change ships with a **changeset** declaring its SemVer impact.
+Author one and commit it alongside your work:
+
+```bash
+npm run changeset:add -- --level <patch|minor|major> --summary "<concise summary>"
+# or: node ops/scripts/changeset-add.js --level <…> --summary "<…>"
+```
+
+Rubric: **fixed it → patch · added to it → minor · broke/removed it → major.**
+This writes a `.changeset/*.md` that stays pending until a maintainer cuts a
+release, which consumes it into the version bump and the `CHANGELOG.md` entry.
+Docs-only or tooling-only changes need no changeset. See
+[VERSIONING.md](VERSIONING.md).
 
 ## Pull request process
 
@@ -102,11 +121,13 @@ e.g. `feat(api)!: …`).
    - Any **breaking changes** or migration notes.
 4. Keep the PR scoped to one logical change. Large PRs are hard to review — split
    when you can.
-5. Add a `CHANGELOG.md` entry under **Unreleased** following
-   [Keep a Changelog](https://keepachangelog.com/).
+5. Include a [changeset](#changesets) for any user-facing change
+   (`npm run changeset:add -- --level <level> --summary "…"`).
 6. Address review feedback by pushing follow-up commits (we squash on merge, so
    don't worry about a tidy intermediate history).
-7. A maintainer merges once CI is green and the review is approved.
+7. A maintainer merges once CI is green and the review is approved. CI
+   (`.github/workflows/core-ci.yml`) runs lint → prisma generate → tests → build,
+   then builds both Docker images; `docs.yml` builds the documentation site.
 
 ## Developer Certificate of Origin (DCO)
 

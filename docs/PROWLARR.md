@@ -94,7 +94,7 @@ Configured in `.env` (see `.env.example`):
 | `PROWLARR_PORT` | `9696` | Host port the Prowlarr web UI is published on |
 | `PROWLARR_BASE_URL` | `http://prowlarr:9696` | Internal URL default (backend → Prowlarr) |
 | `PROWLARR_PUBLIC_URL` | `http://localhost:9696` | Public URL default (browser → Prowlarr) |
-| `PROWLARR_ENABLED` | `false` | Convenience default; the real toggle is in UltraTorrent settings |
+| `PROWLARR_ENABLED` | `false` | Documentation-only marker — **nothing reads it**; the real toggle is the one in UltraTorrent settings |
 | `PUID` / `PGID` | `1000` | User/group Prowlarr runs as (shared with the bundled rTorrent) |
 | `TZ` | `Etc/UTC` | Timezone for the companion container |
 

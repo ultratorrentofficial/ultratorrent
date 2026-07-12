@@ -1,11 +1,11 @@
 # Docker Deployment
 
 UltraTorrent ships a complete Compose stack: a database, a cache, the API, and
-the web UI — plus optional services (a bundled rTorrent engine, a Prowlarr
-indexer manager, a FlareSolverr Cloudflare solver, and an edge reverse proxy)
-behind Compose **profiles**. The real files at the repo root are
-`docker-compose.yml` (full stack), `docker-compose.dev.yml` (dependencies only),
-`apps/backend/Dockerfile`, `apps/frontend/Dockerfile`,
+the web UI — plus optional services (a bundled rTorrent engine, a bundled
+qBittorrent engine, a Prowlarr indexer manager, a FlareSolverr Cloudflare solver,
+and an edge reverse proxy) behind Compose **profiles**. The real files at the
+repo root are `docker-compose.yml` (full stack), `docker-compose.dev.yml`
+(dependencies only), `apps/backend/Dockerfile`, `apps/frontend/Dockerfile`,
 `apps/frontend/nginx.conf`, `deploy/Caddyfile`, and `.env.example`.
 
 - [Services](#services)
@@ -13,6 +13,7 @@ behind Compose **profiles**. The real files at the repo root are
 - [Environment](#environment)
 - [Volumes & networks](#volumes--networks)
 - [Health checks](#health-checks)
+- [Bundled documentation](#bundled-documentation)
 - [Optional profiles](#optional-profiles)
 - [Development dependencies only](#development-dependencies-only)
 - [Common commands](#common-commands)
@@ -27,11 +28,11 @@ From `docker-compose.yml`:
 |---------|---------------|------|-------|---------|
 | `postgres` | `postgres:17-alpine` | PostgreSQL database | internal | always |
 | `redis` | `redis:7-alpine` (AOF on) | Cache / jobs | internal | always |
-| `backend` | build `apps/backend/Dockerfile` | NestJS API + WebSocket gateway | `4000:4000` | always |
-| `frontend` | build `apps/frontend/Dockerfile` (nginx) | Built React SPA + `/api` & `/ws` proxy | `8080:80` | always |
+| `backend` | build `apps/backend/Dockerfile` | NestJS API + WebSocket gateway | internal (`expose: 4000`) | always |
+| `frontend` | build `apps/frontend/Dockerfile` (unprivileged nginx) | Built React SPA + bundled docs + `/api` & `/ws` proxy | `${FRONTEND_PORT:-8080}:8080` | always |
 | `rtorrent` | built locally from `deploy/rtorrent/` (jesec/rtorrent `v0.9.8-r16` static binary) | Bundled torrent engine exposing SCGI `5000` | internal | `rtorrent` |
 | `qbittorrent` | `lscr.io/linuxserver/qbittorrent:latest` | Bundled torrent engine (Web API) — sturdier than rTorrent at scale | `${QBITTORRENT_PORT:-8081}:8080` | `qbittorrent` |
-| `prowlarr` | `lscr.io/linuxserver/prowlarr:latest` | Optional Prowlarr indexer manager (companion) | `9696:9696` | `prowlarr` |
+| `prowlarr` | `lscr.io/linuxserver/prowlarr:latest` | Optional Prowlarr indexer manager (companion) | `${PROWLARR_PORT:-9696}:9696` | `prowlarr` |
 | `flaresolverr` | `ghcr.io/flaresolverr/flaresolverr:latest` | Optional Cloudflare solver for Prowlarr indexers | internal | `flaresolverr` |
 | `proxy` | `caddy:2-alpine` | Edge reverse proxy / automatic TLS | `80:80`, `443:443` | `proxy` |
 
@@ -40,8 +41,11 @@ All services share an `internal` bridge network. The `backend` waits for
 `backend`.
 
 > The `frontend` nginx config proxies `/api/` and (with WebSocket upgrade)
-> `/ws/` to `http://backend:4000`, so in the default two-port setup the browser
-> talks only to `:8080`.
+> `/ws/` to `http://backend:4000`, so the web UI port is the **only** port
+> published to the host and the browser talks only to it. The frontend image is
+> built on `nginx-unprivileged`, so the container listens on **8080**, not 80;
+> the host port is `FRONTEND_PORT` (default `8080`). The backend is not
+> published — add a `ports` mapping only if you want direct API access.
 
 ## Quick start
 
@@ -51,12 +55,14 @@ docker compose up -d --build
 
 # First boot: the backend image runs `prisma migrate deploy` automatically on
 # start (see its Dockerfile CMD). Seed the database once:
-docker compose exec backend node -e "require('child_process')" >/dev/null 2>&1 || true
 docker compose exec backend npx prisma db seed
 ```
 
-Open `http://localhost:8080` and sign in with the default credentials
-(`admin` / `changeme123!`), then change the password.
+Open `http://localhost:8080` and sign in as `admin` (or your `ADMIN_USERNAME`)
+with the `ADMIN_PASSWORD` you set in `.env`. There is **no** default password:
+Compose refuses to start without `ADMIN_PASSWORD` and `POSTGRES_PASSWORD`, and
+the backend refuses to boot in production without strong, distinct
+`JWT_ACCESS_SECRET` / `ENCRYPTION_KEY`.
 
 > The backend container's `CMD` is `prisma migrate deploy && node dist/main.js`,
 > so migrations apply on every start. Seeding (permissions, roles, admin, default
@@ -71,28 +77,35 @@ The keys the stack actually consumes:
 # Backend
 PORT=4000
 NODE_ENV=production
-CORS_ORIGIN=http://localhost:8080            # comma-separated origins allowed; split in main.ts
+CORS_ORIGIN=http://localhost:8080            # comma-separated origins; split in bootstrap.ts
 
-# Database
+# Docker: host port the web UI is published on (the container listens on 8080)
+FRONTEND_PORT=8080
+
+# Database — REQUIRED. Use an ALPHANUMERIC password: Compose DERIVES DATABASE_URL
+# from POSTGRES_USER/PASSWORD/DB, so a URL-special char (@ : /) would break it.
+# Do NOT set DATABASE_URL for Docker — it is only for manual (non-Docker) installs.
 POSTGRES_USER=ultratorrent
-POSTGRES_PASSWORD=change-me-postgres
-POSTGRES_DB=ultratorrent
-DATABASE_URL=postgresql://ultratorrent:change-me-postgres@postgres:5432/ultratorrent?schema=public
+POSTGRES_PASSWORD=<strong, alphanumeric>     # required — Compose won't start without it
 
 # Redis
 REDIS_HOST=redis
 REDIS_PORT=6379
 
-# Auth secrets — generate with: openssl rand -base64 48
-JWT_ACCESS_SECRET=change-me-access-secret
-JWT_REFRESH_SECRET=change-me-refresh-secret
+# Auth secrets — REQUIRED in production; generate each with: openssl rand -base64 48
+# The backend refuses to boot if these are unset, a known default, or <32 chars.
+JWT_ACCESS_SECRET=<random>
+JWT_REFRESH_SECRET=<random>
 JWT_ACCESS_TTL=15m
 JWT_REFRESH_TTL_DAYS=30
 
-# Bootstrap super admin (used by the seed)
+# Encrypts 2FA (TOTP) secrets at rest — REQUIRED, must DIFFER from JWT_ACCESS_SECRET
+ENCRYPTION_KEY=<random>
+
+# Bootstrap super admin (used by the seed) — ADMIN_PASSWORD is REQUIRED
 ADMIN_USERNAME=admin
 ADMIN_EMAIL=admin@ultratorrent.local
-ADMIN_PASSWORD=changeme123!
+ADMIN_PASSWORD=<your admin login password>
 
 # File manager allow-list (comma-separated absolute roots)
 FILE_MANAGER_ROOTS=/downloads
@@ -103,12 +116,23 @@ FILE_MANAGER_ROOTS=/downloads
 # you use it). Empty = full SSRF protection. See "SSRF & self-hosted indexers".
 SSRF_ALLOW_HOSTS=prowlarr
 
-# Optional Prowlarr companion (profile `prowlarr`) — see docs/PROWLARR.md
+# Optional bundled qBittorrent engine (profile `qbittorrent`) — host port for its
+# Web UI (8080 is the frontend's, so this defaults to 8081)
+QBITTORRENT_PORT=8081
+
+# Optional bundled rTorrent / qBittorrent runtime user (downloads are written as it)
+PUID=1000
+PGID=1000
+
+# Optional Prowlarr companion (profile `prowlarr`) — see PROWLARR.md
 PROWLARR_PORT=9696
 PROWLARR_BASE_URL=http://prowlarr:9696
 PROWLARR_PUBLIC_URL=http://localhost:9696
 TZ=Etc/UTC                                   # timezone for companion containers
 ```
+
+`.env.example` is the source of truth for this list — check it if anything here
+looks out of date.
 
 ### SSRF & self-hosted indexers
 
@@ -136,9 +160,10 @@ The **frontend** image takes its API/WS targets at **build time** via build args
 (`VITE_API_URL=/api`, `VITE_WS_URL=/`); the compose file passes same-origin
 defaults so the SPA uses relative URLs proxied by nginx.
 
-> `DATABASE_URL` must be set (the backend service references `${DATABASE_URL}`
-> with no default). Point its host at the `postgres` service name and reuse the
-> `POSTGRES_*` credentials, as in `.env.example`.
+> **Do not set `DATABASE_URL` for Docker.** The `backend` service *derives* it
+> from `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` against the
+> `postgres` service, so it can't drift from the DB password. `DATABASE_URL` is
+> only for manual (non-Docker) installs — see [INSTALL.md](INSTALL.md).
 
 ## Volumes & networks
 
@@ -146,8 +171,9 @@ defaults so the SPA uses relative URLs proxied by nginx.
 |--------|---------|---------|
 | `postgres_data` | `postgres` | Persistent database |
 | `redis_data` | `redis` | Redis AOF persistence |
-| `downloads` | `backend`, `rtorrent` | Shared download tree — same path in both so engine `savePath`s line up with `FILE_MANAGER_ROOTS`. rTorrent's session/state lives here too at `/downloads/.session` (no separate volume). |
+| `downloads` | `backend`, `rtorrent`, `qbittorrent` | Shared download tree — same path in each so engine `savePath`s line up with `FILE_MANAGER_ROOTS`. rTorrent's session/state lives here too at `/downloads/.session` (no separate volume). |
 | `prowlarr_config` | `prowlarr` | Prowlarr database, indexer definitions & settings |
+| `qbittorrent_config` | `qbittorrent` | qBittorrent config, session & WebUI credentials |
 | `caddy_data` | `proxy` | Caddy certificates / state |
 
 Network: a single `internal` bridge connects every service.
@@ -159,7 +185,26 @@ Network: a single `internal` bridge connects every service.
 - **redis** — `redis-cli ping`.
 - **backend** (in its Dockerfile) — probes
   `http://127.0.0.1:4000/api/system/live` (the public liveness endpoint).
-- **frontend** (in its Dockerfile) — `wget` against `http://127.0.0.1/`.
+- **frontend** (in its Dockerfile) — `wget` against `http://127.0.0.1:8080/`
+  (unprivileged nginx listens on 8080).
+- **rtorrent** (in `docker-compose.yml`) — checks the SCGI control port is
+  listening (`ss -H -ltn 'sport = :5000'`), surfacing a wedged-but-alive
+  rTorrent as `unhealthy`.
+
+## Bundled documentation
+
+The frontend image **bundles this documentation site**, so a self-hosted install
+carries the full manual offline, matching the exact version it runs. The
+`apps/frontend/Dockerfile` has a `docs` stage that builds the Docusaurus site in
+`website/` (English only) with `DOCS_BASE_URL=/docs/`, and the runtime stage
+copies it into nginx's web root. `apps/frontend/nginx.conf` serves it from its
+own `location /docs/` block (so a mistyped docs URL 404s instead of returning the
+SPA shell).
+
+Browse it at `http://localhost:8080/docs/` once the stack is up. Search is a
+build-time index, so it works air-gapped. To work on the docs themselves, see
+[BUILD.md](BUILD.md#documentation-site) — no separate container or profile is
+involved.
 
 ## Optional profiles
 
@@ -199,8 +244,9 @@ docker compose --profile rtorrent --profile prowlarr --profile proxy up -d --bui
 ```
 
 The `deploy/Caddyfile` routes `/api/*` and `/ws/*` to `backend:4000` and
-everything else to `frontend:80`; replace the `:80` site label with your domain
-to get automatic HTTPS via Let's Encrypt.
+everything else to `frontend:8080` (the frontend image runs nginx unprivileged,
+so it listens on 8080 — proxying to `frontend:80` yields a 502); replace the
+`:80` site label with your domain to get automatic HTTPS via Let's Encrypt.
 
 > **Bundled rTorrent — stability at scale.** The bundled engine is rTorrent
 > `0.9.8` (the maintained jesec `v0.9.8-r16` static binary — the newest release;

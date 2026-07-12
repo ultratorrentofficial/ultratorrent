@@ -35,8 +35,12 @@ important? Where should it go? Should it replace/upgrade an existing file? Hold
 for approval? Skip?* — as one of:
 
 ```
-download · skip · hold_for_approval · upgrade_existing · replace_existing · manual_review
+download · skip · wait · hold_for_approval · upgrade_existing · replace_existing · manual_review
 ```
+
+(`wait` — added by [Smart Download](SMART_DOWNLOAD.md#waiting--upgrade-queues) — holds an
+acceptable-but-mediocre release for a better one. `replace_existing` is defined but
+`decide()` never emits it yet.)
 
 ## Boundary — it orchestrates, never replaces
 
@@ -75,7 +79,8 @@ terms, preferred groups, and `qualityRules`/`duplicateRules`/`storageRules`/
 
 `AcquisitionEvaluatorService.evaluate()` gathers signals → runs the **pure**
 `decide()` function → persists an explainable `MediaAcquisitionEvaluation` →
-emits events → routes to the approval queue:
+emits events → routes to the approval queue (or, for an auto decision carrying a
+`downloadUrl`, straight to the executor):
 
 1. parse the release (`parseTorrentName`)
 2. match the watchlist
@@ -87,6 +92,11 @@ emits events → routes to the approval queue:
 8. storage check (scaffold)
 9. final decision + confidence + approval routing
 10. store the trace + emit a WebSocket event
+11. record a `download_torrent` action for a download-intent decision — executed
+    immediately when no approval is required and a `downloadUrl` is present
+
+`POST /simulate` runs steps 1–9 only and returns the same decision + a
+stage-by-stage explanation with **no** persistence, action, or download.
 
 ## Decision rules
 
@@ -118,16 +128,24 @@ Every evaluation stores a step-by-step trace (`trace.steps[]`), e.g.:
 ## Approval queue
 
 Held evaluations (`approvalStatus = pending`) await an operator. **Approve**
-(routes to a pending download recommendation), **Reject** (with a reason), or
-**Override** (force any decision — requires the stronger `override` permission).
+(executes the pending download action through the Smart Download executor),
+**Reject** (with a reason), or **Override** (force any decision — requires the
+stronger `override` permission; a download/upgrade override also executes).
 
 ## No file operations
 
-This module **never** downloads, deletes, moves, or replaces files. A
-`download`/`upgrade` decision (or an approval/override) records a **pending**
-`MediaAcquisitionAction` — a *recommendation*. Actual downloads/renames are
-performed by the appropriate module via permission-gated automation. Replacement
-is only ever recommended, never executed here.
+> **Superseded — kept for the design rationale.** This was the original boundary;
+> `SmartDownloadExecutorService` now executes download actions (see
+> [SMART_DOWNLOAD.md → Execution](SMART_DOWNLOAD.md#execution)).
+
+A `download`/`upgrade` decision (or an approval/override) records a
+`MediaAcquisitionAction`. Historically that action was purely a *recommendation*
+left for permission-gated automation to carry out. Today an auto (non-approval)
+decision with a `downloadUrl` executes inline during `evaluate()`, and a held one
+executes on approve/override — adding the release to the engine and, on an
+upgrade, removing the superseded torrent + data. What the module still **never**
+does directly is rename/move/organise library files; that remains the Media
+Manager's job.
 
 ## API
 
@@ -166,17 +184,17 @@ reject, override, history, export, settings}`.
   complementary: it steers rule creation away from ended/canceled shows (prefer
   backfill/upgrade), reinforcing the same "acquire only what's worth acquiring"
   goal at rule-authoring time.
-- **Automation**: the module emits triggers
-  (`media_acquisition.evaluation_created`, `…approval_required`,
-  `…download_recommended`, `…release_skipped`, `…upgrade_available`) as WebSocket
-  events and exposes the evaluate/approve/reject/download/notify operations as
-  the automation-action surface. Deep wiring into the Core automation engine is
-  a documented extension point.
-- **Visual Rule Builder**: acquisition nodes (Evaluate Acquisition, Check
-  Watchlist Match, Check Library Need, Check Duplicate Risk, Check Upgrade
-  Opportunity, Require/Approve/Reject Acquisition) consume the same evaluator;
-  each provides input/output/config schemas and an explainable trace
-  (contract scaffold).
+- **Automation**: the module broadcasts its decisions as WebSocket events —
+  `media_acquisition.evaluation.created`, `…approval.required`,
+  `…download.recommended`, `…waiting`, `…download.skipped`, plus
+  `…evaluation.approved` / `…evaluation.rejected` — all scoped to
+  `media_acquisition.view` by the realtime gateway. Wiring these into the Core
+  automation engine (as triggers/actions) is **not done yet**: the engine's
+  trigger catalogue carries no acquisition entries.
+- **Visual Rule Builder**: *not implemented.* Acquisition nodes (Evaluate
+  Acquisition, Check Watchlist Match, Check Library Need, Check Duplicate Risk,
+  Check Upgrade Opportunity, Require/Approve/Reject Acquisition) are a **design
+  sketch only** — no such nodes exist in the automation surface today.
 
 See also: [MODULES.md](MODULES.md), [MEDIA_MANAGER.md](MEDIA_MANAGER.md),
 [SECURITY.md](SECURITY.md).

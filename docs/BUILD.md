@@ -10,6 +10,7 @@ build profiles: one `npm run build` builds the whole product.
 - [Database (Prisma)](#database-prisma)
 - [Running in development](#running-in-development)
 - [Testing & linting](#testing--linting)
+- [Documentation site](#documentation-site)
 - [Docker images](#docker-images)
 - [Versioning](#versioning)
 
@@ -21,6 +22,7 @@ build profiles: one `npm run build` builds the whole product.
 apps/backend      NestJS API      (@ultratorrent/backend)
 apps/frontend     React + Vite SPA (@ultratorrent/frontend)
 packages/shared   @ultratorrent/shared — types, permission catalog, event contracts
+website/          Docusaurus documentation site (its own package, not a workspace)
 docs/             documentation
 ops/scripts/      release + version tooling
 ```
@@ -77,6 +79,31 @@ npm run lint           # lint every workspace
 ```
 
 Both fan out across all workspaces (`--if-present`).
+
+## Documentation site
+
+The Docusaurus site in `website/` is a **separate package** (not an npm
+workspace) — it has its own `package.json` and lockfile, so install it once with
+`npm ci --prefix website`. From the repo root:
+
+```bash
+npm run docs:dev       # generate the reference, then serve with hot reload (localhost:3000)
+npm run docs:build     # production build → website/build (English + es-PR)
+npm run docs:serve     # serve the built site locally
+```
+
+Each of these delegates to `website/` (`npm --prefix website start|run build|run
+serve`). `start` and `build` first run `npm run gen`, which **generates** the
+reference section (endpoints, permissions, modules, env vars, database schema)
+from the real sources — so it can't drift from what ships. The generator reads
+the compiled `@ultratorrent/shared`, so run `npm run build --workspace
+@ultratorrent/shared` first in a clean clone.
+
+The site is **built into the frontend image** (the `docs` stage of
+`apps/frontend/Dockerfile`) and served by nginx at `/docs` — see
+[DOCKER.md](DOCKER.md#bundled-documentation). It is also published to GitHub
+Pages by `.github/workflows/docs.yml`; pull requests build it as a check, with
+broken links failing the build.
 
 ## Docker images
 
