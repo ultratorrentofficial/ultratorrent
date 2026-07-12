@@ -176,10 +176,6 @@ Read the graph as a story:
 
 Modules are managed at **Administration → Modules** (`/modules`), which requires `modules.view` to see and `modules.manage` to change.
 
-:::note Screenshot needed
-Capture: **Administration → Modules** — the module grid showing tier badges, enabled/disabled toggles, and dependency chips.
-:::
-
 ![Module registry overview](/img/screenshots/modules-overview.png)
 
 The page lists every module with its tier, state, dependencies, permissions, and health. Core modules render their toggle as locked. A community module whose dependents are still enabled refuses to be disabled, and tells you which module is holding it.

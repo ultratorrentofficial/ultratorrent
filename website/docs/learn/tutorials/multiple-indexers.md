@@ -194,11 +194,6 @@ From inside the backend container, `http://prowlarr:9696` is Prowlarr.
 `http://localhost:9696` is the backend itself. This trips up everyone once.
 :::
 
-:::note Screenshot needed
-The **Indexers** page (`/indexers`) with the Add/Edit indexer dialog open, showing
-the Name, Base URL, masked API key, Categories, Min seeders and Priority fields.
-:::
-
 ![Indexer add dialog with a masked API key](/img/screenshots/indexers-add-dialog.png)
 
 ---
@@ -217,11 +212,6 @@ on the indexer.
 The Torznab client **falls back** to a plain query: `t=search&q="Show SxxEyy"`. It
 still works, just less precisely. That is why `t=caps` is negotiated and cached
 rather than assumed.
-:::
-
-:::note Screenshot needed
-The **Indexers** page (`/indexers`) with several indexers listed, showing their
-status badges after Test, and their priority order.
 :::
 
 ![Indexers page with multiple tested indexers](/img/screenshots/indexers-list.png)
@@ -327,11 +317,6 @@ why the Compose service gives it `shm_size: 256m`, since Docker's default 64 MB
 
 **Expected result:** the previously-failing indexer now returns results in Prowlarr,
 and therefore in UltraTorrent.
-
-:::note Screenshot needed
-Prowlarr's **Indexer Proxies** settings showing a FlareSolverr proxy at
-`http://flaresolverr:8191`, with a Cloudflare-protected indexer tagged to use it.
-:::
 
 ![Prowlarr FlareSolverr proxy configuration](/img/screenshots/indexers-flaresolverr.png)
 

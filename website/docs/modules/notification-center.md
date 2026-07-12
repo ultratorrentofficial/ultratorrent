@@ -180,33 +180,13 @@ Their rules exist and are correct. They will go live the moment those hooks emit
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Automation → Notification Center** — the dashboard showing channel health, recent deliveries, and queue depth.
-:::
-
 ![Notification Center dashboard](/img/screenshots/notification-center-dashboard.png)
-
-:::note Screenshot needed
-Capture: **Automation → Notification Channels** — the channel list with provider badges, health status, and the masked credential fields, with a **Send test** button.
-:::
 
 ![Notification channels](/img/screenshots/notification-center-channels.png)
 
-:::note Screenshot needed
-Capture: **Automation → Notification Rules** — the seeded rule catalog with enable/disable toggles, grouped by category (Media Server / Downloads / RSS / Media Manager / System).
-:::
-
 ![Notification rules](/img/screenshots/notification-center-rules.png)
 
-:::note Screenshot needed
-Capture: a **template preview** — the rich card rendering with a poster, metadata badges, and action buttons, alongside the per-channel bodies.
-:::
-
 ![Template preview](/img/screenshots/notification-center-template.png)
-
-:::note Screenshot needed
-Capture: **Automation → Delivery History** — deliveries with their status chips (sent / delivered / failed / throttled / retrying) and a **Retry** action on a failed one.
-:::
 
 ![Delivery history](/img/screenshots/notification-center-history.png)
 

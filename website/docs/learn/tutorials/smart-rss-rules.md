@@ -108,11 +108,6 @@ interval has elapsed. Setting a feed to 15 minutes does not make it poll every 6
 seconds — it makes it poll every 15 minutes, checked every 60 seconds.
 :::
 
-:::note Screenshot needed
-The **RSS Feeds** page (`/rss`) showing configured feeds with their refresh
-intervals, enabled state, and rules underneath them.
-:::
-
 ![RSS feeds page with feeds and rules](/img/screenshots/rss-feeds.png)
 
 ---
@@ -193,11 +188,6 @@ every future upgrade.
 **Expected result:** the Match Preferences list is ordered exactly the way you would
 choose by hand.
 
-:::note Screenshot needed
-The **RSS rule detail** page (`/rss/rules/:ruleId`) showing the **Smart Match
-Builder** and the ranked **Match Preferences** list, with the candidate editor open.
-:::
-
 ![Smart Match Builder with a ranked preference list](/img/screenshots/rss-smart-match-builder.png)
 
 ---
@@ -262,12 +252,6 @@ persisted, no action is taken, nothing is downloaded.
 **Expected result:** you can predict, with confidence, what the rule will do to any
 given release.
 
-:::note Screenshot needed
-The **Decision Simulator** page (`/media-acquisition/simulator`) showing the
-stage-by-stage trace for a pasted release name, ending in a decision with a reason
-and confidence.
-:::
-
 ![Decision Simulator showing the explainable pipeline](/img/screenshots/rss-decision-simulator.png)
 
 ---
@@ -311,12 +295,6 @@ it now.
 **Expected result:** the Smart Download dashboard's queues (Approved · Pending
 approval · **Waiting** · Pending upgrades · Rejected) reflect decisions you agree
 with.
-
-:::note Screenshot needed
-The **Smart Download** dashboard (`/media-acquisition/dashboard`) showing the widget
-grid — Approved, Pending approval, Waiting, Pending upgrades, Rejected, Missing
-episodes, Missing movies, Watchlist — plus recent decisions.
-:::
 
 ![Smart Download dashboard with decision queues](/img/screenshots/rss-smart-download-dashboard.png)
 

@@ -430,11 +430,6 @@ Then cross-check the role against
 
 ![Security settings screen](/img/screenshots/security-settings.png)
 
-:::note Screenshot needed
-`security-settings.png` — the Users & Roles administration screen showing role
-assignment.
-:::
-
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

@@ -156,21 +156,9 @@ There is very little to configure — Missing Episodes is mostly a consequence o
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **RSS & Acquisition → Acquisition Intelligence → Missing Episodes** — the per-series list showing owned/total/missing/unaired counts, the TV airing-status badge per series, and the **Scan all** button.
-:::
-
 ![Missing Episodes overview](/img/screenshots/missing-episodes-overview.png)
 
-:::note Screenshot needed
-Capture: a series expanded on the Missing Episodes page — the season → episode grid with per-episode status chips (owned / missing / unaired / ignored), **Ignore** and **Search now** buttons, and `searchStatus` badges.
-:::
-
 ![Missing Episodes season grid](/img/screenshots/missing-episodes-grid.png)
-
-:::note Screenshot needed
-Capture: **Missing Episodes → Add from library** — the searchable multi-select showing library shows with their resolved IMDb IDs, already-watchlisted shows pre-checked and locked, and shows with no resolvable IMDb ID flagged.
-:::
 
 ![Add series from library](/img/screenshots/missing-episodes-add-from-library.png)
 

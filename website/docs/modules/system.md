@@ -178,21 +178,9 @@ Use **liveness** to decide whether to restart the container, and **readiness** t
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Administration → Settings** — the page showing the Default Root Path card (with its exists/readable/writable badges), the Email settings card, and the generic auto-rendered key/value list beneath.
-:::
-
 ![Settings page](/img/screenshots/system-settings.png)
 
-:::note Screenshot needed
-Capture: the app header showing the **version badge** with the release tag and the abbreviated git commit hash.
-:::
-
 ![Version badge](/img/screenshots/system-version-badge.png)
-
-:::note Screenshot needed
-Capture: **Dashboard** — the system health widgets showing uptime, load, memory, engine health, and free disk space per root.
-:::
 
 ![System health](/img/screenshots/system-health.png)
 

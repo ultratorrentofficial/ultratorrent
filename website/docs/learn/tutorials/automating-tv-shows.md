@@ -157,12 +157,6 @@ style). But the picker resolves them for you, in bulk, and does not typo.
 **Expected result:** the series appears on the Missing Episodes page as a monitored
 series.
 
-:::note Screenshot needed
-The **Missing Episodes** page (`/media-acquisition/missing-episodes`) with the
-**Add from library** dialog open — the searchable multi-select of TV series, with
-resolved IMDb IDs, pre-checked existing entries, and the "no IMDb ID" flags.
-:::
-
 ![Add series from library picker](/img/screenshots/tv-add-from-library.png)
 
 ---
@@ -201,11 +195,6 @@ lose those by rescanning.
 Your catalogue is only as fresh as your last IMDb import, and the optimized import
 drops episodes with no air date. The page shows the mirror's date. A very recent
 episode may not appear as *missing* until you refresh the mirror.
-:::
-
-:::note Screenshot needed
-The **Missing Episodes** page with a series expanded, showing the season → episode
-grid, the owned/missing/unaired/ignored counts, and the per-episode Ignore action.
 :::
 
 ![Missing episodes season and episode grid](/img/screenshots/tv-missing-grid.png)
@@ -383,12 +372,6 @@ Missing Episodes flow from Steps 2–6.
 
 **Expected result:** a status badge, a recommendation banner, the provider and its
 confidence, next/last-episode dates, and a poster — before you save.
-
-:::note Screenshot needed
-The **RSS** page (`/rss`) rule dialog with Media type set to `tv` and the live
-**ShowStatusPanel** visible — status badge, recommendation banner, provider +
-confidence, next/last-episode dates, poster, and the refresh action.
-:::
 
 ![RSS rule dialog with the TV show status panel](/img/screenshots/tv-show-status-panel.png)
 

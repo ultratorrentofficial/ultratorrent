@@ -323,10 +323,6 @@ Open **`http://<host>:8080`** (or whatever `FRONTEND_PORT` you chose).
 
 ![The UltraTorrent login screen](/img/screenshots/install-login.png)
 
-:::note Screenshot needed
-The sign-in page at first launch, showing the username + password fields (not an email field).
-:::
-
 ### 8. Add the torrent engine
 
 In the left-hand nav: **Infrastructure → Engines → Add engine**.
@@ -382,10 +378,6 @@ It grants **full control** of the client and the host user it runs as. Bind it t
 </Tabs>
 
 ![Adding the bundled rTorrent engine](/img/screenshots/install-add-engine.png)
-
-:::note Screenshot needed
-**Infrastructure → Engines → Add engine**, filled in with rTorrent / scgi-tcp / host `rtorrent` / port `5000`, showing a green "Connected" result from **Test connection**.
-:::
 
 ### 9. Point the file browser at your downloads
 

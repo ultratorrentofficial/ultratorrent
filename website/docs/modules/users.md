@@ -192,27 +192,11 @@ Refresh tokens are stored **hashed** (SHA-256), rotate on every use, and detect 
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Administration → Users** — the user list showing username, email, roles, active status, and last login.
-:::
-
 ![Users list](/img/screenshots/users-overview.png)
-
-:::note Screenshot needed
-Capture: **Administration → Users → New user** — the create dialog with the username, email, password, and role multi-select.
-:::
 
 ![Create user](/img/screenshots/users-create.png)
 
-:::note Screenshot needed
-Capture: **Administration → Users → Roles** — the read-only role list showing each role's permission set.
-:::
-
 ![Roles and permissions](/img/screenshots/users-roles.png)
-
-:::note Screenshot needed
-Capture: **Profile → Two-factor** — the setup flow with the QR code, and the recovery-code list shown once on enable.
-:::
 
 ![Two-factor setup](/img/screenshots/users-2fa-setup.png)
 

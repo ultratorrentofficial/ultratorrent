@@ -170,27 +170,11 @@ Each action is separately gated — you can build a role that may pause but not 
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Downloads → Torrents** — the main list with state filter pills, the search box, live progress bars, and the engine health badge in the header.
-:::
-
 ![Torrents list](/img/screenshots/torrents-overview.png)
-
-:::note Screenshot needed
-Capture: **Downloads → Torrents → (click a torrent)** — the detail view showing the Files / Peers / Trackers tabs, with per-file priority controls visible.
-:::
 
 ![Torrent detail](/img/screenshots/torrents-detail.png)
 
-:::note Screenshot needed
-Capture: **Downloads → Torrents → Add torrent** — the add dialog with the magnet field, category, tags, and the save-path directory picker.
-:::
-
 ![Add torrent dialog](/img/screenshots/torrents-add.png)
-
-:::note Screenshot needed
-Capture: **Downloads → Torrents → Parking** — the parking settings panel and the list of currently parked torrents with their seeder counts.
-:::
 
 ![Parking queue](/img/screenshots/torrents-parking.png)
 

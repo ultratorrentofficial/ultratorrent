@@ -166,21 +166,9 @@ When a show's status changes, the refresh job updates every rule that snapshotte
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **RSS & Acquisition → RSS Feeds** — the feed list with rules nested underneath, showing last-poll status and item counts.
-:::
-
 ![RSS feeds and rules](/img/screenshots/rss-feeds-overview.png)
 
-:::note Screenshot needed
-Capture: **RSS & Acquisition → RSS Feeds → (rule) → Smart Match Builder** — the ranked match-candidate list with the Match Preferences ordering control.
-:::
-
 ![Smart Match Builder](/img/screenshots/rss-smart-match-builder.png)
-
-:::note Screenshot needed
-Capture: **RSS & Acquisition → RSS Feeds → New rule** with Media type = TV — the live Show Status panel showing the badge, recommendation banner, provider, confidence, and next-episode date.
-:::
 
 ![Show status panel on a TV rule](/img/screenshots/rss-show-status-panel.png)
 

@@ -380,10 +380,6 @@ curl -m 5 http://<public-ip>:4000     # must time out / refuse
 
 ![The UltraTorrent dashboard served over HTTPS from a VPS](/img/screenshots/cloud-https-dashboard.png)
 
-:::note Screenshot needed
-The UltraTorrent dashboard at `https://torrents.example.com`, padlock visible, with a torrent downloading.
-:::
-
 ## Reverse proxy
 
 Mandatory. See [Reverse proxy](/install/reverse-proxy). The WebSocket upgrade is not optional — the live UI depends on it.

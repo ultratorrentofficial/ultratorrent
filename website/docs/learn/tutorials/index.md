@@ -168,12 +168,6 @@ flowchart TB
   Q6 -->|yes| DONE(["You're running it properly."])
 ```
 
-:::note Screenshot needed
-The **Dashboard** (`/dashboard`) of a mature install — active transfers, recent
-acquisitions and library health all populated — as the "this is where you are
-going" hero image.
-:::
-
 ![A fully configured UltraTorrent dashboard](/img/screenshots/tutorials-mature-dashboard.png)
 
 :::tip Watch this tutorial

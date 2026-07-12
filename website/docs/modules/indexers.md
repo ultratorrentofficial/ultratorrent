@@ -173,21 +173,9 @@ Both need `media_acquisition.evaluate`.
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Downloads → Indexers** — the indexer list with per-indexer status badges, priority, and the masked API-key field, with the **Test** button visible.
-:::
-
 ![Indexers list](/img/screenshots/indexers-overview.png)
 
-:::note Screenshot needed
-Capture: **Downloads → Indexers → Add indexer** — the form showing base URL, API key, categories, priority, and the `minSeeders` field.
-:::
-
 ![Add indexer](/img/screenshots/indexers-add.png)
-
-:::note Screenshot needed
-Capture: **RSS & Acquisition → Acquisition Intelligence → Missing Episodes** — an expanded series showing per-episode **Search now** buttons and `searchStatus` badges (searching / grabbed / awaiting approval / no release).
-:::
 
 ![Missing episode search status](/img/screenshots/indexers-missing-episode-search.png)
 

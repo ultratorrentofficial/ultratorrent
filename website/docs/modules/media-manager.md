@@ -246,33 +246,13 @@ Secret config keys (`token`, `apiKey`, `password`) are **AES-GCM encrypted at re
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Media → Media Dashboard** — the library health overview with item counts, unmatched counts, and duplicate groups.
-:::
-
 ![Media Manager dashboard](/img/screenshots/media-manager-dashboard.png)
-
-:::note Screenshot needed
-Capture: **Media → Libraries** — the library list, and a scan in progress showing the modal with the progress bar and the auto-scrolling per-file action log.
-:::
 
 ![Library scan progress](/img/screenshots/media-manager-scan-progress.png)
 
-:::note Screenshot needed
-Capture: **Media → Unmatched** — unmatched items with the manual-match dialog open, showing search results and confidence scores.
-:::
-
 ![Unmatched items](/img/screenshots/media-manager-unmatched.png)
 
-:::note Screenshot needed
-Capture: **Media → Rename Engine** — a rename preview showing source → destination for several files, with the mode selector visible.
-:::
-
 ![Rename preview](/img/screenshots/media-manager-rename-preview.png)
-
-:::note Screenshot needed
-Capture: **Media → Settings → IMDb** — the provider mode selector, dataset path picker, and the dataset import with its live progress.
-:::
 
 ![IMDb dataset import](/img/screenshots/media-manager-imdb-import.png)
 

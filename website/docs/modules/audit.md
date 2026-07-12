@@ -134,15 +134,7 @@ That exact-match `action` filter is the only one that exists. For anything else 
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Administration → Audit Log** — the paginated list showing action, user, target (humanized, e.g. `Silo (2023) — S01E03`), result badge, and timestamp.
-:::
-
 ![Audit log](/img/screenshots/audit-overview.png)
-
-:::note Screenshot needed
-Capture: **Administration → Audit Log** with a row expanded — showing the target type and id, the resolved media label, the user agent, the IP address, and the humanized metadata.
-:::
 
 ![Audit log expanded row](/img/screenshots/audit-detail.png)
 

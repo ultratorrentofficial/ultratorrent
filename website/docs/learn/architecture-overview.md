@@ -367,17 +367,7 @@ Same mount point, same device → hardlinks will work.
 
 More at [Troubleshooting](/operate/troubleshooting) and [Performance](/operate/performance).
 
-:::note Screenshot needed
-The **System** health surface on the **Settings** page (`/settings`), showing
-service/health status — the fastest in-app way to see which component is unhappy.
-:::
-
 ![System health surface on the Settings page](/img/screenshots/architecture-system-health.png)
-
-:::note Screenshot needed
-The **Modules** page (`/modules`) showing each module's tier (core/community),
-state (enabled / disabled / missing dependency) and dependencies.
-:::
 
 ![Modules page showing module tiers and states](/img/screenshots/architecture-modules.png)
 

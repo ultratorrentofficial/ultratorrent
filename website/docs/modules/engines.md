@@ -174,15 +174,7 @@ Confirm it is running and listening (`docker compose ps`).
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Downloads → Engines** — the engine list showing name, kind badge, default flag, enabled toggle, and the live health status (online, latency, client version).
-:::
-
 ![Engines list](/img/screenshots/engines-overview.png)
-
-:::note Screenshot needed
-Capture: **Downloads → Engines → Add engine** — the form with kind selected as `rtorrent`, showing the mode/host/port fields and the **Test connection** button with a successful green result.
-:::
 
 ![Add engine form](/img/screenshots/engines-add.png)
 

@@ -111,11 +111,6 @@ sequenceDiagram
   afterwards). A success ledger keeps it idempotent, so each rule runs **once per
   torrent**.
 
-:::note Screenshot needed
-The **Torrents** page (`/torrents`) mid-download, showing a live progress bar and
-the aggregate rates in the top bar.
-:::
-
 ![Torrents page during an active download](/img/screenshots/workflow-movie-download.png)
 
 ---
@@ -164,12 +159,6 @@ flowchart TB
   emits `rss.show.ended` — but it **never disables your rule**. That is your call.
 
 Full walkthrough: [Automating TV shows](/learn/tutorials/automating-tv-shows).
-
-:::note Screenshot needed
-The **RSS** page (`/rss`) rule dialog with the Media type selector set to `tv` and
-the live **ShowStatusPanel** visible (status badge, recommendation banner, provider
-and confidence, next/last-episode dates, poster).
-:::
 
 ![RSS rule dialog with the TV show status panel](/img/screenshots/workflow-rss-show-status.png)
 
@@ -233,11 +222,6 @@ sequenceDiagram
 
 Full walkthrough: [Smart RSS rules](/learn/tutorials/smart-rss-rules).
 
-:::note Screenshot needed
-The **RSS rule detail** page (`/rss/rules/:ruleId`) showing the **Smart Match
-Builder** with a ranked preference list of match candidates.
-:::
-
 ![Smart Match Builder with a ranked preference list](/img/screenshots/workflow-smart-match-builder.png)
 
 ---
@@ -299,18 +283,7 @@ grab-state columns, but there is no automatic movie search yet. Smart Download's
 yet, and `replace_existing` exists as a decision type but is not emitted.
 :::
 
-:::note Screenshot needed
-The **Missing Episodes** page (`/media-acquisition/missing-episodes`) showing a
-series expanded into its season/episode grid, with per-episode **Search now**
-buttons and `searchStatus` badges.
-:::
-
 ![Missing Episodes page with the season and episode grid](/img/screenshots/workflow-missing-episodes.png)
-
-:::note Screenshot needed
-The **Decision Simulator** page (`/media-acquisition/simulator`) rendering the
-decision pipeline for a pasted release name, with each trace step clickable.
-:::
 
 ![Decision Simulator showing the explainable pipeline](/img/screenshots/workflow-decision-simulator.png)
 
@@ -368,11 +341,6 @@ flowchart LR
 That is deliberate: a routine scan **enriches in place**. Renaming stays the
 download organiser's job. Only gaps are filled, so steady-state scans do almost no
 work and never re-hammer the metadata providers.
-
-:::note Screenshot needed
-The **Media Dashboard** (`/media`) showing library health — unmatched items,
-missing artwork, missing subtitles, duplicates.
-:::
 
 ![Media dashboard showing library health](/img/screenshots/workflow-media-dashboard.png)
 
@@ -440,11 +408,6 @@ sequenceDiagram
 | Delivery History | `/notifications/history` | Proof it went out (or why it did not). |
 
 Full walkthrough: [Notifications and automation](/learn/tutorials/notifications-and-automation).
-
-:::note Screenshot needed
-The **Notification Rules** page (`/notifications/rules`) with a rule open, showing
-the event selector, conditions, channels and recipients.
-:::
 
 ![Notification rule editor](/img/screenshots/workflow-notification-rule.png)
 

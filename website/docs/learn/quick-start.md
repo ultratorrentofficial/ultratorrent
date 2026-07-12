@@ -227,11 +227,6 @@ docker compose logs backend --tail 30
 Look for a successful Nest bootstrap with no `refuses to boot` error. If the
 backend exits immediately, jump to [Troubleshooting](#troubleshooting).
 
-:::note Screenshot needed
-Terminal output of `docker compose ps` showing postgres, redis, backend, frontend
-and qbittorrent in a healthy/running state.
-:::
-
 ![docker compose ps output showing a healthy UltraTorrent stack](/img/screenshots/quickstart-compose-ps.png)
 
 ---
@@ -255,11 +250,6 @@ Sign in with:
 **Expected result:** you land on the **Dashboard**, with a left sidebar grouped
 into Overview, Downloads, RSS &amp; Acquisition, Media Management, Media Server
 Analytics, Automation, Files, Administration and Account.
-
-:::note Screenshot needed
-The **Login** page (`/login`) with the username and password fields, then the
-**Dashboard** (`/dashboard`) immediately after first sign-in.
-:::
 
 ![UltraTorrent login page](/img/screenshots/quickstart-login.png)
 
@@ -315,11 +305,6 @@ register it once.
 **Expected result:** the engine appears in the list with a **Default** badge and
 a connected status. The top bar begins showing live transfer rates (0 B/s for
 now), which means the sync loop is polling the engine successfully.
-
-:::note Screenshot needed
-The **Engines** page (`/engines`) with one engine registered, its kind badge, its
-Default badge, and the Test result.
-:::
 
 ![Engines page with a registered default engine](/img/screenshots/quickstart-engines.png)
 
@@ -389,11 +374,6 @@ Without this, automated grabs fail with *"Torrent URL resolves to a blocked
 internal address"* — often silently.
 :::
 
-:::note Screenshot needed
-The **Indexers** page (`/indexers`) with one Torznab indexer added, showing the
-masked API key field in the edit dialog and a green OK status badge after Test.
-:::
-
 ![Indexers page with one tested Torznab indexer](/img/screenshots/quickstart-indexers.png)
 
 ---
@@ -424,11 +404,6 @@ download pages.
 appears in the Torrents table within a couple of seconds — pushed to your browser
 over WebSocket, with no page refresh.
 
-:::note Screenshot needed
-The **Add torrent** dialog on the **Torrents** page (`/torrents`) showing the
-Magnet / URL / File tabs, plus the Save path, Category and Tags fields.
-:::
-
 ![Add torrent dialog with the magnet, URL and file tabs](/img/screenshots/quickstart-add-torrent.png)
 
 ---
@@ -451,11 +426,6 @@ The sidebar's Torrents sub-menu lets you filter to **Downloading**, **Seeding**,
 
 **Expected result:** the torrent reaches 100% and switches to **Seeding**. Your
 first download is done.
-
-:::note Screenshot needed
-The **Torrents** page (`/torrents`) with one torrent at 100% in the Seeding
-state, showing progress, ratio and rates, and the state sub-menu in the sidebar.
-:::
 
 ![Torrents page showing a completed, seeding torrent](/img/screenshots/quickstart-torrents-seeding.png)
 

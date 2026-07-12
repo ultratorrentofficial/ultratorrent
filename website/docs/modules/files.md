@@ -141,27 +141,11 @@ The preview returns per-category groups (item count and bytes) and an `estimated
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Files → File Manager** — the directory listing with breadcrumbs (showing that they stop at the root), file sizes, and the action toolbar.
-:::
-
 ![File manager](/img/screenshots/files-overview.png)
-
-:::note Screenshot needed
-Capture: **Files → File Manager → Cleanup** — the cleanup preview showing per-category groups (sample files, duplicates, orphan subtitles, partial downloads) with item counts, byte totals, and the `estimatedSpaceSaved` figure.
-:::
 
 ![Cleanup wizard](/img/screenshots/files-cleanup-wizard.png)
 
-:::note Screenshot needed
-Capture: **Files → File Manager → Trash** — trashed items showing their original path, size, who deleted them, with Restore / Purge / Empty actions.
-:::
-
 ![Trash](/img/screenshots/files-trash.png)
-
-:::note Screenshot needed
-Capture: **Settings → Default Root Path** — the effective root with its exists/readable/writable badges and the root-limited path picker.
-:::
 
 ![Default root path](/img/screenshots/files-default-root-path.png)
 

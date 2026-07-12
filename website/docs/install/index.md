@@ -152,10 +152,6 @@ You will need, on the host:
 
 ![Docker Compose bringing the UltraTorrent stack up](/img/screenshots/install-compose-up.png)
 
-:::note Screenshot needed
-A terminal showing `docker compose --profile rtorrent up -d --build` finishing, with all services reporting `Started` / `Healthy`.
-:::
-
 ## Next steps
 
 1. **[Follow the Docker Compose guide](/install/docker-compose)** — the authoritative install.

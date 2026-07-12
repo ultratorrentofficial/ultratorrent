@@ -148,12 +148,6 @@ Save.
 **kind**, its **preset**, and its **mode**. The path is shown in monospace beneath
 the name.
 
-:::note Screenshot needed
-The **Libraries** page (`/media/libraries`) with the Add library dialog open,
-showing Name / Path / Kind / Preset / Mode / Template / Scan interval, and then the
-saved library's row with its kind, preset and mode badges.
-:::
-
 ![Add library dialog with kind, preset and mode](/img/screenshots/library-add-dialog.png)
 
 :::warning A library cannot live outside the hard roots
@@ -175,11 +169,6 @@ its progress streams over WebSocket.
 
 **Expected result:** go to **Media Management → Media Items** (`/media/items`).
 You should see one item per movie found.
-
-:::note Screenshot needed
-The **Media Items** page (`/media/items`) after a scan, showing discovered items
-with their match status.
-:::
 
 ![Media Items page after a library scan](/img/screenshots/library-media-items.png)
 
@@ -214,11 +203,6 @@ will be told you are missing things you actually have), and it will not
 deduplicate. **Clear the unmatched list before you trust any other number.**
 :::
 
-:::note Screenshot needed
-The **Unmatched Media** page (`/media/unmatched`) showing items that failed
-identification, with the manual match action.
-:::
-
 ![Unmatched media page with manual matching](/img/screenshots/library-unmatched.png)
 
 ---
@@ -249,11 +233,6 @@ roots and the API key is AES-GCM encrypted at rest. See `/media/settings/imdb`.
 **Expected result:** your media items gain overviews, genres, cast and external IDs
 (tmdb/tvdb/imdb/omdb/anilist).
 
-:::note Screenshot needed
-The **Media Settings** page (`/media/settings`) showing the Metadata Providers
-section with TMDB configured.
-:::
-
 ![Media settings with metadata providers configured](/img/screenshots/library-media-settings.png)
 
 ---
@@ -273,11 +252,6 @@ Read every line. Ask yourself:
 - Are there any obviously wrong parses? (Go back to Step 4.)
 
 **Expected result:** a plan you would be happy to execute.
-
-:::note Screenshot needed
-The **Rename Engine** page (`/media/rename-preview`) showing the dry-run plan with
-source → destination paths and the token help panel.
-:::
 
 ![Rename preview showing source to destination paths](/img/screenshots/library-rename-preview.png)
 
@@ -379,11 +353,6 @@ Review each group and keep the one you want.
 
 **Expected result:** one copy of each movie, at the quality you chose.
 
-:::note Screenshot needed
-The **Duplicates** page (`/media/duplicates`) showing a duplicate group with its
-detection reason and the files in it.
-:::
-
 ![Duplicates page showing a detected duplicate group](/img/screenshots/library-duplicates.png)
 
 ---
@@ -428,11 +397,6 @@ It surfaces:
 - Duplicates
 
 Aim for zeroes. That is a healthy library.
-
-:::note Screenshot needed
-The **Media Dashboard** (`/media`) showing library health widgets — unmatched,
-missing artwork, missing subtitles, duplicates.
-:::
 
 ![Media dashboard with library health widgets](/img/screenshots/library-dashboard.png)
 

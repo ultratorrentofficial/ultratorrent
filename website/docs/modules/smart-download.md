@@ -184,27 +184,11 @@ A worked example: *TV 1080p HEVC — minimum score 85, approval below 90, prefer
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **RSS & Acquisition → Acquisition Intelligence → Smart Download** — the widget grid (Approved · Pending approval · Waiting · Pending upgrades · Rejected · Missing episodes · Missing movies · Watchlist) with recent decisions below.
-:::
-
 ![Smart Download dashboard](/img/screenshots/smart-download-dashboard.png)
-
-:::note Screenshot needed
-Capture: **RSS & Acquisition → Acquisition Intelligence → Decision Simulator** — a release name entered, showing the clickable stage-by-stage pipeline with each TraceStep's status and reason.
-:::
 
 ![Decision Simulator pipeline](/img/screenshots/smart-download-simulator.png)
 
-:::note Screenshot needed
-Capture: the **Approval queue** with a pending evaluation expanded, showing the decision, confidence, reason, release file size, and the Approve / Reject / Override buttons.
-:::
-
 ![Approval queue](/img/screenshots/smart-download-approval-queue.png)
-
-:::note Screenshot needed
-Capture: an **acquisition profile** edit form showing `minimumScore`, `approvalScore`, `waitForBetter` / `waitUntilScore`, `allowUpgrades`, and the excluded-terms list.
-:::
 
 ![Acquisition profile](/img/screenshots/smart-download-profile.png)
 

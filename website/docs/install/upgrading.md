@@ -231,10 +231,6 @@ The version string should be the release you just installed. It is also shown in
 
 ![The About page showing the running version and commit](/img/screenshots/upgrade-about-version.png)
 
-:::note Screenshot needed
-**Settings → About**, showing the version, git commit and build time after an upgrade.
-:::
-
 ## Rollback
 
 Rollback is easy *if* you have the dump. It is not possible if you do not.

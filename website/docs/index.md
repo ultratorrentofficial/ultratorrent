@@ -137,9 +137,16 @@ Data loss, or a security exposure. Do not skip.
 :::
 
 :::note Screenshot needed
-Pages that document a screen carry a placeholder like this, naming the exact UI to capture.
-The docs are structured so screenshots and videos can be dropped in without rewriting prose.
+A handful of pages still carry a note like this, naming the exact screen to capture. They
+are all screens inside *other* products — Synology, QNAP, Portainer, TrueNAS, Unraid,
+Proxmox — which we cannot screenshot for you. Contributing one is a file overwrite: keep
+the filename, no prose changes needed.
 :::
+
+Screenshots of UltraTorrent itself are **redacted**: media titles, file paths and
+media-server usernames are blurred, while the interface — buttons, badges, counts,
+progress bars — stays sharp. That is deliberate, and it is why the screens look busy but
+unreadable in places.
 
 Every substantial page ends with a **Checklist** — verification steps and the result you should
 expect — so you always know whether the thing you just did actually worked.

@@ -124,12 +124,6 @@ Take a moment to read this screen, because you will live here:
 **Expected result:** the Torrents page renders. If you have never downloaded
 anything it shows an empty state with an **Add torrent** call-to-action.
 
-:::note Screenshot needed
-The **Torrents** page (`/torrents`) in its **empty state**, with the sidebar
-expanded to show the Downloading / Seeding / Completed / Paused / Errors
-sub-menu, and the Add torrent button visible.
-:::
-
 ![Empty Torrents page with the Add torrent call to action](/img/screenshots/first-download-torrents-empty.png)
 
 ---
@@ -140,11 +134,6 @@ Click **Add torrent**.
 
 The dialog has three tabs across the top — **Magnet**, **URL**, **File** — and a
 shared set of options below them.
-
-:::note Screenshot needed
-The **Add torrent** dialog on `/torrents`, with the **Magnet** tab selected,
-showing the magnet input and the Save path / Category / Tags fields beneath it.
-:::
 
 ![The Add torrent dialog, Magnet tab](/img/screenshots/first-download-add-dialog.png)
 
@@ -259,12 +248,6 @@ Stay on the Torrents page. In the first few seconds you should see, in order:
 
 The top bar's aggregate rate should move at the same time.
 
-:::note Screenshot needed
-The **Torrents** page (`/torrents`) with one torrent actively **Downloading** —
-progress bar mid-way, non-zero down rate, peer/seed counts, and ETA — plus the
-live rates in the top bar.
-:::
-
 ![Torrents page with an actively downloading torrent](/img/screenshots/first-download-downloading.png)
 
 :::tip Nothing is happening. Is it broken?
@@ -300,12 +283,6 @@ when a torrent errored, when you moved files under it, or when progress looks
 impossible. It is safe — it never deletes anything.
 :::
 
-:::note Screenshot needed
-The torrent **drawer** on `/torrents` (opened by clicking a torrent row), showing
-the Overview / Files / Peers / Trackers tabs, with the **Files** tab open and
-per-file priorities visible.
-:::
-
 ![Torrent drawer showing files and per-file priorities](/img/screenshots/first-download-torrent-drawer.png)
 
 ---
@@ -332,11 +309,6 @@ sequenceDiagram
 
 **Expected result:** state = **Seeding**, progress = 100%, and the **ratio** starts
 climbing as you upload to other peers.
-
-:::note Screenshot needed
-The **Torrents** page (`/torrents`) filtered to **Seeding** (`?state=seeding`),
-showing the completed torrent at 100% with a climbing ratio and a non-zero up rate.
-:::
 
 ![Torrents page filtered to Seeding, showing a completed torrent](/img/screenshots/first-download-seeding.png)
 
@@ -368,11 +340,6 @@ symlink-escape and absolute-escape are all rejected.
 
 **Expected result:** your file, at its full size, at the path you expect.
 
-:::note Screenshot needed
-The **File Manager** page (`/files`) browsing `/downloads`, showing the completed
-download's folder and file sizes.
-:::
-
 ![File Manager browsing the downloads root](/img/screenshots/first-download-file-manager.png)
 
 ---
@@ -400,11 +367,6 @@ Right now you have a file with an ugly scene name. Let us make it a library entr
 **Expected result:** the scan discovers your file, creates a **media item**, and
 identifies it — parsing the release name into type/title/year with a confidence
 score. Look at **Media Management → Media Items** (`/media/items`).
-
-:::note Screenshot needed
-The **Libraries** page (`/media/libraries`) with the Add/Edit library dialog open,
-showing the Name / Path / Kind / Preset / Mode / Template / Scan interval fields.
-:::
 
 ![Add library dialog with kind, preset and mode](/img/screenshots/first-download-add-library.png)
 
@@ -442,11 +404,6 @@ mounted `/media` from a *different* volume, hardlinking will fail and you must u
 (`/downloads/movies/Some Movie (2024)/Some Movie (2024).mkv`) **and** the engine
 is still seeding the original — because a hardlink is two names for the same bytes.
 
-:::note Screenshot needed
-The **Rename Engine** page (`/media/rename-preview`) showing the dry-run plan with
-source → destination paths, before applying.
-:::
-
 ![Rename preview showing the source to destination plan](/img/screenshots/first-download-rename-preview.png)
 
 ---
@@ -467,11 +424,6 @@ automatically, so new media appears without you touching it.
 
 **Expected result:** your first download appears in Plex/Jellyfin/Emby, correctly
 named, with a poster.
-
-:::note Screenshot needed
-The **Media Settings** page (`/media/settings`) with the Media Server Integrations
-section, showing a configured Plex/Jellyfin connection and its Test result.
-:::
 
 ![Media Settings with a media-server integration configured](/img/screenshots/first-download-media-server.png)
 

@@ -232,10 +232,6 @@ ultratorrent-rtorrent-1    Up 2 minutes (healthy)    5000/tcp
 
 ![The UltraTorrent dashboard on a fresh Linux install](/img/screenshots/linux-dashboard.png)
 
-:::note Screenshot needed
-The UltraTorrent dashboard immediately after a fresh Linux install, with the engine connected and no torrents yet.
-:::
-
 ## Reverse proxy
 
 On a LAN, skip it. Exposing the box? Terminate TLS with NGINX, Caddy or Traefik — see [Reverse proxy](/install/reverse-proxy).

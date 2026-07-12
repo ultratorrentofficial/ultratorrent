@@ -160,11 +160,6 @@ never returned to the browser.
 
 **Expected result:** a successful test, and the connection saved.
 
-:::note Screenshot needed
-The **Media Settings** page (`/media/settings`), Media Server Integrations section,
-showing a configured Plex or Jellyfin connection and a successful Test result.
-:::
-
 ![Media server integration configured in Media Settings](/img/screenshots/plex-media-settings-integration.png)
 
 ---
@@ -226,12 +221,6 @@ Go to **Media Server Analytics → Server Connections**
 **Expected result:** the connection shows healthy, with a detected version and a
 capability set.
 
-:::note Screenshot needed
-The **Server Connections** page (`/media-server-analytics/connections`) with one or
-more media servers, showing health status, detected version/platform, and the
-capability badges.
-:::
-
 ![Media server connections with health and capabilities](/img/screenshots/plex-connections.png)
 
 ---
@@ -256,11 +245,6 @@ Tautulli is **not** a media server — it is a historical analytics/newsletter
 
 **Expected result:** Live Activity shows a session when you press play on your
 server.
-
-:::note Screenshot needed
-The **Live Activity** page (`/media-server-analytics/live`) showing a current
-now-playing session with poster art and stream details.
-:::
 
 ![Live activity showing a now-playing session](/img/screenshots/plex-live-activity.png)
 

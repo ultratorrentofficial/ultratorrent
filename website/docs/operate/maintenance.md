@@ -363,10 +363,6 @@ ls -lht /mnt/backup/ultratorrent-*.dump 2>/dev/null | head -1 || echo "NO BACKUP
 
 ![System maintenance view](/img/screenshots/system-maintenance.png)
 
-:::note Screenshot needed
-`system-maintenance.png` — the System page showing version, health and jobs.
-:::
-
 ## Troubleshooting
 
 If the routine surfaces something, the fix is almost certainly in

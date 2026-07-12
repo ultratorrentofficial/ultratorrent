@@ -891,12 +891,13 @@ moving. Re-check that no indexer is left without a `minSeeders`.
 
 ### An indexer always returns HTTP 429, and FlareSolverr cannot fix it
 
-:::caution Not yet verified
-This entry describes a failure mode reported against public indexers (notably
-**1337x**) but **not reproduced or diagnosed in this repository's change log**.
-The diagnosis technique below is sound and the FlareSolverr behaviour is real,
-but treat the specifics as guidance rather than a confirmed UltraTorrent
-incident.
+:::info Observed in the wild
+This was hit on a live deployment: **1337x** returned `429` through Prowlarr on
+*every* request, indefinitely. Not a burst — a block. FlareSolverr made no
+difference, because it solves **JavaScript/Cloudflare challenges**, not an
+IP-level rate limit or ban. The fix was to **disable that indexer** and let the
+others carry the searches; the acquisition sweep kept working, because one dead
+indexer does not stop the rest.
 :::
 
 **Symptom.** One indexer — often 1337x — returns **HTTP 429 (Too Many Requests)**

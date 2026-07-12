@@ -175,33 +175,13 @@ Phase 1 imports **watch history**. Users, libraries, playback/device/transcode s
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Media Server Analytics → Analytics Dashboard** — server counts, health badges per connection, and the connection summaries.
-:::
-
 ![Analytics dashboard](/img/screenshots/msa-dashboard.png)
-
-:::note Screenshot needed
-Capture: **Media Server Analytics → Live Activity** — an active now-playing session showing user, title, device, playback method (transcode vs. direct play), and bitrate.
-:::
 
 ![Live activity](/img/screenshots/msa-live-activity.png)
 
-:::note Screenshot needed
-Capture: **Media Server Analytics → Analytics Reports** — the usage/users/libraries/playback report views with charts.
-:::
-
 ![Analytics reports](/img/screenshots/msa-reports.png)
 
-:::note Screenshot needed
-Capture: **Media Server Analytics → Newsletters** — the newsletter preview with the desktop/mobile toggle, showing the TV show cards (poster, episode count, season range, star rating) and the movie poster grid.
-:::
-
 ![Newsletter preview](/img/screenshots/msa-newsletter-preview.png)
-
-:::note Screenshot needed
-Capture: **Media Server Analytics → Import Analytics** — a Tautulli import in progress showing the live progress bar with processed / imported / skipped counts.
-:::
 
 ![Tautulli import](/img/screenshots/msa-tautulli-import.png)
 

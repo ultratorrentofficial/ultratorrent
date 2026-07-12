@@ -209,15 +209,7 @@ docker compose --profile prowlarr up -d
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Settings → Integrations → Prowlarr** — the panel with the enable toggle, internal URL, public URL, masked API key, and a green *Connected* badge showing the Prowlarr version and indexer count.
-:::
-
 ![Prowlarr integration settings](/img/screenshots/prowlarr-settings.png)
-
-:::note Screenshot needed
-Capture: the sidebar under **RSS & Acquisition**, showing the external-link **Prowlarr** shortcut that appears once the integration is enabled.
-:::
 
 ![Prowlarr sidebar shortcut](/img/screenshots/prowlarr-sidebar-link.png)
 

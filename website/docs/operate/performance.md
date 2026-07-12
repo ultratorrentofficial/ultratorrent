@@ -442,11 +442,6 @@ LIMIT 10;"
 
 ![Performance dashboard](/img/screenshots/performance-dashboard.png)
 
-:::note Screenshot needed
-`performance-dashboard.png` — the System page showing resource usage and job
-throughput.
-:::
-
 ## Troubleshooting
 
 | Symptom | Go to |

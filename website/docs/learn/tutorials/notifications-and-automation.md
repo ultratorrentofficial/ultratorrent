@@ -127,11 +127,6 @@ blank on edit keeps the stored value.
 
 **Expected result:** the channel tests successfully.
 
-:::note Screenshot needed
-The **Notification Channels** page (`/notifications/channels`) with an Email or
-Telegram channel configured and a successful test result.
-:::
-
 ![Notification channels with a configured provider](/img/screenshots/notif-channels.png)
 
 ---
@@ -163,11 +158,6 @@ RECIPIENTS  me
 ```
 
 **Expected result:** the next completed download messages you.
-
-:::note Screenshot needed
-The **Notification Rules** page (`/notifications/rules`) with a rule open, showing
-the event selector, the conditions builder, the channel picker and the recipients.
-:::
 
 ![Notification rule editor](/img/screenshots/notif-rule-editor.png)
 
@@ -242,11 +232,6 @@ Before you conclude "the rule did not fire", check here. It will tell you whethe
 message was queued, sent, retried, escalated or failed — and why.
 
 **Expected result:** a delivered row for the notification you triggered.
-
-:::note Screenshot needed
-The **Delivery History** page (`/notifications/history`) showing delivered, retried
-and failed notifications with their statuses and timestamps.
-:::
 
 ![Notification delivery history](/img/screenshots/notif-history.png)
 
@@ -351,11 +336,6 @@ how you delegate that decision.
 
 **Expected result:** when a show you monitor ends, the rule stops grabbing forward and
 you are told.
-
-:::note Screenshot needed
-The **Automation Rules** page (`/automation`) with a rule open, showing the trigger
-selector, the conditions builder, and the action list.
-:::
 
 ![Automation rule editor with trigger, conditions and actions](/img/screenshots/automation-rule-editor.png)
 

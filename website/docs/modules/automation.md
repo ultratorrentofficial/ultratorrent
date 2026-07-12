@@ -204,21 +204,9 @@ So: build the rule with a `notify` action first, prove the trigger and condition
 
 ## Screenshots
 
-:::note Screenshot needed
-Capture: **Automation → Automation Rules** — the rule cards with enable/disable switches, priority, trigger badges, and the action summary.
-:::
-
 ![Automation rules](/img/screenshots/automation-rules.png)
 
-:::note Screenshot needed
-Capture: **Automation → Automation Rules → New rule** — the dialog showing the trigger select, the Conditions block (field / operator / value rows), and the Actions block with a per-action param widget.
-:::
-
 ![New automation rule](/img/screenshots/automation-new-rule.png)
-
-:::note Screenshot needed
-Capture: the **Execution log** dialog for a rule, showing `success` / `failed` runs with their context and messages.
-:::
 
 ![Automation execution log](/img/screenshots/automation-execution-log.png)
 

@@ -153,10 +153,6 @@ Rate limits apply: `/api/auth/login` is **5/min**, `/api/auth/refresh` is **20/m
 
 ## Screenshots
 
-:::note Screenshot needed
-There is currently **no frontend UI for API keys** — keys can only be managed via the REST API. When a UI ships, capture it at **Settings → API Keys**.
-:::
-
 ![API keys](/img/screenshots/api-keys-overview.png)
 
 :::tip Watch this tutorial
