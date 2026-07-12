@@ -1,0 +1,129 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+:root {
+  --ifm-color-primary: #2e8555;
+  --ifm-color-primary-dark: #29784c;
+  --ifm-color-primary-darker: #277148;
+  --ifm-color-primary-darkest: #205d3b;
+  --ifm-color-primary-light: #33925d;
+  --ifm-color-primary-lighter: #359962;
+  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+[data-theme='dark'] {
+  --ifm-color-primary: #25c2a0;
+  --ifm-color-primary-dark: #21af90;
+  --ifm-color-primary-darker: #1fa588;
+  --ifm-color-primary-darkest: #1a8870;
+  --ifm-color-primary-light: #29d5b0;
+  --ifm-color-primary-lighter: #32d8b4;
+  --ifm-color-primary-lightest: #4fddbf;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* ---------------------------------------------------------------------------
+   UltraTorrent doc site
+   ------------------------------------------------------------------------ */
+
+:root {
+  --ifm-color-primary: #1f6feb;
+  --ifm-color-primary-dark: #1862d4;
+  --ifm-color-primary-darker: #175dc8;
+  --ifm-color-primary-darkest: #134da5;
+  --ifm-color-primary-light: #3a80ee;
+  --ifm-color-primary-lighter: #4789ef;
+  --ifm-color-primary-lightest: #6ba1f2;
+  --ifm-code-font-size: 92%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #6ba1f2;
+  --ifm-color-primary-dark: #4a8cef;
+  --ifm-color-primary-darker: #3a80ee;
+  --ifm-color-primary-darkest: #1862d4;
+  --ifm-color-primary-light: #8cb6f5;
+  --ifm-color-primary-lighter: #9dc1f6;
+  --ifm-color-primary-lightest: #cfe0fb;
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.1);
+}
+
+/* Wide reference tables (273 endpoints, 116x5 permission matrix) must scroll
+   inside themselves rather than pushing the page sideways. */
+.markdown table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Mermaid diagrams breathe better centred. */
+.docusaurus-mermaid-container {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Print / PDF export.
+   Docusaurus has no built-in PDF export, so we make the browser's own
+   "Print → Save as PDF" produce a clean document: chrome is dropped, links are
+   resolved to their URLs, and content is never clipped mid-diagram.
+   ------------------------------------------------------------------------ */
+@media print {
+  .navbar,
+  .theme-doc-sidebar-container,
+  .theme-doc-toc-desktop,
+  .theme-doc-toc-mobile,
+  .pagination-nav,
+  .theme-edit-this-page,
+  .theme-last-updated,
+  .footer,
+  .theme-back-to-top-button,
+  .DocSearch,
+  .navbar-sidebar {
+    display: none !important;
+  }
+
+  .main-wrapper,
+  .container,
+  .col,
+  .docItemCol_node_modules-\@docusaurus-theme-classic-lib-theme-DocItem-Layout-styles-module {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Resolve links so a printed page is still useful. */
+  .markdown a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.8em;
+    word-break: break-all;
+  }
+
+  /* Never split a diagram, table, or admonition across pages. */
+  .docusaurus-mermaid-container,
+  .markdown table,
+  .theme-admonition,
+  pre {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .markdown h2,
+  .markdown h3 {
+    break-after: avoid;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}

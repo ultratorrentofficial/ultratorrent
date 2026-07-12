@@ -282,8 +282,9 @@ fields serialized as strings. An empty `q` returns `{ items: [] }`.
 update / delete reload the live provider registry. Returns
 `{ "id": "<engine-id>" }`.
 
-> Only `kind: "rtorrent"` is implemented today; the other kinds pass validation
-> but the provider factory throws "planned but not yet implemented".
+> `kind: "rtorrent"` and `kind: "qbittorrent"` are implemented today.
+> `transmission` and `deluge` pass DTO validation, but the provider factory throws
+> "planned but not yet implemented" — the UI disables them.
 
 ---
 

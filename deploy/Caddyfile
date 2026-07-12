@@ -9,8 +9,9 @@
 		reverse_proxy backend:4000
 	}
 
-	# Everything else to the static frontend
+	# Everything else to the static frontend.
+	# The frontend image runs nginx unprivileged — it listens on 8080, not 80.
 	handle {
-		reverse_proxy frontend:80
+		reverse_proxy frontend:8080
 	}
 }

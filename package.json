@@ -2,7 +2,7 @@
   "name": "ultratorrent",
   "version": "0.27.3",
   "private": true,
-  "description": "UltraTorrent — a modern, self-hosted torrent management platform",
+  "description": "UltraTorrent \u2014 a modern, self-hosted torrent management platform",
   "license": "AGPL-3.0-or-later",
   "workspaces": [
     "packages/*",
@@ -25,7 +25,10 @@
     "release:apply": "node ops/scripts/release.js --apply",
     "prisma:generate": "npm run prisma:generate --workspace @ultratorrent/backend",
     "prisma:migrate": "npm run prisma:migrate --workspace @ultratorrent/backend",
-    "prisma:seed": "npm run prisma:seed --workspace @ultratorrent/backend"
+    "prisma:seed": "npm run prisma:seed --workspace @ultratorrent/backend",
+    "docs:dev": "npm --prefix website start",
+    "docs:build": "npm --prefix website run build",
+    "docs:serve": "npm --prefix website run serve"
   },
   "engines": {
     "node": ">=20.0.0"
