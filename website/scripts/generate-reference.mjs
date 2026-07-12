@@ -15,6 +15,7 @@
  * Run: npm run gen:reference  (also runs automatically before `build`/`start`)
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
@@ -27,24 +28,53 @@ const OUT = path.resolve(HERE, '../docs/reference');
 const rel = (...p) => path.join(ROOT, ...p);
 
 /**
- * The reference pages are generated from the *compiled* application, not from
- * regex-scraped TypeScript — that is what makes them impossible to drift. The
- * cost is that `dist/` has to exist. Say so plainly rather than dying in a
- * `MODULE_NOT_FOUND` stack trace.
+ * The reference pages are generated from the application's *real* exports rather
+ * than from regex-scraped TypeScript — that is what makes them impossible to drift.
+ *
+ * `@ultratorrent/shared` must therefore be compiled: it is the source of PERMISSIONS
+ * and ROLE_PERMISSIONS, and it is a dependency of everything else here.
  */
-const COMPILED_INPUTS = [
-  'packages/shared/dist/cjs/index.js',
-  'apps/backend/dist/modules/module-registry/manifests.js',
-];
-const missing = COMPILED_INPUTS.filter((p) => !fs.existsSync(rel(p)));
-if (missing.length) {
+if (!fs.existsSync(rel('packages/shared/dist/cjs/index.js'))) {
   console.error(
-    `\nCannot generate the reference docs — the application has not been compiled.\n\n` +
-      missing.map((p) => `  missing: ${p}`).join('\n') +
-      `\n\nBuild the app first, from the repository root:\n\n  npm run build\n\n` +
+    `\nCannot generate the reference docs — @ultratorrent/shared has not been compiled.\n\n` +
+      `  missing: packages/shared/dist/cjs/index.js\n\n` +
+      `Build it first, from the repository root:\n\n` +
+      `  npm run build --workspace @ultratorrent/shared\n\n` +
       `(If a build is already running, wait for it to finish — dist/ is rebuilt in place.)\n`,
   );
   process.exit(1);
+}
+
+/**
+ * Load a TypeScript module for its *values*, without requiring the whole backend to
+ * have been compiled first.
+ *
+ * The obvious approach — require() the backend's dist/ — means the docs can only be
+ * built after a full `nest build`, which is a heavy dependency to take on for one
+ * data file, and it is what stopped the docs from being buildable inside the frontend
+ * image. So: prefer dist/ when it happens to be there (free, already compiled), and
+ * otherwise bundle the source on the fly with esbuild. Either way we end up importing
+ * real exports, never parsing them out of text.
+ */
+function loadTsModule({ dist, src }) {
+  if (fs.existsSync(rel(dist))) return require(rel(dist));
+
+  const esbuild = require(rel('node_modules/esbuild'));
+  const out = path.join(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'ut-docs-')),
+    'module.cjs',
+  );
+  esbuild.buildSync({
+    entryPoints: [rel(src)],
+    outfile: out,
+    bundle: true, // pulls @ultratorrent/shared in via the workspace symlink
+    platform: 'node',
+    format: 'cjs',
+    logLevel: 'silent',
+  });
+  const mod = require(out);
+  fs.rmSync(path.dirname(out), { recursive: true, force: true });
+  return mod;
 }
 
 const write = (file, body) => {
@@ -133,7 +163,10 @@ ${roles.map((r) => `| \`${r}\` | ${(ROLE_PERMISSIONS[r] ?? []).length} of ${perm
 // 2. Module catalogue
 // ---------------------------------------------------------------------------
 function genModules() {
-  const m = require(rel('apps/backend/dist/modules/module-registry/manifests.js'));
+  const m = loadTsModule({
+    dist: 'apps/backend/dist/modules/module-registry/manifests.js',
+    src: 'apps/backend/src/modules/module-registry/manifests.ts',
+  });
   const manifests = [
     ...(m.CORE_MANIFESTS ?? []),
     ...(m.COMMUNITY_MANIFESTS ?? []),

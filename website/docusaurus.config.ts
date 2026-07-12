@@ -22,10 +22,15 @@ const config: Config = {
   tagline: 'Self-hosted Media Acquisition & Management Platform',
   favicon: 'img/favicon.ico',
 
-  url: 'https://docs.ultratorrent.io',
-  baseUrl: '/',
+  // The same content ships to two places, which need different base paths:
+  //   • GitHub Pages  → https://damirabal.github.io/ultratorrent-core/  (default)
+  //   • the app image → served by the frontend container at /docs/, offline
+  // So both are env-driven. Set DOCS_BASE_URL=/docs/ for the in-app build.
+  url: process.env.DOCS_URL ?? 'https://damirabal.github.io',
+  baseUrl: process.env.DOCS_BASE_URL ?? '/ultratorrent-core/',
   organizationName: 'damirabal',
   projectName: 'ultratorrent-core',
+  trailingSlash: false,
 
   // The docs are heavily cross-linked, so a dangling internal link — or a link to
   // a heading that has since been renamed — is a bug. Fail the build on both.

@@ -1,0 +1,78 @@
+name: Docs
+
+# Publishes the documentation site to GitHub Pages.
+#
+# Pull requests only *build* it — that is the check that matters, because the site
+# is configured to throw on broken links, broken anchors and broken markdown links,
+# so a dangling cross-reference fails here instead of shipping.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/docs.yml'
+      # The reference section is generated from these, so a change to the API,
+      # the permissions, the module registry, the schema or the env contract
+      # changes the docs even when nothing under website/ was touched.
+      - 'packages/shared/**'
+      - 'apps/backend/src/**/*.controller.ts'
+      - 'apps/backend/src/modules/module-registry/manifests.ts'
+      - 'apps/backend/prisma/schema.prisma'
+      - '.env.example'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish; queue at most one behind it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The reference pages are generated from real exports, so shared has to be
+      # compiled. The module manifests are transpiled on the fly by the generator,
+      # so a full backend build is deliberately NOT required here.
+      - name: Build shared (the reference generator reads its exports)
+        run: npm run build --workspace @ultratorrent/shared
+
+      - name: Install docs dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Build the site (strict — broken links fail this step)
+        working-directory: website
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: website/build
+
+  deploy:
+    # PRs build but never publish.
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
