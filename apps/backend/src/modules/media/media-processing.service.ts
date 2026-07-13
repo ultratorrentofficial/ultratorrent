@@ -85,6 +85,19 @@ export class MediaProcessingService {
   }
 
   /**
+   * Libraries whose post-download workflow is already in flight.
+   *
+   * The workflow scans the WHOLE library, so running it once per completed torrent
+   * — concurrently — is pure waste: a scan already under way will see every file
+   * that landed before it walks the tree. And the caller no longer awaits us, so
+   * without this guard a *backlog* of completions all fire at once. That is not
+   * hypothetical: after a sync outage left ~166 completions unrecorded, the first
+   * healthy tick fired every one of them and launched **166 concurrent full library
+   * scans**, which is what pinned a NAS at load 15.
+   */
+  private readonly workflowsInFlight = new Set<string>();
+
+  /**
    * Entry point wired from torrent completion detection. Never throws — a failure
    * here must not disrupt the sync loop.
    */
@@ -101,7 +114,19 @@ export class MediaProcessingService {
       if (covering.length === 0) return;
 
       for (const library of covering) {
-        await this.runWorkflow(library, t, path.resolve(savePath));
+        if (this.workflowsInFlight.has(library.id)) {
+          this.logger.debug(
+            `Post-download workflow for "${library.name}" is already running — ` +
+              `skipping a second pass for ${t.name}; the running scan will pick it up.`,
+          );
+          continue;
+        }
+        this.workflowsInFlight.add(library.id);
+        try {
+          await this.runWorkflow(library, t, path.resolve(savePath));
+        } finally {
+          this.workflowsInFlight.delete(library.id);
+        }
       }
     } catch (err) {
       this.logger.warn(

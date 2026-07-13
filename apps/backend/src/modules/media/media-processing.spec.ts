@@ -231,3 +231,52 @@ describe('MediaProcessingService.processLibrary (periodic scan + enrich)', () =>
     expect(r).toMatchObject({ identified: 0, metadataFetched: 0, artworkFetched: 0, processed: 1 });
   });
 });
+
+/**
+ * The post-download workflow scans the WHOLE library. The sync tick no longer awaits
+ * it, so a backlog of completions would otherwise all fire at once — after a sync
+ * outage left ~166 completions unrecorded, the first healthy tick launched 166
+ * concurrent full library scans and pinned a NAS at load 15.
+ */
+describe('MediaProcessingService.handleTorrentCompleted — concurrency', () => {
+  const torrent = (name: string) => ({ name, savePath: '/media/tv/Show', hash: name } as any);
+
+  function build() {
+    let running = 0;
+    let peak = 0;
+    let scans = 0;
+    const prisma = {
+      mediaLibrary: { findMany: jest.fn(async () => [{ id: 'lib1', name: 'TV', path: '/media/tv', isEnabled: true }]) },
+    };
+    const svc = new MediaProcessingService(prisma as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    // Stand in for the real scan → identify → metadata → artwork → rename pipeline.
+    (svc as any).runWorkflow = jest.fn(async () => {
+      scans++;
+      running++;
+      peak = Math.max(peak, running);
+      await new Promise((r) => setTimeout(r, 20));
+      running--;
+    });
+    return { svc, stats: () => ({ peak, scans }) };
+  }
+
+  it('runs ONE library workflow at a time, however many torrents complete at once', async () => {
+    const { svc, stats } = build();
+
+    // A backlog: 20 torrents in the same library all report complete on one tick.
+    await Promise.all(
+      Array.from({ length: 20 }, (_, i) => svc.handleTorrentCompleted(torrent(`t${i}`))),
+    );
+
+    const { peak, scans } = stats();
+    expect(peak).toBe(1);  // never two full library scans at once
+    expect(scans).toBe(1); // the rest are skipped — the running scan sees their files
+  });
+
+  it('runs again for a later completion once the first workflow has finished', async () => {
+    const { svc, stats } = build();
+    await svc.handleTorrentCompleted(torrent('a'));
+    await svc.handleTorrentCompleted(torrent('b'));
+    expect(stats().scans).toBe(2); // sequential completions are not suppressed
+  });
+});
