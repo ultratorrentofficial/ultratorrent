@@ -1297,5 +1297,38 @@
         "deleted": "Preference deleted"
       }
     }
+  },
+  "shows": {
+    "dupes": {
+      "title": "Duplicate show folders",
+      "subtitle": "Two folders that are really the same show. Pick the real path — the rest are re-homed into it and removed.",
+      "loading": "Looking for duplicate show folders…",
+      "loadError": "Could not check for duplicate show folders.",
+      "emptyTitle": "No duplicate show folders",
+      "emptyHint": "Every show in your libraries lives in exactly one folder.",
+      "foldersCount_one": "{{count}} folder",
+      "foldersCount_other": "{{count}} folders",
+      "reviewBadge": "Needs review",
+      "reviewHint": "These folders were tied together only by a shared IMDb id, and their names do not match — a single mis-tagged episode is enough to do that. Check they really are the same show before merging.",
+      "pickReal": "Which folder is the real one? Everything else is moved into it.",
+      "videos_one": "{{count}} video",
+      "videos_other": "{{count}} videos",
+      "previewAction": "Preview merge",
+      "previewFailed": "Could not build the merge preview",
+      "previewTitle": "Review the merge",
+      "previewDesc": "Everything will be re-homed into {{path}}. Nothing has happened yet.",
+      "blocked": "This merge is blocked",
+      "moves_one": "{{count}} file moved",
+      "moves_other": "{{count}} files moved",
+      "collisions_one": "{{count}} episode in both folders",
+      "collisions_other": "{{count}} episodes in both folders",
+      "keepsLarger": "keeps the larger file; the smaller goes to Trash",
+      "deletions_one": "{{count}} folder permanently deleted",
+      "deletions_other": "{{count}} folders permanently deleted",
+      "cancel": "Cancel",
+      "confirm": "Merge and delete",
+      "merged": "Merged — {{moved}} moved, {{trashed}} to Trash, {{deleted}} folder(s) deleted",
+      "mergeFailed": "The merge failed"
+    }
   }
 }

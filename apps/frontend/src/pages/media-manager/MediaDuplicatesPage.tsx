@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/table';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { duplicateReasonLabel, seasonEpisodeLabel } from './constants';
+import { DuplicateShowsPanel } from './DuplicateShowsPanel';
 
 export function MediaDuplicatesPage() {
   const navigate = useNavigate();
@@ -68,6 +69,21 @@ export function MediaDuplicatesPage() {
           <ScanSearch className="h-4 w-4" /> {t('duplicates.detectBtn')}
         </Button>
       </div>
+
+      {/*
+        Duplicate show FOLDERS — two directories that are really one show. Distinct
+        from the duplicate FILES below (the same episode ripped twice), and resolved
+        differently: the operator picks the real path and the rest are re-homed.
+      */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">{t('shows.dupes.title')}</h2>
+          <p className="text-sm text-muted-foreground">{t('shows.dupes.subtitle')}</p>
+        </div>
+        <DuplicateShowsPanel />
+      </section>
+
+      <div className="border-t border-border/60" />
 
       {isLoading ? (
         <CenteredSpinner label={t('duplicates.loading')} />

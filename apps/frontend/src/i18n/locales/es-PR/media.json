@@ -1297,5 +1297,38 @@
         "deleted": "Preferencia eliminada"
       }
     }
+  },
+  "shows": {
+    "dupes": {
+      "title": "Carpetas duplicadas de series",
+      "subtitle": "Dos carpetas que en realidad son la misma serie. Elige la ruta real: el resto se mueve a ella y se elimina.",
+      "loading": "Buscando carpetas duplicadas…",
+      "loadError": "No se pudieron buscar carpetas duplicadas.",
+      "emptyTitle": "No hay carpetas duplicadas",
+      "emptyHint": "Cada serie de tus bibliotecas vive en una sola carpeta.",
+      "foldersCount_one": "{{count}} carpeta",
+      "foldersCount_other": "{{count}} carpetas",
+      "reviewBadge": "Requiere revisión",
+      "reviewHint": "Estas carpetas solo están vinculadas por un mismo id de IMDb y sus nombres no coinciden; basta un episodio mal etiquetado para que ocurra. Verifica que sean realmente la misma serie antes de unirlas.",
+      "pickReal": "¿Cuál es la carpeta real? Todo lo demás se moverá a ella.",
+      "videos_one": "{{count}} video",
+      "videos_other": "{{count}} videos",
+      "previewAction": "Ver cambios",
+      "previewFailed": "No se pudo generar la vista previa",
+      "previewTitle": "Revisa la unión",
+      "previewDesc": "Todo se moverá a {{path}}. Aún no se ha hecho nada.",
+      "blocked": "Esta unión está bloqueada",
+      "moves_one": "{{count}} archivo movido",
+      "moves_other": "{{count}} archivos movidos",
+      "collisions_one": "{{count}} episodio en ambas carpetas",
+      "collisions_other": "{{count}} episodios en ambas carpetas",
+      "keepsLarger": "se conserva el archivo más grande; el más pequeño va a la Papelera",
+      "deletions_one": "{{count}} carpeta eliminada permanentemente",
+      "deletions_other": "{{count}} carpetas eliminadas permanentemente",
+      "cancel": "Cancelar",
+      "confirm": "Unir y eliminar",
+      "merged": "Unido: {{moved}} movidos, {{trashed}} a la Papelera, {{deleted}} carpeta(s) eliminada(s)",
+      "mergeFailed": "La unión falló"
+    }
   }
 }

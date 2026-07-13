@@ -39,6 +39,7 @@ import { MediaArtworkService, ArtworkUpload } from './media-artwork.service';
 import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
+import { MediaShowDuplicateService } from './media-show-duplicate.service';
 import {
   MediaServerIntegrationService,
   IntegrationInput,
@@ -78,6 +79,7 @@ export class MediaController {
     private readonly subtitles: MediaSubtitleService,
     private readonly nfo: MediaNfoService,
     private readonly duplicates: MediaDuplicateService,
+    private readonly showDuplicates: MediaShowDuplicateService,
     private readonly integrations: MediaServerIntegrationService,
     private readonly jobs: MediaProcessingQueueService,
     private readonly imdb: ImdbService,
@@ -106,14 +108,39 @@ export class MediaController {
 
   @Post('libraries')
   @RequirePermissions(P.MEDIA_MANAGER_MANAGE_LIBRARIES)
-  createLibrary(@Body() body: LibraryInput) {
-    return this.libraries.create(body ?? {});
+  async createLibrary(@Body() body: LibraryInput, @Req() req: Request) {
+    const library = await this.libraries.create(body ?? {});
+    // A library that has never been scanned knows nothing about its own contents:
+    // no items, and no `MediaShow` rows, so the acquisition side has no folder to
+    // file a grab into. Scan it immediately rather than leave it blank until the
+    // operator finds the Scan button (or the 5-minute scheduler gets to it).
+    const { jobId } = await this.launchLibraryScan(library.id, req);
+    return { ...library, scanJobId: jobId };
   }
 
   @Patch('libraries/:id')
   @RequirePermissions(P.MEDIA_MANAGER_MANAGE_LIBRARIES)
-  updateLibrary(@Param('id') id: string, @Body() body: LibraryInput) {
-    return this.libraries.update(id, body ?? {});
+  async updateLibrary(@Param('id') id: string, @Body() body: LibraryInput, @Req() req: Request) {
+    const library = await this.libraries.update(id, body ?? {});
+    // Re-scan on edit too: the path, kind or naming mode may have changed, and each
+    // of those changes what the library's contents *are* as far as the DB is
+    // concerned. Detached, so a large library can't time the request out.
+    const { jobId } = await this.launchLibraryScan(library.id, req);
+    return { ...library, scanJobId: jobId };
+  }
+
+  /**
+   * Fire the same detached scan the explicit Scan button runs, returning its job id.
+   * Progress and the result arrive over the `media_manager.job.*` WS events.
+   */
+  private launchLibraryScan(id: string, req: Request): Promise<{ jobId: string }> {
+    return this.jobs.runDetached('library_scan', { libraryId: id }, async (report) => {
+      const scan = await this.scanner.scanLibrary(id, (p, m) => report(p * 0.8, m));
+      const organized = await this.mediaActions.organizeLibrary(id, { dryRun: false }, auditCtx(req), (p, m) =>
+        report(80 + p * 0.2, m),
+      );
+      return { ...scan, organized };
+    });
   }
 
   @Delete('libraries/:id')
@@ -390,6 +417,38 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   detectDuplicates() {
     return this.duplicates.detect();
+  }
+
+  // --- duplicate SHOW FOLDERS --------------------------------------------
+  // Two directories that are really the same show ("Happy's Place (2024)" vs
+  // "Happys Place"). Distinct from the duplicates above, which are duplicate
+  // *files*. Nothing here is automatic: detect reports, preview plans, and only
+  // an explicit merge — with the operator's chosen canonical path — touches disk.
+
+  @Get('shows/duplicates')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  detectDuplicateShows(@Query('libraryId') libraryId?: string) {
+    return this.showDuplicates.detect(libraryId);
+  }
+
+  @Post('shows/duplicates/preview')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  previewShowMerge(@Body() body: { canonicalShowId: string; duplicateShowIds: string[] }) {
+    return this.showDuplicates.preview(body?.canonicalShowId, body?.duplicateShowIds ?? []);
+  }
+
+  /**
+   * Re-home the duplicates' files into the operator's chosen folder and delete the
+   * emptied duplicates. Destructive: needs both RENAME (it moves files) and DELETE
+   * (it removes folders).
+   */
+  @Post('shows/duplicates/merge')
+  @RequirePermissions(P.MEDIA_MANAGER_RENAME, P.MEDIA_MANAGER_DELETE)
+  mergeShows(
+    @Body() body: { canonicalShowId: string; duplicateShowIds: string[] },
+    @Req() req: Request,
+  ) {
+    return this.showDuplicates.merge(body?.canonicalShowId, body?.duplicateShowIds ?? [], auditCtx(req));
   }
 
   // --- media-server integrations ----------------------------------------

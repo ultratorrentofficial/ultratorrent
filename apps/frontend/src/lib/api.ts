@@ -1298,6 +1298,62 @@ export interface MediaDuplicateGroup {
   items: MediaDuplicateItem[];
 }
 
+// --- duplicate SHOW FOLDERS -------------------------------------------------
+// Two directories that are really the same show ("Happy's Place (2024)" beside
+// "Happys Place"). Distinct from MediaDuplicateGroup, which is duplicate FILES.
+
+export interface DuplicateShowMember {
+  showId: string;
+  path: string;
+  title: string;
+  year: number | null;
+  imdbId: string | null;
+  /** Video files on disk right now. */
+  videoCount: number;
+  sizeBytes: number;
+}
+
+export interface DuplicateShowFamily {
+  reason: 'name' | 'imdb' | 'name+imdb';
+  /**
+   * The folder names disagree and only a shared IMDb id ties them — which one
+   * mis-tagged item is enough to do. Show a warning; never treat as obvious.
+   */
+  needsReview: boolean;
+  suggestedCanonicalShowId: string;
+  members: DuplicateShowMember[];
+}
+
+export interface ShowMergeCollision {
+  season: number | null;
+  episode: number | null;
+  incoming: string;
+  incomingBytes: number;
+  existing: string;
+  existingBytes: number;
+  winner: 'incoming' | 'existing';
+  /** The smaller file — moved to Trash, not destroyed. */
+  trashed: string;
+}
+
+export interface ShowMergePlan {
+  canonical: { showId: string; path: string; title: string };
+  duplicates: Array<{ showId: string; path: string; title: string }>;
+  moves: Array<{ from: string; to: string; sizeBytes: number }>;
+  collisions: ShowMergeCollision[];
+  /** Folders permanently deleted once emptied. */
+  deletions: string[];
+  /** Non-empty → the merge is refused. */
+  blockers: string[];
+}
+
+export interface ShowMergeResult extends ShowMergePlan {
+  moved: number;
+  trashed: number;
+  deleted: number;
+  rebound: number;
+}
+
 export type MediaServerKind = 'plex' | 'jellyfin' | 'emby' | 'kodi';
 
 export interface MediaServerIntegration {
@@ -2911,6 +2967,24 @@ export const api = {
     },
     detectDuplicates(): Promise<Paginated<MediaDuplicateGroup>> {
       return request<Paginated<MediaDuplicateGroup>>('/media/duplicates/detect', { method: 'POST' });
+    },
+    // --- duplicate SHOW FOLDERS (two directories, one show) -----------------
+    duplicateShows(libraryId?: string): Promise<DuplicateShowFamily[]> {
+      return request<DuplicateShowFamily[]>('/media/shows/duplicates', {
+        query: libraryId ? { libraryId } : undefined,
+      });
+    },
+    previewShowMerge(canonicalShowId: string, duplicateShowIds: string[]): Promise<ShowMergePlan> {
+      return request<ShowMergePlan>('/media/shows/duplicates/preview', {
+        method: 'POST',
+        body: { canonicalShowId, duplicateShowIds },
+      });
+    },
+    mergeShows(canonicalShowId: string, duplicateShowIds: string[]): Promise<ShowMergeResult> {
+      return request<ShowMergeResult>('/media/shows/duplicates/merge', {
+        method: 'POST',
+        body: { canonicalShowId, duplicateShowIds },
+      });
     },
     // --- media-server integrations ---------------------------------------
     listServerIntegrations(): Promise<MediaServerIntegration[]> {

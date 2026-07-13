@@ -58,7 +58,7 @@ export function isIgnoredScanDir(name: string): boolean {
   return name.startsWith('.') || name === '@eaDir';
 }
 
-const VIDEO_EXT = new Set([
+export const VIDEO_EXT = new Set([
   '.mkv',
   '.mp4',
   '.avi',

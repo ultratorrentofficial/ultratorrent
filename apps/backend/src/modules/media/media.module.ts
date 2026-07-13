@@ -13,6 +13,7 @@ import { MediaArtworkService } from './media-artwork.service';
 import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
+import { MediaShowDuplicateService } from './media-show-duplicate.service';
 import { MediaServerIntegrationService } from './media-server-integration.service';
 import { MediaProcessingQueueService } from './media-processing-queue.service';
 import { MediaAutomationActions } from './media-automation.actions';
@@ -54,6 +55,7 @@ import { MediaController } from './media.controller';
     MediaSubtitleService,
     MediaNfoService,
     MediaDuplicateService,
+    MediaShowDuplicateService,
     MediaServerIntegrationService,
     MediaProcessingQueueService,
     MediaAutomationActions,
