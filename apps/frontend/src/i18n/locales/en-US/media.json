@@ -1135,7 +1135,10 @@
         "preferredGroups": "Preferred groups",
         "termPlaceholder": "Type a term and press Enter",
         "groupsPlaceholder": "Release groups",
-        "create": "Create profile"
+        "create": "Create profile",
+        "maxSize": "Max release size (GB)",
+        "maxSizePlaceholder": "No limit",
+        "maxSizeHint": "A profile outranks the global defaults, so their size cap no longer applies once this profile matches. Leave blank for no limit."
       }
     },
     "evaluations": {

@@ -1952,6 +1952,12 @@ export interface AcquisitionProfile {
   excludedTerms: string[];
   requiredTerms: string[];
   preferredGroups: string[];
+  /**
+   * Release size bounds in bytes. A BigInt column, so the API serialises it as a
+   * STRING — coerce before doing arithmetic. Null = unbounded on that side.
+   */
+  minSizeBytes: string | null;
+  maxSizeBytes: string | null;
   enabled: boolean;
 }
 
@@ -1970,6 +1976,9 @@ export interface CreateAcquisitionProfileInput {
   requiredTerms?: string[];
   excludedTerms?: string[];
   preferredGroups?: string[];
+  /** Release size bounds in bytes; null clears the bound. */
+  minSizeBytes?: number | null;
+  maxSizeBytes?: number | null;
   duplicateRules?: Record<string, unknown>;
   storageRules?: Record<string, unknown>;
   automationRules?: Record<string, unknown>;

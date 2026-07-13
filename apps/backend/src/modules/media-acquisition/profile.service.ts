@@ -18,6 +18,17 @@ export interface ProfileInput {
   requiredTerms?: string[];
   excludedTerms?: string[];
   preferredGroups?: string[];
+  /**
+   * Release size bounds, in bytes. Null/absent = unbounded on that side.
+   *
+   * These become the `sizeRules` of the preference tier this profile is turned into.
+   * A profile tier takes precedence over the global default candidates, so without a
+   * cap here the ONLY size limit in the system (the defaults' `≤1 GB`) is simply never
+   * consulted once a profile matches — which is how a 1.63 GB episode landed in a
+   * library whose every other episode was under 1 GB.
+   */
+  minSizeBytes?: number | null;
+  maxSizeBytes?: number | null;
   qualityRules?: Record<string, unknown>;
   duplicateRules?: Record<string, unknown>;
   storageRules?: Record<string, unknown>;
@@ -65,6 +76,8 @@ export class AcquisitionProfileService {
 
   private toData(input: Partial<ProfileInput>, create: boolean): any {
     const json = (v: unknown) => (v === undefined ? undefined : (v as object));
+    const bytes = (v: number | null | undefined) =>
+      v === undefined ? undefined : v === null ? null : BigInt(Math.round(v));
     return {
       name: input.name ?? (create ? 'Untitled' : undefined),
       description: input.description === undefined ? undefined : input.description,
@@ -81,6 +94,10 @@ export class AcquisitionProfileService {
       requiredTerms: json(input.requiredTerms),
       excludedTerms: json(input.excludedTerms),
       preferredGroups: json(input.preferredGroups),
+      // BigInt column (a 1080p movie exceeds the Int32 ceiling). An explicit null
+      // clears the bound; undefined leaves it untouched on an update.
+      minSizeBytes: bytes(input.minSizeBytes),
+      maxSizeBytes: bytes(input.maxSizeBytes),
       qualityRules: json(input.qualityRules),
       duplicateRules: json(input.duplicateRules),
       storageRules: json(input.storageRules),

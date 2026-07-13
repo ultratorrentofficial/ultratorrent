@@ -86,6 +86,9 @@ export class CreateAcquisitionProfileDto {
   @IsOptional() @IsArray() @IsString({ each: true }) requiredTerms?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) excludedTerms?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) preferredGroups?: string[];
+  /** Release size bounds in bytes; these become the tier's `sizeRules`. Null clears. */
+  @IsOptional() @IsInt() @Min(0) minSizeBytes?: number | null;
+  @IsOptional() @IsInt() @Min(0) maxSizeBytes?: number | null;
   @IsOptional() @IsObject() qualityRules?: Record<string, unknown>;
   @IsOptional() @IsObject() duplicateRules?: Record<string, unknown>;
   @IsOptional() @IsObject() storageRules?: Record<string, unknown>;

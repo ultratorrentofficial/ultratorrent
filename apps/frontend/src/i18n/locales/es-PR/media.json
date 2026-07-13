@@ -1135,7 +1135,10 @@
         "preferredGroups": "Grupos preferidos",
         "termPlaceholder": "Escribe un término y presiona Enter",
         "groupsPlaceholder": "Grupos de lanzamiento",
-        "create": "Crear perfil"
+        "create": "Crear perfil",
+        "maxSize": "Tamaño máximo del lanzamiento (GB)",
+        "maxSizePlaceholder": "Sin límite",
+        "maxSizeHint": "Un perfil tiene prioridad sobre los valores predeterminados globales, así que su límite de tamaño deja de aplicarse cuando este perfil coincide. Déjalo en blanco para no poner límite."
       }
     },
     "evaluations": {

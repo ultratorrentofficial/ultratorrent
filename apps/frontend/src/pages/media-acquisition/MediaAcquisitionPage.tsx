@@ -1112,6 +1112,8 @@ function ProfileDialog({
     preferredResolution: profile?.preferredResolution ?? '',
     preferredCodec: profile?.preferredCodec ?? '',
     preferredSource: profile?.preferredSource ?? '',
+    // Shown in GB — the byte counts are unreadable in a form. Empty = no limit.
+    maxSizeGb: profile?.maxSizeBytes ? String(Number(profile.maxSizeBytes) / 1e9) : '',
     enabled: profile?.enabled ?? true,
   });
   const [requiredTerms, setRequiredTerms] = useState<string[]>(profile?.requiredTerms ?? []);
@@ -1128,6 +1130,10 @@ function ProfileDialog({
         preferredResolution: form.preferredResolution || undefined,
         preferredCodec: form.preferredCodec || undefined,
         preferredSource: form.preferredSource || undefined,
+        // A profile tier outranks the global default candidates, so without a cap here
+        // the only size limit in the system is never consulted once this profile
+        // matches. Explicit null clears it; blank means "no limit".
+        maxSizeBytes: form.maxSizeGb.trim() ? Math.round(Number(form.maxSizeGb) * 1e9) : null,
         requiredTerms,
         excludedTerms,
         preferredGroups,
@@ -1253,6 +1259,22 @@ function ProfileDialog({
               onChange={(e) => setForm((f) => ({ ...f, preferredCodec: e.target.value }))}
               options={codecOptions}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="pf-maxsize">{t('acquisition.profiles.dialog.maxSize')}</Label>
+            <Input
+              id="pf-maxsize"
+              type="number"
+              min="0"
+              step="0.1"
+              inputMode="decimal"
+              value={form.maxSizeGb}
+              onChange={(e) => setForm((f) => ({ ...f, maxSizeGb: e.target.value }))}
+              placeholder={t('acquisition.profiles.dialog.maxSizePlaceholder')}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t('acquisition.profiles.dialog.maxSizeHint')}
+            </p>
           </div>
         </div>
 

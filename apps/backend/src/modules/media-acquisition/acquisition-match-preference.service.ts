@@ -130,16 +130,31 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
 
   /**
    * One profile → one preference tier. The profile's preferred codec/source/
-   * resolution become `qualityRules`, and its required/excluded terms are carried
-   * through verbatim so an excluded term actually rejects a release. `pattern` is
-   * left empty: `smart_episode_match` with no pattern is a pass-through, and the
-   * bridge has already narrowed results to the exact SxxEyy.
+   * resolution become `qualityRules`, its min/max size become `sizeRules`, and its
+   * required/excluded terms are carried through verbatim so an excluded term
+   * actually rejects a release. `pattern` is left empty: `smart_episode_match` with
+   * no pattern is a pass-through, and the bridge has already narrowed results to the
+   * exact SxxEyy.
+   *
+   * The size bounds matter more than they look. A profile tier takes precedence over
+   * the global default candidates, so once a profile matches, the defaults — and the
+   * only size cap that used to exist — are never consulted. The columns were on the
+   * model but read by nothing, which is how a 1.63 GB `Euphoria US S03E08` was grabbed
+   * for a library whose every other episode came in under the 1 GB default: the
+   * `TV 1080p (auto-grab)` profile matched, and it had no ceiling to enforce.
    */
   private profileToInput(row: MediaAcquisitionProfile, priorityOrder: number): MatchCandidateInput {
     const quality: QualityRules = {};
     if (row.preferredResolution) quality.resolution = row.preferredResolution;
     if (row.preferredCodec) quality.codec = row.preferredCodec;
     if (row.preferredSource) quality.source = row.preferredSource;
+
+    // BigInt on the model (a 1080p movie exceeds Int32); Number for the engine, whose
+    // sizes come off the indexer as plain numbers. Null on either side = unbounded.
+    const size: SizeRules = {};
+    if (row.minSizeBytes != null) size.minBytes = Number(row.minSizeBytes);
+    if (row.maxSizeBytes != null) size.maxBytes = Number(row.maxSizeBytes);
+
     return {
       id: row.id,
       name: row.name,
@@ -150,8 +165,7 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
       requiredTerms: (row.requiredTerms as string[] | null) ?? [],
       excludedTerms: (row.excludedTerms as string[] | null) ?? [],
       qualityRules: quality,
-      // Profiles carry no size cap of their own — only the candidate lists do.
-      sizeRules: {},
+      sizeRules: size,
     };
   }
 

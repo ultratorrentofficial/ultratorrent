@@ -309,3 +309,58 @@ describe('AcquisitionMatchPreferenceService.resolveCandidates', () => {
     );
   });
 });
+
+/**
+ * A profile tier OUTRANKS the global default candidates, so once a profile matches,
+ * the defaults — and the only size cap the system had — are never consulted. The
+ * profile's own size columns existed on the model but were read by nothing, so a
+ * 1.63 GB `Euphoria US S03E08` was grabbed for a library whose every other episode
+ * came in under the 1 GB default: `TV 1080p (auto-grab)` matched, and had no ceiling.
+ */
+describe('AcquisitionMatchPreferenceService — a profile can cap release size', () => {
+  const GB = 1024 * 1024 * 1024;
+  const svc = new AcquisitionMatchPreferenceService({} as any);
+  const toTier = (row: any) => (svc as any).profileToInput(row, 0);
+
+  const base = {
+    id: 'pf', name: 'TV 1080p (auto-grab)', mediaType: 'tv', enabled: true,
+    preferredResolution: '1080p', preferredCodec: 'x265', preferredSource: null,
+    requiredTerms: [], excludedTerms: [], qualityRules: null,
+    minSizeBytes: null, maxSizeBytes: null,
+  };
+
+  it('carries the profile’s max size into the tier’s sizeRules', () => {
+    // BigInt on the model — a 1080p movie exceeds the Int32 ceiling.
+    const tier = toTier({ ...base, maxSizeBytes: BigInt(1 * GB) });
+    expect(tier.sizeRules).toEqual({ maxBytes: 1 * GB });
+  });
+
+  it('carries a min size too, and leaves an unset bound unbounded', () => {
+    expect(toTier({ ...base, minSizeBytes: BigInt(100 * 1024 * 1024) }).sizeRules)
+      .toEqual({ minBytes: 100 * 1024 * 1024 });
+    expect(toTier(base).sizeRules).toEqual({}); // both null → no bound at all
+  });
+
+  it('REJECTS the oversized release the uncapped profile used to grab', () => {
+    const tier = toTier({ ...base, maxSizeBytes: BigInt(1 * GB) });
+    const euphoria = cand({
+      title: 'Euphoria US S03E08 1080p x265-ELiTE',
+      sizeBytes: 1_632_087_552, // 1.63 GB — the real one
+    });
+    expect(svc.select([euphoria], [tier], 'Euphoria (US)', 3, 8)).toBeNull();
+  });
+
+  it('still takes the same release when it fits under the cap', () => {
+    const tier = toTier({ ...base, maxSizeBytes: BigInt(2 * GB) });
+    const euphoria = cand({
+      title: 'Euphoria US S03E08 1080p x265-ELiTE',
+      sizeBytes: 1_632_087_552,
+    });
+    expect(svc.select([euphoria], [tier], 'Euphoria (US)', 3, 8)).not.toBeNull();
+  });
+
+  it('an uncapped profile still accepts anything — the cap is opt-in', () => {
+    const huge = cand({ title: 'Euphoria US S03E08 1080p x265-ELiTE', sizeBytes: 8 * GB });
+    expect(svc.select([huge], [toTier(base)], 'Euphoria (US)', 3, 8)).not.toBeNull();
+  });
+});
