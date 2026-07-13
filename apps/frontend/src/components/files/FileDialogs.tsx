@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CenteredSpinner } from '@/components/ui/feedback';
+import { PathPicker } from '@/components/PathPicker';
 import { formatBytes, formatDateTime } from '@/lib/format';
 
 /** Shared mutation runner: toast + invalidate + close. */
@@ -193,12 +194,21 @@ export function MoveCopyDialog({
       <div className="space-y-3">
         <div className="space-y-2">
           <Label htmlFor="destination">{t('moveCopy.destinationLabel')}</Label>
-          <Input
+          {/*
+            Browse-only: the destination is chosen from the tree, never typed.
+            `valueMode="relative"` because move/copy destinations are root-relative —
+            the backend re-bases a leading slash onto the root, so an absolute path
+            would double it.
+          */}
+          <PathPicker
             id="destination"
-            autoFocus
             value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            placeholder={t('moveCopy.destinationPlaceholder')}
+            onChange={setDestination}
+            mode="directory"
+            valueMode="relative"
+            allowManualEntry={false}
+            pickerTitle={t('moveCopy.pickerTitle')}
+            aria-label={t('moveCopy.destinationLabel')}
           />
         </div>
         <label className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">

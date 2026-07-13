@@ -37,16 +37,39 @@ function useScrollLock(active: boolean): void {
   }, [active]);
 }
 
-/** Close on Escape key. */
+/**
+ * Open dialogs, innermost last. Every dialog listens for Escape on `window`, so
+ * without this a nested dialog (e.g. the DirectoryPicker opened from inside a
+ * form dialog) would close BOTH itself and its parent on a single Escape.
+ * Only the topmost entry acts.
+ */
+const escapeStack: object[] = [];
+
+/** Close on Escape key — but only for the topmost open dialog. */
 function useEscape(active: boolean, onClose: () => void): void {
+  // Held in a ref so a changing onClose identity does not re-run the effect:
+  // re-running would pop and re-push, promoting a parent above its own child.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!active) return;
+    const token = {};
+    escapeStack.push(token);
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (escapeStack[escapeStack.length - 1] !== token) return;
+      onCloseRef.current();
     };
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [active, onClose]);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      const i = escapeStack.lastIndexOf(token);
+      if (i !== -1) escapeStack.splice(i, 1);
+    };
+  }, [active]);
 }
 
 export interface DialogProps {

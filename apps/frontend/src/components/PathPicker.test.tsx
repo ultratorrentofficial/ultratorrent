@@ -43,11 +43,14 @@ vi.mock('@/lib/api', () => ({
 
 import { api } from '@/lib/api';
 
-function renderPicker(onSelect = vi.fn()) {
+function renderPicker(
+  onSelect = vi.fn(),
+  props: Partial<React.ComponentProps<typeof DirectoryPicker>> = {},
+) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <DirectoryPicker open onClose={() => {}} onSelect={onSelect} />
+      <DirectoryPicker open onClose={() => {}} onSelect={onSelect} {...props} />
     </QueryClientProvider>,
   );
   return { onSelect };
@@ -86,5 +89,43 @@ describe('DirectoryPicker', () => {
     await waitFor(() => expect(api.files.browse).toHaveBeenCalledWith('/movies'));
     fireEvent.click(screen.getByTitle('Root folder'));
     await waitFor(() => expect(screen.getByText('tv')).toBeInTheDocument());
+  });
+});
+
+/**
+ * The file API's `destination` is ROOT-RELATIVE — the backend re-bases a leading
+ * slash onto the root. Emitting the absolute path here would resolve
+ * `/downloads` + `/downloads/movies` → `/downloads/downloads/movies` and 403.
+ */
+describe('DirectoryPicker — valueMode="relative"', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('emits the root-relative path, not the absolute one', async () => {
+    const { onSelect } = renderPicker(vi.fn(), { valueMode: 'relative' });
+    fireEvent.click(await screen.findByText('movies'));
+    await waitFor(() => expect(api.files.browse).toHaveBeenCalledWith('/movies'));
+    fireEvent.click(screen.getByRole('button', { name: /select this folder/i }));
+    expect(onSelect).toHaveBeenCalledWith('/movies');
+    expect(onSelect).not.toHaveBeenCalledWith('/downloads/movies');
+  });
+
+  it('emits "/" for the root itself', async () => {
+    const { onSelect } = renderPicker(vi.fn(), { valueMode: 'relative' });
+    await screen.findByText('movies');
+    fireEvent.click(screen.getByRole('button', { name: /select this folder/i }));
+    expect(onSelect).toHaveBeenCalledWith('/');
+  });
+
+  it('seeds from an already-relative initialPath', async () => {
+    renderPicker(vi.fn(), { valueMode: 'relative', initialPath: '/movies' });
+    // Starts inside /movies rather than falling back to the root.
+    await waitFor(() => expect(api.files.browse).toHaveBeenCalledWith('/movies'));
+    expect(await screen.findByText('action')).toBeInTheDocument();
+  });
+
+  it('still displays the absolute path to the user', async () => {
+    renderPicker(vi.fn(), { valueMode: 'relative', initialPath: '/movies' });
+    // The value handed back is relative, but what's shown is the real full path.
+    expect(await screen.findByText('/downloads/movies')).toBeInTheDocument();
   });
 });

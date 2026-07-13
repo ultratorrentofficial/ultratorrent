@@ -23,6 +23,20 @@ import { cn } from '@/lib/utils';
 
 type PickerMode = 'directory' | 'file';
 
+/**
+ * Which units the picker reads and emits.
+ *
+ * - `absolute` (default) — `/downloads/movies`. What settings fields store.
+ * - `relative` — `/movies`, relative to the file-manager root. What the file
+ *   API's `path`/`destination` fields take: the backend re-bases a leading
+ *   slash onto the root, so handing it an absolute path would double the root
+ *   (`/downloads` + `/downloads/movies` → `/downloads/downloads/movies`).
+ *
+ * The browser always *displays* the absolute path either way — only the value
+ * handed to `onSelect` (and read from `initialPath`) changes.
+ */
+type ValueMode = 'absolute' | 'relative';
+
 /** Join the effective absolute root with a "/"-prefixed root-relative path. */
 function toAbsolute(root: string, rel: string): string {
   if (!rel || rel === '/') return root;
@@ -38,16 +52,29 @@ function toRelative(root: string, abs: string | undefined): string {
   return '/';
 }
 
+/** Coerce an already-root-relative path into the "/"-prefixed form `rel` uses. */
+function normalizeRel(rel: string | undefined): string {
+  if (!rel) return '/';
+  const trimmed = rel.trim();
+  if (!trimmed || trimmed === '/') return '/';
+  return ('/' + trimmed.replace(/^\/+/, '')).replace(/\/+$/, '') || '/';
+}
+
 /**
  * Root-limited directory/file browser. Confined to the server's Default Root
  * Path — breadcrumbs cannot go above the root, and every path is validated
  * server-side by PathSafety. Reuses `GET /api/files` (browse) +
- * `POST /api/files/folders` (create). Returns the selected ABSOLUTE path.
+ * `POST /api/files/folders` (create).
+ *
+ * Emits an ABSOLUTE path by default; pass `valueMode="relative"` for the
+ * root-relative form the file API's `destination` fields expect. See
+ * {@link ValueMode}.
  */
 export function DirectoryPicker({
   open,
   onClose,
   mode = 'directory',
+  valueMode = 'absolute',
   initialPath,
   onSelect,
   title,
@@ -55,8 +82,9 @@ export function DirectoryPicker({
   open: boolean;
   onClose: () => void;
   mode?: PickerMode;
+  valueMode?: ValueMode;
   initialPath?: string;
-  onSelect: (absolutePath: string) => void;
+  onSelect: (path: string) => void;
   title?: string;
 }) {
   const { t } = useTranslation('files');
@@ -77,7 +105,7 @@ export function DirectoryPicker({
   // Seed the starting directory from initialPath once the root is known.
   useEffect(() => {
     if (open && root) {
-      setRel(toRelative(root, initialPath));
+      setRel(valueMode === 'relative' ? normalizeRel(initialPath) : toRelative(root, initialPath));
       setSelectedFile(null);
       setFilter('');
       setCreatingOpen(false);
@@ -114,13 +142,13 @@ export function DirectoryPicker({
   const segments = rel.split('/').filter(Boolean);
   const crumbAt = (i: number) => '/' + segments.slice(0, i + 1).join('/');
 
-  const currentAbsolute = toAbsolute(root, rel);
-  const selectedAbsolute =
-    mode === 'file' && selectedFile ? toAbsolute(root, selectedFile) : currentAbsolute;
+  // The picker's native unit is root-relative; absolute is derived for display.
+  const selectedRel = mode === 'file' && selectedFile ? selectedFile : rel;
+  const selectedAbsolute = toAbsolute(root, selectedRel);
   const canConfirm = mode === 'directory' || !!selectedFile;
 
   const confirm = () => {
-    onSelect(selectedAbsolute);
+    onSelect(valueMode === 'relative' ? selectedRel : selectedAbsolute);
     onClose();
   };
 
@@ -301,6 +329,7 @@ export function PathPicker({
   onChange,
   placeholder,
   mode = 'directory',
+  valueMode = 'absolute',
   allowManualEntry = true,
   disabled = false,
   id,
@@ -312,6 +341,7 @@ export function PathPicker({
   onChange: (value: string) => void;
   placeholder?: string;
   mode?: PickerMode;
+  valueMode?: ValueMode;
   allowManualEntry?: boolean;
   disabled?: boolean;
   id?: string;
@@ -351,6 +381,7 @@ export function PathPicker({
         open={open}
         onClose={() => setOpen(false)}
         mode={mode}
+        valueMode={valueMode}
         initialPath={value}
         onSelect={onChange}
         title={pickerTitle}
