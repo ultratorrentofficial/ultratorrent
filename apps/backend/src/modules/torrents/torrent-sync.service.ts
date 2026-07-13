@@ -10,6 +10,22 @@ import { NotificationsService } from '../notifications/notifications.module';
 import { MediaProcessingService } from '../media/media-processing.service';
 import { TorrentNameRepairService } from './torrent-name-repair.service';
 
+/** An engine call that never settles must not be able to wedge the tick. */
+const ENGINE_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(work: Promise<T>, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ENGINE_TIMEOUT_MS}ms`)),
+      ENGINE_TIMEOUT_MS,
+    );
+    work.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 /**
  * Background synchroniser. On a fixed cadence it pulls live torrent + stats
  * data from each engine, persists lightweight snapshots for fast querying /
@@ -17,6 +33,20 @@ import { TorrentNameRepairService } from './torrent-name-repair.service';
  *
  * Polling (not per-torrent subscription) keeps the engine integration simple
  * while WebSocket fan-out keeps the UI responsive without client polling.
+ *
+ * ORDER MATTERS, and it is the whole reason this tick is written the way it is.
+ * The new state is persisted BEFORE any side-effect fires. A transition is derived
+ * by comparing the engine against the last snapshot, so if we act first and persist
+ * afterwards, a side-effect that is slow — or that hangs — leaves the snapshot
+ * unwritten, and the *same* transition is detected again on the next tick. That is
+ * not hypothetical: a torrent sitting at 0.9999570 in the snapshot while the engine
+ * reported 1.0 re-fired `torrent.completed` every 2 seconds, each time awaiting the
+ * full post-download media pipeline, until it had run **5,284 times** and finally
+ * blocked on an external metadata fetch. The tick's re-entrancy guard is cleared in
+ * a `finally`, so that one stuck await killed the entire sync loop — no torrent
+ * updates, no transitions, no automation, no name repair — until the process was
+ * restarted. Persisting first makes an edge fire at most once, whatever the
+ * side-effects do.
  */
 @Injectable()
 export class TorrentSyncService {
@@ -53,8 +83,8 @@ export class TorrentSyncService {
     const at = new Date().toISOString();
     try {
       const [torrents, stats] = await Promise.all([
-        provider.listTorrents(),
-        provider.getGlobalStats(),
+        withTimeout(provider.listTorrents(), `${provider.engineId} listTorrents`),
+        withTimeout(provider.getGlobalStats(), `${provider.engineId} getGlobalStats`),
       ]);
 
       this.realtime.broadcast(WS_EVENTS.TORRENTS_UPDATE, {
@@ -68,8 +98,14 @@ export class TorrentSyncService {
         at,
       });
 
-      await this.detectTransitions(provider.engineId, torrents);
+      // Read the baseline BEFORE overwriting it — transitions are the diff between
+      // the engine and the last snapshot.
+      const prior = await this.priorSnapshots(provider.engineId, torrents);
+      // Then record the new state, BEFORE acting on any transition. See the class
+      // docstring: acting first and persisting after lets a slow side-effect keep
+      // re-arming the same edge, forever.
       await this.persistSnapshots(provider.engineId, torrents);
+      await this.applyTransitions(prior, torrents);
       await this.nameRepair.repair(provider, torrents);
       this.realtime.broadcast(WS_EVENTS.ENGINE_STATUS, {
         engineId: provider.engineId,
@@ -100,16 +136,22 @@ export class TorrentSyncService {
    * Torrents with no prior snapshot are skipped this cycle (a baseline is
    * written by persistSnapshots), so nothing fires on the very first sighting.
    */
-  private async detectTransitions(
+  /** The last snapshot of each torrent — the baseline a transition is measured from. */
+  private async priorSnapshots(
     engineId: string,
     torrents: NormalizedTorrent[],
-  ): Promise<void> {
+  ): Promise<Map<string, { hash: string; progress: number; ratio: number }>> {
     const prior = await this.prisma.torrentSnapshot.findMany({
       where: { engineId, hash: { in: torrents.map((t) => t.hash) } },
       select: { hash: true, progress: true, ratio: true },
     });
-    const priorMap = new Map(prior.map((p) => [p.hash, p]));
+    return new Map(prior.map((p) => [p.hash, p]));
+  }
 
+  private async applyTransitions(
+    priorMap: Map<string, { hash: string; progress: number; ratio: number }>,
+    torrents: NormalizedTorrent[],
+  ): Promise<void> {
     const ratioItems: Array<{
       context: NormalizedTorrent;
       previous: NormalizedTorrent;
@@ -124,12 +166,18 @@ export class TorrentSyncService {
 
       if (prev.progress < 1 && t.progress >= 1) {
         risingEdges.add(t.hash);
-        await this.notifications.dispatch({
-          level: 'success',
-          title: 'Download complete',
-          message: t.name,
-          eventType: 'torrent.completed',
-        });
+        // A throw here used to abort the whole tick — skipping the name repair and
+        // the engine-status broadcast — for a notification nobody reads.
+        await this.notifications
+          .dispatch({
+            level: 'success',
+            title: 'Download complete',
+            message: t.name,
+            eventType: 'torrent.completed',
+          })
+          .catch((err) =>
+            this.logger.warn(`Completion notification failed: ${err.message}`),
+          );
         this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
           event: NOTIFICATION_EVENTS.DOWNLOAD_TORRENT_COMPLETED,
           payload: { torrentName: t.name, mediaTitle: t.name, hash: t.hash, size: t.size, ratio: t.ratio, savePath: t.savePath ?? null, label: t.label ?? null, serverName: t.engineId },
@@ -140,9 +188,13 @@ export class TorrentSyncService {
           .catch((err) =>
             this.logger.warn(`Automation evaluate failed: ${err.message}`),
           );
-        // Post-download Media Manager workflow (opt-in, best-effort). Runs after
-        // rule evaluation so operator rules see the completion first.
-        await this.mediaProcessing
+        // Post-download Media Manager workflow (opt-in, best-effort). DETACHED, not
+        // awaited: it is a scan → identify → metadata → artwork → subtitles → rename
+        // pipeline that runs for minutes and reaches out to metadata providers. It has
+        // no business blocking a 2-second tick, and blocking it is what let a single
+        // repeating edge run the pipeline 5,284 times and then wedge the sync loop on
+        // an external fetch. It queues its own jobs, so nothing here needs its result.
+        void this.mediaProcessing
           .handleTorrentCompleted(t)
           .catch((err) =>
             this.logger.warn(`Media workflow failed: ${err.message}`),
