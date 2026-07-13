@@ -43,6 +43,13 @@ export interface MatchCandidateInput {
   pattern?: string | null;
   requiredTerms?: string[];
   excludedTerms?: string[];
+  /**
+   * A regex the title must NOT match. `excludedTerms` are plain substrings and cannot
+   * express a legacy rule's `excludeRegex`, so a candidate synthesised from such a rule
+   * would silently lose its exclusion. No stored candidate sets this today, so it is
+   * inert for every existing rule.
+   */
+  excludeRegex?: string | null;
   qualityRules?: QualityRules;
   sizeRules?: SizeRules;
   feedScope?: FeedScope;
@@ -449,6 +456,21 @@ export function evaluateCandidate(
     const present = normTitle.includes(normalize(term));
     checks.push({ label: 'excluded term', passed: !present, detail: present ? `contains excluded term “${term}”` : `no “${term}”` });
     if (present) return fail(`contains excluded term “${term}”`);
+  }
+
+  // Excluded regex (a legacy rule's `excludeRegex`). An unparseable regex excludes
+  // nothing rather than everything — a typo must not silently reject every release.
+  if (candidate.excludeRegex) {
+    let hit = false;
+    try {
+      hit = new RegExp(candidate.excludeRegex, 'i').test(ctx.title);
+    } catch {
+      checks.push({ label: 'excluded regex', passed: true, detail: 'invalid regular expression — ignored' });
+    }
+    if (hit) {
+      checks.push({ label: 'excluded regex', passed: false, detail: `matches exclude regex /${candidate.excludeRegex}/` });
+      return fail(`matches exclude regex /${candidate.excludeRegex}/`);
+    }
   }
 
   // Quality rules

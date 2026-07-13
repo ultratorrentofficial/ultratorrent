@@ -194,14 +194,66 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
     return this.defaults();
   }
 
-  /** The show's RSS rule match candidates, by explicit link or by name match. */
+  /**
+   * A rule that carries no match candidates, only the legacy `includeRegex` /
+   * `excludeRegex`, expressed as a single candidate.
+   *
+   * An RSS rule filters in one of two ways, and `rss.module.ts` picks exactly one:
+   * its match candidates if it has any, else its include/exclude regex. This path
+   * only ever read the candidates — so a legacy regex-only rule contributed
+   * *nothing* here, `rssCandidates()` returned empty, and resolution fell through to
+   * the profiles and then the global defaults. An operator's `excludeRegex` — an
+   * explicit "never grab this" — was silently discarded, and the rule that was meant
+   * to filter the show was replaced by a generic default.
+   *
+   * A rule with neither candidates nor regex has no filter at all; it yields null, so
+   * the caller falls through rather than synthesising a match-everything candidate.
+   */
+  private legacyRuleCandidate(rule: {
+    id: string;
+    name: string;
+    includeRegex: string | null;
+    excludeRegex: string | null;
+  }): MatchCandidateInput | null {
+    if (!rule.includeRegex && !rule.excludeRegex) return null;
+    return {
+      id: rule.id,
+      name: `${rule.name} (include/exclude regex)`,
+      priorityOrder: 0,
+      enabled: true,
+      // `.*` when only an exclude is set: the rule admits everything it does not exclude.
+      matchType: 'regex',
+      pattern: rule.includeRegex ?? '.*',
+      excludeRegex: rule.excludeRegex,
+      requiredTerms: [],
+      excludedTerms: [],
+      qualityRules: {},
+      sizeRules: {},
+    };
+  }
+
+  /** The show's RSS rule preferences: its match candidates, else its legacy regexes. */
   private async rssCandidates(item: MediaAcquisitionWatchlistItem): Promise<MatchCandidateInput[]> {
-    if (item.rssRuleId) {
+    const forRule = async (ruleId: string): Promise<MatchCandidateInput[]> => {
       const rows = await this.prisma.rssRuleMatchCandidate.findMany({
-        where: { rssRuleId: item.rssRuleId, enabled: true },
+        where: { rssRuleId: ruleId, enabled: true },
         orderBy: { priorityOrder: 'asc' },
       });
       if (rows.length) return rows.map((r) => this.toRssInput(r));
+
+      // No candidates — fall back to the rule's own regexes, exactly as the RSS feed
+      // path does (`rss.module.ts` → `legacyEvaluation`), instead of dropping the rule.
+      const rule = await this.prisma.rssRule.findUnique({
+        where: { id: ruleId },
+        select: { id: true, name: true, includeRegex: true, excludeRegex: true },
+      });
+      const legacy = rule && this.legacyRuleCandidate(rule);
+      return legacy ? [legacy] : [];
+    };
+
+    if (item.rssRuleId) {
+      const linked = await forRule(item.rssRuleId);
+      if (linked.length) return linked;
     }
 
     // No explicit link — find a rule named after the show. Compared on the same
@@ -212,11 +264,7 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
     const match = rules.find((r) => norm(r.name) === title);
     if (!match) return [];
 
-    const rows = await this.prisma.rssRuleMatchCandidate.findMany({
-      where: { rssRuleId: match.id, enabled: true },
-      orderBy: { priorityOrder: 'asc' },
-    });
-    return rows.map((r) => this.toRssInput(r));
+    return forRule(match.id);
   }
 
   /**

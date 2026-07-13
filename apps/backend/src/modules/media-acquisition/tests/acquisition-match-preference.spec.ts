@@ -216,7 +216,13 @@ describe('AcquisitionMatchPreferenceService.resolveCandidates', () => {
   function withPrisma(over: Record<string, any> = {}) {
     const prisma = {
       rssRuleMatchCandidate: { findMany: jest.fn(async () => [rssRow]) },
-      rssRule: { findMany: jest.fn(async () => [] as any[]) },
+      // A rule with no candidates now falls back to its own include/exclude regex, so
+      // resolution reads the rule row. Default: a rule carrying neither, which has no
+      // filter at all and must therefore still fall through to profiles/defaults.
+      rssRule: {
+        findMany: jest.fn(async () => [] as any[]),
+        findUnique: jest.fn(async () => ({ id: 'rule-empty', name: 'The Show', includeRegex: null, excludeRegex: null })),
+      },
       mediaAcquisitionProfile: { findMany: jest.fn(async () => [] as any[]) },
       acquisitionMatchCandidate: { findMany: jest.fn(async () => [defaultRow]) },
       ...over,

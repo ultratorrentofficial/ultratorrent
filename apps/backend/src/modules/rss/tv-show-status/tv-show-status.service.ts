@@ -16,6 +16,16 @@ import {
 import { TmdbTvShowStatusProvider } from './tmdb-show-status.provider';
 import { ImdbTvShowStatusProvider } from './imdb-show-status.provider';
 import { LocalNfoTvShowStatusProvider } from './local-show-status.provider';
+import { titleSimilarity } from '../../media/imdb/imdb-match';
+
+/**
+ * How close a non-exact provider hit must be to the title we asked for before it is
+ * believed. Deliberately permissive enough for the ways a catalogue legitimately
+ * renames a show — "The Office" vs "The Office (US)", a missing subtitle, punctuation
+ * — while rejecting an unrelated show the provider merely ranked first. Below this we
+ * report `unknown` rather than guess.
+ */
+const TITLE_SIMILARITY_FLOOR = 0.6;
 
 export interface StatusLookupContext {
   userId?: string;
@@ -158,16 +168,45 @@ export class TvShowStatusService {
 
   // --- internals -----------------------------------------------------------
 
+  /**
+   * The hit that is actually THIS show, or null.
+   *
+   * A provider's search is fuzzy: ask TMDB for a show it has never heard of and it
+   * still answers, ranked by its own relevance, not by whether the title is the one
+   * you asked for. This used to take `hits[0]` whenever nothing matched exactly — so
+   * a miss did not produce "unknown", it produced *some other show*, cached under
+   * this title and written onto the rule as its airing status.
+   *
+   * So a non-exact hit must now clear a similarity floor, and we fail closed: no hit
+   * above the floor returns null, and the caller falls through to the next provider
+   * and ultimately reports `unknown`. An honest "unknown" is recoverable; a confident
+   * wrong answer is not.
+   */
   private pickHit(hits: ShowSearchHit[], title: string, year: number | null): ShowSearchHit | null {
     if (!hits.length) return null;
     const key = normalizeTitle(title);
+
+    // 1. Exact title matches, if any — the year then disambiguates same-named shows.
     const exact = hits.filter((h) => normalizeTitle(h.title) === key);
-    const pool = exact.length ? exact : hits;
-    if (year) {
-      const byYear = pool.find((h) => h.year === year);
-      if (byYear) return byYear;
+    if (exact.length) {
+      return (year && exact.find((h) => h.year === year)) || exact[0];
     }
-    return pool[0];
+
+    // 2. Otherwise only titles that actually resemble the one we asked for. Ranked by
+    //    similarity, with a matching year breaking ties between equally-close titles.
+    const scored = hits
+      .map((h) => ({ hit: h, score: titleSimilarity(title, h.title) }))
+      .filter((s) => s.score >= TITLE_SIMILARITY_FLOOR)
+      .sort((a, b) => b.score - a.score || Number(b.hit.year === year) - Number(a.hit.year === year));
+
+    if (!scored.length) {
+      this.logger.debug(
+        `No hit resembling “${title}” (best was “${hits[0]?.title}” at ` +
+          `${titleSimilarity(title, hits[0]?.title ?? '').toFixed(2)}) — reporting unknown.`,
+      );
+      return null;
+    }
+    return scored[0].hit;
   }
 
   private buildResult(title: string, provider: TvShowStatusProvider, d: ShowDetails): ShowStatusResult {
