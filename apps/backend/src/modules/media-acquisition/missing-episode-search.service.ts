@@ -1,3 +1,4 @@
+import { readdir, stat } from 'node:fs/promises';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { WantedEpisode } from '@prisma/client';
@@ -12,8 +13,51 @@ import { AcquisitionMatchPreferenceService } from './acquisition-match-preferenc
 import { MediaAcquisitionService } from './media-acquisition.service';
 import { MEDIA_ACQUISITION_MODULE_ID } from './decision.engine';
 import { showFolderRoot } from '../media/media-renamer';
+import { normalize } from '../rss/match-engine';
 
 type WantedSearchStatus = 'idle' | 'searching' | 'grabbed' | 'pending_approval' | 'no_results' | 'failed';
+
+/** The media types a TV show's files are filed under. */
+const SHOW_MEDIA_TYPES = ['tv', 'anime', 'episode'];
+
+/** A trailing year, on an ALREADY-normalized string ("ghosts 2021" → "ghosts"). */
+const TRAILING_YEAR = /\s+(?:19|20)\d{2}$/;
+
+/**
+ * Canonical identity key for a show title or show-folder name: case- and
+ * punctuation-insensitive, with a trailing year removed.
+ *
+ *   "Ghosts (US)"           → "ghosts us"
+ *   "Ghosts US (2021)"      → "ghosts us"        (a folder name)
+ *   "Ghosts 2021"           → "ghosts"
+ *   "Happy's Place (2024)"  → "happys place"
+ *   "Happys Place"          → "happys place"
+ *   "Magnum P.I. (2018)"    → "magnum p i"
+ *
+ * Apostrophes are ELIDED rather than treated as separators: `normalize` would turn
+ * "Happy's" into "happy s", which would never match the apostrophe-less "Happys"
+ * that release names (and therefore watchlist entries) actually carry — the exact
+ * split that produced a stray `TV Shows/Happys Place` folder.
+ *
+ * This is EQUALITY on a canonical form, never a substring test — "Ghosts US" and
+ * "Ghosts UK" stay distinct, as do "Rise" and "Sunrise". A *leading* year survives,
+ * because it can be the whole title ("1883").
+ */
+function showKey(title: string): string {
+  const normalized = normalize(title.replace(/['’`]/g, ''));
+  const stripped = normalized.replace(TRAILING_YEAR, '').trim();
+  return stripped || normalized;
+}
+
+/** Every canonical key a watchlist item answers to — its title plus any alias. */
+function showKeys(item: { title: string; titleAliases?: string[] | null }): Set<string> {
+  const keys = new Set<string>();
+  for (const t of [item.title, ...(item.titleAliases ?? [])]) {
+    const k = showKey(t ?? '');
+    if (k) keys.add(k);
+  }
+  return keys;
+}
 
 export interface EpisodeSearchOutcome {
   wantedEpisodeId: string;
@@ -154,7 +198,7 @@ export class MissingEpisodeSearchService {
     // is mandatory — without it the engine would drop the episode in its default
     // root (loose files at /downloads instead of the show folder), so a grab we
     // cannot place is refused rather than misfiled.
-    const savePath = await this.resolveSavePath(item);
+    const savePath = await this.resolveSavePath(item, wanted.seriesTconst);
     if (!savePath) {
       const reason =
         `No save path for "${item.title}": no Show Rule savePath, no existing library ` +
@@ -239,24 +283,41 @@ export class MissingEpisodeSearchService {
    * monitored shows carry no `rssRuleId`):
    *
    *   1. the linked Show Rule's `savePath` (explicit link);
-   *   2. else an RSS rule whose **name matches the show title** — many shows have
-   *      a rule that just isn't wired to the watchlist item;
-   *   3. else the show's **existing library folder** (climbed past any `Season NN`
-   *      container) so new episodes land beside the ones already there;
-   *   4. else a constructed `<TV library>/<Title> (Year)` under the target (or the
-   *      default TV/anime) library, matching the standard show-folder convention.
+   *   2. else an RSS rule whose **name matches the show** — many shows have a rule
+   *      that just isn't wired to the watchlist item;
+   *   3. else the library folder of the item carrying the show's **IMDb id** — the
+   *      only step that does not depend on titles agreeing;
+   *   4. else the library folder of an item whose **title matches the show**;
+   *   5. else an **existing show folder** already sitting in the target library;
+   *   6. else, and only then, a constructed `<TV library>/<Title> (Year)`.
+   *
+   * Steps 2/4/5 compare {@link showKey}s — a canonical, punctuation- and
+   * case-insensitive form with the trailing year stripped — against the item's
+   * title *and its aliases*. They are equality tests on that canonical form, never
+   * substring tests, so "Ghosts US" never collides with "Ghosts UK".
+   *
+   * Step 6 is the dangerous one: it invents a directory named after whatever the
+   * watchlist entry happens to be called. Two duplicate entries for the same show
+   * titled "Ghosts 2021" and "Ghosts (US)" once minted
+   * `TV Shows/Ghosts 2021 (2021)` and `TV Shows/Ghosts (US) (2021)` beside the real
+   * `TV Shows/Ghosts US (2021)`, because every earlier step demanded exact string
+   * equality and the rule was named plain "Ghosts". Steps 3 and 5 exist to make
+   * step 6 unreachable whenever the show is already on disk, whatever it is called.
    *
    * Returns undefined only when none of these resolve — the caller then refuses the
    * grab, because falling through to the engine's default would scatter episodes
    * loose in the download root instead of the library's show folder.
    */
-  private async resolveSavePath(item: {
-    rssRuleId: string | null;
-    title: string;
-    normalizedTitle: string;
-    year: number | null;
-    targetLibraryId: string | null;
-  }): Promise<string | undefined> {
+  private async resolveSavePath(
+    item: {
+      rssRuleId: string | null;
+      title: string;
+      titleAliases?: string[] | null;
+      year: number | null;
+      targetLibraryId: string | null;
+    },
+    seriesTconst?: string | null,
+  ): Promise<string | undefined> {
     // 1. Explicit Show Rule link.
     if (item.rssRuleId) {
       const rule = await this.prisma.rssRule.findUnique({
@@ -267,30 +328,67 @@ export class MissingEpisodeSearchService {
       if (sp) return sp;
     }
 
-    // 2. RSS rule whose name matches the show title.
-    const norm = item.normalizedTitle?.trim().toLowerCase();
-    if (norm) {
+    const keys = showKeys(item);
+
+    // 2. An RSS rule named after the show.
+    if (keys.size) {
       const rules = await this.prisma.rssRule.findMany({
         where: { savePath: { not: null } },
         select: { name: true, savePath: true },
       });
-      const match = rules.find(
-        (r) => r.name.trim().toLowerCase() === norm && r.savePath?.trim(),
-      );
+      const match = rules.find((r) => keys.has(showKey(r.name)) && r.savePath?.trim());
       if (match?.savePath) return match.savePath.trim();
     }
 
-    // 3. The show's existing folder in the library.
-    const existing = await this.prisma.mediaItem.findFirst({
-      where: { title: item.title, mediaType: { in: ['tv', 'anime', 'episode'] } },
-      select: { path: true },
-    });
-    if (existing?.path) {
-      const folder = showFolderRoot(existing.path);
-      if (folder && folder !== '.' && folder !== '/') return folder;
+    // 3. The library folder holding this show's IMDb id. Titles can disagree with
+    //    the library in any number of ways; the id cannot.
+    //
+    //    Unless the id itself is wrong. Real libraries carry mis-tagged items —
+    //    "Masters of the Air" was found tagged with High Desert's tt13701758 — and a
+    //    naive lookup would then file High Desert's episodes into the Masters of the
+    //    Air folder. So the id is only trusted when it points at exactly ONE show
+    //    folder that still exists on disk; anything else is ambiguous and we fall
+    //    through to matching on names.
+    if (seriesTconst) {
+      const rows = await this.prisma.mediaExternalId.findMany({
+        where: {
+          provider: 'imdb',
+          externalId: seriesTconst,
+          item: { mediaType: { in: SHOW_MEDIA_TYPES } },
+        },
+        select: { item: { select: { path: true } } },
+      });
+      const folders = [...new Set(rows.map((r) => this.folderOf(r.item?.path)).filter(Boolean))];
+      // Folders the library still has rows for but that were since deleted or
+      // merged away are not candidates — that is how the stale Ghosts rows look.
+      const live: string[] = [];
+      for (const f of folders) if (await this.isDirectory(f as string)) live.push(f as string);
+
+      if (live.length === 1) return live[0];
+      if (live.length > 1) {
+        this.logger.warn(
+          `IMDb id ${seriesTconst} maps to ${live.length} show folders (${live.join(', ')}) — ` +
+            `the library metadata is inconsistent. Ignoring the id and matching on the title instead.`,
+        );
+      }
     }
 
-    // 4. Constructed "<TV library>/<Title> (Year)".
+    // 4. A library item whose title matches the show. The canonical comparison
+    //    cannot be pushed into SQL, so we pull one row per distinct show title
+    //    (hundreds, not the tens of thousands of episode rows behind them).
+    if (keys.size) {
+      const rows = await this.prisma.mediaItem.findMany({
+        where: { mediaType: { in: SHOW_MEDIA_TYPES } },
+        select: { title: true, path: true },
+        distinct: ['title'],
+      });
+      const hit = rows.find((r) => keys.has(showKey(r.title)));
+      const folder = this.folderOf(hit?.path);
+      if (folder) return folder;
+    }
+
+    // 5/6. Resolve the library, then prefer a show folder that already exists in it
+    //      over inventing a new one.
     const library = item.targetLibraryId
       ? await this.prisma.mediaLibrary.findUnique({
           where: { id: item.targetLibraryId },
@@ -301,12 +399,52 @@ export class MissingEpisodeSearchService {
           select: { path: true },
           orderBy: { createdAt: 'asc' },
         });
-    if (library?.path?.trim()) {
-      const folderName = item.year ? `${item.title} (${item.year})` : item.title;
-      return `${library.path.trim().replace(/\/+$/, '')}/${folderName}`;
-    }
+    const libraryPath = library?.path?.trim().replace(/\/+$/, '');
+    if (!libraryPath) return undefined;
 
-    return undefined;
+    // 5. An existing folder in the library that IS this show, under any spelling.
+    const existingFolder = await this.findShowFolder(libraryPath, keys);
+    if (existingFolder) return existingFolder;
+
+    // 6. Nothing on disk for this show — a new folder is genuinely warranted.
+    const folderName = item.year ? `${item.title} (${item.year})` : item.title;
+    return `${libraryPath}/${folderName}`;
+  }
+
+  /** Whether `p` is a directory that exists right now. */
+  private async isDirectory(p: string): Promise<boolean> {
+    try {
+      return (await stat(p)).isDirectory();
+    } catch {
+      return false;
+    }
+  }
+
+  /** A library item's show folder (climbed past any `Season NN` container). */
+  private folderOf(path: string | null | undefined): string | undefined {
+    if (!path) return undefined;
+    const folder = showFolderRoot(path);
+    return folder && folder !== '.' && folder !== '/' ? folder : undefined;
+  }
+
+  /**
+   * A directory directly under `libraryPath` whose name canonicalizes to one of
+   * `keys` — i.e. the show already has a folder, whatever it happens to be named
+   * ("Ghosts US (2021)" answers for a watchlist entry titled "Ghosts (US)").
+   *
+   * An unreadable library path is not fatal: we fall through to constructing,
+   * which is the pre-existing behaviour.
+   */
+  private async findShowFolder(libraryPath: string, keys: Set<string>): Promise<string | undefined> {
+    if (!keys.size) return undefined;
+    let entries;
+    try {
+      entries = await readdir(libraryPath, { withFileTypes: true });
+    } catch {
+      return undefined;
+    }
+    const hit = entries.find((e) => e.isDirectory() && keys.has(showKey(e.name)));
+    return hit ? `${libraryPath}/${hit.name}` : undefined;
   }
 
   /**
