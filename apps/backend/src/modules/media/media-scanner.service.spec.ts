@@ -139,6 +139,25 @@ describe('MediaScannerService.reconcileShows', () => {
     expect(upserts).toHaveLength(0);
   });
 
+  it('does NOT mistake a release subfolder for a show of its own', async () => {
+    // The common real layout: a torrent's own folder sits INSIDE the show folder.
+    // Climbing only past `Season NN` stops at the release dir and calls that the
+    // show — which produced 15 bogus "duplicate show" families on a real library,
+    // each pairing a show with a subdirectory of itself.
+    const { svc, upserts } = build([
+      { path: `${LIB.path}/Billions (2016)/Season 7/Billions.S07E01.mkv` },
+      { path: `${LIB.path}/Billions (2016)/Billions.S07E02.WEB.x264-TGx/Billions.S07E02.mkv` },
+      { path: `${LIB.path}/Billions (2016)/Billions.S07.COMPLETE/Season 7/Billions.S07E03.mkv` },
+      { path: `${LIB.path}/Billions (2016)/Season 7/Extras/behind-the-scenes.mkv` },
+    ]);
+
+    expect(await run(svc)).toBe(1); // ONE show, not four
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0].create.path).toBe(`${LIB.path}/Billions (2016)`);
+    // Every file below the show folder counts toward it, however deeply nested.
+    expect(upserts[0].create.episodeCount).toBe(4);
+  });
+
   it('prunes shows whose folder no longer holds an item', async () => {
     const { svc, deletes } = build([{ path: `${LIB.path}/The Wire (2002)/Season 1/a.mkv` }]);
     await run(svc);
@@ -179,5 +198,31 @@ describe('showCanonicalKey', () => {
   it('keeps a leading year, which can be the whole title', () => {
     expect(showCanonicalKey('1883')).toBe('1883');
     expect(showCanonicalKey('1923 (2022)')).toBe('1923');
+  });
+});
+
+import { showFolderOf } from './media-scanner.service';
+
+/**
+ * A show folder is defined by its POSITION — the direct child of the library root —
+ * not by its name. Anything deeper (season containers, release/torrent dirs, Extras,
+ * complete-season packs) is INSIDE a show, whatever it is called.
+ */
+describe('showFolderOf', () => {
+  const LIB = '/downloads/TV Shows';
+
+  it('resolves a file to the show folder however deeply it is nested', () => {
+    expect(showFolderOf(LIB, `${LIB}/Billions (2016)/Season 7/ep.mkv`)).toBe(`${LIB}/Billions (2016)`);
+    expect(showFolderOf(LIB, `${LIB}/Billions (2016)/Billions.S07E02.WEB-TGx/ep.mkv`)).toBe(`${LIB}/Billions (2016)`);
+    expect(showFolderOf(LIB, `${LIB}/Billions (2016)/S07.COMPLETE/Season 7/ep.mkv`)).toBe(`${LIB}/Billions (2016)`);
+    expect(showFolderOf(LIB, `${LIB}/Show/Season 3/Extras/x.mkv`)).toBe(`${LIB}/Show`);
+  });
+
+  it('returns null for a file loose at the library root — there is no show folder', () => {
+    expect(showFolderOf(LIB, `${LIB}/Loose.Show.S01E01.mkv`)).toBeNull();
+  });
+
+  it('returns null for a path outside the library', () => {
+    expect(showFolderOf(LIB, '/downloads/Movies/Ghost (1990)/Ghost.mkv')).toBeNull();
   });
 });

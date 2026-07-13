@@ -9,11 +9,37 @@ import { parseTorrentName } from '../rss/torrent-name-parser';
 import { parseItemIdentity } from './media-identification.service';
 import { MediaArtworkService } from './media-artwork.service';
 import { MediaMetadataService } from './media-metadata.service';
-import { isSeasonContainer, showFolderRoot } from './media-renamer';
-import { TV_TYPES, normPath, parseFolderTitle, showCanonicalKey } from './series-grouping';
+import { TV_TYPES, parseFolderTitle, showCanonicalKey } from './series-grouping';
 
 /** Library kinds whose contents are shows (and therefore get MediaShow rows). */
 const SHOW_LIBRARY_KINDS = ['tv', 'anime'];
+
+/**
+ * The show folder a file belongs to: the **direct child of the library root** that
+ * contains it. Returns null for a file sitting loose at the root, which has no show
+ * folder of its own.
+ *
+ * A show folder is defined by its POSITION, not by its name. `showFolderRoot()`
+ * climbs only one level past a `Season NN` container, so for the very common layout
+ *
+ *   TV Shows/Billions (2016)/Billions.S07E02.WEB.x264-TGx/Billions.S07E02.mkv
+ *                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^ a release/torrent folder
+ *
+ * it stops at the release folder and calls *that* the show. Recording those as shows
+ * produced 15 bogus "duplicate show" families on a real library — `Billions (2016)`
+ * versus a subdirectory of itself — and would have let a monitored show bind to a
+ * single torrent's folder. Season containers, `Extras`, complete-season packs and
+ * nested release dirs are all *inside* a show, however they are named.
+ */
+export function showFolderOf(libraryPath: string, filePath: string): string | null {
+  const rel = path.relative(libraryPath, filePath);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  const [first] = rel.split(path.sep);
+  if (!first) return null;
+  // The file IS the first segment → it sits loose at the library root.
+  if (first === path.basename(filePath)) return null;
+  return path.join(libraryPath, first);
+}
 
 /** Technical fields derived from a release filename for a MediaFile row. */
 export interface MediaFileTechInfo {
@@ -278,12 +304,10 @@ export class MediaScannerService {
       },
     });
 
-    const root = normPath(library.path);
     const byFolder = new Map<string, { count: number; imdbId: string | null }>();
     for (const it of items) {
-      const dir = showFolderRoot(it.path);
-      const folder = path.basename(dir);
-      if (!folder || normPath(dir) === root || isSeasonContainer(folder)) continue;
+      const dir = showFolderOf(library.path, it.path);
+      if (!dir) continue; // loose at the library root — no show folder to record
       const cur = byFolder.get(dir) ?? { count: 0, imdbId: null };
       cur.count++;
       // First id wins; `??=` keeps looking while it is still null, so an episode
