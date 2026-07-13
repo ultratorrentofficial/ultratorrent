@@ -7,6 +7,8 @@ import { SettingsService } from '../settings/settings.module';
 import { FilePathService } from '../files/file-path.service';
 import { AuditService } from '../audit/audit.service';
 import { ImdbService } from './imdb/imdb.service';
+import { showFolderOf } from './media-scanner.service';
+import { TV_TYPES, showCanonicalKey } from './series-grouping';
 import {
   LocalMetadataProvider,
   MediaLookup,
@@ -179,11 +181,76 @@ export class MediaMetadataService {
   }
 
   /**
+   * Is this `imdb` id from an episode NFO demonstrably NOT this show's?
+   *
+   * A `.nfo` is written by whatever media manager touched the library, and it can be
+   * confidently, systematically wrong. On a real library, eighteen unrelated Apple
+   * TV+ shows — Ted Lasso, Servant, Dickinson, Hawkeye, See … — each had
+   * `<uniqueid type="imdb">tt13701758</uniqueid>` in their S01E01 sidecar. That
+   * tconst is *Acapulco* S01E01. Imported verbatim, one show's episode ids ended up
+   * on eighteen shows, and everything downstream that keys on IMDb identity — show
+   * grouping, duplicate detection, the acquisition path's id anchor — inherited it.
+   *
+   * The catalogue settles it: an episode tconst has exactly one parent series. If
+   * that series is not the one this file is filed under, the NFO is lying. We compare
+   * the parent's catalogued title to the item's own show folder, canonically, and
+   * reject only on a *positive* mismatch — a show the catalogue doesn't know, or an id
+   * it can't resolve, is imported as before rather than second-guessed.
+   */
+  private async isForeignEpisodeId(
+    item: { id: string; path: string; mediaType: string; libraryId: string },
+    provider: string,
+    externalId: string,
+  ): Promise<boolean> {
+    if (provider !== 'imdb') return false;
+    if (!TV_TYPES.includes(item.mediaType)) return false;
+
+    const episode = await this.prisma.iMDbEpisode.findUnique({
+      where: { episodeTitleId: externalId },
+      select: { parentTitleId: true },
+    });
+    if (!episode) return false; // not a known episode id — nothing to contradict
+
+    const library = await this.prisma.mediaLibrary.findUnique({
+      where: { id: item.libraryId },
+      select: { path: true },
+    });
+    const folder = library ? showFolderOf(library.path, item.path) : null;
+    if (!folder) return false; // no show folder to compare against
+
+    const parent = await this.prisma.iMDbTitle.findUnique({
+      where: { tconst: episode.parentTitleId },
+      select: { primaryTitle: true },
+    });
+    if (!parent?.primaryTitle) return false;
+
+    const claimed = showCanonicalKey(parent.primaryTitle);
+    const actual = showCanonicalKey(path.basename(folder));
+    if (!claimed || !actual || claimed === actual) return false;
+
+    // The catalogue also carries alternate titles; a show legitimately filed under
+    // one of them is not a mismatch ("The Office (US)" ↔ "The Office").
+    const akas = await this.prisma.iMDbAka.findMany({
+      where: { titleId: episode.parentTitleId },
+      select: { title: true },
+    });
+    if (akas.some((a) => showCanonicalKey(a.title) === actual)) return false;
+
+    this.logger.warn(
+      `Ignoring IMDb id ${externalId} from the NFO for "${path.basename(item.path)}": ` +
+        `the catalogue says it is an episode of “${parent.primaryTitle}”, but the file is ` +
+        `filed under “${path.basename(folder)}”. The sidecar is wrong.`,
+    );
+    return true;
+  }
+
+  /**
    * Import metadata from a Kodi/Jellyfin `.nfo` already on disk — the item's
    * `<basename>.nfo`, or a directory-level `movie.nfo` / `tvshow.nfo`. Purely
    * local (no network). Only fills gaps: an existing non-null value (e.g. from a
    * provider fetch) is never clobbered, so it's safe to re-run on every scan.
-   * Records any external ids and logs the sidecar as a MediaNfoFile. Returns
+   * Records any external ids (bar one the catalogue contradicts — see
+   * {@link isForeignEpisodeId}) and logs the sidecar as a MediaNfoFile. Returns
    * true when an NFO was found and imported.
    */
   async importLocalNfo(itemId: string, ctx: AuditContext = {}): Promise<boolean> {
@@ -244,6 +311,7 @@ export class MediaMetadataService {
     // External ids — create when absent; never clobber an existing mapping.
     for (const [prov, extId] of Object.entries(parsed.externalIds ?? {})) {
       if (!extId) continue;
+      if (await this.isForeignEpisodeId(item, prov, String(extId))) continue;
       await this.prisma.mediaExternalId.upsert({
         where: { itemId_provider: { itemId, provider: prov } },
         create: {
