@@ -45,6 +45,32 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.29.0] - 2026-07-13
+
+### Added
+- feat(media): find duplicate show folders and let the operator decide which is real
+- File Manager: pick the Move/Copy destination by browsing, instead of typing a path
+- feat(media): the library is the source of truth for where a TV show lives
+- feat(media-acquisition): an auto-download profile can cap release size
+
+### Fixed
+- Missing-episode auto-acquisition now honours the filters it was configured with, and
+- fix(indexers): an apostrophe in a show title no longer makes it un-grabbable
+- Fix the dashboard's download/upload counters flickering to a dash, and the throughput
+- Fix three defects in the bundled documentation:
+- Replace the 126 placeholder slates in the documentation with real screenshots captured
+- test: fix two suites that were asserting stale/environment-dependent behaviour
+- fix(media): one post-download library workflow at a time, not one per torrent
+- fix(torrents): dead magnets no longer starve the torrent-name repair
+- fix(media): an IMDb episode id claimed by two shows is dropped from both
+- Missing-episode search: episodes stranded by a restart are now released at boot. The sweep flips `searchStatus` to `searching` *before* calling the indexers, and nothing ever reset it — so a backend restart or redeploy in the middle of a sweep left those rows marked `searching` permanently. The sweep only ever selects `idle`, `no_results` and `failed`, so a stranded row was **never searched again** and its episode could never be acquired, silently and forever (found in production: 20 episodes on one host, 3 on the other, stranded by a day of deploys). Anything still `searching` at startup was interrupted by definition, so it is reset to `idle` and picked up by the next sweep. Wanted movies carry the same column and are reconciled too.
+- A show-status lookup no longer invents an answer, and a legacy RSS rule's regex no longer
+- fix(media-acquisition): stop the missing-episode sweep inventing duplicate show folders
+- fix(media): a release subfolder is no longer mistaken for a show of its own
+- Missing-episode acquisition no longer grabs the wrong show, and a dead media server no
+- fix(media): a show's IMDb id must be a SERIES id, never an episode's
+- fix(torrents): a completed torrent can no longer wedge the entire sync loop
+
 ## [0.28.0] - 2026-07-12
 
 ### Added
