@@ -47,6 +47,21 @@ export interface NormalizedHistory {
   watchedSeconds?: number;
   percentComplete?: number;
   playbackMethod?: string;
+  // Stream quality. Absent from a history row — see `getStreamQuality`.
+  resolution?: string;
+  videoCodec?: string;
+  audioCodec?: string;
+  container?: string;
+  bitrateKbps?: number;
+}
+
+/** The quality of one played stream. */
+export interface StreamQuality {
+  resolution?: string;
+  videoCodec?: string;
+  audioCodec?: string;
+  container?: string;
+  bitrateKbps?: number;
 }
 
 export interface HistoryPage {
@@ -76,6 +91,15 @@ export interface MediaAnalyticsImportProvider {
     ctx: ImportContext,
     opts: { start: number; length: number; sectionId?: string; libraryName?: string },
   ): Promise<HistoryPage>;
+  /**
+   * The stream quality for one history row, or null when the source can't say.
+   *
+   * A history row carries no quality at all — no resolution, codec, container or
+   * bitrate — so every imported play landed with a null resolution and the analytics
+   * "Quality Distribution" chart reported ~99% "Unknown". Tautulli only exposes this
+   * per row (`get_stream_data`), which is why the importer has to ask row by row.
+   */
+  getStreamQuality(ctx: ImportContext, providerHistoryId: string): Promise<StreamQuality | null>;
 }
 
 /**
@@ -205,6 +229,27 @@ export class TautulliAnalyticsImportProvider implements MediaAnalyticsImportProv
       total: Number(data.recordsFiltered ?? data.recordsTotal ?? rows.length),
     };
   }
+
+  async getStreamQuality(ctx: ImportContext, providerHistoryId: string): Promise<StreamQuality | null> {
+    // `providerHistoryId` is Tautulli's own `row_id` — see normalizeTautulliHistory.
+    const { response } = await tautulliCmd(ctx, 'get_stream_data', { row_id: providerHistoryId });
+    return pickTautulliQuality(response?.data);
+  }
+}
+
+/** Tautulli's `video_full_resolution` ("1080p") is richer than `video_resolution` ("1080"). */
+export function pickTautulliQuality(d: any): StreamQuality | null {
+  if (!d || typeof d !== 'object') return null;
+  // Prefer what was actually STREAMED over the source file: a 1080p source watched as a
+  // 480p transcode was watched at 480p, and that is what the chart is asking about.
+  const resolution = d.stream_video_full_resolution || d.video_full_resolution || d.video_resolution || undefined;
+  const videoCodec = d.stream_video_codec || d.video_codec || undefined;
+  const audioCodec = d.stream_audio_codec || d.audio_codec || undefined;
+  const container = d.stream_container || d.container || undefined;
+  const raw = d.stream_bitrate ?? d.bitrate;
+  const bitrateKbps = raw != null && String(raw) !== '' && Number.isFinite(Number(raw)) ? Number(raw) : undefined;
+  const q: StreamQuality = { resolution, videoCodec, audioCodec, container, bitrateKbps };
+  return Object.values(q).some((v) => v !== undefined && v !== '') ? q : null;
 }
 
 export function getAnalyticsImportProvider(type: string): MediaAnalyticsImportProvider {

@@ -5,7 +5,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { SecretCipher } from '../../common/crypto/secret-cipher';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
-import { getAnalyticsImportProvider, ImportContext } from './analytics-import-provider';
+import { getAnalyticsImportProvider, ImportContext, StreamQuality } from './analytics-import-provider';
 
 interface SourceInput {
   name?: string;
@@ -15,6 +15,9 @@ interface SourceInput {
   enabled?: boolean;
   syncEnabled?: boolean;
 }
+
+/** Parallel stream-quality lookups. The source is a small NAS — do not flood it. */
+const QUALITY_CONCURRENCY = 8;
 
 const PAGE = 500;
 
@@ -129,6 +132,38 @@ export class AnalyticsImportService {
   }
 
   /**
+   * Stream quality for a batch of history rows, keyed by providerHistoryId.
+   *
+   * Bounded concurrency: the source is a single small server (a NAS, typically), and
+   * a full first import is tens of thousands of lookups — firing them all at once
+   * would simply knock it over. Failures are swallowed per row: a play whose quality
+   * we cannot read is still a play, and must not fail the import.
+   */
+  private async fetchQuality(
+    provider: ReturnType<typeof getAnalyticsImportProvider>,
+    ctx: ImportContext,
+    records: { providerHistoryId?: string }[],
+  ): Promise<Map<string, StreamQuality>> {
+    const out = new Map<string, StreamQuality>();
+    const ids = records.map((r) => r.providerHistoryId).filter(Boolean) as string[];
+    let i = 0;
+    const worker = async () => {
+      for (;;) {
+        const id = ids[i++];
+        if (id === undefined) return;
+        try {
+          const q = await provider.getStreamQuality(ctx, id);
+          if (q) out.set(id, q);
+        } catch {
+          /* a row we can't read the quality of is still a play — keep going */
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(QUALITY_CONCURRENCY, ids.length) }, worker));
+    return out;
+  }
+
+  /**
    * Page through one slice of the source's history and persist it.
    *
    * When `libraryName` is given, every row in the slice belongs to that library — so a
@@ -152,40 +187,75 @@ export class AnalyticsImportService {
       const page = await provider.getWatchHistory(ctx, { start, length: PAGE, sectionId, libraryName });
       if (page.records.length === 0) break;
 
-      const rows = page.records.map((r) => ({
-        importSourceId: source.id,
-        providerHistoryId: r.providerHistoryId,
-        providerUserId: r.providerUserId,
-        userName: r.userName,
-        title: r.title,
-        mediaType: r.mediaType,
-        libraryName: r.libraryName,
-        device: r.device,
-        client: r.client,
-        ipAddress: r.ipAddress,
-        startedAt: r.startedAt,
-        stoppedAt: r.stoppedAt,
-        watchedSeconds: r.watchedSeconds,
-        percentComplete: r.percentComplete,
-        playbackMethod: r.playbackMethod,
-        importSource: 'tautulli',
-        importedAt: new Date(),
-      }));
+      // Which of these do we already have, and do they still lack their quality?
+      const ids = page.records.map((r) => r.providerHistoryId).filter(Boolean) as string[];
+      const existing = await this.prisma.mediaServerWatchHistory.findMany({
+        where: { importSourceId: source.id, providerHistoryId: { in: ids } },
+        select: { providerHistoryId: true, resolution: true, libraryName: true },
+      });
+      const have = new Map(existing.map((e) => [e.providerHistoryId!, e]));
+
+      // Fetch stream quality ONLY where it is missing — a row already enriched costs
+      // nothing on a re-import. A history row carries no resolution/codec/bitrate at
+      // all, so this per-row lookup is the only way to get it, and it is why the
+      // "Quality Distribution" chart read ~99% "Unknown".
+      const needQuality = page.records.filter((r) => {
+        const e = r.providerHistoryId ? have.get(r.providerHistoryId) : undefined;
+        return !e || e.resolution == null;
+      });
+      const quality = await this.fetchQuality(provider, ctx, needQuality);
+
+      const rows = page.records.map((r) => {
+        const q = (r.providerHistoryId && quality.get(r.providerHistoryId)) || {};
+        return {
+          importSourceId: source.id,
+          providerHistoryId: r.providerHistoryId,
+          providerUserId: r.providerUserId,
+          userName: r.userName,
+          title: r.title,
+          mediaType: r.mediaType,
+          libraryName: r.libraryName,
+          device: r.device,
+          client: r.client,
+          ipAddress: r.ipAddress,
+          startedAt: r.startedAt,
+          stoppedAt: r.stoppedAt,
+          watchedSeconds: r.watchedSeconds,
+          percentComplete: r.percentComplete,
+          playbackMethod: r.playbackMethod,
+          resolution: q.resolution,
+          videoCodec: q.videoCodec,
+          audioCodec: q.audioCodec,
+          container: q.container,
+          bitrateKbps: q.bitrateKbps,
+          importSource: 'tautulli',
+          importedAt: new Date(),
+        };
+      });
 
       const res = await this.prisma.mediaServerWatchHistory.createMany({ data: rows, skipDuplicates: true });
       counters.imported += res.count;
       counters.skipped += rows.length - res.count;
 
-      // Backfill: a row imported before we knew its library keeps its null forever
-      // otherwise, because createMany just skips it.
-      if (libraryName) {
+      // Heal rows we already had. `createMany` SKIPS them (the unique key), so without
+      // this a re-import fixes nothing and the operator keeps staring at an "Unknown"
+      // bucket holding 99% of their plays.
+      for (const row of rows) {
+        const e = row.providerHistoryId ? have.get(row.providerHistoryId) : undefined;
+        if (!e) continue;
+        const patch: Record<string, unknown> = {};
+        if (e.libraryName == null && row.libraryName) patch.libraryName = row.libraryName;
+        if (e.resolution == null && row.resolution) {
+          patch.resolution = row.resolution;
+          patch.videoCodec = row.videoCodec;
+          patch.audioCodec = row.audioCodec;
+          patch.container = row.container;
+          patch.bitrateKbps = row.bitrateKbps;
+        }
+        if (Object.keys(patch).length === 0) continue;
         await this.prisma.mediaServerWatchHistory.updateMany({
-          where: {
-            importSourceId: source.id,
-            providerHistoryId: { in: rows.map((r) => r.providerHistoryId).filter(Boolean) as string[] },
-            libraryName: null,
-          },
-          data: { libraryName },
+          where: { importSourceId: source.id, providerHistoryId: row.providerHistoryId },
+          data: patch,
         });
       }
 

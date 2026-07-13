@@ -2,6 +2,7 @@ import {
   normalizeTautulliHistory,
   normalizeBaseUrl,
   getAnalyticsImportProvider,
+  pickTautulliQuality,
   TautulliAnalyticsImportProvider,
 } from './analytics-import-provider';
 
@@ -144,5 +145,74 @@ describe('TautulliAnalyticsImportProvider — libraries', () => {
     expect(page.records[0].libraryName).toBeUndefined();
     const url = ((global as any).fetch as jest.Mock).mock.calls[0][0] as string;
     expect(new URL(url).searchParams.has('section_id')).toBe(false);
+  });
+});
+
+/**
+ * A Tautulli history row carries NO quality at all — no resolution, codec, container
+ * or bitrate. So every imported play landed with a null resolution and the analytics
+ * "Quality Distribution" chart reported ~99% "Unknown" (7,971 of 8,057 rows on one
+ * host; 17,024 of 17,062 on another). The only place the quality exists is
+ * `get_stream_data`, per row.
+ */
+describe('pickTautulliQuality', () => {
+  it('reads the stream quality Tautulli reports', () => {
+    expect(
+      pickTautulliQuality({
+        video_full_resolution: '1080p', video_codec: 'h264', audio_codec: 'aac',
+        container: 'mp4', bitrate: 2639,
+      }),
+    ).toEqual({
+      resolution: '1080p', videoCodec: 'h264', audioCodec: 'aac',
+      container: 'mp4', bitrateKbps: 2639,
+    });
+  });
+
+  it('prefers what was STREAMED over the source file', () => {
+    // A 1080p source watched as a 480p transcode was watched at 480p — and that is
+    // what a "quality distribution of what people watched" is asking about.
+    const q = pickTautulliQuality({
+      video_full_resolution: '1080p', stream_video_full_resolution: '480p',
+      video_codec: 'h264', stream_video_codec: 'h264',
+      bitrate: 8000, stream_bitrate: 1200,
+    });
+    expect(q!.resolution).toBe('480p');
+    expect(q!.bitrateKbps).toBe(1200);
+  });
+
+  it('returns null when the source reports nothing usable', () => {
+    // get_library_media_info hands back empty strings for episodes — not "unknown
+    // quality", just no answer. Storing '' would be worse than storing nothing.
+    expect(pickTautulliQuality({ video_resolution: '', video_codec: '', bitrate: '' })).toBeNull();
+    expect(pickTautulliQuality(null)).toBeNull();
+    expect(pickTautulliQuality({})).toBeNull();
+  });
+
+  it('drops a non-numeric bitrate rather than storing NaN', () => {
+    const q = pickTautulliQuality({ video_resolution: '720', bitrate: 'n/a' });
+    expect(q!.resolution).toBe('720');
+    expect(q!.bitrateKbps).toBeUndefined();
+  });
+});
+
+describe('TautulliAnalyticsImportProvider.getStreamQuality', () => {
+  const ctx = { baseUrl: 'http://tautulli:8181', apiKey: 'k' } as any;
+  const provider = new TautulliAnalyticsImportProvider();
+
+  it('asks get_stream_data for the row and returns its quality', async () => {
+    (global as any).fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        response: { data: { video_full_resolution: '4k', video_codec: 'hevc', container: 'mkv', bitrate: 15000 } },
+      }),
+    }));
+
+    const q = await provider.getStreamQuality(ctx, '26992');
+    expect(q).toMatchObject({ resolution: '4k', videoCodec: 'hevc', container: 'mkv', bitrateKbps: 15000 });
+
+    const url = ((global as any).fetch as jest.Mock).mock.calls[0][0] as string;
+    const params = new URL(url).searchParams;
+    expect(params.get('cmd')).toBe('get_stream_data');
+    expect(params.get('row_id')).toBe('26992'); // providerHistoryId IS Tautulli's row_id
   });
 });
