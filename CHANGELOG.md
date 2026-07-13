@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.29.1] - 2026-07-13
+
+### Fixed
+- fix(media-acquisition): the profile size field now shows the real size as you type
+
 ## [0.29.0] - 2026-07-13
 
 ### Added
