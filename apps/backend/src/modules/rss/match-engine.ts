@@ -153,7 +153,7 @@ function dropLeadingArticle(toks: string[]): string[] {
  * are stripped before comparing; leading-article differences are ignored. A
  * *leading* year is kept — it can be the whole title ("2020").
  */
-function showTitleMatch(pattern: string, title: string): boolean {
+export function showTitleMatch(pattern: string, title: string): boolean {
   if (!pattern) return true;
   const pat = dropLeadingArticle(tokens(pattern));
   if (pat.length === 0) return true;

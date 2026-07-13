@@ -106,6 +106,8 @@ export interface LibraryImdbHealSummary {
 export interface WatchlistInput {
   type: string;
   title: string;
+  /** Alternate titles this show is released under (see `titleAliases` in the schema). */
+  titleAliases?: string[];
   year?: number;
   externalIds?: Record<string, unknown>;
   seasonNumber?: number;
@@ -161,6 +163,7 @@ export class AcquisitionWatchlistService {
         type: input.type,
         title,
         normalizedTitle: title.toLowerCase().trim(),
+        titleAliases: input.titleAliases ?? [],
         year: input.year,
         externalIds: (input.externalIds ?? undefined) as object | undefined,
         seasonNumber: input.seasonNumber,
@@ -475,6 +478,7 @@ export class AcquisitionWatchlistService {
         type: input.type ?? undefined,
         title: input.title ?? undefined,
         normalizedTitle: input.title ? input.title.toLowerCase().trim() : undefined,
+        titleAliases: input.titleAliases === undefined ? undefined : input.titleAliases,
         year: input.year === undefined ? undefined : input.year,
         externalIds: mergeExternalIds(existing.externalIds, input.externalIds),
         seasonNumber: input.seasonNumber === undefined ? undefined : input.seasonNumber,

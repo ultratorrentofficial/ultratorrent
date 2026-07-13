@@ -18,6 +18,12 @@ const DECISIONS = ['download', 'skip', 'hold_for_approval', 'upgrade_existing', 
 export class CreateWatchlistItemDto {
   @IsIn(WATCHLIST_TYPES) type!: string;
   @IsString() @MinLength(1) @MaxLength(300) title!: string;
+  /**
+   * Alternate titles this show is released under ("Riverdale US" for Riverdale,
+   * "Star Wars The Bad Batch" for The Bad Batch). Matched with the same rule as
+   * `title`, so an alias adds a title without loosening show matching.
+   */
+  @IsOptional() @IsArray() @IsString({ each: true }) @MaxLength(300, { each: true }) titleAliases?: string[];
   @IsOptional() @IsInt() year?: number;
   @IsOptional() @IsObject() externalIds?: Record<string, unknown>;
   @IsOptional() @IsInt() seasonNumber?: number;

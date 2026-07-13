@@ -1184,6 +1184,14 @@ model MediaAcquisitionWatchlistItem {
   type            String // series | season | episode | movie | movie_collection | anime | manual_query
   title           String
   normalizedTitle String
+  // Alternate show titles releases are published under, when they differ from
+  // `title`. Show identity is matched token-for-token against the release's title
+  // region, so a release that renames the show is otherwise unreachable: Riverdale
+  // ships as "Riverdale US", The Bad Batch as "Star Wars The Bad Batch". Each alias
+  // is matched with the same rule as `title` — an alias widens WHICH titles count as
+  // this show, it never loosens the comparison itself, so "Rise" still cannot pull in
+  // "The Pendragon Cycle Rise of the Merlin".
+  titleAliases    String[] @default([])
   year            Int?
   externalIds     Json?
   seasonNumber    Int?
@@ -1304,6 +1312,12 @@ model MediaAcquisitionProfile {
   requiredTerms      Json?
   excludedTerms      Json?
   preferredGroups    Json?
+  // Release size bounds in bytes. BigInt, not Int: a 1080p movie exceeds the
+  // Int32 ceiling (2.1 GB). Null on either side = unbounded there. These become
+  // the `sizeRules` of the preference tier this profile is turned into, so a
+  // profile can cap release size the way a match candidate can.
+  minSizeBytes       BigInt?
+  maxSizeBytes       BigInt?
   qualityRules       Json?
   duplicateRules     Json?
   storageRules       Json?

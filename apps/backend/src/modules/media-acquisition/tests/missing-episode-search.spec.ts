@@ -48,8 +48,10 @@ function build(over: {
       findFirst: jest.fn(async () => over.existingItem ?? null),
     },
     mediaLibrary: {
-      findUnique: jest.fn(async () => over.library ?? null),
-      findFirst: jest.fn(async () => over.library ?? null),
+      // A configured install always has a TV library, so a save path always
+      // resolves; pass `library: null` to model the unconfigured case.
+      findUnique: jest.fn(async () => ('library' in over ? over.library : { path: '/media/tv' })),
+      findFirst: jest.fn(async () => ('library' in over ? over.library : { path: '/media/tv' })),
     },
   };
   const indexers = { searchAll: jest.fn(async () => over.candidates ?? []) };
@@ -132,17 +134,17 @@ describe('MissingEpisodeSearchService.sweep — grab flow', () => {
     );
   });
 
-  it('leaves save path undefined (engine default) when the show has no RSS rule', async () => {
+  it('falls back to the library show folder when the show has no RSS rule', async () => {
     const { svc, evaluator, prisma } = build({ candidates: [cand()] });
     await svc.sweep();
     expect(prisma.rssRule.findUnique).not.toHaveBeenCalled();
     expect(evaluator.grabSelected).toHaveBeenCalledWith(
-      expect.objectContaining({ savePath: undefined }),
+      expect.objectContaining({ savePath: '/media/tv/The Wire' }),
       undefined,
     );
   });
 
-  it('leaves save path undefined when the linked Show Rule has an empty save path', async () => {
+  it('falls past a linked Show Rule with an empty save path to the library folder', async () => {
     const { svc, evaluator } = build({
       candidates: [cand()],
       item: { rssRuleId: 'rule1' },
@@ -150,8 +152,22 @@ describe('MissingEpisodeSearchService.sweep — grab flow', () => {
     });
     await svc.sweep();
     expect(evaluator.grabSelected).toHaveBeenCalledWith(
-      expect.objectContaining({ savePath: undefined }),
+      expect.objectContaining({ savePath: '/media/tv/The Wire' }),
       undefined,
+    );
+  });
+
+  it('refuses the grab rather than dropping the episode in the engine default root', async () => {
+    // No rule, no existing folder, no TV library → nothing to place the file in.
+    // Grabbing anyway would scatter loose files at the download root.
+    const { svc, evaluator, updates, audit, eventBus } = build({ candidates: [cand()], library: null });
+    const summary = await svc.sweep();
+    expect(evaluator.grabSelected).not.toHaveBeenCalled();
+    expect(eventBus.emit).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ grabbed: 0 });
+    expect(updates[updates.length - 1]).toMatchObject({ searchStatus: 'failed' });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'media_acquisition.missing_episode.no_save_path' }),
     );
   });
 

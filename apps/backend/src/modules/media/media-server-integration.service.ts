@@ -15,6 +15,7 @@ import {
   MediaServerKind,
   MediaServerLibrary,
   ProviderSession,
+  ServerInfo,
   UnsupportedCapabilityError,
 } from './media-server-provider';
 
@@ -103,6 +104,8 @@ export class MediaServerIntegrationService {
     config: unknown;
     isEnabled: boolean;
     lastRefreshAt: Date | null;
+    status?: string | null;
+    lastHealthCheckAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }) {
@@ -112,10 +115,37 @@ export class MediaServerIntegrationService {
       kind: row.kind,
       isEnabled: row.isEnabled,
       lastRefreshAt: row.lastRefreshAt,
+      // Surfaced so the UI can show a server as down. Without these the client had
+      // no way to know: the row carried a status, but it was never returned.
+      status: row.status ?? 'unknown',
+      lastHealthCheckAt: row.lastHealthCheckAt ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       config: this.redactConfig((row.config as Record<string, unknown>) ?? {}),
     };
+  }
+
+  /**
+   * Persist the outcome of any real conversation with the server.
+   *
+   * `status` is what the dashboard reads, so EVERY path that actually talks to the
+   * server has to write it. Previously only {@link healthCheck} did, and nothing
+   * called that on a schedule — so a Plex that had been dead for four days sat at
+   * `status: 'online'` through 479 consecutive refresh failures, and the UI showed
+   * it as healthy the whole time.
+   *
+   * Never allowed to throw: this runs on the failure path of the caller, and a
+   * bookkeeping error must not replace the real error the caller is about to raise.
+   */
+  private async markHealth(id: string, online: boolean): Promise<void> {
+    try {
+      await this.prisma.mediaServerIntegration.update({
+        where: { id },
+        data: { status: online ? 'online' : 'offline', lastHealthCheckAt: new Date() },
+      });
+    } catch (err) {
+      this.logger.warn(`Could not persist health for ${id}: ${(err as Error).message}`);
+    }
   }
 
   async list() {
@@ -226,6 +256,7 @@ export class MediaServerIntegrationService {
     const provider = getMediaServerProvider(row.kind);
     const cfg = this.decryptConfig((row.config as Record<string, unknown>) ?? {});
     const result = await provider.testConnection(cfg);
+    await this.markHealth(id, result.ok);
     if (!result.ok) {
       // Audit the failure WITHOUT the secret config.
       await this.audit.record({
@@ -253,6 +284,9 @@ export class MediaServerIntegrationService {
     try {
       await provider.refreshLibrary(cfg);
     } catch (err) {
+      // A refresh that couldn't reach the server IS a health signal — the most
+      // frequent one there is, since this fires on every completed download.
+      await this.markHealth(id, false);
       await this.audit.record({
         userId: ctx.userId,
         action: 'media.integration.refresh_failed',
@@ -265,9 +299,10 @@ export class MediaServerIntegrationService {
       });
       throw new BadRequestException(`Refresh failed: ${(err as Error).message}`);
     }
+    const now = new Date();
     const updated = await this.prisma.mediaServerIntegration.update({
       where: { id },
-      data: { lastRefreshAt: new Date() },
+      data: { lastRefreshAt: now, status: 'online', lastHealthCheckAt: now },
     });
     await this.audit.record({
       userId: ctx.userId,
@@ -285,18 +320,40 @@ export class MediaServerIntegrationService {
    * Probe a server and persist its analytics health (status/version/platform/
    * capabilities). Used by Media Server Analytics.
    */
-  async healthCheck(id: string) {
+  async healthCheck(id: string): Promise<ServerInfo> {
     const row = await this.load(id);
     const provider = getMediaServerProvider(row.kind);
     const cfg = this.decryptConfig((row.config as Record<string, unknown>) ?? {});
-    const info = await provider.getServerInfo(cfg);
+
+    let info: ServerInfo;
+    try {
+      info = await provider.getServerInfo(cfg);
+    } catch (err) {
+      // Providers report an unreachable server as `reachable: false`, but they can
+      // still throw outright on a config-level fault (missing/garbage baseUrl, a
+      // decrypt failure). That is still "we cannot reach this server" — record it,
+      // rather than propagating and leaving the last-known status standing.
+      info = {
+        kind: row.kind as MediaServerKind,
+        reachable: false,
+        capabilities: provider.capabilities(),
+        message: (err as Error).message,
+      };
+    }
+
     await this.prisma.mediaServerIntegration.update({
       where: { id },
       data: {
         status: info.reachable ? 'online' : 'offline',
-        serverVersion: info.version ?? null,
-        platform: info.platform ?? null,
-        capabilities: info.capabilities as unknown as Prisma.InputJsonValue,
+        // Only overwrite version/platform on a reachable probe — a failed one knows
+        // nothing about them, and nulling them would discard what we last learned.
+        ...(info.reachable
+          ? {
+              serverVersion: info.version ?? null,
+              platform: info.platform ?? null,
+              capabilities: info.capabilities as unknown as Prisma.InputJsonValue,
+            }
+          : {}),
         lastHealthCheckAt: new Date(),
       },
     });

@@ -1,6 +1,7 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import type {
   AcquisitionMatchCandidate,
+  MediaAcquisitionProfile,
   MediaAcquisitionWatchlistItem,
   Prisma,
   RssRuleMatchCandidate,
@@ -9,6 +10,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { parseTorrentName } from '../rss/torrent-name-parser';
 import {
   evaluatePreferenceList,
+  showTitleMatch,
   type MatchCandidateInput,
   type MatchType,
   type QualityRules,
@@ -31,15 +33,47 @@ function norm(s: string): string {
 }
 
 /**
+ * A trailing year on the *monitored* title ("Sugar 2024", "Rise (2017)").
+ *
+ * {@link showTitleMatch} bounds the release's title region at a non-leading year —
+ * "Sugar 2024 S02E03" has the pure title "sugar" — so a year left on the pattern side
+ * could never match and would silence the show entirely. A *leading* year is kept: it
+ * can be the whole title ("1883", "2020").
+ */
+const TRAILING_YEAR = /\s*\(?\b(?:19|20)\d{2}\b\)?\s*$/;
+function showPattern(title: string): string {
+  const stripped = title.replace(TRAILING_YEAR, '').trim();
+  return stripped || title.trim();
+}
+
+/** Resolution preference, best first. Orders profiles into preferred → fallback tiers. */
+const RESOLUTION_RANK = ['2160p', '1440p', '1080p', '720p', '480p'];
+
+/** Watchlist item `type` → the `mediaType` its profiles are filed under. */
+function profileMediaType(itemType: string): string {
+  if (itemType === 'anime') return 'anime';
+  if (itemType === 'movie' || itemType === 'movie_collection') return 'movie';
+  return 'tv';
+}
+
+/**
  * Resolves and applies the auto-download match preferences for a monitored show,
  * reusing the RSS match-engine model (ranked candidate list + `qualityRules` +
  * `sizeRules`). This is what decides *which* indexer release the missing-episode
- * bridge grabs — replacing the flat quality-profile scorer, and adding a real
- * size cap the profile never had.
+ * bridge grabs, and it adds a real size cap the quality profile never had.
  *
- * Phase 1: preferences come from the global `AcquisitionMatchCandidate` defaults.
- * A later phase resolves a per-show RSS rule's candidates first (via
- * `MediaAcquisitionWatchlistItem.rssRuleId`) and only falls back to the defaults.
+ * Preference sources, in order — first one that yields candidates wins:
+ *   1. the show's **RSS rule** match candidates (linked via `rssRuleId`, or found
+ *      by a rule whose name matches the show title — most monitored shows have a
+ *      rule that simply isn't wired to the watchlist item);
+ *   2. the **auto-download profiles** for the media type, each profile becoming
+ *      one tier (ranked by `preferredResolution`, best first), carrying its
+ *      `requiredTerms`/`excludedTerms` and preferred codec/source/resolution;
+ *   3. the global `AcquisitionMatchCandidate` defaults.
+ *
+ * A profile's `requiredTerms`/`excludedTerms` were previously collected by the UI
+ * but consulted by nothing, so an excluded term (e.g. "10bit") could not actually
+ * keep a release out. Tier (2) is what makes that config load-bearing.
  */
 @Injectable()
 export class AcquisitionMatchPreferenceService implements OnModuleInit {
@@ -95,12 +129,73 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
   }
 
   /**
-   * Resolve the preference list for a monitored show: if it's linked to an RSS
-   * rule (`rssRuleId`), use that rule's enabled match candidates so the show is
-   * auto-downloaded with the same preferences its RSS rule uses; otherwise fall
-   * back to the global defaults.
+   * One profile → one preference tier. The profile's preferred codec/source/
+   * resolution become `qualityRules`, and its required/excluded terms are carried
+   * through verbatim so an excluded term actually rejects a release. `pattern` is
+   * left empty: `smart_episode_match` with no pattern is a pass-through, and the
+   * bridge has already narrowed results to the exact SxxEyy.
+   */
+  private profileToInput(row: MediaAcquisitionProfile, priorityOrder: number): MatchCandidateInput {
+    const quality: QualityRules = {};
+    if (row.preferredResolution) quality.resolution = row.preferredResolution;
+    if (row.preferredCodec) quality.codec = row.preferredCodec;
+    if (row.preferredSource) quality.source = row.preferredSource;
+    return {
+      id: row.id,
+      name: row.name,
+      priorityOrder,
+      enabled: true,
+      matchType: 'smart_episode_match',
+      pattern: null,
+      requiredTerms: (row.requiredTerms as string[] | null) ?? [],
+      excludedTerms: (row.excludedTerms as string[] | null) ?? [],
+      qualityRules: quality,
+      // Profiles carry no size cap of their own — only the candidate lists do.
+      sizeRules: {},
+    };
+  }
+
+  /**
+   * The enabled auto-download profiles for this item's media type, as ranked
+   * tiers — best `preferredResolution` first (1080p before 720p), then oldest
+   * first so the order is stable. A profile with an unknown/absent resolution
+   * sorts last.
+   */
+  private async profileCandidates(item: MediaAcquisitionWatchlistItem): Promise<MatchCandidateInput[]> {
+    const mediaType = profileMediaType(item.type);
+    const rows = await this.prisma.mediaAcquisitionProfile.findMany({
+      where: { enabled: true, mediaType: { in: [mediaType, 'any'] } },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!rows.length) return [];
+    const rank = (p: MediaAcquisitionProfile) => {
+      const i = RESOLUTION_RANK.indexOf(p.preferredResolution ?? '');
+      return i === -1 ? RESOLUTION_RANK.length : i;
+    };
+    return [...rows]
+      .sort((a, b) => rank(a) - rank(b))
+      .map((p, i) => this.profileToInput(p, i));
+  }
+
+  /**
+   * Resolve the preference list for a monitored show. RSS match-preference
+   * filters win when the show has any — by explicit `rssRuleId` link, else by an
+   * RSS rule whose **name matches the show title** (the common case: the rule
+   * exists but was never wired to the watchlist item). Falls back to the
+   * auto-download profiles, then to the global defaults.
    */
   async resolveCandidates(item: MediaAcquisitionWatchlistItem): Promise<MatchCandidateInput[]> {
+    const rss = await this.rssCandidates(item);
+    if (rss.length) return rss;
+
+    const profiles = await this.profileCandidates(item);
+    if (profiles.length) return profiles;
+
+    return this.defaults();
+  }
+
+  /** The show's RSS rule match candidates, by explicit link or by name match. */
+  private async rssCandidates(item: MediaAcquisitionWatchlistItem): Promise<MatchCandidateInput[]> {
     if (item.rssRuleId) {
       const rows = await this.prisma.rssRuleMatchCandidate.findMany({
         where: { rssRuleId: item.rssRuleId, enabled: true },
@@ -108,15 +203,45 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
       });
       if (rows.length) return rows.map((r) => this.toRssInput(r));
     }
-    return this.defaults();
+
+    // No explicit link — find a rule named after the show. Compared on the same
+    // normalization the title carries, so "House of the Dragon" matches its rule.
+    const title = norm(item.title ?? '');
+    if (!title) return [];
+    const rules = await this.prisma.rssRule.findMany({ select: { id: true, name: true } });
+    const match = rules.find((r) => norm(r.name) === title);
+    if (!match) return [];
+
+    const rows = await this.prisma.rssRuleMatchCandidate.findMany({
+      where: { rssRuleId: match.id, enabled: true },
+      orderBy: { priorityOrder: 'asc' },
+    });
+    return rows.map((r) => this.toRssInput(r));
   }
 
   /**
    * From indexer results for a wanted episode, pick the release to grab: filter
-   * to the exact SxxEyy (and a loose show-title match), gate each survivor
-   * through the preference list (quality + size), and prefer the one that
-   * matches the highest-priority candidate — tie-broken by magnet, then seeders.
+   * to the exact SxxEyy AND to the show itself, gate each survivor through the
+   * preference list (quality + size), and prefer the one that matches the
+   * highest-priority candidate — tie-broken by magnet, then seeders.
    * Returns null when nothing passes the preferences (e.g. all over the size cap).
+   *
+   * Show identity is enforced HERE, as a precondition, and not left to the
+   * preference list. The two are different questions — "is this release for the show
+   * I asked for?" versus "which of these releases do I prefer?" — and the preference
+   * list cannot answer the first: profile- and default-derived candidates carry
+   * `pattern: null` (a deliberate pass-through), and a rule's candidates may be
+   * quality-only. So nothing downstream re-checks the title.
+   *
+   * This gate used to be a bidirectional substring test
+   * (`t.includes(show) || show.includes(t)`), which accepted any release whose title
+   * merely *contained* the show's name, or was contained BY it. On a real library that
+   * silently mis-grabbed 132 of 714 episodes (18.5%): "Rise" pulled in "The Pendragon
+   * Cycle Rise of the Merlin", "90 Day Fiance" pulled in "90 Day Fiance Before the 90
+   * Days", "ted" pulled in "Ted Lasso". {@link showTitleMatch} instead requires the
+   * release's *pure title* — its show-title region, minus a trailing year and the
+   * quality tail — to equal the monitored title token-for-token, which is the same
+   * rule the RSS engine applies to `smart_episode_match`.
    */
   select(
     candidates: IndexerCandidate[],
@@ -124,17 +249,26 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
     showTitle: string,
     season: number,
     episode: number,
+    titleAliases: string[] = [],
   ): SelectedRelease | null {
     if (prefs.length === 0) return null;
-    const show = norm(showTitle);
+    // The monitored title plus any alias it is released under. Each is anchored with
+    // the SAME token-equality rule, so an alias widens *which* titles count as this
+    // show without ever loosening the comparison: "Riverdale" + alias "Riverdale US"
+    // accepts both spellings and still rejects "Riverdale Chronicles".
+    const patterns = [showTitle, ...titleAliases]
+      .map((t) => showPattern(t ?? ''))
+      .filter((t) => t.length > 0);
+    if (patterns.length === 0) return null;
     const scored: SelectedRelease[] = [];
 
     for (const c of candidates) {
       if (!c.downloadUrl) continue;
       const parsed = parseTorrentName(c.title);
       if (parsed.season !== season || parsed.episode !== episode) continue;
-      const t = norm(parsed.title ?? c.title);
-      if (!(t.includes(show) || show.includes(t))) continue;
+      // Anchored against the RAW release name: showTitleMatch does its own
+      // show-region extraction, and is stricter than the parser's title guess.
+      if (!patterns.some((p) => showTitleMatch(p, c.title))) continue;
 
       const res = evaluatePreferenceList(prefs, { title: c.title, sizeBytes: c.sizeBytes ?? null });
       if (!res.matched) continue;

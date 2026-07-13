@@ -26,9 +26,11 @@ export interface EpisodeSearchOutcome {
  * The missing-episode auto-acquire bridge: for each `missing` WantedEpisode it
  * searches the configured Torznab/Newznab indexers and picks a release using the
  * **auto-download match preferences** ({@link AcquisitionMatchPreferenceService})
- * — the same ranked candidate + quality + **size-cap** model RSS rules use — then
- * grabs the winner via {@link AcquisitionEvaluatorService.grabSelected}. Nothing
- * matches the preferences → `no_results`. Grab-state is written back onto the
+ * — the show's RSS rule filters first, else its auto-download profiles, else the
+ * global defaults — then grabs the winner via
+ * {@link AcquisitionEvaluatorService.grabSelected}. Nothing matches the
+ * preferences → `no_results`; no resolvable library path → `failed` (never a grab
+ * into the engine's default root). Grab-state is written back onto the
  * WantedEpisode (and preserved across rescans).
  *
  * The scheduled `sweep()` is opt-in (`settings.autoSearchMissing`, default OFF);
@@ -148,20 +150,44 @@ export class MissingEpisodeSearchService {
     });
     if (!item) throw new NotFoundException('Watchlist item not found');
 
-    // Download directory comes from the Show Rule (the RSS rule that is the parent
-    // of this show's match candidates), so grabbed episodes land in the same folder
-    // the show's RSS rule uses — not the engine's default /downloads.
+    // Download directory: the show's folder under its media library. Resolving it
+    // is mandatory — without it the engine would drop the episode in its default
+    // root (loose files at /downloads instead of the show folder), so a grab we
+    // cannot place is refused rather than misfiled.
     const savePath = await this.resolveSavePath(item);
+    if (!savePath) {
+      const reason =
+        `No save path for "${item.title}": no Show Rule savePath, no existing library ` +
+        `folder, and no TV library configured. Refusing to grab into the engine's default root.`;
+      this.logger.warn(reason);
+      await this.setState(wanted.id, { searchStatus: 'failed', lastSearchedAt: new Date() });
+      await this.audit.record({
+        userId,
+        action: 'media_acquisition.missing_episode.no_save_path',
+        objectType: 'wanted_episode',
+        objectId: wanted.id,
+        result: 'failure',
+        metadata: { title: item.title, season: wanted.seasonNumber, episode: wanted.episodeNumber },
+      });
+      return { wantedEpisodeId: wanted.id, searchStatus: 'failed' };
+    }
 
     const candidates = await this.indexers.searchAll({
       q: item.title,
       season: wanted.seasonNumber,
       ep: wanted.episodeNumber,
     });
-    // Match preferences (ranked candidate list + quality + size cap) decide which
-    // release to grab — a quality profile is no longer consulted here.
+    // Match preferences decide which release to grab: the show's RSS rule filters
+    // when it has any, else the auto-download profiles, else the global defaults.
     const prefs = await this.matchPrefs.resolveCandidates(item);
-    const best = this.matchPrefs.select(candidates, prefs, item.title, wanted.seasonNumber, wanted.episodeNumber);
+    const best = this.matchPrefs.select(
+      candidates,
+      prefs,
+      item.title,
+      wanted.seasonNumber,
+      wanted.episodeNumber,
+      item.titleAliases ?? [],
+    );
 
     if (!best) {
       // Nothing matched the preferences (e.g. everything over the size cap).
@@ -220,8 +246,9 @@ export class MissingEpisodeSearchService {
    *   4. else a constructed `<TV library>/<Title> (Year)` under the target (or the
    *      default TV/anime) library, matching the standard show-folder convention.
    *
-   * Returns undefined only when none of these resolve, letting the engine use its
-   * own default.
+   * Returns undefined only when none of these resolve — the caller then refuses the
+   * grab, because falling through to the engine's default would scatter episodes
+   * loose in the download root instead of the library's show folder.
    */
   private async resolveSavePath(item: {
     rssRuleId: string | null;
