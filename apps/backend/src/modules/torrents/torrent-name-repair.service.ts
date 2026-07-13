@@ -38,8 +38,47 @@ export class TorrentNameRepairService {
   /** Hashes we've already repaired or given up on, so we don't retry every tick. */
   private readonly settled = new Set<string>();
 
+  /**
+   * Hash → epoch-ms before which we won't look at it again. Holds the magnets whose
+   * metadata hasn't arrived: they are not settled (they may still resolve), but they
+   * must not be reconsidered on every tick.
+   *
+   * Without this they STARVE the queue. `MAX_PER_TICK` takes the first N of the
+   * broken list, and a torrent skipped for want of metadata was never recorded
+   * anywhere — so the same N dead magnets were retried every 2 seconds, forever, and
+   * the repairable torrents behind them were never reached. A real host had 221 dead
+   * magnets ahead of 15 fixable ones: not a single name was ever repaired.
+   */
+  private readonly retryAfter = new Map<string, number>();
+
   /** A repair costs a round-trip; don't stall the 2s sync loop behind a backlog. */
   private static readonly MAX_PER_TICK = 5;
+
+  /** How long to leave a metadata-less magnet alone before looking again. */
+  private static readonly METADATA_RETRY_MS = 5 * 60_000;
+
+  /**
+   * Hard cap on a single engine call. The repair runs INSIDE the 2-second sync tick,
+   * which is guarded by a re-entrancy flag reset in a `finally` — so an engine call
+   * that never settles doesn't just delay a repair, it wedges the whole sync loop
+   * (no torrent updates, no state transitions, no automation triggers) until the
+   * process restarts. A timeout turns that into a logged failure.
+   */
+  private static readonly CALL_TIMEOUT_MS = 10_000;
+
+  /** Reject rather than hang forever. Does not cancel the call; it unblocks the tick. */
+  private static withTimeout<T>(work: Promise<T>, label: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`${label} timed out after ${TorrentNameRepairService.CALL_TIMEOUT_MS}ms`)),
+        TorrentNameRepairService.CALL_TIMEOUT_MS,
+      );
+      work.then(
+        (v) => { clearTimeout(timer); resolve(v); },
+        (e) => { clearTimeout(timer); reject(e); },
+      );
+    });
+  }
 
   /** `<40-hex>` or `<40-hex>.meta` — an engine placeholder, never a real name. */
   private static readonly PLACEHOLDER = /^[0-9a-f]{40}(\.meta)?$/i;
@@ -73,27 +112,43 @@ export class TorrentNameRepairService {
     provider: TorrentEngineProvider,
     torrents: NormalizedTorrent[],
   ): Promise<void> {
+    const now = Date.now();
     const broken = torrents.filter(
       (t) =>
         !this.settled.has(t.hash) &&
+        (this.retryAfter.get(t.hash) ?? 0) <= now &&
         TorrentNameRepairService.isPlaceholderName(t.name, t.hash),
     );
 
     for (const t of broken.slice(0, TorrentNameRepairService.MAX_PER_TICK)) {
       try {
-        const files = await provider.getFiles(t.hash);
+        const files = await TorrentNameRepairService.withTimeout(
+          provider.getFiles(t.hash),
+          `getFiles(${t.hash})`,
+        );
         const name = TorrentNameRepairService.nameFromFiles(
           files.map((f) => f.path),
         );
 
-        // No metadata yet (a magnet still resolving, or a dead swarm). Leave it:
-        // there is nothing to rename it *to*, and it may resolve later.
+        // No metadata yet (a magnet still resolving, or a dead swarm). There is
+        // nothing to rename it *to*. Back it off rather than leaving it in the
+        // running: it is not settled — it may still resolve — but reconsidering it
+        // every 2s lets a pile of dead magnets consume the whole per-tick budget and
+        // starve the torrents that CAN be repaired.
         if (!name || TorrentNameRepairService.isPlaceholderName(name, t.hash)) {
+          this.retryAfter.set(
+            t.hash,
+            now + TorrentNameRepairService.METADATA_RETRY_MS,
+          );
           continue;
         }
 
-        await provider.renameTorrent(t.hash, name);
+        await TorrentNameRepairService.withTimeout(
+          provider.renameTorrent(t.hash, name),
+          `renameTorrent(${t.hash})`,
+        );
         this.settled.add(t.hash);
+        this.retryAfter.delete(t.hash);
         this.logger.log(`Repaired placeholder name: ${t.name} -> ${name}`);
       } catch (err) {
         // An engine that can't rename (or won't) must not be retried every 2s.

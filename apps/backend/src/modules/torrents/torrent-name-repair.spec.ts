@@ -86,6 +86,7 @@ describe('repair()', () => {
   });
 
   it('leaves a magnet whose metadata has not arrived alone, and retries it later', async () => {
+    jest.useFakeTimers();
     const svc = new TorrentNameRepairService();
     const renameTorrent = jest.fn();
     const getFiles = jest.fn().mockResolvedValue([]); // no metadata yet
@@ -94,9 +95,19 @@ describe('repair()', () => {
     await svc.repair(provider, [torrent()]);
     expect(renameTorrent).not.toHaveBeenCalled();
 
-    // Not marked settled — a later tick tries again (the magnet may resolve).
+    // NOT on the next tick. The sync loop runs every 2s and only takes 5 torrents a
+    // pass, so re-checking a dead magnet immediately lets a pile of them consume the
+    // whole budget and starve the repairable torrents behind them — which is exactly
+    // what happened on a real host (221 dead magnets, 15 fixable, none ever fixed).
+    await svc.repair(provider, [torrent()]);
+    expect(getFiles).toHaveBeenCalledTimes(1);
+
+    // It is NOT settled, though — the magnet may still resolve. After the backoff it
+    // is looked at again.
+    jest.advanceTimersByTime(5 * 60_000 + 1);
     await svc.repair(provider, [torrent()]);
     expect(getFiles).toHaveBeenCalledTimes(2);
+    jest.useRealTimers();
   });
 
   it('never touches a torrent that already has a real name', async () => {
@@ -120,5 +131,105 @@ describe('repair()', () => {
     await svc.repair(provider, [torrent()]);
 
     expect(renameTorrent).toHaveBeenCalledTimes(1); // settled after the failure
+  });
+});
+
+/**
+ * The repair runs inside the 2-second sync tick and only takes MAX_PER_TICK torrents
+ * per pass. A magnet with no metadata yet cannot be renamed — there is nothing to
+ * rename it *to* — but it must not be reconsidered on every tick, or a pile of dead
+ * magnets consumes the entire budget forever and the repairable torrents behind them
+ * are never reached.
+ *
+ * A real host had 221 metadata-less magnets sitting ahead of 15 fixable torrents.
+ * Not one name was ever repaired.
+ */
+describe('TorrentNameRepairService.repair', () => {
+  const hash = (n: number) => n.toString(16).padStart(40, '0');
+  const placeholder = (n: number) => ({ hash: hash(n), name: `${hash(n)}.meta` });
+
+  function build(opts: { withMetadata?: Set<string>; renameFails?: boolean; hangs?: boolean } = {}) {
+    const renamed: Array<{ hash: string; name: string }> = [];
+    const getFilesCalls: string[] = [];
+    const provider = {
+      getFiles: jest.fn(async (h: string) => {
+        getFilesCalls.push(h);
+        if (opts.hangs) return new Promise(() => {}) as any; // never settles
+        // A metadata-less magnet reports no files at all.
+        return opts.withMetadata?.has(h) ? [{ path: `Real.Show.${h.slice(0, 4)}.mkv` }] : [];
+      }),
+      renameTorrent: jest.fn(async (h: string, name: string) => {
+        if (opts.renameFails) throw new Error('engine refused');
+        renamed.push({ hash: h, name });
+      }),
+    };
+    return { svc: new TorrentNameRepairService(), provider, renamed, getFilesCalls };
+  }
+
+  it('does not let metadata-less magnets starve the repairable ones', async () => {
+    // 8 dead magnets FIRST, then one that can actually be repaired. MAX_PER_TICK is
+    // 5, so the fixable torrent is out of reach on the first pass.
+    const dead = [0, 1, 2, 3, 4, 5, 6, 7].map(placeholder);
+    const fixable = placeholder(99);
+    const torrents = [...dead, fixable] as any[];
+    const { svc, provider, renamed } = build({ withMetadata: new Set([fixable.hash]) });
+
+    await svc.repair(provider as any, torrents); // tick 1: only the dead ones fit
+    expect(renamed).toHaveLength(0);
+
+    await svc.repair(provider as any, torrents); // tick 2
+    await svc.repair(provider as any, torrents); // tick 3
+
+    // Backed off, the dead magnets no longer occupy the budget — so the repairable
+    // torrent is reached. Before the fix this looped on the same 5 forever.
+    expect(renamed).toHaveLength(1);
+    expect(renamed[0].hash).toBe(fixable.hash);
+    expect(renamed[0].name).toBe(`Real.Show.${fixable.hash.slice(0, 4)}.mkv`);
+  });
+
+  it('stops re-fetching a metadata-less magnet on every tick', async () => {
+    const dead = placeholder(1);
+    const { svc, provider, getFilesCalls } = build();
+
+    await svc.repair(provider as any, [dead] as any[]);
+    await svc.repair(provider as any, [dead] as any[]);
+    await svc.repair(provider as any, [dead] as any[]);
+
+    // Looked at once, then backed off — not once per 2-second tick.
+    expect(getFilesCalls).toEqual([dead.hash]);
+  });
+
+  it('renames a torrent whose metadata has arrived, and never revisits it', async () => {
+    const t = placeholder(7);
+    const { svc, provider, renamed, getFilesCalls } = build({ withMetadata: new Set([t.hash]) });
+
+    await svc.repair(provider as any, [t] as any[]);
+    await svc.repair(provider as any, [t] as any[]);
+
+    expect(renamed).toHaveLength(1);
+    expect(getFilesCalls).toHaveLength(1); // settled — not retried
+  });
+
+  it('gives up on a torrent whose engine refuses the rename', async () => {
+    const t = placeholder(3);
+    const { svc, provider, getFilesCalls } = build({ withMetadata: new Set([t.hash]), renameFails: true });
+
+    await svc.repair(provider as any, [t] as any[]);
+    await svc.repair(provider as any, [t] as any[]);
+
+    expect(getFilesCalls).toHaveLength(1); // settled after the failure, not retried
+  });
+
+  it('times out a hanging engine call instead of wedging the sync tick', async () => {
+    // The tick's re-entrancy guard resets in a `finally`. An engine call that never
+    // settles means the guard is never cleared and the whole sync loop dies silently.
+    jest.useFakeTimers();
+    const t = placeholder(5);
+    const { svc, provider } = build({ hangs: true });
+
+    const done = svc.repair(provider as any, [t] as any[]);
+    await jest.advanceTimersByTimeAsync(11_000);
+    await expect(done).resolves.toBeUndefined(); // returned, did not hang
+    jest.useRealTimers();
   });
 });
