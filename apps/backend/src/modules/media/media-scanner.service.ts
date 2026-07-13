@@ -297,11 +297,19 @@ export class MediaScannerService {
 
     const items = await this.prisma.mediaItem.findMany({
       where: { libraryId: library.id, mediaType: { in: TV_TYPES } },
-      select: {
-        path: true,
-        seriesImdbId: true,
-        externalIds: { where: { provider: 'imdb' }, select: { externalId: true }, take: 1 },
-      },
+      // ONLY `seriesImdbId`. An item's own `imdb` external id is the id of that
+      // EPISODE, not of the show — `MediaItem` here is one episode file. Using it as
+      // the show's id is a category error, and it silently produced nonsense: on a
+      // real library the episode tconst tt13701758 ("Pilot", a tvEpisode) had been
+      // mis-assigned to 18 different shows' pilots, so 18 unrelated series — Ted
+      // Lasso, Servant, Dickinson, Hawkeye… — all came out sharing one "show" id and
+      // were surfaced as a duplicate-show family.
+      //
+      // `seriesImdbId` is the field whose entire job is to be the *series* tconst;
+      // `resolveSeriesImdbId()` sets it, mapping an episode to its parent title. When
+      // it is null the show simply has no id yet, and null is the honest answer — an
+      // episode id here is worse than nothing, because downstream code trusts it.
+      select: { path: true, seriesImdbId: true },
     });
 
     const byFolder = new Map<string, { count: number; imdbId: string | null }>();
@@ -312,7 +320,7 @@ export class MediaScannerService {
       cur.count++;
       // First id wins; `??=` keeps looking while it is still null, so an episode
       // that was never identified does not shadow one that was.
-      cur.imdbId ??= it.seriesImdbId ?? it.externalIds[0]?.externalId ?? null;
+      cur.imdbId ??= it.seriesImdbId ?? null;
       byFolder.set(dir, cur);
     }
 

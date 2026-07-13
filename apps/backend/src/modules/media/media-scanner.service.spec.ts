@@ -81,17 +81,13 @@ import { showCanonicalKey } from './series-grouping';
 describe('MediaScannerService.reconcileShows', () => {
   const LIB = { id: 'lib1', kind: 'tv', path: '/downloads/TV Shows', name: 'TV Shows' };
 
-  function build(items: Array<{ path: string; seriesImdbId?: string | null; imdb?: string | null }>) {
+  function build(items: Array<{ path: string; seriesImdbId?: string | null }>) {
     const upserts: any[] = [];
     const deletes: any[] = [];
     const prisma = {
       mediaItem: {
         findMany: jest.fn(async () =>
-          items.map((i) => ({
-            path: i.path,
-            seriesImdbId: i.seriesImdbId ?? null,
-            externalIds: i.imdb ? [{ externalId: i.imdb }] : [],
-          })),
+          items.map((i) => ({ path: i.path, seriesImdbId: i.seriesImdbId ?? null })),
         ),
       },
       mediaShow: {
@@ -122,7 +118,7 @@ describe('MediaScannerService.reconcileShows', () => {
     expect(ghosts.create.canonicalKey).toBe('ghosts us');
   });
 
-  it('takes the IMDb id from whichever episode has one', async () => {
+  it('takes the SERIES id from whichever episode has one', async () => {
     const { svc, upserts } = build([
       { path: `${LIB.path}/Ghosts US (2021)/Season 5/a.mkv`, seriesImdbId: null },
       { path: `${LIB.path}/Ghosts US (2021)/Season 5/b.mkv`, seriesImdbId: 'tt11379026' },
@@ -130,6 +126,28 @@ describe('MediaScannerService.reconcileShows', () => {
     await run(svc);
     // An unidentified episode must not shadow an identified one.
     expect(upserts[0].create.imdbId).toBe('tt11379026');
+  });
+
+  it('records NO id rather than an episode id when the series is unidentified', async () => {
+    // A MediaItem here is one EPISODE FILE, so its own `imdb` external id is that
+    // episode's tconst — never the show's. Using it as the show's id is a category
+    // error, and it produced nonsense on a real library: the episode tconst
+    // tt13701758 ("Pilot", a tvEpisode) had been mis-assigned to 18 different shows'
+    // pilots, so Ted Lasso, Servant, Dickinson, Hawkeye and 14 others all came out
+    // sharing one "show" id — and were reported as a duplicate-show family.
+    //
+    // Only `seriesImdbId` (set by resolveSeriesImdbId, which maps an episode to its
+    // parent title) may be used. Null is the honest answer; a wrong id is worse than
+    // none, because everything downstream trusts it.
+    const { svc, upserts, prisma } = build([
+      { path: `${LIB.path}/Ted Lasso (2020)/Season 1/Ted Lasso - S01E01.mkv`, seriesImdbId: null },
+    ]);
+    await run(svc);
+
+    expect(upserts[0].create.imdbId).toBeNull();
+    // The item's own external ids must not even be fetched for this purpose.
+    const select = (prisma.mediaItem.findMany as jest.Mock).mock.calls[0][0].select;
+    expect(select.externalIds).toBeUndefined();
   });
 
   it('records NO row for a file sitting loose at the library root', async () => {
