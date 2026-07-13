@@ -454,75 +454,81 @@ describe('MediaArtworkService.importLocal — sidecar artwork detection', () => 
 import { MediaMetadataService } from './media-metadata.service';
 
 /**
- * A `.nfo` is written by whatever media manager touched the library, and it can be
- * confidently, systematically wrong. On a real library, eighteen unrelated Apple TV+
- * shows each had `<uniqueid type="imdb">tt13701758</uniqueid>` in their S01E01
- * sidecar — a tconst that is *Acapulco* S01E01. Imported verbatim, one show's episode
- * ids landed on eighteen shows, and everything keyed on IMDb identity inherited it.
+ * A `.nfo` is written by whatever media manager last touched the library, and it can
+ * be confidently, systematically wrong. On a real library, eighteen unrelated Apple
+ * TV+ shows each carried `<uniqueid type="imdb">tt13701758</uniqueid>` in their S01E01
+ * sidecar — a tconst that is *Acapulco* S01E01.
+ *
+ * An episode belongs to exactly ONE series, so an id filed under two different show
+ * folders is provably wrong. That collision is the signal; the catalogue's series
+ * TITLE is not — see the false-positive tests below.
  */
-describe('MediaMetadataService — an NFO IMDb id the catalogue contradicts', () => {
+describe('MediaMetadataService — an IMDb episode id claimed by two shows', () => {
   const LIB = { id: 'lib1', path: '/downloads/TV/TV_Shows' };
   const item = (folder: string, mediaType = 'tv') => ({
-    id: 'i1',
+    id: 'mine',
     libraryId: LIB.id,
     mediaType,
     path: `${LIB.path}/${folder}/Season 1/ep.mkv`,
   });
 
-  function build(over: {
-    episodeParent?: string | null;   // parent series tconst of the NFO's id
-    parentTitle?: string;            // that series' catalogued title
-    akas?: string[];
-  } = {}) {
+  function build(otherFolders: string[] = []) {
+    const deleted: any[] = [];
     const prisma = {
-      iMDbEpisode: {
-        findUnique: jest.fn(async () =>
-          'episodeParent' in over && over.episodeParent === null
-            ? null
-            : { parentTitleId: over.episodeParent ?? 'tt13567344' },
-        ),
-      },
-      iMDbTitle: {
-        findUnique: jest.fn(async () => ({ primaryTitle: over.parentTitle ?? 'Acapulco' })),
-      },
-      iMDbAka: { findMany: jest.fn(async () => (over.akas ?? []).map((title) => ({ title }))) },
       mediaLibrary: { findUnique: jest.fn(async () => LIB) },
+      mediaExternalId: {
+        findMany: jest.fn(async () =>
+          otherFolders.map((f, i) => ({
+            id: `other${i}`,
+            item: { path: `${LIB.path}/${f}/Season 1/ep.mkv` },
+          })),
+        ),
+        deleteMany: jest.fn(async (args: any) => { deleted.push(args); return { count: otherFolders.length }; }),
+      },
     };
     const svc = new MediaMetadataService(prisma as any, {} as any, {} as any, {} as any, {} as any);
-    return { svc, prisma };
+    return { svc, prisma, deleted };
   }
   const check = (svc: any, it: any, id = 'tt13701758') => svc.isForeignEpisodeId(it, 'imdb', id);
 
-  it('rejects an episode id whose parent series is a DIFFERENT show', async () => {
-    const { svc } = build(); // id belongs to Acapulco
+  it('rejects an id already filed under a DIFFERENT show, and strips it from that one too', async () => {
+    const { svc, deleted } = build(['Servant (2019)', 'Hawkeye (2021)']);
+
     expect(await check(svc, item('Ted Lasso (2020)'))).toBe(true);
+    // Neither show may keep it — we cannot tell which is right, and both cannot be.
+    expect(deleted[0].where.id.in).toEqual(['other0', 'other1']);
   });
 
-  it('accepts the id when the parent series IS this show', async () => {
-    const { svc } = build({ parentTitle: 'Ted Lasso' });
+  it('accepts an id that only this show claims', async () => {
+    const { svc, prisma } = build([]);
+    expect(await check(svc, item('Ted Lasso (2020)'))).toBe(false);
+    expect(prisma.mediaExternalId.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('accepts a second copy of the same episode inside the SAME show folder', async () => {
+    // A duplicate episode file is a duplicate FILE, not a wrong id.
+    const { svc } = build(['Ted Lasso (2020)']);
     expect(await check(svc, item('Ted Lasso (2020)'))).toBe(false);
   });
 
-  it('accepts a show filed under an alternate title the catalogue knows', async () => {
-    // "The Office (US)" is catalogued as "The Office"; the AKA makes it legitimate.
-    const { svc } = build({ parentTitle: 'The Office', akas: ['The Office (US)'] });
-    expect(await check(svc, item('The Office (US)'))).toBe(false);
+  it('does NOT flag a show the library files under a longer name (Star Wars Andor)', async () => {
+    // IMDb calls it "Andor"; the library calls it "Star Wars Andor". A title-comparison
+    // guard flagged 18 perfectly good ids here — the collision check does not, because
+    // no other folder claims them.
+    const { svc } = build([]);
+    expect(await check(svc, item('Star Wars Andor (2022)'), 'tt11660988')).toBe(false);
   });
 
-  it('accepts when the id is not a known episode — nothing contradicts it', async () => {
-    const { svc } = build({ episodeParent: null });
-    expect(await check(svc, item('Ted Lasso (2020)'))).toBe(false);
+  it('does NOT flag a show IMDb renamed mid-run (Interview with the Vampire)', async () => {
+    // AMC renamed it "The Vampire Lestat" for S3; the folder kept the old name.
+    const { svc } = build([]);
+    expect(await check(svc, item('Interview with the Vampire (2022)'), 'tt13314588')).toBe(false);
   });
 
-  it('leaves movies alone — a movie id is not an episode id', async () => {
-    const { svc, prisma } = build();
+  it('leaves movies and non-imdb providers alone', async () => {
+    const { svc, prisma } = build(['Other Show (2020)']);
     expect(await check(svc, item('Ghost (1990)', 'movie'))).toBe(false);
-    expect(prisma.iMDbEpisode.findUnique).not.toHaveBeenCalled();
-  });
-
-  it('ignores non-imdb providers', async () => {
-    const { svc, prisma } = build();
     expect(await (svc as any).isForeignEpisodeId(item('Ted Lasso (2020)'), 'tmdb', '239574')).toBe(false);
-    expect(prisma.iMDbEpisode.findUnique).not.toHaveBeenCalled();
+    expect(prisma.mediaExternalId.findMany).not.toHaveBeenCalled();
   });
 });

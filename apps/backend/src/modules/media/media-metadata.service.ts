@@ -8,7 +8,7 @@ import { FilePathService } from '../files/file-path.service';
 import { AuditService } from '../audit/audit.service';
 import { ImdbService } from './imdb/imdb.service';
 import { showFolderOf } from './media-scanner.service';
-import { TV_TYPES, showCanonicalKey } from './series-grouping';
+import { TV_TYPES } from './series-grouping';
 import {
   LocalMetadataProvider,
   MediaLookup,
@@ -181,21 +181,25 @@ export class MediaMetadataService {
   }
 
   /**
-   * Is this `imdb` id from an episode NFO demonstrably NOT this show's?
+   * Is this `imdb` episode id shared with a DIFFERENT show — i.e. provably wrong?
    *
-   * A `.nfo` is written by whatever media manager touched the library, and it can be
-   * confidently, systematically wrong. On a real library, eighteen unrelated Apple
-   * TV+ shows — Ted Lasso, Servant, Dickinson, Hawkeye, See … — each had
-   * `<uniqueid type="imdb">tt13701758</uniqueid>` in their S01E01 sidecar. That
-   * tconst is *Acapulco* S01E01. Imported verbatim, one show's episode ids ended up
-   * on eighteen shows, and everything downstream that keys on IMDb identity — show
-   * grouping, duplicate detection, the acquisition path's id anchor — inherited it.
+   * A `.nfo` is written by whatever media manager last touched the library, and it can
+   * be confidently, systematically wrong. On a real library, eighteen unrelated Apple
+   * TV+ shows — Ted Lasso, Servant, Dickinson, Hawkeye, See … — each carried
+   * `<uniqueid type="imdb">tt13701758</uniqueid>` in their S01E01 sidecar. That tconst
+   * is *Acapulco* S01E01: the generator had matched episodes by title, so every show's
+   * "Pilot" collided. Imported verbatim, one show's episode ids landed on eighteen
+   * shows, and everything keyed on IMDb identity inherited the lie.
    *
-   * The catalogue settles it: an episode tconst has exactly one parent series. If
-   * that series is not the one this file is filed under, the NFO is lying. We compare
-   * the parent's catalogued title to the item's own show folder, canonically, and
-   * reject only on a *positive* mismatch — a show the catalogue doesn't know, or an id
-   * it can't resolve, is imported as before rather than second-guessed.
+   * An episode tconst identifies exactly one episode of exactly one series. So if the
+   * same id is filed under two different show FOLDERS, it is provably wrong for at
+   * least one of them — and we cannot tell which, so neither may keep it.
+   *
+   * We deliberately do NOT compare the catalogue's series title against the folder
+   * name. That looks appealing and is wrong: a library legitimately files "Andor" as
+   * `Star Wars Andor`, and AMC renamed "Interview with the Vampire" to "The Vampire
+   * Lestat" mid-run. A title check flagged 36 perfectly good ids across those two
+   * shows. The collision is the only signal that cannot produce a false positive.
    */
   private async isForeignEpisodeId(
     item: { id: string; path: string; mediaType: string; libraryId: string },
@@ -205,41 +209,36 @@ export class MediaMetadataService {
     if (provider !== 'imdb') return false;
     if (!TV_TYPES.includes(item.mediaType)) return false;
 
-    const episode = await this.prisma.iMDbEpisode.findUnique({
-      where: { episodeTitleId: externalId },
-      select: { parentTitleId: true },
-    });
-    if (!episode) return false; // not a known episode id — nothing to contradict
-
     const library = await this.prisma.mediaLibrary.findUnique({
       where: { id: item.libraryId },
       select: { path: true },
     });
     const folder = library ? showFolderOf(library.path, item.path) : null;
-    if (!folder) return false; // no show folder to compare against
+    if (!folder) return false;
 
-    const parent = await this.prisma.iMDbTitle.findUnique({
-      where: { tconst: episode.parentTitleId },
-      select: { primaryTitle: true },
+    const others = await this.prisma.mediaExternalId.findMany({
+      where: {
+        provider: 'imdb',
+        externalId,
+        NOT: { itemId: item.id },
+        item: { mediaType: { in: TV_TYPES }, libraryId: item.libraryId },
+      },
+      select: { id: true, item: { select: { path: true } } },
     });
-    if (!parent?.primaryTitle) return false;
+    const foreign = others.filter(
+      (o) => showFolderOf(library!.path, o.item.path) !== folder,
+    );
+    if (foreign.length === 0) return false;
 
-    const claimed = showCanonicalKey(parent.primaryTitle);
-    const actual = showCanonicalKey(path.basename(folder));
-    if (!claimed || !actual || claimed === actual) return false;
-
-    // The catalogue also carries alternate titles; a show legitimately filed under
-    // one of them is not a mismatch ("The Office (US)" ↔ "The Office").
-    const akas = await this.prisma.iMDbAka.findMany({
-      where: { titleId: episode.parentTitleId },
-      select: { title: true },
+    // Untrustworthy for everyone: drop the rows that already carry it, and refuse to
+    // add ours. Two shows cannot share one episode.
+    await this.prisma.mediaExternalId.deleteMany({
+      where: { id: { in: foreign.map((f) => f.id) } },
     });
-    if (akas.some((a) => showCanonicalKey(a.title) === actual)) return false;
-
     this.logger.warn(
-      `Ignoring IMDb id ${externalId} from the NFO for "${path.basename(item.path)}": ` +
-        `the catalogue says it is an episode of “${parent.primaryTitle}”, but the file is ` +
-        `filed under “${path.basename(folder)}”. The sidecar is wrong.`,
+      `IMDb id ${externalId} is claimed by ${foreign.length + 1} different show folders ` +
+        `(incl. “${path.basename(folder)}”) — an episode belongs to exactly one series, so the ` +
+        `sidecars are wrong. Dropping it from all of them.`,
     );
     return true;
   }
