@@ -24,6 +24,13 @@ export interface ImportUser {
   email?: string;
 }
 
+/** A library/section on the source server. */
+export interface ImportLibrary {
+  sectionId: string;
+  name: string;
+  type?: string;
+}
+
 /** A normalized watch-history record — shared shape across import providers. */
 export interface NormalizedHistory {
   providerHistoryId: string;
@@ -52,7 +59,23 @@ export interface MediaAnalyticsImportProvider {
   testConnection(ctx: ImportContext): Promise<{ ok: boolean; message: string }>;
   getImportSourceInfo(ctx: ImportContext): Promise<ImportSourceInfo>;
   getUsers(ctx: ImportContext): Promise<ImportUser[]>;
-  getWatchHistory(ctx: ImportContext, opts: { start: number; length: number }): Promise<HistoryPage>;
+  /** The source's libraries, so history can be imported (and labelled) per library. */
+  getLibraries(ctx: ImportContext): Promise<ImportLibrary[]>;
+  /**
+   * A page of watch history. When `sectionId` is given the source filters to that
+   * library, and `libraryName` is stamped on every returned record.
+   *
+   * Tautulli's `get_history` rows carry NO library field at all — not `library_name`,
+   * not `section_id` (verified against a live server). The importer nevertheless read
+   * `r.library_name`, which is always undefined, so 99% of imported rows landed with a
+   * null library and the analytics "Libraries" report attributed nearly everything to
+   * a single "Unknown" bucket. The library is knowable only from the section we ASKED
+   * for, so we ask per section and stamp it.
+   */
+  getWatchHistory(
+    ctx: ImportContext,
+    opts: { start: number; length: number; sectionId?: string; libraryName?: string },
+  ): Promise<HistoryPage>;
 }
 
 /**
@@ -144,12 +167,41 @@ export class TautulliAnalyticsImportProvider implements MediaAnalyticsImportProv
       .map((u) => ({ providerUserId: String(u.user_id), userName: u.friendly_name || u.username || 'Unknown', email: u.email || undefined }));
   }
 
-  async getWatchHistory(ctx: ImportContext, opts: { start: number; length: number }): Promise<HistoryPage> {
-    const { response } = await tautulliCmd(ctx, 'get_history', { start: opts.start, length: opts.length, order_column: 'date', order_dir: 'asc' });
+  async getLibraries(ctx: ImportContext): Promise<ImportLibrary[]> {
+    const { response } = await tautulliCmd(ctx, 'get_libraries');
+    const rows: any[] = response?.data ?? [];
+    return rows
+      .filter((l) => l?.section_id != null && l?.section_name)
+      .map((l) => ({
+        sectionId: String(l.section_id),
+        name: String(l.section_name),
+        type: l.section_type ? String(l.section_type) : undefined,
+      }));
+  }
+
+  async getWatchHistory(
+    ctx: ImportContext,
+    opts: { start: number; length: number; sectionId?: string; libraryName?: string },
+  ): Promise<HistoryPage> {
+    const params: Record<string, string | number> = {
+      start: opts.start,
+      length: opts.length,
+      order_column: 'date',
+      order_dir: 'asc',
+    };
+    if (opts.sectionId) params.section_id = opts.sectionId;
+
+    const { response } = await tautulliCmd(ctx, 'get_history', params);
     const data = response?.data ?? {};
     const rows: any[] = data.data ?? [];
     return {
-      records: rows.map(normalizeTautulliHistory),
+      // The row itself carries no library — the only thing that knows is the section
+      // we filtered by, so stamp that. A row's own value (should a future Tautulli
+      // ever supply one) still wins.
+      records: rows.map((r) => {
+        const rec = normalizeTautulliHistory(r);
+        return opts.libraryName ? { ...rec, libraryName: rec.libraryName ?? opts.libraryName } : rec;
+      }),
       total: Number(data.recordsFiltered ?? data.recordsTotal ?? rows.length),
     };
   }
