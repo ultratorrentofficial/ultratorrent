@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import { isSeasonContainer, showFolderRoot } from './media-renamer';
+import { normalize } from '../rss/match-engine';
 
 /**
  * Show-grouping for the TV media browser. Episodes are grouped into their parent
@@ -26,6 +27,28 @@ export function parseFolderTitle(name: string): { title: string; year: number | 
   const m = name.match(/^(.*?)[\s._]*\((\d{4})\)\s*$/);
   if (m) return { title: m[1].trim(), year: Number(m[2]) };
   return { title: name.trim(), year: null };
+}
+
+/** A trailing year, on an ALREADY-normalized string ("ghosts 2021" → "ghosts"). */
+const TRAILING_YEAR = /\s+(?:19|20)\d{2}$/;
+
+/**
+ * Canonical identity key for a show title or show-folder name — the single
+ * definition shared by the scanner, the watchlist and the missing-episode sweep.
+ *
+ *   "Ghosts (US)"          → "ghosts us"
+ *   "Ghosts US (2021)"     → "ghosts us"      (the folder)
+ *   "Happy's Place (2024)" → "happys place"
+ *   "Magnum P.I. (2018)"   → "magnum p i"
+ *
+ * `normalize` folds case, separators and apostrophes; the trailing year is dropped
+ * so a folder and the bare title agree. This is EQUALITY on a canonical form, never
+ * a substring test — "Ghosts US" and "Ghosts UK" stay distinct, as do "Rise" and
+ * "Sunrise". A *leading* year survives, because it can be the whole title ("1883").
+ */
+export function showCanonicalKey(name: string): string {
+  const n = normalize(name);
+  return n.replace(TRAILING_YEAR, '').trim() || n;
 }
 
 export interface GroupInput {

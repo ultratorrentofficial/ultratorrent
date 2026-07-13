@@ -9,6 +9,11 @@ import { parseTorrentName } from '../rss/torrent-name-parser';
 import { parseItemIdentity } from './media-identification.service';
 import { MediaArtworkService } from './media-artwork.service';
 import { MediaMetadataService } from './media-metadata.service';
+import { isSeasonContainer, showFolderRoot } from './media-renamer';
+import { TV_TYPES, normPath, parseFolderTitle, showCanonicalKey } from './series-grouping';
+
+/** Library kinds whose contents are shows (and therefore get MediaShow rows). */
+const SHOW_LIBRARY_KINDS = ['tv', 'anime'];
 
 /** Technical fields derived from a release filename for a MediaFile row. */
 export interface MediaFileTechInfo {
@@ -76,6 +81,8 @@ export interface ScanSummary {
   artworkImported: number;
   /** Items whose local .nfo metadata was imported during this scan. */
   metadataImported: number;
+  /** Show folders recorded for this library (0 for a non-show library). */
+  shows: number;
 }
 
 /**
@@ -214,6 +221,12 @@ export class MediaScannerService {
       }
     }
 
+    // Record the show FOLDERS this library actually has, so nothing downstream has
+    // to reconstruct one from a title. Runs after the prune so a folder whose files
+    // are all gone disappears with them.
+    await report?.(90, 'Recording show folders…');
+    const shows = await this.reconcileShows(library);
+
     await report?.(92, 'Importing artwork & metadata sidecars…');
     const { artworkImported, metadataImported } = await this.importSidecars(
       itemIds,
@@ -222,6 +235,7 @@ export class MediaScannerService {
     await report?.(
       100,
       `Done — ${files.length} scanned, ${added} added, ${updated} updated, ${removed} removed` +
+        (shows ? `, ${shows} show folder(s)` : '') +
         (artworkImported ? `, ${artworkImported} artwork` : '') +
         (metadataImported ? `, ${metadataImported} metadata` : ''),
     );
@@ -236,7 +250,79 @@ export class MediaScannerService {
       payload: { libraryName: library.name, mediaTitle: library.name, libraryId, scanned: files.length, added, updated, removed },
       at: new Date().toISOString(),
     });
-    return { libraryId, scanned: files.length, added, updated, removed, artworkImported, metadataImported };
+    return { libraryId, scanned: files.length, added, updated, removed, artworkImported, metadataImported, shows };
+  }
+
+  /**
+   * Record one {@link MediaShow} row per show FOLDER the library actually has.
+   *
+   * This is the whole point of the table: the folder is written down from what is
+   * **on disk**, so the missing-episode sweep can file a grab into a path the
+   * library observed instead of rebuilding one from the show's title. Rebuilding it
+   * is what produced `TV Shows/Ghosts 2021 (2021)` and `TV Shows/Happys Place`
+   * beside the real folders.
+   *
+   * A file with no show folder of its own (sitting directly at the library root)
+   * yields no row — there is no folder to record, and inventing one is the very
+   * thing this table exists to prevent.
+   */
+  private async reconcileShows(library: { id: string; kind: string; path: string; name: string }): Promise<number> {
+    if (!SHOW_LIBRARY_KINDS.includes(library.kind)) return 0;
+
+    const items = await this.prisma.mediaItem.findMany({
+      where: { libraryId: library.id, mediaType: { in: TV_TYPES } },
+      select: {
+        path: true,
+        seriesImdbId: true,
+        externalIds: { where: { provider: 'imdb' }, select: { externalId: true }, take: 1 },
+      },
+    });
+
+    const root = normPath(library.path);
+    const byFolder = new Map<string, { count: number; imdbId: string | null }>();
+    for (const it of items) {
+      const dir = showFolderRoot(it.path);
+      const folder = path.basename(dir);
+      if (!folder || normPath(dir) === root || isSeasonContainer(folder)) continue;
+      const cur = byFolder.get(dir) ?? { count: 0, imdbId: null };
+      cur.count++;
+      // First id wins; `??=` keeps looking while it is still null, so an episode
+      // that was never identified does not shadow one that was.
+      cur.imdbId ??= it.seriesImdbId ?? it.externalIds[0]?.externalId ?? null;
+      byFolder.set(dir, cur);
+    }
+
+    const mediaType = library.kind === 'anime' ? 'anime' : 'tv';
+    for (const [dir, g] of byFolder) {
+      const folder = path.basename(dir);
+      const { title, year } = parseFolderTitle(folder);
+      const data = {
+        mediaType,
+        title,
+        year,
+        imdbId: g.imdbId,
+        canonicalKey: showCanonicalKey(folder),
+        episodeCount: g.count,
+      };
+      await this.prisma.mediaShow.upsert({
+        where: { libraryId_path: { libraryId: library.id, path: dir } },
+        create: { libraryId: library.id, path: dir, ...data },
+        update: data,
+      });
+    }
+
+    // Prune shows whose folder no longer holds a single item — but only when the
+    // scan actually saw some, mirroring the item prune. An empty result usually
+    // means an unreadable root, and must not wipe the library's shows.
+    if (byFolder.size > 0) {
+      const stale = await this.prisma.mediaShow.deleteMany({
+        where: { libraryId: library.id, path: { notIn: [...byFolder.keys()] } },
+      });
+      if (stale.count > 0) {
+        this.logger.log(`Scan of ${library.name}: pruned ${stale.count} show folder(s) that no longer exist`);
+      }
+    }
+    return byFolder.size;
   }
 
   /**

@@ -62,6 +62,16 @@ export function mergeExternalIds(
 
 /** A distinct series in the media libraries, for the watchlist "add from library" picker. */
 export interface LibrarySeries {
+  /**
+   * The `MediaShow` row this came from — the show's real folder on disk. Carried
+   * back on add and stored as `libraryShowId`, so the sweep files grabs into a path
+   * the library *observed* rather than one rebuilt from the title.
+   *
+   * Null only on an install whose libraries have not been scanned since `media_shows`
+   * was introduced; the picker then falls back to deriving shows from item rows and
+   * the item binds by name, as it used to.
+   */
+  id: string | null;
   title: string;
   year: number | null;
   episodeCount: number;
@@ -118,6 +128,8 @@ export interface WatchlistInput {
   profileId?: string;
   rssRuleId?: string | null;
   targetLibraryId?: string;
+  /** The `MediaShow` (library folder) this item monitors — see the schema field. */
+  libraryShowId?: string | null;
   settings?: Record<string, unknown>;
 }
 
@@ -174,6 +186,7 @@ export class AcquisitionWatchlistService {
         profileId: input.profileId,
         rssRuleId: input.rssRuleId ?? undefined,
         targetLibraryId: input.targetLibraryId,
+        libraryShowId: input.libraryShowId ?? undefined,
         settings: (input.settings ?? undefined) as object | undefined,
         createdBy: userId,
       },
@@ -200,8 +213,28 @@ export class AcquisitionWatchlistService {
    * back to their parsed title, which for a `SxxExx` filename is the series.
    */
   async librarySeries(search?: string): Promise<LibrarySeries[]> {
-    const groups = await this.groupLibraryShows();
-    if (groups.size === 0) return [];
+    // The shows the scanner recorded — one row per folder actually on disk. This
+    // replaces re-deriving them from every episode row on every request.
+    const shows = await this.prisma.mediaShow.findMany({
+      where: { mediaType: { in: ['tv', 'anime'] } },
+      select: { id: true, title: true, year: true, episodeCount: true, imdbId: true },
+    });
+
+    // An install upgraded but not yet re-scanned has an empty `media_shows`. Fall
+    // back to the old derivation so the picker is never blank while waiting for the
+    // first scan; those rows carry no id, so the item binds by name as it used to.
+    const derived = shows.length === 0 ? await this.groupLibraryShows() : null;
+    const rows: Array<{ id: string | null; title: string; year: number | null; count: number; imdbId: string | null }> =
+      shows.length > 0
+        ? shows.map((s) => ({ id: s.id, title: s.title, year: s.year, count: s.episodeCount, imdbId: s.imdbId }))
+        : [...derived!.values()].map((g) => ({
+            id: null,
+            title: g.title,
+            year: g.year,
+            count: g.count,
+            imdbId: g.seriesId ?? g.extId ?? null,
+          }));
+    if (rows.length === 0) return [];
 
     // Already monitored? (any series watchlist item, by normalized title.)
     const existing = await this.prisma.mediaAcquisitionWatchlistItem.findMany({
@@ -217,17 +250,17 @@ export class AcquisitionWatchlistService {
     const statusByTitle = new Map(statusRows.map((r) => [r.normalizedTitle, r]));
 
     const q = search?.trim().toLowerCase();
-    const result = [...groups.values()]
+    const result = rows
       .filter((g) => !q || g.title.toLowerCase().includes(q))
       .map((g) => {
-        const imdbId = g.seriesId ?? g.extId ?? null;
         const st = statusByTitle.get(normalizeTitle(g.title));
         return {
+          id: g.id,
           title: g.title,
           year: g.year,
           episodeCount: g.count,
-          imdbId,
-          monitorable: imdbId != null,
+          imdbId: g.imdbId,
+          monitorable: g.imdbId != null,
           onWatchlist: onWatchlist.has(g.title.toLowerCase().trim()),
           showStatus: st?.normalizedStatus ?? null,
           recommendation: st?.recommendation ?? null,
@@ -437,7 +470,7 @@ export class AcquisitionWatchlistService {
    * {@link create}. Returns how many were added vs skipped.
    */
   async bulkCreate(
-    series: Array<{ title: string; year?: number | null; imdbId?: string | null }>,
+    series: Array<{ title: string; year?: number | null; imdbId?: string | null; libraryShowId?: string | null }>,
     userId?: string,
   ): Promise<{ added: number; skipped: number }> {
     const existing = await this.prisma.mediaAcquisitionWatchlistItem.findMany({
@@ -461,6 +494,10 @@ export class AcquisitionWatchlistService {
           title: s.title,
           year: s.year ?? undefined,
           externalIds: s.imdbId ? { imdb: s.imdbId } : undefined,
+          // Bind the show to the folder it was picked from. This is what makes a
+          // grab land in a path the library saw, instead of one rebuilt from the
+          // title — the bug that minted "Ghosts 2021 (2021)" and "Happys Place".
+          libraryShowId: s.libraryShowId ?? undefined,
         },
         userId,
       );

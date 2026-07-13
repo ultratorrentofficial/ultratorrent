@@ -49,7 +49,7 @@ export function AddSeriesFromLibraryDialog({ open, onClose }: { open: boolean; o
     mutationFn: () => {
       const chosen = (query.data ?? []).filter((r) => selected.has(r.title));
       return api.mediaAcquisition.bulkAddWatchlist(
-        chosen.map((r) => ({ title: r.title, year: r.year, imdbId: r.imdbId })),
+        chosen.map((r) => ({ title: r.title, year: r.year, imdbId: r.imdbId, libraryShowId: r.id })),
       );
     },
     onSuccess: (r) => {

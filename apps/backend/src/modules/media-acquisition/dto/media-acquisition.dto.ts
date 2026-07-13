@@ -59,6 +59,12 @@ export class BulkAddSeriesItemDto {
   @IsString() @MinLength(1) @MaxLength(300) title!: string;
   @IsOptional() @IsInt() year?: number | null;
   @IsOptional() @IsString() @MaxLength(30) imdbId?: string | null;
+  /**
+   * The `MediaShow` the row was picked from — binds the monitored show to its real
+   * folder on disk, so grabs are filed into a path the library observed instead of
+   * one rebuilt from the title. Absent on a library not yet re-scanned.
+   */
+  @IsOptional() @IsString() @MaxLength(64) libraryShowId?: string | null;
 }
 export class BulkAddWatchlistDto {
   @IsArray() series!: BulkAddSeriesItemDto[];

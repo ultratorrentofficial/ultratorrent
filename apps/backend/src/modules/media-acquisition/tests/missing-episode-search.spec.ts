@@ -39,6 +39,8 @@ function build(over: {
   imdbItems?: Array<{ path: string }>;
   /** Show folders that do NOT exist on disk (a stale library row). */
   missingDirs?: string[];
+  /** The MediaShow row the watchlist item is bound to (pass null to model a dangling FK). */
+  libraryShow?: { path: string; title: string } | null;
   /** Directory names sitting in the library on disk. */
   libraryDirs?: string[];
   library?: { path: string } | null;
@@ -77,6 +79,9 @@ function build(over: {
         const items = over.imdbItems ?? (over.imdbItem ? [over.imdbItem] : []);
         return items.map((i) => ({ item: { path: i.path } }));
       }),
+    },
+    mediaShow: {
+      findUnique: jest.fn(async () => ('libraryShow' in over ? over.libraryShow : null)),
     },
     mediaLibrary: {
       // A configured install always has a TV library, so a save path always
@@ -403,6 +408,37 @@ describe('MissingEpisodeSearchService — save path never invents a duplicate sh
     });
     await svc.sweep();
     expect(savedTo(evaluator)).toBe('/downloads/TV Shows/Magnum P.I. (2018)');
+  });
+
+  it('uses the bound library show’s stored path, matching nothing and building nothing', async () => {
+    // The show was picked from the library, so its folder is KNOWN. No rule, no
+    // IMDb lookup, no folder scan, no construction — just the path the scanner saw.
+    const { svc, evaluator, prisma } = build({
+      ...ghosts('Ghosts 2021'), // deliberately the title that used to invent a folder
+      item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
+      libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
+      // Everything that could mislead the legacy chain is present and wrong:
+      rules: [{ name: 'Ghosts 2021', savePath: '/downloads/TV Shows/WRONG (2021)' }],
+      libraryDirs: ['Ghosts 2021 (2021)'],
+    });
+    await svc.sweep();
+    expect(savedTo(evaluator)).toBe(GHOSTS_DIR);
+    // The binding short-circuits the whole name-matching chain.
+    expect(prisma.rssRule.findMany).not.toHaveBeenCalled();
+    expect(prisma.mediaExternalId.findMany).not.toHaveBeenCalled();
+  });
+
+  it('falls back to resolving by name when the bound show has been deleted', async () => {
+    // The FK is SET NULL, so a dangling id is rare — but if the row is gone we must
+    // resolve the folder rather than refuse the grab.
+    const { svc, evaluator } = build({
+      ...ghosts('Ghosts (US)'),
+      item: { title: 'Ghosts (US)', year: 2021, libraryShowId: 'show-gone' },
+      libraryShow: null,
+      libraryDirs: ['Ghosts US (2021)'],
+    });
+    await svc.sweep();
+    expect(savedTo(evaluator)).toBe(GHOSTS_DIR);
   });
 
   it('refuses to trust an IMDb id that is mis-tagged onto two different shows', async () => {

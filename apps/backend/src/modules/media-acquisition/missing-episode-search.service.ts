@@ -13,47 +13,18 @@ import { AcquisitionMatchPreferenceService } from './acquisition-match-preferenc
 import { MediaAcquisitionService } from './media-acquisition.service';
 import { MEDIA_ACQUISITION_MODULE_ID } from './decision.engine';
 import { showFolderRoot } from '../media/media-renamer';
-import { normalize } from '../rss/match-engine';
+import { showCanonicalKey } from '../media/series-grouping';
 
 type WantedSearchStatus = 'idle' | 'searching' | 'grabbed' | 'pending_approval' | 'no_results' | 'failed';
 
 /** The media types a TV show's files are filed under. */
 const SHOW_MEDIA_TYPES = ['tv', 'anime', 'episode'];
 
-/** A trailing year, on an ALREADY-normalized string ("ghosts 2021" → "ghosts"). */
-const TRAILING_YEAR = /\s+(?:19|20)\d{2}$/;
-
-/**
- * Canonical identity key for a show title or show-folder name: case- and
- * punctuation-insensitive, with a trailing year removed.
- *
- *   "Ghosts (US)"           → "ghosts us"
- *   "Ghosts US (2021)"      → "ghosts us"        (a folder name)
- *   "Ghosts 2021"           → "ghosts"
- *   "Happy's Place (2024)"  → "happys place"
- *   "Happys Place"          → "happys place"
- *   "Magnum P.I. (2018)"    → "magnum p i"
- *
- * Apostrophes are ELIDED rather than treated as separators: `normalize` would turn
- * "Happy's" into "happy s", which would never match the apostrophe-less "Happys"
- * that release names (and therefore watchlist entries) actually carry — the exact
- * split that produced a stray `TV Shows/Happys Place` folder.
- *
- * This is EQUALITY on a canonical form, never a substring test — "Ghosts US" and
- * "Ghosts UK" stay distinct, as do "Rise" and "Sunrise". A *leading* year survives,
- * because it can be the whole title ("1883").
- */
-function showKey(title: string): string {
-  const normalized = normalize(title.replace(/['’`]/g, ''));
-  const stripped = normalized.replace(TRAILING_YEAR, '').trim();
-  return stripped || normalized;
-}
-
 /** Every canonical key a watchlist item answers to — its title plus any alias. */
 function showKeys(item: { title: string; titleAliases?: string[] | null }): Set<string> {
   const keys = new Set<string>();
   for (const t of [item.title, ...(item.titleAliases ?? [])]) {
-    const k = showKey(t ?? '');
+    const k = showCanonicalKey(t ?? '');
     if (k) keys.add(k);
   }
   return keys;
@@ -277,32 +248,31 @@ export class MissingEpisodeSearchService {
   }
 
   /**
-   * The download directory for a grabbed episode, resolved with a layered
-   * fallback so episodes land in the show's own folder even when the watchlist
-   * item was never explicitly linked to an RSS rule (the common case — most
-   * monitored shows carry no `rssRuleId`):
+   * The download directory for a grabbed episode.
    *
-   *   1. the linked Show Rule's `savePath` (explicit link);
+   *   0. the **library show this item is bound to** — a path the scanner recorded
+   *      from disk. This is the answer whenever the show is in the library, and it
+   *      is not a guess: no titles are compared and nothing is constructed;
+   *   1. else the linked Show Rule's `savePath` (explicit link);
    *   2. else an RSS rule whose **name matches the show** — many shows have a rule
    *      that just isn't wired to the watchlist item;
-   *   3. else the library folder of the item carrying the show's **IMDb id** — the
-   *      only step that does not depend on titles agreeing;
+   *   3. else the library folder of the item carrying the show's **IMDb id**;
    *   4. else the library folder of an item whose **title matches the show**;
    *   5. else an **existing show folder** already sitting in the target library;
    *   6. else, and only then, a constructed `<TV library>/<Title> (Year)`.
    *
-   * Steps 2/4/5 compare {@link showKey}s — a canonical, punctuation- and
-   * case-insensitive form with the trailing year stripped — against the item's
-   * title *and its aliases*. They are equality tests on that canonical form, never
-   * substring tests, so "Ghosts US" never collides with "Ghosts UK".
+   * Steps 1-6 are the legacy chain, kept for a show that is not in the library yet
+   * (`libraryShowId` null) — a first-ever grab has no folder to be bound to. They
+   * compare canonical keys (punctuation- and case-insensitive, trailing year
+   * stripped) against the item's title *and its aliases*: equality on that form,
+   * never substring tests, so "Ghosts US" never collides with "Ghosts UK".
    *
-   * Step 6 is the dangerous one: it invents a directory named after whatever the
-   * watchlist entry happens to be called. Two duplicate entries for the same show
-   * titled "Ghosts 2021" and "Ghosts (US)" once minted
+   * Step 6 is the dangerous one — it invents a directory named after whatever the
+   * watchlist entry happens to be called. Two duplicate entries for the same show,
+   * titled "Ghosts 2021" and "Ghosts (US)", once minted
    * `TV Shows/Ghosts 2021 (2021)` and `TV Shows/Ghosts (US) (2021)` beside the real
-   * `TV Shows/Ghosts US (2021)`, because every earlier step demanded exact string
-   * equality and the rule was named plain "Ghosts". Steps 3 and 5 exist to make
-   * step 6 unreachable whenever the show is already on disk, whatever it is called.
+   * `TV Shows/Ghosts US (2021)`. Step 0 is what makes it unreachable for any show
+   * the library knows about; steps 3 and 5 narrow it further for the ones it doesn't.
    *
    * Returns undefined only when none of these resolve — the caller then refuses the
    * grab, because falling through to the engine's default would scatter episodes
@@ -310,7 +280,9 @@ export class MissingEpisodeSearchService {
    */
   private async resolveSavePath(
     item: {
+      id?: string;
       rssRuleId: string | null;
+      libraryShowId?: string | null;
       title: string;
       titleAliases?: string[] | null;
       year: number | null;
@@ -318,6 +290,21 @@ export class MissingEpisodeSearchService {
     },
     seriesTconst?: string | null,
   ): Promise<string | undefined> {
+    // 0. The library show this item is bound to. Recorded from disk by the scanner,
+    //    so there is nothing to match and nothing to build.
+    if (item.libraryShowId) {
+      const show = await this.prisma.mediaShow.findUnique({
+        where: { id: item.libraryShowId },
+        select: { path: true, title: true },
+      });
+      if (show?.path) return show.path;
+      // The row is gone (folder removed, library deleted). The FK is SET NULL, so
+      // this is rare; fall through to resolving by name rather than refuse.
+      this.logger.warn(
+        `Watchlist item "${item.title}" points at library show ${item.libraryShowId}, which no longer exists — resolving its folder by name instead.`,
+      );
+    }
+
     // 1. Explicit Show Rule link.
     if (item.rssRuleId) {
       const rule = await this.prisma.rssRule.findUnique({
@@ -336,7 +323,7 @@ export class MissingEpisodeSearchService {
         where: { savePath: { not: null } },
         select: { name: true, savePath: true },
       });
-      const match = rules.find((r) => keys.has(showKey(r.name)) && r.savePath?.trim());
+      const match = rules.find((r) => keys.has(showCanonicalKey(r.name)) && r.savePath?.trim());
       if (match?.savePath) return match.savePath.trim();
     }
 
@@ -382,7 +369,7 @@ export class MissingEpisodeSearchService {
         select: { title: true, path: true },
         distinct: ['title'],
       });
-      const hit = rows.find((r) => keys.has(showKey(r.title)));
+      const hit = rows.find((r) => keys.has(showCanonicalKey(r.title)));
       const folder = this.folderOf(hit?.path);
       if (folder) return folder;
     }
@@ -443,7 +430,7 @@ export class MissingEpisodeSearchService {
     } catch {
       return undefined;
     }
-    const hit = entries.find((e) => e.isDirectory() && keys.has(showKey(e.name)));
+    const hit = entries.find((e) => e.isDirectory() && keys.has(showCanonicalKey(e.name)));
     return hit ? `${libraryPath}/${hit.name}` : undefined;
   }
 

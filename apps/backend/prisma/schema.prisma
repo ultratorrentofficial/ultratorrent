@@ -534,8 +534,51 @@ model MediaLibrary {
   updatedAt           DateTime  @updatedAt
 
   items MediaItem[]
+  shows MediaShow[]
 
   @@map("media_libraries")
+}
+
+/// A TV show that EXISTS in a library, as one row per show folder on disk.
+///
+/// The show entity used to be re-derived in memory, three separate times, by
+/// climbing `showFolderRoot(path)` from every episode row: once for the media
+/// browser (`series-grouping.ts`), once for the watchlist picker
+/// (`groupLibraryShows`), and once to choose a download's target folder
+/// (`missing-episode-search`). Each derivation could disagree with the others, and
+/// the last one had to *reconstruct* a folder name from the show's title when it
+/// found no match — which is how `TV Shows/Ghosts 2021 (2021)` and
+/// `TV Shows/Happys Place` came to exist beside the real folders.
+///
+/// `path` is the show's real directory, recorded by the scanner from what is
+/// actually on disk. A monitored show points at one of these rows
+/// (`MediaAcquisitionWatchlistItem.libraryShowId`), so a grab is filed into a path
+/// the library *observed*, never one the acquisition code invented.
+model MediaShow {
+  id        String  @id @default(uuid())
+  libraryId String
+  mediaType String  @default("tv") // tv | anime
+  title     String
+  year      Int?
+  /// Absolute path of the show folder, exactly as found on disk.
+  path      String
+  imdbId    String?
+  /// Case/punctuation-insensitive identity key, trailing year stripped
+  /// ("Ghosts US (2021)" and "Ghosts (US)" both → "ghosts us"). Equality only —
+  /// never a substring test, so "Ghosts US" cannot collide with "Ghosts UK".
+  canonicalKey String
+  episodeCount Int   @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  library        MediaLibrary                    @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  watchlistItems MediaAcquisitionWatchlistItem[]
+
+  @@unique([libraryId, path])
+  @@index([imdbId])
+  @@index([canonicalKey])
+  @@index([libraryId])
+  @@map("media_shows")
 }
 
 // ---------------------------------------------------------------------------
@@ -1204,13 +1247,22 @@ model MediaAcquisitionWatchlistItem {
   // this show. Null → fall back to the global AcquisitionMatchCandidate defaults.
   rssRuleId       String?
   targetLibraryId String?
+  // The library show this item monitors — the folder its episodes are filed into.
+  // Bound once, when the show is picked from the library, so the download path is a
+  // path the library OBSERVED rather than one reconstructed from `title` at grab
+  // time. Null only for a show that is not in the library yet (or a movie); then,
+  // and only then, does the sweep fall back to resolving a folder by name.
+  libraryShowId   String?
   settings        Json?
   createdBy       String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  libraryShow MediaShow? @relation(fields: [libraryShowId], references: [id], onDelete: SetNull)
+
   @@index([status])
   @@index([normalizedTitle])
+  @@index([libraryShowId])
   @@map("media_acquisition_watchlist_items")
 }
 

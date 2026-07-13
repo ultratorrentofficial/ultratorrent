@@ -1772,6 +1772,12 @@ export interface RssRuleSummary {
 
 /** A distinct series in the media libraries, for the watchlist "add from library" picker. */
 export interface LibrarySeries {
+  /**
+   * The `MediaShow` row (the show's real folder on disk). Sent back on add so the
+   * monitored show is bound to that folder rather than to its title. Null on a
+   * library not yet re-scanned since `media_shows` was introduced.
+   */
+  id: string | null;
   title: string;
   year: number | null;
   episodeCount: number;
@@ -1786,6 +1792,8 @@ export interface BulkAddSeriesInput {
   title: string;
   year?: number | null;
   imdbId?: string | null;
+  /** The library show (folder) this series was picked from. */
+  libraryShowId?: string | null;
 }
 
 export interface CreateWatchlistInput {

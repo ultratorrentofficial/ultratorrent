@@ -5,6 +5,10 @@ function build() {
   const prisma = {
     mediaItem: { findMany: jest.fn().mockResolvedValue([]) },
     mediaLibrary: { findMany: jest.fn().mockResolvedValue([{ path: '/tv' }]) },
+    // Empty by default: these tests model a library that has not been re-scanned
+    // since `media_shows` was introduced, which is the derive-from-items fallback.
+    // The table-backed path is covered in its own describe below.
+    mediaShow: { findMany: jest.fn().mockResolvedValue([]) },
     mediaAcquisitionWatchlistItem: {
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation(({ data }: any) => ({ id: 'w_' + data.title, ...data })),
@@ -191,5 +195,63 @@ describe('AcquisitionWatchlistService.bulkCreate', () => {
     ]);
     const rows = await svc.librarySeries();
     expect(rows[0].showStatus).toBeNull();
+  });
+});
+
+/**
+ * Once a library has been scanned, the picker reads the show rows the scanner wrote
+ * instead of re-deriving shows from every episode row on each request — and each row
+ * carries the `id` of its folder, which the watchlist item is then bound to.
+ */
+describe('AcquisitionWatchlistService.librarySeries — backed by media_shows', () => {
+  it('reads the recorded shows and does NOT walk the item rows', async () => {
+    const { svc, prisma } = build();
+    prisma.mediaShow.findMany.mockResolvedValue([
+      { id: 'show-1', title: 'Ghosts US', year: 2021, episodeCount: 107, imdbId: 'tt11379026' },
+      { id: 'show-2', title: 'The Wire', year: 2002, episodeCount: 60, imdbId: 'tt0306414' },
+    ]);
+
+    const rows = await svc.librarySeries();
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      id: 'show-1',
+      title: 'Ghosts US',
+      year: 2021,
+      episodeCount: 107,
+      imdbId: 'tt11379026',
+      monitorable: true,
+    });
+    // The whole point: no 25k-row scan of media_items per request.
+    expect(prisma.mediaItem.findMany).not.toHaveBeenCalled();
+  });
+
+  it('carries the show id so the watchlist item can be bound to the folder', async () => {
+    const { svc, prisma } = build();
+    prisma.mediaShow.findMany.mockResolvedValue([
+      { id: 'show-1', title: 'Ghosts US', year: 2021, episodeCount: 107, imdbId: 'tt11379026' },
+    ]);
+    const [row] = await svc.librarySeries();
+
+    await svc.bulkCreate([{ title: row.title, year: row.year, imdbId: row.imdbId, libraryShowId: row.id }]);
+
+    expect(prisma.mediaAcquisitionWatchlistItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ libraryShowId: 'show-1' }) }),
+    );
+  });
+
+  it('falls back to deriving from items when the library has not been scanned yet', async () => {
+    const { svc, prisma } = build();
+    prisma.mediaShow.findMany.mockResolvedValue([]); // no scan since the upgrade
+    prisma.mediaItem.findMany.mockResolvedValue([
+      item({ title: 'Pilot', year: 2018, path: '/tv/9-1-1 (2018)/Season 01/Pilot.mkv', seriesImdbId: 'tt7587890' }),
+    ]);
+
+    const rows = await svc.librarySeries();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ title: '9-1-1', imdbId: 'tt7587890' });
+    // No folder row to bind to, so the item resolves its path by name, as before.
+    expect(rows[0].id).toBeNull();
   });
 });

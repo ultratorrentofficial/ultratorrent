@@ -66,3 +66,118 @@ describe('parseItemIdentity (what the scanner stores)', () => {
     expect(id.episode).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+
+import { MediaScannerService } from './media-scanner.service';
+import { showCanonicalKey } from './series-grouping';
+
+/**
+ * `media_shows` records the folder the scanner actually SAW, so the missing-episode
+ * sweep can file a grab into a real path instead of rebuilding one from the show's
+ * title — the bug that minted `TV Shows/Ghosts 2021 (2021)` and `TV Shows/Happys
+ * Place` beside the genuine folders.
+ */
+describe('MediaScannerService.reconcileShows', () => {
+  const LIB = { id: 'lib1', kind: 'tv', path: '/downloads/TV Shows', name: 'TV Shows' };
+
+  function build(items: Array<{ path: string; seriesImdbId?: string | null; imdb?: string | null }>) {
+    const upserts: any[] = [];
+    const deletes: any[] = [];
+    const prisma = {
+      mediaItem: {
+        findMany: jest.fn(async () =>
+          items.map((i) => ({
+            path: i.path,
+            seriesImdbId: i.seriesImdbId ?? null,
+            externalIds: i.imdb ? [{ externalId: i.imdb }] : [],
+          })),
+        ),
+      },
+      mediaShow: {
+        upsert: jest.fn(async (args: any) => { upserts.push(args); return {}; }),
+        deleteMany: jest.fn(async (args: any) => { deletes.push(args); return { count: 0 }; }),
+      },
+    };
+    const svc = new MediaScannerService(prisma as any, {} as any, {} as any, {} as any, {} as any);
+    return { svc, prisma, upserts, deletes };
+  }
+  const run = (svc: any, lib = LIB) => svc.reconcileShows(lib);
+
+  it('records one row per show folder, climbing past Season NN', async () => {
+    const { svc, upserts } = build([
+      { path: `${LIB.path}/Ghosts US (2021)/Season 5/Ghosts.2021.S05E12.mkv` },
+      { path: `${LIB.path}/Ghosts US (2021)/Season 5/Ghosts.2021.S05E13.mkv` },
+      { path: `${LIB.path}/The Wire (2002)/Season 1/The Wire - S01E01.mkv` },
+    ]);
+    const count = await run(svc);
+
+    expect(count).toBe(2);
+    const paths = upserts.map((u) => u.create.path).sort();
+    expect(paths).toEqual([`${LIB.path}/Ghosts US (2021)`, `${LIB.path}/The Wire (2002)`]);
+
+    const ghosts = upserts.find((u) => u.create.path.includes('Ghosts'));
+    expect(ghosts.create).toMatchObject({ title: 'Ghosts US', year: 2021, episodeCount: 2, mediaType: 'tv' });
+    // The canonical key is what lets "Ghosts (US)" and "Ghosts US (2021)" agree.
+    expect(ghosts.create.canonicalKey).toBe('ghosts us');
+  });
+
+  it('takes the IMDb id from whichever episode has one', async () => {
+    const { svc, upserts } = build([
+      { path: `${LIB.path}/Ghosts US (2021)/Season 5/a.mkv`, seriesImdbId: null },
+      { path: `${LIB.path}/Ghosts US (2021)/Season 5/b.mkv`, seriesImdbId: 'tt11379026' },
+    ]);
+    await run(svc);
+    // An unidentified episode must not shadow an identified one.
+    expect(upserts[0].create.imdbId).toBe('tt11379026');
+  });
+
+  it('records NO row for a file sitting loose at the library root', async () => {
+    // There is no show folder to record, and inventing one is the whole problem.
+    const { svc, upserts } = build([{ path: `${LIB.path}/Loose.Show.S01E01.mkv` }]);
+    expect(await run(svc)).toBe(0);
+    expect(upserts).toHaveLength(0);
+  });
+
+  it('prunes shows whose folder no longer holds an item', async () => {
+    const { svc, deletes } = build([{ path: `${LIB.path}/The Wire (2002)/Season 1/a.mkv` }]);
+    await run(svc);
+    expect(deletes[0].where).toMatchObject({
+      libraryId: 'lib1',
+      path: { notIn: [`${LIB.path}/The Wire (2002)`] },
+    });
+  });
+
+  it('never prunes when the scan saw nothing (an unmounted root must not wipe the shows)', async () => {
+    const { svc, prisma } = build([]);
+    expect(await run(svc)).toBe(0);
+    expect(prisma.mediaShow.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('skips a non-show library entirely', async () => {
+    const { svc, prisma } = build([{ path: '/downloads/Movies/Ghost (1990)/Ghost.mkv' }]);
+    expect(await run(svc, { ...LIB, kind: 'movie' })).toBe(0);
+    expect(prisma.mediaItem.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('showCanonicalKey', () => {
+  it('folds the variants that produced duplicate folders', () => {
+    expect(showCanonicalKey('Ghosts US (2021)')).toBe('ghosts us');
+    expect(showCanonicalKey('Ghosts (US)')).toBe('ghosts us');
+    expect(showCanonicalKey("Happy's Place (2024)")).toBe('happys place');
+    expect(showCanonicalKey('Happys Place')).toBe('happys place');
+    expect(showCanonicalKey('Magnum P.I. (2018)')).toBe('magnum p i');
+    expect(showCanonicalKey('Magnum P.I (2018)')).toBe('magnum p i');
+  });
+
+  it('keeps genuinely different shows apart', () => {
+    expect(showCanonicalKey('Ghosts UK')).not.toBe(showCanonicalKey('Ghosts US'));
+    expect(showCanonicalKey('Rise')).not.toBe(showCanonicalKey('Sunrise'));
+  });
+
+  it('keeps a leading year, which can be the whole title', () => {
+    expect(showCanonicalKey('1883')).toBe('1883');
+    expect(showCanonicalKey('1923 (2022)')).toBe('1923');
+  });
+});
