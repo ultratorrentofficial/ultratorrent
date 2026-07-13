@@ -69,6 +69,13 @@ import { AddSeriesFromLibraryDialog } from './AddSeriesFromLibraryDialog';
 import { AutoDownloadPreferencesTab } from './AutoDownloadPreferencesTab';
 import { cn } from '@/lib/utils';
 
+/**
+ * Above this, a "max release size" is almost certainly a units slip rather than an
+ * intent: 50 GB is far larger than any single episode, and the number that comes
+ * naturally to mind in a GB field — 1024 — stores 1.02 TB, i.e. no cap at all.
+ */
+const OVERSIZED_BYTES = 50 * 1e9;
+
 type BadgeVariant = NonNullable<BadgeProps['variant']>;
 
 const QK = ['media-acquisition'] as const;
@@ -1116,6 +1123,12 @@ function ProfileDialog({
     maxSizeGb: profile?.maxSizeBytes ? String(Number(profile.maxSizeBytes) / 1e9) : '',
     enabled: profile?.enabled ?? true,
   });
+  // The GB input as real bytes — used for the live echo below the field, and for the
+  // payload, so the two can never disagree.
+  const maxSizeBytes = form.maxSizeGb.trim() && Number.isFinite(Number(form.maxSizeGb))
+    ? Math.round(Number(form.maxSizeGb) * 1e9)
+    : null;
+
   const [requiredTerms, setRequiredTerms] = useState<string[]>(profile?.requiredTerms ?? []);
   const [excludedTerms, setExcludedTerms] = useState<string[]>(profile?.excludedTerms ?? []);
   const [preferredGroups, setPreferredGroups] = useState<string[]>(profile?.preferredGroups ?? []);
@@ -1133,7 +1146,7 @@ function ProfileDialog({
         // A profile tier outranks the global default candidates, so without a cap here
         // the only size limit in the system is never consulted once this profile
         // matches. Explicit null clears it; blank means "no limit".
-        maxSizeBytes: form.maxSizeGb.trim() ? Math.round(Number(form.maxSizeGb) * 1e9) : null,
+        maxSizeBytes,
         requiredTerms,
         excludedTerms,
         preferredGroups,
@@ -1272,6 +1285,22 @@ function ProfileDialog({
               onChange={(e) => setForm((f) => ({ ...f, maxSizeGb: e.target.value }))}
               placeholder={t('acquisition.profiles.dialog.maxSizePlaceholder')}
             />
+            {/*
+              Echo the value back as a real size. The field is in GB, and the number
+              that comes naturally to mind is 1024 — which silently stores 1.02 TB, i.e.
+              no cap at all. That happened on a live host. A 1000x slip must be visible.
+            */}
+            {maxSizeBytes != null && (
+              <p
+                className={cn(
+                  'text-xs',
+                  maxSizeBytes > OVERSIZED_BYTES ? 'text-warning' : 'text-muted-foreground',
+                )}
+              >
+                = {formatBytes(maxSizeBytes)}
+                {maxSizeBytes > OVERSIZED_BYTES && ` — ${t('acquisition.profiles.dialog.maxSizeSuspect')}`}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               {t('acquisition.profiles.dialog.maxSizeHint')}
             </p>

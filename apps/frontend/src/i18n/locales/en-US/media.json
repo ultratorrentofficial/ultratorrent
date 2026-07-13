@@ -1138,7 +1138,8 @@
         "create": "Create profile",
         "maxSize": "Max release size (GB)",
         "maxSizePlaceholder": "No limit",
-        "maxSizeHint": "A profile outranks the global defaults, so their size cap no longer applies once this profile matches. Leave blank for no limit."
+        "maxSizeHint": "A profile outranks the global defaults, so their size cap no longer applies once this profile matches. Leave blank for no limit.",
+        "maxSizeSuspect": "larger than any single episode. Did you mean GB?"
       }
     },
     "evaluations": {

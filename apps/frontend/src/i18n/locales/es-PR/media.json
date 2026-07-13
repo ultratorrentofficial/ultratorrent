@@ -1138,7 +1138,8 @@
         "create": "Crear perfil",
         "maxSize": "Tamaño máximo del lanzamiento (GB)",
         "maxSizePlaceholder": "Sin límite",
-        "maxSizeHint": "Un perfil tiene prioridad sobre los valores predeterminados globales, así que su límite de tamaño deja de aplicarse cuando este perfil coincide. Déjalo en blanco para no poner límite."
+        "maxSizeHint": "Un perfil tiene prioridad sobre los valores predeterminados globales, así que su límite de tamaño deja de aplicarse cuando este perfil coincide. Déjalo en blanco para no poner límite.",
+        "maxSizeSuspect": "más grande que cualquier episodio. ¿Querías decir GB?"
       }
     },
     "evaluations": {
