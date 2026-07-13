@@ -20,6 +20,25 @@ export interface TvSearchQuery {
   categories?: number[];
 }
 
+/**
+ * Scene release names carry no apostrophes — "Grey's Anatomy" ships as
+ * `Greys.Anatomy.S21E07...` — and indexers match the query against that name, so an
+ * apostrophe in `q` matches nothing at all. Measured against a live Prowlarr/EZTV:
+ *
+ *   q="Grey's Anatomy" → 0 results        q="Greys Anatomy" → 18 results
+ *   q="Schitt's Creek" → 0 results        q="Schitts Creek" →  2 results
+ *
+ * It silently returns `no_results` rather than erroring, which is why 20 monitored
+ * shows (SVU, Grey's, Schitt's Creek, ~1,880 wanted episodes) had never once grabbed.
+ *
+ * ONLY the apostrophe is removed. Ampersands, dots and colons are harmless —
+ * `q="Law & Order Special Victims Unit"` returns results unchanged — so stripping
+ * them too would be superstition, and could lose a real token.
+ */
+export function toSearchTerm(q: string): string {
+  return q.replace(/['’`]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 /** A normalized release candidate returned by an indexer search. */
 export interface IndexerCandidate {
   indexerId: string;
@@ -107,7 +126,7 @@ export class TorznabClient {
     const params: Record<string, string> = useTvSearch
       ? {
           t: 'tvsearch',
-          q: query.q,
+          q: toSearchTerm(query.q),
           ...(query.season != null ? { season: String(query.season) } : {}),
           ...(query.ep != null ? { ep: String(query.ep) } : {}),
         }
@@ -135,12 +154,13 @@ export class TorznabClient {
 
   /** `Show S01E02` style query for indexers without tvsearch season/ep support. */
   private plainQuery(q: TvSearchQuery): string {
+    const term = toSearchTerm(q.q);
     if (q.season != null && q.ep != null) {
       const s = String(q.season).padStart(2, '0');
       const e = String(q.ep).padStart(2, '0');
-      return `${q.q} S${s}E${e}`;
+      return `${term} S${s}E${e}`;
     }
-    return q.q;
+    return term;
   }
 
   private normalize(conn: IndexerConnection, item: any): IndexerCandidate {

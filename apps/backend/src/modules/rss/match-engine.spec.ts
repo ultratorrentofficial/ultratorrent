@@ -4,6 +4,7 @@ import {
   MatchCandidateInput,
   normalize,
   parseRelease,
+  showTitleMatch,
   toRegexPattern,
 } from './match-engine';
 
@@ -24,6 +25,33 @@ const cand = (over: Partial<MatchCandidateInput>): MatchCandidateInput => ({
 describe('normalize', () => {
   it('folds separators and casing', () => {
     expect(normalize('Show.Name_S02-E05')).toBe('show name s02 e05');
+  });
+
+  it('elides apostrophes rather than treating them as separators', () => {
+    // Release names drop the apostrophe entirely, so it must fold to the same
+    // token: "grey s anatomy" would never match the "greys anatomy" on the wire.
+    expect(normalize("Grey's Anatomy")).toBe('greys anatomy');
+    expect(normalize('Greys.Anatomy')).toBe('greys anatomy');
+    expect(normalize("Happy's Place")).toBe('happys place');
+    expect(normalize('NCIS Hawai’i')).toBe('ncis hawaii'); // typographic apostrophe
+  });
+});
+
+/**
+ * The apostrophe cost 20 monitored shows every single grab: the indexer query
+ * "Grey's Anatomy" returned nothing, and on the rare release that did come back,
+ * showTitleMatch rejected it because "grey s anatomy" ≠ "greys anatomy".
+ */
+describe('showTitleMatch — apostrophes', () => {
+  it('matches an apostrophe title against the apostrophe-less release', () => {
+    expect(showTitleMatch("Grey's Anatomy", 'Greys.Anatomy.S21E07.1080p.x265-MeGusta')).toBe(true);
+    expect(showTitleMatch("Happy's Place", 'Happys.Place.S02E09.1080p.HEVC.x265-MeGusta')).toBe(true);
+    expect(showTitleMatch("Schitt's Creek", 'Schitts.Creek.S06E01.1080p.x265')).toBe(true);
+  });
+
+  it('still refuses a different show', () => {
+    expect(showTitleMatch("Grey's Anatomy", 'Happys.Place.S02E09.1080p.x265')).toBe(false);
+    expect(showTitleMatch("Happy's Place", 'Happy.Days.S02E09.1080p.x265')).toBe(false);
   });
 });
 

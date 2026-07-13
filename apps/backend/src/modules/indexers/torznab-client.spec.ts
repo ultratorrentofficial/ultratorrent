@@ -1,4 +1,4 @@
-import { IndexerConnection, TorznabClient } from './torznab-client';
+import { IndexerConnection, TorznabClient, toSearchTerm } from './torznab-client';
 
 const conn: IndexerConnection = {
   id: 'ix1',
@@ -140,5 +140,51 @@ describe('TorznabClient.fetchCaps', () => {
       { id: 5030, name: 'TV/SD' },
     ]);
     expect(caps.limits).toEqual({ default: 50, max: 100 });
+  });
+});
+
+/**
+ * Verified against a live Prowlarr/EZTV: q="Grey's Anatomy" returns 0 results while
+ * q="Greys Anatomy" returns 18. The apostrophe silently matched nothing, so 20
+ * monitored shows (~1,880 wanted episodes) never grabbed a single release.
+ */
+describe('toSearchTerm', () => {
+  it('drops apostrophes, which release names never carry', () => {
+    expect(toSearchTerm("Grey's Anatomy")).toBe('Greys Anatomy');
+    expect(toSearchTerm("Schitt's Creek")).toBe('Schitts Creek');
+    expect(toSearchTerm("Happy's Place")).toBe('Happys Place');
+    expect(toSearchTerm('NCIS Hawai’i')).toBe('NCIS Hawaii'); // typographic apostrophe
+  });
+
+  it('leaves harmless punctuation alone — & . : all return results as-is', () => {
+    expect(toSearchTerm('Law & Order Special Victims Unit')).toBe('Law & Order Special Victims Unit');
+    expect(toSearchTerm('Marvels Agents of S.H.I.E.L.D.')).toBe('Marvels Agents of S.H.I.E.L.D.');
+    expect(toSearchTerm('Mr. & Mrs. Smith')).toBe('Mr. & Mrs. Smith');
+  });
+
+  it('does not mangle a title that needs no change', () => {
+    expect(toSearchTerm('The Wire')).toBe('The Wire');
+  });
+});
+
+describe('TorznabClient.search — query sanitising', () => {
+  const client = new TorznabClient();
+  const urlOf = () => ((global as any).fetch as jest.Mock).mock.calls[0][0] as string;
+
+  it('sends the apostrophe-less term to a tvsearch indexer', async () => {
+    mockFetch(feed(''));
+    await client.search(conn, { q: "Grey's Anatomy", season: 21, ep: 7 });
+    const q = new URL(urlOf()).searchParams;
+    expect(q.get('t')).toBe('tvsearch');
+    expect(q.get('q')).toBe('Greys Anatomy');
+    expect(q.get('q')).not.toContain("'");
+  });
+
+  it('sends the apostrophe-less term on the plain-search fallback too', async () => {
+    mockFetch(feed(''));
+    await client.search(conn, { q: "Grey's Anatomy", season: 21, ep: 7 }, false);
+    const q = new URL(urlOf()).searchParams;
+    expect(q.get('t')).toBe('search');
+    expect(q.get('q')).toBe('Greys Anatomy S21E07');
   });
 });

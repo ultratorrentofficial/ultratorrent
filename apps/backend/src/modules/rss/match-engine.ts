@@ -109,6 +109,11 @@ const FUZZY_THRESHOLD = 0.7;
 export function normalize(input: string): string {
   return input
     .toLowerCase()
+    // Apostrophes ELIDE, they do not separate. Release names drop them entirely
+    // ("Grey's Anatomy" ships as Greys.Anatomy), so treating one as a separator
+    // yields "grey s anatomy" and never matches the "greys anatomy" on the wire —
+    // silently rejecting every release for 20 monitored shows.
+    .replace(/['’`]/g, '')
     .replace(/[._\-]+/g, ' ')
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
