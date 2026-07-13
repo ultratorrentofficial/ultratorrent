@@ -5,6 +5,13 @@ import { MediaAutomationActions } from './media-automation.actions';
  * + items) and apply (returns a rename plan) to verify: mode gating, the
  * pre-filter (already-placed episodes skipped), the show-folder guard (a move to
  * a different show folder → needsReview, never applied), and the dry-run preview.
+ *
+ * NOTE the planning contract. organizeLibrary plans under the library's REAL mode
+ * with `dryRun: true` (no disk writes) — NOT under mode 'preview'. Planning as
+ * 'preview' mis-resolves an in-place move (it re-roots the file under the library
+ * instead of reusing the show folder it already lives in), which tripped the guard
+ * below for every show whose release name embeds a bare year ("Hijack.2023.S02E03").
+ * So a "did it write?" assertion must look at `dryRun`, not at `mode`.
  */
 const LOOSE_ITEMS = [
   { id: 'i1', season: 1, episode: 1, path: '/tv/Show/i1.mkv', files: [{ path: '/tv/Show/i1.mkv' }] },
@@ -27,11 +34,12 @@ function make(mode: string, items: any[] = LOOSE_ITEMS, destFn: (s: string) => s
       })),
     },
   };
-  const apply = jest.fn(async (req: { path: string; mode: string }) => ({
-    applied: req.mode === 'preview' ? 0 : 1,
+  const apply = jest.fn(async (req: { path: string; mode: string; dryRun?: boolean }) => ({
+    // `dryRun` — not the mode — is what decides whether anything is written.
+    applied: req.dryRun ? 0 : 1,
     skipped: 0,
     failed: 0,
-    deleted: req.mode === 'preview' ? 0 : 1,
+    deleted: req.dryRun ? 0 : 1,
     plan: {
       items: [
         { source: req.path, destination: destFn(req.path), action: 'move', skipped: false },
@@ -73,8 +81,10 @@ describe('MediaAutomationActions.organizeLibrary', () => {
     expect(res.needsReview).toHaveLength(0);
     expect(res.moves[0]).toMatchObject({ from: '/tv/Show/i1.mkv', to: '/tv/Show/Season 01/i1.mkv' });
     expect(res).toMatchObject({ applied: 2, deleted: 2 });
-    // Preview first (guard), then execute with the library's own mode.
-    expect(apply.mock.calls.some((c: any[]) => c[0].mode === 'rename_in_place')).toBe(true);
+    // Always the library's own mode — planned dry, then executed for real.
+    expect(apply.mock.calls.every((c: any[]) => c[0].mode === 'rename_in_place')).toBe(true);
+    expect(apply.mock.calls.some((c: any[]) => c[0].dryRun === true)).toBe(true);
+    expect(apply.mock.calls.some((c: any[]) => c[0].dryRun === false)).toBe(true);
   });
 
   it('GUARD: a move that leaves the show folder is flagged needsReview, not applied', async () => {
@@ -84,16 +94,21 @@ describe('MediaAutomationActions.organizeLibrary', () => {
     expect(res.needsReview[0]).toMatchObject({ from: '/tv/Show/i1.mkv', to: '/tv/Show 2024/Season 01/i1.mkv' });
     expect(res.moves).toHaveLength(0);
     expect(res.applied).toBe(0);
-    // Only the preview plan runs — never the executing apply.
-    expect(apply.mock.calls.every((c: any[]) => c[0].mode === 'preview')).toBe(true);
+    // The plan is built, the guard rejects it, and nothing is ever written: every
+    // apply is a dry run. (It is still planned under the library's real mode.)
+    expect(apply.mock.calls.every((c: any[]) => c[0].dryRun === true)).toBe(true);
+    expect(apply.mock.calls.every((c: any[]) => c[0].mode === 'rename_in_place')).toBe(true);
   });
 
-  it('dryRun previews via preview mode without executing', async () => {
+  it('dryRun plans under the library\'s real mode and never writes', async () => {
     const { svc, apply } = make('rename_move', LOOSE_ITEMS);
     const res = await svc.organizeLibrary('lib1', { dryRun: true });
     expect(res).toMatchObject({ eligible: true, dryRun: true, applied: 0 });
     expect(res.moves).toHaveLength(2);
     expect(res.deletes).toHaveLength(2);
-    expect(apply.mock.calls.every((c: any[]) => c[0].mode === 'preview')).toBe(true);
+    // The moves are still fully resolved — but nothing touched the disk.
+    expect(apply).toHaveBeenCalled();
+    expect(apply.mock.calls.every((c: any[]) => c[0].dryRun === true)).toBe(true);
+    expect(apply.mock.calls.every((c: any[]) => c[0].mode === 'rename_move')).toBe(true);
   });
 });
