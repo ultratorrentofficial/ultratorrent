@@ -175,11 +175,11 @@ export class TraktClient {
 
   private async call(
     path: string,
-    init: RequestInit & { accessToken?: string } = {},
+    init: RequestInit & { accessToken?: string; timeoutMs?: number } = {},
   ): Promise<{ status: number; json: any; pageCount: number }> {
-    const { accessToken, ...rest } = init;
+    const { accessToken, timeoutMs, ...rest } = init;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs ?? TIMEOUT_MS);
     try {
       const res = await fetch(BASE + path, {
         ...rest,
@@ -346,11 +346,22 @@ export class TraktClient {
     return { items, pages, truncated: pages > maxPages };
   }
 
-  async post<T = any>(path: string, body: unknown, accessToken: string): Promise<T> {
+  /**
+   * `timeoutMs` exists for the sync endpoints: a collection or history batch is
+   * thousands of entries, and Trakt takes far longer to chew on that than on the
+   * small calls the 10s default was sized for.
+   */
+  async post<T = any>(
+    path: string,
+    body: unknown,
+    accessToken: string,
+    opts: { timeoutMs?: number } = {},
+  ): Promise<T> {
     const { status, json } = await this.call(path, {
       method: 'POST',
       body: JSON.stringify(body),
       accessToken,
+      timeoutMs: opts.timeoutMs,
     });
     if (status === 401) throw new Error('Trakt rejected the access token.');
     // 409 on a scrobble means "already scrobbling this" — the caller decides

@@ -237,6 +237,32 @@ describe('TraktSyncService', () => {
     });
   });
 
+  describe('collection push — batching', () => {
+    it('splits a large library across requests instead of one enormous POST', async () => {
+      // A real library here is ~29,000 items. One request is a multi-megabyte body
+      // Trakt chews on for far longer than a normal call, and a timeout mid-way
+      // leaves the collection half-written with no way to know where it stopped.
+      const movies = Array.from({ length: 2500 }, (_, i) => ({
+        mediaType: 'movie',
+        season: null,
+        episode: null,
+        title: `M${i}`,
+        year: 2000,
+        externalIds: [{ provider: 'tmdb', externalId: String(1000 + i) }],
+      }));
+      const { svc, posts } = build({ mediaItem: { findMany: jest.fn().mockResolvedValue(movies) } });
+
+      const summary = await svc.pushCollection('u1');
+
+      expect(posts.length).toBeGreaterThan(1); // batched, not one giant body
+      expect(posts.every((p) => p.path === '/sync/collection')).toBe(true);
+      // Every item still gets sent — batching must not drop the tail.
+      const sent = posts.reduce((n, p) => n + p.body.movies.length, 0);
+      expect(sent).toBe(2500);
+      expect(summary.pushed).toBe(2500);
+    });
+  });
+
   describe('collection push', () => {
     it('sends only items with a real id, and groups episodes under their show', async () => {
       const { svc, posts } = build({
@@ -263,6 +289,7 @@ describe('TraktSyncService', () => {
       const summary = await svc.pushCollection('u1');
 
       expect(summary.skipped).toBe(1);
+      expect(posts).toHaveLength(1); // small library → one request
       const body = posts[0].body;
       expect(posts[0].path).toBe('/sync/collection');
       expect(body.movies).toEqual([{ ids: { imdb: 'tt0133093' } }]);

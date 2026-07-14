@@ -264,11 +264,45 @@ export class TraktSyncService {
       })),
     }));
 
-    if (movies.length || showPayload.length) {
-      await client.post('/sync/collection', { movies, shows: showPayload }, token);
-      summary.pushed = movies.length + showPayload.reduce(
-        (n, s) => n + s.seasons.reduce((m, se) => m + se.episodes.length, 0),
-        0,
+    // Sent in batches, not as one request. A real library is ~29,000 items: a
+    // single POST is a multi-megabyte body that Trakt chews on for far longer
+    // than a normal call, and a timeout mid-way leaves the collection half
+    // written with no way to know where it stopped. Batches fail small and
+    // resume naturally — re-running is idempotent, since Trakt's collection is a
+    // set.
+    const BATCH_ITEMS = 1000;
+    const POST_TIMEOUT_MS = 60_000;
+
+    const episodesOf = (s: (typeof showPayload)[number]) =>
+      s.seasons.reduce((m, se) => m + se.episodes.length, 0);
+
+    const batches: Array<{ movies: any[]; shows: any[] }> = [];
+    let cur: { movies: any[]; shows: any[] } = { movies: [], shows: [] };
+    let count = 0;
+    const flush = () => {
+      if (count) batches.push(cur);
+      cur = { movies: [], shows: [] };
+      count = 0;
+    };
+    for (const m of movies) {
+      cur.movies.push(m);
+      if (++count >= BATCH_ITEMS) flush();
+    }
+    for (const s of showPayload) {
+      // A show is never split across batches — its seasons/episodes travel
+      // together, so a batch can overshoot slightly rather than fragment a show.
+      cur.shows.push(s);
+      count += episodesOf(s);
+      if (count >= BATCH_ITEMS) flush();
+    }
+    flush();
+
+    for (const [i, batch] of batches.entries()) {
+      await client.post('/sync/collection', batch, token, { timeoutMs: POST_TIMEOUT_MS });
+      summary.pushed +=
+        batch.movies.length + batch.shows.reduce((n: number, s: any) => n + episodesOf(s), 0);
+      this.logger.log(
+        `Trakt collection push for ${userId}: batch ${i + 1}/${batches.length} (${summary.pushed} sent)`,
       );
     }
 
