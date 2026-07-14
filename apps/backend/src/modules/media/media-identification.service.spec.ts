@@ -131,6 +131,79 @@ describe('MediaIdentificationService.identify', () => {
     expect(res.season).toBe(2);
     expect(res.episode).toBe(5);
   });
+
+  it('records the episode span of a two-part premiere in one file', async () => {
+    const res: any = await identify(
+      '/media/TV Shows/The Librarians/Season 1/The Librarians - S01E01 S01E02 - And the Crown of King Arthur.mkv',
+    );
+    expect(res.season).toBe(1);
+    expect(res.episode).toBe(1);
+    expect(res.episodeEnd).toBe(2); // else E02 reads as missing forever
+  });
+
+  describe('inherited series id that cannot contain the episode', () => {
+    // The id on an episode is only as good as the NFO the library inherited, and that
+    // can simply be WRONG: a library filed as "The Librarians (2007)" (an Australian
+    // comedy, 3 seasons) actually held TNT's "The Librarians" (2014). Its S04 episodes
+    // were matched to the 2007 series anyway — a series with three seasons cannot have
+    // a fourth. Once that bad id is on the item it poisons the missing-episode diff,
+    // which then grabs releases of a different show.
+    const prismaWith = (catalogued: { season: number; count: number }[], anyEpisodes: number) => ({
+      mediaItem: { update: jest.fn().mockImplementation(({ data }: any) => data), findUnique: jest.fn() },
+      mediaLibrary: { findUnique: jest.fn().mockResolvedValue(null) },
+      mediaExternalId: {
+        findUnique: jest.fn().mockResolvedValue({ externalId: 'tt0934744', provider: 'imdb' }),
+      },
+      iMDbEpisode: {
+        findUnique: jest.fn().mockResolvedValue(null), // the id is a SERIES, not an episode
+        count: jest.fn().mockImplementation(({ where }: any) =>
+          where.seasonNumber == null
+            ? anyEpisodes
+            : (catalogued.find((c) => c.season === where.seasonNumber)?.count ?? 0),
+        ),
+      },
+      iMDbTitle: {
+        findUnique: jest.fn().mockResolvedValue({ tconst: 'tt0934744', titleType: 'tvSeries' }),
+      },
+    });
+
+    const identifyWith = (prisma: any, path: string) =>
+      new MediaIdentificationService(prisma as never).identify(
+        { id: 'I1', libraryId: 'L1', path, title: '', mediaType: 'tv' } as never,
+        'tv',
+      );
+
+    it('refuses the id when the series has no such season at all', async () => {
+      // Catalogue knows seasons 1-3. The file claims S04 — the claim refutes itself.
+      const prisma = prismaWith([{ season: 1, count: 6 }, { season: 2, count: 6 }, { season: 3, count: 8 }], 20);
+      const res: any = await identifyWith(
+        prisma,
+        '/media/TV Shows/The Librarians (2007)/Season 4/The Librarians - S04E11 - And the Trial of the One.mkv',
+      );
+      expect(res.season).toBe(4);
+      expect(res.seriesImdbId).toBeNull(); // poisoned id rejected, not persisted
+    });
+
+    it('still accepts an episode the series genuinely has', async () => {
+      const prisma = prismaWith([{ season: 1, count: 6 }], 20);
+      const res: any = await identifyWith(
+        prisma,
+        '/media/TV Shows/The Librarians (2007)/Season 1/The Librarians - S01E03 - 4 Kilos to Book Week.mkv',
+      );
+      expect(res.seriesImdbId).toBe('tt0934744');
+    });
+
+    it('does not distrust an id merely because the catalogue is empty', async () => {
+      // An uncatalogued series tells us nothing. Rejecting on no evidence would unmatch
+      // half a library — a brand-new episode is routinely not in the dataset yet.
+      const prisma = prismaWith([], 0);
+      const res: any = await identifyWith(
+        prisma,
+        '/media/TV Shows/Some Show/Season 9/Some Show - S09E01 - Pilot.mkv',
+      );
+      expect(res.seriesImdbId).toBe('tt0934744');
+    });
+  });
 });
 
 describe('MediaIdentificationService.identifyBulk', () => {

@@ -12,6 +12,19 @@ function matches(where: any, row: any): boolean {
   if (!where) return true;
   for (const [k, cond] of Object.entries<any>(where)) {
     if (cond === undefined) continue;
+    // AND/OR must be honoured, not waved through. The catch-all at the bottom treats an
+    // unknown operator as a MATCH, so a mock that ignores these would silently pass every
+    // row and a test of the cross-series ownership guard would prove nothing. (This is
+    // the same trap the parked-torrent probe bug hid behind: its mock ignored orderBy and
+    // take, so the truncated window it should have returned was always the full table.)
+    if (k === 'AND') {
+      if (!(cond as any[]).every((c) => matches(c, row))) return false;
+      continue;
+    }
+    if (k === 'OR') {
+      if (!(cond as any[]).some((c) => matches(c, row))) return false;
+      continue;
+    }
     if (cond === null) {
       if (row[k] !== null && row[k] !== undefined) return false;
       continue;
@@ -19,6 +32,13 @@ function matches(where: any, row: any): boolean {
     if (typeof cond === 'object' && !(cond instanceof Date)) {
       if ('in' in cond) {
         if (!cond.in.includes(row[k])) return false;
+        continue;
+      }
+      if ('gte' in cond || 'lte' in cond) {
+        const v = row[k];
+        if (v == null) return false;
+        if ('gte' in cond && !(v >= cond.gte)) return false;
+        if ('lte' in cond && !(v <= cond.lte)) return false;
         continue;
       }
       if ('not' in cond) {
@@ -301,6 +321,49 @@ describe('MissingEpisodesService', () => {
     expect(gap.owned).toBe(1);
     const rows = await svc.listForSeries('wl1');
     expect(rows.find((r) => r.seasonNumber === 1 && r.episodeNumber === 1)!.status).toBe('owned');
+  });
+
+  it('does not let a SAME-TITLED other series own this one\'s episodes', async () => {
+    const prisma = makePrisma();
+    // Two real shows share a title, spelled identically — The Librarians is a 2007
+    // Australian comedy AND a 2014 TNT drama. The library holds the OTHER one (year
+    // 2014, and anchored to its own tconst). Nothing here belongs to ttSERIES (2002),
+    // so the title fallback must not claim it: if it does, the diff scans the wrong
+    // show, decides episodes are missing that aren't, and the search grabs a release of
+    // a different series entirely. That is exactly what happened on a live library.
+    prisma.iMDbTitle.seed([{ tconst: 'ttSERIES', primaryTitle: 'The Wire', startYear: 2002 }]);
+    prisma.mediaItem.seed([
+      { id: 'other1', seriesImdbId: 'ttOTHER', mediaType: 'tv', title: 'The Wire', season: 1, episode: 1 },
+      { id: 'other2', seriesImdbId: null, mediaType: 'tv', title: 'The Wire', season: 1, episode: 3, year: 2014 },
+    ]);
+    const svc = makeService(prisma);
+
+    const gap = await svc.scanSeries('wl1');
+
+    // Neither foreign item counts: one is anchored to another tconst, the other's year
+    // contradicts the series' start year.
+    expect(gap.owned).toBe(0);
+  });
+
+  it('counts EVERY episode a multi-episode file covers (two-part premiere)', async () => {
+    const prisma = makePrisma();
+    // One 88-minute file holding S01E01+S01E02 — a two-part premiere. Before episodeEnd
+    // existed it registered only as E01, so E02 read as missing forever and the search
+    // went hunting for an episode the library already had. That phantom is what pulled
+    // in a wrong-show release.
+    prisma.mediaItem.seed([
+      { id: 'i1', seriesImdbId: 'ttSERIES', mediaType: 'tv', title: 'The Wire', season: 1, episode: 1, episodeEnd: 2 },
+    ]);
+    const svc = makeService(prisma);
+
+    const gap = await svc.scanSeries('wl1');
+    const rows = await svc.listForSeries('wl1');
+    const at = (s: number, e: number) => rows.find((r) => r.seasonNumber === s && r.episodeNumber === e)!;
+
+    expect(at(1, 1).status).toBe('owned');
+    expect(at(1, 2).status).toBe('owned'); // the phantom — covered by the same file
+    expect(at(1, 3).status).toBe('missing'); // genuinely absent, still reported
+    expect(gap.owned).toBe(2);
   });
 
   it('preserves an ignored episode across a rescan', async () => {

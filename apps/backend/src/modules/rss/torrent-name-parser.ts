@@ -4,7 +4,7 @@
  *
  * Pure and dependency-free for easy unit testing.
  */
-import type { MatchCandidateInput } from './match-engine';
+import { episodeSpanEnd, type MatchCandidateInput } from './match-engine';
 
 export type ContentType = 'tv_episode' | 'anime_episode' | 'movie' | 'daily' | 'unknown';
 
@@ -18,6 +18,11 @@ export interface ParsedTorrentMeta {
   title: string | null;
   season: number | null;
   episode: number | null;
+  /**
+   * Last episode covered when one file holds several (`S01E01 S01E02`). Null for an
+   * ordinary single episode. See {@link episodeSpanEnd}.
+   */
+  episodeEnd: number | null;
   absoluteEpisode: number | null;
   part: number | null;
   airDate: string | null; // YYYY-MM-DD for daily shows
@@ -113,7 +118,7 @@ export function parseTorrentName(raw: string): ParsedTorrentMeta {
   let name = stripExtension(raw.trim());
 
   const meta: ParsedTorrentMeta = {
-    title: null, season: null, episode: null, absoluteEpisode: null, part: null,
+    title: null, season: null, episode: null, episodeEnd: null, absoluteEpisode: null, part: null,
     airDate: null, year: null, resolution: null, source: null, codec: null,
     audio: [], hdr: [], languages: [], releaseGroup: null, proper: false,
     repack: false, contentType: 'unknown', explanations, warnings, confidence: 0,
@@ -161,6 +166,21 @@ export function parseTorrentName(raw: string): ParsedTorrentMeta {
     meta.season = +m[1]; meta.episode = +m[2];
     explain('Season/Episode', `S${meta.season}E${meta.episode}`, 'Detected from "Season N Episode N".');
     setCut(m.index);
+  }
+
+  // One file, several episodes: "The Librarians - S01E01 S01E02 - ..." is a single
+  // 88-minute two-part premiere. Record the span so every episode it covers counts as
+  // owned — otherwise E02 reads as missing forever and the search hunts a phantom.
+  if (m && meta.season !== null && meta.episode !== null) {
+    const end = episodeSpanEnd(ws.slice(m.index + m[0].length), meta.season, meta.episode);
+    if (end !== undefined) {
+      meta.episodeEnd = end;
+      explain(
+        'Episode span',
+        `E${meta.episode}–E${end}`,
+        'One file covering several episodes (two-parter); all of them count as owned.',
+      );
+    }
   }
 
   // Daily airdate

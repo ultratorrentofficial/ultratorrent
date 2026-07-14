@@ -85,6 +85,18 @@ export interface ParsedRelease {
   codec?: string;
   season?: number;
   episode?: number;
+  /**
+   * Last episode covered, when ONE file holds several — a two-part premiere ships as
+   * `S01E01 S01E02` / `S01E01-E02` / `S01E01E02` in a single 88-minute file. Absent
+   * for an ordinary single episode.
+   *
+   * Without this the file registers only as `episode`, and every other episode it
+   * contains looks *missing* forever: the library owns it, the diff says it doesn't,
+   * and the search goes hunting. That phantom is how a wrong-show grab starts — the
+   * hunt for a "missing" S01E02 that was never missing is what pulled in a *Librarians:
+   * The Next Chapter* release for *The Librarians*.
+   */
+  episodeEnd?: number;
   year?: number;
   languages: string[];
   repack: boolean;
@@ -185,6 +197,42 @@ export function showTitleMatch(pattern: string, title: string): boolean {
 }
 
 /**
+ * The last episode of a multi-episode file, given whatever follows the `SxxEyy` marker
+ * that was just matched. Returns undefined for an ordinary single episode.
+ *
+ * One file can hold several episodes — a two-part premiere ships as a single 88-minute
+ * `S01E01 S01E02`. Read only the span that begins IMMEDIATELY at the end of the marker
+ * we matched, never a marker floating elsewhere in the name: `Show.S01E01.1080p` next to
+ * a group tag containing `E05` must not become a five-episode file.
+ *
+ * @param rest    the release name AFTER the matched `SxxEyy`
+ * @param season  the season from that marker — a repeated marker must agree with it
+ * @param episode the first episode — the span must run forward from it
+ */
+export function episodeSpanEnd(rest: string, season: number, episode: number): number | undefined {
+  const span =
+    // "S01E01 S01E02" / "S01E01.S01E02" — season repeats, and must match.
+    /^[\s._-]*s(\d{1,2})[\s._-]*e(\d{1,3})/i.exec(rest) ??
+    // "S01E01-E02" / "S01E01E02" / "S01E01 E02" — season implied.
+    /^[\s._-]*e(\d{1,3})/i.exec(rest) ??
+    // "S01E01-02" — a BARE number, so it must follow a hyphen: otherwise the "02" of
+    // a resolution, a date or a disc number would read as an episode.
+    /^-\s*(\d{1,3})\b/.exec(rest);
+  if (!span) return undefined;
+
+  // The two-group form carries its own season; a disagreement means these are two
+  // different seasons' markers, not a span.
+  if (span.length > 2 && parseInt(span[1], 10) !== season) return undefined;
+
+  const end = parseInt(span[span.length - 1], 10);
+  // Must run FORWARD, and stay plausible. A backwards or absurd range means we misread
+  // the name — in that case claim nothing rather than invent coverage, because a false
+  // span silently marks episodes owned that the library does not have.
+  if (end <= episode || end - episode > 12) return undefined;
+  return end;
+}
+
+/**
  * A pattern word that denotes quality/format/episode metadata rather than the
  * title. Everything *before* the first such word is the title; the rest are
  * quality tokens. Bare digits/years are deliberately excluded — they can be
@@ -248,6 +296,8 @@ export function parseRelease(title: string): ParsedRelease {
   if (m) {
     out.season = parseInt(m[1], 10);
     out.episode = parseInt(m[2], 10);
+
+    out.episodeEnd = episodeSpanEnd(title.slice(m.index + m[0].length), out.season, out.episode);
   }
 
   const year = /\b(19|20)\d{2}\b/.exec(title);

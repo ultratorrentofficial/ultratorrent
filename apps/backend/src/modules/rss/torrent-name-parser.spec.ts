@@ -216,4 +216,41 @@ describe('parseTorrentName — dotted acronyms in titles', () => {
     expect(p.title).toBe('A Quiet Place');
     expect(p.year).toBe(2018);
   });
+
+  describe('multi-episode files (one file, several episodes)', () => {
+    // A two-part premiere ships as ONE long file. Recording only the first episode
+    // leaves the rest looking missing forever, and the hunt for that phantom episode is
+    // what grabbed a wrong-show release on a live library.
+    it.each([
+      // The real filename from the library that caused it — an 88-minute two-parter.
+      ['The Librarians - S01E01 S01E02 - And the Crown of King Arthur.mkv', 1, 1, 2],
+      ['Show.S01E01-E02.1080p.WEB.x264-GRP.mkv', 1, 1, 2],
+      ['Show.S01E01E02.1080p.mkv', 1, 1, 2],
+      ['Show.S02E05-06.720p.HDTV.mkv', 2, 5, 6],
+      ['Show S03E09 E10 1080p.mkv', 3, 9, 10],
+    ])('%s → S%sE%s–E%s', (name, season, episode, end) => {
+      const p = parseTorrentName(name);
+      expect(p.season).toBe(season);
+      expect(p.episode).toBe(episode);
+      expect(p.episodeEnd).toBe(end);
+    });
+
+    it.each([
+      // An ordinary single episode claims no span.
+      ['Show.S01E01.1080p.WEB.x264-GRP.mkv'],
+      // The "02" here is a resolution/codec artefact, not an episode.
+      ['Show.S01E01.1080p.x264.mkv'],
+      // A backwards range is a misread — claim nothing rather than invent coverage.
+      ['Show.S01E05-E02.1080p.mkv'],
+      // A different season's marker is not a span.
+      ['Show.S01E01.S02E01.1080p.mkv'],
+    ])('%s → no span', (name) => {
+      expect(parseTorrentName(name).episodeEnd).toBeNull();
+    });
+
+    it('never invents coverage the library does not have', () => {
+      // An absurd span would silently mark a dozen episodes owned. Refuse it.
+      expect(parseTorrentName('Show.S01E01-E99.1080p.mkv').episodeEnd).toBeNull();
+    });
+  });
 });

@@ -1,0 +1,11 @@
+-- AlterTable: the last episode covered when ONE file holds several.
+--
+-- A two-part premiere ships as a single file ("The Librarians - S01E01 S01E02 - ...",
+-- 88 minutes). MediaItem could only record ONE episode number, so every further episode
+-- the file covers looked *missing* forever: the library owns it, the missing-episode
+-- diff disagrees, and the search goes hunting. That phantom is how a wrong-show release
+-- gets grabbed — the hunt for a "missing" S01E02 pulled in a release of a DIFFERENT
+-- series that happened to have an S01E02.
+--
+-- Null for an ordinary single-episode file.
+ALTER TABLE "media_items" ADD COLUMN "episodeEnd" INTEGER;

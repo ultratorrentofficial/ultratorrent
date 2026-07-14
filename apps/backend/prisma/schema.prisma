@@ -596,6 +596,12 @@ model MediaItem {
   year             Int?
   season           Int?
   episode          Int?
+  /// Last episode covered when ONE file holds several (a two-part premiere shipped as
+  /// `S01E01 S01E02` in a single 88-min file). Null for an ordinary single episode.
+  /// Without it, every episode the file covers beyond `episode` looks *missing* forever
+  /// — the library owns it, the diff disagrees, and the search goes hunting for a
+  /// phantom. That is exactly how a wrong-show release gets grabbed.
+  episodeEnd       Int?
   matchStatus      String   @default("unmatched") // unmatched | matched | manual
   confidence       Float    @default(0)
   path             String

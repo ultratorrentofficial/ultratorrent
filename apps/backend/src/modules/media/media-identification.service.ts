@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as path from 'node:path';
 import type { MediaItem, Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -131,6 +131,8 @@ const MATCH_THRESHOLD = 0.5;
  */
 @Injectable()
 export class MediaIdentificationService {
+  private readonly logger = new Logger(MediaIdentificationService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
@@ -168,9 +170,14 @@ export class MediaIdentificationService {
         year: parsed.year ?? null,
         season: parsed.season ?? null,
         episode: parsed.episode ?? parsed.absoluteEpisode ?? null,
+        // A two-parter in one file covers E01..E02; without the span, E02 reads as
+        // missing forever and the search hunts an episode the library already has.
+        episodeEnd: parsed.episodeEnd ?? null,
         confidence,
         matchStatus: confidence >= MATCH_THRESHOLD ? 'matched' : 'unmatched',
-        seriesImdbId: isEpisodic ? await this.resolveSeriesImdbId(record.id) : null,
+        seriesImdbId: isEpisodic
+          ? await this.resolveSeriesImdbId(record.id, parsed.season ?? null)
+          : null,
       },
     });
   }
@@ -236,7 +243,7 @@ export class MediaIdentificationService {
    * kept as-is. Returns null (never throws) when nothing is resolvable — the scan
    * falls back to title matching.
    */
-  private async resolveSeriesImdbId(itemId: string): Promise<string | null> {
+  private async resolveSeriesImdbId(itemId: string, season?: number | null): Promise<string | null> {
     try {
       const ext = await this.prisma.mediaExternalId.findUnique({
         where: { itemId_provider: { itemId, provider: 'imdb' } },
@@ -246,15 +253,58 @@ export class MediaIdentificationService {
       const ep = await this.prisma.iMDbEpisode.findUnique({
         where: { episodeTitleId: tconst },
       });
-      if (ep) return ep.parentTitleId;
-      const title = await this.prisma.iMDbTitle.findUnique({ where: { tconst } });
-      if (title && (title.titleType === 'tvSeries' || title.titleType === 'tvMiniSeries')) {
-        return tconst;
-      }
-      return null;
+      const series = ep
+        ? ep.parentTitleId
+        : await this.prisma.iMDbTitle
+            .findUnique({ where: { tconst } })
+            .then((t) =>
+              t && (t.titleType === 'tvSeries' || t.titleType === 'tvMiniSeries') ? tconst : null,
+            );
+      if (!series) return null;
+      return (await this.seriesCanContainSeason(series, season)) ? series : null;
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Can this series contain a season numbered `season` at all?
+   *
+   * The identity of an episode file is only ever as good as the id it inherits — usually
+   * from an NFO sidecar written by whatever tool organised the library first. That id can
+   * simply be **wrong**: a library filed as *The Librarians (2007)* (an Australian comedy,
+   * 3 seasons) actually held TNT's *The Librarians* (2014), and its S04 episodes were
+   * matched to the 2007 series regardless. A series with three seasons cannot have a
+   * fourth — the claim refutes itself, and nothing was checking.
+   *
+   * Once a bad id is on the item it poisons everything downstream: the missing-episode
+   * diff scans the wrong series, decides episodes are missing that aren't, and the search
+   * grabs releases of a different show.
+   *
+   * Deliberately conservative — it rejects only when the season is absent from the
+   * catalogue ENTIRELY. A brand-new episode of an existing season is routinely not in the
+   * IMDb dataset yet, and must not be treated as a mis-identification.
+   */
+  private async seriesCanContainSeason(
+    seriesTconst: string,
+    season?: number | null,
+  ): Promise<boolean> {
+    if (season == null) return true;
+    const known = await this.prisma.iMDbEpisode.count({
+      where: { parentTitleId: seriesTconst, seasonNumber: season },
+    });
+    if (known > 0) return true;
+    // Only distrust the id if we actually know the series' shape. An uncatalogued series
+    // tells us nothing, and rejecting on no evidence would unmatch half a library.
+    const anyEpisodes = await this.prisma.iMDbEpisode.count({
+      where: { parentTitleId: seriesTconst },
+    });
+    if (anyEpisodes === 0) return true;
+    this.logger.warn(
+      `Series ${seriesTconst} has no season ${season} in the catalogue — refusing to match ` +
+        `this episode to it. The library's id for this show is probably wrong.`,
+    );
+    return false;
   }
 
   /** Operator override — authoritative identity, always full confidence. */
@@ -275,6 +325,9 @@ export class MediaIdentificationService {
         episode: dto.episode ?? record.episode,
         matchStatus: 'manual',
         confidence: 1,
+        // No season passed on purpose: a manual match is the operator's explicit
+        // statement of identity, so the "can this series contain that season?" guard
+        // must not overrule it. The guard exists to catch ids the library *inherited*.
         seriesImdbId: isEpisodic ? await this.resolveSeriesImdbId(itemId) : null,
       },
     });

@@ -156,7 +156,13 @@ export class MissingEpisodesService {
         ? catalog.filter((e) => e.seasonNumber === item.seasonNumber)
         : catalog;
 
-    const owned = await this.ownedEpisodeSet(seriesTconst, item.title);
+    // The series' own start year, so the title fallback in ownedEpisodeSet can tell two
+    // same-titled shows apart (The Librarians 2007 vs 2014) instead of pooling them.
+    const series = await this.prisma.iMDbTitle.findUnique({
+      where: { tconst: seriesTconst },
+      select: { startYear: true },
+    });
+    const owned = await this.ownedEpisodeSet(seriesTconst, item.title, series?.startYear ?? null);
 
     // Preserve user "ignored" overrides across rescans; rebuild everything else.
     const existing = await this.prisma.wantedEpisode.findMany({ where: { watchlistItemId } });
@@ -408,23 +414,60 @@ export class MissingEpisodesService {
    * `seriesImdbId` link; falls back to case-insensitive title match for libraries
    * that haven't been re-identified yet.
    */
-  private async ownedEpisodeSet(seriesTconst: string, seriesTitle: string): Promise<Set<string>> {
+  private async ownedEpisodeSet(
+    seriesTconst: string,
+    seriesTitle: string,
+    seriesStartYear?: number | null,
+  ): Promise<Set<string>> {
     let rows = await this.prisma.mediaItem.findMany({
       where: { seriesImdbId: seriesTconst, season: { not: null }, episode: { not: null } },
-      select: { season: true, episode: true },
+      select: { season: true, episode: true, episodeEnd: true },
     });
     if (rows.length === 0 && seriesTitle) {
+      // Fallback for a library whose items were never enriched with a series id. It
+      // matches on TITLE, which is safe only if it cannot reach ANOTHER show that
+      // happens to share the title — and shows do share titles: *The Librarians* is a
+      // 2007 Australian comedy AND a 2014 TNT drama, spelled identically. Unqualified,
+      // this fallback let a watchlist item for one of them be "owned" by the other's
+      // episodes, so the diff went looking for the wrong series' missing episodes.
+      //
+      // Two guards, both necessary:
+      //   - an item already anchored to a DIFFERENT tconst is, by its own statement,
+      //     not this series;
+      //   - a year that contradicts the series' start year is a different show. (±1:
+      //     a library folder and IMDb routinely disagree by one across a new year.)
       rows = await this.prisma.mediaItem.findMany({
         where: {
           mediaType: { in: ['tv', 'anime'] },
           title: { equals: seriesTitle, mode: 'insensitive' },
           season: { not: null },
           episode: { not: null },
+          AND: [
+            { OR: [{ seriesImdbId: null }, { seriesImdbId: seriesTconst }] },
+            seriesStartYear != null
+              ? {
+                  OR: [
+                    { year: null },
+                    { year: { gte: seriesStartYear - 1, lte: seriesStartYear + 1 } },
+                  ],
+                }
+              : {},
+          ],
         },
-        select: { season: true, episode: true },
+        select: { season: true, episode: true, episodeEnd: true },
       });
     }
-    return new Set(rows.map((r) => this.key(r.season as number, r.episode as number)));
+
+    const owned = new Set<string>();
+    for (const r of rows) {
+      const season = r.season as number;
+      const first = r.episode as number;
+      // One file can cover several episodes (a two-part premiere). Every episode in the
+      // span is owned — counting only the first is what leaves a phantom "missing" one.
+      const last = r.episodeEnd != null && r.episodeEnd > first ? r.episodeEnd : first;
+      for (let e = first; e <= last; e++) owned.add(this.key(season, e));
+    }
+    return owned;
   }
 
   private async countByStatus(
