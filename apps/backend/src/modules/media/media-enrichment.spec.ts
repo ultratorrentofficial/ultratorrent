@@ -610,3 +610,70 @@ describe('MediaMetadataService — the collision guard covers every provider, no
     expect(prisma.mediaExternalId.deleteMany).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * tinyMediaManager writes a `<tvdbid>` inside EVERY `<actor>` block. Reading ids from
+ * the whole document therefore returns the first CAST MEMBER's id instead of the
+ * episode's — and preferring that bare tag over the explicit `<uniqueid>` made it
+ * stick.
+ *
+ * On a real library this put one id (247867) on the whole of Dickinson season 2, AND on
+ * Game of Thrones, AND on Marvel's Luke Cage — because the same actor is in all three.
+ * It is what produced 871 tvdb ids "shared" across unrelated shows: shared cast, not
+ * shared episodes.
+ */
+describe('parseNfoXml — external ids are not read out of the cast list', () => {
+  // Trimmed from the real sidecar: Dickinson S02E02, tinyMediaManager 4.3.2.
+  const NFO = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<episodedetails>
+  <title>Fame is a fickle food</title>
+  <season>2</season>
+  <episode>2</episode>
+  <id>7984092</id>
+  <uniqueid default="false" type="tvdb">7984092</uniqueid>
+  <uniqueid default="true" type="imdb">tt11729982</uniqueid>
+  <credits tvdbid="7881302">Rachel Axler</credits>
+  <director tvdbid="294992">Christopher Storer</director>
+  <actor>
+    <name>Hailee Steinfeld</name>
+    <role>Emily Dickinson</role>
+    <tvdbid>247867</tvdbid>
+  </actor>
+  <actor>
+    <name>Adrian Blake Enscoe</name>
+    <tvdbid>8031157</tvdbid>
+  </actor>
+</episodedetails>`;
+
+  it('takes the EPISODE id, not the first actor’s', () => {
+    const parsed = parseNfoXml(NFO);
+    expect(parsed.externalIds).toEqual({ tvdb: '7984092', imdb: 'tt11729982' });
+    // 247867 is Hailee Steinfeld, not an episode of Dickinson.
+    expect(parsed.externalIds?.tvdb).not.toBe('247867');
+  });
+
+  it('still reads the cast (the actor blocks are only excluded from the ID scan)', () => {
+    const parsed = parseNfoXml(NFO);
+    expect(parsed.cast).toEqual([
+      { name: 'Hailee Steinfeld', role: 'Emily Dickinson' },
+      { name: 'Adrian Blake Enscoe' },
+    ]);
+  });
+
+  it('still honours a legacy sidecar that carries only the bare tags', () => {
+    const legacy = `<episodedetails>
+      <title>Old</title>
+      <tvdbid>555123</tvdbid>
+      <imdbid>tt0000001</imdbid>
+    </episodedetails>`;
+    expect(parseNfoXml(legacy).externalIds).toEqual({ tvdb: '555123', imdb: 'tt0000001' });
+  });
+
+  it('prefers the explicit uniqueid over a bare tag when both are present', () => {
+    const both = `<episodedetails>
+      <tvdbid>999999</tvdbid>
+      <uniqueid type="tvdb">7984092</uniqueid>
+    </episodedetails>`;
+    expect(parseNfoXml(both).externalIds?.tvdb).toBe('7984092');
+  });
+});

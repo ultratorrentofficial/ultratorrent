@@ -103,19 +103,39 @@ export function parseNfoXml(xml: string): Partial<MediaMetadataDetails> {
   if (cast.length) details.cast = cast;
 
   // External ids: dedicated <imdbid>/<tmdbid>/<tvdbid> or Kodi <uniqueid type=…>.
+  //
+  // The ids MUST be read with the <actor> blocks removed. tinyMediaManager writes a
+  // `<tvdbid>` (and `<tmdbid>`/`<imdbid>`) inside EVERY actor, so a whole-document
+  // search for `<tvdbid>` returns the first cast member's id rather than the episode's:
+  //
+  //     <uniqueid type="tvdb">7984092</uniqueid>   <- Dickinson S02E02, the real id
+  //     <actor><tvdbid>247867</tvdbid>…</actor>    <- an ACTOR
+  //
+  // Reading the actor's id put 247867 on Dickinson's entire second season — and on
+  // Game of Thrones and Luke Cage too, because the same actor is in all three. That is
+  // what produced 871 tvdb ids shared across unrelated shows: they were shared CAST,
+  // not shared episodes.
+  const idXml = xml.replace(/<actor>[\s\S]*?<\/actor>/gi, '');
+  const pickId = (tag: string): string | undefined => {
+    const m = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i').exec(idXml);
+    return m ? m[1].trim() : undefined;
+  };
   const uniqueId = (kind: string): string | undefined => {
     const m = new RegExp(
       `<uniqueid[^>]*type=["']${kind}["'][^>]*>([^<]+)</uniqueid>`,
       'i',
-    ).exec(xml);
+    ).exec(idXml);
     return m ? m[1].trim() : undefined;
   };
   const externalIds: Record<string, string> = {};
-  const imdb = pick('imdbid') ?? uniqueId('imdb');
+  // `<uniqueid>` first: it is explicitly typed, so it cannot be confused with anything
+  // else in the document. The bare `<imdbid>`/`<tmdbid>`/`<tvdbid>` tags are the legacy
+  // fallback for sidecars that carry no uniqueid.
+  const imdb = uniqueId('imdb') ?? pickId('imdbid');
   if (imdb) externalIds.imdb = imdb;
-  const tmdb = pick('tmdbid') ?? uniqueId('tmdb');
+  const tmdb = uniqueId('tmdb') ?? pickId('tmdbid');
   if (tmdb) externalIds.tmdb = tmdb;
-  const tvdb = pick('tvdbid') ?? uniqueId('tvdb');
+  const tvdb = uniqueId('tvdb') ?? pickId('tvdbid');
   if (tvdb) externalIds.tvdb = tvdb;
   if (Object.keys(externalIds).length) details.externalIds = externalIds;
 
