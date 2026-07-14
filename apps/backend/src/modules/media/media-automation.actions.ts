@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { MediaScannerService } from './media-scanner.service';
@@ -131,8 +131,10 @@ export class MediaAutomationActions {
         'rename_execute',
         { libraryId: target.libraryId },
         async (report) => {
+          // Locked items are filtered out rather than left to throw in the loop
+          // below — a lock is a deliberate state, not a rename failure.
           const items = await this.prisma.mediaItem.findMany({
-            where: { libraryId: target.libraryId },
+            where: { libraryId: target.libraryId, locked: false },
             select: { id: true },
           });
           let applied = 0;
@@ -156,7 +158,13 @@ export class MediaAutomationActions {
     throw new BadRequestException('itemId or libraryId is required');
   }
 
-  /** Build a RenameRequest for one item from its library config and apply it. */
+  /**
+   * Build a RenameRequest for one item from its library config and apply it.
+   *
+   * The lock is enforced here — the single choke point every rename/move passes
+   * through, whether it came from the API, an automation rule or the organizer.
+   * Guarding only the callers' queries would leave the direct path open.
+   */
   async renameItem(
     itemId: string,
     modeOverride: RenameMode | undefined,
@@ -169,6 +177,7 @@ export class MediaAutomationActions {
     });
     if (!item) throw new BadRequestException('Item not found');
     if (!item.library) throw new BadRequestException('Item has no library');
+    if (item.locked) throw new ConflictException('Item is locked — unlock it to rename or move it');
 
     const src = item.files[0]?.path ?? item.path;
     return this.media.apply({
@@ -276,7 +285,7 @@ export class MediaAutomationActions {
     // (which does a metadata provider lookup), so a scan of an organized library
     // is near-instant instead of re-planning thousands of files.
     const all = await this.prisma.mediaItem.findMany({
-      where: { libraryId },
+      where: { libraryId, locked: false },
       select: { id: true, season: true, episode: true, path: true, files: { select: { path: true }, take: 1 } },
     });
     const items = all.filter((it) => {

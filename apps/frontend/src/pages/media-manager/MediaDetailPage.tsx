@@ -9,6 +9,7 @@ import {
   Film,
   History,
   Image as ImageIcon,
+  Lock,
   RotateCw,
   Save,
   Search,
@@ -16,6 +17,7 @@ import {
   Star,
   Subtitles,
   Undo2,
+  Unlock,
   Upload,
 } from 'lucide-react';
 import {
@@ -104,6 +106,11 @@ export function MediaDetailPage() {
           <Badge variant={matchStatusVariant(data.matchStatus)} dot>
             {matchStatusLabel(t, data.matchStatus)}
           </Badge>
+          {data.locked && (
+            <Badge variant="outline">
+              <Lock className="mr-1 h-3 w-3" /> {t('detail.locked')}
+            </Badge>
+          )}
         </div>
         <p className="truncate font-mono text-xs text-muted-foreground">{data.path}</p>
       </div>
@@ -193,6 +200,15 @@ function OverviewTab({ item }: { item: MediaItemDetail }) {
     onError: (err) => toast.error(t('detail.unmatchError'), err instanceof ApiError ? err.message : undefined),
   });
 
+  const toggleLock = useMutation({
+    mutationFn: () => api.media.setItemLocked(item.id, !item.locked),
+    onSuccess: (updated) => {
+      toast.success(updated.locked ? t('detail.lockedTitle') : t('detail.unlockedTitle'), item.title);
+      invalidate();
+    },
+    onError: (err) => toast.error(t('detail.lockError'), err instanceof ApiError ? err.message : undefined),
+  });
+
   return (
     <div className="space-y-4">
     <Card>
@@ -230,15 +246,36 @@ function OverviewTab({ item }: { item: MediaItemDetail }) {
         <Field label={t('detail.field.path')} value={<span className="break-all font-mono text-xs">{item.path}</span>} />
 
         {canMatch && (
-          <div className="flex flex-wrap gap-2 border-t border-border/60 pt-4">
-            <Button variant="secondary" onClick={() => reidentify.mutate()} loading={reidentify.isPending}>
-              <RotateCw className="h-4 w-4" /> {t('detail.reidentify')}
-            </Button>
-            {item.matchStatus !== 'unmatched' && (
-              <Button variant="outline" onClick={() => unmatch.mutate()} loading={unmatch.isPending}>
-                <Undo2 className="h-4 w-4" /> {t('detail.unmatch')}
+          <div className="space-y-2 border-t border-border/60 pt-4">
+            <div className="flex flex-wrap gap-2">
+              {/* Disabled rather than hidden while locked: the button is where the
+                  operator looks, so it has to be what tells them why it won't run. */}
+              <Button
+                variant="secondary"
+                onClick={() => reidentify.mutate()}
+                loading={reidentify.isPending}
+                disabled={item.locked}
+              >
+                <RotateCw className="h-4 w-4" /> {t('detail.reidentify')}
               </Button>
-            )}
+              {item.matchStatus !== 'unmatched' && (
+                <Button
+                  variant="outline"
+                  onClick={() => unmatch.mutate()}
+                  loading={unmatch.isPending}
+                  disabled={item.locked}
+                >
+                  <Undo2 className="h-4 w-4" /> {t('detail.unmatch')}
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => toggleLock.mutate()} loading={toggleLock.isPending}>
+                {item.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                {item.locked ? t('detail.unlock') : t('detail.lock')}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {item.locked ? t('detail.lockedHint') : t('detail.lockHint')}
+            </p>
           </div>
         )}
       </CardContent>

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -220,6 +221,12 @@ export class MediaNfoService {
       if (item.library && item.library.nfoEnabled === false) {
         throw new BadRequestException('NFO generation is disabled for this library.');
       }
+      // Writing an NFO overwrites whatever is on disk — including one another
+      // tool authored. A locked item's sidecars are exactly what the operator
+      // asked us not to touch.
+      if (item.locked) {
+        throw new ConflictException('Item is locked — unlock it to overwrite its NFO');
+      }
       const record = await this.generateForItem(args.itemId, ctx);
       return { generated: 1, files: [record] };
     }
@@ -233,7 +240,7 @@ export class MediaNfoService {
         throw new BadRequestException('NFO generation is disabled for this library.');
       }
       const items = await this.prisma.mediaItem.findMany({
-        where: { libraryId: args.libraryId },
+        where: { libraryId: args.libraryId, locked: false },
         select: { id: true },
       });
       const files = [];

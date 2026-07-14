@@ -1,4 +1,4 @@
-import { isIgnoredScanDir, deriveFileTechInfo } from './media-scanner.service';
+import { isIgnoredScanDir, hasScanSkipMarker, deriveFileTechInfo } from './media-scanner.service';
 import { parseItemIdentity } from './media-identification.service';
 
 describe('isIgnoredScanDir', () => {
@@ -16,6 +16,33 @@ describe('isIgnoredScanDir', () => {
     expect(isIgnoredScanDir('Breaking Bad')).toBe(false);
     expect(isIgnoredScanDir('Season 01')).toBe(false);
     expect(isIgnoredScanDir('HD Movies')).toBe(false);
+  });
+});
+
+describe('hasScanSkipMarker', () => {
+  it('honours the markers the rest of the ecosystem already writes', () => {
+    // .nomedia is the Android/Kodi convention; the tmmignore pair is
+    // tinyMediaManager's. Honouring all three means an operator excludes a
+    // subtree ONCE for every tool pointed at the tree, not once per tool.
+    expect(hasScanSkipMarker(['.nomedia'])).toBe(true);
+    expect(hasScanSkipMarker(['.tmmignore'])).toBe(true);
+    expect(hasScanSkipMarker(['tmmignore'])).toBe(true);
+  });
+
+  it('finds the marker among ordinary files', () => {
+    expect(hasScanSkipMarker(['Show.S01E01.mkv', 'poster.jpg', '.nomedia'])).toBe(true);
+  });
+
+  it('does not skip an ordinary folder', () => {
+    expect(hasScanSkipMarker(['Show.S01E01.mkv', 'Show.S01E01.nfo'])).toBe(false);
+    expect(hasScanSkipMarker([])).toBe(false);
+  });
+
+  it('does not mistake a lookalike name for a marker', () => {
+    // Substring/extension matching here would silently drop a real library folder.
+    expect(hasScanSkipMarker(['nomedia.txt'])).toBe(false);
+    expect(hasScanSkipMarker(['.nomedia.bak'])).toBe(false);
+    expect(hasScanSkipMarker(['My .nomedia notes.txt'])).toBe(false);
   });
 });
 

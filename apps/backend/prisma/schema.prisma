@@ -604,6 +604,12 @@ model MediaItem {
   episodeEnd       Int?
   matchStatus      String   @default("unmatched") // unmatched | matched | manual
   confidence       Float    @default(0)
+  /// Operator-set protection. A locked item is never re-identified, re-enriched,
+  /// renamed or moved by ANY automated path — scans, the enrichment pipeline, the
+  /// organizer and automation rules all skip it. `matchStatus: 'manual'` only
+  /// protects identity; nothing protected a hand-corrected file from the renamer.
+  /// This is the valve for a tree UltraTorrent shares with another tool.
+  locked           Boolean  @default(false)
   path             String
   duplicateGroupId String?
   seriesImdbId     String?  // parent series tconst for TV episodes; enables missing-episode diff

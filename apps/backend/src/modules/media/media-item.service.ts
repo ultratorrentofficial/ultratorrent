@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import {
@@ -227,7 +227,10 @@ export class MediaItemService {
   }
 
   async update(id: string, dto: ItemUpdateDto) {
-    await this.get(id);
+    const item = await this.get(id);
+    if (item.locked) {
+      throw new ConflictException('Item is locked — unlock it to edit its fields');
+    }
     return this.prisma.mediaItem.update({
       where: { id },
       data: {
@@ -239,5 +242,16 @@ export class MediaItemService {
         episode: dto.episode,
       },
     });
+  }
+
+  /**
+   * Lock or unlock an item. A locked item is skipped by every automated path —
+   * identification, enrichment, the organizer, the renamer and automation rules
+   * — and explicit edits to it are refused until it is unlocked. This is the
+   * valve for a hand-corrected file in a tree another tool also writes to.
+   */
+  async setLocked(id: string, locked: boolean) {
+    await this.get(id);
+    return this.prisma.mediaItem.update({ where: { id }, data: { locked } });
   }
 }

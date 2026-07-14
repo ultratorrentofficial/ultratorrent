@@ -178,8 +178,9 @@ export class MediaProcessingService {
       { metadata: { is: null } },
     ];
     if (library.artworkEnabled) or.push({ artwork: { none: { type: 'poster' } } });
+    // Locked items are the operator's: never re-identify or re-scrape them.
     const items = await this.prisma.mediaItem.findMany({
-      where: { libraryId, OR: or },
+      where: { libraryId, locked: false, OR: or },
       select: { id: true },
     });
 
@@ -210,11 +211,15 @@ export class MediaProcessingService {
       where: { id: itemId },
       select: {
         matchStatus: true,
+        locked: true,
         metadata: { select: { id: true } },
         artwork: { where: { type: 'poster' }, select: { id: true } },
       },
     });
     if (!item) return out;
+    // Guarded here too, not just in the caller's query: this is also reachable
+    // from the post-download pipeline, which enriches a single item by id.
+    if (item.locked) return out;
 
     let matched = item.matchStatus === 'matched' || item.matchStatus === 'manual';
 

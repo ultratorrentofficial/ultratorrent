@@ -277,13 +277,29 @@ export class MediaController {
     if (body && Object.keys(body).length > 0) {
       return this.identification.matchManually(id, body);
     }
-    return this.identification.identify(id);
+    return this.identification.reidentify(id);
   }
 
   @Post('items/:id/unmatch')
   @RequirePermissions(P.MEDIA_MANAGER_MATCH)
   unmatchItem(@Param('id') id: string) {
     return this.identification.unmatch(id);
+  }
+
+  // --- lock --------------------------------------------------------------
+  // A locked item is skipped by identification, enrichment, the organizer and
+  // the renamer, so a hand-corrected file survives a tree that another tool
+  // (tinyMediaManager, Kodi) also writes to.
+  @Post('items/:id/lock')
+  @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
+  lockItem(@Param('id') id: string) {
+    return this.items.setLocked(id, true);
+  }
+
+  @Post('items/:id/unlock')
+  @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
+  unlockItem(@Param('id') id: string) {
+    return this.items.setLocked(id, false);
   }
 
   // --- metadata ----------------------------------------------------------

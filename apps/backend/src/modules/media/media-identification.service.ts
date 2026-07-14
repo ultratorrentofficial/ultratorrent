@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as path from 'node:path';
 import type { MediaItem, Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -141,6 +141,10 @@ export class MediaIdentificationService {
    * lookup (bulk runs do), otherwise they are resolved from the record's library.
    * `libraryKind` anchors classification (see {@link mediaTypeFromParsed});
    * `libraryPath` bounds the show-folder climb (see {@link parseFromPath}).
+   *
+   * A locked item is returned untouched: identity is the operator's, and this is
+   * the automated path. (The explicit endpoints refuse outright — see
+   * {@link manualMatch}.)
    */
   async identify(
     item: MediaItem | string,
@@ -152,6 +156,7 @@ export class MediaIdentificationService {
         ? await this.prisma.mediaItem.findUnique({ where: { id: item } })
         : item;
     if (!record) throw new NotFoundException('Item not found');
+    if (record.locked) return record;
 
     const lib =
       libraryKind !== undefined || libraryPath !== undefined
@@ -189,13 +194,14 @@ export class MediaIdentificationService {
    * one bad path never aborts the run; failures are counted, not thrown. By
    * default `manual` items are excluded (operator matches are authoritative);
    * pass an explicit `matchStatus` to target a specific state (e.g. retry only
-   * `unmatched`).
+   * `unmatched`). Locked items are excluded unconditionally — no `matchStatus`
+   * filter can select them back in.
    */
   async identifyBulk(
     filter: BulkIdentifyFilter = {},
     report?: BulkIdentifyReporter,
   ): Promise<BulkIdentifySummary> {
-    const where: Prisma.MediaItemWhereInput = {};
+    const where: Prisma.MediaItemWhereInput = { locked: false };
     if (filter.libraryId) where.libraryId = filter.libraryId;
     if (filter.matchStatus) where.matchStatus = filter.matchStatus;
     else where.matchStatus = { not: 'manual' };
@@ -307,10 +313,30 @@ export class MediaIdentificationService {
     return false;
   }
 
-  /** Operator override — authoritative identity, always full confidence. */
+  /**
+   * Explicit re-identification (the API path). Unlike {@link identify}, which
+   * silently returns a locked item so bulk runs can skip it, this refuses —
+   * a no-op answer to a direct request would read as "re-identified" when
+   * nothing happened.
+   */
+  async reidentify(itemId: string) {
+    const record = await this.prisma.mediaItem.findUnique({ where: { id: itemId } });
+    if (!record) throw new NotFoundException('Item not found');
+    if (record.locked) throw new ConflictException('Item is locked — unlock it to re-identify it');
+    return this.identify(record);
+  }
+
+  /**
+   * Operator override — authoritative identity, always full confidence.
+   *
+   * Refuses a locked item rather than silently skipping it: this is an explicit
+   * request, so a no-op would read as success and leave the operator believing
+   * they had re-matched something they hadn't.
+   */
   async matchManually(itemId: string, dto: ManualMatchDto) {
     const record = await this.prisma.mediaItem.findUnique({ where: { id: itemId } });
     if (!record) throw new NotFoundException('Item not found');
+    if (record.locked) throw new ConflictException('Item is locked — unlock it to change its identity');
 
     const mediaType = dto.mediaType ?? record.mediaType;
     const isEpisodic = mediaType === 'tv' || mediaType === 'anime';
@@ -333,10 +359,11 @@ export class MediaIdentificationService {
     });
   }
 
-  /** Clear identification back to an unmatched state. */
+  /** Clear identification back to an unmatched state. Refuses a locked item. */
   async unmatch(itemId: string) {
     const record = await this.prisma.mediaItem.findUnique({ where: { id: itemId } });
     if (!record) throw new NotFoundException('Item not found');
+    if (record.locked) throw new ConflictException('Item is locked — unlock it to change its identity');
 
     return this.prisma.mediaItem.update({
       where: { id: itemId },

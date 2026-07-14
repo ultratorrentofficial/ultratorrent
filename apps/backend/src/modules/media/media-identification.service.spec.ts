@@ -236,9 +236,10 @@ describe('MediaIdentificationService.identifyBulk', () => {
     const summary = await service.identifyBulk();
 
     expect(summary).toEqual({ total: 2, matched: 1, unmatched: 1, failed: 0 });
-    // Manual matches are operator-authoritative — excluded by default.
+    // Manual matches are operator-authoritative — excluded by default; locked
+    // items are excluded unconditionally.
     expect(prisma.mediaItem.findMany).toHaveBeenCalledWith({
-      where: { matchStatus: { not: 'manual' } },
+      where: { locked: false, matchStatus: { not: 'manual' } },
     });
   });
 
@@ -249,7 +250,7 @@ describe('MediaIdentificationService.identifyBulk', () => {
     await service.identifyBulk({ libraryId: 'L1', matchStatus: 'unmatched' });
 
     expect(prisma.mediaItem.findMany).toHaveBeenCalledWith({
-      where: { libraryId: 'L1', matchStatus: 'unmatched' },
+      where: { locked: false, libraryId: 'L1', matchStatus: 'unmatched' },
     });
   });
 

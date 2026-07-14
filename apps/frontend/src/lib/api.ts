@@ -920,6 +920,13 @@ export interface MediaItem {
   episode: number | null;
   matchStatus: MediaMatchStatus;
   confidence: number;
+  /**
+   * Operator lock. A locked item is skipped by identification, enrichment, the
+   * organizer, the renamer and NFO writing — and edits to it are refused until
+   * unlocked. Use it to protect a hand-corrected item in a library another tool
+   * (tinyMediaManager, Kodi) also writes to.
+   */
+  locked: boolean;
   path: string;
   createdAt: string;
   // Display relations eagerly loaded by the list endpoint (artwork is narrowed
@@ -2887,6 +2894,10 @@ export const api = {
     },
     unmatchItem(id: string): Promise<MediaItem> {
       return request<MediaItem>(`/media/items/${id}/unmatch`, { method: 'POST' });
+    },
+    /** Lock/unlock an item against every automated path (see {@link MediaItem.locked}). */
+    setItemLocked(id: string, locked: boolean): Promise<MediaItem> {
+      return request<MediaItem>(`/media/items/${id}/${locked ? 'lock' : 'unlock'}`, { method: 'POST' });
     },
     /** Bulk re-run auto-identification; omit body to re-identify all non-manual items. */
     reidentifyItems(body: MediaReidentifyInput = {}): Promise<MediaReidentifySummary> {

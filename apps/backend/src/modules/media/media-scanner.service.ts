@@ -85,6 +85,28 @@ export function isIgnoredScanDir(name: string): boolean {
   return name.startsWith('.') || name === '@eaDir';
 }
 
+/**
+ * Marker files that exclude the folder holding them — and everything beneath it
+ * — from the library. `.nomedia` is the Android/Kodi convention; `.tmmignore`
+ * and `tmmignore` are tinyMediaManager's. Honouring the same markers is what
+ * lets a shared tree tell BOTH tools "this subtree is not library content"
+ * once, rather than per-tool.
+ */
+export const SCAN_SKIP_MARKERS = new Set(['.nomedia', '.tmmignore', 'tmmignore']);
+
+/**
+ * True when a directory's entries include a skip marker. Pure — exported for
+ * unit testing.
+ *
+ * Note the reconcile consequence: dropping a marker into a folder that was
+ * already scanned PRUNES its items on the next scan (the walk stops returning
+ * those paths). That removes database rows only — {@link scanLibrary} never
+ * deletes files — so a marker is a library-membership statement, not a delete.
+ */
+export function hasScanSkipMarker(entryNames: string[]): boolean {
+  return entryNames.some((n) => SCAN_SKIP_MARKERS.has(n));
+}
+
 export const VIDEO_EXT = new Set([
   '.mkv',
   '.mp4',
@@ -522,6 +544,12 @@ export class MediaScannerService {
       entries = await readdir(dir, { withFileTypes: true });
     } catch (err) {
       this.logger.warn(`Cannot read directory ${dir}: ${(err as Error).message}`);
+      return out;
+    }
+    // An excluded folder is excluded whole: return before descending, so nothing
+    // beneath it is indexed either.
+    if (hasScanSkipMarker(entries.filter((e) => e.isFile()).map((e) => e.name))) {
+      this.logger.log(`Scan skipping ${dir}: skip marker present`);
       return out;
     }
     for (const entry of entries) {
