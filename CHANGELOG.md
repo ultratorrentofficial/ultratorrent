@@ -48,7 +48,7 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 ## [0.30.1] - 2026-07-14
 
 ### Fixed
-- Torrent parking is no longer a one-way trip: the probe queue could starve, stranding every
+- fix(torrents): torrent parking is no longer a one-way trip — the probe queue could starve, stranding every parked torrent as permanently paused
 - fix(torrents): the Torrents table stops wrapping and its rows stop changing height
 
 ## [0.30.0] - 2026-07-14
