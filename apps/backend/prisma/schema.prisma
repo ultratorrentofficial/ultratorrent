@@ -35,8 +35,120 @@ model User {
   apiKeys       ApiKey[]
   auditLogs     AuditLog[]
   notifications Notification[]
+  traktAccount  TraktAccount?
 
   @@map("users")
+}
+
+/// A user's linked Trakt.tv account. Per-user, not per-install: a watched state
+/// or a rating belongs to a person, and two people sharing a server must not
+/// scrobble into each other's history.
+///
+/// Tokens are encrypted at rest (SecretCipher, AES-256-GCM) — a Trakt access
+/// token is full control of someone's account, so it is treated like the TOTP
+/// secret above, not like an API key.
+model TraktAccount {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  username     String?
+  slug         String?
+  /// AES-256-GCM ciphertext. Never returned by the API, never logged.
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  scope        String?
+
+  /// Which sync directions this account opted into. All off until asked for:
+  /// syncing is destructive in both directions and must never be a default.
+  syncCollection Boolean @default(false)
+  syncWatched    Boolean @default(false)
+  syncRatings    Boolean @default(false)
+  syncWatchlist  Boolean @default(false)
+  scrobbleEnabled Boolean @default(false)
+
+  /// The media-server username whose playback belongs to this Trakt account.
+  /// Playback arrives attributed to a Plex/Jellyfin user, which is a different
+  /// namespace from UltraTorrent's users — without this link a scrobble cannot
+  /// be attributed to anyone, and guessing would put one person's viewing in
+  /// another's Trakt history.
+  mediaServerUserName String?
+
+  lastCollectionSyncAt DateTime?
+  lastWatchedSyncAt    DateTime?
+  lastRatingsSyncAt    DateTime?
+  lastWatchlistSyncAt  DateTime?
+  lastError            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("trakt_accounts")
+}
+
+/// What a user has WATCHED. UltraTorrent had no such store: play history existed
+/// only as media-server telemetry (`MediaServerWatchHistory`), attributed to a
+/// Plex/Jellyfin username rather than to one of our users. Without this, "sync
+/// watched state with Trakt" has nothing on our side to sync — Trakt could only
+/// ever be written to, never read from.
+///
+/// Identity is a `key` string (`imdb:tt0944947/s1e1`, `title:silo (2023)/s1e2`)
+/// rather than a set of nullable id columns: in Postgres a UNIQUE over nullable
+/// columns does not dedupe (NULL != NULL), so an item with no tmdb id would be
+/// inserted again on every sync. See `watchKey()`.
+model MediaUserWatch {
+  id        String   @id @default(uuid())
+  userId    String
+  key       String
+  mediaType String // movie | episode
+  imdbId    String?
+  tmdbId    String?
+  tvdbId    String?
+  showTitle String?
+  title     String?
+  season    Int?
+  episode   Int?
+  watchedAt DateTime
+  /// Where this came from: `media_server` (we observed the play), `trakt`
+  /// (pulled from their history), or `manual`. The push direction sends only
+  /// what did NOT come from Trakt — otherwise every sync echoes their own
+  /// history back at them.
+  source    String   @default("media_server")
+  /// When we last pushed this row to Trakt. Null = never pushed.
+  syncedAt  DateTime?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, key])
+  @@index([userId, source])
+  @@index([userId, syncedAt])
+  @@map("media_user_watches")
+}
+
+/// What a user has RATED (1–10, Trakt's scale). Same identity scheme and the
+/// same echo-suppression rule as {@link MediaUserWatch}.
+model MediaUserRating {
+  id        String   @id @default(uuid())
+  userId    String
+  key       String
+  mediaType String // movie | show | episode
+  imdbId    String?
+  tmdbId    String?
+  tvdbId    String?
+  showTitle String?
+  title     String?
+  season    Int?
+  episode   Int?
+  rating    Int
+  ratedAt   DateTime
+  source    String   @default("manual")
+  syncedAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+  @@index([userId, source])
+  @@map("media_user_ratings")
 }
 
 model Role {
@@ -869,6 +981,17 @@ model MediaServerSession {
   providerUserId    String?
   userName          String?
   title             String
+  /// The SHOW's title for an episode, separate from `title` (which is the joined
+  /// "Show — Episode" display string). Scrobbling an episode needs the show, and
+  /// splitting a display string back apart is guesswork.
+  showTitle         String?
+  /// Season/episode of the playing item, and the provider ids the media server
+  /// already knows (imdb/tmdb/tvdb). Trakt identifies an episode as
+  /// show-ids + season + number; without these a scrobble can only be guessed
+  /// at from a title, which is how the wrong show gets marked watched.
+  seasonNumber      Int?
+  episodeNumber     Int?
+  externalIds       Json?
   mediaType         String?
   libraryName       String?
   device            String?

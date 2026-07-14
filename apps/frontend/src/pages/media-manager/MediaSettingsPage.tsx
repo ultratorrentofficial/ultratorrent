@@ -13,6 +13,7 @@ import {
   Save,
   Subtitles,
   Trash2,
+  Users,
   Wand2,
 } from 'lucide-react';
 import {
@@ -20,6 +21,8 @@ import {
   api,
   type MediaProviderChains,
   type MediaServerIntegration,
+  type TraktDeviceCode,
+  type TraktSyncSettings,
   type MediaServerIntegrationInput,
 } from '@/lib/api';
 import { formatRelativeTime } from '@/lib/format';
@@ -78,6 +81,7 @@ export function MediaSettingsPage() {
           </p>
         </SectionCard>
       )}
+      <TraktSection />
       <ArtworkPreferencesSection />
       <SubtitlePreferencesSection />
       <RenameTemplatesSection />
@@ -437,6 +441,252 @@ function UniversalScraperPanel({
         </Button>
       )}
     </div>
+  );
+}
+
+/**
+ * Trakt: the app credentials (operator-level), then a per-user account link via
+ * the device flow — UltraTorrent is a server with no browser to redirect, so the
+ * user takes a code to trakt.tv/activate and we poll until they approve it.
+ */
+function TraktSection() {
+  const { t } = useTranslation('media');
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const clientId = useSettingField('media.trakt.clientId');
+  const clientSecret = useSettingField('media.trakt.clientSecret');
+
+  const [idValue, setIdValue] = useState('');
+  const [secretValue, setSecretValue] = useState('');
+  useEffect(() => setIdValue(clientId.stored), [clientId.stored]);
+  useEffect(() => setSecretValue(clientSecret.stored), [clientSecret.stored]);
+
+  const [device, setDevice] = useState<TraktDeviceCode | null>(null);
+  const [linking, setLinking] = useState(false);
+
+  const status = useQuery({
+    queryKey: ['media', 'trakt', 'status'],
+    queryFn: () => api.media.traktStatus(),
+  });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['media', 'trakt', 'status'] });
+
+  const saveApp = () => {
+    clientId.save.mutate(idValue.trim());
+    clientSecret.save.mutate(secretValue.trim());
+  };
+
+  /**
+   * Drive the device flow. The poll interval comes from Trakt (`intervalSec`) and
+   * BACKS OFF on `slow_down` — polling through that is what gets an application
+   * throttled, so the server's answer decides the cadence, not us.
+   */
+  const startLink = async () => {
+    setLinking(true);
+    try {
+      const code = await api.media.traktStartDevice();
+      setDevice(code);
+      let intervalMs = Math.max(code.intervalSec, 1) * 1000;
+      const deadline = Date.now() + code.expiresInSec * 1000;
+
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, intervalMs));
+        const res = await api.media.traktPollDevice();
+        if (res.status === 'authorized') {
+          toast.success(t('settings.trakt.linkedTitle'), res.username ?? undefined);
+          setDevice(null);
+          refresh();
+          return;
+        }
+        if (res.status === 'slow_down') {
+          intervalMs += 1000; // Trakt asked us to back off — obey it
+          continue;
+        }
+        if (res.status !== 'pending') {
+          toast.error(t('settings.trakt.linkFailed'), t(`settings.trakt.poll.${res.status}`));
+          setDevice(null);
+          return;
+        }
+      }
+      toast.error(t('settings.trakt.linkFailed'), t('settings.trakt.poll.expired'));
+      setDevice(null);
+    } catch (err) {
+      toast.error(t('settings.trakt.linkFailed'), err instanceof ApiError ? err.message : undefined);
+      setDevice(null);
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const disconnect = useMutation({
+    mutationFn: () => api.media.traktDisconnect(),
+    onSuccess: () => {
+      toast.success(t('settings.trakt.disconnected'));
+      refresh();
+    },
+  });
+
+  const updateSettings = useMutation({
+    mutationFn: (patch: Partial<TraktSyncSettings>) => api.media.traktUpdateSettings(patch),
+    onSuccess: () => refresh(),
+    onError: (err) =>
+      toast.error(t('common.couldNotSave'), err instanceof ApiError ? err.message : undefined),
+  });
+
+  const runSync = useMutation({
+    mutationFn: (what: 'watchlist' | 'collection' | 'watched' | 'ratings' | 'backfill') =>
+      api.media.traktSync(what),
+    onSuccess: (summary) => {
+      const parts = Object.entries(summary)
+        .filter(([, v]) => typeof v === 'number')
+        .map(([k, v]) => `${t(`settings.trakt.summary.${k}`, k)}: ${v}`);
+      toast.success(t('settings.trakt.syncDone'), parts.join(' · '));
+      refresh();
+    },
+    onError: (err) =>
+      toast.error(t('settings.trakt.syncFailed'), err instanceof ApiError ? err.message : undefined),
+  });
+
+  const s = status.data;
+  const settings = s?.settings;
+
+  return (
+    <SectionCard
+      icon={<Users className="h-5 w-5" />}
+      title={t('settings.trakt.title')}
+      description={t('settings.trakt.description')}
+    >
+      {status.isLoading ? (
+        <CenteredSpinner label={t('settings.metadata.loading')} />
+      ) : (
+        <div className="space-y-5">
+          {/* The application credentials — one per install, registered by the operator. */}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[240px] flex-1">
+              <Label htmlFor="trakt-id">{t('settings.trakt.clientId')}</Label>
+              <Input
+                id="trakt-id"
+                type="password"
+                value={idValue}
+                onChange={(e) => setIdValue(e.target.value)}
+                disabled={!clientId.canManage}
+                autoComplete="off"
+              />
+            </div>
+            <div className="min-w-[240px] flex-1">
+              <Label htmlFor="trakt-secret">{t('settings.trakt.clientSecret')}</Label>
+              <Input
+                id="trakt-secret"
+                type="password"
+                value={secretValue}
+                onChange={(e) => setSecretValue(e.target.value)}
+                disabled={!clientId.canManage}
+                autoComplete="off"
+              />
+            </div>
+            {clientId.canManage && (
+              <Button onClick={saveApp} loading={clientId.save.isPending}>
+                <Save className="h-4 w-4" /> {t('common.save')}
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">{t('settings.trakt.appHint')}</p>
+
+          {/* The per-user account link. */}
+          <div className="space-y-3 border-t border-border/60 pt-5">
+            {!s?.configured ? (
+              <p className="text-sm text-muted-foreground">{t('settings.trakt.notConfigured')}</p>
+            ) : s.linked ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary" dot>
+                    {t('settings.trakt.linkedAs', { username: s.username ?? '—' })}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => disconnect.mutate()}
+                    loading={disconnect.isPending}
+                  >
+                    {t('settings.trakt.disconnect')}
+                  </Button>
+                </div>
+                {s.lastError && (
+                  <p className="text-xs text-destructive">{s.lastError}</p>
+                )}
+
+                {/* Which media-server user's plays belong to this Trakt account.
+                    Without it a scrobble cannot be attributed to anyone. */}
+                <div className="max-w-sm">
+                  <Label htmlFor="trakt-msuser">{t('settings.trakt.mediaServerUser')}</Label>
+                  <Input
+                    id="trakt-msuser"
+                    defaultValue={settings?.mediaServerUserName ?? ''}
+                    placeholder={t('settings.trakt.mediaServerUserPlaceholder')}
+                    onBlur={(e) =>
+                      updateSettings.mutate({ mediaServerUserName: e.target.value.trim() || null })
+                    }
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t('settings.trakt.mediaServerUserHint')}
+                  </p>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(
+                    [
+                      ['scrobbleEnabled', 'scrobble'],
+                      ['syncWatched', 'watched'],
+                      ['syncCollection', 'collection'],
+                      ['syncRatings', 'ratings'],
+                      ['syncWatchlist', 'watchlist'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <div key={key} className="flex items-center justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
+                      <Label htmlFor={`trakt-${key}`} className="text-sm">
+                        {t(`settings.trakt.toggle.${label}`)}
+                      </Label>
+                      <Switch
+                        id={`trakt-${key}`}
+                        checked={settings?.[key] ?? false}
+                        onCheckedChange={(checked) => updateSettings.mutate({ [key]: checked })}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {(['watchlist', 'collection', 'watched', 'ratings', 'backfill'] as const).map((what) => (
+                    <Button
+                      key={what}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => runSync.mutate(what)}
+                      loading={runSync.isPending && runSync.variables === what}
+                    >
+                      <RefreshCw className="h-4 w-4" /> {t(`settings.trakt.run.${what}`)}
+                    </Button>
+                  ))}
+                </div>
+              </>
+            ) : device ? (
+              // The device flow's whole UX: a code the user types on trakt.tv.
+              <div className="space-y-2 rounded-md border border-border/60 p-4">
+                <p className="text-sm">{t('settings.trakt.enterCode')}</p>
+                <p className="font-mono text-2xl font-bold tracking-widest">{device.userCode}</p>
+                <p className="text-sm text-muted-foreground">
+                  {device.verificationUrl}
+                </p>
+                <p className="text-xs text-muted-foreground">{t('settings.trakt.waiting')}</p>
+              </div>
+            ) : (
+              <Button onClick={() => void startLink()} loading={linking}>
+                <Plug className="h-4 w-4" /> {t('settings.trakt.connect')}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </SectionCard>
   );
 }
 

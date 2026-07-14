@@ -381,6 +381,55 @@
       "chainMovie": "Film",
       "chainNone": "No provider is configured — metadata comes from local NFO files only."
     },
+    "trakt": {
+      "title": "Trakt.tv",
+      "description": "Sync your collection, watched history, ratings and watchlist with Trakt, and scrobble what you play in real time.",
+      "clientId": "Client ID",
+      "clientSecret": "Client secret",
+      "appHint": "Register an application at trakt.tv/oauth/applications. Use urn:ietf:wg:oauth:2.0:oob as the redirect URI — UltraTorrent authorizes by device code, not by browser redirect.",
+      "notConfigured": "Save the application Client ID and Secret above before linking an account.",
+      "connect": "Connect Trakt account",
+      "enterCode": "Go to the address below and enter this code:",
+      "waiting": "Waiting for you to approve it on Trakt…",
+      "linkedTitle": "Trakt account linked",
+      "linkedAs": "Linked as {{username}}",
+      "linkFailed": "Could not link Trakt",
+      "disconnect": "Disconnect",
+      "disconnected": "Trakt account disconnected",
+      "syncDone": "Sync complete",
+      "syncFailed": "Sync failed",
+      "mediaServerUser": "Media-server username",
+      "mediaServerUserPlaceholder": "e.g. your Plex username",
+      "mediaServerUserHint": "Whose playback belongs to this Trakt account. Playback arrives attributed to a Plex/Jellyfin user, which is a different namespace from UltraTorrent's users — without this, a scrobble cannot be attributed to anyone.",
+      "poll": {
+        "expired": "The code expired before it was approved.",
+        "denied": "The request was rejected on Trakt.",
+        "used": "That code was already used.",
+        "not_found": "Trakt did not recognise the code."
+      },
+      "toggle": {
+        "scrobble": "Scrobble what I play",
+        "watched": "Sync watched history",
+        "collection": "Sync my collection",
+        "ratings": "Sync ratings",
+        "watchlist": "Sync watchlist"
+      },
+      "run": {
+        "watchlist": "Import watchlist",
+        "collection": "Push collection",
+        "watched": "Sync watched",
+        "ratings": "Sync ratings",
+        "backfill": "Backfill from media server"
+      },
+      "summary": {
+        "pulled": "pulled",
+        "pushed": "pushed",
+        "skipped": "skipped",
+        "found": "found",
+        "imported": "imported",
+        "alreadyPresent": "already present"
+      }
+    },
     "universal": {
       "title": "Universal scraper",
       "description": "Build each item from every provider at once, taking each field from whoever has it, instead of taking everything from the first provider that answers. Costs one lookup per provider per item.",

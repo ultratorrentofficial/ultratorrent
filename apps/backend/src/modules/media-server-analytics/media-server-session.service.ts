@@ -97,6 +97,14 @@ export class MediaServerSessionService {
           container: s.container ?? null,
           bitrateKbps: s.bitrateKbps ?? null,
           artPath: s.artPath ?? null,
+          // Identity of what is playing, as the media server already knows it.
+          // The scrobbler reads these: a title alone cannot tell Trakt which
+          // episode of which show was watched.
+          showTitle: s.showTitle ?? null,
+          seasonNumber: s.seasonNumber ?? null,
+          episodeNumber: s.episodeNumber ?? null,
+          externalIds:
+            s.externalIds && Object.keys(s.externalIds).length ? s.externalIds : undefined,
         };
         const existing = await this.prisma.mediaServerSession.findUnique({
           where: { connectionId_providerSessionId: { connectionId: conn.id, providerSessionId: s.sessionId } },

@@ -381,6 +381,55 @@
       "chainMovie": "Cine",
       "chainNone": "No hay ningún proveedor configurado — los metadatos vienen solo de archivos NFO locales."
     },
+    "trakt": {
+      "title": "Trakt.tv",
+      "description": "Sincroniza tu colección, historial de vistos, calificaciones y lista de seguimiento con Trakt, y reporta en vivo lo que reproduces.",
+      "clientId": "Client ID",
+      "clientSecret": "Client secret",
+      "appHint": "Registra una aplicación en trakt.tv/oauth/applications. Usa urn:ietf:wg:oauth:2.0:oob como redirect URI — UltraTorrent autoriza por código de dispositivo, no por redirección del navegador.",
+      "notConfigured": "Guarda el Client ID y el Client Secret de la aplicación antes de vincular una cuenta.",
+      "connect": "Conectar cuenta de Trakt",
+      "enterCode": "Ve a la dirección de abajo e ingresa este código:",
+      "waiting": "Esperando a que lo apruebes en Trakt…",
+      "linkedTitle": "Cuenta de Trakt vinculada",
+      "linkedAs": "Vinculada como {{username}}",
+      "linkFailed": "No se pudo vincular Trakt",
+      "disconnect": "Desconectar",
+      "disconnected": "Cuenta de Trakt desconectada",
+      "syncDone": "Sincronización completa",
+      "syncFailed": "Falló la sincronización",
+      "mediaServerUser": "Usuario del servidor de medios",
+      "mediaServerUserPlaceholder": "p. ej. tu usuario de Plex",
+      "mediaServerUserHint": "De quién es la reproducción que pertenece a esta cuenta de Trakt. La reproducción llega atribuida a un usuario de Plex/Jellyfin, que es un espacio de nombres distinto al de los usuarios de UltraTorrent — sin esto, un scrobble no se le puede atribuir a nadie.",
+      "poll": {
+        "expired": "El código expiró antes de ser aprobado.",
+        "denied": "La solicitud fue rechazada en Trakt.",
+        "used": "Ese código ya fue usado.",
+        "not_found": "Trakt no reconoció el código."
+      },
+      "toggle": {
+        "scrobble": "Reportar lo que reproduzco",
+        "watched": "Sincronizar historial de vistos",
+        "collection": "Sincronizar mi colección",
+        "ratings": "Sincronizar calificaciones",
+        "watchlist": "Sincronizar lista de seguimiento"
+      },
+      "run": {
+        "watchlist": "Importar lista",
+        "collection": "Enviar colección",
+        "watched": "Sincronizar vistos",
+        "ratings": "Sincronizar calificaciones",
+        "backfill": "Rellenar desde el servidor de medios"
+      },
+      "summary": {
+        "pulled": "recibidos",
+        "pushed": "enviados",
+        "skipped": "omitidos",
+        "found": "encontrados",
+        "imported": "importados",
+        "alreadyPresent": "ya presentes"
+      }
+    },
     "universal": {
       "title": "Scraper universal",
       "description": "Construye cada elemento con todos los proveedores a la vez, tomando cada campo de quien lo tenga, en vez de tomarlo todo del primero que responda. Cuesta una consulta por proveedor por elemento.",

@@ -914,6 +914,55 @@ export type MediaMatchStatus = 'unmatched' | 'matched' | 'manual';
  * in. TV leads with TVDB, film with TMDB; a provider that misses falls through
  * to the next.
  */
+/** Which sync directions a linked Trakt account opted into. All off until asked for. */
+export interface TraktSyncSettings {
+  syncCollection: boolean;
+  syncWatched: boolean;
+  syncRatings: boolean;
+  syncWatchlist: boolean;
+  scrobbleEnabled: boolean;
+  /** The Plex/Jellyfin username whose plays belong to this Trakt account. */
+  mediaServerUserName: string | null;
+}
+
+export interface TraktStatus {
+  /** The Trakt *application* credentials are saved (an operator-level setting). */
+  configured: boolean;
+  /** THIS user has linked their own Trakt account. */
+  linked: boolean;
+  username?: string | null;
+  expiresAt?: string | null;
+  lastError?: string | null;
+  settings?: TraktSyncSettings;
+  lastSync?: {
+    collection: string | null;
+    watched: string | null;
+    ratings: string | null;
+    watchlist: string | null;
+  };
+}
+
+export interface TraktDeviceCode {
+  userCode: string;
+  verificationUrl: string;
+  expiresInSec: number;
+  intervalSec: number;
+}
+
+export type TraktPollResult =
+  | { status: 'authorized'; username?: string | null }
+  | { status: 'pending' | 'slow_down' }
+  | { status: 'expired' | 'denied' | 'used' | 'not_found' };
+
+export interface TraktSyncSummary {
+  pulled?: number;
+  pushed?: number;
+  skipped?: number;
+  found?: number;
+  imported?: number;
+  alreadyPresent?: number;
+}
+
 export interface MediaProviderChains {
   configured: string[];
   chains: { tv: string[]; movie: string[] };
@@ -3094,6 +3143,27 @@ export const api = {
     /** Which metadata providers are configured, and the chain each media kind resolves to. */
     metadataProviders(): Promise<MediaProviderChains> {
       return request<MediaProviderChains>('/media/providers');
+    },
+
+    // --- Trakt (always the CALLING user's own account) ---------------------
+    traktStatus(): Promise<TraktStatus> {
+      return request<TraktStatus>('/media/trakt/status');
+    },
+    traktStartDevice(): Promise<TraktDeviceCode> {
+      return request<TraktDeviceCode>('/media/trakt/device/start', { method: 'POST' });
+    },
+    /** One poll. The caller drives the loop at `intervalSec` — polling faster earns a `slow_down`. */
+    traktPollDevice(): Promise<TraktPollResult> {
+      return request<TraktPollResult>('/media/trakt/device/poll', { method: 'POST' });
+    },
+    traktDisconnect(): Promise<{ linked: boolean }> {
+      return request<{ linked: boolean }>('/media/trakt/link', { method: 'DELETE' });
+    },
+    traktUpdateSettings(body: Partial<TraktSyncSettings>): Promise<unknown> {
+      return request('/media/trakt/settings', { method: 'PATCH', body });
+    },
+    traktSync(what: 'watchlist' | 'collection' | 'watched' | 'ratings' | 'backfill'): Promise<TraktSyncSummary> {
+      return request<TraktSyncSummary>(`/media/trakt/sync/${what}`, { method: 'POST' });
     },
     validateImdbDataset(body: { datasetPath?: string }): Promise<ImdbDatasetValidationReport> {
       return request<ImdbDatasetValidationReport>('/media/providers/imdb/dataset/validate', {

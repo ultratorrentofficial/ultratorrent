@@ -18,6 +18,10 @@ import { MediaShowDuplicateService } from './media-show-duplicate.service';
 import { MediaServerIntegrationService } from './media-server-integration.service';
 import { MediaProcessingQueueService } from './media-processing-queue.service';
 import { MediaAutomationActions } from './media-automation.actions';
+import { TraktAuthService } from './trakt/trakt-auth.service';
+import { TraktSyncService } from './trakt/trakt-sync.service';
+import { TraktScrobbleService } from './trakt/trakt-scrobble.service';
+import { TraktController } from './trakt/trakt.controller';
 import { MediaProcessingService } from './media-processing.service';
 import { MediaLibraryScanScheduler } from './media-library-scan-scheduler.service';
 import { MediaServerHealthScheduler } from './media-server-health-scheduler.service';
@@ -47,6 +51,9 @@ import { MediaController } from './media.controller';
   providers: [
     ImdbTrigramIndexService,
     MetadataProviderRegistry,
+    TraktAuthService,
+    TraktSyncService,
+    TraktScrobbleService,
     SecretCipher,
     MediaService,
     MediaLibraryService,
@@ -74,7 +81,7 @@ import { MediaController } from './media.controller';
     ImdbDatasetScheduler,
     ImdbService,
   ],
-  controllers: [MediaController],
+  controllers: [MediaController, TraktController],
   exports: [
     MediaService,
     MediaLibraryService,

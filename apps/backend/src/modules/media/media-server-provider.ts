@@ -71,6 +71,46 @@ export interface ProviderSession {
   container?: string;
   bitrateKbps?: number; // overall stream bitrate, kbps
   artPath?: string; // provider-relative poster/thumb path (fetched via the authed proxy)
+  /**
+   * The show's own title for an episode — `title` above is a joined
+   * "Show — Episode" display string, and splitting that back apart is guesswork.
+   */
+  showTitle?: string;
+  /** Season/episode of the playing item. */
+  seasonNumber?: number;
+  episodeNumber?: number;
+  /**
+   * Provider ids the media server already holds (imdb/tmdb/tvdb). Scrobbling
+   * identifies an episode by show-ids + season + number; matching on a title
+   * instead is how the wrong show gets marked watched.
+   */
+  externalIds?: Record<string, string>;
+}
+
+/**
+ * Plex exposes ids as a `Guid` list of URIs — `imdb://tt0944947`,
+ * `tmdb://1399`, `tvdb://121361`. Pure: exported for unit tests.
+ */
+export function parsePlexGuids(guids: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!Array.isArray(guids)) return out;
+  for (const g of guids) {
+    const raw = typeof g === 'string' ? g : (g as any)?.id;
+    const m = /^(imdb|tmdb|tvdb):\/\/(.+)$/.exec(String(raw ?? ''));
+    if (m) out[m[1]] = m[2];
+  }
+  return out;
+}
+
+/** Jellyfin/Emby expose ids as `ProviderIds: { Imdb, Tmdb, Tvdb }`. Pure. */
+export function parseJellyfinProviderIds(ids: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!ids || typeof ids !== 'object') return out;
+  for (const [key, value] of Object.entries(ids as Record<string, unknown>)) {
+    const k = key.toLowerCase();
+    if ((k === 'imdb' || k === 'tmdb' || k === 'tvdb') && value) out[k] = String(value);
+  }
+  return out;
 }
 
 /** Thrown when a provider genuinely cannot serve a capability (not a failure). */
@@ -192,7 +232,9 @@ export class PlexProvider implements MediaServerProvider {
   async getSessions(cfg: MediaServerConfig): Promise<ProviderSession[]> {
     const base = requireBaseUrl(cfg);
     if (!cfg.token) throw new Error('Plex token is required.');
-    const { ok, status, json } = await fetchJson(`${base}/status/sessions`, {
+    // includeGuids=1 makes Plex attach the imdb/tmdb/tvdb ids it already holds.
+    // Without it a scrobble would have nothing but a title to match on.
+    const { ok, status, json } = await fetchJson(`${base}/status/sessions?includeGuids=1`, {
       headers: { Accept: 'application/json', 'X-Plex-Token': cfg.token },
     });
     if (!ok) throw new Error(`Plex responded with HTTP ${status}.`);
@@ -206,6 +248,15 @@ export class PlexProvider implements MediaServerProvider {
         userId: m.User?.id ? String(m.User.id) : undefined,
         userName: m.User?.title,
         title: [m.grandparentTitle, m.title].filter(Boolean).join(' — ') || m.title || 'Unknown',
+        showTitle: m.grandparentTitle ?? undefined,
+        // Plex numbers an episode with parentIndex (season) + index (episode).
+        seasonNumber: typeof m.parentIndex === 'number' ? m.parentIndex : undefined,
+        episodeNumber: typeof m.index === 'number' ? m.index : undefined,
+        // The ITEM's own ids: an episode's for an episode, a movie's for a movie.
+        // (`grandparentGuid` is a `plex://` URI, not an external id, so the show's
+        // imdb/tvdb ids are not available here — which is fine: Trakt identifies an
+        // episode by its own ids, and falls back to show-title + season/number.)
+        externalIds: parsePlexGuids(m.Guid),
         mediaType: m.type,
         libraryName: m.librarySectionTitle,
         device: m.Player?.device,
@@ -326,6 +377,11 @@ class JellyfinEmbyBase {
           userId: s.UserId ? String(s.UserId) : undefined,
           userName: s.UserName,
           title: [item.SeriesName, item.Name].filter(Boolean).join(' — ') || item.Name || 'Unknown',
+          showTitle: item.SeriesName ?? undefined,
+          seasonNumber:
+            typeof item.ParentIndexNumber === 'number' ? item.ParentIndexNumber : undefined,
+          episodeNumber: typeof item.IndexNumber === 'number' ? item.IndexNumber : undefined,
+          externalIds: parseJellyfinProviderIds(item.ProviderIds),
           mediaType: (item.Type ?? '').toLowerCase(),
           device: s.DeviceName,
           client: s.Client,
