@@ -381,6 +381,29 @@
       "chainMovie": "Film",
       "chainNone": "No provider is configured — metadata comes from local NFO files only."
     },
+    "universal": {
+      "title": "Universal scraper",
+      "description": "Build each item from every provider at once, taking each field from whoever has it, instead of taking everything from the first provider that answers. Costs one lookup per provider per item.",
+      "needsTwo": "Enabled, but only one provider is configured — composing a single source adds nothing, so this stays inactive until a second key is set.",
+      "auto": "Auto (first that has it)",
+      "field": {
+        "title": "Title",
+        "originalTitle": "Original title",
+        "overview": "Overview",
+        "releaseDate": "Release date",
+        "year": "Year",
+        "runtime": "Runtime",
+        "genres": "Genres",
+        "studios": "Studios / networks",
+        "cast": "Cast",
+        "crew": "Crew",
+        "directors": "Directors",
+        "writers": "Writers",
+        "rating": "Rating",
+        "certification": "Certification",
+        "tags": "Tags"
+      }
+    },
     "requiresSettings": "Requires settings access.",
     "artworkPref": {
       "title": "Artwork preferences",

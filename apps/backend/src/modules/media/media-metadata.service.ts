@@ -461,6 +461,9 @@ export class MediaMetadataService {
       certification: merged.certification ?? null,
       tags: (merged.tags ?? []) as Prisma.InputJsonValue,
       providerName: merged.providerName ?? provider.name,
+      // Only the Universal scraper sets this. For a single-provider fetch there is
+      // nothing to disambiguate, and a stale map would be worse than none.
+      fieldSources: (merged.fieldSources ?? null) as Prisma.InputJsonValue,
     };
 
     const metadata = await this.prisma.mediaMetadata.upsert({

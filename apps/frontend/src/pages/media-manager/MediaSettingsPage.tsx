@@ -18,6 +18,7 @@ import {
 import {
   ApiError,
   api,
+  type MediaProviderChains,
   type MediaServerIntegration,
   type MediaServerIntegrationInput,
 } from '@/lib/api';
@@ -319,9 +320,123 @@ function MetadataProvidersSection() {
               </p>
             )}
           </div>
+
+          {chains.data && (
+            <UniversalScraperPanel
+              state={chains.data}
+              canManage={canManage}
+              onSaved={() => void chains.refetch()}
+            />
+          )}
         </div>
       )}
     </SectionCard>
+  );
+}
+
+/**
+ * The Universal scraper: compose one record per item from every configured
+ * provider, choosing a preferred source per field.
+ *
+ * `auto` (the default for every field) means "take it from whoever has it, in
+ * chain order" — which is what most people want. A named provider is a
+ * *preference*, not a restriction: if it has nothing for that field, the value
+ * still comes from the chain rather than coming back empty.
+ */
+function UniversalScraperPanel({
+  state,
+  canManage,
+  onSaved,
+}: {
+  state: MediaProviderChains;
+  canManage: boolean;
+  onSaved: () => void;
+}) {
+  const { t } = useTranslation('media');
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const [enabled, setEnabled] = useState(state.universal.enabled);
+  const [fields, setFields] = useState<Record<string, string>>(state.universal.fields ?? {});
+  useEffect(() => {
+    setEnabled(state.universal.enabled);
+    setFields(state.universal.fields ?? {});
+  }, [state.universal.enabled, state.universal.fields]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      api.settings.update({
+        'media.universalScraper.enabled': enabled,
+        // Drop `auto` rather than store it: an absent field IS auto, and writing
+        // it back would freeze today's default into every install forever.
+        'media.universalScraper.fields': Object.fromEntries(
+          Object.entries(fields).filter(([, v]) => v && v !== 'auto'),
+        ),
+      }),
+    onSuccess: () => {
+      toast.success(t('common.saved'));
+      void queryClient.invalidateQueries({ queryKey: ['settings'] });
+      onSaved();
+    },
+    onError: (err) =>
+      toast.error(t('common.couldNotSave'), err instanceof ApiError ? err.message : undefined),
+  });
+
+  const providerOptions = [
+    { value: 'auto', label: t('settings.universal.auto') },
+    ...state.configured.map((p) => ({ value: p, label: p })),
+  ];
+
+  return (
+    <div className="space-y-3 border-t border-border/60 pt-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <Label htmlFor="universal-toggle">{t('settings.universal.title')}</Label>
+          <p className="mt-0.5 max-w-[62ch] text-xs text-muted-foreground">
+            {t('settings.universal.description')}
+          </p>
+        </div>
+        <Switch
+          id="universal-toggle"
+          checked={enabled}
+          onCheckedChange={setEnabled}
+          disabled={!canManage}
+        />
+      </div>
+
+      {/* Enabled but inert: say so plainly instead of letting the toggle imply
+          something is happening. */}
+      {enabled && state.configured.length < 2 && (
+        <p className="text-xs text-amber-600 dark:text-amber-500">
+          {t('settings.universal.needsTwo')}
+        </p>
+      )}
+
+      {enabled && state.configured.length > 1 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {state.universal.composableFields.map((field) => (
+            <div key={field}>
+              <Label htmlFor={`uni-${field}`} className="text-xs">
+                {t(`settings.universal.field.${field}`, field)}
+              </Label>
+              <Select
+                id={`uni-${field}`}
+                value={fields[field] ?? 'auto'}
+                onChange={(e) => setFields((f) => ({ ...f, [field]: e.target.value }))}
+                disabled={!canManage}
+                options={providerOptions}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {canManage && (
+        <Button onClick={() => save.mutate()} loading={save.isPending}>
+          <Save className="h-4 w-4" /> {t('common.save')}
+        </Button>
+      )}
+    </div>
   );
 }
 

@@ -46,6 +46,7 @@ import {
 } from './media-server-integration.service';
 import { MediaProcessingQueueService } from './media-processing-queue.service';
 import { MetadataProviderRegistry } from './metadata-provider-registry.service';
+import { COMPOSABLE_FIELDS } from './universal-metadata.provider';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -528,14 +529,23 @@ export class MediaController {
   @Get('providers')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   async listProviders() {
-    const [configured, tv, movie] = await Promise.all([
+    const [configured, tv, movie, config] = await Promise.all([
       this.providerRegistry.configured(),
       this.providerRegistry.chain('tv'),
       this.providerRegistry.chain('movie'),
+      this.providerRegistry.config(),
     ]);
     return {
       configured,
       chains: { tv: tv.map((p) => p.name), movie: movie.map((p) => p.name) },
+      universal: {
+        enabled: config.universalEnabled === true,
+        // On, but only one provider configured: Universal cannot compose a single
+        // source, so it stays inert. Say so rather than let the toggle lie.
+        active: config.universalEnabled === true && configured.length > 1,
+        fields: config.universalFields ?? {},
+        composableFields: COMPOSABLE_FIELDS,
+      },
     };
   }
 

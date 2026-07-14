@@ -41,6 +41,12 @@ export interface MediaMetadataDetails {
   providerName?: string;
   /** provider -> external id (e.g. { tmdb: '603', imdb: 'tt0133093' }). */
   externalIds?: Record<string, string>;
+  /**
+   * field -> the provider that supplied it. Set only by the Universal scraper,
+   * which composes one record from several sources; purely diagnostic, but
+   * without it "where did this year come from?" has no answer.
+   */
+  fieldSources?: Record<string, string>;
 }
 
 export interface MediaMetadataProvider {

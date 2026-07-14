@@ -29,6 +29,7 @@ import {
   type MediaMetadataProvider,
 } from './metadata-provider';
 import { TvdbMetadataProvider } from './tvdb-metadata.provider';
+import { UniversalMetadataProvider, type FieldPolicy } from './universal-metadata.provider';
 
 /** Default chains. TV leans TVDB-first; film leans TMDB-first. */
 export const DEFAULT_ORDER: Record<'tv' | 'movie', string[]> = {
@@ -42,6 +43,15 @@ export interface ProviderConfig {
   tvdbPin?: string;
   /** Explicit chain; overrides the per-kind defaults for every kind when set. */
   order?: string[];
+  /**
+   * The Universal scraper: compose ONE record per item from every configured
+   * provider, field by field, instead of taking the first provider that answers.
+   * Off by default — it queries every provider for every item, where the plain
+   * chain usually stops at the first.
+   */
+  universalEnabled?: boolean;
+  /** field → preferred provider for Universal. Unset fields use chain order. */
+  universalFields?: FieldPolicy;
 }
 
 /**
@@ -73,17 +83,23 @@ export class MetadataProviderRegistry {
 
   /** Current provider config, from settings with an env fallback. */
   async config(): Promise<ProviderConfig> {
-    const [tmdbApiKey, tvdbApiKey, tvdbPin, order] = await Promise.all([
-      this.settings.get<string>('media.tmdbApiKey'),
-      this.settings.get<string>('media.tvdbApiKey'),
-      this.settings.get<string>('media.tvdbPin'),
-      this.settings.get<string[]>('media.metadataProviderOrder'),
-    ]);
+    const [tmdbApiKey, tvdbApiKey, tvdbPin, order, universalEnabled, universalFields] =
+      await Promise.all([
+        this.settings.get<string>('media.tmdbApiKey'),
+        this.settings.get<string>('media.tvdbApiKey'),
+        this.settings.get<string>('media.tvdbPin'),
+        this.settings.get<string[]>('media.metadataProviderOrder'),
+        this.settings.get<boolean>('media.universalScraper.enabled'),
+        this.settings.get<FieldPolicy>('media.universalScraper.fields'),
+      ]);
     return {
       tmdbApiKey: tmdbApiKey ?? process.env.TMDB_API_KEY,
       tvdbApiKey: tvdbApiKey ?? process.env.TVDB_API_KEY,
       tvdbPin: tvdbPin ?? process.env.TVDB_PIN,
       order: Array.isArray(order) && order.length ? order : undefined,
+      universalEnabled: universalEnabled === true,
+      universalFields:
+        universalFields && typeof universalFields === 'object' ? universalFields : {},
     };
   }
 
@@ -127,6 +143,11 @@ export class MetadataProviderRegistry {
    * The ordered chain for this kind of lookup. Empty when nothing is configured
    * — callers fall back to {@link offline}, which keeps the fully-offline
    * (local NFO only) behaviour the renamer has always had.
+   *
+   * With the Universal scraper on, the chain collapses to a SINGLE composing
+   * provider that queries all the others and merges them field by field. The
+   * caller's "first provider that answers wins" loop is then correct by
+   * construction: there is only one, and it has already consulted everybody.
    */
   async chain(kind: MediaLookup['kind']): Promise<MediaMetadataProvider[]> {
     const config = await this.config();
@@ -134,6 +155,12 @@ export class MetadataProviderRegistry {
     const providers = names
       .map((n) => this.instance(n, config))
       .filter((p): p is MediaMetadataProvider => p !== null);
+
+    // Composing one source is pointless overhead — it can only return what that
+    // provider already said — so Universal engages from two providers up.
+    if (config.universalEnabled && providers.length > 1) {
+      return [new UniversalMetadataProvider(providers, config.universalFields ?? {})];
+    }
     return providers;
   }
 

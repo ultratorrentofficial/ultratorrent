@@ -381,6 +381,29 @@
       "chainMovie": "Cine",
       "chainNone": "No hay ningún proveedor configurado — los metadatos vienen solo de archivos NFO locales."
     },
+    "universal": {
+      "title": "Scraper universal",
+      "description": "Construye cada elemento con todos los proveedores a la vez, tomando cada campo de quien lo tenga, en vez de tomarlo todo del primero que responda. Cuesta una consulta por proveedor por elemento.",
+      "needsTwo": "Activado, pero solo hay un proveedor configurado — componer una sola fuente no aporta nada, así que queda inactivo hasta que agregues una segunda clave.",
+      "auto": "Automático (el primero que lo tenga)",
+      "field": {
+        "title": "Título",
+        "originalTitle": "Título original",
+        "overview": "Sinopsis",
+        "releaseDate": "Fecha de estreno",
+        "year": "Año",
+        "runtime": "Duración",
+        "genres": "Géneros",
+        "studios": "Estudios / cadenas",
+        "cast": "Reparto",
+        "crew": "Equipo",
+        "directors": "Directores",
+        "writers": "Guionistas",
+        "rating": "Calificación",
+        "certification": "Clasificación",
+        "tags": "Etiquetas"
+      }
+    },
     "requiresSettings": "Requiere acceso a los ajustes.",
     "artworkPref": {
       "title": "Preferencias de ilustraciones",

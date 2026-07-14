@@ -917,6 +917,17 @@ export type MediaMatchStatus = 'unmatched' | 'matched' | 'manual';
 export interface MediaProviderChains {
   configured: string[];
   chains: { tv: string[]; movie: string[] };
+  /**
+   * The Universal scraper composes one record per item from every configured
+   * provider, field by field. `active` is false when it is enabled but only one
+   * provider is configured — composing a single source can add nothing.
+   */
+  universal: {
+    enabled: boolean;
+    active: boolean;
+    fields: Record<string, string>;
+    composableFields: string[];
+  };
 }
 
 export interface MediaItem {

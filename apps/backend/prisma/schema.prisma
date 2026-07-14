@@ -712,6 +712,11 @@ model MediaMetadata {
   certification String?
   tags          Json      @default("[]")
   providerName  String?
+  /// field -> the provider that supplied it. Written only by the Universal
+  /// scraper, which composes one record from several sources: without it,
+  /// `providerName: 'universal'` says nothing about where any given value came
+  /// from, and "why does this show say 2014?" is unanswerable.
+  fieldSources  Json?
   updatedAt     DateTime  @updatedAt
 
   item MediaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
