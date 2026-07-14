@@ -49,7 +49,7 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ### Added
 - feat(analytics): every chart on the Analytics Dashboard drills into the plays behind it
-- The Media Manager now reads what a media file actually **is**, instead of trusting what
+- feat(media): the Media Manager now reads what a media file actually **is** (codec, resolution, real bitrate, HDR — measured from the container via mediainfo) instead of trusting what its filename calls it
 - feat(media): a library scan now tells you when two folders hold the same show
 
 ### Fixed
