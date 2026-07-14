@@ -471,7 +471,9 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
       continue;
     }
     if (c.kind === 'general') {
-      items.push({ source: f.path, destination: null, action: 'skip', kind: c.kind, reason: 'non-media file', skipped: true, isSubtitle: false, isSample: false, isExtra: c.isExtra });
+      // Deferred to the sidecar pass below — it needs the video destinations, which are
+      // only known once this pass has run. Anything that turns out NOT to belong to a
+      // video is emitted as a skip there, exactly as before.
       continue;
     }
 
@@ -538,6 +540,66 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
     }
     const destination = `${best.destNoExt}${lang}${ext}`;
     items.push({ source: f.path, destination, action, kind: 'general', reason: lang ? `subtitle (${lang.slice(1)}) matched to video` : 'subtitle matched to video', skipped: false, isSubtitle: true, isSample: false, isExtra: false });
+  }
+
+  // Third pass: metadata sidecars follow the video they describe.
+  //
+  // A `.nfo` / `-thumb.jpg` is NAMED AFTER its video. Renaming the video and leaving the
+  // sidecar behind orphans it: the file keeps the old basename and now describes nothing,
+  // while the renamed episode has no metadata beside it. We were dropping every one of
+  // them as a "non-media file" — and tinyMediaManager, which writes these, moves them
+  // with the video, so on a shared library we were quietly undoing its work.
+  //
+  // A sidecar is recognised STRUCTURALLY — its basename is the video's basename plus an
+  // optional `-suffix` / `.suffix` — not by an extension allow-list, so `-thumb.jpg`,
+  // `.nfo`, `-mediainfo.xml` and any future TMM sidecar all follow without enumeration.
+  //
+  // Show-level artwork is deliberately NOT matched and stays exactly where it is:
+  // `poster.jpg`, `fanart.jpg`, `tvshow.nfo`, `season01-poster.jpg`, `theme.mp3` belong to
+  // the FOLDER, not to any one episode. Moving them with an episode would be wrong, and is
+  // why this matches on the video's basename rather than on "is it an image/xml".
+  for (const f of ctx.files) {
+    if (toDelete.has(f.path)) continue; // slated for cleanup
+    const c = classifyFile(f.path, kind, sampleMax, f.size);
+    if (c.kind !== 'general') continue; // videos/audio/subtitles already planned
+
+    const base = path.basename(f.path, c.ext);
+
+    // Longest matching video wins: with both "Show - S01E01" and "Show - S01E01 S01E02"
+    // in a folder, a sidecar for the two-parter must not attach to the single episode.
+    let best: { destNoExt: string } | null = null;
+    let bestSuffix = '';
+    let bestBaseLen = -1;
+    for (const v of videoDest) {
+      const vBase = path.basename(v.source, path.extname(v.source));
+      if (!base.startsWith(vBase)) continue;
+      const suffix = base.slice(vBase.length);
+      // Either the same name, or the video's name plus a sidecar marker. A bare extra
+      // character means it is a DIFFERENT file (e.g. "Episode 2" vs "Episode 20").
+      if (suffix !== '' && !/^[-.]/.test(suffix)) continue;
+      if (vBase.length > bestBaseLen) {
+        best = v;
+        bestSuffix = suffix;
+        bestBaseLen = vBase.length;
+      }
+    }
+
+    if (!best) {
+      items.push({ source: f.path, destination: null, action: 'skip', kind: c.kind, reason: 'non-media file', skipped: true, isSubtitle: false, isSample: false, isExtra: c.isExtra });
+      continue;
+    }
+
+    items.push({
+      source: f.path,
+      destination: `${best.destNoExt}${bestSuffix}${c.ext}`,
+      action,
+      kind: c.kind,
+      reason: 'metadata sidecar (follows its video)',
+      skipped: false,
+      isSubtitle: false,
+      isSample: false,
+      isExtra: false,
+    });
   }
 
   if (items.every((i) => i.skipped)) warnings.push('No renamable media files were found.');

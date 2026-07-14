@@ -85,6 +85,89 @@ describe('buildRenamePlan — TV', () => {
   });
 });
 
+describe('buildRenamePlan — metadata sidecars follow their video', () => {
+  // A .nfo / -thumb.jpg is named after its video. Renaming the video and leaving the
+  // sidecar behind orphans it — the .nfo keeps the old basename and describes nothing,
+  // and the renamed episode has no metadata beside it. tinyMediaManager (which writes
+  // these) moves them WITH the video, so dropping them quietly undid its work on a
+  // library both tools share.
+  const plan = buildRenamePlan(ctx({
+    sourceName: 'The Librarians - S01E03 - And the Horns of a Dilemma',
+    files: [
+      { path: 'The Librarians - S01E03 - And the Horns of a Dilemma.mp4', size: BIG },
+      { path: 'The Librarians - S01E03 - And the Horns of a Dilemma.nfo', size: 4_000 },
+      { path: 'The Librarians - S01E03 - And the Horns of a Dilemma-thumb.jpg', size: 90_000 },
+      { path: 'The Librarians - S01E03 - And the Horns of a Dilemma-mediainfo.xml', size: 8_000 },
+      // Show-level artwork: belongs to the FOLDER, not to this episode.
+      { path: 'poster.jpg', size: 200_000 },
+      { path: 'tvshow.nfo', size: 6_000 },
+      { path: 'season01-poster.jpg', size: 150_000 },
+    ],
+    preset: 'plex',
+    mode: 'rename_move',
+    libraryPath: '/media/TV',
+    meta: { episodeTitle: 'And the Horns of a Dilemma' },
+  }));
+
+  const dest = (suffix: string) =>
+    plan.items.find((i) => i.source.endsWith(suffix))?.destination;
+
+  it('carries the .nfo, the thumb and the mediainfo cache to the new basename', () => {
+    const video = dest('Dilemma.mp4');
+    expect(video).toBe(
+      '/media/TV/The Librarians/Season 1/The Librarians - S01E03 - And the Horns of a Dilemma.mp4',
+    );
+    const base = video!.slice(0, -'.mp4'.length);
+    expect(dest('Dilemma.nfo')).toBe(`${base}.nfo`);
+    expect(dest('Dilemma-thumb.jpg')).toBe(`${base}-thumb.jpg`);
+    expect(dest('Dilemma-mediainfo.xml')).toBe(`${base}-mediainfo.xml`);
+  });
+
+  it('leaves show-level artwork exactly where it is', () => {
+    for (const f of ['poster.jpg', 'tvshow.nfo', 'season01-poster.jpg']) {
+      const item = plan.items.find((i) => i.source === f);
+      expect(item?.skipped).toBe(true);
+      expect(item?.destination).toBeNull();
+    }
+  });
+
+  it('carries the sidecars of a two-part episode held in one file', () => {
+    // The real TMM-authored two-parter from the library, sidecars and all.
+    const p = buildRenamePlan(ctx({
+      sourceName: 'The Librarians - S01E01 S01E02 - And the Crown of King Arthur',
+      files: [
+        { path: 'The Librarians - S01E01 S01E02 - And the Crown of King Arthur.mp4', size: BIG },
+        { path: 'The Librarians - S01E01 S01E02 - And the Crown of King Arthur.nfo', size: 4_000 },
+        { path: 'The Librarians - S01E01 S01E02 - And the Crown of King Arthur-thumb.jpg', size: 90_000 },
+      ],
+      preset: 'plex',
+      mode: 'rename_in_place',
+      libraryPath: '/media/TV',
+    }));
+    const video = p.items.find((i) => i.source.endsWith('.mp4'))!;
+    expect(video.destination).not.toBeNull();
+    const base = video.destination!.replace(/\.mp4$/, '');
+    expect(p.items.find((i) => i.source.endsWith('.nfo'))?.destination).toBe(`${base}.nfo`);
+    expect(p.items.find((i) => i.source.endsWith('-thumb.jpg'))?.destination).toBe(`${base}-thumb.jpg`);
+  });
+
+  it('does not mistake a different episode for a sidecar of a shorter-named one', () => {
+    // "Show - S01E2" is a prefix of "Show - S01E20" as a STRING. It is not a sidecar.
+    const p = buildRenamePlan(ctx({
+      sourceName: 'Show',
+      files: [
+        { path: 'Show - S01E2.mkv', size: BIG },
+        { path: 'Show - S01E20.nfo', size: 4_000 },
+      ],
+      preset: 'plex',
+      mode: 'rename_in_place',
+      libraryPath: '/media/TV',
+    }));
+    const nfo = p.items.find((i) => i.source.endsWith('S01E20.nfo'));
+    expect(nfo?.skipped).toBe(true); // no video of that name → left alone, not attached
+  });
+});
+
 describe('buildRenamePlan — movie', () => {
   it('renames a movie with year + resolution', () => {
     const plan = buildRenamePlan(ctx({
