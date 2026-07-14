@@ -45,6 +45,19 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.30.0] - 2026-07-14
+
+### Added
+- feat(analytics): every chart on the Analytics Dashboard drills into the plays behind it
+- The Media Manager now reads what a media file actually **is**, instead of trusting what
+- feat(media): a library scan now tells you when two folders hold the same show
+
+### Fixed
+- fix(media): the external-id collision guard now covers TVDB and TMDB, not just IMDb
+- fix(media): NFO external ids are no longer read out of the cast list
+- fix(media-server-analytics): watch history is imported per library, so the Libraries report stops attributing everything to Unknown
+- fix(media-server-analytics): imported plays now carry their stream quality, so Quality Distribution stops reading 99% Unknown
+
 ## [0.29.1] - 2026-07-13
 
 ### Fixed
