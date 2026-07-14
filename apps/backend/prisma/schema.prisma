@@ -665,9 +665,16 @@ model MediaFile {
   /// probing. Null = never touched.
   techSource String?
   probedAt   DateTime?
-  /// Why the last probe failed. Set so an unreadable/corrupt file fails once and
-  /// is skipped, instead of being retried on every backfill tick forever.
+  /// Why the probe gave up on this file for good. Setting it takes the file OUT of the
+  /// backfill's working set permanently — so it is set only for a failure the file itself
+  /// causes (unreadable/corrupt), never for a transient one. A timeout on a busy disk is
+  /// NOT the file's fault: treating it as one silently dropped two perfectly readable
+  /// files on a live NAS.
   probeError String?
+  /// Failed attempts so far. A transient failure (timeout, disks busy, file moved
+  /// mid-probe) leaves the file in the working set to be retried; this is what stops that
+  /// retry being unbounded — after `MAX_PROBE_ATTEMPTS` we give up and set `probeError`.
+  probeAttempts Int @default(0)
 
   createdAt DateTime @default(now())
 

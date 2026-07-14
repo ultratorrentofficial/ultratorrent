@@ -4,8 +4,14 @@ import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
 
-/** How long a single probe may take before we give up on the file. */
-const PROBE_TIMEOUT_MS = 20_000;
+/**
+ * How long a single probe may take before we give up on this ATTEMPT (not on the file —
+ * see {@link ProbeError}). A probe reads the container header, which is milliseconds on a
+ * warm disk; the cap only exists to stop a wedged process. It was 20s, which a busy NAS
+ * genuinely exceeded on large files while serving Plex — so it is generous now, and a
+ * timeout is retried rather than held against the file.
+ */
+const PROBE_TIMEOUT_MS = 60_000;
 /** mediainfo's JSON can be large on multi-track files; cap what we buffer. */
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 
@@ -141,20 +147,57 @@ export class MediaProbeService {
   }
 
   /**
-   * Probe one file. Throws on an unreadable/corrupt file so the caller can record
-   * WHY and stop retrying it; returns `{}` only when the container held no tracks.
+   * Probe one file. Throws on failure so the caller can record WHY; returns `{}` only
+   * when the container held no tracks.
+   *
+   * A thrown {@link ProbeError} says whether the failure was **transient**. That
+   * distinction is load-bearing: recording a failure takes the file OUT of the backfill's
+   * working set permanently, so treating a timeout as permanent silently drops a perfectly
+   * readable file forever. Measured on a live NAS: two files were dropped this way — both
+   * probed fine by hand afterwards; they had merely been killed by the timeout while the
+   * disks were busy serving Plex.
    */
   async probe(filePath: string): Promise<ProbedTech> {
-    const { stdout } = await exec('mediainfo', ['--Output=JSON', filePath], {
-      timeout: PROBE_TIMEOUT_MS,
-      maxBuffer: MAX_OUTPUT_BYTES,
-    });
+    let stdout: string;
+    try {
+      ({ stdout } = await exec('mediainfo', ['--Output=JSON', filePath], {
+        timeout: PROBE_TIMEOUT_MS,
+        maxBuffer: MAX_OUTPUT_BYTES,
+      }));
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException & { killed?: boolean; signal?: string };
+      // Killed by our own timeout, or the box was too busy to even spawn the process.
+      // The file is not at fault — say so, so the caller retries instead of giving up.
+      if (e.killed || e.signal === 'SIGTERM' || e.code === 'EAGAIN' || e.code === 'ENOMEM') {
+        throw new ProbeError(
+          `probe timed out after ${PROBE_TIMEOUT_MS / 1000}s (disks busy) — will retry`,
+          true,
+        );
+      }
+      // A missing file is transient too: a rescan/rename can move it mid-probe, and it is
+      // not evidence the file is unreadable.
+      if (e.code === 'ENOENT') throw new ProbeError('file not found (moved mid-probe)', true);
+      throw new ProbeError((e.message || 'mediainfo failed').slice(0, 200), false);
+    }
     let json: unknown;
     try {
       json = JSON.parse(stdout);
     } catch {
-      throw new Error('mediainfo returned unparseable JSON');
+      // mediainfo ran and answered — the answer is just not usable. That IS the file.
+      throw new ProbeError('mediainfo returned unparseable JSON', false);
     }
     return parseMediaInfo(json);
+  }
+}
+
+/** A probe failure, tagged with whether it is worth trying again. */
+export class ProbeError extends Error {
+  constructor(
+    message: string,
+    /** True when the file is fine and the *attempt* failed (timeout, busy, moved). */
+    readonly transient: boolean,
+  ) {
+    super(message);
+    this.name = 'ProbeError';
   }
 }
