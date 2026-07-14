@@ -1,62 +1,62 @@
 ---
 id: api
-title: REST API Reference
+title: Referencia de la API REST
 sidebar_position: 1
-description: Every REST endpoint UltraTorrent exposes, with its verb, path and required permission.
+description: Cada endpoint REST que expone UltraTorrent, con su verbo, ruta y permiso requerido.
 keywords: [api, rest, endpoints, curl, javascript, python, powershell, authentication, bearer]
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# REST API Reference
+# Referencia de la API REST
 
-:::info Auto-generated
-This page is generated from `the @Controller / @Get / @RequirePermissions decorators in apps/backend/src` at build time. **Do not edit it by hand** — change the source and rebuild. This guarantees the reference always matches the code that ships.
+:::info Generado automáticamente
+Esta página se genera desde `los decoradores @Controller / @Get / @RequirePermissions en apps/backend/src` durante el build. **No la edites a mano** — cambia la fuente y reconstruye. Esto garantiza que la referencia siempre coincida con el código que se publica.
 :::
 
-Every endpoint below was read from the controllers themselves, including the **exact
-permission** its guard enforces.
+Cada endpoint de abajo se leyó de los controladores mismos, incluyendo el **permiso
+exacto** que exige su guard.
 
-- **276 endpoints** across **14 controllers**
-- Base URL: `http://<host>:<port>/api`
+- **276 endpoints** en **14 controladores**
+- URL base: `http://<host>:<port>/api`
 
-## Authentication
+## Autenticación
 
-All endpoints except `/api/auth/login` require a **Bearer token**.
+Todos los endpoints excepto `/api/auth/login` requieren un **Bearer token**.
 
 ```bash
-# 1. Log in to get an access token
+# 1. Inicia sesión para obtener un access token
 curl -s -X POST http://localhost:8080/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"<password>"}'
 # → { "accessToken": "eyJ...", "refreshToken": "..." }
 
-# 2. Use it
+# 2. Úsalo
 curl -s http://localhost:8080/api/torrents \
   -H 'Authorization: Bearer eyJ...'
 ```
 
-Access tokens are short-lived; use the refresh token to rotate. See [Authentication](/develop/authentication).
+Los access tokens son de vida corta — usa el refresh token para rotarlos. Ver [Autenticación](/develop/authentication).
 
-## Authorization
+## Autorización
 
-Each endpoint declares a permission (the **Permission** column below). A token whose role
-lacks that permission gets **`403 Forbidden`**. The full catalogue is in the
-[Permissions Reference](/reference/permissions).
+Cada endpoint declara un permiso (la columna **Permiso** de abajo). Un token cuyo rol no
+tenga ese permiso recibe **`403 Forbidden`**. El catálogo completo está en la
+[Referencia de permisos](/reference/permissions).
 
-## Common status codes
+## Códigos de estado comunes
 
-| Code | Meaning |
+| Código | Significado |
 | --- | --- |
-| `200` / `201` | Success |
-| `400` | Validation failed (bad body/query) |
-| `401` | Missing or expired token |
-| `403` | Token valid, but the role lacks the required permission |
-| `404` | Resource does not exist |
-| `500` | Server error — check [logs](/operate/troubleshooting) |
+| `200` / `201` | Éxito |
+| `400` | Falló la validación (body/query inválido) |
+| `401` | Token ausente o expirado |
+| `403` | Token válido, pero el rol no tiene el permiso requerido |
+| `404` | El recurso no existe |
+| `500` | Error del servidor — revisa los [logs](/operate/troubleshooting) |
 
-## Client examples
+## Ejemplos de cliente
 
 <Tabs>
 <TabItem value="curl" label="cURL">
@@ -105,7 +105,7 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/torrents" -Headers $headers
 
 From `AuditController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/audit` | `AUDIT_VIEW` | `list` |
 
@@ -113,7 +113,7 @@ From `AuditController`.
 
 From `AuthController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `POST` | `/api/auth/login` | — | `login` |
 | `POST` | `/api/auth/refresh` | — | `refresh` |
@@ -125,7 +125,7 @@ From `AuthController`.
 
 From `EngineController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/engines` | `SYSTEM_VIEW` | `list` |
 | `GET` | `/api/engines/health` | `SYSTEM_VIEW` | `health` |
@@ -138,7 +138,7 @@ From `EngineController`.
 
 From `FilesController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/files` | `FILES_VIEW` | `browse` |
 | `GET` | `/api/files/root` | `FILES_VIEW` | `root` |
@@ -165,7 +165,7 @@ From `FilesController`.
 
 From `IndexersController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/indexers` | `INDEXERS_VIEW` | `list` |
 | `GET` | `/api/indexers/:id` | `INDEXERS_VIEW` | `get` |
@@ -179,7 +179,7 @@ From `IndexersController`.
 
 From `ProwlarrController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/integrations/prowlarr` | `INTEGRATIONS_PROWLARR_VIEW` | `get` |
 | `PATCH` | `/api/integrations/prowlarr` | `INTEGRATIONS_PROWLARR_MANAGE` | `update` |
@@ -191,7 +191,7 @@ From `ProwlarrController`.
 
 From `MediaController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/media/dashboard` | `MEDIA_MANAGER_VIEW` | `dashboard` |
 | `GET` | `/api/media/health` | `MEDIA_MANAGER_VIEW` | `health` |
@@ -257,7 +257,7 @@ From `MediaController`.
 
 From `MediaAcquisitionController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/media-acquisition/overview` | `MEDIA_ACQUISITION_VIEW` | `overview` |
 | `GET` | `/api/media-acquisition/watchlist` | `MEDIA_ACQUISITION_VIEW` | `listWatchlist` |
@@ -310,7 +310,7 @@ From `MediaAcquisitionController`.
 
 From `MediaServerAnalyticsController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/media-server-analytics/dashboard` | `MEDIA_SERVER_ANALYTICS_VIEW` | `dashboard` |
 | `GET` | `/api/media-server-analytics/live` | `MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY` | `live` |
@@ -372,7 +372,7 @@ From `MediaServerAnalyticsController`.
 
 From `NewsletterImageController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/media-server-analytics/nl-image/:id` | — | `serve` |
 
@@ -380,7 +380,7 @@ From `NewsletterImageController`.
 
 From `ModuleRegistryController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/modules/enabled` | `MODULES_VIEW` | `enabled` |
 | `GET` | `/api/modules/license` | `MODULES_VIEW` | `licenseStatus` |
@@ -395,7 +395,7 @@ From `ModuleRegistryController`.
 
 From `NotificationCenterController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/notifications/dashboard` | `NOTIFICATIONS_VIEW` | `dashboard` |
 | `GET` | `/api/notifications/providers` | `NOTIFICATIONS_VIEW` | `providers` |
@@ -436,7 +436,7 @@ From `NotificationCenterController`.
 
 From `ReleaseScoringController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `POST` | `/api/release-scoring/score` | `RELEASE_SCORING_VIEW` | `score` |
 | `POST` | `/api/release-scoring/test-rule` | `RELEASE_SCORING_VIEW` | `testRule` |
@@ -445,7 +445,7 @@ From `ReleaseScoringController`.
 
 From `TorrentsController`.
 
-| Method | Path | Permission | Handler |
+| Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/torrents/parking` | `TORRENTS_VIEW` | `listParked` |
 | `GET` | `/api/torrents/parking/settings` | `TORRENTS_VIEW` | `getParkingRules` |
@@ -475,8 +475,8 @@ From `TorrentsController`.
 | `POST` | `/api/torrents/:hash/trackers` | `TORRENTS_MANAGE_TRACKERS` | `addTracker` |
 | `DELETE` | `/api/torrents/:hash/trackers` | `TORRENTS_MANAGE_TRACKERS` | `removeTracker` |
 
-## See also
+## Ver también
 
-- [Permissions Reference](/reference/permissions) — what each guard requires
-- [API Keys](/modules/api-keys) — non-interactive access
-- [WebSocket events](/develop/websockets) — live updates instead of polling
+- [Referencia de permisos](/reference/permissions) — qué exige cada guard
+- [Claves API](/modules/api-keys) — acceso no interactivo
+- [Eventos WebSocket](/develop/websockets) — actualizaciones en vivo en vez de sondeo

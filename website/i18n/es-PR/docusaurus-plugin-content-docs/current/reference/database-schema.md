@@ -1,29 +1,29 @@
 ---
 id: database-schema
-title: Database Schema
+title: Esquema de la base de datos
 sidebar_position: 5
-description: Every Prisma model, its columns and relations, as entity-relationship diagrams.
+description: Cada modelo de Prisma, sus columnas y relaciones, como diagramas entidad-relación.
 keywords: [database, schema, prisma, postgres, models, er diagram, migrations]
 ---
 
-# Database Schema
+# Esquema de la base de datos
 
-:::info Auto-generated
-This page is generated from `apps/backend/prisma/schema.prisma` at build time. **Do not edit it by hand** — change the source and rebuild. This guarantees the reference always matches the code that ships.
+:::info Generado automáticamente
+Esta página se genera desde `apps/backend/prisma/schema.prisma` durante el build. **No la edites a mano** — cambia la fuente y reconstruye. Esto garantiza que la referencia siempre coincida con el código que se publica.
 :::
 
-UltraTorrent stores everything in **PostgreSQL**, managed by **Prisma**. There are
-**89 models**. A single ER diagram of all of them would be unreadable, so they are
-grouped by domain below.
+UltraTorrent guarda todo en **PostgreSQL**, gestionado por **Prisma**. Hay
+**89 modelos**. Un solo diagrama ER de todos sería ilegible, así que están
+agrupados por dominio más abajo.
 
-:::tip Never hand-edit the database
-Schema changes go through a Prisma migration so every install converges on the same shape.
-See [Database & Prisma](/develop/database).
+:::tip Nunca edites la base de datos a mano
+Los cambios de esquema pasan por una migración de Prisma para que cada instalación converja
+en la misma forma. Ver [Base de datos y Prisma](/develop/database).
 :::
 
-## Automation
+## Automatización
 
-_2 models._
+_2 modelos._
 
 ```mermaid
 erDiagram
@@ -33,7 +33,7 @@ erDiagram
 
 ### `AutomationRule`
 
-Table: `automation_rules`
+Tabla: `automation_rules`
 
 | Column | Type |
 | --- | --- |
@@ -50,7 +50,7 @@ Table: `automation_rules`
 
 ### `AutomationLog`
 
-Table: `automation_logs`
+Tabla: `automation_logs`
 
 | Column | Type |
 | --- | --- |
@@ -61,9 +61,9 @@ Table: `automation_logs`
 | `message` | `String?` |
 | `createdAt` | `DateTime` |
 
-## IMDb catalogue
+## Catálogo de IMDb
 
-_8 models._
+_8 modelos._
 
 ```mermaid
 erDiagram
@@ -71,7 +71,7 @@ erDiagram
 
 ### `IMDbTitle`
 
-Table: `imdb_titles`
+Tabla: `imdb_titles`
 
 | Column | Type |
 | --- | --- |
@@ -90,7 +90,7 @@ Table: `imdb_titles`
 
 ### `IMDbAka`
 
-Table: `imdb_akas`
+Tabla: `imdb_akas`
 
 | Column | Type |
 | --- | --- |
@@ -106,7 +106,7 @@ Table: `imdb_akas`
 
 ### `IMDbCrew`
 
-Table: `imdb_crew`
+Tabla: `imdb_crew`
 
 | Column | Type |
 | --- | --- |
@@ -117,7 +117,7 @@ Table: `imdb_crew`
 
 ### `IMDbEpisode`
 
-Table: `imdb_episodes`
+Tabla: `imdb_episodes`
 
 | Column | Type |
 | --- | --- |
@@ -129,7 +129,7 @@ Table: `imdb_episodes`
 
 ### `IMDbPrincipal`
 
-Table: `imdb_principals`
+Tabla: `imdb_principals`
 
 | Column | Type |
 | --- | --- |
@@ -143,7 +143,7 @@ Table: `imdb_principals`
 
 ### `IMDbPerson`
 
-Table: `imdb_persons`
+Tabla: `imdb_persons`
 
 | Column | Type |
 | --- | --- |
@@ -157,7 +157,7 @@ Table: `imdb_persons`
 
 ### `IMDbRating`
 
-Table: `imdb_ratings`
+Tabla: `imdb_ratings`
 
 | Column | Type |
 | --- | --- |
@@ -168,7 +168,7 @@ Table: `imdb_ratings`
 
 ### `IMDbDatasetImport`
 
-Table: `imdb_dataset_imports`
+Tabla: `imdb_dataset_imports`
 
 | Column | Type |
 | --- | --- |
@@ -187,9 +187,9 @@ Table: `imdb_dataset_imports`
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 
-## Identity & audit
+## Identidad y auditoría
 
-_6 models._
+_6 modelos._
 
 ```mermaid
 erDiagram
@@ -207,7 +207,7 @@ erDiagram
 
 ### `User`
 
-Table: `users`
+Tabla: `users`
 
 | Column | Type |
 | --- | --- |
@@ -227,7 +227,7 @@ Table: `users`
 
 ### `Role`
 
-Table: `roles`
+Tabla: `roles`
 
 | Column | Type |
 | --- | --- |
@@ -240,7 +240,7 @@ Table: `roles`
 
 ### `UserRole`
 
-Table: `user_roles`
+Tabla: `user_roles`
 
 | Column | Type |
 | --- | --- |
@@ -249,7 +249,7 @@ Table: `user_roles`
 
 ### `RolePermission`
 
-Table: `role_permissions`
+Tabla: `role_permissions`
 
 | Column | Type |
 | --- | --- |
@@ -258,7 +258,7 @@ Table: `role_permissions`
 
 ### `ApiKey`
 
-Table: `api_keys`
+Tabla: `api_keys`
 
 | Column | Type |
 | --- | --- |
@@ -275,7 +275,7 @@ Table: `api_keys`
 
 ### `AuditLog`
 
-Table: `audit_logs`
+Tabla: `audit_logs`
 
 | Column | Type |
 | --- | --- |
@@ -290,9 +290,9 @@ Table: `audit_logs`
 | `metadata` | `Json?` |
 | `createdAt` | `DateTime` |
 
-## Indexers
+## Indexadores
 
-_1 model._
+_1 modelo._
 
 ```mermaid
 erDiagram
@@ -300,7 +300,7 @@ erDiagram
 
 ### `Indexer`
 
-Table: `indexers`
+Tabla: `indexers`
 
 | Column | Type |
 | --- | --- |
@@ -322,9 +322,9 @@ Table: `indexers`
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 
-## Media Manager
+## Gestor de Medios
 
-_20 models._
+_20 modelos._
 
 ```mermaid
 erDiagram
@@ -358,7 +358,7 @@ erDiagram
 
 ### `MediaLibrary`
 
-Table: `media_libraries`
+Tabla: `media_libraries`
 
 | Column | Type |
 | --- | --- |
@@ -379,7 +379,7 @@ Table: `media_libraries`
 
 ### `MediaShow`
 
-Table: `media_shows`
+Tabla: `media_shows`
 
 | Column | Type |
 | --- | --- |
@@ -397,7 +397,7 @@ Table: `media_shows`
 
 ### `MediaItem`
 
-Table: `media_items`
+Tabla: `media_items`
 
 | Column | Type |
 | --- | --- |
@@ -419,7 +419,7 @@ Table: `media_items`
 
 ### `MediaFile`
 
-Table: `media_files`
+Tabla: `media_files`
 
 | Column | Type |
 | --- | --- |
@@ -439,7 +439,7 @@ Table: `media_files`
 
 ### `MediaMetadata`
 
-Table: `media_metadata`
+Tabla: `media_metadata`
 
 | Column | Type |
 | --- | --- |
@@ -466,7 +466,7 @@ Table: `media_metadata`
 
 ### `MediaArtwork`
 
-Table: `media_artwork`
+Tabla: `media_artwork`
 
 | Column | Type |
 | --- | --- |
@@ -484,7 +484,7 @@ Table: `media_artwork`
 
 ### `MediaSubtitle`
 
-Table: `media_subtitles`
+Tabla: `media_subtitles`
 
 | Column | Type |
 | --- | --- |
@@ -499,7 +499,7 @@ Table: `media_subtitles`
 
 ### `MediaExternalId`
 
-Table: `media_external_ids`
+Tabla: `media_external_ids`
 
 | Column | Type |
 | --- | --- |
@@ -511,7 +511,7 @@ Table: `media_external_ids`
 
 ### `MediaCollection`
 
-Table: `media_collections`
+Tabla: `media_collections`
 
 | Column | Type |
 | --- | --- |
@@ -524,7 +524,7 @@ Table: `media_collections`
 
 ### `MediaCollectionItem`
 
-Table: `media_collection_items`
+Tabla: `media_collection_items`
 
 | Column | Type |
 | --- | --- |
@@ -533,7 +533,7 @@ Table: `media_collection_items`
 
 ### `MediaRenameTemplate`
 
-Table: `media_rename_templates`
+Tabla: `media_rename_templates`
 
 | Column | Type |
 | --- | --- |
@@ -547,7 +547,7 @@ Table: `media_rename_templates`
 
 ### `MediaProcessingJob`
 
-Table: `media_processing_jobs`
+Tabla: `media_processing_jobs`
 
 | Column | Type |
 | --- | --- |
@@ -567,7 +567,7 @@ Table: `media_processing_jobs`
 
 ### `MediaDuplicateGroup`
 
-Table: `media_duplicate_groups`
+Tabla: `media_duplicate_groups`
 
 | Column | Type |
 | --- | --- |
@@ -577,7 +577,7 @@ Table: `media_duplicate_groups`
 
 ### `MediaAnalyticsImportSource`
 
-Table: `media_analytics_import_sources`
+Tabla: `media_analytics_import_sources`
 
 | Column | Type |
 | --- | --- |
@@ -600,7 +600,7 @@ Table: `media_analytics_import_sources`
 
 ### `MediaAnalyticsImportJob`
 
-Table: `media_analytics_import_jobs`
+Tabla: `media_analytics_import_jobs`
 
 | Column | Type |
 | --- | --- |
@@ -625,7 +625,7 @@ Table: `media_analytics_import_jobs`
 
 ### `MediaNfoFile`
 
-Table: `media_nfo_files`
+Tabla: `media_nfo_files`
 
 | Column | Type |
 | --- | --- |
@@ -637,7 +637,7 @@ Table: `media_nfo_files`
 
 ### `MediaRenameOperation`
 
-Table: `media_rename_operations`
+Tabla: `media_rename_operations`
 
 | Column | Type |
 | --- | --- |
@@ -654,7 +654,7 @@ Table: `media_rename_operations`
 
 ### `MediaRenameJob`
 
-Table: `media_rename_jobs`
+Tabla: `media_rename_jobs`
 
 | Column | Type |
 | --- | --- |
@@ -676,7 +676,7 @@ Table: `media_rename_jobs`
 
 ### `MediaRenameFile`
 
-Table: `media_rename_files`
+Tabla: `media_rename_files`
 
 | Column | Type |
 | --- | --- |
@@ -694,7 +694,7 @@ Table: `media_rename_files`
 
 ### `MediaNamingTemplate`
 
-Table: `media_naming_templates`
+Tabla: `media_naming_templates`
 
 | Column | Type |
 | --- | --- |
@@ -707,9 +707,9 @@ Table: `media_naming_templates`
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 
-## Media acquisition (Smart Download)
+## Adquisición de medios (Smart Download)
 
-_7 models._
+_7 modelos._
 
 ```mermaid
 erDiagram
@@ -719,7 +719,7 @@ erDiagram
 
 ### `MediaAcquisitionWatchlistItem`
 
-Table: `media_acquisition_watchlist_items`
+Tabla: `media_acquisition_watchlist_items`
 
 | Column | Type |
 | --- | --- |
@@ -746,7 +746,7 @@ Table: `media_acquisition_watchlist_items`
 
 ### `WantedEpisode`
 
-Table: `wanted_episodes`
+Tabla: `wanted_episodes`
 
 | Column | Type |
 | --- | --- |
@@ -770,7 +770,7 @@ Table: `wanted_episodes`
 
 ### `WantedMovie`
 
-Table: `wanted_movies`
+Tabla: `wanted_movies`
 
 | Column | Type |
 | --- | --- |
@@ -791,7 +791,7 @@ Table: `wanted_movies`
 
 ### `MediaAcquisitionProfile`
 
-Table: `media_acquisition_profiles`
+Tabla: `media_acquisition_profiles`
 
 | Column | Type |
 | --- | --- |
@@ -824,7 +824,7 @@ Table: `media_acquisition_profiles`
 
 ### `MediaAcquisitionEvaluation`
 
-Table: `media_acquisition_evaluations`
+Tabla: `media_acquisition_evaluations`
 
 | Column | Type |
 | --- | --- |
@@ -855,7 +855,7 @@ Table: `media_acquisition_evaluations`
 
 ### `MediaAcquisitionAction`
 
-Table: `media_acquisition_actions`
+Tabla: `media_acquisition_actions`
 
 | Column | Type |
 | --- | --- |
@@ -872,7 +872,7 @@ Table: `media_acquisition_actions`
 
 ### `MediaAcquisitionHistory`
 
-Table: `media_acquisition_history`
+Tabla: `media_acquisition_history`
 
 | Column | Type |
 | --- | --- |
@@ -884,9 +884,9 @@ Table: `media_acquisition_history`
 | `metadata` | `Json?` |
 | `createdAt` | `DateTime` |
 
-## Media server analytics
+## Analíticas del servidor de medios
 
-_9 models._
+_9 modelos._
 
 ```mermaid
 erDiagram
@@ -896,7 +896,7 @@ erDiagram
 
 ### `MediaServerIntegration`
 
-Table: `media_server_integrations`
+Tabla: `media_server_integrations`
 
 | Column | Type |
 | --- | --- |
@@ -918,7 +918,7 @@ Table: `media_server_integrations`
 
 ### `MediaServerSession`
 
-Table: `media_server_sessions`
+Tabla: `media_server_sessions`
 
 | Column | Type |
 | --- | --- |
@@ -947,7 +947,7 @@ Table: `media_server_sessions`
 
 ### `MediaServerWatchHistory`
 
-Table: `media_server_watch_history`
+Tabla: `media_server_watch_history`
 
 | Column | Type |
 | --- | --- |
@@ -979,7 +979,7 @@ Table: `media_server_watch_history`
 
 ### `MediaServerLibrary`
 
-Table: `media_server_libraries`
+Tabla: `media_server_libraries`
 
 | Column | Type |
 | --- | --- |
@@ -995,7 +995,7 @@ Table: `media_server_libraries`
 
 ### `MediaServerUser`
 
-Table: `media_server_users`
+Tabla: `media_server_users`
 
 | Column | Type |
 | --- | --- |
@@ -1010,7 +1010,7 @@ Table: `media_server_users`
 
 ### `MediaProviderSyncRun`
 
-Table: `media_provider_sync_runs`
+Tabla: `media_provider_sync_runs`
 
 | Column | Type |
 | --- | --- |
@@ -1026,7 +1026,7 @@ Table: `media_provider_sync_runs`
 
 ### `MediaServerNewsletter`
 
-Table: `media_server_newsletters`
+Tabla: `media_server_newsletters`
 
 | Column | Type |
 | --- | --- |
@@ -1047,7 +1047,7 @@ Table: `media_server_newsletters`
 
 ### `MediaServerNewsletterDelivery`
 
-Table: `media_server_newsletter_deliveries`
+Tabla: `media_server_newsletter_deliveries`
 
 | Column | Type |
 | --- | --- |
@@ -1062,7 +1062,7 @@ Table: `media_server_newsletter_deliveries`
 
 ### `MediaServerConfig`
 
-Table: `media_server_configs`
+Tabla: `media_server_configs`
 
 | Column | Type |
 | --- | --- |
@@ -1075,9 +1075,9 @@ Table: `media_server_configs`
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 
-## Notification Center
+## Centro de Notificaciones
 
-_13 models._
+_13 modelos._
 
 ```mermaid
 erDiagram
@@ -1085,7 +1085,7 @@ erDiagram
 
 ### `Notification`
 
-Table: `notifications`
+Tabla: `notifications`
 
 | Column | Type |
 | --- | --- |
@@ -1100,7 +1100,7 @@ Table: `notifications`
 
 ### `NotificationChannel`
 
-Table: `notification_channels`
+Tabla: `notification_channels`
 
 | Column | Type |
 | --- | --- |
@@ -1128,7 +1128,7 @@ Table: `notification_channels`
 
 ### `NotificationRecipient`
 
-Table: `notification_recipients`
+Tabla: `notification_recipients`
 
 | Column | Type |
 | --- | --- |
@@ -1150,7 +1150,7 @@ Table: `notification_recipients`
 
 ### `NotificationRecipientGroup`
 
-Table: `notification_recipient_groups`
+Tabla: `notification_recipient_groups`
 
 | Column | Type |
 | --- | --- |
@@ -1163,7 +1163,7 @@ Table: `notification_recipient_groups`
 
 ### `NotificationRecipientMember`
 
-Table: `notification_recipient_members`
+Tabla: `notification_recipient_members`
 
 | Column | Type |
 | --- | --- |
@@ -1174,7 +1174,7 @@ Table: `notification_recipient_members`
 
 ### `NotificationTemplate`
 
-Table: `notification_templates`
+Tabla: `notification_templates`
 
 | Column | Type |
 | --- | --- |
@@ -1200,7 +1200,7 @@ Table: `notification_templates`
 
 ### `NotificationRule`
 
-Table: `notification_rules`
+Tabla: `notification_rules`
 
 | Column | Type |
 | --- | --- |
@@ -1231,7 +1231,7 @@ Table: `notification_rules`
 
 ### `NotificationDelivery`
 
-Table: `notification_deliveries`
+Tabla: `notification_deliveries`
 
 | Column | Type |
 | --- | --- |
@@ -1265,7 +1265,7 @@ Table: `notification_deliveries`
 
 ### `NotificationPreference`
 
-Table: `notification_preferences`
+Tabla: `notification_preferences`
 
 | Column | Type |
 | --- | --- |
@@ -1279,7 +1279,7 @@ Table: `notification_preferences`
 
 ### `NotificationQueue`
 
-Table: `notification_queue`
+Tabla: `notification_queue`
 
 | Column | Type |
 | --- | --- |
@@ -1293,7 +1293,7 @@ Table: `notification_queue`
 
 ### `NotificationAttachment`
 
-Table: `notification_attachments`
+Tabla: `notification_attachments`
 
 | Column | Type |
 | --- | --- |
@@ -1309,7 +1309,7 @@ Table: `notification_attachments`
 
 ### `NotificationEvent`
 
-Table: `notification_events`
+Tabla: `notification_events`
 
 | Column | Type |
 | --- | --- |
@@ -1323,7 +1323,7 @@ Table: `notification_events`
 
 ### `NotificationStatistics`
 
-Table: `notification_statistics`
+Tabla: `notification_statistics`
 
 | Column | Type |
 | --- | --- |
@@ -1339,9 +1339,9 @@ Table: `notification_statistics`
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 
-## Platform
+## Plataforma
 
-_10 models._
+_10 modelos._
 
 ```mermaid
 erDiagram
@@ -1349,7 +1349,7 @@ erDiagram
 
 ### `Permission`
 
-Table: `permissions`
+Tabla: `permissions`
 
 | Column | Type |
 | --- | --- |
@@ -1359,7 +1359,7 @@ Table: `permissions`
 
 ### `RefreshToken`
 
-Table: `refresh_tokens`
+Tabla: `refresh_tokens`
 
 | Column | Type |
 | --- | --- |
@@ -1375,7 +1375,7 @@ Table: `refresh_tokens`
 
 ### `ParkedTorrent`
 
-Table: `parked_torrents`
+Tabla: `parked_torrents`
 
 | Column | Type |
 | --- | --- |
@@ -1392,7 +1392,7 @@ Table: `parked_torrents`
 
 ### `DownloadPath`
 
-Table: `download_paths`
+Tabla: `download_paths`
 
 | Column | Type |
 | --- | --- |
@@ -1404,7 +1404,7 @@ Table: `download_paths`
 
 ### `Setting`
 
-Table: `settings`
+Tabla: `settings`
 
 | Column | Type |
 | --- | --- |
@@ -1414,7 +1414,7 @@ Table: `settings`
 
 ### `SystemEvent`
 
-Table: `system_events`
+Tabla: `system_events`
 
 | Column | Type |
 | --- | --- |
@@ -1426,7 +1426,7 @@ Table: `system_events`
 
 ### `ModuleState`
 
-Table: `module_states`
+Tabla: `module_states`
 
 | Column | Type |
 | --- | --- |
@@ -1442,7 +1442,7 @@ Table: `module_states`
 
 ### `ModuleEvent`
 
-Table: `module_events`
+Tabla: `module_events`
 
 | Column | Type |
 | --- | --- |
@@ -1456,7 +1456,7 @@ Table: `module_events`
 
 ### `TrashItem`
 
-Table: `trash_items`
+Tabla: `trash_items`
 
 | Column | Type |
 | --- | --- |
@@ -1472,7 +1472,7 @@ Table: `trash_items`
 
 ### `AcquisitionMatchCandidate`
 
-Table: `acquisition_match_candidates`
+Tabla: `acquisition_match_candidates`
 
 | Column | Type |
 | --- | --- |
@@ -1494,7 +1494,7 @@ Table: `acquisition_match_candidates`
 
 ## RSS
 
-_8 models._
+_8 modelos._
 
 ```mermaid
 erDiagram
@@ -1514,7 +1514,7 @@ erDiagram
 
 ### `RssFeed`
 
-Table: `rss_feeds`
+Tabla: `rss_feeds`
 
 | Column | Type |
 | --- | --- |
@@ -1529,7 +1529,7 @@ Table: `rss_feeds`
 
 ### `RssRule`
 
-Table: `rss_rules`
+Tabla: `rss_rules`
 
 | Column | Type |
 | --- | --- |
@@ -1557,7 +1557,7 @@ Table: `rss_rules`
 
 ### `TvShowStatus`
 
-Table: `tv_show_status`
+Tabla: `tv_show_status`
 
 | Column | Type |
 | --- | --- |
@@ -1584,7 +1584,7 @@ Table: `tv_show_status`
 
 ### `RssAcquisition`
 
-Table: `rss_acquisitions`
+Tabla: `rss_acquisitions`
 
 | Column | Type |
 | --- | --- |
@@ -1599,7 +1599,7 @@ Table: `rss_acquisitions`
 
 ### `RssSmartMatchTemplate`
 
-Table: `rss_smart_match_templates`
+Tabla: `rss_smart_match_templates`
 
 | Column | Type |
 | --- | --- |
@@ -1615,7 +1615,7 @@ Table: `rss_smart_match_templates`
 
 ### `RssRuleMatchCandidate`
 
-Table: `rss_rule_match_candidates`
+Tabla: `rss_rule_match_candidates`
 
 | Column | Type |
 | --- | --- |
@@ -1639,7 +1639,7 @@ Table: `rss_rule_match_candidates`
 
 ### `RssRuleMatchEvaluation`
 
-Table: `rss_rule_match_evaluations`
+Tabla: `rss_rule_match_evaluations`
 
 | Column | Type |
 | --- | --- |
@@ -1656,7 +1656,7 @@ Table: `rss_rule_match_evaluations`
 
 ### `RssHistory`
 
-Table: `rss_history`
+Tabla: `rss_history`
 
 | Column | Type |
 | --- | --- |
@@ -1673,7 +1673,7 @@ Table: `rss_history`
 
 ## Torrents
 
-_5 models._
+_5 modelos._
 
 ```mermaid
 erDiagram
@@ -1689,7 +1689,7 @@ erDiagram
 
 ### `TorrentEngine`
 
-Table: `torrent_engines`
+Tabla: `torrent_engines`
 
 | Column | Type |
 | --- | --- |
@@ -1704,7 +1704,7 @@ Table: `torrent_engines`
 
 ### `TorrentSnapshot`
 
-Table: `torrent_snapshots`
+Tabla: `torrent_snapshots`
 
 | Column | Type |
 | --- | --- |
@@ -1729,7 +1729,7 @@ Table: `torrent_snapshots`
 
 ### `TorrentCategory`
 
-Table: `torrent_categories`
+Tabla: `torrent_categories`
 
 | Column | Type |
 | --- | --- |
@@ -1741,7 +1741,7 @@ Table: `torrent_categories`
 
 ### `TorrentTag`
 
-Table: `torrent_tags`
+Tabla: `torrent_tags`
 
 | Column | Type |
 | --- | --- |
@@ -1752,14 +1752,14 @@ Table: `torrent_tags`
 
 ### `TorrentTagLink`
 
-Table: `torrent_tag_links`
+Tabla: `torrent_tag_links`
 
 | Column | Type |
 | --- | --- |
 | `snapshotId` | `String` |
 | `tagId` | `String` |
 
-## See also
+## Ver también
 
-- [Backup & restore](/operate/backup) — dump and restore this database safely
-- [Database & Prisma for developers](/develop/database)
+- [Copias de seguridad y restauración](/operate/backup) — vuelca y restaura esta base de datos de forma segura
+- [Base de datos y Prisma para desarrolladores](/develop/database)

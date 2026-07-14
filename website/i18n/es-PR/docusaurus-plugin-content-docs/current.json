@@ -1,0 +1,14 @@
+{
+  "version.label": {
+    "message": "Próxima (main)",
+    "description": "The label for version current"
+  },
+  "sidebar.learn.category.Tutorials": {
+    "message": "Tutoriales",
+    "description": "The label for category 'Tutorials' in sidebar 'learn'"
+  },
+  "sidebar.install.category.Platforms": {
+    "message": "Plataformas",
+    "description": "The label for category 'Platforms' in sidebar 'install'"
+  }
+}

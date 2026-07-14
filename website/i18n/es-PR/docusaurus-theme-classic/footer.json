@@ -1,0 +1,58 @@
+{
+  "link.title.Learn": {
+    "message": "Aprende",
+    "description": "The title of the footer links column with title=Learn in the footer"
+  },
+  "link.title.Reference": {
+    "message": "Referencia",
+    "description": "The title of the footer links column with title=Reference in the footer"
+  },
+  "link.title.Help": {
+    "message": "Ayuda",
+    "description": "The title of the footer links column with title=Help in the footer"
+  },
+  "link.item.label.Introduction": {
+    "message": "Introducción",
+    "description": "The label of footer link with label=Introduction linking to /"
+  },
+  "link.item.label.Quick Start": {
+    "message": "Inicio rápido",
+    "description": "The label of footer link with label=Quick Start linking to /learn/quick-start"
+  },
+  "link.item.label.Core Concepts": {
+    "message": "Conceptos básicos",
+    "description": "The label of footer link with label=Core Concepts linking to /learn/concepts"
+  },
+  "link.item.label.REST API": {
+    "message": "API REST",
+    "description": "The label of footer link with label=REST API linking to /reference/api"
+  },
+  "link.item.label.Permissions": {
+    "message": "Permisos",
+    "description": "The label of footer link with label=Permissions linking to /reference/permissions"
+  },
+  "link.item.label.Environment Variables": {
+    "message": "Variables de entorno",
+    "description": "The label of footer link with label=Environment Variables linking to /reference/environment"
+  },
+  "link.item.label.Database Schema": {
+    "message": "Esquema de la base de datos",
+    "description": "The label of footer link with label=Database Schema linking to /reference/database-schema"
+  },
+  "link.item.label.Troubleshooting": {
+    "message": "Resolución de problemas",
+    "description": "The label of footer link with label=Troubleshooting linking to /operate/troubleshooting"
+  },
+  "link.item.label.FAQ": {
+    "message": "Preguntas frecuentes",
+    "description": "The label of footer link with label=FAQ linking to /help/faq"
+  },
+  "link.item.label.GitHub Issues": {
+    "message": "Issues en GitHub",
+    "description": "The label of footer link with label=GitHub Issues linking to https://github.com/damirabal/ultratorrent-core/issues"
+  },
+  "copyright": {
+    "message": "Copyright © 2026 UltraTorrent.",
+    "description": "The footer copyright"
+  }
+}

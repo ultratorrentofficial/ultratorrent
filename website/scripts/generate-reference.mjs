@@ -223,9 +223,12 @@ const ES = [
     'UltraTorrent stores everything in **PostgreSQL**, managed by **Prisma**.',
     'UltraTorrent guarda todo en **PostgreSQL**, gestionado por **Prisma**.',
   ],
+  // Regex, not a literal: the count tracks the schema. Hard-coding it ("**88 models**")
+  // silently reverted this sentence to English the day an 89th model landed — caught
+  // only because the leak report below flagged it.
   [
-    'There are\n**88 models**. A single ER diagram of all of them would be unreadable, so they are\ngrouped by domain below.',
-    'Hay\n**88 modelos**. Un solo diagrama ER de todos sería ilegible, así que están\nagrupados por dominio más abajo.',
+    /There are\n\*\*(\d+) models\*\*\. A single ER diagram of all of them would be unreadable, so they are\ngrouped by domain below\./g,
+    'Hay\n**$1 modelos**. Un solo diagrama ER de todos sería ilegible, así que están\nagrupados por dominio más abajo.',
   ],
   [':::tip Never hand-edit the database', ':::tip Nunca edites la base de datos a mano'],
   [
