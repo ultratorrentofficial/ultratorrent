@@ -75,15 +75,34 @@ export function heatColor(intensity: number): string {
   return `rgba(57, 135, 229, ${alpha.toFixed(3)})`;
 }
 
+/** A folded distribution slice, carrying the values it stands for. */
+export interface FoldedSlice {
+  name: string;
+  plays: number;
+  color: string;
+  /**
+   * The underlying values this slice was built from — one for a normal bar, and for
+   * the gray "Other" bar, every value that was folded into it. Without this, clicking
+   * "Other" has no filter to drill on: the bar's own name is a placeholder that
+   * matches nothing in the data.
+   */
+  members: string[];
+}
+
 /** Cap a distribution to the top N slices, folding the rest into a gray "Other". */
 export function foldTopN<T extends { plays: number }>(
   items: T[],
   n: number,
   label: (t: T) => string,
-): { name: string; plays: number; color: string }[] {
+): FoldedSlice[] {
   const sorted = [...items].sort((a, b) => b.plays - a.plays);
-  const top = sorted.slice(0, n).map((t, i) => ({ name: label(t), plays: t.plays, color: seriesColor(i) }));
-  const rest = sorted.slice(n).reduce((s, t) => s + t.plays, 0);
-  if (rest > 0) top.push({ name: 'Other', plays: rest, color: OTHER_COLOR });
+  const top: FoldedSlice[] = sorted
+    .slice(0, n)
+    .map((t, i) => ({ name: label(t), plays: t.plays, color: seriesColor(i), members: [label(t)] }));
+  const restItems = sorted.slice(n);
+  const rest = restItems.reduce((s, t) => s + t.plays, 0);
+  if (rest > 0) {
+    top.push({ name: 'Other', plays: rest, color: OTHER_COLOR, members: restItems.map(label) });
+  }
   return top;
 }

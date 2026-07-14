@@ -3,17 +3,44 @@ import { MediaServerReportService } from './media-server-report.service';
 /** In-memory watch-history table supporting the aggregate/groupBy the report uses. */
 class WatchHistoryTable {
   constructor(public rows: any[]) {}
-  /** Apply the subset of Prisma `where` the report builds. */
-  private applyWhere(where: any): any[] {
-    let r = this.rows;
-    if (where?.startedAt?.gte) r = r.filter((x) => x.startedAt >= where.startedAt.gte);
-    if (where?.mediaType) r = r.filter((x) => x.mediaType === where.mediaType);
-    if (where?.connectionId) r = r.filter((x) => x.connectionId === where.connectionId);
-    if (where?.libraryName) r = r.filter((x) => x.libraryName === where.libraryName);
-    if (where?.userName) r = r.filter((x) => x.userName === where.userName);
-    if (where?.bitrateKbps?.not === null) r = r.filter((x) => x.bitrateKbps != null);
-    return r;
+
+  /**
+   * A real matcher, not a list of hard-coded keys. The drill-down builds nested
+   * `AND`/`OR`/`in`/`= null` clauses, and a harness that quietly ignored an unknown
+   * key would let a filtered test pass while filtering nothing.
+   */
+  private matches(row: any, where: any): boolean {
+    if (!where) return true;
+    for (const [k, v] of Object.entries(where as Record<string, any>)) {
+      if (k === 'AND') {
+        if (!(v as any[]).every((c) => this.matches(row, c))) return false;
+        continue;
+      }
+      if (k === 'OR') {
+        if (!(v as any[]).some((c) => this.matches(row, c))) return false;
+        continue;
+      }
+      const val = row[k];
+      if (v === null) {
+        if (val != null) return false;
+        continue;
+      }
+      if (v && typeof v === 'object' && !(v instanceof Date)) {
+        if ('gte' in v && !(val >= v.gte)) return false;
+        if ('lt' in v && !(val < v.lt)) return false;
+        if ('in' in v && !(v.in as any[]).includes(val)) return false;
+        if ('not' in v && v.not === null && val == null) return false;
+        continue;
+      }
+      if (val !== v) return false;
+    }
+    return true;
   }
+
+  private applyWhere(where: any): any[] {
+    return this.rows.filter((r) => this.matches(r, where));
+  }
+
   async aggregate({ where, _count, _sum }: any) {
     const rows = this.applyWhere(where);
     const out: any = {};
@@ -24,8 +51,19 @@ class WatchHistoryTable {
     }
     return out;
   }
-  async findMany({ where }: any = {}) {
-    return this.applyWhere(where);
+  async count({ where }: any = {}) {
+    return this.applyWhere(where).length;
+  }
+  async findMany({ where, orderBy, skip, take }: any = {}) {
+    let r = this.applyWhere(where);
+    if (orderBy?.startedAt) {
+      r = [...r].sort((a, b) =>
+        orderBy.startedAt === 'desc' ? +b.startedAt - +a.startedAt : +a.startedAt - +b.startedAt,
+      );
+    }
+    if (skip) r = r.slice(skip);
+    if (take != null) r = r.slice(0, take);
+    return r;
   }
   async groupBy({ by, where, _count, _sum, _max }: any) {
     const key = (r: any) => by.map((k: string) => r[k]).join(' ');
@@ -262,5 +300,182 @@ describe('MediaServerReportService', () => {
       expect(out[0]).toMatchObject({ id: '1', title: 'Movie A', poster: { id: 'a1', type: 'poster' } });
       expect(out[1].poster).toBeNull();
     });
+  });
+});
+
+/**
+ * Clicking a chart must open onto exactly the plays that chart counted. The traps:
+ * a bar's LABEL is derived (`1080p` folds the raw `1080p`, `1080` and the junk `p`
+ * Tautulli emits), the `Unknown` bar is NULL rather than the string "Unknown", and
+ * the heatmap is bucketed in JS — so a SQL re-implementation could disagree with the
+ * number printed in the cell.
+ */
+describe('MediaServerReportService.plays — chart drill-down', () => {
+  const at = (iso: string) => new Date(iso);
+  const play = (over: any = {}) => ({
+    id: over.id ?? Math.random().toString(36).slice(2),
+    title: 'Show',
+    mediaType: 'episode',
+    libraryName: 'TV Shows',
+    userName: 'Dennis',
+    device: 'Roku',
+    client: 'Plex',
+    resolution: '1080p',
+    playbackMethod: 'directplay',
+    bitrateKbps: 4000,
+    // A Wednesday, 20:00 local.
+    startedAt: at('2026-07-08T20:00:00'),
+    watchedSeconds: 100,
+    percentComplete: 90,
+    ...over,
+  });
+  const page = { page: 1, pageSize: 50 };
+
+  it('drills a Top Users bar into that user’s plays', async () => {
+    const svc = makeService([
+      play({ id: 'a', userName: 'Dennis' }),
+      play({ id: 'b', userName: 'Madeline' }),
+      play({ id: 'c', userName: 'Dennis' }),
+    ]);
+    const res = await svc.plays(undefined, { users: ['Dennis'] }, page);
+    expect(res.total).toBe(2);
+    expect(res.items.map((r: any) => r.id).sort()).toEqual(['a', 'c']);
+  });
+
+  it('drills a folded "Other" bar into ALL the users it folded', async () => {
+    const svc = makeService([
+      play({ id: 'a', userName: 'Rafael' }),
+      play({ id: 'b', userName: 'Maria' }),
+      play({ id: 'c', userName: 'Dennis' }),
+    ]);
+    const res = await svc.plays(undefined, { users: ['Rafael', 'Maria'] }, page);
+    expect(res.total).toBe(2);
+    expect(res.items.map((r: any) => r.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('drills the "Unknown" user bar into the NULL rows the bar was built from', async () => {
+    // The bar exists because rows have no userName. Filtering `userName = 'Unknown'`
+    // would return zero and the operator would click a populated bar to see nothing.
+    const svc = makeService([
+      play({ id: 'a', userName: null }),
+      play({ id: 'b', userName: null }),
+      play({ id: 'c', userName: 'Dennis' }),
+    ]);
+    const bar = (await svc.users()).find((u: any) => u.userName === 'Unknown')!;
+    expect(bar.plays).toBe(2);
+
+    const res = await svc.plays(undefined, { users: ['Unknown'] }, page);
+    expect(res.total).toBe(bar.plays);
+    expect(res.items.map((r: any) => r.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('the Unknown bar merges NULL with a viewer literally named "Unknown" — and so does its drill', async () => {
+    // groupBy returns these as two groups; charting both as "Unknown" without merging
+    // renders two identically-named bars that no drill-down could tell apart.
+    const svc = makeService([
+      play({ id: 'a', userName: null }),
+      play({ id: 'b', userName: 'Unknown' }),
+      play({ id: 'c', userName: 'Dennis' }),
+    ]);
+    const unknownBars = (await svc.users()).filter((u: any) => u.userName === 'Unknown');
+    expect(unknownBars).toHaveLength(1); // one bar, not two
+    expect(unknownBars[0].plays).toBe(2);
+
+    const res = await svc.plays(undefined, { users: ['Unknown'] }, page);
+    expect(res.total).toBe(2); // the drill agrees with the bar
+    expect(res.items.map((r: any) => r.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('drills a device bar into that device', async () => {
+    const svc = makeService([
+      play({ id: 'a', device: 'Roku' }),
+      play({ id: 'b', device: 'Tizen' }),
+    ]);
+    const res = await svc.plays(undefined, { devices: ['Roku'] }, page);
+    expect(res.total).toBe(1);
+    expect(res.items[0].id).toBe('a');
+  });
+
+  it('drills the 1080p bar into EVERY raw value that folds into it', async () => {
+    // The chart's 1080p bar counts all three. Filtering resolution = '1080p' would
+    // silently drop two of them — on the live library that is 37 plays stored as
+    // "1080" plus 33 stored as the junk "p".
+    const svc = makeService([
+      play({ id: 'a', resolution: '1080p' }),
+      play({ id: 'b', resolution: '1080' }),
+      play({ id: 'c', resolution: '1080P' }),
+      play({ id: 'd', resolution: '720p' }),
+    ]);
+    const chart = await svc.resolutions();
+    expect(chart.find((r: any) => r.resolution === '1080p')!.plays).toBe(3);
+
+    const res = await svc.plays(undefined, { resolution: '1080p' }, page);
+    expect(res.total).toBe(3); // matches the bar exactly
+    expect(res.items.map((r: any) => r.id).sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('drills the Unknown quality bar into rows with no resolution', async () => {
+    const svc = makeService([play({ id: 'a', resolution: null }), play({ id: 'b', resolution: '720p' })]);
+    const res = await svc.plays(undefined, { resolution: 'Unknown' }, page);
+    expect(res.total).toBe(1);
+    expect(res.items[0].id).toBe('a');
+  });
+
+  it('drills a playback-method slice across its provider spellings', async () => {
+    const svc = makeService([
+      play({ id: 'a', playbackMethod: 'transcode' }),
+      play({ id: 'b', playbackMethod: 'Transcode (HW)' }),
+      play({ id: 'c', playbackMethod: 'directplay' }),
+    ]);
+    const res = await svc.plays(undefined, { playbackMethod: 'transcode' }, page);
+    expect(res.total).toBe(2);
+    expect(res.items.map((r: any) => r.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('drills a heatmap cell into exactly the plays that cell counted', async () => {
+    const svc = makeService([
+      play({ id: 'a', startedAt: at('2026-07-08T20:15:00') }), // Wed 20h
+      play({ id: 'b', startedAt: at('2026-07-08T20:55:00') }), // Wed 20h
+      play({ id: 'c', startedAt: at('2026-07-08T21:00:00') }), // Wed 21h
+      play({ id: 'd', startedAt: at('2026-07-09T20:00:00') }), // Thu 20h
+    ]);
+    const grid = await svc.heatmap();
+    const wed20 = grid.cells.find((c: any) => c.dow === 3 && c.hour === 20)!;
+    expect(wed20.plays).toBe(2);
+
+    const res = await svc.plays(undefined, { dow: 3, hour: 20 }, page);
+    // The drill-down count can never contradict the number printed in the cell.
+    expect(res.total).toBe(wed20.plays);
+    expect(res.items.map((r: any) => r.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('honours the dashboard filter alongside the clicked slice', async () => {
+    const svc = makeService([
+      play({ id: 'a', userName: 'Dennis', libraryName: 'TV Shows' }),
+      play({ id: 'b', userName: 'Dennis', libraryName: 'Movies' }),
+    ]);
+    const res = await svc.plays({ libraryName: 'Movies' }, { users: ['Dennis'] }, page);
+    expect(res.total).toBe(1);
+    expect(res.items[0].id).toBe('b');
+  });
+
+  it('paginates, newest first', async () => {
+    const svc = makeService([
+      play({ id: 'old', startedAt: at('2026-07-01T10:00:00') }),
+      play({ id: 'new', startedAt: at('2026-07-09T10:00:00') }),
+      play({ id: 'mid', startedAt: at('2026-07-05T10:00:00') }),
+    ]);
+    const p1 = await svc.plays(undefined, {}, { page: 1, pageSize: 2 });
+    expect(p1.total).toBe(3);
+    expect(p1.items.map((r: any) => r.id)).toEqual(['new', 'mid']);
+    const p2 = await svc.plays(undefined, {}, { page: 2, pageSize: 2 });
+    expect(p2.items.map((r: any) => r.id)).toEqual(['old']);
+  });
+
+  it('returns nothing for a label that matches no rows (never the whole table)', async () => {
+    const svc = makeService([play({ id: 'a', resolution: '720p' })]);
+    const res = await svc.plays(undefined, { resolution: '4K' }, page);
+    expect(res.total).toBe(0);
+    expect(res.items).toEqual([]);
   });
 });

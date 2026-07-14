@@ -339,5 +339,21 @@
       "60s": "1m",
       "5m": "5m"
     }
+  },
+  "drilldown": {
+    "subtitle": "{{count}} play(s) · from {{source}}",
+    "source": {
+      "users": "Top Users",
+      "devices": "Devices",
+      "resolution": "Quality distribution",
+      "heatmap": "Activity heatmap"
+    },
+    "col": {
+      "quality": "Quality"
+    },
+    "unknown": "Unknown",
+    "loading": "Loading plays…",
+    "loadError": "Could not load these plays.",
+    "empty": "No plays behind this slice."
   }
 }

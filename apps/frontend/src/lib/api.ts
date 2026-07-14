@@ -3369,6 +3369,26 @@ export const api = {
     reportResolutions(filter?: MediaAnalyticsFilter): Promise<MediaServerResolutionStat[]> {
       return request<MediaServerResolutionStat[]>(`/media-server-analytics/reports/resolutions${analyticsQuery(filter)}`);
     },
+    /** The individual plays behind one clicked chart slice. */
+    reportPlays(
+      filter: MediaAnalyticsFilter | undefined,
+      drill: MediaAnalyticsDrill,
+      page: PageQuery = {},
+    ): Promise<Paginated<MediaServerPlayRow>> {
+      const params = new URLSearchParams(analyticsQuery(filter).replace(/^\?/, ''));
+      if (drill.users?.length) params.set('users', drill.users.join(','));
+      if (drill.devices?.length) params.set('devices', drill.devices.join(','));
+      if (drill.resolution) params.set('resolution', drill.resolution);
+      if (drill.playbackMethod) params.set('playbackMethod', drill.playbackMethod);
+      if (drill.dow != null) params.set('dow', String(drill.dow));
+      if (drill.hour != null) params.set('hour', String(drill.hour));
+      if (drill.title) params.set('title', drill.title);
+      if (page.page) params.set('page', String(page.page));
+      if (page.pageSize) params.set('pageSize', String(page.pageSize));
+      return request<Paginated<MediaServerPlayRow>>(
+        `/media-server-analytics/reports/plays?${params.toString()}`,
+      );
+    },
     reportLibraryGrowth(filter?: MediaAnalyticsFilter): Promise<MediaServerLibraryGrowthPoint[]> {
       return request<MediaServerLibraryGrowthPoint[]>(`/media-server-analytics/reports/library-growth${analyticsQuery(filter)}`);
     },
@@ -3851,6 +3871,38 @@ export interface MediaServerWatchHistoryRow {
   percentComplete: number | null;
   playbackMethod: string | null;
   importSource: string | null;
+}
+
+/** Which slice of a chart was clicked — the drill-down filter. */
+export interface MediaAnalyticsDrill {
+  /** Values exactly as charted. `Unknown` also matches rows with no value. */
+  users?: string[];
+  devices?: string[];
+  /** A canonical chart LABEL ("1080p", "SD", "Unknown") — resolved server-side. */
+  resolution?: string;
+  playbackMethod?: string;
+  /** A heatmap cell. */
+  dow?: number;
+  hour?: number;
+  title?: string;
+}
+
+/** One play behind a chart slice. */
+export interface MediaServerPlayRow {
+  id: string;
+  title: string;
+  mediaType: string | null;
+  libraryName: string | null;
+  userName: string | null;
+  device: string | null;
+  client: string | null;
+  resolution: string | null;
+  videoCodec: string | null;
+  bitrateKbps: number | null;
+  playbackMethod: string | null;
+  startedAt: string;
+  watchedSeconds: number | null;
+  percentComplete: number | null;
 }
 
 export interface MediaServerConnectionSummary {

@@ -22,6 +22,7 @@ import { RecentlyAddedStrip } from './RecentlyAddedStrip';
 import { ActivityHeatmap } from './ActivityHeatmap';
 import { ProviderStatusPanel } from './ProviderStatusPanel';
 import { useAnalyticsFilters } from './analytics-filters';
+import { PlayDrilldownDrawer, type DrilldownTarget } from './PlayDrilldownDrawer';
 
 function watchTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -46,6 +47,8 @@ export function MediaServerAnalyticsDashboardPage() {
   const liveRefresh = refreshMs || 15000; // live panel always polls (min 15s)
   const [exporting, setExporting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  // Which chart slice the operator clicked. Null = the drawer is closed.
+  const [drill, setDrill] = useState<DrilldownTarget | null>(null);
 
   const dash = useQuery({ queryKey: ['msa', 'dashboard'], queryFn: () => api.mediaServerAnalytics.dashboard(), refetchInterval: refreshMs || false });
   const live = useQuery({ queryKey: ['msa', 'live'], queryFn: () => api.mediaServerAnalytics.live(), refetchInterval: liveRefresh });
@@ -230,7 +233,24 @@ export function MediaServerAnalyticsDashboardPage() {
               <XAxis type="number" tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
               <YAxis type="category" dataKey="name" tick={axisTick} tickLine={false} axisLine={false} width={90} />
               <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: CHART.tooltipLabel }} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-              <Bar dataKey="plays" fill={CHART_SERIES[0]} radius={[0, 4, 4, 0]} name={t('charts.plays')} />
+              <Bar
+                dataKey="plays"
+                fill={CHART_SERIES[0]}
+                radius={[0, 4, 4, 0]}
+                name={t('charts.plays')}
+                cursor="pointer"
+                onClick={(d: any) =>
+                  d?.payload &&
+                  setDrill({
+                    label: d.payload.name,
+                    source: 'users',
+                    // `members` carries the folded values, so the gray "Other" bar
+                    // drills into every user it stands for rather than a name that
+                    // matches nothing.
+                    drill: { users: d.payload.members },
+                  })
+                }
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -242,7 +262,17 @@ export function MediaServerAnalyticsDashboardPage() {
               <XAxis dataKey="name" tick={axisTick} tickLine={false} axisLine={false} />
               <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
               <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: CHART.tooltipLabel }} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-              <Bar dataKey="plays" fill={CHART_SERIES[1]} radius={[4, 4, 0, 0]} name={t('charts.plays')} />
+              <Bar
+                dataKey="plays"
+                fill={CHART_SERIES[1]}
+                radius={[4, 4, 0, 0]}
+                name={t('charts.plays')}
+                cursor="pointer"
+                onClick={(d: any) =>
+                  d?.payload &&
+                  setDrill({ label: d.payload.name, source: 'devices', drill: { devices: d.payload.members } })
+                }
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -309,7 +339,23 @@ export function MediaServerAnalyticsDashboardPage() {
               <XAxis type="number" tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
               <YAxis type="category" dataKey="resolution" tick={axisTick} tickLine={false} axisLine={false} width={64} />
               <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: CHART.tooltipLabel }} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-              <Bar dataKey="plays" fill={CHART_SERIES[0]} radius={[0, 4, 4, 0]} name={t('charts.plays')} />
+              <Bar
+                dataKey="plays"
+                fill={CHART_SERIES[0]}
+                radius={[0, 4, 4, 0]}
+                name={t('charts.plays')}
+                cursor="pointer"
+                onClick={(d: any) =>
+                  d?.payload &&
+                  setDrill({
+                    label: d.payload.resolution,
+                    source: 'resolution',
+                    // A canonical LABEL, not a stored value: the server folds it back
+                    // to every raw resolution it covers ("1080p" also means "1080").
+                    drill: { resolution: d.payload.resolution },
+                  })
+                }
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -335,7 +381,14 @@ export function MediaServerAnalyticsDashboardPage() {
 
       {/* Activity heatmap */}
       <ChartCard title={t('heatmap.title')} subtitle={t('heatmap.subtitle')} loading={heatmap.isLoading} empty={(heatmap.data?.total ?? 0) === 0} emptyLabel={t('reports.empty')} height={0}>
-        {heatmap.data && <ActivityHeatmap data={heatmap.data} />}
+        {heatmap.data && (
+          <ActivityHeatmap
+            data={heatmap.data}
+            onCellClick={(c) =>
+              setDrill({ label: c.label, source: 'heatmap', drill: { dow: c.dow, hour: c.hour } })
+            }
+          />
+        )}
       </ChartCard>
 
       {/* Top media */}
@@ -354,6 +407,10 @@ export function MediaServerAnalyticsDashboardPage() {
 
       {/* Provider health */}
       <ProviderStatusPanel connections={dash.data.connections} onSync={() => void runSync()} syncing={syncing} />
+
+      {/* The plays behind whichever chart slice was clicked. Carries the dashboard's
+          own filter, so a drill-down is scoped exactly like the chart it came from. */}
+      <PlayDrilldownDrawer target={drill} filter={filter} onClose={() => setDrill(null)} />
     </div>
   );
 }

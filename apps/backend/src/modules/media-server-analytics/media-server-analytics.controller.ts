@@ -9,7 +9,8 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { MediaServerIntegrationService } from '../media/media-server-integration.service';
 import { MediaServerAnalyticsService } from './media-server-analytics.service';
 import { MediaServerSessionService } from './media-server-session.service';
-import { MediaServerReportService, type ReportFilter } from './media-server-report.service';
+import { MediaServerReportService, type ReportFilter, type PlayDrill } from './media-server-report.service';
+import { parsePage } from '../../common/pagination';
 import { MediaServerSyncService } from './media-server-sync.service';
 import { AnalyticsImportService } from './analytics-import.service';
 import { MediaServerEmailService } from './media-server-email.service';
@@ -132,6 +133,40 @@ export class MediaServerAnalyticsController {
   reportResolutions(@Query() q: Record<string, string>) {
     return this.reports.resolutions(parseFilter(q));
   }
+  /**
+   * The individual plays behind one slice of a chart — the drill-down every chart
+   * clicks through to. Takes the dashboard's own filter plus the clicked dimension:
+   * `users`/`devices` (comma-separated; `__unknown__` for the NULL bar, several
+   * values for a folded "Other" bar), `resolution`/`playbackMethod` (a canonical
+   * chart LABEL, resolved server-side back to the raw values it folds), `dow`+`hour`
+   * (a heatmap cell), or `title`.
+   *
+   * Gated on VIEW_HISTORY, not VIEW_REPORTS: an aggregate hides who watched what,
+   * and this does not — it returns named rows, so it needs the same permission as
+   * the watch-history page.
+   */
+  @Get('reports/plays')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_HISTORY)
+  reportPlays(@Query() q: Record<string, string>) {
+    const list = (v?: string) =>
+      v?.split(',').map((s) => s.trim()).filter(Boolean) ?? undefined;
+    const int = (v?: string) => {
+      if (v == null || v === '') return undefined;
+      const n = Number.parseInt(v, 10);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    const drill: PlayDrill = {
+      users: list(q.users),
+      devices: list(q.devices),
+      resolution: q.resolution?.trim() || undefined,
+      playbackMethod: q.playbackMethod?.trim() || undefined,
+      dow: int(q.dow),
+      hour: int(q.hour),
+      title: q.title?.trim() || undefined,
+    };
+    return this.reports.plays(parseFilter(q), drill, parsePage(q.page, q.pageSize));
+  }
+
   @Get('reports/library-growth')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
   reportLibraryGrowth(@Query() q: Record<string, string>) {

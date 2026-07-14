@@ -339,5 +339,21 @@
       "60s": "1m",
       "5m": "5m"
     }
+  },
+  "drilldown": {
+    "subtitle": "{{count}} reproducción(es) · de {{source}}",
+    "source": {
+      "users": "Usuarios principales",
+      "devices": "Dispositivos",
+      "resolution": "Distribución de calidad",
+      "heatmap": "Mapa de actividad"
+    },
+    "col": {
+      "quality": "Calidad"
+    },
+    "unknown": "Desconocido",
+    "loading": "Cargando reproducciones…",
+    "loadError": "No se pudieron cargar estas reproducciones.",
+    "empty": "No hay reproducciones detrás de esta sección."
   }
 }

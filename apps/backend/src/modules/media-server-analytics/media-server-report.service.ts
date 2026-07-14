@@ -15,6 +15,50 @@ export interface ReportFilter {
   userName?: string; // filter to one viewer
 }
 
+/**
+ * The chart bucket a play was counted in has no value: a chart's *label* is
+ * derived, not stored. `1080p` is what `normalizeResolution` makes of the raw
+ * `1080p`, `1080` and even the junk `p` that Tautulli emits; `Unknown` is what it
+ * makes of NULL. So a drill-down cannot filter `resolution = '1080p'` — it has to
+ * resolve the label back to every raw value that folds into it. Same for the
+ * playback-method buckets, and for the `Unknown` user/device bar, which is NULL.
+ */
+export const UNKNOWN_LABEL = 'Unknown';
+
+/** Which slice of a chart the operator clicked. */
+export interface PlayDrill {
+  /** `userName`s exactly as charted; {@link UNKNOWN_LABEL} also matches NULL. Several = a folded "Other". */
+  users?: string[];
+  /** `device`s exactly as charted; {@link UNKNOWN_LABEL} also matches NULL. */
+  devices?: string[];
+  /** A canonical quality LABEL as charted ("1080p", "SD", "Unknown"). */
+  resolution?: string;
+  /** A canonical playback-method bucket as charted ("transcode", "directplay", …). */
+  playbackMethod?: string;
+  /** Heatmap cell: day-of-week 0-6 (Sun-Sat) and hour 0-23. */
+  dow?: number;
+  hour?: number;
+  title?: string;
+}
+
+/** The columns a drill-down row shows. */
+const PLAY_SELECT = {
+  id: true,
+  title: true,
+  mediaType: true,
+  libraryName: true,
+  userName: true,
+  device: true,
+  client: true,
+  resolution: true,
+  videoCodec: true,
+  bitrateKbps: true,
+  playbackMethod: true,
+  startedAt: true,
+  watchedSeconds: true,
+  percentComplete: true,
+} as const;
+
 /** The subset of Prisma's watch-history `where` the reports build. */
 interface HistoryWhere {
   startedAt?: { gte: Date };
@@ -92,13 +136,21 @@ export class MediaServerReportService {
       _sum: { watchedSeconds: true },
       _max: { startedAt: true },
     });
-    return grouped
-      .map((g) => ({
-        userName: g.userName ?? 'Unknown',
-        plays: g._count._all,
-        watchSeconds: g._sum.watchedSeconds ?? 0,
-        lastSeen: g._max.startedAt,
-      }))
+    // Fold by LABEL, not by raw value: `groupBy` returns NULL and a viewer literally
+    // named "Unknown" as two groups, and mapping both to "Unknown" without merging
+    // renders two identically-named bars — which a drill-down could never tell apart.
+    const merged = new Map<string, { plays: number; watchSeconds: number; lastSeen: Date | null }>();
+    for (const g of grouped) {
+      const label = g.userName ?? UNKNOWN_LABEL;
+      const cur = merged.get(label) ?? { plays: 0, watchSeconds: 0, lastSeen: null };
+      cur.plays += g._count._all;
+      cur.watchSeconds += g._sum.watchedSeconds ?? 0;
+      const seen = g._max.startedAt;
+      if (seen && (!cur.lastSeen || seen > cur.lastSeen)) cur.lastSeen = seen;
+      merged.set(label, cur);
+    }
+    return [...merged.entries()]
+      .map(([userName, v]) => ({ userName, plays: v.plays, watchSeconds: v.watchSeconds, lastSeen: v.lastSeen }))
       .sort((a, b) => b.plays - a.plays);
   }
 
@@ -149,8 +201,14 @@ export class MediaServerReportService {
   /** Device/client distribution. */
   async devices(f?: ReportFilter) {
     const grouped = await this.prisma.mediaServerWatchHistory.groupBy({ by: ['device'], where: this.where(f), _count: { _all: true } });
-    return grouped
-      .map((g) => ({ device: g.device ?? 'Unknown', plays: g._count._all }))
+    // Fold by label — NULL and a device literally named "Unknown" are one bar.
+    const merged = new Map<string, number>();
+    for (const g of grouped) {
+      const label = g.device ?? UNKNOWN_LABEL;
+      merged.set(label, (merged.get(label) ?? 0) + g._count._all);
+    }
+    return [...merged.entries()]
+      .map(([device, plays]) => ({ device, plays }))
       .sort((a, b) => b.plays - a.plays);
   }
 
@@ -247,6 +305,130 @@ export class MediaServerReportService {
   }
 
   /** Resolution/quality distribution, merged into canonical labels and ordered high→low. */
+  /**
+   * The individual plays behind one slice of a chart — what the operator gets when
+   * they click a bar, a slice, or a heatmap cell.
+   *
+   * Two things make this more than a `where` clause:
+   *
+   * 1. **Chart labels are derived, so they cannot be filtered on.** `1080p` is what
+   *    {@link normalizeResolution} makes of the raw `1080p`, `1080` *and* the junk
+   *    `p` Tautulli emits; `Unknown` is what it makes of NULL. So the label is first
+   *    resolved back to every raw value that folds into it
+   *    ({@link bucketFilter}) — otherwise the `1080p` bar would open onto a list
+   *    missing the 37 plays stored as `1080`.
+   *
+   * 2. **The heatmap is bucketed in JS, so its drill-down must be too.** `heatmap()`
+   *    buckets with `Date.getDay()`/`getHours()`; reproducing that as SQL `EXTRACT`
+   *    would be a second implementation that can silently disagree with the grid the
+   *    operator is looking at. Instead we pull the (id, startedAt) pairs the filter
+   *    matches, bucket them with the *same* calls, and paginate the ids — so the row
+   *    count can never contradict the number printed in the cell.
+   */
+  async plays(f: ReportFilter | undefined, drill: PlayDrill, page: { page: number; pageSize: number }) {
+    const base = this.where(f);
+    const and: Record<string, unknown>[] = [];
+
+    if (drill.users?.length) and.push(this.valuesOrNull('userName', drill.users));
+    if (drill.devices?.length) and.push(this.valuesOrNull('device', drill.devices));
+    if (drill.title) and.push({ title: drill.title });
+    if (drill.resolution) {
+      and.push(await this.bucketFilter('resolution', drill.resolution, base, (v) => this.normalizeResolution(v)));
+    }
+    if (drill.playbackMethod) {
+      and.push(await this.bucketFilter('playbackMethod', drill.playbackMethod, base, (v) => this.normalizeMethod(v)));
+    }
+
+    const where = (and.length ? { ...base, AND: and } : base) as HistoryWhere;
+    const skip = (page.page - 1) * page.pageSize;
+
+    // Heatmap drill: bucket exactly as the grid does, then paginate the matched ids.
+    if (drill.dow != null || drill.hour != null) {
+      const rows = await this.prisma.mediaServerWatchHistory.findMany({
+        where,
+        select: { id: true, startedAt: true },
+      });
+      const matched = rows
+        .filter(
+          (r) =>
+            (drill.dow == null || r.startedAt.getDay() === drill.dow) &&
+            (drill.hour == null || r.startedAt.getHours() === drill.hour),
+        )
+        .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+
+      const ids = matched.slice(skip, skip + page.pageSize).map((r) => r.id);
+      const found = ids.length
+        ? await this.prisma.mediaServerWatchHistory.findMany({
+            where: { id: { in: ids } },
+            select: PLAY_SELECT,
+          })
+        : [];
+      // `in` does not preserve order — restore the sort we just computed.
+      const byId = new Map(found.map((r) => [r.id, r]));
+      const items = ids
+        .map((id) => byId.get(id))
+        .filter((r): r is (typeof found)[number] => r != null);
+      return { items, total: matched.length, page: page.page, pageSize: page.pageSize };
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.mediaServerWatchHistory.findMany({
+        where,
+        orderBy: { startedAt: 'desc' },
+        skip,
+        take: page.pageSize,
+        select: PLAY_SELECT,
+      }),
+      this.prisma.mediaServerWatchHistory.count({ where }),
+    ]);
+    return { items, total, page: page.page, pageSize: page.pageSize };
+  }
+
+  /**
+   * Match a column against the values exactly as they were charted.
+   *
+   * `users()`/`devices()` fold NULL into the {@link UNKNOWN_LABEL} bar, so the drill
+   * must fold it back — filtering `device = 'Unknown'` alone would return nothing for
+   * a bar built entirely from rows with no device, and the operator would click a bar
+   * reading "412 plays" and be shown an empty list.
+   */
+  private valuesOrNull(field: 'userName' | 'device', values: string[]): Record<string, unknown> {
+    const or: Record<string, unknown>[] = [{ [field]: { in: values } }];
+    if (values.includes(UNKNOWN_LABEL)) or.push({ [field]: null });
+    return or.length === 1 ? or[0] : { OR: or };
+  }
+
+  /**
+   * Resolve a canonical chart label back to the raw column values that fold into it.
+   * The raw set is read from the data itself under the current filter, so a value the
+   * normalizer has never seen (`p`, `4k`, a new provider spelling) still drills down
+   * into whichever bucket the chart actually put it in.
+   */
+  private async bucketFilter(
+    field: 'resolution' | 'playbackMethod',
+    label: string,
+    base: HistoryWhere,
+    normalize: (v: string | null) => string,
+  ): Promise<Record<string, unknown>> {
+    const grouped = await this.prisma.mediaServerWatchHistory.groupBy({
+      by: [field],
+      where: base,
+      _count: { _all: true },
+    });
+    const values = grouped
+      .map((g) => (g as Record<string, unknown>)[field] as string | null)
+      .filter((v) => normalize(v) === label);
+
+    const real = values.filter((v): v is string => v != null);
+    const or: Record<string, unknown>[] = [];
+    if (real.length) or.push({ [field]: { in: real } });
+    if (values.some((v) => v == null)) or.push({ [field]: null });
+    // The label matched nothing under this filter — return an unsatisfiable clause
+    // rather than silently dropping the constraint and listing every play.
+    if (or.length === 0) return { [field]: { in: [] } };
+    return or.length === 1 ? or[0] : { OR: or };
+  }
+
   async resolutions(f?: ReportFilter) {
     const grouped = await this.prisma.mediaServerWatchHistory.groupBy({
       by: ['resolution'],
