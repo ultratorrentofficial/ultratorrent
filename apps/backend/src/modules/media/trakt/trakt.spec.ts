@@ -133,6 +133,18 @@ describe('media-server id parsing (what makes a correct scrobble possible)', () 
   });
 });
 
+describe('normalizeUserName', () => {
+  it('reconciles the login and display forms Plex reports the same person under', () => {
+    const { normalizeUserName } = require('./trakt-client');
+    // A live session says 'dennis.ayala'; the history says 'Dennis Ayala'. Both
+    // must resolve to the same key or scrobbling silently never fires.
+    expect(normalizeUserName('dennis.ayala')).toBe('dennisayala');
+    expect(normalizeUserName('Dennis Ayala')).toBe('dennisayala');
+    expect(normalizeUserName('dennis.ayala')).toBe(normalizeUserName('Dennis Ayala'));
+    expect(normalizeUserName('Someone_Else')).not.toBe('dennisayala');
+  });
+});
+
 describe('TraktScrobbleService', () => {
   const account = {
     userId: 'u1',
@@ -290,6 +302,38 @@ describe('TraktScrobbleService', () => {
 
     // Guessing here would put one person's viewing in another person's history.
     expect(posts).toEqual([]);
+  });
+
+  it('matches the linked name across Plex’s login/display forms', async () => {
+    // Account linked as the display name 'Dennis Ayala'; the live session carries
+    // the login 'dennis.ayala'. An exact compare would miss it and never scrobble.
+    const prisma = {
+      traktAccount: {
+        findMany: jest.fn().mockResolvedValue([
+          { userId: 'u1', scrobbleEnabled: true, mediaServerUserName: 'Dennis Ayala' },
+        ]),
+      },
+      mediaServerSession: {
+        findMany: jest.fn().mockResolvedValue([session({ userName: 'dennis.ayala' })]),
+      },
+      mediaUserWatch: { upsert: jest.fn() },
+    };
+    const auth = {
+      credentials: jest.fn().mockResolvedValue({ clientId: 'id', clientSecret: 's' }),
+      accessTokenFor: jest.fn().mockResolvedValue('token'),
+    };
+    const posts: string[] = [];
+    jest
+      .spyOn(require('./trakt-client').TraktClient.prototype, 'post')
+      .mockImplementation(async (...a: unknown[]) => {
+        posts.push(a[0] as string);
+        return {};
+      });
+    const svc = new TraktScrobbleService(prisma as any, auth as any);
+
+    await svc.sweep();
+
+    expect(posts).toEqual(['/scrobble/start']);
   });
 
   it('does not scrobble an item it cannot identify', async () => {

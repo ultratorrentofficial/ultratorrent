@@ -19,7 +19,7 @@ import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import type { AuditContext } from '../media-metadata.service';
 import { TraktAuthService } from './trakt-auth.service';
-import { TraktClient, toTraktIds, hasAnyId, type TraktIds } from './trakt-client';
+import { TraktClient, toTraktIds, hasAnyId, normalizeUserName, type TraktIds } from './trakt-client';
 
 export interface SyncSummary {
   pulled: number;
@@ -628,9 +628,22 @@ export class TraktSyncService {
       );
     }
 
+    // Match the history's userName by NORMALISED form, not exact string: Plex
+    // reports the same person as `Dennis Ayala` in history but `dennis.ayala` in
+    // a live session, and the linked name may be either. Resolve the actual
+    // history usernames that match, then query for those.
+    const target = normalizeUserName(account.mediaServerUserName);
+    const distinctUsers = await this.prisma.mediaServerWatchHistory.findMany({
+      distinct: ['userName'],
+      select: { userName: true },
+    });
+    const matchingNames = distinctUsers
+      .map((u) => u.userName)
+      .filter((n): n is string => !!n && normalizeUserName(n) === target);
+
     const history = await this.prisma.mediaServerWatchHistory.findMany({
       where: {
-        userName: account.mediaServerUserName,
+        userName: { in: matchingNames.length ? matchingNames : [account.mediaServerUserName] },
         percentComplete: { gte: 80 },
       },
       orderBy: { startedAt: 'desc' },

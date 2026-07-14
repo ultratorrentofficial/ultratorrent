@@ -94,6 +94,18 @@ export function hasAnyId(ids: TraktIds): boolean {
   return Boolean(ids.imdb || ids.tmdb || ids.tvdb || ids.trakt);
 }
 
+/**
+ * Reconcile the two forms Plex reports a user under. A live session carries the
+ * login (`dennis.ayala`), the history carries the display name (`Dennis Ayala`);
+ * stripping everything but alphanumerics collapses both to `dennisayala`, so one
+ * linked username matches whichever form a subsystem produced. Lives here — the
+ * dependency-free module — because both the scrobbler and the sync service need
+ * it and must not import each other. Pure.
+ */
+export function normalizeUserName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 export interface ScrobbleSubject {
   mediaType?: string | null;
   /** Ids of the item itself — the EPISODE's ids for an episode. */

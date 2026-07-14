@@ -24,7 +24,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { TraktAuthService } from './trakt-auth.service';
-import { TraktClient, buildScrobbleBody, type ScrobbleSubject } from './trakt-client';
+import { TraktClient, buildScrobbleBody, normalizeUserName, type ScrobbleSubject } from './trakt-client';
 import { watchKey } from './trakt-sync.service';
 
 /** Trakt marks an item watched when a scrobble stops at or above this progress. */
@@ -82,13 +82,19 @@ export class TraktScrobbleService {
     if (!creds) return;
     const client = new TraktClient(creds);
 
-    const byUserName = new Map(accounts.map((a) => [a.mediaServerUserName!.toLowerCase(), a]));
+    // Match on a NORMALISED name. Plex names the same person differently across
+    // its APIs — a live session says `dennis.ayala` (login) where the history
+    // says `Dennis Ayala` (display name) — so an exact/case-only compare silently
+    // never fires. Stripping non-alphanumerics reconciles both to `dennisayala`.
+    const byUserName = new Map(
+      accounts.map((a) => [normalizeUserName(a.mediaServerUserName!), a]),
+    );
     const sessions = await this.prisma.mediaServerSession.findMany();
     const seen = new Set<string>();
 
     for (const session of sessions) {
       const account = session.userName
-        ? byUserName.get(session.userName.toLowerCase())
+        ? byUserName.get(normalizeUserName(session.userName))
         : undefined;
       if (!account) continue; // not a user who asked us to scrobble for them
 
