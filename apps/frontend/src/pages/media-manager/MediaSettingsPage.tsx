@@ -162,6 +162,7 @@ function useSettingField(key: string) {
 function MetadataProvidersSection() {
   const { t } = useTranslation('media');
   const toast = useToast();
+  const queryClient = useQueryClient();
   const tmdb = useSettingField('media.tmdbApiKey');
   const tvdb = useSettingField('media.tvdbApiKey');
   const tvdbPin = useSettingField('media.tvdbPin');
@@ -209,10 +210,29 @@ function MetadataProvidersSection() {
     }
   };
 
-  const saveTvdb = () => {
-    tvdb.save.mutate(tvdbValue.trim());
-    tvdbPin.save.mutate(pinValue.trim());
-  };
+  /**
+   * Saving a key changes which providers are configured — and therefore the
+   * chain shown below — so the derived state has to be re-read, not left to go
+   * stale until someone reloads the page. (Same reason the Trakt card re-reads
+   * its status on save.)
+   */
+  const saveKeys = useMutation({
+    mutationFn: (patch: Record<string, string>) => api.settings.update(patch),
+    onSuccess: () => {
+      toast.success(t('common.saved'));
+      void queryClient.invalidateQueries({ queryKey: ['settings'] });
+      void chains.refetch();
+    },
+    onError: (err) =>
+      toast.error(t('common.couldNotSave'), err instanceof ApiError ? err.message : undefined),
+  });
+
+  const saveTmdb = () => saveKeys.mutate({ 'media.tmdbApiKey': tmdbValue.trim() });
+  const saveTvdb = () =>
+    saveKeys.mutate({
+      'media.tvdbApiKey': tvdbValue.trim(),
+      'media.tvdbPin': pinValue.trim(),
+    });
 
   return (
     <SectionCard
@@ -247,11 +267,11 @@ function MetadataProvidersSection() {
                   variant="outline"
                   onClick={() => void runTest('tmdb')}
                   loading={testing === 'tmdb'}
-                  disabled={tmdb.save.isPending}
+                  disabled={saveKeys.isPending}
                 >
                   <Plug className="h-4 w-4" /> {t('settings.metadata.testKey')}
                 </Button>
-                <Button onClick={() => tmdb.save.mutate(tmdbValue.trim())} loading={tmdb.save.isPending}>
+                <Button onClick={saveTmdb} loading={saveKeys.isPending}>
                   <Save className="h-4 w-4" /> {t('common.save')}
                 </Button>
               </div>
@@ -290,11 +310,11 @@ function MetadataProvidersSection() {
                     variant="outline"
                     onClick={() => void runTest('tvdb')}
                     loading={testing === 'tvdb'}
-                    disabled={tvdb.save.isPending}
+                    disabled={saveKeys.isPending}
                   >
                     <Plug className="h-4 w-4" /> {t('settings.metadata.testKey')}
                   </Button>
-                  <Button onClick={saveTvdb} loading={tvdb.save.isPending || tvdbPin.save.isPending}>
+                  <Button onClick={saveTvdb} loading={saveKeys.isPending}>
                     <Save className="h-4 w-4" /> {t('common.save')}
                   </Button>
                 </div>
@@ -470,10 +490,29 @@ function TraktSection() {
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['media', 'trakt', 'status'] });
 
-  const saveApp = () => {
-    clientId.save.mutate(idValue.trim());
-    clientSecret.save.mutate(secretValue.trim());
-  };
+  /**
+   * Save both credentials as ONE write, then re-read the status.
+   *
+   * `configured` is a server-side fact derived from these very settings, so
+   * saving them without re-reading it leaves the card insisting the app is
+   * unconfigured — and the Connect button hidden — until the user reloads the
+   * page by hand. Two separate `useSettingField` saves would also race on the
+   * same settings query.
+   */
+  const saveApp = useMutation({
+    mutationFn: () =>
+      api.settings.update({
+        'media.trakt.clientId': idValue.trim(),
+        'media.trakt.clientSecret': secretValue.trim(),
+      }),
+    onSuccess: () => {
+      toast.success(t('common.saved'));
+      void queryClient.invalidateQueries({ queryKey: ['settings'] });
+      refresh();
+    },
+    onError: (err) =>
+      toast.error(t('common.couldNotSave'), err instanceof ApiError ? err.message : undefined),
+  });
 
   /**
    * Drive the device flow. The poll interval comes from Trakt (`intervalSec`) and
@@ -584,7 +623,7 @@ function TraktSection() {
               />
             </div>
             {clientId.canManage && (
-              <Button onClick={saveApp} loading={clientId.save.isPending}>
+              <Button onClick={() => saveApp.mutate()} loading={saveApp.isPending}>
                 <Save className="h-4 w-4" /> {t('common.save')}
               </Button>
             )}
