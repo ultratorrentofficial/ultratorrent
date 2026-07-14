@@ -303,6 +303,59 @@ describe('TraktScrobbleService', () => {
   });
 });
 
+describe('TraktClient HTTP headers', () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it('sends a User-Agent — without one, Cloudflare 403s the request before it reaches Trakt', async () => {
+    // This is not cosmetic. Node's fetch (undici) sends NO User-Agent, and the CDN
+    // in front of api.trakt.tv answers that with a 403 HTML challenge page. It cost
+    // a live debugging session: the error surfaced as "Trakt rejected the client ID"
+    // against a client ID that was perfectly valid.
+    let sent: Record<string, string> = {};
+    global.fetch = jest.fn(async (_url: any, init: any) => {
+      sent = init.headers;
+      return {
+        status: 200,
+        text: async () => JSON.stringify({ device_code: 'd', user_code: 'U', verification_url: 'x', expires_in: 600, interval: 5 }),
+      };
+    }) as any;
+
+    const { TraktClient } = require('./trakt-client');
+    await new TraktClient({ clientId: 'id', clientSecret: 'secret' }).requestDeviceCode();
+
+    expect(sent['User-Agent']).toBeTruthy();
+    expect(sent['trakt-api-version']).toBe('2');
+    expect(sent['trakt-api-key']).toBe('id');
+  });
+
+  it('does not blame the credentials for a CDN block (403 with a non-JSON body)', async () => {
+    global.fetch = jest.fn(async () => ({
+      status: 403,
+      text: async () => '<!DOCTYPE html><html>Cloudflare</html>',
+    })) as any;
+
+    const { TraktClient } = require('./trakt-client');
+    const client = new TraktClient({ clientId: 'id', clientSecret: 'secret' });
+
+    await expect(client.requestDeviceCode()).rejects.toThrow(/CDN|not a credentials problem/i);
+  });
+
+  it('DOES blame the credentials for a real 403 from Trakt (a JSON body)', async () => {
+    global.fetch = jest.fn(async () => ({
+      status: 403,
+      text: async () => JSON.stringify({ error: 'invalid_client' }),
+    })) as any;
+
+    const { TraktClient } = require('./trakt-client');
+    const client = new TraktClient({ clientId: 'bad', clientSecret: 'secret' });
+
+    await expect(client.requestDeviceCode()).rejects.toThrow(/client ID/i);
+  });
+});
+
 describe('TraktPollError', () => {
   it('carries the device-flow status verbatim, because each one means something different', () => {
     // pending → keep polling; slow_down → back off; denied/expired → stop.

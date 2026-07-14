@@ -31,6 +31,14 @@ export type TvdbSeasonType = 'default' | 'official' | 'dvd' | 'absolute' | 'alte
 const BASE = 'https://api4.thetvdb.com/v4';
 const TIMEOUT_MS = 8000;
 
+/**
+ * Sent on every call. Node's fetch (undici) sends NO User-Agent by default, and a
+ * CDN in front of an API will happily 403 that before the request reaches the API
+ * at all — which is precisely how Trakt failed, with an error that blamed the
+ * credentials. Cheap insurance against the same class of failure here.
+ */
+const USER_AGENT = 'UltraTorrent (+https://github.com/damirabal/ultratorrent-core)';
+
 // ---------------------------------------------------------------------------
 // Pure mapping. Exported for unit tests — no key, no network.
 // ---------------------------------------------------------------------------
@@ -176,7 +184,10 @@ export class TvdbMetadataProvider implements MediaMetadataProvider {
     init: RequestInit = {},
     authed = true,
   ): Promise<any> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': USER_AGENT,
+    };
     if (authed) {
       const token = await this.authToken();
       if (!token) return null;
@@ -213,7 +224,7 @@ export class TvdbMetadataProvider implements MediaMetadataProvider {
     try {
       const res = await fetch(`${BASE}/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'User-Agent': USER_AGENT },
         body: JSON.stringify(body),
         signal: ctrl.signal,
       });

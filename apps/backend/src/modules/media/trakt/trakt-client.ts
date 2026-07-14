@@ -16,6 +16,15 @@
 const BASE = 'https://api.trakt.tv';
 const TIMEOUT_MS = 10_000;
 
+/**
+ * Trakt sits behind Cloudflare, which BLOCKS Node's default fetch User-Agent
+ * (undici sends none) with a 403 and an HTML challenge page — before the request
+ * ever reaches Trakt. The credentials are irrelevant to it. Any identifying UA
+ * gets through, so we send one; without this, every call fails 403 and looks
+ * exactly like a rejected client ID.
+ */
+const USER_AGENT = 'UltraTorrent (+https://github.com/damirabal/ultratorrent-core)';
+
 export interface TraktCredentials {
   clientId: string;
   clientSecret: string;
@@ -157,6 +166,8 @@ export class TraktClient {
       'Content-Type': 'application/json',
       'trakt-api-version': '2',
       'trakt-api-key': this.creds.clientId,
+      // Required in practice — see USER_AGENT. Cloudflare 403s a UA-less request.
+      'User-Agent': USER_AGENT,
     };
     if (accessToken) h.Authorization = `Bearer ${accessToken}`;
     return h;
@@ -195,6 +206,15 @@ export class TraktClient {
       body: JSON.stringify({ client_id: this.creds.clientId }),
     });
     if (status !== 200 || !json?.device_code) {
+      // A 403 whose body did not parse as JSON never reached Trakt: it is
+      // Cloudflare's HTML challenge page. Blaming the client ID for that sends
+      // the operator off to re-check credentials that were never the problem —
+      // which is exactly what happened before the User-Agent was added.
+      if (status === 403 && json === null) {
+        throw new Error(
+          "Blocked by Trakt's CDN before the request reached Trakt (HTTP 403). This is not a credentials problem.",
+        );
+      }
       throw new Error(
         status === 403
           ? 'Trakt rejected the client ID. Check the application credentials.'
