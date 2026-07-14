@@ -9,6 +9,7 @@ import { MediaIdentificationService } from './media-identification.service';
 import { MediaItemService } from './media-item.service';
 import { MediaHealthService } from './media-health.service';
 import { MediaMetadataService } from './media-metadata.service';
+import { MetadataProviderRegistry } from './metadata-provider-registry.service';
 import { MediaArtworkService } from './media-artwork.service';
 import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaNfoService } from './media-nfo.service';
@@ -45,6 +46,7 @@ import { MediaController } from './media.controller';
   imports: [SettingsModule, FilesModule],
   providers: [
     ImdbTrigramIndexService,
+    MetadataProviderRegistry,
     SecretCipher,
     MediaService,
     MediaLibraryService,

@@ -45,6 +45,7 @@ import {
   IntegrationInput,
 } from './media-server-integration.service';
 import { MediaProcessingQueueService } from './media-processing-queue.service';
+import { MetadataProviderRegistry } from './metadata-provider-registry.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -84,6 +85,7 @@ export class MediaController {
     private readonly jobs: MediaProcessingQueueService,
     private readonly imdb: ImdbService,
     private readonly mediaActions: MediaAutomationActions,
+    private readonly providerRegistry: MetadataProviderRegistry,
   ) {}
 
   // --- overview ----------------------------------------------------------
@@ -513,6 +515,28 @@ export class MediaController {
   @RequirePermissions(P.SETTINGS_MANAGE)
   testTmdbApi(@Body() body: { apiKey?: string }, @Req() req: Request) {
     return this.media.testTmdbKey(body?.apiKey, auditCtx(req));
+  }
+
+  // --- TheTVDB metadata provider ----------------------------------------
+  @Post('providers/tvdb/test')
+  @RequirePermissions(P.SETTINGS_MANAGE)
+  testTvdbApi(@Body() body: { apiKey?: string; pin?: string }, @Req() req: Request) {
+    return this.media.testTvdbKey(body?.apiKey, body?.pin, auditCtx(req));
+  }
+
+  /** Which metadata providers are configured, and the chain each kind resolves to. */
+  @Get('providers')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  async listProviders() {
+    const [configured, tv, movie] = await Promise.all([
+      this.providerRegistry.configured(),
+      this.providerRegistry.chain('tv'),
+      this.providerRegistry.chain('movie'),
+    ]);
+    return {
+      configured,
+      chains: { tv: tv.map((p) => p.name), movie: movie.map((p) => p.name) },
+    };
   }
 
   // --- IMDb metadata provider -------------------------------------------

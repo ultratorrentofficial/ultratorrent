@@ -363,14 +363,23 @@
     },
     "metadata": {
       "title": "Metadata providers",
-      "description": "TMDB powers rich metadata and artwork. Without a key, local NFO metadata is used.",
-      "noViewPerm": "You do not have permission to view settings. Ask an administrator to configure the TMDB API key.",
+      "description": "Providers are asked in order until one answers. TheTVDB leads for TV, TMDB for film. With no key at all, local NFO metadata is used.",
+      "noViewPerm": "You do not have permission to view settings. Ask an administrator to configure the metadata provider keys.",
       "loading": "Loading…",
       "keyLabel": "TMDB API key",
       "keyPlaceholder": "Enter TMDB API key",
       "testKey": "Test key",
-      "testOkTitle": "TMDB key works",
-      "testFailTitle": "TMDB key test failed"
+      "testOkTitle": "Key works",
+      "testFailTitle": "Key test failed",
+      "tvdbKeyLabel": "TheTVDB API key",
+      "tvdbKeyPlaceholder": "Enter TheTVDB API key",
+      "tvdbPinLabel": "PIN",
+      "tvdbPinPlaceholder": "Subscriber PIN",
+      "tvdbHint": "TheTVDB is the stronger source for television. A user-supported subscriber key also requires its PIN; a project key does not.",
+      "chainLabel": "Lookup order",
+      "chainTv": "TV",
+      "chainMovie": "Film",
+      "chainNone": "No provider is configured — metadata comes from local NFO files only."
     },
     "requiresSettings": "Requires settings access.",
     "artworkPref": {

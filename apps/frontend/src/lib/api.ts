@@ -909,6 +909,16 @@ export type MediaItemType =
 
 export type MediaMatchStatus = 'unmatched' | 'matched' | 'manual';
 
+/**
+ * The configured metadata providers, and the order each kind of media asks them
+ * in. TV leads with TVDB, film with TMDB; a provider that misses falls through
+ * to the next.
+ */
+export interface MediaProviderChains {
+  configured: string[];
+  chains: { tv: string[]; movie: string[] };
+}
+
 export interface MediaItem {
   id: string;
   libraryId: string;
@@ -3062,6 +3072,17 @@ export const api = {
         method: 'POST',
         body: { apiKey },
       });
+    },
+    /** TheTVDB subscriber keys also carry a PIN; both are optional here (falls back to the saved pair). */
+    testTvdbKey(apiKey?: string, pin?: string): Promise<{ ok: boolean; message: string }> {
+      return request<{ ok: boolean; message: string }>('/media/providers/tvdb/test', {
+        method: 'POST',
+        body: { apiKey, pin },
+      });
+    },
+    /** Which metadata providers are configured, and the chain each media kind resolves to. */
+    metadataProviders(): Promise<MediaProviderChains> {
+      return request<MediaProviderChains>('/media/providers');
     },
     validateImdbDataset(body: { datasetPath?: string }): Promise<ImdbDatasetValidationReport> {
       return request<ImdbDatasetValidationReport>('/media/providers/imdb/dataset/validate', {

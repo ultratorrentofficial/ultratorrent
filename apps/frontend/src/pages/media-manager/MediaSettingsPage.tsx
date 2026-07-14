@@ -157,17 +157,41 @@ function useSettingField(key: string) {
 function MetadataProvidersSection() {
   const { t } = useTranslation('media');
   const toast = useToast();
-  const { canView, canManage, stored, isLoading, save } = useSettingField('media.tmdbApiKey');
-  const [value, setValue] = useState('');
-  const [testing, setTesting] = useState(false);
-  useEffect(() => setValue(stored), [stored]);
+  const tmdb = useSettingField('media.tmdbApiKey');
+  const tvdb = useSettingField('media.tvdbApiKey');
+  const tvdbPin = useSettingField('media.tvdbPin');
 
-  // Test the key currently in the box; if it's empty the server falls back to
-  // the saved key, so the button also validates an already-saved key.
-  const runTest = async () => {
-    setTesting(true);
+  const [tmdbValue, setTmdbValue] = useState('');
+  const [tvdbValue, setTvdbValue] = useState('');
+  const [pinValue, setPinValue] = useState('');
+  const [testing, setTesting] = useState<'tmdb' | 'tvdb' | null>(null);
+
+  useEffect(() => setTmdbValue(tmdb.stored), [tmdb.stored]);
+  useEffect(() => setTvdbValue(tvdb.stored), [tvdb.stored]);
+  useEffect(() => setPinValue(tvdbPin.stored), [tvdbPin.stored]);
+
+  const canView = tmdb.canView;
+  const canManage = tmdb.canManage;
+  const isLoading = tmdb.isLoading || tvdb.isLoading;
+
+  // Which providers are live, and who gets asked first. Shown because the chain
+  // is the whole point of having two keys — without it, an operator can't tell
+  // whether their TVDB key is actually being used for TV.
+  const chains = useQuery({
+    queryKey: ['media', 'providers'],
+    queryFn: () => api.media.metadataProviders(),
+    enabled: canView,
+  });
+
+  // Test the key currently in the box; an empty box makes the server fall back
+  // to the saved key, so the button also validates an already-saved one.
+  const runTest = async (which: 'tmdb' | 'tvdb') => {
+    setTesting(which);
     try {
-      const res = await api.media.testTmdbKey(value.trim() || undefined);
+      const res =
+        which === 'tmdb'
+          ? await api.media.testTmdbKey(tmdbValue.trim() || undefined)
+          : await api.media.testTvdbKey(tvdbValue.trim() || undefined, pinValue.trim() || undefined);
       if (res.ok) toast.success(t('settings.metadata.testOkTitle'), res.message);
       else toast.error(t('settings.metadata.testFailTitle'), res.message);
     } catch (err) {
@@ -176,8 +200,13 @@ function MetadataProvidersSection() {
         err instanceof ApiError ? err.message : undefined,
       );
     } finally {
-      setTesting(false);
+      setTesting(null);
     }
+  };
+
+  const saveTvdb = () => {
+    tvdb.save.mutate(tvdbValue.trim());
+    tvdbPin.save.mutate(pinValue.trim());
   };
 
   return (
@@ -193,34 +222,103 @@ function MetadataProvidersSection() {
       ) : isLoading ? (
         <CenteredSpinner label={t('settings.metadata.loading')} />
       ) : (
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[280px] flex-1">
-            <Label htmlFor="tmdb-key">{t('settings.metadata.keyLabel')}</Label>
-            <Input
-              id="tmdb-key"
-              type="password"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder={t('settings.metadata.keyPlaceholder')}
-              disabled={!canManage}
-              autoComplete="off"
-            />
-          </div>
-          {canManage && (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => void runTest()}
-                loading={testing}
-                disabled={save.isPending}
-              >
-                <Plug className="h-4 w-4" /> {t('settings.metadata.testKey')}
-              </Button>
-              <Button onClick={() => save.mutate(value.trim())} loading={save.isPending}>
-                <Save className="h-4 w-4" /> {t('common.save')}
-              </Button>
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[280px] flex-1">
+              <Label htmlFor="tmdb-key">{t('settings.metadata.keyLabel')}</Label>
+              <Input
+                id="tmdb-key"
+                type="password"
+                value={tmdbValue}
+                onChange={(e) => setTmdbValue(e.target.value)}
+                placeholder={t('settings.metadata.keyPlaceholder')}
+                disabled={!canManage}
+                autoComplete="off"
+              />
             </div>
-          )}
+            {canManage && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => void runTest('tmdb')}
+                  loading={testing === 'tmdb'}
+                  disabled={tmdb.save.isPending}
+                >
+                  <Plug className="h-4 w-4" /> {t('settings.metadata.testKey')}
+                </Button>
+                <Button onClick={() => tmdb.save.mutate(tmdbValue.trim())} loading={tmdb.save.isPending}>
+                  <Save className="h-4 w-4" /> {t('common.save')}
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2 border-t border-border/60 pt-5">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-[220px] flex-1">
+                <Label htmlFor="tvdb-key">{t('settings.metadata.tvdbKeyLabel')}</Label>
+                <Input
+                  id="tvdb-key"
+                  type="password"
+                  value={tvdbValue}
+                  onChange={(e) => setTvdbValue(e.target.value)}
+                  placeholder={t('settings.metadata.tvdbKeyPlaceholder')}
+                  disabled={!canManage}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="w-[160px]">
+                <Label htmlFor="tvdb-pin">{t('settings.metadata.tvdbPinLabel')}</Label>
+                <Input
+                  id="tvdb-pin"
+                  type="password"
+                  value={pinValue}
+                  onChange={(e) => setPinValue(e.target.value)}
+                  placeholder={t('settings.metadata.tvdbPinPlaceholder')}
+                  disabled={!canManage}
+                  autoComplete="off"
+                />
+              </div>
+              {canManage && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => void runTest('tvdb')}
+                    loading={testing === 'tvdb'}
+                    disabled={tvdb.save.isPending}
+                  >
+                    <Plug className="h-4 w-4" /> {t('settings.metadata.testKey')}
+                  </Button>
+                  <Button onClick={saveTvdb} loading={tvdb.save.isPending || tvdbPin.save.isPending}>
+                    <Save className="h-4 w-4" /> {t('common.save')}
+                  </Button>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{t('settings.metadata.tvdbHint')}</p>
+          </div>
+
+          <div className="border-t border-border/60 pt-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              {t('settings.metadata.chainLabel')}
+            </p>
+            {chains.data && chains.data.configured.length > 0 ? (
+              <div className="mt-1 flex flex-wrap gap-4 text-sm">
+                <span>
+                  {t('settings.metadata.chainTv')}:{' '}
+                  <span className="font-mono">{chains.data.chains.tv.join(' → ')}</span>
+                </span>
+                <span>
+                  {t('settings.metadata.chainMovie')}:{' '}
+                  <span className="font-mono">{chains.data.chains.movie.join(' → ')}</span>
+                </span>
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('settings.metadata.chainNone')}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </SectionCard>

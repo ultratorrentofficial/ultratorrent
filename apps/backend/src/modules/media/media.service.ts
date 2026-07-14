@@ -34,10 +34,12 @@ import {
   RenamePlan,
 } from './media-renamer';
 import {
-  LocalMetadataProvider,
+  MediaLookup,
   MediaMetadataProvider,
   TmdbMetadataProvider,
 } from './metadata-provider';
+import { TvdbMetadataProvider } from './tvdb-metadata.provider';
+import { MetadataProviderRegistry } from './metadata-provider-registry.service';
 
 export interface RenameRequest {
   hash?: string;
@@ -81,6 +83,7 @@ export class MediaService {
     private readonly settings: SettingsService,
     private readonly registry: EngineRegistryService,
     private readonly audit: AuditService,
+    private readonly providers: MetadataProviderRegistry,
   ) {}
 
   presets() {
@@ -153,11 +156,15 @@ export class MediaService {
   }
 
   // --- metadata provider -------------------------------------------------
-  private async provider(): Promise<MediaMetadataProvider> {
-    const key =
-      (await this.settings.get<string>('media.tmdbApiKey')) ??
-      process.env.TMDB_API_KEY;
-    return key ? new TmdbMetadataProvider(key) : new LocalMetadataProvider();
+  /**
+   * The provider the renamer consults for a title lookup: the highest-priority
+   * configured one for this kind of media (TVDB leads for TV, TMDB for film),
+   * or the offline provider when none is — in which case the renamer falls back
+   * to the parsed name, as it always has.
+   */
+  private async provider(kind: MediaLookup['kind']): Promise<MediaMetadataProvider> {
+    const chain = await this.providers.chain(kind);
+    return chain[0] ?? this.providers.offline();
   }
 
   /**
@@ -186,6 +193,48 @@ export class MediaService {
       action: 'media.tmdb.key_tested',
       objectType: 'setting',
       objectId: 'media.tmdbApiKey',
+      result: result.ok ? 'success' : 'failure',
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { usedSuppliedKey: Boolean(supplied), message: result.message },
+    });
+    return result;
+  }
+
+  /**
+   * Verify a TheTVDB key (and PIN, which subscriber keys require) by logging in.
+   * Same contract as {@link testTmdbKey}: tests the typed value when given one,
+   * else the saved/env key; never echoes the key back; audited.
+   */
+  async testTvdbKey(
+    apiKey: string | undefined,
+    pin: string | undefined,
+    ctx: AuditContext = {},
+  ): Promise<{ ok: boolean; message: string }> {
+    const supplied = typeof apiKey === 'string' ? apiKey.trim() : '';
+    const key =
+      supplied ||
+      (await this.settings.get<string>('media.tvdbApiKey')) ||
+      process.env.TVDB_API_KEY ||
+      '';
+    const suppliedPin = typeof pin === 'string' ? pin.trim() : '';
+    const usePin =
+      suppliedPin ||
+      (await this.settings.get<string>('media.tvdbPin')) ||
+      process.env.TVDB_PIN ||
+      undefined;
+
+    let result: { ok: boolean; message: string };
+    if (!key) {
+      result = { ok: false, message: 'No TheTVDB API key set — enter or save a key first.' };
+    } else {
+      result = await new TvdbMetadataProvider(key, usePin).verify();
+    }
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.tvdb.key_tested',
+      objectType: 'setting',
+      objectId: 'media.tvdbApiKey',
       result: result.ok ? 'success' : 'failure',
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
@@ -259,14 +308,16 @@ export class MediaService {
     // Metadata enrichment (best-effort).
     const { parseTorrentName } = await import('./../rss/torrent-name-parser');
     const parsed = parseTorrentName(sourceName);
-    const meta = await this.provider()
+    const kind: MediaLookup['kind'] =
+      parsed.contentType === 'movie'
+        ? 'movie'
+        : parsed.contentType === 'anime_episode'
+          ? 'anime'
+          : 'tv';
+    const meta = await this.provider(kind)
       .then((p) =>
         p.lookup({
-          kind: (parsed.contentType === 'movie'
-            ? 'movie'
-            : parsed.contentType === 'anime_episode'
-              ? 'anime'
-              : 'tv') as any,
+          kind,
           title: parsed.title ?? sourceName,
           year: parsed.year,
           season: parsed.season,

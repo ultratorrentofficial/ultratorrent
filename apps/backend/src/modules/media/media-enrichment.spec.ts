@@ -486,7 +486,7 @@ describe('MediaMetadataService — an IMDb episode id claimed by two shows', () 
         deleteMany: jest.fn(async (args: any) => { deleted.push(args); return { count: otherFolders.length }; }),
       },
     };
-    const svc = new MediaMetadataService(prisma as any, {} as any, {} as any, {} as any, {} as any);
+    const svc = new MediaMetadataService(prisma as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     return { svc, prisma, deleted };
   }
   const check = (svc: any, it: any, id = 'tt13701758') => svc.isForeignEpisodeId(it, 'imdb', id);
@@ -570,7 +570,7 @@ describe('MediaMetadataService — the collision guard covers every provider, no
         deleteMany: jest.fn(async (args: any) => { deleted.push(args); return { count: otherFolders.length }; }),
       },
     };
-    const svc = new MediaMetadataService(prisma as any, {} as any, {} as any, {} as any, {} as any);
+    const svc = new MediaMetadataService(prisma as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     return { svc, prisma, deleted };
   }
 

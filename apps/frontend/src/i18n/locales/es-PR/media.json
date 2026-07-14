@@ -363,14 +363,23 @@
     },
     "metadata": {
       "title": "Proveedores de metadatos",
-      "description": "TMDB potencia metadatos e ilustraciones enriquecidos. Sin una clave, se usan los metadatos NFO locales.",
-      "noViewPerm": "No tienes permiso para ver los ajustes. Pide a un administrador que configure la clave de la API de TMDB.",
+      "description": "Se consulta a los proveedores en orden hasta que uno responda. TheTVDB va primero para TV y TMDB para cine. Sin ninguna clave, se usan los metadatos NFO locales.",
+      "noViewPerm": "No tienes permiso para ver los ajustes. Pide a un administrador que configure las claves de los proveedores de metadatos.",
       "loading": "Cargando…",
       "keyLabel": "Clave de la API de TMDB",
       "keyPlaceholder": "Ingresa la clave de la API de TMDB",
       "testKey": "Probar clave",
-      "testOkTitle": "La clave de TMDB funciona",
-      "testFailTitle": "Falló la prueba de la clave de TMDB"
+      "testOkTitle": "La clave funciona",
+      "testFailTitle": "Falló la prueba de la clave",
+      "tvdbKeyLabel": "Clave de la API de TheTVDB",
+      "tvdbKeyPlaceholder": "Ingresa la clave de la API de TheTVDB",
+      "tvdbPinLabel": "PIN",
+      "tvdbPinPlaceholder": "PIN de suscriptor",
+      "tvdbHint": "TheTVDB es la mejor fuente para televisión. Una clave de suscriptor también requiere su PIN; una clave de proyecto no.",
+      "chainLabel": "Orden de consulta",
+      "chainTv": "TV",
+      "chainMovie": "Cine",
+      "chainNone": "No hay ningún proveedor configurado — los metadatos vienen solo de archivos NFO locales."
     },
     "requiresSettings": "Requiere acceso a los ajustes.",
     "artworkPref": {

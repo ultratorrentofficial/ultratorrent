@@ -18,12 +18,11 @@ import { TV_TYPES } from './series-grouping';
  */
 const GUARDED_ID_PROVIDERS = ['imdb', 'tvdb', 'tmdb'];
 import {
-  LocalMetadataProvider,
   MediaLookup,
   MediaMetadataDetails,
   MediaMetadataProvider,
-  TmdbMetadataProvider,
 } from './metadata-provider';
+import { MetadataProviderRegistry } from './metadata-provider-registry.service';
 
 /** Manual metadata edits accepted from the UI. */
 export interface MetadataUpdateDto {
@@ -157,14 +156,51 @@ export class MediaMetadataService {
     private readonly filePath: FilePathService,
     private readonly audit: AuditService,
     private readonly imdb: ImdbService,
+    private readonly providers: MetadataProviderRegistry,
   ) {}
 
-  /** Resolve the active provider (TMDB when keyed, else offline local). */
-  private async provider(): Promise<MediaMetadataProvider> {
-    const key =
-      (await this.settings.get<string>('media.tmdbApiKey')) ??
-      process.env.TMDB_API_KEY;
-    return key ? new TmdbMetadataProvider(key) : new LocalMetadataProvider();
+  /**
+   * Ask each configured provider in turn and take the first real answer.
+   *
+   * A miss used to be terminal: one provider was consulted, and if it had never
+   * heard of the title that was the end of it. The chain means a show TMDB
+   * misses can still be found on TVDB (and vice versa for film). Providers are
+   * tried in the registry's kind-aware order, and a provider that THROWS is
+   * treated as a miss — one sick provider must not deny the item every other
+   * source it could have had.
+   *
+   * Returns the provider that answered so the caller can attribute and audit it;
+   * when nobody answers, the offline provider stands in and the local NFO carries
+   * the item, exactly as before.
+   */
+  private async fetchFromChain(
+    query: MediaLookup,
+    itemId: string,
+    ctx: AuditContext,
+  ): Promise<{ details: MediaMetadataDetails | null; provider: MediaMetadataProvider }> {
+    const chain = await this.providers.chain(query.kind);
+    for (const provider of chain) {
+      try {
+        const details = await provider.fetchDetails(query);
+        if (details) return { details, provider };
+      } catch (err) {
+        // Audited WITHOUT the key or any config — then we move on to the next.
+        await this.audit.record({
+          userId: ctx.userId,
+          action: 'media.metadata.fetch_failed',
+          objectType: 'media_item',
+          objectId: itemId,
+          result: 'failure',
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+          metadata: { provider: provider.name, error: (err as Error).message },
+        });
+        this.logger.warn(
+          `Metadata fetch failed for item ${itemId} via ${provider.name}: ${(err as Error).message}`,
+        );
+      }
+    }
+    return { details: null, provider: chain[0] ?? this.providers.offline() };
   }
 
   private lookupFor(item: {
@@ -393,28 +429,8 @@ export class MediaMetadataService {
     });
     if (!item) throw new NotFoundException('Item not found');
 
-    const provider = await this.provider();
     const query = this.lookupFor(item);
-
-    let remote: MediaMetadataDetails | null = null;
-    try {
-      remote = await provider.fetchDetails(query);
-    } catch (err) {
-      // Audit the failure WITHOUT leaking any key or config.
-      await this.audit.record({
-        userId: ctx.userId,
-        action: 'media.metadata.fetch_failed',
-        objectType: 'media_item',
-        objectId: itemId,
-        result: 'failure',
-        ipAddress: ctx.ipAddress,
-        userAgent: ctx.userAgent,
-        metadata: { provider: provider.name, error: (err as Error).message },
-      });
-      this.logger.warn(
-        `Metadata fetch failed for item ${itemId} via ${provider.name}: ${(err as Error).message}`,
-      );
-    }
+    const { details: remote, provider } = await this.fetchFromChain(query, itemId, ctx);
 
     const local = await this.readLocalNfo(item.files.map((f) => f.path));
 
