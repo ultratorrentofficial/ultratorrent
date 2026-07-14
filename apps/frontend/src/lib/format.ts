@@ -105,6 +105,28 @@ export function formatRelativeTime(iso: string | null | undefined): string {
   return `${prefix}${core}${suffix}`;
 }
 
+/**
+ * {@link formatRelativeTime}, but it never falls back to a full timestamp.
+ *
+ * Past 30 days the relative form gives up and returns a date AND a time ("May 30, 2026,
+ * 02:11 PM"). That is ~140px of text, which no sane table column affords — in a list it
+ * truncates to a useless "May 30, 202…", losing the year. Most torrents in a library are
+ * older than a month, so that is the common case, not the edge case. Drop the time and
+ * keep the date; callers put the exact timestamp in a tooltip.
+ */
+export function formatRelativeTimeShort(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  const days = Math.abs(date.getTime() - Date.now()) / 86_400_000;
+  if (days < 30) return formatRelativeTime(iso);
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 /** Pluralize a count with a unit, e.g. count(2, "peer") -> "2 peers". */
 export function pluralize(count: number, unit: string): string {
   return `${count.toLocaleString()} ${unit}${count === 1 ? '' : 's'}`;

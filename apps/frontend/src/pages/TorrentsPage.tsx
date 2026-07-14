@@ -20,9 +20,10 @@ import { useTorrentStream } from '@/realtime/RealtimeContext';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   formatBytes,
+  formatDateTime,
   formatEta,
   formatRatio,
-  formatRelativeTime,
+  formatRelativeTimeShort,
   formatSpeed,
 } from '@/lib/format';
 import { Button } from '@/components/ui/button';
@@ -319,7 +320,7 @@ export function TorrentsPage() {
               es-PR's "Progreso"/"Semillas"/"Agregado" are all wider than their English
               counterparts, and sizing to English alone clips them.
             */}
-            <Table className="min-w-[1560px] table-fixed whitespace-nowrap">
+            <Table className="min-w-[1530px] table-fixed whitespace-nowrap">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10 pl-4">
@@ -359,10 +360,10 @@ export function TorrentsPage() {
                   <SortableHead sortKey="peersConnected" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-24">
                     {t('col.peers')}
                   </SortableHead>
-                  <SortableHead sortKey="downloaded" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-24">
+                  <SortableHead sortKey="downloaded" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-20">
                     {t('col.dl')}
                   </SortableHead>
-                  <SortableHead sortKey="uploaded" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-24">
+                  <SortableHead sortKey="uploaded" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-20">
                     {t('col.ul')}
                   </SortableHead>
                   <SortableHead sortKey="addedAt" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-28 pr-4">
@@ -452,9 +453,16 @@ function TorrentRow({
           <span className="min-w-0 truncate font-medium text-foreground" title={torrent.name}>
             {torrent.name}
           </span>
+          {/*
+            leading-none is load-bearing: `text-[10px]` sets font-size only, so the chip
+            would inherit the parent's 20px line-height and stand 26px tall (20 + padding +
+            border) against the name's 20px — making every labelled row 5px taller than an
+            unlabelled one. Pinning the line-height keeps the chip shorter than the name it
+            sits beside, so the row height comes from the name in every row.
+          */}
           {torrent.label && (
             <span
-              className="max-w-[120px] shrink-0 truncate rounded border border-border/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              className="max-w-[120px] shrink-0 truncate rounded border border-border/60 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
               title={torrent.label}
             >
               {torrent.label}
@@ -498,12 +506,16 @@ function TorrentRow({
       <TableCell className="text-right tabular-nums text-muted-foreground">
         {formatBytes(torrent.uploaded)}
       </TableCell>
-      {/* Relative time is open-ended ("hace 2 meses") — truncate rather than overflow. */}
+      {/*
+        Short form in the cell, exact timestamp on hover: anything older than 30 days
+        renders as a full date+time otherwise, which does not fit and truncates to a
+        year-less "May 30, 202…". truncate is kept as the backstop for long locales.
+      */}
       <TableCell
         className="truncate pr-4 text-right text-xs tabular-nums text-muted-foreground"
-        title={formatRelativeTime(torrent.addedAt)}
+        title={formatDateTime(torrent.addedAt)}
       >
-        {formatRelativeTime(torrent.addedAt)}
+        {formatRelativeTimeShort(torrent.addedAt)}
       </TableCell>
     </TableRow>
   );
