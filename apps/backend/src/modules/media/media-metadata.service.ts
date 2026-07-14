@@ -9,6 +9,14 @@ import { AuditService } from '../audit/audit.service';
 import { ImdbService } from './imdb/imdb.service';
 import { showFolderOf } from './media-scanner.service';
 import { TV_TYPES } from './series-grouping';
+
+/**
+ * Providers whose ids are checked for cross-show collisions before import. All three
+ * come out of the same untrustworthy sidecar, so all three inherit the same lie — the
+ * guard used to cover `imdb` alone, and on a real library that left `tvdb` with 871
+ * ids shared across unrelated shows while `imdb` had none.
+ */
+const GUARDED_ID_PROVIDERS = ['imdb', 'tvdb', 'tmdb'];
 import {
   LocalMetadataProvider,
   MediaLookup,
@@ -181,7 +189,7 @@ export class MediaMetadataService {
   }
 
   /**
-   * Is this `imdb` episode id shared with a DIFFERENT show — i.e. provably wrong?
+   * Is this external id shared with a DIFFERENT show — i.e. provably wrong?
    *
    * A `.nfo` is written by whatever media manager last touched the library, and it can
    * be confidently, systematically wrong. On a real library, eighteen unrelated Apple
@@ -191,9 +199,18 @@ export class MediaMetadataService {
    * "Pilot" collided. Imported verbatim, one show's episode ids landed on eighteen
    * shows, and everything keyed on IMDb identity inherited the lie.
    *
-   * An episode tconst identifies exactly one episode of exactly one series. So if the
-   * same id is filed under two different show FOLDERS, it is provably wrong for at
-   * least one of them — and we cannot tell which, so neither may keep it.
+   * An episode id identifies exactly one episode of exactly one series. So if the same
+   * id is filed under two different show FOLDERS, it is provably wrong for at least one
+   * of them — and we cannot tell which, so neither may keep it.
+   *
+   * The guard originally covered `imdb` only, and the other two providers show exactly
+   * what that cost: on the same library `imdb` had **0** ids shared across shows while
+   * `tvdb` had **871** (3,278 items) — Dickinson's whole second season stamped with one
+   * Game of Thrones episode id. The sidecars are wrong for every provider they carry,
+   * not just IMDb, so the collision check applies to all of them. It matters more than
+   * it looks: `upsert` below uses `update: {}` and never clobbers an existing mapping,
+   * so a bad id imported once is permanent — re-importing the corrected sidecar cannot
+   * displace it.
    *
    * We deliberately do NOT compare the catalogue's series title against the folder
    * name. That looks appealing and is wrong: a library legitimately files "Andor" as
@@ -206,7 +223,7 @@ export class MediaMetadataService {
     provider: string,
     externalId: string,
   ): Promise<boolean> {
-    if (provider !== 'imdb') return false;
+    if (!GUARDED_ID_PROVIDERS.includes(provider)) return false;
     if (!TV_TYPES.includes(item.mediaType)) return false;
 
     const library = await this.prisma.mediaLibrary.findUnique({
@@ -218,7 +235,7 @@ export class MediaMetadataService {
 
     const others = await this.prisma.mediaExternalId.findMany({
       where: {
-        provider: 'imdb',
+        provider,
         externalId,
         NOT: { itemId: item.id },
         item: { mediaType: { in: TV_TYPES }, libraryId: item.libraryId },
@@ -236,7 +253,7 @@ export class MediaMetadataService {
       where: { id: { in: foreign.map((f) => f.id) } },
     });
     this.logger.warn(
-      `IMDb id ${externalId} is claimed by ${foreign.length + 1} different show folders ` +
+      `${provider} id ${externalId} is claimed by ${foreign.length + 1} different show folders ` +
         `(incl. “${path.basename(folder)}”) — an episode belongs to exactly one series, so the ` +
         `sidecars are wrong. Dropping it from all of them.`,
     );

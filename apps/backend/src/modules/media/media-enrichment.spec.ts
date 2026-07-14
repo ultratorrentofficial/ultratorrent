@@ -525,10 +525,88 @@ describe('MediaMetadataService — an IMDb episode id claimed by two shows', () 
     expect(await check(svc, item('Interview with the Vampire (2022)'), 'tt13314588')).toBe(false);
   });
 
-  it('leaves movies and non-imdb providers alone', async () => {
+  it('leaves movies and UNGUARDED providers alone', async () => {
+    // This used to assert that `tmdb` was skipped — and that gap is exactly why the
+    // same library carried 0 colliding imdb ids but 871 colliding tvdb ones. tmdb and
+    // tvdb are now guarded too; only a provider we do not check (and movies, where the
+    // one-episode-one-series rule does not apply) is passed through.
     const { svc, prisma } = build(['Other Show (2020)']);
     expect(await check(svc, item('Ghost (1990)', 'movie'))).toBe(false);
-    expect(await (svc as any).isForeignEpisodeId(item('Ted Lasso (2020)'), 'tmdb', '239574')).toBe(false);
+    expect(await (svc as any).isForeignEpisodeId(item('Ted Lasso (2020)'), 'anilist', '123')).toBe(false);
     expect(prisma.mediaExternalId.findMany).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The collision guard originally covered `imdb` only — and the other two providers
+ * show exactly what that cost. On a real library `imdb` had **0** ids shared across
+ * shows, while `tvdb` had **871** across 3,278 items: Dickinson's entire second season
+ * was stamped with one Game of Thrones episode id, and the correct id from its own
+ * (perfectly good) sidecar appeared nowhere in the database.
+ *
+ * It sticks because `importLocalNfo` upserts with `update: {}` — a bad id imported once
+ * is permanent, and re-importing the corrected sidecar cannot displace it.
+ */
+describe('MediaMetadataService — the collision guard covers every provider, not just IMDb', () => {
+  const LIB = { id: 'lib1', path: '/downloads/TV/TV_Shows' };
+  const item = (folder: string, mediaType = 'tv') => ({
+    id: 'mine',
+    libraryId: LIB.id,
+    mediaType,
+    path: `${LIB.path}/${folder}/Season 1/ep.mkv`,
+  });
+
+  function build(otherFolders: string[] = []) {
+    const deleted: any[] = [];
+    const prisma = {
+      mediaLibrary: { findUnique: jest.fn(async () => LIB) },
+      mediaExternalId: {
+        findMany: jest.fn(async () =>
+          otherFolders.map((f, i) => ({
+            id: `other${i}`,
+            item: { path: `${LIB.path}/${f}/Season 1/ep.mkv` },
+          })),
+        ),
+        deleteMany: jest.fn(async (args: any) => { deleted.push(args); return { count: otherFolders.length }; }),
+      },
+    };
+    const svc = new MediaMetadataService(prisma as any, {} as any, {} as any, {} as any, {} as any);
+    return { svc, prisma, deleted };
+  }
+
+  it('rejects a TVDB id claimed by another show (the Dickinson / Game of Thrones case)', async () => {
+    const { svc, prisma, deleted } = build(['Game of Thrones (2010)']);
+    // 247867 is a Game of Thrones episode. It cannot also be Dickinson S02E02.
+    expect(await (svc as any).isForeignEpisodeId(item('Dickinson (2019)'), 'tvdb', '247867')).toBe(true);
+    expect(deleted[0].where.id.in).toEqual(['other0']);
+    // It must query the SAME provider, not hard-code imdb.
+    expect(prisma.mediaExternalId.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ provider: 'tvdb' }) }),
+    );
+  });
+
+  it('rejects a TMDB id claimed by another show (High Desert / Masters of the Air)', async () => {
+    const { svc, deleted } = build(['Masters of the Air (2024)']);
+    expect(await (svc as any).isForeignEpisodeId(item('High Desert (2023)'), 'tmdb', '239574')).toBe(true);
+    expect(deleted[0].where.id.in).toEqual(['other0']);
+  });
+
+  it('accepts a TVDB id only this show claims', async () => {
+    const { svc, prisma } = build([]);
+    // Dickinson S02E02's real id, straight from its own sidecar.
+    expect(await (svc as any).isForeignEpisodeId(item('Dickinson (2019)'), 'tvdb', '7984092')).toBe(false);
+    expect(prisma.mediaExternalId.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('leaves an unguarded provider alone', async () => {
+    const { svc, prisma } = build(['Some Other Show (2020)']);
+    expect(await (svc as any).isForeignEpisodeId(item('Dickinson (2019)'), 'anilist', '123')).toBe(false);
+    expect(prisma.mediaExternalId.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('does not touch movies — the collision rule is about episodes', async () => {
+    const { svc, prisma } = build(['Other Movie (2020)']);
+    expect(await (svc as any).isForeignEpisodeId(item('A Movie (2020)', 'movie'), 'tvdb', '247867')).toBe(false);
+    expect(prisma.mediaExternalId.deleteMany).not.toHaveBeenCalled();
   });
 });
