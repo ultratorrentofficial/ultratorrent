@@ -32,14 +32,29 @@ function build(torrents: any[] = [], parked: any[] = []) {
   const rows = [...parked];
   const prisma = {
     parkedTorrent: {
-      findMany: jest.fn(({ where }: any = {}) =>
-        Promise.resolve(
-          rows.filter((r) =>
-            where?.probingSince?.not !== undefined ? r.probingSince != null
-            : where?.probingSince === null ? r.probingSince == null
-            : true),
-        ),
-      ),
+      // Honours orderBy/take on purpose: a query that ranks its candidates and then
+      // truncates them must be able to starve here exactly as it would against a real
+      // database, or the starvation bug is invisible to these tests.
+      findMany: jest.fn(({ where, orderBy, take }: any = {}) => {
+        let out = rows.filter((r) =>
+          where?.probingSince?.not !== undefined ? r.probingSince != null
+          : where?.probingSince === null ? r.probingSince == null
+          : true);
+        const clauses = Array.isArray(orderBy) ? orderBy : orderBy ? [orderBy] : [];
+        for (const clause of [...clauses].reverse()) { // last key first → stable multi-key sort
+          const [field, spec] = Object.entries(clause)[0] as [string, any];
+          const dir = (typeof spec === 'string' ? spec : spec.sort) === 'desc' ? -1 : 1;
+          const nullsFirst = typeof spec === 'object' && spec?.nulls === 'first';
+          out = [...out].sort((a, b) => {
+            const av = a[field], bv = b[field];
+            if (av == null && bv == null) return 0;
+            if (av == null) return nullsFirst ? -1 : 1;
+            if (bv == null) return nullsFirst ? 1 : -1;
+            return (av > bv ? 1 : av < bv ? -1 : 0) * dir;
+          });
+        }
+        return Promise.resolve(take ? out.slice(0, take) : out);
+      }),
       create: jest.fn(({ data }: any) => { rows.push({ probingSince: null, lastProbedAt: null, probeCount: 0, ...data }); return Promise.resolve(data); }),
       update: jest.fn(({ where, data }: any) => {
         const r = rows.find((x) => x.hash === where.engineId_hash.hash);
@@ -242,6 +257,82 @@ describe('TorrentParkingService — probing and revival', () => {
     await svc.tick();
 
     expect(rows).toHaveLength(0);
+  });
+});
+
+/**
+ * The probe queue must be ranked by *when the next probe falls due*, never by how
+ * long ago the last one ran. Backoff grows with `probeCount`, so those two orders
+ * are opposites at the head: the torrents probed longest ago are the ones with the
+ * longest backoff, and they are never due. Rank by `lastProbedAt` and truncate, and
+ * they squat on the whole window forever while the due torrents behind them starve.
+ * Production (synoplex): 510 parked, 90 due, 0 probed per tick, for days.
+ */
+describe('TorrentParkingService — probe selection must not starve', () => {
+  const H = 3600_000;
+
+  const parkedRow = (over: Record<string, unknown>) => ({
+    probingSince: null,
+    engineId: 'e1',
+    reason: 'no_seeders',
+    ...over,
+  }) as any;
+
+  it('probes a due torrent that a fixed window ordered by lastProbedAt would never reach', async () => {
+    const now = Date.now();
+    // 80 torrents dead for the 7th time. Probed 10h ago — the OLDEST lastProbedAt in
+    // the table — but their backoff is capped at 24h, so not one of them is due.
+    const longDead = Array.from({ length: 80 }, (_, i) =>
+      parkedRow({
+        hash: `dead${i}`,
+        name: `Long Dead ${i}`,
+        lastProbedAt: new Date(now - 10 * H),
+        probeCount: 7,
+        parkedAt: new Date(now - 100 * H),
+      }),
+    );
+    // Parked once, probed 2h ago against a 1h backoff → due. But its lastProbedAt is
+    // the NEWEST, so ordering by lastProbedAt sorts it dead last, behind all 80.
+    const fresh = parkedRow({
+      hash: 'fresh',
+      name: 'Slow Horses S03E05',
+      lastProbedAt: new Date(now - 2 * H),
+      probeCount: 1,
+      parkedAt: new Date(now - 3 * H),
+    });
+
+    const inEngine = [...longDead, fresh].map((r) =>
+      dead({ hash: r.hash, name: r.name, state: TorrentState.PAUSED }),
+    );
+    const { svc, provider } = build(inEngine, [...longDead, fresh]);
+
+    const summary = await svc.tick();
+
+    expect(summary.probed).toBe(1);
+    expect(provider.forceStart).toHaveBeenCalledWith('fresh', true);
+  });
+
+  it('spends a full batch on the most overdue torrents when more are due than fit', async () => {
+    const now = Date.now();
+    // 30 due torrents, all probed once (1h backoff), overdue by 2h..31h.
+    const due = Array.from({ length: 30 }, (_, i) =>
+      parkedRow({
+        hash: `due${i}`,
+        name: `Due ${i}`,
+        lastProbedAt: new Date(now - (i + 2) * H), // higher i → more overdue
+        probeCount: 1,
+        parkedAt: new Date(now - 50 * H),
+      }),
+    );
+    const inEngine = due.map((r) => dead({ hash: r.hash, name: r.name, state: TorrentState.PAUSED }));
+    const { svc, provider } = build(inEngine, due);
+
+    const summary = await svc.tick();
+
+    expect(summary.probed).toBe(RULES.probeBatchSize); // 20
+    // The most overdue (due29, 31h) is probed; the least (due0, 2h) waits its turn.
+    expect(provider.forceStart).toHaveBeenCalledWith('due29', true);
+    expect(provider.forceStart).not.toHaveBeenCalledWith('due0', true);
   });
 });
 

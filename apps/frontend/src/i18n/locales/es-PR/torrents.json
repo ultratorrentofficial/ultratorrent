@@ -41,11 +41,11 @@
     "down": "Bajada",
     "up": "Subida",
     "ratio": "Ratio",
-    "eta": "Tiempo restante",
+    "eta": "Restante",
     "seeds": "Semillas",
     "peers": "Pares",
-    "dl": "Descargado",
-    "ul": "Subido",
+    "dl": "Baj.",
+    "ul": "Sub.",
     "added": "Agregado"
   },
   "noEngine": {

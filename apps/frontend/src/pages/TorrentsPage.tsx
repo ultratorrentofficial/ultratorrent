@@ -303,7 +303,23 @@ export function TorrentsPage() {
           />
         ) : (
           <div className="overflow-x-auto scrollbar-thin">
-            <Table>
+            {/*
+              `table-fixed` + a width on every column but Name is what keeps this table
+              still. Under the browser's default auto layout the columns are re-measured
+              from their content on every poll, so a rate flipping between "—" and
+              "1.2 MB/s" visibly shifts the whole table a few times a second. Fixed layout
+              takes the widths from the header row and ignores the cells entirely.
+
+              `whitespace-nowrap` is set once here and inherits into every cell: nothing in
+              this table may wrap, because a wrapped cell is a two-line row among one-line
+              rows. Overlong content truncates instead (see the Name and Added cells) and
+              the table scrolls sideways inside the wrapper above rather than reflowing.
+
+              The widths hold the LONGEST header across locales, not the English one —
+              es-PR's "Progreso"/"Semillas"/"Agregado" are all wider than their English
+              counterparts, and sizing to English alone clips them.
+            */}
+            <Table className="min-w-[1560px] table-fixed whitespace-nowrap">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10 pl-4">
@@ -314,41 +330,42 @@ export function TorrentsPage() {
                       aria-label={t('table.selectAll')}
                     />
                   </TableHead>
-                  <TableHead className="w-12">{t('col.status')}</TableHead>
-                  <SortableHead sortKey="name" activeKey={sortBy} direction={sortDir} onSort={handleSort} className="min-w-[240px]">
+                  {/* w-12 was too narrow for the header word itself ("Status"/"Estado"). */}
+                  <TableHead className="w-20">{t('col.status')}</TableHead>
+                  <SortableHead sortKey="name" activeKey={sortBy} direction={sortDir} onSort={handleSort}>
                     {t('col.name')}
                   </SortableHead>
                   <SortableHead sortKey="progress" activeKey={sortBy} direction={sortDir} onSort={handleSort} className="w-40">
                     {t('col.progress')}
                   </SortableHead>
-                  <SortableHead sortKey="size" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
+                  <SortableHead sortKey="size" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-24">
                     {t('col.size')}
                   </SortableHead>
-                  <SortableHead sortKey="downloadRate" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
+                  <SortableHead sortKey="downloadRate" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-28">
                     {t('col.down')}
                   </SortableHead>
-                  <SortableHead sortKey="uploadRate" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
+                  <SortableHead sortKey="uploadRate" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-28">
                     {t('col.up')}
                   </SortableHead>
-                  <SortableHead sortKey="ratio" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
+                  <SortableHead sortKey="ratio" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-24">
                     {t('col.ratio')}
                   </SortableHead>
-                  <SortableHead sortKey="eta" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
+                  <SortableHead sortKey="eta" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-28">
                     {t('col.eta')}
                   </SortableHead>
-                  <SortableHead sortKey="seedsConnected" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
+                  <SortableHead sortKey="seedsConnected" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-28">
                     {t('col.seeds')}
                   </SortableHead>
-                  <SortableHead sortKey="peersConnected" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
+                  <SortableHead sortKey="peersConnected" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-24">
                     {t('col.peers')}
                   </SortableHead>
-                  <SortableHead sortKey="downloaded" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
+                  <SortableHead sortKey="downloaded" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-24">
                     {t('col.dl')}
                   </SortableHead>
-                  <SortableHead sortKey="uploaded" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right">
+                  <SortableHead sortKey="uploaded" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-24">
                     {t('col.ul')}
                   </SortableHead>
-                  <SortableHead sortKey="addedAt" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="pr-4">
+                  <SortableHead sortKey="addedAt" activeKey={sortBy} direction={sortDir} onSort={handleSort} align="right" className="w-28 pr-4">
                     {t('col.added')}
                   </SortableHead>
                 </TableRow>
@@ -423,18 +440,33 @@ function TorrentRow({
       <TableCell>
         <TorrentStateDot state={torrent.state} />
       </TableCell>
-      <TableCell className="max-w-[360px]">
-        <p className="truncate font-medium text-foreground" title={torrent.name}>
-          {torrent.name}
-        </p>
-        {torrent.label && (
-          <span className="text-xs text-muted-foreground">{torrent.label}</span>
-        )}
+      {/*
+        Name and label share ONE line. Stacking the label underneath made a labelled row
+        taller than an unlabelled one, which is most of the row-height jitter — with a
+        live-updating list you see it as the rows breathing. min-w-0 is what lets the name
+        actually truncate: a flex child defaults to min-width:auto and would otherwise
+        refuse to shrink below its text, pushing the column wide.
+      */}
+      <TableCell>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 truncate font-medium text-foreground" title={torrent.name}>
+            {torrent.name}
+          </span>
+          {torrent.label && (
+            <span
+              className="max-w-[120px] shrink-0 truncate rounded border border-border/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              title={torrent.label}
+            >
+              {torrent.label}
+            </span>
+          )}
+        </div>
       </TableCell>
       <TableCell>
+        {/* Bar + pct must fit w-40 (160px) minus px-3 padding: 80 + 8 + 40 = 128. */}
         <div className="flex items-center gap-2">
-          <Progress value={torrent.progress} className="h-1.5 w-24" />
-          <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">
+          <Progress value={torrent.progress} className="h-1.5 w-20" />
+          <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
             {Math.round(Math.max(0, Math.min(1, torrent.progress)) * 100)}%
           </span>
         </div>
@@ -466,7 +498,11 @@ function TorrentRow({
       <TableCell className="text-right tabular-nums text-muted-foreground">
         {formatBytes(torrent.uploaded)}
       </TableCell>
-      <TableCell className="pr-4 text-right text-xs tabular-nums text-muted-foreground">
+      {/* Relative time is open-ended ("hace 2 meses") — truncate rather than overflow. */}
+      <TableCell
+        className="truncate pr-4 text-right text-xs tabular-nums text-muted-foreground"
+        title={formatRelativeTime(torrent.addedAt)}
+      >
         {formatRelativeTime(torrent.addedAt)}
       </TableCell>
     </TableRow>

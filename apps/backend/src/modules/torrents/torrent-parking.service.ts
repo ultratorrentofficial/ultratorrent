@@ -352,14 +352,24 @@ export class TorrentParkingService {
     byHash: Map<string, NormalizedTorrent>,
     rules: ParkingRules,
   ): Promise<number> {
+    // Every candidate is considered, and they are ranked by *when the next probe
+    // falls due* — not by how long ago the last one ran. Those are different orders,
+    // and confusing them starves the queue: backoff grows with `probeCount`, so the
+    // rows probed longest ago are exactly the rows with the longest backoff. Rank by
+    // `lastProbedAt` and take a fixed window and the long-dead torrents (24h backoff,
+    // never due) permanently occupy the head of it, while the freshly parked ones
+    // that *are* due sort last and are never seen. Observed on synoplex: 510 parked,
+    // 90 due, 0 probed per tick — parking had become a one-way trip.
     const candidates = await this.prisma.parkedTorrent.findMany({
       where: { engineId: provider.engineId, probingSince: null },
-      orderBy: [{ lastProbedAt: { sort: 'asc', nulls: 'first' } }, { parkedAt: 'asc' }],
-      take: rules.probeBatchSize * 4, // over-fetch: most are still in backoff
+      select: { hash: true, name: true, lastProbedAt: true, probeCount: true },
     });
 
     const now = Date.now();
-    const due = candidates.filter((row) => this.isProbeDue(row, rules, now)).slice(0, rules.probeBatchSize);
+    const due = candidates
+      .filter((row) => this.isProbeDue(row, rules, now))
+      .sort((a, b) => this.nextProbeAt(a, rules) - this.nextProbeAt(b, rules))
+      .slice(0, rules.probeBatchSize);
 
     let probed = 0;
     for (const row of due) {
@@ -382,21 +392,33 @@ export class TorrentParkingService {
   }
 
   /**
+   * When this torrent earns its next probe (epoch ms).
+   *
    * Exponential backoff: a torrent dead for the tenth time is retried far less
    * often than one parked minutes ago, so 1,000 long-dead torrents don't churn the
-   * engine every cycle. Never probed yet → always due.
+   * engine every cycle. Never probed yet → due now (0 = maximally overdue, so a
+   * newly parked torrent is probed ahead of any torrent already in backoff).
+   *
+   * This is the single source of truth for the backoff policy: `isProbeDue` is the
+   * predicate form of it and `startProbes` ranks by it. They must not drift apart —
+   * selecting on one order and filtering on the other is what starved the probe
+   * queue in the first place.
    */
+  nextProbeAt(row: { lastProbedAt: Date | null; probeCount: number }, rules: ParkingRules): number {
+    if (!row.lastProbedAt) return 0;
+    const backoff = Math.min(
+      rules.probeIntervalMinutes * 2 ** Math.max(0, row.probeCount - 1),
+      rules.maxProbeIntervalMinutes,
+    );
+    return row.lastProbedAt.getTime() + backoff * 60_000;
+  }
+
   isProbeDue(
     row: { lastProbedAt: Date | null; probeCount: number },
     rules: ParkingRules,
     now = Date.now(),
   ): boolean {
-    if (!row.lastProbedAt) return true;
-    const backoff = Math.min(
-      rules.probeIntervalMinutes * 2 ** Math.max(0, row.probeCount - 1),
-      rules.maxProbeIntervalMinutes,
-    );
-    return now - row.lastProbedAt.getTime() >= backoff * 60_000;
+    return now >= this.nextProbeAt(row, rules);
   }
 
   private forget(engineId: string, hash: string) {
