@@ -107,6 +107,7 @@ model MediaUserWatch {
   tvdbId    String?
   showTitle String?
   title     String?
+  year      Int?
   season    Int?
   episode   Int?
   watchedAt DateTime

@@ -102,21 +102,25 @@ describe('TraktSyncService', () => {
       expect(posts).toEqual([]);
     });
 
-    it('pushes only OUR unsynced watches, never Trakt-sourced ones', async () => {
+    it('pushes an episode by show + season/number, NOT by its (possibly contaminated) id', async () => {
       const { svc, prisma, posts } = build({
         mediaUserWatch: {
           upsert: jest.fn(),
-          // First batch has the row; after it is stamped synced the working set
-          // is empty — mirroring what updateMany does in the real query.
           findMany: jest
             .fn()
             .mockResolvedValueOnce([
               {
                 id: 'w1',
                 mediaType: 'episode',
-                imdbId: null,
+                // In this library an episode's imdb id is the SHOW's id — sending
+                // it as episode.ids would mis-mark Trakt. The push must ignore it.
+                imdbId: 'tt0452046',
                 tmdbId: null,
-                tvdbId: '9001',
+                tvdbId: '300474',
+                showTitle: 'Criminal Minds',
+                year: 2005,
+                season: 1,
+                episode: 3,
                 watchedAt: new Date('2026-07-02T10:00:00Z'),
               },
             ])
@@ -128,7 +132,6 @@ describe('TraktSyncService', () => {
 
       const summary = await svc.syncWatched('u1');
 
-      // The query itself must exclude Trakt-sourced and already-synced rows.
       expect(prisma.mediaUserWatch.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ syncedAt: null, source: { not: 'trakt' } }),
@@ -136,9 +139,57 @@ describe('TraktSyncService', () => {
       );
       expect(summary.pushed).toBe(1);
       expect(posts[0].path).toBe('/sync/history');
-      expect(posts[0].body.episodes[0]).toMatchObject({ ids: { tvdb: 9001 } });
-      // Pushed rows are stamped, so the next sync does not send them again.
+      // The episode travels under its show, addressed by number — no id in sight.
+      expect(posts[0].body.episodes).toBeUndefined();
+      expect(posts[0].body.shows[0]).toEqual({
+        title: 'Criminal Minds',
+        year: 2005,
+        seasons: [{ number: 1, episodes: [{ number: 3, watched_at: '2026-07-02T10:00:00.000Z' }] }],
+      });
+      expect(JSON.stringify(posts[0].body)).not.toContain('tt0452046'); // the show id never leaks
       expect(prisma.mediaUserWatch.updateMany).toHaveBeenCalled();
+    });
+
+    it('still pushes a MOVIE by its id — a movie id is the movie’s', async () => {
+      const { svc, posts } = build({
+        mediaUserWatch: {
+          upsert: jest.fn(),
+          findMany: jest
+            .fn()
+            .mockResolvedValueOnce([
+              { id: 'm1', mediaType: 'movie', imdbId: 'tt0133093', tmdbId: null, tvdbId: null, watchedAt: new Date('2026-07-02T10:00:00Z') },
+            ])
+            .mockResolvedValue([]),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+      });
+      jest.spyOn(TraktClient.prototype, 'getAll').mockResolvedValue({ items: [], pages: 1, truncated: false } as any);
+
+      await svc.syncWatched('u1');
+
+      expect(posts[0].body.movies[0]).toMatchObject({ ids: { imdb: 'tt0133093' } });
+    });
+
+    it('skips an episode with no show/season/number rather than guessing', async () => {
+      const { svc, posts } = build({
+        mediaUserWatch: {
+          upsert: jest.fn(),
+          findMany: jest
+            .fn()
+            .mockResolvedValueOnce([
+              { id: 'w1', mediaType: 'episode', imdbId: 'tt0452046', tmdbId: null, tvdbId: null, showTitle: null, season: null, episode: null, watchedAt: new Date() },
+            ])
+            .mockResolvedValue([]),
+          updateMany: jest.fn(),
+        },
+      });
+      jest.spyOn(TraktClient.prototype, 'getAll').mockResolvedValue({ items: [], pages: 1, truncated: false } as any);
+
+      const summary = await svc.syncWatched('u1');
+
+      expect(summary.skipped).toBe(1);
+      expect(summary.pushed).toBe(0);
+      expect(posts).toEqual([]);
     });
 
     it('skips a watch it cannot identify rather than guessing at one', async () => {

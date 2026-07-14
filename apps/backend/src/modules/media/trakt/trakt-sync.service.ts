@@ -358,6 +358,7 @@ export class TraktSyncService {
           tvdbId: identity.tvdbId ?? null,
           showTitle: identity.showTitle ?? null,
           title: identity.title ?? null,
+          year: identity.year ?? null,
           season: identity.season ?? null,
           episode: identity.episode ?? null,
           watchedAt: new Date(entry.watched_at ?? Date.now()),
@@ -404,25 +405,60 @@ export class TraktSyncService {
       if (!unsynced.length) break;
 
       const movies: any[] = [];
-      const episodes: any[] = [];
+      // Episodes go up grouped under their show, identified by show title + year
+      // + season/number — NOT by the episode's stored ids. In this library the
+      // `imdb` id on an episode is frequently the SHOW's id (an NFO-import
+      // artefact), so sending episode.ids would put a show id in an episode slot
+      // and mis-mark Trakt's history. Show-title + s/e is unambiguous and immune
+      // to that. Movies still use ids — a movie id is the movie's.
+      const showMap = new Map<
+        string,
+        { title: string; year?: number; seasons: Map<number, Map<number, string>> }
+      >();
       const pushedIds: string[] = [];
 
       for (const w of unsynced) {
-        const ids = identityIds(w);
         const watchedAt = w.watchedAt.toISOString();
-        if (!hasAnyId(ids)) {
-          // No id at all: it cannot be placed in someone's history without
-          // guessing which show it belongs to.
+        if (w.mediaType === 'movie') {
+          const ids = identityIds(w);
+          if (!hasAnyId(ids)) {
+            summary.skipped++;
+            skippedIds.push(w.id);
+            continue;
+          }
+          movies.push({ ids, watched_at: watchedAt });
+          pushedIds.push(w.id);
+          continue;
+        }
+        // Episode: needs show + season + number to be placed safely.
+        if (!w.showTitle || w.season == null || w.episode == null) {
           summary.skipped++;
           skippedIds.push(w.id);
           continue;
         }
-        (w.mediaType === 'movie' ? movies : episodes).push({ ids, watched_at: watchedAt });
+        const key = `${w.showTitle} ${w.year ?? ''}`;
+        const show =
+          showMap.get(key) ??
+          { title: w.showTitle, year: w.year ?? undefined, seasons: new Map() };
+        const season = show.seasons.get(w.season) ?? new Map<number, string>();
+        // A rewatch collapses to one row already, so one watched_at per episode.
+        season.set(w.episode, watchedAt);
+        show.seasons.set(w.season, season);
+        showMap.set(key, show);
         pushedIds.push(w.id);
       }
 
+      const shows = [...showMap.values()].map((s) => ({
+        title: s.title,
+        ...(s.year ? { year: s.year } : {}),
+        seasons: [...s.seasons.entries()].map(([number, eps]) => ({
+          number,
+          episodes: [...eps.entries()].map(([n, watched_at]) => ({ number: n, watched_at })),
+        })),
+      }));
+
       if (pushedIds.length) {
-        await client.post('/sync/history', { movies, episodes }, token);
+        await client.post('/sync/history', { movies, shows }, token);
         await this.prisma.mediaUserWatch.updateMany({
           where: { id: { in: pushedIds } },
           data: { syncedAt: new Date() },
@@ -629,6 +665,7 @@ export class TraktSyncService {
           tvdbId: identity.tvdbId ?? null,
           showTitle: identity.showTitle ?? null,
           title: identity.title ?? null,
+          year: identity.year ?? null,
           season: identity.season ?? null,
           episode: identity.episode ?? null,
           watchedAt: play.stoppedAt ?? play.startedAt,
@@ -643,36 +680,86 @@ export class TraktSyncService {
   /**
    * Resolve a media-server display title against our own library, so a play we
    * observed can be identified by id rather than by name. Null when the library
-   * cannot place it — which is a skip, never a guess.
+   * cannot place it PRECISELY — which is a skip, never a guess.
+   *
+   * The hard case is an episode. A history row carries no season/episode and no
+   * ids — only a `"Show - Episode Name"` display string (a plain hyphen, or an
+   * em-dash for session-built titles), and BOTH halves can themselves contain a
+   * hyphen. So the show/episode boundary is genuinely ambiguous. Rather than
+   * split at a guessed position and take an arbitrary episode of the show — the
+   * previous behaviour, which would mark the WRONG episode watched — this tries
+   * every possible boundary and accepts one only when the prefix names a show we
+   * hold AND that show has an episode whose stored title is exactly the suffix.
+   * No exact episode → skip. Correct-or-nothing, because the endpoint of this is
+   * a write to someone's Trakt history.
    */
   private async resolveIdentityFromTitle(
     title: string,
     mediaType: string | null,
   ): Promise<ItemIdentity | null> {
-    // "Show — Episode" (the joined display string the session provider builds).
-    const [showPart] = title.split(' — ');
-    const item = await this.prisma.mediaItem.findFirst({
-      where: { title: showPart?.trim() || title },
-      select: {
-        title: true,
-        year: true,
-        season: true,
-        episode: true,
-        mediaType: true,
-        externalIds: { select: { provider: true, externalId: true } },
-      },
-    });
-    if (!item) return null;
-    const ids = Object.fromEntries(item.externalIds.map((x) => [x.provider, x.externalId]));
-    return {
-      imdbId: ids.imdb ?? null,
-      tmdbId: ids.tmdb ?? null,
-      tvdbId: ids.tvdb ?? null,
-      title: item.title,
-      showTitle: item.mediaType === 'movie' ? null : item.title,
-      year: item.year,
-      season: mediaType === 'movie' ? null : item.season,
-      episode: mediaType === 'movie' ? null : item.episode,
+    const toIdentity = (item: {
+      title: string;
+      year: number | null;
+      season: number | null;
+      episode: number | null;
+      mediaType: string;
+      externalIds: { provider: string; externalId: string }[];
+    }): ItemIdentity => {
+      const ids = Object.fromEntries(item.externalIds.map((x) => [x.provider, x.externalId]));
+      const isEpisode = item.mediaType !== 'movie';
+      return {
+        imdbId: ids.imdb ?? null,
+        tmdbId: ids.tmdb ?? null,
+        tvdbId: ids.tvdb ?? null,
+        title: item.title,
+        showTitle: isEpisode ? item.title : null,
+        year: item.year,
+        season: isEpisode ? item.season : null,
+        episode: isEpisode ? item.episode : null,
+      };
     };
+
+    const select = {
+      title: true,
+      year: true,
+      season: true,
+      episode: true,
+      mediaType: true,
+      externalIds: { select: { provider: true, externalId: true } },
+    } as const;
+
+    // A movie play carries just the film's title — no episode ambiguity.
+    if (mediaType === 'movie') {
+      const movie = await this.prisma.mediaItem.findFirst({
+        where: { title: title.trim(), mediaType: 'movie' },
+        select,
+      });
+      return movie ? toIdentity(movie) : null;
+    }
+
+    // Episode: try every "<show><sep><episode>" boundary. A match requires the
+    // show to exist AND to contain an episode whose metadata title is exactly the
+    // suffix — so a wrong split simply finds nothing rather than mis-identifying.
+    const boundaries: Array<[string, string]> = [];
+    for (const sep of [' — ', ' - ']) {
+      let idx = title.indexOf(sep);
+      while (idx !== -1) {
+        boundaries.push([title.slice(0, idx).trim(), title.slice(idx + sep.length).trim()]);
+        idx = title.indexOf(sep, idx + 1);
+      }
+    }
+    for (const [showTitle, episodeTitle] of boundaries) {
+      if (!showTitle || !episodeTitle) continue;
+      const episode = await this.prisma.mediaItem.findFirst({
+        where: {
+          title: showTitle,
+          mediaType: { in: ['tv', 'anime'] },
+          metadata: { is: { title: episodeTitle } },
+        },
+        select,
+      });
+      if (episode) return toIdentity(episode);
+    }
+    return null;
   }
 }
