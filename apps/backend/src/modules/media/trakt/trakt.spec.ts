@@ -319,6 +319,7 @@ describe('TraktClient HTTP headers', () => {
       sent = init.headers;
       return {
         status: 200,
+        headers: { get: () => null },
         text: async () => JSON.stringify({ device_code: 'd', user_code: 'U', verification_url: 'x', expires_in: 600, interval: 5 }),
       };
     }) as any;
@@ -334,6 +335,7 @@ describe('TraktClient HTTP headers', () => {
   it('does not blame the credentials for a CDN block (403 with a non-JSON body)', async () => {
     global.fetch = jest.fn(async () => ({
       status: 403,
+      headers: { get: () => null },
       text: async () => '<!DOCTYPE html><html>Cloudflare</html>',
     })) as any;
 
@@ -346,6 +348,7 @@ describe('TraktClient HTTP headers', () => {
   it('DOES blame the credentials for a real 403 from Trakt (a JSON body)', async () => {
     global.fetch = jest.fn(async () => ({
       status: 403,
+      headers: { get: () => null },
       text: async () => JSON.stringify({ error: 'invalid_client' }),
     })) as any;
 

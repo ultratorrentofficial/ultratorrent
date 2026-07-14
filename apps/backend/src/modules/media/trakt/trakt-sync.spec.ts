@@ -42,17 +42,54 @@ describe('TraktSyncService', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
-  describe('watched state', () => {
-    it('pulls Trakt history and stamps it as already synced — so it is never echoed back', async () => {
-      const { svc, prisma, posts } = build();
-      jest.spyOn(TraktClient.prototype, 'get').mockResolvedValue([
+  describe('pagination — the silent-truncation trap', () => {
+    it('pulls EVERY page of history, not just the first', async () => {
+      // Trakt reports the page count in a HEADER, so a truncated first page looks
+      // exactly like a complete result. This shipped broken: a real 11,297-entry
+      // history synced as its most recent 1,000 and reported success.
+      const { svc, prisma } = build();
+      const page = (n: number) => [
         {
           type: 'episode',
           watched_at: '2026-07-01T10:00:00Z',
-          show: { title: 'Silo', year: 2023 },
-          episode: { season: 1, number: 3, title: 'Freedom Day', ids: { tvdb: 9001 } },
+          show: { title: 'Silo' },
+          episode: { season: 1, number: n, ids: { tvdb: 9000 + n } },
         },
-      ] as any);
+      ];
+      const fetched: string[] = [];
+      jest
+        .spyOn(TraktClient.prototype as any, 'call')
+        .mockImplementation(async (...args: unknown[]) => {
+          const path = args[0] as string;
+          fetched.push(path);
+          const p = Number(/page=(\d+)/.exec(path)?.[1] ?? 1);
+          return { status: 200, json: page(p), pageCount: 3 };
+        });
+
+      const summary = await svc.syncWatched('u1');
+
+      // Three pages requested, three entries pulled — not one.
+      expect(fetched.filter((p) => p.startsWith('/sync/history'))).toHaveLength(3);
+      expect(summary.pulled).toBe(3);
+      expect(prisma.mediaUserWatch.upsert).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('watched state', () => {
+    it('pulls Trakt history and stamps it as already synced — so it is never echoed back', async () => {
+      const { svc, prisma, posts } = build();
+      jest.spyOn(TraktClient.prototype, 'getAll').mockResolvedValue({
+        items: [
+          {
+            type: 'episode',
+            watched_at: '2026-07-01T10:00:00Z',
+            show: { title: 'Silo', year: 2023 },
+            episode: { season: 1, number: 3, title: 'Freedom Day', ids: { tvdb: 9001 } },
+          },
+        ],
+        pages: 1,
+        truncated: false,
+      } as any);
 
       const summary = await svc.syncWatched('u1');
 
@@ -69,20 +106,25 @@ describe('TraktSyncService', () => {
       const { svc, prisma, posts } = build({
         mediaUserWatch: {
           upsert: jest.fn(),
-          findMany: jest.fn().mockResolvedValue([
-            {
-              id: 'w1',
-              mediaType: 'episode',
-              imdbId: null,
-              tmdbId: null,
-              tvdbId: '9001',
-              watchedAt: new Date('2026-07-02T10:00:00Z'),
-            },
-          ]),
+          // First batch has the row; after it is stamped synced the working set
+          // is empty — mirroring what updateMany does in the real query.
+          findMany: jest
+            .fn()
+            .mockResolvedValueOnce([
+              {
+                id: 'w1',
+                mediaType: 'episode',
+                imdbId: null,
+                tmdbId: null,
+                tvdbId: '9001',
+                watchedAt: new Date('2026-07-02T10:00:00Z'),
+              },
+            ])
+            .mockResolvedValue([]),
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
       });
-      jest.spyOn(TraktClient.prototype, 'get').mockResolvedValue([] as any);
+      jest.spyOn(TraktClient.prototype, 'getAll').mockResolvedValue({ items: [], pages: 1, truncated: false } as any);
 
       const summary = await svc.syncWatched('u1');
 
@@ -103,13 +145,16 @@ describe('TraktSyncService', () => {
       const { svc, posts } = build({
         mediaUserWatch: {
           upsert: jest.fn(),
-          findMany: jest.fn().mockResolvedValue([
-            { id: 'w1', mediaType: 'episode', imdbId: null, tmdbId: null, tvdbId: null, watchedAt: new Date() },
-          ]),
+          findMany: jest
+            .fn()
+            .mockResolvedValueOnce([
+              { id: 'w1', mediaType: 'episode', imdbId: null, tmdbId: null, tvdbId: null, watchedAt: new Date() },
+            ])
+            .mockResolvedValue([]),
           updateMany: jest.fn(),
         },
       });
-      jest.spyOn(TraktClient.prototype, 'get').mockResolvedValue([] as any);
+      jest.spyOn(TraktClient.prototype, 'getAll').mockResolvedValue({ items: [], pages: 1, truncated: false } as any);
 
       const summary = await svc.syncWatched('u1');
 
@@ -129,7 +174,7 @@ describe('TraktSyncService', () => {
 
     it('creates an acquisition item CARRYING the external ids — the identity gates need them', async () => {
       const { svc, prisma } = build();
-      jest.spyOn(TraktClient.prototype, 'get').mockResolvedValue(traktWatchlist as any);
+      jest.spyOn(TraktClient.prototype, 'getAll').mockResolvedValue({ items: traktWatchlist, pages: 1, truncated: false } as any);
 
       const summary = await svc.importWatchlist('u1');
 
@@ -154,7 +199,7 @@ describe('TraktSyncService', () => {
           update: jest.fn(),
         },
       });
-      jest.spyOn(TraktClient.prototype, 'get').mockResolvedValue(traktWatchlist as any);
+      jest.spyOn(TraktClient.prototype, 'getAll').mockResolvedValue({ items: traktWatchlist, pages: 1, truncated: false } as any);
 
       const summary = await svc.importWatchlist('u1');
 
@@ -179,7 +224,7 @@ describe('TraktSyncService', () => {
           update: jest.fn().mockResolvedValue({}),
         },
       });
-      jest.spyOn(TraktClient.prototype, 'get').mockResolvedValue(traktWatchlist as any);
+      jest.spyOn(TraktClient.prototype, 'getAll').mockResolvedValue({ items: traktWatchlist, pages: 1, truncated: false } as any);
 
       await svc.importWatchlist('u1');
 

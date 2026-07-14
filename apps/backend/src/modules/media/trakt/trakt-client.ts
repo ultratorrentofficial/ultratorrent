@@ -176,7 +176,7 @@ export class TraktClient {
   private async call(
     path: string,
     init: RequestInit & { accessToken?: string } = {},
-  ): Promise<{ status: number; json: any }> {
+  ): Promise<{ status: number; json: any; pageCount: number }> {
     const { accessToken, ...rest } = init;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -193,7 +193,11 @@ export class TraktClient {
       } catch {
         json = null;
       }
-      return { status: res.status, json };
+      // Trakt paginates by header, not in the body — a truncated response looks
+      // exactly like a complete one. Ignoring this is how a 11,297-entry history
+      // silently syncs as its most recent 1,000 and reports success.
+      const pageCount = Number(res.headers.get('x-pagination-page-count')) || 1;
+      return { status: res.status, json, pageCount };
     } finally {
       clearTimeout(timer);
     }
@@ -299,6 +303,47 @@ export class TraktClient {
     if (status === 401) throw new Error('Trakt rejected the access token.');
     if (status < 200 || status >= 300) throw new Error(`Trakt GET ${path} failed (HTTP ${status}).`);
     return json as T;
+  }
+
+  /**
+   * GET every page of a paginated collection.
+   *
+   * Trakt reports the page count in a HEADER; the body of a truncated first page
+   * is indistinguishable from a complete result. So a single `limit=1000` GET of
+   * an 11,297-entry history returns the most recent 1,000 and looks like a
+   * success — which is exactly what it did, silently, until this existed.
+   *
+   * `truncated` is returned rather than swallowed: if a history is so large that
+   * we hit the page ceiling, the caller says so out loud instead of reporting a
+   * partial sync as a complete one.
+   */
+  async getAll<T = any>(
+    path: string,
+    accessToken: string,
+    opts: { limit?: number; maxPages?: number } = {},
+  ): Promise<{ items: T[]; pages: number; truncated: boolean }> {
+    const limit = opts.limit ?? 1000;
+    const maxPages = opts.maxPages ?? 100; // 100k entries at limit=1000
+    const sep = path.includes('?') ? '&' : '?';
+    const items: T[] = [];
+    let page = 1;
+    let pages = 1;
+
+    do {
+      const { status, json, pageCount } = await this.call(
+        `${path}${sep}page=${page}&limit=${limit}`,
+        { accessToken },
+      );
+      if (status === 401) throw new Error('Trakt rejected the access token.');
+      if (status < 200 || status >= 300) {
+        throw new Error(`Trakt GET ${path} page ${page} failed (HTTP ${status}).`);
+      }
+      if (Array.isArray(json)) items.push(...json);
+      pages = pageCount;
+      page++;
+    } while (page <= pages && page <= maxPages);
+
+    return { items, pages, truncated: pages > maxPages };
   }
 
   async post<T = any>(path: string, body: unknown, accessToken: string): Promise<T> {

@@ -116,7 +116,7 @@ export class TraktSyncService {
     const client = await this.client();
     const summary: WatchlistImportSummary = { found: 0, imported: 0, alreadyPresent: 0, skipped: 0 };
 
-    const entries: any[] = await client.get('/sync/watchlist', token);
+    const { items: entries } = await client.getAll<any>('/sync/watchlist', token);
     summary.found = entries.length;
 
     for (const entry of entries) {
@@ -298,7 +298,14 @@ export class TraktSyncService {
     const summary: SyncSummary = { pulled: 0, pushed: 0, skipped: 0 };
 
     // --- pull: Trakt's history becomes rows with source 'trakt' -------------
-    const history: any[] = await client.get('/sync/history?limit=1000', token);
+    // EVERY page. Trakt reports the page count in a header, so a single request
+    // returns the most recent N and looks exactly like a complete result.
+    const { items: history, truncated } = await client.getAll<any>('/sync/history', token);
+    if (truncated) {
+      this.logger.warn(
+        `Trakt history for ${userId} exceeded the page ceiling — the oldest entries were not pulled.`,
+      );
+    }
     for (const entry of history) {
       const identity = this.identityFromTraktEntry(entry);
       if (!identity) {
@@ -331,42 +338,66 @@ export class TraktSyncService {
     }
 
     // --- push: our observed watches that Trakt has not seen ----------------
-    const unsynced = await this.prisma.mediaUserWatch.findMany({
-      where: { userId, syncedAt: null, source: { not: 'trakt' } },
-      take: 1000,
-    });
+    // Drained in batches rather than capped at one: a single `take` would leave
+    // the rest silently unsynced and still report success, which is the same
+    // trap the un-paginated pull fell into. `skipped` rows have no id and would
+    // be re-selected forever, so the loop advances past them by id.
+    const BATCH = 1000;
+    // A ceiling on the drain loop. If a batch is pushed but never leaves the
+    // working set — a failed stamp, a bad query — the loop would otherwise POST
+    // to Trakt forever. Bounded and LOUD beats unbounded and silent.
+    const MAX_BATCHES = 50;
+    const skippedIds: string[] = [];
+    let batches = 0;
 
-    const movies: any[] = [];
-    const episodes: any[] = [];
-    const pushedIds: string[] = [];
+    for (;;) {
+      if (++batches > MAX_BATCHES) {
+        this.logger.warn(
+          `Watched push for ${userId} hit the ${MAX_BATCHES}-batch ceiling — stopping. ` +
+            `Some watches remain unsynced; run the sync again.`,
+        );
+        break;
+      }
+      const unsynced = await this.prisma.mediaUserWatch.findMany({
+        where: {
+          userId,
+          syncedAt: null,
+          source: { not: 'trakt' },
+          ...(skippedIds.length ? { id: { notIn: skippedIds } } : {}),
+        },
+        take: BATCH,
+      });
+      if (!unsynced.length) break;
 
-    for (const w of unsynced) {
-      const ids = identityIds(w);
-      const watchedAt = w.watchedAt.toISOString();
-      if (w.mediaType === 'movie') {
+      const movies: any[] = [];
+      const episodes: any[] = [];
+      const pushedIds: string[] = [];
+
+      for (const w of unsynced) {
+        const ids = identityIds(w);
+        const watchedAt = w.watchedAt.toISOString();
         if (!hasAnyId(ids)) {
+          // No id at all: it cannot be placed in someone's history without
+          // guessing which show it belongs to.
           summary.skipped++;
+          skippedIds.push(w.id);
           continue;
         }
-        movies.push({ ids, watched_at: watchedAt });
+        (w.mediaType === 'movie' ? movies : episodes).push({ ids, watched_at: watchedAt });
         pushedIds.push(w.id);
-      } else if (hasAnyId(ids)) {
-        episodes.push({ ids, watched_at: watchedAt });
-        pushedIds.push(w.id);
-      } else {
-        // No id at all: a title-only episode cannot be placed in someone's
-        // history without guessing which show it belongs to.
-        summary.skipped++;
       }
-    }
 
-    if (movies.length || episodes.length) {
-      await client.post('/sync/history', { movies, episodes }, token);
-      await this.prisma.mediaUserWatch.updateMany({
-        where: { id: { in: pushedIds } },
-        data: { syncedAt: new Date() },
-      });
-      summary.pushed = pushedIds.length;
+      if (pushedIds.length) {
+        await client.post('/sync/history', { movies, episodes }, token);
+        await this.prisma.mediaUserWatch.updateMany({
+          where: { id: { in: pushedIds } },
+          data: { syncedAt: new Date() },
+        });
+        summary.pushed += pushedIds.length;
+      }
+      // Nothing pushable in this batch and everything in it was skipped: the
+      // remaining rows are all unidentifiable, so stop rather than spin.
+      if (!pushedIds.length && unsynced.length < BATCH) break;
     }
 
     await this.prisma.traktAccount.update({
@@ -430,7 +461,7 @@ export class TraktSyncService {
     const client = await this.client();
     const summary: SyncSummary = { pulled: 0, pushed: 0, skipped: 0 };
 
-    const ratings: any[] = await client.get('/sync/ratings', token);
+    const { items: ratings } = await client.getAll<any>('/sync/ratings', token);
     for (const entry of ratings) {
       const identity = this.identityFromTraktEntry(entry);
       const rating = Number(entry?.rating);
