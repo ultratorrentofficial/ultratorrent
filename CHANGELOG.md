@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.30.4] - 2026-07-14
+
+### Fixed
+- fix(media): the probe stops condemning a file for being slow — a timeout is retried, not held against the file
+
 ## [0.30.3] - 2026-07-14
 
 ### Fixed
