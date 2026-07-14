@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.30.3] - 2026-07-14
+
+### Fixed
+- fix(media): the library scan records a two-part episode's span, so it stops reading as a missing episode
+
 ## [0.30.2] - 2026-07-14
 
 ### Fixed

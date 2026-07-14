@@ -1,6 +1,6 @@
 {
   "name": "@ultratorrent/frontend",
-  "version": "0.30.2",
+  "version": "0.30.3",
   "private": true,
   "type": "module",
   "description": "UltraTorrent frontend (React + Vite)",
