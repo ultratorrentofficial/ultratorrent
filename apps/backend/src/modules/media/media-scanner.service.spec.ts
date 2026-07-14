@@ -53,6 +53,20 @@ describe('parseItemIdentity (what the scanner stores)', () => {
     expect(id.episode).toBe(4);
   });
 
+  it('stores the span of a two-part premiere held in ONE file', () => {
+    // The real file from the library that started all this: an 88-minute two-parter.
+    // The scan is the only writer for most items, so if it drops the span here, E02
+    // reads as missing forever and the search hunts an episode the library owns.
+    const id = parseItemIdentity(
+      `${LIB}/The Librarians (2014)/Season 1/The Librarians - S01E01 S01E02 - And the Crown of King Arthur (1) - And the Sword in the Stone (2).mp4`,
+      LIB,
+    );
+    expect(id.title).toBe('The Librarians');
+    expect(id.season).toBe(1);
+    expect(id.episode).toBe(1);
+    expect(id.episodeEnd).toBe(2);
+  });
+
   it('keeps the filename title for a loose scene release (folder is a junk/download dir)', () => {
     const id = parseItemIdentity(`${LIB}/completed/Show.Name.S02E05.1080p.WEB.x265-GRP.mkv`, LIB);
     expect(id.title).toBe('Show Name');

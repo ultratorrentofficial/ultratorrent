@@ -177,6 +177,11 @@ export class MediaScannerService {
       const identity = parseItemIdentity(file.path, library.path);
       const parsedSeason = identity.season ?? null;
       const parsedEpisode = identity.episode ?? identity.absoluteEpisode ?? null;
+      // A single file can hold several episodes (an 88-min "S01E01 S01E02" two-part
+      // premiere). The scan is the ONLY writer for most items — identification never
+      // runs again on an already-matched one — so the span has to be recorded here or
+      // the extra episodes look missing forever and the search hunts a phantom.
+      const parsedEpisodeEnd = identity.episodeEnd ?? null;
 
       if (existing) {
         await this.prisma.mediaFile.upsert({
@@ -204,7 +209,27 @@ export class MediaScannerService {
         ) {
           await this.prisma.mediaItem.update({
             where: { id: existing.id },
-            data: { title: identity.title, season: parsedSeason, episode: parsedEpisode },
+            data: {
+              title: identity.title,
+              season: parsedSeason,
+              episode: parsedEpisode,
+              episodeEnd: parsedEpisodeEnd,
+            },
+          });
+        }
+        // Backfill the span onto an item that already has its season/episode. The
+        // self-heal above deliberately refuses to touch an identified item, but an
+        // episodeEnd is new information, not a re-identification — without this, every
+        // two-parter already in a library stays a phantom missing episode forever.
+        else if (
+          parsedEpisodeEnd != null &&
+          existing.episodeEnd == null &&
+          existing.season === parsedSeason &&
+          existing.episode === parsedEpisode
+        ) {
+          await this.prisma.mediaItem.update({
+            where: { id: existing.id },
+            data: { episodeEnd: parsedEpisodeEnd },
           });
         }
         itemIds.push(existing.id);
@@ -219,6 +244,7 @@ export class MediaScannerService {
             year: identity.year ?? undefined,
             season: parsedSeason,
             episode: parsedEpisode,
+            episodeEnd: parsedEpisodeEnd,
             path: file.path,
             files: {
               create: {
