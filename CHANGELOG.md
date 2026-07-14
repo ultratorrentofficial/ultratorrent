@@ -45,6 +45,23 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.31.0] - 2026-07-14
+
+### Added
+- feat(media): a scan honours exclusion markers, and an item can be locked against every automated path
+- feat(media): metadata is resolved through a provider chain, and TheTVDB joins it
+- feat(media): the Universal scraper composes an item from every provider, field by field
+- feat(media): Trakt.tv — collection, watched state, ratings, watchlist and scrobbling
+
+### Fixed
+- fix(media): the renamer carries a file's .nfo and artwork sidecars instead of orphaning them
+- fix(media): saving a provider key or Trakt credentials refreshes what it derives, without a page reload
+- fix(media): Trakt and TVDB send a User-Agent — Cloudflare 403s requests without one
+- fix(media): Trakt sync pulls every page — a large history was silently truncated to its first 1,000
+- fix(media): the Trakt collection push batches instead of sending 29k items in one request
+- fix(media): the Trakt backfill matches the real episode, and pushes episodes by show+season/number
+- fix(media): scrobble/backfill match Plex's login and display names as the same user
+
 ## [0.30.4] - 2026-07-14
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "@ultratorrent/shared",
-  "version": "0.30.4",
+  "version": "0.31.0",
   "private": true,
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
