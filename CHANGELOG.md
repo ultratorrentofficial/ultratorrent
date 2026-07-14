@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.30.2] - 2026-07-14
+
+### Fixed
+- fix(media): a wrong-show grab traced to three identity bugs — cross-series ownership, unrepresentable two-part episodes, and an inherited series id nobody checked
+
 ## [0.30.1] - 2026-07-14
 
 ### Fixed
