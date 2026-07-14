@@ -637,11 +637,39 @@ model MediaFile {
   language     String?
   releaseGroup String?
   quality      String?
-  createdAt    DateTime @default(now())
+
+  // --- Measured technical metadata (mediainfo) ------------------------------
+  // The fields above are PARSED FROM THE FILENAME, which is why most of them are
+  // null in practice: the renamer strips quality tokens, so once a file becomes
+  // "Ted Lasso - S02E03 - Do the Right-est Thing.mp4" the codec/resolution are
+  // simply gone (measured: 96% of files had no videoCodec, 100% no hdr). These
+  // come from reading the container instead, so they are the truth rather than a
+  // claim — and they carry the signals a filename never does (real bitrate,
+  // exact dimensions, audio channel count).
+  width         Int?
+  height        Int?
+  bitrateKbps   Int?
+  durationSec   Int?
+  audioChannels Int?
+  frameRate     Float?
+
+  /// Where the tech metadata above came from: `filename` (guessed from the name)
+  /// or `probe` (measured from the container). Provenance is the point — without
+  /// it you cannot tell a trusted value from a guess, nor find what still needs
+  /// probing. Null = never touched.
+  techSource String?
+  probedAt   DateTime?
+  /// Why the last probe failed. Set so an unreadable/corrupt file fails once and
+  /// is skipped, instead of being retried on every backfill tick forever.
+  probeError String?
+
+  createdAt DateTime @default(now())
 
   item MediaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([itemId])
+  // The backfill's working set: "files never probed, and not already failed".
+  @@index([probedAt, probeError])
   @@map("media_files")
 }
 

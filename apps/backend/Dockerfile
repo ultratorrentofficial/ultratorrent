@@ -60,7 +60,15 @@ WORKDIR /app
 
 # OpenSSL so Prisma detects the right query engine at runtime (else it warns and
 # defaults to a wrong target).
-RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+#
+# mediainfo reads a media file's REAL codec/resolution/bitrate from its container.
+# The library's existing values are parsed from the FILENAME, and the renamer strips
+# those tokens — so on a renamed library they are mostly absent and anything that
+# depends on them (duplicate resolution, upgrade decisions) is guessing. mediainfo
+# rather than ffmpeg because it is the same library tinyMediaManager uses, emits JSON
+# directly, and costs ~18 MB in the image where ffmpeg costs ~440 MB. Absent → the
+# probe service degrades to a no-op rather than failing the boot.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl mediainfo \
   && rm -rf /var/lib/apt/lists/*
 
 # argon2 needs no build tools at runtime when prebuilt; copy node_modules.

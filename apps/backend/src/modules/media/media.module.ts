@@ -20,6 +20,8 @@ import { MediaAutomationActions } from './media-automation.actions';
 import { MediaProcessingService } from './media-processing.service';
 import { MediaLibraryScanScheduler } from './media-library-scan-scheduler.service';
 import { MediaServerHealthScheduler } from './media-server-health-scheduler.service';
+import { MediaProbeService } from './media-probe.service';
+import { MediaProbeBackfillService } from './media-probe-backfill.service';
 import { ImdbSettingsService } from './imdb/imdb-settings.service';
 import { ImdbDatasetImporterService } from './imdb/imdb-dataset-importer.service';
 import { ImdbOptimizedImportService } from './imdb/imdb-optimized-import.service';
@@ -62,6 +64,8 @@ import { MediaController } from './media.controller';
     MediaProcessingService,
     MediaLibraryScanScheduler,
     MediaServerHealthScheduler,
+    MediaProbeService,
+    MediaProbeBackfillService,
     ImdbSettingsService,
     ImdbDatasetImporterService,
     ImdbOptimizedImportService,

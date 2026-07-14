@@ -58,3 +58,6 @@ tmp/
 /ARCHITECTURE.md
 /docs/UltraTorrent-User-Manual.docx
 /docs/UltraTorrent-User-Manual.pdf
+
+# Recall session logs (local tooling scratch; history.md runs to megabytes).
+.recall/
