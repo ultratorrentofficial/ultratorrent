@@ -102,6 +102,18 @@ export function MediaLibrariesPage() {
       if (p.type === 'library_scan') {
         queryClient.invalidateQueries({ queryKey: ['media'] });
         setScanningId((cur) => (cur === p.libraryId ? null : cur));
+
+        // The scan found two folders holding the same show. It cannot settle that on
+        // its own — merging moves files and permanently deletes a folder, and only
+        // the operator knows which path is the real one. So we surface it and send
+        // them to the panel where they choose, preview the exact plan, and confirm.
+        const dupes = (p.result as { duplicateShows?: number } | undefined)?.duplicateShows ?? 0;
+        if (dupes > 0) {
+          toast.info(
+            t('libraries.duplicateShowsFound', { count: dupes }),
+            t('libraries.duplicateShowsHint'),
+          );
+        }
       }
     });
     const offFailed = wsClient.on(WS_EVENTS.MEDIA_JOB_FAILED, (p) => {
@@ -114,7 +126,9 @@ export function MediaLibrariesPage() {
       offCompleted();
       offFailed();
     };
-  }, []);
+    // `toast`/`t` are closed over by the completed handler. Both are stable, so this
+    // re-subscribes only on a language change, which is harmless.
+  }, [toast, t]);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['media', 'libraries'],

@@ -95,8 +95,9 @@ describe('MediaScannerService.reconcileShows', () => {
         deleteMany: jest.fn(async (args: any) => { deletes.push(args); return { count: 0 }; }),
       },
     };
-    const svc = new MediaScannerService(prisma as any, {} as any, {} as any, {} as any, {} as any);
-    return { svc, prisma, upserts, deletes };
+    const showDuplicates = { detect: jest.fn(async () => []) };
+    const svc = new MediaScannerService(prisma as any, {} as any, {} as any, {} as any, {} as any, showDuplicates as any);
+    return { svc, prisma, upserts, deletes, showDuplicates };
   }
   const run = (svc: any, lib = LIB) => svc.reconcileShows(lib);
 
@@ -242,5 +243,43 @@ describe('showFolderOf', () => {
 
   it('returns null for a path outside the library', () => {
     expect(showFolderOf(LIB, '/downloads/Movies/Ghost (1990)/Ghost.mkv')).toBeNull();
+  });
+});
+
+/**
+ * Two folders holding the same show ("Happy's Place (2024)" beside "Happys Place") is
+ * something only the operator can settle: a merge moves files and PERMANENTLY deletes a
+ * folder, and the scan cannot know which path is the real one. So it reports and stops
+ * — the decision, the preview and the confirmation all belong to the operator.
+ */
+describe('MediaScannerService.countDuplicateShows — the scan reports, it never merges', () => {
+  const LIB = { id: 'lib1', name: 'TV Shows' };
+
+  function build(detect: jest.Mock) {
+    const svc = new MediaScannerService(
+      {} as any, {} as any, {} as any, {} as any, {} as any,
+      { detect } as any,
+    );
+    return svc as any;
+  }
+
+  it('reports how many duplicate families the library has, scoped to that library', async () => {
+    const detect = jest.fn(async () => [{ members: [{}, {}] }, { members: [{}, {}] }]);
+    const svc = build(detect);
+    expect(await svc.countDuplicateShows(LIB, 661)).toBe(2);
+    expect(detect).toHaveBeenCalledWith('lib1');
+  });
+
+  it('does not consult the detector when the library recorded no shows', async () => {
+    // Nothing recorded → nothing to compare. Detecting would be a wasted pass.
+    const detect = jest.fn(async () => []);
+    expect(await build(detect).countDuplicateShows(LIB, 0)).toBe(0);
+    expect(detect).not.toHaveBeenCalled();
+  });
+
+  it('a detection failure does not fail the scan', async () => {
+    // A library we cannot compute duplicates for is still a successfully scanned one.
+    const detect = jest.fn(async () => { throw new Error('boom'); });
+    await expect(build(detect).countDuplicateShows(LIB, 10)).resolves.toBe(0);
   });
 });

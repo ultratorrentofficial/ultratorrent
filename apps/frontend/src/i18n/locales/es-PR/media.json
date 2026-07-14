@@ -181,7 +181,10 @@
       "artwork": "Obtener ilustraciones",
       "enabled": "Habilitado"
     },
-    "presetDefault": "Valor por defecto del preset:"
+    "presetDefault": "Valor por defecto del preset:",
+    "duplicateShowsFound_one": "Se encontró {{count}} carpeta de serie posiblemente duplicada",
+    "duplicateShowsFound_other": "Se encontraron {{count}} carpetas de series posiblemente duplicadas",
+    "duplicateShowsHint": "No se cambió nada. Revísalas en Media → Duplicados y elige la ruta real."
   },
   "items": {
     "title": "Elementos de Medios",

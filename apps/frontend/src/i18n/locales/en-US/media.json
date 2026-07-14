@@ -181,7 +181,10 @@
       "artwork": "Fetch artwork",
       "enabled": "Enabled"
     },
-    "presetDefault": "Preset default:"
+    "presetDefault": "Preset default:",
+    "duplicateShowsFound_one": "{{count}} possible duplicate show folder found",
+    "duplicateShowsFound_other": "{{count}} possible duplicate show folders found",
+    "duplicateShowsHint": "Nothing was changed. Review them under Media → Duplicates and choose the real path."
   },
   "items": {
     "title": "Media Items",

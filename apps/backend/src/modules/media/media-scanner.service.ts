@@ -10,6 +10,7 @@ import { parseItemIdentity } from './media-identification.service';
 import { MediaArtworkService } from './media-artwork.service';
 import { MediaMetadataService } from './media-metadata.service';
 import { TV_TYPES, parseFolderTitle, showCanonicalKey } from './series-grouping';
+import { MediaShowDuplicateService } from './media-show-duplicate.service';
 
 /** Library kinds whose contents are shows (and therefore get MediaShow rows). */
 const SHOW_LIBRARY_KINDS = ['tv', 'anime'];
@@ -109,6 +110,13 @@ export interface ScanSummary {
   metadataImported: number;
   /** Show folders recorded for this library (0 for a non-show library). */
   shows: number;
+  /**
+   * Families of show folders that look like the SAME show ("Happy's Place (2024)"
+   * beside "Happys Place"). The scan only reports them — merging moves files and
+   * deletes a folder, so it is never done without the operator choosing which path
+   * is the real one.
+   */
+  duplicateShows: number;
 }
 
 /**
@@ -125,6 +133,7 @@ export class MediaScannerService {
     private readonly artwork: MediaArtworkService,
     private readonly metadata: MediaMetadataService,
     private readonly eventBus: EventEmitter2,
+    private readonly showDuplicates: MediaShowDuplicateService,
   ) {}
 
   async scanLibrary(
@@ -253,6 +262,14 @@ export class MediaScannerService {
     await report?.(90, 'Recording show folders…');
     const shows = await this.reconcileShows(library);
 
+    const duplicateShows = await this.countDuplicateShows(library, shows);
+    if (duplicateShows > 0) {
+      await report?.(
+        91,
+        `${duplicateShows} possible duplicate show folder(s) found — review them under Media → Duplicates`,
+      );
+    }
+
     await report?.(92, 'Importing artwork & metadata sidecars…');
     const { artworkImported, metadataImported } = await this.importSidecars(
       itemIds,
@@ -262,6 +279,7 @@ export class MediaScannerService {
       100,
       `Done — ${files.length} scanned, ${added} added, ${updated} updated, ${removed} removed` +
         (shows ? `, ${shows} show folder(s)` : '') +
+        (duplicateShows ? `, ${duplicateShows} possible duplicate show(s)` : '') +
         (artworkImported ? `, ${artworkImported} artwork` : '') +
         (metadataImported ? `, ${metadataImported} metadata` : ''),
     );
@@ -273,10 +291,42 @@ export class MediaScannerService {
 
     this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
       event: NOTIFICATION_EVENTS.MEDIA_LIBRARY_SCAN_COMPLETED,
-      payload: { libraryName: library.name, mediaTitle: library.name, libraryId, scanned: files.length, added, updated, removed },
+      payload: { libraryName: library.name, mediaTitle: library.name, libraryId, scanned: files.length, added, updated, removed, duplicateShows },
       at: new Date().toISOString(),
     });
-    return { libraryId, scanned: files.length, added, updated, removed, artworkImported, metadataImported, shows };
+    return { libraryId, scanned: files.length, added, updated, removed, artworkImported, metadataImported, shows, duplicateShows };
+  }
+
+  /**
+   * Count the families of show folders that look like the SAME show — "Happy's Place
+   * (2024)" beside "Happys Place".
+   *
+   * The scan REPORTS them and stops. It must never merge on its own: a merge moves
+   * files and PERMANENTLY deletes a folder, and nothing here can know which of the
+   * two paths is the real one. The operator chooses the canonical path, sees the exact
+   * plan, and confirms.
+   *
+   * Best-effort. A library whose duplicates we cannot compute is still a successfully
+   * scanned library — a detection failure must not fail the scan.
+   */
+  private async countDuplicateShows(
+    library: { id: string; name: string },
+    shows: number,
+  ): Promise<number> {
+    if (shows === 0) return 0; // nothing recorded → nothing to compare
+    try {
+      const families = await this.showDuplicates.detect(library.id);
+      if (families.length > 0) {
+        this.logger.warn(
+          `Scan of ${library.name}: ${families.length} possible duplicate show folder(s). ` +
+            `Nothing was changed — an operator must choose the real path before a merge.`,
+        );
+      }
+      return families.length;
+    } catch (err) {
+      this.logger.warn(`Duplicate-show detection failed for ${library.name}: ${(err as Error).message}`);
+      return 0;
+    }
   }
 
   /**
