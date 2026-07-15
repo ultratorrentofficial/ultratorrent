@@ -458,6 +458,48 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
     settingsSections: ['notification-center'],
     features: ['providers', 'channels', 'recipients', 'recipient_groups', 'notification_rules', 'templates', 'delivery_queue', 'delivery_history', 'provider_health', 'quiet_hours', 'rate_limiting', 'deduplication', 'escalation', 'rich_cards', 'event_bus'],
   },
+  {
+    id: MODULE_IDS.SUBTITLE_INTELLIGENCE,
+    name: 'Subtitle Intelligence',
+    description:
+      'The definitive subtitle engine: fingerprints every media file (movie hash + technical metadata), searches multiple providers with a progressively-relaxed strategy (hash → release → external id → title), scores and validates each candidate, installs the best as a media-server-correct sidecar (never overwriting an original), and can synchronize it to the audio. Per-library language policy, automation, and background monitoring.',
+    tier: 'core',
+    enabledByDefault: true,
+    dependencies: [
+      MODULE_IDS.AUTH,
+      MODULE_IDS.RBAC,
+      MODULE_IDS.FILES,
+      MODULE_IDS.AUDIT,
+      MODULE_IDS.SETTINGS,
+      MODULE_IDS.MEDIA_MANAGER,
+    ],
+    permissions: [
+      P.SUBTITLE_INTELLIGENCE_VIEW,
+      P.SUBTITLE_INTELLIGENCE_SEARCH,
+      P.SUBTITLE_INTELLIGENCE_DOWNLOAD,
+      P.SUBTITLE_INTELLIGENCE_SYNCHRONIZE,
+      P.SUBTITLE_INTELLIGENCE_MANAGE,
+      P.SUBTITLE_INTELLIGENCE_PROVIDERS,
+      P.SUBTITLE_INTELLIGENCE_SETTINGS,
+      P.SUBTITLE_INTELLIGENCE_ADMIN,
+    ],
+    menu: [
+      { label: 'Subtitle Intelligence', path: '/subtitles', icon: 'Captions', permission: P.SUBTITLE_INTELLIGENCE_VIEW },
+    ],
+    routes: ['/api/subtitle-intelligence'],
+    websocketEvents: [
+      'subtitle_intelligence.job.started',
+      'subtitle_intelligence.job.progress',
+      'subtitle_intelligence.job.completed',
+      'subtitle_intelligence.job.failed',
+      'subtitle_intelligence.downloaded',
+      'subtitle_intelligence.download_failed',
+      'subtitle_intelligence.synchronized',
+      'subtitle_intelligence.validation_failed',
+    ],
+    schedulerJobs: ['subtitle_missing_scan', 'subtitle_provider_health'],
+    features: ['fingerprinting', 'movie_hash', 'multi_provider', 'opensubtitles', 'scoring', 'validation', 'synchronization', 'language_policy', 'sidecars', 'plex', 'jellyfin', 'emby', 'kodi'],
+  },
 ];
 
 export const ALL_MANIFESTS: ModuleManifest[] = [

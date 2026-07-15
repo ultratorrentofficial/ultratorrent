@@ -1,0 +1,119 @@
+{
+  "title": "Subtitle Intelligence",
+  "subtitle": "Find, score, validate, and install the best subtitle for every title.",
+  "common": {
+    "loading": "Loading…",
+    "error": "Something went wrong.",
+    "save": "Save"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "search": "Search",
+    "providers": "Providers"
+  },
+  "status": {
+    "healthy": "Healthy",
+    "unknown": "Unknown",
+    "disabled": "Disabled"
+  },
+  "tier": {
+    "auto": "Auto",
+    "download": "Download",
+    "present": "Review",
+    "reject": "Rejected"
+  },
+  "dashboard": {
+    "installed": "Installed subtitles",
+    "downloads": "Total downloads",
+    "providers": "Enabled providers",
+    "providerHealth": "Provider health",
+    "noProviders": "No providers configured yet.",
+    "quota": "{{n}} left today",
+    "byLanguage": "By language",
+    "empty": "Nothing installed yet."
+  },
+  "providers": {
+    "title": "Providers",
+    "subtitle": "Enable subtitle sources and enter their credentials. Secrets are encrypted at rest.",
+    "priority": "Priority",
+    "test": "Test",
+    "saved": "{{name}} saved.",
+    "healthy": "{{name}} is reachable.",
+    "unhealthy": "{{name}} is not reachable.",
+    "comingSoon": "Coming soon",
+    "field": {
+      "apiKey": "API key",
+      "username": "Username",
+      "password": "Password",
+      "repoPath": "Repository path"
+    }
+  },
+  "languages": {
+    "title": "Language Policy",
+    "subtitle": "Set which subtitle languages each library requires and prefers.",
+    "selectLibrary": "Library",
+    "required": "Required languages",
+    "preferred": "Preferred languages",
+    "forced": "Forced languages",
+    "preferredProviders": "Preferred providers",
+    "minScore": "Minimum score",
+    "hearingImpaired": "Hearing impaired (SDH)",
+    "machineTranslation": "Allow machine translation",
+    "syncRequired": "Require synchronization",
+    "autoReplace": "Automatic replacement",
+    "saved": "Language policy saved.",
+    "noLibraries": "No media libraries yet.",
+    "scanMissing": "Scan for missing",
+    "scanStarted": "Missing-subtitle scan started."
+  },
+  "history": {
+    "title": "Downloads & History",
+    "subtitle": "Installed subtitles and the full activity trail.",
+    "installed": "Installed subtitles",
+    "activity": "Activity",
+    "noDownloads": "No subtitles installed yet.",
+    "empty": "No activity yet."
+  },
+  "search": {
+    "title": "Subtitle Search",
+    "subtitle": "Search every enabled provider for a media item and install the best match.",
+    "itemId": "Media item ID",
+    "itemIdHint": "Paste a media item ID",
+    "languages": "Languages",
+    "run": "Search",
+    "download": "Download",
+    "installed": "Subtitle installed.",
+    "notInstalled": "Subtitle was not installed.",
+    "noResults": "No candidates found",
+    "noResultsHint": "Try more languages, or configure another provider.",
+    "hashMatch": "Hash match",
+    "forced": "Forced",
+    "trusted": "Trusted"
+  },
+  "sync": {
+    "title": "Synchronization",
+    "subtitle": "Align installed subtitles to the audio. The original is always kept.",
+    "engines": "Engines",
+    "notInstalled": "not installed",
+    "manualOffset": "Manual offset",
+    "ffHint": "Install ffmpeg + ffsubsync for automatic audio sync.",
+    "empty": "No installed subtitles yet",
+    "emptyHint": "Download a subtitle first, then sync it here.",
+    "auto": "Auto sync",
+    "applyOffset": "Apply offset",
+    "offsetMs": "Offset (ms)",
+    "done": "Subtitle synchronized.",
+    "skipped": "Synchronization did not run.",
+    "ffUnavailable": "ffsubsync is not installed"
+  },
+  "validation": {
+    "title": "Validation",
+    "subtitle": "Check a subtitle for structural problems before use.",
+    "paste": "Paste subtitle text (SRT, VTT, or ASS)",
+    "run": "Validate",
+    "valid": "Valid",
+    "invalid": "Invalid",
+    "cues": "{{n}} cues",
+    "noIssues": "No issues found."
+  }
+}

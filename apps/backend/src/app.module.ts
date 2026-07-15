@@ -32,6 +32,7 @@ import { ProwlarrIntegrationModule } from './modules/integrations/prowlarr/prowl
 import { MediaAcquisitionModule } from './modules/media-acquisition/media-acquisition.module';
 import { MediaServerAnalyticsModule } from './modules/media-server-analytics/media-server-analytics.module';
 import { NotificationCenterModule } from './modules/notification-center/notification-center.module';
+import { SubtitleIntelligenceModule } from './modules/subtitle-intelligence/subtitle-intelligence.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { NotificationCenterModule } from './modules/notification-center/notifica
     MediaAcquisitionModule,
     MediaServerAnalyticsModule,
     NotificationCenterModule,
+    SubtitleIntelligenceModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

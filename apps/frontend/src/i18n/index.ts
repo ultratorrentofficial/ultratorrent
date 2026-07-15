@@ -12,6 +12,7 @@ import enShell from './locales/en-US/shell.json';
 import enMedia from './locales/en-US/media.json';
 import enMediaServerAnalytics from './locales/en-US/mediaServerAnalytics.json';
 import enNotificationCenter from './locales/en-US/notificationCenter.json';
+import enSubtitleIntelligence from './locales/en-US/subtitleIntelligence.json';
 import enImdb from './locales/en-US/imdb.json';
 import enRss from './locales/en-US/rss.json';
 import enTorrents from './locales/en-US/torrents.json';
@@ -34,6 +35,7 @@ import esShell from './locales/es-PR/shell.json';
 import esMedia from './locales/es-PR/media.json';
 import esMediaServerAnalytics from './locales/es-PR/mediaServerAnalytics.json';
 import esNotificationCenter from './locales/es-PR/notificationCenter.json';
+import esSubtitleIntelligence from './locales/es-PR/subtitleIntelligence.json';
 import esImdb from './locales/es-PR/imdb.json';
 import esRss from './locales/es-PR/rss.json';
 import esTorrents from './locales/es-PR/torrents.json';
@@ -85,6 +87,7 @@ export const NAMESPACES = [
   'media',
   'mediaServerAnalytics',
   'notificationCenter',
+  'subtitleIntelligence',
   'imdb',
   'rss',
   'torrents',
@@ -111,6 +114,7 @@ export const resources = {
     media: enMedia,
     mediaServerAnalytics: enMediaServerAnalytics,
     notificationCenter: enNotificationCenter,
+    subtitleIntelligence: enSubtitleIntelligence,
     imdb: enImdb,
     rss: enRss,
     torrents: enTorrents,
@@ -135,6 +139,7 @@ export const resources = {
     media: esMedia,
     mediaServerAnalytics: esMediaServerAnalytics,
     notificationCenter: esNotificationCenter,
+    subtitleIntelligence: esSubtitleIntelligence,
     imdb: esImdb,
     rss: esRss,
     torrents: esTorrents,

@@ -25,6 +25,7 @@ directly from the NestJS controllers.
 - [API keys — `/api/api-keys`](#api-keys--apiapi-keys)
 - [Audit — `/api/audit`](#audit--apiaudit)
 - [Media Manager — `/api/media`](#media-manager--apimedia)
+- [Subtitle Intelligence — `/api/subtitle-intelligence`](#subtitle-intelligence--apisubtitle-intelligence)
 - [Media Acquisition Intelligence — `/api/media-acquisition`](#media-acquisition-intelligence--apimedia-acquisition)
 - [Release Scoring — `/api/release-scoring`](#release-scoring--apirelease-scoring)
 - [Modules — `/api/modules`](#modules--apimodules)
@@ -824,6 +825,45 @@ responses; dataset paths are confined to `FILE_MANAGER_ROOTS`.
 Provider modes (`mode`): `disabled` (default), `dataset` (imported tables only),
 `official_api` (licensed API only), `hybrid` (dataset first, API fallback).
 Settings changes, dataset validate/import, matches, and API tests are audited.
+
+---
+
+## Subtitle Intelligence — `/api/subtitle-intelligence`
+
+The definitive subtitle engine (core module `subtitle_intelligence`). Fingerprints
+media, searches multiple providers with a progressively-relaxed strategy, scores +
+validates candidates, installs media-server-correct sidecars (never overwriting an
+original), synchronizes to the audio, and monitors libraries for gaps. Full detail:
+[SUBTITLE_INTELLIGENCE.md](SUBTITLE_INTELLIGENCE.md).
+
+All routes are guarded by `JwtAuthGuard` + `PermissionsGuard`; downloads, provider
+changes, sync, and language-policy changes are audited; provider secrets are
+AES-256-GCM encrypted and redacted in responses.
+
+| Method | Path | Permission |
+|--------|------|------------|
+| GET | `/api/subtitle-intelligence/dashboard` | `subtitle_intelligence.view` |
+| GET | `/api/subtitle-intelligence/providers` | `subtitle_intelligence.view` |
+| PATCH | `/api/subtitle-intelligence/providers/:provider` | `subtitle_intelligence.providers` |
+| POST | `/api/subtitle-intelligence/providers/:provider/test` | `subtitle_intelligence.providers` |
+| POST | `/api/subtitle-intelligence/providers/health-check` | `subtitle_intelligence.providers` |
+| GET | `/api/subtitle-intelligence/libraries/:libraryId/languages` | `subtitle_intelligence.view` |
+| PATCH | `/api/subtitle-intelligence/libraries/:libraryId/languages` | `subtitle_intelligence.settings` |
+| POST | `/api/subtitle-intelligence/libraries/:libraryId/scan-missing` | `subtitle_intelligence.search` (detached → `{ jobId }`) |
+| POST | `/api/subtitle-intelligence/items/:id/fingerprint` | `subtitle_intelligence.search` |
+| POST | `/api/subtitle-intelligence/items/:id/search` | `subtitle_intelligence.search` |
+| GET | `/api/subtitle-intelligence/items/:id/candidates` | `subtitle_intelligence.view` |
+| POST | `/api/subtitle-intelligence/candidates/:candidateId/download` | `subtitle_intelligence.download` |
+| GET | `/api/subtitle-intelligence/sync/capabilities` | `subtitle_intelligence.view` |
+| POST | `/api/subtitle-intelligence/downloads/:downloadId/synchronize` | `subtitle_intelligence.synchronize` |
+| GET | `/api/subtitle-intelligence/downloads/:downloadId/synchronizations` | `subtitle_intelligence.view` |
+| POST | `/api/subtitle-intelligence/validate` | `subtitle_intelligence.view` |
+| GET | `/api/subtitle-intelligence/downloads` | `subtitle_intelligence.view` |
+| GET | `/api/subtitle-intelligence/history` | `subtitle_intelligence.view` |
+
+WebSocket events (scoped to `subtitle_intelligence.view`):
+`subtitle_intelligence.job.{started,progress,completed,failed}`,
+`subtitle_intelligence.{downloaded,download_failed,synchronized,validation_failed}`.
 
 ---
 

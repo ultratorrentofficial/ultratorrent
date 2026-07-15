@@ -51,6 +51,16 @@ export const WS_EVENTS = {
   NOTIFICATION_PROVIDER_ONLINE: 'notification.provider.online',
   NOTIFICATION_PROVIDER_OFFLINE: 'notification.provider.offline',
   NOTIFICATION_RULE_TRIGGERED: 'notification.rule.triggered',
+  // Subtitle Intelligence (scoped to subtitle_intelligence.view). Job progress +
+  // per-subtitle lifecycle for live UI.
+  SUBTITLE_JOB_STARTED: 'subtitle_intelligence.job.started',
+  SUBTITLE_JOB_PROGRESS: 'subtitle_intelligence.job.progress',
+  SUBTITLE_JOB_COMPLETED: 'subtitle_intelligence.job.completed',
+  SUBTITLE_JOB_FAILED: 'subtitle_intelligence.job.failed',
+  SUBTITLE_DOWNLOADED: 'subtitle_intelligence.downloaded',
+  SUBTITLE_DOWNLOAD_FAILED: 'subtitle_intelligence.download_failed',
+  SUBTITLE_SYNCHRONIZED: 'subtitle_intelligence.synchronized',
+  SUBTITLE_VALIDATION_FAILED: 'subtitle_intelligence.validation_failed',
 } as const;
 
 /**
@@ -99,6 +109,13 @@ export const NOTIFICATION_EVENTS = {
   MEDIA_DUPLICATE: 'media.duplicate',
   MEDIA_MISSING_EPISODE_FILLED: 'media.missing_episode_filled',
   MEDIA_LIBRARY_SCAN_COMPLETED: 'media.library_scan_completed',
+  // Subtitle Intelligence
+  SUBTITLE_DOWNLOADED: 'subtitle.downloaded',
+  SUBTITLE_FAILED: 'subtitle.failed',
+  SUBTITLE_MISSING: 'subtitle.missing',
+  SUBTITLE_SYNCHRONIZED: 'subtitle.synchronized',
+  SUBTITLE_VALIDATION_FAILED: 'subtitle.validation_failed',
+  SUBTITLE_UPDATED: 'subtitle.updated',
   // System
   SYSTEM_DISK_SPACE_LOW: 'system.disk_space_low',
   SYSTEM_CPU_HIGH: 'system.cpu_high',
@@ -166,6 +183,23 @@ export interface MediaJobEventPayload {
   progress: number;
   libraryId?: string | null;
   itemId?: string | null;
+  message?: string | null;
+  result?: unknown;
+  error?: string | null;
+  at: string;
+}
+
+/** A Subtitle Intelligence background job's lifecycle event over WebSocket. */
+export interface SubtitleJobEventPayload {
+  jobId: string;
+  /** missing_scan | search | download | validate | synchronize | provider_health | bulk_scan */
+  type: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  progress: number;
+  libraryId?: string | null;
+  itemId?: string | null;
+  provider?: string | null;
+  language?: string | null;
   message?: string | null;
   result?: unknown;
   error?: string | null;

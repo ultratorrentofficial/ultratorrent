@@ -153,6 +153,7 @@ Read the graph as a story:
 | Module | Tier | What it does |
 |--------|------|--------------|
 | [Media Manager](/modules/media-manager) | community | Scan, identify, enrich, rename, and organise your media libraries. |
+| [Subtitle Intelligence](/modules/subtitle-intelligence) | core | Find, score, validate, install, and synchronize the best subtitle for every title. |
 | [Media Server Analytics](/modules/media-server-analytics) | core | Plex/Jellyfin/Emby/Kodi monitoring, watch history, reports, and newsletters. |
 | [File Manager](/modules/files) | core | Path-safe browsing, file operations, trash, and the cleanup wizard. |
 

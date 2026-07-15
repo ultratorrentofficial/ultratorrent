@@ -71,6 +71,21 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl mediainfo \
   && rm -rf /var/lib/apt/lists/*
 
+# Optional: bake the audio-based subtitle-sync stack (ffmpeg + ffsubsync).
+# OFF by default — it pulls ~400 MB of ffmpeg + a Python toolchain, and Subtitle
+# Intelligence degrades gracefully without it (search/score/validate/install and
+# MANUAL-offset sync all still work; only automatic audio sync needs it). Opt in
+# with `--build-arg INSTALL_SUBTITLE_SYNC=true`. The install logic is the same
+# idempotent script used for bare-metal installs.
+ARG INSTALL_SUBTITLE_SYNC=false
+COPY ops/scripts/install-subtitle-tools.sh /tmp/install-subtitle-tools.sh
+RUN if [ "$INSTALL_SUBTITLE_SYNC" = "true" ]; then \
+      sh /tmp/install-subtitle-tools.sh; \
+    else \
+      echo "INSTALL_SUBTITLE_SYNC=false — skipping ffmpeg/ffsubsync (automatic sync disabled; manual-offset sync still works)"; \
+    fi; \
+    rm -f /tmp/install-subtitle-tools.sh
+
 # argon2 needs no build tools at runtime when prebuilt; copy node_modules.
 # `--chown=node:node` so the non-root user below can write the Prisma engine
 # cache under node_modules at runtime.

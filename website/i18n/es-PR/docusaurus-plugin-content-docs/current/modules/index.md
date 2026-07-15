@@ -153,6 +153,7 @@ Lee el grafo como una historia:
 | Módulo | Tier | Qué hace |
 |--------|------|--------------|
 | [Gestor de Medios](/modules/media-manager) | community | Escanea, identifica, enriquece, renombra y organiza tus bibliotecas de medios. |
+| [Inteligencia de Subtítulos](/modules/subtitle-intelligence) | core | Encuentra, califica, valida, instala y sincroniza el mejor subtítulo para cada título. |
 | [Analíticas del Servidor de Medios](/modules/media-server-analytics) | core | Monitoreo de Plex/Jellyfin/Emby/Kodi, historial de reproducción, informes y boletines. |
 | [Gestor de Archivos](/modules/files) | core | Navegación segura por rutas, operaciones de archivos, papelera y el asistente de limpieza. |
 

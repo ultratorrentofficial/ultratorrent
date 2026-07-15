@@ -47,6 +47,7 @@ describe('AutomationEngine — ratio.reached edge trigger', () => {
       media,
       mediaActions,
       rssActions,
+      { execute: jest.fn().mockResolvedValue(undefined) } as any,
       audit,
       { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
     );
@@ -145,6 +146,7 @@ describe('AutomationEngine — media action dispatch', () => {
       media,
       mediaActions,
       rssActions,
+      { execute: jest.fn().mockResolvedValue(undefined) } as any,
       audit,
       { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
     );
@@ -186,6 +188,7 @@ describe('AutomationEngine — reconcileCompleted (completion backfill)', () => 
       registry,
       notifications,
       {} as any,
+      { execute: jest.fn() } as any,
       { execute: jest.fn() } as any,
       { execute: jest.fn() } as any,
       audit,
@@ -260,7 +263,7 @@ describe('AutomationEngine — evaluateEvent (non-torrent event context)', () =>
     const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const rssActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const engine = new AutomationEngine(prisma, registry, notifications, media, mediaActions, rssActions, audit, { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any);
+    const engine = new AutomationEngine(prisma, registry, notifications, media, mediaActions, rssActions, { execute: jest.fn().mockResolvedValue(undefined) } as any, audit, { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any);
     return { engine, prisma, notifications, rssActions };
   }
 

@@ -2912,6 +2912,63 @@ export const api = {
     },
   },
 
+  subtitles: {
+    dashboard(): Promise<SubtitleDashboard> {
+      return request<SubtitleDashboard>('/subtitle-intelligence/dashboard');
+    },
+    listProviders(): Promise<SubtitleProviderCatalogEntry[]> {
+      return request<SubtitleProviderCatalogEntry[]>('/subtitle-intelligence/providers');
+    },
+    upsertProvider(provider: string, body: SubtitleProviderPatch): Promise<SubtitleProviderRow> {
+      return request<SubtitleProviderRow>(`/subtitle-intelligence/providers/${provider}`, { method: 'PATCH', body });
+    },
+    testProvider(provider: string): Promise<{ healthy: boolean; message?: string; quotaRemaining?: number | null }> {
+      return request(`/subtitle-intelligence/providers/${provider}/test`, { method: 'POST' });
+    },
+    getLanguages(libraryId: string): Promise<SubtitleLanguageSettings> {
+      return request<SubtitleLanguageSettings>(`/subtitle-intelligence/libraries/${libraryId}/languages`);
+    },
+    setLanguages(libraryId: string, body: Partial<SubtitleLanguageSettings>): Promise<SubtitleLanguageSettings> {
+      return request<SubtitleLanguageSettings>(`/subtitle-intelligence/libraries/${libraryId}/languages`, { method: 'PATCH', body });
+    },
+    fingerprint(itemId: string): Promise<unknown> {
+      return request(`/subtitle-intelligence/items/${itemId}/fingerprint`, { method: 'POST' });
+    },
+    search(itemId: string, body: { languages?: string[]; hearingImpaired?: boolean; forced?: boolean }): Promise<{ candidates: SubtitleCandidate[]; warning?: string }> {
+      return request(`/subtitle-intelligence/items/${itemId}/search`, { method: 'POST', body });
+    },
+    candidates(itemId: string): Promise<SubtitleCandidate[]> {
+      return request<SubtitleCandidate[]>(`/subtitle-intelligence/items/${itemId}/candidates`);
+    },
+    download(candidateId: string): Promise<{ installed: boolean; reason?: string; error?: string }> {
+      return request(`/subtitle-intelligence/candidates/${candidateId}/download`, { method: 'POST' });
+    },
+    validate(body: { content: string; ext?: string }): Promise<SubtitleValidationResult> {
+      return request<SubtitleValidationResult>('/subtitle-intelligence/validate', { method: 'POST', body });
+    },
+    downloads(itemId?: string): Promise<SubtitleDownloadRow[]> {
+      return request<SubtitleDownloadRow[]>('/subtitle-intelligence/downloads', { query: itemId ? { itemId } : undefined });
+    },
+    history(itemId?: string): Promise<SubtitleHistoryRow[]> {
+      return request<SubtitleHistoryRow[]>('/subtitle-intelligence/history', { query: itemId ? { itemId } : undefined });
+    },
+    syncCapabilities(): Promise<SubtitleSyncCapabilities> {
+      return request<SubtitleSyncCapabilities>('/subtitle-intelligence/sync/capabilities');
+    },
+    synchronize(downloadId: string, body: { method?: 'auto' | 'manual'; offsetMs?: number; driftFactor?: number }): Promise<{ synced: boolean; reason?: string; error?: string }> {
+      return request(`/subtitle-intelligence/downloads/${downloadId}/synchronize`, { method: 'POST', body });
+    },
+    synchronizations(downloadId: string): Promise<SubtitleSyncRow[]> {
+      return request<SubtitleSyncRow[]>(`/subtitle-intelligence/downloads/${downloadId}/synchronizations`);
+    },
+    scanMissing(libraryId: string): Promise<{ jobId: string }> {
+      return request(`/subtitle-intelligence/libraries/${libraryId}/scan-missing`, { method: 'POST' });
+    },
+    healthCheckAll(): Promise<{ provider: string; healthy: boolean; message?: string }[]> {
+      return request('/subtitle-intelligence/providers/health-check', { method: 'POST' });
+    },
+  },
+
   media: {
     presets(): Promise<MediaPresets> {
       return request<MediaPresets>('/media/presets');
@@ -4156,6 +4213,122 @@ export interface MediaServerLibrariesResult {
   supported: boolean;
   message?: string;
   libraries: { id: string; name: string; type: string; itemCount?: number }[];
+}
+
+// --- Subtitle Intelligence (core module `subtitle_intelligence`) -----------
+
+export interface SubtitleProviderRow {
+  provider: string;
+  isEnabled: boolean;
+  priority: number;
+  config: Record<string, unknown>;
+  healthy: boolean | null;
+  lastError: string | null;
+  quotaRemaining: number | null;
+}
+
+export interface SubtitleProviderCatalogEntry {
+  key: string;
+  label: string;
+  implemented: boolean;
+  secretFields: string[];
+  fields: string[];
+  config: SubtitleProviderRow | null;
+}
+
+export interface SubtitleProviderPatch {
+  isEnabled?: boolean;
+  priority?: number;
+  config?: Record<string, unknown>;
+}
+
+export interface SubtitleLanguageSettings {
+  libraryId: string;
+  requiredLanguages: string[];
+  preferredLanguages: string[];
+  forcedLanguages: string[];
+  hearingImpaired: boolean;
+  machineTranslation: boolean;
+  preferredProviders: string[];
+  synchronizationRequired: boolean;
+  minimumScore: number;
+  automaticReplacement: boolean;
+}
+
+export interface SubtitleCandidate {
+  id: string;
+  itemId: string;
+  provider: string;
+  language: string;
+  releaseName: string | null;
+  filename: string | null;
+  movieHash: string | null;
+  matchLevel: number | null;
+  score: number;
+  scoreTier: string | null;
+  downloads: number | null;
+  uploader: string | null;
+  trustedUploader: boolean;
+  hearingImpaired: boolean;
+  forced: boolean;
+}
+
+export interface SubtitleHistoryRow {
+  id: string;
+  itemId: string | null;
+  action: string;
+  provider: string | null;
+  language: string | null;
+  score: number | null;
+  message: string | null;
+  createdAt: string;
+}
+
+export interface SubtitleDownloadRow {
+  id: string;
+  itemId: string;
+  provider: string;
+  language: string;
+  path: string;
+  score: number;
+  status: string;
+  createdAt: string;
+}
+
+export interface SubtitleDashboard {
+  totals: { downloads: number; installed: number };
+  providers: { provider: string; isEnabled: boolean; healthy: boolean | null; quotaRemaining: number | null }[];
+  byLanguage: { language: string; count: number }[];
+  recent: SubtitleHistoryRow[];
+}
+
+export interface SubtitleValidationResult {
+  format: string;
+  valid: boolean;
+  cueCount: number;
+  startMs: number | null;
+  endMs: number | null;
+  issues: { code: string; message: string; severity: string; cue?: number }[];
+}
+
+export interface SubtitleSyncCapabilities {
+  ffsubsync: { available: boolean; version: string | null };
+  manual: { available: boolean };
+}
+
+export interface SubtitleSyncRow {
+  id: string;
+  downloadId: string;
+  provider: string;
+  method: string;
+  offsetMs: number;
+  driftFactor: number;
+  confidence: number | null;
+  status: string;
+  originalPath: string;
+  syncedPath: string;
+  message: string | null;
+  createdAt: string;
 }
 
 export { API_URL };

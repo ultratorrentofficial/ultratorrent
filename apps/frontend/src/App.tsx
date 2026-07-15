@@ -18,6 +18,13 @@ import { RssFeedHistoryPage } from '@/pages/RssFeedHistoryPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { MediaPage } from '@/pages/MediaPage';
 import { MediaDashboardPage } from '@/pages/media-manager/MediaDashboardPage';
+import { SubtitleDashboardPage } from '@/pages/subtitle-intelligence/SubtitleDashboardPage';
+import { SubtitleProvidersPage } from '@/pages/subtitle-intelligence/SubtitleProvidersPage';
+import { SubtitleSearchPage } from '@/pages/subtitle-intelligence/SubtitleSearchPage';
+import { SubtitleSyncPage } from '@/pages/subtitle-intelligence/SubtitleSyncPage';
+import { SubtitleValidationPage } from '@/pages/subtitle-intelligence/SubtitleValidationPage';
+import { SubtitleLanguagesPage } from '@/pages/subtitle-intelligence/SubtitleLanguagesPage';
+import { SubtitleHistoryPage } from '@/pages/subtitle-intelligence/SubtitleHistoryPage';
 import { MediaLibrariesPage } from '@/pages/media-manager/MediaLibrariesPage';
 import { MediaItemsPage } from '@/pages/media-manager/MediaItemsPage';
 import { MediaDetailPage } from '@/pages/media-manager/MediaDetailPage';
@@ -210,6 +217,68 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_manager">
                             <MediaPage />
+                          </ModuleRoute>
+                        }
+                      />
+                    </Route>
+                  </Route>
+
+                  {/* Subtitle Intelligence — core module `subtitle_intelligence`. */}
+                  <Route element={<ProtectedRoute permission={PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW} />}>
+                    <Route element={<AppShell />}>
+                      <Route
+                        path="/subtitles"
+                        element={
+                          <ModuleRoute moduleId="subtitle_intelligence">
+                            <SubtitleDashboardPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/subtitles/search"
+                        element={
+                          <ModuleRoute moduleId="subtitle_intelligence">
+                            <SubtitleSearchPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/subtitles/providers"
+                        element={
+                          <ModuleRoute moduleId="subtitle_intelligence">
+                            <SubtitleProvidersPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/subtitles/sync"
+                        element={
+                          <ModuleRoute moduleId="subtitle_intelligence">
+                            <SubtitleSyncPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/subtitles/validation"
+                        element={
+                          <ModuleRoute moduleId="subtitle_intelligence">
+                            <SubtitleValidationPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/subtitles/languages"
+                        element={
+                          <ModuleRoute moduleId="subtitle_intelligence">
+                            <SubtitleLanguagesPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/subtitles/history"
+                        element={
+                          <ModuleRoute moduleId="subtitle_intelligence">
+                            <SubtitleHistoryPage />
                           </ModuleRoute>
                         }
                       />

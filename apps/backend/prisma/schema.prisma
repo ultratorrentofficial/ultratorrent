@@ -15,20 +15,20 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id           String   @id @default(uuid())
-  username     String   @unique
-  email        String   @unique
-  displayName  String?
-  passwordHash String
-  isActive     Boolean  @default(true)
-  isSystem     Boolean  @default(false)
-  lastLoginAt  DateTime?
+  id            String    @id @default(uuid())
+  username      String    @unique
+  email         String    @unique
+  displayName   String?
+  passwordHash  String
+  isActive      Boolean   @default(true)
+  isSystem      Boolean   @default(false)
+  lastLoginAt   DateTime?
   // Two-factor authentication (TOTP). Secret is encrypted at rest.
   totpSecret    String?
-  totpEnabled   Boolean  @default(false)
-  recoveryCodes String[] @default([])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  totpEnabled   Boolean   @default(false)
+  recoveryCodes String[]  @default([])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   roles         UserRole[]
   refreshTokens RefreshToken[]
@@ -60,10 +60,10 @@ model TraktAccount {
 
   /// Which sync directions this account opted into. All off until asked for:
   /// syncing is destructive in both directions and must never be a default.
-  syncCollection Boolean @default(false)
-  syncWatched    Boolean @default(false)
-  syncRatings    Boolean @default(false)
-  syncWatchlist  Boolean @default(false)
+  syncCollection  Boolean @default(false)
+  syncWatched     Boolean @default(false)
+  syncRatings     Boolean @default(false)
+  syncWatchlist   Boolean @default(false)
   scrobbleEnabled Boolean @default(false)
 
   /// The media-server username whose playback belongs to this Trakt account.
@@ -98,7 +98,7 @@ model TraktAccount {
 /// columns does not dedupe (NULL != NULL), so an item with no tmdb id would be
 /// inserted again on every sync. See `watchKey()`.
 model MediaUserWatch {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
   key       String
   mediaType String // movie | episode
@@ -115,10 +115,10 @@ model MediaUserWatch {
   /// (pulled from their history), or `manual`. The push direction sends only
   /// what did NOT come from Trakt — otherwise every sync echoes their own
   /// history back at them.
-  source    String   @default("media_server")
+  source    String    @default("media_server")
   /// When we last pushed this row to Trakt. Null = never pushed.
   syncedAt  DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@unique([userId, key])
   @@index([userId, source])
@@ -129,7 +129,7 @@ model MediaUserWatch {
 /// What a user has RATED (1–10, Trakt's scale). Same identity scheme and the
 /// same echo-suppression rule as {@link MediaUserWatch}.
 model MediaUserRating {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
   key       String
   mediaType String // movie | show | episode
@@ -142,10 +142,10 @@ model MediaUserRating {
   episode   Int?
   rating    Int
   ratedAt   DateTime
-  source    String   @default("manual")
+  source    String    @default("manual")
   syncedAt  DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@unique([userId, key])
   @@index([userId, source])
@@ -167,8 +167,8 @@ model Role {
 }
 
 model Permission {
-  id          String   @id @default(uuid())
-  key         String   @unique
+  id          String  @id @default(uuid())
+  key         String  @unique
   description String?
 
   roles RolePermission[]
@@ -179,8 +179,8 @@ model Permission {
 model UserRole {
   userId String
   roleId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
   @@map("user_roles")
@@ -197,33 +197,33 @@ model RolePermission {
 }
 
 model RefreshToken {
-  id         String   @id @default(uuid())
-  userId     String
-  tokenHash  String   @unique
-  family     String
-  userAgent  String?
-  ipAddress  String?
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  family    String
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("refresh_tokens")
 }
 
 model ApiKey {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   userId     String
   name       String
-  prefix     String   @unique
+  prefix     String    @unique
   keyHash    String
   scopes     String[]
   lastUsedAt DateTime?
   expiresAt  DateTime?
   revokedAt  DateTime?
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("api_keys")
@@ -236,8 +236,8 @@ model ApiKey {
 model TorrentEngine {
   id        String   @id @default(uuid())
   name      String
-  kind      String   // rtorrent | qbittorrent | transmission | deluge
-  config    Json     // connection details (encrypted secrets at rest)
+  kind      String // rtorrent | qbittorrent | transmission | deluge
+  config    Json // connection details (encrypted secrets at rest)
   isDefault Boolean  @default(false)
   isEnabled Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -250,7 +250,7 @@ model TorrentEngine {
 }
 
 model TorrentSnapshot {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   engineId     String
   hash         String
   name         String
@@ -267,10 +267,10 @@ model TorrentSnapshot {
   categoryId   String?
   addedAt      DateTime?
   completedAt  DateTime?
-  capturedAt   DateTime @default(now())
+  capturedAt   DateTime  @default(now())
 
-  engine   TorrentEngine     @relation(fields: [engineId], references: [id], onDelete: Cascade)
-  category TorrentCategory?  @relation(fields: [categoryId], references: [id])
+  engine   TorrentEngine    @relation(fields: [engineId], references: [id], onDelete: Cascade)
+  category TorrentCategory? @relation(fields: [categoryId], references: [id])
   tags     TorrentTagLink[]
 
   @@unique([engineId, hash])
@@ -292,7 +292,7 @@ model ParkedTorrent {
   /// no_seeders | stalled
   reason   String @default("no_seeders")
 
-  parkedAt   DateTime @default(now())
+  parkedAt     DateTime  @default(now())
   /// Set while a probe is in flight (the torrent is force-started so it announces
   /// and refreshes its seeder count); cleared when the next tick judges the result.
   probingSince DateTime?
@@ -348,14 +348,14 @@ model TorrentTagLink {
 // ---------------------------------------------------------------------------
 
 model RssFeed {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   name            String
   url             String
-  refreshInterval Int      @default(900) // seconds
-  isEnabled       Boolean  @default(true)
+  refreshInterval Int       @default(900) // seconds
+  isEnabled       Boolean   @default(true)
   lastFetchedAt   DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   rules   RssRule[]
   history RssHistory[]
@@ -364,16 +364,16 @@ model RssFeed {
 }
 
 model RssRule {
-  id            String   @id @default(uuid())
-  feedId        String
-  name          String
-  includeRegex  String?
-  excludeRegex  String?
-  categoryId    String?
-  savePath      String?
-  autoDownload  Boolean  @default(true)
-  isEnabled     Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  id           String   @id @default(uuid())
+  feedId       String
+  name         String
+  includeRegex String?
+  excludeRegex String?
+  categoryId   String?
+  savePath     String?
+  autoDownload Boolean  @default(true)
+  isEnabled    Boolean  @default(true)
+  createdAt    DateTime @default(now())
 
   // TV show airing-status snapshot, captured when the rule was created/edited so
   // the recommendation shown at save time is preserved. Null for non-TV rules.
@@ -512,17 +512,17 @@ model RssRuleMatchEvaluation {
 }
 
 model RssHistory {
-  id          String   @id @default(uuid())
-  feedId      String
-  itemGuid    String
-  title       String
-  link        String
-  magnet      String?  // magnet URI from the feed item, preferred for downloads
-  infoHash    String?  // btih extracted from the magnet, lowercased — cross-feed download-dedup key
-  matched     Boolean
-  downloaded  Boolean
-  createdAt   DateTime @default(now())
-  feed        RssFeed  @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  feedId     String
+  itemGuid   String
+  title      String
+  link       String
+  magnet     String? // magnet URI from the feed item, preferred for downloads
+  infoHash   String? // btih extracted from the magnet, lowercased — cross-feed download-dedup key
+  matched    Boolean
+  downloaded Boolean
+  createdAt  DateTime @default(now())
+  feed       RssFeed  @relation(fields: [feedId], references: [id], onDelete: Cascade)
 
   @@unique([feedId, itemGuid])
   @@index([infoHash])
@@ -533,9 +533,9 @@ model AutomationRule {
   id          String   @id @default(uuid())
   name        String
   description String?
-  trigger     String   // e.g. torrent.completed
-  conditions  Json     // array of {field, op, value}
-  actions     Json     // array of {type, params}
+  trigger     String // e.g. torrent.completed
+  conditions  Json // array of {field, op, value}
+  actions     Json // array of {type, params}
   isEnabled   Boolean  @default(true)
   priority    Int      @default(0)
   createdAt   DateTime @default(now())
@@ -547,12 +547,12 @@ model AutomationRule {
 }
 
 model AutomationLog {
-  id        String   @id @default(uuid())
+  id        String         @id @default(uuid())
   ruleId    String
-  status    String   // success | failed | skipped
+  status    String // success | failed | skipped
   context   Json
   message   String?
-  createdAt DateTime @default(now())
+  createdAt DateTime       @default(now())
   rule      AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
   @@index([ruleId])
@@ -582,32 +582,32 @@ model Setting {
 }
 
 model Notification {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String?
-  level     String   // info | success | warning | error
+  level     String // info | success | warning | error
   title     String
   message   String
   eventType String?
   readAt    DateTime?
-  createdAt DateTime @default(now())
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("notifications")
 }
 
 model AuditLog {
-  id        String   @id @default(uuid())
-  userId    String?
-  action    String
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
   objectType String?
-  objectId  String?
-  result    String   // success | failure
-  ipAddress String?
-  userAgent String?
-  metadata  Json?
-  createdAt DateTime @default(now())
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  objectId   String?
+  result     String // success | failure
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([action])
@@ -649,6 +649,9 @@ model MediaLibrary {
   items MediaItem[]
   shows MediaShow[]
 
+  // Subtitle Intelligence per-library policy.
+  subtitleLanguageSetting SubtitleLanguageSetting?
+
   @@map("media_libraries")
 }
 
@@ -668,21 +671,21 @@ model MediaLibrary {
 /// (`MediaAcquisitionWatchlistItem.libraryShowId`), so a grab is filed into a path
 /// the library *observed*, never one the acquisition code invented.
 model MediaShow {
-  id        String  @id @default(uuid())
-  libraryId String
-  mediaType String  @default("tv") // tv | anime
-  title     String
-  year      Int?
+  id           String   @id @default(uuid())
+  libraryId    String
+  mediaType    String   @default("tv") // tv | anime
+  title        String
+  year         Int?
   /// Absolute path of the show folder, exactly as found on disk.
-  path      String
-  imdbId    String?
+  path         String
+  imdbId       String?
   /// Case/punctuation-insensitive identity key, trailing year stripped
   /// ("Ghosts US (2021)" and "Ghosts (US)" both → "ghosts us"). Equality only —
   /// never a substring test, so "Ghosts US" cannot collide with "Ghosts UK".
   canonicalKey String
-  episodeCount Int   @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  episodeCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   library        MediaLibrary                    @relation(fields: [libraryId], references: [id], onDelete: Cascade)
   watchlistItems MediaAcquisitionWatchlistItem[]
@@ -725,11 +728,11 @@ model MediaItem {
   locked           Boolean  @default(false)
   path             String
   duplicateGroupId String?
-  seriesImdbId     String?  // parent series tconst for TV episodes; enables missing-episode diff
+  seriesImdbId     String? // parent series tconst for TV episodes; enables missing-episode diff
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  library        MediaLibrary         @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  library        MediaLibrary          @relation(fields: [libraryId], references: [id], onDelete: Cascade)
   files          MediaFile[]
   metadata       MediaMetadata?
   artwork        MediaArtwork[]
@@ -738,6 +741,12 @@ model MediaItem {
   nfoFiles       MediaNfoFile[]
   collections    MediaCollectionItem[]
   duplicateGroup MediaDuplicateGroup?  @relation(fields: [duplicateGroupId], references: [id])
+
+  // Subtitle Intelligence (core module `subtitle_intelligence`).
+  subtitleFingerprint SubtitleFingerprint?
+  subtitleCandidates  SubtitleCandidate[]
+  subtitleDownloads   SubtitleDownload[]
+  subtitleHistory     SubtitleHistory[]
 
   @@index([mediaType])
   @@index([title])
@@ -750,10 +759,10 @@ model MediaItem {
 }
 
 model MediaFile {
-  id           String   @id @default(uuid())
+  id           String  @id @default(uuid())
   itemId       String
   path         String
-  size         BigInt   @default(0)
+  size         BigInt  @default(0)
   container    String?
   videoCodec   String?
   audioCodec   String?
@@ -782,18 +791,18 @@ model MediaFile {
   /// or `probe` (measured from the container). Provenance is the point — without
   /// it you cannot tell a trusted value from a guess, nor find what still needs
   /// probing. Null = never touched.
-  techSource String?
-  probedAt   DateTime?
+  techSource    String?
+  probedAt      DateTime?
   /// Why the probe gave up on this file for good. Setting it takes the file OUT of the
   /// backfill's working set permanently — so it is set only for a failure the file itself
   /// causes (unreadable/corrupt), never for a transient one. A timeout on a busy disk is
   /// NOT the file's fault: treating it as one silently dropped two perfectly readable
   /// files on a live NAS.
-  probeError String?
+  probeError    String?
   /// Failed attempts so far. A transient failure (timeout, disks busy, file moved
   /// mid-probe) leaves the file in the working set to be retried; this is what stops that
   /// retry being unbounded — after `MAX_PROBE_ATTEMPTS` we give up and set `probeError`.
-  probeAttempts Int @default(0)
+  probeAttempts Int       @default(0)
 
   createdAt DateTime @default(now())
 
@@ -954,12 +963,12 @@ model MediaDuplicateGroup {
 }
 
 model MediaServerIntegration {
-  id            String    @id @default(uuid())
-  name          String
-  kind          String // plex | jellyfin | emby | kodi
-  config        Json      @default("{}")
-  isEnabled     Boolean   @default(true)
-  lastRefreshAt DateTime?
+  id                String    @id @default(uuid())
+  name              String
+  kind              String // plex | jellyfin | emby | kodi
+  config            Json      @default("{}")
+  isEnabled         Boolean   @default(true)
+  lastRefreshAt     DateTime?
   // Media Server Analytics fields
   isDefault         Boolean   @default(false)
   status            String? // online | offline | unknown
@@ -968,8 +977,8 @@ model MediaServerIntegration {
   capabilities      Json?
   lastHealthCheckAt DateTime?
   notes             String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@map("media_server_integrations")
 }
@@ -1021,27 +1030,27 @@ model MediaServerWatchHistory {
   connectionId      String?
   importSourceId    String?
   providerHistoryId String?
-  providerUserId  String?
-  userName        String?
-  title           String
-  mediaType       String?
-  libraryName     String?
-  device          String?
-  client          String?
-  ipAddress       String?
-  startedAt       DateTime
-  stoppedAt       DateTime?
-  watchedSeconds  Int?
-  percentComplete Int?
-  playbackMethod  String?
-  resolution      String?
-  videoCodec      String?
-  audioCodec      String?
-  container       String?
-  bitrateKbps     Int?
-  importSource    String?
-  importedAt      DateTime?
-  createdAt       DateTime  @default(now())
+  providerUserId    String?
+  userName          String?
+  title             String
+  mediaType         String?
+  libraryName       String?
+  device            String?
+  client            String?
+  ipAddress         String?
+  startedAt         DateTime
+  stoppedAt         DateTime?
+  watchedSeconds    Int?
+  percentComplete   Int?
+  playbackMethod    String?
+  resolution        String?
+  videoCodec        String?
+  audioCodec        String?
+  container         String?
+  bitrateKbps       Int?
+  importSource      String?
+  importedAt        DateTime?
+  createdAt         DateTime  @default(now())
 
   @@unique([importSourceId, providerHistoryId])
   @@index([connectionId])
@@ -1056,7 +1065,7 @@ model MediaServerLibrary {
   connectionId      String
   providerLibraryId String
   name              String
-  type              String   // movie | show | music | photo | mixed | unknown
+  type              String // movie | show | music | photo | mixed | unknown
   itemCount         Int?
   lastSyncedAt      DateTime @default(now())
   createdAt         DateTime @default(now())
@@ -1087,8 +1096,8 @@ model MediaServerUser {
 model MediaProviderSyncRun {
   id              String    @id @default(uuid())
   connectionId    String?
-  type            String    // full | libraries | users
-  status          String    // running | success | partial | failed
+  type            String // full | libraries | users
+  status          String // running | success | partial | failed
   librariesSynced Int       @default(0)
   usersSynced     Int       @default(0)
   message         String?
@@ -1447,15 +1456,15 @@ model MediaAcquisitionWatchlistItem {
 /// UI reads them. Loosely coupled to the watchlist item by id (no FK), matching the
 /// module's convention (cf. `profileId`).
 model WantedEpisode {
-  id              String   @id @default(uuid())
-  watchlistItemId String
-  seriesTconst    String
-  episodeTconst   String?
-  seasonNumber    Int
-  episodeNumber   Int
-  episodeTitle    String?
-  airYear         Int?
-  status          String   @default("missing") /// missing | unaired | owned | ignored
+  id                  String    @id @default(uuid())
+  watchlistItemId     String
+  seriesTconst        String
+  episodeTconst       String?
+  seasonNumber        Int
+  episodeNumber       Int
+  episodeTitle        String?
+  airYear             Int?
+  status              String    @default("missing") /// missing | unaired | owned | ignored
   // Auto-acquire bridge state (preserved across rescans for still-missing rows).
   searchStatus        String    @default("idle") /// idle | searching | grabbed | pending_approval | no_results | failed
   lastSearchedAt      DateTime?
@@ -1463,8 +1472,8 @@ model WantedEpisode {
   grabbedEvaluationId String?
   downloadUrl         String?
   releaseTitle        String?
-  lastCheckedAt   DateTime @default(now())
-  createdAt       DateTime @default(now())
+  lastCheckedAt       DateTime  @default(now())
+  createdAt           DateTime  @default(now())
 
   @@unique([watchlistItemId, seasonNumber, episodeNumber])
   @@index([watchlistItemId])
@@ -1476,12 +1485,12 @@ model WantedEpisode {
 /// Computed missing/owned status for a monitored movie (a `movie` watchlist item
 /// carrying an IMDb id). One row per movie watchlist item; the scan upserts it.
 model WantedMovie {
-  id              String   @id @default(uuid())
-  watchlistItemId String   @unique
-  movieTconst     String
-  title           String
-  year            Int?
-  status          String   @default("missing") /// missing | unaired | owned | ignored
+  id                  String    @id @default(uuid())
+  watchlistItemId     String    @unique
+  movieTconst         String
+  title               String
+  year                Int?
+  status              String    @default("missing") /// missing | unaired | owned | ignored
   // Auto-acquire bridge state (mirrors WantedEpisode; reserved for movie auto-search).
   searchStatus        String    @default("idle") /// idle | searching | grabbed | pending_approval | no_results | failed
   lastSearchedAt      DateTime?
@@ -1489,8 +1498,8 @@ model WantedMovie {
   grabbedEvaluationId String?
   downloadUrl         String?
   releaseTitle        String?
-  lastCheckedAt   DateTime @default(now())
-  createdAt       DateTime @default(now())
+  lastCheckedAt       DateTime  @default(now())
+  createdAt           DateTime  @default(now())
 
   @@index([movieTconst])
   @@index([status])
@@ -1524,36 +1533,36 @@ model Indexer {
 }
 
 model MediaAcquisitionProfile {
-  id                 String   @id @default(uuid())
-  name               String
-  description        String?
-  mediaType          String // tv | movie | anime | any
-  minimumScore       Int      @default(0)
-  approvalScore      Int      @default(0)
-  minimumResolution  String?
+  id                  String   @id @default(uuid())
+  name                String
+  description         String?
+  mediaType           String // tv | movie | anime | any
+  minimumScore        Int      @default(0)
+  approvalScore       Int      @default(0)
+  minimumResolution   String?
   preferredResolution String?
-  preferredSource    String?
-  preferredCodec     String?
-  preferredAudio     String?
-  preferredHdr       String?
-  preferredLanguages Json?
-  requiredTerms      Json?
-  excludedTerms      Json?
-  preferredGroups    Json?
+  preferredSource     String?
+  preferredCodec      String?
+  preferredAudio      String?
+  preferredHdr        String?
+  preferredLanguages  Json?
+  requiredTerms       Json?
+  excludedTerms       Json?
+  preferredGroups     Json?
   // Release size bounds in bytes. BigInt, not Int: a 1080p movie exceeds the
   // Int32 ceiling (2.1 GB). Null on either side = unbounded there. These become
   // the `sizeRules` of the preference tier this profile is turned into, so a
   // profile can cap release size the way a match candidate can.
-  minSizeBytes       BigInt?
-  maxSizeBytes       BigInt?
-  qualityRules       Json?
-  duplicateRules     Json?
-  storageRules       Json?
-  automationRules    Json?
-  enabled            Boolean  @default(true)
-  createdBy          String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  minSizeBytes        BigInt?
+  maxSizeBytes        BigInt?
+  qualityRules        Json?
+  duplicateRules      Json?
+  storageRules        Json?
+  automationRules     Json?
+  enabled             Boolean  @default(true)
+  createdBy           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@map("media_acquisition_profiles")
 }
@@ -1715,8 +1724,8 @@ model IMDbCrew {
 }
 
 model IMDbEpisode {
-  id             String  @id @default(uuid())
-  episodeTitleId String  @unique
+  id             String @id @default(uuid())
+  episodeTitleId String @unique
   parentTitleId  String
   seasonNumber   Int?
   episodeNumber  Int?
@@ -1795,7 +1804,7 @@ model NotificationChannel {
   id                String    @id @default(uuid())
   name              String
   description       String?
-  provider          String    // email | sms | telegram | whatsapp | discord | slack | webhook | ...
+  provider          String // email | sms | telegram | whatsapp | discord | slack | webhook | ...
   enabled           Boolean   @default(true)
   isDefault         Boolean   @default(false)
   priority          Int       @default(0)
@@ -2050,4 +2059,261 @@ model NotificationStatistics {
   @@unique([date, provider, channelId, event])
   @@index([date])
   @@map("notification_statistics")
+}
+
+// ---------------------------------------------------------------------------
+// Subtitle Intelligence — the definitive subtitle acquisition, validation, and
+// synchronization engine (core module `subtitle_intelligence`). It fingerprints
+// every media file, searches providers with a progressively-relaxed strategy,
+// scores + validates each candidate, installs the best as a media-server-correct
+// sidecar (which media_manager's scanner then discovers), and NEVER overwrites an
+// original. Provider secrets are AES-256-GCM encrypted at rest (SecretCipher).
+// ---------------------------------------------------------------------------
+
+model SubtitleProviderConfig {
+  id             String    @id @default(uuid())
+  provider       String    @unique // opensubtitles | subdl | local
+  isEnabled      Boolean   @default(false)
+  /// Higher = preferred. Feeds the "preferred provider" scoring bonus and the
+  /// order providers are queried in.
+  priority       Int       @default(0)
+  /// Provider config incl. credentials. Secret keys are SecretCipher-encrypted at
+  /// rest and redacted to `••••••••` in every API response.
+  config         Json      @default("{}")
+  /// Health snapshot from the last testConnection()/healthCheck().
+  healthy        Boolean?
+  lastCheckedAt  DateTime?
+  lastError      String?
+  /// Daily-quota bookkeeping — OpenSubtitles caps downloads/day; we surface what
+  /// is left rather than discovering exhaustion mid-pipeline.
+  quotaRemaining Int?
+  quotaResetAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("subtitle_provider_configs")
+}
+
+/// The search IDENTITY of a media file. Reuses media_manager's mediainfo probe
+/// (MediaFile) and external ids (MediaExternalId); adds only the hashes a
+/// subtitle provider needs. One row per item (the primary video).
+model SubtitleFingerprint {
+  id            String   @id @default(uuid())
+  itemId        String   @unique
+  fileId        String? // the primary video MediaFile this fingerprint measures
+  movieHash     String? // OpenSubtitles hash: first+last 64KB + filesize
+  sha256        String?
+  fileSize      BigInt   @default(0)
+  runtimeSec    Int?
+  frameRate     Float?
+  resolution    String?
+  videoCodec    String?
+  audioCodec    String?
+  audioLanguage String?
+  container     String?
+  source        String? // BluRay | WEB-DL | WEBRip | Remux | ...
+  releaseGroup  String?
+  hdr           String? // HDR10 | HDR10+ | DV | ...
+  edition       String?
+  season        Int?
+  episode       Int?
+  imdbId        String?
+  tmdbId        String?
+  tvdbId        String?
+  mediaType     String? // movie | tv | anime
+  computedAt    DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  item MediaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([movieHash])
+  @@index([imdbId])
+  @@index([tmdbId])
+  @@map("subtitle_fingerprints")
+}
+
+/// A normalized, scored search result. Providers normalize their raw payloads
+/// into this shape; the scoring engine writes `score`/`scoreTier`/`scoreBreakdown`.
+model SubtitleCandidate {
+  id                String   @id @default(uuid())
+  itemId            String
+  provider          String
+  providerFileId    String? // provider's own id, needed for the download step
+  language          String
+  releaseName       String?
+  filename          String?
+  movieHash         String?
+  imdbId            String?
+  tmdbId            String?
+  tvdbId            String?
+  season            Int?
+  episode           Int?
+  runtimeSec        Int?
+  downloads         Int?
+  uploader          String?
+  rating            Float?
+  trustedUploader   Boolean  @default(false)
+  machineTranslated Boolean  @default(false)
+  hearingImpaired   Boolean  @default(false)
+  forced            Boolean  @default(false)
+  fileSize          BigInt?
+  downloadUrl       String?
+  matchLevel        Int? // 1 hash | 2 release | 3 external-id | 4 title
+  score             Int      @default(0) // normalized 0-100
+  scoreTier         String? // auto | download | present | reject
+  scoreBreakdown    Json?
+  rawMetadata       Json?
+  createdAt         DateTime @default(now())
+
+  item MediaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, language])
+  @@index([provider])
+  @@map("subtitle_candidates")
+}
+
+/// An installed subtitle — the authoritative acquisition record. `path` is the
+/// sidecar written next to the video; the original is never overwritten.
+model SubtitleDownload {
+  id              String   @id @default(uuid())
+  itemId          String
+  provider        String
+  language        String
+  forced          Boolean  @default(false)
+  hearingImpaired Boolean  @default(false)
+  path            String
+  releaseName     String?
+  score           Int      @default(0)
+  scoreTier       String?
+  matchLevel      Int?
+  fileSize        BigInt   @default(0)
+  status          String   @default("installed") // installed | replaced | rejected | failed
+  validationId    String?  @unique
+  providerFileId  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  item             MediaItem                 @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  validation       SubtitleValidation?       @relation(fields: [validationId], references: [id])
+  synchronizations SubtitleSynchronization[]
+
+  @@index([itemId])
+  @@index([status])
+  @@index([provider])
+  @@index([language])
+  @@map("subtitle_downloads")
+}
+
+/// The result of validating a subtitle before install. The structural checks are
+/// pure (no binary); `runtimeDeltaSec`/`method` record the optional deep pass.
+model SubtitleValidation {
+  id              String   @id @default(uuid())
+  format          String? // srt | ass | vtt | sub
+  valid           Boolean  @default(false)
+  cueCount        Int      @default(0)
+  startMs         Int?
+  endMs           Int?
+  issues          Json     @default("[]")
+  runtimeDeltaSec Int? // subtitle end vs measured media runtime (null when no probe)
+  method          String? // pure | mediainfo | ffprobe
+  createdAt       DateTime @default(now())
+
+  download SubtitleDownload?
+
+  @@map("subtitle_validations")
+}
+
+/// Per-library subtitle policy — which languages are required/preferred/forced,
+/// the acceptance threshold, and provider preference order.
+model SubtitleLanguageSetting {
+  id                      String   @id @default(uuid())
+  libraryId               String   @unique
+  requiredLanguages       Json     @default("[]") // e.g. ["en","es"]
+  preferredLanguages      Json     @default("[]")
+  forcedLanguages         Json     @default("[]")
+  hearingImpaired         Boolean  @default(false)
+  machineTranslation      Boolean  @default(false)
+  preferredProviders      Json     @default("[]") // provider keys, in order
+  synchronizationRequired Boolean  @default(false)
+  minimumScore            Int      @default(50)
+  automaticReplacement    Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  library MediaLibrary @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+
+  @@map("subtitle_language_settings")
+}
+
+/// An append-only trail of what the engine did, per item — the source for the
+/// History UI and for "why is this the subtitle we installed?".
+model SubtitleHistory {
+  id        String   @id @default(uuid())
+  itemId    String?
+  action    String // searched | downloaded | validated | synchronized | replaced | rejected | failed | deleted
+  provider  String?
+  language  String?
+  score     Int?
+  message   String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  item MediaItem? @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("subtitle_history")
+}
+
+/// Long-running Subtitle Intelligence work, tracked as a row so progress can
+/// stream over WebSocket and orphaned rows are failed out on restart (mirrors
+/// MediaProcessingJob — in-process, no external broker).
+model SubtitleJob {
+  id         String    @id @default(uuid())
+  type       String // missing_scan | search | download | validate | synchronize | provider_health | bulk_scan
+  status     String    @default("queued") // queued | running | completed | failed
+  libraryId  String?
+  itemId     String?
+  provider   String?
+  language   String?
+  payload    Json      @default("{}")
+  result     Json?
+  error      String?
+  progress   Int       @default(0)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([libraryId])
+  @@map("subtitle_jobs")
+}
+
+/// The result of synchronizing an installed subtitle to the audio. The original
+/// is ALWAYS preserved (`originalPath`); the synced copy becomes the active
+/// sidecar (`syncedPath`). Records offset/drift/confidence + the provider+version
+/// that produced it, so a bad sync can be explained and reverted.
+model SubtitleSynchronization {
+  id             String   @id @default(uuid())
+  downloadId     String
+  provider       String // ffsubsync | manual_offset | alass
+  method         String // audio | offset
+  version        String?
+  offsetMs       Int      @default(0)
+  driftFactor    Float    @default(1)
+  confidence     Float? // 0..1, when the provider reports one
+  matchedRegions Json? // matched speech-region summary, when available
+  originalPath   String
+  syncedPath     String
+  status         String   @default("applied") // applied | skipped | failed
+  message        String?
+  createdAt      DateTime @default(now())
+
+  download SubtitleDownload @relation(fields: [downloadId], references: [id], onDelete: Cascade)
+
+  @@index([downloadId])
+  @@map("subtitle_synchronizations")
 }

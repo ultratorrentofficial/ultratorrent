@@ -393,6 +393,12 @@ Subtitles (`MediaSubtitle`) are discovered from **sidecar files** next to the
 video and recorded with `language`, `forced`, `sdh` (hearing-impaired), and a
 `source`.
 
+> **Acquisition, synchronization, scoring, and per-library language policy** live
+> in the dedicated **Subtitle Intelligence** module — see
+> [SUBTITLE_INTELLIGENCE.md](SUBTITLE_INTELLIGENCE.md). It installs sidecars this
+> scanner then discovers, so the two stay in sync; the endpoints below remain the
+> place to *list* and *scan* what is already on disk.
+
 | Action | Endpoint | Permission |
 |--------|----------|------------|
 | List subtitles | `GET /api/media/items/:id/subtitles` | `media_manager.view` |

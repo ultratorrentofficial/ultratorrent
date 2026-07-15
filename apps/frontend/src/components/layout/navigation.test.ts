@@ -43,6 +43,7 @@ describe('visibleGroups (RBAC + module gating)', () => {
       'Downloads',
       'RSS & Acquisition',
       'Media Management',
+      'Subtitle Intelligence',
       'Media Server Analytics',
       'Automation',
       'Files',

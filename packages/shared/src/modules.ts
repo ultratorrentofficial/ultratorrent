@@ -130,6 +130,8 @@ export const MODULE_IDS = {
   MEDIA_ACQUISITION_INTELLIGENCE: 'media_acquisition_intelligence',
   MEDIA_SERVER_ANALYTICS: 'media_server_analytics',
   NOTIFICATION_CENTER: 'notification_center',
+  // Core — subtitle acquisition, validation & synchronization (locked, always-on)
+  SUBTITLE_INTELLIGENCE: 'subtitle_intelligence',
 } as const;
 
 export type ModuleId = (typeof MODULE_IDS)[keyof typeof MODULE_IDS];

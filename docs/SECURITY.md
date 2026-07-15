@@ -15,6 +15,7 @@ implemented and how to deploy and report responsibly.
 - [File-path validation](#file-path-validation)
 - [Secrets management](#secrets-management)
 - [IMDb metadata provider](#imdb-metadata-provider)
+- [Subtitle Intelligence](#subtitle-intelligence)
 - [Engine control surface](#engine-control-surface)
 - [Reporting a vulnerability](#reporting-a-vulnerability)
 
@@ -377,6 +378,45 @@ The IMDb provider is designed to be compliant and privacy-preserving:
   and IMDb search is throttled (30 requests/min).
 - **Disabled by default.** With no configuration the provider is `disabled`; an
   API key is required for `official_api`/`hybrid` modes.
+
+## Subtitle Intelligence
+
+The subtitle engine (core module `subtitle_intelligence`) downloads third-party
+files and reaches the filesystem, so it is guarded on several fronts:
+
+- **Encrypted provider credentials.** Provider secrets (`apiKey`, `username`,
+  `password`, `token`) are AES-256-GCM encrypted at rest via `SecretCipher` and
+  redacted to `••••••••` in every API response; a redacted value sent back on
+  update keeps the stored ciphertext (never overwrites a secret with dots). A
+  rotated/corrupt key fails closed. Verified by unit tests.
+- **SSRF allow-lists on downloads.** Every provider fetches only from its own
+  hosts — OpenSubtitles' API/CDN, `dl.subdl.com`, `yifysubtitles.ch`,
+  `subtitlecat.com`, `podnapisi.net` (a lookalike host like `dl.subdl.com.evil.com`
+  is rejected). Downloaded bodies are size-capped and format-sniffed before use.
+- **Scraping providers are best-effort + read-only.** YIFY and SubtitleCat have no
+  API, so they parse public HTML; they hold no credentials, fetch only from their
+  own hosts, and (like all providers) their output is validated before it is ever
+  written to disk. This is a different quality bar than the official-API providers
+  and is documented as such — a site redesign can disable them without affecting
+  the rest of the module.
+- **Mandatory User-Agent.** Every provider request sends a real `User-Agent`
+  (OpenSubtitles/Cloudflare reject UA-less requests) — no silent, fingerprintable
+  default.
+- **Filesystem confinement.** Fingerprint reads, the Local Repository provider's
+  folder walk, and every sidecar write are validated with
+  `FilePathService.assertWithinHardRoots(...)`, so nothing escapes
+  `FILE_MANAGER_ROOTS` regardless of a poisoned config row. A subtitle is
+  **validated before it is ever written** (structural SRT/VTT/ASS checks plus an
+  optional runtime cross-check), and an install **never overwrites** a file it did
+  not create (a colliding name gets a numbered variant).
+- **Dependency-free archive handling.** SubDL's ZIP subtitles are extracted by a
+  small in-house reader (`zlib` only) — no third-party unzip library and no
+  shelling out to a binary, reducing the attack surface.
+- **RBAC + auditing.** Every route is gated by a `subtitle_intelligence.*`
+  permission; downloads, synchronization, provider changes, and language-policy
+  changes are recorded to the audit log (actor, IP, result). Automatic sync
+  (`ffsubsync`) is an **optional** binary — absent, the module degrades to manual
+  offset rather than failing.
 
 ## Engine control surface
 

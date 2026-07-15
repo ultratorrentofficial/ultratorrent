@@ -34,6 +34,7 @@ import { NotificationsService } from '../notifications/notifications.module';
 import { NotificationCenterService } from '../notification-center/notification-center.service';
 import { MediaService } from '../media/media.service';
 import { MediaAutomationActions } from '../media/media-automation.actions';
+import { SubtitleAutomationActions } from '../subtitle-intelligence/automation/subtitle-automation.actions';
 import { RssModule } from '../rss/rss.module';
 import {
   RssAutomationActions,
@@ -68,6 +69,10 @@ export const AUTOMATION_TRIGGERS = [
   { id: 'rss.show.became_active', label: 'When a monitored show becomes active again', category: 'rss' },
   { id: 'rss.show.ended', label: 'When a monitored show ends', category: 'rss' },
   { id: 'rss.show.canceled', label: 'When a monitored show is canceled', category: 'rss' },
+  { id: 'subtitle.missing', label: 'When a media item is missing subtitles', category: 'subtitle' },
+  { id: 'subtitle.downloaded', label: 'When a subtitle is downloaded', category: 'subtitle' },
+  { id: 'subtitle.synchronized', label: 'When a subtitle is synchronized', category: 'subtitle' },
+  { id: 'subtitle.validation_failed', label: 'When a subtitle fails validation', category: 'subtitle' },
 ] as const;
 
 /** Catalog of actions the engine can execute (metadata for the UI). */
@@ -94,7 +99,12 @@ export const AUTOMATION_ACTIONS = [
   { id: 'disable_rss_rule', label: 'Disable RSS rule', category: 'rss' },
   { id: 'convert_rule_to_backfill', label: 'Convert rule to backfill only', category: 'rss' },
   { id: 'notify_admin', label: 'Notify admin', category: 'rss' },
+  { id: 'subtitle_scan_missing', label: 'Scan a library for missing subtitles', category: 'subtitle' },
+  { id: 'subtitle_download', label: 'Download subtitles for an item', category: 'subtitle' },
 ] as const;
+
+/** Subtitle action ids delegated to SubtitleAutomationActions. */
+const SUBTITLE_ACTION_TYPES = new Set(['subtitle_scan_missing', 'subtitle_download']);
 
 /** Media action ids delegated to MediaAutomationActions. */
 const MEDIA_ACTION_TYPES = new Set([
@@ -141,6 +151,7 @@ export class AutomationEngine {
     private readonly media: MediaService,
     private readonly mediaActions: MediaAutomationActions,
     private readonly rssActions: RssAutomationActions,
+    private readonly subtitleActions: SubtitleAutomationActions,
     private readonly audit: AuditService,
     private readonly moduleRef: ModuleRef,
   ) {}
@@ -300,6 +311,11 @@ export class AutomationEngine {
 
     if (RSS_ACTION_TYPES.has(action.type)) {
       await this.rssActions.execute(action.type, params, context);
+      return;
+    }
+
+    if (SUBTITLE_ACTION_TYPES.has(action.type)) {
+      await this.subtitleActions.execute(action.type, params, context);
       return;
     }
 
@@ -479,6 +495,12 @@ export class AutomationEngine {
     t: NormalizedTorrent,
   ): Promise<void> {
     const params = action.params ?? {};
+
+    // Subtitle Intelligence actions delegate to SubtitleAutomationActions.
+    if (SUBTITLE_ACTION_TYPES.has(action.type)) {
+      await this.subtitleActions.execute(action.type, params, { title: t.name });
+      return;
+    }
 
     // Media Manager actions delegate to MediaAutomationActions (no engine needed).
     if (MEDIA_ACTION_TYPES.has(action.type)) {

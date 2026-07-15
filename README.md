@@ -87,6 +87,15 @@ architecture.
   renaming (hardlink/symlink/move), duplicate detection, and
   Plex/Jellyfin/Emby/Kodi integrations, with a post-download workflow and live
   job progress over WebSocket.
+- **Subtitle Intelligence** — the definitive subtitle engine: fingerprints each
+  file (OpenSubtitles movie hash + technical metadata), searches multiple
+  providers (OpenSubtitles, SubDL, a local repository) with a progressively-relaxed
+  strategy (hash → release → external id → title), scores and validates every
+  candidate, installs media-server-correct sidecars **without overwriting an
+  original**, synchronizes to the audio (FFsubsync or manual offset), enforces
+  per-library language policy, and monitors libraries for gaps — with automation
+  and background jobs. See
+  [docs/SUBTITLE_INTELLIGENCE.md](docs/SUBTITLE_INTELLIGENCE.md).
 - **Smart Download** — an acquisition decision engine that picks the *best*
   acceptable release instead of the first match: consumes Smart Match preferences
   and Release Scoring, detects missing movies/seasons/episodes, does

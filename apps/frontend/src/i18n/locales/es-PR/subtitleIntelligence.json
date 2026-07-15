@@ -1,0 +1,119 @@
+{
+  "title": "Inteligencia de Subtítulos",
+  "subtitle": "Encuentra, califica, valida e instala el mejor subtítulo para cada título.",
+  "common": {
+    "loading": "Cargando…",
+    "error": "Algo salió mal.",
+    "save": "Guardar"
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "search": "Búsqueda",
+    "providers": "Proveedores"
+  },
+  "status": {
+    "healthy": "Saludable",
+    "unknown": "Desconocido",
+    "disabled": "Deshabilitado"
+  },
+  "tier": {
+    "auto": "Automático",
+    "download": "Descargar",
+    "present": "Revisar",
+    "reject": "Rechazado"
+  },
+  "dashboard": {
+    "installed": "Subtítulos instalados",
+    "downloads": "Descargas totales",
+    "providers": "Proveedores activos",
+    "providerHealth": "Estado de proveedores",
+    "noProviders": "Aún no hay proveedores configurados.",
+    "quota": "{{n}} disponibles hoy",
+    "byLanguage": "Por idioma",
+    "empty": "Nada instalado todavía."
+  },
+  "providers": {
+    "title": "Proveedores",
+    "subtitle": "Activa fuentes de subtítulos e ingresa sus credenciales. Los secretos se cifran en reposo.",
+    "priority": "Prioridad",
+    "test": "Probar",
+    "saved": "{{name}} guardado.",
+    "healthy": "{{name}} está accesible.",
+    "unhealthy": "{{name}} no está accesible.",
+    "comingSoon": "Próximamente",
+    "field": {
+      "apiKey": "Clave de API",
+      "username": "Usuario",
+      "password": "Contraseña",
+      "repoPath": "Ruta del repositorio"
+    }
+  },
+  "languages": {
+    "title": "Política de Idiomas",
+    "subtitle": "Define qué idiomas de subtítulos requiere y prefiere cada biblioteca.",
+    "selectLibrary": "Biblioteca",
+    "required": "Idiomas requeridos",
+    "preferred": "Idiomas preferidos",
+    "forced": "Idiomas forzados",
+    "preferredProviders": "Proveedores preferidos",
+    "minScore": "Puntuación mínima",
+    "hearingImpaired": "Sordos (SDH)",
+    "machineTranslation": "Permitir traducción automática",
+    "syncRequired": "Requerir sincronización",
+    "autoReplace": "Reemplazo automático",
+    "saved": "Política de idiomas guardada.",
+    "noLibraries": "Aún no hay bibliotecas de medios.",
+    "scanMissing": "Buscar faltantes",
+    "scanStarted": "Escaneo de subtítulos faltantes iniciado."
+  },
+  "history": {
+    "title": "Descargas e Historial",
+    "subtitle": "Subtítulos instalados y el registro completo de actividad.",
+    "installed": "Subtítulos instalados",
+    "activity": "Actividad",
+    "noDownloads": "Aún no hay subtítulos instalados.",
+    "empty": "Aún no hay actividad."
+  },
+  "search": {
+    "title": "Búsqueda de Subtítulos",
+    "subtitle": "Busca en cada proveedor activo un elemento de medios e instala la mejor coincidencia.",
+    "itemId": "ID del elemento",
+    "itemIdHint": "Pega un ID de elemento de medios",
+    "languages": "Idiomas",
+    "run": "Buscar",
+    "download": "Descargar",
+    "installed": "Subtítulo instalado.",
+    "notInstalled": "No se instaló el subtítulo.",
+    "noResults": "No se encontraron candidatos",
+    "noResultsHint": "Prueba con más idiomas o configura otro proveedor.",
+    "hashMatch": "Coincidencia de hash",
+    "forced": "Forzado",
+    "trusted": "Confiable"
+  },
+  "sync": {
+    "title": "Sincronización",
+    "subtitle": "Alinea los subtítulos instalados con el audio. El original siempre se conserva.",
+    "engines": "Motores",
+    "notInstalled": "no instalado",
+    "manualOffset": "Desplazamiento manual",
+    "ffHint": "Instala ffmpeg + ffsubsync para la sincronización automática por audio.",
+    "empty": "Aún no hay subtítulos instalados",
+    "emptyHint": "Descarga un subtítulo primero y luego sincronízalo aquí.",
+    "auto": "Sincronizar auto",
+    "applyOffset": "Aplicar desplazamiento",
+    "offsetMs": "Desplazamiento (ms)",
+    "done": "Subtítulo sincronizado.",
+    "skipped": "La sincronización no se ejecutó.",
+    "ffUnavailable": "ffsubsync no está instalado"
+  },
+  "validation": {
+    "title": "Validación",
+    "subtitle": "Revisa un subtítulo en busca de problemas estructurales antes de usarlo.",
+    "paste": "Pega el texto del subtítulo (SRT, VTT o ASS)",
+    "run": "Validar",
+    "valid": "Válido",
+    "invalid": "Inválido",
+    "cues": "{{n}} líneas",
+    "noIssues": "No se encontraron problemas."
+  }
+}
