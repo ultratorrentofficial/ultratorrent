@@ -272,6 +272,8 @@ All paths under the global `/api` prefix, guarded by `JwtAuthGuard` +
 | Method | Path | Permission |
 |--------|------|------------|
 | GET | `/subtitle-intelligence/dashboard` | `subtitle_intelligence.view` |
+| GET | `/subtitle-intelligence/settings` | `subtitle_intelligence.view` |
+| PATCH | `/subtitle-intelligence/settings` | `subtitle_intelligence.settings` |
 | GET | `/subtitle-intelligence/providers` | `subtitle_intelligence.view` |
 | PATCH | `/subtitle-intelligence/providers/:provider` | `subtitle_intelligence.providers` |
 | POST | `/subtitle-intelligence/providers/:provider/test` | `subtitle_intelligence.providers` |
@@ -321,6 +323,23 @@ Role grants: Power User holds view → settings (all but `admin`); User holds
   e.g. `torrent.completed → subtitle_scan_missing`) and `subtitle_download`
   (fetch the best candidate for the trigger's `itemId`). Fired via a lazy
   `AutomationEngine` lookup so the module never hard-depends on automation.
+
+## Global settings
+
+Install-wide automation knobs (distinct from per-provider config and per-library
+policy), edited on the **Settings** page or `PATCH /subtitle-intelligence/settings`
+and stored in the generic `settings` table under `media.subtitles.*`:
+
+| Key | Type | Default | Meaning |
+|-----|------|---------|---------|
+| `media.subtitles.autoScanIntervalMinutes` | number | `0` (off) | How often the background sweep runs; 0 = manual only. |
+| `media.subtitles.autoDownload` | boolean | `false` | During a scan, download the best match vs only flag the gap. |
+| `media.subtitles.autoSync` | boolean | `false` | Synchronize an auto-downloaded subtitle (needs FFsubsync; no-ops without it). |
+| `media.subtitles.defaultLanguages` | string[] | `["en"]` | Fallback languages for a library with no explicit policy. |
+
+None of these do anything until at least one provider is enabled and libraries
+have a language policy. `SubtitleSettingsService` is the typed source of truth
+(coercion + defaults); the scan/scheduler/language-fallback all read through it.
 
 ## Background jobs
 
@@ -392,6 +411,7 @@ on `subtitle_intelligence.view`:
 | `/subtitles/languages` | Per-library language policy + "scan for missing" |
 | `/subtitles/history` | Installed subtitles + full activity trail |
 | `/subtitles/providers` | Provider configuration + connection test |
+| `/subtitles/settings` | Global automation settings + an in-product explainer of the whole config model |
 
 ---
 

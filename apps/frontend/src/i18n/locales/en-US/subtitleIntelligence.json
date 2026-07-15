@@ -74,6 +74,69 @@
     "noDownloads": "No subtitles installed yet.",
     "empty": "No activity yet."
   },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Module-wide automation, plus how everything fits together.",
+    "saved": "Settings saved.",
+    "automation": {
+      "heading": "Automation",
+      "intro": "These control the hands-off behaviour. They do nothing until at least one provider is enabled and your libraries have a language policy."
+    },
+    "interval": {
+      "label": "Automatic library scan",
+      "help": "How often the background job sweeps every enabled library for items missing their languages. Off means the scan only runs when you trigger it by hand.",
+      "opt": {
+        "0": "Off (manual only)",
+        "360": "Every 6 hours",
+        "720": "Every 12 hours",
+        "1440": "Once a day",
+        "10080": "Once a week"
+      }
+    },
+    "autoDownload": {
+      "label": "Auto-download during scans",
+      "help": "When a scan finds a missing language, download the best acceptable match automatically. Off: the gap is only flagged (a notification + an automation trigger), and you download it yourself."
+    },
+    "autoSync": {
+      "label": "Auto-synchronize downloads",
+      "help": "After an automatic download, align the subtitle to the audio with FFsubsync. The original is always kept alongside the synced copy.",
+      "unavailable": "Unavailable — FFsubsync is not installed on this server, so automatic sync can't run (manual offset still works)."
+    },
+    "defaultLanguages": {
+      "label": "Default languages",
+      "help": "Which languages a library looks for when it has no policy of its own. Comma-separated ISO codes, e.g. \"en, es\"."
+    },
+    "explain": {
+      "heading": "How it works",
+      "pipeline": {
+        "heading": "The pipeline",
+        "body": "For each item: fingerprint it (a movie-hash + technical metadata) → search every enabled provider most-confident-first (exact hash → release name → IMDb/TMDB id → title) → score each candidate 0–100 → validate the file → install a media-server-correct sidecar next to the video, never overwriting an existing one → optionally sync it to the audio."
+      },
+      "providers": {
+        "heading": "Providers",
+        "body": "At least one must be enabled — this is the one mandatory step. OpenSubtitles and SubDL are official APIs (need a key) and give the best matches, including exact hash matches. YIFY, SubtitleCat and Podnapisi are keyless but lower-confidence (YIFY and SubtitleCat scrape public sites, so they're best-effort). Local Repository serves subtitles from a folder you point it at.",
+        "link": "Configure providers"
+      },
+      "scoring": {
+        "heading": "Scoring tiers",
+        "auto": "Auto — trusted (e.g. an exact hash match); downloaded and installed automatically.",
+        "download": "Download — strong; downloaded, sync-verified, installed if it checks out.",
+        "present": "Review — plausible; shown to you, never installed automatically.",
+        "reject": "Rejected — too weak; discarded."
+      },
+      "languages": {
+        "heading": "Per-library language policy",
+        "body": "Each library can require and prefer specific languages, demand forced/SDH tracks, set a minimum score, choose preferred providers, and auto-replace. A library with no policy falls back to the Default languages above.",
+        "link": "Edit language policy"
+      },
+      "sync": {
+        "heading": "Synchronization",
+        "body": "Two engines: a pure manual offset (always available) that shifts timings by a fixed amount, and FFsubsync, which listens to the audio and aligns the subtitle automatically. The original is never overwritten.",
+        "ffUnavailable": "FFsubsync not installed",
+        "ffHint": "Install ffmpeg + ffsubsync (or rebuild the image with INSTALL_SUBTITLE_SYNC=true) to enable automatic audio sync."
+      }
+    }
+  },
   "search": {
     "title": "Subtitle Search",
     "subtitle": "Search every enabled provider for a media item and install the best match.",

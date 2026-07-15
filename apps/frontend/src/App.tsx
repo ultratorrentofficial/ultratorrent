@@ -25,6 +25,7 @@ import { SubtitleSyncPage } from '@/pages/subtitle-intelligence/SubtitleSyncPage
 import { SubtitleValidationPage } from '@/pages/subtitle-intelligence/SubtitleValidationPage';
 import { SubtitleLanguagesPage } from '@/pages/subtitle-intelligence/SubtitleLanguagesPage';
 import { SubtitleHistoryPage } from '@/pages/subtitle-intelligence/SubtitleHistoryPage';
+import { SubtitleSettingsPage } from '@/pages/subtitle-intelligence/SubtitleSettingsPage';
 import { MediaLibrariesPage } from '@/pages/media-manager/MediaLibrariesPage';
 import { MediaItemsPage } from '@/pages/media-manager/MediaItemsPage';
 import { MediaDetailPage } from '@/pages/media-manager/MediaDetailPage';
@@ -279,6 +280,14 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="subtitle_intelligence">
                             <SubtitleHistoryPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/subtitles/settings"
+                        element={
+                          <ModuleRoute moduleId="subtitle_intelligence">
+                            <SubtitleSettingsPage />
                           </ModuleRoute>
                         }
                       />

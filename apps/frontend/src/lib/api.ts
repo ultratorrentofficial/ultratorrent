@@ -2961,6 +2961,12 @@ export const api = {
     synchronizations(downloadId: string): Promise<SubtitleSyncRow[]> {
       return request<SubtitleSyncRow[]>(`/subtitle-intelligence/downloads/${downloadId}/synchronizations`);
     },
+    getSettings(): Promise<SubtitleGlobalSettings> {
+      return request<SubtitleGlobalSettings>('/subtitle-intelligence/settings');
+    },
+    updateSettings(body: Partial<SubtitleGlobalSettings>): Promise<SubtitleGlobalSettings> {
+      return request<SubtitleGlobalSettings>('/subtitle-intelligence/settings', { method: 'PATCH', body });
+    },
     scanMissing(libraryId: string): Promise<{ jobId: string }> {
       return request(`/subtitle-intelligence/libraries/${libraryId}/scan-missing`, { method: 'POST' });
     },
@@ -4314,6 +4320,13 @@ export interface SubtitleValidationResult {
 export interface SubtitleSyncCapabilities {
   ffsubsync: { available: boolean; version: string | null };
   manual: { available: boolean };
+}
+
+export interface SubtitleGlobalSettings {
+  autoDownload: boolean;
+  autoSync: boolean;
+  autoScanIntervalMinutes: number;
+  defaultLanguages: string[];
 }
 
 export interface SubtitleSyncRow {

@@ -31,6 +31,7 @@ import { scoreCandidate, type ScoringContext } from './search/scoring';
 import { validateSubtitle } from './validation/subtitle-validator';
 import { runtimeCrossCheck } from './validation/runtime-check';
 import { SubtitleTriggerService } from './automation/subtitle-trigger.service';
+import { SubtitleSettingsService } from './settings/subtitle-settings.service';
 
 type AuditCtx = Pick<AuditEntry, 'userId' | 'ipAddress' | 'userAgent'>;
 
@@ -54,6 +55,7 @@ export class SubtitleService {
     private readonly audit: AuditService,
     private readonly eventBus: EventEmitter2,
     private readonly triggers: SubtitleTriggerService,
+    private readonly globalSettings: SubtitleSettingsService,
   ) {}
 
   // --- providers ----------------------------------------------------------
@@ -112,7 +114,10 @@ export class SubtitleService {
 
   async getLanguageSettings(libraryId: string) {
     const row = await this.prisma.subtitleLanguageSetting.findUnique({ where: { libraryId } });
-    return row ?? this.defaultLanguageSetting(libraryId);
+    if (row) return row;
+    // No explicit policy → fall back to the install-wide default languages.
+    const { defaultLanguages } = await this.globalSettings.read();
+    return this.defaultLanguageSetting(libraryId, defaultLanguages);
   }
 
   async setLanguageSettings(libraryId: string, patch: Record<string, unknown>, ctx: AuditCtx) {
@@ -136,11 +141,11 @@ export class SubtitleService {
     return row;
   }
 
-  private defaultLanguageSetting(libraryId: string) {
+  private defaultLanguageSetting(libraryId: string, defaultLanguages: string[] = ['en']) {
     return {
       libraryId,
       requiredLanguages: [] as string[],
-      preferredLanguages: ['en'],
+      preferredLanguages: defaultLanguages,
       forcedLanguages: [] as string[],
       hearingImpaired: false,
       machineTranslation: false,

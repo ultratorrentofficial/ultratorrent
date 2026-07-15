@@ -74,6 +74,69 @@
     "noDownloads": "Aún no hay subtítulos instalados.",
     "empty": "Aún no hay actividad."
   },
+  "settings": {
+    "title": "Configuración",
+    "subtitle": "Automatización del módulo y cómo encaja todo.",
+    "saved": "Configuración guardada.",
+    "automation": {
+      "heading": "Automatización",
+      "intro": "Controlan el comportamiento automático. No hacen nada hasta que haya al menos un proveedor activo y tus bibliotecas tengan una política de idiomas."
+    },
+    "interval": {
+      "label": "Escaneo automático de bibliotecas",
+      "help": "Con qué frecuencia el trabajo en segundo plano revisa cada biblioteca activa en busca de elementos sin sus idiomas. «Desactivado» significa que el escaneo solo corre cuando lo inicias a mano.",
+      "opt": {
+        "0": "Desactivado (solo manual)",
+        "360": "Cada 6 horas",
+        "720": "Cada 12 horas",
+        "1440": "Una vez al día",
+        "10080": "Una vez por semana"
+      }
+    },
+    "autoDownload": {
+      "label": "Descargar automáticamente durante los escaneos",
+      "help": "Cuando un escaneo encuentra un idioma faltante, descarga automáticamente la mejor coincidencia aceptable. Desactivado: solo se marca el faltante (notificación + disparador de automatización) y lo descargas tú."
+    },
+    "autoSync": {
+      "label": "Sincronizar automáticamente las descargas",
+      "help": "Tras una descarga automática, alinea el subtítulo con el audio usando FFsubsync. El original siempre se conserva junto a la copia sincronizada.",
+      "unavailable": "No disponible — FFsubsync no está instalado en este servidor, así que la sincronización automática no puede ejecutarse (el desplazamiento manual sí funciona)."
+    },
+    "defaultLanguages": {
+      "label": "Idiomas predeterminados",
+      "help": "Qué idiomas busca una biblioteca cuando no tiene su propia política. Códigos ISO separados por comas, p. ej. «en, es»."
+    },
+    "explain": {
+      "heading": "Cómo funciona",
+      "pipeline": {
+        "heading": "El flujo",
+        "body": "Para cada elemento: genera su huella (hash de película + metadatos técnicos) → busca en cada proveedor activo, de mayor a menor confianza (hash exacto → nombre del lanzamiento → id de IMDb/TMDB → título) → califica cada candidato de 0 a 100 → valida el archivo → instala un sidecar correcto para el servidor de medios junto al video, sin sobrescribir uno existente → opcionalmente lo sincroniza con el audio."
+      },
+      "providers": {
+        "heading": "Proveedores",
+        "body": "Debe haber al menos uno activo — es el único paso obligatorio. OpenSubtitles y SubDL son APIs oficiales (requieren clave) y dan las mejores coincidencias, incluidas las de hash exacto. YIFY, SubtitleCat y Podnapisi no requieren clave pero son de menor confianza (YIFY y SubtitleCat hacen scraping de sitios públicos, así que son de mejor esfuerzo). El Repositorio Local sirve subtítulos desde una carpeta que tú indicas.",
+        "link": "Configurar proveedores"
+      },
+      "scoring": {
+        "heading": "Niveles de puntuación",
+        "auto": "Automático — de confianza (p. ej. hash exacto); se descarga e instala automáticamente.",
+        "download": "Descargar — sólido; se descarga, se verifica la sincronización y se instala si pasa.",
+        "present": "Revisar — plausible; se te muestra, nunca se instala automáticamente.",
+        "reject": "Rechazado — demasiado débil; se descarta."
+      },
+      "languages": {
+        "heading": "Política de idiomas por biblioteca",
+        "body": "Cada biblioteca puede requerir y preferir idiomas específicos, exigir pistas forzadas/SDH, fijar una puntuación mínima, elegir proveedores preferidos y reemplazar automáticamente. Una biblioteca sin política usa los Idiomas predeterminados de arriba.",
+        "link": "Editar política de idiomas"
+      },
+      "sync": {
+        "heading": "Sincronización",
+        "body": "Dos motores: un desplazamiento manual puro (siempre disponible) que corre los tiempos una cantidad fija, y FFsubsync, que escucha el audio y alinea el subtítulo automáticamente. El original nunca se sobrescribe.",
+        "ffUnavailable": "FFsubsync no instalado",
+        "ffHint": "Instala ffmpeg + ffsubsync (o reconstruye la imagen con INSTALL_SUBTITLE_SYNC=true) para habilitar la sincronización automática por audio."
+      }
+    }
+  },
   "search": {
     "title": "Búsqueda de Subtítulos",
     "subtitle": "Busca en cada proveedor activo un elemento de medios e instala la mejor coincidencia.",

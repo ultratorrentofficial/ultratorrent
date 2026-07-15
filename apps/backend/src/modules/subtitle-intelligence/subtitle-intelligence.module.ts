@@ -14,6 +14,7 @@ import { SubtitleMissingScanService } from './jobs/subtitle-missing-scan.service
 import { SubtitleSchedulers } from './jobs/subtitle-schedulers.service';
 import { SubtitleTriggerService } from './automation/subtitle-trigger.service';
 import { SubtitleAutomationActions } from './automation/subtitle-automation.actions';
+import { SubtitleSettingsService } from './settings/subtitle-settings.service';
 
 /**
  * Subtitle Intelligence (core module `subtitle_intelligence`) — the definitive
@@ -39,6 +40,7 @@ import { SubtitleAutomationActions } from './automation/subtitle-automation.acti
     SubtitleQueueService,
     SubtitleSyncService,
     SubtitleTriggerService,
+    SubtitleSettingsService,
     SubtitleMissingScanService,
     SubtitleAutomationActions,
     SubtitleSchedulers,

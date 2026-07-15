@@ -14,14 +14,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
-import { SettingsService } from '../../settings/settings.module';
 import { SubtitleProviderRegistry } from '../providers/provider-registry.service';
 import { SubtitleProviderSettingsService } from '../providers/subtitle-provider-settings.service';
+import { SubtitleSettingsService } from '../settings/subtitle-settings.service';
 import { SubtitleMissingScanService } from './subtitle-missing-scan.service';
 
 const HEALTH_TICK_MS = 60 * 60_000; // hourly
 const SCAN_TICK_MS = 5 * 60_000; // 5-min tick; acts only when the interval is due
-export const AUTO_SCAN_INTERVAL_KEY = 'media.subtitles.autoScanIntervalMinutes';
 
 @Injectable()
 export class SubtitleSchedulers {
@@ -32,7 +31,7 @@ export class SubtitleSchedulers {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly settings: SettingsService,
+    private readonly globalSettings: SubtitleSettingsService,
     private readonly registry: SubtitleProviderRegistry,
     private readonly providerSettings: SubtitleProviderSettingsService,
     private readonly missingScan: SubtitleMissingScanService,
@@ -60,9 +59,9 @@ export class SubtitleSchedulers {
   @Interval('subtitle_missing_scan', SCAN_TICK_MS)
   async missingScanSweep(): Promise<void> {
     if (this.scanRunning) return;
-    const intervalMin = await this.settings.get<number>(AUTO_SCAN_INTERVAL_KEY);
-    if (!intervalMin || intervalMin <= 0) return; // opt-in; off by default
-    if (Date.now() - this.lastScanAt < intervalMin * 60_000) return;
+    const { autoScanIntervalMinutes } = await this.globalSettings.read();
+    if (autoScanIntervalMinutes <= 0) return; // opt-in; off by default
+    if (Date.now() - this.lastScanAt < autoScanIntervalMinutes * 60_000) return;
 
     this.scanRunning = true;
     this.lastScanAt = Date.now();

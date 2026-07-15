@@ -216,6 +216,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: 'subtitles-languages', to: '/subtitles/languages', label: 'Subtitle Languages', icon: Languages, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Languages' },
       { id: 'subtitles-history', to: '/subtitles/history', label: 'Subtitle History', icon: History, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle History' },
       { id: 'subtitles-providers', to: '/subtitles/providers', label: 'Subtitle Providers', icon: Plug, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Providers' },
+      { id: 'subtitles-settings', to: '/subtitles/settings', label: 'Subtitle Settings', icon: SlidersHorizontal, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', end: true, descriptionKey: 'Subtitle Settings' },
     ],
   },
   {

@@ -13,12 +13,11 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
-import { SettingsService } from '../../settings/settings.module';
 import { SubtitleService } from '../subtitle.service';
 import { SubtitleTriggerService } from '../automation/subtitle-trigger.service';
+import { SubtitleSettingsService } from '../settings/subtitle-settings.service';
+import { SubtitleSyncService } from '../sync/subtitle-sync.service';
 import { missingLanguages } from './missing-languages';
-
-export const AUTO_DOWNLOAD_KEY = 'media.subtitles.autoDownload';
 
 export interface MissingScanResult {
   libraryId: string;
@@ -33,16 +32,12 @@ export class SubtitleMissingScanService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly settings: SettingsService,
     private readonly subtitles: SubtitleService,
     private readonly triggers: SubtitleTriggerService,
     private readonly eventBus: EventEmitter2,
+    private readonly globalSettings: SubtitleSettingsService,
+    private readonly sync: SubtitleSyncService,
   ) {}
-
-  /** Whether the missing scan may auto-download (global opt-in, default off). */
-  async autoDownloadEnabled(): Promise<boolean> {
-    return (await this.settings.get<boolean>(AUTO_DOWNLOAD_KEY)) === true;
-  }
 
   /**
    * Scan one library for missing subtitles. Acts only when the library has a
@@ -64,7 +59,7 @@ export class SubtitleMissingScanService {
       return { libraryId, scanned: 0, gaps: 0, downloaded: 0 };
     }
 
-    const autoDownload = await this.autoDownloadEnabled();
+    const settings = await this.globalSettings.read();
     const items = await this.prisma.mediaItem.findMany({
       where: { libraryId, matchStatus: { in: ['matched', 'manual'] } },
       include: { subtitles: true, subtitleDownloads: true },
@@ -95,8 +90,8 @@ export class SubtitleMissingScanService {
         languages: missing.join(','),
       });
 
-      if (autoDownload) {
-        downloaded += await this.autoFetch(item.id, missing, policy.minimumScore as number);
+      if (settings.autoDownload) {
+        downloaded += await this.autoFetch(item.id, missing, policy.minimumScore as number, settings.autoSync);
       }
       if (report && items.length > 0) await report(Math.round(((i + 1) / items.length) * 100));
     }
@@ -105,8 +100,8 @@ export class SubtitleMissingScanService {
     return { libraryId, scanned: items.length, gaps, downloaded };
   }
 
-  /** Search + install the best acceptable candidate per missing language. */
-  private async autoFetch(itemId: string, missing: string[], minScore: number): Promise<number> {
+  /** Search + install the best acceptable candidate per missing language; sync if asked. */
+  private async autoFetch(itemId: string, missing: string[], minScore: number, autoSync: boolean): Promise<number> {
     let count = 0;
     try {
       const { candidates } = await this.subtitles.search(itemId, { languages: missing }, {});
@@ -119,7 +114,16 @@ export class SubtitleMissingScanService {
         );
         if (best) {
           const res = await this.subtitles.downloadCandidate(best.id, {});
-          if (res.installed) count++;
+          if (res.installed) {
+            count++;
+            // Optionally align the freshly-installed subtitle to the audio.
+            const downloadId = (res as { download?: { id?: string } }).download?.id;
+            if (autoSync && downloadId) {
+              await this.sync.synchronize(downloadId, { method: 'auto' }, {}).catch((e) =>
+                this.logger.warn(`auto-sync for ${itemId} failed: ${(e as Error).message}`),
+              );
+            }
+          }
         }
       }
     } catch (err) {

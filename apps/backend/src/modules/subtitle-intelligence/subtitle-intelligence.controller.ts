@@ -10,6 +10,7 @@ import { SubtitleService } from './subtitle.service';
 import { SubtitleSyncService, type SyncRequest } from './sync/subtitle-sync.service';
 import { SubtitleMissingScanService } from './jobs/subtitle-missing-scan.service';
 import { SubtitleQueueService } from './jobs/subtitle-queue.service';
+import { SubtitleSettingsService, type SubtitleGlobalSettings } from './settings/subtitle-settings.service';
 import type { ProviderConfigPatch } from './providers/subtitle-provider-settings.service';
 
 const P = PERMISSIONS;
@@ -34,7 +35,21 @@ export class SubtitleIntelligenceController {
     private readonly sync: SubtitleSyncService,
     private readonly missingScan: SubtitleMissingScanService,
     private readonly queue: SubtitleQueueService,
+    private readonly settings: SubtitleSettingsService,
   ) {}
+
+  // --- global settings ---------------------------------------------------
+  @Get('settings')
+  @RequirePermissions(P.SUBTITLE_INTELLIGENCE_VIEW)
+  getSettings() {
+    return this.settings.read();
+  }
+
+  @Patch('settings')
+  @RequirePermissions(P.SUBTITLE_INTELLIGENCE_SETTINGS)
+  updateSettings(@Body() body: Partial<SubtitleGlobalSettings>, @Req() req: Request) {
+    return this.settings.update(body ?? {}, auditCtx(req));
+  }
 
   // --- overview ----------------------------------------------------------
   @Get('dashboard')
