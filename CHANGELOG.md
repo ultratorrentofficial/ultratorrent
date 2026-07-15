@@ -45,6 +45,18 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.32.0] - 2026-07-15
+
+### Added
+- Add Subtitle Intelligence core module (phase 1): video fingerprinting with OpenSubtitles movie hash, progressively-relaxed multi-provider search, 0-100 candidate scoring, pure SRT/VTT/ASS validation, and media-server-correct sidecar installation that never overwrites originals. OpenSubtitles provider with encrypted credentials; per-library language policy; RBAC + audit.
+- Subtitle Intelligence phase 2: automatic (FFsubsync) and manual-offset subtitle synchronization behind a provider abstraction (inert-safe without the binary; original always preserved), runtime cross-check validation, Synchronization + Validation UI, and an idempotent installer for the optional ffmpeg/ffsubsync/mediainfo binaries plus an opt-in Docker build arg.
+- Subtitle Intelligence phase 3: SubDL and Local Repository providers (with a dependency-free ZIP extractor for SubDL and hard-root-confined filesystem access for Local), plus a per-library Language Policy UI (required/preferred/forced languages, HI, machine translation, preferred providers, minimum score, auto-replace).
+- Subtitle Intelligence phase 4: automation triggers/actions, a decoupled missing-subtitle scan that keeps libraries healthy (Notification Center + optional auto-download), provider-health and missing-scan @Interval schedulers, a bulk scan endpoint, and a Downloads/History UI.
+- Subtitle Intelligence: three more real providers — Podnapisi (unofficial JSON API), YIFY Subtitles and SubtitleCat (scraping-based, verified live end-to-end). All keyless, host-allow-listed, validated-before-write; parsers unit-tested against live-captured markup.
+
+### Fixed
+- Subtitle Intelligence phase 5 (hardening): add the security test proving provider credentials are encrypted at rest and redacted, and complete the documentation (API.md, SECURITY.md, README, Media Manager cross-link, and the Docusaurus module page in both locales).
+
 ## [0.31.0] - 2026-07-14
 
 ### Added
