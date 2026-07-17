@@ -33,6 +33,7 @@ import { ImdbOptimizedImportService } from './imdb/imdb-optimized-import.service
 import { ImdbDatasetScheduler } from './imdb/imdb-dataset-scheduler.service';
 import { ImdbService } from './imdb/imdb.service';
 import { ImdbTrigramIndexService } from './imdb/imdb-trigram-index.service';
+import { ImdbSeriesResolver } from '../media-acquisition/imdb-series-resolver.service';
 import { MediaController } from './media.controller';
 
 /**
@@ -50,6 +51,10 @@ import { MediaController } from './media.controller';
   imports: [SettingsModule, FilesModule],
   providers: [
     ImdbTrigramIndexService,
+    // The scanner resolves a show folder's series IMDb id at scan time; the resolver
+    // only needs Prisma, so provide its own instance here rather than importing the
+    // whole media-acquisition module (which would risk a cycle).
+    ImdbSeriesResolver,
     MetadataProviderRegistry,
     TraktAuthService,
     TraktSyncService,

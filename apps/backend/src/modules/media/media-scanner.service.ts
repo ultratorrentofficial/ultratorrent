@@ -1,14 +1,15 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { parseTorrentName } from '../rss/torrent-name-parser';
+import { ImdbSeriesResolver } from '../media-acquisition/imdb-series-resolver.service';
 import { parseItemIdentity } from './media-identification.service';
 import { MediaArtworkService } from './media-artwork.service';
-import { MediaMetadataService } from './media-metadata.service';
+import { MediaMetadataService, parseNfoXml } from './media-metadata.service';
 import { TV_TYPES, parseFolderTitle, showCanonicalKey } from './series-grouping';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
 
@@ -156,6 +157,7 @@ export class MediaScannerService {
     private readonly metadata: MediaMetadataService,
     private readonly eventBus: EventEmitter2,
     private readonly showDuplicates: MediaShowDuplicateService,
+    private readonly imdbResolver: ImdbSeriesResolver,
   ) {}
 
   async scanLibrary(
@@ -407,18 +409,19 @@ export class MediaScannerService {
       // `resolveSeriesImdbId()` sets it, mapping an episode to its parent title. When
       // it is null the show simply has no id yet, and null is the honest answer — an
       // episode id here is worse than nothing, because downstream code trusts it.
-      select: { path: true, seriesImdbId: true },
+      select: { id: true, path: true, seriesImdbId: true },
     });
 
-    const byFolder = new Map<string, { count: number; imdbId: string | null }>();
+    const byFolder = new Map<string, { count: number; imdbId: string | null; itemIds: string[] }>();
     for (const it of items) {
       const dir = showFolderOf(library.path, it.path);
       if (!dir) continue; // loose at the library root — no show folder to record
-      const cur = byFolder.get(dir) ?? { count: 0, imdbId: null };
+      const cur = byFolder.get(dir) ?? { count: 0, imdbId: null, itemIds: [] };
       cur.count++;
       // First id wins; `??=` keeps looking while it is still null, so an episode
       // that was never identified does not shadow one that was.
       cur.imdbId ??= it.seriesImdbId ?? null;
+      cur.itemIds.push(it.id);
       byFolder.set(dir, cur);
     }
 
@@ -426,11 +429,28 @@ export class MediaScannerService {
     for (const [dir, g] of byFolder) {
       const folder = path.basename(dir);
       const { title, year } = parseFolderTitle(folder);
+      // When no episode carried a series id, resolve one at scan time — from an
+      // explicit id the operator/TMM wrote into `tvshow.nfo` first, then the local
+      // IMDb catalogue. Backfill it onto the folder's episodes so the field the rest
+      // of the system reads (missing-episode sweeps, subtitle fingerprinting) is
+      // present immediately, instead of waiting for a later heal pass. Only the
+      // folder's own already-null episodes are touched, so a matched/user-corrected
+      // item is never clobbered.
+      let imdbId = g.imdbId;
+      if (!imdbId) {
+        imdbId = await this.resolveShowImdbId(dir, title, year);
+        if (imdbId && g.itemIds.length > 0) {
+          await this.prisma.mediaItem.updateMany({
+            where: { id: { in: g.itemIds }, seriesImdbId: null },
+            data: { seriesImdbId: imdbId },
+          });
+        }
+      }
       const data = {
         mediaType,
         title,
         year,
-        imdbId: g.imdbId,
+        imdbId,
         canonicalKey: showCanonicalKey(folder),
         episodeCount: g.count,
       };
@@ -453,6 +473,52 @@ export class MediaScannerService {
       }
     }
     return byFolder.size;
+  }
+
+  /**
+   * Best-effort series IMDb id for a show folder, most trustworthy source first:
+   *
+   *  1. An explicit id the operator (or tinyMediaManager) wrote into the folder's
+   *     `tvshow.nfo`. This is authoritative — a human/tool stated it — and, unlike
+   *     the catalogue lookup, cannot be fooled by two same-named series.
+   *  2. The local IMDb catalogue, matching the folder's title (+year). `resolveFolder`
+   *     (not `resolve`) because a folder the renamer never touched is still a raw
+   *     scene release name that matches nothing as-is.
+   *
+   * Returns null when neither is confident — null is the honest answer, and the show
+   * is simply retried on the next scan.
+   */
+  private async resolveShowImdbId(dir: string, title: string, year: number | null): Promise<string | null> {
+    const fromNfo = await this.imdbIdFromTvshowNfo(dir);
+    if (fromNfo) return fromNfo;
+    try {
+      const hit = await this.imdbResolver.resolveFolder(title, year);
+      return hit?.tconst ?? null;
+    } catch (err) {
+      // A resolver failure (e.g. the catalogue is not loaded) must not fail the scan.
+      this.logger.warn(`IMDb resolve failed for show "${title}": ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  /**
+   * The IMDb series tconst declared in a show folder's `tvshow.nfo`, or null when the
+   * file is absent/unreadable or carries no IMDb id. A bare-numeric id (some tools
+   * omit the `tt` prefix) is normalised to the canonical `tt<n>` tconst form the rest
+   * of the system stores; anything else is rejected rather than persisted as a lie.
+   */
+  private async imdbIdFromTvshowNfo(dir: string): Promise<string | null> {
+    let xml: string;
+    try {
+      xml = await readFile(path.join(dir, 'tvshow.nfo'), 'utf8');
+    } catch {
+      return null; // no tvshow.nfo, or unreadable — expected for most folders
+    }
+    const imdb = parseNfoXml(xml).externalIds?.imdb?.trim();
+    if (!imdb) return null;
+    if (/^tt\d+$/i.test(imdb)) return imdb.toLowerCase();
+    if (/^\d+$/.test(imdb)) return `tt${imdb}`;
+    return null;
   }
 
   /**

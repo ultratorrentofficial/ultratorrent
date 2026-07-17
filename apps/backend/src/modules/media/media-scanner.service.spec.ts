@@ -110,7 +110,11 @@ describe('parseItemIdentity (what the scanner stores)', () => {
 
 // ---------------------------------------------------------------------------
 
+import { readFile } from 'node:fs/promises';
 import { MediaScannerService } from './media-scanner.service';
+
+jest.mock('node:fs/promises');
+const mockReadFile = readFile as jest.MockedFunction<typeof readFile>;
 import { showCanonicalKey } from './series-grouping';
 
 /**
@@ -122,14 +126,25 @@ import { showCanonicalKey } from './series-grouping';
 describe('MediaScannerService.reconcileShows', () => {
   const LIB = { id: 'lib1', kind: 'tv', path: '/downloads/TV Shows', name: 'TV Shows' };
 
-  function build(items: Array<{ path: string; seriesImdbId?: string | null }>) {
+  beforeEach(() => {
+    // Default: no tvshow.nfo on disk. Tests that need one override per-case.
+    mockReadFile.mockReset();
+    mockReadFile.mockRejectedValue(new Error('ENOENT'));
+  });
+
+  function build(
+    items: Array<{ id?: string; path: string; seriesImdbId?: string | null }>,
+    resolver: { resolveFolder: jest.Mock } = { resolveFolder: jest.fn(async () => null) },
+  ) {
     const upserts: any[] = [];
     const deletes: any[] = [];
+    const itemUpdates: any[] = [];
     const prisma = {
       mediaItem: {
         findMany: jest.fn(async () =>
-          items.map((i) => ({ path: i.path, seriesImdbId: i.seriesImdbId ?? null })),
+          items.map((i, idx) => ({ id: i.id ?? `item${idx}`, path: i.path, seriesImdbId: i.seriesImdbId ?? null })),
         ),
+        updateMany: jest.fn(async (args: any) => { itemUpdates.push(args); return { count: args.where?.id?.in?.length ?? 0 }; }),
       },
       mediaShow: {
         upsert: jest.fn(async (args: any) => { upserts.push(args); return {}; }),
@@ -137,8 +152,10 @@ describe('MediaScannerService.reconcileShows', () => {
       },
     };
     const showDuplicates = { detect: jest.fn(async () => []) };
-    const svc = new MediaScannerService(prisma as any, {} as any, {} as any, {} as any, {} as any, showDuplicates as any);
-    return { svc, prisma, upserts, deletes, showDuplicates };
+    const svc = new MediaScannerService(
+      prisma as any, {} as any, {} as any, {} as any, {} as any, showDuplicates as any, resolver as any,
+    );
+    return { svc, prisma, upserts, deletes, itemUpdates, showDuplicates, resolver };
   }
   const run = (svc: any, lib = LIB) => svc.reconcileShows(lib);
 
@@ -238,6 +255,86 @@ describe('MediaScannerService.reconcileShows', () => {
     expect(await run(svc, { ...LIB, kind: 'movie' })).toBe(0);
     expect(prisma.mediaItem.findMany).not.toHaveBeenCalled();
   });
+
+  it('resolves a missing series id from the folder tvshow.nfo, and backfills it onto the episodes', async () => {
+    // A folder whose episodes were never identified (no seriesImdbId) but whose
+    // tvshow.nfo carries an explicit IMDb id: the nfo is authoritative, so use it
+    // without ever consulting the fuzzy catalogue resolver.
+    mockReadFile.mockResolvedValue(
+      '<tvshow><title>Severance</title><uniqueid type="imdb">tt11280740</uniqueid></tvshow>' as any,
+    );
+    const resolver = { resolveFolder: jest.fn(async () => null) };
+    const { svc, upserts, itemUpdates } = build(
+      [
+        { id: 'a', path: `${LIB.path}/Severance (2022)/Season 1/S01E01.mkv`, seriesImdbId: null },
+        { id: 'b', path: `${LIB.path}/Severance (2022)/Season 1/S01E02.mkv`, seriesImdbId: null },
+      ],
+      resolver,
+    );
+    await run(svc);
+
+    expect(upserts[0].create.imdbId).toBe('tt11280740');
+    // The nfo id short-circuits the catalogue lookup.
+    expect(resolver.resolveFolder).not.toHaveBeenCalled();
+    // And it is written back onto the folder's still-null episodes, guarded so a
+    // matched item is never clobbered.
+    expect(itemUpdates).toHaveLength(1);
+    expect(itemUpdates[0]).toMatchObject({
+      where: { id: { in: ['a', 'b'] }, seriesImdbId: null },
+      data: { seriesImdbId: 'tt11280740' },
+    });
+  });
+
+  it('falls back to the local IMDb catalogue when there is no tvshow.nfo', async () => {
+    // No sidecar (mockReadFile rejects by default) → resolve the folder title (+year)
+    // against the catalogue.
+    const resolver = { resolveFolder: jest.fn(async () => ({ tconst: 'tt2861424', startYear: 2013, episodes: 100 })) };
+    const { svc, upserts, itemUpdates } = build(
+      [{ id: 'a', path: `${LIB.path}/Rick and Morty (2013)/Season 1/S01E01.mkv`, seriesImdbId: null }],
+      resolver,
+    );
+    await run(svc);
+
+    expect(resolver.resolveFolder).toHaveBeenCalledWith('Rick and Morty', 2013);
+    expect(upserts[0].create.imdbId).toBe('tt2861424');
+    expect(itemUpdates[0].data.seriesImdbId).toBe('tt2861424');
+  });
+
+  it('does not resolve — or touch episodes — when an episode already carried a series id', async () => {
+    // The id from identification is trusted; no nfo read, no catalogue lookup, no write.
+    const resolver = { resolveFolder: jest.fn(async () => null) };
+    const { svc, upserts, itemUpdates } = build(
+      [{ path: `${LIB.path}/Ghosts US (2021)/Season 5/a.mkv`, seriesImdbId: 'tt11379026' }],
+      resolver,
+    );
+    await run(svc);
+
+    expect(upserts[0].create.imdbId).toBe('tt11379026');
+    expect(mockReadFile).not.toHaveBeenCalled();
+    expect(resolver.resolveFolder).not.toHaveBeenCalled();
+    expect(itemUpdates).toHaveLength(0);
+  });
+
+  it('records no id and writes nothing back when neither the nfo nor the catalogue resolves', async () => {
+    const resolver = { resolveFolder: jest.fn(async () => null) };
+    const { svc, upserts, itemUpdates } = build(
+      [{ path: `${LIB.path}/Some Obscure Show (2019)/Season 1/a.mkv`, seriesImdbId: null }],
+      resolver,
+    );
+    await run(svc);
+
+    expect(upserts[0].create.imdbId).toBeNull();
+    expect(itemUpdates).toHaveLength(0);
+  });
+
+  it('normalises a bare-numeric nfo id to the tt<n> tconst form', async () => {
+    mockReadFile.mockResolvedValue('<tvshow><imdbid>1234567</imdbid></tvshow>' as any);
+    const { svc, upserts } = build(
+      [{ path: `${LIB.path}/Numbered Show (2020)/Season 1/a.mkv`, seriesImdbId: null }],
+    );
+    await run(svc);
+    expect(upserts[0].create.imdbId).toBe('tt1234567');
+  });
 });
 
 describe('showCanonicalKey', () => {
@@ -299,7 +396,7 @@ describe('MediaScannerService.countDuplicateShows — the scan reports, it never
   function build(detect: jest.Mock) {
     const svc = new MediaScannerService(
       {} as any, {} as any, {} as any, {} as any, {} as any,
-      { detect } as any,
+      { detect } as any, {} as any,
     );
     return svc as any;
   }
