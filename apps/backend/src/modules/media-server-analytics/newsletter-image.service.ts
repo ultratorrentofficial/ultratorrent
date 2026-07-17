@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import sharp from 'sharp';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { SecretCipher } from '../../common/crypto/secret-cipher';
+import { assertSafeOutboundUrl } from '../../common/ssrf';
 
 const IMG_KEY = 'media_server_analytics.newsletter_images';
 const POSTER_TARGET_WIDTH = 240; // downscale target — the card slot is ~84–120px
@@ -130,7 +131,10 @@ export class NewsletterImageService {
     try {
       let rawImg: Buffer | null = null;
       if (art.url) {
-        const res = await fetch(art.url, { signal: AbortSignal.timeout(8000) });
+        // SSRF guard: art.url originates from stored media/provider metadata; block
+        // internal hosts + redirects before fetching. Throws → caught below → null.
+        const safe = await assertSafeOutboundUrl(art.url);
+        const res = await fetch(safe.toString(), { redirect: 'error', signal: AbortSignal.timeout(8000) });
         if (!res.ok) return null;
         if (!(res.headers.get('content-type') ?? '').startsWith('image/')) return null;
         rawImg = Buffer.from(await res.arrayBuffer());

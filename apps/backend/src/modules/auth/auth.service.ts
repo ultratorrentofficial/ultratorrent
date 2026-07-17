@@ -110,6 +110,30 @@ export class AuthService {
     return { accessToken, refreshToken, expiresIn: 15 * 60 };
   }
 
+  /** Consecutive failed attempts before an account is temporarily locked. */
+  private static readonly MAX_FAILED_ATTEMPTS = 5;
+  /** How long an account stays locked after crossing the threshold. */
+  private static readonly LOCKOUT_MS = 15 * 60_000;
+
+  /**
+   * Record a failed password/2FA attempt; lock the account once it crosses the
+   * threshold. Resets the counter when it locks so the next window starts clean.
+   * Best-effort — a bookkeeping failure must not change the caller's 401.
+   */
+  private async registerFailedLogin(user: { id: string; failedLoginAttempts: number }): Promise<void> {
+    const attempts = (user.failedLoginAttempts ?? 0) + 1;
+    const lock = attempts >= AuthService.MAX_FAILED_ATTEMPTS;
+    await this.prisma.user
+      .update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: lock ? 0 : attempts,
+          lockedUntil: lock ? new Date(Date.now() + AuthService.LOCKOUT_MS) : undefined,
+        },
+      })
+      .catch(() => undefined);
+  }
+
   async login(
     username: string,
     password: string,
@@ -117,25 +141,41 @@ export class AuthService {
     totp?: string,
   ): Promise<LoginResponse> {
     const user = await this.prisma.user.findUnique({ where: { username } });
+
+    // Brute-force lockout: once locked, refuse further attempts until the window
+    // passes — this is the account-level ceiling the per-IP throttle can't provide
+    // against a rotating-IP guesser. Checked before the password verify so a locked
+    // account isn't probed further.
+    if (user?.lockedUntil && user.lockedUntil > new Date()) {
+      throw new UnauthorizedException('Account temporarily locked due to failed attempts. Try again later.');
+    }
+
     // Constant-ish work factor whether or not the user exists.
     const hash =
       user?.passwordHash ??
       '$argon2id$v=19$m=65536,t=3,p=4$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
     const valid = await argon2.verify(hash, password).catch(() => false);
     if (!user || !valid || !user.isActive) {
+      // Count a wrong password for an existing, active account toward its lockout.
+      if (user?.isActive && !valid) await this.registerFailedLogin(user);
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Second factor: only after the password is confirmed correct.
+    // Second factor: only after the password is confirmed correct. A wrong code
+    // counts toward lockout too, so 2FA guessing isn't only IP-throttled.
     if (user.totpEnabled) {
       if (!totp) throw new TwoFactorRequiredException();
       const ok = await this.twoFactor.verifyForLogin(user, totp);
-      if (!ok) throw new UnauthorizedException('Invalid two-factor code');
+      if (!ok) {
+        await this.registerFailedLogin(user);
+        throw new UnauthorizedException('Invalid two-factor code');
+      }
     }
 
+    // Full success — clear any accumulated failures + lock.
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null },
     });
 
     const authUser = await this.loadAuthUser(user.id);

@@ -45,21 +45,25 @@ export async function createUltraTorrentApp(
   const config = app.get(ConfigService);
   const bootLogger = new Logger('Bootstrap');
 
-  // Refuse to boot in production with unset/default/weak secrets — a known
-  // secret lets an attacker forge SUPER_ADMIN tokens (full auth bypass).
+  // Refuse to boot with unset/default/weak secrets — a known secret lets an
+  // attacker forge SUPER_ADMIN tokens (full auth bypass). Fail-closed everywhere
+  // EXCEPT an explicit `NODE_ENV=development`: gating only on `=== 'production'`
+  // meant an unset/`staging`/`test` NODE_ENV booted on the public defaults.
   const secretProblems = findInsecureSecrets({
     accessSecret: config.get<string>('jwt.accessSecret') ?? '',
+    refreshSecret: config.get<string>('jwt.refreshSecret') ?? '',
     encryptionKey: config.get<string>('encryptionKey') ?? '',
   });
   if (secretProblems.length) {
     const detail = secretProblems.map((p) => `  - ${p}`).join('\n');
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV !== 'development') {
       throw new Error(
         `Refusing to start: insecure secret configuration:\n${detail}\n` +
-          'Set strong, distinct JWT_ACCESS_SECRET and ENCRYPTION_KEY (>=32 random chars).',
+          'Set strong, distinct JWT_ACCESS_SECRET, JWT_REFRESH_SECRET and ENCRYPTION_KEY ' +
+          '(>=32 random chars each). Set NODE_ENV=development to bypass for local dev only.',
       );
     }
-    bootLogger.warn(`Insecure secrets (OK for dev, NOT production):\n${detail}`);
+    bootLogger.warn(`Insecure secrets (OK for dev, NEVER for a real deployment):\n${detail}`);
   }
 
   // Behind nginx/Caddy: trust the first proxy hop so req.ip (rate limiting,
@@ -69,8 +73,11 @@ export async function createUltraTorrentApp(
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cookieParser());
   app.setGlobalPrefix('api');
+  // Closed allow-list only. `?? true` would, if `corsOrigin` were ever undefined,
+  // reflect ANY origin with credentials — a credentialed wildcard. `configuration.ts`
+  // always supplies a default, so split() is safe.
   app.enableCors({
-    origin: config.get<string>('corsOrigin')?.split(',') ?? true,
+    origin: (config.get<string>('corsOrigin') ?? 'http://localhost:5173').split(','),
     credentials: true,
   });
   app.useGlobalPipes(
@@ -82,6 +89,11 @@ export async function createUltraTorrentApp(
     }),
   );
   app.useGlobalFilters(new AllExceptionsFilter());
+
+  // Drain in-flight work and run OnModuleDestroy (e.g. PrismaService.$disconnect)
+  // on SIGTERM/SIGINT, so a redeploy closes DB connections cleanly instead of being
+  // force-killed. (The Dockerfile CMD also `exec`s node so the signal reaches it.)
+  app.enableShutdownHooks();
 
   // Swagger exposes the full API surface (routes, DTO shapes, auth scheme).
   // Keep it out of production to avoid handing attackers a map.

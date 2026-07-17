@@ -233,7 +233,20 @@ export class MediaServerIntegrationService {
       where: { id },
     });
     if (!existing) throw new NotFoundException('Integration not found');
-    await this.prisma.mediaServerIntegration.delete({ where: { id } });
+    // These tables reference a connection by a plain `connectionId` column with no
+    // FK (so no cascade), so deleting the integration would otherwise leave ghost
+    // rows — sessions/libraries that still surface in dashboard filters and
+    // provider-pulled users that linger in the newsletter recipient picker. Clean
+    // them up atomically. Watch history is deliberately KEPT: it's a durable
+    // analytics record, not connection state, and its rows carry their own copy of
+    // the viewer/media so they stand alone.
+    await this.prisma.$transaction([
+      this.prisma.mediaServerSession.deleteMany({ where: { connectionId: id } }),
+      this.prisma.mediaServerLibrary.deleteMany({ where: { connectionId: id } }),
+      this.prisma.mediaProviderSyncRun.deleteMany({ where: { connectionId: id } }),
+      this.prisma.mediaServerUser.deleteMany({ where: { connectionId: id } }),
+      this.prisma.mediaServerIntegration.delete({ where: { id } }),
+    ]);
     await this.audit.record({
       userId: ctx.userId,
       action: 'media.integration.delete',

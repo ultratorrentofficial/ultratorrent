@@ -56,14 +56,19 @@ services:
       PORT: 4000
       # Derived from POSTGRES_* so it can't drift from the DB password. Use an
       # alphanumeric POSTGRES_PASSWORD (URL-special chars would need encoding).
-      DATABASE_URL: postgresql://${POSTGRES_USER:-ultratorrent}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ultratorrent}?schema=public
+      # Explicit, tunable Prisma pool so many concurrent background schedulers can't
+      # exhaust the pool (P2024) and the per-instance count against Postgres stays
+      # bounded. Default sized for a single backend; raise/lower via DB_CONNECTION_LIMIT.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ultratorrent}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ultratorrent}?schema=public&connection_limit=${DB_CONNECTION_LIMIT:-15}&pool_timeout=20
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      # Required in production: must be set, >=32 chars, and DIFFERENT from
-      # JWT_ACCESS_SECRET (the backend refuses to boot otherwise).
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # All three token/encryption secrets are required and validated at boot (must be
+      # set, >=32 chars, and mutually distinct). The `:?` guard fails compose-up early
+      # with a clear message instead of at container boot. ENCRYPTION_KEY must differ
+      # from JWT_ACCESS_SECRET; JWT_REFRESH_SECRET must differ from it too.
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set a strong 48-char JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set a strong 48-char JWT_REFRESH_SECRET, distinct from JWT_ACCESS_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set a strong 48-char ENCRYPTION_KEY, distinct from JWT_ACCESS_SECRET}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}

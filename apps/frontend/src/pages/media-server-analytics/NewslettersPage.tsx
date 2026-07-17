@@ -367,6 +367,12 @@ export function NewslettersPage() {
                 <div className="flex justify-center rounded-md bg-black/20 p-3">
                   <iframe
                     title="newsletter-preview"
+                    // Isolated from the app origin: srcDoc HTML otherwise runs as
+                    // first-party script (could read the localStorage tokens). The
+                    // newsletter is static markup + images, so an empty sandbox (no
+                    // allow-scripts) is enough; server-side escapeHtml stays the
+                    // primary control. See audit FE-1 / SEC-M6.
+                    sandbox=""
                     srcDoc={preview.data.html}
                     className="h-[32rem] rounded-md border border-white/10 bg-white transition-all"
                     style={{ width: previewMode === 'mobile' ? 390 : '100%', maxWidth: '100%' }}

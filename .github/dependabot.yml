@@ -1,0 +1,26 @@
+version: 2
+updates:
+  # npm — single lockfile at the repo root covers all workspaces.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # Keep routine minor/patch bumps to one PR; majors come through individually
+      # so a breaking upgrade (e.g. NestJS 10→11) is reviewed on its own.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+
+  # GitHub Actions — several workflows pin third-party actions to @master.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - ci

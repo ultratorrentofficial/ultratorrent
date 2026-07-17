@@ -11,6 +11,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { AuditService } from '../audit/audit.service';
 import { SettingsService } from '../settings/settings.module';
+import { assertSafeOutboundUrl } from '../../common/ssrf';
 import type { AuditContext } from './media-metadata.service';
 import {
   type ArtworkCandidate,
@@ -547,7 +548,11 @@ export class MediaArtworkService {
     const timer = setTimeout(() => ctrl.abort(), 15000);
     let buffer: Buffer;
     try {
-      const res = await fetch(cand.url, { signal: ctrl.signal });
+      // SSRF guard: cand.url comes from a provider response (TMDB/TVDB/media-server),
+      // so a poisoned response could otherwise steer this fetch to an internal
+      // address. Blocks internal hosts + redirects; throws → caught → null (best-effort).
+      const safe = await assertSafeOutboundUrl(cand.url);
+      const res = await fetch(safe.toString(), { redirect: 'error', signal: ctrl.signal });
       if (!res.ok) return null;
       buffer = Buffer.from(await res.arrayBuffer());
     } catch {

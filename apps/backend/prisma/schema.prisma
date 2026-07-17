@@ -23,6 +23,10 @@ model User {
   isActive      Boolean   @default(true)
   isSystem      Boolean   @default(false)
   lastLoginAt   DateTime?
+  /// Brute-force lockout: consecutive failed password/2FA attempts, reset on a
+  /// successful login. `lockedUntil` blocks further attempts until it passes.
+  failedLoginAttempts Int      @default(0)
+  lockedUntil         DateTime?
   // Two-factor authentication (TOTP). Secret is encrypted at rest.
   totpSecret    String?
   totpEnabled   Boolean   @default(false)

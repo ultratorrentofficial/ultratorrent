@@ -30,6 +30,9 @@
     "docs:build": "npm --prefix website run build",
     "docs:serve": "npm --prefix website run serve"
   },
+  "overrides": {
+    "multer": "^2.2.0"
+  },
   "engines": {
     "node": ">=20.0.0"
   },

@@ -63,6 +63,7 @@ export const INSECURE_SECRET_DEFAULTS = [
  */
 export function findInsecureSecrets(secrets: {
   accessSecret: string;
+  refreshSecret: string;
   encryptionKey: string;
 }): string[] {
   const problems: string[] = [];
@@ -74,10 +75,20 @@ export function findInsecureSecrets(secrets: {
     }
   };
   check('JWT_ACCESS_SECRET', secrets.accessSecret);
+  // The refresh secret signs long-lived (30-day) refresh tokens; a default here is
+  // as exploitable as a default access secret — a forged refresh token mints access
+  // tokens. It was previously omitted from this gate, so a deploy that set the access
+  // + encryption keys but forgot JWT_REFRESH_SECRET booted on the public default.
+  check('JWT_REFRESH_SECRET', secrets.refreshSecret);
   check('ENCRYPTION_KEY', secrets.encryptionKey);
   // The TOTP-at-rest key must be independent of the token-signing key.
   if (secrets.encryptionKey && secrets.encryptionKey === secrets.accessSecret) {
     problems.push('ENCRYPTION_KEY must be different from JWT_ACCESS_SECRET');
+  }
+  // Distinct signing keys for the two token types — reusing one for both means a
+  // leak of either forges the other.
+  if (secrets.refreshSecret && secrets.refreshSecret === secrets.accessSecret) {
+    problems.push('JWT_REFRESH_SECRET must be different from JWT_ACCESS_SECRET');
   }
   return problems;
 }

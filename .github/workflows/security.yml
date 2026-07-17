@@ -32,8 +32,14 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - name: npm audit (high+)
-        run: npm audit --audit-level=high || true # report, do not block on transitive advisories
+      - name: npm audit — BLOCK on critical prod advisories
+        # Enforcing floor: a critical runtime dependency fails the build. Scoped to
+        # prod deps (--omit=dev) so dev/CLI transitives don't block. High+ transitive
+        # advisories (qs/express via NestJS) still need the NestJS 11 upgrade and are
+        # reported below, not blocked, until then.
+        run: npm audit --omit=dev --audit-level=critical
+      - name: npm audit (high+, report only)
+        run: npm audit --audit-level=high || true
 
   license-check:
     runs-on: ubuntu-latest
@@ -51,9 +57,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Community image
         run: docker build -f apps/backend/Dockerfile -t ultratorrent/community:backend .
-      - name: Trivy image scan
+      - name: Trivy image scan — BLOCK on fixable critical
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ultratorrent/community:backend
+          severity: CRITICAL
+          ignore-unfixed: true # don't fail on base-image CVEs with no fix yet
+          exit-code: '1'
+      - name: Trivy image scan (high+, report only)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ultratorrent/community:backend
           severity: HIGH,CRITICAL
-          exit-code: '0' # report; tighten to '1' to block on findings
+          exit-code: '0'

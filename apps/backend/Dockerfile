@@ -112,4 +112,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:4000/api/system/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Apply migrations then start. (Seed is run separately on first boot.)
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+# `exec` so node replaces the shell as PID's child and receives SIGTERM directly —
+# lets enableShutdownHooks() drain connections cleanly on redeploy instead of a
+# force-kill after the grace period.
+CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/main.js"]

@@ -38,11 +38,13 @@ services:
     environment:
       NODE_ENV: production
       # Derived from POSTGRES_* so it can't drift from the DB password.
-      DATABASE_URL: postgresql://${POSTGRES_USER:-ultratorrent}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ultratorrent}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ultratorrent}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ultratorrent}?schema=public&connection_limit=${DB_CONNECTION_LIMIT:-15}&pool_timeout=20
       REDIS_HOST: ${REDIS_HOST:-redis}
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # Required + validated at boot (set, >=32 chars, mutually distinct); `:?` fails
+      # compose-up early with a clear message.
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set a strong 48-char JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set a strong 48-char JWT_REFRESH_SECRET, distinct from JWT_ACCESS_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set a strong 48-char ENCRYPTION_KEY, distinct from JWT_ACCESS_SECRET}
       FILE_MANAGER_ROOTS: ${FILE_MANAGER_ROOTS:-/downloads}
     volumes: [downloads:/downloads]
     # Internal-only; the frontend proxies to it over the Docker network. Add a

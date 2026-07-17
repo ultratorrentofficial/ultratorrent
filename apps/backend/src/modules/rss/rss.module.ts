@@ -1480,17 +1480,29 @@ export class RssService {
 
     if (infoHash) grabbedHashes.add(infoHash);
     if (titleDedup) {
-      // Upgrade: drop the release we're replacing before recording the new one.
-      if (held?.torrentHash && held.torrentHash !== torrentHash) {
-        await this.removeSupersededTorrent(held.torrentHash);
-      }
-      await this.prisma.rssAcquisition
-        .upsert({
+      // Record the new release as held FIRST, THEN drop the one it supersedes. The
+      // old order removed the superseded torrent and then swallowed an upsert
+      // failure — losing the acquisition record while the release was already
+      // downloaded, so the next poll saw nothing held and re-grabbed it in a loop.
+      // If the record can't be written, keep BOTH torrents (don't remove the old)
+      // and bail — the still-valid old record reconciles on the next poll.
+      // Capture the hash to supersede BEFORE the upsert — the upsert overwrites the
+      // held record's torrentHash, so reading it afterwards would compare the new
+      // hash against itself and never remove the old release.
+      const supersededHash = held?.torrentHash ?? null;
+      try {
+        await this.prisma.rssAcquisition.upsert({
           where: { rssRuleId_identity: { rssRuleId: ruleId, identity: identity! } },
           create: { rssRuleId: ruleId, identity: identity!, priorityOrder: priority!, releaseTitle: title, torrentHash },
           update: { priorityOrder: priority!, releaseTitle: title, torrentHash },
-        })
-        .catch((e) => this.logger.warn(`RSS acquisition upsert failed: ${e.message}`));
+        });
+      } catch (e) {
+        this.logger.warn(`RSS acquisition upsert failed, keeping superseded torrent: ${(e as Error).message}`);
+        return { action: 'download', torrentHash };
+      }
+      if (supersededHash && supersededHash !== torrentHash) {
+        await this.removeSupersededTorrent(supersededHash);
+      }
     }
     return { action: 'download', torrentHash };
   }

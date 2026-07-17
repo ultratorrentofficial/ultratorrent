@@ -1,5 +1,8 @@
 # Development dependencies only — run the apps locally with `npm run dev`.
 # Usage: docker compose -f docker-compose.dev.yml up -d
+# NEVER use this file in production: it ships a hardcoded dev password. Ports are
+# bound to 127.0.0.1 so the dev DB/cache are reachable only from the local machine,
+# not from anyone else on the LAN.
 services:
   postgres:
     image: postgres:17-alpine
@@ -8,14 +11,14 @@ services:
       POSTGRES_PASSWORD: ultratorrent
       POSTGRES_DB: ultratorrent
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pg_dev:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
 volumes:
   pg_dev:

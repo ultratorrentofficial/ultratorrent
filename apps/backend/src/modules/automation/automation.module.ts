@@ -27,6 +27,7 @@ import type { Request } from 'express';
 import { NormalizedTorrent, PERMISSIONS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
+import { assertSafeOutboundUrl } from '../../common/ssrf';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { AuditService } from '../audit/audit.service';
 import { ModuleRef } from '@nestjs/core';
@@ -332,15 +333,29 @@ export class AutomationEngine {
         await this.sendViaCenter(params, context);
         break;
       case 'webhook':
-        await fetch(String(params.url), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ event: context, params }),
-        });
+        await this.postWebhook(params.url, { event: context, params });
         break;
       default:
         throw new Error(`Action "${action.type}" is not valid for an event trigger`);
     }
+  }
+
+  /**
+   * POST a webhook payload to a rule-supplied URL, SSRF-guarded. Without this a rule
+   * author could point the action at `http://169.254.169.254/…` (cloud metadata),
+   * a Docker-internal service, or a localhost admin port. The guard blocks internal
+   * addresses (operator opt-in via SSRF_ALLOW_HOSTS for a legitimate LAN hook) and
+   * `redirect: 'error'` stops a 3xx bouncing past it; a bounded timeout caps hangs.
+   */
+  private async postWebhook(url: unknown, payload: Record<string, unknown>): Promise<void> {
+    const safe = await assertSafeOutboundUrl(String(url ?? ''));
+    await fetch(safe.toString(), {
+      method: 'POST',
+      redirect: 'error',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
+    });
   }
 
   /** Dispatch through the Notification Center (the `send_notification` action). */
@@ -541,11 +556,7 @@ export class AutomationEngine {
         await this.sendViaCenter(params, { title: t.name, mediaTitle: t.name, torrentName: t.name, hash: t.hash });
         break;
       case 'webhook':
-        await fetch(String(params.url), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ torrent: t, params }),
-        });
+        await this.postWebhook(params.url, { torrent: t, params });
         break;
       case 'rename_for_media':
         await this.media.apply({

@@ -89,6 +89,40 @@ export function isAllowlistedTorrentHost(hostname: string, resolvedIps: string[]
 }
 
 /**
+ * Assert an outbound URL is safe to fetch server-side, for any caller (webhooks,
+ * artwork, provider images): http(s) only, and the host must not resolve to an
+ * internal/loopback/link-local/metadata/private/multicast address — unless the
+ * operator allow-listed it via `SSRF_ALLOW_HOSTS` (the same escape hatch used for a
+ * LAN Prowlarr). Returns the parsed URL. Callers MUST still fetch with
+ * `redirect: 'error'` so a 3xx can't bounce past this check to an internal target.
+ * Throws {@link BadRequestException} on any violation.
+ */
+export async function assertSafeOutboundUrl(url: string): Promise<URL> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new BadRequestException('Invalid URL');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new BadRequestException('Only http(s) URLs are allowed');
+  }
+  const host = parsed.hostname.replace(/^\[|\]$/g, '');
+  const addresses = isIP(host)
+    ? [host]
+    : (await lookup(host, { all: true }).catch(() => [])).map((a) => a.address);
+  if (addresses.length === 0) throw new BadRequestException('Could not resolve URL host');
+  if (!isAllowlistedTorrentHost(host, addresses)) {
+    for (const ip of addresses) {
+      if (isBlockedAddress(ip)) {
+        throw new BadRequestException('URL resolves to a blocked internal address');
+      }
+    }
+  }
+  return parsed;
+}
+
+/**
  * SSRF-safe fetch of a remote .torrent. Rejects non-http(s) schemes, hosts that
  * resolve to internal/loopback/metadata addresses, redirects (which could bounce
  * to an internal target), and oversized bodies. Throws BadRequestException (400).
