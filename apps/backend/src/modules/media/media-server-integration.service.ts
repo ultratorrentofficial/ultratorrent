@@ -15,6 +15,7 @@ import {
   MediaServerKind,
   MediaServerLibrary,
   ProviderSession,
+  ProviderUser,
   ServerInfo,
   UnsupportedCapabilityError,
 } from './media-server-provider';
@@ -393,6 +394,25 @@ export class MediaServerIntegrationService {
         return { supported: false, message: err.message, sessions: [] };
       }
       throw new BadRequestException(`Fetching sessions failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * List a server's user accounts (with emails where the server holds them).
+   * Providers with no account model (Kodi) return `{ supported: false }` rather
+   * than throwing, mirroring {@link libraries}.
+   */
+  async users(id: string): Promise<{ supported: boolean; message?: string; users: ProviderUser[] }> {
+    const row = await this.load(id);
+    const provider = getMediaServerProvider(row.kind);
+    const cfg = this.decryptConfig((row.config as Record<string, unknown>) ?? {});
+    try {
+      return { supported: true, users: await provider.getUsers(cfg) };
+    } catch (err) {
+      if (err instanceof UnsupportedCapabilityError) {
+        return { supported: false, message: err.message, users: [] };
+      }
+      throw new BadRequestException(`Listing users failed: ${(err as Error).message}`);
     }
   }
 

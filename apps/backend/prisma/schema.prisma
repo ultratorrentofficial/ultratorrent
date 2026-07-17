@@ -1082,6 +1082,10 @@ model MediaServerUser {
   connectionId   String?
   providerUserId String?
   userName       String
+  /// Email address fetched from the media server (Plex accounts carry one;
+  /// Jellyfin/Emby user models have no email, so it stays null for them). Used to
+  /// offer the user as a newsletter recipient. Null = not addressable by email.
+  email          String?
   plays          Int       @default(0)
   lastSeenAt     DateTime?
   createdAt      DateTime  @default(now())

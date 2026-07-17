@@ -3647,6 +3647,12 @@ export const api = {
     newsletters(): Promise<Newsletter[]> {
       return request<Newsletter[]>('/media-server-analytics/newsletters');
     },
+    newsletterRecipientOptions(): Promise<MediaServerUserMeta[]> {
+      return request<MediaServerUserMeta[]>('/media-server-analytics/newsletters/recipient-options');
+    },
+    setRecipientEmail(userId: string, email: string | null): Promise<MediaServerUserMeta> {
+      return request<MediaServerUserMeta>(`/media-server-analytics/newsletters/recipient-options/${userId}`, { method: 'PATCH', body: { email } });
+    },
     createNewsletter(body: Partial<Newsletter>): Promise<Newsletter> {
       return request<Newsletter>('/media-server-analytics/newsletters', { method: 'POST', body });
     },
@@ -4183,6 +4189,8 @@ export interface MediaServerUserMeta {
   connectionId: string | null;
   providerUserId: string | null;
   userName: string;
+  /** Email from the media server, or one an admin entered by hand; null = none. */
+  email: string | null;
   plays: number;
   lastSeenAt: string | null;
 }

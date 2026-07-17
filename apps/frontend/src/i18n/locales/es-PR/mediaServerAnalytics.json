@@ -201,8 +201,19 @@
       "title": "Nuevo boletín",
       "name": "Nombre",
       "frequency": "Frecuencia",
-      "recipients": "Correos destinatarios (separados por comas)",
+      "recipients": "Destinatarios",
       "submit": "Crear"
+    },
+    "recipients": {
+      "addPlaceholder": "Escribe un correo y presiona Enter",
+      "add": "Añadir",
+      "addOne": "Añadir",
+      "remove": "Quitar",
+      "fromServer": "Del servidor multimedia",
+      "noEmail": "sin correo en el servidor",
+      "enterEmail": "correo electrónico",
+      "save": "Guardar",
+      "saveFailed": "No se pudo guardar el correo"
     },
     "freq": {
       "daily": "Diario",

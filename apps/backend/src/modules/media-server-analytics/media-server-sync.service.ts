@@ -110,8 +110,13 @@ export class MediaServerSyncService {
   }
 
   /**
-   * Refresh `MediaServerUser` from durable watch history: one row per
-   * (connection, userName) with play count + last-seen. Provider-agnostic.
+   * Refresh `MediaServerUser` from two sources: durable watch history (one row per
+   * (connection, userName) with play count + last-seen, provider-agnostic and
+   * always available), then each enabled connection's provider account list, which
+   * adds users who have never watched anything and fills in an email where the
+   * server holds one (Plex). A user's email is only written when the row has none,
+   * so an email an admin typed by hand (see {@link setUserEmail}) is never
+   * clobbered by a later sync.
    */
   async syncUsers(): Promise<number> {
     const run = await this.prisma.mediaProviderSyncRun.create({ data: { type: 'users', status: 'running' } });
@@ -140,6 +145,17 @@ export class MediaServerSyncService {
         }
         count += 1;
       }
+
+      // Pull provider accounts so users who have never watched still appear (and so
+      // Plex emails land). One unreachable/unsupported connection never aborts the
+      // sweep — it just contributes no users.
+      const connections = await this.prisma.mediaServerIntegration.findMany({ where: { isEnabled: true } });
+      for (const conn of connections) {
+        await this.syncConnectionUsers(conn.id).catch((err) => {
+          this.logger.warn(`Provider user pull failed for ${conn.id}: ${(err as Error).message}`);
+        });
+      }
+
       await this.prisma.mediaProviderSyncRun.update({
         where: { id: run.id },
         data: { status: 'success', usersSynced: count, finishedAt: new Date() },
@@ -153,6 +169,53 @@ export class MediaServerSyncService {
       this.logger.warn(`User sync failed: ${(err as Error).message}`);
       return 0;
     }
+  }
+
+  /**
+   * Upsert one connection's provider accounts into `MediaServerUser`, matched to an
+   * existing row by `userName` (the session/history key). Sets `providerUserId` and
+   * — only when the row has no email yet — the server-provided email, so a
+   * hand-entered address survives. Providers with no account model (Kodi) are a
+   * clean no-op.
+   */
+  private async syncConnectionUsers(connectionId: string): Promise<number> {
+    const result = await this.integrations.users(connectionId);
+    if (!result.supported) return 0;
+    let upserted = 0;
+    for (const u of result.users) {
+      const existing = await this.prisma.mediaServerUser.findFirst({
+        where: { connectionId, userName: u.userName },
+      });
+      if (existing) {
+        await this.prisma.mediaServerUser.update({
+          where: { id: existing.id },
+          data: {
+            providerUserId: existing.providerUserId ?? u.providerUserId,
+            // Never overwrite an email already on the row (server-set or manual).
+            email: existing.email ?? u.email ?? undefined,
+          },
+        });
+      } else {
+        await this.prisma.mediaServerUser.create({
+          data: { connectionId, userName: u.userName, providerUserId: u.providerUserId, email: u.email ?? undefined },
+        });
+      }
+      upserted += 1;
+    }
+    return upserted;
+  }
+
+  /**
+   * Set (or clear) a synced user's email by hand — for servers whose accounts carry
+   * no email (Jellyfin/Emby). Clearing it (empty string) lets a later provider sync
+   * repopulate it. Returns the updated row.
+   */
+  async setUserEmail(userId: string, email: string | null) {
+    const trimmed = (email ?? '').trim();
+    return this.prisma.mediaServerUser.update({
+      where: { id: userId },
+      data: { email: trimmed || null },
+    });
   }
 
   // --- read models for the filter selectors + status panel ------------------

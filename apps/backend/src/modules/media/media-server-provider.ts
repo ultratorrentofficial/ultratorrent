@@ -102,6 +102,57 @@ export function parsePlexGuids(guids: unknown): Record<string, string> {
   return out;
 }
 
+/**
+ * A media-server account, provider-agnostic. `email` is present only where the
+ * server actually holds one (Plex accounts do; Jellyfin/Emby user models have no
+ * email field). A null email means the user exists but can't be addressed by
+ * email — the newsletter picker offers them, disabled.
+ */
+export interface ProviderUser {
+  providerUserId: string;
+  userName: string;
+  email?: string;
+}
+
+/**
+ * Parse a Plex.tv `/api/users` XML listing into accounts. Plex returns shared and
+ * managed users as `<User id=".." title=".." username=".." email="..">` elements;
+ * managed (home/child) users carry an empty `email`. Regex-based on purpose — the
+ * same pragmatic approach as {@link parsePlexGuids}, and this codebase pulls in no
+ * XML parser. Pure — exported for unit tests.
+ */
+export function parsePlexUsersXml(xml: string): ProviderUser[] {
+  if (typeof xml !== 'string') return [];
+  const out: ProviderUser[] = [];
+  const attr = (tag: string, name: string): string | undefined => {
+    const m = new RegExp(`${name}="([^"]*)"`, 'i').exec(tag);
+    return m ? decodeXmlEntities(m[1]).trim() : undefined;
+  };
+  // Match each <User ...> open tag (self-closing or with children).
+  const re = /<User\b[^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml))) {
+    const tag = m[0];
+    const id = attr(tag, 'id');
+    const userName = attr(tag, 'title') || attr(tag, 'username');
+    if (!id || !userName) continue;
+    const email = attr(tag, 'email');
+    out.push({ providerUserId: id, userName, email: email || undefined });
+  }
+  return out;
+}
+
+/** Minimal XML entity decode for the handful that appear in Plex attributes. */
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
 /** Jellyfin/Emby expose ids as `ProviderIds: { Imdb, Tmdb, Tvdb }`. Pure. */
 export function parseJellyfinProviderIds(ids: unknown): Record<string, string> {
   const out: Record<string, string> = {};
@@ -133,6 +184,12 @@ export interface MediaServerProvider {
   getLibraries(cfg: MediaServerConfig): Promise<MediaServerLibrary[]>;
   /** Now-playing sessions. Throws {@link UnsupportedCapabilityError} where unsupported. */
   getSessions(cfg: MediaServerConfig): Promise<ProviderSession[]>;
+  /**
+   * The server's user accounts (with an email where the server holds one). Throws
+   * {@link UnsupportedCapabilityError} where the provider has no notion of accounts
+   * (Kodi). An empty list is a valid answer — a server with no shared users.
+   */
+  getUsers(cfg: MediaServerConfig): Promise<ProviderUser[]>;
   refreshLibrary(cfg: MediaServerConfig): Promise<void>;
 }
 
@@ -175,6 +232,27 @@ async function fetchJson(
       json = null;
     }
     return { ok: res.ok, status: res.status, json };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchText(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = 8000,
+): Promise<{ ok: boolean; status: number; text: string }> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    let text = '';
+    try {
+      text = await res.text();
+    } catch {
+      text = '';
+    }
+    return { ok: res.ok, status: res.status, text };
   } finally {
     clearTimeout(timer);
   }
@@ -276,6 +354,41 @@ export class PlexProvider implements MediaServerProvider {
     });
   }
 
+  /**
+   * Plex accounts live on plex.tv, NOT on the local server — the local
+   * `/accounts` endpoint has no emails. So the token (which is a plex.tv account
+   * token) queries plex.tv: `/api/users` returns every shared and managed user
+   * with their email, and `/api/v2/user` adds the account owner. Managed/home
+   * users have an empty email and come back with `email: undefined`.
+   */
+  async getUsers(cfg: MediaServerConfig): Promise<ProviderUser[]> {
+    if (!cfg.token) throw new Error('Plex token is required.');
+    const headers = { Accept: 'application/json', 'X-Plex-Token': cfg.token };
+    const byId = new Map<string, ProviderUser>();
+
+    // Shared + managed users (XML). This is the endpoint that carries emails.
+    const shared = await fetchText('https://plex.tv/api/users', {
+      headers: { 'X-Plex-Token': cfg.token },
+    });
+    if (shared.ok) {
+      for (const u of parsePlexUsersXml(shared.text)) byId.set(u.providerUserId, u);
+    }
+
+    // The account owner (the token's own account) — best-effort, JSON.
+    try {
+      const { ok, json } = await fetchJson('https://plex.tv/api/v2/user', { headers });
+      const id = json?.id != null ? String(json.id) : undefined;
+      const userName = json?.title || json?.username;
+      if (ok && id && userName) {
+        byId.set(id, { providerUserId: id, userName, email: json?.email || undefined });
+      }
+    } catch {
+      // Owner lookup is optional; shared users are the point.
+    }
+
+    return [...byId.values()];
+  }
+
   async testConnection(cfg: MediaServerConfig): Promise<TestResult> {
     try {
       const base = requireBaseUrl(cfg);
@@ -353,6 +466,21 @@ class JellyfinEmbyBase {
     return folders.map((f) => ({ id: String(f.ItemId ?? f.Name), name: f.Name, type: mapJellyfinType(f.CollectionType) }));
   }
 
+  async users(cfg: MediaServerConfig): Promise<ProviderUser[]> {
+    const base = requireBaseUrl(cfg);
+    if (!cfg.apiKey) throw new Error('API key is required.');
+    const { ok, status, json } = await fetchJson(`${base}/Users`, {
+      headers: { Accept: 'application/json', [this.headerName]: cfg.apiKey },
+    });
+    if (!ok) throw new Error(`User listing failed with HTTP ${status}.`);
+    const list: any[] = Array.isArray(json) ? json : [];
+    // Jellyfin/Emby user accounts have no email field, so recipients picked here
+    // will show disabled until the user has an address from elsewhere.
+    return list
+      .filter((u) => u?.Id && u?.Name)
+      .map((u) => ({ providerUserId: String(u.Id), userName: String(u.Name) }));
+  }
+
   async sessions(cfg: MediaServerConfig): Promise<ProviderSession[]> {
     const base = requireBaseUrl(cfg);
     if (!cfg.apiKey) throw new Error('API key is required.');
@@ -413,6 +541,7 @@ export class JellyfinProvider implements MediaServerProvider {
   getServerInfo(cfg: MediaServerConfig) { return serverInfoFrom(this, cfg, 'Jellyfin'); }
   getLibraries(cfg: MediaServerConfig) { return this.impl.libraries(cfg); }
   getSessions(cfg: MediaServerConfig) { return this.impl.sessions(cfg); }
+  getUsers(cfg: MediaServerConfig) { return this.impl.users(cfg); }
   refreshLibrary(cfg: MediaServerConfig) { return this.impl.refresh(cfg); }
 }
 
@@ -424,6 +553,7 @@ export class EmbyProvider implements MediaServerProvider {
   getServerInfo(cfg: MediaServerConfig) { return serverInfoFrom(this, cfg, 'Emby'); }
   getLibraries(cfg: MediaServerConfig) { return this.impl.libraries(cfg); }
   getSessions(cfg: MediaServerConfig) { return this.impl.sessions(cfg); }
+  getUsers(cfg: MediaServerConfig) { return this.impl.users(cfg); }
   refreshLibrary(cfg: MediaServerConfig) { return this.impl.refresh(cfg); }
 }
 
@@ -464,6 +594,11 @@ export class KodiProvider implements MediaServerProvider {
 
   async getSessions(_cfg: MediaServerConfig): Promise<ProviderSession[]> {
     throw new UnsupportedCapabilityError('getSessions', this.kind);
+  }
+
+  async getUsers(_cfg: MediaServerConfig): Promise<ProviderUser[]> {
+    // Kodi is a single-user client library, not a multi-account server.
+    throw new UnsupportedCapabilityError('getUsers', this.kind);
   }
 
   async testConnection(cfg: MediaServerConfig): Promise<TestResult> {

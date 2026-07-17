@@ -201,8 +201,19 @@
       "title": "New newsletter",
       "name": "Name",
       "frequency": "Frequency",
-      "recipients": "Recipient emails (comma-separated)",
+      "recipients": "Recipients",
       "submit": "Create"
+    },
+    "recipients": {
+      "addPlaceholder": "Type an email and press Enter",
+      "add": "Add",
+      "addOne": "Add",
+      "remove": "Remove",
+      "fromServer": "From media server",
+      "noEmail": "no email on server",
+      "enterEmail": "email address",
+      "save": "Save",
+      "saveFailed": "Could not save email"
     },
     "freq": {
       "daily": "Daily",

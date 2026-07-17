@@ -73,6 +73,7 @@ Under `/api/media-server-analytics`:
 | `POST /import-sources/:id/import` | `…run_imports` | Start an import. |
 | `GET /import-jobs` · `/import-jobs/:id` | `…manage_imports` | Import job history + progress. |
 | `GET/POST /newsletters` · `GET/PATCH/DELETE /newsletters/:id` · `POST /newsletters/:id/preview` · `GET /newsletters/:id/deliveries` | `…manage_newsletters` | Newsletter campaigns + delivery tracking. |
+| `GET /newsletters/recipient-options` · `PATCH /newsletters/recipient-options/:userId` | `…manage_newsletters` | Synced users for the recipient picker; PATCH sets a user's email by hand (servers whose accounts carry none). |
 | `POST /newsletters/:id/test-send` · `/send-now` | `…send_newsletters` | Send a test / send now. |
 | `GET/PATCH /settings/email` · `POST /settings/email/test` | `…manage_settings` | SMTP config (password encrypted). |
 | `GET/PATCH /settings/newsletter-images` | `…manage_settings` | Poster-hosting mode (see below). |
@@ -104,8 +105,14 @@ A second job (`media_server_metadata_sync`, hourly and on demand via `POST
 dashboard filters are backed by real rows: **libraries** are pulled from each
 connection's provider (capability-aware) into `MediaServerLibrary`, and **users**
 are derived from durable watch history into `MediaServerUser` (provider-agnostic,
-so Tautulli-imported history with no live connection still yields users). Every
-run is recorded as a `MediaProviderSyncRun`; one bad server never aborts the sweep.
+so Tautulli-imported history with no live connection still yields users). The user
+sweep also pulls each connection's **provider account list** (`provider.getUsers`):
+this adds users who have never watched anything and fills in `MediaServerUser.email`
+where the server holds one — Plex accounts do (fetched from plex.tv `/api/users` +
+the owner), while Jellyfin/Emby user models have none, so their email stays null
+until an admin enters one via the newsletter recipient picker. A hand-entered email
+is never overwritten by a later sync (email is only written when the row has none).
+Every run is recorded as a `MediaProviderSyncRun`; one bad server never aborts the sweep.
 
 ## Permissions
 

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, Pencil, Play, Send, Trash2 } from 'lucide-react';
-import { api, ApiError, type Newsletter, type NewsletterPreview } from '@/lib/api';
+import { Eye, Pencil, Play, Send, Trash2, X } from 'lucide-react';
+import { api, ApiError, type Newsletter, type NewsletterPreview, type MediaServerUserMeta } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,33 +46,157 @@ function ContentTypeToggle({ value, onChange }: { value: string[]; onChange: (ne
   );
 }
 
+/**
+ * Recipient editor: hand-typed emails (free text, comma/space/Enter separated)
+ * PLUS a picker of users synced from the media server. A synced user with an email
+ * (Plex accounts carry one) is one click to add; a user whose server has no email
+ * (Jellyfin/Emby) gets an inline field so the admin can enter one, which is saved
+ * back and remembered. `value` is the flat list of recipient email strings.
+ */
+function RecipientPicker({
+  value,
+  onChange,
+  options,
+  onSetEmail,
+  idPrefix,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+  options: MediaServerUserMeta[];
+  onSetEmail: (userId: string, email: string) => Promise<unknown>;
+  idPrefix: string;
+}) {
+  const { t } = useTranslation('mediaServerAnalytics');
+  const [text, setText] = useState('');
+  const [manual, setManual] = useState<Record<string, string>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const selected = new Set(value.map((e) => e.toLowerCase()));
+
+  const add = (email: string) => {
+    const e = email.trim();
+    if (e && !selected.has(e.toLowerCase())) onChange([...value, e]);
+  };
+  const remove = (email: string) => onChange(value.filter((e) => e !== email));
+  const addFreeText = () => {
+    text.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean).forEach(add);
+    setText('');
+  };
+
+  return (
+    <div className="space-y-2">
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {value.map((email) => (
+            <span key={email} className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-xs text-amber-200">
+              {email}
+              <button type="button" aria-label={t('newsletter.recipients.remove')} onClick={() => remove(email)} className="text-amber-300/70 hover:text-amber-100"><X className="h-3 w-3" /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Input
+          id={`${idPrefix}-rec`}
+          value={text}
+          placeholder={t('newsletter.recipients.addPlaceholder')}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addFreeText(); } }}
+        />
+        <Button type="button" variant="secondary" size="sm" onClick={addFreeText} disabled={!text.trim()}>{t('newsletter.recipients.add')}</Button>
+      </div>
+      {options.length > 0 && (
+        <div className="rounded-md border border-white/10">
+          <div className="border-b border-white/5 px-2 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">{t('newsletter.recipients.fromServer')}</div>
+          <div className="max-h-48 overflow-y-auto">
+            {options.map((u) => {
+              const has = !!u.email;
+              const isSel = has && selected.has(u.email!.toLowerCase());
+              return (
+                <div key={u.id} className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-white/5">
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="font-medium">{u.userName}</span>
+                    {u.email ? <span className="ml-2 text-xs text-muted-foreground">{u.email}</span> : <span className="ml-2 text-xs italic text-muted-foreground">{t('newsletter.recipients.noEmail')}</span>}
+                  </span>
+                  {has ? (
+                    <Button type="button" variant={isSel ? 'ghost' : 'secondary'} size="sm" onClick={() => (isSel ? remove(u.email!) : add(u.email!))}>
+                      {isSel ? t('newsletter.recipients.remove') : t('newsletter.recipients.addOne')}
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        className="h-7 w-44"
+                        type="email"
+                        placeholder={t('newsletter.recipients.enterEmail')}
+                        value={manual[u.id] ?? ''}
+                        onChange={(e) => setManual((m) => ({ ...m, [u.id]: e.target.value }))}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={!(manual[u.id] ?? '').trim() || savingId === u.id}
+                        onClick={async () => {
+                          const email = (manual[u.id] ?? '').trim();
+                          if (!email) return;
+                          setSavingId(u.id);
+                          try {
+                            await onSetEmail(u.id, email);
+                            add(email);
+                            setManual((m) => ({ ...m, [u.id]: '' }));
+                          } finally {
+                            setSavingId(null);
+                          }
+                        }}
+                      >{t('newsletter.recipients.save')}</Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function NewslettersPage() {
   const { t } = useTranslation('mediaServerAnalytics');
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: '', frequency: 'weekly', recipients: '', dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] as string[] });
+  const [form, setForm] = useState({ name: '', frequency: 'weekly', recipients: [] as string[], dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] as string[] });
   const [preview, setPreview] = useState<{ id: string; data: NewsletterPreview } | null>(null);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
   const [testTo, setTestTo] = useState<Record<string, string>>({});
   // Per-campaign edit of the core fields (name / frequency / recipients) that
   // aren't otherwise inline-editable.
   const [editId, setEditId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', frequency: 'weekly', recipients: '' });
+  const [editForm, setEditForm] = useState({ name: '', frequency: 'weekly', recipients: [] as string[] });
 
   const q = useQuery({ queryKey: ['msa', 'newsletters'], queryFn: () => api.mediaServerAnalytics.newsletters() });
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['msa', 'newsletters'] });
+
+  // Users synced from the media server, offered in the recipient picker.
+  const recipientOptions = useQuery({ queryKey: ['msa', 'newsletter-recipients'], queryFn: () => api.mediaServerAnalytics.newsletterRecipientOptions() });
+  const setEmail = useMutation({
+    mutationFn: ({ userId, email }: { userId: string; email: string }) => api.mediaServerAnalytics.setRecipientEmail(userId, email),
+    onSuccess: () => void recipientOptions.refetch(),
+    onError: (e) => toast.error(t('newsletter.recipients.saveFailed'), e instanceof ApiError ? e.message : undefined),
+  });
+  const onSetEmail = (userId: string, email: string) => setEmail.mutateAsync({ userId, email });
+  const recipientOpts = recipientOptions.data ?? [];
 
   const create = useMutation({
     mutationFn: () => api.mediaServerAnalytics.createNewsletter({
       name: form.name.trim(),
       frequency: form.frequency,
-      recipientEmails: form.recipients.split(',').map((s) => s.trim()).filter(Boolean),
+      recipientEmails: form.recipients,
       dateRangeMode: form.dateRangeMode,
       lastDays: form.lastDays,
       startDate: form.dateRangeMode === 'since_date' && form.startDate ? new Date(form.startDate).toISOString() : null,
       contentSections: form.contentSections,
     } as Partial<Newsletter>),
-    onSuccess: () => { setForm({ name: '', frequency: 'weekly', recipients: '', dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] }); toast.success(t('newsletter.created')); invalidate(); },
+    onSuccess: () => { setForm({ name: '', frequency: 'weekly', recipients: [], dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] }); toast.success(t('newsletter.created')); invalidate(); },
   });
   const update = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<Newsletter> }) => api.mediaServerAnalytics.updateNewsletter(id, patch),
@@ -123,7 +247,7 @@ export function NewslettersPage() {
                       editId === n.id
                         ? setEditId(null)
                         : (setEditId(n.id),
-                          setEditForm({ name: n.name, frequency: n.frequency, recipients: n.recipientEmails.join(', ') }))
+                          setEditForm({ name: n.name, frequency: n.frequency, recipients: [...n.recipientEmails] }))
                     }
                   ><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button variant="ghost" size="sm" onClick={() => remove.mutate(n.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -132,7 +256,7 @@ export function NewslettersPage() {
                   <div className="grid gap-2 border-t border-white/5 pt-2 sm:grid-cols-3">
                     <div className="space-y-1"><Label htmlFor={`ed-name-${n.id}`}>{t('newsletter.add.name')}</Label><Input id={`ed-name-${n.id}`} value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} /></div>
                     <div className="space-y-1"><Label htmlFor={`ed-freq-${n.id}`}>{t('newsletter.add.frequency')}</Label><Select id={`ed-freq-${n.id}`} value={editForm.frequency} onChange={(e) => setEditForm((f) => ({ ...f, frequency: e.target.value }))} options={freqOptions} /></div>
-                    <div className="space-y-1"><Label htmlFor={`ed-rec-${n.id}`}>{t('newsletter.add.recipients')}</Label><Input id={`ed-rec-${n.id}`} value={editForm.recipients} onChange={(e) => setEditForm((f) => ({ ...f, recipients: e.target.value }))} /></div>
+                    <div className="space-y-1 sm:col-span-3"><Label htmlFor={`ed-${n.id}-rec`}>{t('newsletter.add.recipients')}</Label><RecipientPicker idPrefix={`ed-${n.id}`} value={editForm.recipients} onChange={(next) => setEditForm((f) => ({ ...f, recipients: next }))} options={recipientOpts} onSetEmail={onSetEmail} /></div>
                     <div className="flex gap-2 sm:col-span-3">
                       <Button
                         size="sm"
@@ -144,7 +268,7 @@ export function NewslettersPage() {
                               patch: {
                                 name: editForm.name.trim(),
                                 frequency: editForm.frequency,
-                                recipientEmails: editForm.recipients.split(',').map((s) => s.trim()).filter(Boolean),
+                                recipientEmails: editForm.recipients,
                               },
                             },
                             { onSuccess: () => setEditId(null) },
@@ -196,7 +320,6 @@ export function NewslettersPage() {
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="space-y-1.5"><Label htmlFor="n-name">{t('newsletter.add.name')}</Label><Input id="n-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
                 <div className="space-y-1.5"><Label htmlFor="n-freq">{t('newsletter.add.frequency')}</Label><Select id="n-freq" value={form.frequency} onChange={(e) => setForm((f) => ({ ...f, frequency: e.target.value }))} options={freqOptions} /></div>
-                <div className="space-y-1.5"><Label htmlFor="n-rec">{t('newsletter.add.recipients')}</Label><Input id="n-rec" value={form.recipients} onChange={(e) => setForm((f) => ({ ...f, recipients: e.target.value }))} /></div>
                 <div className="space-y-1.5"><Label htmlFor="n-window">{t('newsletter.window.label')}</Label><Select id="n-window" value={form.dateRangeMode} onChange={(e) => setForm((f) => ({ ...f, dateRangeMode: e.target.value }))} options={windowOptions} /></div>
                 {form.dateRangeMode === 'last_days' && (
                   <div className="space-y-1.5"><Label htmlFor="n-days">{t('newsletter.window.days')}</Label><Input id="n-days" type="number" min={1} value={form.lastDays} onChange={(e) => setForm((f) => ({ ...f, lastDays: Math.max(1, Number(e.target.value) || 7) }))} /></div>
@@ -204,6 +327,10 @@ export function NewslettersPage() {
                 {form.dateRangeMode === 'since_date' && (
                   <div className="space-y-1.5"><Label htmlFor="n-start">{t('newsletter.window.startDate')}</Label><Input id="n-start" type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} /></div>
                 )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="n-rec">{t('newsletter.add.recipients')}</Label>
+                <RecipientPicker idPrefix="n" value={form.recipients} onChange={(next) => setForm((f) => ({ ...f, recipients: next }))} options={recipientOpts} onSetEmail={onSetEmail} />
               </div>
               <div className="space-y-1.5">
                 <Label>{t('newsletter.content.label')}</Label>

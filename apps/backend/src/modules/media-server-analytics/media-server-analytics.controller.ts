@@ -279,6 +279,19 @@ export class MediaServerAnalyticsController {
   listNewsletters() {
     return this.newsletters.list();
   }
+  // Synced media-server users offered in the recipient picker. Declared BEFORE the
+  // `newsletters/:id` routes below so `recipient-options` isn't captured as an id.
+  @Get('newsletters/recipient-options')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
+  newsletterRecipientOptions() {
+    return this.sync.listUsers();
+  }
+  /** Manually set/clear a synced user's email (servers whose accounts carry none). */
+  @Patch('newsletters/recipient-options/:userId')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
+  setRecipientEmail(@Param('userId') userId: string, @Body() body: { email?: string | null }) {
+    return this.sync.setUserEmail(userId, body?.email ?? null);
+  }
   @Post('newsletters')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
   createNewsletter(@Body() body: Record<string, unknown>, @CurrentUser() u: AuthenticatedUser) {

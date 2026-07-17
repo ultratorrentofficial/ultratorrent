@@ -59,6 +59,8 @@ class HistoryTable {
 function makeService(opts: {
   connections?: any[];
   libraries?: { supported: boolean; libraries: any[]; message?: string };
+  users?: { supported: boolean; users: any[]; message?: string };
+  existingUsers?: any[];
   history?: any[];
   existingLibraries?: any[];
 }) {
@@ -67,6 +69,7 @@ function makeService(opts: {
   const libraryTable = new Table();
   libraryTable.rows = opts.existingLibraries ?? [];
   const userTable = new Table();
+  userTable.rows = opts.existingUsers ?? [];
   const runTable = new Table();
 
   const prisma = {
@@ -78,11 +81,12 @@ function makeService(opts: {
   };
   const integrations = {
     libraries: async () => opts.libraries ?? { supported: true, libraries: [] },
+    users: async () => opts.users ?? { supported: true, users: [] },
   };
   const realtime = { broadcast: () => undefined };
   const registry = { getStatus: () => ({ enabled: true }) };
   const svc = new MediaServerSyncService(prisma as any, integrations as any, realtime as any, registry as any);
-  return { svc, libraryTable, userTable, runTable };
+  return { svc, userTable, libraryTable, runTable };
 }
 
 describe('MediaServerSyncService', () => {
@@ -126,6 +130,37 @@ describe('MediaServerSyncService', () => {
     const alice = userTable.rows.find((r) => r.userName === 'alice');
     expect(alice).toMatchObject({ plays: 2, connectionId: 'srv-a' });
     expect(alice.lastSeenAt).toEqual(new Date('2026-07-05'));
+  });
+
+  it('pulls provider accounts: adds never-watched users and fills emails, without clobbering a manual one', async () => {
+    const { svc, userTable } = makeService({
+      // 'alice' already watched (from history) and has a hand-entered email; 'carol'
+      // has never watched and only exists on the server.
+      history: [{ connectionId: 'srv-a', userName: 'alice', startedAt: new Date('2026-07-05') }],
+      existingUsers: [{ id: 'u-alice', connectionId: 'srv-a', userName: 'alice', email: 'manual@me.com', plays: 0 }],
+      users: {
+        supported: true,
+        users: [
+          { providerUserId: '11', userName: 'alice', email: 'alice@plex.tv' },
+          { providerUserId: '13', userName: 'carol', email: 'carol@plex.tv' },
+        ],
+      },
+    });
+    await svc.syncUsers();
+    const alice = userTable.rows.find((r) => r.userName === 'alice');
+    const carol = userTable.rows.find((r) => r.userName === 'carol');
+    // Manual email is kept; providerUserId is backfilled.
+    expect(alice).toMatchObject({ email: 'manual@me.com', providerUserId: '11', plays: 1 });
+    // Never-watched server user is created with its email.
+    expect(carol).toMatchObject({ email: 'carol@plex.tv', providerUserId: '13' });
+  });
+
+  it('setUserEmail sets and clears an address', async () => {
+    const { svc, userTable } = makeService({ existingUsers: [{ id: 'u1', userName: 'bob', email: null }] });
+    await svc.setUserEmail('u1', '  bob@home.com  ');
+    expect(userTable.rows[0].email).toBe('bob@home.com');
+    await svc.setUserEmail('u1', '');
+    expect(userTable.rows[0].email).toBeNull();
   });
 
   it('syncAll aggregates libraries + users across connections', async () => {

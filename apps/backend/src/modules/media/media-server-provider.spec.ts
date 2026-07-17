@@ -1,8 +1,10 @@
 import {
   getMediaServerProvider,
   PlexProvider,
+  JellyfinProvider,
   KodiProvider,
   UnsupportedCapabilityError,
+  parsePlexUsersXml,
 } from './media-server-provider';
 
 const realFetch = global.fetch;
@@ -119,5 +121,85 @@ describe('Kodi unsupported reads', () => {
     await expect(new KodiProvider().getSessions({ baseUrl: 'http://kodi' })).rejects.toBeInstanceOf(
       UnsupportedCapabilityError,
     );
+  });
+  it('getUsers throws UnsupportedCapabilityError', async () => {
+    await expect(new KodiProvider().getUsers({ baseUrl: 'http://kodi' })).rejects.toBeInstanceOf(
+      UnsupportedCapabilityError,
+    );
+  });
+});
+
+describe('parsePlexUsersXml', () => {
+  it('extracts id, name and email; managed users (empty email) come back email-less', () => {
+    const xml = `<?xml version="1.0"?>
+      <MediaContainer>
+        <User id="11" title="Alice" username="alice" email="alice@example.com"><Server/></User>
+        <User id="12" title="Kid" username="kid" email=""/>
+        <User id="13" title="Bob &amp; Co" email="bob@example.com"/>
+      </MediaContainer>`;
+    expect(parsePlexUsersXml(xml)).toEqual([
+      { providerUserId: '11', userName: 'Alice', email: 'alice@example.com' },
+      { providerUserId: '12', userName: 'Kid', email: undefined },
+      { providerUserId: '13', userName: 'Bob & Co', email: 'bob@example.com' },
+    ]);
+  });
+  it('is robust to junk input', () => {
+    expect(parsePlexUsersXml('not xml')).toEqual([]);
+    expect(parsePlexUsersXml(undefined as unknown as string)).toEqual([]);
+  });
+});
+
+// A URL-aware fetch mock: the Plex user pull hits plex.tv XML (.text()) AND the
+// owner JSON endpoint (.json()); Jellyfin hits its server (.json()).
+function mockFetchByUrl(handler: (url: string) => { status: number; text?: string; json?: unknown }) {
+  global.fetch = jest.fn(async (url: string) => {
+    const r = handler(String(url));
+    return {
+      ok: r.status >= 200 && r.status < 300,
+      status: r.status,
+      text: async () => r.text ?? '',
+      json: async () => r.json ?? null,
+    };
+  }) as unknown as typeof fetch;
+}
+
+describe('getUsers', () => {
+  it('Plex merges shared users (with emails) and the account owner from plex.tv', async () => {
+    mockFetchByUrl((url) => {
+      if (url.includes('/api/users')) {
+        return {
+          status: 200,
+          text: '<MediaContainer><User id="11" title="Alice" email="alice@example.com"/><User id="12" title="Kid" email=""/></MediaContainer>',
+        };
+      }
+      if (url.includes('/api/v2/user')) {
+        return { status: 200, json: { id: 1, title: 'Owner', email: 'owner@example.com' } };
+      }
+      return { status: 404 };
+    });
+    const users = await new PlexProvider().getUsers({ baseUrl: 'http://plex', token: 't' });
+    expect(users).toEqual([
+      { providerUserId: '11', userName: 'Alice', email: 'alice@example.com' },
+      { providerUserId: '12', userName: 'Kid', email: undefined },
+      { providerUserId: '1', userName: 'Owner', email: 'owner@example.com' },
+    ]);
+  });
+
+  it('Plex requires a token', async () => {
+    await expect(new PlexProvider().getUsers({ baseUrl: 'http://plex' })).rejects.toThrow(/token/);
+  });
+
+  it('Jellyfin lists users by name with no email (their model has none)', async () => {
+    mockFetchByUrl((url) => {
+      if (url.includes('/Users')) {
+        return { status: 200, json: [{ Id: 'a1', Name: 'Alice' }, { Id: 'b2', Name: 'Bob' }, { Name: 'no-id' }] };
+      }
+      return { status: 404 };
+    });
+    const users = await new JellyfinProvider().getUsers({ baseUrl: 'http://jf', apiKey: 'k' });
+    expect(users).toEqual([
+      { providerUserId: 'a1', userName: 'Alice' },
+      { providerUserId: 'b2', userName: 'Bob' },
+    ]);
   });
 });
