@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, FolderTree, Save, Settings2 } from 'lucide-react';
+import { AlertTriangle, ChevronRight, FolderTree, Save, Server, Settings2 } from 'lucide-react';
 import { ApiError, api, type AppSettings } from '@/lib/api';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { useAuth } from '@/auth/AuthContext';
@@ -74,9 +75,13 @@ export function SettingsPage() {
 
       <RootPathSection canManageRoot={hasPermission(PERMISSIONS.SETTINGS_MANAGE_ROOT_PATH)} />
 
+      <SettingsDirectory />
+
       {hasPermission(PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS) && <EmailSettingsCard />}
       {hasPermission(PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS) && <NewsletterImagesCard />}
       {hasPermission(PERMISSIONS.INTEGRATIONS_PROWLARR_VIEW) && <ProwlarrSettingsCard />}
+
+      {canManage && <InfrastructureSection />}
 
       {isLoading ? (
         <CenteredSpinner label={t('page.loading')} />
@@ -274,5 +279,107 @@ function SettingRow({
         )}
       </div>
     </div>
+  );
+}
+
+// --- Settings directory: a map of every settings area, described + linked ------
+interface DirEntry {
+  label: string;
+  description: string;
+  to: string;
+  permission?: string;
+}
+
+const DIRECTORY: DirEntry[] = [
+  { label: 'Media Manager', to: '/media/settings', permission: PERMISSIONS.MEDIA_MANAGER_VIEW, description: 'TMDB / OMDb / Trakt / TVDB keys, metadata provider order, artwork, and library cleanup rules.' },
+  { label: 'IMDb Provider', to: '/media/settings/imdb', permission: PERMISSIONS.MEDIA_MANAGER_IMDB_VIEW, description: 'IMDb dataset import + optional licensed API, refresh schedule, and matching options.' },
+  { label: 'Subtitle Intelligence', to: '/subtitles/settings', permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, description: 'Auto-download, auto-sync, scan interval, default languages — plus providers and per-library language policy.' },
+  { label: 'Media Acquisition', to: '/media-acquisition', permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, description: 'Missing-episode auto-search, scan frequency, per-sweep limits, quality upgrades, and acquisition profiles (Settings tab).' },
+  { label: 'Notification Center', to: '/notifications/settings', permission: PERMISSIONS.NOTIFICATIONS_VIEW, description: 'Channels, delivery rules, templates, recipients, quiet hours, and provider health.' },
+  { label: 'Torrent Engines', to: '/engines', description: 'Connect and configure the torrent engines (rTorrent, qBittorrent).' },
+  { label: 'Users & Roles', to: '/users', permission: PERMISSIONS.USERS_VIEW, description: 'User accounts, roles, granular permissions, and API keys.' },
+];
+
+function SettingsDirectory() {
+  const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const entries = DIRECTORY.filter((e) => !e.permission || hasPermission(e.permission));
+  if (entries.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Settings2 className="h-4 w-4 text-primary" /> All settings
+        </CardTitle>
+        <CardDescription>
+          Every configurable area of UltraTorrent. Module-specific settings live on their own pages — this is the map.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-2 sm:grid-cols-2">
+        {entries.map((e) => (
+          <button
+            key={e.to}
+            onClick={() => navigate(e.to)}
+            className="flex items-start justify-between gap-3 rounded-md border border-border p-3 text-left hover:bg-white/5"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">{e.label}</span>
+              <span className="block text-xs text-muted-foreground">{e.description}</span>
+            </span>
+            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- Infrastructure: read-only environment config -----------------------------
+function InfrastructureSection() {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['settings', 'environment'],
+    queryFn: () => api.settings.environment(),
+  });
+  if (isLoading) return null;
+  if (isError) return <ErrorState message="Could not load infrastructure settings." onRetry={() => refetch()} />;
+  const groups = [...new Set((data ?? []).map((e) => e.group))];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Server className="h-4 w-4 text-primary" /> Infrastructure
+        </CardTitle>
+        <CardDescription>
+          Read-only. These live in your deployment configuration (environment / container), are read at startup, and
+          several only apply after a restart. Secrets are never shown here — change them in your <code>.env</code> / deploy config.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {groups.map((g) => (
+          <div key={g}>
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g}</div>
+            <div className="divide-y divide-border/60">
+              {(data ?? []).filter((e) => e.group === g).map((e) => (
+                <div key={e.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{e.label} <code className="ml-1 text-xs text-muted-foreground">{e.key}</code></div>
+                    <div className="text-xs text-muted-foreground">{e.description}</div>
+                  </div>
+                  <div className="shrink-0">
+                    {e.secret ? (
+                      <Badge variant={e.set ? 'success' : 'outline'}>{e.set ? 'set' : 'not set'}</Badge>
+                    ) : e.value ? (
+                      <code className="rounded bg-white/5 px-2 py-0.5 font-mono text-xs">{e.value}</code>
+                    ) : (
+                      <Badge variant="outline">not set</Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }

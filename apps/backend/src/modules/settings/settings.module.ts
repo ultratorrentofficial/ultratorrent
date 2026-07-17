@@ -21,6 +21,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { readEnvironment } from './settings-environment';
 
 class SetSettingDto {
   @IsDefined()
@@ -87,6 +88,17 @@ export class SettingsController {
   @RequirePermissions(PERMISSIONS.SETTINGS_VIEW)
   all() {
     return this.settings.getAll();
+  }
+
+  /**
+   * Read-only environment / infrastructure settings for the Settings hub. Secret
+   * values are never returned (only "set / not set"); the rest carry their value.
+   * Not writable here — these live in the deployment env and need a redeploy.
+   */
+  @Get('environment')
+  @RequirePermissions(PERMISSIONS.SETTINGS_MANAGE)
+  environment() {
+    return readEnvironment(process.env);
   }
 
   @Put(':key')
