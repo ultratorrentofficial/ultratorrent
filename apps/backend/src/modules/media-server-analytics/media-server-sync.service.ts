@@ -172,26 +172,32 @@ export class MediaServerSyncService {
   }
 
   /**
-   * Upsert one connection's provider accounts into `MediaServerUser`, matched to an
-   * existing row by `userName` (the session/history key). Sets `providerUserId` and
-   * — only when the row has no email yet — the server-provided email, so a
-   * hand-entered address survives. Providers with no account model (Kodi) are a
-   * clean no-op.
+   * Upsert one connection's provider accounts into `MediaServerUser`, then collapse
+   * rows that turn out to be the same person.
+   *
+   * Matching is by `providerUserId` FIRST, `userName` only as a fallback. This is
+   * load-bearing: a user's watch-history row is keyed on the session DISPLAY name
+   * ("Madeline Ayala") while their provider account comes back under the account
+   * HANDLE ("madeline24") — same id, different name. Matching on name alone spawned
+   * a second row and left the heavily-watched one with no email. Email is written
+   * only when the row has none, so a hand-entered address survives.
    */
   private async syncConnectionUsers(connectionId: string): Promise<number> {
     const result = await this.integrations.users(connectionId);
     if (!result.supported) return 0;
     let upserted = 0;
     for (const u of result.users) {
-      const existing = await this.prisma.mediaServerUser.findFirst({
-        where: { connectionId, userName: u.userName },
-      });
+      const existing =
+        (u.providerUserId
+          ? await this.prisma.mediaServerUser.findFirst({ where: { connectionId, providerUserId: u.providerUserId } })
+          : null) ?? (await this.prisma.mediaServerUser.findFirst({ where: { connectionId, userName: u.userName } }));
       if (existing) {
         await this.prisma.mediaServerUser.update({
           where: { id: existing.id },
           data: {
             providerUserId: existing.providerUserId ?? u.providerUserId,
-            // Never overwrite an email already on the row (server-set or manual).
+            // Keep the display name already on the row — it reads better in the
+            // picker than the account handle. Never overwrite an existing email.
             email: existing.email ?? u.email ?? undefined,
           },
         });
@@ -202,7 +208,35 @@ export class MediaServerSyncService {
       }
       upserted += 1;
     }
+    await this.dedupeUsersByProviderId(connectionId);
     return upserted;
+  }
+
+  /**
+   * Collapse rows in one connection that share a `providerUserId` — the same person
+   * recorded once under their session display name and once under their account
+   * handle. Keep the most-played row, carry an email onto it, drop the rest. Runs
+   * every sync so it also heals duplicates a past name-only match created.
+   */
+  private async dedupeUsersByProviderId(connectionId: string): Promise<void> {
+    const rows = await this.prisma.mediaServerUser.findMany({ where: { connectionId, providerUserId: { not: null } } });
+    const byId = new Map<string, typeof rows>();
+    for (const r of rows) {
+      if (!r.providerUserId) continue; // defensive — the query already excludes nulls
+      const arr = byId.get(r.providerUserId) ?? [];
+      arr.push(r);
+      byId.set(r.providerUserId, arr);
+    }
+    for (const group of byId.values()) {
+      if (group.length < 2) continue;
+      group.sort((a, b) => b.plays - a.plays);
+      const [keep, ...dupes] = group;
+      const email = keep.email ?? dupes.find((d) => d.email)?.email ?? null;
+      if (email !== keep.email) {
+        await this.prisma.mediaServerUser.update({ where: { id: keep.id }, data: { email } });
+      }
+      await this.prisma.mediaServerUser.deleteMany({ where: { id: { in: dupes.map((d) => d.id) } } });
+    }
   }
 
   /**

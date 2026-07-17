@@ -17,8 +17,18 @@ class Table {
   async delete({ where }: any) {
     this.rows = this.rows.filter((r) => r.id !== where.id);
   }
+  async deleteMany({ where }: any = {}) {
+    const ids: string[] | undefined = where?.id?.in;
+    const before = this.rows.length;
+    if (ids) this.rows = this.rows.filter((r) => !ids.includes(r.id));
+    return { count: before - this.rows.length };
+  }
   async findMany({ where }: any = {}) {
-    if (where?.connectionId) return this.rows.filter((r) => r.connectionId === where.connectionId);
+    if (where?.connectionId) {
+      let rows = this.rows.filter((r) => r.connectionId === where.connectionId);
+      if (where.providerUserId?.not === null) rows = rows.filter((r) => r.providerUserId != null);
+      return rows;
+    }
     if (where?.isEnabled !== undefined) return this.rows.filter((r) => r.isEnabled === where.isEnabled);
     return this.rows;
   }
@@ -153,6 +163,36 @@ describe('MediaServerSyncService', () => {
     expect(alice).toMatchObject({ email: 'manual@me.com', providerUserId: '11', plays: 1 });
     // Never-watched server user is created with its email.
     expect(carol).toMatchObject({ email: 'carol@plex.tv', providerUserId: '13' });
+  });
+
+  it('matches a provider account to the watch-history row by id (not name) and fills its email', async () => {
+    // The heavy watcher "Madeline Ayala" (display name) and provider account
+    // "madeline24" (handle) share providerUserId 19587074. Name-only matching split
+    // them; id-first matching sets the email on the existing row and creates no dupe.
+    const { svc, userTable } = makeService({
+      history: [{ connectionId: 'srv-a', userName: 'Madeline Ayala', providerUserId: '19587074', startedAt: new Date('2026-07-05') }],
+      existingUsers: [{ id: 'u-mad', connectionId: 'srv-a', userName: 'Madeline Ayala', providerUserId: '19587074', email: null, plays: 0 }],
+      users: { supported: true, users: [{ providerUserId: '19587074', userName: 'madeline24', email: 'madeline@x.com' }] },
+    });
+    await svc.syncUsers();
+    const rows = userTable.rows.filter((r) => r.providerUserId === '19587074');
+    expect(rows).toHaveLength(1); // no "madeline24" duplicate
+    expect(rows[0]).toMatchObject({ userName: 'Madeline Ayala', email: 'madeline@x.com' });
+  });
+
+  it('heals a pre-existing duplicate pair (same id, two names): keeps the most-played, carries the email', async () => {
+    const { svc, userTable } = makeService({
+      // Two rows already polluting the table from a past name-only match.
+      existingUsers: [
+        { id: 'u-a', connectionId: 'srv-a', userName: 'Madeline Ayala', providerUserId: '19587074', email: null, plays: 1047 },
+        { id: 'u-b', connectionId: 'srv-a', userName: 'madeline24', providerUserId: '19587074', email: 'madeline@x.com', plays: 16 },
+      ],
+      users: { supported: true, users: [] }, // provider returns nothing this run
+    });
+    await svc.syncUsers();
+    const rows = userTable.rows.filter((r) => r.providerUserId === '19587074');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: 'u-a', userName: 'Madeline Ayala', email: 'madeline@x.com' });
   });
 
   it('setUserEmail sets and clears an address', async () => {
