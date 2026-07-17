@@ -165,13 +165,13 @@ describe('MediaServerSyncService', () => {
     expect(carol).toMatchObject({ email: 'carol@plex.tv', providerUserId: '13' });
   });
 
-  it('matches a provider account to the watch-history row by id (not name) and fills its email', async () => {
-    // The heavy watcher "Madeline Ayala" (display name) and provider account
-    // "madeline24" (handle) share providerUserId 19587074. Name-only matching split
-    // them; id-first matching sets the email on the existing row and creates no dupe.
+  it('matches a provider account to a connection-less watch-history row by id (not name/connection) and fills its email', async () => {
+    // The real shape: the heavy watcher "Madeline Ayala" comes from Tautulli history
+    // (connectionId null, display name), the provider account "madeline24" from the
+    // live connection (handle). Same providerUserId 19587074. Matching must ignore
+    // both name AND connection — it's the account id that ties them.
     const { svc, userTable } = makeService({
-      history: [{ connectionId: 'srv-a', userName: 'Madeline Ayala', providerUserId: '19587074', startedAt: new Date('2026-07-05') }],
-      existingUsers: [{ id: 'u-mad', connectionId: 'srv-a', userName: 'Madeline Ayala', providerUserId: '19587074', email: null, plays: 0 }],
+      existingUsers: [{ id: 'u-mad', connectionId: null, userName: 'Madeline Ayala', providerUserId: '19587074', email: null, plays: 1047 }],
       users: { supported: true, users: [{ providerUserId: '19587074', userName: 'madeline24', email: 'madeline@x.com' }] },
     });
     await svc.syncUsers();
@@ -180,11 +180,12 @@ describe('MediaServerSyncService', () => {
     expect(rows[0]).toMatchObject({ userName: 'Madeline Ayala', email: 'madeline@x.com' });
   });
 
-  it('heals a pre-existing duplicate pair (same id, two names): keeps the most-played, carries the email', async () => {
+  it('heals a pre-existing duplicate pair split across connections: keeps the most-played, carries the email', async () => {
     const { svc, userTable } = makeService({
-      // Two rows already polluting the table from a past name-only match.
+      // The pollution a past name-only match left: history row (connectionId null) +
+      // provider row (connectionId srv-a), same id.
       existingUsers: [
-        { id: 'u-a', connectionId: 'srv-a', userName: 'Madeline Ayala', providerUserId: '19587074', email: null, plays: 1047 },
+        { id: 'u-a', connectionId: null, userName: 'Madeline Ayala', providerUserId: '19587074', email: null, plays: 1047 },
         { id: 'u-b', connectionId: 'srv-a', userName: 'madeline24', providerUserId: '19587074', email: 'madeline@x.com', plays: 16 },
       ],
       users: { supported: true, users: [] }, // provider returns nothing this run

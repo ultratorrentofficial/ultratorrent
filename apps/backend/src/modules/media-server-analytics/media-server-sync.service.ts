@@ -155,6 +155,9 @@ export class MediaServerSyncService {
           this.logger.warn(`Provider user pull failed for ${conn.id}: ${(err as Error).message}`);
         });
       }
+      // Collapse the same person recorded twice — done once, globally, after every
+      // connection has contributed (see the method for why it can't be per-connection).
+      await this.dedupeUsersByProviderId();
 
       await this.prisma.mediaProviderSyncRun.update({
         where: { id: run.id },
@@ -172,15 +175,20 @@ export class MediaServerSyncService {
   }
 
   /**
-   * Upsert one connection's provider accounts into `MediaServerUser`, then collapse
-   * rows that turn out to be the same person.
+   * Upsert one connection's provider accounts into `MediaServerUser`.
    *
-   * Matching is by `providerUserId` FIRST, `userName` only as a fallback. This is
-   * load-bearing: a user's watch-history row is keyed on the session DISPLAY name
-   * ("Madeline Ayala") while their provider account comes back under the account
-   * HANDLE ("madeline24") — same id, different name. Matching on name alone spawned
-   * a second row and left the heavily-watched one with no email. Email is written
-   * only when the row has none, so a hand-entered address survives.
+   * Matching is by `providerUserId` FIRST — **across all connections**, not just
+   * this one — and `userName` (scoped to the connection) only as a fallback. Both
+   * halves are load-bearing:
+   *   - A user's watch-history row is keyed on the session DISPLAY name ("Madeline
+   *     Ayala") while their provider account comes back under the account HANDLE
+   *     ("madeline24") — same id, different name — so name matching alone spawns a
+   *     duplicate.
+   *   - Tautulli-imported history has `connectionId = null`, while the provider pull
+   *     is tied to the live connection's id, so a connection-SCOPED id match misses
+   *     the very rows we need to enrich. A Plex account id is global to the server,
+   *     so matching on it globally is correct.
+   * Email is written only when the row has none, so a hand-entered address survives.
    */
   private async syncConnectionUsers(connectionId: string): Promise<number> {
     const result = await this.integrations.users(connectionId);
@@ -189,7 +197,7 @@ export class MediaServerSyncService {
     for (const u of result.users) {
       const existing =
         (u.providerUserId
-          ? await this.prisma.mediaServerUser.findFirst({ where: { connectionId, providerUserId: u.providerUserId } })
+          ? await this.prisma.mediaServerUser.findFirst({ where: { providerUserId: u.providerUserId } })
           : null) ?? (await this.prisma.mediaServerUser.findFirst({ where: { connectionId, userName: u.userName } }));
       if (existing) {
         await this.prisma.mediaServerUser.update({
@@ -208,18 +216,19 @@ export class MediaServerSyncService {
       }
       upserted += 1;
     }
-    await this.dedupeUsersByProviderId(connectionId);
     return upserted;
   }
 
   /**
-   * Collapse rows in one connection that share a `providerUserId` — the same person
-   * recorded once under their session display name and once under their account
-   * handle. Keep the most-played row, carry an email onto it, drop the rest. Runs
-   * every sync so it also heals duplicates a past name-only match created.
+   * Collapse rows that share a `providerUserId` — the same person recorded once
+   * under their session display name (connection-less Tautulli history) and once
+   * under their account handle (the live provider pull). Keep the most-played row,
+   * carry an email onto it, drop the rest. Global (NOT per-connection) precisely
+   * because those two rows live under different `connectionId`s. Runs every sync, so
+   * it also heals duplicates a past name-only match created.
    */
-  private async dedupeUsersByProviderId(connectionId: string): Promise<void> {
-    const rows = await this.prisma.mediaServerUser.findMany({ where: { connectionId, providerUserId: { not: null } } });
+  private async dedupeUsersByProviderId(): Promise<void> {
+    const rows = await this.prisma.mediaServerUser.findMany({ where: { providerUserId: { not: null } } });
     const byId = new Map<string, typeof rows>();
     for (const r of rows) {
       if (!r.providerUserId) continue; // defensive — the query already excludes nulls
