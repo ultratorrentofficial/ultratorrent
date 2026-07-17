@@ -17,6 +17,7 @@ import {
 import { CenteredSpinner } from '@/components/ui/feedback';
 import { PathPicker } from '@/components/PathPicker';
 import { formatBytes, formatDateTime } from '@/lib/format';
+import { bulkLevel, failureReasons, isBulkResult } from './bulk-result';
 
 /** Shared mutation runner: toast + invalidate + close. */
 function useFileMutation() {
@@ -27,8 +28,25 @@ function useFileMutation() {
   const run = async (fn: () => Promise<unknown>, success: string, onDone?: () => void) => {
     setBusy(true);
     try {
-      await fn();
-      toast.success(success);
+      const result = await fn();
+      // A resolved bulk call can still be a total failure — read the body, never
+      // infer success from the promise. See ./bulk-result.
+      if (isBulkResult(result) && result.failed > 0) {
+        const reasons = failureReasons(result) || t('toast.someFailed', { count: result.failed });
+        if (bulkLevel(result) === 'failed') {
+          // Nothing changed. Mirror the single-item failure path: leave the dialog
+          // open (no onDone) so the destination/overwrite choice can be corrected.
+          toast.error(t('toast.operationFailed'), reasons);
+          return;
+        }
+        toast.toast({
+          level: 'warning',
+          title: t('toast.partialSuccess', { succeeded: result.succeeded, total: result.total }),
+          description: reasons,
+        });
+      } else {
+        toast.success(success);
+      }
       await qc.invalidateQueries({ queryKey: ['files'] });
       onDone?.();
     } catch (err) {

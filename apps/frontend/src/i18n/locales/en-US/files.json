@@ -51,6 +51,7 @@
   "toast": {
     "downloadFailed": "Download failed",
     "operationFailed": "Operation failed",
+    "partialSuccess": "Completed {{succeeded}} of {{total}}",
     "movedToTrash_one": "Moved {{count}} item to Trash",
     "movedToTrash_other": "Moved {{count}} items to Trash",
     "someFailed": "{{count}} failed",

@@ -7,8 +7,10 @@ vi.mock('@/auth/AuthContext', () => ({
   useAuth: () => ({ hasPermission: () => false }),
 }));
 
+const toastSpy = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), toast: vi.fn() }));
+
 vi.mock('@/components/ui/toast', () => ({
-  useToast: () => ({ success: vi.fn(), error: vi.fn() }),
+  useToast: () => toastSpy,
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -122,6 +124,86 @@ describe('MoveCopyDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /^move$/i }));
     await waitFor(() => expect(api.files.move).toHaveBeenCalled());
     expect(api.files.move).toHaveBeenCalledWith('/tv/episode.mkv', '/movies', false);
+  });
+
+  /**
+   * `/files/bulk` resolves 200 even when every item failed — the per-item errors
+   * live in the body. Reporting a resolved promise as success meant a multi-select
+   * move onto existing files claimed "Moved 2 items" while nothing had moved.
+   */
+  describe('bulk failures reported in a 200 body', () => {
+    const conflict = (paths: string[]) => ({
+      operation: 'move',
+      total: paths.length,
+      succeeded: 0,
+      failed: paths.length,
+      results: paths.map((path) => ({ path, ok: false, message: 'Destination already exists' })),
+    });
+
+    async function submitBulkMove() {
+      renderDialog({ paths: ['/tv/a.mkv', '/tv/b.mkv'] });
+      await pickMoviesFolder();
+      fireEvent.click(screen.getByRole('button', { name: /^move$/i }));
+    }
+
+    it('reports a total failure as an error, not success', async () => {
+      vi.mocked(api.files.bulk).mockResolvedValue(conflict(['/tv/a.mkv', '/tv/b.mkv']));
+      await submitBulkMove();
+
+      await waitFor(() => expect(toastSpy.error).toHaveBeenCalled());
+      expect(toastSpy.success).not.toHaveBeenCalled();
+      // The reason the backend gave must reach the user, deduped to one mention.
+      expect(toastSpy.error).toHaveBeenCalledWith('Operation failed', 'Destination already exists');
+    });
+
+    it('keeps the dialog open on total failure so overwrite can be retried', async () => {
+      vi.mocked(api.files.bulk).mockResolvedValue(conflict(['/tv/a.mkv', '/tv/b.mkv']));
+      const { onClose } = renderDialog({ paths: ['/tv/a.mkv', '/tv/b.mkv'] });
+      await pickMoviesFolder();
+      fireEvent.click(screen.getByRole('button', { name: /^move$/i }));
+
+      await waitFor(() => expect(toastSpy.error).toHaveBeenCalled());
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('warns with a count when only some items moved', async () => {
+      vi.mocked(api.files.bulk).mockResolvedValue({
+        operation: 'move',
+        total: 2,
+        succeeded: 1,
+        failed: 1,
+        results: [
+          { path: '/tv/a.mkv', ok: true },
+          { path: '/tv/b.mkv', ok: false, message: 'Destination already exists' },
+        ],
+      });
+      await submitBulkMove();
+
+      await waitFor(() => expect(toastSpy.toast).toHaveBeenCalled());
+      expect(toastSpy.success).not.toHaveBeenCalled();
+      expect(toastSpy.toast).toHaveBeenCalledWith({
+        level: 'warning',
+        title: 'Completed 1 of 2',
+        description: 'Destination already exists',
+      });
+    });
+
+    it('still reports a clean bulk run as success', async () => {
+      vi.mocked(api.files.bulk).mockResolvedValue({
+        operation: 'move',
+        total: 2,
+        succeeded: 2,
+        failed: 0,
+        results: [
+          { path: '/tv/a.mkv', ok: true },
+          { path: '/tv/b.mkv', ok: true },
+        ],
+      });
+      await submitBulkMove();
+
+      await waitFor(() => expect(toastSpy.success).toHaveBeenCalledWith('Moved 2 items'));
+      expect(toastSpy.error).not.toHaveBeenCalled();
+    });
   });
 
   /**

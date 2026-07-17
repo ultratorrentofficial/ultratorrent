@@ -51,6 +51,7 @@
   "toast": {
     "downloadFailed": "Falló la descarga",
     "operationFailed": "Falló la operación",
+    "partialSuccess": "Se completaron {{succeeded}} de {{total}}",
     "movedToTrash_one": "Se movió {{count}} elemento a la Papelera",
     "movedToTrash_other": "Se movieron {{count}} elementos a la Papelera",
     "someFailed": "{{count}} fallaron",

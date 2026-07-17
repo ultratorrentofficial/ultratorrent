@@ -30,6 +30,7 @@ import { ContextMenu, type ContextMenuEntry, type ContextMenuState } from '@/com
 import { cn } from '@/lib/utils';
 import { FilesToolbar } from '@/components/files/FilesToolbar';
 import { FilesBulkToolbar } from '@/components/files/FilesBulkToolbar';
+import { bulkLevel, failureReasons } from '@/components/files/bulk-result';
 import { CleanupWizard } from '@/components/files/CleanupWizard';
 import { TrashDrawer } from '@/components/files/TrashDrawer';
 import {
@@ -123,10 +124,20 @@ export function FilesPage() {
     setCleanupBusy(true);
     try {
       const res = await api.files.bulk({ operation: 'cleanup', paths: [...selected] });
-      toast.success(
-        t('toast.movedToTrash', { count: res.succeeded }),
-        res.failed ? t('toast.someFailed', { count: res.failed }) : undefined,
-      );
+      // `bulk` resolves 200 even when every item failed, so the body decides the
+      // level — not the promise. See @/components/files/bulk-result.
+      const level = bulkLevel(res);
+      if (level === 'failed') {
+        // Nothing was trashed. Keep the selection so it can be retried as-is.
+        toast.error(t('toast.cleanupFailed'), failureReasons(res) || t('toast.someFailed', { count: res.failed }));
+        return;
+      }
+      const trashed = t('toast.movedToTrash', { count: res.succeeded });
+      if (level === 'partial') {
+        toast.toast({ level: 'warning', title: trashed, description: failureReasons(res) || t('toast.someFailed', { count: res.failed }) });
+      } else {
+        toast.success(trashed);
+      }
       await qc.invalidateQueries({ queryKey: ['files'] });
       clear();
     } catch (err) {
