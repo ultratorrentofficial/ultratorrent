@@ -110,11 +110,13 @@ describe('parseItemIdentity (what the scanner stores)', () => {
 
 // ---------------------------------------------------------------------------
 
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { MediaScannerService } from './media-scanner.service';
 
 jest.mock('node:fs/promises');
 const mockReadFile = readFile as jest.MockedFunction<typeof readFile>;
+const mockReaddir = readdir as unknown as jest.Mock;
+const mockStat = stat as unknown as jest.Mock;
 import { showCanonicalKey } from './series-grouping';
 
 /**
@@ -127,9 +129,14 @@ describe('MediaScannerService.reconcileShows', () => {
   const LIB = { id: 'lib1', kind: 'tv', path: '/downloads/TV Shows', name: 'TV Shows' };
 
   beforeEach(() => {
-    // Default: no tvshow.nfo on disk. Tests that need one override per-case.
+    // Default: no tvshow.nfo on disk, and an empty library root (no media-less show
+    // folders). Tests that exercise those override per-case.
     mockReadFile.mockReset();
     mockReadFile.mockRejectedValue(new Error('ENOENT'));
+    mockReaddir.mockReset();
+    mockReaddir.mockResolvedValue([]);
+    mockStat.mockReset();
+    mockStat.mockRejectedValue(new Error('ENOENT'));
   });
 
   function build(
@@ -334,6 +341,69 @@ describe('MediaScannerService.reconcileShows', () => {
     );
     await run(svc);
     expect(upserts[0].create.imdbId).toBe('tt1234567');
+  });
+
+  // --- media-less show folders (a tvshow.nfo setup awaiting its first download) ----
+
+  it('records a media-less show folder (tvshow.nfo + IMDb) as a monitorable show with 0 episodes', async () => {
+    // Ozark on disk: a tvshow.nfo + artwork + empty Season dirs, no video → no items.
+    mockReaddir.mockResolvedValue([{ name: 'Ozark (2017)', isDirectory: () => true }] as any);
+    mockStat.mockResolvedValue({ isFile: () => true } as any); // tvshow.nfo present
+    mockReadFile.mockResolvedValue('<tvshow><uniqueid type="imdb">tt5071412</uniqueid></tvshow>' as any);
+    const { svc, upserts } = build([]); // no video items at all
+    const count = await run(svc);
+
+    expect(count).toBe(1);
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0].create).toMatchObject({
+      path: `${LIB.path}/Ozark (2017)`, title: 'Ozark', year: 2017, imdbId: 'tt5071412', episodeCount: 0,
+    });
+  });
+
+  it('does NOT record a media-less folder without a tvshow.nfo', async () => {
+    mockReaddir.mockResolvedValue([{ name: 'Random Folder', isDirectory: () => true }] as any);
+    // mockStat default rejects → no tvshow.nfo
+    const { svc, upserts } = build([]);
+    expect(await run(svc)).toBe(0);
+    expect(upserts).toHaveLength(0);
+  });
+
+  it('does NOT record a media-less show folder that cannot be IMDb-verified', async () => {
+    mockReaddir.mockResolvedValue([{ name: 'Obscure Show (2019)', isDirectory: () => true }] as any);
+    mockStat.mockResolvedValue({ isFile: () => true } as any);
+    mockReadFile.mockResolvedValue('<tvshow><title>Obscure</title></tvshow>' as any); // no id in nfo
+    const resolver = { resolveFolder: jest.fn(async () => null) }; // catalogue miss too
+    const { svc, upserts } = build([], resolver);
+    expect(await run(svc)).toBe(0);
+    expect(upserts).toHaveLength(0);
+  });
+
+  it('does not double-record a show folder that already has episodes on disk', async () => {
+    // The Wire appears both as a video-item folder AND in the root listing — the
+    // item-derived row wins; the empty-folder pass skips it (known).
+    mockReaddir.mockResolvedValue([{ name: 'The Wire (2002)', isDirectory: () => true }] as any);
+    mockStat.mockResolvedValue({ isFile: () => true } as any);
+    mockReadFile.mockResolvedValue('<tvshow><uniqueid type="imdb">tt0306414</uniqueid></tvshow>' as any);
+    const { svc, upserts } = build([
+      { path: `${LIB.path}/The Wire (2002)/Season 1/The Wire - S01E01.mkv`, seriesImdbId: 'tt0306414' },
+    ]);
+    await run(svc);
+    const wire = upserts.filter((u) => u.create.path === `${LIB.path}/The Wire (2002)`);
+    expect(wire).toHaveLength(1);
+    expect(wire[0].create.episodeCount).toBe(1);
+  });
+
+  it('ignores dotfolders, @eaDir and non-directory entries at the library root', async () => {
+    mockReaddir.mockResolvedValue([
+      { name: '.actors', isDirectory: () => true },
+      { name: '@eaDir', isDirectory: () => true },
+      { name: 'loose.mkv', isDirectory: () => false },
+    ] as any);
+    mockStat.mockResolvedValue({ isFile: () => true } as any);
+    mockReadFile.mockResolvedValue('<tvshow><imdbid>tt1</imdbid></tvshow>' as any);
+    const { svc, upserts } = build([]);
+    expect(await run(svc)).toBe(0);
+    expect(upserts).toHaveLength(0);
   });
 });
 

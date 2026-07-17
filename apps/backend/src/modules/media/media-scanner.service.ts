@@ -391,6 +391,12 @@ export class MediaScannerService {
    * A file with no show folder of its own (sitting directly at the library root)
    * yields no row — there is no folder to record, and inventing one is the very
    * thing this table exists to prevent.
+   *
+   * Rows come from two sources: show folders that hold **video files** (grouped from
+   * `MediaItem`), and — via {@link discoverEmptyShowFolders} — show folders that
+   * exist on disk but hold **no media yet** (a `tvshow.nfo`-marked, IMDb-verified
+   * setup awaiting its first download), so a show can be monitored for acquisition
+   * before any episode exists. Only IMDb-verifiable folders are recorded either way.
    */
   private async reconcileShows(library: { id: string; kind: string; path: string; name: string }): Promise<number> {
     if (!SHOW_LIBRARY_KINDS.includes(library.kind)) return 0;
@@ -423,6 +429,17 @@ export class MediaScannerService {
       cur.imdbId ??= it.seriesImdbId ?? null;
       cur.itemIds.push(it.id);
       byFolder.set(dir, cur);
+    }
+
+    // Also record show FOLDERS that exist on disk but hold no video yet — a
+    // tinyMediaManager/Kodi setup (tvshow.nfo + artwork + empty Season dirs) that is
+    // waiting for its first download. Recording it (verified against IMDb) is what
+    // lets an operator MONITOR the show for acquisition before any episode exists, so
+    // it appears in the add-from-library picker with 0 episodes. Merged into
+    // `byFolder` with count 0 so the upsert + prune below treat it like any other.
+    const emptyShows = await this.discoverEmptyShowFolders(library.path, new Set(byFolder.keys()));
+    for (const [dir, imdbId] of emptyShows) {
+      byFolder.set(dir, { count: 0, imdbId, itemIds: [] });
     }
 
     const mediaType = library.kind === 'anime' ? 'anime' : 'tv';
@@ -473,6 +490,52 @@ export class MediaScannerService {
       }
     }
     return byFolder.size;
+  }
+
+  /**
+   * Show folders that exist on disk but hold no video yet — the "metadata-only" case:
+   * a show set up in tinyMediaManager/Kodi (a `tvshow.nfo`, artwork, empty `Season NN`
+   * dirs) whose episodes have not been downloaded. The scanner otherwise never sees
+   * these, because {@link walk} only returns video files, so they produce no
+   * `MediaItem` and no `MediaShow` — and the operator can't monitor the show for
+   * acquisition until at least one episode already exists, which is backwards.
+   *
+   * Gated to avoid inventing shows from junk directories: a candidate must
+   *   1. be a direct child folder of the library root (a show folder's position),
+   *   2. carry a `tvshow.nfo` — the deliberate "this IS a show" marker, and
+   *   3. resolve to an IMDb series id (from that nfo, else the local catalogue).
+   * A folder that fails any of these is left out — an un-verifiable empty folder is
+   * not a monitorable show. Folders that already hold episodes (`known`) are handled
+   * by the item-derived path and skipped here. Returns `dir -> resolved imdbId`.
+   */
+  private async discoverEmptyShowFolders(
+    libraryPath: string,
+    known: Set<string>,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    let entries: import('node:fs').Dirent[];
+    try {
+      entries = await readdir(libraryPath, { withFileTypes: true });
+    } catch (err) {
+      this.logger.warn(`Cannot read library root ${libraryPath}: ${(err as Error).message}`);
+      return out;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || isIgnoredScanDir(entry.name)) continue;
+      const dir = path.join(libraryPath, entry.name);
+      if (known.has(dir)) continue; // already has episodes on disk
+      const hasNfo = await stat(path.join(dir, 'tvshow.nfo'))
+        .then((s) => s.isFile())
+        .catch(() => false);
+      if (!hasNfo) continue;
+      const { title, year } = parseFolderTitle(entry.name);
+      const imdbId = await this.resolveShowImdbId(dir, title, year);
+      if (imdbId) {
+        out.set(dir, imdbId);
+        this.logger.log(`Scan: recorded media-less show folder "${entry.name}" (${imdbId}) for monitoring`);
+      }
+    }
+    return out;
   }
 
   /**

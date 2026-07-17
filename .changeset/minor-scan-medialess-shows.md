@@ -1,0 +1,5 @@
+---
+"ultratorrent": minor
+---
+
+Library scan now records a show folder that exists on disk but holds no media yet, so it can be monitored for acquisition before any episode is downloaded. Previously a MediaShow row was only created from folders containing video files, so a metadata-only setup — a tinyMediaManager/Kodi show folder with a `tvshow.nfo`, artwork and empty `Season NN` dirs (e.g. an `Ozark (2017)` folder awaiting its first grab) — never appeared in the add-from-library picker and could not be added to the Missing-Episode watchlist. The scan now also walks the library root's direct child folders and records any that (1) carry a `tvshow.nfo` and (2) resolve to an IMDb series id (from that nfo, else the local catalogue) as a MediaShow with `episodeCount: 0`. The IMDb-verification gate keeps junk directories out — an empty folder with no `tvshow.nfo` or no resolvable id is not recorded. Such a show surfaces in the picker as monitorable, and once added, the missing-episode sweep finds every episode missing and searches for it.
