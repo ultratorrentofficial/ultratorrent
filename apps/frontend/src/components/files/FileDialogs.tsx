@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, FolderInput, FolderPlus, Info, Pencil, TriangleAlert } from 'lucide-react';
-import { ApiError, api, type FileNode } from '@/lib/api';
+import { ApiError, api, type ConflictResolution, type FileNode, type MoveConflictReport } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
@@ -17,7 +17,8 @@ import {
 import { CenteredSpinner } from '@/components/ui/feedback';
 import { PathPicker } from '@/components/PathPicker';
 import { formatBytes, formatDateTime } from '@/lib/format';
-import { bulkLevel, failureReasons, isBulkResult } from './bulk-result';
+import { bulkLevel, failureReasons, isBulkResult, mergeBulkResults } from './bulk-result';
+import { MoveConflictResolver } from './MoveConflictResolver';
 
 /** Shared mutation runner: toast + invalidate + close. */
 function useFileMutation() {
@@ -177,67 +178,163 @@ export function MoveCopyDialog({
   onDone?: () => void;
 }) {
   const { t } = useTranslation('files');
+  const toast = useToast();
   const [destination, setDestination] = useState(defaultDestination);
-  const [overwrite, setOverwrite] = useState(false);
+  const [permanent, setPermanent] = useState(false);
+  // Two-phase: pick a destination, then — only if the preflight finds collisions —
+  // decide what to do about each. A clean destination skips straight to transfer.
+  const [report, setReport] = useState<MoveConflictReport | null>(null);
+  const [choices, setChoices] = useState<Record<string, ConflictResolution>>({});
+  const [analyzing, setAnalyzing] = useState(false);
   const { busy, run } = useFileMutation();
-  useEffect(() => { if (open) { setDestination(defaultDestination); setOverwrite(false); } }, [open, defaultDestination]);
 
-  const submit = () =>
+  useEffect(() => {
+    if (open) {
+      setDestination(defaultDestination);
+      setPermanent(false);
+      setReport(null);
+      setChoices({});
+      setAnalyzing(false);
+    }
+  }, [open, defaultDestination]);
+
+  const finish = () => { onClose(); onDone?.(); };
+
+  /** Plain transfer of a set of sources — used when nothing is in the way. */
+  const transferClean = (sources: string[], dest: string) =>
+    sources.length === 1
+      ? mode === 'move' ? api.files.move(sources[0], dest) : api.files.copy(sources[0], dest)
+      : api.files.bulk({ operation: mode, paths: sources, destination: dest });
+
+  // Phase 1: ask the backend what the destination already holds. A collision-free
+  // move runs immediately; otherwise we surface the decisions. The preflight is
+  // read-only, so a failure here has changed nothing — report and stay put.
+  const analyze = async () => {
+    const dest = destination.trim() || '/';
+    setAnalyzing(true);
+    try {
+      const preflight = await api.files.moveConflicts(mode, paths, dest);
+      if (preflight.conflicts.length === 0) {
+        await run(
+          () => transferClean(paths, dest),
+          t(mode === 'move' ? 'moveCopy.moveSuccess' : 'moveCopy.copySuccess', { count: paths.length }),
+          finish,
+        );
+        return;
+      }
+      setChoices(Object.fromEntries(preflight.conflicts.map((c) => [c.source.path, c.recommended])));
+      setReport(preflight);
+    } catch (err) {
+      toast.error(t('toast.operationFailed'), err instanceof ApiError ? err.message : undefined);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  // Phase 2: carry out the decisions. Resolved conflicts and any clean sources are
+  // separate backend calls (one reasons about collisions, one doesn't), merged
+  // into a single reported outcome — the operator asked for one action.
+  const confirmResolutions = () => {
+    if (!report) return;
+    const dest = report.destination;
     run(
       async () => {
-        const dest = destination.trim() || '/';
-        if (paths.length === 1) {
-          return mode === 'move'
-            ? api.files.move(paths[0], dest, overwrite)
-            : api.files.copy(paths[0], dest, overwrite);
-        }
-        return api.files.bulk({ operation: mode, paths, destination: dest, overwrite });
+        const items = report.conflicts.map((c) => ({
+          source: c.source.path,
+          resolution: choices[c.source.path],
+          targetPath: c.target.path,
+        }));
+        const [resolved, clean] = await Promise.all([
+          api.files.resolveConflicts({ operation: mode, destination: dest, items, permanent }),
+          report.clean.length ? api.files.bulk({ operation: mode, paths: report.clean, destination: dest }) : Promise.resolve(null),
+        ]);
+        return mergeBulkResults(resolved, clean);
       },
-      mode === 'move'
-        ? t('moveCopy.moveSuccess', { count: paths.length })
-        : t('moveCopy.copySuccess', { count: paths.length }),
-      () => { onClose(); onDone?.(); },
+      t(mode === 'move' ? 'moveCopy.moveSuccess' : 'moveCopy.copySuccess', { count: paths.length }),
+      finish,
     );
+  };
 
   const Icon = mode === 'move' ? FolderInput : Copy;
+  const inResolve = report !== null;
+  const anyDestructive = inResolve && report.conflicts.some((c) => {
+    const r = choices[c.source.path];
+    return r === 'replace' || r === 'delete_source';
+  });
+
   return (
-    <Dialog open={open} onClose={onClose} title={mode === 'move' ? t('moveCopy.moveTitleBar') : t('moveCopy.copyTitleBar')} className="max-w-md">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={mode === 'move' ? t('moveCopy.moveTitleBar') : t('moveCopy.copyTitleBar')}
+      className={inResolve ? 'max-w-2xl' : 'max-w-md'}
+    >
       <DialogHeader>
         <div className="mb-1 grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary">
           <Icon className="h-5 w-5" />
         </div>
-        <DialogTitle>{mode === 'move' ? t('moveCopy.moveHeading', { count: paths.length }) : t('moveCopy.copyHeading', { count: paths.length })}</DialogTitle>
-        <DialogDescription>{t('moveCopy.description')}</DialogDescription>
+        <DialogTitle>
+          {inResolve
+            ? t('conflicts.title', { count: report.conflicts.length })
+            : mode === 'move'
+              ? t('moveCopy.moveHeading', { count: paths.length })
+              : t('moveCopy.copyHeading', { count: paths.length })}
+        </DialogTitle>
+        <DialogDescription>{inResolve ? t('conflicts.description') : t('moveCopy.description')}</DialogDescription>
       </DialogHeader>
-      <div className="space-y-3">
-        <div className="space-y-2">
-          <Label htmlFor="destination">{t('moveCopy.destinationLabel')}</Label>
-          {/*
-            Browse-only: the destination is chosen from the tree, never typed.
-            `valueMode="relative"` because move/copy destinations are root-relative —
-            the backend re-bases a leading slash onto the root, so an absolute path
-            would double it.
-          */}
-          <PathPicker
-            id="destination"
-            value={destination}
-            onChange={setDestination}
-            mode="directory"
-            valueMode="relative"
-            allowManualEntry={false}
-            pickerTitle={t('moveCopy.pickerTitle')}
-            aria-label={t('moveCopy.destinationLabel')}
-          />
-        </div>
-        <label className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
-          <span className="text-sm">{t('moveCopy.overwriteLabel')}</span>
-          <Switch checked={overwrite} onCheckedChange={setOverwrite} aria-label={t('moveCopy.overwriteAria')} />
-        </label>
-      </div>
-      <DialogFooter>
-        <Button variant="ghost" onClick={onClose} disabled={busy}>{t('moveCopy.cancel')}</Button>
-        <Button onClick={submit} loading={busy}>{mode === 'move' ? t('moveCopy.moveAction') : t('moveCopy.copyAction')}</Button>
-      </DialogFooter>
+
+      {inResolve ? (
+        <>
+          <div className="max-h-[60vh] overflow-y-auto pr-1">
+            <MoveConflictResolver
+              report={report}
+              choices={choices}
+              onChange={(source, resolution) => setChoices((prev) => ({ ...prev, [source]: resolution }))}
+            />
+          </div>
+          {anyDestructive && (
+            <label className="mt-3 flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
+              <span className="flex items-center gap-2 text-sm">
+                <TriangleAlert className="h-4 w-4 text-warning" />
+                {t('conflicts.permanentLabel')}
+              </span>
+              <Switch checked={permanent} onCheckedChange={setPermanent} aria-label={t('conflicts.permanentAria')} />
+            </label>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={onClose} disabled={busy}>{t('moveCopy.cancel')}</Button>
+            <Button onClick={confirmResolutions} loading={busy}>{t('conflicts.confirm')}</Button>
+          </DialogFooter>
+        </>
+      ) : (
+        <>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="destination">{t('moveCopy.destinationLabel')}</Label>
+              {/*
+                Browse-only: the destination is chosen from the tree, never typed.
+                `valueMode="relative"` because move/copy destinations are root-relative —
+                the backend re-bases a leading slash onto the root, so an absolute path
+                would double it.
+              */}
+              <PathPicker
+                id="destination"
+                value={destination}
+                onChange={setDestination}
+                mode="directory"
+                valueMode="relative"
+                allowManualEntry={false}
+                pickerTitle={t('moveCopy.pickerTitle')}
+                aria-label={t('moveCopy.destinationLabel')}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={onClose} disabled={analyzing || busy}>{t('moveCopy.cancel')}</Button>
+            <Button onClick={analyze} loading={analyzing || busy}>{mode === 'move' ? t('moveCopy.moveAction') : t('moveCopy.copyAction')}</Button>
+          </DialogFooter>
+        </>
+      )}
     </Dialog>
   );
 }

@@ -4,6 +4,7 @@ import { FilePathService } from './file-path.service';
 import { FilesService } from './files.service';
 import { TrashService } from './trash.service';
 import { FileCleanupService } from './file-cleanup.service';
+import { MoveConflictService } from './move-conflict.service';
 import { FilesController } from './files.controller';
 
 /**
@@ -14,7 +15,7 @@ import { FilesController } from './files.controller';
  */
 @Module({
   imports: [SettingsModule],
-  providers: [FilePathService, FilesService, TrashService, FileCleanupService],
+  providers: [FilePathService, FilesService, TrashService, FileCleanupService, MoveConflictService],
   controllers: [FilesController],
   exports: [FilesService, TrashService, FileCleanupService, FilePathService],
 })

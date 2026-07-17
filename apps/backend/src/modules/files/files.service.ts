@@ -39,6 +39,7 @@ import type {
   DeleteFileDto,
   MoveFileDto,
   RenameFileDto,
+  ResolveConflictsDto,
 } from './dto/file.dto';
 
 /** Largest file we will hash for the Properties dialog (64 MiB). */
@@ -249,6 +250,167 @@ export class FilesService {
       this.emit('delete', { source: rel, result: 'failure', message: (err as Error).message, at: new Date().toISOString() }, 'failed');
       throw err;
     }
+  }
+
+  /**
+   * Carry out move/copy decisions the operator made against a conflict report.
+   *
+   * Returns the same envelope as {@link bulk} — per-item outcomes, never a throw —
+   * because the outcomes are genuinely independent: one refused replace must not
+   * abandon the other four files. The frontend reads it through `bulk-result`.
+   *
+   * Destructive steps route through Trash unless `permanent`, so a
+   * misjudged replace or delete stays recoverable. `targetPath` is taken from the
+   * preflight rather than re-derived, but is re-validated here — it must resolve
+   * inside the destination directory, so a stale or forged path cannot make this
+   * delete something elsewhere.
+   */
+  async resolveConflicts(
+    dto: ResolveConflictsDto,
+    ctx: FileOpContext = {},
+  ): Promise<{
+    operation: string;
+    total: number;
+    succeeded: number;
+    failed: number;
+    results: Array<{ path: string; ok: boolean; message?: string }>;
+  }> {
+    const destDir = this.safety.resolveLogical(dto.destination);
+    const results: Array<{ path: string; ok: boolean; message?: string }> = [];
+
+    for (const item of dto.items) {
+      try {
+        const message = await this.applyResolution(item, destDir, dto, ctx);
+        results.push({ path: item.source, ok: true, message });
+      } catch (err) {
+        results.push({ path: item.source, ok: false, message: (err as Error).message });
+      }
+    }
+
+    const succeeded = results.filter((r) => r.ok).length;
+    await this.audit.record({
+      userId: ctx.userId,
+      action: `file.resolve.${dto.operation}`,
+      result: succeeded === dto.items.length ? 'success' : 'failure',
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: {
+        total: dto.items.length,
+        succeeded,
+        failed: dto.items.length - succeeded,
+        permanent: !!dto.permanent,
+        resolutions: dto.items.map((i) => i.resolution),
+      },
+    });
+    this.realtime.broadcast(WS_EVENTS.FILES_OP_COMPLETED, {
+      operation: dto.operation,
+      itemCount: dto.items.length,
+      result: succeeded === dto.items.length ? 'success' : 'failure',
+      at: new Date().toISOString(),
+    } satisfies FileOperationEventPayload);
+
+    return {
+      operation: dto.operation,
+      total: dto.items.length,
+      succeeded,
+      failed: dto.items.length - succeeded,
+      results,
+    };
+  }
+
+  /** One decision. Returns the message recorded against the item. */
+  private async applyResolution(
+    item: ResolveConflictsDto['items'][number],
+    destDir: string,
+    dto: ResolveConflictsDto,
+    ctx: FileOpContext,
+  ): Promise<string> {
+    if (item.resolution === 'skip') return 'skipped';
+
+    const src = await this.safety.resolveExisting(item.source);
+    this.safety.assertDeletable(src);
+
+    if (item.resolution === 'delete_source') {
+      // The target already holds what we want; the source is what goes.
+      await this.dispose(src, !!dto.permanent, ctx);
+      return dto.permanent ? 'source deleted' : 'source moved to trash';
+    }
+
+    if (item.resolution === 'replace') {
+      const target = await this.resolveTargetIn(item.targetPath, destDir);
+      await this.dispose(target, !!dto.permanent, ctx);
+      // The target is gone, so the destination name is free. `overwrite` stays
+      // false: anything still in the way is a surprise, and must surface.
+      await this.transfer(dto.operation, item.source, this.safety.toRelative(destDir), ctx);
+      return dto.permanent ? 'replaced (target deleted)' : 'replaced (target moved to trash)';
+    }
+
+    // keep_both — land alongside the target. Only a name collision needs a new
+    // name; a different release name coexists as-is.
+    const dest = await this.freeName(destDir, path.basename(src));
+    await this.transferTo(dto.operation, src, dest);
+    return path.basename(dest) === path.basename(src) ? 'kept both' : `kept both (as ${path.basename(dest)})`;
+  }
+
+  /** Trash (recoverable) or hard-delete, per the operator's choice. */
+  private async dispose(abs: string, permanent: boolean, ctx: FileOpContext): Promise<void> {
+    this.safety.assertDeletable(abs);
+    if (permanent) {
+      await rm(abs, { recursive: true, force: true });
+      await this.audit.record({
+        userId: ctx.userId,
+        action: 'file.deleted',
+        objectType: 'file',
+        objectId: this.safety.toRelative(abs),
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        metadata: { mode: 'permanent', reason: 'conflict resolution' },
+      });
+      return;
+    }
+    await this.trash.moveToTrash(abs, ctx);
+  }
+
+  /**
+   * Validate a preflight-supplied target. It must exist and sit directly in the
+   * destination directory — never trust the client with a path to delete.
+   */
+  private async resolveTargetIn(targetPath: string | undefined, destDir: string): Promise<string> {
+    if (!targetPath) throw new BadRequestException('targetPath is required to replace');
+    const abs = await this.safety.resolveExisting(targetPath);
+    if (path.dirname(abs) !== destDir) {
+      throw new BadRequestException('Target is not in the destination directory');
+    }
+    if (!(await pathExists(abs))) throw new NotFoundException('Target no longer exists');
+    return abs;
+  }
+
+  /** `<name> (2).mkv`, `(3)`… — the first that is free. */
+  private async freeName(destDir: string, name: string): Promise<string> {
+    const ext = path.extname(name);
+    const stem = path.basename(name, ext);
+    let candidate = path.join(destDir, name);
+    for (let n = 2; await pathExists(candidate); n++) {
+      candidate = path.join(destDir, `${stem} (${n})${ext}`);
+      if (n > 99) throw new ConflictException('Could not find a free name in the destination');
+    }
+    return this.safety.ensureContained(candidate);
+  }
+
+  /** Route through the audited move/copy so the operation logs like any other. */
+  private transfer(op: 'move' | 'copy', source: string, destination: string, ctx: FileOpContext) {
+    return op === 'move'
+      ? this.move({ source, destination }, ctx)
+      : this.copy({ source, destination }, ctx);
+  }
+
+  /** Transfer to an exact path (keep_both may have renamed it). */
+  private async transferTo(op: 'move' | 'copy', src: string, dest: string): Promise<void> {
+    if (op === 'move') {
+      await moveRecursive(src, dest, false);
+      return;
+    }
+    await copyRecursive(src, dest, false);
   }
 
   async bulk(dto: BulkOperationDto, ctx: FileOpContext = {}): Promise<{

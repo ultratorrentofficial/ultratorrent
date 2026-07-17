@@ -22,7 +22,14 @@ describe('FilesService', () => {
     const paths = new FilePathService(configFor(root), { get: async () => undefined, set: async () => {} } as any);
     audit = { record: jest.fn().mockResolvedValue(undefined) };
     realtime = { broadcast: jest.fn() };
-    trash = { moveToTrash: jest.fn().mockResolvedValue({ size: 5 }) };
+    // The real TrashService relocates the file out of its original path; the
+    // double must too, or a follow-on transfer sees a phantom name collision.
+    trash = {
+      moveToTrash: jest.fn(async (abs: string) => {
+        await rm(abs, { recursive: true, force: true });
+        return { size: 5 };
+      }),
+    };
     svc = new FilesService(paths as any, audit as any, realtime as any, trash as any);
   });
 
@@ -108,5 +115,118 @@ describe('FilesService', () => {
     const res = await svc.bulk({ operation: 'delete', paths: ['/1.txt', '/2.txt'], permanent: true });
     expect(res.succeeded).toBe(2);
     expect(res.failed).toBe(0);
+  });
+
+  describe('resolveConflicts', () => {
+    beforeEach(async () => {
+      await mkdir(join(root, 'dst'));
+    });
+
+    it('replace: sends the target to Trash, then transfers the source in', async () => {
+      await writeFile(join(root, 'ep.mkv'), 'new release');
+      await writeFile(join(root, 'dst', 'ep.mkv'), 'old release');
+      const res = await svc.resolveConflicts({
+        operation: 'move',
+        destination: '/dst',
+        items: [{ source: '/ep.mkv', resolution: 'replace', targetPath: '/dst/ep.mkv' }],
+      });
+      expect(res.succeeded).toBe(1);
+      // Old target went to Trash (soft), source moved into place.
+      expect(trash.moveToTrash).toHaveBeenCalledWith(join(root, 'dst', 'ep.mkv'), expect.anything());
+      expect(await pathExists(join(root, 'ep.mkv'))).toBe(false);
+      expect(await pathExists(join(root, 'dst', 'ep.mkv'))).toBe(true);
+    });
+
+    it('replace with permanent: hard-deletes the target instead of trashing', async () => {
+      await writeFile(join(root, 'ep.mkv'), 'new');
+      await writeFile(join(root, 'dst', 'ep.mkv'), 'old');
+      const res = await svc.resolveConflicts({
+        operation: 'move',
+        destination: '/dst',
+        permanent: true,
+        items: [{ source: '/ep.mkv', resolution: 'replace', targetPath: '/dst/ep.mkv' }],
+      });
+      expect(res.succeeded).toBe(1);
+      expect(trash.moveToTrash).not.toHaveBeenCalled();
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'file.deleted', metadata: expect.objectContaining({ mode: 'permanent' }) }),
+      );
+    });
+
+    it('delete_source: keeps the target, disposes of the source', async () => {
+      await writeFile(join(root, 'ep.mkv'), 'dup');
+      await writeFile(join(root, 'dst', 'ep.mkv'), 'kept');
+      const res = await svc.resolveConflicts({
+        operation: 'move',
+        destination: '/dst',
+        items: [{ source: '/ep.mkv', resolution: 'delete_source', targetPath: '/dst/ep.mkv' }],
+      });
+      expect(res.succeeded).toBe(1);
+      expect(trash.moveToTrash).toHaveBeenCalledWith(join(root, 'ep.mkv'), expect.anything());
+      // Target untouched.
+      expect(await pathExists(join(root, 'dst', 'ep.mkv'))).toBe(true);
+    });
+
+    it('keep_both: renames the incoming file so both survive', async () => {
+      await writeFile(join(root, 'ep.mkv'), 'incoming');
+      await writeFile(join(root, 'dst', 'ep.mkv'), 'existing');
+      const res = await svc.resolveConflicts({
+        operation: 'move',
+        destination: '/dst',
+        items: [{ source: '/ep.mkv', resolution: 'keep_both', targetPath: '/dst/ep.mkv' }],
+      });
+      expect(res.succeeded).toBe(1);
+      expect(res.results[0].message).toMatch(/ep \(2\)\.mkv/);
+      expect(await pathExists(join(root, 'dst', 'ep.mkv'))).toBe(true);
+      expect(await pathExists(join(root, 'dst', 'ep (2).mkv'))).toBe(true);
+    });
+
+    it('skip: leaves both files exactly as they are', async () => {
+      await writeFile(join(root, 'ep.mkv'), 'incoming');
+      await writeFile(join(root, 'dst', 'ep.mkv'), 'existing');
+      const res = await svc.resolveConflicts({
+        operation: 'move',
+        destination: '/dst',
+        items: [{ source: '/ep.mkv', resolution: 'skip', targetPath: '/dst/ep.mkv' }],
+      });
+      expect(res.results[0].message).toBe('skipped');
+      expect(trash.moveToTrash).not.toHaveBeenCalled();
+      expect(await pathExists(join(root, 'ep.mkv'))).toBe(true);
+    });
+
+    it('refuses a targetPath outside the destination directory', async () => {
+      await writeFile(join(root, 'ep.mkv'), 'incoming');
+      await writeFile(join(root, 'elsewhere.mkv'), 'not in dst');
+      const res = await svc.resolveConflicts({
+        operation: 'move',
+        destination: '/dst',
+        // A forged/stale target pointing outside the destination must not be deleted.
+        items: [{ source: '/ep.mkv', resolution: 'replace', targetPath: '/elsewhere.mkv' }],
+      });
+      expect(res.failed).toBe(1);
+      expect(res.results[0].message).toMatch(/not in the destination/i);
+      // The out-of-scope file was never touched.
+      expect(trash.moveToTrash).not.toHaveBeenCalled();
+      expect(await pathExists(join(root, 'elsewhere.mkv'))).toBe(true);
+    });
+
+    it('reports per-item outcomes without aborting the batch', async () => {
+      await writeFile(join(root, 'good.mkv'), 'ok');
+      await writeFile(join(root, 'dst', 'good.mkv'), 'old');
+      await writeFile(join(root, 'stale.mkv'), 'incoming');
+      const res = await svc.resolveConflicts({
+        operation: 'move',
+        destination: '/dst',
+        items: [
+          { source: '/good.mkv', resolution: 'replace', targetPath: '/dst/good.mkv' },
+          // Stale report: the target it names is already gone. This item fails,
+          // but must not abort the first.
+          { source: '/stale.mkv', resolution: 'replace', targetPath: '/dst/vanished.mkv' },
+        ],
+      });
+      expect(res.succeeded).toBe(1);
+      expect(res.failed).toBe(1);
+      expect(res.results[1].message).toMatch(/no longer exists/i);
+    });
   });
 });

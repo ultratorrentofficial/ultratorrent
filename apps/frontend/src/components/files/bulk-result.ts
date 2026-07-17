@@ -33,6 +33,23 @@ export function failureReasons(res: BulkResult): string {
 }
 
 /**
+ * Combine several bulk envelopes into one. A conflict-aware move runs the clean
+ * sources and the resolved conflicts as separate calls, but the operator thought
+ * of it as a single action — so it must be reported as one. Ignores null legs (a
+ * call that wasn't needed), and returns null if every leg was null.
+ */
+export function mergeBulkResults(...parts: Array<BulkResult | null | undefined>): BulkResult | null {
+  const present = parts.filter((p): p is BulkResult => !!p);
+  if (present.length === 0) return null;
+  return present.reduce((acc, p) => ({
+    total: acc.total + p.total,
+    succeeded: acc.succeeded + p.succeeded,
+    failed: acc.failed + p.failed,
+    results: [...acc.results, ...p.results],
+  }));
+}
+
+/**
  * How a finished bulk run should be reported:
  * - `success` — every item landed.
  * - `partial` — some landed; something changed, so the view must refresh.

@@ -5,11 +5,14 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import {
   BulkOperationType,
   CleanupCategory,
   CLEANUP_CATEGORIES,
+  ConflictResolution,
 } from '@ultratorrent/shared';
 
 /** A single root-relative path (browse/preview/download/properties/delete). */
@@ -66,6 +69,48 @@ export class BulkOperationDto {
   /** Destination directory for move/copy (root-relative). */
   @IsOptional() @IsString() destination?: string;
   @IsOptional() @IsBoolean() overwrite?: boolean;
+  @IsOptional() @IsBoolean() permanent?: boolean;
+}
+
+/** Ask what a planned move/copy would collide with. Read-only. */
+export class MoveConflictPreflightDto {
+  @IsIn(['move', 'copy'])
+  operation!: 'move' | 'copy';
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  sources!: string[];
+
+  /** Destination directory (root-relative). */
+  @IsString() destination!: string;
+}
+
+/** One decided conflict. `targetPath` comes from the preflight report. */
+export class ConflictResolutionItemDto {
+  @IsString() source!: string;
+
+  @IsIn(['replace', 'keep_both', 'delete_source', 'skip'])
+  resolution!: ConflictResolution;
+
+  @IsOptional() @IsString() targetPath?: string;
+}
+
+/** Carry out the operator's decisions from a conflict report. */
+export class ResolveConflictsDto {
+  @IsIn(['move', 'copy'])
+  operation!: 'move' | 'copy';
+
+  /** Destination directory (root-relative). */
+  @IsString() destination!: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => ConflictResolutionItemDto)
+  items!: ConflictResolutionItemDto[];
+
+  /** Hard-delete instead of routing displaced files through Trash. */
   @IsOptional() @IsBoolean() permanent?: boolean;
 }
 

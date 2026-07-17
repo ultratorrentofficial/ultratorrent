@@ -39,11 +39,41 @@ vi.mock('@/lib/api', () => ({
       move: vi.fn().mockResolvedValue({}),
       copy: vi.fn().mockResolvedValue({}),
       bulk: vi.fn().mockResolvedValue({}),
+      // Default: destination is clear, so the dialog transfers straight through.
+      moveConflicts: vi.fn().mockResolvedValue({ destination: '/movies', conflicts: [], clean: [] }),
+      resolveConflicts: vi.fn().mockResolvedValue({ operation: 'move', total: 1, succeeded: 1, failed: 0, results: [] }),
     },
   },
 }));
 
-import { api } from '@/lib/api';
+import { api, type MoveConflictReport } from '@/lib/api';
+
+/** A same-episode conflict the operator must resolve (source is the better release). */
+function sameEpisodeConflict(): MoveConflictReport {
+  return {
+    destination: '/movies',
+    clean: [],
+    conflicts: [
+      {
+        source: {
+          path: '/tv/a.mkv', name: 'Show.S01E01.1080p.x265-GRP.mkv', size: 200, modifiedAt: null,
+          show: 'Show', season: 1, episode: 1, resolution: '1080p', source: 'WEB-DL', codec: 'x265',
+          releaseGroup: 'GRP', proper: false, repack: false,
+        },
+        target: {
+          path: '/movies/Show.S01E01.720p.x264-OLD.mkv', name: 'Show.S01E01.720p.x264-OLD.mkv', size: 150, modifiedAt: null,
+          show: 'Show', season: 1, episode: 1, resolution: '720p', source: 'HDTV', codec: 'x264',
+          releaseGroup: 'OLD', proper: false, repack: false,
+        },
+        kind: 'same_episode',
+        verdict: 'source_better',
+        verdictReasons: ['resolution 1080p > 720p'],
+        recommended: 'replace',
+        allowed: ['replace', 'keep_both', 'delete_source', 'skip'],
+      },
+    ],
+  };
+}
 
 function renderDialog(props: Partial<React.ComponentProps<typeof MoveCopyDialog>> = {}) {
   const onClose = vi.fn();
@@ -82,16 +112,18 @@ describe('MoveCopyDialog', () => {
     expect(screen.getByRole('button', { name: /browse/i })).toBeInTheDocument();
   });
 
-  it('sends the ROOT-RELATIVE destination chosen in the picker', async () => {
+  it('preflights the destination, then sends the ROOT-RELATIVE path when it is clear', async () => {
     renderDialog();
     await pickMoviesFolder();
 
     fireEvent.click(screen.getByRole('button', { name: /^move$/i }));
 
+    // The conflict preflight runs first, against the chosen destination.
+    await waitFor(() => expect(api.files.moveConflicts).toHaveBeenCalledWith('move', ['/tv/episode.mkv'], '/movies'));
     await waitFor(() => expect(api.files.move).toHaveBeenCalled());
     // Root-relative — NOT '/downloads/movies', which the backend would re-base
     // onto the root and resolve to '/downloads/downloads/movies'.
-    expect(api.files.move).toHaveBeenCalledWith('/tv/episode.mkv', '/movies', false);
+    expect(api.files.move).toHaveBeenCalledWith('/tv/episode.mkv', '/movies');
   });
 
   it('copies to the browsed folder too', async () => {
@@ -101,10 +133,10 @@ describe('MoveCopyDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /^copy$/i }));
 
     await waitFor(() => expect(api.files.copy).toHaveBeenCalled());
-    expect(api.files.copy).toHaveBeenCalledWith('/tv/episode.mkv', '/movies', false);
+    expect(api.files.copy).toHaveBeenCalledWith('/tv/episode.mkv', '/movies');
   });
 
-  it('routes a multi-selection through the bulk endpoint with the same destination', async () => {
+  it('routes a clean multi-selection through the bulk endpoint with the same destination', async () => {
     renderDialog({ paths: ['/tv/a.mkv', '/tv/b.mkv'] });
     await pickMoviesFolder();
 
@@ -115,7 +147,6 @@ describe('MoveCopyDialog', () => {
       operation: 'move',
       paths: ['/tv/a.mkv', '/tv/b.mkv'],
       destination: '/movies',
-      overwrite: false,
     });
   });
 
@@ -123,7 +154,7 @@ describe('MoveCopyDialog', () => {
     renderDialog({ defaultDestination: '/movies' });
     fireEvent.click(screen.getByRole('button', { name: /^move$/i }));
     await waitFor(() => expect(api.files.move).toHaveBeenCalled());
-    expect(api.files.move).toHaveBeenCalledWith('/tv/episode.mkv', '/movies', false);
+    expect(api.files.move).toHaveBeenCalledWith('/tv/episode.mkv', '/movies');
   });
 
   /**
@@ -156,7 +187,7 @@ describe('MoveCopyDialog', () => {
       expect(toastSpy.error).toHaveBeenCalledWith('Operation failed', 'Destination already exists');
     });
 
-    it('keeps the dialog open on total failure so overwrite can be retried', async () => {
+    it('keeps the dialog open on total failure so it can be retried', async () => {
       vi.mocked(api.files.bulk).mockResolvedValue(conflict(['/tv/a.mkv', '/tv/b.mkv']));
       const { onClose } = renderDialog({ paths: ['/tv/a.mkv', '/tv/b.mkv'] });
       await pickMoviesFolder();
@@ -203,6 +234,89 @@ describe('MoveCopyDialog', () => {
 
       await waitFor(() => expect(toastSpy.success).toHaveBeenCalledWith('Moved 2 items'));
       expect(toastSpy.error).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * The intelligence layer: when the destination already holds the file (or the
+   * same episode in a different release), the operator gets a decision step
+   * instead of a blind overwrite/error.
+   */
+  describe('conflict resolution', () => {
+    async function submitAndReachResolveStep(paths = ['/tv/a.mkv']) {
+      vi.mocked(api.files.moveConflicts).mockResolvedValue(sameEpisodeConflict());
+      renderDialog({ paths, defaultDestination: '/movies' });
+      fireEvent.click(screen.getByRole('button', { name: /^move$/i }));
+      // The resolve step renders the episode heading and a Confirm button.
+      await screen.findByText(/Show · S01E01/);
+      return screen.getByRole('button', { name: /^confirm$/i });
+    }
+
+    it('shows the resolve step instead of transferring when a conflict is found', async () => {
+      await submitAndReachResolveStep();
+      // Nothing has been transferred — the preflight is read-only.
+      expect(api.files.move).not.toHaveBeenCalled();
+      expect(api.files.resolveConflicts).not.toHaveBeenCalled();
+      // The recommended action (source is better → replace) is pre-selected.
+      expect(screen.getByRole('radio', { name: /replace/i })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('sends the recommended resolution with the target path on confirm', async () => {
+      const confirm = await submitAndReachResolveStep();
+      fireEvent.click(confirm);
+
+      await waitFor(() => expect(api.files.resolveConflicts).toHaveBeenCalled());
+      expect(api.files.resolveConflicts).toHaveBeenCalledWith({
+        operation: 'move',
+        destination: '/movies',
+        permanent: false,
+        items: [{ source: '/tv/a.mkv', resolution: 'replace', targetPath: '/movies/Show.S01E01.720p.x264-OLD.mkv' }],
+      });
+    });
+
+    it('lets the operator override the recommendation', async () => {
+      const confirm = await submitAndReachResolveStep();
+      // Change the mind: keep the existing copy and drop the source instead.
+      fireEvent.click(screen.getByRole('radio', { name: /keep existing, delete source/i }));
+      fireEvent.click(confirm);
+
+      await waitFor(() => expect(api.files.resolveConflicts).toHaveBeenCalled());
+      expect(api.files.resolveConflicts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: [expect.objectContaining({ resolution: 'delete_source' })],
+        }),
+      );
+    });
+
+    it('exposes the permanent-delete toggle only when a destructive choice is selected', async () => {
+      const confirm = await submitAndReachResolveStep();
+      // 'replace' is destructive, so the toggle is present; turn it on.
+      const permaToggle = screen.getByLabelText(/delete permanently/i);
+      fireEvent.click(permaToggle);
+      fireEvent.click(confirm);
+
+      await waitFor(() => expect(api.files.resolveConflicts).toHaveBeenCalledWith(
+        expect.objectContaining({ permanent: true }),
+      ));
+    });
+
+    it('also transfers the non-conflicting sources alongside the resolved ones', async () => {
+      vi.mocked(api.files.moveConflicts).mockResolvedValue({
+        ...sameEpisodeConflict(),
+        clean: ['/tv/clean.mkv'],
+      });
+      renderDialog({ paths: ['/tv/a.mkv', '/tv/clean.mkv'], defaultDestination: '/movies' });
+      fireEvent.click(screen.getByRole('button', { name: /^move$/i }));
+      const confirm = await screen.findByRole('button', { name: /^confirm$/i });
+      fireEvent.click(confirm);
+
+      await waitFor(() => expect(api.files.resolveConflicts).toHaveBeenCalled());
+      // The clean file rides along through the plain bulk path.
+      expect(api.files.bulk).toHaveBeenCalledWith({
+        operation: 'move',
+        paths: ['/tv/clean.mkv'],
+        destination: '/movies',
+      });
     });
   });
 

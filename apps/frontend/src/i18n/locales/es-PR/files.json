@@ -237,5 +237,42 @@
     "outsideRootsBody": "Esa ruta está fuera de las raíces de almacenamiento permitidas del servidor.",
     "notDirTitle": "No es una carpeta",
     "notDirBody": "Esa ruta ya existe, pero es un archivo, no una carpeta."
+  },
+  "conflicts": {
+    "title_one": "1 archivo ya está en el destino",
+    "title_other": "{{count}} archivos ya están en el destino",
+    "description": "Decide qué hacer con cada uno. No se cambia nada hasta que confirmes.",
+    "cleanNote_one": "1 archivo más no tiene conflicto y se transferirá tal cual.",
+    "cleanNote_other": "{{count}} archivos más no tienen conflicto y se transferirán tal cual.",
+    "sourceLabel": "Moviendo este",
+    "targetLabel": "Ya está ahí",
+    "chooseAria": "Elige qué hacer",
+    "confirm": "Confirmar",
+    "permanentLabel": "Eliminar permanentemente en lugar de mover a la Papelera",
+    "permanentAria": "Eliminar permanentemente",
+    "kind": {
+      "identical": "Archivo idéntico",
+      "same_episode": "Mismo episodio",
+      "name_clash": "Nombre repetido"
+    },
+    "verdict": {
+      "identical": "Son el mismo archivo (coinciden en tamaño y contenido).",
+      "sourceBetter": "El archivo que estás moviendo se ve mejor: {{reasons}}.",
+      "targetBetter": "El archivo que ya está ahí se ve mejor: {{reasons}}.",
+      "equivalent": "Mismo episodio, distinto lanzamiento — sin un ganador claro de calidad."
+    },
+    "facet": {
+      "size": "Tamaño",
+      "quality": "Calidad",
+      "group": "Grupo",
+      "tags": "Etiquetas",
+      "modified": "Modificado"
+    },
+    "action": {
+      "replace": "Reemplazar",
+      "keep_both": "Conservar ambos",
+      "delete_source": "Conservar el existente, eliminar el origen",
+      "skip": "Omitir"
+    }
   }
 }

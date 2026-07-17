@@ -21,6 +21,7 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { FilesService } from './files.service';
 import { FileCleanupService } from './file-cleanup.service';
+import { MoveConflictService } from './move-conflict.service';
 import { TrashService } from './trash.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -35,9 +36,11 @@ import {
   CopyFileDto,
   CreateFolderDto,
   DeleteFileDto,
+  MoveConflictPreflightDto,
   MoveFileDto,
   PathDto,
   RenameFileDto,
+  ResolveConflictsDto,
   SetRootPathDto,
   TrashRestoreDto,
 } from './dto/file.dto';
@@ -59,6 +62,7 @@ export class FilesController {
   constructor(
     private readonly files: FilesService,
     private readonly cleanup: FileCleanupService,
+    private readonly conflicts: MoveConflictService,
     private readonly trash: TrashService,
     private readonly paths: FilePathService,
     private readonly audit: AuditService,
@@ -219,6 +223,25 @@ export class FilesController {
   @RequirePermissions(PERMISSIONS.FILES_BULK_ACTIONS)
   bulk(@Body() dto: BulkOperationDto, @Req() req: Request, @CurrentUser() user: AuthenticatedUser) {
     return this.files.bulk(dto, opCtx(req, user));
+  }
+
+  // --- move/copy conflict intelligence ---
+  /** Read-only: what a planned move/copy would collide with, and how it compares. */
+  @Post('move-conflicts')
+  @RequirePermissions(PERMISSIONS.FILES_VIEW)
+  moveConflicts(@Body() dto: MoveConflictPreflightDto) {
+    return this.conflicts.analyze(dto.sources, dto.destination);
+  }
+
+  /**
+   * Carry out the operator's per-conflict decisions. Can move, copy, replace and
+   * delete, so it requires the delete permission on top of move/copy — replace and
+   * delete_source both dispose of a file.
+   */
+  @Post('resolve-conflicts')
+  @RequirePermissions(PERMISSIONS.FILES_MOVE, PERMISSIONS.FILES_COPY, PERMISSIONS.FILES_DELETE)
+  resolveConflicts(@Body() dto: ResolveConflictsDto, @Req() req: Request, @CurrentUser() user: AuthenticatedUser) {
+    return this.files.resolveConflicts(dto, opCtx(req, user));
   }
 
   // --- cleanup ---

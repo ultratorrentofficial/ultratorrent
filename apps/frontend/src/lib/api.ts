@@ -17,11 +17,15 @@ import type {
   CleanupCategory,
   CleanupExecuteResult,
   CleanupPreview,
+  ConflictResolution,
+  ConflictResolutionInput,
   FileNode,
   FilePropertiesResponse,
   LicenseStatus,
   LoginResponse,
   ModuleStatus,
+  MoveConflict,
+  MoveConflictReport,
   NormalizedFile,
   NormalizedPeer,
   NormalizedTorrent,
@@ -31,7 +35,7 @@ import type {
   TrashItemDto,
 } from '@ultratorrent/shared';
 
-export type { FileNode, FilePropertiesResponse, CleanupPreview, CleanupCategory, CleanupExecuteResult, TrashItemDto, BrowseResponse, BulkOperationType };
+export type { FileNode, FilePropertiesResponse, CleanupPreview, CleanupCategory, CleanupExecuteResult, TrashItemDto, BrowseResponse, BulkOperationType, MoveConflictReport, MoveConflict, ConflictResolution, ConflictResolutionInput };
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
 
@@ -2701,6 +2705,19 @@ export const api = {
     }): Promise<{ operation: string; total: number; succeeded: number; failed: number; results: Array<{ path: string; ok: boolean; message?: string }> }> {
       return request('/files/bulk', { method: 'POST', body: dto });
     },
+    /** Read-only: what a planned move/copy would collide with in the destination. */
+    moveConflicts(operation: 'move' | 'copy', sources: string[], destination: string): Promise<MoveConflictReport> {
+      return request<MoveConflictReport>('/files/move-conflicts', { method: 'POST', body: { operation, sources, destination } });
+    },
+    /** Carry out per-conflict decisions. Same result envelope as bulk(). */
+    resolveConflicts(dto: {
+      operation: 'move' | 'copy';
+      destination: string;
+      items: ConflictResolutionInput[];
+      permanent?: boolean;
+    }): Promise<{ operation: string; total: number; succeeded: number; failed: number; results: Array<{ path: string; ok: boolean; message?: string }> }> {
+      return request('/files/resolve-conflicts', { method: 'POST', body: dto });
+    },
     cleanupPreview(path: string, categories?: CleanupCategory[]): Promise<CleanupPreview> {
       return request<CleanupPreview>('/files/cleanup-preview', {
         method: 'POST',
@@ -2735,6 +2752,9 @@ export const api = {
     },
     update(patch: AppSettings): Promise<AppSettings> {
       return request<AppSettings>('/settings', { method: 'PATCH', body: patch });
+    },
+    environment(): Promise<EnvSetting[]> {
+      return request<EnvSetting[]>('/settings/environment');
     },
   },
 
@@ -4327,6 +4347,16 @@ export interface SubtitleGlobalSettings {
   autoSync: boolean;
   autoScanIntervalMinutes: number;
   defaultLanguages: string[];
+}
+
+export interface EnvSetting {
+  key: string;
+  group: string;
+  label: string;
+  description: string;
+  secret: boolean;
+  set: boolean;
+  value: string | null;
 }
 
 export interface SubtitleSyncRow {

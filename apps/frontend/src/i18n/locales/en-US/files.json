@@ -237,5 +237,42 @@
     "outsideRootsBody": "That path is outside the server's allowed storage roots.",
     "notDirTitle": "Not a folder",
     "notDirBody": "That path already exists but is a file, not a folder."
+  },
+  "conflicts": {
+    "title_one": "1 file already in the destination",
+    "title_other": "{{count}} files already in the destination",
+    "description": "Decide what to do with each. Nothing is changed until you confirm.",
+    "cleanNote_one": "1 other file has no conflict and will be transferred as-is.",
+    "cleanNote_other": "{{count}} other files have no conflict and will be transferred as-is.",
+    "sourceLabel": "Moving this",
+    "targetLabel": "Already there",
+    "chooseAria": "Choose what to do",
+    "confirm": "Confirm",
+    "permanentLabel": "Delete permanently instead of moving to Trash",
+    "permanentAria": "Delete permanently",
+    "kind": {
+      "identical": "Identical file",
+      "same_episode": "Same episode",
+      "name_clash": "Name clash"
+    },
+    "verdict": {
+      "identical": "These are the same file (matched by size and content).",
+      "sourceBetter": "The file you're moving looks better: {{reasons}}.",
+      "targetBetter": "The file already there looks better: {{reasons}}.",
+      "equivalent": "Same episode, different release — no clear quality winner."
+    },
+    "facet": {
+      "size": "Size",
+      "quality": "Quality",
+      "group": "Group",
+      "tags": "Tags",
+      "modified": "Modified"
+    },
+    "action": {
+      "replace": "Replace",
+      "keep_both": "Keep both",
+      "delete_source": "Keep existing, delete source",
+      "skip": "Skip"
+    }
   }
 }
