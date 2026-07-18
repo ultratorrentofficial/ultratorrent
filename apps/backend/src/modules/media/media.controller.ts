@@ -45,6 +45,7 @@ import {
   IntegrationInput,
 } from './media-server-integration.service';
 import { MediaProcessingQueueService } from './media-processing-queue.service';
+import { MediaProcessingService } from './media-processing.service';
 import { MetadataProviderRegistry } from './metadata-provider-registry.service';
 import { COMPOSABLE_FIELDS } from './universal-metadata.provider';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -87,6 +88,7 @@ export class MediaController {
     private readonly imdb: ImdbService,
     private readonly mediaActions: MediaAutomationActions,
     private readonly providerRegistry: MetadataProviderRegistry,
+    private readonly processing: MediaProcessingService,
   ) {}
 
   // --- overview ----------------------------------------------------------
@@ -156,19 +158,25 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_SCAN)
   scanLibrary(@Param('id') id: string, @Req() req: Request) {
     // Tracked as a MediaProcessingJob; the scanner streams progress + a per-file
-    // action log over the media_manager.job.progress WS event. For an
-    // organize-mode library (rename_in_place/rename_move) the scan then moves
-    // in-place files into Show/Season NN and applies junk cleanup; a no-op for
-    // link/preview libraries (organizeLibrary self-gates on the library mode).
-    // Detached: return { jobId } immediately so a large-library scan can't time
-    // the HTTP request out at the gateway (504). Progress + the final result
-    // arrive over the media_manager.job.* WS events.
+    // action log over the media_manager.job.progress WS event. A manual scan runs
+    // the same three stages, in the same order, as the post-download and periodic
+    // paths: index (scanner) → organise/rename (organizeLibrary) → enrich
+    // (identify + metadata + artwork). For an organize-mode library
+    // (rename_in_place/rename_move) the scan moves in-place files into
+    // Show/Season NN and applies junk cleanup; a no-op for link/preview libraries
+    // (organizeLibrary self-gates on the library mode). Enrichment runs LAST so it
+    // reads the final, post-rename paths, and fills only gaps (unmatched items, or
+    // matched items missing metadata/poster) — so it never re-hammers a
+    // steady-state library. Detached: return { jobId } immediately so a
+    // large-library scan can't time the HTTP request out at the gateway (504).
+    // Progress + the final result arrive over the media_manager.job.* WS events.
     return this.jobs.runDetached('library_scan', { libraryId: id }, async (report) => {
-      const scan = await this.scanner.scanLibrary(id, (p, m) => report(p * 0.8, m));
+      const scan = await this.scanner.scanLibrary(id, (p, m) => report(p * 0.55, m));
       const organized = await this.mediaActions.organizeLibrary(id, { dryRun: false }, auditCtx(req), (p, m) =>
-        report(80 + p * 0.2, m),
+        report(55 + p * 0.15, m),
       );
-      return { ...scan, organized };
+      const enriched = await this.processing.enrichLibrary(id, (p, m) => report(70 + p * 0.3, m));
+      return { ...scan, organized, enriched };
     });
   }
 

@@ -170,6 +170,31 @@ export class MediaProcessingService {
       return empty;
     }
 
+    // Stage 2 — fill the gaps (identify → metadata → artwork). Shared with the
+    // manual "Scan" action so a hand-triggered scan enriches identically.
+    const enriched = await this.enrichLibrary(libraryId);
+    return { ...enriched, scanned: empty.scanned };
+  }
+
+  /**
+   * Enrich a library's gap items in place — identify unmatched items, then fetch
+   * metadata / a poster for anything still missing them. Does NOT scan, rename,
+   * or move: the caller owns having scanned (and, for the manual action,
+   * organised) first, so paths are final before we identify off them. Shared by
+   * the periodic {@link processLibrary} sweep and the manual "Scan" action so a
+   * hand-triggered scan enriches exactly like the scheduled one. Only gaps are
+   * touched — unmatched items, or matched items missing metadata/poster — so
+   * repeated runs converge and don't re-hammer providers. Locked items are the
+   * operator's and are never re-identified/re-scraped. Best-effort; never throws.
+   */
+  async enrichLibrary(
+    libraryId: string,
+    report?: (pct: number, msg?: string) => void | Promise<void>,
+  ): Promise<LibraryEnrichmentSummary> {
+    const result: LibraryEnrichmentSummary = { libraryId, scanned: 0, identified: 0, metadataFetched: 0, artworkFetched: 0, processed: 0 };
+    const library = await this.prisma.mediaLibrary.findUnique({ where: { id: libraryId } });
+    if (!library || !library.isEnabled) return result;
+
     // Enrichment targets: unmatched items (need identifying), or matched items
     // still missing metadata or a poster. Anything already enriched is skipped,
     // so a steady-state library does almost no work per pass.
@@ -184,13 +209,16 @@ export class MediaProcessingService {
       select: { id: true },
     });
 
-    const result: LibraryEnrichmentSummary = { ...empty };
-    for (const item of items) {
-      const r = await this.enrichLibraryItem(library, item.id);
+    for (let i = 0; i < items.length; i++) {
+      const r = await this.enrichLibraryItem(library, items[i].id);
       if (r.identified) result.identified++;
       if (r.metadataFetched) result.metadataFetched++;
       if (r.artworkFetched) result.artworkFetched++;
       result.processed++;
+      await report?.(
+        Math.round(((i + 1) / (items.length || 1)) * 100),
+        `Enriched ${i + 1}/${items.length}`,
+      );
     }
     return result;
   }
