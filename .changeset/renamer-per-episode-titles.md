@@ -1,0 +1,11 @@
+---
+"ultratorrent": patch
+---
+
+Fix the Renamer dropping the episode title from every name in a folder preview, and surface files sitting in the wrong show folder.
+
+**Episode titles.** `MediaService.buildPlan` resolved metadata once for the whole batch, from `parseTorrentName(sourceName)`. When `sourceName` is a show folder (`FBI (2018)`) it carries no `SxxEyy`, so season and episode were null — and the TMDB provider only fetches an episode when both are known, so it returned the series title and nothing else. That single result was then applied to every file: `{Episode Title}` rendered empty, `renderTemplate` stripped the template's dangling ` - `, and a whole show previewed as `FBI - S05E23.mkv`. The single-file path (where `sourceName` carries the episode) was unaffected and already produced `FBI - S05E23 - God Complex.mkv`.
+
+Episode titles are now resolved **per episode** and passed as `RenameContext.metaByEpisode`, keyed `"{season}-{episode}"`, with the batch `meta` still supplying the series title. They come from the **local IMDb dataset** (`imdb_episodes` + `imdb_titles`) rather than the provider: the provider resolves one episode per call and issues a `/search/tv` each time with no caching, so a 90-episode folder would have cost ~180 TMDB requests per preview for data already on disk. One indexed query per series covers the batch offline, matching the renamer's offline-first design. Files are grouped by the series each FILE names, not the batch name, because one folder can hold several shows. An episode with no local title falls through to the batch meta rather than blanking it.
+
+**Misfiled reporting.** No rename mode relocates a file across show folders: `rename_in_place` deliberately keeps a file in its current show folder (so a missing year cannot fork `Show (2021)/` into a bare `Show/`), and `rename_move` would re-root to the template-derived name, creating exactly that fork beside the real folder. A misfiled episode was therefore invisible — it just got tidied into the wrong show. The plan now emits a warning when a file's identified series has its own folder in the library but the file is somewhere else, resolved through the same `showCanonicalKey` the scanner and watchlist use. Report only: nothing is moved, and destinations are unchanged.

@@ -27,6 +27,7 @@ import {
   buildRenamePlan,
   CleanupRules,
   DEFAULT_CLEANUP_RULES,
+  EpisodeMeta,
   MediaFileInput,
   Preset,
   PRESET_TEMPLATES,
@@ -326,6 +327,11 @@ export class MediaService {
       )
       .catch(() => ({}));
 
+    const [metaByEpisode, showFolderFor] = await Promise.all([
+      this.episodeTitlesFor(files, sourceName, kind),
+      this.showFolderResolver(req.libraryPath),
+    ]);
+
     return buildRenamePlan({
       sourceName,
       files,
@@ -334,8 +340,96 @@ export class MediaService {
       libraryPath: req.libraryPath,
       template: req.template,
       meta,
+      metaByEpisode,
+      showFolderFor,
       cleanup: await this.getCleanup(),
     });
+  }
+
+  /**
+   * Episode titles for every episode in a batch, keyed `"{season}-{episode}"`.
+   *
+   * Sourced from the LOCAL IMDb dataset, not the metadata provider. The provider's
+   * `lookup` resolves one episode per call and does a `/search/tv` each time with no
+   * caching, so a 90-episode folder would cost ~180 TMDB requests on every preview —
+   * for data already sitting in `imdb_episodes`/`imdb_titles`. One indexed query per
+   * series covers the whole batch offline, which is also what the renamer's
+   * offline-first design expects. The provider still supplies the batch `meta`
+   * (series title), and single-episode batches keep working through that path
+   * unchanged, so a series missing from the dataset is no worse off than before.
+   */
+  private async episodeTitlesFor(
+    files: MediaFileInput[],
+    sourceName: string,
+    kind: MediaLookup['kind'],
+  ): Promise<Record<string, EpisodeMeta> | undefined> {
+    if (kind !== 'tv' && kind !== 'anime') return undefined;
+    const { parseTorrentName } = await import('./../rss/torrent-name-parser');
+    const { showCanonicalKey } = await import('./series-grouping');
+
+    // Group the batch's episodes by the series each FILE names — a folder can hold
+    // more than one show (that is exactly how the FBI folder accumulated FBI
+    // International), so keying off the batch name alone would mislabel them.
+    const wanted = new Map<string, Set<string>>(); // canonicalKey -> {"s-e"}
+    const batchTitle = parseTorrentName(sourceName).title;
+    for (const f of files) {
+      const p = parseTorrentName(path.basename(f.path));
+      if (p.season == null || p.episode == null) continue;
+      const title = p.title ?? batchTitle;
+      if (!title) continue;
+      const k = showCanonicalKey(title);
+      if (!wanted.has(k)) wanted.set(k, new Set());
+      wanted.get(k)!.add(`${p.season}-${p.episode}`);
+    }
+    if (wanted.size === 0) return undefined;
+
+    const shows = await this.prisma.mediaShow.findMany({
+      where: { canonicalKey: { in: [...wanted.keys()] }, imdbId: { not: null } },
+      select: { canonicalKey: true, imdbId: true },
+    });
+    if (shows.length === 0) return undefined;
+
+    const out: Record<string, EpisodeMeta> = {};
+    for (const show of shows) {
+      const keys = wanted.get(show.canonicalKey);
+      if (!keys) continue;
+      const rows = await this.prisma.iMDbEpisode.findMany({
+        where: { parentTitleId: show.imdbId!, seasonNumber: { not: null }, episodeNumber: { not: null } },
+        select: { episodeTitleId: true, seasonNumber: true, episodeNumber: true },
+      });
+      const relevant = rows.filter((r) => keys.has(`${r.seasonNumber}-${r.episodeNumber}`));
+      if (relevant.length === 0) continue;
+      const titles = await this.prisma.iMDbTitle.findMany({
+        where: { tconst: { in: relevant.map((r) => r.episodeTitleId) } },
+        select: { tconst: true, primaryTitle: true },
+      });
+      const byTconst = new Map(titles.map((t) => [t.tconst, t.primaryTitle]));
+      for (const r of relevant) {
+        const title = byTconst.get(r.episodeTitleId);
+        // Only set the key when there is a real title — an absent one must fall
+        // through to the batch meta rather than blank it.
+        if (title) out[`${r.seasonNumber}-${r.episodeNumber}`] = { episodeTitle: title };
+      }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+
+  /**
+   * Map an identified series title to the show folder this library ALREADY has for
+   * it, via the same canonical key the scanner and watchlist use. Only reports a
+   * mismatch (see `RenameContext.showFolderFor`); nothing moves on it.
+   */
+  private async showFolderResolver(
+    libraryPath: string,
+  ): Promise<((seriesTitle: string) => string | undefined) | undefined> {
+    const { showCanonicalKey } = await import('./series-grouping');
+    const shows = await this.prisma.mediaShow.findMany({
+      where: { library: { path: libraryPath } },
+      select: { canonicalKey: true, path: true },
+    });
+    if (shows.length === 0) return undefined;
+    const byKey = new Map(shows.map((s) => [s.canonicalKey, s.path]));
+    return (seriesTitle: string) => byKey.get(showCanonicalKey(seriesTitle));
   }
 
   // --- cleanup rules -----------------------------------------------------

@@ -20,6 +20,8 @@ const ctx = (over: Partial<RenameContext>): RenameContext => ({
   libraryPath: over.libraryPath ?? '/media',
   template: over.template,
   meta: over.meta,
+  metaByEpisode: over.metaByEpisode,
+  showFolderFor: over.showFolderFor,
   sampleMaxBytes: over.sampleMaxBytes,
   cleanup: over.cleanup,
 });
@@ -125,6 +127,88 @@ describe('buildRenamePlan — identity comes from each file, not the batch', () 
       libraryPath: '/media/TV',
     }));
     expect(single.items[0]?.destination).toBe('/media/TV/The Example Show/Season 2/The Example Show - S02E05.mkv');
+  });
+});
+
+describe('buildRenamePlan — episode titles come per episode', () => {
+  // `meta` is resolved once from sourceName, so for a folder batch it holds no
+  // episode title at all (the provider only fetches an episode when season AND
+  // episode are known, and a folder name has neither). Every file then rendered
+  // `{Episode Title}` empty and the template's trailing " - " was stripped, so a
+  // whole show came out as `FBI - S05E23.mkv`.
+  const plan = buildRenamePlan(ctx({
+    sourceName: 'FBI (2018)',
+    files: [
+      { path: '/media/TV/FBI (2018)/FBI.S05E23.1080p.x265.mkv', size: BIG },
+      { path: '/media/TV/FBI (2018)/FBI.S08E01.1080p.x265.mkv', size: BIG },
+      { path: '/media/TV/FBI (2018)/FBI.S08E02.1080p.x265.mkv', size: BIG },
+    ],
+    preset: 'plex',
+    mode: 'rename_move',
+    libraryPath: '/media/TV',
+    meta: { seriesTitle: 'FBI' },
+    metaByEpisode: {
+      '5-23': { episodeTitle: 'God Complex' },
+      '8-1': { episodeTitle: 'Takeover' },
+    },
+  }));
+
+  it('gives each file its own episode title', () => {
+    const dests = plan.items.filter((i) => !i.skipped).map((i) => i.destination);
+    expect(dests).toContain('/media/TV/FBI/Season 5/FBI - S05E23 - God Complex.mkv');
+    expect(dests).toContain('/media/TV/FBI/Season 8/FBI - S08E01 - Takeover.mkv');
+  });
+
+  it('falls back cleanly when an episode has no known title', () => {
+    // S08E02 is absent from the map — it must render without a title (and without a
+    // dangling separator), not inherit a neighbouring episode's.
+    const dests = plan.items.filter((i) => !i.skipped).map((i) => i.destination);
+    expect(dests).toContain('/media/TV/FBI/Season 8/FBI - S08E02.mkv');
+  });
+
+  it('keeps the series title from the batch meta', () => {
+    expect(plan.items.every((i) => !i.destination || i.destination.includes('/FBI/'))).toBe(true);
+  });
+});
+
+describe('buildRenamePlan — reports a file sitting in the wrong show folder', () => {
+  // No rename mode relocates across show folders: rename_in_place deliberately keeps
+  // the file in its current show folder, and a rename_move would fork the library's
+  // "FBI International (2021)" into a bare template-derived "FBI International". So a
+  // misfiled episode is otherwise invisible — it just gets tidied in the wrong place.
+  const showFolderFor = (title: string): string | undefined =>
+    title === 'FBI International' ? '/media/TV/FBI International (2021)' : undefined;
+
+  it('warns when the identified series has its own folder elsewhere', () => {
+    const plan = buildRenamePlan(ctx({
+      sourceName: 'FBI (2018)',
+      files: [{ path: '/media/TV/FBI (2018)/FBI.International.S02E13.1080p.x265.mkv', size: BIG }],
+      preset: 'plex',
+      mode: 'rename_in_place',
+      libraryPath: '/media/TV',
+      showFolderFor,
+    }));
+    const warn = plan.warnings.find((w) => w.includes('sits in'));
+    expect(warn).toContain('FBI International');
+    expect(warn).toContain('/media/TV/FBI International (2021)');
+    // Report only — the file is still planned into its CURRENT folder, not moved.
+    expect(plan.items[0]?.destination).toBe(
+      '/media/TV/FBI (2018)/Season 2/FBI International - S02E13.mkv',
+    );
+  });
+
+  it('stays quiet for a file already in its own show folder', () => {
+    const plan = buildRenamePlan(ctx({
+      sourceName: 'FBI International (2021)',
+      files: [
+        { path: '/media/TV/FBI International (2021)/FBI.International.S02E13.1080p.x265.mkv', size: BIG },
+      ],
+      preset: 'plex',
+      mode: 'rename_in_place',
+      libraryPath: '/media/TV',
+      showFolderFor,
+    }));
+    expect(plan.warnings.filter((w) => w.includes('sits in'))).toEqual([]);
   });
 });
 

@@ -79,8 +79,31 @@ export interface RenameContext {
   libraryPath: string;
   /** Optional override template; falls back to the preset default for the kind. */
   template?: string;
-  /** Optional metadata enrichment (episode/movie titles). */
+  /**
+   * Batch-level metadata enrichment (series/movie title). For a multi-episode
+   * batch this cannot carry an episode title — see `metaByEpisode`.
+   */
   meta?: EpisodeMeta;
+  /**
+   * Per-episode metadata keyed `"{season}-{episode}"`.
+   *
+   * `meta` is resolved once from `sourceName`, so for a batch it holds at most ONE
+   * episode's title — and when `sourceName` is a show folder (no `SxxEyy`) it holds
+   * none at all, because the provider only fetches an episode when both season and
+   * episode are known. Either way `{Episode Title}` rendered empty for every file
+   * and the template's trailing `- {Episode Title}` was stripped, so a whole folder
+   * came out as `Show - S05E23.mkv`. Keys present here win over `meta` per file.
+   */
+  metaByEpisode?: Record<string, EpisodeMeta>;
+  /**
+   * Resolve the library's EXISTING folder for an identified series, or undefined
+   * when the library has no folder for it. Used only to REPORT a file sitting in
+   * the wrong show's folder — nothing is relocated on the strength of it, because
+   * `rename_in_place` deliberately keeps a file in its current show folder (see
+   * `resolveDestination`) and a template-derived move would fork `Show (2021)/`
+   * into a bare `Show/`. Reporting is what makes the mismatch visible at all.
+   */
+  showFolderFor?: (seriesTitle: string) => string | undefined;
   /** Min bytes for a file to NOT be treated as a sample (default 50 MB). */
   sampleMaxBytes?: number;
   /** Optional junk-cleanup rules (delete patterns + subtitle language filter). */
@@ -419,6 +442,12 @@ export function isSeasonContainer(name: string): boolean {
  * The show (or movie) folder a source file already lives in — i.e. its parent
  * directory, climbing past a "Season NN"/"Specials" container if present.
  */
+/** Path equality for comparing folders: trailing separators and case folded. */
+function samePath(a: string, b: string): boolean {
+  const norm = (p: string): string => p.replace(/[/\\]+$/, '').toLowerCase();
+  return norm(a) === norm(b);
+}
+
 export function showFolderRoot(source: string): string {
   const dir = path.dirname(source);
   return isSeasonContainer(path.basename(dir)) ? path.dirname(dir) : dir;
@@ -509,6 +538,30 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
     const c = classifyFile(f.path, fileKind, sampleMax, f.size);
     if (c.isSubtitle) continue; // handled in second pass
 
+    // Episode metadata for THIS file. The batch `meta` supplies the series title;
+    // anything the per-episode map knows overrides it (it is built without absent
+    // keys, so it never blanks a field the batch resolved).
+    const epKey =
+      parsed.season != null && parsed.episode != null ? `${parsed.season}-${parsed.episode}` : null;
+    const perEpisode = epKey ? ctx.metaByEpisode?.[epKey] : undefined;
+    const fileMeta: EpisodeMeta | undefined =
+      perEpisode || ctx.meta ? { ...ctx.meta, ...(perEpisode ?? {}) } : undefined;
+
+    // Report-only: a file whose identified series has its own folder in this
+    // library, but which is sitting somewhere else. No mode relocates across show
+    // folders today, so without this the mismatch is invisible.
+    if ((fileKind === 'tv' || fileKind === 'anime') && ctx.showFolderFor && path.isAbsolute(f.path)) {
+      const series = fileMeta?.seriesTitle ?? parsed.title;
+      const known = series ? ctx.showFolderFor(series) : undefined;
+      const current = showFolderRoot(f.path);
+      if (known && samePath(known, current) === false) {
+        warnings.push(
+          `"${f.path}" is identified as "${series}" but sits in "${current}". ` +
+            `That show's folder is "${known}" — move it there manually; no rename mode relocates across show folders.`,
+        );
+      }
+    }
+
     if (c.isSample) {
       items.push({ source: f.path, destination: null, action: 'skip', kind: c.kind, reason: 'sample file ignored', skipped: true, isSubtitle: false, isSample: true, isExtra: false });
       continue;
@@ -520,7 +573,7 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
       continue;
     }
 
-    const tokens = buildTokens(parsed, c.kind, c.ext, ctx.meta, range);
+    const tokens = buildTokens(parsed, c.kind, c.ext, fileMeta, range);
     let rel = renderTemplate(template, tokens);
 
     // Guard: a corrupt/misconfigured template can render to garbage (e.g. a bare
