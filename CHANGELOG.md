@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.34.8] - 2026-07-19
+
+### Fixed
+- Stop the renamer moving a show's `theme.mp3` into a season folder.
+
 ## [0.34.7] - 2026-07-19
 
 ### Fixed
