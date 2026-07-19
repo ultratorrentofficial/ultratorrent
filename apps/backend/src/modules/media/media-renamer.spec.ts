@@ -20,7 +20,7 @@ const ctx = (over: Partial<RenameContext>): RenameContext => ({
   libraryPath: over.libraryPath ?? '/media',
   template: over.template,
   meta: over.meta,
-  metaByEpisode: over.metaByEpisode,
+  episodeMetaFor: over.episodeMetaFor,
   showFolderFor: over.showFolderFor,
   sampleMaxBytes: over.sampleMaxBytes,
   cleanup: over.cleanup,
@@ -147,9 +147,13 @@ describe('buildRenamePlan — episode titles come per episode', () => {
     mode: 'rename_move',
     libraryPath: '/media/TV',
     meta: { seriesTitle: 'FBI' },
-    metaByEpisode: {
-      '5-23': { episodeTitle: 'God Complex' },
-      '8-1': { episodeTitle: 'Takeover' },
+    episodeMetaFor: (series, season, episode) => {
+      const key = `${series}|${season}-${episode}`;
+      const titles: Record<string, string> = {
+        'FBI|5-23': 'God Complex',
+        'FBI|8-1': 'Takeover',
+      };
+      return titles[key] ? { episodeTitle: titles[key] } : undefined;
     },
   }));
 
@@ -168,6 +172,52 @@ describe('buildRenamePlan — episode titles come per episode', () => {
 
   it('keeps the series title from the batch meta', () => {
     expect(plan.items.every((i) => !i.destination || i.destination.includes('/FBI/'))).toBe(true);
+  });
+
+  it('does not give one show the title of ANOTHER show with the same episode number', () => {
+    // A folder can hold two shows — FBI (2018) accumulated FBI International files.
+    // Keyed on season/episode alone, "FBI International S02E13" inherited the title
+    // AND the series name of "FBI S02E13" ("Payback"), so the rename would have
+    // written a wrong name to disk. Worse than a missing title.
+    const mixed = buildRenamePlan(ctx({
+      sourceName: 'FBI (2018)',
+      files: [
+        { path: '/media/TV/FBI (2018)/FBI.S02E13.1080p.x265.mkv', size: BIG },
+        { path: '/media/TV/FBI (2018)/FBI.International.S02E13.1080p.x265.mkv', size: BIG },
+      ],
+      preset: 'plex',
+      mode: 'rename_move',
+      libraryPath: '/media/TV',
+      meta: { seriesTitle: 'FBI' },
+      episodeMetaFor: (series, season, episode) => {
+        if (season !== 2 || episode !== 13) return undefined;
+        if (series === 'FBI') return { episodeTitle: 'Payback', seriesTitle: 'FBI' };
+        if (series === 'FBI International')
+          return { episodeTitle: 'Blood Feud', seriesTitle: 'FBI International' };
+        return undefined;
+      },
+    }));
+    const dests = mixed.items.filter((i) => !i.skipped).map((i) => i.destination);
+    expect(dests).toContain('/media/TV/FBI/Season 2/FBI - S02E13 - Payback.mkv');
+    expect(dests).toContain(
+      '/media/TV/FBI International/Season 2/FBI International - S02E13 - Blood Feud.mkv',
+    );
+  });
+
+  it('does not stamp the batch series title onto a file from another show', () => {
+    // Even with no per-episode data, a file naming a different series must not be
+    // renamed into the batch's show.
+    const mixed = buildRenamePlan(ctx({
+      sourceName: 'FBI (2018)',
+      files: [{ path: '/media/TV/FBI (2018)/FBI.International.S02E13.1080p.x265.mkv', size: BIG }],
+      preset: 'plex',
+      mode: 'rename_move',
+      libraryPath: '/media/TV',
+      meta: { seriesTitle: 'FBI' },
+    }));
+    expect(mixed.items[0]?.destination).toBe(
+      '/media/TV/FBI International/Season 2/FBI International - S02E13.mkv',
+    );
   });
 });
 

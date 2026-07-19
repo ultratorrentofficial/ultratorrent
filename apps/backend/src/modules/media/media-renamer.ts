@@ -85,16 +85,26 @@ export interface RenameContext {
    */
   meta?: EpisodeMeta;
   /**
-   * Per-episode metadata keyed `"{season}-{episode}"`.
+   * Per-episode metadata for one file, resolved by SERIES as well as season/episode.
    *
    * `meta` is resolved once from `sourceName`, so for a batch it holds at most ONE
    * episode's title — and when `sourceName` is a show folder (no `SxxEyy`) it holds
    * none at all, because the provider only fetches an episode when both season and
    * episode are known. Either way `{Episode Title}` rendered empty for every file
    * and the template's trailing `- {Episode Title}` was stripped, so a whole folder
-   * came out as `Show - S05E23.mkv`. Keys present here win over `meta` per file.
+   * came out as `Show - S05E23.mkv`.
+   *
+   * The series argument is not optional detail: one folder can hold episodes of more
+   * than one show (which is how the FBI folder accumulated FBI International), and a
+   * map keyed on season/episode alone hands `FBI International S02E13` the title of
+   * `FBI S02E13`. A wrong title is worse than a missing one — it gets written to
+   * disk. Whatever this returns wins over `meta` for that file.
    */
-  metaByEpisode?: Record<string, EpisodeMeta>;
+  episodeMetaFor?: (
+    seriesTitle: string | undefined,
+    season: number,
+    episode: number,
+  ) => EpisodeMeta | undefined;
   /**
    * Resolve the library's EXISTING folder for an identified series, or undefined
    * when the library has no folder for it. Used only to REPORT a file sitting in
@@ -541,11 +551,24 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
     // Episode metadata for THIS file. The batch `meta` supplies the series title;
     // anything the per-episode map knows overrides it (it is built without absent
     // keys, so it never blanks a field the batch resolved).
-    const epKey =
-      parsed.season != null && parsed.episode != null ? `${parsed.season}-${parsed.episode}` : null;
-    const perEpisode = epKey ? ctx.metaByEpisode?.[epKey] : undefined;
+    // Resolved against THIS file's own series, not the batch's — see episodeMetaFor.
+    const perEpisode =
+      parsed.season != null && parsed.episode != null
+        ? ctx.episodeMetaFor?.(parsed.title ?? undefined, parsed.season, parsed.episode)
+        : undefined;
+    // The batch `meta` describes ONE series. When this file names a different one,
+    // its series title must not be stamped onto this file — that is the same
+    // cross-show leak as the episode title, and it renames the file into the wrong
+    // show. Drop it and let the file's own parsed title through.
+    const batchMeta =
+      ctx.meta?.seriesTitle &&
+      parsed.title &&
+      sourceParsed.title &&
+      parsed.title.toLowerCase() !== sourceParsed.title.toLowerCase()
+        ? { ...ctx.meta, seriesTitle: undefined }
+        : ctx.meta;
     const fileMeta: EpisodeMeta | undefined =
-      perEpisode || ctx.meta ? { ...ctx.meta, ...(perEpisode ?? {}) } : undefined;
+      perEpisode || batchMeta ? { ...batchMeta, ...(perEpisode ?? {}) } : undefined;
 
     // Report-only: a file whose identified series has its own folder in this
     // library, but which is sitting somewhere else. No mode relocates across show

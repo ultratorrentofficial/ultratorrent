@@ -327,7 +327,7 @@ export class MediaService {
       )
       .catch(() => ({}));
 
-    const [metaByEpisode, showFolderFor] = await Promise.all([
+    const [episodeMetaFor, showFolderFor] = await Promise.all([
       this.episodeTitlesFor(files, sourceName),
       this.showFolderResolver(req.libraryPath),
     ]);
@@ -340,7 +340,7 @@ export class MediaService {
       libraryPath: req.libraryPath,
       template: req.template,
       meta,
-      metaByEpisode,
+      episodeMetaFor,
       showFolderFor,
       cleanup: await this.getCleanup(),
     });
@@ -361,7 +361,9 @@ export class MediaService {
   private async episodeTitlesFor(
     files: MediaFileInput[],
     sourceName: string,
-  ): Promise<Record<string, EpisodeMeta> | undefined> {
+  ): Promise<
+    ((seriesTitle: string | undefined, season: number, episode: number) => EpisodeMeta | undefined) | undefined
+  > {
     // Deliberately NOT gated on the batch `kind`. That kind comes from parsing
     // `sourceName`, and a show folder like "FBI (2018)" has no SxxEyy but does have a
     // bare year, so it classifies as a MOVIE — which would skip every episode in the
@@ -388,11 +390,13 @@ export class MediaService {
 
     const shows = await this.prisma.mediaShow.findMany({
       where: { canonicalKey: { in: [...wanted.keys()] }, imdbId: { not: null } },
-      select: { canonicalKey: true, imdbId: true },
+      select: { canonicalKey: true, imdbId: true, title: true },
     });
     if (shows.length === 0) return undefined;
 
-    const out: Record<string, EpisodeMeta> = {};
+    // Keyed by SERIES as well as episode: a folder holding two shows would otherwise
+    // give "FBI International S02E13" the title of "FBI S02E13".
+    const out = new Map<string, EpisodeMeta>();
     for (const show of shows) {
       const keys = wanted.get(show.canonicalKey);
       if (!keys) continue;
@@ -410,11 +414,20 @@ export class MediaService {
       for (const r of relevant) {
         const title = byTconst.get(r.episodeTitleId);
         // Only set the key when there is a real title — an absent one must fall
-        // through to the batch meta rather than blank it.
-        if (title) out[`${r.seasonNumber}-${r.episodeNumber}`] = { episodeTitle: title };
+        // through to the batch meta rather than blank it. The library's own show
+        // title rides along so a file from a second show in the folder is named for
+        // ITS series, not the batch's.
+        if (title) {
+          out.set(`${show.canonicalKey}|${r.seasonNumber}-${r.episodeNumber}`, {
+            episodeTitle: title,
+            seriesTitle: show.title,
+          });
+        }
       }
     }
-    return Object.keys(out).length > 0 ? out : undefined;
+    if (out.size === 0) return undefined;
+    return (seriesTitle, season, episode) =>
+      seriesTitle ? out.get(`${showCanonicalKey(seriesTitle)}|${season}-${episode}`) : undefined;
   }
 
   /**
