@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.34.2] - 2026-07-19
+
+### Fixed
+- Fix the Renamer producing one destination for every file in a show folder, reported as a chain of duplicate-destination warnings.
+
 ## [0.34.1] - 2026-07-19
 
 ### Fixed
