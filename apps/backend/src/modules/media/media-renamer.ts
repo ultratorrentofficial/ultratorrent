@@ -156,6 +156,18 @@ const SUBTITLE_EXT = new Set(['.srt', '.ass', '.ssa', '.sub', '.idx', '.vtt']);
 const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.wma']);
 const AUDIOBOOK_EXT = new Set(['.m4b', '.aa', '.aax']);
 const EXTRA_HINTS = /\b(featurette|extras?|behind[ ._-]the[ ._-]scenes|deleted|interview|trailer|bonus)\b/i;
+/**
+ * Audio that belongs to the FOLDER rather than to any episode — Plex, Jellyfin and
+ * Emby all read `theme.mp3` as a show's theme tune, exactly as they read `poster.jpg`
+ * and `fanart.jpg` as its artwork.
+ *
+ * The sidecar pass already documents `theme.mp3` as show-level and leaves it alone,
+ * but it never gets there: `AUDIO_EXT` classifies it as `music`, so it was planned as
+ * a PRIMARY in the first pass. With no season or episode to render it came out as
+ * `Season/4400 - SE.mp3` — a real plan item on the live library that would have moved
+ * a show's theme into a bogus season folder and broken it for every media server.
+ */
+const SHOW_LEVEL_AUDIO = /^(?:theme(?:[-_ ]?music)?|backdrop|background)\d*$/i;
 const SAMPLE_HINTS = /\bsample\b/i;
 const LANG_TAG = /\.([a-z]{2,3})(\.(forced|sdh|cc))?$/i;
 
@@ -532,6 +544,10 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
   // Primary video destinations remembered so subtitles can mirror them.
   const videoDest: { source: string; destNoExt: string }[] = [];
 
+  // Does this batch contain any video at all? Decides whether a `theme.mp3` is a
+  // show's theme tune (video present) or an ordinary track (a music folder).
+  const batchHasVideo = ctx.files.some((f) => VIDEO_EXT.has(path.extname(f.path).toLowerCase()));
+
   // Cleanup pass: mark junk for deletion BEFORE anything is moved. Only for the
   // two modes that relocate the original — deleting the source under copy/link
   // would touch the seeding copy. A primary video is never deletable.
@@ -621,6 +637,14 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
 
     if (c.isSample) {
       items.push({ source: f.path, destination: null, action: 'skip', kind: c.kind, reason: 'sample file ignored', skipped: true, isSubtitle: false, isSample: true, isExtra: false });
+      continue;
+    }
+
+    // A show's theme tune, left exactly where it is. Guarded on the batch holding
+    // video too: beside episodes, `theme.mp3` is the show's theme; in a music folder
+    // with no video in sight it is an ordinary track and must still be renamed.
+    if (AUDIO_EXT.has(c.ext) && batchHasVideo && SHOW_LEVEL_AUDIO.test(path.basename(f.path, c.ext))) {
+      items.push({ source: f.path, destination: null, action: 'skip', kind: c.kind, reason: 'show-level theme audio (belongs to the folder)', skipped: true, isSubtitle: false, isSample: false, isExtra: false });
       continue;
     }
     if (c.kind === 'general') {

@@ -221,6 +221,43 @@ describe('buildRenamePlan — episode titles come per episode', () => {
   });
 });
 
+describe('buildRenamePlan — show-level theme audio stays put', () => {
+  it('leaves theme.mp3 alone beside episodes', () => {
+    // AUDIO_EXT classifies it as `music`, so it was planned as a PRIMARY with no
+    // season or episode to render — `Season/4400 - SE.mp3` was a real plan item on
+    // the live library, which would have moved a show's theme into a bogus season
+    // folder and broken it for every media server.
+    const plan = buildRenamePlan(ctx({
+      sourceName: '4400 (2021)',
+      files: [
+        { path: '/media/TV/4400 (2021)/Season 1/4400 - S01E01 - Past Is Prologue.mp4', size: BIG },
+        { path: '/media/TV/4400 (2021)/theme.mp3', size: 4_000_000 },
+      ],
+      preset: 'plex',
+      mode: 'rename_move',
+      libraryPath: '/media/TV',
+    }));
+    const theme = plan.items.find((i) => i.source.endsWith('theme.mp3'));
+    expect(theme?.skipped).toBe(true);
+    expect(theme?.destination).toBeNull();
+    // The episode beside it is still planned as normal.
+    expect(plan.items.find((i) => i.source.endsWith('.mp4'))?.skipped).toBe(false);
+  });
+
+  it('still renames an ordinary track in a music folder', () => {
+    // No video in the batch — this is a music library, where `theme.mp3` is just a
+    // track and must not be silently skipped.
+    const plan = buildRenamePlan(ctx({
+      sourceName: 'Some Album',
+      files: [{ path: '/media/Music/Some Album/theme.mp3', size: 4_000_000 }],
+      preset: 'plex',
+      mode: 'rename_move',
+      libraryPath: '/media/Music',
+    }));
+    expect(plan.items[0]?.reason).not.toContain('show-level');
+  });
+});
+
 describe('buildRenamePlan — provider id tags never reach a path', () => {
   it('renames episodes inside a tinyMediaManager-tagged folder', () => {
     // `{Series Title}` rendered the tag verbatim, its braces tripped
