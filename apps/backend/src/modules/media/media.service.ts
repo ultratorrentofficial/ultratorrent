@@ -328,7 +328,7 @@ export class MediaService {
       .catch(() => ({}));
 
     const [metaByEpisode, showFolderFor] = await Promise.all([
-      this.episodeTitlesFor(files, sourceName, kind),
+      this.episodeTitlesFor(files, sourceName),
       this.showFolderResolver(req.libraryPath),
     ]);
 
@@ -361,9 +361,12 @@ export class MediaService {
   private async episodeTitlesFor(
     files: MediaFileInput[],
     sourceName: string,
-    kind: MediaLookup['kind'],
   ): Promise<Record<string, EpisodeMeta> | undefined> {
-    if (kind !== 'tv' && kind !== 'anime') return undefined;
+    // Deliberately NOT gated on the batch `kind`. That kind comes from parsing
+    // `sourceName`, and a show folder like "FBI (2018)" has no SxxEyy but does have a
+    // bare year, so it classifies as a MOVIE — which would skip every episode in the
+    // folder. Gating per file on "has a season and an episode" is self-limiting: a
+    // real movie batch yields no keys and returns undefined anyway.
     const { parseTorrentName } = await import('./../rss/torrent-name-parser');
     const { showCanonicalKey } = await import('./series-grouping');
 
