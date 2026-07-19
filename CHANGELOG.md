@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.34.4] - 2026-07-19
+
+### Fixed
+- Fix the per-episode title lookup skipping entire show folders. The lookup was gated on the batch `kind`, which is derived from parsing `sourceName` — and a show folder like `FBI (2018)` carries no `SxxEyy` but does carry a bare year, so it classifies as a *movie* and every episode inside was skipped. The gate is now per file (has a season and an episode), which is self-limiting: a genuine movie batch produces no keys and returns nothing, as before.
+
 ## [0.34.3] - 2026-07-19
 
 ### Fixed
