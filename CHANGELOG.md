@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.34.3] - 2026-07-19
+
+### Fixed
+- Fix the Renamer dropping the episode title from every name in a folder preview, and surface files sitting in the wrong show folder.
+
 ## [0.34.2] - 2026-07-19
 
 ### Fixed
