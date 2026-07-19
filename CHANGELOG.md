@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.34.5] - 2026-07-19
+
+### Fixed
+- Fix the per-episode title lookup handing one show another show's episode title. The map was keyed on `"{season}-{episode}"` alone, but a folder can hold more than one series — which is exactly how `FBI (2018)` accumulated FBI International files. `FBI International S02E13` was therefore named `Payback`, the title of `FBI S02E13`, and the batch `meta.seriesTitle` stamped the batch's series name onto it as well. A wrong name is worse than a missing one, because a rename writes it to disk.
+
 ## [0.34.4] - 2026-07-19
 
 ### Fixed
