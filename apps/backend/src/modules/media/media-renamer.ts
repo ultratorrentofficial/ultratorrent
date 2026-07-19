@@ -452,10 +452,16 @@ export function isSeasonContainer(name: string): boolean {
  * The show (or movie) folder a source file already lives in — i.e. its parent
  * directory, climbing past a "Season NN"/"Specials" container if present.
  */
-/** Path equality for comparing folders: trailing separators and case folded. */
-function samePath(a: string, b: string): boolean {
-  const norm = (p: string): string => p.replace(/[/\\]+$/, '').toLowerCase();
-  return norm(a) === norm(b);
+/** Trailing separators dropped and case folded, for comparing folder paths. */
+function normFolder(p: string): string {
+  return p.replace(/[/\\]+$/, '').toLowerCase();
+}
+
+/** Is `file` inside `folder` (at any depth)? Segment-aware, so `/FBI` ≠ `/FBI2`. */
+function isUnder(file: string, folder: string): boolean {
+  const f = normFolder(folder);
+  const p = normFolder(file);
+  return p === f || p.startsWith(f + '/') || p.startsWith(f + '\\');
 }
 
 export function showFolderRoot(source: string): string {
@@ -577,7 +583,13 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
       const series = fileMeta?.seriesTitle ?? parsed.title;
       const known = series ? ctx.showFolderFor(series) : undefined;
       const current = showFolderRoot(f.path);
-      if (known && samePath(known, current) === false) {
+      // Ask whether the file lives ANYWHERE under its series' folder, not whether its
+      // immediate show-folder matches. `showFolderRoot` climbs past `Season NN` but
+      // not past a release directory, so a correctly-filed
+      // `FBI International (2021)/FBI.International.S01E01…[TGx]/file.mkv` looked
+      // misfiled — 27 of the 36 warnings on the live library were this false
+      // positive, which is how a useful signal turns into noise.
+      if (known && !isUnder(f.path, known)) {
         warnings.push(
           `"${f.path}" is identified as "${series}" but sits in "${current}". ` +
             `That show's folder is "${known}" — move it there manually; no rename mode relocates across show folders.`,

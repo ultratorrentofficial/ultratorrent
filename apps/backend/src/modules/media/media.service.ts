@@ -276,6 +276,14 @@ export class MediaService {
     const files: MediaFileInput[] = [];
     const walk = async (dir: string) => {
       for (const e of await readdir(dir, { withFileTypes: true })) {
+        // Never descend into a dot-directory. These hold other tools' bookkeeping,
+        // not library content: tinyMediaManager's `.deletedByTMM` trash and QNAP's
+        // `.@__thumb` caches were both being walked, so deleted episodes and
+        // thumbnail stubs were planned as real media — `.@__thumb/Season 2/
+        // default9-1-1 - S02E14.mkv` was a genuine plan item, and `.deletedByTMM`
+        // alone raised 38 misfiled-show warnings. Renaming out of another tool's
+        // trash is also how a "deleted" file gets resurrected into the library.
+        if (e.name.startsWith('.')) continue;
         const full = path.join(dir, e.name);
         if (e.isDirectory()) await walk(full);
         else {
@@ -388,10 +396,18 @@ export class MediaService {
     }
     if (wanted.size === 0) return undefined;
 
-    const shows = await this.prisma.mediaShow.findMany({
-      where: { canonicalKey: { in: [...wanted.keys()] }, imdbId: { not: null } },
-      select: { canonicalKey: true, imdbId: true, title: true },
+    // Matched on a FRESHLY computed key, never the stored `canonicalKey`: that column
+    // is only rewritten by a scan, so a library scanned before the key rules changed
+    // (e.g. before provider id tags like `{tvdb-396564}` were stripped) would keep
+    // failing to match until someone rescanned. Computing here makes the renamer
+    // correct immediately; the stored value catches up on the next scan.
+    const rows = await this.prisma.mediaShow.findMany({
+      where: { imdbId: { not: null } },
+      select: { imdbId: true, title: true, path: true },
     });
+    const shows = rows
+      .map((r) => ({ ...r, canonicalKey: showCanonicalKey(r.title) }))
+      .filter((r) => wanted.has(r.canonicalKey));
     if (shows.length === 0) return undefined;
 
     // Keyed by SERIES as well as episode: a folder holding two shows would otherwise
@@ -441,10 +457,19 @@ export class MediaService {
     const { showCanonicalKey } = await import('./series-grouping');
     const shows = await this.prisma.mediaShow.findMany({
       where: { library: { path: libraryPath } },
-      select: { canonicalKey: true, path: true },
+      select: { title: true, path: true },
     });
     if (shows.length === 0) return undefined;
-    const byKey = new Map(shows.map((s) => [s.canonicalKey, s.path]));
+    // Keys computed here rather than read from the stored column (see above), and
+    // registered under BOTH the show's title and its folder name — a library where
+    // the two disagree would otherwise resolve under only one of them.
+    const byKey = new Map<string, string>();
+    for (const s of shows) {
+      for (const name of [s.title, path.basename(s.path)]) {
+        const k = showCanonicalKey(name);
+        if (k) byKey.set(k, s.path);
+      }
+    }
     return (seriesTitle: string) => byKey.get(showCanonicalKey(seriesTitle));
   }
 

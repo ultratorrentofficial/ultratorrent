@@ -426,6 +426,23 @@ describe('showCanonicalKey', () => {
     expect(showCanonicalKey('1883')).toBe('1883');
     expect(showCanonicalKey('1923 (2022)')).toBe('1923');
   });
+
+  it('drops the provider id tag tinyMediaManager/Jellyfin append', () => {
+    // Left in, the tag survives `normalize` as ordinary words AND pushes the year
+    // out of trailing position, so `4400 (2021) {tvdb-396564}` keyed as
+    // "4400 2021 tvdb 396564" while its own episodes keyed as "4400". The folder
+    // never matched its contents and every episode in it lost its title.
+    expect(showCanonicalKey('4400 (2021) {tvdb-396564}')).toBe('4400');
+    expect(showCanonicalKey('The Bear (2022) {tmdb-136315}')).toBe('the bear');
+    expect(showCanonicalKey('Severance [imdbid-tt11280740]')).toBe('severance');
+    // The bare title keys identically — that agreement is the whole point.
+    expect(showCanonicalKey('4400 (2021) {tvdb-396564}')).toBe(showCanonicalKey('4400'));
+  });
+
+  it('does not strip braces that are part of the title', () => {
+    expect(showCanonicalKey('Devs {2020}')).toBe(showCanonicalKey('Devs {2020}'));
+    expect(showCanonicalKey('Mr Robot')).not.toBe(showCanonicalKey('Mr Robot 2'));
+  });
 });
 
 import { showFolderOf } from './media-scanner.service';

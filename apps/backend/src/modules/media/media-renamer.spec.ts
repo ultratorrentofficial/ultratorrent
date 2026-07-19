@@ -247,6 +247,40 @@ describe('buildRenamePlan — reports a file sitting in the wrong show folder', 
     );
   });
 
+  it('stays quiet for a file in a release subfolder of its own show folder', () => {
+    // showFolderRoot climbs past `Season NN` but not past a release directory, so
+    // comparing immediate folders flagged correctly-filed files. 27 of 36 warnings on
+    // the live library were this false positive.
+    const plan = buildRenamePlan(ctx({
+      sourceName: 'FBI International (2021)',
+      files: [
+        {
+          path: '/media/TV/FBI International (2021)/FBI.International.S01E01.720p.x265-MiNX[TGx]/file.mkv',
+          size: BIG,
+        },
+      ],
+      preset: 'plex',
+      mode: 'rename_in_place',
+      libraryPath: '/media/TV',
+      showFolderFor,
+    }));
+    expect(plan.warnings.filter((w) => w.includes('sits in'))).toEqual([]);
+  });
+
+  it('does not treat a sibling with a shared prefix as the show folder', () => {
+    const plan = buildRenamePlan(ctx({
+      sourceName: 'FBI International 2 (2030)',
+      files: [
+        { path: '/media/TV/FBI International 2 (2030)/FBI.International.S02E13.x265.mkv', size: BIG },
+      ],
+      preset: 'plex',
+      mode: 'rename_in_place',
+      libraryPath: '/media/TV',
+      showFolderFor,
+    }));
+    expect(plan.warnings.some((w) => w.includes('sits in'))).toBe(true);
+  });
+
   it('stays quiet for a file already in its own show folder', () => {
     const plan = buildRenamePlan(ctx({
       sourceName: 'FBI International (2021)',
