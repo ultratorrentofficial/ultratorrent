@@ -410,53 +410,69 @@ export class MissingEpisodesService {
   }
 
   /**
-   * Owned `season-episode` keys for a series. Primary path uses the structured
-   * `seriesImdbId` link; falls back to case-insensitive title match for libraries
-   * that haven't been re-identified yet.
+   * Owned `season-episode` keys for a series, from the UNION of two lookups: the
+   * structured `seriesImdbId` link, and a title match for items that carry no series
+   * id yet.
+   *
+   * The title lookup used to run only when the id lookup returned nothing. That made
+   * enrichment all-or-nothing per show, which real libraries never are: a folder
+   * acquires files over years, and only the ones a later scan touched come back with
+   * a `seriesImdbId`. One enriched item was enough to make the id query non-empty,
+   * the title lookup then never ran, and every un-enriched sibling was reported
+   * missing while sitting on disk. (Observed on *Godfather of Harlem*: S03-S04
+   * enriched, S01E01 and all of S02 not — eleven episodes present but counted
+   * missing.) Unioning is what makes partial enrichment a non-event.
    */
   private async ownedEpisodeSet(
     seriesTconst: string,
     seriesTitle: string,
     seriesStartYear?: number | null,
   ): Promise<Set<string>> {
-    let rows = await this.prisma.mediaItem.findMany({
-      where: { seriesImdbId: seriesTconst, season: { not: null }, episode: { not: null } },
-      select: { season: true, episode: true, episodeEnd: true },
-    });
-    if (rows.length === 0 && seriesTitle) {
-      // Fallback for a library whose items were never enriched with a series id. It
-      // matches on TITLE, which is safe only if it cannot reach ANOTHER show that
-      // happens to share the title — and shows do share titles: *The Librarians* is a
-      // 2007 Australian comedy AND a 2014 TNT drama, spelled identically. Unqualified,
-      // this fallback let a watchlist item for one of them be "owned" by the other's
-      // episodes, so the diff went looking for the wrong series' missing episodes.
-      //
-      // Two guards, both necessary:
-      //   - an item already anchored to a DIFFERENT tconst is, by its own statement,
-      //     not this series;
-      //   - a year that contradicts the series' start year is a different show. (±1:
-      //     a library folder and IMDb routinely disagree by one across a new year.)
-      rows = await this.prisma.mediaItem.findMany({
-        where: {
-          mediaType: { in: ['tv', 'anime'] },
-          title: { equals: seriesTitle, mode: 'insensitive' },
-          season: { not: null },
-          episode: { not: null },
-          AND: [
-            { OR: [{ seriesImdbId: null }, { seriesImdbId: seriesTconst }] },
-            seriesStartYear != null
-              ? {
-                  OR: [
-                    { year: null },
-                    { year: { gte: seriesStartYear - 1, lte: seriesStartYear + 1 } },
-                  ],
-                }
-              : {},
-          ],
-        },
+    // The title half matches on TITLE, which is safe only if it cannot reach ANOTHER
+    // show that happens to share the title — and shows do share titles: *The
+    // Librarians* is a 2007 Australian comedy AND a 2014 TNT drama, spelled
+    // identically. Unqualified, it would let a watchlist item for one of them be
+    // "owned" by the other's episodes, so the diff went looking for the wrong series'
+    // missing episodes.
+    //
+    // Two guards, both necessary:
+    //   - an item already anchored to a DIFFERENT tconst is, by its own statement,
+    //     not this series;
+    //   - a year that contradicts the series' start year is a different show. (±1:
+    //     a library folder and IMDb routinely disagree by one across a new year.)
+    // Both survive the move from fallback to union: the guards are what bound the
+    // title match, and neither depends on the id query having come back empty.
+    const [byId, byTitle] = await Promise.all([
+      this.prisma.mediaItem.findMany({
+        where: { seriesImdbId: seriesTconst, season: { not: null }, episode: { not: null } },
         select: { season: true, episode: true, episodeEnd: true },
-      });
-    }
+      }),
+      seriesTitle
+        ? this.prisma.mediaItem.findMany({
+            where: {
+              mediaType: { in: ['tv', 'anime'] },
+              title: { equals: seriesTitle, mode: 'insensitive' },
+              season: { not: null },
+              episode: { not: null },
+              AND: [
+                { OR: [{ seriesImdbId: null }, { seriesImdbId: seriesTconst }] },
+                seriesStartYear != null
+                  ? {
+                      OR: [
+                        { year: null },
+                        { year: { gte: seriesStartYear - 1, lte: seriesStartYear + 1 } },
+                      ],
+                    }
+                  : {},
+              ],
+            },
+            select: { season: true, episode: true, episodeEnd: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    // Overlap is expected — an enriched item whose title also matches comes back from
+    // both — and harmless, since ownership is a set of keys.
+    const rows = [...byId, ...byTitle];
 
     const owned = new Set<string>();
     for (const r of rows) {

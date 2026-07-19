@@ -323,6 +323,32 @@ describe('MissingEpisodesService', () => {
     expect(rows.find((r) => r.seasonNumber === 1 && r.episodeNumber === 1)!.status).toBe('owned');
   });
 
+  it('counts title-only items even when SOME siblings are already enriched', async () => {
+    const prisma = makePrisma();
+    // Partial enrichment is the normal state of a real library: a folder gathers files
+    // over years and only the ones a later scan touched come back with a seriesImdbId.
+    // While the title lookup was a fallback gated on the id lookup returning nothing,
+    // the single enriched item below was enough to suppress it, and E1 — sitting on
+    // disk — was reported missing. Observed live on Godfather of Harlem, where S03-S04
+    // were enriched and S01E01 plus all of S02 were not.
+    prisma.mediaItem.seed([
+      { id: 'enriched', seriesImdbId: 'ttSERIES', mediaType: 'tv', title: 'The Wire', season: 1, episode: 2 },
+      { id: 'bare', seriesImdbId: null, mediaType: 'tv', title: 'The Wire', season: 1, episode: 1 },
+    ]);
+    const svc = makeService(prisma);
+
+    const gap = await svc.scanSeries('wl1');
+
+    expect(gap.owned).toBe(2);
+    const rows = await svc.listForSeries('wl1');
+    // E1 is the one that regressed: present on disk, but title-only.
+    expect(rows.find((r) => r.seasonNumber === 1 && r.episodeNumber === 1)!.status).toBe('owned');
+    expect(rows.find((r) => r.seasonNumber === 1 && r.episodeNumber === 2)!.status).toBe('owned');
+    // E3 is genuinely absent and must stay missing — the union widens ownership, it
+    // does not blanket-own the season.
+    expect(rows.find((r) => r.seasonNumber === 1 && r.episodeNumber === 3)!.status).toBe('missing');
+  });
+
   it('does not let a SAME-TITLED other series own this one\'s episodes', async () => {
     const prisma = makePrisma();
     // Two real shows share a title, spelled identically — The Librarians is a 2007
