@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.34.1] - 2026-07-19
+
+### Fixed
+- Fix Missing Episodes counting on-disk episodes as missing when a show is only *partially* enriched.
+
 ## [0.34.0] - 2026-07-18
 
 ### Added
