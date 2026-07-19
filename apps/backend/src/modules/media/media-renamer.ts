@@ -333,6 +333,40 @@ function episodeRange(sourceName: string): { start: number; end: number } | null
 // NB: season *folders* are unpadded ("Season 8"); the SxxEyy in filenames stays
 // zero-padded (the media-server convention). `reuseExistingSeasonDir` in the
 // executor also folds a differently-padded existing folder into this one.
+/**
+ * Identity for ONE file.
+ *
+ * `ctx.sourceName` describes the BATCH — a release name, or (for a library preview) a
+ * show folder like `FBI (2018)`. Parsing only that gives every file in the batch the
+ * same identity, and when the folder carries no `SxxEyy` it gives them no season or
+ * episode at all: those tokens render empty, every episode in the show collapses onto
+ * the single destination `.../FBI/Season/FBI - SE.mkv`, and the plan comes back as one
+ * long chain of duplicate-destination warnings. `media_items` has the right season and
+ * episode for these files, but the planner never reads it — identity comes from the
+ * name — so the fix has to come from the name too.
+ *
+ * A file's own basename is where its `SxxEyy` actually lives, so parse that first and
+ * fall back to the batch parse field by field. The fallback is what keeps the old
+ * single-file behaviour intact: a torrent named `Show.S01E05.1080p` whose inner file is
+ * `video.mkv` has nothing episode-shaped in the basename, so it keeps using the release
+ * name, and a file that names its episode but not its show still inherits the title.
+ */
+function identifyFile(sourceParsed: ParsedTorrentMeta, filePath: string): ParsedTorrentMeta {
+  const own = parseTorrentName(path.basename(filePath));
+  if (own.season == null && own.episode == null && own.absoluteEpisode == null) {
+    return sourceParsed;
+  }
+  const merged: ParsedTorrentMeta = { ...sourceParsed };
+  for (const [key, value] of Object.entries(own)) {
+    // Only overwrite with something the filename actually established. `null` is this
+    // parser's "absent", and an empty array carries no more than the batch's does.
+    if (value === null || value === undefined) continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    (merged as unknown as Record<string, unknown>)[key] = value;
+  }
+  return merged;
+}
+
 function buildTokens(
   parsed: ParsedTorrentMeta,
   kind: MediaKind,
@@ -416,11 +450,13 @@ function resolveDestination(ctx: RenameContext, source: string, rel: string): st
 
 /** Build a rename plan (no IO). */
 export function buildRenamePlan(ctx: RenameContext): RenamePlan {
-  const parsed = parseTorrentName(ctx.sourceName);
-  const kind = kindFromParsed(parsed);
+  // Batch-level identity: the fallback for files whose own name says nothing, and the
+  // classification baseline for the cleanup/sidecar passes (which only care whether a
+  // file is video/subtitle/general, not which episode it is).
+  const sourceParsed = parseTorrentName(ctx.sourceName);
+  const kind = kindFromParsed(sourceParsed);
   const sampleMax = ctx.sampleMaxBytes ?? 50 * 1024 * 1024;
-  const template = templateForKind(ctx.preset, kind, ctx.template);
-  const range = episodeRange(ctx.sourceName);
+  const sourceRange = episodeRange(ctx.sourceName);
   const action = modeToAction(ctx.mode);
   const warnings: string[] = [];
   const items: RenamePlanItem[] = [];
@@ -463,7 +499,14 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
   // First pass: videos + audio (the renamable primaries).
   for (const f of ctx.files) {
     if (toDelete.has(f.path)) continue; // slated for cleanup
-    const c = classifyFile(f.path, kind, sampleMax, f.size);
+    // Identity is resolved per file, not once for the batch — see identifyFile. `kind`
+    // follows from it, so a folder that parses as a movie no longer forces every episode
+    // inside it down the movie path.
+    const parsed = identifyFile(sourceParsed, f.path);
+    const fileKind = kindFromParsed(parsed);
+    const template = templateForKind(ctx.preset, fileKind, ctx.template);
+    const range = episodeRange(path.basename(f.path)) ?? sourceRange;
+    const c = classifyFile(f.path, fileKind, sampleMax, f.size);
     if (c.isSubtitle) continue; // handled in second pass
 
     if (c.isSample) {
@@ -604,7 +647,9 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
 
   if (items.every((i) => i.skipped)) warnings.push('No renamable media files were found.');
 
-  return { mode: ctx.mode, preset: ctx.preset, libraryPath: ctx.libraryPath, kind, parsed, items, warnings };
+  // `parsed` on the plan stays the BATCH identity — it describes the request as a whole
+  // (callers surface it as "what we think this source is"), not any one file.
+  return { mode: ctx.mode, preset: ctx.preset, libraryPath: ctx.libraryPath, kind, parsed: sourceParsed, items, warnings };
 }
 
 function commonPrefix(a: string, b: string): number {

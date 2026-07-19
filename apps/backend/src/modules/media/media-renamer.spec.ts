@@ -85,6 +85,49 @@ describe('buildRenamePlan — TV', () => {
   });
 });
 
+describe('buildRenamePlan — identity comes from each file, not the batch', () => {
+  // A library preview passes the SHOW FOLDER as sourceName. It carries no SxxEyy, so
+  // parsing only it left season/episode undefined for every file: each one rendered to
+  // the same `FBI/Season/FBI - SE.mkv`, and the plan came back as a chain of duplicate
+  // -destination warnings with 89 episodes aimed at one path. Observed live on
+  // "FBI (2018)". Each file's own basename is where its episode number actually is.
+  const plan = buildRenamePlan(ctx({
+    sourceName: 'FBI (2018)',
+    files: [
+      { path: '/downloads/TV/TV_Shows/FBI (2018)/FBI.S08E22.Defector.1080p.HEVC.x265-MeGusta.mkv', size: BIG },
+      { path: '/downloads/TV/TV_Shows/FBI (2018)/Season 6/FBI - S06E01 - All the Rage.mkv', size: BIG },
+      { path: '/downloads/TV/TV_Shows/FBI (2018)/FBI.S05E16.1080p.HEVC.x265-MeGusta.mkv', size: BIG },
+    ],
+    preset: 'plex',
+    mode: 'rename_move',
+    libraryPath: '/media/TV',
+  }));
+
+  it('gives each episode its own season and episode number', () => {
+    const dests = plan.items.filter((i) => !i.skipped).map((i) => i.destination);
+    expect(dests).toContain('/media/TV/FBI/Season 8/FBI - S08E22.mkv');
+    expect(dests).toContain('/media/TV/FBI/Season 6/FBI - S06E01.mkv');
+    expect(dests).toContain('/media/TV/FBI/Season 5/FBI - S05E16.mkv');
+  });
+
+  it('reports no duplicate destinations', () => {
+    expect(plan.warnings.filter((w) => w.includes('Duplicate destination'))).toEqual([]);
+  });
+
+  it('still falls back to the release name when the file name says nothing', () => {
+    // Single-file torrent: the episode lives in the release name, the inner file is
+    // generically named. The batch parse has to keep winning here.
+    const single = buildRenamePlan(ctx({
+      sourceName: 'The.Example.Show.S02E05.1080p.WEB-DL.x265-GROUP',
+      files: [{ path: 'video.mkv', size: BIG }],
+      preset: 'plex',
+      mode: 'rename_move',
+      libraryPath: '/media/TV',
+    }));
+    expect(single.items[0]?.destination).toBe('/media/TV/The Example Show/Season 2/The Example Show - S02E05.mkv');
+  });
+});
+
 describe('buildRenamePlan — metadata sidecars follow their video', () => {
   // A .nfo / -thumb.jpg is named after its video. Renaming the video and leaving the
   // sidecar behind orphans it — the .nfo keeps the old basename and describes nothing,
