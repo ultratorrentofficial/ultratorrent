@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.34.7] - 2026-07-19
+
+### Fixed
+- Fix every episode in a tinyMediaManager-tagged folder being skipped as "invalid naming template".
+
 ## [0.34.6] - 2026-07-19
 
 ### Fixed
