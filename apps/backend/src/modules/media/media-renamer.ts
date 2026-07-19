@@ -408,8 +408,10 @@ function buildTokens(
   range: { start: number; end: number } | null,
 ): TemplateTokens {
   const cleanExt = ext.replace(/^\./, '');
-  const series = meta?.seriesTitle ?? parsed.title ?? 'Unknown';
-  const movie = meta?.movieTitle ?? parsed.title ?? 'Unknown';
+  // Titles are stripped of any provider id tag before they reach a token: rendering
+  // `{tvdb-396564}` into a path trips the unresolved-brace guard and skips the file.
+  const series = stripProviderIdTag(meta?.seriesTitle ?? parsed.title ?? 'Unknown');
+  const movie = stripProviderIdTag(meta?.movieTitle ?? parsed.title ?? 'Unknown');
   const season = parsed.season ?? (kind === 'tv' || kind === 'anime' ? 1 : undefined);
   const episode = parsed.episode ?? parsed.absoluteEpisode ?? undefined;
   return {
@@ -452,6 +454,26 @@ export function isSeasonContainer(name: string): boolean {
  * The show (or movie) folder a source file already lives in — i.e. its parent
  * directory, climbing past a "Season NN"/"Specials" container if present.
  */
+/**
+ * Drop a metadata-manager id tag: tinyMediaManager, Jellyfin and Emby all write
+ * `Show (2021) {tvdb-396564}` / `{tmdb-1234}` / `[imdbid-tt123]`.
+ *
+ * It breaks the renamer twice over. As IDENTITY it survives `normalize` as ordinary
+ * words, so the folder `4400 (2021) {tvdb-396564}` keys as "4400 2021 tvdb 396564"
+ * while the episodes inside key as "4400" — they never match, and the show loses its
+ * episode titles. As a TOKEN it is worse: `{Series Title}` renders the tag verbatim,
+ * the braces trip `isRenderedPathSafe` (a brace means an unresolved token), and every
+ * episode in the folder is skipped as "invalid naming template" — 13 of them on the
+ * live library, silently un-renameable. The id is decoration, never part of the
+ * title, so removing it only makes a folder agree with its own contents.
+ *
+ * Lives here, not in series-grouping, because series-grouping already imports from
+ * this module — putting it there would close an import cycle.
+ */
+export function stripProviderIdTag(name: string): string {
+  return name.replace(/[{[]\s*(?:tv|tm|im)db(?:id)?[-=:\s][^}\]]*[}\]]/gi, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
 /** Trailing separators dropped and case folded, for comparing folder paths. */
 function normFolder(p: string): string {
   return p.replace(/[/\\]+$/, '').toLowerCase();

@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { isSeasonContainer, showFolderRoot } from './media-renamer';
+import { isSeasonContainer, showFolderRoot, stripProviderIdTag } from './media-renamer';
 import { normalize } from '../rss/match-engine';
 
 /**
@@ -49,21 +49,6 @@ const TRAILING_YEAR = /\s+(?:19|20)\d{2}$/;
 export function showCanonicalKey(name: string): string {
   const n = normalize(stripProviderIdTag(name));
   return n.replace(TRAILING_YEAR, '').trim() || n;
-}
-
-/**
- * Drop a metadata-manager id tag from a folder name: tinyMediaManager, Jellyfin and
- * Emby all write `Show (2021) {tvdb-396564}` / `{tmdb-1234}` / `[imdbid-tt123]`.
- *
- * Without this the tag survives `normalize` as ordinary words, so the folder
- * `4400 (2021) {tvdb-396564}` keyed as `"4400 2021 tvdb 396564"` while the episodes
- * inside keyed as `"4400"` — the two never matched, and every episode in that show
- * lost its title. It also blocks the trailing-year rule, because the year is no
- * longer last. The id is decoration, never part of the title, so removing it can only
- * make a folder agree with its own contents.
- */
-function stripProviderIdTag(name: string): string {
-  return name.replace(/[{[]\s*(?:tv|tm|im)db(?:id)?[-=:\s][^}\]]*[}\]]/gi, ' ');
 }
 
 export interface GroupInput {

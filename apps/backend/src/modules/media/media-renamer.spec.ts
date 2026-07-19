@@ -221,6 +221,27 @@ describe('buildRenamePlan — episode titles come per episode', () => {
   });
 });
 
+describe('buildRenamePlan — provider id tags never reach a path', () => {
+  it('renames episodes inside a tinyMediaManager-tagged folder', () => {
+    // `{Series Title}` rendered the tag verbatim, its braces tripped
+    // isRenderedPathSafe (a brace means an unresolved token), and every episode in
+    // the folder was skipped as "invalid naming template" — 13 silently
+    // un-renameable files on the live library.
+    const plan = buildRenamePlan(ctx({
+      sourceName: '4400 (2021) {tvdb-396564}',
+      files: [
+        { path: '/media/TV/4400 (2021) {tvdb-396564}/Season 1/4400 - S01E01 - Past Is Prologue.mp4', size: BIG },
+      ],
+      preset: 'plex',
+      mode: 'rename_move',
+      libraryPath: '/media/TV',
+    }));
+    expect(plan.items[0]?.skipped).toBe(false);
+    expect(plan.items[0]?.destination).toBe('/media/TV/4400/Season 1/4400 - S01E01.mp4');
+    expect(plan.warnings.filter((w) => w.includes('unsafe destination'))).toEqual([]);
+  });
+});
+
 describe('buildRenamePlan — reports a file sitting in the wrong show folder', () => {
   // No rename mode relocates across show folders: rename_in_place deliberately keeps
   // the file in its current show folder, and a rename_move would fork the library's
