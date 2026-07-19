@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.34.6] - 2026-07-19
+
+### Fixed
+- Three fixes found by previewing renames across the whole TV library.
+
 ## [0.34.5] - 2026-07-19
 
 ### Fixed
