@@ -102,6 +102,7 @@ describe('the media item lock', () => {
         {} as any,
         media as any,
         {} as any,
+        {} as any,
       );
 
       await expect(actions.renameItem('i1', undefined)).rejects.toBeInstanceOf(ConflictException);
@@ -118,6 +119,7 @@ describe('the media item lock', () => {
       };
       const actions = new MediaAutomationActions(
         prisma as any,
+        {} as any,
         {} as any,
         {} as any,
         {} as any,

@@ -1,4 +1,4 @@
-import { AutomationEngine } from './automation.module';
+import { AUTOMATION_ACTIONS, AUTOMATION_TRIGGERS, AutomationEngine } from './automation.module';
 import type { NormalizedTorrent } from '@ultratorrent/shared';
 
 // A ratio-cap rule: when ratio >= 2, stop the torrent.
@@ -158,6 +158,69 @@ describe('AutomationEngine — media action dispatch', () => {
     });
     // Media actions never resolve a torrent engine provider.
     expect(registry.resolve).not.toHaveBeenCalled();
+  });
+});
+
+describe('AutomationEngine — duplicate actions dispatch to media, non-destructively', () => {
+  const engineWith = (mediaActions: any) =>
+    new AutomationEngine(
+      { automationRule: { findMany: jest.fn().mockResolvedValue([{ id: 'd1', name: 'r', conditions: [], actions: [{ type: DUP_ACTION, params: {} }] }]) }, automationLog: { create: jest.fn() } } as any,
+      { resolve: jest.fn() } as any,
+      { dispatch: jest.fn() } as any,
+      {} as any,
+      mediaActions,
+      { execute: jest.fn() } as any,
+      { execute: jest.fn() } as any,
+      { record: jest.fn() } as any,
+      { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
+    );
+
+  let DUP_ACTION = 'media_run_duplicate_scan';
+
+  it.each([
+    'media_run_duplicate_scan',
+    'media_ignore_duplicate_group',
+    'media_duplicate_report',
+  ])('routes %s to MediaAutomationActions (never a destructive resolve)', async (action) => {
+    DUP_ACTION = action;
+    const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
+    const engine = engineWith(mediaActions);
+
+    await engine.evaluateEvent('media.duplicate_scan_completed', { groupCount: 3 });
+
+    expect(mediaActions.execute).toHaveBeenCalledWith(action, expect.any(Object));
+    // Prove the negative the brief cares about: there is no resolve/cleanup action.
+    expect(mediaActions.execute).not.toHaveBeenCalledWith(
+      expect.stringMatching(/resolve|cleanup|delete/),
+      expect.anything(),
+    );
+  });
+});
+
+describe('Automation catalog — duplicate triggers and actions', () => {
+  it('registers the duplicate triggers, and no exact-hash trigger that could never fire', () => {
+    const ids = AUTOMATION_TRIGGERS.map((t) => t.id);
+    expect(ids).toEqual(expect.arrayContaining([
+      'media.duplicate_scan_completed',
+      'media.duplicate_detected',
+      'media.duplicate_requires_review',
+      'media.duplicate_cleanup_completed',
+      'media.duplicate_cleanup_failed',
+    ]));
+    // No exact-duplicate trigger: exact match needs content hashing, which does not
+    // exist, and a rule that can never fire is worse than an absent one.
+    expect(ids).not.toContain('media.exact_duplicate_detected');
+  });
+
+  it('offers only non-destructive duplicate actions', () => {
+    const ids = AUTOMATION_ACTIONS.map((a) => a.id);
+    expect(ids).toEqual(expect.arrayContaining([
+      'media_run_duplicate_scan',
+      'media_ignore_duplicate_group',
+      'media_duplicate_report',
+    ]));
+    // The line the safety model rests on: no action resolves a duplicate.
+    expect(ids.some((id) => /resolve_duplicate|duplicate_cleanup|duplicate_resolve/.test(id))).toBe(false);
   });
 });
 

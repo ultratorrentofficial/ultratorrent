@@ -48,7 +48,7 @@ function make(mode: string, items: any[] = LOOSE_ITEMS, destFn: (s: string) => s
     },
   }));
   const svc = new MediaAutomationActions(
-    prisma as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, { apply } as any, {} as any,
+    prisma as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, { apply } as any, {} as any, {} as any,
   );
   return { svc, apply };
 }

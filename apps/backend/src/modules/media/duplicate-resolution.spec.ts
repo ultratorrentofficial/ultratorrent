@@ -52,7 +52,7 @@ function build(over: any = {}) {
   };
   const files: any = { remove: jest.fn(async () => undefined) };
   const audit: any = { record: jest.fn(async () => undefined) };
-  const svc = new DuplicateResolutionService(prisma, filePath, files, audit);
+  const svc = new DuplicateResolutionService(prisma, filePath, files, audit, { broadcast: jest.fn() } as any, { emit: jest.fn() } as any);
   return { svc, state, prisma, files, audit };
 }
 
@@ -355,7 +355,7 @@ describe('bulk — a response carrying failures is never mistaken for a clean ru
     };
     const files: any = { remove: jest.fn(async () => undefined) };
     const audit: any = { record: jest.fn(async () => undefined) };
-    return { svc: new DuplicateResolutionService(prisma, filePath, files, audit), state, files };
+    return { svc: new DuplicateResolutionService(prisma, filePath, files, audit, { broadcast: jest.fn() } as any, { emit: jest.fn() } as any), state, files };
   }
 
   /** Writes the real files, so the resolve path reaches the step under test. */

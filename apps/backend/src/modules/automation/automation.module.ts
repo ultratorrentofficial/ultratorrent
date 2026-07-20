@@ -65,6 +65,16 @@ export const AUTOMATION_TRIGGERS = [
   { id: 'media.missing_subtitles', label: 'When a media item is missing subtitles', category: 'media' },
   { id: 'media.rename_completed', label: 'When a media rename/move completes', category: 'media' },
   { id: 'media.server_refresh_failed', label: 'When a media-server refresh fails', category: 'media' },
+  // Duplicate Center. There is deliberately NO "exact duplicate detected" trigger:
+  // exact-match detection needs content hashing, which does not exist, and a rule
+  // that can never fire is worse than an absent one — the Notification Center
+  // already carried one such dead rule for months.
+  { id: 'media.duplicate_scan_completed', label: 'When a duplicate scan completes', category: 'media' },
+  { id: 'media.duplicate_detected', label: 'When a high-confidence duplicate is detected', category: 'media' },
+  { id: 'media.duplicate_requires_review', label: 'When a duplicate needs manual review', category: 'media' },
+  { id: 'media.duplicate_savings_threshold', label: 'When reclaimable space passes a threshold', category: 'media' },
+  { id: 'media.duplicate_cleanup_completed', label: 'When a duplicate cleanup completes', category: 'media' },
+  { id: 'media.duplicate_cleanup_failed', label: 'When a duplicate cleanup fails or partly fails', category: 'media' },
   { id: 'rss.rule.created_for_inactive_show', label: 'When an RSS rule is created for an inactive show', category: 'rss' },
   { id: 'rss.show_status.changed', label: "When a monitored show's airing status changes", category: 'rss' },
   { id: 'rss.show.became_active', label: 'When a monitored show becomes active again', category: 'rss' },
@@ -96,6 +106,15 @@ export const AUTOMATION_ACTIONS = [
   { id: 'media_move', label: 'Move media into the library', category: 'media' },
   { id: 'media_notify', label: 'Send media notification', category: 'media' },
   { id: 'media_server_refresh', label: 'Refresh a media server', category: 'media' },
+  // Duplicate Center actions are non-destructive by design. There is no
+  // "resolve duplicates" action: the brief requires that an automated destructive
+  // cleanup be explicitly opted into behind a dedicated elevated permission, a
+  // persisted preview, a per-run file/byte cap and a strict confidence policy —
+  // none of which exists yet, and shipping the action first is how it gets used
+  // before the guardrails arrive.
+  { id: 'media_run_duplicate_scan', label: 'Run a duplicate scan', category: 'media' },
+  { id: 'media_ignore_duplicate_group', label: 'Ignore a duplicate group', category: 'media' },
+  { id: 'media_duplicate_report', label: 'Generate a duplicate report', category: 'media' },
   { id: 'refresh_rss_show_status', label: 'Refresh RSS show status', category: 'rss' },
   { id: 'disable_rss_rule', label: 'Disable RSS rule', category: 'rss' },
   { id: 'convert_rule_to_backfill', label: 'Convert rule to backfill only', category: 'rss' },
@@ -117,6 +136,9 @@ const MEDIA_ACTION_TYPES = new Set([
   'media_rename',
   'media_move',
   'media_server_refresh',
+  'media_run_duplicate_scan',
+  'media_ignore_duplicate_group',
+  'media_duplicate_report',
 ]);
 
 class UpsertRuleDto {
@@ -317,6 +339,16 @@ export class AutomationEngine {
 
     if (SUBTITLE_ACTION_TYPES.has(action.type)) {
       await this.subtitleActions.execute(action.type, params, context);
+      return;
+    }
+
+    // Media actions were reachable only from the torrent-completion path
+    // (`runAction`), never from an event trigger — so a rule on `media.*` or
+    // `rss.*` could not run one. The duplicate actions are event-driven by nature
+    // (a scan-completed rule that runs a report), so event context has to delegate
+    // them too.
+    if (MEDIA_ACTION_TYPES.has(action.type)) {
+      await this.mediaActions.execute(action.type, params);
       return;
     }
 

@@ -9,6 +9,7 @@ import { MediaNfoService } from './media-nfo.service';
 import { MediaServerIntegrationService } from './media-server-integration.service';
 import { MediaService } from './media.service';
 import { MediaProcessingQueueService } from './media-processing-queue.service';
+import { MediaDuplicateService } from './media-duplicate.service';
 import { isSeasonContainer, type Preset, type RenameMode } from './media-renamer';
 
 /**
@@ -35,6 +36,7 @@ export class MediaAutomationActions {
     private readonly integrations: MediaServerIntegrationService,
     private readonly media: MediaService,
     private readonly queue: MediaProcessingQueueService,
+    private readonly duplicates: MediaDuplicateService,
   ) {}
 
   /** Dispatch a `media_*` automation action by type. */
@@ -103,6 +105,31 @@ export class MediaAutomationActions {
           'media_server_refresh',
           { payload: { integrationId } },
           () => this.integrations.refresh(integrationId, ctx),
+        );
+      }
+
+      // --- Duplicate Center -------------------------------------------------
+      // All three are NON-DESTRUCTIVE. There is no automated cleanup action: the
+      // brief requires an explicit opt-in, a dedicated elevated permission, a
+      // persisted preview, trash-only behaviour and a per-run file/byte cap before
+      // one exists, and shipping the action ahead of those guardrails is how it
+      // gets used without them.
+      case 'media_run_duplicate_scan': {
+        return this.queue.runDetached('duplicate_detect', {}, (report, signal) =>
+          this.duplicates.detect(report, signal),
+        );
+      }
+      case 'media_ignore_duplicate_group': {
+        const groupId = params.groupId ? String(params.groupId) : undefined;
+        if (!groupId) throw new BadRequestException('groupId is required');
+        const reason = params.reason ? String(params.reason) : 'Ignored by an automation rule';
+        // No userId: an automation is not a person, and recording one would put a
+        // name against a decision nobody made.
+        return this.duplicates.ignore(groupId, reason, undefined);
+      }
+      case 'media_duplicate_report': {
+        return this.duplicates.report(
+          params.libraryId ? String(params.libraryId) : undefined,
         );
       }
       default:

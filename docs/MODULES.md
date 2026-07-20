@@ -101,10 +101,12 @@ permission catalog so RBAC can assign them.
 ```
 
 Media Manager organizes a media library — library scanning, filename
-identification, metadata/artwork/subtitle enrichment, NFO generation, duplicate
-detection, media-server integration, and template renaming — behind `/api/media`
-and the `media_manager.*` permission block. See
-[MEDIA_MANAGER.md](MEDIA_MANAGER.md) for the full guide.
+identification, metadata/artwork/subtitle enrichment, NFO generation, the
+[Duplicate Center](DUPLICATE_CENTER.md) (detection, best-copy recommendation,
+preview-then-confirm cleanup, show-folder merge, Quick Clean and Trash & Recovery),
+media-server integration, and template renaming — behind `/api/media` and the
+`media_manager.*` permission block. See [MEDIA_MANAGER.md](MEDIA_MANAGER.md) for the
+full guide.
 
 ## Module state
 

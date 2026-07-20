@@ -5,6 +5,14 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { FilesService } from '../files/files.service';
 import { AuditService } from '../audit/audit.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  NOTIFICATION_BUS_CHANNEL,
+  NOTIFICATION_EVENTS,
+  WS_EVENTS,
+  type DuplicateResolutionEventPayload,
+} from '@ultratorrent/shared';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { LANG_TAG, SUBTITLE_EXT } from './media-renamer';
 
 /**
@@ -92,7 +100,23 @@ export class DuplicateResolutionService {
     private readonly filePath: FilePathService,
     private readonly files: FilesService,
     private readonly audit: AuditService,
+    private readonly realtime: RealtimeGateway,
+    private readonly eventBus: EventEmitter2,
   ) {}
+
+  /** One cleanup lifecycle event, scoped by the `media_manager.` name prefix. */
+  private emitResolution(
+    event: string,
+    resolutionId: string,
+    extra: Partial<DuplicateResolutionEventPayload> = {},
+  ): void {
+    this.realtime.broadcast(event, {
+      resolutionId,
+      status: 'running',
+      at: new Date().toISOString(),
+      ...extra,
+    } as DuplicateResolutionEventPayload);
+  }
 
 
   /**
@@ -342,6 +366,10 @@ export class DuplicateResolutionService {
       where: { id: resolutionId },
       data: { status: 'running', startedAt: new Date() },
     });
+    this.emitResolution(WS_EVENTS.MEDIA_DUPLICATE_RESOLUTION_STARTED, resolutionId, {
+      groupId: resolution.groupId,
+      status: 'started',
+    });
 
     const libs = await this.prisma.mediaLibrary.findMany({ select: { path: true } });
     const roots = new Set(libs.map((l) => path.resolve(l.path)));
@@ -437,6 +465,43 @@ export class DuplicateResolutionService {
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
       metadata: { resolutionId, status, trashed, skipped, failed, reclaimed },
+    });
+
+    // Partial gets its OWN event rather than riding on `completed` with a count
+    // attached: a rule that notifies on completion should not be silently notifying
+    // on half-completion too.
+    const wsEvent =
+      status === 'completed'
+        ? WS_EVENTS.MEDIA_DUPLICATE_RESOLUTION_COMPLETED
+        : status === 'partial'
+          ? WS_EVENTS.MEDIA_DUPLICATE_RESOLUTION_PARTIAL
+          : WS_EVENTS.MEDIA_DUPLICATE_RESOLUTION_FAILED;
+    this.emitResolution(wsEvent, resolutionId, {
+      groupId: resolution.groupId,
+      status,
+      trashed,
+      skipped,
+      failed,
+      reclaimedBytes: reclaimed,
+    });
+
+    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
+      event:
+        status === 'completed'
+          ? NOTIFICATION_EVENTS.MEDIA_DUPLICATE_CLEANUP_COMPLETED
+          : NOTIFICATION_EVENTS.MEDIA_DUPLICATE_CLEANUP_FAILED,
+      payload: {
+        mediaTitle: preview.keepPath.split('/').pop() ?? 'Duplicate cleanup',
+        groupId: resolution.groupId,
+        resolutionId,
+        status,
+        trashed,
+        skipped,
+        failed,
+        reclaimedBytes: reclaimed,
+        reviewUrl: '/media/duplicates',
+      },
+      at: new Date().toISOString(),
     });
 
     return { resolutionId, status, trashed, skipped, failed, reclaimedBytes: reclaimed };

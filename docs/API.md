@@ -780,8 +780,22 @@ detection, media-server integrations, and a rename engine. See
 | Method | Path | Permission |
 |--------|------|------------|
 | `POST`   | `/api/media/nfo/generate` | `media_manager.generate_nfo` (`{ itemId? , libraryId? }`) |
-| `GET`    | `/api/media/duplicates` | `media_manager.view` |
-| `POST`   | `/api/media/duplicates/detect` | `media_manager.view` |
+| `GET`    | `/api/media/duplicates` | `media_manager.view` (paginated, filtered, sorted) |
+| `GET`    | `/api/media/duplicates/overview` | `media_manager.view` (aggregate counts) |
+| `GET`    | `/api/media/duplicates/:groupId` | `media_manager.view` (comparison detail) |
+| `POST`   | `/api/media/duplicates/detect` | `media_manager.scan` (background job → `{ jobId }`) |
+| `POST`   | `/api/media/jobs/:jobId/cancel` | `media_manager.scan` (cooperative cancel) |
+| `POST`   | `/api/media/duplicates/:groupId/preview` | `media_manager.delete` (build + persist a plan) |
+| `POST`   | `/api/media/duplicates/resolutions/:resolutionId/resolve` | `media_manager.delete` (run the stored plan) |
+| `POST`   | `/api/media/duplicates/:groupId/ignore` | `media_manager.match` |
+| `POST`   | `/api/media/duplicates/:groupId/reopen` | `media_manager.match` |
+| `GET`    | `/api/media/duplicates/quick-clean/candidates` | `media_manager.view` (auto-safe candidates) |
+| `POST`   | `/api/media/duplicates/bulk/preview` | `media_manager.delete` (≤100 groups) |
+| `POST`   | `/api/media/duplicates/bulk/resolve` | `media_manager.delete` (≤100 plans) |
+| `GET`    | `/api/media/duplicates/trash/history` | `media_manager.view` |
+| `GET`    | `/api/media/shows/duplicates` | `media_manager.view` (bounded page: `{ families, total, truncated }`) |
+| `POST`   | `/api/media/shows/duplicates/preview` | `media_manager.view` (build + persist a merge plan) |
+| `POST`   | `/api/media/shows/duplicates/merge` | `media_manager.rename` + `media_manager.delete` (run a `planId`) |
 | `GET`    | `/api/media/server-integrations` | `media_manager.manage_integrations` |
 | `POST`   | `/api/media/server-integrations` | `media_manager.manage_integrations` (settings encrypted at rest) |
 | `PATCH`  | `/api/media/server-integrations/:id` | `media_manager.manage_integrations` |

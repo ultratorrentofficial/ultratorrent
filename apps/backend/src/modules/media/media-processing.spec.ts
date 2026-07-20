@@ -48,6 +48,7 @@ describe('MediaAutomationActions.execute', () => {
       integrations as any,
       media as any,
       queue,
+      { detect: jest.fn(), ignore: jest.fn(), report: jest.fn() } as any,
     );
     return { actions, scanner, identification, metadata, artwork, nfo, integrations, media, queue };
   }

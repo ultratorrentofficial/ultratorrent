@@ -324,6 +324,16 @@ explicitly-selected candidate paths, confined to the scanned subtree. Keep
 `FILE_MANAGER_ROOTS` as narrow as possible and matching the directories your
 engine actually writes to.
 
+The **Duplicate Center** removes files through this same soft-delete path
+(`FilesService.remove({ permanent: false })`) and adds its own guarantees on top: a
+cleanup executes a **server-built plan** the client can only approve by id (never a
+client-supplied file list), the plan is **pinned** to the group version (or, for a
+show-folder merge, a fingerprint of every input file) so a stale plan is refused, and
+every path is **revalidated** — hard-root confinement, library-root protection,
+existence and size — immediately before it is touched. There is **no automated
+destructive cleanup action**. See
+[DUPLICATE_CLEANUP_SAFETY.md](DUPLICATE_CLEANUP_SAFETY.md).
+
 ## Secrets management
 
 - All secrets (JWT signing keys, database URL, Redis, admin bootstrap password)

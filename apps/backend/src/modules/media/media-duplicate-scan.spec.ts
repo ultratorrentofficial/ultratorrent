@@ -12,7 +12,7 @@ import { JobCancelledError } from './media-processing-queue.service';
  * result that reports the run rather than a page of rows.
  */
 function makePrisma(items: any[]) {
-  const state: any = { digest: null as string | null, transactions: [] as any[][], statements: 0 };
+  const state: any = { digest: null as string | null, transactions: [] as any[][], statements: 0, groups: [] as any[] };
   const chainable = (fn: (args: any) => any) =>
     jest.fn((args: any) => {
       state.statements++;
@@ -26,12 +26,32 @@ function makePrisma(items: any[]) {
       updateMany: chainable(() => ({ count: 0 })),
       count: jest.fn(async () => items.length),
     },
+    // Stateful: a rescan has to be observable against rows that already exist,
+    // which is the whole question behind "does an ignored group stay ignored".
     mediaDuplicateGroup: {
-      findMany: jest.fn(async () => []),
-      createMany: chainable(() => ({ count: 0 })),
-      update: chainable(() => ({})),
-      deleteMany: chainable(() => ({ count: 0 })),
-      count: jest.fn(async () => 0),
+      findMany: jest.fn(async ({ where }: any) =>
+        state.groups.filter((g: any) => (where?.groupKey?.in ?? []).includes(g.groupKey)),
+      ),
+      createMany: chainable(({ data }: any) => {
+        for (const g of data) state.groups.push({ status: 'open', version: 0, ...g });
+        return { count: data.length };
+      }),
+      update: chainable(({ where, data }: any) => {
+        const g = state.groups.find((x: any) => x.id === where.id);
+        if (g) Object.assign(g, { ...data, version: (g.version ?? 0) + 1 });
+        return g ?? {};
+      }),
+      deleteMany: chainable(({ where }: any) => {
+        const keep = state.groups.filter(
+          (g: any) => (where?.id?.notIn ?? []).includes(g.id) || g.status !== where?.status,
+        );
+        const removed = state.groups.length - keep.length;
+        state.groups = keep;
+        return { count: removed };
+      }),
+      count: jest.fn(async ({ where }: any = {}) =>
+        state.groups.filter((g: any) => (!where?.status || g.status === where.status)).length,
+      ),
     },
     mediaDuplicateCandidate: {
       deleteMany: chainable(() => ({ count: 0 })),
@@ -71,6 +91,10 @@ function makePrisma(items: any[]) {
   return prisma;
 }
 
+/** Inert stand-ins: what is broadcast is asserted in the events spec, not here. */
+const realtime = () => ({ broadcast: jest.fn() }) as any;
+const bus = () => ({ emit: jest.fn() }) as any;
+
 /** Two items that are the same movie — one duplicate group. */
 const pair = (n: number) => [
   {
@@ -88,7 +112,7 @@ const pair = (n: number) => [
 describe('Duplicate detection — scan cost and reporting', () => {
   it('reports what the run did, not a page of results', async () => {
     const prisma = makePrisma(pair(1));
-    const svc = new MediaDuplicateService(prisma);
+    const svc = new MediaDuplicateService(prisma, realtime(), bus());
 
     const m = await svc.detect();
 
@@ -104,7 +128,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
   it('batches group writes into transactions instead of a statement per group', async () => {
     // 60 groups → two batches of 50/10, not 240 sequential round trips.
     const prisma = makePrisma(Array.from({ length: 60 }, (_, i) => pair(i)).flat());
-    const svc = new MediaDuplicateService(prisma);
+    const svc = new MediaDuplicateService(prisma, realtime(), bus());
 
     const m = await svc.detect();
 
@@ -116,7 +140,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
 
   it('skips the whole write phase when nothing detection reads has changed', async () => {
     const prisma = makePrisma(pair(1));
-    const svc = new MediaDuplicateService(prisma);
+    const svc = new MediaDuplicateService(prisma, realtime(), bus());
 
     await svc.detect();
     const writesAfterFirst = prisma.state.statements;
@@ -138,7 +162,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
   it('re-detects once an item changes in a way that can move a group', async () => {
     const items = pair(1);
     const prisma = makePrisma(items);
-    const svc = new MediaDuplicateService(prisma);
+    const svc = new MediaDuplicateService(prisma, realtime(), bus());
     await svc.detect();
 
     // A file replaced by a bigger copy changes which one is recommended.
@@ -153,7 +177,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
     // Recording the digest for a run that never finished writing would convince the
     // next run that the database already matched the input.
     const prisma = makePrisma(Array.from({ length: 60 }, (_, i) => pair(i)).flat());
-    const svc = new MediaDuplicateService(prisma);
+    const svc = new MediaDuplicateService(prisma, realtime(), bus());
 
     let batches = 0;
     const signal = {
@@ -167,9 +191,58 @@ describe('Duplicate detection — scan cost and reporting', () => {
     expect(prisma.mediaDuplicateScanState.upsert).not.toHaveBeenCalled();
   });
 
+  it('keeps an ignored group ignored across a rescan, and does not re-create it', async () => {
+    // The point of persisting an ignore. If a rescan resurrected the group — or
+    // filed the same pair under a fresh id — "this is not a duplicate" would be a
+    // decision the operator has to re-make after every scan, which is the same as
+    // not having it. The group id must survive too: it is what the ignore is on.
+    const items = pair(1);
+    const prisma = makePrisma(items);
+    const svc = new MediaDuplicateService(prisma, realtime(), bus());
+
+    await svc.detect();
+    expect(prisma.state.groups).toHaveLength(1);
+    const [g] = prisma.state.groups;
+    g.status = 'ignored';
+    g.ignoredReason = 'different cuts, not duplicates';
+
+    // Force a real run rather than the unchanged fast path.
+    items[1].files[0].size = BigInt(4242);
+    const second = await svc.detect();
+
+    expect(second.unchanged).toBe(false);
+    expect(prisma.state.groups).toHaveLength(1);
+    expect(prisma.state.groups[0].id).toBe(g.id);
+    expect(prisma.state.groups[0].status).toBe('ignored');
+    expect(prisma.state.groups[0].ignoredReason).toBe('different cuts, not duplicates');
+    expect(second.groupsCreated).toBe(0);
+  });
+
+  it('drops a group detection no longer produces, but only if nobody touched it', async () => {
+    // An open group that stopped being detected is stale and goes. An ignored or
+    // resolved one is a human decision and is history — deleting it would lose the
+    // record and let the false positive return.
+    const items = pair(1);
+    const prisma = makePrisma(items);
+    const svc = new MediaDuplicateService(prisma, realtime(), bus());
+    await svc.detect();
+
+    prisma.state.groups.push(
+      { id: 'stale-open', groupKey: 'ty:gone:2001', status: 'open', version: 1 },
+      { id: 'stale-ignored', groupKey: 'ty:dismissed:2002', status: 'ignored', version: 1 },
+    );
+
+    items[1].files[0].size = BigInt(777);
+    await svc.detect();
+
+    const ids = prisma.state.groups.map((g: any) => g.id);
+    expect(ids).not.toContain('stale-open');
+    expect(ids).toContain('stale-ignored');
+  });
+
   it('streams progress so a ten-second scan is not a blank spinner', async () => {
     const prisma = makePrisma(pair(1));
-    const svc = new MediaDuplicateService(prisma);
+    const svc = new MediaDuplicateService(prisma, realtime(), bus());
     const seen: number[] = [];
 
     await svc.detect(async (p) => { seen.push(p); });

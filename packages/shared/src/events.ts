@@ -21,6 +21,25 @@ export const WS_EVENTS = {
   MEDIA_JOB_PROGRESS: 'media_manager.job.progress',
   MEDIA_JOB_COMPLETED: 'media_manager.job.completed',
   MEDIA_JOB_FAILED: 'media_manager.job.failed',
+  // Duplicate Center (scoped to media_manager.view).
+  //
+  // Named `media_manager.*` rather than `media.*` deliberately: the gateway derives
+  // a room from the event-name PREFIX, and `media.` falls through to the
+  // `authenticated` room — i.e. every logged-in user, regardless of permission.
+  // These carry library paths and file counts, so they take the prefix that is
+  // actually scoped to `media_manager.view`.
+  MEDIA_DUPLICATE_SCAN_STARTED: 'media_manager.duplicates.scan.started',
+  MEDIA_DUPLICATE_SCAN_PROGRESS: 'media_manager.duplicates.scan.progress',
+  MEDIA_DUPLICATE_SCAN_COMPLETED: 'media_manager.duplicates.scan.completed',
+  MEDIA_DUPLICATE_SCAN_FAILED: 'media_manager.duplicates.scan.failed',
+  MEDIA_DUPLICATE_SCAN_CANCELLED: 'media_manager.duplicates.scan.cancelled',
+  MEDIA_DUPLICATE_GROUP_UPDATED: 'media_manager.duplicates.group.updated',
+  MEDIA_DUPLICATE_RESOLUTION_STARTED: 'media_manager.duplicates.resolution.started',
+  MEDIA_DUPLICATE_RESOLUTION_PROGRESS: 'media_manager.duplicates.resolution.progress',
+  MEDIA_DUPLICATE_RESOLUTION_COMPLETED: 'media_manager.duplicates.resolution.completed',
+  MEDIA_DUPLICATE_RESOLUTION_PARTIAL: 'media_manager.duplicates.resolution.partial',
+  MEDIA_DUPLICATE_RESOLUTION_FAILED: 'media_manager.duplicates.resolution.failed',
+  MEDIA_DUPLICATE_RESTORED: 'media_manager.duplicates.restored',
   // IMDb metadata provider (scoped to media_manager.view).
   IMDB_DATASET_VALIDATE_STARTED: 'imdb.dataset.validate.started',
   IMDB_DATASET_VALIDATE_COMPLETED: 'imdb.dataset.validate.completed',
@@ -107,6 +126,11 @@ export const NOTIFICATION_EVENTS = {
   MEDIA_PROCESSING_COMPLETED: 'media.processing_completed',
   MEDIA_PROCESSING_FAILED: 'media.processing_failed',
   MEDIA_DUPLICATE: 'media.duplicate',
+  MEDIA_DUPLICATE_DETECTED_EVENT: 'media.duplicate_detected',
+  MEDIA_DUPLICATE_REVIEW_REQUIRED: 'media.duplicate_review_required',
+  MEDIA_DUPLICATE_SAVINGS_THRESHOLD: 'media.duplicate_savings_threshold',
+  MEDIA_DUPLICATE_CLEANUP_COMPLETED: 'media.duplicate_cleanup_completed',
+  MEDIA_DUPLICATE_CLEANUP_FAILED: 'media.duplicate_cleanup_failed',
   MEDIA_MISSING_EPISODE_FILLED: 'media.missing_episode_filled',
   MEDIA_LIBRARY_SCAN_COMPLETED: 'media.library_scan_completed',
   // Subtitle Intelligence
@@ -185,6 +209,43 @@ export interface MediaJobEventPayload {
   itemId?: string | null;
   message?: string | null;
   result?: unknown;
+  error?: string | null;
+  at: string;
+}
+
+/**
+ * A Duplicate Center scan or cleanup, over WebSocket.
+ *
+ * `scanId`/`resolutionId` are what a client correlates on — the page starts a scan,
+ * gets an id back, and ignores every event that is not its own.
+ */
+export interface DuplicateScanEventPayload {
+  scanId: string;
+  progress: number;
+  message?: string | null;
+  /** Present on `completed`: the run's metrics. */
+  metrics?: {
+    itemsScanned: number;
+    groupsDetected: number;
+    groupsCreated: number;
+    groupsRemoved: number;
+    requiresReview: number;
+    potentialSavingsBytes: number;
+    durationMs: number;
+    unchanged: boolean;
+  };
+  error?: string | null;
+  at: string;
+}
+
+export interface DuplicateResolutionEventPayload {
+  resolutionId: string;
+  groupId?: string | null;
+  status: 'started' | 'running' | 'completed' | 'partial' | 'failed';
+  trashed?: number;
+  skipped?: number;
+  failed?: number;
+  reclaimedBytes?: number;
   error?: string | null;
   at: string;
 }

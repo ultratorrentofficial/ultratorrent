@@ -1,6 +1,14 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma } from '@prisma/client';
+import {
+  NOTIFICATION_BUS_CHANNEL,
+  NOTIFICATION_EVENTS,
+  WS_EVENTS,
+  type DuplicateScanEventPayload,
+} from '@ultratorrent/shared';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { pageOf, parsePage } from '../../common/pagination';
 import type { ListDuplicatesDto } from './dto/duplicates.dto';
@@ -41,6 +49,13 @@ function chunked<T>(xs: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < xs.length; i += size) out.push(xs.slice(i, i + size));
   return out;
+}
+
+/** A detected group with its members and the engine's verdict. */
+interface ScoredGroup {
+  group: DetectedGroup;
+  members: DetectionItem[];
+  rec: ReturnType<typeof recommend>;
 }
 
 /** Summary of one detection run — what the job records and the UI reports. */
@@ -293,7 +308,49 @@ export function detectDuplicateGroups(items: DuplicateItemLike[]): DetectedGroup
 export class MediaDuplicateService {
   private readonly logger = new Logger(MediaDuplicateService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeGateway,
+    private readonly eventBus: EventEmitter2,
+  ) {}
+
+  /**
+   * Broadcast one scan lifecycle event.
+   *
+   * Scoped by the event NAME: the gateway derives its room from the prefix, and
+   * `media_manager.*` maps to `media_manager.view`. Naming these `media.*` — as the
+   * brief's literal list does — would have put library paths and file counts in the
+   * room every authenticated user joins.
+   */
+  private emitScan(event: string, scanId: string, extra: Partial<DuplicateScanEventPayload> = {}): void {
+    const payload: DuplicateScanEventPayload = {
+      scanId,
+      progress: 0,
+      at: new Date().toISOString(),
+      ...extra,
+    };
+    this.realtime.broadcast(event, payload);
+  }
+
+  /**
+   * Emit a Notification Center domain event.
+   *
+   * Domain events only — this never sends a notification itself. Which rule fires,
+   * to whom, over which channel, is the Notification Center's decision.
+   *
+   * Payload keys are chosen to match what `buildCard` renders (`mediaTitle`,
+   * `libraryName`) plus raw fields a rule condition can filter on (`duplicateCount`,
+   * `wastedBytes`, `confidence`, `reason`), so a rule can say "only when more than
+   * 50 GB is reclaimable" without any code change.
+   */
+  private emitDomain(event: string, payload: Record<string, unknown>, dedupeKey?: string): void {
+    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
+      event,
+      dedupeKey,
+      payload,
+      at: new Date().toISOString(),
+    });
+  }
 
   /**
    * Re-run duplicate detection across the whole library set.
@@ -308,6 +365,36 @@ export class MediaDuplicateService {
    */
   async detect(report?: JobReporter, signal?: JobSignal): Promise<DetectionMetrics> {
     const startedAt = Date.now();
+    const scanId = randomUUID();
+    this.emitScan(WS_EVENTS.MEDIA_DUPLICATE_SCAN_STARTED, scanId);
+
+    // Every progress step goes to BOTH the job channel (which the page already
+    // listens on) and the duplicate-specific channel, so a client can follow a scan
+    // without knowing it is implemented as a MediaProcessingJob.
+    const tick: JobReporter = async (progress, message) => {
+      this.emitScan(WS_EVENTS.MEDIA_DUPLICATE_SCAN_PROGRESS, scanId, { progress, message });
+      await report?.(progress, message);
+    };
+
+    try {
+      return await this.runDetection(scanId, startedAt, tick, signal);
+    } catch (err) {
+      const cancelled = (err as Error)?.name === 'JobCancelledError';
+      this.emitScan(
+        cancelled ? WS_EVENTS.MEDIA_DUPLICATE_SCAN_CANCELLED : WS_EVENTS.MEDIA_DUPLICATE_SCAN_FAILED,
+        scanId,
+        { error: (err as Error).message },
+      );
+      throw err;
+    }
+  }
+
+  private async runDetection(
+    scanId: string,
+    startedAt: number,
+    report: JobReporter,
+    signal?: JobSignal,
+  ): Promise<DetectionMetrics> {
     await report?.(2, 'Checking for changes…');
 
     // The digest is taken BEFORE the items are loaded, and that order is
@@ -327,7 +414,7 @@ export class MediaDuplicateService {
       this.logger.log(
         `Duplicate detection skipped: input unchanged (${open} open group(s)) in ${Date.now() - startedAt}ms`,
       );
-      return {
+      const unchangedMetrics: DetectionMetrics = {
         itemsScanned: itemCount,
         groupsDetected: open,
         groupsCreated: 0,
@@ -339,6 +426,14 @@ export class MediaDuplicateService {
         durationMs: Date.now() - startedAt,
         unchanged: true,
       };
+      this.emitScan(WS_EVENTS.MEDIA_DUPLICATE_SCAN_COMPLETED, scanId, {
+        progress: 100,
+        metrics: unchangedMetrics,
+      });
+      // No domain event on an unchanged run. Nothing happened, and a notification
+      // rule that fires every scheduled scan to say "still the same" is how an
+      // operator learns to mute the channel.
+      return unchangedMetrics;
     }
 
     signal?.throwIfCancelled();
@@ -518,7 +613,130 @@ export class MediaDuplicateService {
       `Duplicate detection: ${metrics.itemsScanned} items → ${metrics.groupsDetected} groups ` +
         `(${metrics.groupsCreated} new, ${metrics.groupsRemoved} removed) in ${metrics.durationMs}ms`,
     );
+
+    this.emitScan(WS_EVENTS.MEDIA_DUPLICATE_SCAN_COMPLETED, scanId, { progress: 100, metrics });
+    this.announce(metrics, scored);
     return metrics;
+  }
+
+  /**
+   * Domain events for a completed scan.
+   *
+   * `media.duplicate` was defined in the shared event catalog and seeded as an
+   * ENABLED notification rule, but nothing in the backend ever emitted it — a rule
+   * that could not fire, sitting in the UI looking configured. This is its producer.
+   *
+   * Emitted only when there is something to say: a run that found nothing sends
+   * nothing, because a notification per scheduled scan is a notification an
+   * operator turns off.
+   */
+  private announce(metrics: DetectionMetrics, scored: ScoredGroup[]): void {
+    if (!metrics.groupsDetected) return;
+
+    const base = {
+      groupCount: metrics.groupsDetected,
+      newGroups: metrics.groupsCreated,
+      duplicateCount: metrics.candidatesWritten,
+      wastedBytes: metrics.potentialSavingsBytes,
+      requiresReview: metrics.requiresReview,
+      reviewUrl: '/media/duplicates',
+      scannedAt: new Date().toISOString(),
+    };
+
+    // Dedupe on the shape of the result, not the timestamp: a scheduled scan that
+    // keeps finding the same 454 groups should notify once, not hourly.
+    this.emitDomain(
+      NOTIFICATION_EVENTS.MEDIA_DUPLICATE,
+      {
+        ...base,
+        mediaTitle: `${metrics.groupsDetected} duplicate group(s)`,
+        eventTime: base.scannedAt,
+      },
+      `duplicates:${metrics.groupsDetected}:${metrics.potentialSavingsBytes}`,
+    );
+
+    if (metrics.requiresReview > 0) {
+      this.emitDomain(
+        NOTIFICATION_EVENTS.MEDIA_DUPLICATE_REVIEW_REQUIRED,
+        { ...base, mediaTitle: `${metrics.requiresReview} duplicate group(s) need review` },
+        `duplicates-review:${metrics.requiresReview}`,
+      );
+    }
+
+    // A single high-confidence group is worth naming, because it is actionable in
+    // one click. The threshold matches the engine's own auto-safe bar.
+    const best = scored
+      .filter((s) => !s.rec.requiresReview && s.rec.keepId)
+      .sort((a, b) => b.rec.potentialSavingsBytes - a.rec.potentialSavingsBytes)[0];
+    if (best) {
+      this.emitDomain(
+        NOTIFICATION_EVENTS.MEDIA_DUPLICATE_DETECTED_EVENT,
+        {
+          mediaTitle: best.members[0]?.title ?? 'Duplicate media',
+          groupReason: best.group.reason,
+          confidence: best.rec.confidence,
+          fileCount: best.members.length,
+          wastedBytes: best.rec.potentialSavingsBytes,
+          reviewUrl: '/media/duplicates',
+        },
+        `duplicate-top:${best.group.key}`,
+      );
+    }
+  }
+
+  /**
+   * A non-destructive summary of the current duplicate state — the payload behind
+   * the "Generate Duplicate Report" automation action.
+   *
+   * Reads stored group rows rather than re-running detection: a report is a
+   * question about what is already known, and making it trigger a scan would let a
+   * reporting rule quietly become a scanning schedule.
+   */
+  async report(libraryId?: string) {
+    const where: Prisma.MediaDuplicateGroupWhereInput = { status: 'open' };
+    if (libraryId) where.items = { some: { libraryId } };
+
+    const [groups, totals] = await Promise.all([
+      this.prisma.mediaDuplicateGroup.findMany({
+        where,
+        orderBy: [{ potentialSavingsBytes: 'desc' }],
+        take: 100,
+        select: {
+          id: true,
+          reason: true,
+          confidence: true,
+          requiresReview: true,
+          potentialSavingsBytes: true,
+          items: { select: { title: true, path: true }, take: 5 },
+        },
+      }),
+      this.prisma.mediaDuplicateGroup.aggregate({
+        where,
+        _count: { _all: true },
+        _sum: { potentialSavingsBytes: true },
+      }),
+    ]);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      libraryId: libraryId ?? null,
+      totalGroups: totals._count._all,
+      totalReclaimableBytes: Number(totals._sum.potentialSavingsBytes ?? 0),
+      needsReview: groups.filter((g) => g.requiresReview).length,
+      // Capped: a report is something a human or a webhook reads, and an
+      // unbounded one is neither.
+      truncated: totals._count._all > groups.length,
+      groups: groups.map((g) => ({
+        id: g.id,
+        title: g.items[0]?.title ?? null,
+        reason: g.reason,
+        confidence: g.confidence,
+        requiresReview: g.requiresReview,
+        reclaimableBytes: Number(g.potentialSavingsBytes),
+        fileCount: g.items.length,
+        paths: g.items.map((i) => i.path),
+      })),
+    };
   }
 
   /**

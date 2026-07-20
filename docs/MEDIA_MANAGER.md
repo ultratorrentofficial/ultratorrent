@@ -681,8 +681,18 @@ All paths are under the global `/api` prefix, `@Controller('media')`, guarded by
 | POST | `/api/media/items/:id/subtitles/scan` | `media_manager.manage_subtitles` |
 | GET | `/api/media/items/:id/subtitles/missing` | `media_manager.view` (`?preferred`) |
 | POST | `/api/media/nfo/generate` | `media_manager.generate_nfo` |
-| GET | `/api/media/duplicates` | `media_manager.view` |
-| POST | `/api/media/duplicates/detect` | `media_manager.view` |
+| GET | `/api/media/duplicates` | `media_manager.view` (paginated/filtered/sorted) |
+| POST | `/api/media/duplicates/detect` | `media_manager.scan` (background job) |
+| POST | `/api/media/duplicates/resolutions/:resolutionId/resolve` | `media_manager.delete` |
+| POST | `/api/media/shows/duplicates/merge` | `media_manager.rename` + `media_manager.delete` |
+
+> The full Duplicate Center surface — detection, recommendation, cleanup, show-folder
+> merge, Quick Clean, bulk, Trash & Recovery, automation and notifications — is
+> documented in **[DUPLICATE_CENTER.md](DUPLICATE_CENTER.md)**,
+> **[DUPLICATE_DETECTION.md](DUPLICATE_DETECTION.md)** and
+> **[DUPLICATE_CLEANUP_SAFETY.md](DUPLICATE_CLEANUP_SAFETY.md)**. The complete
+> endpoint list is in [API.md](API.md#nfo-duplicates--server-integrations).
+
 | GET | `/api/media/server-integrations` | `media_manager.manage_integrations` |
 | POST | `/api/media/server-integrations` | `media_manager.manage_integrations` |
 | PATCH | `/api/media/server-integrations/:id` | `media_manager.manage_integrations` |
@@ -735,7 +745,9 @@ Prisma models (`apps/backend/prisma/schema.prisma`):
 | `IMDbDatasetImport` | An IMDb dataset import job/history record. |
 
 Duplicate groups are formed by reason: `external_id`, `show_season_episode`,
-`title_year`, or `similar_filename` (the four the detector emits).
+`title_year`, or `similar_filename` (the four the detector emits). Detection is
+identity-based — there is **no content hashing**, so no `exact_hash` reason. See
+[DUPLICATE_DETECTION.md](DUPLICATE_DETECTION.md).
 
 ---
 

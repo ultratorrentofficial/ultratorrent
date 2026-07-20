@@ -57,6 +57,11 @@ const CATALOG: SeedRule[] = [
   { name: 'Media Processing Completed', event: E.MEDIA_PROCESSING_COMPLETED, enabled: false, severity: 'info' },
   { name: 'Media Processing Failed', event: E.MEDIA_PROCESSING_FAILED, enabled: true, severity: 'critical' },
   { name: 'Duplicate Media', event: E.MEDIA_DUPLICATE, enabled: true, severity: 'warning' },
+  { name: 'Duplicate Detected', event: E.MEDIA_DUPLICATE_DETECTED_EVENT, enabled: false, severity: 'info' },
+  { name: 'Duplicate Needs Review', event: E.MEDIA_DUPLICATE_REVIEW_REQUIRED, enabled: false, severity: 'warning' },
+  { name: 'Duplicate Savings Threshold', event: E.MEDIA_DUPLICATE_SAVINGS_THRESHOLD, enabled: false, severity: 'info' },
+  { name: 'Duplicate Cleanup Completed', event: E.MEDIA_DUPLICATE_CLEANUP_COMPLETED, enabled: false, severity: 'info' },
+  { name: 'Duplicate Cleanup Failed', event: E.MEDIA_DUPLICATE_CLEANUP_FAILED, enabled: true, severity: 'critical' },
   { name: 'Missing Episode Filled', event: E.MEDIA_MISSING_EPISODE_FILLED, enabled: false, severity: 'info' },
   { name: 'Library Scan Completed', event: E.MEDIA_LIBRARY_SCAN_COMPLETED, enabled: false, severity: 'info' },
   // System
