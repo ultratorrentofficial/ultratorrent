@@ -6,6 +6,25 @@
  * titles. Other sources (TVDB/IMDb/AniDB/MusicBrainz) can be added by
  * implementing this interface — same provider pattern as the torrent engines.
  */
+import { scoreTitleMatch } from './imdb/imdb-match';
+
+/**
+ * Minimum title+year confidence to accept a TMDB movie search result as a match.
+ *
+ * TMDB `/search/movie` ranks by popularity, so a short query title like "Maze"
+ * returns the popular "The Maze Runner" first. Taking `results[0]` blindly wrote
+ * one film's `imdb`/`tmdb` id onto three different movies ("The Maze Runner" 2014,
+ * "Maze" 2017, "The Runner" 2015 all got tt1790864). Every result is now scored on
+ * title similarity AND year — the same verification the TV path already does via
+ * `ImdbSeriesResolver` — and a weak best is rejected rather than written as a match.
+ *
+ * Paired with a hard year gate (±1) in `pickBestMovie`, so this only has to
+ * separate a same-year near-miss ("The Runner" vs "The Maze Runner" ≈ 0.63, "The
+ * King" vs "The Lion King" ≈ 0.69) from a real match ("Maze Runner" vs "The Maze
+ * Runner" ≈ 0.79, an exact title = 1.0). 0.7 sits in that gap.
+ */
+const MOVIE_MATCH_MIN_SCORE = 0.7;
+
 export interface MediaLookup {
   kind: 'tv' | 'anime' | 'movie' | 'music' | 'audiobook' | 'general';
   title: string;
@@ -155,7 +174,10 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
           query: q.title,
           ...(q.year ? { year: String(q.year) } : {}),
         });
-        const hit = search?.results?.[0];
+        // Verify the candidate instead of trusting TMDB's popularity ranking. A
+        // wrong-but-popular film scores low on title+year and is rejected here,
+        // rather than being written as this movie's id downstream.
+        const hit = this.pickBestMovie(search?.results ?? [], q);
         if (!hit) return null;
         const full = await this.get(`/movie/${hit.id}`, {
           append_to_response: 'credits,release_dates',
@@ -173,6 +195,40 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Choose the TMDB movie result that actually matches the query, or none.
+   *
+   * Scores every result on title similarity + year agreement (reusing the same
+   * `scoreTitleMatch` the manual/IMDb path uses) and returns the best only if it
+   * clears {@link MOVIE_MATCH_MIN_SCORE}. Returning null — no match — is the safe
+   * outcome: a movie with no external id is correct-but-incomplete, while a movie
+   * with the WRONG id corrupts detection, dedup and every downstream lookup.
+   */
+  private pickBestMovie(results: any[], q: MediaLookup): any | null {
+    let best: { hit: any; score: number } | null = null;
+    for (const r of results) {
+      const yr = r?.release_date ? Number(String(r.release_date).slice(0, 4)) : null;
+      // Hard year gate — the two independent gates the TV path uses: a movie's year
+      // is a strong identity signal, so a candidate more than a year off is a
+      // DIFFERENT film (Aladdin 1992 vs 2019; "Men" 2022 vs "Men in Black" 1997) and
+      // is dropped before scoring, no matter how similar the title. ±1 absorbs a
+      // festival-vs-wide-release drift.
+      if (q.year != null && yr != null && Math.abs(q.year - yr) > 1) continue;
+      const score = scoreTitleMatch(
+        { title: q.title, year: q.year ?? null, type: 'movie' },
+        {
+          tconst: String(r?.id ?? ''),
+          titleType: 'movie',
+          primaryTitle: r?.title ?? '',
+          originalTitle: r?.original_title ?? '',
+          startYear: Number.isFinite(yr) ? (yr as number) : null,
+        },
+      );
+      if (!best || score > best.score) best = { hit: r, score };
+    }
+    return best && best.score >= MOVIE_MATCH_MIN_SCORE ? best.hit : null;
   }
 
   private mapMovie(hit: any, full: any): MediaMetadataDetails {
