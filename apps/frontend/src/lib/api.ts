@@ -1514,6 +1514,58 @@ export interface DuplicateTrashEntry {
   restorable: boolean;
 }
 
+export interface QuickCleanCandidate {
+  id: string;
+  title: string | null;
+  reason: string;
+  confidence: number;
+  fileCount: number;
+  recommendedItemId: string | null;
+  potentialSavingsBytes: number;
+  version: number;
+}
+
+export interface QuickCleanCandidates {
+  groups: QuickCleanCandidate[];
+  totalGroups: number;
+  totalFiles: number;
+  totalSavingsBytes: number;
+  cap: number;
+}
+
+/** Standardised bulk envelope: a body carrying failures is never a clean run. */
+export interface DuplicateBulkPreview {
+  succeeded: number;
+  failed: number;
+  totalSavingsBytes: number;
+  totalFiles: number;
+  results: Array<{
+    groupId: string;
+    ok: boolean;
+    message?: string;
+    resolutionId?: string;
+    trashCount?: number;
+    expectedSavingsBytes?: number;
+    orphanedSubtitles?: number;
+  }>;
+}
+
+export interface DuplicateBulkResolve {
+  succeeded: number;
+  failed: number;
+  reclaimedBytes: number;
+  results: Array<{
+    resolutionId: string;
+    ok: boolean;
+    status?: string;
+    message?: string;
+    trashed?: number;
+    skipped?: number;
+    failed?: number;
+    reclaimedBytes?: number;
+  }>;
+}
+
 export interface DuplicateQuery extends PageQuery {
   q?: string;
   libraryId?: string;
@@ -3281,6 +3333,21 @@ export const api = {
       return request<MediaCleanupRules>('/media/settings/cleanup', { method: 'PATCH', body: patch });
     },
     // --- duplicates -------------------------------------------------------
+    quickCleanCandidates(): Promise<QuickCleanCandidates> {
+      return request<QuickCleanCandidates>('/media/duplicates/quick-clean/candidates');
+    },
+    bulkPreviewDuplicates(groupIds: string[], keepByGroup?: Record<string, string>): Promise<DuplicateBulkPreview> {
+      return request<DuplicateBulkPreview>('/media/duplicates/bulk/preview', {
+        method: 'POST',
+        body: { groupIds, keepByGroup },
+      });
+    },
+    bulkResolveDuplicates(resolutionIds: string[]): Promise<DuplicateBulkResolve> {
+      return request<DuplicateBulkResolve>('/media/duplicates/bulk/resolve', {
+        method: 'POST',
+        body: { resolutionIds },
+      });
+    },
     previewDuplicateCleanup(groupId: string, keepItemId?: string): Promise<DuplicateResolutionPreview> {
       return request<DuplicateResolutionPreview>(`/media/duplicates/${groupId}/preview`, {
         method: 'POST',

@@ -333,7 +333,8 @@
       "folders": "Carpetas de series",
       "ignored": "Ignorados",
       "resolved": "Resueltos",
-      "trash": "Papelera y recuperación"
+      "trash": "Papelera y recuperación",
+      "quick": "Limpieza rápida"
     },
     "filter": {
       "search": "Buscar",
@@ -456,6 +457,29 @@
       "purged": "Ya no está en la Papelera",
       "purgedHint": "El período de retención expiró y este archivo se eliminó de forma permanente.",
       "loadError": "No se pudo cargar el historial de limpieza."
+    },
+    "quick": {
+      "title": "Limpieza rápida",
+      "subtitle": "Grupos de alta confianza que puedes limpiar sin abrir cada uno. Se excluye todo lo que requiera una decisión.",
+      "emptyTitle": "No hay nada seguro para limpiar automáticamente",
+      "emptyBody": "Cada grupo abierto requiere un criterio. Revísalos en Requiere revisión.",
+      "loadError": "No se pudo cargar la lista de Limpieza rápida.",
+      "selectAll": "Seleccionar todo",
+      "selectNone": "Borrar selección",
+      "selectGroup": "Seleccionar {{title}}",
+      "selectedSummary": "{{groups}} grupo(s) seleccionados · {{files}} archivo(s) · {{size}} recuperables",
+      "confidence": "{{value}}% de confianza",
+      "preview": "Previsualizar limpieza",
+      "confirm": "Mover {{count}} archivo(s) a la Papelera · {{size}}",
+      "planned": "{{count}} grupo(s) planificados, {{files}} archivo(s) a la Papelera.",
+      "someFailed": "{{count}} grupo(s) no se pudieron planificar y quedan excluidos",
+      "previewFailed": "No se pudieron generar los planes de limpieza",
+      "doneTitle": "Limpieza rápida completada",
+      "doneBody": "{{count}} grupo(s) limpiados, {{size}} recuperados.",
+      "partialTitle": "La limpieza rápida terminó con problemas",
+      "partialBody": "{{ok}} correctos, {{failed}} fallidos. Se ha conservado tu selección.",
+      "failed": "La limpieza rápida falló",
+      "capped": "Mostrando los primeros {{cap}} grupos — limpia estos y vuelve a ejecutarla."
     }
   },
   "renamePreview": {

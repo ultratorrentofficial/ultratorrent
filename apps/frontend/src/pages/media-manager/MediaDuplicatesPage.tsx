@@ -26,6 +26,7 @@ import { duplicateReasonLabel, seasonEpisodeLabel } from './constants';
 import { DuplicateShowsPanel } from './DuplicateShowsPanel';
 import { DuplicateComparison, CompareToggleButton } from './DuplicateComparison';
 import { DuplicateTrashPanel } from './DuplicateTrashPanel';
+import { QuickCleanPanel } from './QuickCleanPanel';
 
 const DUPES_PAGE_SIZE = 25;
 
@@ -40,6 +41,7 @@ const DUPES_PAGE_SIZE = 25;
 const TABS = [
   { id: 'review', filter: { status: 'open', requiresReview: 'true' } },
   { id: 'all', filter: { status: 'open' } },
+  { id: 'quick', filter: null },
   { id: 'movies', filter: { status: 'open', mediaType: 'movie' } },
   { id: 'episodes', filter: { status: 'open', mediaType: 'tv' } },
   { id: 'folders', filter: null },
@@ -147,7 +149,9 @@ export function MediaDuplicatesPage() {
 
         {TABS.map((x) => (
           <TabsContent key={x.id} value={x.id} className="space-y-4">
-            {x.id === 'trash' ? (
+            {x.id === 'quick' ? (
+              <QuickCleanPanel />
+            ) : x.id === 'trash' ? (
               <DuplicateTrashPanel />
             ) : x.filter == null ? (
               <section className="space-y-3">
