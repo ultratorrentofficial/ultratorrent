@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.39.0] - 2026-07-20
+
+### Added
+- Duplicate Center Phase 4 — Quick Clean and bulk cleanup, with partial results reported as partial.
+
 ## [0.38.0] - 2026-07-20
 
 ### Added
