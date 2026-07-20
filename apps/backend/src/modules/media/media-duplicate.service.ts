@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { pageOf, parsePage } from '../../common/pagination';
 import type { ListDuplicatesDto } from './dto/duplicates.dto';
+import { recommend } from './duplicate-recommendation';
 
 /** Reasons two items are considered duplicates, in descending confidence. */
 export type DuplicateReason =
@@ -192,6 +193,7 @@ export class MediaDuplicateService {
       include: { externalIds: true, files: true },
     });
 
+    const byId = items;
     const groups = detectDuplicateGroups(
       items.map((i) => ({
         id: i.id,
@@ -231,6 +233,64 @@ export class MediaDuplicateService {
       await this.prisma.mediaItem.updateMany({
         where: { id: { in: group.itemIds } },
         data: { duplicateGroupId: row.id },
+      });
+
+      // Score the group now, so the list, the filters and the review queue all read
+      // the same stored judgement rather than each recomputing it per request.
+      const members = byId.filter((i) => group.itemIds.includes(i.id));
+      const rec = recommend(
+        members.map((i) => ({
+          id: i.id,
+          title: i.title,
+          year: i.year,
+          season: i.season,
+          episode: i.episode,
+          path: i.path,
+          modifiedAt: i.updatedAt,
+          externalIds: i.externalIds?.map((e) => ({ provider: e.provider, externalId: e.externalId })) ?? [],
+          file: i.files?.[0]
+            ? {
+                size: Number(i.files[0].size),
+                height: i.files[0].height,
+                width: i.files[0].width,
+                bitrateKbps: i.files[0].bitrateKbps,
+                durationSec: i.files[0].durationSec,
+                audioChannels: i.files[0].audioChannels,
+                resolution: i.files[0].resolution,
+                videoCodec: i.files[0].videoCodec,
+              }
+            : null,
+        })),
+      );
+
+      await this.prisma.mediaDuplicateGroup.update({
+        where: { id: row.id },
+        data: {
+          confidence: rec.confidence,
+          requiresReview: rec.requiresReview,
+          potentialSavingsBytes: BigInt(rec.potentialSavingsBytes),
+          recommendedItemId: rec.keepId,
+          recommendation: { verdicts: rec.verdicts } as object,
+          warnings: rec.warnings as unknown as object,
+        },
+      });
+
+      // Candidate rows carry per-membership state (rank, why it lost) and snapshot
+      // path/size, so a resolution stays auditable after the item row is gone.
+      await this.prisma.mediaDuplicateCandidate.deleteMany({ where: { groupId: row.id } });
+      await this.prisma.mediaDuplicateCandidate.createMany({
+        data: rec.verdicts.map((v) => {
+          const m = members.find((x) => x.id === v.id)!;
+          return {
+            groupId: row.id,
+            itemId: v.id,
+            path: m.path,
+            fileSize: BigInt(m.files?.[0] ? Number(m.files[0].size) : 0),
+            qualityScore: v.score,
+            recommendationRank: v.rank,
+            recommendationReasons: v.reasons as unknown as object,
+          };
+        }),
       });
     }
 
