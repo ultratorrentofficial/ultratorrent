@@ -328,14 +328,27 @@ docs. `reason` doubles as both a detection signal and an implied confidence.
 | `docs/MEDIA_MANAGER.md` | permission row, two endpoints, model row, four reasons, one route line. **No mention of show-folder merge.** |
 | `docs/API.md` | lists 2 of the 5 endpoints. The three show-merge endpoints are undocumented. |
 | `docs/NAVIGATION.md` / `docs/MODULES.md` | one line each |
-| `ARCHITECTURE.md` (root, 604 lines) | full show-folder bullet (`:246-258`), changelog to **2026-07-18** |
-| `docs/ARCHITECTURE.md` (822 lines) | **no** show-folder section, changelog stops **2026-07-14**; but carries `MediaProbeService` material the root lacks |
+| `docs/ARCHITECTURE.md` (**authoritative**) | **no** show-folder section at all; carries `MediaProbeService` material the root lacks |
+| `ARCHITECTURE.md` (root) | full show-folder bullet (`:246-258`) — but **gitignored** (`.gitignore:60`), local-only, never in the repo |
 
-⚠️ **Blocking ambiguity.** The brief says to use "the latest uploaded `ARCHITECTURE.md` and
-`CHANGELOG.md`", but no files were uploaded to this session. The repository contains **two
-divergent** `ARCHITECTURE.md` files — neither a superset of the other. Evidence points to the
-root file being current (changelog four days ahead, and it documents a feature the other omits
-entirely). **This needs an explicit decision before documentation work starts** (see §10).
+**Resolved:** `docs/ARCHITECTURE.md` is the authoritative file (confirmed by the maintainer,
+2026-07-20). The root copy is deliberately gitignored and ships to nobody, which is how the two
+drifted apart unnoticed.
+
+The consequence for this feature is concrete: **the duplicate show-folder merge — a destructive
+workflow that moves files and deletes folders — is entirely undocumented in the authoritative
+architecture reference** (`grep -ci "duplicate show" docs/ARCHITECTURE.md` → 0). It was written
+up only in the local, ignored copy. That gap is closed as part of this work.
+
+The two files have diverged in **both** directions, so neither is a superset:
+
+| Changelog entry | in `docs/` (authoritative) | in root (ignored) |
+|---|---|---|
+| 2026-07-13 duplicate show folders (×2) | ✗ | ✓ |
+| 2026-07-14 Trakt / scrobbling | ✓ | ✓ |
+| 2026-07-15 subtitle settings | ✓ | ✗ |
+| 2026-07-17 newsletter recipients, IMDb resolver | ✗ | ✓ |
+| 2026-07-18 scan enriches | ✗ | ✓ |
 
 ---
 
@@ -385,9 +398,13 @@ The brief's seven phases are correct in sequence. Their size is not one work ses
 
 ## 10. Decisions needed before implementation continues
 
-1. **Which `ARCHITECTURE.md` is authoritative?** Root (evidence favours it) or `docs/`? Or
-   should they be reconciled into one first?
-2. **Phase 0 authorisation.** Deduplicating 139 `MediaItem` rows on `ehr-qnap` is a data
+1. ~~Which `ARCHITECTURE.md` is authoritative?~~ **Resolved: `docs/ARCHITECTURE.md`.** The
+   duplicate show-folder content has been ported into it. Three unrelated entries (2026-07-17
+   ×2, 2026-07-18) remain missing from the authoritative file and one (2026-07-15) from the
+   root copy — reconciling those is outside the duplicates scope and awaits a decision.
+2. ~~**Phase 0 authorisation.**~~ **Done** — see the 2026-07-20 changelog entry. 139 duplicated
+   rows removed on the affected host, phantom groups 139 → 0, no artwork or NFO lost.
+3. **Phase 0 authorisation (original text).** Deduplicating 139 `MediaItem` rows on `ehr-qnap` is a data
    migration on a live host. Proposed: delete the newer row of each same-path pair, keep the
    older (preserves `createdAt` history), then add the unique constraint. Reversible via a
    rescan.
