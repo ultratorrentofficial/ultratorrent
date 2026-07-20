@@ -41,7 +41,8 @@ import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
 import { ShowMergeDto } from './dto/show-merge.dto';
-import { IgnoreDuplicateGroupDto, ListDuplicatesDto } from './dto/duplicates.dto';
+import { IgnoreDuplicateGroupDto, ListDuplicatesDto, ResolveDuplicateDto } from './dto/duplicates.dto';
+import { DuplicateResolutionService } from './duplicate-resolution.service';
 import {
   MediaServerIntegrationService,
   IntegrationInput,
@@ -84,6 +85,7 @@ export class MediaController {
     private readonly subtitles: MediaSubtitleService,
     private readonly nfo: MediaNfoService,
     private readonly duplicates: MediaDuplicateService,
+    private readonly duplicateResolution: DuplicateResolutionService,
     private readonly showDuplicates: MediaShowDuplicateService,
     private readonly integrations: MediaServerIntegrationService,
     private readonly jobs: MediaProcessingQueueService,
@@ -481,6 +483,30 @@ export class MediaController {
     @Req() req: Request,
   ) {
     return this.duplicates.ignore(groupId, body?.reason, (req as unknown as { user?: { id?: string } }).user?.id);
+  }
+
+  /**
+   * Build a cleanup plan. Touches nothing — the plan is persisted and pinned to the
+   * group version it was built against, so execution runs what was approved.
+   */
+  @Post('duplicates/:groupId/preview')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  previewDuplicateCleanup(
+    @Param('groupId') groupId: string,
+    @Body() body: ResolveDuplicateDto,
+    @Req() req: Request,
+  ) {
+    return this.duplicateResolution.preview(groupId, body?.keepItemId, auditCtx(req));
+  }
+
+  /**
+   * Execute a previewed plan. Destructive: redundant copies go to Trash, so this
+   * needs DELETE in addition to the review permission.
+   */
+  @Post('duplicates/resolutions/:resolutionId/resolve')
+  @RequirePermissions(P.MEDIA_MANAGER_DELETE)
+  resolveDuplicateCleanup(@Param('resolutionId') resolutionId: string, @Req() req: Request) {
+    return this.duplicateResolution.resolve(resolutionId, auditCtx(req));
   }
 
   /** Put an ignored or resolved group back in front of the operator. */

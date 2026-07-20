@@ -58,3 +58,12 @@ export class IgnoreDuplicateGroupDto {
    */
   @IsOptional() @IsString() @MaxLength(500) reason?: string;
 }
+
+export class ResolveDuplicateDto {
+  /**
+   * Which copy to keep. Optional when the group carries a recommendation; REQUIRED
+   * when it needs review, because the engine deliberately withholds a recommendation
+   * there and inventing one at preview time would defeat the point.
+   */
+  @IsOptional() @IsString() @MaxLength(64) keepItemId?: string;
+}
