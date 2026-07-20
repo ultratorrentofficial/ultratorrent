@@ -7,6 +7,12 @@ import { FilesService } from '../files/files.service';
 import { AuditService } from '../audit/audit.service';
 import { LANG_TAG, SUBTITLE_EXT } from './media-renamer';
 
+/**
+ * Ceiling on one bulk call. Not a performance limit — a blast-radius limit: an
+ * operator who mis-clicks should lose a reviewable number of files, not a library.
+ */
+export const MAX_BULK_GROUPS = 100;
+
 export interface ResolutionContext {
   userId?: string;
   ipAddress?: string;
@@ -469,5 +475,159 @@ export class DuplicateResolutionService {
         restorable: !!t,
       };
     });
+  }
+
+  // --- bulk ------------------------------------------------------------------
+
+  /**
+   * Groups that are safe to clean without opening each one.
+   *
+   * Eligibility is decided by the SERVER, never by the client: a group qualifies only
+   * if the recommendation engine both declined to flag it for review AND nominated a
+   * keeper. Those two go together by design — the engine sets `recommendedItemId` to
+   * null whenever it forces review, precisely so a bulk path cannot sweep up the
+   * cases a human was meant to see.
+   */
+  async quickCleanCandidates(limit = MAX_BULK_GROUPS) {
+    const groups = await this.prisma.mediaDuplicateGroup.findMany({
+      where: { status: 'open', requiresReview: false, recommendedItemId: { not: null } },
+      orderBy: { potentialSavingsBytes: 'desc' },
+      take: Math.min(limit, MAX_BULK_GROUPS),
+      include: { items: { select: { id: true, title: true, path: true } } },
+    });
+    return {
+      groups: groups.map((g) => ({
+        id: g.id,
+        title: g.items[0]?.title ?? null,
+        reason: g.reason,
+        confidence: g.confidence,
+        fileCount: g.items.length,
+        recommendedItemId: g.recommendedItemId,
+        potentialSavingsBytes: Number(g.potentialSavingsBytes),
+        version: g.version,
+      })),
+      totalGroups: groups.length,
+      totalFiles: groups.reduce((a, g) => a + Math.max(0, g.items.length - 1), 0),
+      totalSavingsBytes: groups.reduce((a, g) => a + Number(g.potentialSavingsBytes), 0),
+      cap: MAX_BULK_GROUPS,
+    };
+  }
+
+  /**
+   * Build a plan for each group. Touches nothing.
+   *
+   * A review-required group is REFUSED rather than quietly dropped: silently omitting
+   * it would let a caller believe a bulk selection was fully planned when part of it
+   * was ignored. `includeReviewRequired` exists for the operator who has explicitly
+   * chosen a keeper per group, and even then each such group must carry one.
+   */
+  async bulkPreview(
+    groupIds: string[],
+    keepByGroup: Record<string, string> = {},
+    ctx: ResolutionContext = {},
+  ) {
+    if (!groupIds.length) throw new BadRequestException('No groups selected.');
+    if (groupIds.length > MAX_BULK_GROUPS) {
+      throw new BadRequestException(`Select at most ${MAX_BULK_GROUPS} groups at a time.`);
+    }
+
+    const results: Array<{
+      groupId: string;
+      ok: boolean;
+      message?: string;
+      resolutionId?: string;
+      trashCount?: number;
+      expectedSavingsBytes?: number;
+      orphanedSubtitles?: number;
+    }> = [];
+
+    for (const groupId of groupIds) {
+      try {
+        const plan = await this.preview(groupId, keepByGroup[groupId], ctx);
+        if (plan.blockers.length) {
+          results.push({ groupId, ok: false, message: plan.blockers.join(' ') });
+          continue;
+        }
+        results.push({
+          groupId,
+          ok: true,
+          resolutionId: plan.resolutionId,
+          trashCount: plan.actions.length,
+          expectedSavingsBytes: plan.expectedSavingsBytes,
+          orphanedSubtitles: plan.orphanedSubtitles.length,
+        });
+      } catch (err) {
+        results.push({ groupId, ok: false, message: (err as Error).message });
+      }
+    }
+
+    const succeeded = results.filter((r) => r.ok).length;
+    return {
+      succeeded,
+      failed: results.length - succeeded,
+      totalSavingsBytes: results.reduce((a, r) => a + (r.expectedSavingsBytes ?? 0), 0),
+      totalFiles: results.reduce((a, r) => a + (r.trashCount ?? 0), 0),
+      results,
+    };
+  }
+
+  /**
+   * Execute previously previewed plans.
+   *
+   * Every plan is run independently and every outcome is reported. A failure part-way
+   * through does not abort the rest, and — the point of the standardised envelope —
+   * a response carrying failures is never indistinguishable from a clean run.
+   */
+  async bulkResolve(resolutionIds: string[], ctx: ResolutionContext = {}) {
+    if (!resolutionIds.length) throw new BadRequestException('No plans to run.');
+    if (resolutionIds.length > MAX_BULK_GROUPS) {
+      throw new BadRequestException(`Run at most ${MAX_BULK_GROUPS} plans at a time.`);
+    }
+
+    const results: Array<{
+      resolutionId: string;
+      ok: boolean;
+      status?: string;
+      message?: string;
+      trashed?: number;
+      skipped?: number;
+      failed?: number;
+      reclaimedBytes?: number;
+    }> = [];
+
+    for (const id of resolutionIds) {
+      try {
+        const r = await this.resolve(id, ctx);
+        results.push({
+          resolutionId: id,
+          // `partial` is NOT ok. A run that trashed some files and failed on others
+          // is a problem the operator has to see, not a success with a footnote.
+          ok: r.status === 'completed',
+          status: r.status,
+          trashed: r.trashed,
+          skipped: r.skipped,
+          failed: r.failed,
+          reclaimedBytes: r.reclaimedBytes,
+        });
+      } catch (err) {
+        results.push({ resolutionId: id, ok: false, status: 'failed', message: (err as Error).message });
+      }
+    }
+
+    const succeeded = results.filter((r) => r.ok).length;
+    const reclaimed = results.reduce((a, r) => a + (r.reclaimedBytes ?? 0), 0);
+
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.duplicates.bulk_resolved',
+      objectType: 'media_duplicate_group',
+      objectId: 'bulk',
+      result: succeeded === results.length ? 'success' : 'failure',
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { total: results.length, succeeded, failed: results.length - succeeded, reclaimed },
+    });
+
+    return { succeeded, failed: results.length - succeeded, reclaimedBytes: reclaimed, results };
   }
 }

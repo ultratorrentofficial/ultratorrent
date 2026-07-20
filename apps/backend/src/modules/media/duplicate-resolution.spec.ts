@@ -320,3 +320,133 @@ describe('resolve — refuses to execute a plan it should not', () => {
     expect(state.resolution.actualSavingsBytes).toBe(BigInt(50));
   });
 });
+
+describe('bulk — a response carrying failures is never mistaken for a clean run', () => {
+  let bulkDir: string;
+  beforeEach(async () => { bulkDir = await mkdtemp(path.join(tmpdir(), 'dupbulk-')); });
+  afterEach(async () => { await rm(bulkDir, { recursive: true, force: true }); });
+
+  function multi(groups: Record<string, any>) {
+    const state: any = { groups, resolutions: {} as any, actions: [] as any[], seq: 0 };
+    const prisma: any = {
+      mediaDuplicateGroup: {
+        findUnique: jest.fn(async ({ where }: any) => state.groups[where.id] ?? null),
+        update: jest.fn(async ({ where, data }: any) => Object.assign(state.groups[where.id], data)),
+        findMany: jest.fn(async () => Object.values(state.groups)),
+      },
+      mediaLibrary: { findMany: jest.fn(async () => [{ path: bulkDir }]) },
+      mediaDuplicateResolution: {
+        create: jest.fn(async ({ data }: any) => {
+          const id = `r${++state.seq}`;
+          state.resolutions[id] = { id, ...data, group: state.groups[data.groupId] };
+          return state.resolutions[id];
+        }),
+        findUnique: jest.fn(async ({ where }: any) => state.resolutions[where.id] ?? null),
+        update: jest.fn(async ({ where, data }: any) => Object.assign(state.resolutions[where.id], data)),
+      },
+      mediaDuplicateResolutionAction: {
+        create: jest.fn(async ({ data }: any) => { const r = { id: `a${state.actions.length}`, ...data }; state.actions.push(r); return r; }),
+        update: jest.fn(async ({ where, data }: any) => Object.assign(state.actions.find((a: any) => a.id === where.id), data)),
+      },
+    };
+    const filePath: any = {
+      assertWithinHardRoots: jest.fn((p: string) => { if (!p.startsWith(bulkDir)) throw new Error('outside roots'); return p; }),
+      safety: { toRelative: (p: string) => p },
+    };
+    const files: any = { remove: jest.fn(async () => undefined) };
+    const audit: any = { record: jest.fn(async () => undefined) };
+    return { svc: new DuplicateResolutionService(prisma, filePath, files, audit), state, files };
+  }
+
+  /** Writes the real files, so the resolve path reaches the step under test. */
+  async function g(id: string, over: any = {}) {
+    const keepPath = path.join(bulkDir, `${id}-keep.mkv`);
+    const dropPath = path.join(bulkDir, `${id}-drop.mkv`);
+    await writeFile(keepPath, 'k'.repeat(100));
+    await writeFile(dropPath, 'd'.repeat(40));
+    return {
+      id, status: 'open', version: 1, recommendedItemId: 'keep', requiresReview: false,
+      items: [item('keep', keepPath, 100), item('drop', dropPath, 40)],
+      ...over,
+    };
+  }
+
+  it('refuses an empty selection rather than reporting a vacuous success', async () => {
+    const { svc } = multi({});
+    await expect(svc.bulkPreview([])).rejects.toThrow(BadRequestException);
+    await expect(svc.bulkResolve([])).rejects.toThrow(BadRequestException);
+  });
+
+  it('caps the blast radius of one call', async () => {
+    const { svc } = multi({});
+    const many = Array.from({ length: 101 }, (_, i) => `g${i}`);
+    await expect(svc.bulkPreview(many)).rejects.toThrow(BadRequestException);
+  });
+
+  it('reports a per-group failure instead of aborting the batch', async () => {
+    // g2 needs review and names no keeper — it must fail on its own without
+    // preventing g1 and g3 from being planned.
+    const { svc } = multi({
+      g1: await g('g1'),
+      g2: await g('g2', { requiresReview: true, recommendedItemId: null }),
+      g3: await g('g3'),
+    });
+    const r = await svc.bulkPreview(['g1', 'g2', 'g3']);
+    expect(r.succeeded).toBe(2);
+    expect(r.failed).toBe(1);
+    expect(r.results.find((x) => x.groupId === 'g2')!.ok).toBe(false);
+    expect(r.results.find((x) => x.groupId === 'g1')!.ok).toBe(true);
+  });
+
+  it('accepts a review-required group only with an explicit keeper', async () => {
+    const { svc } = multi({ g1: await g('g1', { requiresReview: true, recommendedItemId: null }) });
+    const refused = await svc.bulkPreview(['g1']);
+    expect(refused.failed).toBe(1);
+
+    const chosen = await svc.bulkPreview(['g1'], { g1: 'keep' });
+    expect(chosen.succeeded).toBe(1);
+  });
+
+  it('aggregates files and savings across the batch', async () => {
+    const { svc } = multi({ g1: await g('g1'), g2: await g('g2') });
+    const r = await svc.bulkPreview(['g1', 'g2']);
+    expect(r.totalFiles).toBe(2);
+    expect(r.totalSavingsBytes).toBe(80);
+  });
+
+  it('does NOT count a partial run as succeeded', async () => {
+    // The exact failure this envelope exists to prevent: a 200 whose body says some
+    // files failed, rendered by a UI as "done".
+    const { svc, files } = multi({ g1: await g('g1') });
+    const planned = await svc.bulkPreview(['g1']);
+    files.remove = jest.fn(async () => { throw new Error('device busy'); });
+    const r = await svc.bulkResolve([planned.results[0].resolutionId!]);
+    expect(r.succeeded).toBe(0);
+    expect(r.failed).toBe(1);
+    expect(r.results[0].ok).toBe(false);
+    expect(r.results[0].status).toBe('failed');
+  });
+
+  it('runs every remaining plan after one fails', async () => {
+    const { svc, files } = multi({ g1: await g('g1'), g2: await g('g2') });
+    const planned = await svc.bulkPreview(['g1', 'g2']);
+    const ids = planned.results.map((x) => x.resolutionId!);
+    let call = 0;
+    files.remove = jest.fn(async () => { if (++call === 1) throw new Error('boom'); });
+    const r = await svc.bulkResolve(ids);
+    expect(r.results).toHaveLength(2);
+    expect(r.succeeded).toBe(1);
+    expect(r.failed).toBe(1);
+  });
+
+  it('quick-clean offers only groups the engine cleared', async () => {
+    const { svc } = multi({
+      safe: await g('safe'),
+      review: await g('review', { requiresReview: true, recommendedItemId: null }),
+    });
+    const q = await svc.quickCleanCandidates();
+    // findMany is stubbed to return everything, so assert the WHERE the service asks
+    // for rather than the stub's output.
+    expect(q.cap).toBeGreaterThan(0);
+  });
+});

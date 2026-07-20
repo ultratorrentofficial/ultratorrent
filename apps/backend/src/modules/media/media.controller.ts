@@ -41,7 +41,7 @@ import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
 import { ShowMergeDto } from './dto/show-merge.dto';
-import { IgnoreDuplicateGroupDto, ListDuplicatesDto, ResolveDuplicateDto } from './dto/duplicates.dto';
+import { BulkPreviewDto, BulkResolveDto, IgnoreDuplicateGroupDto, ListDuplicatesDto, ResolveDuplicateDto } from './dto/duplicates.dto';
 import { DuplicateResolutionService } from './duplicate-resolution.service';
 import {
   MediaServerIntegrationService,
@@ -507,6 +507,31 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_DELETE)
   resolveDuplicateCleanup(@Param('resolutionId') resolutionId: string, @Req() req: Request) {
     return this.duplicateResolution.resolve(resolutionId, auditCtx(req));
+  }
+
+  /**
+   * Groups safe to clean without opening each one. Eligibility is decided here, not
+   * by the client: only groups the engine neither flagged for review nor left without
+   * a keeper.
+   */
+  @Get('duplicates/quick-clean/candidates')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  quickCleanCandidates() {
+    return this.duplicateResolution.quickCleanCandidates();
+  }
+
+  /** Plan a cleanup for many groups at once. Touches nothing. */
+  @Post('duplicates/bulk/preview')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  bulkPreviewDuplicates(@Body() body: BulkPreviewDto, @Req() req: Request) {
+    return this.duplicateResolution.bulkPreview(body.groupIds, body.keepByGroup ?? {}, auditCtx(req));
+  }
+
+  /** Execute many previewed plans. Destructive — same permission as a single resolve. */
+  @Post('duplicates/bulk/resolve')
+  @RequirePermissions(P.MEDIA_MANAGER_DELETE)
+  bulkResolveDuplicates(@Body() body: BulkResolveDto, @Req() req: Request) {
+    return this.duplicateResolution.bulkResolve(body.resolutionIds, auditCtx(req));
   }
 
   /**

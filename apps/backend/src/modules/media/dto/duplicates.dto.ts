@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsIn, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /** Group lifecycle. `open` is anything awaiting a decision. */
 export const DUPLICATE_STATUSES = ['open', 'ignored', 'resolved'] as const;
@@ -66,4 +66,24 @@ export class ResolveDuplicateDto {
    * there and inventing one at preview time would defeat the point.
    */
   @IsOptional() @IsString() @MaxLength(64) keepItemId?: string;
+}
+
+export class BulkPreviewDto {
+  /**
+   * Groups to plan. Capped server-side as well as here: a bulk mistake should cost a
+   * reviewable number of files, not a library.
+   */
+  @IsArray() @ArrayNotEmpty() @ArrayMaxSize(100) @IsString({ each: true })
+  groupIds!: string[];
+
+  /**
+   * Optional per-group keeper override, `{ [groupId]: itemId }`. Required for any
+   * group the engine flagged for review — it deliberately nominates no keeper there.
+   */
+  @IsOptional() @IsObject() keepByGroup?: Record<string, string>;
+}
+
+export class BulkResolveDto {
+  @IsArray() @ArrayNotEmpty() @ArrayMaxSize(100) @IsString({ each: true })
+  resolutionIds!: string[];
 }
