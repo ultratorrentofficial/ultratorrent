@@ -40,7 +40,7 @@ import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
-import { ShowMergeDto } from './dto/show-merge.dto';
+import { RunShowMergeDto, ShowMergeDto } from './dto/show-merge.dto';
 import { BulkPreviewDto, BulkResolveDto, IgnoreDuplicateGroupDto, ListDuplicatesDto, ResolveDuplicateDto } from './dto/duplicates.dto';
 import { DuplicateResolutionService } from './duplicate-resolution.service';
 import {
@@ -563,21 +563,50 @@ export class MediaController {
     return this.showDuplicates.detect(libraryId);
   }
 
+  /**
+   * Build and store a merge plan. Touches no disk. Returns the plan for the operator
+   * to read plus the `planId` that {@link mergeShows} takes.
+   */
   @Post('shows/duplicates/preview')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  previewShowMerge(@Body() body: ShowMergeDto) {
-    return this.showDuplicates.preview(body.canonicalShowId, body.duplicateShowIds);
+  previewShowMerge(@Body() body: ShowMergeDto, @Req() req: Request) {
+    return this.showDuplicates.preview(
+      {
+        canonicalShowId: body.canonicalShowId,
+        duplicateShowIds: body.duplicateShowIds,
+        collisionChoices: body.collisionChoices,
+        acknowledgeMetadataConflict: body.acknowledgeMetadataConflict,
+      },
+      auditCtx(req),
+    );
   }
 
   /**
-   * Re-home the duplicates' files into the operator's chosen folder and delete the
-   * emptied duplicates. Destructive: needs both RENAME (it moves files) and DELETE
-   * (it removes folders).
+   * Run a previously previewed merge, then rescan the library so the moved files are
+   * filed into `Season NN` and the media server picks them up.
+   *
+   * Takes only the plan id: what executes is the plan the operator read, and a
+   * client cannot hand-craft a list of files to move and delete. Destructive — needs
+   * both RENAME (it moves files) and DELETE (it removes folders).
    */
   @Post('shows/duplicates/merge')
   @RequirePermissions(P.MEDIA_MANAGER_RENAME, P.MEDIA_MANAGER_DELETE)
-  mergeShows(@Body() body: ShowMergeDto, @Req() req: Request) {
-    return this.showDuplicates.merge(body.canonicalShowId, body.duplicateShowIds, auditCtx(req));
+  async mergeShows(@Body() body: RunShowMergeDto, @Req() req: Request) {
+    const result = await this.showDuplicates.merge(body.planId, auditCtx(req));
+    // Step 12 of the workflow. The merge deliberately drops files in the canonical
+    // folder's ROOT rather than guessing at a season layout; the library's own
+    // organiser — which the scan job runs — is what knows the naming template. A
+    // failed merge is not rescanned: there is nothing new to index and the operator
+    // needs the folders exactly as the failure left them.
+    let rescanJobId: string | null = null;
+    let serverRefresh = { refreshed: 0, failed: 0 };
+    if (result.status !== 'failed') {
+      rescanJobId = (await this.launchLibraryScan(result.libraryId, req)).jobId;
+      // Step 13. Best-effort: the files have already moved, and a media server that
+      // is down is not a reason to report the merge as failed.
+      serverRefresh = await this.integrations.refreshAllEnabled(auditCtx(req));
+    }
+    return { ...result, rescanJobId, serverRefresh };
   }
 
   // --- media-server integrations ----------------------------------------

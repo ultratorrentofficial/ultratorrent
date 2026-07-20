@@ -1590,6 +1590,12 @@ export interface DuplicateShowMember {
   /** Video files on disk right now. */
   videoCount: number;
   sizeBytes: number;
+  /** `S02E01`, sorted. Files whose name carries no episode are not listed. */
+  episodes: string[];
+  /** Episodes no other folder in the family has — what this folder actually adds. */
+  uniqueEpisodes: string[];
+  sidecars: { subtitles: number; nfo: number; artwork: number; other: number };
+  watchlistCount: number;
 }
 
 export interface DuplicateShowFamily {
@@ -1599,11 +1605,16 @@ export interface DuplicateShowFamily {
    * mis-tagged item is enough to do. Show a warning; never treat as obvious.
    */
   needsReview: boolean;
+  reviewReason: 'metadata_conflict' | null;
+  /** Episodes present in more than one folder — the merge has to choose. */
+  collidingEpisodes: string[];
   suggestedCanonicalShowId: string;
   members: DuplicateShowMember[];
 }
 
 export interface ShowMergeCollision {
+  /** `s2e1` — the key a manual winner is chosen against. */
+  key: string;
   season: number | null;
   episode: number | null;
   incoming: string;
@@ -1611,26 +1622,54 @@ export interface ShowMergeCollision {
   existing: string;
   existingBytes: number;
   winner: 'incoming' | 'existing';
-  /** The smaller file — moved to Trash, not destroyed. */
+  /** True when the operator picked the winner rather than the size rule. */
+  chosenByOperator: boolean;
+  /** The losing file — moved to Trash, not destroyed. */
   trashed: string;
 }
 
 export interface ShowMergePlan {
+  /** The stored plan. Running a merge takes this and nothing else. */
+  planId: string;
   canonical: { showId: string; path: string; title: string };
   duplicates: Array<{ showId: string; path: string; title: string }>;
-  moves: Array<{ from: string; to: string; sizeBytes: number }>;
+  moves: Array<{ from: string; to: string; sizeBytes: number; kind: 'video' | 'sidecar' | 'rescued_subtitle' }>;
   collisions: ShowMergeCollision[];
-  /** Folders permanently deleted once emptied. */
+  /** Subtitles carried off a losing copy because that language exists nowhere else. */
+  rescuedSubtitles: Array<{ from: string; to: string; language: string | null }>;
+  watchlistRepoint: number;
+  /** Folders sent to Trash once emptied of media. */
   deletions: string[];
   /** Non-empty → the merge is refused. */
   blockers: string[];
+  warnings: string[];
+  expectedFreedBytes: number;
 }
 
-export interface ShowMergeResult extends ShowMergePlan {
+export interface ShowMergeResult {
+  planId: string;
+  status: 'completed' | 'partial' | 'failed';
+  canonical: { showId: string; path: string; title: string };
   moved: number;
   trashed: number;
+  rescued: number;
   deleted: number;
+  skipped: number;
+  failed: number;
   rebound: number;
+  reclaimedBytes: number;
+  libraryId: string;
+  /** The rescan that files the moved episodes into `Season NN`. */
+  rescanJobId: string | null;
+  serverRefresh: { refreshed: number; failed: number };
+}
+
+export interface ShowMergeInput {
+  canonicalShowId: string;
+  duplicateShowIds: string[];
+  /** `s2e1` → absolute path to keep. Overrides the largest-file rule. */
+  collisionChoices?: Record<string, string>;
+  acknowledgeMetadataConflict?: boolean;
 }
 
 export type MediaServerKind = 'plex' | 'jellyfin' | 'emby' | 'kodi';
@@ -3389,16 +3428,20 @@ export const api = {
         query: libraryId ? { libraryId } : undefined,
       });
     },
-    previewShowMerge(canonicalShowId: string, duplicateShowIds: string[]): Promise<ShowMergePlan> {
+    previewShowMerge(input: ShowMergeInput): Promise<ShowMergePlan> {
       return request<ShowMergePlan>('/media/shows/duplicates/preview', {
         method: 'POST',
-        body: { canonicalShowId, duplicateShowIds },
+        body: input,
       });
     },
-    mergeShows(canonicalShowId: string, duplicateShowIds: string[]): Promise<ShowMergeResult> {
+    /**
+     * Runs the stored plan and nothing else — the server will not accept a list of
+     * files from here, so what executes is what the operator read.
+     */
+    mergeShows(planId: string): Promise<ShowMergeResult> {
       return request<ShowMergeResult>('/media/shows/duplicates/merge', {
         method: 'POST',
-        body: { canonicalShowId, duplicateShowIds },
+        body: { planId },
       });
     },
     // --- media-server integrations ---------------------------------------

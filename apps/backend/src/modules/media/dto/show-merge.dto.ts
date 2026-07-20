@@ -1,4 +1,14 @@
-import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  IsArray,
+  IsBoolean,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 /**
  * Body for the duplicate show-folder preview and merge routes.
@@ -27,6 +37,30 @@ export class ShowMergeDto {
   @ArrayMaxSize(50)
   @IsUUID(undefined, { each: true })
   duplicateShowIds!: string[];
+
+  /**
+   * `s2e1` → the absolute path of the copy to keep for that episode. Overrides the
+   * largest-file rule, which is a proxy for quality and sometimes the wrong one.
+   * Paths are checked against that episode's actual files server-side, so a path
+   * from here can never nominate an unrelated file.
+   */
+  @IsOptional()
+  @IsObject()
+  collisionChoices?: Record<string, string>;
+
+  /**
+   * Acknowledges a `Metadata Conflict` family — folders named differently, tied
+   * together only by a shared external ID. Without it such a plan carries a blocker,
+   * because one mis-tagged item is enough to link two unrelated shows.
+   */
+  @IsOptional()
+  @IsBoolean()
+  acknowledgeMetadataConflict?: boolean;
+}
+
+/** Body for running a previously previewed merge. The plan id and nothing else. */
+export class RunShowMergeDto {
+  @IsUUID() planId!: string;
 }
 
 /** Query for listing duplicate show folders. */

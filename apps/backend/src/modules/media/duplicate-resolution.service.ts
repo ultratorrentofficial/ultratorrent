@@ -241,6 +241,9 @@ export class DuplicateResolutionService {
     const expected = actions.reduce((a, x) => a + x.fileSize, 0);
     const resolution = await this.prisma.mediaDuplicateResolution.create({
       data: {
+        // Explicit rather than left to the column default: show-folder merges share
+        // this table, and `resolve` refuses anything that is not a group plan.
+        scope: 'group',
         groupId,
         status: 'pending',
         keepItemId: keepId,
@@ -294,7 +297,13 @@ export class DuplicateResolutionService {
       where: { id: resolutionId },
       include: { group: true },
     });
-    if (!resolution) throw new NotFoundException('Resolution not found');
+    // Show-folder merges share this table but not this code path, and their stored
+    // plan has an entirely different shape — running one through here would read
+    // `actions` that mean something else.
+    if (!resolution || resolution.scope !== 'group' || !resolution.group || !resolution.groupId) {
+      throw new NotFoundException('Resolution not found');
+    }
+    const groupId = resolution.groupId;
     if (resolution.status !== 'pending') {
       throw new ConflictException(`This plan is already ${resolution.status}.`);
     }
@@ -414,7 +423,7 @@ export class DuplicateResolutionService {
 
     if (status !== 'failed') {
       await this.prisma.mediaDuplicateGroup.update({
-        where: { id: resolution.groupId },
+        where: { id: groupId },
         data: { status: 'resolved', resolvedById: ctx.userId ?? null, resolvedAt: new Date() },
       });
     }
@@ -423,7 +432,7 @@ export class DuplicateResolutionService {
       userId: ctx.userId,
       action: 'media.duplicates.resolved',
       objectType: 'media_duplicate_group',
-      objectId: resolution.groupId,
+      objectId: groupId,
       result: status === 'completed' ? 'success' : 'failure',
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,

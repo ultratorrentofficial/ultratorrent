@@ -1076,12 +1076,24 @@ model MediaDuplicateCandidate {
 /// The preview is persisted rather than trusted from the client, so execution can
 /// revalidate against what the operator actually saw.
 model MediaDuplicateResolution {
-  id      String @id @default(uuid())
-  groupId String
+  id String @id @default(uuid())
+  /// What this plan resolves: `group` = duplicate FILES inside one group;
+  /// `show_merge` = duplicate show FOLDERS merged into a canonical one. The two
+  /// share this table because they share the property that matters: the plan that
+  /// executes is the plan that was approved, journalled action by action.
+  scope String @default("group")
+  /// Set for `group` plans. Null for a show merge, which has no group.
+  groupId String?
   /// pending | running | completed | partial | failed | cancelled
   status String @default("pending")
   /// The item kept. Null only for a failed plan that never got that far.
   keepItemId String?
+  /// Set for `show_merge`: the folder every other folder is merged INTO.
+  canonicalShowId String?
+  /// Set for `show_merge`: a digest of every input file's path and size at preview
+  /// time. A show family has no `version` to pin to, so the disk itself is the
+  /// version — if it moved, the approved plan no longer describes reality.
+  inputFingerprint String?
   /// The server-generated plan, stored at preview time.
   preview Json?
   /// The group version the preview was built against. Execution refuses to run if
@@ -1098,10 +1110,12 @@ model MediaDuplicateResolution {
   failedAt     DateTime?
   createdAt    DateTime  @default(now())
 
-  group   MediaDuplicateGroup              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group   MediaDuplicateGroup?             @relation(fields: [groupId], references: [id], onDelete: Cascade)
   actions MediaDuplicateResolutionAction[]
 
   @@index([groupId])
+  @@index([canonicalShowId])
+  @@index([scope])
   @@index([status])
   @@index([createdAt])
   @@map("media_duplicate_resolutions")

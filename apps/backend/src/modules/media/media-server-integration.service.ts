@@ -331,6 +331,34 @@ export class MediaServerIntegrationService {
   }
 
   /**
+   * Refresh every enabled integration, best-effort.
+   *
+   * Used after an operation that moved files on disk (a show-folder merge), where a
+   * stale Plex/Jellyfin index shows the operator missing episodes that are actually
+   * there. Never throws: an unreachable media server is a reason to report a failed
+   * refresh, not to fail the operation that already completed on disk. `refresh`
+   * itself records the health signal.
+   */
+  async refreshAllEnabled(ctx: AuditContext = {}): Promise<{ refreshed: number; failed: number }> {
+    const rows = await this.prisma.mediaServerIntegration.findMany({
+      where: { isEnabled: true },
+      select: { id: true },
+    });
+    let refreshed = 0;
+    let failed = 0;
+    for (const row of rows) {
+      try {
+        await this.refresh(row.id, ctx);
+        refreshed++;
+      } catch (err) {
+        failed++;
+        this.logger.warn(`Media-server refresh failed for ${row.id}: ${(err as Error).message}`);
+      }
+    }
+    return { refreshed, failed };
+  }
+
+  /**
    * Probe a server and persist its analytics health (status/version/platform/
    * capabilities). Used by Media Server Analytics.
    */
