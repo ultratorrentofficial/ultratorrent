@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.34.9] - 2026-07-20
+
+### Fixed
+- Phase 0 of the Duplicate Center work: fix the data-integrity bug that made duplicate detection unsafe, and close two security defects found in the same review.
+
 ## [0.34.8] - 2026-07-19
 
 ### Fixed
