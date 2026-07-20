@@ -509,6 +509,16 @@ export class MediaController {
     return this.duplicateResolution.resolve(resolutionId, auditCtx(req));
   }
 
+  /**
+   * What the Duplicate Center has sent to Trash. Restore goes through the existing
+   * `/api/files/trash/restore` route rather than a duplicate of it.
+   */
+  @Get('duplicates/trash/history')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  duplicateTrashHistory() {
+    return this.duplicateResolution.trashedByCleanup();
+  }
+
   /** Put an ignored or resolved group back in front of the operator. */
   @Post('duplicates/:groupId/reopen')
   @RequirePermissions(P.MEDIA_MANAGER_MATCH)

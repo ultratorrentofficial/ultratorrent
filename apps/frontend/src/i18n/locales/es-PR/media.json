@@ -332,7 +332,8 @@
       "episodes": "Episodios",
       "folders": "Carpetas de series",
       "ignored": "Ignorados",
-      "resolved": "Resueltos"
+      "resolved": "Resueltos",
+      "trash": "Papelera y recuperación"
     },
     "filter": {
       "search": "Buscar",
@@ -418,6 +419,43 @@
       "differs": "difiere",
       "version": "Versión {{version}}",
       "noActionYet": "Las acciones de limpieza llegan en una fase posterior — nada aquí modifica tus archivos."
+    },
+    "cleanup": {
+      "title": "Limpiar duplicados",
+      "description": "Revisa exactamente lo que ocurrirá. Todavía no se ha cambiado nada.",
+      "building": "Generando el plan…",
+      "keeping": "Se conserva",
+      "toTrash_one": "Se moverá {{count}} archivo a la Papelera",
+      "toTrash_other": "Se moverán {{count}} archivos a la Papelera",
+      "sidecar": "complementario",
+      "orphanedSubs": "Subtítulos que solo existen en la copia que se eliminará",
+      "orphanedSubsHint": "Se dejan donde están en lugar de borrarlos — la copia que se conserva no tiene subtítulos en ese idioma.",
+      "blocked": "Esta limpieza está bloqueada",
+      "reclaim": "Se recuperarán unos {{size}}.",
+      "trashNote": "Los archivos se mueven a la Papelera y pueden restaurarse hasta que expire el período de retención.",
+      "cancel": "Cancelar",
+      "confirm": "Mover copias a la Papelera",
+      "previewFailed": "No se pudo generar el plan de limpieza",
+      "doneTitle": "Limpieza completada",
+      "doneBody_one": "{{count}} archivo movido a la Papelera, {{size}} recuperados.",
+      "doneBody_other": "{{count}} archivos movidos a la Papelera, {{size}} recuperados.",
+      "partialTitle": "La limpieza terminó con problemas",
+      "partialBody": "{{trashed}} movidos a la Papelera, {{skipped}} omitidos, {{failed}} fallidos.",
+      "failed": "La limpieza falló",
+      "start": "Limpiar…"
+    },
+    "trash": {
+      "title": "Papelera y recuperación",
+      "subtitle": "Archivos que el Centro de duplicados movió a la Papelera. Restaura lo que necesites hasta que expire el período de retención.",
+      "empty": "Aún no se ha limpiado nada.",
+      "emptyBody": "Los archivos que muevas a la Papelera desde un grupo de duplicados aparecerán aquí.",
+      "removedAt": "Eliminado",
+      "restore": "Restaurar",
+      "restored": "Archivo restaurado",
+      "restoreFailed": "No se pudo restaurar el archivo",
+      "purged": "Ya no está en la Papelera",
+      "purgedHint": "El período de retención expiró y este archivo se eliminó de forma permanente.",
+      "loadError": "No se pudo cargar el historial de limpieza."
     }
   },
   "renamePreview": {

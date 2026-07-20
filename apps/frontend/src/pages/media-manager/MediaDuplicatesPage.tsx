@@ -25,6 +25,7 @@ import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedbac
 import { duplicateReasonLabel, seasonEpisodeLabel } from './constants';
 import { DuplicateShowsPanel } from './DuplicateShowsPanel';
 import { DuplicateComparison, CompareToggleButton } from './DuplicateComparison';
+import { DuplicateTrashPanel } from './DuplicateTrashPanel';
 
 const DUPES_PAGE_SIZE = 25;
 
@@ -44,6 +45,7 @@ const TABS = [
   { id: 'folders', filter: null },
   { id: 'ignored', filter: { status: 'ignored' } },
   { id: 'resolved', filter: { status: 'resolved' } },
+  { id: 'trash', filter: null },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -145,7 +147,9 @@ export function MediaDuplicatesPage() {
 
         {TABS.map((x) => (
           <TabsContent key={x.id} value={x.id} className="space-y-4">
-            {x.filter == null ? (
+            {x.id === 'trash' ? (
+              <DuplicateTrashPanel />
+            ) : x.filter == null ? (
               <section className="space-y-3">
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight">{t('shows.dupes.title')}</h2>

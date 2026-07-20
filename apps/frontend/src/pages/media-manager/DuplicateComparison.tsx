@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Star } from 'lucide-react';
@@ -7,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CenteredSpinner, ErrorState } from '@/components/ui/feedback';
 import { seasonEpisodeLabel } from './constants';
+import { DuplicateCleanupDialog } from './DuplicateCleanupDialog';
 
 /** `3078` → `51m 18s`. Runtime is one of the few honest cross-release comparisons. */
 function formatDuration(sec: number | null): string | null {
@@ -61,6 +63,7 @@ function Row({ label, values, compare = true }: RowProps) {
  */
 export function DuplicateComparison({ groupId }: { groupId: string }) {
   const { t } = useTranslation('media');
+  const [cleanupFor, setCleanupFor] = useState<string | null>(null);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['media', 'duplicates', 'detail', groupId],
     queryFn: () => api.media.duplicateGroup(groupId),
@@ -168,10 +171,21 @@ export function DuplicateComparison({ groupId }: { groupId: string }) {
         {data.requiresReview ? (
           <Badge variant="destructive">{t('duplicates.badge.reviewRequired')}</Badge>
         ) : null}
-        {/* Resolution is Phase 3. Rather than a button that does nothing, the view
-            states plainly what it can and cannot do yet. */}
-        <p className="text-xs text-muted-foreground">{t('duplicates.compare.noActionYet')}</p>
+        <div className="ml-auto flex items-center gap-2">
+          {/* The keeper defaults to the suggestion; the operator can pick another row
+              first. Either way the SERVER builds the plan — this only names a choice. */}
+          <Button variant="destructive" size="sm" onClick={() => setCleanupFor(keep ?? '')} disabled={!keep}>
+            {t('duplicates.cleanup.start')}
+          </Button>
+        </div>
       </div>
+
+      <DuplicateCleanupDialog
+        groupId={groupId}
+        keepItemId={cleanupFor ?? undefined}
+        open={cleanupFor != null}
+        onClose={() => setCleanupFor(null)}
+      />
     </div>
   );
 }

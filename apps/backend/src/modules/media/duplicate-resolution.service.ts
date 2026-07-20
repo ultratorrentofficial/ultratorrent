@@ -426,4 +426,48 @@ export class DuplicateResolutionService {
 
     return { resolutionId, status, trashed, skipped, failed, reclaimedBytes: reclaimed };
   }
+
+  /**
+   * Files this feature sent to Trash, newest first.
+   *
+   * Correlated with the resolution journal by path rather than by a new column on
+   * `TrashItem`: the Trash surface already exists and works (list/restore/purge), and
+   * the action journal already records every path the Duplicate Center removed, so a
+   * parallel origin field would be a second source of truth for something already
+   * knowable. Restore goes through the existing `/files/trash/restore` route.
+   */
+  async trashedByCleanup(limit = 100) {
+    const actions = await this.prisma.mediaDuplicateResolutionAction.findMany({
+      where: { status: 'completed', actionType: { in: ['trash', 'trash_sidecar'] } },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 200),
+      select: { id: true, sourcePath: true, actionType: true, createdAt: true, resolutionId: true },
+    });
+    if (!actions.length) return [];
+
+    const items = await this.prisma.trashItem.findMany({
+      where: { originalPath: { in: actions.map((a) => a.sourcePath!).filter(Boolean) } },
+      select: { id: true, originalPath: true, name: true, size: true, deletedAt: true },
+    });
+    const byPath = new Map(items.map((t) => [t.originalPath, t]));
+
+    return actions.map((a) => {
+      const t = a.sourcePath ? byPath.get(a.sourcePath) : undefined;
+      return {
+        actionId: a.id,
+        resolutionId: a.resolutionId,
+        actionType: a.actionType,
+        originalPath: a.sourcePath,
+        removedAt: a.createdAt,
+        // Null when the retention window has already purged it — the journal
+        // outlives the Trash entry, and saying "gone" is better than implying it is
+        // still restorable.
+        trashItemId: t?.id ?? null,
+        name: t?.name ?? null,
+        size: t ? Number(t.size) : null,
+        deletedAt: t?.deletedAt ?? null,
+        restorable: !!t,
+      };
+    });
+  }
 }

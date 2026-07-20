@@ -1466,6 +1466,54 @@ export interface MediaDuplicateGroupDetail {
   candidates: MediaDuplicateCandidate[];
 }
 
+export interface DuplicatePlannedAction {
+  itemId: string;
+  actionType: 'trash' | 'trash_sidecar';
+  sourcePath: string;
+  fileSize: number;
+}
+
+/** A subtitle unique to a removed copy: left on disk, surfaced for a decision. */
+export interface DuplicateOrphanedSubtitle {
+  path: string;
+  language: string | null;
+}
+
+export interface DuplicateResolutionPreview {
+  resolutionId: string;
+  groupId: string;
+  groupVersion: number;
+  keepItemId: string;
+  keepPath: string;
+  actions: DuplicatePlannedAction[];
+  orphanedSubtitles: DuplicateOrphanedSubtitle[];
+  expectedSavingsBytes: number;
+  blockers: string[];
+  warnings: string[];
+}
+
+export interface DuplicateResolutionResult {
+  resolutionId: string;
+  status: 'completed' | 'partial' | 'failed';
+  trashed: number;
+  skipped: number;
+  failed: number;
+  reclaimedBytes: number;
+}
+
+export interface DuplicateTrashEntry {
+  actionId: string;
+  resolutionId: string;
+  actionType: string;
+  originalPath: string | null;
+  removedAt: string;
+  trashItemId: string | null;
+  name: string | null;
+  size: number | null;
+  deletedAt: string | null;
+  restorable: boolean;
+}
+
 export interface DuplicateQuery extends PageQuery {
   q?: string;
   libraryId?: string;
@@ -3233,6 +3281,20 @@ export const api = {
       return request<MediaCleanupRules>('/media/settings/cleanup', { method: 'PATCH', body: patch });
     },
     // --- duplicates -------------------------------------------------------
+    previewDuplicateCleanup(groupId: string, keepItemId?: string): Promise<DuplicateResolutionPreview> {
+      return request<DuplicateResolutionPreview>(`/media/duplicates/${groupId}/preview`, {
+        method: 'POST',
+        body: { keepItemId },
+      });
+    },
+    resolveDuplicateCleanup(resolutionId: string): Promise<DuplicateResolutionResult> {
+      return request<DuplicateResolutionResult>(`/media/duplicates/resolutions/${resolutionId}/resolve`, {
+        method: 'POST',
+      });
+    },
+    duplicateTrashHistory(): Promise<DuplicateTrashEntry[]> {
+      return request<DuplicateTrashEntry[]>('/media/duplicates/trash/history');
+    },
     duplicatesOverview(): Promise<MediaDuplicateOverview> {
       return request<MediaDuplicateOverview>('/media/duplicates/overview');
     },
