@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.38.0] - 2026-07-20
+
+### Added
+- Duplicate Center Phase 3 (part 3) — the cleanup UI and Trash & Recovery, completing the Scan → Review → Keep Best → Preview → Clean Up → Verify loop.
+
 ## [0.37.1] - 2026-07-20
 
 ### Fixed
