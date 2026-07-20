@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.36.1] - 2026-07-20
+
+### Fixed
+- Fix the Duplicate Center opening on an empty screen.
+
 ## [0.36.0] - 2026-07-20
 
 ### Added
