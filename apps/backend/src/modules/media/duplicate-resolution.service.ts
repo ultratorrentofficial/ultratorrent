@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { FilesService } from '../files/files.service';
 import { AuditService } from '../audit/audit.service';
+import { LANG_TAG, SUBTITLE_EXT } from './media-renamer';
 
 export interface ResolutionContext {
   userId?: string;
@@ -14,10 +15,26 @@ export interface ResolutionContext {
 
 export interface PlannedAction {
   itemId: string;
-  actionType: 'trash';
+  /** `trash` is the video; `trash_sidecar` is a file named after it. */
+  actionType: 'trash' | 'trash_sidecar';
   sourcePath: string;
   /** Size at preview time — revalidated before the file is touched. */
   fileSize: number;
+}
+
+/**
+ * A subtitle that exists only beside the copy being removed.
+ *
+ * These are deliberately NOT trashed and NOT silently orphaned — they are reported.
+ * A `.nfo` or `-thumb.jpg` describes its video and is worthless once the video is
+ * gone, but a subtitle is CONTENT: a live group planned to keep a 1080p release and
+ * trash an organised copy that carried `…- Jane Foster.por.srt`, the only Portuguese
+ * subtitle for that episode anywhere in the library. Deleting it is data loss;
+ * leaving it unmentioned is a silent orphan. So the operator is told.
+ */
+export interface OrphanedSubtitle {
+  path: string;
+  language: string | null;
 }
 
 export interface ResolutionPreview {
@@ -27,8 +44,11 @@ export interface ResolutionPreview {
   keepItemId: string;
   keepPath: string;
   actions: PlannedAction[];
+  /** Subtitles unique to a removed copy — left on disk, surfaced for a decision. */
+  orphanedSubtitles: OrphanedSubtitle[];
   expectedSavingsBytes: number;
   blockers: string[];
+  warnings: string[];
 }
 
 /**
@@ -68,6 +88,42 @@ export class DuplicateResolutionService {
     private readonly audit: AuditService,
   ) {}
 
+
+  /**
+   * Files named after `videoPath` that belong to it: `.nfo`, `-thumb.jpg`,
+   * `.en.srt`, `-mediainfo.xml`.
+   *
+   * Matched STRUCTURALLY — basename plus an optional `-`/`.` suffix — which is the
+   * same rule the renamer's sidecar pass uses, so the two agree about what belongs to
+   * what. That rule is also what keeps SHOW-LEVEL files out: `poster.jpg`,
+   * `fanart.jpg`, `tvshow.nfo`, `season01-poster.jpg` and `theme.mp3` are named after
+   * the FOLDER, not the episode, so they never match and are never touched.
+   */
+  private async sidecarsOf(videoPath: string): Promise<string[]> {
+    const dir = path.dirname(videoPath);
+    const base = path.basename(videoPath, path.extname(videoPath));
+    const entries = await readdir(dir).catch(() => [] as string[]);
+    return entries
+      .filter((name) => {
+        const full = path.join(dir, name);
+        if (full === videoPath) return false;
+        const stem = path.basename(name, path.extname(name));
+        if (!stem.startsWith(base)) return false;
+        const suffix = stem.slice(base.length);
+        // Same name, or the video's name plus a marker. A bare extra character means
+        // a DIFFERENT file ("Episode 2" vs "Episode 20").
+        return suffix === '' || /^[-.]/.test(suffix);
+      })
+      .map((name) => path.join(dir, name));
+  }
+
+  /** `foo.por.srt` → `por`. Null when the name carries no language tag. */
+  private subtitleLanguage(p: string): string | null {
+    const stem = path.basename(p, path.extname(p));
+    const m = LANG_TAG.exec(stem);
+    return m ? m[1].toLowerCase() : null;
+  }
+
   /**
    * Build and persist a resolution plan. Touches no files.
    *
@@ -100,6 +156,7 @@ export class DuplicateResolutionService {
     const roots = new Set(libs.map((l) => path.resolve(l.path)));
 
     const actions: PlannedAction[] = [];
+    const removedVideos: string[] = [];
     for (const item of group.items) {
       if (item.id === keepId) continue;
       const p = item.files[0]?.path ?? item.path;
@@ -119,6 +176,7 @@ export class DuplicateResolutionService {
         sourcePath: p,
         fileSize: Number(item.files[0]?.size ?? 0),
       });
+      removedVideos.push(p);
     }
 
     if (!actions.length && !blockers.length) {
@@ -132,6 +190,48 @@ export class DuplicateResolutionService {
       blockers.push(`The copy being kept ("${keepPath}") is outside the allowed storage roots.`);
     }
 
+    // Sidecars follow the video they describe. Trashing the video and leaving its
+    // .nfo and -thumb.jpg behind orphans metadata that now describes nothing — the
+    // same orphaning the renamer's sidecar pass exists to prevent.
+    const warnings: string[] = [];
+    const orphanedSubtitles: OrphanedSubtitle[] = [];
+    const keepSidecars = await this.sidecarsOf(keepPath);
+    const keptSubLangs = new Set(
+      keepSidecars
+        .filter((f) => SUBTITLE_EXT.has(path.extname(f).toLowerCase()))
+        .map((f) => this.subtitleLanguage(f)),
+    );
+
+    for (const video of removedVideos) {
+      for (const sc of await this.sidecarsOf(video)) {
+        const ext = path.extname(sc).toLowerCase();
+        if (SUBTITLE_EXT.has(ext)) {
+          const lang = this.subtitleLanguage(sc);
+          // A subtitle the keeper does not already have is CONTENT that exists
+          // nowhere else. It is neither trashed nor silently left: it is reported.
+          if (!keptSubLangs.has(lang)) {
+            orphanedSubtitles.push({ path: sc, language: lang });
+            continue;
+          }
+        }
+        const st = await stat(sc).catch(() => null);
+        if (!st?.isFile()) continue;
+        actions.push({
+          itemId: '',
+          actionType: 'trash_sidecar',
+          sourcePath: sc,
+          fileSize: st.size,
+        });
+      }
+    }
+
+    if (orphanedSubtitles.length) {
+      warnings.push(
+        `${orphanedSubtitles.length} subtitle(s) exist only beside a copy being removed and will be left in place: ` +
+          orphanedSubtitles.map((o) => path.basename(o.path)).join(', '),
+      );
+    }
+
     const expected = actions.reduce((a, x) => a + x.fileSize, 0);
     const resolution = await this.prisma.mediaDuplicateResolution.create({
       data: {
@@ -139,7 +239,7 @@ export class DuplicateResolutionService {
         status: 'pending',
         keepItemId: keepId,
         groupVersion: group.version,
-        preview: { keepPath, actions, blockers } as unknown as object,
+        preview: { keepPath, actions, blockers, warnings, orphanedSubtitles } as unknown as object,
         expectedSavingsBytes: BigInt(expected),
         createdById: ctx.userId ?? null,
       },
@@ -153,7 +253,13 @@ export class DuplicateResolutionService {
       result: blockers.length ? 'failure' : 'success',
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
-      metadata: { resolutionId: resolution.id, keepItemId: keepId, trashCount: actions.length, expected },
+      metadata: {
+        resolutionId: resolution.id,
+        keepItemId: keepId,
+        trashCount: actions.length,
+        orphanedSubtitles: orphanedSubtitles.length,
+        expected,
+      },
     });
 
     return {
@@ -163,8 +269,10 @@ export class DuplicateResolutionService {
       keepItemId: keepId,
       keepPath,
       actions,
+      orphanedSubtitles,
       expectedSavingsBytes: expected,
       blockers,
+      warnings,
     };
   }
 

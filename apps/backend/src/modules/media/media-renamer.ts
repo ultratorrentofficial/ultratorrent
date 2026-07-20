@@ -152,7 +152,7 @@ export interface RenamePlan {
 }
 
 const VIDEO_EXT = new Set(['.mkv', '.mp4', '.avi', '.m4v', '.ts', '.m2ts', '.wmv', '.mov', '.webm']);
-const SUBTITLE_EXT = new Set(['.srt', '.ass', '.ssa', '.sub', '.idx', '.vtt']);
+export const SUBTITLE_EXT = new Set(['.srt', '.ass', '.ssa', '.sub', '.idx', '.vtt']);
 const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.wma']);
 const AUDIOBOOK_EXT = new Set(['.m4b', '.aa', '.aax']);
 const EXTRA_HINTS = /\b(featurette|extras?|behind[ ._-]the[ ._-]scenes|deleted|interview|trailer|bonus)\b/i;
@@ -169,7 +169,7 @@ const EXTRA_HINTS = /\b(featurette|extras?|behind[ ._-]the[ ._-]scenes|deleted|i
  */
 const SHOW_LEVEL_AUDIO = /^(?:theme(?:[-_ ]?music)?|backdrop|background)\d*$/i;
 const SAMPLE_HINTS = /\bsample\b/i;
-const LANG_TAG = /\.([a-z]{2,3})(\.(forced|sdh|cc))?$/i;
+export const LANG_TAG = /\.([a-z]{2,3})(\.(forced|sdh|cc))?$/i;
 
 // --- preset templates ----------------------------------------------------
 

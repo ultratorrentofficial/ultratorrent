@@ -143,6 +143,75 @@ describe('preview — refuses to plan what it should not', () => {
   });
 });
 
+describe('preview — sidecars follow the video they describe', () => {
+  let dir: string;
+  beforeEach(async () => { dir = await mkdtemp(path.join(tmpdir(), 'dupsc-')); });
+  afterEach(async () => { await rm(dir, { recursive: true, force: true }); });
+
+  async function withFiles(names: string[]) {
+    for (const n of names) await writeFile(path.join(dir, n), 'x');
+    const keepPath = path.join(dir, 'keep.mkv');
+    const dropPath = path.join(dir, 'drop.mp4');
+    const ctx = build({
+      libraries: [{ path: dir }],
+      assertWithinHardRoots: jest.fn((p: string) => { if (!p.startsWith(dir)) throw new Error('outside roots'); return p; }),
+      group: { version: 1, recommendedItemId: 'keep', items: [item('keep', keepPath, 10), item('drop', dropPath, 20)] },
+    });
+    return ctx;
+  }
+
+  it('trashes the .nfo and -thumb.jpg alongside their video', async () => {
+    const { svc } = await withFiles(['keep.mkv', 'drop.mp4', 'drop.nfo', 'drop-thumb.jpg']);
+    const p = await svc.preview('g1', 'keep');
+    const trashed = p.actions.map((a) => path.basename(a.sourcePath)).sort();
+    expect(trashed).toEqual(['drop-thumb.jpg', 'drop.mp4', 'drop.nfo']);
+  });
+
+  it('never touches show-level artwork, which is named after the FOLDER', async () => {
+    const { svc } = await withFiles([
+      'keep.mkv', 'drop.mp4', 'poster.jpg', 'fanart.jpg', 'tvshow.nfo', 'theme.mp3', 'season01-poster.jpg',
+    ]);
+    const p = await svc.preview('g1', 'keep');
+    const names = p.actions.map((a) => path.basename(a.sourcePath));
+    expect(names).toEqual(['drop.mp4']);
+  });
+
+  it('does not mistake a longer-named neighbour for a sidecar', async () => {
+    // "drop2.mp4" starts with "drop" but is a DIFFERENT file.
+    const { svc } = await withFiles(['keep.mkv', 'drop.mp4', 'drop2.mp4']);
+    const p = await svc.preview('g1', 'keep');
+    expect(p.actions.map((a) => path.basename(a.sourcePath))).toEqual(['drop.mp4']);
+  });
+
+  it('reports a subtitle that exists only beside the removed copy — never deletes it', async () => {
+    // The live case: the organised copy carried the only Portuguese subtitle in the
+    // library. Deleting it is data loss; leaving it unmentioned is a silent orphan.
+    const { svc } = await withFiles(['keep.mkv', 'drop.mp4', 'drop.por.srt']);
+    const p = await svc.preview('g1', 'keep');
+    expect(p.orphanedSubtitles).toHaveLength(1);
+    expect(p.orphanedSubtitles[0].language).toBe('por');
+    expect(p.warnings.join(' ')).toContain('drop.por.srt');
+    // Critically: it is NOT in the trash plan.
+    expect(p.actions.some((a) => a.sourcePath.endsWith('.por.srt'))).toBe(false);
+  });
+
+  it('does trash a subtitle the keeper already has in that language', async () => {
+    const { svc } = await withFiles(['keep.mkv', 'keep.por.srt', 'drop.mp4', 'drop.por.srt']);
+    const p = await svc.preview('g1', 'keep');
+    expect(p.orphanedSubtitles).toHaveLength(0);
+    expect(p.actions.some((a) => a.sourcePath.endsWith('drop.por.srt'))).toBe(true);
+    // The keeper's own subtitle is never planned for removal.
+    expect(p.actions.some((a) => a.sourcePath.endsWith('keep.por.srt'))).toBe(false);
+  });
+
+  it('counts sidecar bytes in the expected reclaim', async () => {
+    const { svc } = await withFiles(['keep.mkv', 'drop.mp4', 'drop.nfo']);
+    const p = await svc.preview('g1', 'keep');
+    // 20 (the video, from the DB snapshot) + 1 byte of .nfo written above.
+    expect(p.expectedSavingsBytes).toBe(21);
+  });
+});
+
 describe('resolve — refuses to execute a plan it should not', () => {
   let dir: string;
   beforeEach(async () => {
