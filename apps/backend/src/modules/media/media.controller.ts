@@ -41,6 +41,7 @@ import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
 import { ShowMergeDto } from './dto/show-merge.dto';
+import { IgnoreDuplicateGroupDto, ListDuplicatesDto } from './dto/duplicates.dto';
 import {
   MediaServerIntegrationService,
   IntegrationInput,
@@ -435,10 +436,17 @@ export class MediaController {
   }
 
   // --- duplicates --------------------------------------------------------
+  /** Counts for the Duplicate Center landing screen. */
+  @Get('duplicates/overview')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  duplicatesOverview() {
+    return this.duplicates.overview();
+  }
+
   @Get('duplicates')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  listDuplicates(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
-    return this.duplicates.list(page, pageSize);
+  listDuplicates(@Query() query: ListDuplicatesDto) {
+    return this.duplicates.list(query.page, query.pageSize, query);
   }
 
   /**
@@ -452,6 +460,34 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_SCAN)
   detectDuplicates() {
     return this.duplicates.detect();
+  }
+
+  /** One group with the side-by-side comparison payload. */
+  @Get('duplicates/:groupId')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  getDuplicateGroup(@Param('groupId') groupId: string) {
+    return this.duplicates.get(groupId);
+  }
+
+  /**
+   * "These are not duplicates." Recorded against the group's durable identity, so it
+   * survives the next detection run instead of reappearing.
+   */
+  @Post('duplicates/:groupId/ignore')
+  @RequirePermissions(P.MEDIA_MANAGER_MATCH)
+  ignoreDuplicateGroup(
+    @Param('groupId') groupId: string,
+    @Body() body: IgnoreDuplicateGroupDto,
+    @Req() req: Request,
+  ) {
+    return this.duplicates.ignore(groupId, body?.reason, (req as unknown as { user?: { id?: string } }).user?.id);
+  }
+
+  /** Put an ignored or resolved group back in front of the operator. */
+  @Post('duplicates/:groupId/reopen')
+  @RequirePermissions(P.MEDIA_MANAGER_MATCH)
+  reopenDuplicateGroup(@Param('groupId') groupId: string) {
+    return this.duplicates.reopen(groupId);
   }
 
   // --- duplicate SHOW FOLDERS --------------------------------------------

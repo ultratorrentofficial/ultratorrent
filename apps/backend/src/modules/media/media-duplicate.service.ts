@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { pageOf, parsePage } from '../../common/pagination';
+import type { ListDuplicatesDto } from './dto/duplicates.dto';
 
 /** Reasons two items are considered duplicates, in descending confidence. */
 export type DuplicateReason =
@@ -243,13 +245,15 @@ export class MediaDuplicateService {
   }
 
   /** List current duplicate groups (paginated) with a per-item quality comparison. */
-  async list(page?: string, pageSize?: string) {
-    const params = parsePage(page, pageSize, 25);
+  async list(page?: string, pageSize?: string, query: ListDuplicatesDto = {}) {
+    const params = parsePage(page ?? query.page, pageSize ?? query.pageSize, 25);
+    const where = this.groupWhere(query);
     const [total, groups] = await Promise.all([
-      this.prisma.mediaDuplicateGroup.count(),
+      this.prisma.mediaDuplicateGroup.count({ where }),
       this.prisma.mediaDuplicateGroup.findMany({
+        where,
         include: { items: { include: { files: true, externalIds: true } } },
-        orderBy: { createdAt: 'desc' },
+        orderBy: this.groupOrder(query.sort),
         skip: params.skip,
         take: params.take,
       }),
@@ -291,11 +295,253 @@ export class MediaDuplicateService {
       return {
         id: g.id,
         reason: g.reason,
+        groupType: g.groupType,
+        status: g.status,
+        confidence: g.confidence,
+        requiresReview: g.requiresReview,
+        potentialSavingsBytes: Number(g.potentialSavingsBytes),
+        version: g.version,
+        ignoredReason: g.ignoredReason,
         createdAt: g.createdAt,
         suggestedKeepId: scored[0]?.id ?? null,
         items: scored,
       };
     });
+
+    // Applied after the page is fetched because neither is a column: `files_desc`
+    // counts a relation and `title` lives on the member items. Both therefore order
+    // WITHIN the page, which is honest for a page-at-a-time list and keeps
+    // pagination stable; the column orderings above cover the rest.
+    if (query.sort === 'files_desc') items.sort((a, b) => b.items.length - a.items.length);
+    if (query.sort === 'title') {
+      items.sort((a, b) => (a.items[0]?.title ?? '').localeCompare(b.items[0]?.title ?? ''));
+    }
     return pageOf(items, total, params);
+  }
+
+  // --- Duplicate Center -----------------------------------------------------
+
+  /**
+   * Counts for the Duplicate Center landing screen.
+   *
+   * Every figure is a single aggregate rather than a page of rows loaded and counted
+   * in JS — the old list path pulled whole groups with their items, files and
+   * external ids just to render a table, which does not survive a library of tens of
+   * thousands of files.
+   */
+  async overview() {
+    const [byStatus, byType, byReason, review, savings, lastGroup, resolutions] =
+      await Promise.all([
+        this.prisma.mediaDuplicateGroup.groupBy({ by: ['status'], _count: { _all: true } }),
+        this.prisma.mediaDuplicateGroup.groupBy({ by: ['groupType'], _count: { _all: true } }),
+        this.prisma.mediaDuplicateGroup.groupBy({ by: ['reason'], _count: { _all: true } }),
+        this.prisma.mediaDuplicateGroup.count({ where: { status: 'open', requiresReview: true } }),
+        this.prisma.mediaDuplicateGroup.aggregate({
+          where: { status: 'open' },
+          _sum: { potentialSavingsBytes: true },
+        }),
+        this.prisma.mediaDuplicateGroup.findFirst({ orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+        this.prisma.mediaDuplicateResolution.groupBy({ by: ['status'], _count: { _all: true } }),
+      ]);
+
+    const count = (rows: Array<{ _count: { _all: number } }>, key: string, field: string) =>
+      rows.find((r) => (r as unknown as Record<string, unknown>)[field] === key)?._count._all ?? 0;
+
+    return {
+      groups: {
+        total: byStatus.reduce((a, r) => a + r._count._all, 0),
+        open: count(byStatus, 'open', 'status'),
+        ignored: count(byStatus, 'ignored', 'status'),
+        resolved: count(byStatus, 'resolved', 'status'),
+      },
+      needsReview: review,
+      byType: {
+        file: count(byType, 'file', 'groupType'),
+        showFolder: count(byType, 'show_folder', 'groupType'),
+      },
+      byReason: Object.fromEntries(byReason.map((r) => [r.reason, r._count._all])),
+      // Potential reclaim is only meaningful once candidates carry sizes, which the
+      // recommendation engine fills in. Reported as 0 rather than guessed.
+      potentialSavingsBytes: Number(savings._sum.potentialSavingsBytes ?? 0),
+      lastDetectedAt: lastGroup?.createdAt ?? null,
+      resolutions: Object.fromEntries(resolutions.map((r) => [r.status, r._count._all])),
+    };
+  }
+
+  /** Build the Prisma filter for a Duplicate Center query. */
+  private groupWhere(query: ListDuplicatesDto): Prisma.MediaDuplicateGroupWhereInput {
+    const where: Prisma.MediaDuplicateGroupWhereInput = {};
+    // Default to OPEN. A landing screen that silently includes resolved and ignored
+    // groups is how an operator loses faith in the counts.
+    where.status = query.status ?? 'open';
+    if (query.groupType) where.groupType = query.groupType;
+    if (query.reason) where.reason = query.reason;
+    if (query.requiresReview === 'true') where.requiresReview = true;
+
+    // Item-level filters reach through the membership, so a library or media-type
+    // filter means "this group has a member there" rather than dropping the group.
+    const item: Prisma.MediaItemWhereInput = {};
+    if (query.libraryId) item.libraryId = query.libraryId;
+    if (query.mediaType) item.mediaType = query.mediaType;
+    const q = query.q?.trim();
+    if (q) {
+      item.OR = [
+        { title: { contains: q, mode: 'insensitive' } },
+        { path: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    if (Object.keys(item).length) where.items = { some: item };
+    return where;
+  }
+
+  /** Translate a sort token into a Prisma ordering. */
+  private groupOrder(sort?: string): Prisma.MediaDuplicateGroupOrderByWithRelationInput[] {
+    switch (sort) {
+      case 'savings_desc':
+        return [{ potentialSavingsBytes: 'desc' }, { createdAt: 'desc' }];
+      case 'confidence_desc':
+        return [{ confidence: 'desc' }, { createdAt: 'desc' }];
+      case 'confidence_asc':
+        return [{ confidence: 'asc' }, { createdAt: 'desc' }];
+      case 'recent':
+        return [{ createdAt: 'desc' }];
+      case 'oldest':
+        return [{ createdAt: 'asc' }];
+      case 'files_desc':
+      case 'title':
+        // Neither is expressible as a column ordering (one counts a relation, the
+        // other lives on the member items). Sorted in the handler; the stable
+        // createdAt ordering keeps pagination deterministic underneath.
+        return [{ createdAt: 'desc' }];
+      case 'needs_review':
+      default:
+        // The default view: what needs a decision, biggest reclaim first.
+        return [{ requiresReview: 'desc' }, { potentialSavingsBytes: 'desc' }, { createdAt: 'desc' }];
+    }
+  }
+
+  /** One group with everything the comparison view needs. */
+  async get(groupId: string) {
+    const g = await this.prisma.mediaDuplicateGroup.findUnique({
+      where: { id: groupId },
+      include: { items: { include: { files: true, externalIds: true, library: { select: { id: true, name: true } } } } },
+    });
+    if (!g) throw new NotFoundException('Duplicate group not found');
+
+    const candidates = g.items.map((item) => {
+      const f = item.files[0];
+      return {
+        id: item.id,
+        title: item.title,
+        year: item.year,
+        season: item.season,
+        episode: item.episode,
+        mediaType: item.mediaType,
+        matchStatus: item.matchStatus,
+        libraryId: item.libraryId,
+        libraryName: item.library?.name ?? null,
+        path: item.path,
+        addedAt: item.createdAt,
+        modifiedAt: item.updatedAt,
+        externalIds: item.externalIds.map((e) => ({ provider: e.provider, externalId: e.externalId })),
+        totalSize: item.files.reduce((acc, x) => acc + Number(x.size), 0),
+        qualityScore: qualityScore({
+          id: item.id,
+          mediaType: item.mediaType,
+          title: item.title,
+          year: item.year,
+          season: item.season,
+          episode: item.episode,
+          files: item.files,
+        }),
+        // Split deliberately. The parsed fields come from the FILENAME and are mostly
+        // null on a renamed library (measured: 96% of files had no videoCodec, 100%
+        // no hdr) because the renamer strips those tokens. Presenting them beside
+        // measured values as if equally trustworthy is how a comparison view ends up
+        // full of blanks that look like missing data rather than absent evidence.
+        parsed: {
+          container: f?.container ?? null,
+          resolution: f?.resolution ?? null,
+          videoCodec: f?.videoCodec ?? null,
+          audioCodec: f?.audioCodec ?? null,
+          hdr: f?.hdr ?? null,
+          releaseGroup: f?.releaseGroup ?? null,
+          quality: f?.quality ?? null,
+          language: f?.language ?? null,
+        },
+        measured: {
+          width: f?.width ?? null,
+          height: f?.height ?? null,
+          bitrateKbps: f?.bitrateKbps ?? null,
+          durationSec: f?.durationSec ?? null,
+          audioChannels: f?.audioChannels ?? null,
+          frameRate: f?.frameRate ?? null,
+        },
+      };
+    });
+    candidates.sort((a, b) => b.qualityScore - a.qualityScore || b.totalSize - a.totalSize);
+
+    return {
+      id: g.id,
+      groupKey: g.groupKey,
+      groupType: g.groupType,
+      reason: g.reason,
+      status: g.status,
+      confidence: g.confidence,
+      requiresReview: g.requiresReview,
+      version: g.version,
+      potentialSavingsBytes: Number(g.potentialSavingsBytes),
+      recommendedItemId: g.recommendedItemId,
+      recommendation: g.recommendation,
+      warnings: g.warnings,
+      ignoredReason: g.ignoredReason,
+      ignoredAt: g.ignoredAt,
+      resolvedAt: g.resolvedAt,
+      createdAt: g.createdAt,
+      // Until the recommendation engine lands, the suggestion is the top-scored
+      // candidate — the same rule the old page used, surfaced honestly as a
+      // suggestion rather than dressed up as a recommendation with reasons.
+      suggestedKeepId: candidates[0]?.id ?? null,
+      candidates,
+    };
+  }
+
+  /**
+   * Mark a group "not a duplicate". Survives rescans by design: detection only
+   * deletes groups whose status is still `open`.
+   */
+  async ignore(groupId: string, reason: string | undefined, userId?: string) {
+    await this.getOrThrow(groupId);
+    return this.prisma.mediaDuplicateGroup.update({
+      where: { id: groupId },
+      data: {
+        status: 'ignored',
+        ignoredReason: reason?.trim() || null,
+        ignoredById: userId ?? null,
+        ignoredAt: new Date(),
+      },
+    });
+  }
+
+  /** Put an ignored or resolved group back in front of the operator. */
+  async reopen(groupId: string) {
+    await this.getOrThrow(groupId);
+    return this.prisma.mediaDuplicateGroup.update({
+      where: { id: groupId },
+      data: {
+        status: 'open',
+        ignoredReason: null,
+        ignoredById: null,
+        ignoredAt: null,
+        resolvedById: null,
+        resolvedAt: null,
+      },
+    });
+  }
+
+  private async getOrThrow(groupId: string) {
+    const g = await this.prisma.mediaDuplicateGroup.findUnique({ where: { id: groupId } });
+    if (!g) throw new NotFoundException('Duplicate group not found');
+    return g;
   }
 }
