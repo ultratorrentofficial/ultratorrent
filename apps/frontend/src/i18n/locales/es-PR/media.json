@@ -315,7 +315,7 @@
     },
     "suggestedKeepAria": "Conservación sugerida",
     "keep": "Conservar",
-    "keepThis": "Conservar este",
+    "keepThis": "Conservar esta",
     "remove": "Eliminar",
     "footnote": "Seleccionar uno para conservar marca el resto como candidatos a eliminación. Elimina los archivos del disco mediante el motor de renombrado o tu servidor de medios.",
     "scanning": "Buscando duplicados…",
@@ -485,7 +485,18 @@
     "cancelFailed": "No se pudo cancelar el escaneo",
     "detectionCompleteBody": "Se encontraron {{count}} grupo(s) duplicado(s) entre {{items}} elemento(s) en {{seconds}}s.",
     "detectionUnchangedTitle": "Nada ha cambiado",
-    "detectionUnchangedBody": "No se ha añadido, movido ni cambiado el tamaño de ningún archivo desde el último escaneo, así que los grupos existentes siguen vigentes."
+    "detectionUnchangedBody": "No se ha añadido, movido ni cambiado el tamaño de ningún archivo desde el último escaneo, así que los grupos existentes siguen vigentes.",
+    "deleteThis": "Eliminar",
+    "keepThisAria": "Conservar esta copia y eliminar las demás: {{path}}",
+    "deleteThisAria": "Eliminar solo esta copia: {{path}}",
+    "delete": {
+      "title": "Eliminar esta copia",
+      "description": "Solo esta copia se envía a la Papelera. Las demás copias del grupo se conservan. Todavía no ha pasado nada.",
+      "removing": "Enviando a la Papelera",
+      "keepingCount_one": "Se conserva {{count}} copia más",
+      "keepingCount_other": "Se conservan {{count}} copias más",
+      "confirm": "Eliminar esta copia"
+    }
   },
   "renamePreview": {
     "title": "Vista previa de renombrado",

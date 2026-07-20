@@ -176,6 +176,19 @@ The weights, in order: **resolution → bitrate → audio channels → size**, a
 outranks a probed height. Full rules in
 [DUPLICATE_DETECTION.md → recommendation](DUPLICATE_DETECTION.md#best-copy-recommendation).
 
+### Deciding per file
+
+The comparison view puts the decision on each copy. Every file carries two buttons:
+
+- **Keep this** — keep this copy and send every other copy in the group to Trash.
+- **Delete** — send only this copy to Trash and keep the rest (for thinning a
+  three-plus group).
+
+Both open the same preview-then-confirm dialog and never act on click. Delete can
+never remove the last copy — the plan records the survivors and execution refuses if
+none remains. See
+[DUPLICATE_CLEANUP_SAFETY.md → per-file decisions](DUPLICATE_CLEANUP_SAFETY.md#per-file-decisions-keep-this-or-delete-this).
+
 ## Duplicate show folders
 
 A duplicate show folder is resolved by **merging** the duplicates into a canonical

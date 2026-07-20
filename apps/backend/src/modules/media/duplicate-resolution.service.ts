@@ -66,6 +66,28 @@ export interface ResolutionPreview {
 }
 
 /**
+ * Preview for removing ONE specific copy while keeping the rest.
+ *
+ * The inverse of {@link ResolutionPreview}, which keeps one copy and trashes the
+ * rest. This exists for a group of three-plus where the operator wants to thin out
+ * particular copies rather than collapse the whole group to a single keeper.
+ */
+export interface ItemDeletionPreview {
+  resolutionId: string;
+  groupId: string;
+  groupVersion: number;
+  deleteItemId: string;
+  deletePath: string;
+  /** Every copy NOT being removed — the guarantee that a survivor remains. */
+  survivorPaths: string[];
+  actions: PlannedAction[];
+  orphanedSubtitles: OrphanedSubtitle[];
+  expectedSavingsBytes: number;
+  blockers: string[];
+  warnings: string[];
+}
+
+/**
  * Resolving a duplicate group: plan first, then execute the plan that was approved.
  *
  * Three properties this is built around, each of them a defect observed in the
@@ -272,7 +294,19 @@ export class DuplicateResolutionService {
         status: 'pending',
         keepItemId: keepId,
         groupVersion: group.version,
-        preview: { keepPath, actions, blockers, warnings, orphanedSubtitles } as unknown as object,
+        // `survivorPaths` generalises the keeper-existence guard `resolve` runs: for
+        // a keep-one plan the only survivor is the keeper, so it is a one-element
+        // list. The single-file deletion path (below) stores every copy it is NOT
+        // removing here, and the same guard then means "at least one copy survives".
+        preview: {
+          mode: 'keep_one',
+          keepPath,
+          survivorPaths: [keepPath],
+          actions,
+          blockers,
+          warnings,
+          orphanedSubtitles,
+        } as unknown as object,
         expectedSavingsBytes: BigInt(expected),
         createdById: ctx.userId ?? null,
       },
@@ -310,6 +344,166 @@ export class DuplicateResolutionService {
   }
 
   /**
+   * Build and persist a plan that trashes ONE named copy and keeps the others.
+   *
+   * The inverse of {@link preview}. Where `preview` keeps a single copy and trashes
+   * the rest, this trashes a single copy and keeps the rest — the operation behind a
+   * per-file **Delete** button, for a group of three-plus where the operator wants
+   * to remove specific copies without collapsing the group to one.
+   *
+   * The survivor guarantee: a group always has >= 2 members, so removing one leaves
+   * >= 1. The plan records the survivor paths, and `resolve` refuses if none still
+   * exists — so even a race that removed the other copies first cannot leave zero.
+   *
+   * Subtitle safety is generalised too: a language is safe to trash on the removed
+   * copy only if **some surviving copy** still has it. A language that exists nowhere
+   * among the survivors is content, and is reported as orphaned rather than deleted.
+   */
+  async previewItemDeletion(
+    groupId: string,
+    deleteItemId: string,
+    ctx: ResolutionContext = {},
+  ): Promise<ItemDeletionPreview> {
+    const group = await this.prisma.mediaDuplicateGroup.findUnique({
+      where: { id: groupId },
+      include: { items: { include: { files: true } } },
+    });
+    if (!group) throw new NotFoundException('Duplicate group not found');
+    if (group.status === 'resolved') throw new ConflictException('This group has already been resolved.');
+    if (group.items.length < 2) throw new BadRequestException('A group needs at least two members to resolve.');
+
+    // Untrusted client input: the id must belong to THIS group, or a caller could
+    // nominate an unrelated item for deletion.
+    const target = group.items.find((i) => i.id === deleteItemId);
+    if (!target) throw new BadRequestException('The chosen copy is not a member of this group.');
+
+    const survivors = group.items.filter((i) => i.id !== deleteItemId);
+    if (!survivors.length) {
+      // Unreachable given the >= 2 check above, but the invariant this method exists
+      // to protect is "never delete the last copy", so it is asserted, not assumed.
+      throw new BadRequestException('Refusing to delete the only copy in the group.');
+    }
+
+    const blockers: string[] = [];
+    const libs = await this.prisma.mediaLibrary.findMany({ select: { path: true } });
+    const roots = new Set(libs.map((l) => path.resolve(l.path)));
+
+    const deletePath = target.files[0]?.path ?? target.path;
+    const actions: PlannedAction[] = [];
+    try {
+      this.filePath.assertWithinHardRoots(deletePath);
+      if (roots.has(path.resolve(deletePath))) {
+        blockers.push(`"${deletePath}" is a library root, not a media file — refusing to delete it.`);
+      } else {
+        actions.push({
+          itemId: target.id,
+          actionType: 'trash',
+          sourcePath: deletePath,
+          fileSize: Number(target.files[0]?.size ?? 0),
+        });
+      }
+    } catch {
+      blockers.push(`"${deletePath}" is outside the allowed storage roots.`);
+    }
+
+    // Subtitle languages present on ANY surviving copy — the union, not a single
+    // keeper's set, because every survivor is being kept.
+    const keptSubLangs = new Set<string | null>();
+    for (const s of survivors) {
+      const sp = s.files[0]?.path ?? s.path;
+      for (const sc of await this.sidecarsOf(sp)) {
+        if (SUBTITLE_EXT.has(path.extname(sc).toLowerCase())) {
+          keptSubLangs.add(this.subtitleLanguage(sc));
+        }
+      }
+    }
+
+    const warnings: string[] = [];
+    const orphanedSubtitles: OrphanedSubtitle[] = [];
+    for (const sc of await this.sidecarsOf(deletePath)) {
+      const ext = path.extname(sc).toLowerCase();
+      if (SUBTITLE_EXT.has(ext)) {
+        const lang = this.subtitleLanguage(sc);
+        if (!keptSubLangs.has(lang)) {
+          orphanedSubtitles.push({ path: sc, language: lang });
+          continue;
+        }
+      }
+      const st = await stat(sc).catch(() => null);
+      if (!st?.isFile()) continue;
+      actions.push({ itemId: '', actionType: 'trash_sidecar', sourcePath: sc, fileSize: st.size });
+    }
+
+    if (orphanedSubtitles.length) {
+      warnings.push(
+        `${orphanedSubtitles.length} subtitle(s) exist only beside the copy being removed and will be left in place: ` +
+          orphanedSubtitles.map((o) => path.basename(o.path)).join(', '),
+      );
+    }
+    if (!actions.length && !blockers.length) {
+      blockers.push('Nothing to delete — that copy has no file on disk.');
+    }
+
+    const survivorPaths = survivors.map((s) => s.files[0]?.path ?? s.path);
+    const expected = actions.reduce((a, x) => a + x.fileSize, 0);
+    const resolution = await this.prisma.mediaDuplicateResolution.create({
+      data: {
+        scope: 'group',
+        groupId,
+        status: 'pending',
+        // No keeper: this removes one copy and keeps several, so there is no single
+        // "kept" item to name.
+        keepItemId: null,
+        groupVersion: group.version,
+        preview: {
+          mode: 'delete_item',
+          deleteItemId,
+          deletePath,
+          survivorPaths,
+          actions,
+          blockers,
+          warnings,
+          orphanedSubtitles,
+        } as unknown as object,
+        expectedSavingsBytes: BigInt(expected),
+        createdById: ctx.userId ?? null,
+      },
+    });
+
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.duplicates.preview',
+      objectType: 'media_duplicate_group',
+      objectId: groupId,
+      result: blockers.length ? 'failure' : 'success',
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: {
+        resolutionId: resolution.id,
+        deleteItemId,
+        mode: 'delete_item',
+        trashCount: actions.length,
+        orphanedSubtitles: orphanedSubtitles.length,
+        expected,
+      },
+    });
+
+    return {
+      resolutionId: resolution.id,
+      groupId,
+      groupVersion: group.version,
+      deleteItemId,
+      deletePath,
+      survivorPaths,
+      actions,
+      orphanedSubtitles,
+      expectedSavingsBytes: expected,
+      blockers,
+      warnings,
+    };
+  }
+
+  /**
    * Execute a previously previewed plan.
    *
    * Reads the stored preview rather than accepting one from the client, refuses a
@@ -332,11 +526,18 @@ export class DuplicateResolutionService {
       throw new ConflictException(`This plan is already ${resolution.status}.`);
     }
 
-    const preview = resolution.preview as unknown as { keepPath: string; actions: PlannedAction[]; blockers: string[] } | null;
+    const preview = resolution.preview as unknown as {
+      mode?: 'keep_one' | 'delete_item';
+      keepPath?: string;
+      survivorPaths?: string[];
+      actions: PlannedAction[];
+      blockers: string[];
+    } | null;
     if (!preview) throw new BadRequestException('This plan has no stored preview.');
     if (preview.blockers?.length) {
       throw new BadRequestException(`Refusing to resolve: ${preview.blockers.join(' ')}`);
     }
+    const isItemDeletion = preview.mode === 'delete_item';
 
     // Optimistic concurrency. Detection bumps `version` whenever a group is
     // re-detected, so a plan built against an older version describes a membership
@@ -351,10 +552,15 @@ export class DuplicateResolutionService {
       );
     }
 
-    // The kept copy must still be there. Trashing the redundant copies when the
-    // keeper has vanished would leave no copy at all.
-    const keepExists = await stat(preview.keepPath).then(() => true).catch(() => false);
-    if (!keepExists) {
+    // At least one surviving copy must still be there. Trashing the redundant copies
+    // when every survivor has vanished would leave no copy at all. For a keep-one
+    // plan the sole survivor is the keeper; for a single-file deletion it is any of
+    // the copies not being removed. Older stored plans carry only `keepPath`.
+    const survivorPaths = preview.survivorPaths ?? (preview.keepPath ? [preview.keepPath] : []);
+    const anySurvives =
+      survivorPaths.length > 0 &&
+      (await Promise.all(survivorPaths.map((p) => stat(p).then(() => true).catch(() => false)))).some(Boolean);
+    if (!anySurvives) {
       await this.prisma.mediaDuplicateResolution.update({
         where: { id: resolutionId },
         data: { status: 'failed', failedAt: new Date(), errorSummary: 'keeper_missing' },
@@ -449,7 +655,11 @@ export class DuplicateResolutionService {
       },
     });
 
-    if (status !== 'failed') {
+    // A keep-one cleanup collapses the group to a single copy, so the group is
+    // resolved. A single-file deletion may leave TWO-plus copies still duplicated —
+    // marking it resolved would hide a group that is still a duplicate. So it is left
+    // open, and the next detection run reconciles it against what is now on disk.
+    if (status !== 'failed' && !isItemDeletion) {
       await this.prisma.mediaDuplicateGroup.update({
         where: { id: groupId },
         data: { status: 'resolved', resolvedById: ctx.userId ?? null, resolvedAt: new Date() },
@@ -491,7 +701,9 @@ export class DuplicateResolutionService {
           ? NOTIFICATION_EVENTS.MEDIA_DUPLICATE_CLEANUP_COMPLETED
           : NOTIFICATION_EVENTS.MEDIA_DUPLICATE_CLEANUP_FAILED,
       payload: {
-        mediaTitle: preview.keepPath.split('/').pop() ?? 'Duplicate cleanup',
+        // Name the surviving copy for a keep-one plan; for a deletion there is no
+        // single keeper, so fall back to a stable label.
+        mediaTitle: (preview.keepPath ?? survivorPaths[0])?.split('/').pop() ?? 'Duplicate cleanup',
         groupId: resolution.groupId,
         resolutionId,
         status,

@@ -321,6 +321,112 @@ describe('resolve — refuses to execute a plan it should not', () => {
   });
 });
 
+describe('previewItemDeletion — delete one copy, keep the rest', () => {
+  it('plans to trash only the named copy, not the whole group', async () => {
+    const { svc } = build({
+      group: {
+        recommendedItemId: 'a',
+        items: [
+          item('a', '/library/a.mkv', 100),
+          item('b', '/library/b.mkv', 90),
+          item('c', '/library/c.mkv', 80),
+        ],
+      },
+    });
+    const p = await svc.previewItemDeletion('g1', 'b');
+
+    // Exactly the one copy is queued for Trash; the other two survive.
+    expect(p.deleteItemId).toBe('b');
+    expect(p.actions.filter((a) => a.actionType === 'trash').map((a) => a.sourcePath)).toEqual(['/library/b.mkv']);
+    expect(p.survivorPaths.sort()).toEqual(['/library/a.mkv', '/library/c.mkv']);
+    expect(p.blockers).toEqual([]);
+  });
+
+  it('refuses an item that is not a member of the group', async () => {
+    const { svc } = build({
+      group: { items: [item('a', '/library/a.mkv', 10), item('b', '/library/b.mkv', 20)] },
+    });
+    await expect(svc.previewItemDeletion('g1', 'outsider')).rejects.toThrow(BadRequestException);
+  });
+
+  it('refuses to delete a path that resolves to a library root', async () => {
+    const { svc } = build({
+      libraries: [{ path: '/library' }],
+      group: { items: [item('a', '/library', 10), item('b', '/library/b.mkv', 20)] },
+    });
+    const p = await svc.previewItemDeletion('g1', 'a');
+    expect(p.blockers.join(' ')).toContain('library root');
+  });
+
+  it('leaves the group OPEN — two copies may still be duplicated after one deletion', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'dupdel-'));
+    try {
+      const a = path.join(dir, 'a.mkv');
+      const b = path.join(dir, 'b.mkv');
+      const c = path.join(dir, 'c.mkv');
+      await writeFile(a, 'a'.repeat(100));
+      await writeFile(b, 'b'.repeat(90));
+      await writeFile(c, 'c'.repeat(80));
+      const ctx = build({
+        libraries: [{ path: dir }],
+        assertWithinHardRoots: jest.fn((p: string) => {
+          if (!p.startsWith(dir)) throw new Error('outside roots');
+          return p;
+        }),
+        group: {
+          version: 1,
+          recommendedItemId: 'a',
+          items: [item('a', a, 100), item('b', b, 90), item('c', c, 80)],
+        },
+      });
+      await ctx.svc.previewItemDeletion('g1', 'b');
+      const r = await ctx.svc.resolve('r1');
+
+      expect(r.status).toBe('completed');
+      expect(r.trashed).toBe(1);
+      expect(ctx.files.remove.mock.calls[0][0].permanent).toBe(false);
+      // NOT marked resolved: a and c are still a duplicate pair. Marking it resolved
+      // would hide a group that is still a duplicate.
+      expect(ctx.state.group.status).toBe('open');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses at execution if every surviving copy has vanished', async () => {
+    // A race removed a and c between preview and confirm; trashing b too would leave
+    // zero copies of the media.
+    const dir = await mkdtemp(path.join(tmpdir(), 'dupdel-'));
+    try {
+      const a = path.join(dir, 'a.mkv');
+      const b = path.join(dir, 'b.mkv');
+      await writeFile(a, 'a'.repeat(100));
+      await writeFile(b, 'b'.repeat(90));
+      const ctx = build({
+        libraries: [{ path: dir }],
+        assertWithinHardRoots: jest.fn((p: string) => {
+          if (!p.startsWith(dir)) throw new Error('outside roots');
+          return p;
+        }),
+        group: {
+          version: 1,
+          recommendedItemId: 'a',
+          items: [item('a', a, 100), item('b', b, 90)],
+        },
+      });
+      // Delete 'a', keeping 'b'. Then 'b' — the only survivor — vanishes.
+      await ctx.svc.previewItemDeletion('g1', 'a');
+      await rm(b);
+
+      await expect(ctx.svc.resolve('r1')).rejects.toThrow(ConflictException);
+      expect(ctx.state.resolution.errorSummary).toBe('keeper_missing');
+      expect(ctx.files.remove).not.toHaveBeenCalled();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('bulk — a response carrying failures is never mistaken for a clean run', () => {
   let bulkDir: string;
   beforeEach(async () => { bulkDir = await mkdtemp(path.join(tmpdir(), 'dupbulk-')); });

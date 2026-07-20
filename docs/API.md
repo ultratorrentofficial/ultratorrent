@@ -785,7 +785,8 @@ detection, media-server integrations, and a rename engine. See
 | `GET`    | `/api/media/duplicates/:groupId` | `media_manager.view` (comparison detail) |
 | `POST`   | `/api/media/duplicates/detect` | `media_manager.scan` (background job → `{ jobId }`) |
 | `POST`   | `/api/media/jobs/:jobId/cancel` | `media_manager.scan` (cooperative cancel) |
-| `POST`   | `/api/media/duplicates/:groupId/preview` | `media_manager.delete` (build + persist a plan) |
+| `POST`   | `/api/media/duplicates/:groupId/preview` | `media_manager.delete` (keep one, trash the rest) |
+| `POST`   | `/api/media/duplicates/:groupId/preview-delete` | `media_manager.view` (delete one copy, keep the rest) |
 | `POST`   | `/api/media/duplicates/resolutions/:resolutionId/resolve` | `media_manager.delete` (run the stored plan) |
 | `POST`   | `/api/media/duplicates/:groupId/ignore` | `media_manager.match` |
 | `POST`   | `/api/media/duplicates/:groupId/reopen` | `media_manager.match` |

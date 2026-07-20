@@ -41,7 +41,7 @@ import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
 import { RunShowMergeDto, ShowMergeDto } from './dto/show-merge.dto';
-import { BulkPreviewDto, BulkResolveDto, IgnoreDuplicateGroupDto, ListDuplicatesDto, ResolveDuplicateDto } from './dto/duplicates.dto';
+import { BulkPreviewDto, BulkResolveDto, DeleteDuplicateItemDto, IgnoreDuplicateGroupDto, ListDuplicatesDto, ResolveDuplicateDto } from './dto/duplicates.dto';
 import { DuplicateResolutionService } from './duplicate-resolution.service';
 import {
   MediaServerIntegrationService,
@@ -520,6 +520,22 @@ export class MediaController {
     @Req() req: Request,
   ) {
     return this.duplicateResolution.preview(groupId, body?.keepItemId, auditCtx(req));
+  }
+
+  /**
+   * Build a plan to delete ONE named copy while keeping the rest — the per-file
+   * Delete action. Like the cleanup preview it touches nothing; the plan is
+   * persisted and executed through the same `resolutions/:id/resolve` route, which
+   * refuses if no surviving copy remains.
+   */
+  @Post('duplicates/:groupId/preview-delete')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  previewDuplicateItemDeletion(
+    @Param('groupId') groupId: string,
+    @Body() body: DeleteDuplicateItemDto,
+    @Req() req: Request,
+  ) {
+    return this.duplicateResolution.previewItemDeletion(groupId, body.deleteItemId, auditCtx(req));
   }
 
   /**

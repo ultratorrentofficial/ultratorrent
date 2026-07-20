@@ -84,6 +84,30 @@ Each action is **journalled to `media_duplicate_resolution_actions` before it is
 attempted** — a database transaction cannot roll back a file that already moved, so
 recovery needs a record of intent that survives a crash mid-operation.
 
+## Per-file decisions: keep this, or delete this
+
+The comparison view puts the decision on each copy. Every candidate carries two
+buttons, and both route through the same preview-then-confirm plan:
+
+- **Keep this** — keep this copy and send every *other* copy in the group to Trash.
+  The group collapses to one file. Backed by `preview(groupId, keepItemId)`.
+- **Delete** — send *only this copy* to Trash and keep the rest. For thinning a
+  three-plus group without collapsing it. Backed by
+  `previewItemDeletion(groupId, deleteItemId)` →
+  `POST /api/media/duplicates/:groupId/preview-delete`.
+
+The delete path carries one extra invariant beyond the shared safeguards: **it can
+never remove the last copy.** The plan records every surviving copy's path, and
+`resolve` refuses if none of them still exists on disk — so even a race that removed
+the other copies between preview and confirm cannot leave zero copies of the media.
+Subtitle safety generalises the same way: a language is safe to trash on the removed
+copy only if *some surviving copy* still has it; a language that exists nowhere among
+the survivors is reported as orphaned, not deleted.
+
+A single-file deletion also **does not mark the group resolved** — two or more copies
+may still be duplicated afterwards, and marking it resolved would hide a group that is
+still a duplicate. The next detection run reconciles it against what is now on disk.
+
 ## Trash-first deletion
 
 Deletion is **always Trash**, never `rm`:

@@ -2,7 +2,12 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Trash2 } from 'lucide-react';
-import { ApiError, api, type DuplicateResolutionPreview } from '@/lib/api';
+import {
+  ApiError,
+  api,
+  type DuplicateItemDeletionPreview,
+  type DuplicateResolutionPreview,
+} from '@/lib/api';
 import { formatBytes } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
@@ -15,33 +20,50 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+/** The two shapes a plan can take, normalised for rendering. */
+type Plan =
+  | ({ mode: 'keep' } & DuplicateResolutionPreview)
+  | ({ mode: 'delete' } & DuplicateItemDeletionPreview);
+
 /**
- * Preview-then-confirm for a duplicate cleanup.
+ * Preview-then-confirm for a duplicate cleanup, in one of two modes:
  *
- * The dialog never builds a plan itself. It asks the server for one, shows exactly
- * that, and sends back only the `resolutionId` — so what executes is what the operator
- * read, and a client cannot hand-craft a list of files to delete. The server pins the
- * plan to the group version and re-checks every path before touching it; if the group
- * changed in between, confirming fails loudly rather than acting on a stale plan.
+ * - **keep** (`keepItemId`): keep this copy, send every OTHER copy to Trash — the
+ *   whole group collapses to one file.
+ * - **delete** (`deleteItemId`): send only THIS copy to Trash, keep the rest — for
+ *   thinning a three-plus group without collapsing it.
+ *
+ * Either way the dialog never builds a plan itself. It asks the server for one, shows
+ * exactly that, and sends back only the `resolutionId` — so what executes is what the
+ * operator read, and a client cannot hand-craft a list of files to delete. The server
+ * pins the plan to the group version and re-checks every path (and that a surviving
+ * copy still exists) before touching anything.
  */
 export function DuplicateCleanupDialog({
   groupId,
   keepItemId,
+  deleteItemId,
   open,
   onClose,
 }: {
   groupId: string;
   keepItemId?: string;
+  /** When set, the dialog is in delete-one-copy mode instead of keep-one. */
+  deleteItemId?: string;
   open: boolean;
   onClose: () => void;
 }) {
   const { t } = useTranslation('media');
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [plan, setPlan] = useState<DuplicateResolutionPreview | null>(null);
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const mode: 'keep' | 'delete' = deleteItemId ? 'delete' : 'keep';
 
   const preview = useMutation({
-    mutationFn: () => api.media.previewDuplicateCleanup(groupId, keepItemId),
+    mutationFn: async (): Promise<Plan> =>
+      deleteItemId
+        ? { mode: 'delete', ...(await api.media.previewDuplicateItemDeletion(groupId, deleteItemId)) }
+        : { mode: 'keep', ...(await api.media.previewDuplicateCleanup(groupId, keepItemId)) },
     onSuccess: setPlan,
     onError: (err) => {
       toast.error(t('duplicates.cleanup.previewFailed'), err instanceof ApiError ? err.message : undefined);
@@ -80,25 +102,52 @@ export function DuplicateCleanupDialog({
 
   if (!open) return null;
 
+  const title = mode === 'delete' ? t('duplicates.delete.title') : t('duplicates.cleanup.title');
+
   return (
-    <Dialog open onClose={onClose} title={t('duplicates.cleanup.title')} className="max-w-2xl">
+    <Dialog open onClose={onClose} title={title} className="max-w-2xl">
       <DialogHeader>
-        <DialogTitle>{t('duplicates.cleanup.title')}</DialogTitle>
-        <DialogDescription>{t('duplicates.cleanup.description')}</DialogDescription>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>
+          {mode === 'delete' ? t('duplicates.delete.description') : t('duplicates.cleanup.description')}
+        </DialogDescription>
       </DialogHeader>
 
       <div className="max-h-[55vh] overflow-y-auto scrollbar-thin">
-
         {preview.isPending || !plan ? (
           <p className="py-6 text-center text-sm text-muted-foreground">{t('duplicates.cleanup.building')}</p>
         ) : (
           <div className="space-y-4 text-sm">
-            <section>
-              <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t('duplicates.cleanup.keeping')}
-              </h4>
-              <p className="break-all font-mono text-xs">{plan.keepPath}</p>
-            </section>
+            {plan.mode === 'delete' ? (
+              <section>
+                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-destructive">
+                  {t('duplicates.delete.removing')}
+                </h4>
+                <p className="break-all font-mono text-xs">{plan.deletePath}</p>
+              </section>
+            ) : (
+              <section>
+                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t('duplicates.cleanup.keeping')}
+                </h4>
+                <p className="break-all font-mono text-xs">{plan.keepPath}</p>
+              </section>
+            )}
+
+            {plan.mode === 'delete' ? (
+              <section>
+                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t('duplicates.delete.keepingCount', { count: plan.survivorPaths.length })}
+                </h4>
+                <ul className="space-y-0.5">
+                  {plan.survivorPaths.map((p) => (
+                    <li key={p} className="break-all font-mono text-xs text-muted-foreground">
+                      {p}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
 
             <section>
               <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -154,7 +203,6 @@ export function DuplicateCleanupDialog({
             <p className="text-xs text-muted-foreground">{t('duplicates.cleanup.trashNote')}</p>
           </div>
         )}
-
       </div>
 
       <DialogFooter>
@@ -167,7 +215,8 @@ export function DuplicateCleanupDialog({
           loading={resolve.isPending}
           onClick={() => resolve.mutate()}
         >
-          <Trash2 className="h-4 w-4" /> {t('duplicates.cleanup.confirm')}
+          <Trash2 className="h-4 w-4" />{' '}
+          {mode === 'delete' ? t('duplicates.delete.confirm') : t('duplicates.cleanup.confirm')}
         </Button>
       </DialogFooter>
     </Dialog>

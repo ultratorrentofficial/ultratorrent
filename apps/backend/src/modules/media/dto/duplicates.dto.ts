@@ -68,6 +68,11 @@ export class ResolveDuplicateDto {
   @IsOptional() @IsString() @MaxLength(64) keepItemId?: string;
 }
 
+export class DeleteDuplicateItemDto {
+  /** The one copy to send to Trash; every other copy in the group is kept. */
+  @IsString() @MaxLength(64) deleteItemId!: string;
+}
+
 export class BulkPreviewDto {
   /**
    * Groups to plan. Capped server-side as well as here: a bulk mistake should cost a

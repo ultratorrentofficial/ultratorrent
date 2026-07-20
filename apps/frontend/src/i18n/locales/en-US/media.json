@@ -485,7 +485,18 @@
     "cancelFailed": "Could not cancel the scan",
     "detectionCompleteBody": "Found {{count}} duplicate group(s) across {{items}} item(s) in {{seconds}}s.",
     "detectionUnchangedTitle": "Nothing has changed",
-    "detectionUnchangedBody": "No media has been added, moved or resized since the last scan, so the existing groups still stand."
+    "detectionUnchangedBody": "No media has been added, moved or resized since the last scan, so the existing groups still stand.",
+    "deleteThis": "Delete",
+    "keepThisAria": "Keep this copy and remove the others: {{path}}",
+    "deleteThisAria": "Delete only this copy: {{path}}",
+    "delete": {
+      "title": "Delete this copy",
+      "description": "Only this copy is sent to Trash. Every other copy in the group is kept. Nothing has happened yet.",
+      "removing": "Sending to Trash",
+      "keepingCount_one": "Keeping {{count}} other copy",
+      "keepingCount_other": "Keeping {{count}} other copies",
+      "confirm": "Delete this copy"
+    }
   },
   "renamePreview": {
     "title": "Rename Preview",

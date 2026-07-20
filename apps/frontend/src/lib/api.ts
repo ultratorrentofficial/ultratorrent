@@ -1492,6 +1492,25 @@ export interface DuplicateResolutionPreview {
   warnings: string[];
 }
 
+/**
+ * Plan to delete ONE copy while keeping the rest — the per-file Delete action. The
+ * inverse of a cleanup plan, which keeps one and trashes the rest.
+ */
+export interface DuplicateItemDeletionPreview {
+  resolutionId: string;
+  groupId: string;
+  groupVersion: number;
+  deleteItemId: string;
+  deletePath: string;
+  /** Every copy NOT being removed — the proof a survivor remains. */
+  survivorPaths: string[];
+  actions: DuplicatePlannedAction[];
+  orphanedSubtitles: DuplicateOrphanedSubtitle[];
+  expectedSavingsBytes: number;
+  blockers: string[];
+  warnings: string[];
+}
+
 export interface DuplicateResolutionResult {
   resolutionId: string;
   status: 'completed' | 'partial' | 'failed';
@@ -3418,6 +3437,13 @@ export const api = {
       return request<DuplicateResolutionPreview>(`/media/duplicates/${groupId}/preview`, {
         method: 'POST',
         body: { keepItemId },
+      });
+    },
+    /** Plan to delete ONE copy, keeping the rest. Executed via resolveDuplicateCleanup. */
+    previewDuplicateItemDeletion(groupId: string, deleteItemId: string): Promise<DuplicateItemDeletionPreview> {
+      return request<DuplicateItemDeletionPreview>(`/media/duplicates/${groupId}/preview-delete`, {
+        method: 'POST',
+        body: { deleteItemId },
       });
     },
     resolveDuplicateCleanup(resolutionId: string): Promise<DuplicateResolutionResult> {

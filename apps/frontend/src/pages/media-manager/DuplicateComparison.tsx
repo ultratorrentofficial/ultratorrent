@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { Star } from 'lucide-react';
+import { Star, Trash2 } from 'lucide-react';
 import { api, type MediaDuplicateCandidate } from '@/lib/api';
 import { formatBytes } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
@@ -63,7 +63,10 @@ function Row({ label, values, compare = true }: RowProps) {
  */
 export function DuplicateComparison({ groupId }: { groupId: string }) {
   const { t } = useTranslation('media');
-  const [cleanupFor, setCleanupFor] = useState<string | null>(null);
+  // Two per-file actions open the same dialog in two modes: keep THIS copy (trash
+  // the rest), or delete THIS copy (keep the rest). Only one is ever open.
+  const [keepFor, setKeepFor] = useState<string | null>(null);
+  const [deleteFor, setDeleteFor] = useState<string | null>(null);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['media', 'duplicates', 'detail', groupId],
     queryFn: () => api.media.duplicateGroup(groupId),
@@ -76,6 +79,10 @@ export function DuplicateComparison({ groupId }: { groupId: string }) {
 
   const c: MediaDuplicateCandidate[] = data.candidates;
   const keep = data.suggestedKeepId;
+  // A group always has two-plus members; deleting one still leaves a copy. The
+  // Delete button per file is only meaningful when there is more than one to choose
+  // between, which there always is here.
+  const canDeleteIndividually = c.length > 1;
 
   return (
     <div className="space-y-4">
@@ -95,6 +102,29 @@ export function DuplicateComparison({ groupId }: { groupId: string }) {
                   <p className="mt-0.5 break-all font-mono text-[11px] leading-tight text-muted-foreground">
                     {x.path}
                   </p>
+                  {/* The per-file decision. "Keep this" resolves the whole group to
+                      this copy; "Delete" removes only this copy. Both open a
+                      preview-then-confirm dialog — neither acts on click. */}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setKeepFor(x.id)}
+                      aria-label={t('duplicates.keepThisAria', { path: x.path })}
+                    >
+                      <Star className="h-3.5 w-3.5" /> {t('duplicates.keepThis')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      disabled={!canDeleteIndividually}
+                      onClick={() => setDeleteFor(x.id)}
+                      aria-label={t('duplicates.deleteThisAria', { path: x.path })}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> {t('duplicates.deleteThis')}
+                    </Button>
+                  </div>
                 </th>
               ))}
               <th className="w-0" />
@@ -172,19 +202,27 @@ export function DuplicateComparison({ groupId }: { groupId: string }) {
           <Badge variant="destructive">{t('duplicates.badge.reviewRequired')}</Badge>
         ) : null}
         <div className="ml-auto flex items-center gap-2">
-          {/* The keeper defaults to the suggestion; the operator can pick another row
-              first. Either way the SERVER builds the plan — this only names a choice. */}
-          <Button variant="destructive" size="sm" onClick={() => setCleanupFor(keep ?? '')} disabled={!keep}>
+          {/* Keep the engine's recommended copy in one click. Per-file "Keep this"
+              above lets the operator choose a different copy instead. Either way the
+              SERVER builds the plan — this only names a choice. */}
+          <Button variant="destructive" size="sm" onClick={() => setKeepFor(keep ?? '')} disabled={!keep}>
             {t('duplicates.cleanup.start')}
           </Button>
         </div>
       </div>
 
+      {/* One dialog, two modes — keep-this-copy or delete-this-copy. */}
       <DuplicateCleanupDialog
         groupId={groupId}
-        keepItemId={cleanupFor ?? undefined}
-        open={cleanupFor != null}
-        onClose={() => setCleanupFor(null)}
+        keepItemId={keepFor ?? undefined}
+        open={keepFor != null}
+        onClose={() => setKeepFor(null)}
+      />
+      <DuplicateCleanupDialog
+        groupId={groupId}
+        deleteItemId={deleteFor ?? undefined}
+        open={deleteFor != null}
+        onClose={() => setDeleteFor(null)}
       />
     </div>
   );
