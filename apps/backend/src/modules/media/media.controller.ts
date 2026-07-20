@@ -40,6 +40,7 @@ import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
+import { ShowMergeDto } from './dto/show-merge.dto';
 import {
   MediaServerIntegrationService,
   IntegrationInput,
@@ -440,8 +441,15 @@ export class MediaController {
     return this.duplicates.list(page, pageSize);
   }
 
+  /**
+   * Re-run duplicate detection. This is a WRITE: it clears every existing group
+   * (`deleteMany({})`) before rebuilding, so it discards grouping state for everyone.
+   * It was gated on MEDIA_MANAGER_VIEW, which let a read-only account destroy that
+   * state and trigger a full-table scan. SCAN is the permission that already governs
+   * "make the server go and re-examine the library".
+   */
   @Post('duplicates/detect')
-  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  @RequirePermissions(P.MEDIA_MANAGER_SCAN)
   detectDuplicates() {
     return this.duplicates.detect();
   }
@@ -460,8 +468,8 @@ export class MediaController {
 
   @Post('shows/duplicates/preview')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  previewShowMerge(@Body() body: { canonicalShowId: string; duplicateShowIds: string[] }) {
-    return this.showDuplicates.preview(body?.canonicalShowId, body?.duplicateShowIds ?? []);
+  previewShowMerge(@Body() body: ShowMergeDto) {
+    return this.showDuplicates.preview(body.canonicalShowId, body.duplicateShowIds);
   }
 
   /**
@@ -471,11 +479,8 @@ export class MediaController {
    */
   @Post('shows/duplicates/merge')
   @RequirePermissions(P.MEDIA_MANAGER_RENAME, P.MEDIA_MANAGER_DELETE)
-  mergeShows(
-    @Body() body: { canonicalShowId: string; duplicateShowIds: string[] },
-    @Req() req: Request,
-  ) {
-    return this.showDuplicates.merge(body?.canonicalShowId, body?.duplicateShowIds ?? [], auditCtx(req));
+  mergeShows(@Body() body: ShowMergeDto, @Req() req: Request) {
+    return this.showDuplicates.merge(body.canonicalShowId, body.duplicateShowIds, auditCtx(req));
   }
 
   // --- media-server integrations ----------------------------------------

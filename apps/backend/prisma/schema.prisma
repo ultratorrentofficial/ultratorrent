@@ -752,6 +752,15 @@ model MediaItem {
   subtitleDownloads   SubtitleDownload[]
   subtitleHistory     SubtitleHistory[]
 
+  // One row per file per library. The scanner used to check-then-create
+  // (`findFirst` then `create`), so two concurrent scans of the same library both
+  // saw "not present" and both inserted — 139 duplicated rows on a live host, all
+  // created within 7 seconds of each other. Every one of them then surfaced in the
+  // Duplicate Center as a "duplicate" whose two members were the SAME file, and a
+  // cleanup would have offered to trash the copy it was keeping. The constraint is
+  // what makes the scanner's upsert atomic; without it the race has nothing to lose
+  // against.
+  @@unique([libraryId, path])
   @@index([mediaType])
   @@index([title])
   @@index([year])

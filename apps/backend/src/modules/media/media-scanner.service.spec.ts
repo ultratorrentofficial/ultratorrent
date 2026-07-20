@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { isIgnoredScanDir, hasScanSkipMarker, deriveFileTechInfo } from './media-scanner.service';
 import { parseItemIdentity } from './media-identification.service';
 
@@ -125,6 +126,28 @@ import { showCanonicalKey } from './series-grouping';
  * title — the bug that minted `TV Shows/Ghosts 2021 (2021)` and `TV Shows/Happys
  * Place` beside the genuine folders.
  */
+describe('MediaScannerService — new items are upserted, not created', () => {
+  // The scanner read "does this row exist?" and wrote "create it" as two separate
+  // statements, so two concurrent scans of one library both read "no" and both
+  // inserted. That produced 139 duplicated rows on a live host, each of which then
+  // appeared in the Duplicate Center as a group whose two members were the SAME
+  // file — a cleanup would have offered to trash the copy it was keeping.
+  //
+  // The insert must therefore be keyed on the (libraryId, path) unique constraint,
+  // so the scan that loses the race updates instead of inserting a twin.
+  it('keys the write on the libraryId+path unique constraint', () => {
+    const src = readFileSync(
+      require.resolve('./media-scanner.service.ts'),
+      'utf8',
+    );
+    // The create-branch write in indexFiles.
+    expect(src).toContain('this.prisma.mediaItem.upsert(');
+    expect(src).toContain('where: { libraryId_path: { libraryId, path: file.path } }');
+    // A bare create on that path is exactly the race being fixed.
+    expect(src).not.toContain('this.prisma.mediaItem.create(');
+  });
+});
+
 describe('MediaScannerService.reconcileShows', () => {
   const LIB = { id: 'lib1', kind: 'tv', path: '/downloads/TV Shows', name: 'TV Shows' };
 

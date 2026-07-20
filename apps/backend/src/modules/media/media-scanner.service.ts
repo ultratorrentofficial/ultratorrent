@@ -260,8 +260,18 @@ export class MediaScannerService {
         updated++;
       } else {
         const title = identity.title ?? path.basename(file.path, path.extname(file.path));
-        const created = await this.prisma.mediaItem.create({
-          data: {
+        // Upsert, not create. The `findFirst` above and this write are two separate
+        // statements, so two concurrent scans of the same library both read "not
+        // present" and both inserted — 139 duplicated rows on a live host, every one
+        // of which then surfaced as a "duplicate" whose two members were the same
+        // file. Keyed on the (libraryId, path) unique constraint, a scan that loses
+        // the race now falls into `update` instead of inserting a twin. The update is
+        // deliberately empty: the winner has already written this row and its file,
+        // and re-writing identity here would clobber a concurrent enrichment.
+        const created = await this.prisma.mediaItem.upsert({
+          where: { libraryId_path: { libraryId, path: file.path } },
+          update: {},
+          create: {
             libraryId,
             mediaType: this.defaultMediaType(library.kind),
             title,
