@@ -45,6 +45,15 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.37.0] - 2026-07-20
+
+### Added
+- Duplicate Center Phase 3 (part 1) — a deterministic, explainable best-copy recommendation engine, wired into detection.
+- Duplicate Center Phase 3 (part 2) — server-generated cleanup previews and trash-first execution.
+
+### Fixed
+- Fix the recommendation engine treating a filename claim as a measurement — it would have trashed larger, genuinely-measured files on the strength of a name.
+
 ## [0.36.1] - 2026-07-20
 
 ### Fixed
