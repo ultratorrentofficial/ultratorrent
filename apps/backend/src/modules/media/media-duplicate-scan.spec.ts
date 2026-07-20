@@ -24,6 +24,7 @@ function makePrisma(items: any[]) {
     mediaItem: {
       findMany: jest.fn(async ({ skip = 0, take = items.length }: any) => items.slice(skip, skip + take)),
       updateMany: chainable(() => ({ count: 0 })),
+      count: jest.fn(async () => items.length),
     },
     mediaDuplicateGroup: {
       findMany: jest.fn(async () => []),
@@ -43,6 +44,23 @@ function makePrisma(items: any[]) {
         return { id: 'global', inputDigest: state.digest };
       }),
     },
+    // The digest is computed in SQL against the live rows, so the stand-in derives
+    // it from the same `items` the queries return — a test that hard-coded it would
+    // pass whether or not a change actually moved the digest.
+    $queryRaw: jest.fn(async () => [
+      {
+        digest: items
+          .map((i: any) =>
+            [
+              i.id, i.mediaType, i.title, i.year ?? '', i.season ?? '', i.episode ?? '', i.path,
+              i.files.reduce((n: number, f: any) => n + Number(f.size), 0),
+              i.externalIds.map((e: any) => `${e.provider}:${e.externalId}`).sort().join(','),
+            ].join('|'),
+          )
+          .sort()
+          .join('\n'),
+      },
+    ]),
     // Array transactions are how the batching works: one round trip per batch of
     // groups instead of four statements per group.
     $transaction: jest.fn(async (ops: any[]) => {
@@ -104,6 +122,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
     const writesAfterFirst = prisma.state.statements;
     prisma.state.transactions.length = 0;
 
+    prisma.mediaItem.findMany.mockClear();
     const second = await svc.detect();
 
     expect(second.unchanged).toBe(true);
@@ -111,6 +130,9 @@ describe('Duplicate detection — scan cost and reporting', () => {
     expect(prisma.state.transactions).toHaveLength(0);
     expect(prisma.state.statements).toBe(writesAfterFirst);
     expect(prisma.mediaDuplicateScanState.upsert).toHaveBeenCalledTimes(1);
+    // And it never loaded the items at all: the digest is answered by the database,
+    // which is the whole reason it is computed there rather than over loaded rows.
+    expect(prisma.mediaItem.findMany).not.toHaveBeenCalled();
   });
 
   it('re-detects once an item changes in a way that can move a group', async () => {

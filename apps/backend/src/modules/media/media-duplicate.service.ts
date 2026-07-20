@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { pageOf, parsePage } from '../../common/pagination';
@@ -308,7 +308,41 @@ export class MediaDuplicateService {
    */
   async detect(report?: JobReporter, signal?: JobSignal): Promise<DetectionMetrics> {
     const startedAt = Date.now();
-    await report?.(2, 'Loading media items…');
+    await report?.(2, 'Checking for changes…');
+
+    // The digest is taken BEFORE the items are loaded, and that order is
+    // load-bearing. Stored digest = the state at T0; the rows actually processed =
+    // the state at T1 ≥ T0. If something changed in between, the NEXT run computes a
+    // digest that differs from the stored one and re-runs — over-inclusive, which is
+    // the safe direction. Taking it after the load would store a digest newer than
+    // the data processed, and the next run would skip a rescan that was needed.
+    const digest = await this.inputDigest();
+    if (await this.digestUnchanged(digest)) {
+      await report?.(100, 'No media changed since the last scan.');
+      const [itemCount, open, review] = await Promise.all([
+        this.prisma.mediaItem.count(),
+        this.prisma.mediaDuplicateGroup.count({ where: { status: 'open' } }),
+        this.prisma.mediaDuplicateGroup.count({ where: { status: 'open', requiresReview: true } }),
+      ]);
+      this.logger.log(
+        `Duplicate detection skipped: input unchanged (${open} open group(s)) in ${Date.now() - startedAt}ms`,
+      );
+      return {
+        itemsScanned: itemCount,
+        groupsDetected: open,
+        groupsCreated: 0,
+        groupsUpdated: 0,
+        groupsRemoved: 0,
+        candidatesWritten: 0,
+        requiresReview: review,
+        potentialSavingsBytes: 0,
+        durationMs: Date.now() - startedAt,
+        unchanged: true,
+      };
+    }
+
+    signal?.throwIfCancelled();
+    await report?.(5, 'Loading media items…');
 
     // Only the columns detection and scoring read, paged rather than loaded whole.
     // The previous `include` hydrated every column of ~29.5k items plus 63k
@@ -345,38 +379,13 @@ export class MediaDuplicateService {
         },
       });
       items.push(...page);
-      await report?.(Math.min(20, 2 + items.length / 2_000), `Loaded ${items.length} item(s)…`);
+      await report?.(Math.min(20, 5 + items.length / 2_000), `Loaded ${items.length} item(s)…`);
       if (page.length < ITEM_PAGE) break;
     }
 
     signal?.throwIfCancelled();
     await report?.(22, `Grouping ${items.length} item(s)…`);
     const groups = detectDuplicateGroups(items);
-
-    // Nothing detection reads has changed since the last completed run, so neither
-    // can its output. Skipping the write phase is what makes a frequent scheduled
-    // scan cheap instead of thousands of writes reproducing the same rows.
-    const digest = this.inputDigest(items);
-    if (await this.digestUnchanged(digest)) {
-      await report?.(100, 'No media changed since the last scan.');
-      const [open, review] = await Promise.all([
-        this.prisma.mediaDuplicateGroup.count({ where: { status: 'open' } }),
-        this.prisma.mediaDuplicateGroup.count({ where: { status: 'open', requiresReview: true } }),
-      ]);
-      this.logger.log(`Duplicate detection skipped: input unchanged (${open} open group(s)).`);
-      return {
-        itemsScanned: items.length,
-        groupsDetected: open,
-        groupsCreated: 0,
-        groupsUpdated: 0,
-        groupsRemoved: 0,
-        candidatesWritten: 0,
-        requiresReview: review,
-        potentialSavingsBytes: 0,
-        durationMs: Date.now() - startedAt,
-        unchanged: true,
-      };
-    }
 
     const byId = new Map(items.map((i) => [i.id, i]));
 
@@ -513,24 +522,39 @@ export class MediaDuplicateService {
   }
 
   /**
-   * A digest of everything detection reads.
+   * A digest of everything detection reads, computed in the database.
    *
-   * Covers the identity fields, path, file size and external ids only — the inputs
-   * that can change which groups exist. A metadata refresh that rewrites an
-   * unrelated column should not force thousands of writes to reproduce a result
-   * that cannot have moved.
+   * Covers identity, path, total file size and external ids — the inputs that can
+   * change which groups exist. A metadata refresh that rewrites an unrelated column
+   * should not force thousands of writes to reproduce a result that cannot have
+   * moved.
+   *
+   * Done in SQL rather than over loaded rows because the loading was the expensive
+   * part: hydrating 29,558 items to hash them cost 2,635 ms, the same digest as one
+   * query costs ~665 ms, and this way the unchanged case never loads them at all.
+   *
+   * `md5` because it is a Postgres builtin while `sha256` needs `pgcrypto`. This is
+   * change detection, not security — a collision means a rescan is skipped, not
+   * that anything is deleted.
    */
-  private inputDigest(items: DetectionItem[]): string {
-    const h = createHash('sha256');
-    for (const i of items) {
-      h.update(
-        `${i.id}|${i.mediaType}|${i.title}|${i.year ?? ''}|${i.season ?? ''}|${i.episode ?? ''}|${i.path}|` +
-          `${i.files?.[0] ? Number(i.files[0].size) : 0}|` +
-          (i.externalIds ?? []).map((e) => `${e.provider}:${e.externalId}`).sort().join(',') +
-          '\n',
-      );
-    }
-    return h.digest('hex');
+  private async inputDigest(): Promise<string> {
+    const rows = await this.prisma.$queryRaw<Array<{ digest: string }>>`
+      SELECT coalesce(md5(string_agg(x, E'\n' ORDER BY x)), 'empty') AS digest
+      FROM (
+        SELECT i.id || '|' || i."mediaType" || '|' || i.title || '|' ||
+               coalesce(i.year::text, '') || '|' ||
+               coalesce(i.season::text, '') || '|' ||
+               coalesce(i.episode::text, '') || '|' || i.path || '|' ||
+               -- SUM, not the first file's size: any file changing size has to move
+               -- the digest, and an item is not guaranteed to have exactly one.
+               coalesce((SELECT sum(f.size) FROM media_files f WHERE f."itemId" = i.id)::text, '0') || '|' ||
+               coalesce((SELECT string_agg(e.provider || ':' || e."externalId", ','
+                                           ORDER BY e.provider, e."externalId")
+                         FROM media_external_ids e WHERE e."itemId" = i.id), '') AS x
+        FROM media_items i
+      ) t
+    `;
+    return rows[0]?.digest ?? 'empty';
   }
 
   /** True when the last run that wrote anything saw exactly this input. */
