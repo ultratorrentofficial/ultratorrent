@@ -53,20 +53,28 @@ export function MediaDuplicatesPage() {
   const queryClient = useQueryClient();
   const { t } = useTranslation('media');
 
-  const [tab, setTab] = useState<TabId>('review');
+  const [tab, setTab] = useState<TabId | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('needs_review');
-
-  const active = TABS.find((x) => x.id === tab)!;
 
   const overview = useQuery({
     queryKey: ['media', 'duplicates', 'overview'],
     queryFn: () => api.media.duplicatesOverview(),
   });
 
+  // Needs Review is the intended landing tab, but landing on it when it is empty
+  // shows a blank screen to an operator who has hundreds of duplicate groups — which
+  // is exactly the "where is everything?" confusion this redesign exists to remove.
+  // Nothing sets `requiresReview` until the recommendation engine lands, so the
+  // opening tab is chosen from the overview: Needs Review when it has something to
+  // show, All Open otherwise. Once a group needs a decision, the default moves to it
+  // on its own. An explicit click always wins.
+  const resolvedTab: TabId = tab ?? (overview.data && overview.data.needsReview > 0 ? 'review' : 'all');
+  const active = TABS.find((x) => x.id === resolvedTab)!;
+
   const groups = useQuery({
-    queryKey: ['media', 'duplicates', 'list', tab, page, search, sort],
+    queryKey: ['media', 'duplicates', 'list', resolvedTab, page, search, sort],
     queryFn: () =>
       api.media.listDuplicates({
         page,
@@ -121,7 +129,7 @@ export function MediaDuplicatesPage() {
       ) : null}
 
       <Tabs
-        value={tab}
+        value={resolvedTab}
         onValueChange={(v) => {
           setTab(v as TabId);
           setPage(1);
