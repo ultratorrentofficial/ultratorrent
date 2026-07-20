@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.35.0] - 2026-07-20
+
+### Added
+- Duplicate Center Phase 1 — a durable domain model, and detection that no longer destroys human decisions.
+- The manual "Scan" action now enriches, not just indexes and renames. Previously `POST /api/media/libraries/:id/scan` ran only the scanner (index files, record show folders, import on-disk sidecars) followed by the organiser (rename/move into `Show/Season NN`) — it never identified items, fetched provider metadata, or downloaded artwork. So a library whose `scanIntervalMinutes` was null (the default, "manual scans only") had **no** path to metadata/artwork at all: the file got renamed, but the episode stayed `unmatched` with no poster, because provider enrichment ran only from the post-download workflow or the periodic scheduler.
+
 ## [0.34.9] - 2026-07-20
 
 ### Fixed
