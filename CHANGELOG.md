@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.37.1] - 2026-07-20
+
+### Fixed
+- Duplicate cleanup now handles sidecars instead of orphaning them — and never deletes a subtitle that exists nowhere else.
+
 ## [0.37.0] - 2026-07-20
 
 ### Added
