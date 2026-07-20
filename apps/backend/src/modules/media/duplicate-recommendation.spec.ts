@@ -50,12 +50,16 @@ describe('recommend — ranking', () => {
     expect(r.verdicts[0].reasons).toContain('largest_file_tiebreak');
   });
 
-  it('reads resolution from the filename when nothing was measured', () => {
+  it('ranks on filename labels when nothing was measured — but does not auto-keep', () => {
+    // Labels may order the candidates when that is all the evidence there is, but a
+    // filename is a claim, so the group is never auto-safe on that basis alone.
     const r = recommend([
       c('a', { file: { size: 2_000_000_000, resolution: '720p' } }),
       c('b', { file: { size: 1_000_000_000, resolution: '1080p' } }),
     ]);
-    expect(r.keepId).toBe('b');
+    expect(r.verdicts[0].id).toBe('b');
+    expect(r.keepId).toBeNull();
+    expect(r.requiresReview).toBe(true);
   });
 
   it('is deterministic — same input, same winner, regardless of order', () => {
@@ -150,6 +154,57 @@ describe('recommend — review is mandatory when identity is in doubt', () => {
     expect(r.requiresReview).toBe(false);
     expect(r.keepId).toBe('win');
     expect(r.confidence).toBeGreaterThanOrEqual(90);
+  });
+});
+
+describe('recommend — a filename claim is not a measurement', () => {
+  // The real pair that exposed this. The organised copy is genuinely measured at
+  // 720x402; the scene release carries no measured data at all, only "720p" in its
+  // name. Comparing the label against the measurement scored 720 > 402, declared the
+  // UNMEASURED file the higher resolution at 90% confidence, and marked the group
+  // safe to auto-clean — it would have trashed the larger, measured file on the
+  // strength of a filename. 34 groups on one live host were in that state.
+  const measuredCopy = c('measured', {
+    path: '/tv/The Equalizer (2021)/Season 5/The Equalizer - S05E04 - Sacrifice.mkv',
+    file: { size: 323_393_275, width: 720, height: 402, bitrateKbps: 1001, durationSec: 2586, audioChannels: 2 },
+  });
+  const labelOnly = c('label-only', {
+    path: '/tv/The Equalizer (2021)/The.Equalizer.2021.S05E04.720p.HDTV.x265-MiNX.mkv',
+    file: { size: 250_696_155, resolution: '720p' },
+  });
+
+  it('refuses to rank on resolution when only some candidates were measured', () => {
+    const r = recommend([measuredCopy, labelOnly]);
+    expect(r.warnings).toContain('incomparable_quality_evidence');
+    expect(r.requiresReview).toBe(true);
+    expect(r.keepId).toBeNull();
+  });
+
+  it('does not let the unmeasured file claim the highest resolution', () => {
+    const r = recommend([measuredCopy, labelOnly]);
+    const v = r.verdicts.find((x) => x.id === 'label-only')!;
+    expect(v.reasons).not.toContain('highest_resolution');
+  });
+
+  it('does not count a parsed label toward measured coverage', () => {
+    // Two label-only files have no measurements between them; confidence must
+    // reflect that rather than treating the labels as evidence.
+    const r = recommend([
+      c('a', { file: { size: 2e9, resolution: '1080p' } }),
+      c('b', { file: { size: 1e9, resolution: '720p' } }),
+    ]);
+    expect(r.confidence).toBeLessThan(50);
+    expect(r.requiresReview).toBe(true);
+  });
+
+  it('still ranks on labels when NONE were measured — like against like', () => {
+    const r = recommend([
+      c('a', { file: { size: 2e9, resolution: '720p' } }),
+      c('b', { file: { size: 1e9, resolution: '1080p' } }),
+    ]);
+    // Ranking is allowed (b outranks a), but the group is not auto-safe.
+    expect(r.verdicts[0].id).toBe('b');
+    expect(r.requiresReview).toBe(true);
   });
 });
 

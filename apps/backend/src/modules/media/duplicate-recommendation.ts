@@ -92,12 +92,41 @@ function editionOf(path: string): string | null {
   return EDITION_MARKERS.find((m) => n.includes(m)) ?? null;
 }
 
-/** Effective vertical resolution: measured height first, parsed string as fallback. */
-function heightOf(f: RecommendationFile | null | undefined): number | null {
+/** Vertical resolution actually read from the container. */
+function measuredHeight(f: RecommendationFile | null | undefined): number | null {
   if (!f) return null;
-  if (f.height != null && f.height > 0) return f.height;
-  const m = f.resolution?.match(/(\d{3,4})[pi]/i);
+  return f.height != null && f.height > 0 ? f.height : null;
+}
+
+/** The resolution the FILENAME claims (`1080p` → 1080). A claim, not a measurement. */
+function parsedHeight(f: RecommendationFile | null | undefined): number | null {
+  const m = f?.resolution?.match(/(\d{3,4})[pi]/i);
   return m ? Number(m[1]) : null;
+}
+
+/**
+ * Resolution for ranking — but ONLY when every candidate offers the same KIND of
+ * evidence. Mixing the two silently compares a nominal label against a real
+ * measurement, and they do not mean the same thing: a live library held
+ * `The.Equalizer.S05E04.720p…mkv` with no measured data beside an organised copy
+ * measured at 720x402. Falling back to the parsed label scored the first as "720"
+ * and the second as "402", declared the unmeasured file the higher resolution with
+ * 90% confidence, and marked the group safe to clean automatically — it would have
+ * trashed the larger, genuinely-measured file on the strength of a filename. 34
+ * groups were in that state.
+ *
+ * So: rank on measured height when ALL candidates are measured, on parsed labels when
+ * NONE are, and refuse to rank on resolution at all when the evidence is mixed.
+ */
+function heightsFor(cands: RecommendationCandidate[]): { heights: Map<string, number | null>; mixed: boolean } {
+  const measured = cands.map((c) => measuredHeight(c.file));
+  const anyMeasured = measured.some((h) => h != null);
+  const allMeasured = measured.every((h) => h != null);
+  if (anyMeasured && !allMeasured) {
+    return { heights: new Map(cands.map((c) => [c.id, null])), mixed: true };
+  }
+  const source = allMeasured ? measuredHeight : parsedHeight;
+  return { heights: new Map(cands.map((c) => [c.id, source(c.file)])), mixed: false };
 }
 
 /**
@@ -159,14 +188,16 @@ export function recommend(candidates: RecommendationCandidate[]): Recommendation
     return acc;
   };
 
-  const topHeight = best((c) => heightOf(c.file), (a, b) => a > b);
+  const { heights, mixed: mixedEvidence } = heightsFor(candidates);
+  if (mixedEvidence) warnings.push('incomparable_quality_evidence');
+  const topHeight = best((c) => heights.get(c.id) ?? null, (a, b) => a > b);
   const topBitrate = best((c) => c.file?.bitrateKbps ?? null, (a, b) => a > b);
   const topChannels = best((c) => c.file?.audioChannels ?? null, (a, b) => a > b);
   const topSize = best((c) => c.file?.size ?? null, (a, b) => a > b);
 
   const scored = candidates.map((c) => {
     let score = 0;
-    const h = heightOf(c.file);
+    const h = heights.get(c.id) ?? null;
     // Weights are spaced so a higher tier cannot be outvoted by the sum of lower
     // ones: resolution beats any bitrate advantage, bitrate beats any audio
     // advantage, and size only ever breaks a tie between otherwise equal files.
@@ -208,7 +239,9 @@ export function recommend(candidates: RecommendationCandidate[]): Recommendation
   // as a decision.
   const winner = scored[0];
   const runnerUp = scored[1];
-  const measured = candidates.filter((c) => heightOf(c.file) != null || c.file?.bitrateKbps != null).length;
+  const measured = candidates.filter(
+    (c) => measuredHeight(c.file) != null || c.file?.bitrateKbps != null,
+  ).length;
   let confidence = 0;
   if (measured === candidates.length) confidence = winner.score > runnerUp.score ? 90 : 60;
   else if (measured > 0) confidence = winner.score > runnerUp.score ? 70 : 40;
