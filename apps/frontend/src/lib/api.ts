@@ -1664,6 +1664,33 @@ export interface ShowMergeResult {
   serverRefresh: { refreshed: number; failed: number };
 }
 
+/**
+ * Families are returned as a bounded page: building each one walks every member
+ * folder recursively, so only the page returned touches disk. `total` still
+ * reports how many exist.
+ */
+export interface DuplicateShowPage {
+  families: DuplicateShowFamily[];
+  total: number;
+  limit: number;
+  truncated: boolean;
+}
+
+/** What one detection run did. Detection is a command; listing is a query. */
+export interface DuplicateDetectionMetrics {
+  itemsScanned: number;
+  groupsDetected: number;
+  groupsCreated: number;
+  groupsUpdated: number;
+  groupsRemoved: number;
+  candidatesWritten: number;
+  requiresReview: number;
+  potentialSavingsBytes: number;
+  durationMs: number;
+  /** True when nothing detection reads had changed, so no writes were made. */
+  unchanged: boolean;
+}
+
 export interface ShowMergeInput {
   canonicalShowId: string;
   duplicateShowIds: string[];
@@ -3419,13 +3446,25 @@ export const api = {
     listDuplicates(query: DuplicateQuery = {}): Promise<Paginated<MediaDuplicateGroup>> {
       return request<Paginated<MediaDuplicateGroup>>('/media/duplicates', { query: query as QueryParams });
     },
-    detectDuplicates(): Promise<Paginated<MediaDuplicateGroup>> {
-      return request<Paginated<MediaDuplicateGroup>>('/media/duplicates/detect', { method: 'POST' });
+    /**
+     * Starts detection as a background job and returns its id immediately —
+     * measured at 10.5s on a 29.5k-item library, too long to hold a request open.
+     * Progress and the final metrics arrive over the `media_manager.job.*` events.
+     */
+    detectDuplicates(): Promise<{ jobId: string }> {
+      return request<{ jobId: string }>('/media/duplicates/detect', { method: 'POST' });
+    },
+    /** Ask a running job to stop. Cooperative — it stops where it is safe to. */
+    cancelMediaJob(jobId: string): Promise<{ requested: boolean }> {
+      return request<{ requested: boolean }>(`/media/jobs/${jobId}/cancel`, { method: 'POST' });
     },
     // --- duplicate SHOW FOLDERS (two directories, one show) -----------------
-    duplicateShows(libraryId?: string): Promise<DuplicateShowFamily[]> {
-      return request<DuplicateShowFamily[]>('/media/shows/duplicates', {
-        query: libraryId ? { libraryId } : undefined,
+    duplicateShows(libraryId?: string, limit?: number): Promise<DuplicateShowPage> {
+      return request<DuplicateShowPage>('/media/shows/duplicates', {
+        query: {
+          ...(libraryId ? { libraryId } : {}),
+          ...(limit ? { limit: String(limit) } : {}),
+        },
       });
     },
     previewShowMerge(input: ShowMergeInput): Promise<ShowMergePlan> {

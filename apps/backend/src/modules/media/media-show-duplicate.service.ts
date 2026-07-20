@@ -64,6 +64,26 @@ export interface DuplicateShowFamily {
   members: DuplicateShowMember[];
 }
 
+/**
+ * A bounded page of families.
+ *
+ * The response used to be a bare unbounded array, and building each entry walks
+ * every member folder recursively. So the candidate set is computed from rows in
+ * memory (cheap) and only the page being returned touches disk (not cheap) —
+ * `total` still reports how many families exist.
+ */
+export interface DuplicateShowPage {
+  families: DuplicateShowFamily[];
+  total: number;
+  limit: number;
+  truncated: boolean;
+}
+
+/** Families returned when the caller does not ask for a specific number. */
+const DEFAULT_FAMILIES = 25;
+/** Hard ceiling — each family costs a recursive directory walk per member. */
+const MAX_FAMILIES = 100;
+
 /** One file that would move into the canonical folder. */
 export interface MergeMove {
   from: string;
@@ -242,12 +262,12 @@ export class MediaShowDuplicateService {
    * (2005)`/`(2021)` and `Tracker (2001)`/`(2024)`. Two folders that both carry a
    * year, and disagree about it, are different shows — never a duplicate.
    */
-  async detect(libraryId?: string): Promise<DuplicateShowFamily[]> {
+  async detect(libraryId?: string, limit = DEFAULT_FAMILIES): Promise<DuplicateShowPage> {
     const shows = await this.prisma.mediaShow.findMany({
       where: libraryId ? { libraryId } : undefined,
       select: { id: true, libraryId: true, path: true, title: true, year: true, imdbId: true, canonicalKey: true },
     });
-    if (shows.length < 2) return [];
+    if (shows.length < 2) return { families: [], total: 0, limit, truncated: false };
 
     // Union-find over shows in the SAME library.
     const parent = new Map<string, string>(shows.map((s) => [s.id, s.id]));
@@ -265,27 +285,57 @@ export class MediaShowDuplicateService {
 
     const yearsCompatible = (a: number | null, b: number | null) => a == null || b == null || a === b;
 
-    for (let i = 0; i < shows.length; i++) {
-      for (let j = i + 1; j < shows.length; j++) {
-        const a = shows[i];
-        const b = shows[j];
-        if (a.libraryId !== b.libraryId) continue;
-        const sameName = a.canonicalKey === b.canonicalKey && yearsCompatible(a.year, b.year);
-        const sameId = !!a.imdbId && a.imdbId === b.imdbId;
-        if (sameName || sameId) union(a.id, b.id);
+    // Bucket by the two things that can tie folders together, then compare only
+    // within a bucket. The previous pass compared every show against every other
+    // show — 665 shows on a live host is 220k comparisons, and a 10k-show library
+    // would be 50M for a relation that only ever holds between same-key or same-id
+    // folders.
+    const byName = new Map<string, typeof shows>();
+    const byImdb = new Map<string, typeof shows>();
+    for (const s of shows) {
+      const nameKey = `${s.libraryId} ${s.canonicalKey}`;
+      byName.set(nameKey, [...(byName.get(nameKey) ?? []), s]);
+      if (s.imdbId) {
+        const idKey = `${s.libraryId} ${s.imdbId}`;
+        byImdb.set(idKey, [...(byImdb.get(idKey) ?? []), s]);
       }
     }
 
-    const groups = new Map<string, typeof shows>();
-    for (const s of shows) {
-      const root = find(s.id);
-      const g = groups.get(root) ?? [];
-      g.push(s);
-      groups.set(root, g);
+    // Same canonical key, but only where the years do not contradict each other —
+    // `Dark Matter (2015)` and `Dark Matter (2024)` share a bucket and must still
+    // not be joined.
+    for (const bucket of byName.values()) {
+      for (let i = 0; i < bucket.length; i++) {
+        for (let j = i + 1; j < bucket.length; j++) {
+          if (yearsCompatible(bucket[i].year, bucket[j].year)) union(bucket[i].id, bucket[j].id);
+        }
+      }
+    }
+    // A shared IMDb id joins unconditionally — and is flagged downstream.
+    for (const bucket of byImdb.values()) {
+      for (let i = 1; i < bucket.length; i++) union(bucket[0].id, bucket[i].id);
     }
 
+    const grouped = new Map<string, typeof shows>();
+    for (const s of shows) {
+      const root = find(s.id);
+      const g = grouped.get(root) ?? [];
+      g.push(s);
+      grouped.set(root, g);
+    }
+
+    // Grouping is cheap (it reads rows already in memory); walking a folder is not
+    // — it is a recursive readdir + a stat per file, per member. So the candidate
+    // set is decided FIRST and only the page being returned touches disk. Ordered
+    // by folder count so the messiest families surface before the cap bites.
+    const candidates = [...grouped.values()]
+      .filter((g) => g.length > 1)
+      .sort((a, b) => b.length - a.length);
+    const total = candidates.length;
+    const page = candidates.slice(0, Math.max(1, Math.min(limit, MAX_FAMILIES)));
+
     // Watchlist linkage for every candidate at once, rather than a query per folder.
-    const candidateIds = [...groups.values()].filter((g) => g.length > 1).flatMap((g) => g.map((s) => s.id));
+    const candidateIds = page.flatMap((g) => g.map((s) => s.id));
     const watchCounts = new Map<string, number>();
     if (candidateIds.length) {
       const rows = await this.prisma.mediaAcquisitionWatchlistItem.groupBy({
@@ -299,9 +349,7 @@ export class MediaShowDuplicateService {
     }
 
     const families: DuplicateShowFamily[] = [];
-    for (const members of groups.values()) {
-      if (members.length < 2) continue;
-
+    for (const members of page) {
       const scanned = await Promise.all(
         members.map(async (m) => {
           const files = await this.videoFilesIn(m.path);
@@ -350,7 +398,7 @@ export class MediaShowDuplicateService {
         members: stats.sort((a, b) => b.videoCount - a.videoCount),
       });
     }
-    return families;
+    return { families, total, limit, truncated: total > families.length };
   }
 
   // --- preview --------------------------------------------------------------

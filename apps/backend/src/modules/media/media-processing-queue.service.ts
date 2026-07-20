@@ -14,7 +14,8 @@ export type MediaJobType =
   | 'rename_execute'
   | 'library_organize'
   | 'nfo_generate'
-  | 'media_server_refresh';
+  | 'media_server_refresh'
+  | 'duplicate_detect';
 
 export interface CreateJobOptions {
   libraryId?: string | null;
@@ -26,6 +27,30 @@ export interface CreateJobOptions {
 export type JobReporter = (progress: number, message?: string) => Promise<void>;
 
 /**
+ * Thrown by a job body when it observes a cancellation request. The runner
+ * recognises it and records `cancelled` rather than `failed` — an operator who
+ * pressed Cancel should not be told the job broke.
+ */
+export class JobCancelledError extends Error {
+  constructor() {
+    super('Cancelled by the operator');
+    this.name = 'JobCancelledError';
+  }
+}
+
+/**
+ * Handed to a job body so it can stop at a point of its own choosing.
+ *
+ * Cancellation is cooperative because these jobs move files and write rows: a
+ * hard abort mid-loop would leave the very half-applied state the rest of this
+ * module works to avoid. `throwIfCancelled()` at a safe boundary is the contract.
+ */
+export interface JobSignal {
+  isCancelled(): boolean;
+  throwIfCancelled(): void;
+}
+
+/**
  * In-process queue for Media Manager background work. Persists each operation as
  * a MediaProcessingJob (status/progress/type) and streams its lifecycle over the
  * RealtimeGateway to the `media_manager.view`-scoped channel (started / progress
@@ -35,6 +60,9 @@ export type JobReporter = (progress: number, message?: string) => Promise<void>;
 @Injectable()
 export class MediaProcessingQueueService implements OnModuleInit {
   private readonly logger = new Logger(MediaProcessingQueueService.name);
+  /** Jobs this process is currently running — the only ones it can cancel. */
+  private readonly running = new Set<string>();
+  private readonly cancelRequested = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -119,6 +147,31 @@ export class MediaProcessingQueueService implements OnModuleInit {
     return job;
   }
 
+  /**
+   * Ask a running job to stop.
+   *
+   * In-process only, deliberately: the queue itself is in-process (no broker), so a
+   * flag in a `Set` reaches exactly the worker that can act on it. A job id this
+   * process is not running returns `false` rather than pretending.
+   */
+  requestCancel(jobId: string): boolean {
+    if (!this.running.has(jobId)) return false;
+    this.cancelRequested.add(jobId);
+    this.logger.log(`Cancellation requested for job ${jobId}`);
+    return true;
+  }
+
+  /** Mark a job cancelled and emit `failed` with a cancellation reason. */
+  private async markCancelled(jobId: string) {
+    const job = await this.prisma.mediaProcessingJob
+      .update({
+        where: { id: jobId },
+        data: { status: 'cancelled', finishedAt: new Date(), error: 'Cancelled by the operator' },
+      })
+      .catch(() => null);
+    if (job) this.emit(WS_EVENTS.MEDIA_JOB_FAILED, job, { error: 'Cancelled by the operator' });
+  }
+
   /** Mark a job failed and emit `failed`. Never throws (best-effort). */
   async fail(jobId: string, error: string) {
     const job = await this.prisma.mediaProcessingJob
@@ -138,20 +191,38 @@ export class MediaProcessingQueueService implements OnModuleInit {
   async run<T>(
     type: MediaJobType,
     opts: CreateJobOptions,
-    fn: (report: JobReporter) => Promise<T>,
+    fn: (report: JobReporter, signal: JobSignal) => Promise<T>,
   ): Promise<T> {
     const created = await this.create(type, opts);
     await this.start(created.id);
+    this.running.add(created.id);
     const report: JobReporter = (progress, message) =>
       this.progress(created.id, progress, message);
     try {
-      const result = await fn(report);
+      const result = await fn(report, this.signalFor(created.id));
       await this.complete(created.id, result);
       return result;
     } catch (err) {
-      await this.fail(created.id, (err as Error).message);
+      if (err instanceof JobCancelledError) {
+        await this.markCancelled(created.id);
+      } else {
+        await this.fail(created.id, (err as Error).message);
+      }
       throw err;
+    } finally {
+      this.running.delete(created.id);
+      this.cancelRequested.delete(created.id);
     }
+  }
+
+  private signalFor(jobId: string): JobSignal {
+    const isCancelled = () => this.cancelRequested.has(jobId);
+    return {
+      isCancelled,
+      throwIfCancelled: () => {
+        if (isCancelled()) throw new JobCancelledError();
+      },
+    };
   }
 
   /**
@@ -165,18 +236,29 @@ export class MediaProcessingQueueService implements OnModuleInit {
   async runDetached(
     type: MediaJobType,
     opts: CreateJobOptions,
-    fn: (report: JobReporter) => Promise<unknown>,
+    fn: (report: JobReporter, signal: JobSignal) => Promise<unknown>,
   ): Promise<{ jobId: string }> {
     const created = await this.create(type, opts);
+    // Registered BEFORE the async body starts, so a cancel arriving in the window
+    // between this call returning `{ jobId }` and the body's first await is not
+    // dropped on the floor.
+    this.running.add(created.id);
     void (async () => {
       await this.start(created.id);
       const report: JobReporter = (progress, message) =>
         this.progress(created.id, progress, message);
       try {
-        const result = await fn(report);
+        const result = await fn(report, this.signalFor(created.id));
         await this.complete(created.id, result);
       } catch (err) {
-        await this.fail(created.id, (err as Error).message);
+        if (err instanceof JobCancelledError) {
+          await this.markCancelled(created.id);
+        } else {
+          await this.fail(created.id, (err as Error).message);
+        }
+      } finally {
+        this.running.delete(created.id);
+        this.cancelRequested.delete(created.id);
       }
     })();
     return { jobId: created.id };

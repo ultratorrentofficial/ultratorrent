@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, EyeOff, RotateCcw, ScanSearch, Star } from 'lucide-react';
-import { ApiError, api, type MediaDuplicateGroup } from '@/lib/api';
+import { Copy, EyeOff, RotateCcw, ScanSearch, Star, X } from 'lucide-react';
+import { ApiError, api, type DuplicateDetectionMetrics, type MediaDuplicateGroup } from '@/lib/api';
+import { wsClient } from '@/lib/ws';
+import { WS_EVENTS } from '@ultratorrent/shared';
+import { Progress } from '@/components/ui/progress';
 import { formatBytes } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
@@ -91,19 +94,69 @@ export function MediaDuplicatesPage() {
     placeholderData: keepPreviousData,
   });
 
+  // Detection runs as a background job — it took 10.5s on a live 29.5k-item
+  // library, and a button that hangs that long with no feedback reads as broken.
+  // The job id is held in a ref as well as state: the WS handlers are registered
+  // once and would otherwise close over the id as it was at registration time.
+  const [scan, setScan] = useState<{ jobId: string; progress: number; message?: string } | null>(null);
+  const scanJobId = useRef<string | null>(null);
+
   const detect = useMutation({
     mutationFn: api.media.detectDuplicates,
-    onSuccess: (result) => {
-      toast.success(
-        t('duplicates.detectionCompleteTitle'),
-        t('duplicates.detectionCompleteBody', { count: result.total }),
-      );
-      setPage(1);
-      void queryClient.invalidateQueries({ queryKey: ['media', 'duplicates'] });
+    onSuccess: ({ jobId }) => {
+      scanJobId.current = jobId;
+      setScan({ jobId, progress: 0 });
     },
     onError: (err) =>
       toast.error(t('duplicates.detectionFailed'), err instanceof ApiError ? err.message : undefined),
   });
+
+  const cancelScan = useMutation({
+    mutationFn: () => api.media.cancelMediaJob(scanJobId.current!),
+    onError: (err) =>
+      toast.error(t('duplicates.cancelFailed'), err instanceof ApiError ? err.message : undefined),
+  });
+
+  useEffect(() => {
+    const mine = (p: { jobId: string }) => p.jobId === scanJobId.current;
+    const finish = () => {
+      scanJobId.current = null;
+      setScan(null);
+      setPage(1);
+      void queryClient.invalidateQueries({ queryKey: ['media', 'duplicates'] });
+    };
+    const offProgress = wsClient.on(WS_EVENTS.MEDIA_JOB_PROGRESS, (p) => {
+      if (mine(p)) setScan({ jobId: p.jobId, progress: p.progress, message: p.message ?? undefined });
+    });
+    const offCompleted = wsClient.on(WS_EVENTS.MEDIA_JOB_COMPLETED, (p) => {
+      if (!mine(p)) return;
+      const m = p.result as DuplicateDetectionMetrics | undefined;
+      if (m?.unchanged) {
+        // Saying "0 groups" would be a lie; saying nothing would look like a no-op.
+        toast.success(t('duplicates.detectionUnchangedTitle'), t('duplicates.detectionUnchangedBody'));
+      } else {
+        toast.success(
+          t('duplicates.detectionCompleteTitle'),
+          t('duplicates.detectionCompleteBody', {
+            count: m?.groupsDetected ?? 0,
+            items: m?.itemsScanned ?? 0,
+            seconds: Math.max(1, Math.round((m?.durationMs ?? 0) / 1000)),
+          }),
+        );
+      }
+      finish();
+    });
+    const offFailed = wsClient.on(WS_EVENTS.MEDIA_JOB_FAILED, (p) => {
+      if (!mine(p)) return;
+      toast.error(t('duplicates.detectionFailed'), p.error ?? undefined);
+      finish();
+    });
+    return () => {
+      offProgress();
+      offCompleted();
+      offFailed();
+    };
+  }, [queryClient, t, toast]);
 
   const o = overview.data;
 
@@ -114,10 +167,28 @@ export function MediaDuplicatesPage() {
           <h1 className="text-2xl font-bold tracking-tight">{t('duplicates.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('duplicates.subtitle')}</p>
         </div>
-        <Button variant="secondary" onClick={() => detect.mutate()} loading={detect.isPending}>
-          <ScanSearch className="h-4 w-4" /> {t('duplicates.detectBtn')}
-        </Button>
+        {scan ? (
+          <Button variant="ghost" onClick={() => cancelScan.mutate()} loading={cancelScan.isPending}>
+            <X className="h-4 w-4" /> {t('duplicates.cancelScan')}
+          </Button>
+        ) : (
+          <Button variant="secondary" onClick={() => detect.mutate()} loading={detect.isPending}>
+            <ScanSearch className="h-4 w-4" /> {t('duplicates.detectBtn')}
+          </Button>
+        )}
       </div>
+
+      {scan ? (
+        <Card>
+          <CardContent className="space-y-2 py-3">
+            <div className="flex items-center justify-between text-sm">
+              <span>{scan.message ?? t('duplicates.scanning')}</span>
+              <span className="tabular-nums text-muted-foreground">{scan.progress}%</span>
+            </div>
+            <Progress value={scan.progress} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* One aggregate call — no group rows are loaded to produce these. */}
       {o ? (

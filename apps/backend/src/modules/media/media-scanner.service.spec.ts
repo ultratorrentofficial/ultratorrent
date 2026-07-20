@@ -512,15 +512,17 @@ describe('MediaScannerService.countDuplicateShows — the scan reports, it never
   }
 
   it('reports how many duplicate families the library has, scoped to that library', async () => {
-    const detect = jest.fn(async () => [{ members: [{}, {}] }, { members: [{}, {}] }]);
+    const detect = jest.fn(async () => ({ families: [{ members: [{}, {}] }], total: 2, limit: 1, truncated: true }));
     const svc = build(detect);
     expect(await svc.countDuplicateShows(LIB, 661)).toBe(2);
-    expect(detect).toHaveBeenCalledWith('lib1');
+    // Asks for the smallest page: this is a count, and `total` is known before any
+    // folder is walked — so it must not pay for walking 25 of them.
+    expect(detect).toHaveBeenCalledWith('lib1', 1);
   });
 
   it('does not consult the detector when the library recorded no shows', async () => {
     // Nothing recorded → nothing to compare. Detecting would be a wasted pass.
-    const detect = jest.fn(async () => []);
+    const detect = jest.fn(async () => ({ families: [], total: 0, limit: 1, truncated: false }));
     expect(await build(detect).countDuplicateShows(LIB, 0)).toBe(0);
     expect(detect).not.toHaveBeenCalled();
   });

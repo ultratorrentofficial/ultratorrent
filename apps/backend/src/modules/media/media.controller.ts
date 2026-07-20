@@ -458,10 +458,33 @@ export class MediaController {
    * state and trigger a full-table scan. SCAN is the permission that already governs
    * "make the server go and re-examine the library".
    */
+  /**
+   * Re-run duplicate detection as a background job.
+   *
+   * Detached because it is not fast: measured at **10.5 s** on a live 29,558-item
+   * library, which on a larger one is a gateway timeout and everywhere is a spinner
+   * with nothing behind it. Returns `{ jobId }` at once; progress, the metrics
+   * result and failures arrive over the `media_manager.job.*` WS events.
+   */
   @Post('duplicates/detect')
   @RequirePermissions(P.MEDIA_MANAGER_SCAN)
   detectDuplicates() {
-    return this.duplicates.detect();
+    return this.jobs.runDetached('duplicate_detect', {}, (report, signal) =>
+      this.duplicates.detect(report, signal),
+    );
+  }
+
+  /**
+   * Ask a running Media Manager job to stop.
+   *
+   * Cooperative: the job body decides where it is safe to stop, so a job mid-write
+   * finishes that write rather than leaving a half-applied batch. Returns whether
+   * the request reached a job this process is actually running.
+   */
+  @Post('jobs/:jobId/cancel')
+  @RequirePermissions(P.MEDIA_MANAGER_SCAN)
+  cancelJob(@Param('jobId') jobId: string) {
+    return { requested: this.jobs.requestCancel(jobId) };
   }
 
   /** One group with the side-by-side comparison payload. */
@@ -557,10 +580,15 @@ export class MediaController {
   // *files*. Nothing here is automatic: detect reports, preview plans, and only
   // an explicit merge — with the operator's chosen canonical path — touches disk.
 
+  /**
+   * Duplicate show folders, bounded. Each family costs a recursive directory walk
+   * per member, so the response is a page with a `total`, not an unbounded array.
+   */
   @Get('shows/duplicates')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  detectDuplicateShows(@Query('libraryId') libraryId?: string) {
-    return this.showDuplicates.detect(libraryId);
+  detectDuplicateShows(@Query('libraryId') libraryId?: string, @Query('limit') limit?: string) {
+    const n = Number(limit);
+    return this.showDuplicates.detect(libraryId, Number.isFinite(n) && n > 0 ? n : undefined);
   }
 
   /**

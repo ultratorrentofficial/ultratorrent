@@ -54,7 +54,7 @@ export function DuplicateShowsPanel() {
   if (isLoading) return <CenteredSpinner label={t('shows.dupes.loading')} />;
   if (isError) return <ErrorState message={t('shows.dupes.loadError')} onRetry={() => void refetch()} />;
 
-  const families = data ?? [];
+  const families = data?.families ?? [];
   if (families.length === 0) {
     return (
       <EmptyState
@@ -144,6 +144,14 @@ export function DuplicateShowsPanel() {
           </Card>
         );
       })}
+
+      {data?.truncated ? (
+        // The response is bounded because building each family walks every member
+        // folder. Say so rather than let the list look complete.
+        <p className="text-xs text-muted-foreground">
+          {t('shows.dupes.truncated', { shown: families.length, total: data.total })}
+        </p>
+      ) : null}
 
       {active && (
         <MergeDialog

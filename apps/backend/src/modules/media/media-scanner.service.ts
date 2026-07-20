@@ -375,14 +375,17 @@ export class MediaScannerService {
   ): Promise<number> {
     if (shows === 0) return 0; // nothing recorded → nothing to compare
     try {
-      const families = await this.showDuplicates.detect(library.id);
-      if (families.length > 0) {
+      // A count, not a listing — `total` is computed from rows in memory, so ask
+      // for the smallest possible page and skip walking 25 folder trees for a
+      // number the grouping pass already knows.
+      const { total } = await this.showDuplicates.detect(library.id, 1);
+      if (total > 0) {
         this.logger.warn(
-          `Scan of ${library.name}: ${families.length} possible duplicate show folder(s). ` +
+          `Scan of ${library.name}: ${total} possible duplicate show folder(s). ` +
             `Nothing was changed — an operator must choose the real path before a merge.`,
         );
       }
-      return families.length;
+      return total;
     } catch (err) {
       this.logger.warn(`Duplicate-show detection failed for ${library.name}: ${(err as Error).message}`);
       return 0;

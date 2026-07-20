@@ -121,7 +121,7 @@ describe('MediaShowDuplicateService', () => {
         show('s1', a, { canonicalKey: 'happys place', year: 2024 }),
         show('s2', b, { canonicalKey: 'happys place' }),
       ]);
-      const [family] = await svc.detect();
+      const { families: [family] } = await svc.detect();
 
       expect(family.reason).toBe('name');
       expect(family.needsReview).toBe(false);
@@ -146,7 +146,7 @@ describe('MediaShowDuplicateService', () => {
         show('s1', a, { canonicalKey: 'show', year: 2024 }),
         show('s2', b, { canonicalKey: 'show' }),
       ]);
-      const [family] = await svc.detect();
+      const { families: [family] } = await svc.detect();
 
       const byPath = Object.fromEntries(family.members.map((m) => [m.path, m]));
       expect(byPath[a].uniqueEpisodes).toEqual(['s1e1']);
@@ -166,7 +166,7 @@ describe('MediaShowDuplicateService', () => {
         show('s1', a, { canonicalKey: 'dark matter', year: 2015 }),
         show('s2', b, { canonicalKey: 'dark matter', year: 2024 }),
       ]);
-      expect(await svc.detect()).toEqual([]);
+      expect((await svc.detect()).families).toEqual([]);
     });
 
     it('groups by a shared IMDb id even when the names do not match — but flags it', async () => {
@@ -182,7 +182,7 @@ describe('MediaShowDuplicateService', () => {
         show('s1', a, { canonicalKey: 'high desert', imdbId: 'tt13701758' }),
         show('s2', b, { canonicalKey: 'masters of the air', imdbId: 'tt13701758' }),
       ]);
-      const [family] = await svc.detect();
+      const { families: [family] } = await svc.detect();
 
       expect(family.reason).toBe('imdb');
       expect(family.needsReview).toBe(true);
@@ -193,7 +193,7 @@ describe('MediaShowDuplicateService', () => {
       const a = path.join(lib, 'The Wire (2002)');
       await video(path.join(a, 'a.mkv'), 10);
       const { svc } = build([show('s1', a, { canonicalKey: 'the wire', year: 2002 })]);
-      expect(await svc.detect()).toEqual([]);
+      expect((await svc.detect()).families).toEqual([]);
     });
   });
 

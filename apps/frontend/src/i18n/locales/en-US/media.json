@@ -318,7 +318,7 @@
     "keepThis": "Keep this",
     "remove": "Remove",
     "footnote": "Selecting a keeper marks the rest as removal candidates. Remove files from disk via the rename engine or your media server.",
-    "scanning": "Scanning…",
+    "scanning": "Scanning for duplicates…",
     "stat": {
       "open": "Open groups",
       "needsReview": "Needs review",
@@ -480,7 +480,12 @@
       "partialBody": "{{ok}} succeeded, {{failed}} failed. Your selection has been kept.",
       "failed": "Quick Clean failed",
       "capped": "Showing the first {{cap}} groups — clean these, then run it again."
-    }
+    },
+    "cancelScan": "Cancel scan",
+    "cancelFailed": "Could not cancel the scan",
+    "detectionCompleteBody": "Found {{count}} duplicate group(s) across {{items}} item(s) in {{seconds}}s.",
+    "detectionUnchangedTitle": "Nothing has changed",
+    "detectionUnchangedBody": "No media has been added, moved or resized since the last scan, so the existing groups still stand."
   },
   "renamePreview": {
     "title": "Rename Preview",
@@ -1621,7 +1626,8 @@
       "mergedBody": "{{moved}} moved, {{trashed}} to Trash, {{rescued}} subtitle(s) carried over, {{deleted}} folder(s) removed — {{size}} reclaimed.",
       "partialTitle": "The merge finished with problems",
       "partialBody": "{{moved}} moved, {{skipped}} skipped, {{failed}} failed. Nothing else was touched.",
-      "mergeFailed": "The merge failed"
+      "mergeFailed": "The merge failed",
+      "truncated": "Showing {{shown}} of {{total}} families. Each one is checked against the folders on disk, so the list is capped."
     }
   }
 }

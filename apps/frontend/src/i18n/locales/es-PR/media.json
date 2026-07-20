@@ -318,7 +318,7 @@
     "keepThis": "Conservar este",
     "remove": "Eliminar",
     "footnote": "Seleccionar uno para conservar marca el resto como candidatos a eliminación. Elimina los archivos del disco mediante el motor de renombrado o tu servidor de medios.",
-    "scanning": "Escaneando…",
+    "scanning": "Buscando duplicados…",
     "stat": {
       "open": "Grupos abiertos",
       "needsReview": "Requiere revisión",
@@ -480,7 +480,12 @@
       "partialBody": "{{ok}} correctos, {{failed}} fallidos. Se ha conservado tu selección.",
       "failed": "La limpieza rápida falló",
       "capped": "Mostrando los primeros {{cap}} grupos — limpia estos y vuelve a ejecutarla."
-    }
+    },
+    "cancelScan": "Cancelar escaneo",
+    "cancelFailed": "No se pudo cancelar el escaneo",
+    "detectionCompleteBody": "Se encontraron {{count}} grupo(s) duplicado(s) entre {{items}} elemento(s) en {{seconds}}s.",
+    "detectionUnchangedTitle": "Nada ha cambiado",
+    "detectionUnchangedBody": "No se ha añadido, movido ni cambiado el tamaño de ningún archivo desde el último escaneo, así que los grupos existentes siguen vigentes."
   },
   "renamePreview": {
     "title": "Vista previa de renombrado",
@@ -1621,7 +1626,8 @@
       "mergedBody": "{{moved}} movidos, {{trashed}} a la Papelera, {{rescued}} subtítulo(s) trasladado(s), {{deleted}} carpeta(s) eliminada(s) — {{size}} recuperados.",
       "partialTitle": "La combinación terminó con problemas",
       "partialBody": "{{moved}} movidos, {{skipped}} omitidos, {{failed}} fallidos. No se tocó nada más.",
-      "mergeFailed": "La combinación falló"
+      "mergeFailed": "La combinación falló",
+      "truncated": "Mostrando {{shown}} de {{total}} familias. Cada una se verifica contra las carpetas en disco, así que la lista tiene un límite."
     }
   }
 }

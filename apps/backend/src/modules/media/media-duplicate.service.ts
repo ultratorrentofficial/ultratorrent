@@ -1,9 +1,62 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { createHash, randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { pageOf, parsePage } from '../../common/pagination';
 import type { ListDuplicatesDto } from './dto/duplicates.dto';
 import { recommend } from './duplicate-recommendation';
+import type { JobReporter, JobSignal } from './media-processing-queue.service';
+
+/**
+ * Items pulled from the database per page.
+ *
+ * Detection is inherently whole-library — an item's duplicate can be anywhere — so
+ * the set cannot be filtered down, only streamed. This bounds peak memory to a page
+ * of hydrated rows rather than all of them at once.
+ */
+const ITEM_PAGE = 5_000;
+
+/**
+ * Groups whose writes go in one `$transaction` batch.
+ *
+ * The win here is round trips, not SQL: Prisma sends an array transaction as a
+ * single batch, so 50 groups cost one round trip instead of ~250. Chunked rather
+ * than done in one transaction because a single statement touching every item row
+ * would hold locks across the whole table for the duration.
+ */
+const WRITE_BATCH = 50;
+
+/**
+ * Single-row key for the detection scan state. There is one detection domain (all
+ * libraries at once), so the table holds exactly one row rather than inventing a
+ * scope it does not have.
+ */
+const SCAN_STATE_ID = 'global';
+
+/** A `notIn` list must not be empty; this id matches nothing. */
+const NO_MATCH_ID = '00000000-0000-0000-0000-000000000000';
+
+/** Split `xs` into consecutive slices of at most `size`. */
+function chunked<T>(xs: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += size) out.push(xs.slice(i, i + size));
+  return out;
+}
+
+/** Summary of one detection run — what the job records and the UI reports. */
+export interface DetectionMetrics {
+  itemsScanned: number;
+  groupsDetected: number;
+  groupsCreated: number;
+  groupsUpdated: number;
+  groupsRemoved: number;
+  candidatesWritten: number;
+  requiresReview: number;
+  potentialSavingsBytes: number;
+  durationMs: number;
+  /** True when the input digest matched the last run and no writes were made. */
+  unchanged: boolean;
+}
 
 /** Reasons two items are considered duplicates, in descending confidence. */
 export type DuplicateReason =
@@ -25,6 +78,59 @@ export interface DuplicateItemLike {
     videoCodec: string | null;
     size: bigint | number;
   }>;
+}
+
+/**
+ * Exactly what detection and scoring read from an item — nothing else is selected.
+ * Keeping this shape explicit is what stops the query drifting back to `include`,
+ * which hydrated every column of every row for the sake of eight of them.
+ */
+interface DetectionItem {
+  id: string;
+  mediaType: string;
+  title: string;
+  year: number | null;
+  season: number | null;
+  episode: number | null;
+  path: string;
+  updatedAt: Date;
+  externalIds: Array<{ provider: string; externalId: string }>;
+  files: Array<{
+    size: bigint;
+    height: number | null;
+    width: number | null;
+    bitrateKbps: number | null;
+    durationSec: number | null;
+    audioChannels: number | null;
+    resolution: string | null;
+    videoCodec: string | null;
+  }>;
+}
+
+/** Adapt a loaded item to the recommendation engine's input. */
+function toRecommendationInput(i: DetectionItem) {
+  return {
+    id: i.id,
+    title: i.title,
+    year: i.year,
+    season: i.season,
+    episode: i.episode,
+    path: i.path,
+    modifiedAt: i.updatedAt,
+    externalIds: i.externalIds.map((e) => ({ provider: e.provider, externalId: e.externalId })),
+    file: i.files[0]
+      ? {
+          size: Number(i.files[0].size),
+          height: i.files[0].height,
+          width: i.files[0].width,
+          bitrateKbps: i.files[0].bitrateKbps,
+          durationSec: i.files[0].durationSec,
+          audioChannels: i.files[0].audioChannels,
+          resolution: i.files[0].resolution,
+          videoCodec: i.files[0].videoCodec,
+        }
+      : null,
+  };
 }
 
 /** Normalise a title for comparison: lowercase, strip punctuation/spacing. */
@@ -185,27 +291,102 @@ export function detectDuplicateGroups(items: DuplicateItemLike[]): DetectedGroup
  */
 @Injectable()
 export class MediaDuplicateService {
+  private readonly logger = new Logger(MediaDuplicateService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Re-run duplicate detection across the whole library set. */
-  async detect() {
-    const items = await this.prisma.mediaItem.findMany({
-      include: { externalIds: true, files: true },
-    });
+  /**
+   * Re-run duplicate detection across the whole library set.
+   *
+   * Runs as a background job rather than inside the HTTP request: measured on a
+   * live 29,558-item library it took **10.5 s**, which is a spinner with no
+   * feedback and, on a larger library, a gateway timeout. `report` streams
+   * progress and `signal` lets the operator stop it.
+   *
+   * Returns metrics, not a page of results. Detection is a command and listing is
+   * a query; returning page 1 meant a caller could not tell what the run did.
+   */
+  async detect(report?: JobReporter, signal?: JobSignal): Promise<DetectionMetrics> {
+    const startedAt = Date.now();
+    await report?.(2, 'Loading media items…');
 
-    const byId = items;
-    const groups = detectDuplicateGroups(
-      items.map((i) => ({
-        id: i.id,
-        mediaType: i.mediaType,
-        title: i.title,
-        year: i.year,
-        season: i.season,
-        episode: i.episode,
-        externalIds: i.externalIds,
-        files: i.files,
-      })),
-    );
+    // Only the columns detection and scoring read, paged rather than loaded whole.
+    // The previous `include` hydrated every column of ~29.5k items plus 63k
+    // external-id rows and 29.5k file rows in one shot, most of it never read.
+    const items: DetectionItem[] = [];
+    for (let skip = 0; ; skip += ITEM_PAGE) {
+      signal?.throwIfCancelled();
+      const page = await this.prisma.mediaItem.findMany({
+        skip,
+        take: ITEM_PAGE,
+        orderBy: { id: 'asc' },
+        select: {
+          id: true,
+          mediaType: true,
+          title: true,
+          year: true,
+          season: true,
+          episode: true,
+          path: true,
+          updatedAt: true,
+          externalIds: { select: { provider: true, externalId: true } },
+          files: {
+            select: {
+              size: true,
+              height: true,
+              width: true,
+              bitrateKbps: true,
+              durationSec: true,
+              audioChannels: true,
+              resolution: true,
+              videoCodec: true,
+            },
+          },
+        },
+      });
+      items.push(...page);
+      await report?.(Math.min(20, 2 + items.length / 2_000), `Loaded ${items.length} item(s)…`);
+      if (page.length < ITEM_PAGE) break;
+    }
+
+    signal?.throwIfCancelled();
+    await report?.(22, `Grouping ${items.length} item(s)…`);
+    const groups = detectDuplicateGroups(items);
+
+    // Nothing detection reads has changed since the last completed run, so neither
+    // can its output. Skipping the write phase is what makes a frequent scheduled
+    // scan cheap instead of thousands of writes reproducing the same rows.
+    const digest = this.inputDigest(items);
+    if (await this.digestUnchanged(digest)) {
+      await report?.(100, 'No media changed since the last scan.');
+      const [open, review] = await Promise.all([
+        this.prisma.mediaDuplicateGroup.count({ where: { status: 'open' } }),
+        this.prisma.mediaDuplicateGroup.count({ where: { status: 'open', requiresReview: true } }),
+      ]);
+      this.logger.log(`Duplicate detection skipped: input unchanged (${open} open group(s)).`);
+      return {
+        itemsScanned: items.length,
+        groupsDetected: open,
+        groupsCreated: 0,
+        groupsUpdated: 0,
+        groupsRemoved: 0,
+        candidatesWritten: 0,
+        requiresReview: review,
+        potentialSavingsBytes: 0,
+        durationMs: Date.now() - startedAt,
+        unchanged: true,
+      };
+    }
+
+    const byId = new Map(items.map((i) => [i.id, i]));
+
+    // Score every group up front — pure CPU, no I/O — so the write phase below is
+    // nothing but batched database work.
+    const scored = groups.map((group) => {
+      const members = group.itemIds.map((id) => byId.get(id)!).filter(Boolean);
+      return { group, members, rec: recommend(members.map(toRecommendationInput)) };
+    });
+    signal?.throwIfCancelled();
 
     // Detach every item first so an item that is no longer duplicated is released,
     // but DO NOT delete the groups: a group carries human decisions (ignored, with a
@@ -218,90 +399,154 @@ export class MediaDuplicateService {
       data: { duplicateGroupId: null },
     });
 
-    const seen: string[] = [];
-    for (const group of groups) {
-      // Keyed on the detection signal, so the same real-world group keeps one
-      // identity across scans. `version` is bumped on every re-detection: a
-      // resolution previewed against an older version is refused rather than applied
-      // to a membership the operator never approved.
-      const row = await this.prisma.mediaDuplicateGroup.upsert({
-        where: { groupKey: group.key },
-        create: { groupKey: group.key, reason: group.reason, groupType: 'file' },
-        update: { reason: group.reason, version: { increment: 1 } },
+    // Resolve every existing group in ONE query per 1,000 keys rather than an
+    // upsert per group.
+    const existing = new Map<string, string>();
+    for (const chunk of chunked(scored.map((s) => s.group.key), 1_000)) {
+      const rows = await this.prisma.mediaDuplicateGroup.findMany({
+        where: { groupKey: { in: chunk } },
+        select: { id: true, groupKey: true },
       });
-      seen.push(row.id);
-      await this.prisma.mediaItem.updateMany({
-        where: { id: { in: group.itemIds } },
-        data: { duplicateGroupId: row.id },
-      });
+      for (const r of rows) if (r.groupKey) existing.set(r.groupKey, r.id);
+    }
 
-      // Score the group now, so the list, the filters and the review queue all read
-      // the same stored judgement rather than each recomputing it per request.
-      const members = byId.filter((i) => group.itemIds.includes(i.id));
-      const rec = recommend(
-        members.map((i) => ({
-          id: i.id,
-          title: i.title,
-          year: i.year,
-          season: i.season,
-          episode: i.episode,
-          path: i.path,
-          modifiedAt: i.updatedAt,
-          externalIds: i.externalIds?.map((e) => ({ provider: e.provider, externalId: e.externalId })) ?? [],
-          file: i.files?.[0]
-            ? {
-                size: Number(i.files[0].size),
-                height: i.files[0].height,
-                width: i.files[0].width,
-                bitrateKbps: i.files[0].bitrateKbps,
-                durationSec: i.files[0].durationSec,
-                audioChannels: i.files[0].audioChannels,
-                resolution: i.files[0].resolution,
-                videoCodec: i.files[0].videoCodec,
-              }
-            : null,
+    // Ids are generated here so a bulk `createMany` can be used while the ids stay
+    // known for the member and candidate writes that follow.
+    const fresh = scored.filter((s) => !existing.has(s.group.key));
+    for (const s of fresh) existing.set(s.group.key, randomUUID());
+    for (const chunk of chunked(fresh, 500)) {
+      await this.prisma.mediaDuplicateGroup.createMany({
+        data: chunk.map((s) => ({
+          id: existing.get(s.group.key)!,
+          groupKey: s.group.key,
+          reason: s.group.reason,
+          groupType: 'file',
         })),
-      );
-
-      await this.prisma.mediaDuplicateGroup.update({
-        where: { id: row.id },
-        data: {
-          confidence: rec.confidence,
-          requiresReview: rec.requiresReview,
-          potentialSavingsBytes: BigInt(rec.potentialSavingsBytes),
-          recommendedItemId: rec.keepId,
-          recommendation: { verdicts: rec.verdicts } as object,
-          warnings: rec.warnings as unknown as object,
-        },
+        skipDuplicates: true,
       });
+    }
 
-      // Candidate rows carry per-membership state (rank, why it lost) and snapshot
-      // path/size, so a resolution stays auditable after the item row is gone.
-      await this.prisma.mediaDuplicateCandidate.deleteMany({ where: { groupId: row.id } });
-      await this.prisma.mediaDuplicateCandidate.createMany({
-        data: rec.verdicts.map((v) => {
-          const m = members.find((x) => x.id === v.id)!;
-          return {
-            groupId: row.id,
-            itemId: v.id,
-            path: m.path,
-            fileSize: BigInt(m.files?.[0] ? Number(m.files[0].size) : 0),
-            qualityScore: v.score,
-            recommendationRank: v.rank,
-            recommendationReasons: v.reasons as unknown as object,
-          };
-        }),
-      });
+    let candidatesWritten = 0;
+    let done = 0;
+    for (const batch of chunked(scored, WRITE_BATCH)) {
+      signal?.throwIfCancelled();
+      const ops: Prisma.PrismaPromise<unknown>[] = [];
+      for (const { group, members, rec } of batch) {
+        const groupId = existing.get(group.key)!;
+        ops.push(
+          // `version` is bumped on every re-detection: a resolution previewed
+          // against an older version is refused rather than applied to a membership
+          // the operator never approved.
+          this.prisma.mediaDuplicateGroup.update({
+            where: { id: groupId },
+            data: {
+              reason: group.reason,
+              version: { increment: 1 },
+              confidence: rec.confidence,
+              requiresReview: rec.requiresReview,
+              potentialSavingsBytes: BigInt(rec.potentialSavingsBytes),
+              recommendedItemId: rec.keepId,
+              recommendation: { verdicts: rec.verdicts } as object,
+              warnings: rec.warnings as unknown as object,
+            },
+          }),
+          this.prisma.mediaItem.updateMany({
+            where: { id: { in: group.itemIds } },
+            data: { duplicateGroupId: groupId },
+          }),
+          // Candidate rows carry per-membership state (rank, why it lost) and
+          // snapshot path/size, so a resolution stays auditable after the item row
+          // is gone.
+          this.prisma.mediaDuplicateCandidate.deleteMany({ where: { groupId } }),
+          this.prisma.mediaDuplicateCandidate.createMany({
+            data: rec.verdicts.map((v) => {
+              const m = members.find((x) => x.id === v.id)!;
+              return {
+                groupId,
+                itemId: v.id,
+                path: m.path,
+                fileSize: BigInt(m.files?.[0] ? Number(m.files[0].size) : 0),
+                qualityScore: v.score,
+                recommendationRank: v.rank,
+                recommendationReasons: v.reasons as unknown as object,
+              };
+            }),
+          }),
+        );
+        candidatesWritten += rec.verdicts.length;
+      }
+      // Prisma sends an array transaction as one batch, so a batch of 50 groups
+      // costs one round trip instead of the ~200 the per-group loop spent.
+      await this.prisma.$transaction(ops);
+      done += batch.length;
+      await report?.(30 + (done / Math.max(1, scored.length)) * 65, `Scored ${done}/${scored.length} group(s)…`);
     }
 
     // Groups detection no longer produces are dropped — UNLESS a human touched them.
     // An ignored group is retained precisely so the same false positive does not come
     // back; a resolved one is retained as history.
-    await this.prisma.mediaDuplicateGroup.deleteMany({
-      where: { id: { notIn: seen.length ? seen : ['\u0000'] }, status: 'open' },
+    const seen = [...existing.values()];
+    const removed = await this.prisma.mediaDuplicateGroup.deleteMany({
+      where: { id: { notIn: seen.length ? seen : [NO_MATCH_ID] }, status: 'open' },
     });
 
-    return this.list();
+    await this.rememberDigest(digest);
+    await report?.(100, `${scored.length} duplicate group(s).`);
+
+    const metrics: DetectionMetrics = {
+      itemsScanned: items.length,
+      groupsDetected: scored.length,
+      groupsCreated: fresh.length,
+      groupsUpdated: scored.length - fresh.length,
+      groupsRemoved: removed.count,
+      candidatesWritten,
+      requiresReview: scored.filter((s) => s.rec.requiresReview).length,
+      potentialSavingsBytes: scored.reduce((n, s) => n + s.rec.potentialSavingsBytes, 0),
+      durationMs: Date.now() - startedAt,
+      unchanged: false,
+    };
+    this.logger.log(
+      `Duplicate detection: ${metrics.itemsScanned} items → ${metrics.groupsDetected} groups ` +
+        `(${metrics.groupsCreated} new, ${metrics.groupsRemoved} removed) in ${metrics.durationMs}ms`,
+    );
+    return metrics;
+  }
+
+  /**
+   * A digest of everything detection reads.
+   *
+   * Covers the identity fields, path, file size and external ids only — the inputs
+   * that can change which groups exist. A metadata refresh that rewrites an
+   * unrelated column should not force thousands of writes to reproduce a result
+   * that cannot have moved.
+   */
+  private inputDigest(items: DetectionItem[]): string {
+    const h = createHash('sha256');
+    for (const i of items) {
+      h.update(
+        `${i.id}|${i.mediaType}|${i.title}|${i.year ?? ''}|${i.season ?? ''}|${i.episode ?? ''}|${i.path}|` +
+          `${i.files?.[0] ? Number(i.files[0].size) : 0}|` +
+          (i.externalIds ?? []).map((e) => `${e.provider}:${e.externalId}`).sort().join(',') +
+          '\n',
+      );
+    }
+    return h.digest('hex');
+  }
+
+  /** True when the last run that wrote anything saw exactly this input. */
+  private async digestUnchanged(digest: string): Promise<boolean> {
+    const row = await this.prisma.mediaDuplicateScanState.findUnique({
+      where: { id: SCAN_STATE_ID },
+    });
+    return row?.inputDigest === digest;
+  }
+
+  private async rememberDigest(digest: string): Promise<void> {
+    await this.prisma.mediaDuplicateScanState.upsert({
+      where: { id: SCAN_STATE_ID },
+      create: { id: SCAN_STATE_ID, inputDigest: digest },
+      update: { inputDigest: digest, updatedAt: new Date() },
+    });
   }
 
   /** List current duplicate groups (paginated) with a per-item quality comparison. */
