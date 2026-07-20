@@ -84,6 +84,40 @@ describe('duplicateKeys — movies still work', () => {
     expect(a1.some((k) => a2.includes(k))).toBe(false);
     expect(detectDuplicateGroups([movie('a', 'Aladdin', 2019), movie('b', 'Aladdin', 1992)])).toHaveLength(0);
   });
+
+  it('does NOT group different films that share a CONTAMINATED external id', () => {
+    // Real case reported live: "The Maze Runner" (2014), "Maze" (2017) and "The
+    // Runner" (2015) all carried imdb tt1790864 / tmdb 198663 — a mis-identification
+    // stamped one id onto three different films. The movie external-id key is scoped
+    // by year, so different release years never collapse even on a shared id.
+    const badId = [
+      { provider: 'imdb', externalId: 'tt1790864' },
+      { provider: 'tmdb', externalId: '198663' },
+    ];
+    const withId = (id: string, title: string, year: number): DuplicateItemLike => ({
+      ...movie(id, title, year),
+      externalIds: badId,
+    });
+    const groups = detectDuplicateGroups([
+      withId('a', 'The Maze Runner', 2014),
+      withId('b', 'Maze', 2017),
+      withId('c', 'The Runner', 2015),
+    ]);
+    expect(groups).toHaveLength(0);
+  });
+
+  it('STILL groups the same film whose filenames parsed to different titles, on a shared id + year', () => {
+    // The legitimate reason movie external_id exists: two copies of one film whose
+    // names normalise differently ("The Maze Runner" vs "Maze Runner") but carry the
+    // same id AND the same year still match.
+    const id = [{ provider: 'tmdb', externalId: '198663' }];
+    const a: DuplicateItemLike = { ...movie('a', 'The Maze Runner', 2014), externalIds: id };
+    const b: DuplicateItemLike = { ...movie('b', 'Maze Runner', 2014), externalIds: id };
+    const groups = detectDuplicateGroups([a, b]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].reason).toBe('external_id');
+    expect(groups[0].itemIds.sort()).toEqual(['a', 'b']);
+  });
 });
 
 describe('detectDuplicateGroups — group identity is stable across scans', () => {

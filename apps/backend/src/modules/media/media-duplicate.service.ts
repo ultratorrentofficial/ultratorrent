@@ -205,14 +205,22 @@ export function duplicateKeys(item: DuplicateItemLike): Array<{
   const isMovie = !item.mediaType || item.mediaType === 'movie';
   const epMarker = episodeMarker(item);
 
-  // (c) external id — the strongest signal for MOVIES (entity-level ids). For
-  // TV it is unreliable: providers store series-level ids on episode rows, and
-  // some data even repeats one id across *different* shows. So for non-movies we
-  // scope the external-id key by the show title AND the episode number, so a bad
-  // shared id can never collapse distinct episodes/shows, while two files of the
-  // same episode still match.
+  // (c) external id — an entity-level signal, but NOT one to trust blindly:
+  // contaminated metadata repeats a single id across genuinely different titles.
+  // Observed live: "The Maze Runner" (2014), "Maze" (2017) and "The Runner" (2015)
+  // all carried imdb tt1790864 / tmdb 198663, and grouped as one "duplicate".
+  //
+  // So the id is always SCOPED to keep a bad shared id from collapsing distinct
+  // works, while two copies of the SAME work still match:
+  //  - MOVIES are scoped by YEAR. Same id + same year still groups (external_id's
+  //    real job — catching a film whose filenames parse to different titles), but
+  //    different release years never collapse, the same guarantee `title_year` and
+  //    `similar_filename` already give.
+  //  - TV is scoped by show title + episode, since providers store a series-level
+  //    id on every episode row (and some data repeats one id across *different*
+  //    shows), so an unscoped id would merge a whole series.
   for (const ext of item.externalIds ?? []) {
-    const scope = isMovie ? '' : `:${normTitle}${epMarker}`;
+    const scope = isMovie ? `:${item.year ?? 'na'}` : `:${normTitle}${epMarker}`;
     keys.push({ reason: 'external_id', key: `external_id:${ext.provider}:${ext.externalId}${scope}` });
   }
 
