@@ -292,8 +292,8 @@
     }
   },
   "duplicates": {
-    "title": "Duplicates",
-    "subtitle": "Groups of items that look like duplicates. The highest-quality item is suggested to keep.",
+    "title": "Duplicate Center",
+    "subtitle": "Media that appears more than once. Review a group, compare the copies, and decide which to keep.",
     "detectBtn": "Detect duplicates",
     "loading": "Loading duplicates…",
     "error": "Could not load duplicates.",
@@ -317,7 +317,108 @@
     "keep": "Keep",
     "keepThis": "Keep this",
     "remove": "Remove",
-    "footnote": "Selecting a keeper marks the rest as removal candidates. Remove files from disk via the rename engine or your media server."
+    "footnote": "Selecting a keeper marks the rest as removal candidates. Remove files from disk via the rename engine or your media server.",
+    "scanning": "Scanning…",
+    "stat": {
+      "open": "Open groups",
+      "needsReview": "Needs review",
+      "ignored": "Ignored",
+      "lastScan": "Last scan"
+    },
+    "tab": {
+      "review": "Needs Review",
+      "all": "All Open",
+      "movies": "Movies",
+      "episodes": "TV Episodes",
+      "folders": "Show Folders",
+      "ignored": "Ignored",
+      "resolved": "Resolved"
+    },
+    "filter": {
+      "search": "Search",
+      "searchPlaceholder": "Title, file name or folder…",
+      "sort": "Sort by"
+    },
+    "sort": {
+      "needsReview": "Needs review first",
+      "savings": "Largest potential saving",
+      "files": "Most files",
+      "recent": "Recently detected",
+      "oldest": "Oldest unresolved",
+      "title": "Title"
+    },
+    "badge": {
+      "reviewRequired": "Review required",
+      "ignored": "Ignored"
+    },
+    "itemsCount_one": "{{count}} file",
+    "itemsCount_other": "{{count}} files",
+    "reclaimable": "{{size}} reclaimable",
+    "notDuplicates": "Not duplicates",
+    "reopen": "Reopen",
+    "ignoredTitle": "Marked as not duplicates",
+    "ignoredBody": "This group stays hidden across future scans until you reopen it.",
+    "ignoreFailed": "Could not update this group",
+    "reopenedTitle": "Group reopened",
+    "reopenedBody": "It will appear in Needs Review again.",
+    "reopenFailed": "Could not reopen this group",
+    "ignoredReasonLabel": "Reason: {{reason}}",
+    "empty": {
+      "review": {
+        "title": "Nothing needs your decision",
+        "body": "No duplicate group is waiting on a judgement call. Anything UltraTorrent is unsure about appears here."
+      },
+      "all": {
+        "title": "No duplicates found",
+        "body": "No duplicate media was found in the selected libraries."
+      },
+      "movies": {
+        "title": "No duplicate movies",
+        "body": "Every film in your libraries appears exactly once."
+      },
+      "episodes": {
+        "title": "No duplicate episodes",
+        "body": "Every episode in your libraries appears exactly once."
+      },
+      "ignored": {
+        "title": "Nothing ignored",
+        "body": "Groups you mark as “not duplicates” are kept here and stay hidden across future scans."
+      },
+      "resolved": {
+        "title": "Nothing resolved yet",
+        "body": "Groups you have cleaned up will be listed here."
+      }
+    },
+    "compare": {
+      "show": "Compare",
+      "hide": "Hide comparison",
+      "loadError": "Could not load the comparison.",
+      "identity": "Identity",
+      "measured": "Measured from the file",
+      "parsed": "Read from the file name",
+      "measuredHint": "read from the container — reliable",
+      "parsedHint": "often absent after renaming, which is not the same as missing",
+      "title": "Title",
+      "year": "Year",
+      "episode": "Season / episode",
+      "matchStatus": "Match status",
+      "externalIds": "External IDs",
+      "size": "File size",
+      "dimensions": "Dimensions",
+      "bitrate": "Bitrate",
+      "runtime": "Runtime",
+      "audioChannels": "Audio channels",
+      "frameRate": "Frame rate",
+      "container": "Container",
+      "resolution": "Resolution",
+      "videoCodec": "Video codec",
+      "audioCodec": "Audio codec",
+      "hdr": "HDR",
+      "releaseGroup": "Release group",
+      "differs": "differs",
+      "version": "Version {{version}}",
+      "noActionYet": "Cleanup actions arrive in a later phase — nothing here changes your files."
+    }
   },
   "renamePreview": {
     "title": "Rename Preview",

@@ -1374,9 +1374,107 @@ export interface MediaDuplicateItem {
 export interface MediaDuplicateGroup {
   id: string;
   reason: string;
+  groupType: string;
+  status: string;
+  confidence: number;
+  requiresReview: boolean;
+  potentialSavingsBytes: number;
+  version: number;
+  ignoredReason: string | null;
   createdAt: string;
   suggestedKeepId: string | null;
   items: MediaDuplicateItem[];
+}
+
+/** Landing-screen counts, built from database aggregates. */
+export interface MediaDuplicateOverview {
+  groups: { total: number; open: number; ignored: number; resolved: number };
+  needsReview: number;
+  byType: { file: number; showFolder: number };
+  byReason: Record<string, number>;
+  potentialSavingsBytes: number;
+  lastDetectedAt: string | null;
+  resolutions: Record<string, number>;
+}
+
+/**
+ * Technical data READ FROM THE CONTAINER. Trustworthy where present.
+ */
+export interface MediaDuplicateMeasured {
+  width: number | null;
+  height: number | null;
+  bitrateKbps: number | null;
+  durationSec: number | null;
+  audioChannels: number | null;
+  frameRate: number | null;
+}
+
+/**
+ * Technical data PARSED FROM THE FILENAME. Mostly null on a renamed library — the
+ * renamer strips these tokens — so absence here means "the name did not say", not
+ * "the file lacks it". Never present these as equivalent to {@link MediaDuplicateMeasured}.
+ */
+export interface MediaDuplicateParsed {
+  container: string | null;
+  resolution: string | null;
+  videoCodec: string | null;
+  audioCodec: string | null;
+  hdr: string | null;
+  releaseGroup: string | null;
+  quality: string | null;
+  language: string | null;
+}
+
+export interface MediaDuplicateCandidate {
+  id: string;
+  title: string;
+  year: number | null;
+  season: number | null;
+  episode: number | null;
+  mediaType: string;
+  matchStatus: string;
+  libraryId: string;
+  libraryName: string | null;
+  path: string;
+  addedAt: string;
+  modifiedAt: string;
+  externalIds: Array<{ provider: string; externalId: string }>;
+  totalSize: number;
+  qualityScore: number;
+  parsed: MediaDuplicateParsed;
+  measured: MediaDuplicateMeasured;
+}
+
+export interface MediaDuplicateGroupDetail {
+  id: string;
+  groupKey: string;
+  groupType: string;
+  reason: string;
+  status: string;
+  confidence: number;
+  requiresReview: boolean;
+  version: number;
+  potentialSavingsBytes: number;
+  recommendedItemId: string | null;
+  recommendation: unknown;
+  warnings: unknown;
+  ignoredReason: string | null;
+  ignoredAt: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  suggestedKeepId: string | null;
+  candidates: MediaDuplicateCandidate[];
+}
+
+export interface DuplicateQuery extends PageQuery {
+  q?: string;
+  libraryId?: string;
+  mediaType?: string;
+  status?: string;
+  groupType?: string;
+  reason?: string;
+  sort?: string;
+  requiresReview?: string;
 }
 
 // --- duplicate SHOW FOLDERS -------------------------------------------------
@@ -3135,7 +3233,22 @@ export const api = {
       return request<MediaCleanupRules>('/media/settings/cleanup', { method: 'PATCH', body: patch });
     },
     // --- duplicates -------------------------------------------------------
-    listDuplicates(query: PageQuery = {}): Promise<Paginated<MediaDuplicateGroup>> {
+    duplicatesOverview(): Promise<MediaDuplicateOverview> {
+      return request<MediaDuplicateOverview>('/media/duplicates/overview');
+    },
+    duplicateGroup(groupId: string): Promise<MediaDuplicateGroupDetail> {
+      return request<MediaDuplicateGroupDetail>(`/media/duplicates/${groupId}`);
+    },
+    ignoreDuplicateGroup(groupId: string, reason?: string): Promise<MediaDuplicateGroup> {
+      return request<MediaDuplicateGroup>(`/media/duplicates/${groupId}/ignore`, {
+        method: 'POST',
+        body: { reason },
+      });
+    },
+    reopenDuplicateGroup(groupId: string): Promise<MediaDuplicateGroup> {
+      return request<MediaDuplicateGroup>(`/media/duplicates/${groupId}/reopen`, { method: 'POST' });
+    },
+    listDuplicates(query: DuplicateQuery = {}): Promise<Paginated<MediaDuplicateGroup>> {
       return request<Paginated<MediaDuplicateGroup>>('/media/duplicates', { query: query as QueryParams });
     },
     detectDuplicates(): Promise<Paginated<MediaDuplicateGroup>> {

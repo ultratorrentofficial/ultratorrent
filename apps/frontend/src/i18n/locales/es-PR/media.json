@@ -292,8 +292,8 @@
     }
   },
   "duplicates": {
-    "title": "Duplicados",
-    "subtitle": "Grupos de elementos que parecen duplicados. Se sugiere conservar el elemento de mayor calidad.",
+    "title": "Centro de duplicados",
+    "subtitle": "Medios que aparecen más de una vez. Revisa un grupo, compara las copias y decide cuál conservar.",
     "detectBtn": "Detectar duplicados",
     "loading": "Cargando duplicados…",
     "error": "No se pudieron cargar los duplicados.",
@@ -317,7 +317,108 @@
     "keep": "Conservar",
     "keepThis": "Conservar este",
     "remove": "Eliminar",
-    "footnote": "Seleccionar uno para conservar marca el resto como candidatos a eliminación. Elimina los archivos del disco mediante el motor de renombrado o tu servidor de medios."
+    "footnote": "Seleccionar uno para conservar marca el resto como candidatos a eliminación. Elimina los archivos del disco mediante el motor de renombrado o tu servidor de medios.",
+    "scanning": "Escaneando…",
+    "stat": {
+      "open": "Grupos abiertos",
+      "needsReview": "Requiere revisión",
+      "ignored": "Ignorados",
+      "lastScan": "Último escaneo"
+    },
+    "tab": {
+      "review": "Requiere revisión",
+      "all": "Todos los abiertos",
+      "movies": "Películas",
+      "episodes": "Episodios",
+      "folders": "Carpetas de series",
+      "ignored": "Ignorados",
+      "resolved": "Resueltos"
+    },
+    "filter": {
+      "search": "Buscar",
+      "searchPlaceholder": "Título, nombre de archivo o carpeta…",
+      "sort": "Ordenar por"
+    },
+    "sort": {
+      "needsReview": "Requiere revisión primero",
+      "savings": "Mayor ahorro potencial",
+      "files": "Más archivos",
+      "recent": "Detectados recientemente",
+      "oldest": "Sin resolver más antiguos",
+      "title": "Título"
+    },
+    "badge": {
+      "reviewRequired": "Requiere revisión",
+      "ignored": "Ignorado"
+    },
+    "itemsCount_one": "{{count}} archivo",
+    "itemsCount_other": "{{count}} archivos",
+    "reclaimable": "{{size}} recuperables",
+    "notDuplicates": "No son duplicados",
+    "reopen": "Reabrir",
+    "ignoredTitle": "Marcado como no duplicado",
+    "ignoredBody": "Este grupo permanecerá oculto en futuros escaneos hasta que lo reabras.",
+    "ignoreFailed": "No se pudo actualizar el grupo",
+    "reopenedTitle": "Grupo reabierto",
+    "reopenedBody": "Volverá a aparecer en Requiere revisión.",
+    "reopenFailed": "No se pudo reabrir el grupo",
+    "ignoredReasonLabel": "Motivo: {{reason}}",
+    "empty": {
+      "review": {
+        "title": "Nada requiere tu decisión",
+        "body": "Ningún grupo de duplicados espera un criterio. Aquí aparece todo aquello de lo que UltraTorrent no esté seguro."
+      },
+      "all": {
+        "title": "No se encontraron duplicados",
+        "body": "No se hallaron medios duplicados en las bibliotecas seleccionadas."
+      },
+      "movies": {
+        "title": "Sin películas duplicadas",
+        "body": "Cada película de tus bibliotecas aparece exactamente una vez."
+      },
+      "episodes": {
+        "title": "Sin episodios duplicados",
+        "body": "Cada episodio de tus bibliotecas aparece exactamente una vez."
+      },
+      "ignored": {
+        "title": "Nada ignorado",
+        "body": "Los grupos que marques como “no duplicados” se guardan aquí y permanecen ocultos en futuros escaneos."
+      },
+      "resolved": {
+        "title": "Aún no hay nada resuelto",
+        "body": "Los grupos que hayas limpiado se listarán aquí."
+      }
+    },
+    "compare": {
+      "show": "Comparar",
+      "hide": "Ocultar comparación",
+      "loadError": "No se pudo cargar la comparación.",
+      "identity": "Identidad",
+      "measured": "Medido del archivo",
+      "parsed": "Leído del nombre del archivo",
+      "measuredHint": "leído del contenedor — confiable",
+      "parsedHint": "a menudo ausente tras renombrar, lo cual no equivale a que falte",
+      "title": "Título",
+      "year": "Año",
+      "episode": "Temporada / episodio",
+      "matchStatus": "Estado de coincidencia",
+      "externalIds": "IDs externos",
+      "size": "Tamaño",
+      "dimensions": "Dimensiones",
+      "bitrate": "Tasa de bits",
+      "runtime": "Duración",
+      "audioChannels": "Canales de audio",
+      "frameRate": "Cuadros por segundo",
+      "container": "Contenedor",
+      "resolution": "Resolución",
+      "videoCodec": "Códec de video",
+      "audioCodec": "Códec de audio",
+      "hdr": "HDR",
+      "releaseGroup": "Grupo de lanzamiento",
+      "differs": "difiere",
+      "version": "Versión {{version}}",
+      "noActionYet": "Las acciones de limpieza llegan en una fase posterior — nada aquí modifica tus archivos."
+    }
   },
   "renamePreview": {
     "title": "Vista previa de renombrado",
