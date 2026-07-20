@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.36.0] - 2026-07-20
+
+### Added
+- Duplicate Center Phase 2 (backend) — server-side search, filtering, sorting, an overview aggregate, group detail, and persistent ignore/reopen.
+- Duplicate Center Phase 2 (UI) — the `/media/duplicates` page becomes a tabbed centre with server-side search and sorting, a side-by-side comparison, and persistent "not duplicates".
+
 ## [0.35.0] - 2026-07-20
 
 ### Added
