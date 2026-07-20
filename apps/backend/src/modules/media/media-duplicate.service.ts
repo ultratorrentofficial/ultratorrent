@@ -130,6 +130,14 @@ const REASON_PRIORITY: Record<DuplicateReason, number> = {
 interface DetectedGroup {
   reason: DuplicateReason;
   itemIds: string[];
+  /**
+   * The bucket key that produced this group — a stable identity for the group across
+   * scans. Detection previously deleted every group and recreated it, so ids changed
+   * on every run and a human decision ("not a duplicate") had nothing durable to
+   * attach to. Carrying the key out of the pure grouping step is what lets the
+   * persistence layer upsert instead of delete-and-recreate.
+   */
+  key: string;
 }
 
 /**
@@ -147,11 +155,15 @@ export function detectDuplicateGroups(items: DuplicateItemLike[]): DetectedGroup
     }
   }
 
-  // Keep only buckets with >1 distinct item, ordered by reason priority.
-  const candidates = [...buckets.values()]
-    .map((b) => ({ reason: b.reason, ids: [...new Set(b.ids)] }))
+  // Keep only buckets with >1 distinct item, ordered by reason priority. The key is
+  // carried through so the group keeps one identity across scans.
+  const candidates = [...buckets.entries()]
+    .map(([key, b]) => ({ key, reason: b.reason, ids: [...new Set(b.ids)] }))
     .filter((b) => b.ids.length > 1)
-    .sort((a, b) => REASON_PRIORITY[a.reason] - REASON_PRIORITY[b.reason]);
+    .sort(
+      (a, b) =>
+        REASON_PRIORITY[a.reason] - REASON_PRIORITY[b.reason] || a.key.localeCompare(b.key),
+    );
 
   const assigned = new Set<string>();
   const groups: DetectedGroup[] = [];
@@ -159,7 +171,7 @@ export function detectDuplicateGroups(items: DuplicateItemLike[]): DetectedGroup
     const fresh = cand.ids.filter((id) => !assigned.has(id));
     if (fresh.length < 2) continue;
     for (const id of fresh) assigned.add(id);
-    groups.push({ reason: cand.reason, itemIds: fresh });
+    groups.push({ reason: cand.reason, itemIds: fresh, key: cand.key });
   }
   return groups;
 }
@@ -191,22 +203,41 @@ export class MediaDuplicateService {
       })),
     );
 
-    // Reset prior grouping.
+    // Detach every item first so an item that is no longer duplicated is released,
+    // but DO NOT delete the groups: a group carries human decisions (ignored, with a
+    // reason and an author; resolved, with a timestamp) and those must outlive a
+    // rescan. This used to be `deleteMany({})` followed by `create()` per group,
+    // which changed every group's id on every run — so "this is not a duplicate" was
+    // impossible to persist, and an interrupted run stranded member-less rows.
     await this.prisma.mediaItem.updateMany({
       where: { duplicateGroupId: { not: null } },
       data: { duplicateGroupId: null },
     });
-    await this.prisma.mediaDuplicateGroup.deleteMany({});
 
+    const seen: string[] = [];
     for (const group of groups) {
-      const created = await this.prisma.mediaDuplicateGroup.create({
-        data: { reason: group.reason },
+      // Keyed on the detection signal, so the same real-world group keeps one
+      // identity across scans. `version` is bumped on every re-detection: a
+      // resolution previewed against an older version is refused rather than applied
+      // to a membership the operator never approved.
+      const row = await this.prisma.mediaDuplicateGroup.upsert({
+        where: { groupKey: group.key },
+        create: { groupKey: group.key, reason: group.reason, groupType: 'file' },
+        update: { reason: group.reason, version: { increment: 1 } },
       });
+      seen.push(row.id);
       await this.prisma.mediaItem.updateMany({
         where: { id: { in: group.itemIds } },
-        data: { duplicateGroupId: created.id },
+        data: { duplicateGroupId: row.id },
       });
     }
+
+    // Groups detection no longer produces are dropped — UNLESS a human touched them.
+    // An ignored group is retained precisely so the same false positive does not come
+    // back; a resolved one is retained as history.
+    await this.prisma.mediaDuplicateGroup.deleteMany({
+      where: { id: { notIn: seen.length ? seen : ['\u0000'] }, status: 'open' },
+    });
 
     return this.list();
   }

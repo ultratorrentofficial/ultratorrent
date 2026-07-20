@@ -85,3 +85,54 @@ describe('duplicateKeys — movies still work', () => {
     expect(detectDuplicateGroups([movie('a', 'Aladdin', 2019), movie('b', 'Aladdin', 1992)])).toHaveLength(0);
   });
 });
+
+describe('detectDuplicateGroups — group identity is stable across scans', () => {
+  // Detection used to delete every group and recreate it, so a group's id changed on
+  // every run. That is why no ignore could persist: "this is not a duplicate" had
+  // nothing durable to attach to. The bucket key is now carried out of grouping and
+  // used as the group's stable identity, so the same real-world group survives a
+  // rescan and a human decision stays attached to it.
+  const movie = (id: string, title: string, year: number): DuplicateItemLike => ({
+    id, mediaType: 'movie', title, year, season: null, episode: null, externalIds: [], files: [],
+  });
+
+  it('produces the same key for the same real-world group on a second run', () => {
+    const first = detectDuplicateGroups([movie('a', 'Hotel Mumbai', 2019), movie('b', 'Hotel Mumbai', 2019)]);
+    // Same media, different row ids — a rescan re-reads the library.
+    const second = detectDuplicateGroups([movie('c', 'Hotel Mumbai', 2019), movie('d', 'Hotel Mumbai', 2019)]);
+
+    expect(first).toHaveLength(1);
+    expect(second).toHaveLength(1);
+    expect(first[0].key).toBe(second[0].key);
+    expect(first[0].key).toContain('hotel mumbai');
+  });
+
+  it('gives genuinely different groups different keys', () => {
+    const groups = detectDuplicateGroups([
+      movie('a', 'Hotel Mumbai', 2019), movie('b', 'Hotel Mumbai', 2019),
+      movie('c', 'Aladdin', 1992), movie('d', 'Aladdin', 1992),
+    ]);
+    expect(groups).toHaveLength(2);
+    expect(new Set(groups.map((g) => g.key)).size).toBe(2);
+  });
+
+  it('does not let a different year reuse another film\'s key', () => {
+    const groups = detectDuplicateGroups([
+      movie('a', 'Aladdin', 1992), movie('b', 'Aladdin', 1992),
+      movie('c', 'Aladdin', 2019), movie('d', 'Aladdin', 2019),
+    ]);
+    expect(groups).toHaveLength(2);
+    const keys = groups.map((g) => g.key);
+    expect(keys[0]).not.toBe(keys[1]);
+  });
+
+  it('orders deterministically, so two runs over the same library agree', () => {
+    const items = [
+      movie('a', 'Zulu', 1964), movie('b', 'Zulu', 1964),
+      movie('c', 'Alien', 1979), movie('d', 'Alien', 1979),
+    ];
+    const a = detectDuplicateGroups(items).map((g) => g.key);
+    const b = detectDuplicateGroups([...items].reverse()).map((g) => g.key);
+    expect(a).toEqual(b);
+  });
+});

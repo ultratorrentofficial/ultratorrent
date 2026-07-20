@@ -745,6 +745,7 @@ model MediaItem {
   nfoFiles       MediaNfoFile[]
   collections    MediaCollectionItem[]
   duplicateGroup MediaDuplicateGroup?  @relation(fields: [duplicateGroupId], references: [id])
+  duplicateCandidates MediaDuplicateCandidate[]
 
   // Subtitle Intelligence (core module `subtitle_intelligence`).
   subtitleFingerprint SubtitleFingerprint?
@@ -965,14 +966,173 @@ model MediaProcessingJob {
   @@map("media_processing_jobs")
 }
 
+/// A set of media that detection believes is the same thing more than once.
+///
+/// `groupKey` is the load-bearing addition. Detection used to delete every group and
+/// recreate it (`deleteMany({})` on each run), so a group's id changed every scan and
+/// there was nothing durable for a human decision to attach to — "this is not a
+/// duplicate" could not survive until the next scan, by construction. The key is
+/// derived from the detection signal itself (the same string the bucketing already
+/// computes), so the same real-world group keeps its identity across runs and an
+/// ignore, a review, or a resolution stays attached to it.
+///
+/// `version` guards execution against a stale plan: a preview is built against a
+/// version, and a resolve that arrives after the group changed underneath is refused
+/// rather than applied to different files than the operator approved.
 model MediaDuplicateGroup {
-  id        String   @id @default(uuid())
+  id     String @id @default(uuid())
+  /// Stable identity across scans — see the note above. Unique so detection can
+  /// upsert rather than delete-and-recreate.
+  groupKey String @unique
+  /// What kind of thing is duplicated: `file` (the same media twice) or
+  /// `show_folder` (two directories that are the same show). Kept explicit because
+  /// the two resolve completely differently and must never share a workflow.
+  groupType String @default("file")
   reason    String // title_year | show_season_episode | external_id | file_hash | similar_filename
+  /// open | ignored | resolved. An ignored or resolved group is preserved across a
+  /// rescan; only its membership and evidence are refreshed.
+  status String @default("open")
+  /// 0-100. Detection confidence, NOT permission to act — a group can be
+  /// high-confidence and still require review (conflicting metadata, different
+  /// editions). Cleanup safety is `requiresReview`, deliberately separate.
+  confidence     Int     @default(0)
+  requiresReview Boolean @default(false)
+  /// Bytes that would be freed by keeping one candidate and trashing the rest.
+  potentialSavingsBytes BigInt @default(0)
+  /// The candidate detection recommends keeping, and why. Null until a
+  /// recommendation has been computed.
+  recommendedItemId String?
+  /// Human-readable reasons behind the recommendation, and anything that should give
+  /// an operator pause. Presentational only — never a substitute for the structured
+  /// `requiresReview` flag.
+  recommendation Json?
+  warnings       Json?
+  /// Optimistic-concurrency token, bumped whenever membership or evidence changes.
+  version Int @default(1)
+
+  ignoredReason String?
+  ignoredById   String?
+  ignoredAt     DateTime?
+  resolvedById  String?
+  resolvedAt    DateTime?
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now())
 
-  items MediaItem[]
+  items       MediaItem[]
+  candidates  MediaDuplicateCandidate[]
+  resolutions MediaDuplicateResolution[]
 
+  @@index([status])
+  @@index([groupType])
+  @@index([requiresReview])
+  @@index([confidence])
+  @@index([reason])
+  @@index([resolvedAt])
+  @@index([ignoredAt])
+  @@index([potentialSavingsBytes])
   @@map("media_duplicate_groups")
+}
+
+/// One member of a duplicate group, with the evidence that put it there.
+///
+/// Separate from `MediaItem.duplicateGroupId` (which stays, so existing queries keep
+/// working) because per-candidate state — rank, why it lost, what the operator chose
+/// — belongs to the *group membership*, not to the item. Putting it on `MediaItem`
+/// would mean an item can only ever be in one group's worth of state, and would leave
+/// resolution history nowhere to live once the item is gone.
+model MediaDuplicateCandidate {
+  id      String @id @default(uuid())
+  groupId String
+  itemId  String
+
+  /// Snapshotted so a resolution stays auditable after the item row is deleted.
+  path     String
+  fileSize BigInt @default(0)
+  hash     String?
+
+  /// Deterministic score from the recommendation engine, and the ordered reasons
+  /// behind it. Rank 1 is the recommended keeper.
+  qualityScore        Int     @default(0)
+  recommendationRank  Int     @default(0)
+  recommendationReasons Json?
+  /// keep | trash | none — what the operator chose for this candidate.
+  selectedAction String @default("none")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now())
+
+  group MediaDuplicateGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  item  MediaItem           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, itemId])
+  @@index([groupId])
+  @@index([itemId])
+  @@map("media_duplicate_candidates")
+}
+
+/// One attempt to resolve a group: the plan that was approved, and how it went.
+///
+/// The preview is persisted rather than trusted from the client, so execution can
+/// revalidate against what the operator actually saw.
+model MediaDuplicateResolution {
+  id      String @id @default(uuid())
+  groupId String
+  /// pending | running | completed | partial | failed | cancelled
+  status String @default("pending")
+  /// The item kept. Null only for a failed plan that never got that far.
+  keepItemId String?
+  /// The server-generated plan, stored at preview time.
+  preview Json?
+  /// The group version the preview was built against. Execution refuses to run if
+  /// the group has moved on — the approved plan is not the current plan.
+  groupVersion Int @default(0)
+
+  expectedSavingsBytes BigInt @default(0)
+  actualSavingsBytes   BigInt @default(0)
+
+  errorSummary String?
+  createdById  String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+
+  group   MediaDuplicateGroup              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  actions MediaDuplicateResolutionAction[]
+
+  @@index([groupId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("media_duplicate_resolutions")
+}
+
+/// A single filesystem or database step within a resolution — the execution journal.
+///
+/// A database transaction cannot roll back a file that has already moved, so recovery
+/// needs a record of what was actually done, written before each step is attempted.
+/// This is that record.
+model MediaDuplicateResolutionAction {
+  id           String @id @default(uuid())
+  resolutionId String
+  /// trash | move | delete_empty_dir | repoint_watchlist | update_row | refresh_server
+  actionType String
+  /// pending | running | completed | failed | skipped | compensated
+  status String @default("pending")
+
+  sourcePath      String?
+  destinationPath String?
+  errorMessage    String?
+  metadata        Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now())
+
+  resolution MediaDuplicateResolution @relation(fields: [resolutionId], references: [id], onDelete: Cascade)
+
+  @@index([resolutionId])
+  @@index([status])
+  @@map("media_duplicate_resolution_actions")
 }
 
 model MediaServerIntegration {
