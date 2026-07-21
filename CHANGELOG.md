@@ -45,6 +45,35 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.40.0] - 2026-07-21
+
+### Added
+- Duplicate Center Phase 5 — the duplicate show-folder workflow becomes a plan the operator approves, and stops destroying subtitles.
+- Duplicate Center Phase 6 — detection becomes a cancellable background job, and stops redoing work nothing has changed.
+- Duplicate Center Phase 7 — events, automation, notifications, docs, and test coverage.
+- Duplicate cleanup: remove only the media file, and add an optional permanent delete.
+- Duplicate Center — per-file Keep and Delete buttons on each copy in a group.
+- nav(Phase 6): module landing hubs. Each navigation domain gets an at-a-glance
+- nav(Phase 7): contextual sub-nav + entity-aware breadcrumbs. A domain-aware
+- nav(Phase 8): mobile redesign. A bottom domain switcher (`MobileDomainBar`,
+- Navigation redesign — Phase 1: information-architecture re-group.
+- Navigation redesign — Phase 3: sidebar features (collapse-all, badges, domain-switcher flyout).
+- Navigation redesign — Phase 4: pinned, favorites and recent pages (per-user).
+- Navigation redesign — Phase 5: command palette searches actions and live entities, not just pages.
+- nav(Workspace Phase 2.1): re-slot the navigation registry into the approved 9
+- nav(Workspace Phase 2.2): the workspace shell. A fixed global `WorkspaceRail`
+- nav(Workspace Phase 3): workspace Overviews, Quick Actions, and a jobs aggregator.
+- nav(Workspace Phase 4): command palette — fuzzy matching, scoped search, more
+- nav(Workspace Phase 5): visual hierarchy, breadcrumbs, motion. The workspace
+
+### Fixed
+- Fix: three different movies sharing a contaminated external ID no longer group as duplicates.
+- Fix: the movie matcher no longer confuses a film with its same-year sequel.
+- Fix: the movie matcher no longer assigns one film's external IDs to a different film.
+- nav(Phase 10): tests sweep. Adds IA-invariant tests over the real NAV_GROUPS
+- Navigation redesign — Phase 2: registry-driven rail.
+- nav(Workspace Phase 6): documentation & certification. New WORKSPACE_ARCHITECTURE.md
+
 ## [0.39.0] - 2026-07-20
 
 ### Added
