@@ -33,6 +33,7 @@ import { MediaAcquisitionModule } from './modules/media-acquisition/media-acquis
 import { MediaServerAnalyticsModule } from './modules/media-server-analytics/media-server-analytics.module';
 import { NotificationCenterModule } from './modules/notification-center/notification-center.module';
 import { SubtitleIntelligenceModule } from './modules/subtitle-intelligence/subtitle-intelligence.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { SubtitleIntelligenceModule } from './modules/subtitle-intelligence/subt
     MediaServerAnalyticsModule,
     NotificationCenterModule,
     SubtitleIntelligenceModule,
+    JobsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

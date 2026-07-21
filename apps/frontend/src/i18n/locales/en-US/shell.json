@@ -49,6 +49,10 @@
     "expand": "Expand sidebar",
     "collapse": "Collapse sidebar"
   },
+  "workspace": {
+    "activeJobs": "Active jobs",
+    "noActiveJobs": "No active jobs."
+  },
   "engine": {
     "label": "Engine",
     "online": "Online",

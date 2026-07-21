@@ -274,6 +274,22 @@ export interface AuditTarget {
   episode: number | null;
 }
 
+export type JobSubsystem = 'media' | 'subtitle' | 'rename' | 'analytics_import' | 'notification';
+export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+/** One normalized job from the cross-subsystem `/jobs` aggregator. */
+export interface JobSummary {
+  id: string;
+  subsystem: JobSubsystem;
+  type: string;
+  status: JobStatus;
+  progress: number | null;
+  label: string | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuditEntry {
   id: string;
   userId: string | null;
@@ -2721,6 +2737,23 @@ export const api = {
   audit: {
     list(query: { page?: number; pageSize?: number } = {}): Promise<Paginated<AuditEntry>> {
       return request<Paginated<AuditEntry>>('/audit', { query });
+    },
+  },
+
+  jobs: {
+    /**
+     * Cross-subsystem job list (RBAC-scoped server-side to the subsystems the caller
+     * may view). Backs the workspace Jobs surfaces and the System global jobs view.
+     */
+    list(query: { subsystem?: JobSubsystem; status?: JobStatus; active?: boolean; limit?: number } = {}): Promise<{ jobs: JobSummary[] }> {
+      return request<{ jobs: JobSummary[] }>('/jobs', {
+        query: {
+          subsystem: query.subsystem,
+          status: query.status,
+          active: query.active ? 'true' : undefined,
+          limit: query.limit,
+        },
+      });
     },
   },
 

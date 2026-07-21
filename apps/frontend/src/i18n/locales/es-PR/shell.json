@@ -49,6 +49,10 @@
     "expand": "Expandir barra lateral",
     "collapse": "Contraer barra lateral"
   },
+  "workspace": {
+    "activeJobs": "Trabajos activos",
+    "noActiveJobs": "No hay trabajos activos."
+  },
   "engine": {
     "label": "Motor",
     "online": "En línea",
