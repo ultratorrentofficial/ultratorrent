@@ -443,7 +443,15 @@
       "partialTitle": "La limpieza terminó con problemas",
       "partialBody": "{{trashed}} movidos a la Papelera, {{skipped}} omitidos, {{failed}} fallidos.",
       "failed": "La limpieza falló",
-      "start": "Limpiar…"
+      "start": "Limpiar…",
+      "toRemove_one": "Se elimina {{count}} archivo",
+      "toRemove_other": "Se eliminan {{count}} archivos",
+      "mediaOnlyNote": "Solo se elimina el archivo multimedia — la imagen, el NFO y los subtítulos se conservan.",
+      "permanentLabel": "Eliminar permanentemente (omitir la Papelera)",
+      "permanentHint": "Estos archivos son grandes. Omitir la Papelera libera el espacio de inmediato, pero la copia no se puede restaurar.",
+      "permanentWarn": "Los archivos se eliminarán permanentemente y no se podrán restaurar.",
+      "confirmPermanent": "Eliminar permanentemente",
+      "doneDeletedTitle": "Duplicados eliminados"
     },
     "trash": {
       "title": "Papelera y recuperación",

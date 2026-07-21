@@ -11,7 +11,7 @@ import {
 import { formatBytes } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogDescription,
@@ -57,6 +57,10 @@ export function DuplicateCleanupDialog({
   const toast = useToast();
   const queryClient = useQueryClient();
   const [plan, setPlan] = useState<Plan | null>(null);
+  // Off by default: Trash is the safe, recoverable path. The operator opts in to a
+  // permanent delete when they'd rather not have a large redundant copy sitting in
+  // Trash for the retention window.
+  const [permanent, setPermanent] = useState(false);
   const mode: 'keep' | 'delete' = deleteItemId ? 'delete' : 'keep';
 
   const preview = useMutation({
@@ -72,13 +76,13 @@ export function DuplicateCleanupDialog({
   });
 
   const resolve = useMutation({
-    mutationFn: () => api.media.resolveDuplicateCleanup(plan!.resolutionId),
+    mutationFn: () => api.media.resolveDuplicateCleanup(plan!.resolutionId, permanent),
     onSuccess: (r) => {
       // Partial is reported as partial. An HTTP 200 carrying failures shown as "done"
       // is how an operator learns to distrust the tool.
       if (r.status === 'completed') {
         toast.success(
-          t('duplicates.cleanup.doneTitle'),
+          permanent ? t('duplicates.cleanup.doneDeletedTitle') : t('duplicates.cleanup.doneTitle'),
           t('duplicates.cleanup.doneBody', { count: r.trashed, size: formatBytes(r.reclaimedBytes) }),
         );
       } else {
@@ -151,39 +155,20 @@ export function DuplicateCleanupDialog({
 
             <section>
               <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t('duplicates.cleanup.toTrash', { count: plan.actions.length })}
+                {t('duplicates.cleanup.toRemove', { count: plan.actions.length })}
               </h4>
               <ul className="space-y-1">
                 {plan.actions.map((a) => (
                   <li key={a.sourcePath} className="flex items-start gap-2">
                     <Trash2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
                     <span className="min-w-0 flex-1 break-all font-mono text-xs">{a.sourcePath}</span>
-                    {a.actionType === 'trash_sidecar' ? (
-                      <Badge variant="secondary">{t('duplicates.cleanup.sidecar')}</Badge>
-                    ) : null}
                     <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(a.fileSize)}</span>
                   </li>
                 ))}
               </ul>
+              {/* Only the media file goes — art, NFO and subtitles are left alone. */}
+              <p className="mt-1.5 text-xs text-muted-foreground">{t('duplicates.cleanup.mediaOnlyNote')}</p>
             </section>
-
-            {plan.orphanedSubtitles.length ? (
-              <section className="rounded border border-warning/40 bg-warning/5 p-3">
-                <h4 className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-warning">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  {t('duplicates.cleanup.orphanedSubs')}
-                </h4>
-                <p className="mb-2 text-xs text-muted-foreground">{t('duplicates.cleanup.orphanedSubsHint')}</p>
-                <ul className="space-y-0.5">
-                  {plan.orphanedSubtitles.map((o) => (
-                    <li key={o.path} className="break-all font-mono text-xs">
-                      {o.path}
-                      {o.language ? ` (${o.language})` : ''}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
 
             {blocked ? (
               <section className="rounded border border-destructive/40 bg-destructive/5 p-3">
@@ -199,8 +184,24 @@ export function DuplicateCleanupDialog({
             <p className="text-xs text-muted-foreground">
               {t('duplicates.cleanup.reclaim', { size: formatBytes(plan.expectedSavingsBytes) })}
             </p>
-            {/* The one thing that most reduces fear of the button. */}
-            <p className="text-xs text-muted-foreground">{t('duplicates.cleanup.trashNote')}</p>
+
+            {/* Trash-first is the default; permanent is an explicit opt-in. */}
+            <label className="flex cursor-pointer items-start gap-2 rounded border border-border/60 p-2.5">
+              <Checkbox checked={permanent} onCheckedChange={(v) => setPermanent(!!v)} className="mt-0.5" />
+              <span className="text-xs">
+                <span className="font-medium">{t('duplicates.cleanup.permanentLabel')}</span>
+                <span className="block text-muted-foreground">{t('duplicates.cleanup.permanentHint')}</span>
+              </span>
+            </label>
+            <p className="text-xs text-muted-foreground">
+              {permanent ? (
+                <span className="inline-flex items-center gap-1 text-warning">
+                  <AlertTriangle className="h-3.5 w-3.5" /> {t('duplicates.cleanup.permanentWarn')}
+                </span>
+              ) : (
+                t('duplicates.cleanup.trashNote')
+              )}
+            </p>
           </div>
         )}
       </div>
@@ -216,7 +217,11 @@ export function DuplicateCleanupDialog({
           onClick={() => resolve.mutate()}
         >
           <Trash2 className="h-4 w-4" />{' '}
-          {mode === 'delete' ? t('duplicates.delete.confirm') : t('duplicates.cleanup.confirm')}
+          {permanent
+            ? t('duplicates.cleanup.confirmPermanent')
+            : mode === 'delete'
+              ? t('duplicates.delete.confirm')
+              : t('duplicates.cleanup.confirm')}
         </Button>
       </DialogFooter>
     </Dialog>

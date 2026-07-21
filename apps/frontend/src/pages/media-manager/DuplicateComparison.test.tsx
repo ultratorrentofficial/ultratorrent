@@ -109,8 +109,45 @@ describe('DuplicateComparison — per-file actions', () => {
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: /delete this copy/i }));
 
-    await waitFor(() => expect(apiSpy.resolveDuplicateCleanup).toHaveBeenCalledWith('r9'));
+    await waitFor(() => expect(apiSpy.resolveDuplicateCleanup).toHaveBeenCalledWith('r9', false));
     expect(toastSpy.success).toHaveBeenCalled();
+  });
+
+  it('passes permanent=true when the operator opts to skip Trash', async () => {
+    apiSpy.previewDuplicateItemDeletion.mockResolvedValue({
+      resolutionId: 'r9', groupId: 'g1', groupVersion: 1, deleteItemId: 'b',
+      deletePath: '/m/b.mkv', survivorPaths: ['/m/a.mkv', '/m/c.mkv'],
+      actions: [{ itemId: 'b', actionType: 'trash', sourcePath: '/m/b.mkv', fileSize: 1000 }],
+      orphanedSubtitles: [], expectedSavingsBytes: 1000, blockers: [], warnings: [],
+    });
+    apiSpy.resolveDuplicateCleanup.mockResolvedValue({ resolutionId: 'r9', status: 'completed', trashed: 1, skipped: 0, failed: 0, reclaimedBytes: 1000 });
+    renderIt();
+    await screen.findByText('/m/b.mkv');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete only this copy: /m/b.mkv' }));
+    const dialog = await screen.findByRole('dialog');
+    // Tick "delete permanently", then confirm.
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /delete permanently/i }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /delete permanently/i }));
+
+    await waitFor(() => expect(apiSpy.resolveDuplicateCleanup).toHaveBeenCalledWith('r9', true));
+  });
+
+  it('previews only the media file — no sidecar/orphaned-subtitle sections', async () => {
+    // The cleanup removes only the media file now; the dialog should not surface
+    // sidecar badges or an orphaned-subtitles panel.
+    apiSpy.previewDuplicateItemDeletion.mockResolvedValue({
+      resolutionId: 'r1', groupId: 'g1', groupVersion: 1, deleteItemId: 'b',
+      deletePath: '/m/b.mkv', survivorPaths: ['/m/a.mkv', '/m/c.mkv'],
+      actions: [{ itemId: 'b', actionType: 'trash', sourcePath: '/m/b.mkv', fileSize: 1000 }],
+      orphanedSubtitles: [], expectedSavingsBytes: 1000, blockers: [], warnings: [],
+    });
+    renderIt();
+    await screen.findByText('/m/b.mkv');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete only this copy: /m/b.mkv' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/only the media file is removed/i)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/orphaned/i)).not.toBeInTheDocument();
   });
 
   it('surfaces a server blocker instead of letting the delete proceed', async () => {

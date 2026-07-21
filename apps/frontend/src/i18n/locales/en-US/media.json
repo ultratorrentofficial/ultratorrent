@@ -443,7 +443,15 @@
       "partialTitle": "Cleanup finished with problems",
       "partialBody": "{{trashed}} moved to Trash, {{skipped}} skipped, {{failed}} failed.",
       "failed": "Cleanup failed",
-      "start": "Clean up…"
+      "start": "Clean up…",
+      "toRemove_one": "Removing {{count}} file",
+      "toRemove_other": "Removing {{count}} files",
+      "mediaOnlyNote": "Only the media file is removed — artwork, NFO and subtitles are left in place.",
+      "permanentLabel": "Delete permanently (skip Trash)",
+      "permanentHint": "These files are large. Skipping Trash frees the space immediately, but the copy cannot be restored.",
+      "permanentWarn": "Files will be deleted permanently and cannot be restored.",
+      "confirmPermanent": "Delete permanently",
+      "doneDeletedTitle": "Duplicates deleted"
     },
     "trash": {
       "title": "Trash & Recovery",

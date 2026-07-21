@@ -3427,10 +3427,10 @@ export const api = {
         body: { groupIds, keepByGroup },
       });
     },
-    bulkResolveDuplicates(resolutionIds: string[]): Promise<DuplicateBulkResolve> {
+    bulkResolveDuplicates(resolutionIds: string[], permanent = false): Promise<DuplicateBulkResolve> {
       return request<DuplicateBulkResolve>('/media/duplicates/bulk/resolve', {
         method: 'POST',
-        body: { resolutionIds },
+        body: { resolutionIds, permanent },
       });
     },
     previewDuplicateCleanup(groupId: string, keepItemId?: string): Promise<DuplicateResolutionPreview> {
@@ -3446,9 +3446,10 @@ export const api = {
         body: { deleteItemId },
       });
     },
-    resolveDuplicateCleanup(resolutionId: string): Promise<DuplicateResolutionResult> {
+    resolveDuplicateCleanup(resolutionId: string, permanent = false): Promise<DuplicateResolutionResult> {
       return request<DuplicateResolutionResult>(`/media/duplicates/resolutions/${resolutionId}/resolve`, {
         method: 'POST',
+        body: { permanent },
       });
     },
     duplicateTrashHistory(): Promise<DuplicateTrashEntry[]> {

@@ -30,6 +30,8 @@ export function QuickCleanPanel() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [plan, setPlan] = useState<DuplicateBulkPreview | null>(null);
+  // Trash by default; the operator opts in to skip it for these large files.
+  const [permanent, setPermanent] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['media', 'duplicates', 'quick-clean'],
@@ -47,6 +49,7 @@ export function QuickCleanPanel() {
     mutationFn: () =>
       api.media.bulkResolveDuplicates(
         plan!.results.filter((r) => r.ok && r.resolutionId).map((r) => r.resolutionId!),
+        permanent,
       ),
     onSuccess: (r) => {
       if (r.failed === 0) {
@@ -120,7 +123,13 @@ export function QuickCleanPanel() {
                 size: formatBytes(selectedSavings),
               })}
             </p>
-            <p className="text-xs text-muted-foreground">{t('duplicates.cleanup.trashNote')}</p>
+            <p className="text-xs text-muted-foreground">{t('duplicates.cleanup.mediaOnlyNote')}</p>
+            <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-xs">
+              <Checkbox checked={permanent} onCheckedChange={(v) => setPermanent(!!v)} />
+              <span className={permanent ? 'font-medium text-warning' : 'text-muted-foreground'}>
+                {permanent ? t('duplicates.cleanup.permanentWarn') : t('duplicates.cleanup.permanentLabel')}
+              </span>
+            </label>
           </div>
           <div className="flex items-center gap-2">
             <Button

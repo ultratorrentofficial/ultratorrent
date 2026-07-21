@@ -63,7 +63,7 @@ describe('QuickCleanPanel', () => {
     renderPanel();
     await screen.findByText('Movie A');
 
-    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getByRole('checkbox', { name: /select.*Movie A/i }));
     fireEvent.click(screen.getByRole('button', { name: /preview/i }));
 
     // The plan is the SERVER's; the panel sent group ids and got resolution ids back.
@@ -71,7 +71,7 @@ describe('QuickCleanPanel', () => {
     // Confirm only appears once a plan exists, and resolves by the returned id.
     const confirm = await screen.findByRole('button', { name: /trash|clean|remove/i });
     fireEvent.click(confirm);
-    await waitFor(() => expect(apiSpy.bulkResolveDuplicates).toHaveBeenCalledWith(['r1']));
+    await waitFor(() => expect(apiSpy.bulkResolveDuplicates).toHaveBeenCalledWith(['r1'], false));
   });
 
   it('keeps the selection after a partial run so the operator can see what remains', async () => {

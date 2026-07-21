@@ -1,4 +1,4 @@
-import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsIn, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsBoolean, IsIn, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /** Group lifecycle. `open` is anything awaiting a decision. */
 export const DUPLICATE_STATUSES = ['open', 'ignored', 'resolved'] as const;
@@ -91,4 +91,16 @@ export class BulkPreviewDto {
 export class BulkResolveDto {
   @IsArray() @ArrayNotEmpty() @ArrayMaxSize(100) @IsString({ each: true })
   resolutionIds!: string[];
+
+  /**
+   * Skip Trash and delete the files outright. Media files are large, so an operator
+   * who is sure may not want redundant copies occupying Trash for the retention
+   * window. Off unless explicitly set.
+   */
+  @IsOptional() @IsBoolean() permanent?: boolean;
+}
+
+/** Body for a single-plan resolve. Carries only the confirm-time permanent flag. */
+export class ResolveCleanupDto {
+  @IsOptional() @IsBoolean() permanent?: boolean;
 }

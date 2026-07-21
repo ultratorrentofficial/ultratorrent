@@ -41,7 +41,7 @@ import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
 import { RunShowMergeDto, ShowMergeDto } from './dto/show-merge.dto';
-import { BulkPreviewDto, BulkResolveDto, DeleteDuplicateItemDto, IgnoreDuplicateGroupDto, ListDuplicatesDto, ResolveDuplicateDto } from './dto/duplicates.dto';
+import { BulkPreviewDto, BulkResolveDto, DeleteDuplicateItemDto, IgnoreDuplicateGroupDto, ListDuplicatesDto, ResolveCleanupDto, ResolveDuplicateDto } from './dto/duplicates.dto';
 import { DuplicateResolutionService } from './duplicate-resolution.service';
 import {
   MediaServerIntegrationService,
@@ -544,8 +544,12 @@ export class MediaController {
    */
   @Post('duplicates/resolutions/:resolutionId/resolve')
   @RequirePermissions(P.MEDIA_MANAGER_DELETE)
-  resolveDuplicateCleanup(@Param('resolutionId') resolutionId: string, @Req() req: Request) {
-    return this.duplicateResolution.resolve(resolutionId, auditCtx(req));
+  resolveDuplicateCleanup(
+    @Param('resolutionId') resolutionId: string,
+    @Body() body: ResolveCleanupDto,
+    @Req() req: Request,
+  ) {
+    return this.duplicateResolution.resolve(resolutionId, auditCtx(req), { permanent: body?.permanent === true });
   }
 
   /**
@@ -570,7 +574,9 @@ export class MediaController {
   @Post('duplicates/bulk/resolve')
   @RequirePermissions(P.MEDIA_MANAGER_DELETE)
   bulkResolveDuplicates(@Body() body: BulkResolveDto, @Req() req: Request) {
-    return this.duplicateResolution.bulkResolve(body.resolutionIds, auditCtx(req));
+    return this.duplicateResolution.bulkResolve(body.resolutionIds, auditCtx(req), {
+      permanent: body.permanent === true,
+    });
   }
 
   /**

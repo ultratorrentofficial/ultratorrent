@@ -207,8 +207,12 @@ export class DuplicateResolutionService {
     const libs = await this.prisma.mediaLibrary.findMany({ select: { path: true } });
     const roots = new Set(libs.map((l) => path.resolve(l.path)));
 
+    // ONLY the media file is removed. Companion files — artwork, NFO, subtitles —
+    // are deliberately left in place: the operator asked for the redundant *media*
+    // to go, not its metadata. A stray `.nfo` beside a kept copy is harmless, and a
+    // deleted subtitle or poster is not recoverable content the operator did not
+    // ask to lose.
     const actions: PlannedAction[] = [];
-    const removedVideos: string[] = [];
     for (const item of group.items) {
       if (item.id === keepId) continue;
       const p = item.files[0]?.path ?? item.path;
@@ -228,7 +232,6 @@ export class DuplicateResolutionService {
         sourcePath: p,
         fileSize: Number(item.files[0]?.size ?? 0),
       });
-      removedVideos.push(p);
     }
 
     if (!actions.length && !blockers.length) {
@@ -242,47 +245,10 @@ export class DuplicateResolutionService {
       blockers.push(`The copy being kept ("${keepPath}") is outside the allowed storage roots.`);
     }
 
-    // Sidecars follow the video they describe. Trashing the video and leaving its
-    // .nfo and -thumb.jpg behind orphans metadata that now describes nothing — the
-    // same orphaning the renamer's sidecar pass exists to prevent.
+    // Retained only for the stored-plan shape; sidecars are no longer removed, so a
+    // cleanup can never orphan a subtitle.
     const warnings: string[] = [];
     const orphanedSubtitles: OrphanedSubtitle[] = [];
-    const keepSidecars = await this.sidecarsOf(keepPath);
-    const keptSubLangs = new Set(
-      keepSidecars
-        .filter((f) => SUBTITLE_EXT.has(path.extname(f).toLowerCase()))
-        .map((f) => this.subtitleLanguage(f)),
-    );
-
-    for (const video of removedVideos) {
-      for (const sc of await this.sidecarsOf(video)) {
-        const ext = path.extname(sc).toLowerCase();
-        if (SUBTITLE_EXT.has(ext)) {
-          const lang = this.subtitleLanguage(sc);
-          // A subtitle the keeper does not already have is CONTENT that exists
-          // nowhere else. It is neither trashed nor silently left: it is reported.
-          if (!keptSubLangs.has(lang)) {
-            orphanedSubtitles.push({ path: sc, language: lang });
-            continue;
-          }
-        }
-        const st = await stat(sc).catch(() => null);
-        if (!st?.isFile()) continue;
-        actions.push({
-          itemId: '',
-          actionType: 'trash_sidecar',
-          sourcePath: sc,
-          fileSize: st.size,
-        });
-      }
-    }
-
-    if (orphanedSubtitles.length) {
-      warnings.push(
-        `${orphanedSubtitles.length} subtitle(s) exist only beside a copy being removed and will be left in place: ` +
-          orphanedSubtitles.map((o) => path.basename(o.path)).join(', '),
-      );
-    }
 
     const expected = actions.reduce((a, x) => a + x.fileSize, 0);
     const resolution = await this.prisma.mediaDuplicateResolution.create({
@@ -406,40 +372,10 @@ export class DuplicateResolutionService {
       blockers.push(`"${deletePath}" is outside the allowed storage roots.`);
     }
 
-    // Subtitle languages present on ANY surviving copy — the union, not a single
-    // keeper's set, because every survivor is being kept.
-    const keptSubLangs = new Set<string | null>();
-    for (const s of survivors) {
-      const sp = s.files[0]?.path ?? s.path;
-      for (const sc of await this.sidecarsOf(sp)) {
-        if (SUBTITLE_EXT.has(path.extname(sc).toLowerCase())) {
-          keptSubLangs.add(this.subtitleLanguage(sc));
-        }
-      }
-    }
-
+    // ONLY the media file is removed; its artwork, NFO and subtitles are left in
+    // place. Retained only for the stored-plan shape.
     const warnings: string[] = [];
     const orphanedSubtitles: OrphanedSubtitle[] = [];
-    for (const sc of await this.sidecarsOf(deletePath)) {
-      const ext = path.extname(sc).toLowerCase();
-      if (SUBTITLE_EXT.has(ext)) {
-        const lang = this.subtitleLanguage(sc);
-        if (!keptSubLangs.has(lang)) {
-          orphanedSubtitles.push({ path: sc, language: lang });
-          continue;
-        }
-      }
-      const st = await stat(sc).catch(() => null);
-      if (!st?.isFile()) continue;
-      actions.push({ itemId: '', actionType: 'trash_sidecar', sourcePath: sc, fileSize: st.size });
-    }
-
-    if (orphanedSubtitles.length) {
-      warnings.push(
-        `${orphanedSubtitles.length} subtitle(s) exist only beside the copy being removed and will be left in place: ` +
-          orphanedSubtitles.map((o) => path.basename(o.path)).join(', '),
-      );
-    }
     if (!actions.length && !blockers.length) {
       blockers.push('Nothing to delete — that copy has no file on disk.');
     }
@@ -510,7 +446,12 @@ export class DuplicateResolutionService {
    * stale plan, revalidates every path immediately before touching it, and journals
    * each step before attempting it.
    */
-  async resolve(resolutionId: string, ctx: ResolutionContext = {}) {
+  async resolve(resolutionId: string, ctx: ResolutionContext = {}, opts: { permanent?: boolean } = {}) {
+    // Permanent skips Trash: these are large media files, and an operator who is
+    // sure does not want a redundant 30 GB copy sitting in Trash for the retention
+    // window. `permanent` is a confirm-time choice, not part of the stored plan — it
+    // changes HOW the approved files are removed, never WHICH ones.
+    const permanent = opts.permanent === true;
     const resolution = await this.prisma.mediaDuplicateResolution.findUnique({
       where: { id: resolutionId },
       include: { group: true },
@@ -624,7 +565,7 @@ export class DuplicateResolutionService {
           continue;
         }
 
-        await this.files.remove({ path: this.filePath.safety.toRelative(action.sourcePath), permanent: false }, ctx);
+        await this.files.remove({ path: this.filePath.safety.toRelative(action.sourcePath), permanent }, ctx);
         reclaimed += st.size;
         trashed++;
         await this.prisma.mediaDuplicateResolutionAction.update({
@@ -674,7 +615,7 @@ export class DuplicateResolutionService {
       result: status === 'completed' ? 'success' : 'failure',
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
-      metadata: { resolutionId, status, trashed, skipped, failed, reclaimed },
+      metadata: { resolutionId, status, trashed, skipped, failed, reclaimed, permanent },
     });
 
     // Partial gets its OWN event rather than riding on `completed` with a count
@@ -716,7 +657,7 @@ export class DuplicateResolutionService {
       at: new Date().toISOString(),
     });
 
-    return { resolutionId, status, trashed, skipped, failed, reclaimedBytes: reclaimed };
+    return { resolutionId, status, trashed, skipped, failed, reclaimedBytes: reclaimed, permanent };
   }
 
   /**
@@ -864,7 +805,7 @@ export class DuplicateResolutionService {
    * through does not abort the rest, and — the point of the standardised envelope —
    * a response carrying failures is never indistinguishable from a clean run.
    */
-  async bulkResolve(resolutionIds: string[], ctx: ResolutionContext = {}) {
+  async bulkResolve(resolutionIds: string[], ctx: ResolutionContext = {}, opts: { permanent?: boolean } = {}) {
     if (!resolutionIds.length) throw new BadRequestException('No plans to run.');
     if (resolutionIds.length > MAX_BULK_GROUPS) {
       throw new BadRequestException(`Run at most ${MAX_BULK_GROUPS} plans at a time.`);
@@ -883,7 +824,7 @@ export class DuplicateResolutionService {
 
     for (const id of resolutionIds) {
       try {
-        const r = await this.resolve(id, ctx);
+        const r = await this.resolve(id, ctx, { permanent: opts.permanent === true });
         results.push({
           resolutionId: id,
           // `partial` is NOT ok. A run that trashed some files and failed on others
@@ -911,7 +852,7 @@ export class DuplicateResolutionService {
       result: succeeded === results.length ? 'success' : 'failure',
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
-      metadata: { total: results.length, succeeded, failed: results.length - succeeded, reclaimed },
+      metadata: { total: results.length, succeeded, failed: results.length - succeeded, reclaimed, permanent: opts.permanent === true },
     });
 
     return { succeeded, failed: results.length - succeeded, reclaimedBytes: reclaimed, results };
