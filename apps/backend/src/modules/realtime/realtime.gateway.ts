@@ -115,6 +115,17 @@ export class RealtimeGateway
     this.server?.to(`user:${userId}`).emit(event, payload);
   }
 
+  /**
+   * Emit an event scoped to holders of a specific permission. Used by the Unified
+   * Jobs Center, whose `jobs.*` events are scoped per-job by the job's required
+   * permission (not by a fixed event-name prefix). A null permission falls back to
+   * every authenticated client.
+   */
+  emitToPermission(permission: string | null | undefined, event: string, payload: unknown): void {
+    const room = permission ? `perm:${permission}` : 'authenticated';
+    this.server?.to(room).emit(event, payload);
+  }
+
   emitStats(payload: unknown): void {
     this.broadcast(WS_EVENTS.STATS_UPDATE, payload);
   }

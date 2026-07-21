@@ -1,8 +1,10 @@
 import { Global, Module } from '@nestjs/common';
 import { JobsService } from './jobs.service';
 import { JobsController } from './jobs.controller';
+import { PlatformJobsController } from './platform-jobs.controller';
 import { JobRegistry } from './platform/job-registry.service';
 import { PlatformJobService } from './platform/platform-job.service';
+import { PlatformJobsQueryService } from './platform/platform-jobs-query.service';
 import { JobReliabilityService } from './platform/job-reliability.service';
 
 /**
@@ -18,8 +20,8 @@ import { JobReliabilityService } from './platform/job-reliability.service';
  */
 @Global()
 @Module({
-  providers: [JobsService, JobRegistry, PlatformJobService, JobReliabilityService],
-  controllers: [JobsController],
-  exports: [JobsService, JobRegistry, PlatformJobService],
+  providers: [JobsService, JobRegistry, PlatformJobService, PlatformJobsQueryService, JobReliabilityService],
+  controllers: [JobsController, PlatformJobsController],
+  exports: [JobsService, JobRegistry, PlatformJobService, PlatformJobsQueryService],
 })
 export class JobsModule {}

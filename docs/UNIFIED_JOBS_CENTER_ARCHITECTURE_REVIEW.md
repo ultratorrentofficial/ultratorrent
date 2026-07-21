@@ -367,18 +367,20 @@ engines at any step.
 - **D-5 — Scope/sequencing.** This is a 9-phase effort. *Recommend* approving Phases 2–3 (core +
   reliability) first, reviewing, then continuing — rather than one unbroken run.
 
-## 20. Approval gate
+## 20. Approval gate — CLEARED 2026-07-21
 
-Per the brief, **implementation begins only after this review is approved.** Requested before Phase 2:
+All gate items approved:
 
-1. Approve the **target architecture** (§15) — new `platform_jobs`/`platform_job_events` + registry +
-   adapters, generalizing (not replacing) the existing engines.
-2. Resolve **D-1…D-5** (§19).
-3. Confirm the **incremental, gated** sequencing (§17) and whether to run straight through or
-   checkpoint after the core.
+1. ✅ **Target architecture** (§15) approved as proposed — new `platform_jobs`/`platform_job_events`
+   + `JobRegistry` + `PlatformJobService`/state machine; existing engines become thin adapters.
+2. ✅ **D-1** Jobs Center → **System** workspace at `/jobs` (`jobs_center` module).
+   ✅ **D-2** new `platform_jobs` table + adapters (not extend-in-place).
+   ✅ **D-3** migrate **long-running ops only** in Phase 7.
+   ✅ **D-4** single in-process worker represented honestly; contract ready for multi-worker.
+   ✅ **D-5** **continue autonomously Phases 2→9**, gate per phase.
 
-On approval, Phase 2 proceeds incrementally (green gate per phase), preserving every existing caller
-and **removing nothing**.
+Phases 2→9 proceed incrementally (green gate per phase), preserving every existing caller and
+**removing nothing**.
 
 ---
 

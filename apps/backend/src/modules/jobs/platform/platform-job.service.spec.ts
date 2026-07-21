@@ -83,10 +83,12 @@ function fakePrisma() {
   };
 }
 
+const stubRealtime = { emitToPermission: () => undefined } as never;
+
 function makeService() {
   const registry = new JobRegistry();
   const prisma = fakePrisma();
-  const svc = new TestJobService(prisma as never, registry);
+  const svc = new TestJobService(prisma as never, registry, stubRealtime);
   return { registry, prisma, svc };
 }
 

@@ -1,6 +1,8 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import type { PlatformJob, Prisma } from '@prisma/client';
+import { WS_EVENTS, type JobEventPayload } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { JobRegistry } from './job-registry.service';
 import {
   ACTIVE_STATUSES,
@@ -57,7 +59,43 @@ export class PlatformJobService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: JobRegistry,
+    private readonly realtime: RealtimeGateway,
   ) {}
+
+  /** Emit a `jobs.*` event scoped to the job's own required permission. */
+  private emitRow(row: PlatformJob | (Partial<PlatformJob> & { id: string; type: string; moduleKey: string; status: string; requiredPermission: string | null }), wsEvent: string, message?: string): void {
+    const payload: JobEventPayload = {
+      jobId: row.id,
+      type: row.type,
+      moduleKey: row.moduleKey,
+      workspaceKey: row.workspaceKey ?? null,
+      status: row.status,
+      phase: row.phase ?? null,
+      progress: row.progressPercent ?? null,
+      parentJobId: row.parentJobId ?? null,
+      rootJobId: row.rootJobId ?? null,
+      correlationId: row.correlationId ?? null,
+      errorCode: row.errorCode ?? null,
+      message: message ?? null,
+      at: new Date().toISOString(),
+    };
+    try {
+      this.realtime.emitToPermission(row.requiredPermission ?? null, wsEvent, payload);
+    } catch {
+      /* realtime is best-effort */
+    }
+  }
+
+  /** Fetch the scoping fields for a job id and emit a `jobs.*` event. */
+  private async notify(jobId: string, wsEvent: string, message?: string): Promise<void> {
+    const row = await this.prisma.platformJob
+      .findUnique({
+        where: { id: jobId },
+        select: { id: true, type: true, moduleKey: true, workspaceKey: true, status: true, phase: true, progressPercent: true, parentJobId: true, rootJobId: true, correlationId: true, errorCode: true, requiredPermission: true },
+      })
+      .catch(() => null);
+    if (row) this.emitRow(row as never, wsEvent, message);
+  }
 
   /**
    * Reconcile orphaned platform jobs at boot. In-process bodies do not survive a
@@ -135,6 +173,9 @@ export class PlatformJobService implements OnModuleInit {
     }
     await this.recordEvent(job.id, 'created', { level: 'info' });
     await this.recordEvent(job.id, 'queued', { level: 'info' });
+    this.emitRow(job, WS_EVENTS.JOB_CREATED);
+    this.emitRow(job, WS_EVENTS.JOB_QUEUED);
+    if (job.parentJobId) this.emitRow(job, WS_EVENTS.JOB_CHILD_CREATED);
     return job;
   }
 
@@ -192,6 +233,7 @@ export class PlatformJobService implements OnModuleInit {
           attempt,
         });
         await this.recordEvent(jobId, 'started', { level: 'info', metadata: attempt > 1 ? { attempt } : undefined });
+        this.emitRow(started, WS_EVENTS.JOB_STARTED);
         const ctx = this.buildContext(started);
         try {
           const input = definition.validateInput(rawInput) as TInput;
@@ -219,6 +261,7 @@ export class PlatformJobService implements OnModuleInit {
           await this.safeTransition(jobId, 'failed', { failedAt: new Date(), errorCode: sanitized.code, errorMessage: sanitized.message });
           await this.recordEvent(jobId, 'retry_scheduled', { level: 'warning', metadata: { attempt, delayMs } });
           await this.safeTransition(jobId, 'retrying', { attempt, retryAt: new Date(Date.now() + delayMs) });
+          await this.notify(jobId, WS_EVENTS.JOB_RETRYING);
           await this.safeTransition(jobId, 'queued');
           await this.delay(delayMs);
           if (this.cancelRequested.has(jobId)) {
@@ -264,6 +307,7 @@ export class PlatformJobService implements OnModuleInit {
     await this.safeTransition(jobId, 'pausing');
     await this.safeTransition(jobId, 'paused', { pausedAt: new Date() });
     await this.recordEvent(jobId, 'paused', { level: 'info' });
+    await this.notify(jobId, WS_EVENTS.JOB_PAUSED);
   }
 
   // ── Control ────────────────────────────────────────────────────────────────
@@ -278,6 +322,7 @@ export class PlatformJobService implements OnModuleInit {
       this.cancelRequested.add(jobId);
       await this.safeTransition(jobId, 'cancelling');
       await this.recordEvent(jobId, 'cancelling', { level: 'info' });
+      await this.notify(jobId, WS_EVENTS.JOB_CANCELLING);
       return true;
     }
     const job = await this.prisma.platformJob.findUnique({ where: { id: jobId }, select: { status: true } });
@@ -285,6 +330,7 @@ export class PlatformJobService implements OnModuleInit {
     if (status === 'queued' || status === 'scheduled' || status === 'waiting' || status === 'blocked' || status === 'paused') {
       await this.transition(jobId, 'cancelled', { cancelledAt: new Date() });
       await this.recordEvent(jobId, 'cancelled', { level: 'info' });
+      await this.notify(jobId, WS_EVENTS.JOB_CANCELLED);
       return true;
     }
     return false;
@@ -314,9 +360,30 @@ export class PlatformJobService implements OnModuleInit {
     if (!job || job.status !== 'paused' || !job.resumable) return null;
     await this.transition(jobId, 'queued', { resumedAt: new Date() });
     await this.recordEvent(jobId, 'resumed', { level: 'info' });
+    await this.notify(jobId, WS_EVENTS.JOB_RESUMED);
     this.running.add(jobId);
     void this.runHandler(job, job.inputData, undefined).catch((err) =>
       this.logger.error(`Resume of ${jobId} errored: ${(err as Error).message}`),
+    );
+    return { jobId };
+  }
+
+  /**
+   * Manually retry a FAILED job — re-execute the same job (preserving its attempt
+   * history) from its persisted input. Returns the job id, or null if not retriable.
+   * Distinct from {@link rerun}, which creates a new linked job.
+   */
+  async retry(jobId: string): Promise<{ jobId: string } | null> {
+    const job = await this.prisma.platformJob.findUnique({ where: { id: jobId } });
+    if (!job || job.status !== 'failed') return null;
+    if (job.inputData == null) return null;
+    const nextAttempt = (job.attempt ?? 1) + 1;
+    await this.transition(jobId, 'retrying', { attempt: nextAttempt });
+    await this.recordEvent(jobId, 'retry_scheduled', { level: 'info', metadata: { manual: true, attempt: nextAttempt } });
+    await this.transition(jobId, 'queued');
+    this.running.add(jobId);
+    void this.runHandler({ ...job, attempt: nextAttempt, status: 'queued' }, job.inputData, undefined).catch((err) =>
+      this.logger.error(`Manual retry of ${jobId} errored: ${(err as Error).message}`),
     );
     return { jobId };
   }
@@ -369,7 +436,7 @@ export class PlatformJobService implements OnModuleInit {
     const metrics = { ...(this.metrics.get(jobId) ?? {}), ...(out.metrics ?? {}) };
     const withWarnings = collectedWarnings.length > 0;
     const to: JobStatus = withWarnings ? 'completed_with_warnings' : 'completed';
-    await this.transition(jobId, to, {
+    const row = await this.transition(jobId, to, {
       completedAt: new Date(),
       progressPercent: 100,
       warnings: collectedWarnings.length ? (redact(collectedWarnings) as Prisma.InputJsonValue) : undefined,
@@ -378,6 +445,7 @@ export class PlatformJobService implements OnModuleInit {
     });
     if (withWarnings) await this.recordEvent(jobId, 'warning', { level: 'warning', metadata: { count: collectedWarnings.length } });
     await this.recordEvent(jobId, 'completed', { level: 'success' });
+    this.emitRow(row, WS_EVENTS.JOB_COMPLETED);
   }
 
   private async markFailed(jobId: string, err: unknown): Promise<void> {
@@ -388,11 +456,18 @@ export class PlatformJobService implements OnModuleInit {
       errorMessage: sanitized.message,
     });
     await this.recordEvent(jobId, 'failed', { level: 'error', message: sanitized.message });
+    await this.notify(jobId, WS_EVENTS.JOB_FAILED, sanitized.message);
   }
 
   private async markCancelled(jobId: string): Promise<void> {
     await this.safeTransition(jobId, 'cancelled', { cancelledAt: new Date() });
     await this.recordEvent(jobId, 'cancelled', { level: 'info' });
+    await this.notify(jobId, WS_EVENTS.JOB_CANCELLED);
+  }
+
+  /** Broadcast a stalled event (called by the reliability scanner). */
+  async broadcastStalled(jobId: string): Promise<void> {
+    await this.notify(jobId, WS_EVENTS.JOB_STALLED);
   }
 
   /** Append a structured event with a monotonic per-job sequence. */
@@ -498,7 +573,7 @@ export class PlatformJobService implements OnModuleInit {
     if (now - last < PROGRESS_THROTTLE_MS && (u.percent ?? 0) < 100) return;
     this.lastProgressAt.set(jobId, now);
     const percent = u.percent != null ? Math.max(0, Math.min(100, Math.round(u.percent))) : undefined;
-    await this.prisma.platformJob
+    const row = await this.prisma.platformJob
       .update({
         where: { id: jobId },
         data: {
@@ -511,7 +586,8 @@ export class PlatformJobService implements OnModuleInit {
           statusMessageParams: (u.messageParams ? redact(u.messageParams) : undefined) as Prisma.InputJsonValue | undefined,
         },
       })
-      .catch(() => undefined);
+      .catch(() => null);
+    if (row) this.emitRow(row, u.phase ? WS_EVENTS.JOB_PHASE_CHANGED : WS_EVENTS.JOB_PROGRESS);
     await this.recordEvent(jobId, 'progress', { level: 'debug', progress: percent, metadata: u.phase ? { phase: u.phase } : undefined });
   }
 

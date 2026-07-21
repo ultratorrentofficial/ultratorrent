@@ -71,6 +71,26 @@ export const PERMISSIONS = {
   MODULES_VIEW: 'modules.view',
   MODULES_MANAGE: 'modules.manage',
 
+  // Unified Jobs Center — the platform-wide operational control plane. `view` is
+  // scoped (a user sees jobs whose owning-module permission they hold, or their own);
+  // `view_all` widens visibility but never bypasses redaction. Action permissions are
+  // additionally gated by the job's own required permission (see JobsService).
+  JOBS_VIEW: 'jobs.view',
+  JOBS_VIEW_ALL: 'jobs.view_all',
+  JOBS_VIEW_EVENTS: 'jobs.view_events',
+  JOBS_VIEW_DIAGNOSTICS: 'jobs.view_diagnostics',
+  JOBS_CANCEL: 'jobs.cancel',
+  JOBS_PAUSE: 'jobs.pause',
+  JOBS_RESUME: 'jobs.resume',
+  JOBS_RETRY: 'jobs.retry',
+  JOBS_RERUN: 'jobs.rerun',
+  JOBS_BULK_MANAGE: 'jobs.bulk_manage',
+  JOBS_MANAGE_SCHEDULES: 'jobs.manage_schedules',
+  JOBS_RUN_SCHEDULES: 'jobs.run_schedules',
+  JOBS_VIEW_WORKERS: 'jobs.view_workers',
+  JOBS_MANAGE_SETTINGS: 'jobs.manage_settings',
+  JOBS_ADMIN: 'jobs.admin',
+
   // Media Acquisition Intelligence (core)
   MEDIA_ACQUISITION_VIEW: 'media_acquisition.view',
   MEDIA_ACQUISITION_MANAGE_WATCHLIST: 'media_acquisition.manage_watchlist',
@@ -250,6 +270,12 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.SUBTITLE_INTELLIGENCE_SETTINGS,
     PERMISSIONS.NOTIFICATIONS_VIEW,
     PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES,
+    PERMISSIONS.JOBS_VIEW,
+    PERMISSIONS.JOBS_VIEW_EVENTS,
+    PERMISSIONS.JOBS_CANCEL,
+    PERMISSIONS.JOBS_RETRY,
+    PERMISSIONS.JOBS_RERUN,
+    PERMISSIONS.JOBS_VIEW_WORKERS,
   ],
   [SystemRole.USER]: [
     PERMISSIONS.TORRENTS_VIEW,
@@ -272,6 +298,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.SUBTITLE_INTELLIGENCE_SEARCH,
     PERMISSIONS.NOTIFICATIONS_VIEW,
     PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES,
+    PERMISSIONS.JOBS_VIEW,
+    PERMISSIONS.JOBS_VIEW_EVENTS,
   ],
   [SystemRole.READ_ONLY]: [
     PERMISSIONS.TORRENTS_VIEW,
@@ -284,5 +312,6 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.SYSTEM_VIEW,
     PERMISSIONS.MEDIA_MANAGER_VIEW,
     PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW,
+    PERMISSIONS.JOBS_VIEW,
   ],
 };

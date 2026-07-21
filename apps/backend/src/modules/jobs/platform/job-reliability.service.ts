@@ -52,6 +52,7 @@ export class JobReliabilityService {
           level: 'warning',
           metadata: { idleMs, since: lastBeat.toISOString() },
         });
+        await this.jobs.broadcastStalled(job.id);
         this.logger.warn(`Job ${job.id} appears stalled (no heartbeat for ${Math.round(idleMs / 1000)}s)`);
       }
     } catch (err) {

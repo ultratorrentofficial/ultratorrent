@@ -80,7 +80,44 @@ export const WS_EVENTS = {
   SUBTITLE_DOWNLOAD_FAILED: 'subtitle_intelligence.download_failed',
   SUBTITLE_SYNCHRONIZED: 'subtitle_intelligence.synchronized',
   SUBTITLE_VALIDATION_FAILED: 'subtitle_intelligence.validation_failed',
+
+  // Unified Jobs Center — the platform-wide job lifecycle channel. Unlike the
+  // per-module channels above (scoped by event-name prefix), these are emitted
+  // scoped to each job's OWN required permission via `emitToPermission`, so a
+  // client only sees jobs it is authorised to view. Payload: JobEventPayload.
+  JOB_CREATED: 'jobs.created',
+  JOB_QUEUED: 'jobs.queued',
+  JOB_STARTED: 'jobs.started',
+  JOB_PROGRESS: 'jobs.progress',
+  JOB_PHASE_CHANGED: 'jobs.phase_changed',
+  JOB_WARNING: 'jobs.warning',
+  JOB_PAUSED: 'jobs.paused',
+  JOB_RESUMED: 'jobs.resumed',
+  JOB_RETRYING: 'jobs.retrying',
+  JOB_COMPLETED: 'jobs.completed',
+  JOB_FAILED: 'jobs.failed',
+  JOB_CANCELLING: 'jobs.cancelling',
+  JOB_CANCELLED: 'jobs.cancelled',
+  JOB_STALLED: 'jobs.stalled',
+  JOB_CHILD_CREATED: 'jobs.child_created',
 } as const;
+
+/** Payload for the unified `jobs.*` channel (bounded + sanitized — never secrets). */
+export interface JobEventPayload {
+  jobId: string;
+  type: string;
+  moduleKey: string;
+  workspaceKey?: string | null;
+  status: string;
+  phase?: string | null;
+  progress?: number | null;
+  parentJobId?: string | null;
+  rootJobId?: string | null;
+  correlationId?: string | null;
+  errorCode?: string | null;
+  message?: string | null;
+  at: string;
+}
 
 /**
  * Canonical domain-event names that modules publish onto the internal event bus
