@@ -92,24 +92,26 @@ describe('composeNavGroups (registry-driven rail)', () => {
 });
 
 describe('visibleGroups (RBAC + module gating)', () => {
-  it('shows every group in order when all permissions and modules are granted', () => {
+  it('shows every workspace in order when all permissions and modules are granted', () => {
     expect(visibleGroups(ALL).map((g) => g.title)).toEqual([
       'Dashboard',
       'Downloads',
       'Media',
       'Automation',
+      'Analytics',
       'Files',
-      'Monitoring',
+      'Infrastructure',
       'Administration',
-      'Account',
+      'System',
     ]);
   });
 
-  it('keeps only ungated entries (Search, Profile) when the user holds nothing', () => {
+  it('keeps only the ungated Search entry (Dashboard) when the user holds nothing', () => {
+    // Account is no longer a workspace (it lives in the user menu), so the only workspace
+    // with an ungated entry is Dashboard (Search → command palette).
     const groups = visibleGroups(ctx({}));
-    expect(groups.map((g) => g.title)).toEqual(['Dashboard', 'Account']);
-    expect(groups[0].items.map((i) => i.id)).toEqual(['search']); // Dashboard needs the module
-    expect(groups[1].items.map((i) => i.id)).toEqual(['account']);
+    expect(groups.map((g) => g.title)).toEqual(['Dashboard']);
+    expect(groups[0].items.map((i) => i.id)).toEqual(['search']); // Dashboard page needs the module
   });
 
   it('shows Downloads with the Torrents sub-menu for a torrents-only user', () => {
@@ -118,8 +120,22 @@ describe('visibleGroups (RBAC + module gating)', () => {
     expect(downloads).toBeTruthy();
     const torrents = downloads!.items.find((i) => i.id === 'torrents')!;
     expect(torrents.children!.map((c) => c.label)).toEqual(['Downloading', 'Seeding', 'Completed', 'Paused', 'Errors']);
-    // Engines (needs SYSTEM_VIEW) is filtered out of Downloads.
+    // Indexers (moved to Infrastructure) and Engines are not in Downloads.
+    expect(downloads!.items.map((i) => i.id)).not.toContain('indexers');
     expect(downloads!.items.map((i) => i.id)).not.toContain('engines');
+  });
+
+  it('places Engines and Indexers in the Infrastructure workspace', () => {
+    // Prowlarr (external) only appears when an externalHref resolves — covered separately.
+    const groups = visibleGroups(ALL);
+    const infra = groups.find((g) => g.title === 'Infrastructure');
+    expect(infra?.items.map((i) => i.id)).toEqual(['engines', 'indexers']);
+  });
+
+  it('splits Administration (people) and System (platform)', () => {
+    const groups = visibleGroups(ALL);
+    expect(groups.find((g) => g.title === 'Administration')?.items.map((i) => i.id)).toEqual(['users', 'audit']);
+    expect(groups.find((g) => g.title === 'System')?.items.map((i) => i.id)).toEqual(['modules', 'settings']);
   });
 
   it('hides a module-gated item when the module is disabled and the user cannot manage modules', () => {

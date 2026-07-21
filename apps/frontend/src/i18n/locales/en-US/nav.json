@@ -12,7 +12,10 @@
     "Account": "Account",
     "Dashboard": "Dashboard",
     "Media": "Media",
-    "Monitoring": "Monitoring"
+    "Monitoring": "Monitoring",
+    "Analytics": "Analytics",
+    "Infrastructure": "Infrastructure",
+    "System": "System"
   },
   "items": {
     "Dashboard": "Dashboard",

@@ -12,7 +12,10 @@
     "Account": "Cuenta",
     "Dashboard": "Panel",
     "Media": "Medios",
-    "Monitoring": "Monitoreo"
+    "Monitoring": "Monitoreo",
+    "Analytics": "Analíticas",
+    "Infrastructure": "Infraestructura",
+    "System": "Sistema"
   },
   "items": {
     "Dashboard": "Panel",

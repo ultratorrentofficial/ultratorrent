@@ -39,7 +39,6 @@ import {
   BarChart3,
   DownloadCloud,
   Mail,
-  UserCircle,
   Users,
   Bell,
   Send,
@@ -151,16 +150,24 @@ export interface NavContribution {
   item: NavItem;
 }
 
-/** The domains, in rail order. Administration/Account sit at the bottom. */
+/**
+ * The **Workspaces** — the fixed global rail, in order. Each is a self-contained
+ * application: selecting one replaces the sidebar with that workspace's own nav
+ * (see `docs/NAVIGATION_ARCHITECTURE_REVIEW.md`). The rail never grows — new modules
+ * attach to a workspace's contributions, never a new top-level entry. Account is
+ * intentionally NOT a workspace (it lives in the top-bar user menu). `NavDomain`
+ * is retained as the underlying type; a domain *is* a workspace in the gen-2 model.
+ */
 export const NAV_DOMAINS: NavDomain[] = [
   { id: 'dashboard', title: 'Dashboard', icon: LayoutDashboard, order: 10 },
   { id: 'downloads', title: 'Downloads', icon: Download, order: 20 },
   { id: 'media', title: 'Media', icon: Clapperboard, order: 30 },
   { id: 'automation', title: 'Automation', icon: Bot, order: 40 },
-  { id: 'files', title: 'Files', icon: FolderTree, order: 50 },
-  { id: 'monitoring', title: 'Monitoring', icon: Activity, order: 60 },
-  { id: 'administration', title: 'Administration', icon: ShieldCheck, order: 90 },
-  { id: 'account', title: 'Account', icon: UserCircle, order: 100 },
+  { id: 'analytics', title: 'Analytics', icon: BarChart3, order: 50 },
+  { id: 'files', title: 'Files', icon: FolderTree, order: 60 },
+  { id: 'infrastructure', title: 'Infrastructure', icon: Server, order: 70 },
+  { id: 'administration', title: 'Administration', icon: ShieldCheck, order: 80 },
+  { id: 'system', title: 'System', icon: Cpu, order: 90 },
 ];
 
 /** Fallback domain for a contribution whose declared domain is unknown (a plugin). */
@@ -190,12 +197,8 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
     ],
   } },
   { slot: { domain: 'downloads', order: 20 }, item: { id: 'rss', to: '/rss', label: 'RSS Feeds', icon: Rss, permission: PERMISSIONS.RSS_VIEW, module: 'rss', descriptionKey: 'RSS Feeds' } },
-  { slot: { domain: 'downloads', order: 30 }, item: { id: 'indexers', to: '/indexers', label: 'Indexers', icon: Radar, permission: PERMISSIONS.INDEXERS_VIEW, descriptionKey: 'Indexers' } },
-  // Optional Prowlarr companion — shown only when configured + enabled (its live URL
-  // is resolved at filter time) and the user may open it.
-  { slot: { domain: 'downloads', order: 40 }, item: { id: 'prowlarr', label: 'Prowlarr', icon: Globe, external: true, permission: PERMISSIONS.INTEGRATIONS_PROWLARR_OPEN, descriptionKey: 'Prowlarr' } },
-  { slot: { domain: 'downloads', order: 50 }, item: { id: 'release-scoring', to: '/release-scoring', label: 'Release Scoring', icon: Award, permission: PERMISSIONS.RELEASE_SCORING_VIEW, module: 'release_scoring', descriptionKey: 'Release Scoring' } },
-  { slot: { domain: 'downloads', order: 60 }, item: {
+  { slot: { domain: 'downloads', order: 30 }, item: { id: 'release-scoring', to: '/release-scoring', label: 'Release Scoring', icon: Award, permission: PERMISSIONS.RELEASE_SCORING_VIEW, module: 'release_scoring', descriptionKey: 'Release Scoring' } },
+  { slot: { domain: 'downloads', order: 40 }, item: {
     id: 'acquisition-intelligence', to: '/media-acquisition', label: 'Acquisition Intelligence', icon: Sparkles, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', end: true, descriptionKey: 'Acquisition Intelligence',
     children: [
       { id: 'smart-download', to: '/media-acquisition/dashboard', label: 'Smart Download', icon: Gauge, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Smart Download' },
@@ -203,7 +206,6 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
       { id: 'decision-simulator', to: '/media-acquisition/simulator', label: 'Decision Simulator', icon: FlaskConical, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Decision Simulator' },
     ],
   } },
-  { slot: { domain: 'downloads', order: 70 }, item: { id: 'engines', to: '/engines', label: 'Engines', icon: Cpu, permission: PERMISSIONS.SYSTEM_VIEW, descriptionKey: 'Engines' } },
 
   { slot: { domain: 'media', order: 10 }, item: { id: 'media-dashboard', to: '/media', label: 'Media Dashboard', icon: Clapperboard, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', end: true, descriptionKey: 'Media Dashboard' } },
   { slot: { domain: 'media', order: 20 }, item: { id: 'media-items', to: '/media/items', label: 'Media Items', icon: Film, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Media Items' } },
@@ -245,7 +247,7 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
 
   { slot: { domain: 'files', order: 10 }, item: { id: 'files', to: '/files', label: 'File Manager', icon: FolderTree, permission: PERMISSIONS.FILES_VIEW, module: 'files', descriptionKey: 'File Manager' } },
 
-  { slot: { domain: 'monitoring', order: 10 }, item: {
+  { slot: { domain: 'analytics', order: 10 }, item: {
     id: 'media-server-analytics', to: '/media-server-analytics', label: 'Media Server Analytics', icon: MonitorPlay, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics', end: true, descriptionKey: 'Media Server Analytics',
     children: [
       { id: 'msa-live', to: '/media-server-analytics/live', label: 'Live Activity', icon: Activity, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY, module: 'media_server_analytics', descriptionKey: 'Live Activity' },
@@ -258,12 +260,21 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
     ],
   } },
 
-  { slot: { domain: 'administration', order: 10 }, item: { id: 'users', to: '/users', label: 'Users', icon: Users, permission: PERMISSIONS.USERS_VIEW, module: 'users', descriptionKey: 'Users' } },
-  { slot: { domain: 'administration', order: 20 }, item: { id: 'modules', to: '/modules', label: 'Modules', icon: Boxes, permission: PERMISSIONS.MODULES_VIEW, descriptionKey: 'Modules' } },
-  { slot: { domain: 'administration', order: 30 }, item: { id: 'settings', to: '/settings', label: 'Settings', icon: Settings, permission: PERMISSIONS.SETTINGS_VIEW, module: 'settings', descriptionKey: 'Settings' } },
-  { slot: { domain: 'administration', order: 40 }, item: { id: 'audit', to: '/audit', label: 'Audit Log', icon: ShieldCheck, permission: PERMISSIONS.AUDIT_VIEW, module: 'audit', descriptionKey: 'Audit Log' } },
+  // Infrastructure — the external systems & engines UltraTorrent connects to (D-1: Indexers
+  // and Prowlarr are configured here; Downloads consumes them for search).
+  { slot: { domain: 'infrastructure', order: 10 }, item: { id: 'engines', to: '/engines', label: 'Engines', icon: Cpu, permission: PERMISSIONS.SYSTEM_VIEW, descriptionKey: 'Engines' } },
+  { slot: { domain: 'infrastructure', order: 20 }, item: { id: 'indexers', to: '/indexers', label: 'Indexers', icon: Radar, permission: PERMISSIONS.INDEXERS_VIEW, descriptionKey: 'Indexers' } },
+  // Optional Prowlarr companion — shown only when configured + enabled (its live URL
+  // is resolved at filter time) and the user may open it.
+  { slot: { domain: 'infrastructure', order: 30 }, item: { id: 'prowlarr', label: 'Prowlarr', icon: Globe, external: true, permission: PERMISSIONS.INTEGRATIONS_PROWLARR_OPEN, descriptionKey: 'Prowlarr' } },
 
-  { slot: { domain: 'account', order: 10 }, item: { id: 'account', to: '/account', label: 'Profile', icon: UserCircle, end: true, descriptionKey: 'Profile' } },
+  // Administration — people & policy.
+  { slot: { domain: 'administration', order: 10 }, item: { id: 'users', to: '/users', label: 'Users', icon: Users, permission: PERMISSIONS.USERS_VIEW, module: 'users', descriptionKey: 'Users' } },
+  { slot: { domain: 'administration', order: 20 }, item: { id: 'audit', to: '/audit', label: 'Audit Log', icon: ShieldCheck, permission: PERMISSIONS.AUDIT_VIEW, module: 'audit', descriptionKey: 'Audit Log' } },
+
+  // System — UltraTorrent itself (D-3: API Keys are a platform credential managed here).
+  { slot: { domain: 'system', order: 10 }, item: { id: 'modules', to: '/modules', label: 'Modules', icon: Boxes, permission: PERMISSIONS.MODULES_VIEW, descriptionKey: 'Modules' } },
+  { slot: { domain: 'system', order: 20 }, item: { id: 'settings', to: '/settings', label: 'Settings', icon: Settings, permission: PERMISSIONS.SETTINGS_VIEW, module: 'settings', descriptionKey: 'Settings' } },
 ];
 
 /**

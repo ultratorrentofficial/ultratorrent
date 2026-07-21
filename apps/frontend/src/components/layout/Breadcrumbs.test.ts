@@ -40,11 +40,8 @@ describe('crumbsFor', () => {
     ]);
   });
 
-  it('resolves /account to the Account group Profile entry', () => {
-    expect(crumbsFor('/account')).toEqual([
-      { label: 'Account' },
-      { label: 'Profile', to: '/account' },
-    ]);
+  it('resolves /account to a single Account crumb (it lives in the user menu, not a workspace)', () => {
+    expect(crumbsFor('/account')).toEqual([{ label: 'Account' }]);
   });
 
   it('falls back to a capitalized segment for unknown routes', () => {
