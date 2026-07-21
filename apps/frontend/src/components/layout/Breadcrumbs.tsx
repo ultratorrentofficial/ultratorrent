@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight } from 'lucide-react';
 import { NAV_GROUPS, tNav } from '@/components/layout/navigation';
+import { useBreadcrumbEntityLabel } from '@/components/layout/BreadcrumbContext';
 
 export interface Crumb {
   label: string;
@@ -92,6 +93,9 @@ export function Breadcrumbs() {
   const { t, i18n } = useTranslation('nav');
   const { t: tShell } = useTranslation('shell');
   const crumbs = crumbsFor(pathname);
+  // A detail page can name its entity so the trail ends with e.g. the item title
+  // instead of a generic "Details".
+  const entityLabel = useBreadcrumbEntityLabel(pathname);
   if (crumbs.length === 0) return null;
 
   // `crumbsFor` returns canonical English (tests assert on it); translate at
@@ -108,6 +112,7 @@ export function Breadcrumbs() {
       <ol className="flex min-w-0 items-center gap-1.5 text-sm">
         {crumbs.map((crumb, i) => {
           const last = i === crumbs.length - 1;
+          const text = last && entityLabel ? entityLabel : label(crumb.label);
           return (
             <li key={`${crumb.label}-${i}`} className="flex min-w-0 items-center gap-1.5">
               {i > 0 && (
@@ -118,7 +123,7 @@ export function Breadcrumbs() {
                   to={crumb.to}
                   className="truncate text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  {label(crumb.label)}
+                  {text}
                 </Link>
               ) : (
                 <span
@@ -127,7 +132,7 @@ export function Breadcrumbs() {
                   }
                   aria-current={last ? 'page' : undefined}
                 >
-                  {label(crumb.label)}
+                  {text}
                 </span>
               )}
             </li>

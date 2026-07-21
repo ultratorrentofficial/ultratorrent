@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -31,6 +31,7 @@ import {
 } from '@/lib/api';
 import { formatBytes, formatNumber } from '@/lib/format';
 import { useAuth } from '@/auth/AuthContext';
+import { useBreadcrumbEntity } from '@/components/layout/BreadcrumbContext';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
@@ -73,11 +74,15 @@ export function MediaDetailPage() {
   const { t } = useTranslation('media');
   const [tab, setTab] = useState('overview');
 
+  const { pathname } = useLocation();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['media', 'items', id],
     queryFn: () => api.media.getItem(id),
     enabled: Boolean(id),
   });
+
+  // Surface the item's title as the trailing breadcrumb (falls back to "Details").
+  useBreadcrumbEntity(pathname, data?.title);
 
   if (isLoading) {
     return (

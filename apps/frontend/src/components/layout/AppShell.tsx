@@ -30,6 +30,8 @@ import { useRealtime } from '@/realtime/RealtimeContext';
 import { useVersion } from '@/hooks/useVersion';
 import { AboutDialog } from '@/components/AboutDialog';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
+import { BreadcrumbProvider } from '@/components/layout/BreadcrumbContext';
+import { ContextualSubNav } from '@/components/layout/ContextualSubNav';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import {
@@ -175,6 +177,7 @@ export function AppShell() {
   }, []);
 
   return (
+    <BreadcrumbProvider>
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <Sidebar
@@ -221,6 +224,7 @@ export function AppShell() {
           onAbout={() => setAboutOpen(true)}
           onOpenCommand={() => setPaletteOpen(true)}
         />
+        <ContextualSubNav />
         <main className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
             <Outlet />
@@ -243,6 +247,7 @@ export function AppShell() {
         onToggleFavorite={personalization.toggleFavorite}
       />
     </div>
+    </BreadcrumbProvider>
   );
 }
 

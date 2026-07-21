@@ -440,3 +440,41 @@ export function isBranchActive(item: NavItem, pathname: string, searchStr: strin
   if (isItemActive(item, pathname, searchStr)) return true;
   return (item.children ?? []).some((c) => isBranchActive(c, pathname, searchStr));
 }
+
+/**
+ * The navigation domain the current route belongs to, plus the active top-level
+ * item and (if the match is a sub-page) its parent. Drives the contextual
+ * secondary nav: sibling pages within the active domain, so a user can move
+ * laterally without returning to the sidebar. Resolves by longest-prefix match
+ * so detail routes stay within their branch. Returns `null` for routes outside
+ * the nav (e.g. `/account`). Pure — exported for testing.
+ */
+export interface ActiveNavContext {
+  group: NavGroup;
+  item: NavItem;
+  parent?: NavItem;
+}
+
+export function resolveActiveContext(
+  groups: NavGroup[],
+  pathname: string,
+  searchStr = '',
+): ActiveNavContext | null {
+  let best: ActiveNavContext | null = null;
+  let bestLen = -1;
+  const consider = (group: NavGroup, item: NavItem, parent?: NavItem) => {
+    if (!item.to || !isItemActive(item, pathname, searchStr)) return;
+    const len = item.to.split('?')[0].length;
+    if (len > bestLen) {
+      bestLen = len;
+      best = { group, item, parent };
+    }
+  };
+  for (const group of groups) {
+    for (const item of group.items) {
+      consider(group, item);
+      for (const child of item.children ?? []) consider(group, child, item);
+    }
+  }
+  return best;
+}
