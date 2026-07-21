@@ -15,24 +15,24 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id            String    @id @default(uuid())
-  username      String    @unique
-  email         String    @unique
-  displayName   String?
-  passwordHash  String
-  isActive      Boolean   @default(true)
-  isSystem      Boolean   @default(false)
-  lastLoginAt   DateTime?
+  id                  String    @id @default(uuid())
+  username            String    @unique
+  email               String    @unique
+  displayName         String?
+  passwordHash        String
+  isActive            Boolean   @default(true)
+  isSystem            Boolean   @default(false)
+  lastLoginAt         DateTime?
   /// Brute-force lockout: consecutive failed password/2FA attempts, reset on a
   /// successful login. `lockedUntil` blocks further attempts until it passes.
-  failedLoginAttempts Int      @default(0)
+  failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
   // Two-factor authentication (TOTP). Secret is encrypted at rest.
-  totpSecret    String?
-  totpEnabled   Boolean   @default(false)
-  recoveryCodes String[]  @default([])
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  totpSecret          String?
+  totpEnabled         Boolean   @default(false)
+  recoveryCodes       String[]  @default([])
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   roles         UserRole[]
   refreshTokens RefreshToken[]
@@ -736,15 +736,15 @@ model MediaItem {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  library        MediaLibrary          @relation(fields: [libraryId], references: [id], onDelete: Cascade)
-  files          MediaFile[]
-  metadata       MediaMetadata?
-  artwork        MediaArtwork[]
-  subtitles      MediaSubtitle[]
-  externalIds    MediaExternalId[]
-  nfoFiles       MediaNfoFile[]
-  collections    MediaCollectionItem[]
-  duplicateGroup MediaDuplicateGroup?  @relation(fields: [duplicateGroupId], references: [id])
+  library             MediaLibrary              @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  files               MediaFile[]
+  metadata            MediaMetadata?
+  artwork             MediaArtwork[]
+  subtitles           MediaSubtitle[]
+  externalIds         MediaExternalId[]
+  nfoFiles            MediaNfoFile[]
+  collections         MediaCollectionItem[]
+  duplicateGroup      MediaDuplicateGroup?      @relation(fields: [duplicateGroupId], references: [id])
   duplicateCandidates MediaDuplicateCandidate[]
 
   // Subtitle Intelligence (core module `subtitle_intelligence`).
@@ -987,35 +987,35 @@ model MediaProcessingJob {
 /// version, and a resolve that arrives after the group changed underneath is refused
 /// rather than applied to different files than the operator approved.
 model MediaDuplicateGroup {
-  id     String @id @default(uuid())
+  id                    String  @id @default(uuid())
   /// Stable identity across scans — see the note above. Unique so detection can
   /// upsert rather than delete-and-recreate.
-  groupKey String @unique
+  groupKey              String  @unique
   /// What kind of thing is duplicated: `file` (the same media twice) or
   /// `show_folder` (two directories that are the same show). Kept explicit because
   /// the two resolve completely differently and must never share a workflow.
-  groupType String @default("file")
-  reason    String // title_year | show_season_episode | external_id | file_hash | similar_filename
+  groupType             String  @default("file")
+  reason                String // title_year | show_season_episode | external_id | file_hash | similar_filename
   /// open | ignored | resolved. An ignored or resolved group is preserved across a
   /// rescan; only its membership and evidence are refreshed.
-  status String @default("open")
+  status                String  @default("open")
   /// 0-100. Detection confidence, NOT permission to act — a group can be
   /// high-confidence and still require review (conflicting metadata, different
   /// editions). Cleanup safety is `requiresReview`, deliberately separate.
-  confidence     Int     @default(0)
-  requiresReview Boolean @default(false)
+  confidence            Int     @default(0)
+  requiresReview        Boolean @default(false)
   /// Bytes that would be freed by keeping one candidate and trashing the rest.
-  potentialSavingsBytes BigInt @default(0)
+  potentialSavingsBytes BigInt  @default(0)
   /// The candidate detection recommends keeping, and why. Null until a
   /// recommendation has been computed.
-  recommendedItemId String?
+  recommendedItemId     String?
   /// Human-readable reasons behind the recommendation, and anything that should give
   /// an operator pause. Presentational only — never a substitute for the structured
   /// `requiresReview` flag.
-  recommendation Json?
-  warnings       Json?
+  recommendation        Json?
+  warnings              Json?
   /// Optimistic-concurrency token, bumped whenever membership or evidence changes.
-  version Int @default(1)
+  version               Int     @default(1)
 
   ignoredReason String?
   ignoredById   String?
@@ -1024,7 +1024,7 @@ model MediaDuplicateGroup {
   resolvedAt    DateTime?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   items       MediaItem[]
   candidates  MediaDuplicateCandidate[]
@@ -1063,7 +1063,7 @@ model MediaDuplicateGroup {
 /// and a per-library key would imply a scoping the algorithm does not have — an
 /// item's duplicate can live in a different library.
 model MediaDuplicateScanState {
-  id String @id
+  id          String   @id
   /// sha256 over every item's identity, path, size and external ids. Equal digest
   /// ⇒ the same groups, so the whole write phase is skipped.
   inputDigest String
@@ -1080,19 +1080,19 @@ model MediaDuplicateCandidate {
 
   /// Snapshotted so a resolution stays auditable after the item row is deleted.
   path     String
-  fileSize BigInt @default(0)
+  fileSize BigInt  @default(0)
   hash     String?
 
   /// Deterministic score from the recommendation engine, and the ordered reasons
   /// behind it. Rank 1 is the recommended keeper.
-  qualityScore        Int     @default(0)
-  recommendationRank  Int     @default(0)
+  qualityScore          Int    @default(0)
+  recommendationRank    Int    @default(0)
   recommendationReasons Json?
   /// keep | trash | none — what the operator chose for this candidate.
-  selectedAction String @default("none")
+  selectedAction        String @default("none")
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   group MediaDuplicateGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   item  MediaItem           @relation(fields: [itemId], references: [id], onDelete: Cascade)
@@ -1108,29 +1108,29 @@ model MediaDuplicateCandidate {
 /// The preview is persisted rather than trusted from the client, so execution can
 /// revalidate against what the operator actually saw.
 model MediaDuplicateResolution {
-  id String @id @default(uuid())
+  id               String  @id @default(uuid())
   /// What this plan resolves: `group` = duplicate FILES inside one group;
   /// `show_merge` = duplicate show FOLDERS merged into a canonical one. The two
   /// share this table because they share the property that matters: the plan that
   /// executes is the plan that was approved, journalled action by action.
-  scope String @default("group")
+  scope            String  @default("group")
   /// Set for `group` plans. Null for a show merge, which has no group.
-  groupId String?
+  groupId          String?
   /// pending | running | completed | partial | failed | cancelled
-  status String @default("pending")
+  status           String  @default("pending")
   /// The item kept. Null only for a failed plan that never got that far.
-  keepItemId String?
+  keepItemId       String?
   /// Set for `show_merge`: the folder every other folder is merged INTO.
-  canonicalShowId String?
+  canonicalShowId  String?
   /// Set for `show_merge`: a digest of every input file's path and size at preview
   /// time. A show family has no `version` to pin to, so the disk itself is the
   /// version — if it moved, the approved plan no longer describes reality.
   inputFingerprint String?
   /// The server-generated plan, stored at preview time.
-  preview Json?
+  preview          Json?
   /// The group version the preview was built against. Execution refuses to run if
   /// the group has moved on — the approved plan is not the current plan.
-  groupVersion Int @default(0)
+  groupVersion     Int     @default(0)
 
   expectedSavingsBytes BigInt @default(0)
   actualSavingsBytes   BigInt @default(0)
@@ -1162,9 +1162,9 @@ model MediaDuplicateResolutionAction {
   id           String @id @default(uuid())
   resolutionId String
   /// trash | move | delete_empty_dir | repoint_watchlist | update_row | refresh_server
-  actionType String
+  actionType   String
   /// pending | running | completed | failed | skipped | compensated
-  status String @default("pending")
+  status       String @default("pending")
 
   sourcePath      String?
   destinationPath String?
@@ -1172,7 +1172,7 @@ model MediaDuplicateResolutionAction {
   metadata        Json?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   resolution MediaDuplicateResolution @relation(fields: [resolutionId], references: [id], onDelete: Cascade)
 
@@ -2539,4 +2539,134 @@ model SubtitleSynchronization {
 
   @@index([downloadId])
   @@map("subtitle_synchronizations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Unified Jobs Center — the platform-wide normalized job model. A superset over
+// the legacy per-module job tables (media_processing_jobs, subtitle_jobs, …),
+// which remain during incremental migration. Status is a String enforced by the
+// server-side state machine in code (matching the schema's String convention).
+// See docs/UNIFIED_JOBS_CENTER_ARCHITECTURE_REVIEW.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlatformJob {
+  id            String  @id @default(uuid())
+  // Identity
+  type          String // registered JobDefinition type, e.g. "media.library_scan"
+  name          String?
+  description   String?
+  moduleKey     String // owning module (media_manager, subtitle_intelligence, …)
+  workspaceKey  String? // owning workspace (media, downloads, system, …)
+  sourceType    String  @default("manual") // manual | scheduled | event | automation | workflow | system
+  sourceId      String?
+  correlationId String?
+  parentJobId   String?
+  rootJobId     String?
+
+  // Related execution (nullable — populated when applicable)
+  scheduleId          String?
+  workflowExecutionId String?
+
+  // Related resource
+  resourceType String?
+  resourceId   String?
+  libraryId    String?
+  mediaItemId  String?
+
+  // Lifecycle
+  status              String    @default("queued") // see JobStatus state machine
+  phase               String?
+  progressPercent     Int       @default(0)
+  progressCurrent     Int?
+  progressTotal       Int?
+  progressUnit        String?
+  statusMessageKey    String?
+  statusMessageParams Json?
+  queuedAt            DateTime  @default(now())
+  scheduledFor        DateTime?
+  startedAt           DateTime?
+  heartbeatAt         DateTime?
+  completedAt         DateTime?
+  failedAt            DateTime?
+  cancelledAt         DateTime?
+  pausedAt            DateTime?
+  resumedAt           DateTime?
+  expiresAt           DateTime?
+
+  // Execution controls
+  priority          Int       @default(0)
+  queueName         String?
+  workerId          String?
+  attempt           Int       @default(1)
+  maxAttempts       Int       @default(1)
+  retryPolicy       Json?
+  retryAt           DateTime?
+  timeoutSeconds    Int?
+  cancellable       Boolean   @default(false)
+  pausable          Boolean   @default(false)
+  resumable         Boolean   @default(false)
+  retryable         Boolean   @default(false)
+  idempotencyKey    String?
+  checkpointVersion Int?
+  checkpoint        Json?
+
+  // Ownership & security
+  createdById        String?
+  runAsUserId        String?
+  requiredPermission String?
+  visibilityScope    String  @default("module") // module | own | public
+
+  // Inputs & outputs (summarized/sanitized only — never raw secrets/logs/binaries)
+  inputSummary  Json?
+  resultSummary Json?
+  errorCode     String?
+  errorMessage  String?
+  warnings      Json?
+  metrics       Json?
+  metadata      Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent   PlatformJob?       @relation("JobHierarchy", fields: [parentJobId], references: [id], onDelete: SetNull)
+  children PlatformJob[]      @relation("JobHierarchy")
+  events   PlatformJobEvent[]
+
+  @@index([status, createdAt])
+  @@index([status, priority, queuedAt])
+  @@index([workspaceKey, status])
+  @@index([moduleKey, status])
+  @@index([type, status])
+  @@index([createdById, createdAt])
+  @@index([parentJobId])
+  @@index([rootJobId])
+  @@index([correlationId])
+  @@index([workerId, status])
+  @@index([scheduledFor, status])
+  @@index([heartbeatAt, status])
+  @@index([scheduleId])
+  @@index([idempotencyKey])
+  @@map("platform_jobs")
+}
+
+model PlatformJobEvent {
+  id               String   @id @default(uuid())
+  jobId            String
+  sequence         Int // monotonic per job
+  level            String   @default("info") // debug | info | warning | error | success
+  eventType        String // created | queued | started | progress | phase_changed | warning | retry_scheduled | pausing | paused | resumed | cancelling | cancelled | failed | completed | child_created | dependency_wait | stalled | heartbeat | output_available
+  messageKey       String?
+  messageParams    Json?
+  sanitizedMessage String?
+  progress         Int?
+  metadata         Json?
+  createdAt        DateTime @default(now())
+
+  job PlatformJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, sequence])
+  @@index([jobId, createdAt])
+  @@index([level])
+  @@index([eventType])
+  @@map("platform_job_events")
 }
