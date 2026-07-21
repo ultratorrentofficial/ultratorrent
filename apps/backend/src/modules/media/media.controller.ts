@@ -483,8 +483,8 @@ export class MediaController {
    */
   @Post('jobs/:jobId/cancel')
   @RequirePermissions(P.MEDIA_MANAGER_SCAN)
-  cancelJob(@Param('jobId') jobId: string) {
-    return { requested: this.jobs.requestCancel(jobId) };
+  async cancelJob(@Param('jobId') jobId: string) {
+    return { requested: await this.jobs.requestCancel(jobId) };
   }
 
   /** One group with the side-by-side comparison payload. */

@@ -3,11 +3,12 @@ import { PERMISSIONS, SystemRole } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
-/** The persisted job subsystems the aggregator spans. */
+/** The persisted job subsystems the aggregator spans. Media & subtitle now come from
+ *  `platform_jobs` (Phase 7 migration); analytics-import & notification remain on their
+ *  own tables until they migrate. (`rename` was dropped — its table had no producer.) */
 export type JobSubsystem =
   | 'media'
   | 'subtitle'
-  | 'rename'
   | 'analytics_import'
   | 'notification';
 
@@ -39,10 +40,18 @@ export interface JobQuery {
 const SUBSYSTEM_PERMISSION: Record<JobSubsystem, string> = {
   media: PERMISSIONS.MEDIA_MANAGER_VIEW,
   subtitle: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW,
-  rename: PERMISSIONS.MEDIA_MANAGER_VIEW,
   analytics_import: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW,
   notification: PERMISSIONS.NOTIFICATIONS_VIEW,
 };
+
+/** Map a platform_jobs status (15-state) down to the aggregator's canonical 5. */
+function normalizePlatformStatus(s: string): JobStatus {
+  if (s === 'running' || s === 'pausing' || s === 'cancelling') return 'running';
+  if (s === 'completed' || s === 'completed_with_warnings') return 'completed';
+  if (s === 'failed') return 'failed';
+  if (s === 'cancelled' || s === 'skipped' || s === 'expired') return 'cancelled';
+  return 'queued'; // queued/scheduled/waiting/blocked/retrying/paused
+}
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -59,11 +68,6 @@ function normalizeStatus(raw: string, leased?: boolean): JobStatus {
   return 'queued';
 }
 
-function basename(p?: string | null): string | null {
-  if (!p) return null;
-  const parts = p.split('/').filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : p;
-}
 
 /**
  * Read-only aggregator over the platform's persisted job tables
@@ -107,7 +111,8 @@ export class JobsService {
   private async loadSubsystem(subsystem: JobSubsystem): Promise<JobSummary[]> {
     switch (subsystem) {
       case 'media': {
-        const rows = await this.prisma.mediaProcessingJob.findMany({
+        const rows = await this.prisma.platformJob.findMany({
+          where: { moduleKey: 'media_manager' },
           orderBy: { createdAt: 'desc' },
           take: PER_SUBSYSTEM_CAP,
         });
@@ -115,16 +120,17 @@ export class JobsService {
           id: r.id,
           subsystem,
           type: r.type,
-          status: normalizeStatus(r.status),
-          progress: r.progress,
-          label: r.itemId ?? r.libraryId ?? null,
-          error: r.error ?? null,
+          status: normalizePlatformStatus(r.status),
+          progress: r.progressPercent,
+          label: r.name ?? r.mediaItemId ?? r.libraryId ?? null,
+          error: r.errorMessage ?? null,
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
         }));
       }
       case 'subtitle': {
-        const rows = await this.prisma.subtitleJob.findMany({
+        const rows = await this.prisma.platformJob.findMany({
+          where: { moduleKey: 'subtitle_intelligence' },
           orderBy: { createdAt: 'desc' },
           take: PER_SUBSYSTEM_CAP,
         });
@@ -132,29 +138,12 @@ export class JobsService {
           id: r.id,
           subsystem,
           type: r.type,
-          status: normalizeStatus(r.status),
-          progress: r.progress,
-          label: [r.itemId ?? r.libraryId, r.language].filter(Boolean).join(' · ') || null,
-          error: r.error ?? null,
+          status: normalizePlatformStatus(r.status),
+          progress: r.progressPercent,
+          label: r.name ?? r.mediaItemId ?? r.libraryId ?? null,
+          error: r.errorMessage ?? null,
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
-        }));
-      }
-      case 'rename': {
-        const rows = await this.prisma.mediaRenameJob.findMany({
-          orderBy: { createdAt: 'desc' },
-          take: PER_SUBSYSTEM_CAP,
-        });
-        return rows.map((r) => ({
-          id: r.id,
-          subsystem,
-          type: r.mode,
-          status: normalizeStatus(r.status),
-          progress: null,
-          label: basename(r.sourcePath),
-          error: null,
-          createdAt: r.createdAt,
-          updatedAt: r.completedAt ?? r.createdAt,
         }));
       }
       case 'analytics_import': {

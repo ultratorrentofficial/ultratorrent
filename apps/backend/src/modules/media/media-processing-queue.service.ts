@@ -1,10 +1,17 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
-import type { MediaProcessingJob, Prisma } from '@prisma/client';
-import { WS_EVENTS, type MediaJobEventPayload } from '@ultratorrent/shared';
+import { WS_EVENTS, PERMISSIONS, type MediaJobEventPayload } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { PlatformJobService } from '../jobs/platform/platform-job.service';
+import { JobRegistry } from '../jobs/platform/job-registry.service';
+import {
+  JobCancelledError as PlatformJobCancelledError,
+  type EnqueueJobInput,
+  type JobExecutionContext,
+  type JobResult,
+} from '../jobs/platform/job.types';
 
-/** Long-running Media Manager operation types tracked as MediaProcessingJob rows. */
+/** Long-running Media Manager operation types (now platform job types `media.<type>`). */
 export type MediaJobType =
   | 'library_scan'
   | 'media_identification'
@@ -27,9 +34,10 @@ export interface CreateJobOptions {
 export type JobReporter = (progress: number, message?: string) => Promise<void>;
 
 /**
- * Thrown by a job body when it observes a cancellation request. The runner
- * recognises it and records `cancelled` rather than `failed` — an operator who
- * pressed Cancel should not be told the job broke.
+ * Thrown by a media job body when it observes cancellation. Kept as this module's own
+ * class (name `JobCancelledError`) because callers and specs depend on it structurally
+ * (e.g. `media-duplicate.service` checks `err.name === 'JobCancelledError'`). The
+ * adapter translates it into the platform runner's cancellation at the boundary.
  */
 export class JobCancelledError extends Error {
   constructor() {
@@ -38,244 +46,150 @@ export class JobCancelledError extends Error {
   }
 }
 
-/**
- * Handed to a job body so it can stop at a point of its own choosing.
- *
- * Cancellation is cooperative because these jobs move files and write rows: a
- * hard abort mid-loop would leave the very half-applied state the rest of this
- * module works to avoid. `throwIfCancelled()` at a safe boundary is the contract.
- */
+/** Handed to a job body so it can stop at a safe boundary (cooperative cancellation). */
 export interface JobSignal {
   isCancelled(): boolean;
   throwIfCancelled(): void;
 }
 
+const MEDIA_JOB_TYPES: MediaJobType[] = [
+  'library_scan', 'media_identification', 'metadata_fetch', 'artwork_fetch', 'subtitle_scan',
+  'rename_execute', 'library_organize', 'nfo_generate', 'media_server_refresh', 'duplicate_detect',
+];
+
 /**
- * In-process queue for Media Manager background work. Persists each operation as
- * a MediaProcessingJob (status/progress/type) and streams its lifecycle over the
- * RealtimeGateway to the `media_manager.view`-scoped channel (started / progress
- * / completed / failed). No external broker — the existing @nestjs/schedule +
- * async model is sufficient for these bounded, best-effort operations.
+ * Media Manager background queue — now a **thin adapter** over the Unified Jobs Center's
+ * {@link PlatformJobService}. Its public API (`run` / `runDetached` / `requestCancel`) is
+ * unchanged, so every existing caller works untouched; internally, each operation is a
+ * normalized `platform_jobs` record (so it appears in the Jobs Center with full lifecycle,
+ * events, retry/cancel semantics). The legacy `media_manager.job.*` WebSocket events are
+ * still emitted alongside the unified `jobs.*` channel, so the existing Media Manager
+ * progress UIs keep working with no change. See docs/UNIFIED_JOBS_CENTER_ARCHITECTURE_REVIEW.md §15.3.
  */
 @Injectable()
 export class MediaProcessingQueueService implements OnModuleInit {
   private readonly logger = new Logger(MediaProcessingQueueService.name);
-  /** Jobs this process is currently running — the only ones it can cancel. */
-  private readonly running = new Set<string>();
-  private readonly cancelRequested = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
+    private readonly platformJobs: PlatformJobService,
+    private readonly registry: JobRegistry,
   ) {}
 
-  /**
-   * Reconcile orphaned jobs at boot. Job bodies run **in-process** (see
-   * {@link runDetached}) — they are not durable work items a worker picks back up.
-   * So any row still `queued`/`running` belongs to a process that is already gone
-   * (a deploy, restart or crash): its work died with that process and will never
-   * resume, yet the row would otherwise sit "running" forever. Left unhandled they
-   * pile up and make the job list meaningless — a live host had 30 of them, some
-   * 5+ hours old. Fail them out so the state reflects reality.
-   */
+  /** Register a platform job definition per media job type, and clean up legacy rows. */
   async onModuleInit(): Promise<void> {
-    try {
-      const { count } = await this.prisma.mediaProcessingJob.updateMany({
-        where: { status: { in: ['queued', 'running'] } },
-        data: {
-          status: 'failed',
-          finishedAt: new Date(),
-          error: 'Interrupted by a service restart',
+    for (const t of MEDIA_JOB_TYPES) {
+      const type = `media.${t}`;
+      if (this.registry.has(type)) continue;
+      this.registry.register(
+        {
+          type,
+          moduleKey: 'media_manager',
+          workspaceKey: 'media',
+          labelKey: `jobs.mediaType.${t}`,
+          requiredPermission: PERMISSIONS.MEDIA_MANAGER_VIEW,
+          capabilities: { cancellable: true, retryable: false, pausable: false, resumable: false },
+          validateInput: (i) => (i ?? {}) as CreateJobOptions,
+          summarizeInput: (i) => ({ libraryId: (i as CreateJobOptions)?.libraryId ?? null, itemId: (i as CreateJobOptions)?.itemId ?? null }),
         },
-      });
-      if (count > 0) {
-        this.logger.warn(
-          `Reconciled ${count} orphaned job(s) left ${'queued/running'} by a previous process`,
-        );
-      }
-    } catch (err) {
-      // Never block boot on this best-effort cleanup.
-      this.logger.warn(`Could not reconcile orphaned jobs: ${(err as Error).message}`);
+        // Never invoked — run/runDetached always supply an inline executor (the caller's fn).
+        { execute: async () => ({}) },
+      );
     }
-  }
-
-  /** Create a queued job row. */
-  async create(type: MediaJobType, opts: CreateJobOptions = {}) {
-    return this.prisma.mediaProcessingJob.create({
-      data: {
-        type,
-        status: 'queued',
-        libraryId: opts.libraryId ?? null,
-        itemId: opts.itemId ?? null,
-        payload: (opts.payload ?? {}) as Prisma.InputJsonValue,
-      },
-    });
-  }
-
-  /** Mark a job running and emit `started`. */
-  async start(jobId: string) {
-    const job = await this.prisma.mediaProcessingJob.update({
-      where: { id: jobId },
-      data: { status: 'running', startedAt: new Date(), progress: 0 },
-    });
-    this.emit(WS_EVENTS.MEDIA_JOB_STARTED, job);
-    return job;
-  }
-
-  /** Update progress (0..100) and emit `progress`. */
-  async progress(jobId: string, progress: number, message?: string) {
-    const clamped = Math.max(0, Math.min(100, Math.round(progress)));
-    const job = await this.prisma.mediaProcessingJob.update({
-      where: { id: jobId },
-      data: { progress: clamped },
-    });
-    this.emit(WS_EVENTS.MEDIA_JOB_PROGRESS, job, { message });
-  }
-
-  /** Mark a job completed and emit `completed`. */
-  async complete(jobId: string, result?: unknown) {
-    const job = await this.prisma.mediaProcessingJob.update({
-      where: { id: jobId },
-      data: {
-        status: 'completed',
-        progress: 100,
-        finishedAt: new Date(),
-        result: (result ?? {}) as Prisma.InputJsonValue,
-      },
-    });
-    this.emit(WS_EVENTS.MEDIA_JOB_COMPLETED, job, { result });
-    return job;
-  }
-
-  /**
-   * Ask a running job to stop.
-   *
-   * In-process only, deliberately: the queue itself is in-process (no broker), so a
-   * flag in a `Set` reaches exactly the worker that can act on it. A job id this
-   * process is not running returns `false` rather than pretending.
-   */
-  requestCancel(jobId: string): boolean {
-    if (!this.running.has(jobId)) return false;
-    this.cancelRequested.add(jobId);
-    this.logger.log(`Cancellation requested for job ${jobId}`);
-    return true;
-  }
-
-  /** Mark a job cancelled and emit `failed` with a cancellation reason. */
-  private async markCancelled(jobId: string) {
-    const job = await this.prisma.mediaProcessingJob
-      .update({
-        where: { id: jobId },
-        data: { status: 'cancelled', finishedAt: new Date(), error: 'Cancelled by the operator' },
-      })
-      .catch(() => null);
-    if (job) this.emit(WS_EVENTS.MEDIA_JOB_FAILED, job, { error: 'Cancelled by the operator' });
-  }
-
-  /** Mark a job failed and emit `failed`. Never throws (best-effort). */
-  async fail(jobId: string, error: string) {
-    const job = await this.prisma.mediaProcessingJob
-      .update({
-        where: { id: jobId },
-        data: { status: 'failed', finishedAt: new Date(), error },
-      })
-      .catch(() => null);
-    if (job) this.emit(WS_EVENTS.MEDIA_JOB_FAILED, job, { error });
-  }
-
-  /**
-   * Run `fn` as a tracked job: create → start → (fn with a progress reporter) →
-   * complete, or fail on throw. Rethrows so callers can surface the error while
-   * the failure is still recorded + broadcast.
-   */
-  async run<T>(
-    type: MediaJobType,
-    opts: CreateJobOptions,
-    fn: (report: JobReporter, signal: JobSignal) => Promise<T>,
-  ): Promise<T> {
-    const created = await this.create(type, opts);
-    await this.start(created.id);
-    this.running.add(created.id);
-    const report: JobReporter = (progress, message) =>
-      this.progress(created.id, progress, message);
+    // Fail out any pre-migration rows left running by a previous process (harmless if none).
     try {
-      const result = await fn(report, this.signalFor(created.id));
-      await this.complete(created.id, result);
-      return result;
+      await this.prisma.mediaProcessingJob.updateMany({
+        where: { status: { in: ['queued', 'running'] } },
+        data: { status: 'failed', finishedAt: new Date(), error: 'Interrupted by a service restart' },
+      });
     } catch (err) {
-      if (err instanceof JobCancelledError) {
-        await this.markCancelled(created.id);
-      } else {
-        await this.fail(created.id, (err as Error).message);
-      }
-      throw err;
-    } finally {
-      this.running.delete(created.id);
-      this.cancelRequested.delete(created.id);
+      this.logger.warn(`Could not reconcile legacy media jobs: ${(err as Error).message}`);
     }
   }
 
-  private signalFor(jobId: string): JobSignal {
-    const isCancelled = () => this.cancelRequested.has(jobId);
+  /** Run `fn` as a tracked platform job, awaiting completion; rethrows on failure. */
+  async run<T>(type: MediaJobType, opts: CreateJobOptions, fn: (report: JobReporter, signal: JobSignal) => Promise<T>): Promise<T> {
+    const { result } = await this.platformJobs.run<CreateJobOptions, T>(
+      this.enqueueInput(type, opts),
+      (_input, ctx) => this.bridge(type, opts, ctx, fn),
+    );
+    return result as T;
+  }
+
+  /** Start `fn` as a detached platform job; returns `{ jobId }` immediately. */
+  async runDetached(type: MediaJobType, opts: CreateJobOptions, fn: (report: JobReporter, signal: JobSignal) => Promise<unknown>): Promise<{ jobId: string }> {
+    return this.platformJobs.runDetached<CreateJobOptions>(
+      this.enqueueInput(type, opts),
+      (_input, ctx) => this.bridge(type, opts, ctx, fn),
+    );
+  }
+
+  /** Request cooperative cancellation of a running job (delegates to the platform engine). */
+  requestCancel(jobId: string): Promise<boolean> {
+    return this.platformJobs.requestCancel(jobId);
+  }
+
+  private enqueueInput(type: MediaJobType, opts: CreateJobOptions): EnqueueJobInput<CreateJobOptions> {
     return {
-      isCancelled,
-      throwIfCancelled: () => {
-        if (isCancelled()) throw new JobCancelledError();
-      },
+      type: `media.${type}`,
+      input: opts,
+      name: type,
+      source: 'manual',
+      libraryId: opts.libraryId ?? undefined,
+      mediaItemId: opts.itemId ?? undefined,
     };
   }
 
-  /**
-   * Start a job WITHOUT waiting for it to finish: create + start the row, run
-   * `fn` in the background, and return `{ jobId }` immediately. Callers return
-   * that to the client at once so a long job (e.g. scanning a 20k-file library)
-   * can't time the HTTP request out at the gateway (504); progress + completion
-   * arrive over the `media_manager.job.*` WS events. Failures are recorded and
-   * broadcast, never thrown — there is no caller left to catch them.
-   */
-  async runDetached(
+  /** Bridge the caller's (report, signal) closure to the platform execution context, emitting legacy WS events. */
+  private async bridge<T>(
     type: MediaJobType,
     opts: CreateJobOptions,
-    fn: (report: JobReporter, signal: JobSignal) => Promise<unknown>,
-  ): Promise<{ jobId: string }> {
-    const created = await this.create(type, opts);
-    // Registered BEFORE the async body starts, so a cancel arriving in the window
-    // between this call returning `{ jobId }` and the body's first await is not
-    // dropped on the floor.
-    this.running.add(created.id);
-    void (async () => {
-      await this.start(created.id);
-      const report: JobReporter = (progress, message) =>
-        this.progress(created.id, progress, message);
-      try {
-        const result = await fn(report, this.signalFor(created.id));
-        await this.complete(created.id, result);
-      } catch (err) {
-        if (err instanceof JobCancelledError) {
-          await this.markCancelled(created.id);
-        } else {
-          await this.fail(created.id, (err as Error).message);
-        }
-      } finally {
-        this.running.delete(created.id);
-        this.cancelRequested.delete(created.id);
-      }
-    })();
-    return { jobId: created.id };
+    ctx: JobExecutionContext,
+    fn: (report: JobReporter, signal: JobSignal) => Promise<T>,
+  ): Promise<JobResult<T>> {
+    this.emitLegacy(WS_EVENTS.MEDIA_JOB_STARTED, ctx.jobId, type, opts, 'running', 0);
+    const report: JobReporter = async (p, m) => {
+      await ctx.progress({ percent: p, messageKey: m });
+      this.emitLegacy(WS_EVENTS.MEDIA_JOB_PROGRESS, ctx.jobId, type, opts, 'running', p, { message: m });
+    };
+    const signal: JobSignal = {
+      isCancelled: () => ctx.signal.isCancelled(),
+      throwIfCancelled: () => {
+        if (ctx.signal.isCancelled()) throw new JobCancelledError();
+      },
+    };
+    try {
+      const result = await fn(report, signal);
+      this.emitLegacy(WS_EVENTS.MEDIA_JOB_COMPLETED, ctx.jobId, type, opts, 'completed', 100, { result });
+      return { result, resultSummary: result && typeof result === 'object' ? (result as Record<string, unknown>) : undefined };
+    } catch (err) {
+      const cancelled = err instanceof JobCancelledError;
+      const message = cancelled ? 'Cancelled by the operator' : (err as Error).message;
+      // Legacy behaviour: both cancellation and failure emitted MEDIA_JOB_FAILED.
+      this.emitLegacy(WS_EVENTS.MEDIA_JOB_FAILED, ctx.jobId, type, opts, cancelled ? 'cancelled' : 'failed', undefined, { error: message });
+      // Route cancellation to the platform runner so it records `cancelled`, not `failed`.
+      if (cancelled) throw new PlatformJobCancelledError();
+      throw err;
+    }
   }
 
-  private emit(
+  private emitLegacy(
     event: string,
-    job: MediaProcessingJob,
+    jobId: string,
+    type: MediaJobType,
+    opts: CreateJobOptions,
+    status: string,
+    progress?: number,
     extra: Partial<MediaJobEventPayload> = {},
   ): void {
     const payload: MediaJobEventPayload = {
-      jobId: job.id,
-      type: job.type,
-      status: job.status as MediaJobEventPayload['status'],
-      progress: job.progress,
-      libraryId: job.libraryId,
-      itemId: job.itemId,
+      jobId,
+      type,
+      status: status as MediaJobEventPayload['status'],
+      progress: progress ?? 0,
+      libraryId: opts.libraryId ?? null,
+      itemId: opts.itemId ?? null,
       at: new Date().toISOString(),
       ...extra,
     };

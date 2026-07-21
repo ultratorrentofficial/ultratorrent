@@ -274,7 +274,7 @@ export interface AuditTarget {
   episode: number | null;
 }
 
-export type JobSubsystem = 'media' | 'subtitle' | 'rename' | 'analytics_import' | 'notification';
+export type JobSubsystem = 'media' | 'subtitle' | 'analytics_import' | 'notification';
 export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 /** One normalized job from the cross-subsystem `/jobs` aggregator. */

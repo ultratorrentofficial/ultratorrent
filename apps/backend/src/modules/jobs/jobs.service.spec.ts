@@ -10,21 +10,22 @@ const D = (iso: string) => new Date(iso);
 
 function makePrisma() {
   return {
-    mediaProcessingJob: {
-      findMany: jest.fn().mockResolvedValue([
-        { id: 'm1', type: 'library_scan', status: 'running', progress: 40, libraryId: 'lib1', itemId: null, error: null, createdAt: D('2026-07-21T10:00:00Z'), updatedAt: D('2026-07-21T10:01:00Z') },
-        { id: 'm2', type: 'metadata_fetch', status: 'completed', progress: 100, libraryId: null, itemId: 'item9', error: null, createdAt: D('2026-07-21T09:00:00Z'), updatedAt: D('2026-07-21T09:05:00Z') },
-      ]),
-    },
-    subtitleJob: {
-      findMany: jest.fn().mockResolvedValue([
-        { id: 's1', type: 'download', status: 'failed', progress: 0, libraryId: null, itemId: 'item3', provider: 'osdb', language: 'en', error: 'nope', createdAt: D('2026-07-21T11:00:00Z'), updatedAt: D('2026-07-21T11:00:30Z') },
-      ]),
-    },
-    mediaRenameJob: {
-      findMany: jest.fn().mockResolvedValue([
-        { id: 'r1', mode: 'execute', status: 'preview', sourcePath: '/downloads/Movies/Foo.mkv', completedAt: null, createdAt: D('2026-07-21T08:00:00Z') },
-      ]),
+    // Media & subtitle now come from platform_jobs (Phase 7), filtered by moduleKey.
+    platformJob: {
+      findMany: jest.fn((args: { where?: { moduleKey?: string } }) => {
+        if (args?.where?.moduleKey === 'media_manager') {
+          return Promise.resolve([
+            { id: 'm1', type: 'media.library_scan', status: 'running', progressPercent: 40, name: 'library_scan', libraryId: 'lib1', mediaItemId: null, errorMessage: null, createdAt: D('2026-07-21T10:00:00Z'), updatedAt: D('2026-07-21T10:01:00Z') },
+            { id: 'm2', type: 'media.metadata_fetch', status: 'completed', progressPercent: 100, name: 'metadata_fetch', libraryId: null, mediaItemId: 'item9', errorMessage: null, createdAt: D('2026-07-21T09:00:00Z'), updatedAt: D('2026-07-21T09:05:00Z') },
+          ]);
+        }
+        if (args?.where?.moduleKey === 'subtitle_intelligence') {
+          return Promise.resolve([
+            { id: 's1', type: 'subtitle.download', status: 'failed', progressPercent: 0, name: 'download', libraryId: null, mediaItemId: 'item3', errorMessage: 'nope', createdAt: D('2026-07-21T11:00:00Z'), updatedAt: D('2026-07-21T11:00:30Z') },
+          ]);
+        }
+        return Promise.resolve([]);
+      }),
     },
     mediaAnalyticsImportJob: {
       findMany: jest.fn().mockResolvedValue([
@@ -41,18 +42,16 @@ function makePrisma() {
 }
 
 describe('JobsService', () => {
-  it('visibleSubsystems: super-admin sees every subsystem', () => {
+  it('visibleSubsystems: super-admin sees every subsystem (rename dropped)', () => {
     const svc = new JobsService(makePrisma() as never);
     expect(svc.visibleSubsystems(user({ roles: [SystemRole.SUPER_ADMIN] })).sort()).toEqual(
-      ['analytics_import', 'media', 'notification', 'rename', 'subtitle'],
+      ['analytics_import', 'media', 'notification', 'subtitle'],
     );
   });
 
-  it('visibleSubsystems: a media-only user sees media + rename (both gated by media_manager.view)', () => {
+  it('visibleSubsystems: a media-only user sees just media', () => {
     const svc = new JobsService(makePrisma() as never);
-    expect(svc.visibleSubsystems(user({ permissions: [PERMISSIONS.MEDIA_MANAGER_VIEW] })).sort()).toEqual(
-      ['media', 'rename'],
-    );
+    expect(svc.visibleSubsystems(user({ permissions: [PERMISSIONS.MEDIA_MANAGER_VIEW] })).sort()).toEqual(['media']);
   });
 
   it('visibleSubsystems: no permissions → nothing', () => {
@@ -65,26 +64,26 @@ describe('JobsService', () => {
     const svc = new JobsService(prisma as never);
     const { jobs } = await svc.list(user({}));
     expect(jobs).toEqual([]);
-    expect(prisma.mediaProcessingJob.findMany).not.toHaveBeenCalled();
+    expect(prisma.platformJob.findMany).not.toHaveBeenCalled();
   });
 
   it('aggregates only the caller’s subsystems and sorts newest-first', async () => {
     const svc = new JobsService(makePrisma() as never);
     const { jobs } = await svc.list(user({ permissions: [PERMISSIONS.MEDIA_MANAGER_VIEW] }));
-    // media (m1, m2) + rename (r1) only — no subtitle/analytics/notification.
-    expect(jobs.map((j) => j.id)).toEqual(['m1', 'm2', 'r1']);
-    expect(jobs.every((j) => j.subsystem === 'media' || j.subsystem === 'rename')).toBe(true);
+    expect(jobs.map((j) => j.id)).toEqual(['m1', 'm2']); // media platform jobs only
+    expect(jobs.every((j) => j.subsystem === 'media')).toBe(true);
   });
 
-  it('normalizes cross-subsystem status (preview→running, pending/leased→running/queued)', async () => {
+  it('normalizes statuses across platform and legacy subsystems', async () => {
     const svc = new JobsService(makePrisma() as never);
     const { jobs } = await svc.list(user({ roles: [SystemRole.SUPER_ADMIN] }));
     const byId = Object.fromEntries(jobs.map((j) => [j.id, j.status]));
-    expect(byId.r1).toBe('running'); // rename 'preview'
+    expect(byId.m1).toBe('running');
+    expect(byId.m2).toBe('completed');
+    expect(byId.s1).toBe('failed');
     expect(byId.a1).toBe('queued'); // analytics 'pending', not leased
     expect(byId.n1).toBe('running'); // notification leased
     expect(byId.n2).toBe('queued'); // notification not leased
-    expect(byId.s1).toBe('failed');
   });
 
   it('filters to active (queued/running) jobs', async () => {

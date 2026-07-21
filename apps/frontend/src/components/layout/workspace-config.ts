@@ -16,7 +16,7 @@ export const WORKSPACE_ACTION_IDS: Record<string, string[]> = {
 
 /** Job subsystems a workspace's Jobs widget aggregates (`'all'` = the System view). */
 export const WORKSPACE_JOB_SUBSYSTEMS: Record<string, JobSubsystem[] | 'all'> = {
-  media: ['media', 'subtitle', 'rename'],
+  media: ['media', 'subtitle'],
   analytics: ['analytics_import'],
   automation: ['notification'],
   system: 'all',

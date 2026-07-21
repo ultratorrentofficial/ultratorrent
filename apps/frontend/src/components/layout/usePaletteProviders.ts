@@ -12,7 +12,6 @@ import type { PaletteAction, PaletteEntitySource } from '@/components/layout/Com
 const JOB_SUBSYSTEM_LANDING: Record<JobSubsystem, string> = {
   media: '/hub/media',
   subtitle: '/hub/media',
-  rename: '/hub/media',
   analytics_import: '/hub/analytics',
   notification: '/hub/automation',
 };
