@@ -80,7 +80,8 @@
     "Subtitles": "Subtitles",
     "Notifications": "Notifications",
     "Media Server Analytics": "Media Server Analytics",
-    "Jobs Center": "Jobs Center"
+    "Jobs Center": "Jobs Center",
+    "Workflows": "Workflows"
   },
   "descriptions": {
     "Dashboard": "Overview of downloads and activity",
@@ -140,7 +141,8 @@
     "Subtitles": "Subtitle acquisition, sync, validation and providers",
     "Notifications": "Notification Center — channels, rules, delivery and health",
     "Media Server Analytics": "Plex/Jellyfin/Emby watch analytics, live activity and reports",
-    "Jobs Center": "The operational control plane for all background activity"
+    "Jobs Center": "The operational control plane for all background activity",
+    "Workflows": "Design automations visually on a canvas"
   },
   "details": {
     "Account": "Account",

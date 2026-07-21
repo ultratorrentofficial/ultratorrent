@@ -1,0 +1,108 @@
+{
+  "title": "Flujos de trabajo",
+  "subtitle": "Diseña automatizaciones de forma visual — disparadores, condiciones y acciones en un lienzo.",
+  "list": {
+    "new": "Nuevo flujo",
+    "search": "Buscar flujos",
+    "empty": "Aún no hay flujos",
+    "emptyHint": "Crea tu primer flujo para automatizar acciones en tu biblioteca.",
+    "columns": {
+      "name": "Nombre",
+      "status": "Estado",
+      "trigger": "Disparadores",
+      "updated": "Actualizado"
+    },
+    "enabled": "Activado",
+    "disabled": "Desactivado",
+    "open": "Abrir"
+  },
+  "create": {
+    "title": "Nuevo flujo",
+    "name": "Nombre",
+    "namePlaceholder": "ej. Organizar descargas completadas",
+    "description": "Descripción",
+    "descriptionPlaceholder": "¿Qué hace este flujo?",
+    "submit": "Crear",
+    "cancel": "Cancelar"
+  },
+  "status": {
+    "draft": "Borrador",
+    "validation_failed": "Inválido",
+    "ready": "Listo",
+    "published": "Publicado",
+    "disabled": "Desactivado",
+    "archived": "Archivado"
+  },
+  "editor": {
+    "backToList": "Todos los flujos",
+    "palette": "Nodos",
+    "paletteHint": "Haz clic en un nodo para añadirlo al lienzo.",
+    "canvasEmpty": "Añade un disparador desde la paleta para comenzar.",
+    "save": "Guardar borrador",
+    "saving": "Guardando…",
+    "saved": "Borrador guardado",
+    "publish": "Publicar",
+    "published": "Publicado",
+    "publishConfirm": "¿Publicar este flujo? El borrador actual se convierte en una versión publicada inmutable.",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "readOnly": "Solo lectura",
+    "readOnlyHint": "No tienes permiso para editar este flujo.",
+    "deleteNode": "Eliminar nodo",
+    "unsaved": "Cambios sin guardar",
+    "accessibleView": "Vista de lista",
+    "accessibleViewHint": "Una representación no visual del gráfico.",
+    "nodesHeading": "Nodos ({{count}})",
+    "edgesHeading": "Conexiones ({{count}})"
+  },
+  "config": {
+    "title": "Ajustes del nodo",
+    "none": "Selecciona un nodo para editar sus ajustes.",
+    "label": "Etiqueta",
+    "labelPlaceholder": "Nombre para mostrar (opcional)",
+    "nodeType": "Tipo",
+    "required": "Requerido",
+    "addField": "Añadir ajuste",
+    "key": "Clave",
+    "value": "Valor",
+    "acknowledgeDestructive": "Este nodo elimina o mueve datos. Confirma que es tu intención.",
+    "timeoutSeconds": "Tiempo límite (segundos)",
+    "duration": "Duración (segundos)",
+    "remove": "Quitar"
+  },
+  "validation": {
+    "title": "Validación",
+    "valid": "Válido — listo para publicar",
+    "invalid": "{{count}} error(es) deben corregirse antes de publicar",
+    "warnings": "{{count}} advertencia(s)",
+    "noIssues": "No se encontraron problemas.",
+    "node": "Nodo",
+    "edge": "Conexión"
+  },
+  "toast": {
+    "created": "Flujo creado",
+    "saved": "Borrador guardado",
+    "publishedOk": "Flujo publicado",
+    "enabled": "Flujo activado",
+    "disabledOk": "Flujo desactivado",
+    "archived": "Flujo archivado",
+    "deleted": "Flujo eliminado",
+    "error": "Algo salió mal",
+    "publishBlocked": "Corrige los errores de validación antes de publicar"
+  },
+  "category": {
+    "trigger": "Disparadores",
+    "action": "Acciones",
+    "condition": "Condiciones",
+    "branch": "Ramas",
+    "delay": "Retrasos",
+    "wait": "Esperas",
+    "parallel": "Paralelo",
+    "join": "Unión",
+    "transform": "Transformar",
+    "variable": "Variables",
+    "approval": "Aprobaciones",
+    "subworkflow": "Subflujos",
+    "end": "Fin"
+  }
+}

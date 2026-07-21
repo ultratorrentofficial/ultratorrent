@@ -37,6 +37,11 @@ import type {
 
 export type { FileNode, FilePropertiesResponse, CleanupPreview, CleanupCategory, CleanupExecuteResult, TrashItemDto, BrowseResponse, BulkOperationType, MoveConflictReport, MoveConflict, ConflictResolution, ConflictResolutionInput };
 
+import type {
+  WorkflowCatalog, WorkflowGraph, WorkflowValidationResult, WorkflowSummary,
+  WorkflowDetail, SaveDraftResult,
+} from '@/pages/workflows/types';
+
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
 
 const STORAGE_KEY = 'ultratorrent.auth';
@@ -2957,6 +2962,47 @@ export const api = {
     },
     settings(): Promise<JobSettings> {
       return request<JobSettings>('/jobs/settings');
+    },
+  },
+
+  workflows: {
+    /** Node palette + engine limits (drives the editor; always catalog-accurate). */
+    catalog(): Promise<WorkflowCatalog> {
+      return request<WorkflowCatalog>('/workflows/catalog');
+    },
+    /** Stateless graph validation used by the editor before saving. */
+    validate(graph: WorkflowGraph): Promise<WorkflowValidationResult> {
+      return request<WorkflowValidationResult>('/workflows/validate', { method: 'POST', body: { graph } });
+    },
+    list(query: { page?: number; pageSize?: number; status?: string; search?: string; enabled?: boolean } = {}): Promise<Paginated<WorkflowSummary>> {
+      return request<Paginated<WorkflowSummary>>('/workflows', { query: query as QueryParams });
+    },
+    get(id: string): Promise<WorkflowDetail> {
+      return request<WorkflowDetail>(`/workflows/${id}`);
+    },
+    create(body: { name: string; description?: string; workspaceKey?: string; tags?: string[] }): Promise<WorkflowSummary> {
+      return request<WorkflowSummary>('/workflows', { method: 'POST', body });
+    },
+    update(id: string, body: { name?: string; description?: string; workspaceKey?: string; tags?: string[] }): Promise<WorkflowSummary> {
+      return request<WorkflowSummary>(`/workflows/${id}`, { method: 'PATCH', body });
+    },
+    saveDraft(id: string, graph: WorkflowGraph, changeNotes?: string): Promise<SaveDraftResult> {
+      return request<SaveDraftResult>(`/workflows/${id}/graph`, { method: 'PUT', body: { graph, changeNotes } });
+    },
+    publish(id: string, changeNotes?: string): Promise<{ workflow: WorkflowSummary; versionId: string }> {
+      return request<{ workflow: WorkflowSummary; versionId: string }>(`/workflows/${id}/publish`, { method: 'POST', body: { changeNotes } });
+    },
+    enable(id: string): Promise<WorkflowSummary> {
+      return request<WorkflowSummary>(`/workflows/${id}/enable`, { method: 'POST' });
+    },
+    disable(id: string): Promise<WorkflowSummary> {
+      return request<WorkflowSummary>(`/workflows/${id}/disable`, { method: 'POST' });
+    },
+    archive(id: string): Promise<WorkflowSummary> {
+      return request<WorkflowSummary>(`/workflows/${id}/archive`, { method: 'POST' });
+    },
+    remove(id: string): Promise<{ deleted: boolean }> {
+      return request<{ deleted: boolean }>(`/workflows/${id}`, { method: 'DELETE' });
     },
   },
 

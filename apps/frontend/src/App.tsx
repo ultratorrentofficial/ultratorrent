@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { PERMISSIONS } from '@ultratorrent/shared';
@@ -19,6 +20,9 @@ import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
 import { JobsSchedulesPage } from '@/pages/jobs/JobsSchedulesPage';
 import { JobsWorkersPage } from '@/pages/jobs/JobsWorkersPage';
 import { JobsSettingsPage } from '@/pages/jobs/JobsSettingsPage';
+import { WorkflowsListPage } from '@/pages/workflows/WorkflowsListPage';
+// The visual editor pulls in the @xyflow canvas — lazy-load it so it stays off the main bundle.
+const WorkflowEditorPage = lazy(() => import('@/pages/workflows/WorkflowEditorPage').then((m) => ({ default: m.WorkflowEditorPage })));
 import { TorrentsPage } from '@/pages/TorrentsPage';
 import { RssPage } from '@/pages/RssPage';
 import { RssRulePage } from '@/pages/RssRulePage';
@@ -136,6 +140,16 @@ export function App() {
                         <Route path="settings" element={<JobsSettingsPage />} />
                         <Route path=":id" element={<JobDetailPage />} />
                       </Route>
+                    </Route>
+                  </Route>
+
+                  <Route element={<ProtectedRoute permission={PERMISSIONS.WORKFLOWS_VIEW} />}>
+                    <Route element={<AppShell />}>
+                      <Route path="/workflows" element={<WorkflowsListPage />} />
+                      <Route
+                        path="/workflows/:id"
+                        element={<Suspense fallback={null}><WorkflowEditorPage /></Suspense>}
+                      />
                     </Route>
                   </Route>
 

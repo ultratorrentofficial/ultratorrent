@@ -1,0 +1,108 @@
+{
+  "title": "Workflows",
+  "subtitle": "Design automations visually — triggers, conditions, and actions on a canvas.",
+  "list": {
+    "new": "New workflow",
+    "search": "Search workflows",
+    "empty": "No workflows yet",
+    "emptyHint": "Create your first workflow to automate actions across your library.",
+    "columns": {
+      "name": "Name",
+      "status": "Status",
+      "trigger": "Triggers",
+      "updated": "Updated"
+    },
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "open": "Open"
+  },
+  "create": {
+    "title": "New workflow",
+    "name": "Name",
+    "namePlaceholder": "e.g. Auto-organize completed downloads",
+    "description": "Description",
+    "descriptionPlaceholder": "What does this workflow do?",
+    "submit": "Create",
+    "cancel": "Cancel"
+  },
+  "status": {
+    "draft": "Draft",
+    "validation_failed": "Invalid",
+    "ready": "Ready",
+    "published": "Published",
+    "disabled": "Disabled",
+    "archived": "Archived"
+  },
+  "editor": {
+    "backToList": "All workflows",
+    "palette": "Nodes",
+    "paletteHint": "Click a node to add it to the canvas.",
+    "canvasEmpty": "Add a trigger from the palette to begin.",
+    "save": "Save draft",
+    "saving": "Saving…",
+    "saved": "Draft saved",
+    "publish": "Publish",
+    "published": "Published",
+    "publishConfirm": "Publish this workflow? The current draft becomes an immutable published version.",
+    "enable": "Enable",
+    "disable": "Disable",
+    "readOnly": "Read only",
+    "readOnlyHint": "You do not have permission to edit this workflow.",
+    "deleteNode": "Delete node",
+    "unsaved": "Unsaved changes",
+    "accessibleView": "List view",
+    "accessibleViewHint": "A non-visual representation of the graph.",
+    "nodesHeading": "Nodes ({{count}})",
+    "edgesHeading": "Connections ({{count}})"
+  },
+  "config": {
+    "title": "Node settings",
+    "none": "Select a node to edit its settings.",
+    "label": "Label",
+    "labelPlaceholder": "Optional display name",
+    "nodeType": "Type",
+    "required": "Required",
+    "addField": "Add setting",
+    "key": "Key",
+    "value": "Value",
+    "acknowledgeDestructive": "This node deletes or moves data. Confirm you intend this.",
+    "timeoutSeconds": "Timeout (seconds)",
+    "duration": "Duration (seconds)",
+    "remove": "Remove"
+  },
+  "validation": {
+    "title": "Validation",
+    "valid": "Valid — ready to publish",
+    "invalid": "{{count}} error(s) must be fixed before publishing",
+    "warnings": "{{count}} warning(s)",
+    "noIssues": "No issues found.",
+    "node": "Node",
+    "edge": "Connection"
+  },
+  "toast": {
+    "created": "Workflow created",
+    "saved": "Draft saved",
+    "publishedOk": "Workflow published",
+    "enabled": "Workflow enabled",
+    "disabledOk": "Workflow disabled",
+    "archived": "Workflow archived",
+    "deleted": "Workflow deleted",
+    "error": "Something went wrong",
+    "publishBlocked": "Fix validation errors before publishing"
+  },
+  "category": {
+    "trigger": "Triggers",
+    "action": "Actions",
+    "condition": "Conditions",
+    "branch": "Branches",
+    "delay": "Delays",
+    "wait": "Waits",
+    "parallel": "Parallel",
+    "join": "Join",
+    "transform": "Transform",
+    "variable": "Variables",
+    "approval": "Approvals",
+    "subworkflow": "Sub-workflows",
+    "end": "End"
+  }
+}

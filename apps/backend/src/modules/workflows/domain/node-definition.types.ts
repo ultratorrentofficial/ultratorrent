@@ -23,7 +23,10 @@ export interface WorkflowNodeDefinition {
   /** e.g. "trigger.torrent.completed", "action.media_scan_library", "control.condition". */
   type: string;
   category: NodeCategory;
+  /** i18n key for future localization. */
   labelKey: string;
+  /** Display label — English, sourced from the automation catalog for trigger/action nodes. */
+  label: string;
   descriptionKey?: string;
   icon?: string;
   /** For action nodes: the underlying action permission that STILL applies at run time. */

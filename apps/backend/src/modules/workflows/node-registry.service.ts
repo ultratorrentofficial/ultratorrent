@@ -52,6 +52,7 @@ export class WorkflowNodeRegistry {
         type: `${NODE_PREFIX.trigger}${trigger.id}`,
         category: 'trigger',
         labelKey: `workflows.trigger.${trigger.id}`,
+        label: trigger.label,
         capabilities: { retry: false, timeout: false, simulation: true },
         sideEffect: 'none',
         destructive: false,
@@ -66,6 +67,7 @@ export class WorkflowNodeRegistry {
         type: `${NODE_PREFIX.action}${action.id}`,
         category: 'action',
         labelKey: `workflows.action.${action.id}`,
+        label: action.label,
         requiredPermission: ACTION_PERMISSION[action.id],
         requiredModules: module ? [module] : undefined,
         capabilities: {
@@ -84,22 +86,22 @@ export class WorkflowNodeRegistry {
   // ── Built-in triggers + control nodes ───────────────────────────────────────
   private buildBuiltins(): void {
     const triggers: WorkflowNodeDefinition[] = [
-      { type: 'trigger.manual', category: 'trigger', labelKey: 'workflows.node.manualTrigger', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 0, outputs: ['out'] } },
-      { type: 'trigger.scheduled', category: 'trigger', labelKey: 'workflows.node.scheduledTrigger', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 0, outputs: ['out'] }, requiredConfig: ['schedule', 'executionIdentity'] },
-      { type: 'trigger.webhook', category: 'trigger', labelKey: 'workflows.node.webhookTrigger', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 0, outputs: ['out'] } },
+      { type: 'trigger.manual', category: 'trigger', labelKey: 'workflows.node.manualTrigger', label: 'Manual trigger', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 0, outputs: ['out'] } },
+      { type: 'trigger.scheduled', category: 'trigger', labelKey: 'workflows.node.scheduledTrigger', label: 'Scheduled trigger', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 0, outputs: ['out'] }, requiredConfig: ['schedule', 'executionIdentity'] },
+      { type: 'trigger.webhook', category: 'trigger', labelKey: 'workflows.node.webhookTrigger', label: 'Webhook trigger', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 0, outputs: ['out'] } },
     ];
     const controls: WorkflowNodeDefinition[] = [
-      { type: 'control.condition', category: 'condition', labelKey: 'workflows.node.condition', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['true', 'false'] } },
-      { type: 'control.branch', category: 'branch', labelKey: 'workflows.node.branch', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['default'], dynamicOutputs: true } },
-      { type: 'control.delay', category: 'delay', labelKey: 'workflows.node.delay', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['out'] }, requiredConfig: ['duration'] },
-      { type: 'control.wait', category: 'wait', labelKey: 'workflows.node.wait', capabilities: cap(), sideEffect: 'read', destructive: false, ports: { inputs: 1, outputs: ['completed', 'timeout'] }, requiredConfig: ['eventType'] },
-      { type: 'control.parallel', category: 'parallel', labelKey: 'workflows.node.parallel', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['branch'], dynamicOutputs: true } },
-      { type: 'control.join', category: 'join', labelKey: 'workflows.node.join', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: -1, outputs: ['out'] } },
-      { type: 'control.transform', category: 'transform', labelKey: 'workflows.node.transform', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['out'] } },
-      { type: 'control.variable', category: 'variable', labelKey: 'workflows.node.variable', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['out'] }, requiredConfig: ['key'] },
-      { type: 'control.approval', category: 'approval', labelKey: 'workflows.node.approval', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['approved', 'rejected', 'timeout'] } },
-      { type: 'control.subworkflow', category: 'subworkflow', labelKey: 'workflows.node.subworkflow', capabilities: { retry: false, timeout: true, simulation: true }, sideEffect: 'write', destructive: false, ports: { inputs: 1, outputs: ['out', 'failure'] }, requiredConfig: ['workflowId'] },
-      { type: 'control.end', category: 'end', labelKey: 'workflows.node.end', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: [] } },
+      { type: 'control.condition', category: 'condition', labelKey: 'workflows.node.condition', label: 'Condition', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['true', 'false'] } },
+      { type: 'control.branch', category: 'branch', labelKey: 'workflows.node.branch', label: 'Branch', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['default'], dynamicOutputs: true } },
+      { type: 'control.delay', category: 'delay', labelKey: 'workflows.node.delay', label: 'Delay', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['out'] }, requiredConfig: ['duration'] },
+      { type: 'control.wait', category: 'wait', labelKey: 'workflows.node.wait', label: 'Wait for event', capabilities: cap(), sideEffect: 'read', destructive: false, ports: { inputs: 1, outputs: ['completed', 'timeout'] }, requiredConfig: ['eventType'] },
+      { type: 'control.parallel', category: 'parallel', labelKey: 'workflows.node.parallel', label: 'Parallel', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['branch'], dynamicOutputs: true } },
+      { type: 'control.join', category: 'join', labelKey: 'workflows.node.join', label: 'Join', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: -1, outputs: ['out'] } },
+      { type: 'control.transform', category: 'transform', labelKey: 'workflows.node.transform', label: 'Transform', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['out'] } },
+      { type: 'control.variable', category: 'variable', labelKey: 'workflows.node.variable', label: 'Set variable', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['out'] }, requiredConfig: ['key'] },
+      { type: 'control.approval', category: 'approval', labelKey: 'workflows.node.approval', label: 'Approval', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: ['approved', 'rejected', 'timeout'] } },
+      { type: 'control.subworkflow', category: 'subworkflow', labelKey: 'workflows.node.subworkflow', label: 'Sub-workflow', capabilities: { retry: false, timeout: true, simulation: true }, sideEffect: 'write', destructive: false, ports: { inputs: 1, outputs: ['out', 'failure'] }, requiredConfig: ['workflowId'] },
+      { type: 'control.end', category: 'end', labelKey: 'workflows.node.end', label: 'End', capabilities: cap(), sideEffect: 'none', destructive: false, ports: { inputs: 1, outputs: [] } },
     ];
     for (const d of [...triggers, ...controls]) this.add(d);
   }
