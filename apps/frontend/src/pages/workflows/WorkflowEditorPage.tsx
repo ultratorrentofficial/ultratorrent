@@ -7,7 +7,7 @@ import {
   useNodesState, useEdgesState, type Connection, type Edge as FlowEdge, type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ArrowLeft, Save, Send, Power, PowerOff } from 'lucide-react';
+import { ArrowLeft, Save, Send, Power, PowerOff, FlaskConical } from 'lucide-react';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -19,8 +19,9 @@ import { WorkflowCanvasNode } from './WorkflowCanvasNode';
 import { NodePalette } from './NodePalette';
 import { NodeConfigPanel } from './NodeConfigPanel';
 import { ValidationPanel } from './ValidationPanel';
+import { SimulationPanel } from './SimulationPanel';
 import { toFlow, fromFlow, newNodeId, type WorkflowFlowNode } from './graph-mapping';
-import type { NodeDefinition, WorkflowGraph, WorkflowGraphNode, WorkflowValidationResult } from './types';
+import type { NodeDefinition, SimulationResult, WorkflowGraph, WorkflowGraphNode, WorkflowValidationResult } from './types';
 
 const nodeTypes: NodeTypes = { workflowNode: WorkflowCanvasNode };
 const EMPTY_GRAPH: WorkflowGraph = { schemaVersion: 1, nodes: [], edges: [] };
@@ -54,11 +55,13 @@ function WorkflowEditorInner() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [validation, setValidation] = useState<WorkflowValidationResult | null>(null);
+  const [simulation, setSimulation] = useState<SimulationResult | null>(null);
   const loadedFor = useRef<string | null>(null);
 
   const workflow = detailQuery.data?.workflow;
   const readOnly = !hasPermission(PERMISSIONS.WORKFLOWS_EDIT) || workflow?.status === 'archived';
   const canPublish = hasPermission(PERMISSIONS.WORKFLOWS_PUBLISH);
+  const canRun = hasPermission(PERMISSIONS.WORKFLOWS_RUN);
 
   // Hydrate the canvas once per workflow load (draft preferred, else published, else empty).
   useEffect(() => {
@@ -152,6 +155,15 @@ function WorkflowEditorInner() {
     },
   });
 
+  const simulateMut = useMutation({
+    mutationFn: () => api.workflows.simulate(id, { graph: currentGraph() }),
+    onSuccess: (res) => {
+      setValidation(res.validation);
+      setSimulation(res.simulation);
+    },
+    onError: () => toast.error(t('toast.error')),
+  });
+
   const toggleMut = useMutation({
     mutationFn: (enable: boolean) => (enable ? api.workflows.enable(id) : api.workflows.disable(id)),
     onSuccess: (_res, enable) => {
@@ -185,6 +197,11 @@ function WorkflowEditorInner() {
           {!readOnly && (
             <Button size="sm" variant="outline" disabled={saveMut.isPending || !dirty} onClick={() => saveMut.mutate()}>
               <Save className="mr-1 h-4 w-4" />{saveMut.isPending ? t('editor.saving') : t('editor.save')}
+            </Button>
+          )}
+          {canRun && (
+            <Button size="sm" variant="outline" disabled={simulateMut.isPending || nodes.length === 0} onClick={() => simulateMut.mutate()}>
+              <FlaskConical className="mr-1 h-4 w-4" />{simulateMut.isPending ? t('simulate.running') : t('simulate.run')}
             </Button>
           )}
           {canPublish && (
@@ -245,6 +262,12 @@ function WorkflowEditorInner() {
             <div className="px-3 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('validation.title')}</div>
             <ValidationPanel result={validation} onSelectNode={setSelectedId} />
           </div>
+          {canRun && (
+            <div className="border-b">
+              <div className="px-3 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('simulate.title')}</div>
+              <SimulationPanel result={simulation} onSelectNode={setSelectedId} />
+            </div>
+          )}
           <AccessibleGraphView nodes={nodes} edges={edges} />
         </aside>
       </div>

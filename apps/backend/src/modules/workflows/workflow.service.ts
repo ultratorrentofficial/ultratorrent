@@ -7,6 +7,7 @@ import { paginate, parsePage } from '../../common/pagination';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { WorkflowNodeRegistry } from './node-registry.service';
 import { validateWorkflowGraph, WORKFLOW_LIMITS } from './domain/workflow-validator';
+import { simulateWorkflow, type SimulationContext } from './domain/workflow-simulator';
 import { graphChecksum } from './domain/workflow-checksum';
 import { WORKFLOW_GRAPH_SCHEMA_VERSION, isWorkflowGraphShape } from './domain/workflow-graph.types';
 import type { WorkflowGraph } from './domain/workflow-graph.types';
@@ -269,6 +270,38 @@ export class WorkflowService {
       userId: user.id, action: 'workflows.workflow.deleted', objectType: 'workflow', objectId: id,
     });
     return { deleted: true };
+  }
+
+  // ── Simulation (dry-run, no side effects) ────────────────────────────────────
+  /**
+   * Dry-run the workflow: evaluate conditions/branches/variables and render action inputs
+   * with **no provider ever called**. Validates first (a graph must be publishable-shaped to
+   * simulate meaningfully) and returns both the validation and the trace.
+   */
+  async simulate(id: string, override: SimulationContext & { graph?: WorkflowGraph }, user: AuthenticatedUser) {
+    const workflow = await this.mustExist(id);
+    let graph = override.graph;
+    if (graph) {
+      this.assertGraphSize(graph);
+      if (!isWorkflowGraphShape(graph)) throw new BadRequestException('Malformed workflow graph');
+    } else {
+      const versionId = workflow.currentDraftVersionId ?? workflow.publishedVersionId;
+      if (!versionId) throw new BadRequestException('Workflow has no graph to simulate');
+      const version = await this.prisma.workflowVersion.findUnique({ where: { id: versionId } });
+      graph = version?.graph as unknown as WorkflowGraph;
+      if (!graph) throw new BadRequestException('Workflow graph not found');
+    }
+    const validation = validateWorkflowGraph(graph, this.registry, {
+      grantedPermissions: new Set(user.permissions ?? []),
+      selfWorkflowId: id,
+    });
+    const result = simulateWorkflow(graph, { trigger: override.trigger, vars: override.vars }, this.registry);
+    await this.audit.record({
+      userId: user.id, action: 'workflows.workflow.simulated',
+      objectType: 'workflow', objectId: id,
+      metadata: { steps: result.steps.length, wouldExecute: result.wouldExecute.length },
+    });
+    return { validation, simulation: result };
   }
 
   // ── Catalog ──────────────────────────────────────────────────────────────────

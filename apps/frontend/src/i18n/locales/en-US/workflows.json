@@ -79,6 +79,17 @@
     "node": "Node",
     "edge": "Connection"
   },
+  "simulate": {
+    "run": "Simulate",
+    "running": "Simulating…",
+    "title": "Simulation (dry run)",
+    "hint": "No providers are called. Actions show what they would do.",
+    "empty": "Run a simulation to preview the execution path.",
+    "wouldExecute": "{{count}} action(s) would run",
+    "truncated": "Trace truncated.",
+    "steps": "Execution trace",
+    "clear": "Clear"
+  },
   "toast": {
     "created": "Workflow created",
     "saved": "Draft saved",

@@ -123,3 +123,29 @@ export interface SaveDraftResult {
   versionId: string;
   validation: WorkflowValidationResult;
 }
+
+export interface SimulationStep {
+  nodeId: string;
+  nodeType: string;
+  category: string;
+  outcome:
+    | 'executed' | 'evaluated' | 'skipped' | 'waited'
+    | 'requested_approval' | 'variable_set' | 'ended' | 'subworkflow' | 'unreachable';
+  chosenPorts: string[];
+  detail?: string;
+  renderedConfig?: Record<string, unknown>;
+  warnings?: string[];
+}
+
+export interface SimulationResult {
+  steps: SimulationStep[];
+  variables: Record<string, unknown>;
+  wouldExecute: { nodeId: string; actionId: string; input: Record<string, unknown> }[];
+  reachedNodeIds: string[];
+  truncated: boolean;
+}
+
+export interface SimulateResponse {
+  validation: WorkflowValidationResult;
+  simulation: SimulationResult;
+}

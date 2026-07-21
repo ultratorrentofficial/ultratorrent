@@ -50,6 +50,20 @@ export class PublishWorkflowDto {
   changeNotes?: string;
 }
 
+export class SimulateWorkflowDto {
+  /** Optional graph override; when omitted the workflow's current draft/published graph is used. */
+  @IsOptional() @IsObject()
+  graph?: WorkflowGraph;
+
+  /** Sample trigger payload the simulated run receives. */
+  @IsOptional() @IsObject()
+  trigger?: Record<string, unknown>;
+
+  /** Seed variables for the simulation. */
+  @IsOptional() @IsObject()
+  vars?: Record<string, unknown>;
+}
+
 export class WorkflowListQueryDto {
   @IsOptional() @IsInt() @Min(1)
   page?: number;

@@ -39,7 +39,7 @@ export type { FileNode, FilePropertiesResponse, CleanupPreview, CleanupCategory,
 
 import type {
   WorkflowCatalog, WorkflowGraph, WorkflowValidationResult, WorkflowSummary,
-  WorkflowDetail, SaveDraftResult,
+  WorkflowDetail, SaveDraftResult, SimulateResponse,
 } from '@/pages/workflows/types';
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
@@ -2991,6 +2991,9 @@ export const api = {
     },
     publish(id: string, changeNotes?: string): Promise<{ workflow: WorkflowSummary; versionId: string }> {
       return request<{ workflow: WorkflowSummary; versionId: string }>(`/workflows/${id}/publish`, { method: 'POST', body: { changeNotes } });
+    },
+    simulate(id: string, body: { graph?: WorkflowGraph; trigger?: Record<string, unknown>; vars?: Record<string, unknown> } = {}): Promise<SimulateResponse> {
+      return request<SimulateResponse>(`/workflows/${id}/simulate`, { method: 'POST', body });
     },
     enable(id: string): Promise<WorkflowSummary> {
       return request<WorkflowSummary>(`/workflows/${id}/enable`, { method: 'POST' });

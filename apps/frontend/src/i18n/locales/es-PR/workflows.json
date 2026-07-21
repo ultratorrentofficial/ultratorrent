@@ -79,6 +79,17 @@
     "node": "Nodo",
     "edge": "Conexión"
   },
+  "simulate": {
+    "run": "Simular",
+    "running": "Simulando…",
+    "title": "Simulación (ejecución de prueba)",
+    "hint": "No se llama a ningún proveedor. Las acciones muestran lo que harían.",
+    "empty": "Ejecuta una simulación para previsualizar la ruta de ejecución.",
+    "wouldExecute": "{{count}} acción(es) se ejecutarían",
+    "truncated": "Traza truncada.",
+    "steps": "Traza de ejecución",
+    "clear": "Limpiar"
+  },
   "toast": {
     "created": "Flujo creado",
     "saved": "Borrador guardado",

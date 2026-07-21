@@ -10,7 +10,7 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { WorkflowService } from './workflow.service';
 import {
   CreateWorkflowDto, UpdateWorkflowDto, SaveDraftGraphDto, ValidateGraphDto,
-  PublishWorkflowDto, WorkflowListQueryDto,
+  PublishWorkflowDto, WorkflowListQueryDto, SimulateWorkflowDto,
 } from './dto/workflow.dto';
 
 @ApiTags('workflows')
@@ -68,6 +68,13 @@ export class WorkflowsController {
   @RequirePermissions(PERMISSIONS.WORKFLOWS_PUBLISH)
   publish(@Param('id') id: string, @Body() dto: PublishWorkflowDto, @CurrentUser() user: AuthenticatedUser) {
     return this.svc.publish(id, dto.changeNotes, user);
+  }
+
+  /** No-side-effect dry run of the workflow (or a supplied graph override). */
+  @Post(':id/simulate')
+  @RequirePermissions(PERMISSIONS.WORKFLOWS_RUN)
+  simulate(@Param('id') id: string, @Body() dto: SimulateWorkflowDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.svc.simulate(id, { graph: dto.graph, trigger: dto.trigger, vars: dto.vars }, user);
   }
 
   @Post(':id/enable')
