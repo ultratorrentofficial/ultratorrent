@@ -31,8 +31,8 @@ import { useVersion } from '@/hooks/useVersion';
 import { AboutDialog } from '@/components/AboutDialog';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { BreadcrumbProvider } from '@/components/layout/BreadcrumbContext';
-import { ContextualSubNav } from '@/components/layout/ContextualSubNav';
 import { MobileDomainBar } from '@/components/layout/MobileDomainBar';
+import { WorkspaceRail } from '@/components/layout/WorkspaceRail';
 import { useSwipeToDismiss } from '@/components/layout/useSwipe';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
@@ -41,8 +41,10 @@ import {
   flattenForSearch,
   isBranchActive,
   isItemActive,
+  resolveActiveWorkspaceId,
   tNav,
   visibleGroups,
+  workspaceLanding,
   type NavItem,
   type NavGroup,
   type NavSearchEntry,
@@ -83,6 +85,7 @@ function NavBadgePill({ badge, collapsed }: { badge: NavBadge; collapsed?: boole
 }
 
 const COLLAPSE_KEY = 'ut.sidebar.collapsed';
+const WORKSPACE_KEY = 'ut.workspace.last';
 const GROUPS_COLLAPSED_KEY = 'ut.nav.groups.collapsed';
 const ITEMS_EXPANDED_KEY = 'ut.nav.items.expanded';
 
@@ -93,16 +96,26 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => {
+  // Hide the active-workspace sidebar to reclaim content width (the rail stays).
+  const [sidebarHidden, setSidebarHidden] = useState(() => {
     try {
       return localStorage.getItem(COLLAPSE_KEY) === '1';
     } catch {
       return false;
     }
   });
+  // The last workspace the user explicitly selected — the fallback when the current
+  // route doesn't belong to any workspace (e.g. /account from the user menu).
+  const [lastWorkspaceId, setLastWorkspaceId] = useState<string | undefined>(() => {
+    try {
+      return localStorage.getItem(WORKSPACE_KEY) ?? undefined;
+    } catch {
+      return undefined;
+    }
+  });
 
-  const toggleCollapsed = () =>
-    setCollapsed((v) => {
+  const toggleSidebar = () =>
+    setSidebarHidden((v) => {
       const next = !v;
       try {
         localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
@@ -111,6 +124,15 @@ export function AppShell() {
       }
       return next;
     });
+
+  const selectWorkspace = useCallback((id: string) => {
+    setLastWorkspaceId(id);
+    try {
+      localStorage.setItem(WORKSPACE_KEY, id);
+    } catch {
+      /* ignore persistence failures */
+    }
+  }, []);
 
   // Prowlarr companion shortcut: only fetch when the user may view it; the nav
   // item shows only when the integration is enabled with a public URL set.
@@ -146,6 +168,23 @@ export function AppShell() {
   const { actions: paletteActions, entitySources: paletteEntities } = usePaletteProviders();
   const location = useLocation();
 
+  // Workspace model: the global rail lists workspaces; the sidebar shows only the
+  // active one. Resolve it from the route, falling back to the last-selected workspace.
+  const activeWorkspaceId = resolveActiveWorkspaceId(
+    groups,
+    location.pathname,
+    location.search,
+    lastWorkspaceId,
+  );
+  const activeWs = groups.find((g) => g.id === activeWorkspaceId);
+  // Persist the workspace the route lands us in, so a subsequent workspace-less route
+  // (e.g. /account) keeps showing it.
+  useEffect(() => {
+    if (activeWorkspaceId && activeWorkspaceId !== lastWorkspaceId) {
+      selectWorkspace(activeWorkspaceId);
+    }
+  }, [activeWorkspaceId, lastWorkspaceId, selectWorkspace]);
+
   // Remember visited pages for the "Recent" quick-access list. A detail route folds
   // into its parent nav entry via activeEntryId.
   const { recordVisit } = personalization;
@@ -178,25 +217,52 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Ctrl/Cmd+1..9 jump to a workspace by its rail position (criterion #6).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      if (!/^[1-9]$/.test(e.key)) return;
+      const idx = Number(e.key) - 1;
+      const group = groups[idx];
+      if (!group) return;
+      e.preventDefault();
+      selectWorkspace(group.id);
+      navigate(workspaceLanding(group));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [groups, navigate, selectWorkspace]);
+
   // Swipe the mobile drawer left (back toward its edge) to close it.
   const drawerSwipe = useSwipeToDismiss(() => setMobileOpen(false), { direction: 'left' });
 
   return (
     <BreadcrumbProvider>
     <div className="flex h-screen overflow-hidden">
-      {/* Desktop sidebar */}
-      <Sidebar
+      {/* Global workspace switcher (desktop) — the only top-level nav. */}
+      <WorkspaceRail
         groups={groups}
-        collapsed={collapsed}
-        pinnedItems={pinnedItems}
-        onUnpin={personalization.togglePin}
-        onToggleCollapsed={toggleCollapsed}
-        onAbout={() => setAboutOpen(true)}
-        onOpenCommand={() => setPaletteOpen(true)}
-        className="hidden lg:flex"
+        activeId={activeWorkspaceId}
+        landingFor={workspaceLanding}
+        onSelect={(g) => selectWorkspace(g.id)}
+        sidebarHidden={sidebarHidden}
+        onToggleSidebar={toggleSidebar}
       />
 
-      {/* Mobile sidebar drawer */}
+      {/* Active-workspace sidebar (desktop) — full replacement per workspace. */}
+      {!sidebarHidden && activeWs && (
+        <Sidebar
+          groups={[activeWs]}
+          collapsed={false}
+          pinnedItems={pinnedItems}
+          onUnpin={personalization.togglePin}
+          onAbout={() => setAboutOpen(true)}
+          onOpenCommand={() => setPaletteOpen(true)}
+          className="hidden lg:flex"
+        />
+      )}
+
+      {/* Mobile drawer — the active workspace's nav (the bottom bar switches workspaces). */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div
@@ -205,7 +271,7 @@ export function AppShell() {
             aria-hidden
           />
           <Sidebar
-            groups={groups}
+            groups={activeWs ? [activeWs] : groups}
             collapsed={false}
             pinnedItems={pinnedItems}
             onUnpin={personalization.togglePin}
@@ -231,7 +297,6 @@ export function AppShell() {
           onAbout={() => setAboutOpen(true)}
           onOpenCommand={() => setPaletteOpen(true)}
         />
-        <ContextualSubNav />
         <main className="flex-1 overflow-y-auto scrollbar-thin">
           {/* Bottom padding clears the fixed mobile domain bar (hidden on lg+). */}
           <div className="mx-auto w-full max-w-[1600px] px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">

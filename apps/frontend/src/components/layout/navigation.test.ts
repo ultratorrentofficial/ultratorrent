@@ -9,7 +9,9 @@ import {
   flattenForSearch,
   isBranchActive,
   isItemActive,
+  resolveActiveWorkspaceId,
   visibleGroups,
+  workspaceLanding,
   type NavContribution,
   type NavItem,
   type NavVisibilityCtx,
@@ -255,6 +257,47 @@ describe('external companion shortcut (Prowlarr)', () => {
     expect(item?.external).toBe(true);
     expect(item?.href).toBe('http://localhost:9696');
     expect(item?.to).toBeUndefined();
+  });
+});
+
+describe('workspace resolution (the gen-2 shell)', () => {
+  const ws = visibleGroups(ALL); // the 9 workspaces
+
+  it('resolveActiveWorkspaceId reads the workspace from a /hub/:id landing', () => {
+    expect(resolveActiveWorkspaceId(ws, '/hub/media')).toBe('media');
+    expect(resolveActiveWorkspaceId(ws, '/hub/downloads')).toBe('downloads');
+  });
+
+  it('resolveActiveWorkspaceId reads the workspace from a page route', () => {
+    expect(resolveActiveWorkspaceId(ws, '/media/items')).toBe('media');
+    expect(resolveActiveWorkspaceId(ws, '/media/items/abc')).toBe('media');
+    expect(resolveActiveWorkspaceId(ws, '/indexers')).toBe('infrastructure');
+    expect(resolveActiveWorkspaceId(ws, '/modules')).toBe('system');
+  });
+
+  it('falls back to the last-selected workspace for a workspace-less route (e.g. /account)', () => {
+    expect(resolveActiveWorkspaceId(ws, '/account', '', 'downloads')).toBe('downloads');
+  });
+
+  it('falls back to the first workspace when there is no last-selected', () => {
+    expect(resolveActiveWorkspaceId(ws, '/account')).toBe('dashboard');
+  });
+
+  it('ignores a fallback that is no longer visible', () => {
+    expect(resolveActiveWorkspaceId(ws, '/account', '', 'nonexistent')).toBe('dashboard');
+  });
+
+  it('returns undefined when no workspaces are visible', () => {
+    expect(resolveActiveWorkspaceId([], '/anything')).toBeUndefined();
+  });
+
+  it('workspaceLanding returns the first navigable page of a workspace', () => {
+    const media = ws.find((g) => g.id === 'media')!;
+    expect(workspaceLanding(media)).toBe('/media'); // Media Dashboard (query stripped)
+    const downloads = ws.find((g) => g.id === 'downloads')!;
+    expect(workspaceLanding(downloads)).toBe('/torrents');
+    const dashboard = ws.find((g) => g.id === 'dashboard')!;
+    expect(workspaceLanding(dashboard)).toBe('/dashboard');
   });
 });
 

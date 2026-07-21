@@ -466,6 +466,41 @@ export interface ActiveNavContext {
   parent?: NavItem;
 }
 
+/**
+ * The landing route for a workspace — its first navigable page (the workspace's
+ * primary surface), falling back to the workspace overview hub. Used by the rail
+ * and `Ctrl+1–9` to jump into a workspace. Pure.
+ */
+export function workspaceLanding(group: NavGroup): string {
+  const first = group.items.find((i) => i.to) ?? group.items.flatMap((i) => i.children ?? []).find((c) => c.to);
+  return first?.to?.split('?')[0] ?? `/hub/${group.id}`;
+}
+
+/**
+ * The id of the workspace the current route belongs to, for the workspace shell:
+ * a `/hub/:id` landing names its workspace directly; otherwise the active route's
+ * workspace ({@link resolveActiveContext}); otherwise `fallback` (the last-selected
+ * workspace) or the first visible workspace. Never returns an id absent from
+ * `groups`. Pure — exported for testing.
+ */
+export function resolveActiveWorkspaceId(
+  groups: NavGroup[],
+  pathname: string,
+  searchStr = '',
+  fallback?: string,
+): string | undefined {
+  if (groups.length === 0) return undefined;
+  const has = (id: string | undefined) => id != null && groups.some((g) => g.id === id);
+  if (pathname.startsWith('/hub/')) {
+    const id = pathname.split('/')[2];
+    if (has(id)) return id;
+  }
+  const ctx = resolveActiveContext(groups, pathname, searchStr);
+  if (ctx) return ctx.group.id;
+  if (has(fallback)) return fallback;
+  return groups[0].id;
+}
+
 export function resolveActiveContext(
   groups: NavGroup[],
   pathname: string,

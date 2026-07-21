@@ -11,7 +11,8 @@
     "pinned": "Pinned",
     "unpin": "Unpin {{name}}",
     "domains": "Domains",
-    "menu": "Menu"
+    "menu": "Menu",
+    "workspaces": "Workspaces"
   },
   "command": {
     "title": "Command menu",

@@ -11,7 +11,8 @@
     "pinned": "Fijados",
     "unpin": "Quitar {{name}}",
     "domains": "Dominios",
-    "menu": "Menú"
+    "menu": "Menú",
+    "workspaces": "Espacios de trabajo"
   },
   "command": {
     "title": "Menú de comandos",
