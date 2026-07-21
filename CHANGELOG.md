@@ -45,6 +45,18 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.41.0] - 2026-07-21
+
+### Added
+- Unified Jobs Center Phase 2 — the platform job engine (core). Adds the normalized
+- Unified Jobs Center Phase 3 — reliability controls. Adds retry (exponential
+- Unified Jobs Center Phase 4 — REST API + real-time channel. Adds fifteen jobs.*
+- Unified Jobs Center Phase 5 — the Jobs Center UI. A new Jobs Center in the System
+- Unified Jobs Center Phase 6 — schedules, workers & settings (honest, read-only).
+- Unified Jobs Center Phase 7 — producer migration (adapters). MediaProcessingQueueService
+- Unified Jobs Center Phase 8 — platform integration. The frontend consumes the
+- Unified Jobs Center Phase 9 — retention, docs & hardening (feature complete).
+
 ## [0.40.0] - 2026-07-21
 
 ### Added
