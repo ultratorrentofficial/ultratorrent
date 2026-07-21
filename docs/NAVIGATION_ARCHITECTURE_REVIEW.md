@@ -708,18 +708,16 @@ performance (lazy composition, no-dead-links guard extended to workspaces).
 
 ## 21. Risks & open decisions
 
-**Open decisions for sign-off (each has a recommendation):**
+**Decisions — APPROVED 2026-07-21 (all recommendations accepted):**
 
-- **D-1 — Indexers: Downloads or Infrastructure?** *Recommend Infrastructure* (configure the
-  *source* there; *use* it via Downloads → Search). Matches Sonarr/Radarr's "Indexers under
-  Settings." Trade-off: a download-focused admin visits two workspaces to set up + search.
-- **D-2 — Media-Server Connections: Analytics or Infrastructure?** *Recommend Analytics* (the
-  connection exists to power analytics; keep config with the feature per the
-  workspace-owns-its-settings rule). Alternative: Infrastructure, for a single "all connections"
-  pane.
-- **D-3 — API Keys: Administration or System?** *Recommend System* (platform-level credential),
-  with a personal-keys shortcut in the user menu.
-- **D-4 — Account as user-menu vs workspace.** *Recommend user menu* (not a workspace).
+- **D-1 — Indexers → Infrastructure.** ✅ Configure the *source* in Infrastructure; a Downloads →
+  Search surface consumes them (that search surface is a ✳ later-phase addition).
+- **D-2 — Media-Server Connections → Analytics.** ✅ Kept with the feature they power.
+- **D-3 — API Keys → System.** ✅ Platform-level credential; personal-keys shortcut in the user menu.
+- **D-4 — Account → user menu (not a workspace).** ✅
+- **Sidebar interaction — full replacement.** ✅ Selecting a workspace completely replaces the
+  sidebar with that workspace's own nav.
+- **Jobs-list endpoint — approved** to build as a Phase-3 prerequisite (§17).
 
 **Risks & mitigations:**
 
@@ -734,19 +732,17 @@ performance (lazy composition, no-dead-links guard extended to workspaces).
 
 ---
 
-## 22. Approval gate
+## 22. Approval gate — CLEARED 2026-07-21
 
-Per the brief, **implementation begins only after this review is approved.** Requested decisions
-before Phase 2:
+All gate items approved:
 
-1. Approve the **9-workspace IA** (§14) — or adjust the boundaries.
-2. Resolve **D-1…D-4** (§21).
-3. Confirm the **sidebar-replacement** interaction (workspace fully swaps the sidebar) vs a
-   softer "rail + persistent secondary" hybrid.
-4. Approve building the **jobs-list endpoint** as a prerequisite (§17).
+1. ✅ **9-workspace IA** (§14) approved as proposed.
+2. ✅ **D-1…D-4** (§21) — all recommendations accepted.
+3. ✅ **Full sidebar-replacement** interaction confirmed.
+4. ✅ **Jobs-list endpoint** approved as a Phase-3 prerequisite (§17).
 
-On approval, Phase 2 proceeds incrementally (checkpoint per step, green tests + build), reusing
-the generation-1 substrate and **removing nothing**.
+Phase 2 proceeds incrementally (checkpoint per step, green tests + build), reusing the
+generation-1 substrate and **removing nothing**. Account moves to the top-bar user menu.
 
 ---
 
