@@ -32,6 +32,8 @@ import { AboutDialog } from '@/components/AboutDialog';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { BreadcrumbProvider } from '@/components/layout/BreadcrumbContext';
 import { ContextualSubNav } from '@/components/layout/ContextualSubNav';
+import { MobileDomainBar } from '@/components/layout/MobileDomainBar';
+import { useSwipeToDismiss } from '@/components/layout/useSwipe';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import {
@@ -176,6 +178,9 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Swipe the mobile drawer left (back toward its edge) to close it.
+  const drawerSwipe = useSwipeToDismiss(() => setMobileOpen(false), { direction: 'left' });
+
   return (
     <BreadcrumbProvider>
     <div className="flex h-screen overflow-hidden">
@@ -214,6 +219,8 @@ export function AppShell() {
             }}
             className="absolute left-0 top-0 bottom-0 z-10 animate-slide-in-right"
             onNavigate={() => setMobileOpen(false)}
+            onTouchStart={drawerSwipe.onTouchStart}
+            onTouchEnd={drawerSwipe.onTouchEnd}
           />
         </div>
       )}
@@ -226,11 +233,15 @@ export function AppShell() {
         />
         <ContextualSubNav />
         <main className="flex-1 overflow-y-auto scrollbar-thin">
-          <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+          {/* Bottom padding clears the fixed mobile domain bar (hidden on lg+). */}
+          <div className="mx-auto w-full max-w-[1600px] px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
             <Outlet />
           </div>
         </main>
       </div>
+
+      {/* Mobile-only bottom domain switcher (one tap to any domain hub). */}
+      <MobileDomainBar onOpenMenu={() => setMobileOpen(true)} />
 
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <CommandPalette
@@ -698,6 +709,8 @@ function Sidebar({
   onToggleCollapsed,
   onAbout,
   onOpenCommand,
+  onTouchStart,
+  onTouchEnd,
 }: {
   groups: NavGroup[];
   collapsed: boolean;
@@ -708,6 +721,8 @@ function Sidebar({
   onToggleCollapsed?: () => void;
   onAbout?: () => void;
   onOpenCommand?: () => void;
+  onTouchStart?: (e: React.TouchEvent) => void;
+  onTouchEnd?: (e: React.TouchEvent) => void;
 }) {
   const { t } = useTranslation('shell');
   const badges = useNavBadges();
@@ -735,6 +750,8 @@ function Sidebar({
 
   return (
     <aside
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
       className={cn(
         'flex shrink-0 flex-col gap-1 border-r border-border/60 bg-card/40 backdrop-blur-xl p-3 transition-[width] duration-200',
         collapsed ? 'w-[4.5rem]' : 'w-64',

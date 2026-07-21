@@ -9,7 +9,9 @@
     "expandAll": "Expandir todo",
     "collapseAll": "Contraer todo",
     "pinned": "Fijados",
-    "unpin": "Quitar {{name}}"
+    "unpin": "Quitar {{name}}",
+    "domains": "Dominios",
+    "menu": "Menú"
   },
   "command": {
     "title": "Menú de comandos",

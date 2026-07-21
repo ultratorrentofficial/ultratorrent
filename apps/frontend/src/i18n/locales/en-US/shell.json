@@ -9,7 +9,9 @@
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
     "pinned": "Pinned",
-    "unpin": "Unpin {{name}}"
+    "unpin": "Unpin {{name}}",
+    "domains": "Domains",
+    "menu": "Menu"
   },
   "command": {
     "title": "Command menu",
