@@ -54,4 +54,8 @@ describe('crumbsFor', () => {
   it('returns nothing for the root', () => {
     expect(crumbsFor('/')).toEqual([]);
   });
+
+  it('resolves a domain hub to its domain crumb', () => {
+    expect(crumbsFor('/hub/media')).toEqual([{ label: 'Media' }]);
+  });
 });

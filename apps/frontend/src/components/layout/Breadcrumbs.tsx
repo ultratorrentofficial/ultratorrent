@@ -52,6 +52,12 @@ function flatEntries(): FlatEntry[] {
  * `Group › [Parent ›] Item [› Detail]`. Exported for tests.
  */
 export function crumbsFor(pathname: string): Crumb[] {
+  // A domain landing hub (`/hub/:domainId`) is the domain itself.
+  if (pathname.startsWith('/hub/')) {
+    const group = NAV_GROUPS.find((g) => g.id === pathname.split('/')[2]);
+    if (group) return [{ label: group.title }];
+  }
+
   let best: FlatEntry | null = null;
   for (const entry of flatEntries()) {
     if (pathname === entry.base || pathname.startsWith(entry.base + '/')) {

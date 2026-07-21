@@ -470,29 +470,29 @@ function NavGroupBlock({
       {collapsed ? (
         <div className="mx-2 my-1 h-px bg-border/40" aria-hidden />
       ) : (
-        <button
-          type="button"
-          onClick={onToggleGroup}
-          aria-expanded={open}
-          aria-label={open ? tShell('nav.collapseGroup', { name: title }) : tShell('nav.expandGroup', { name: title })}
-          className="flex items-center gap-1 px-3 pb-0.5 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-        >
-          <ChevronDown className={cn('h-3 w-3 transition-transform', !open && '-rotate-90')} />
-          <span>{title}</span>
-        </button>
+        <div className="group/hdr flex items-center gap-1 px-1 pb-0.5 pt-3">
+          <button
+            type="button"
+            onClick={onToggleGroup}
+            aria-expanded={open}
+            aria-label={open ? tShell('nav.collapseGroup', { name: title }) : tShell('nav.expandGroup', { name: title })}
+            className="rounded p-0.5 text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronDown className={cn('h-3 w-3 transition-transform', !open && '-rotate-90')} />
+          </button>
+          {/* The title links to the domain's landing hub; the chevron toggles. */}
+          <Link
+            to={`/hub/${group.id}`}
+            onClick={onNavigate}
+            className="flex-1 rounded text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {title}
+          </Link>
+        </div>
       )}
       {(collapsed || open) && group.items.map(renderItem)}
     </div>
   );
-}
-
-/** First navigable route within a group (for the collapsed domain icon's link). */
-function firstNavTo(group: NavGroup): string | undefined {
-  for (const item of group.items) {
-    if (item.to) return item.to;
-    for (const child of item.children ?? []) if (child.to) return child.to;
-  }
-  return undefined;
 }
 
 /** Does any item (or child) in the group carry a badge? Drives the domain-icon dot. */
@@ -566,11 +566,12 @@ function CollapsedRail({
         const Icon = group.icon;
         const title = tNav(t, 'groups', group.title);
         const active = group.items.some((i) => isBranchActive(i, location.pathname, location.search));
-        const to = firstNavTo(group);
+        // The domain icon links to its landing hub (a "domain home"); hovering opens
+        // the flyout with the domain's pages.
         return (
           <Link
             key={group.id}
-            to={to ?? '#'}
+            to={`/hub/${group.id}`}
             onMouseEnter={(e) => open(group, e.currentTarget)}
             onMouseLeave={scheduleClose}
             onFocus={(e) => open(group, e.currentTarget)}

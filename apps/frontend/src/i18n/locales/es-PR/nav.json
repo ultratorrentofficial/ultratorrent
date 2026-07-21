@@ -142,5 +142,8 @@
     "Rule": "Regla",
     "History": "Historial",
     "Details": "Detalles"
+  },
+  "hub": {
+    "subtitle": "{{count}} herramientas en {{domain}}"
   }
 }

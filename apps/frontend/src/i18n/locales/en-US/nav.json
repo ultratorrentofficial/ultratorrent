@@ -142,5 +142,8 @@
     "Rule": "Rule",
     "History": "History",
     "Details": "Details"
+  },
+  "hub": {
+    "subtitle": "{{count}} tools in {{domain}}"
   }
 }
