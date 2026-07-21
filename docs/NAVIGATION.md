@@ -26,6 +26,28 @@ translated at render time via the `nav` i18n namespace (`groups`, `items`,
 `descriptions`, `details`). Adding a label without a matching `nav` key fails the
 `i18n.test.ts` nav-coverage test.
 
+## One source, many surfaces
+
+Every navigation surface is a projection of the same RBAC/module-filtered tree —
+filter once in `visibleGroups`, then render. Nothing re-derives the item list, so
+nothing drifts.
+
+```mermaid
+flowchart TD
+  D[NAV_DOMAINS] --> C[composeNavGroups]
+  N[NAV_CONTRIBUTIONS<br/>navSlot per module] --> C
+  C --> G[NAV_GROUPS]
+  G --> V["visibleGroups(ctx)<br/>RBAC + module filter"]
+  V --> SB[Sidebar / collapsed rail]
+  V --> BC[Breadcrumbs<br/>+ entity context]
+  V --> CP[Command palette<br/>pages · actions · entities]
+  V --> HUB["Landing hubs<br/>/hub/:domainId"]
+  V --> CSN[Contextual sub-nav]
+  V --> MDB[Mobile domain bar]
+  P[useNavPersonalization<br/>pinned · favorites · recent] -.-> SB
+  P -.-> CP
+```
+
 ## Navigation hierarchy
 
 The navigation is organised into **domains** (Phase 1 of the redesign — see
@@ -89,12 +111,29 @@ child under the page's entry) plus its `nav` keys.
   state persists (`ut.nav.items.expanded`) and the active branch auto-expands.
 - **Icon-only rail** — the sidebar collapses to icons (`ut.sidebar.collapsed`);
   every row shows a `title` tooltip. Nested children are reached by expanding the rail.
-- **Mobile** — a hamburger opens a slide-in drawer; navigating closes it; Escape
-  and backdrop-click dismiss it.
+- **Mobile** — a hamburger opens a slide-in drawer; navigating closes it; Escape,
+  backdrop-click, and a **left-swipe** (`useSwipeToDismiss`) dismiss it. A fixed
+  **bottom domain switcher** (`MobileDomainBar`, `lg:hidden`) puts every domain one
+  tap away via its landing hub, with a trailing *Menu* button for the full drawer.
 - **Active highlighting** — exact for `end` items and query-param views
   (`/torrents?state=…`), prefix for detail pages (`/media/items/:id` keeps
   *Media Items* active). Parents highlight when a descendant is active.
-- **Breadcrumbs** — derived from the tree: `Group › [Parent ›] Item [› Detail]`.
+- **Breadcrumbs** — derived from the tree: `Group › [Parent ›] Item [› Detail]`. A
+  detail page can name its entity (`useBreadcrumbEntity`) so the trail ends with e.g.
+  the media item's title instead of a generic *Details*. A domain hub
+  (`/hub/:domainId`) resolves to its domain crumb.
+- **Pinned / Favorites / Recent** — per-user, persisted personalization
+  (`useNavPersonalization`, keyed by user id). Pinned items get a top-of-rail
+  section; Recent tracks the last 8 visited pages; all three seed the palette's
+  quick-access view.
+- **Module landing hubs** — every domain has a landing page at `/hub/:domainId`
+  (`ModuleHubPage` → `ModuleHub`), built from the same nav data: one tile per page,
+  sub-pages as chips. Sidebar group headers and the collapsed-rail domain icons link
+  to the hub.
+- **Contextual sub-nav** — `ContextualSubNav` renders the active domain's sibling
+  pages as a horizontal strip below the top bar (a second row for a nested branch's
+  sub-pages), so a user moves laterally without the sidebar. Same filtered nav data —
+  never a link the sidebar lacks.
 
 ## Command palette (Ctrl/Cmd + K)
 
@@ -106,6 +145,12 @@ child under the page's entry) plus its `nav` keys.
   it can never surface a route the user isn't allowed to see.
 - Matches label, group and description; `↑/↓` move, `Enter` navigates, `Esc`
   closes; includes an empty state. Fully localized (`shell.command.*`).
+- **Command palette v2** — with an empty query it surfaces the user's **Pinned,
+  Recent and Favorites** (quick-access). With a query it adds **quick actions**
+  (add torrent, scan library, find duplicates, create RSS rule, automation rules)
+  and **live entities** (media items, libraries) fetched through lazy, debounced
+  providers (`usePaletteProviders`). Inline pin/star toggles write straight to
+  personalization.
 
 ## RBAC & module visibility rules
 
@@ -149,7 +194,13 @@ renumbering neighbours (orders leave gaps of 10). Sub-pages travel inside the mo
    belong to any existing one.)
 3. Add the label/description keys to **both** `en-US/nav.json` and
    `es-PR/nav.json` (`groups` / `items` / `descriptions`) — parity is enforced by tests.
-4. If it introduces detail routes, extend `DETAIL_LABELS` in `Breadcrumbs.tsx`.
+4. If it introduces detail routes, extend `DETAIL_LABELS` in `Breadcrumbs.tsx`. For
+   a rich detail page, call `useBreadcrumbEntity(pathname, entity?.name)` so the trail
+   ends with the entity's name instead of *Details*.
+
+A new module needs **no** extra wiring for the landing hub, contextual sub-nav, or
+mobile domain bar — all three are composed from `NAV_GROUPS`, so appending the
+contribution lights them up automatically.
 
 ## Accessibility
 
@@ -159,7 +210,17 @@ tooltips; Escape closes the drawer and palette; Enter/Arrow keys drive the palet
 
 ## Tests
 
-`navigation.test.ts` (tree filtering, module-manager visibility, child pruning,
-active/branch matching, search flattening), `Breadcrumbs.test.ts` (nested +
-detail trails), `CommandPalette.test.tsx` (filtering, empty state, keyboard),
-`i18n.test.ts` (en-US/es-PR key parity + nav-label coverage).
+- `navigation.test.ts` — tree filtering, module-manager visibility, child pruning,
+  active/branch matching, search flattening, `resolveActiveContext`.
+- `Breadcrumbs.test.ts` — nested + detail trails, `/hub/:domainId` → domain crumb.
+- `BreadcrumbContext.test.tsx` — entity label replaces *Details*; path-scoping.
+- `CommandPalette.test.tsx` — filtering, empty state, keyboard.
+- `ModuleHub.test.tsx` — tiles per navigable page, sub-page chips, action skipping.
+- `ContextualSubNav.test.tsx` — sibling tabs, branch children row, active state.
+- `MobileDomainBar.test.tsx` — per-domain tabs, active domain, menu button.
+- `useSwipe.test.tsx` — swipe threshold, vertical-scroll rejection, direction.
+- `useNavBadges.test.tsx` / `useNavPersonalization.test.tsx` — badges; pin/fav/recent.
+- `i18n.test.ts` — en-US/es-PR key parity + nav-label coverage.
+
+See also [MENU_GUIDELINES.md](MENU_GUIDELINES.md) (where things go) and
+[UX_GUIDELINES.md](UX_GUIDELINES.md) (how the shell behaves).

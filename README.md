@@ -299,6 +299,7 @@ ultratorrent/
 | [INSTALL.md](docs/INSTALL.md)           | Prerequisites, env setup, Prisma, running dev, connecting rTorrent |
 | [DOCKER.md](docs/DOCKER.md)             | Docker Compose services, volumes, env, health checks, commands |
 | [PROWLARR.md](docs/PROWLARR.md)         | Optional Prowlarr companion container: profile, ports/volumes, UI integration, security |
+| [NAVIGATION.md](docs/NAVIGATION.md)     | The registry-driven nav model — domains, sidebar, breadcrumbs, command palette, landing hubs, personalization, mobile ([menu IA](docs/MENU_GUIDELINES.md), [shell UX](docs/UX_GUIDELINES.md)) |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md)   | Local workflow, adding an engine provider, adding a module, testing, standards |
 | [CONTRIBUTING.md](docs/CONTRIBUTING.md) | Branching, conventional commits, PRs, DCO, CLA |
 | [CHANGELOG.md](CHANGELOG.md)            | Release notes (Keep a Changelog) |
