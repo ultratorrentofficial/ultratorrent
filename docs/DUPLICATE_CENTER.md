@@ -218,12 +218,16 @@ success with a footnote.
 
 ## Trash and recovery
 
-Every file this feature removes goes to **Trash** via
-`FilesService.remove({ permanent: false })`, restorable until the retention window
-expires. The **Trash & Recovery** tab lists the resolution *journal* joined to live
-Trash entries — so a file purged by retention still appears, with an explicit
-"no longer in Trash" state, rather than vanishing from the history. Restore reuses
-the existing `/files/trash/restore` route.
+A cleanup removes **only the media file** — the removed copy's artwork, NFO and
+subtitles are left in place. By default the media file goes to **Trash**
+(`FilesService.remove({ permanent: false })`), restorable until the retention window
+expires. Because these files are large, the cleanup dialog and Quick Clean also offer
+a **"Delete permanently (skip Trash)"** toggle (off by default) that removes them
+outright and frees the space immediately. The **Trash & Recovery** tab lists the
+resolution *journal* joined to live Trash entries — so a file purged by retention (or
+deleted permanently) still appears, with an explicit "no longer in Trash" state,
+rather than vanishing from the history. Restore reuses the existing
+`/files/trash/restore` route.
 
 ## False positives
 

@@ -96,42 +96,47 @@ buttons, and both route through the same preview-then-confirm plan:
   `previewItemDeletion(groupId, deleteItemId)` →
   `POST /api/media/duplicates/:groupId/preview-delete`.
 
+Both remove **only the media file** — the removed copy's artwork, NFO and subtitles
+are left in place (see [Only the media file is removed](#only-the-media-file-is-removed)),
+and both offer the opt-in permanent delete.
+
 The delete path carries one extra invariant beyond the shared safeguards: **it can
 never remove the last copy.** The plan records every surviving copy's path, and
 `resolve` refuses if none of them still exists on disk — so even a race that removed
 the other copies between preview and confirm cannot leave zero copies of the media.
-Subtitle safety generalises the same way: a language is safe to trash on the removed
-copy only if *some surviving copy* still has it; a language that exists nowhere among
-the survivors is reported as orphaned, not deleted.
 
 A single-file deletion also **does not mark the group resolved** — two or more copies
 may still be duplicated afterwards, and marking it resolved would hide a group that is
 still a duplicate. The next detection run reconciles it against what is now on disk.
 
-## Trash-first deletion
+## Only the media file is removed
 
-Deletion is **always Trash**, never `rm`:
+A file cleanup removes **the video and nothing else**. The removed copy's
+companion files — `.nfo`, artwork (`-thumb.jpg`, `-poster.jpg`, …) and subtitles —
+are **left in place**. The operator asked for the redundant *media* to go, not its
+metadata: a stray `.nfo` beside a kept copy is harmless, while a deleted poster or
+subtitle is content they never asked to lose. The reclaim estimate counts only the
+media file.
+
+(The **show-folder merge** below is different: it is collapsing whole folders, so it
+does carry an episode's sidecars along and *rescues* a unique-language subtitle onto
+the surviving copy rather than losing it with the deleted folder.)
+
+## Trash-first deletion — with an opt-in permanent delete
+
+Deletion defaults to **Trash**, never `rm`:
 `FilesService.remove({ permanent: false })` writes a `TrashItem` restorable until the
 retention window expires. The **Trash & Recovery** tab lists the resolution journal
 joined to live Trash entries, so even a file purged by retention keeps a visible
 "no longer in Trash" history entry rather than vanishing.
 
-## Sidecars and orphaned subtitles
-
-When a copy is removed, files named after it are handled by what losing them costs:
-
-- A `.nfo`, `-thumb.jpg`, `-mediainfo.xml` describes *that* video and is worthless
-  once it is gone — trashed with it.
-- A **subtitle** is content. A language the kept copy does **not** already have is
-  **not** trashed and **not** silently orphaned — it is *reported* (file cleanup) or
-  *rescued onto the surviving copy* (show merge). This exists because a live cleanup
-  would otherwise have destroyed the only Portuguese subtitle for an episode in the
-  whole library.
-
-Sidecars are matched **structurally** (basename + an optional `-`/`.` marker), the
-same rule the renamer uses — so show-level files (`poster.jpg`, `tvshow.nfo`,
-`theme.mp3`, `season01-poster.jpg`) are named after the *folder*, never match an
-episode, and are never touched.
+Because these are large media files, the cleanup dialog and Quick Clean offer a
+**"Delete permanently (skip Trash)"** toggle — **off by default**. When set, the
+approved files are removed outright, freeing the space immediately instead of
+occupying Trash for the retention window. `permanent` is a **confirm-time flag**: it
+changes *how* the approved files are removed, never *which* ones, so the plan the
+operator read is still exactly what runs. It is gated on `media_manager.delete` and
+recorded in the audit trail.
 
 ## Show-folder merge
 
@@ -245,11 +250,12 @@ Every item the redesign brief asked to preserve, and where it lives:
 | Preview before change | `preview` persists; `resolve` reads the stored plan |
 | Plan pinning | group `version` / file fingerprint |
 | Revalidation at execution | existence/size/root re-checks per path |
-| Trash-first deletion | `FilesService.remove({ permanent: false })` |
+| Trash-first deletion (permanent is opt-in) | `FilesService.remove({ permanent })`, default `false` |
+| Media-only removal | file cleanup trashes the video, never art/NFO/subtitles |
 | Library-root protection | refuse a path equal to a library root |
 | Path confinement | `assertWithinHardRoots` at preview and execution |
 | Watchlist relationship preservation | re-point before deleting the show row |
-| Orphaned-subtitle protection | reported (cleanup) / rescued (merge) |
+| Unique-subtitle rescue (show merge) | carried onto the surviving copy, not lost |
 | Audit logging | preview, resolve, merge all audited |
 | RBAC enforcement | permission table above |
 | Blast-radius cap | 100 groups per bulk call |
