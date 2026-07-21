@@ -6,7 +6,7 @@
  * titles. Other sources (TVDB/IMDb/AniDB/MusicBrainz) can be added by
  * implementing this interface — same provider pattern as the torrent engines.
  */
-import { scoreTitleMatch } from './imdb/imdb-match';
+import { scoreTitleMatch, titlesAreSequelVariants } from './imdb/imdb-match';
 
 /**
  * Minimum title+year confidence to accept a TMDB movie search result as a match.
@@ -216,6 +216,12 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
       // is dropped before scoring, no matter how similar the title. ±1 absorbs a
       // festival-vs-wide-release drift.
       if (q.year != null && yr != null && Math.abs(q.year - yr) > 1) continue;
+      // Sequel gate — the year gate cannot separate a film from its same-year
+      // sequel ("Ultimate Avengers" vs "Ultimate Avengers 2", both 2006), whose
+      // titles differ by only "2" and score ~0.92. If the candidate is the same
+      // base title with a different number, it is a different film — drop it.
+      const candTitle = r?.title ?? r?.original_title ?? '';
+      if (titlesAreSequelVariants(q.title, candTitle)) continue;
       const score = scoreTitleMatch(
         { title: q.title, year: q.year ?? null, type: 'movie' },
         {

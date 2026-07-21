@@ -49,6 +49,45 @@ export function titleSimilarity(a: string, b: string): number {
   return maxLen === 0 ? 0 : Math.max(0, 1 - dist / maxLen);
 }
 
+const ROMAN: Record<string, number> = {
+  i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10, xi: 11, xii: 12, xiii: 13,
+};
+
+/**
+ * A title split into its base and its trailing sequel number.
+ *
+ * "Ultimate Avengers 2" → { base: 'ultimate avengers', num: 2 }; "Rocky V" →
+ * { base: 'rocky', num: 5 }; "Blade Runner 2049" → { base: 'blade runner', num: 2049 };
+ * "Inception" → { base: 'inception', num: null }. Handles a trailing arabic integer
+ * or roman numeral so "Rocky 5" and "Rocky V" resolve to the same number.
+ */
+function sequelMarker(normalized: string): { base: string; num: number | null } {
+  const tokens = normalized.split(' ');
+  if (tokens.length < 2) return { base: normalized, num: null };
+  const last = tokens[tokens.length - 1];
+  const num = /^\d{1,4}$/.test(last) ? Number(last) : (ROMAN[last] ?? null);
+  if (num == null) return { base: normalized, num: null };
+  return { base: tokens.slice(0, -1).join(' '), num };
+}
+
+/**
+ * True when two titles are the SAME franchise base but a DIFFERENT sequel number —
+ * a film and its sequel, which title similarity + year alone confuse. Observed live:
+ * "Ultimate Avengers" (2006) and "Ultimate Avengers 2" (2006) — same year, titles
+ * differing only by "2" — were matched to one id.
+ *
+ * It never rejects a correct match: the same film always carries the same trailing
+ * number, so its two spellings resolve to an equal `num` (that is also why arabic and
+ * roman are unified — "Rocky 5" and "Rocky V" are the same film, not a conflict). It
+ * fires only when the base titles match and the numbers genuinely differ.
+ */
+export function titlesAreSequelVariants(a: string, b: string): boolean {
+  const sa = sequelMarker(normalizeTitle(a));
+  const sb = sequelMarker(normalizeTitle(b));
+  if (sa.num == null && sb.num == null) return false;
+  return sa.base === sb.base && sa.num !== sb.num;
+}
+
 /** True when an IMDb titleType is one of the TV episode/series kinds. */
 export function isTvType(titleType: string): boolean {
   return (

@@ -92,6 +92,32 @@ describe('TmdbMetadataProvider — movie result verification', () => {
     expect(await provider.fetchDetails({ kind: 'movie', title: 'The King', year: 2019 })).toBeNull();
   });
 
+  it('rejects a same-year sequel confusion ("Ultimate Avengers 2" → "Ultimate Avengers")', async () => {
+    // Both 2006, titles differ only by "2" — the year gate can't separate them, but
+    // the sequel gate does. TMDB returned only the first film for this query.
+    const ultimateAvengers = { id: 14611, title: 'Ultimate Avengers', original_title: 'Ultimate Avengers: The Movie', release_date: '2006-02-21' };
+    const provider = providerReturning([ultimateAvengers]);
+    expect(await provider.fetchDetails({ kind: 'movie', title: 'Ultimate Avengers 2', year: 2006 })).toBeNull();
+  });
+
+  it('still picks the real sequel when TMDB returns it', async () => {
+    const first = { id: 14611, title: 'Ultimate Avengers', original_title: 'Ultimate Avengers', release_date: '2006-02-21' };
+    const second = { id: 14612, title: 'Ultimate Avengers 2', original_title: 'Ultimate Avengers 2', release_date: '2006-08-08' };
+    const provider = providerReturning([first, second], { title: 'Ultimate Avengers 2', release_date: '2006-08-08', imdb_id: 'tt0491703' });
+    const details = await provider.fetchDetails({ kind: 'movie', title: 'Ultimate Avengers 2', year: 2006 });
+    expect(details).not.toBeNull();
+    expect(details!.externalIds?.tmdb).toBe('14612');
+  });
+
+  it('does not reject a same film titled with arabic vs roman numerals', async () => {
+    // Folder "Rocky 5", TMDB canonical "Rocky V" — the same film.
+    const rockyV = { id: 1367, title: 'Rocky V', original_title: 'Rocky V', release_date: '1990-11-16' };
+    const provider = providerReturning([rockyV], { title: 'Rocky V', release_date: '1990-11-16', imdb_id: 'tt0100507' });
+    const details = await provider.fetchDetails({ kind: 'movie', title: 'Rocky 5', year: 1990 });
+    expect(details).not.toBeNull();
+    expect(details!.externalIds?.tmdb).toBe('1367');
+  });
+
   it('returns null on an empty search rather than throwing', async () => {
     const provider = providerReturning([]);
     expect(await provider.fetchDetails({ kind: 'movie', title: 'Nonexistent Film', year: 2030 })).toBeNull();
