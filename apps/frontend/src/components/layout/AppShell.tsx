@@ -18,6 +18,8 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  Pin,
+  PinOff,
   Search,
   X,
 } from 'lucide-react';
@@ -31,6 +33,7 @@ import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import {
+  activeEntryId,
   flattenForSearch,
   isBranchActive,
   isItemActive,
@@ -38,10 +41,12 @@ import {
   visibleGroups,
   type NavItem,
   type NavGroup,
+  type NavSearchEntry,
 } from '@/components/layout/navigation';
 import { formatSpeedCompact } from '@/lib/format';
 import { readStringSet, toggleInSet, writeStringSet } from '@/lib/persist-set';
 import { useNavBadges, type NavBadge } from '@/components/layout/useNavBadges';
+import { useNavPersonalization } from '@/components/layout/useNavPersonalization';
 import { cn } from '@/lib/utils';
 
 /** A count/dot status badge on a nav item. Collapsed rail shows just a dot. */
@@ -132,6 +137,28 @@ export function AppShell() {
   );
 
   const searchEntries = useMemo(() => flattenForSearch(groups), [groups]);
+  const personalization = useNavPersonalization();
+  const location = useLocation();
+
+  // Remember visited pages for the "Recent" quick-access list. A detail route folds
+  // into its parent nav entry via activeEntryId.
+  const { recordVisit } = personalization;
+  useEffect(() => {
+    const id = activeEntryId(searchEntries, location.pathname);
+    if (id) recordVisit(id);
+  }, [location.pathname, searchEntries, recordVisit]);
+
+  // Pinned entries → simple leaf items for the top-of-rail section (RBAC already
+  // applied to searchEntries, so a pin to a now-hidden page just won't resolve).
+  const byId = useMemo(() => new Map(searchEntries.map((e) => [e.id, e])), [searchEntries]);
+  const pinnedItems: NavItem[] = useMemo(
+    () =>
+      [...personalization.pinned]
+        .map((id) => byId.get(id))
+        .filter((e): e is NavSearchEntry => !!e && !!e.to)
+        .map((e) => ({ id: e.id, label: e.label, icon: e.icon, to: e.to })),
+    [personalization.pinned, byId],
+  );
 
   // Global Ctrl/Cmd+K opens the command palette.
   useEffect(() => {
@@ -151,6 +178,8 @@ export function AppShell() {
       <Sidebar
         groups={groups}
         collapsed={collapsed}
+        pinnedItems={pinnedItems}
+        onUnpin={personalization.togglePin}
         onToggleCollapsed={toggleCollapsed}
         onAbout={() => setAboutOpen(true)}
         onOpenCommand={() => setPaletteOpen(true)}
@@ -168,6 +197,8 @@ export function AppShell() {
           <Sidebar
             groups={groups}
             collapsed={false}
+            pinnedItems={pinnedItems}
+            onUnpin={personalization.togglePin}
             onAbout={() => {
               setMobileOpen(false);
               setAboutOpen(true);
@@ -201,6 +232,11 @@ export function AppShell() {
         onClose={() => setPaletteOpen(false)}
         entries={searchEntries}
         onNavigate={(to) => navigate(to)}
+        pinned={personalization.pinned}
+        favorites={personalization.favorites}
+        recent={personalization.recent}
+        onTogglePin={personalization.togglePin}
+        onToggleFavorite={personalization.toggleFavorite}
       />
     </div>
   );
@@ -575,9 +611,78 @@ function CollapsedRail({
   );
 }
 
+/** The user's pinned pages, shown at the very top of the rail. */
+function PinnedSection({
+  items,
+  collapsed,
+  onUnpin,
+  onNavigate,
+}: {
+  items: NavItem[];
+  collapsed: boolean;
+  onUnpin?: (id: string) => void;
+  onNavigate?: () => void;
+}) {
+  const { t } = useTranslation('nav');
+  const { t: tShell } = useTranslation('shell');
+  const location = useLocation();
+  if (items.length === 0) return null;
+
+  return (
+    <div role="group" aria-label={tShell('nav.pinned')} className="flex flex-col gap-0.5 pb-1">
+      {!collapsed && (
+        <div className="flex items-center gap-1 px-3 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          <Pin className="h-3 w-3" aria-hidden />
+          <span>{tShell('nav.pinned')}</span>
+        </div>
+      )}
+      {items.map((item) => {
+        const Icon = item.icon;
+        const active = isItemActive(item, location.pathname, location.search);
+        const label = tNav(t, 'items', item.label);
+        return (
+          <div key={item.id} className={cn('group relative flex items-center', collapsed && 'justify-center')}>
+            <Link
+              to={item.to ?? '#'}
+              onClick={onNavigate}
+              aria-label={label}
+              title={collapsed ? label : undefined}
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'flex min-w-0 flex-1 items-center gap-3 rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
+                active
+                  ? 'bg-primary/15 text-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.25)]'
+                  : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
+              )}
+            >
+              <Icon className={cn('h-[18px] w-[18px] shrink-0', active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
+              {!collapsed && <span className="truncate">{label}</span>}
+            </Link>
+            {!collapsed && onUnpin && (
+              <button
+                type="button"
+                onClick={() => onUnpin(item.id)}
+                aria-label={tShell('nav.unpin', { name: label })}
+                title={tShell('nav.unpin', { name: label })}
+                className="absolute right-1 rounded-md p-1 text-muted-foreground/60 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+              >
+                <PinOff className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        );
+      })}
+      <div className="mx-2 mt-1 h-px bg-border/40" aria-hidden />
+    </div>
+  );
+}
+
 function Sidebar({
   groups,
   collapsed,
+  pinnedItems,
+  onUnpin,
   className,
   onNavigate,
   onToggleCollapsed,
@@ -586,6 +691,8 @@ function Sidebar({
 }: {
   groups: NavGroup[];
   collapsed: boolean;
+  pinnedItems?: NavItem[];
+  onUnpin?: (id: string) => void;
   className?: string;
   onNavigate?: () => void;
   onToggleCollapsed?: () => void;
@@ -662,6 +769,7 @@ function Sidebar({
         aria-label={t('nav.primary')}
         className="flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden scrollbar-thin"
       >
+        <PinnedSection items={pinnedItems ?? []} collapsed={collapsed} onUnpin={onUnpin} onNavigate={onNavigate} />
         {collapsed ? (
           <CollapsedRail groups={groups} badges={badges} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />
         ) : (

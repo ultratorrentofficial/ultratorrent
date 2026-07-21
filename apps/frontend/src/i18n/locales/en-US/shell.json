@@ -7,14 +7,23 @@
     "expandItem": "Expand {{name}} sub-menu",
     "collapseItem": "Collapse {{name}} sub-menu",
     "expandAll": "Expand all",
-    "collapseAll": "Collapse all"
+    "collapseAll": "Collapse all",
+    "pinned": "Pinned",
+    "unpin": "Unpin {{name}}"
   },
   "command": {
     "title": "Command menu",
     "open": "Open command menu",
     "search": "Search",
     "placeholder": "Search menus and pages…",
-    "empty": "No matching pages."
+    "empty": "No matching pages.",
+    "pinned": "Pinned",
+    "recent": "Recent",
+    "favorites": "Favorites",
+    "pin": "Pin to sidebar",
+    "unpin": "Unpin",
+    "favorite": "Add to favorites",
+    "unfavorite": "Remove from favorites"
   },
   "menu": {
     "open": "Open menu",

@@ -53,4 +53,46 @@ describe('CommandPalette', () => {
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('shows Pinned / Recent / Favorites quick-access sections when the query is empty', () => {
+    render(
+      <CommandPalette
+        open
+        entries={entries}
+        onNavigate={vi.fn()}
+        onClose={vi.fn()}
+        pinned={new Set(['torrents'])}
+        recent={['users']}
+        favorites={new Set()}
+        onTogglePin={vi.fn()}
+        onToggleFavorite={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Pinned')).toBeInTheDocument();
+    expect(screen.getByText('Recent')).toBeInTheDocument();
+    // Typing switches back to a flat filtered list (no section headers).
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'user' } });
+    expect(screen.queryByText('Pinned')).not.toBeInTheDocument();
+  });
+
+  it('pins a row via its inline toggle without navigating', () => {
+    const onTogglePin = vi.fn();
+    const onNavigate = vi.fn();
+    render(
+      <CommandPalette
+        open
+        entries={entries}
+        onNavigate={onNavigate}
+        onClose={vi.fn()}
+        pinned={new Set()}
+        recent={[]}
+        favorites={new Set()}
+        onTogglePin={onTogglePin}
+        onToggleFavorite={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getAllByRole('button', { name: /pin to sidebar/i })[0]);
+    expect(onTogglePin).toHaveBeenCalledWith('torrents');
+    expect(onNavigate).not.toHaveBeenCalled(); // toggling never navigates
+  });
 });

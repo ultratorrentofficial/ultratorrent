@@ -7,14 +7,23 @@
     "expandItem": "Expandir submenú de {{name}}",
     "collapseItem": "Colapsar submenú de {{name}}",
     "expandAll": "Expandir todo",
-    "collapseAll": "Contraer todo"
+    "collapseAll": "Contraer todo",
+    "pinned": "Fijados",
+    "unpin": "Quitar {{name}}"
   },
   "command": {
     "title": "Menú de comandos",
     "open": "Abrir menú de comandos",
     "search": "Buscar",
     "placeholder": "Busca menús y páginas…",
-    "empty": "No hay páginas coincidentes."
+    "empty": "No hay páginas coincidentes.",
+    "pinned": "Fijados",
+    "recent": "Recientes",
+    "favorites": "Favoritos",
+    "pin": "Fijar a la barra",
+    "unpin": "Quitar",
+    "favorite": "Agregar a favoritos",
+    "unfavorite": "Quitar de favoritos"
   },
   "menu": {
     "open": "Abrir menú",

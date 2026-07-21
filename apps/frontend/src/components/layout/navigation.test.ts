@@ -4,6 +4,7 @@ import {
   NAV_GROUPS,
   NAV_DOMAINS,
   NAV_CONTRIBUTIONS,
+  activeEntryId,
   composeNavGroups,
   flattenForSearch,
   isBranchActive,
@@ -157,6 +158,28 @@ describe('flattenForSearch', () => {
     const entries = flattenForSearch(visibleGroups(ctx({ perms: [PERMISSIONS.TORRENTS_VIEW], mods: ['torrents'] })));
     expect(entries.some((e) => e.id === 'users')).toBe(false);
     expect(entries.some((e) => e.id === 'torrents')).toBe(true);
+  });
+});
+
+describe('activeEntryId (recent-page resolution)', () => {
+  const entries = flattenForSearch(visibleGroups(ALL));
+
+  it('resolves an exact route to its entry', () => {
+    expect(activeEntryId(entries, '/media/items')).toBe('media-items');
+  });
+
+  it('folds a detail route into its parent nav entry', () => {
+    // /media/items/:id has no nav entry of its own → its parent list page.
+    expect(activeEntryId(entries, '/media/items/abc123')).toBe('media-items');
+  });
+
+  it('prefers the longest prefix (a nested route over its ancestor)', () => {
+    // /subtitles and /subtitles/search both match /subtitles/search — pick the deeper.
+    expect(activeEntryId(entries, '/subtitles/search')).toBe('subtitles-search');
+  });
+
+  it('returns undefined for a route with no nav entry', () => {
+    expect(activeEntryId(entries, '/nowhere')).toBeUndefined();
   });
 });
 

@@ -372,6 +372,25 @@ export interface NavSearchEntry {
   groupTitle: string;
 }
 
+/**
+ * The nav entry whose route best matches a pathname (longest `to` prefix), or
+ * undefined. Used to record "recent pages": a detail route like `/media/items/:id`
+ * resolves to its parent nav entry (`media-items`). Pure — exported for testing.
+ */
+export function activeEntryId(entries: NavSearchEntry[], pathname: string): string | undefined {
+  let bestId: string | undefined;
+  let bestLen = -1;
+  for (const e of entries) {
+    if (!e.to) continue;
+    const base = e.to.split('?')[0];
+    if ((pathname === base || pathname.startsWith(base + '/')) && base.length > bestLen) {
+      bestLen = base.length;
+      bestId = e.id;
+    }
+  }
+  return bestId;
+}
+
 /** Flatten the (already-filtered) groups into navigable entries for search. */
 export function flattenForSearch(groups: NavGroup[]): NavSearchEntry[] {
   const out: NavSearchEntry[] = [];
