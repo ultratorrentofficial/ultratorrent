@@ -6,6 +6,13 @@ new page should honour so the whole app feels like one product. For *where a fea
 goes* see [MENU_GUIDELINES.md](MENU_GUIDELINES.md); for the mechanics see
 [NAVIGATION.md](NAVIGATION.md).
 
+> **Now the Workspace model.** The shell has evolved from one sidebar-of-domains into a
+> **platform of Workspaces**: a fixed global rail lists only the nine Workspaces, and
+> selecting one replaces the sidebar with that Workspace's own navigation and Overview.
+> The principles below still hold; the canonical shell reference is
+> **[WORKSPACE_ARCHITECTURE.md](WORKSPACE_ARCHITECTURE.md)**, with conventions in
+> [MENU_STANDARDS.md](MENU_STANDARDS.md).
+
 ## Principles
 
 1. **Nothing is removed or hidden to make room.** Every redesign step preserved every

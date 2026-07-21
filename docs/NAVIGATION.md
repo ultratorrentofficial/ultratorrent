@@ -1,9 +1,16 @@
 # Navigation & App Shell
 
-UltraTorrent's UI navigation is a single **declarative, typed tree** consumed by
-the sidebar, breadcrumbs, and command palette. There are no editions or license
-tiers — visibility is controlled **only** by RBAC permissions and module
-enablement. The server remains authoritative; UI hiding is a convenience layer.
+UltraTorrent's UI navigation is a single **declarative, typed tree** consumed by every
+navigation surface. There are no editions or license tiers — visibility is controlled
+**only** by RBAC permissions and module enablement. The server remains authoritative;
+UI hiding is a convenience layer.
+
+> **Shell model:** the app runs the **Workspace model** — a fixed global rail lists only
+> the nine Workspaces; selecting one *replaces* the sidebar with that Workspace's own nav.
+> This document covers the underlying nav model (the registry, filtering, palette,
+> breadcrumbs) that every surface shares. For the shell itself — the rail, Workspace
+> Overviews, switching, jobs — see **[WORKSPACE_ARCHITECTURE.md](WORKSPACE_ARCHITECTURE.md)**.
+> The eight-domain vocabulary below is the same mechanism; a "domain" *is* a Workspace.
 
 ## Source of truth
 
@@ -38,12 +45,12 @@ flowchart TD
   N[NAV_CONTRIBUTIONS<br/>navSlot per module] --> C
   C --> G[NAV_GROUPS]
   G --> V["visibleGroups(ctx)<br/>RBAC + module filter"]
-  V --> SB[Sidebar / collapsed rail]
+  V --> WR[Workspace rail<br/>9 workspaces]
+  V --> SB[Active-workspace sidebar]
   V --> BC[Breadcrumbs<br/>+ entity context]
-  V --> CP[Command palette<br/>pages · actions · entities]
-  V --> HUB["Landing hubs<br/>/hub/:domainId"]
-  V --> CSN[Contextual sub-nav]
-  V --> MDB[Mobile domain bar]
+  V --> CP[Command palette<br/>fuzzy · scoped · entities]
+  V --> HUB["Workspace Overviews<br/>/hub/:workspaceId"]
+  V --> MDB[Mobile workspace bar]
   P[useNavPersonalization<br/>pinned · favorites · recent] -.-> SB
   P -.-> CP
 ```
