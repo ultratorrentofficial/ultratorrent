@@ -2,23 +2,23 @@ import { describe, expect, it } from 'vitest';
 import { crumbsFor } from './Breadcrumbs';
 
 describe('crumbsFor', () => {
-  it('builds Group › Item for a top-level route', () => {
+  it('builds Workspace › Item for a top-level route (workspace links to its Overview)', () => {
     expect(crumbsFor('/dashboard')).toEqual([
-      { label: 'Dashboard' },
+      { label: 'Dashboard', to: '/hub/dashboard' },
       { label: 'Dashboard', to: '/dashboard' },
     ]);
   });
 
   it('resolves the base Torrents route (query ignored)', () => {
     expect(crumbsFor('/torrents')).toEqual([
-      { label: 'Downloads' },
+      { label: 'Downloads', to: '/hub/downloads' },
       { label: 'Torrents', to: '/torrents' },
     ]);
   });
 
-  it('builds Group › Parent › Item for a nested sub-menu route', () => {
+  it('builds Workspace › Parent › Item for a nested sub-menu route', () => {
     expect(crumbsFor('/media-acquisition/dashboard')).toEqual([
-      { label: 'Downloads' },
+      { label: 'Downloads', to: '/hub/downloads' },
       { label: 'Acquisition Intelligence', to: '/media-acquisition' },
       { label: 'Smart Download', to: '/media-acquisition/dashboard' },
     ]);
@@ -26,7 +26,7 @@ describe('crumbsFor', () => {
 
   it('appends a detail crumb for a nested detail route', () => {
     expect(crumbsFor('/rss/rules/abc123')).toEqual([
-      { label: 'Downloads' },
+      { label: 'Downloads', to: '/hub/downloads' },
       { label: 'RSS Feeds', to: '/rss' },
       { label: 'Rule' },
     ]);
@@ -34,7 +34,7 @@ describe('crumbsFor', () => {
 
   it('appends a generic Details crumb for a media item detail page', () => {
     expect(crumbsFor('/media/items/abc123')).toEqual([
-      { label: 'Media' },
+      { label: 'Media', to: '/hub/media' },
       { label: 'Media Items', to: '/media/items' },
       { label: 'Details' },
     ]);

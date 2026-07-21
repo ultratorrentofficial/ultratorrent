@@ -251,16 +251,19 @@ export function AppShell() {
         onToggleSidebar={toggleSidebar}
       />
 
-      {/* Active-workspace sidebar (desktop) — full replacement per workspace. */}
+      {/* Active-workspace sidebar (desktop) — full replacement per workspace. The
+          key + fade give a subtle cross-fade cue when the workspace changes (persisted
+          collapse state re-reads from localStorage on remount, so nothing is lost). */}
       {!sidebarHidden && activeWs && (
         <Sidebar
+          key={activeWs.id}
           groups={[activeWs]}
           collapsed={false}
           pinnedItems={pinnedItems}
           onUnpin={personalization.togglePin}
           onAbout={() => setAboutOpen(true)}
           onOpenCommand={() => setPaletteOpen(true)}
-          className="hidden lg:flex"
+          className="hidden lg:flex animate-fade-in motion-reduce:animate-none"
         />
       )}
 
@@ -511,6 +514,7 @@ function NavGroupBlock({
   badges,
   onNavigate,
   onOpenCommand,
+  hideHeader,
 }: {
   group: NavGroup;
   collapsed?: boolean;
@@ -521,6 +525,9 @@ function NavGroupBlock({
   badges?: Record<string, NavBadge>;
   onNavigate?: () => void;
   onOpenCommand?: () => void;
+  /** In the workspace sidebar the workspace header supplies context, so the group's
+   *  own collapsible header is redundant — hide it and render items directly. */
+  hideHeader?: boolean;
 }) {
   const { t } = useTranslation('nav');
   const { t: tShell } = useTranslation('shell');
@@ -552,7 +559,7 @@ function NavGroupBlock({
 
   return (
     <div role="group" aria-label={title} className="flex flex-col gap-1">
-      {collapsed ? (
+      {hideHeader ? null : collapsed ? (
         <div className="mx-2 my-1 h-px bg-border/40" aria-hidden />
       ) : (
         <div className="group/hdr flex items-center gap-1 px-1 pb-0.5 pt-3">
@@ -575,7 +582,7 @@ function NavGroupBlock({
           </Link>
         </div>
       )}
-      {(collapsed || open) && group.items.map(renderItem)}
+      {(collapsed || open || hideHeader) && group.items.map(renderItem)}
     </div>
   );
 }
@@ -794,7 +801,11 @@ function Sidebar({
   onTouchEnd?: (e: React.TouchEvent) => void;
 }) {
   const { t } = useTranslation('shell');
+  const { t: tNavGroups } = useTranslation('nav');
   const badges = useNavBadges();
+  // In the workspace shell the sidebar renders exactly one workspace; show its
+  // identity as the header (removing the redundant logo + group header).
+  const workspace = groups.length === 1 ? groups[0] : undefined;
   const [collapsedGroups, setCollapsedGroups] = useState(() => readStringSet(GROUPS_COLLAPSED_KEY));
   const [expandedItems, setExpandedItems] = useState(() => readStringSet(ITEMS_EXPANDED_KEY));
   const toggleGroup = useCallback(
@@ -827,13 +838,24 @@ function Sidebar({
         className,
       )}
     >
-      <div className="relative flex items-center justify-center px-1 py-4">
+      <div className="relative flex items-center px-1 py-4">
         {collapsed ? (
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
+          <span className="mx-auto grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
             UT
           </span>
+        ) : workspace ? (
+          <Link
+            to={`/hub/${workspace.id}`}
+            onClick={onNavigate}
+            className="flex items-center gap-2.5 rounded-lg px-1 py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">
+              <workspace.icon className="h-5 w-5" />
+            </span>
+            <span className="text-base font-bold tracking-tight">{tNav(tNavGroups, 'groups', workspace.title)}</span>
+          </Link>
         ) : (
-          <img src="/logo.png" alt="UltraTorrent" className="w-full max-w-[13rem] object-contain" />
+          <img src="/logo.png" alt="UltraTorrent" className="mx-auto w-full max-w-[13rem] object-contain" />
         )}
         {onNavigate && (
           <button
@@ -847,7 +869,7 @@ function Sidebar({
         )}
       </div>
 
-      {!collapsed && (
+      {!collapsed && !workspace && (
         <div className="flex items-center justify-end gap-0.5 px-1 pb-0.5">
           <button
             type="button"
@@ -881,6 +903,7 @@ function Sidebar({
               badges={badges}
               onNavigate={onNavigate}
               onOpenCommand={onOpenCommand}
+              hideHeader={!!workspace}
             />
           ))
         )}

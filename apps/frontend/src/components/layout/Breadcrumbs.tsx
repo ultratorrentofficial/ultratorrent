@@ -19,6 +19,7 @@ const DETAIL_LABELS: { prefix: string; label: string }[] = [
 
 interface FlatEntry {
   group: string;
+  groupId: string;
   parent?: string;
   label: string;
   base: string;
@@ -30,11 +31,12 @@ function flatEntries(): FlatEntry[] {
   const out: FlatEntry[] = [];
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
-      if (item.to) out.push({ group: group.title, label: item.label, base: item.to.split('?')[0] });
+      if (item.to) out.push({ group: group.title, groupId: group.id, label: item.label, base: item.to.split('?')[0] });
       for (const child of item.children ?? []) {
         if (child.to) {
           out.push({
             group: group.title,
+            groupId: group.id,
             parent: item.label,
             parentBase: item.to?.split('?')[0],
             label: child.label,
@@ -75,7 +77,8 @@ export function crumbsFor(pathname: string): Crumb[] {
     return [{ label: seg.charAt(0).toUpperCase() + seg.slice(1) }];
   }
 
-  const crumbs: Crumb[] = [{ label: best.group }];
+  // The workspace crumb links to its Overview (`/hub/:workspaceId`).
+  const crumbs: Crumb[] = [{ label: best.group, to: `/hub/${best.groupId}` }];
   if (best.parent && best.parentBase) crumbs.push({ label: best.parent, to: best.parentBase });
   crumbs.push({ label: best.label, to: best.base });
 
