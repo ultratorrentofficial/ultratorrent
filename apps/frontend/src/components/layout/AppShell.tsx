@@ -177,6 +177,8 @@ export function AppShell() {
     lastWorkspaceId,
   );
   const activeWs = groups.find((g) => g.id === activeWorkspaceId);
+  const { t: tNavT } = useTranslation('nav');
+  const scopeLabel = activeWs ? tNav(tNavT, 'groups', activeWs.title) : undefined;
   // Persist the workspace the route lands us in, so a subsequent workspace-less route
   // (e.g. /account) keeps showing it.
   useEffect(() => {
@@ -321,6 +323,8 @@ export function AppShell() {
         recent={personalization.recent}
         onTogglePin={personalization.togglePin}
         onToggleFavorite={personalization.toggleFavorite}
+        scopeId={activeWorkspaceId}
+        scopeLabel={scopeLabel}
       />
     </div>
     </BreadcrumbProvider>

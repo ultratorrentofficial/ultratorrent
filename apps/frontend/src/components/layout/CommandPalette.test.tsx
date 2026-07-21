@@ -75,6 +75,35 @@ describe('CommandPalette', () => {
     expect(screen.queryByText('Pinned')).not.toBeInTheDocument();
   });
 
+  it('fuzzy-matches a label ("subttl" would miss, but "user" finds Users)', () => {
+    setup();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'usr' } });
+    // "usr" is a subsequence of "Users" but not of "Torrents".
+    expect(screen.getByText('Users')).toBeInTheDocument();
+    expect(screen.queryByText('Torrents')).not.toBeInTheDocument();
+  });
+
+  it('scopes pages to the active workspace when Tab toggles scope', () => {
+    render(
+      <CommandPalette
+        open
+        entries={entries}
+        onNavigate={vi.fn()}
+        onClose={vi.fn()}
+        scopeId="administration"
+        scopeLabel="Administration"
+      />,
+    );
+    const input = screen.getByRole('textbox');
+    // Before scoping, a broad query can surface pages from other workspaces.
+    fireEvent.change(input, { target: { value: 's' } });
+    expect(screen.getByText('Torrents')).toBeInTheDocument();
+    // Tab scopes to Administration → Torrents (Downloads) drops out, Users stays.
+    fireEvent.keyDown(input, { key: 'Tab' });
+    expect(screen.queryByText('Torrents')).not.toBeInTheDocument();
+    expect(screen.getByText('Users')).toBeInTheDocument();
+  });
+
   it('runs a matching quick action instead of navigating', async () => {
     const run = vi.fn();
     const onNavigate = vi.fn();

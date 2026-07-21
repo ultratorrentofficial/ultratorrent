@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, CornerDownLeft, Pin, Star, Loader2 } from 'lucide-react';
+import { Search, CornerDownLeft, Pin, Star, Loader2, X } from 'lucide-react';
 import { tNav, type NavIcon, type NavSearchEntry } from '@/components/layout/navigation';
+import { fuzzyScore } from '@/lib/fuzzy';
 import { cn } from '@/lib/utils';
 
 /** A quick action — a command that runs rather than navigating (or navigates itself). */
@@ -12,6 +13,8 @@ export interface PaletteAction {
   run: () => void;
   /** Extra words to match on (e.g. synonyms). */
   keywords?: string;
+  /** Workspace this action belongs to (for scoped search). */
+  scope?: string;
 }
 
 /** One matched entity (a library, media item, …) from an async source. */
@@ -28,6 +31,8 @@ export interface PaletteEntitySource {
   key: string;
   title: string;
   search: (query: string) => Promise<PaletteEntity[]>;
+  /** Workspace this source belongs to (for scoped search). */
+  scope?: string;
 }
 
 interface Decorated {
@@ -72,6 +77,8 @@ export function CommandPalette({
   recent,
   onTogglePin,
   onToggleFavorite,
+  scopeId,
+  scopeLabel,
 }: {
   open: boolean;
   onClose: () => void;
@@ -84,10 +91,14 @@ export function CommandPalette({
   recent?: string[];
   onTogglePin?: (id: string) => void;
   onToggleFavorite?: (id: string) => void;
+  /** When set, the palette offers a toggle to scope results to this workspace. */
+  scopeId?: string;
+  scopeLabel?: string;
 }) {
   const { t } = useTranslation('nav');
   const { t: tShell } = useTranslation('shell');
   const [query, setQuery] = useState('');
+  const [scoped, setScoped] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -105,6 +116,14 @@ export function CommandPalette({
   );
   const byId = useMemo(() => new Map(decorated.map((d) => [d.entry.id, d])), [decorated]);
 
+  // Scoped search: when the user limits the palette to the active workspace, pages,
+  // actions and entity sources are all filtered to that workspace's scope.
+  const scopeActive = scoped && !!scopeId;
+  const activeSources = useMemo(
+    () => (scopeActive ? entitySources.filter((s) => s.scope === scopeId) : entitySources),
+    [scopeActive, scopeId, entitySources],
+  );
+
   // --- async entity search (debounced, provider-free of react-query so the palette
   // stays self-contained) -------------------------------------------------------
   const [debounced, setDebounced] = useState('');
@@ -117,10 +136,10 @@ export function CommandPalette({
   // Key the effect on the sources' identity by content, not array reference — a
   // default `[]` prop is a fresh reference each render and would otherwise re-run
   // this effect (and its setState) forever.
-  const sourceKeys = entitySources.map((s) => s.key).join(',');
+  const sourceKeys = activeSources.map((s) => s.key).join(',');
   useEffect(() => {
     const q = debounced.trim();
-    if (!open || q.length < MIN_ENTITY_QUERY || entitySources.length === 0) {
+    if (!open || q.length < MIN_ENTITY_QUERY || activeSources.length === 0) {
       // Functional bail-out: return the SAME reference when already empty so React
       // skips the re-render (otherwise this loops).
       setEntityHits((h) => (Object.keys(h).length ? {} : h));
@@ -130,7 +149,7 @@ export function CommandPalette({
     let cancelled = false;
     setEntityLoading(true);
     Promise.all(
-      entitySources.map(async (s) => [s.key, await s.search(q).catch(() => [] as PaletteEntity[])] as const),
+      activeSources.map(async (s) => [s.key, await s.search(q).catch(() => [] as PaletteEntity[])] as const),
     ).then((pairs) => {
       if (cancelled) return;
       setEntityHits(Object.fromEntries(pairs));
@@ -170,17 +189,32 @@ export function CommandPalette({
 
     const out: Section[] = [];
 
+    // Score a row: fuzzy on the LABEL (the field worth being lenient on), plus a
+    // precise substring fallback on auxiliary fields (group/desc/keywords) so a
+    // scattered subsequence buried in a long description doesn't surface noise.
+    const rank = (label: string, ...aux: (string | undefined)[]): number | null => {
+      const s = fuzzyScore(q, label);
+      if (s !== null) return s;
+      return aux.some((a) => a?.toLowerCase().includes(q)) ? 1 : null;
+    };
+
     const actionRows: Row[] = actions
-      .filter((a) => a.label.toLowerCase().includes(q) || (a.keywords ?? '').toLowerCase().includes(q))
-      .map((a) => ({ kind: 'action', id: a.id, label: a.label, icon: a.icon, run: a.run }));
+      .filter((a) => !scopeActive || a.scope === scopeId)
+      .map((a) => ({ a, score: rank(a.label, a.keywords) }))
+      .filter((x): x is { a: PaletteAction; score: number } => x.score !== null)
+      .sort((x, y) => y.score - x.score)
+      .map(({ a }) => ({ kind: 'action', id: a.id, label: a.label, icon: a.icon, run: a.run }));
     if (actionRows.length) out.push({ key: 'actions', title: tShell('command.actions'), rows: actionRows });
 
     const pageRows: Row[] = decorated
-      .filter((d) => d.label.toLowerCase().includes(q) || d.group.toLowerCase().includes(q) || d.desc.toLowerCase().includes(q))
-      .map((d) => ({ kind: 'page', id: d.entry.id, label: d.label, sub: d.group, icon: d.entry.icon, to: d.entry.to! }));
+      .filter((d) => !scopeActive || d.entry.groupId === scopeId)
+      .map((d) => ({ d, score: rank(d.label, d.group, d.desc) }))
+      .filter((x): x is { d: Decorated; score: number } => x.score !== null)
+      .sort((x, y) => y.score - x.score)
+      .map(({ d }) => ({ kind: 'page', id: d.entry.id, label: d.label, sub: d.group, icon: d.entry.icon, to: d.entry.to! }));
     if (pageRows.length) out.push({ key: 'pages', title: tShell('command.pages'), rows: pageRows, personalise: true });
 
-    for (const src of entitySources) {
+    for (const src of activeSources) {
       const hits = entityHits[src.key] ?? [];
       const loading = entityLoading && debounced.trim().length >= MIN_ENTITY_QUERY;
       if (hits.length === 0 && !loading) continue;
@@ -193,7 +227,7 @@ export function CommandPalette({
     }
 
     return out;
-  }, [query, decorated, byId, pinned, recent, favorites, actions, entitySources, entityHits, entityLoading, debounced, tShell]);
+  }, [query, decorated, byId, pinned, recent, favorites, actions, activeSources, scopeActive, scopeId, entityHits, entityLoading, debounced, tShell]);
 
   const flat = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
 
@@ -202,6 +236,7 @@ export function CommandPalette({
       setQuery('');
       setDebounced('');
       setActive(0);
+      setScoped(false);
       const id = requestAnimationFrame(() => inputRef.current?.focus());
       return () => cancelAnimationFrame(id);
     }
@@ -223,6 +258,8 @@ export function CommandPalette({
     onClose();
   };
 
+  const canScope = !!scopeId && !!scopeLabel;
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -235,7 +272,16 @@ export function CommandPalette({
       activate(flat[active]);
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      onClose();
+      // Escape first clears an active scope, then closes.
+      if (scoped) setScoped(false);
+      else onClose();
+    } else if (e.key === 'Tab' && canScope) {
+      // Tab toggles the workspace scope.
+      e.preventDefault();
+      setScoped((v) => !v);
+    } else if (e.key === 'Backspace' && scoped && query === '') {
+      // Backspace on an empty query lifts the scope.
+      setScoped(false);
     }
   };
 
@@ -248,15 +294,37 @@ export function CommandPalette({
       <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl glass shadow-card animate-scale-in" onKeyDown={onKeyDown}>
         <div className="flex items-center gap-2 border-b border-border/60 px-3">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          {scopeActive && (
+            <button
+              type="button"
+              onClick={() => setScoped(false)}
+              className="flex shrink-0 items-center gap-1 rounded-md bg-primary/15 px-2 py-1 text-xs font-medium text-primary"
+              aria-label={tShell('command.scopeClear', { name: scopeLabel })}
+              title={tShell('command.scopeClear', { name: scopeLabel })}
+            >
+              {scopeLabel}
+              <X className="h-3 w-3" />
+            </button>
+          )}
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={tShell('command.placeholder')}
+            placeholder={scopeActive ? tShell('command.scopedPlaceholder', { name: scopeLabel }) : tShell('command.placeholder')}
             aria-label={tShell('command.placeholder')}
             className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           {entityLoading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-hidden />}
+          {canScope && !scopeActive && (
+            <button
+              type="button"
+              onClick={() => setScoped(true)}
+              className="hidden shrink-0 items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground sm:flex"
+              title={tShell('command.scopeTo', { name: scopeLabel })}
+            >
+              <kbd>Tab</kbd> {scopeLabel}
+            </button>
+          )}
           <kbd className="hidden shrink-0 rounded border border-border/60 px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline">Esc</kbd>
         </div>
 

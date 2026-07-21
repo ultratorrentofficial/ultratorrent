@@ -19,6 +19,9 @@
     "open": "Abrir menú de comandos",
     "search": "Buscar",
     "placeholder": "Busca menús y páginas…",
+    "scopedPlaceholder": "Buscar en {{name}}…",
+    "scopeTo": "Limitar a {{name}}",
+    "scopeClear": "Quitar el alcance de {{name}}",
     "empty": "No hay páginas coincidentes.",
     "pinned": "Fijados",
     "recent": "Recientes",
@@ -38,7 +41,10 @@
     },
     "entity": {
       "media": "Medios",
-      "libraries": "Bibliotecas"
+      "libraries": "Bibliotecas",
+      "rssRules": "Reglas RSS",
+      "users": "Usuarios",
+      "jobs": "Trabajos"
     }
   },
   "menu": {

@@ -19,6 +19,9 @@
     "open": "Open command menu",
     "search": "Search",
     "placeholder": "Search menus and pages…",
+    "scopedPlaceholder": "Search {{name}}…",
+    "scopeTo": "Limit to {{name}}",
+    "scopeClear": "Clear {{name}} scope",
     "empty": "No matching pages.",
     "pinned": "Pinned",
     "recent": "Recent",
@@ -38,7 +41,10 @@
     },
     "entity": {
       "media": "Media",
-      "libraries": "Libraries"
+      "libraries": "Libraries",
+      "rssRules": "RSS rules",
+      "users": "Users",
+      "jobs": "Jobs"
     }
   },
   "menu": {
