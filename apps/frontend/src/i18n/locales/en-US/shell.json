@@ -37,7 +37,11 @@
       "scanLibrary": "Scan library",
       "findDuplicates": "Find duplicates",
       "createRssRule": "Create RSS rule",
-      "runAutomation": "Automation rules"
+      "runAutomation": "Automation rules",
+      "openJobs": "Open Jobs Center",
+      "jobsRunning": "View running jobs",
+      "jobsFailed": "View failed jobs",
+      "jobsScheduled": "View scheduled tasks"
     },
     "entity": {
       "media": "Media",

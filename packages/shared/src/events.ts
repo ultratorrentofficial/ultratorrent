@@ -190,6 +190,13 @@ export const NOTIFICATION_EVENTS = {
   SYSTEM_NEW_LOGIN: 'system.new_login',
   SYSTEM_API_KEY_CREATED: 'system.api_key_created',
   SYSTEM_SETTINGS_CHANGED: 'system.settings_changed',
+
+  // Unified Jobs Center — operational job events the Notification Center + Automation
+  // can act on (a job failed, stalled, finished with warnings, or exhausted retries).
+  JOB_FAILED: 'job.failed',
+  JOB_STALLED: 'job.stalled',
+  JOB_COMPLETED_WITH_WARNINGS: 'job.completed_with_warnings',
+  JOB_RETRY_EXHAUSTED: 'job.retry_exhausted',
 } as const;
 
 /**

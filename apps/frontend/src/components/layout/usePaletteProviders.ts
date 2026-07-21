@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Copy, Download, Film, Library, Rss, ScanSearch, Bot, Users, Briefcase } from 'lucide-react';
+import { Copy, Download, Film, Library, Rss, ScanSearch, Bot, Users, Briefcase, ListChecks } from 'lucide-react';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { api, type JobSubsystem } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -49,6 +49,12 @@ export function usePaletteProviders(): { actions: PaletteAction[]; entitySources
     }
     if (hasPermission(PERMISSIONS.AUTOMATION_VIEW) && isEnabled('automation')) {
       out.push({ id: 'automation', label: t('command.action.runAutomation'), icon: Bot, keywords: 'rule trigger', scope: 'automation', run: () => navigate('/automation') });
+    }
+    if (hasPermission(PERMISSIONS.JOBS_VIEW)) {
+      out.push({ id: 'jobs-center', label: t('command.action.openJobs'), icon: ListChecks, keywords: 'jobs tasks background', scope: 'system', run: () => navigate('/jobs') });
+      out.push({ id: 'jobs-running', label: t('command.action.jobsRunning'), icon: ListChecks, keywords: 'jobs active', scope: 'system', run: () => navigate('/jobs/list?status=running') });
+      out.push({ id: 'jobs-failed', label: t('command.action.jobsFailed'), icon: ListChecks, keywords: 'jobs errors', scope: 'system', run: () => navigate('/jobs/list?status=failed') });
+      out.push({ id: 'jobs-scheduled', label: t('command.action.jobsScheduled'), icon: ListChecks, keywords: 'schedules tasks', scope: 'system', run: () => navigate('/jobs/schedules') });
     }
     return out;
   }, [t, navigate, hasPermission, isEnabled, canMedia, canRss]);

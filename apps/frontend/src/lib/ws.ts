@@ -12,6 +12,7 @@ import {
   type EngineStatusPayload,
   type FileOperationEventPayload,
   type ImdbEventPayload,
+  type JobEventPayload,
   type MediaJobEventPayload,
   type NotificationPayload,
   type StatsUpdatePayload,
@@ -54,6 +55,22 @@ export interface WsEventMap {
   // Media Server Analytics live activity (broadcast by the session poller).
   'media_server.session.started': { connectionId: string; title: string; userName: string | null };
   'media_server.session.ended': { connectionId: string; title: string };
+  // Unified Jobs Center — the platform-wide job lifecycle channel (permission-scoped).
+  [WS_EVENTS.JOB_CREATED]: JobEventPayload;
+  [WS_EVENTS.JOB_QUEUED]: JobEventPayload;
+  [WS_EVENTS.JOB_STARTED]: JobEventPayload;
+  [WS_EVENTS.JOB_PROGRESS]: JobEventPayload;
+  [WS_EVENTS.JOB_PHASE_CHANGED]: JobEventPayload;
+  [WS_EVENTS.JOB_WARNING]: JobEventPayload;
+  [WS_EVENTS.JOB_PAUSED]: JobEventPayload;
+  [WS_EVENTS.JOB_RESUMED]: JobEventPayload;
+  [WS_EVENTS.JOB_RETRYING]: JobEventPayload;
+  [WS_EVENTS.JOB_COMPLETED]: JobEventPayload;
+  [WS_EVENTS.JOB_FAILED]: JobEventPayload;
+  [WS_EVENTS.JOB_CANCELLING]: JobEventPayload;
+  [WS_EVENTS.JOB_CANCELLED]: JobEventPayload;
+  [WS_EVENTS.JOB_STALLED]: JobEventPayload;
+  [WS_EVENTS.JOB_CHILD_CREATED]: JobEventPayload;
 }
 
 export type WsStatus = 'connecting' | 'connected' | 'disconnected';

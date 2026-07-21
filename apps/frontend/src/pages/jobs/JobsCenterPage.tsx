@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { JOB_TABS } from './jobStatus';
+import { useJobsRealtime } from './useJobsRealtime';
 
 /**
  * Jobs Center shell: the platform's operational control plane. A header + a
@@ -12,6 +13,7 @@ import { JOB_TABS } from './jobStatus';
 export function JobsCenterPage() {
   const { t } = useTranslation('jobs');
   const td = t as unknown as (key: string, opts?: Record<string, unknown>) => string;
+  useJobsRealtime(); // live updates from the permission-scoped jobs.* WS channel
   const { pathname } = useLocation();
   const [params] = useSearchParams();
   const activeStatus = params.get('status');

@@ -37,7 +37,11 @@
       "scanLibrary": "Escanear biblioteca",
       "findDuplicates": "Buscar duplicados",
       "createRssRule": "Crear regla RSS",
-      "runAutomation": "Reglas de automatización"
+      "runAutomation": "Reglas de automatización",
+      "openJobs": "Abrir Centro de Trabajos",
+      "jobsRunning": "Ver trabajos en ejecución",
+      "jobsFailed": "Ver trabajos fallidos",
+      "jobsScheduled": "Ver tareas programadas"
     },
     "entity": {
       "media": "Medios",

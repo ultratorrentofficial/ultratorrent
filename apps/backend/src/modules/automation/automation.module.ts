@@ -24,7 +24,8 @@ import {
   IsString,
 } from 'class-validator';
 import type { Request } from 'express';
-import { NormalizedTorrent, PERMISSIONS } from '@ultratorrent/shared';
+import { NormalizedTorrent, PERMISSIONS, NOTIFICATION_BUS_CHANNEL, type DomainEventEnvelope } from '@ultratorrent/shared';
+import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
 import { assertSafeOutboundUrl } from '../../common/ssrf';
@@ -84,6 +85,11 @@ export const AUTOMATION_TRIGGERS = [
   { id: 'subtitle.downloaded', label: 'When a subtitle is downloaded', category: 'subtitle' },
   { id: 'subtitle.synchronized', label: 'When a subtitle is synchronized', category: 'subtitle' },
   { id: 'subtitle.validation_failed', label: 'When a subtitle fails validation', category: 'subtitle' },
+  // Unified Jobs Center — operational job lifecycle triggers.
+  { id: 'job.failed', label: 'When a job fails', category: 'jobs' },
+  { id: 'job.stalled', label: 'When a job stalls', category: 'jobs' },
+  { id: 'job.completed_with_warnings', label: 'When a job completes with warnings', category: 'jobs' },
+  { id: 'job.retry_exhausted', label: 'When a job exhausts its retries', category: 'jobs' },
 ] as const;
 
 /** Catalog of actions the engine can execute (metadata for the UI). */
@@ -720,6 +726,29 @@ export class AutomationController {
   }
 }
 
+/**
+ * Bridges Unified Jobs Center operational events (published to the domain-event bus
+ * by `PlatformJobService`) into the automation engine, so users can build rules that
+ * react to `job.failed` / `job.stalled` / `job.completed_with_warnings` /
+ * `job.retry_exhausted`. Decoupled: automation subscribes to the bus; the Jobs Center
+ * never imports automation. Only `job.*` events are forwarded.
+ */
+@Injectable()
+export class JobAutomationBridge {
+  private readonly logger = new Logger(JobAutomationBridge.name);
+  constructor(private readonly engine: AutomationEngine) {}
+
+  @OnEvent(NOTIFICATION_BUS_CHANNEL)
+  async onDomainEvent(envelope: DomainEventEnvelope): Promise<void> {
+    if (!envelope?.event?.startsWith('job.')) return;
+    try {
+      await this.engine.evaluateEvent(envelope.event, envelope.payload ?? {});
+    } catch (err) {
+      this.logger.debug(`Automation evaluate for ${envelope.event} failed: ${(err as Error).message}`);
+    }
+  }
+}
+
 @Global()
 @Module({
   // forwardRef guards the ES-module load-order cycle: RSS files import
@@ -727,7 +756,7 @@ export class AutomationController {
   // imports RssModule (for the RssAutomationActions delegate). The DI graph
   // itself is acyclic (RssModule never imports AutomationModule).
   imports: [forwardRef(() => RssModule)],
-  providers: [AutomationEngine, AutomationService],
+  providers: [AutomationEngine, AutomationService, JobAutomationBridge],
   controllers: [AutomationController],
   exports: [AutomationEngine],
 })
