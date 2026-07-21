@@ -5,7 +5,9 @@
     "expandGroup": "Expandir {{name}}",
     "collapseGroup": "Colapsar {{name}}",
     "expandItem": "Expandir submenú de {{name}}",
-    "collapseItem": "Colapsar submenú de {{name}}"
+    "collapseItem": "Colapsar submenú de {{name}}",
+    "expandAll": "Expandir todo",
+    "collapseAll": "Contraer todo"
   },
   "command": {
     "title": "Menú de comandos",

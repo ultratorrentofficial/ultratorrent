@@ -5,7 +5,9 @@
     "expandGroup": "Expand {{name}}",
     "collapseGroup": "Collapse {{name}}",
     "expandItem": "Expand {{name}} sub-menu",
-    "collapseItem": "Collapse {{name}} sub-menu"
+    "collapseItem": "Collapse {{name}} sub-menu",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all"
   },
   "command": {
     "title": "Command menu",

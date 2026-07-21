@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +9,8 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   ExternalLink,
   Info,
   LogOut,
@@ -38,8 +40,37 @@ import {
   type NavGroup,
 } from '@/components/layout/navigation';
 import { formatSpeedCompact } from '@/lib/format';
-import { readStringSet, toggleInSet } from '@/lib/persist-set';
+import { readStringSet, toggleInSet, writeStringSet } from '@/lib/persist-set';
+import { useNavBadges, type NavBadge } from '@/components/layout/useNavBadges';
 import { cn } from '@/lib/utils';
+
+/** A count/dot status badge on a nav item. Collapsed rail shows just a dot. */
+function NavBadgePill({ badge, collapsed }: { badge: NavBadge; collapsed?: boolean }) {
+  const tone =
+    badge.tone === 'danger'
+      ? 'bg-destructive text-destructive-foreground'
+      : badge.tone === 'warning'
+        ? 'bg-warning text-warning-foreground'
+        : 'bg-primary text-primary-foreground';
+  if (collapsed) {
+    // A small corner dot on the icon — the count lives in the flyout / expanded rail.
+    return (
+      <span
+        aria-hidden
+        className={cn('absolute right-1 top-1 h-2 w-2 rounded-full ring-2 ring-card/80', tone)}
+      />
+    );
+  }
+  const text = badge.count != null ? (badge.count > 99 ? '99+' : String(badge.count)) : badge.label ?? '';
+  return (
+    <span
+      aria-label={badge.label}
+      className={cn('ml-auto min-w-[1.25rem] rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold leading-none', tone)}
+    >
+      {text}
+    </span>
+  );
+}
 
 const COLLAPSE_KEY = 'ut.sidebar.collapsed';
 const GROUPS_COLLAPSED_KEY = 'ut.nav.groups.collapsed';
@@ -180,12 +211,14 @@ function NavRow({
   item,
   collapsed,
   depth = 0,
+  badge,
   onNavigate,
   onOpenCommand,
 }: {
   item: NavItem;
   collapsed?: boolean;
   depth?: number;
+  badge?: NavBadge;
   onNavigate?: () => void;
   onOpenCommand?: () => void;
 }) {
@@ -196,7 +229,7 @@ function NavRow({
   const label = tNav(t, 'items', item.label);
 
   const classes = cn(
-    'group flex items-center gap-3 rounded-lg text-sm font-medium transition-all',
+    'group relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
     !collapsed && depth > 0 && 'ml-3 pl-6',
@@ -204,6 +237,7 @@ function NavRow({
       ? 'bg-primary/15 text-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.25)]'
       : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
   );
+  const badgeEl = badge ? <NavBadgePill badge={badge} collapsed={collapsed} /> : null;
   const iconEl = (
     <Icon
       className={cn(
@@ -246,6 +280,7 @@ function NavRow({
         className={classes}
       >
         {iconEl}
+        {collapsed && badgeEl}
         {!collapsed && <span className="truncate">{label}</span>}
         {!collapsed && <ExternalLink className="ml-auto h-3.5 w-3.5 shrink-0 opacity-60" />}
       </a>
@@ -262,7 +297,9 @@ function NavRow({
       className={classes}
     >
       {iconEl}
+      {collapsed && badgeEl}
       {!collapsed && <span className="truncate">{label}</span>}
+      {!collapsed && badgeEl}
     </Link>
   );
 }
@@ -273,6 +310,7 @@ function NavParent({
   collapsed,
   expanded,
   onToggle,
+  badges,
   onNavigate,
   onOpenCommand,
 }: {
@@ -280,6 +318,7 @@ function NavParent({
   collapsed?: boolean;
   expanded: boolean;
   onToggle: () => void;
+  badges?: Record<string, NavBadge>;
   onNavigate?: () => void;
   onOpenCommand?: () => void;
 }) {
@@ -329,7 +368,7 @@ function NavParent({
       {expanded && (
         <div className="flex flex-col gap-0.5">
           {(item.children ?? []).map((child) => (
-            <NavRow key={child.id} item={child} depth={1} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />
+            <NavRow key={child.id} item={child} depth={1} badge={badges?.[child.id]} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />
           ))}
         </div>
       )}
@@ -344,6 +383,7 @@ function NavGroupBlock({
   onToggleGroup,
   expandedItems,
   onToggleItem,
+  badges,
   onNavigate,
   onOpenCommand,
 }: {
@@ -353,6 +393,7 @@ function NavGroupBlock({
   onToggleGroup: () => void;
   expandedItems: Set<string>;
   onToggleItem: (id: string) => void;
+  badges?: Record<string, NavBadge>;
   onNavigate?: () => void;
   onOpenCommand?: () => void;
 }) {
@@ -375,12 +416,13 @@ function NavGroupBlock({
           collapsed={collapsed}
           expanded={expandedItems.has(item.id) || itemActive}
           onToggle={() => onToggleItem(item.id)}
+          badges={badges}
           onNavigate={onNavigate}
           onOpenCommand={onOpenCommand}
         />
       );
     }
-    return <NavRow key={item.id} item={item} collapsed={collapsed} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />;
+    return <NavRow key={item.id} item={item} collapsed={collapsed} badge={badges?.[item.id]} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />;
   };
 
   return (
@@ -404,6 +446,135 @@ function NavGroupBlock({
   );
 }
 
+/** First navigable route within a group (for the collapsed domain icon's link). */
+function firstNavTo(group: NavGroup): string | undefined {
+  for (const item of group.items) {
+    if (item.to) return item.to;
+    for (const child of item.children ?? []) if (child.to) return child.to;
+  }
+  return undefined;
+}
+
+/** Does any item (or child) in the group carry a badge? Drives the domain-icon dot. */
+function groupHasBadge(group: NavGroup, badges: Record<string, NavBadge>): boolean {
+  return group.items.some((i) => badges[i.id] || (i.children ?? []).some((c) => badges[c.id]));
+}
+
+/** The contents of a collapsed-rail flyout: the group's title and its items. */
+function FlyoutGroup({
+  group,
+  badges,
+  onNavigate,
+  onOpenCommand,
+}: {
+  group: NavGroup;
+  badges: Record<string, NavBadge>;
+  onNavigate?: () => void;
+  onOpenCommand?: () => void;
+}) {
+  const { t } = useTranslation('nav');
+  return (
+    <div className="flex flex-col gap-0.5">
+      <p className="px-2 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+        {tNav(t, 'groups', group.title)}
+      </p>
+      {group.items.map((item) => (
+        <div key={item.id} className="flex flex-col gap-0.5">
+          <NavRow item={item} badge={badges[item.id]} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />
+          {(item.children ?? []).map((child) => (
+            <NavRow key={child.id} item={child} depth={1} badge={badges[child.id]} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The collapsed icon rail as a **domain switcher** (the A+B hybrid): one icon per
+ * domain, and hovering (or focusing) one opens a flyout with that domain's pages — so
+ * the rail never grows with the feature count, yet every page stays one hover away.
+ * A small delay on close lets the pointer travel from icon into the flyout.
+ */
+function CollapsedRail({
+  groups,
+  badges,
+  onNavigate,
+  onOpenCommand,
+}: {
+  groups: NavGroup[];
+  badges: Record<string, NavBadge>;
+  onNavigate?: () => void;
+  onOpenCommand?: () => void;
+}) {
+  const { t } = useTranslation('nav');
+  const location = useLocation();
+  const [flyout, setFlyout] = useState<{ group: NavGroup; top: number } | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const open = (group: NavGroup, el: HTMLElement) => {
+    window.clearTimeout(timer.current);
+    setFlyout({ group, top: el.getBoundingClientRect().top });
+  };
+  const scheduleClose = () => {
+    timer.current = window.setTimeout(() => setFlyout(null), 140);
+  };
+  const cancelClose = () => window.clearTimeout(timer.current);
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {groups.map((group) => {
+        const Icon = group.icon;
+        const title = tNav(t, 'groups', group.title);
+        const active = group.items.some((i) => isBranchActive(i, location.pathname, location.search));
+        const to = firstNavTo(group);
+        return (
+          <Link
+            key={group.id}
+            to={to ?? '#'}
+            onMouseEnter={(e) => open(group, e.currentTarget)}
+            onMouseLeave={scheduleClose}
+            onFocus={(e) => open(group, e.currentTarget)}
+            onBlur={scheduleClose}
+            onClick={onNavigate}
+            aria-label={title}
+            title={title}
+            className={cn(
+              'relative grid h-10 w-10 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              active ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
+            )}
+          >
+            <Icon className="h-[18px] w-[18px]" />
+            {groupHasBadge(group, badges) && (
+              <span aria-hidden className="absolute right-1 top-1 h-2 w-2 rounded-full bg-warning ring-2 ring-card/80" />
+            )}
+          </Link>
+        );
+      })}
+
+      {flyout && (
+        <div
+          role="menu"
+          aria-label={tNav(t, 'groups', flyout.group.title)}
+          className="fixed z-[70] w-60 rounded-xl border border-border/60 bg-card/95 p-2 shadow-2xl backdrop-blur-xl"
+          style={{ top: Math.max(8, flyout.top), left: '4.75rem' }}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+        >
+          <FlyoutGroup
+            group={flyout.group}
+            badges={badges}
+            onNavigate={() => {
+              setFlyout(null);
+              onNavigate?.();
+            }}
+            onOpenCommand={onOpenCommand}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Sidebar({
   groups,
   collapsed,
@@ -422,6 +593,7 @@ function Sidebar({
   onOpenCommand?: () => void;
 }) {
   const { t } = useTranslation('shell');
+  const badges = useNavBadges();
   const [collapsedGroups, setCollapsedGroups] = useState(() => readStringSet(GROUPS_COLLAPSED_KEY));
   const [expandedItems, setExpandedItems] = useState(() => readStringSet(ITEMS_EXPANDED_KEY));
   const toggleGroup = useCallback(
@@ -432,6 +604,17 @@ function Sidebar({
     (id: string) => setExpandedItems((s) => toggleInSet(ITEMS_EXPANDED_KEY, s, id)),
     [],
   );
+  const collapseAll = useCallback(() => {
+    const all = new Set(groups.map((g) => g.id));
+    writeStringSet(GROUPS_COLLAPSED_KEY, all);
+    setCollapsedGroups(all);
+  }, [groups]);
+  const expandAll = useCallback(() => {
+    const empty = new Set<string>();
+    writeStringSet(GROUPS_COLLAPSED_KEY, empty);
+    setCollapsedGroups(empty);
+  }, []);
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsedGroups.has(g.id));
 
   return (
     <aside
@@ -461,23 +644,42 @@ function Sidebar({
         )}
       </div>
 
+      {!collapsed && (
+        <div className="flex items-center justify-end gap-0.5 px-1 pb-0.5">
+          <button
+            type="button"
+            onClick={allCollapsed ? expandAll : collapseAll}
+            aria-label={allCollapsed ? t('nav.expandAll') : t('nav.collapseAll')}
+            title={allCollapsed ? t('nav.expandAll') : t('nav.collapseAll')}
+            className="rounded-md p-1.5 text-muted-foreground/70 transition-colors hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {allCollapsed ? <ChevronsUpDown className="h-4 w-4" /> : <ChevronsDownUp className="h-4 w-4" />}
+          </button>
+        </div>
+      )}
+
       <nav
         aria-label={t('nav.primary')}
         className="flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden scrollbar-thin"
       >
-        {groups.map((group) => (
-          <NavGroupBlock
-            key={group.id}
-            group={group}
-            collapsed={collapsed}
-            groupOpen={!collapsedGroups.has(group.id)}
-            onToggleGroup={() => toggleGroup(group.id)}
-            expandedItems={expandedItems}
-            onToggleItem={toggleItem}
-            onNavigate={onNavigate}
-            onOpenCommand={onOpenCommand}
-          />
-        ))}
+        {collapsed ? (
+          <CollapsedRail groups={groups} badges={badges} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />
+        ) : (
+          groups.map((group) => (
+            <NavGroupBlock
+              key={group.id}
+              group={group}
+              collapsed={false}
+              groupOpen={!collapsedGroups.has(group.id)}
+              onToggleGroup={() => toggleGroup(group.id)}
+              expandedItems={expandedItems}
+              onToggleItem={toggleItem}
+              badges={badges}
+              onNavigate={onNavigate}
+              onOpenCommand={onOpenCommand}
+            />
+          ))
+        )}
       </nav>
 
       <div className="mt-1 flex flex-col gap-2">
