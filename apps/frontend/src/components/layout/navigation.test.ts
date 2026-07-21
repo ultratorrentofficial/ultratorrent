@@ -2,13 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import {
   NAV_GROUPS,
+  NAV_DOMAINS,
+  NAV_CONTRIBUTIONS,
+  composeNavGroups,
   flattenForSearch,
   isBranchActive,
   isItemActive,
   visibleGroups,
+  type NavContribution,
   type NavItem,
   type NavVisibilityCtx,
 } from './navigation';
+import { Boxes } from 'lucide-react';
 
 /** Recursively find a nav item by its route. */
 function findItem(to: string): NavItem {
@@ -35,6 +40,55 @@ function ctx(o: Partial<NavVisibilityCtx> & { perms?: string[]; mods?: string[] 
 }
 
 const ALL: NavVisibilityCtx = { hasPermission: () => true, isEnabled: () => true, canManageModules: true, isSuperAdmin: true };
+
+describe('composeNavGroups (registry-driven rail)', () => {
+  const domains = [
+    { id: 'a', title: 'A', icon: Boxes, order: 20 },
+    { id: 'b', title: 'B', icon: Boxes, order: 10 },
+  ];
+  const item = (id: string): NavItem => ({ id, to: `/${id}`, label: id, icon: Boxes });
+
+  it('orders domains by domain.order and items by slot.order', () => {
+    const contribs: NavContribution[] = [
+      { slot: { domain: 'a', order: 20 }, item: item('a2') },
+      { slot: { domain: 'a', order: 10 }, item: item('a1') },
+      { slot: { domain: 'b', order: 10 }, item: item('b1') },
+    ];
+    const groups = composeNavGroups(domains, contribs);
+    expect(groups.map((g) => g.id)).toEqual(['b', 'a']); // B (order 10) before A (order 20)
+    expect(groups[1].items.map((i) => i.id)).toEqual(['a1', 'a2']); // slot order within A
+  });
+
+  it('drops a domain with no contributions', () => {
+    const groups = composeNavGroups(domains, [{ slot: { domain: 'a', order: 10 }, item: item('a1') }]);
+    expect(groups.map((g) => g.id)).toEqual(['a']); // B has nothing → gone
+  });
+
+  it('routes an unknown domain into an auto-appended Extensions area (plugin support)', () => {
+    const contribs: NavContribution[] = [
+      { slot: { domain: 'a', order: 10 }, item: item('a1') },
+      { slot: { domain: 'plugin-x', order: 10 }, item: item('px') }, // unknown domain
+    ];
+    const groups = composeNavGroups(domains, contribs);
+    const ext = groups.find((g) => g.id === 'extensions');
+    expect(ext).toBeTruthy();
+    expect(ext!.items.map((i) => i.id)).toEqual(['px']);
+    // Extensions sits last (order 200 > any domain).
+    expect(groups[groups.length - 1].id).toBe('extensions');
+  });
+
+  it('never appends an empty Extensions area when every domain is known', () => {
+    const groups = composeNavGroups(NAV_DOMAINS, NAV_CONTRIBUTIONS);
+    expect(groups.some((g) => g.id === 'extensions')).toBe(false);
+  });
+
+  it('the exported NAV_GROUPS is the composed result', () => {
+    expect(NAV_GROUPS.map((g) => g.id)).toEqual(composeNavGroups().map((g) => g.id));
+    // Every contribution's item id appears in the composed rail.
+    const railIds = new Set(NAV_GROUPS.flatMap((g) => g.items).map((i) => i.id));
+    for (const c of NAV_CONTRIBUTIONS) expect(railIds.has(c.item.id)).toBe(true);
+  });
+});
 
 describe('visibleGroups (RBAC + module gating)', () => {
   it('shows every group in order when all permissions and modules are granted', () => {

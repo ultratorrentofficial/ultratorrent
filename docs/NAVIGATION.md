@@ -122,12 +122,31 @@ child under the page's entry) plus its `nav` keys.
    for permissions, `ModuleRoute` for enablement) remain the enforcement point;
    the palette and breadcrumbs only ever show already-filtered entries.
 
+## Registry-driven rail
+
+The sidebar is **composed**, not hand-ordered. `navigation.ts` defines:
+
+- **`NAV_DOMAINS`** — the fixed top-level domains (id, title, icon, `order`).
+- **`NAV_CONTRIBUTIONS`** — an array of `{ slot: { domain, order }, item }`. Each entry
+  is a module's top-level nav item and *declares where it goes* (`navSlot`).
+- **`composeNavGroups()`** — groups contributions by domain, sorts by `slot.order`,
+  drops empty domains, and routes any contribution whose domain is unknown into an
+  auto-appended **Extensions** area (so a plugin can register nav without touching the
+  core rail). `NAV_GROUPS = composeNavGroups()`.
+
+So a module is placed by **appending one contribution** — no re-ordering an array, no
+renumbering neighbours (orders leave gaps of 10). Sub-pages travel inside the module's
+`item.children`, not as slots.
+
 ## Adding navigation for a new module
 
 1. Add the route(s) in `App.tsx`, wrapped in `ProtectedRoute` (permission) and,
    for module-gated features, `ModuleRoute`.
-2. Add a `NavGroup` or `NavItem` in `navigation.ts` with `permission` and/or
-   `module` gates, a stable `id`, an `icon`, and a `descriptionKey`.
+2. Append a **`NavContribution`** to `NAV_CONTRIBUTIONS` in `navigation.ts`: pick a
+   `slot.domain` (from `NAV_DOMAINS`) and an `order`, and give the `item` a stable
+   `id`, `icon`, `permission`/`module` gates, and a `descriptionKey`. (A new *domain*
+   is a rare event — add it to `NAV_DOMAINS` only when a capability genuinely doesn't
+   belong to any existing one.)
 3. Add the label/description keys to **both** `en-US/nav.json` and
    `es-PR/nav.json` (`groups` / `items` / `descriptions`) — parity is enforced by tests.
 4. If it introduces detail routes, extend `DETAIL_LABELS` in `Breadcrumbs.tsx`.

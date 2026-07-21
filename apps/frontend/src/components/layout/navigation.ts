@@ -126,180 +126,181 @@ export interface NavGroup {
  * existing page rather than standalone routes; they appear under their page entry
  * rather than as dead links. See `docs/NAVIGATION.md` for the full mapping.
  */
-export const NAV_GROUPS: NavGroup[] = [
-  {
-    id: 'dashboard',
-    title: 'Dashboard',
-    icon: LayoutDashboard,
-    items: [
-      { id: 'dashboard', to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, module: 'dashboard', end: true, descriptionKey: 'Dashboard' },
-      { id: 'search', action: 'command', label: 'Search', icon: Search, descriptionKey: 'Search' },
-    ],
-  },
-  {
-    id: 'downloads',
-    title: 'Downloads',
-    icon: Download,
-    items: [
-      {
-        id: 'torrents',
-        to: '/torrents',
-        label: 'Torrents',
-        icon: ListChecks,
-        permission: PERMISSIONS.TORRENTS_VIEW,
-        module: 'torrents',
-        end: true,
-        descriptionKey: 'Torrents',
-        children: [
-          { id: 'torrents-downloading', to: '/torrents?state=downloading', label: 'Downloading', icon: Download, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents' },
-          { id: 'torrents-seeding', to: '/torrents?state=seeding', label: 'Seeding', icon: Upload, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents' },
-          { id: 'torrents-completed', to: '/torrents?state=completed', label: 'Completed', icon: CheckCircle2, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents' },
-          { id: 'torrents-paused', to: '/torrents?state=paused', label: 'Paused', icon: PauseCircle, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents' },
-          { id: 'torrents-error', to: '/torrents?state=error', label: 'Errors', icon: TriangleAlert, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents' },
-        ],
-      },
-      { id: 'rss', to: '/rss', label: 'RSS Feeds', icon: Rss, permission: PERMISSIONS.RSS_VIEW, module: 'rss', descriptionKey: 'RSS Feeds' },
-      { id: 'indexers', to: '/indexers', label: 'Indexers', icon: Radar, permission: PERMISSIONS.INDEXERS_VIEW, descriptionKey: 'Indexers' },
-      // Optional Prowlarr companion — shown only when configured + enabled (its
-      // live URL is resolved at filter time) and the user may open it.
-      { id: 'prowlarr', label: 'Prowlarr', icon: Globe, external: true, permission: PERMISSIONS.INTEGRATIONS_PROWLARR_OPEN, descriptionKey: 'Prowlarr' },
-      { id: 'release-scoring', to: '/release-scoring', label: 'Release Scoring', icon: Award, permission: PERMISSIONS.RELEASE_SCORING_VIEW, module: 'release_scoring', descriptionKey: 'Release Scoring' },
-      {
-        id: 'acquisition-intelligence',
-        to: '/media-acquisition',
-        label: 'Acquisition Intelligence',
-        icon: Sparkles,
-        permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW,
-        module: 'media_acquisition_intelligence',
-        end: true,
-        descriptionKey: 'Acquisition Intelligence',
-        children: [
-          { id: 'smart-download', to: '/media-acquisition/dashboard', label: 'Smart Download', icon: Gauge, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Smart Download' },
-          { id: 'missing-episodes', to: '/media-acquisition/missing-episodes', label: 'Missing Episodes', icon: Tv, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Missing Episodes' },
-          { id: 'decision-simulator', to: '/media-acquisition/simulator', label: 'Decision Simulator', icon: FlaskConical, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Decision Simulator' },
-        ],
-      },
-      { id: 'engines', to: '/engines', label: 'Engines', icon: Cpu, permission: PERMISSIONS.SYSTEM_VIEW, descriptionKey: 'Engines' },
-    ],
-  },
-  {
-    id: 'media',
-    title: 'Media',
-    icon: Clapperboard,
-    items: [
-      { id: 'media-dashboard', to: '/media', label: 'Media Dashboard', icon: Clapperboard, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', end: true, descriptionKey: 'Media Dashboard' },
-      { id: 'media-items', to: '/media/items', label: 'Media Items', icon: Film, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Media Items' },
-      { id: 'media-libraries', to: '/media/libraries', label: 'Libraries', icon: Library, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Libraries' },
-      { id: 'media-unmatched', to: '/media/unmatched', label: 'Unmatched Media', icon: SearchX, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Unmatched Media' },
-      { id: 'media-duplicates', to: '/media/duplicates', label: 'Duplicates', icon: Copy, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Duplicates' },
-      { id: 'media-rename', to: '/media/rename-preview', label: 'Rename Engine', icon: Wand2, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Rename Engine' },
-      {
-        id: 'subtitles',
-        to: '/subtitles',
-        label: 'Subtitles',
-        icon: Captions,
-        permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW,
-        module: 'subtitle_intelligence',
-        end: true,
-        descriptionKey: 'Subtitles',
-        children: [
-          { id: 'subtitles-search', to: '/subtitles/search', label: 'Subtitle Search', icon: Search, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_SEARCH, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Search' },
-          { id: 'subtitles-sync', to: '/subtitles/sync', label: 'Subtitle Sync', icon: Wand2, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Sync' },
-          { id: 'subtitles-validation', to: '/subtitles/validation', label: 'Subtitle Validation', icon: CheckCircle2, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Validation' },
-          { id: 'subtitles-languages', to: '/subtitles/languages', label: 'Subtitle Languages', icon: Languages, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Languages' },
-          { id: 'subtitles-history', to: '/subtitles/history', label: 'Subtitle History', icon: History, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle History' },
-          { id: 'subtitles-providers', to: '/subtitles/providers', label: 'Subtitle Providers', icon: Plug, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Providers' },
-          { id: 'subtitles-settings', to: '/subtitles/settings', label: 'Subtitle Settings', icon: SlidersHorizontal, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', end: true, descriptionKey: 'Subtitle Settings' },
-        ],
-      },
-      { id: 'media-imdb', to: '/media/settings/imdb', label: 'IMDb Settings', icon: IdCard, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'IMDb Settings' },
-      { id: 'media-settings', to: '/media/settings', label: 'Media Settings', icon: SlidersHorizontal, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', end: true, descriptionKey: 'Media Settings' },
-    ],
-  },
-  {
-    id: 'automation',
-    title: 'Automation',
-    icon: Bot,
-    items: [
-      { id: 'automation', to: '/automation', label: 'Automation Rules', icon: Bot, permission: PERMISSIONS.AUTOMATION_VIEW, module: 'automation', descriptionKey: 'Automation Rules' },
-      {
-        id: 'notifications',
-        to: '/notifications',
-        label: 'Notifications',
-        icon: Bell,
-        permission: PERMISSIONS.NOTIFICATIONS_VIEW,
-        module: 'notification_center',
-        end: true,
-        descriptionKey: 'Notifications',
-        children: [
-          { id: 'nc-channels', to: '/notifications/channels', label: 'Notification Channels', icon: Send, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Channels' },
-          { id: 'nc-rules', to: '/notifications/rules', label: 'Notification Rules', icon: ListChecks, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Rules' },
-          { id: 'nc-templates', to: '/notifications/templates', label: 'Notification Templates', icon: FileText, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Templates' },
-          { id: 'nc-recipients', to: '/notifications/recipients', label: 'Notification Recipients', icon: Users, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Recipients' },
-          { id: 'nc-groups', to: '/notifications/groups', label: 'Recipient Groups', icon: Users, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Recipient Groups' },
-          { id: 'nc-history', to: '/notifications/history', label: 'Delivery History', icon: History, permission: PERMISSIONS.NOTIFICATIONS_VIEW_HISTORY, module: 'notification_center', descriptionKey: 'Delivery History' },
-          { id: 'nc-queue', to: '/notifications/queue', label: 'Queue Monitor', icon: Gauge, permission: PERMISSIONS.NOTIFICATIONS_VIEW_HISTORY, module: 'notification_center', descriptionKey: 'Queue Monitor' },
-          { id: 'nc-health', to: '/notifications/provider-health', label: 'Provider Health', icon: Activity, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Provider Health' },
-          { id: 'nc-prefs', to: '/notifications/preferences', label: 'Notification Preferences', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES, module: 'notification_center', descriptionKey: 'Notification Preferences' },
-          { id: 'nc-settings', to: '/notifications/settings', label: 'Notification Settings', icon: Settings, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_SETTINGS, module: 'notification_center', descriptionKey: 'Notification Settings' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'files',
-    title: 'Files',
-    icon: FolderTree,
-    items: [
-      { id: 'files', to: '/files', label: 'File Manager', icon: FolderTree, permission: PERMISSIONS.FILES_VIEW, module: 'files', descriptionKey: 'File Manager' },
-    ],
-  },
-  {
-    id: 'monitoring',
-    title: 'Monitoring',
-    icon: Activity,
-    items: [
-      {
-        id: 'media-server-analytics',
-        to: '/media-server-analytics',
-        label: 'Media Server Analytics',
-        icon: MonitorPlay,
-        permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW,
-        module: 'media_server_analytics',
-        end: true,
-        descriptionKey: 'Media Server Analytics',
-        children: [
-          { id: 'msa-live', to: '/media-server-analytics/live', label: 'Live Activity', icon: Activity, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY, module: 'media_server_analytics', descriptionKey: 'Live Activity' },
-          { id: 'msa-recent', to: '/media-server-analytics/recently-added', label: 'Recently Added', icon: Clapperboard, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics', descriptionKey: 'Recently Added' },
-          { id: 'msa-history', to: '/media-server-analytics/watch-history', label: 'Watch History', icon: History, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_HISTORY, module: 'media_server_analytics', descriptionKey: 'Watch History' },
-          { id: 'msa-reports', to: '/media-server-analytics/reports', label: 'Analytics Reports', icon: BarChart3, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS, module: 'media_server_analytics', descriptionKey: 'Analytics Reports' },
-          { id: 'msa-newsletters', to: '/media-server-analytics/newsletters', label: 'Newsletters', icon: Mail, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS, module: 'media_server_analytics', descriptionKey: 'Newsletters' },
-          { id: 'msa-import', to: '/media-server-analytics/import', label: 'Import Analytics', icon: DownloadCloud, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS, module: 'media_server_analytics', descriptionKey: 'Import Analytics' },
-          { id: 'msa-connections', to: '/media-server-analytics/connections', label: 'Server Connections', icon: Server, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics', descriptionKey: 'Server Connections' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'administration',
-    title: 'Administration',
-    icon: ShieldCheck,
-    items: [
-      { id: 'users', to: '/users', label: 'Users', icon: Users, permission: PERMISSIONS.USERS_VIEW, module: 'users', descriptionKey: 'Users' },
-      { id: 'modules', to: '/modules', label: 'Modules', icon: Boxes, permission: PERMISSIONS.MODULES_VIEW, descriptionKey: 'Modules' },
-      { id: 'settings', to: '/settings', label: 'Settings', icon: Settings, permission: PERMISSIONS.SETTINGS_VIEW, module: 'settings', descriptionKey: 'Settings' },
-      { id: 'audit', to: '/audit', label: 'Audit Log', icon: ShieldCheck, permission: PERMISSIONS.AUDIT_VIEW, module: 'audit', descriptionKey: 'Audit Log' },
-    ],
-  },
-  {
-    id: 'account',
-    title: 'Account',
-    icon: UserCircle,
-    items: [
-      { id: 'account', to: '/account', label: 'Profile', icon: UserCircle, end: true, descriptionKey: 'Profile' },
-    ],
-  },
+/** A top-level domain — the fixed rail structure. `order` sets its rail position. */
+export interface NavDomain {
+  id: string;
+  title: string;
+  icon: NavIcon;
+  order: number;
+}
+
+/**
+ * Where a module places its top-level nav item. A module declares a `navSlot`
+ * (domain + order) and {@link composeNavGroups} assembles the rail from it — so a new
+ * module (or, later, a plugin) is positioned by appending ONE contribution, never by
+ * hand-editing an ordered array. Orders leave gaps (10, 20, …) so an insert doesn't
+ * renumber its neighbours.
+ */
+export interface NavSlot {
+  domain: string;
+  order: number;
+}
+
+export interface NavContribution {
+  slot: NavSlot;
+  item: NavItem;
+}
+
+/** The domains, in rail order. Administration/Account sit at the bottom. */
+export const NAV_DOMAINS: NavDomain[] = [
+  { id: 'dashboard', title: 'Dashboard', icon: LayoutDashboard, order: 10 },
+  { id: 'downloads', title: 'Downloads', icon: Download, order: 20 },
+  { id: 'media', title: 'Media', icon: Clapperboard, order: 30 },
+  { id: 'automation', title: 'Automation', icon: Bot, order: 40 },
+  { id: 'files', title: 'Files', icon: FolderTree, order: 50 },
+  { id: 'monitoring', title: 'Monitoring', icon: Activity, order: 60 },
+  { id: 'administration', title: 'Administration', icon: ShieldCheck, order: 90 },
+  { id: 'account', title: 'Account', icon: UserCircle, order: 100 },
 ];
+
+/** Fallback domain for a contribution whose declared domain is unknown (a plugin). */
+export const EXTENSIONS_DOMAIN: NavDomain = { id: 'extensions', title: 'Extensions', icon: Boxes, order: 200 };
+
+/**
+ * Every module's top-level nav contribution — THE source of truth for the sidebar.
+ * Add a module by appending a `{ slot, item }` here; grouping, ordering and empty-
+ * domain pruning are handled by {@link composeNavGroups}. Sub-pages nest inside their
+ * module's `item.children` (they travel with the module, so they are not slots).
+ * Every `item.to` must map to a real route in `App.tsx`. Keep in sync with
+ * `docs/NAVIGATION.md`; page-sections (Metadata/Artwork/NFO, Triggers/Actions, Trash,
+ * Categories/Tags) live inside their page, not as dead links.
+ */
+export const NAV_CONTRIBUTIONS: NavContribution[] = [
+  { slot: { domain: 'dashboard', order: 10 }, item: { id: 'dashboard', to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, module: 'dashboard', end: true, descriptionKey: 'Dashboard' } },
+  { slot: { domain: 'dashboard', order: 20 }, item: { id: 'search', action: 'command', label: 'Search', icon: Search, descriptionKey: 'Search' } },
+
+  { slot: { domain: 'downloads', order: 10 }, item: {
+    id: 'torrents', to: '/torrents', label: 'Torrents', icon: ListChecks, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents', end: true, descriptionKey: 'Torrents',
+    children: [
+      { id: 'torrents-downloading', to: '/torrents?state=downloading', label: 'Downloading', icon: Download, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents' },
+      { id: 'torrents-seeding', to: '/torrents?state=seeding', label: 'Seeding', icon: Upload, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents' },
+      { id: 'torrents-completed', to: '/torrents?state=completed', label: 'Completed', icon: CheckCircle2, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents' },
+      { id: 'torrents-paused', to: '/torrents?state=paused', label: 'Paused', icon: PauseCircle, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents' },
+      { id: 'torrents-error', to: '/torrents?state=error', label: 'Errors', icon: TriangleAlert, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents' },
+    ],
+  } },
+  { slot: { domain: 'downloads', order: 20 }, item: { id: 'rss', to: '/rss', label: 'RSS Feeds', icon: Rss, permission: PERMISSIONS.RSS_VIEW, module: 'rss', descriptionKey: 'RSS Feeds' } },
+  { slot: { domain: 'downloads', order: 30 }, item: { id: 'indexers', to: '/indexers', label: 'Indexers', icon: Radar, permission: PERMISSIONS.INDEXERS_VIEW, descriptionKey: 'Indexers' } },
+  // Optional Prowlarr companion — shown only when configured + enabled (its live URL
+  // is resolved at filter time) and the user may open it.
+  { slot: { domain: 'downloads', order: 40 }, item: { id: 'prowlarr', label: 'Prowlarr', icon: Globe, external: true, permission: PERMISSIONS.INTEGRATIONS_PROWLARR_OPEN, descriptionKey: 'Prowlarr' } },
+  { slot: { domain: 'downloads', order: 50 }, item: { id: 'release-scoring', to: '/release-scoring', label: 'Release Scoring', icon: Award, permission: PERMISSIONS.RELEASE_SCORING_VIEW, module: 'release_scoring', descriptionKey: 'Release Scoring' } },
+  { slot: { domain: 'downloads', order: 60 }, item: {
+    id: 'acquisition-intelligence', to: '/media-acquisition', label: 'Acquisition Intelligence', icon: Sparkles, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', end: true, descriptionKey: 'Acquisition Intelligence',
+    children: [
+      { id: 'smart-download', to: '/media-acquisition/dashboard', label: 'Smart Download', icon: Gauge, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Smart Download' },
+      { id: 'missing-episodes', to: '/media-acquisition/missing-episodes', label: 'Missing Episodes', icon: Tv, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Missing Episodes' },
+      { id: 'decision-simulator', to: '/media-acquisition/simulator', label: 'Decision Simulator', icon: FlaskConical, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Decision Simulator' },
+    ],
+  } },
+  { slot: { domain: 'downloads', order: 70 }, item: { id: 'engines', to: '/engines', label: 'Engines', icon: Cpu, permission: PERMISSIONS.SYSTEM_VIEW, descriptionKey: 'Engines' } },
+
+  { slot: { domain: 'media', order: 10 }, item: { id: 'media-dashboard', to: '/media', label: 'Media Dashboard', icon: Clapperboard, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', end: true, descriptionKey: 'Media Dashboard' } },
+  { slot: { domain: 'media', order: 20 }, item: { id: 'media-items', to: '/media/items', label: 'Media Items', icon: Film, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Media Items' } },
+  { slot: { domain: 'media', order: 30 }, item: { id: 'media-libraries', to: '/media/libraries', label: 'Libraries', icon: Library, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Libraries' } },
+  { slot: { domain: 'media', order: 40 }, item: { id: 'media-unmatched', to: '/media/unmatched', label: 'Unmatched Media', icon: SearchX, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Unmatched Media' } },
+  { slot: { domain: 'media', order: 50 }, item: { id: 'media-duplicates', to: '/media/duplicates', label: 'Duplicates', icon: Copy, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Duplicates' } },
+  { slot: { domain: 'media', order: 60 }, item: { id: 'media-rename', to: '/media/rename-preview', label: 'Rename Engine', icon: Wand2, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Rename Engine' } },
+  { slot: { domain: 'media', order: 70 }, item: {
+    id: 'subtitles', to: '/subtitles', label: 'Subtitles', icon: Captions, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', end: true, descriptionKey: 'Subtitles',
+    children: [
+      { id: 'subtitles-search', to: '/subtitles/search', label: 'Subtitle Search', icon: Search, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_SEARCH, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Search' },
+      { id: 'subtitles-sync', to: '/subtitles/sync', label: 'Subtitle Sync', icon: Wand2, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Sync' },
+      { id: 'subtitles-validation', to: '/subtitles/validation', label: 'Subtitle Validation', icon: CheckCircle2, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Validation' },
+      { id: 'subtitles-languages', to: '/subtitles/languages', label: 'Subtitle Languages', icon: Languages, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Languages' },
+      { id: 'subtitles-history', to: '/subtitles/history', label: 'Subtitle History', icon: History, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle History' },
+      { id: 'subtitles-providers', to: '/subtitles/providers', label: 'Subtitle Providers', icon: Plug, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', descriptionKey: 'Subtitle Providers' },
+      { id: 'subtitles-settings', to: '/subtitles/settings', label: 'Subtitle Settings', icon: SlidersHorizontal, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', end: true, descriptionKey: 'Subtitle Settings' },
+    ],
+  } },
+  { slot: { domain: 'media', order: 80 }, item: { id: 'media-imdb', to: '/media/settings/imdb', label: 'IMDb Settings', icon: IdCard, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'IMDb Settings' } },
+  { slot: { domain: 'media', order: 90 }, item: { id: 'media-settings', to: '/media/settings', label: 'Media Settings', icon: SlidersHorizontal, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', end: true, descriptionKey: 'Media Settings' } },
+
+  { slot: { domain: 'automation', order: 10 }, item: { id: 'automation', to: '/automation', label: 'Automation Rules', icon: Bot, permission: PERMISSIONS.AUTOMATION_VIEW, module: 'automation', descriptionKey: 'Automation Rules' } },
+  { slot: { domain: 'automation', order: 20 }, item: {
+    id: 'notifications', to: '/notifications', label: 'Notifications', icon: Bell, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', end: true, descriptionKey: 'Notifications',
+    children: [
+      { id: 'nc-channels', to: '/notifications/channels', label: 'Notification Channels', icon: Send, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Channels' },
+      { id: 'nc-rules', to: '/notifications/rules', label: 'Notification Rules', icon: ListChecks, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Rules' },
+      { id: 'nc-templates', to: '/notifications/templates', label: 'Notification Templates', icon: FileText, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Templates' },
+      { id: 'nc-recipients', to: '/notifications/recipients', label: 'Notification Recipients', icon: Users, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Recipients' },
+      { id: 'nc-groups', to: '/notifications/groups', label: 'Recipient Groups', icon: Users, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Recipient Groups' },
+      { id: 'nc-history', to: '/notifications/history', label: 'Delivery History', icon: History, permission: PERMISSIONS.NOTIFICATIONS_VIEW_HISTORY, module: 'notification_center', descriptionKey: 'Delivery History' },
+      { id: 'nc-queue', to: '/notifications/queue', label: 'Queue Monitor', icon: Gauge, permission: PERMISSIONS.NOTIFICATIONS_VIEW_HISTORY, module: 'notification_center', descriptionKey: 'Queue Monitor' },
+      { id: 'nc-health', to: '/notifications/provider-health', label: 'Provider Health', icon: Activity, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Provider Health' },
+      { id: 'nc-prefs', to: '/notifications/preferences', label: 'Notification Preferences', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES, module: 'notification_center', descriptionKey: 'Notification Preferences' },
+      { id: 'nc-settings', to: '/notifications/settings', label: 'Notification Settings', icon: Settings, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_SETTINGS, module: 'notification_center', descriptionKey: 'Notification Settings' },
+    ],
+  } },
+
+  { slot: { domain: 'files', order: 10 }, item: { id: 'files', to: '/files', label: 'File Manager', icon: FolderTree, permission: PERMISSIONS.FILES_VIEW, module: 'files', descriptionKey: 'File Manager' } },
+
+  { slot: { domain: 'monitoring', order: 10 }, item: {
+    id: 'media-server-analytics', to: '/media-server-analytics', label: 'Media Server Analytics', icon: MonitorPlay, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics', end: true, descriptionKey: 'Media Server Analytics',
+    children: [
+      { id: 'msa-live', to: '/media-server-analytics/live', label: 'Live Activity', icon: Activity, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY, module: 'media_server_analytics', descriptionKey: 'Live Activity' },
+      { id: 'msa-recent', to: '/media-server-analytics/recently-added', label: 'Recently Added', icon: Clapperboard, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics', descriptionKey: 'Recently Added' },
+      { id: 'msa-history', to: '/media-server-analytics/watch-history', label: 'Watch History', icon: History, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_HISTORY, module: 'media_server_analytics', descriptionKey: 'Watch History' },
+      { id: 'msa-reports', to: '/media-server-analytics/reports', label: 'Analytics Reports', icon: BarChart3, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS, module: 'media_server_analytics', descriptionKey: 'Analytics Reports' },
+      { id: 'msa-newsletters', to: '/media-server-analytics/newsletters', label: 'Newsletters', icon: Mail, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS, module: 'media_server_analytics', descriptionKey: 'Newsletters' },
+      { id: 'msa-import', to: '/media-server-analytics/import', label: 'Import Analytics', icon: DownloadCloud, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS, module: 'media_server_analytics', descriptionKey: 'Import Analytics' },
+      { id: 'msa-connections', to: '/media-server-analytics/connections', label: 'Server Connections', icon: Server, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics', descriptionKey: 'Server Connections' },
+    ],
+  } },
+
+  { slot: { domain: 'administration', order: 10 }, item: { id: 'users', to: '/users', label: 'Users', icon: Users, permission: PERMISSIONS.USERS_VIEW, module: 'users', descriptionKey: 'Users' } },
+  { slot: { domain: 'administration', order: 20 }, item: { id: 'modules', to: '/modules', label: 'Modules', icon: Boxes, permission: PERMISSIONS.MODULES_VIEW, descriptionKey: 'Modules' } },
+  { slot: { domain: 'administration', order: 30 }, item: { id: 'settings', to: '/settings', label: 'Settings', icon: Settings, permission: PERMISSIONS.SETTINGS_VIEW, module: 'settings', descriptionKey: 'Settings' } },
+  { slot: { domain: 'administration', order: 40 }, item: { id: 'audit', to: '/audit', label: 'Audit Log', icon: ShieldCheck, permission: PERMISSIONS.AUDIT_VIEW, module: 'audit', descriptionKey: 'Audit Log' } },
+
+  { slot: { domain: 'account', order: 10 }, item: { id: 'account', to: '/account', label: 'Profile', icon: UserCircle, end: true, descriptionKey: 'Profile' } },
+];
+
+/**
+ * Compose the domain groups from contributions: group by domain, sort by slot order,
+ * drop empty domains. A contribution whose domain isn't a known {@link NAV_DOMAINS}
+ * entry lands in an auto-appended {@link EXTENSIONS_DOMAIN}, so a plugin can register
+ * nav without touching the core rail. Pure — exported for testing and for a future
+ * plugin loader that recomposes with extra contributions.
+ */
+export function composeNavGroups(
+  domains: NavDomain[] = NAV_DOMAINS,
+  contributions: NavContribution[] = NAV_CONTRIBUTIONS,
+): NavGroup[] {
+  const known = new Set(domains.map((d) => d.id));
+  const domainOf = (c: NavContribution) => (known.has(c.slot.domain) ? c.slot.domain : EXTENSIONS_DOMAIN.id);
+  const all = contributions.some((c) => !known.has(c.slot.domain)) ? [...domains, EXTENSIONS_DOMAIN] : domains;
+  return all
+    .slice()
+    .sort((a, b) => a.order - b.order)
+    .map((d) => ({
+      id: d.id,
+      title: d.title,
+      icon: d.icon,
+      items: contributions
+        .filter((c) => domainOf(c) === d.id)
+        .sort((a, b) => a.slot.order - b.slot.order)
+        .map((c) => c.item),
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
+/**
+ * The composed IA — the single source of truth for the sidebar, breadcrumbs and
+ * command palette. Assembled from {@link NAV_CONTRIBUTIONS} so the rail composes
+ * itself as modules are added. Every `to` maps to a real route in `App.tsx`.
+ */
+export const NAV_GROUPS: NavGroup[] = composeNavGroups();
 
 /** Context needed to decide whether a nav entry is visible to the current user. */
 export interface NavVisibilityCtx {
