@@ -8,6 +8,7 @@ import { PlatformJobsQueryService } from './platform/platform-jobs-query.service
 import { PlatformSchedulesService } from './platform/platform-schedules.service';
 import { PlatformWorkersService } from './platform/platform-workers.service';
 import { JobReliabilityService } from './platform/job-reliability.service';
+import { JobRetentionService } from './platform/job-retention.service';
 
 /**
  * The Unified Jobs Center module. Provides:
@@ -22,7 +23,7 @@ import { JobReliabilityService } from './platform/job-reliability.service';
  */
 @Global()
 @Module({
-  providers: [JobsService, JobRegistry, PlatformJobService, PlatformJobsQueryService, PlatformSchedulesService, PlatformWorkersService, JobReliabilityService],
+  providers: [JobsService, JobRegistry, PlatformJobService, PlatformJobsQueryService, PlatformSchedulesService, PlatformWorkersService, JobReliabilityService, JobRetentionService],
   controllers: [JobsController, PlatformJobsController],
   exports: [JobsService, JobRegistry, PlatformJobService, PlatformJobsQueryService],
 })

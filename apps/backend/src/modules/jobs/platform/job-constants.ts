@@ -17,3 +17,12 @@ export const STALL_SCAN_INTERVAL_MS = 30_000;
 
 /** Default max attempts for a job type that doesn't override it. */
 export const DEFAULT_MAX_ATTEMPTS = 1;
+
+/** Retention: completed/cancelled/skipped/expired jobs are pruned after this many days. */
+export const RETENTION_DONE_DAYS = 7;
+
+/** Retention: failed jobs are kept longer (diagnosis) — pruned after this many days. */
+export const RETENTION_FAILED_DAYS = 30;
+
+/** How often the retention cleanup runs. */
+export const RETENTION_SCAN_INTERVAL_MS = 24 * 60 * 60_000;

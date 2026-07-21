@@ -471,6 +471,14 @@ role, and no user may edit their own roles (`users.manage` alone cannot
 self-promote). Deactivating a user revokes its refresh tokens, and token refresh
 is rejected for a disabled account.
 
+## Unified Jobs Center
+
+The platform job control plane has its own threat model — visibility scoping, the
+double-gate on actions (a `jobs.*` permission **and** the job's own permission), secret
+redaction across all persisted inputs/results/events, sanitized errors, per-job
+permission-scoped WebSocket delivery, and preservation of file-path confinement / Trash-first
+/ stale-plan validation for job-driven work. See **[JOB_SECURITY.md](JOB_SECURITY.md)**.
+
 ## Reporting a vulnerability
 
 Please report security issues **privately** — do not open a public GitHub issue

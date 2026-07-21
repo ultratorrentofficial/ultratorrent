@@ -300,6 +300,7 @@ ultratorrent/
 | [DOCKER.md](docs/DOCKER.md)             | Docker Compose services, volumes, env, health checks, commands |
 | [PROWLARR.md](docs/PROWLARR.md)         | Optional Prowlarr companion container: profile, ports/volumes, UI integration, security |
 | [WORKSPACE_ARCHITECTURE.md](docs/WORKSPACE_ARCHITECTURE.md) | The Workspace model — the nine Workspaces, the global rail + contextual sidebar, Workspace Overviews, switching (Ctrl+1–9), the jobs aggregator, RBAC, scaling ([guidelines](docs/NAVIGATION_GUIDELINES.md), [standards](docs/MENU_STANDARDS.md)) |
+| [UNIFIED_JOBS_CENTER.md](docs/UNIFIED_JOBS_CENTER.md) | The operational control plane for all async work — platform job model, lifecycle/state machine, reliability (retry/pause/stall), RBAC, real-time, integration ([architecture](docs/JOB_ARCHITECTURE.md), [lifecycle](docs/JOB_LIFECYCLE.md), [handler dev](docs/JOB_HANDLER_DEVELOPMENT.md), [scheduling](docs/JOB_SCHEDULING.md), [security](docs/JOB_SECURITY.md)) |
 | [NAVIGATION.md](docs/NAVIGATION.md)     | The underlying registry-driven nav model shared by every surface — sidebar, breadcrumbs, command palette, Overviews, personalization, mobile ([shell UX](docs/UX_GUIDELINES.md)) |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md)   | Local workflow, adding an engine provider, adding a module, testing, standards |
 | [CONTRIBUTING.md](docs/CONTRIBUTING.md) | Branching, conventional commits, PRs, DCO, CLA |
