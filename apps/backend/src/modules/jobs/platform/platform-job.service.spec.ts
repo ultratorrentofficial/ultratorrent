@@ -2,7 +2,15 @@ import { PlatformJobService } from './platform-job.service';
 import { JobRegistry } from './job-registry.service';
 import { InvalidJobTransitionError } from './job-status';
 import { REDACTED } from './job-redaction';
-import type { JobDefinition, JobHandler } from './job.types';
+import { JobNonRetryableError, JobPausedError, type JobDefinition, type JobHandler } from './job.types';
+
+/** Instant backoff so retry tests don't sleep. */
+class TestJobService extends PlatformJobService {
+  protected delay(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+const flush = () => new Promise((r) => setTimeout(r, 0));
 
 /** A minimal in-memory Prisma double covering exactly what the service calls. */
 function fakePrisma() {
@@ -78,7 +86,7 @@ function fakePrisma() {
 function makeService() {
   const registry = new JobRegistry();
   const prisma = fakePrisma();
-  const svc = new PlatformJobService(prisma as never, registry);
+  const svc = new TestJobService(prisma as never, registry);
   return { registry, prisma, svc };
 }
 
@@ -191,5 +199,77 @@ describe('PlatformJobService', () => {
     registry.register(baseDef(), { execute: async () => { throw new Error('registered handler should not run'); } });
     const { jobId } = await svc.run({ type: 'test.job', input: {} }, async () => ({ result: 'inline' }));
     expect(prisma._jobs.get(jobId)!.status).toBe('completed');
+  });
+
+  it('retries a retryable failure with backoff and eventually completes', async () => {
+    const { registry, prisma, svc } = makeService();
+    let calls = 0;
+    registry.register(baseDef({ capabilities: { cancellable: true, retryable: true, pausable: false, resumable: false } }), {
+      execute: async () => {
+        calls += 1;
+        if (calls < 3) throw new Error('transient');
+        return { result: 'ok' };
+      },
+    });
+    const { jobId } = await svc.run({ type: 'test.job', input: {}, maxAttempts: 3 });
+    expect(calls).toBe(3);
+    const stored = prisma._jobs.get(jobId)!;
+    expect(stored.status).toBe('completed');
+    expect(stored.attempt).toBe(3);
+    expect(eventsFor(prisma, jobId)).toContain('retry_scheduled');
+  });
+
+  it('does not retry a JobNonRetryableError even with attempts remaining', async () => {
+    const { registry, prisma, svc } = makeService();
+    let calls = 0;
+    registry.register(baseDef({ capabilities: { cancellable: true, retryable: true, pausable: false, resumable: false } }), {
+      execute: async () => { calls += 1; throw new JobNonRetryableError('unsafe'); },
+    });
+    await expect(svc.run({ type: 'test.job', input: {}, maxAttempts: 5 })).rejects.toThrow('unsafe');
+    expect(calls).toBe(1);
+    expect([...prisma._jobs.values()][0].status).toBe('failed');
+  });
+
+  it('does not auto-retry a non-retryable job type even on a retryable error', async () => {
+    const { registry, prisma, svc } = makeService();
+    let calls = 0;
+    // retryable:false on the definition → job.retryable false
+    registry.register(baseDef(), { execute: async () => { calls += 1; throw new Error('boom'); } });
+    await expect(svc.run({ type: 'test.job', input: {}, maxAttempts: 5 })).rejects.toThrow('boom');
+    expect(calls).toBe(1);
+    expect([...prisma._jobs.values()][0].status).toBe('failed');
+  });
+
+  it('rerun creates a new linked job from the persisted input', async () => {
+    const { registry, prisma, svc } = makeService();
+    registry.register(baseDef(), { execute: async () => ({ result: 'r' }) });
+    const first = await svc.run({ type: 'test.job', input: { libraryId: 'lib1' } });
+    const rerun = await svc.rerun(first.jobId, 'u2');
+    await flush();
+    expect(rerun.jobId).not.toBe(first.jobId);
+    const stored = prisma._jobs.get(rerun.jobId)!;
+    expect(stored.status).toBe('completed');
+    expect((stored.metadata as Record<string, unknown>).rerunOfJobId).toBe(first.jobId);
+    expect(stored.createdById).toBe('u2');
+  });
+
+  it('pauses a pausable job (paused, not failed) and persists a checkpoint', async () => {
+    const { registry, prisma, svc } = makeService();
+    registry.register(baseDef({ capabilities: { cancellable: true, retryable: false, pausable: true, resumable: true } }), {
+      execute: async (_i, ctx) => {
+        (svc as unknown as { pauseRequested: Set<string> }).pauseRequested.add(ctx.jobId);
+        if (ctx.isPauseRequested()) {
+          await ctx.saveCheckpoint({ step: 1 });
+          throw new JobPausedError();
+        }
+        return {};
+      },
+    });
+    // run() resolves (paused is not a rejection)
+    const { jobId } = await svc.run({ type: 'test.job', input: {} });
+    const stored = prisma._jobs.get(jobId)!;
+    expect(stored.status).toBe('paused');
+    expect((stored.checkpoint as Record<string, unknown>).step).toBe(1);
+    expect(eventsFor(prisma, jobId)).toContain('paused');
   });
 });

@@ -11,6 +11,7 @@ import {
 import { redact, sanitizeError } from './job-redaction';
 import {
   JobCancelledError,
+  JobPausedError,
   type EnqueueJobInput,
   type JobEventType,
   type JobExecutionContext,
@@ -19,6 +20,13 @@ import {
   type JobProgress,
   type JobResult,
 } from './job.types';
+
+/** Backoff policy persisted on a job (all optional; sensible defaults applied). */
+interface RetryPolicy {
+  baseMs?: number;
+  factor?: number;
+  maxMs?: number;
+}
 
 const PROGRESS_THROTTLE_MS = 1000;
 
@@ -39,6 +47,7 @@ export class PlatformJobService implements OnModuleInit {
   /** Jobs this process is executing — the only ones it can cooperatively cancel. */
   private readonly running = new Set<string>();
   private readonly cancelRequested = new Set<string>();
+  private readonly pauseRequested = new Set<string>();
   /** Per-job monotonic event sequence, seeded lazily. */
   private readonly seq = new Map<string, number>();
   private readonly lastProgressAt = new Map<string, number>();
@@ -115,6 +124,7 @@ export class PlatformJobService implements OnModuleInit {
         createdById: input.createdById ?? null,
         runAsUserId: input.runAsUserId ?? input.createdById ?? null,
         idempotencyKey: input.idempotencyKey ?? null,
+        inputData: (validated ?? undefined) as Prisma.InputJsonValue | undefined,
         inputSummary: (inputSummary ?? undefined) as Prisma.InputJsonValue | undefined,
         metadata: (input.metadata ? redact(input.metadata) : undefined) as Prisma.InputJsonValue | undefined,
       },
@@ -157,7 +167,12 @@ export class PlatformJobService implements OnModuleInit {
     return { jobId: job.id };
   }
 
-  /** Transition running → run body → finish. The single execution path. */
+  /**
+   * The single execution path: run the body, retrying on retryable failures with
+   * backoff up to `maxAttempts`, honouring cooperative cancel and pause. A retry
+   * walks the real state machine (running → failed → retrying → queued → running),
+   * so the record and events reflect every attempt.
+   */
   private async runHandler<TInput, TResult>(
     job: PlatformJob,
     rawInput: TInput,
@@ -165,28 +180,90 @@ export class PlatformJobService implements OnModuleInit {
   ): Promise<TResult | undefined> {
     const jobId = job.id;
     const { handler, definition } = this.registry.get(job.type);
+    const body = executor ?? (handler.execute.bind(handler) as JobExecutor<TInput, TResult>);
+    const maxAttempts = job.maxAttempts ?? 1;
+    let attempt = job.attempt ?? 1;
     this.running.add(jobId);
-    const started = await this.transition(jobId, 'running', { startedAt: new Date(), heartbeatAt: new Date() });
-    await this.recordEvent(jobId, 'started', { level: 'info' });
-    const ctx = this.buildContext(started);
     try {
-      const input = definition.validateInput(rawInput) as TInput;
-      const body = executor ?? (handler.execute.bind(handler) as JobExecutor<TInput, TResult>);
-      const out = ((await body(input, ctx)) ?? {}) as JobResult<TResult>;
-      await this.finishSuccess(jobId, out);
-      return out.result;
-    } catch (err) {
-      if (err instanceof JobCancelledError) await this.markCancelled(jobId);
-      else await this.markFailed(jobId, err);
-      throw err;
+      while (true) {
+        const started = await this.transition(jobId, 'running', {
+          startedAt: new Date(),
+          heartbeatAt: new Date(),
+          attempt,
+        });
+        await this.recordEvent(jobId, 'started', { level: 'info', metadata: attempt > 1 ? { attempt } : undefined });
+        const ctx = this.buildContext(started);
+        try {
+          const input = definition.validateInput(rawInput) as TInput;
+          const out = ((await body(input, ctx)) ?? {}) as JobResult<TResult>;
+          await this.finishSuccess(jobId, out);
+          return out.result;
+        } catch (err) {
+          if (err instanceof JobCancelledError) {
+            await this.markCancelled(jobId);
+            throw err;
+          }
+          if (err instanceof JobPausedError) {
+            await this.markPaused(jobId);
+            return undefined; // paused is not a failure and not a rejection
+          }
+          const canRetry = job.retryable && attempt < maxAttempts && this.isRetryable(err);
+          if (!canRetry) {
+            await this.markFailed(jobId, err);
+            throw err;
+          }
+          // Record the failed attempt, then schedule a retry through the state machine.
+          const sanitized = sanitizeError(err);
+          attempt += 1;
+          const delayMs = this.backoff(job, attempt);
+          await this.safeTransition(jobId, 'failed', { failedAt: new Date(), errorCode: sanitized.code, errorMessage: sanitized.message });
+          await this.recordEvent(jobId, 'retry_scheduled', { level: 'warning', metadata: { attempt, delayMs } });
+          await this.safeTransition(jobId, 'retrying', { attempt, retryAt: new Date(Date.now() + delayMs) });
+          await this.safeTransition(jobId, 'queued');
+          await this.delay(delayMs);
+          if (this.cancelRequested.has(jobId)) {
+            await this.markCancelled(jobId);
+            throw new JobCancelledError();
+          }
+          // loop: next iteration transitions queued → running for the new attempt
+        }
+      }
     } finally {
       this.running.delete(jobId);
       this.cancelRequested.delete(jobId);
+      this.pauseRequested.delete(jobId);
       this.seq.delete(jobId);
       this.lastProgressAt.delete(jobId);
       this.warnings.delete(jobId);
       this.metrics.delete(jobId);
     }
+  }
+
+  private isRetryable(err: unknown): boolean {
+    if (err && typeof err === 'object' && 'retryable' in err) {
+      return (err as { retryable?: boolean }).retryable !== false;
+    }
+    return true;
+  }
+
+  private backoff(job: PlatformJob, attempt: number): number {
+    const policy = (job.retryPolicy as RetryPolicy | null) ?? {};
+    const base = policy.baseMs ?? 1000;
+    const factor = policy.factor ?? 2;
+    const max = policy.maxMs ?? 60_000;
+    return Math.min(max, Math.round(base * Math.pow(factor, Math.max(0, attempt - 2))));
+  }
+
+  /** Overridable in tests. */
+  protected delay(ms: number): Promise<void> {
+    if (ms <= 0) return Promise.resolve();
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async markPaused(jobId: string): Promise<void> {
+    await this.safeTransition(jobId, 'pausing');
+    await this.safeTransition(jobId, 'paused', { pausedAt: new Date() });
+    await this.recordEvent(jobId, 'paused', { level: 'info' });
   }
 
   // ── Control ────────────────────────────────────────────────────────────────
@@ -211,6 +288,61 @@ export class PlatformJobService implements OnModuleInit {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Request a pause. Only meaningful for a `pausable` job this process is running:
+   * the handler checkpoints and stops at a safe boundary (throws JobPausedError).
+   * Returns whether the request was actionable.
+   */
+  async requestPause(jobId: string): Promise<boolean> {
+    const job = await this.prisma.platformJob.findUnique({ where: { id: jobId }, select: { pausable: true, status: true } });
+    if (!job?.pausable || !this.running.has(jobId)) return false;
+    this.pauseRequested.add(jobId);
+    await this.safeTransition(jobId, 'pausing');
+    await this.recordEvent(jobId, 'pausing', { level: 'info' });
+    return true;
+  }
+
+  /**
+   * Resume a paused job from its checkpoint. Re-executes the handler (which loads
+   * the checkpoint via the context) using the persisted input. Returns the new run's
+   * job id (same job) or null if not resumable.
+   */
+  async resume(jobId: string): Promise<{ jobId: string } | null> {
+    const job = await this.prisma.platformJob.findUnique({ where: { id: jobId } });
+    if (!job || job.status !== 'paused' || !job.resumable) return null;
+    await this.transition(jobId, 'queued', { resumedAt: new Date() });
+    await this.recordEvent(jobId, 'resumed', { level: 'info' });
+    this.running.add(jobId);
+    void this.runHandler(job, job.inputData, undefined).catch((err) =>
+      this.logger.error(`Resume of ${jobId} errored: ${(err as Error).message}`),
+    );
+    return { jobId };
+  }
+
+  /**
+   * Rerun a finished job: create a NEW linked job from the original's persisted input
+   * (revalidated by the definition), preserving the source relationship. Returns the
+   * new job id. Never mutates the original.
+   */
+  async rerun(jobId: string, actorUserId?: string): Promise<{ jobId: string }> {
+    const original = await this.prisma.platformJob.findUnique({ where: { id: jobId } });
+    if (!original) throw new Error(`Job ${jobId} not found`);
+    if (original.inputData == null) throw new Error(`Job ${jobId} cannot be rerun — no persisted input`);
+    return this.runDetached({
+      type: original.type,
+      input: original.inputData,
+      name: original.name ?? undefined,
+      source: 'manual',
+      correlationId: original.correlationId ?? undefined,
+      resourceType: original.resourceType ?? undefined,
+      resourceId: original.resourceId ?? undefined,
+      libraryId: original.libraryId ?? undefined,
+      mediaItemId: original.mediaItemId ?? undefined,
+      createdById: actorUserId ?? original.createdById ?? undefined,
+      metadata: { rerunOfJobId: jobId },
+    });
   }
 
   // ── Lifecycle writers (the only place status changes) ────────────────────────
@@ -355,6 +487,7 @@ export class PlatformJobService implements OnModuleInit {
         m[name] = value;
         this.metrics.set(jobId, m);
       },
+      isPauseRequested: () => this.pauseRequested.has(jobId),
     };
   }
 

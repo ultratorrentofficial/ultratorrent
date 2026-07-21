@@ -3,6 +3,7 @@ import { JobsService } from './jobs.service';
 import { JobsController } from './jobs.controller';
 import { JobRegistry } from './platform/job-registry.service';
 import { PlatformJobService } from './platform/platform-job.service';
+import { JobReliabilityService } from './platform/job-reliability.service';
 
 /**
  * The Unified Jobs Center module. Provides:
@@ -17,7 +18,7 @@ import { PlatformJobService } from './platform/platform-job.service';
  */
 @Global()
 @Module({
-  providers: [JobsService, JobRegistry, PlatformJobService],
+  providers: [JobsService, JobRegistry, PlatformJobService, JobReliabilityService],
   controllers: [JobsController],
   exports: [JobsService, JobRegistry, PlatformJobService],
 })

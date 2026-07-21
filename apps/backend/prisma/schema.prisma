@@ -2617,6 +2617,10 @@ model PlatformJob {
   visibilityScope    String  @default("module") // module | own | public
 
   // Inputs & outputs (summarized/sanitized only — never raw secrets/logs/binaries)
+  // `inputData` is the re-execution input (IDs/paths; job inputs must not carry raw
+  // secrets — handlers resolve secrets from config at run time). Enables retry-after-
+  // restart, rerun, and resume. `inputSummary` is the redacted display form.
+  inputData     Json?
   inputSummary  Json?
   resultSummary Json?
   errorCode     String?

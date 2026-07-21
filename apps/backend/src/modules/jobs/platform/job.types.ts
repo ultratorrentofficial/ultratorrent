@@ -128,6 +128,8 @@ export interface JobExecutionContext {
   loadCheckpoint<T = unknown>(): Promise<T | undefined>;
   /** Record a metric value. */
   metric(name: string, value: number): void;
+  /** True once an operator has requested a pause — checkpoint & throw JobPausedError at a safe boundary. */
+  isPauseRequested(): boolean;
 }
 
 /** A handler that actually performs a job type's work. */
@@ -180,6 +182,31 @@ export class JobCancelledError extends Error {
   constructor() {
     super('Cancelled by the operator');
     this.name = 'JobCancelledError';
+  }
+}
+
+/**
+ * Thrown by a handler when it observes a pause request at a safe boundary — AFTER
+ * persisting a checkpoint. The runner records `paused` (not failed) so the job can
+ * later resume from the checkpoint.
+ */
+export class JobPausedError extends Error {
+  constructor() {
+    super('Paused by the operator');
+    this.name = 'JobPausedError';
+  }
+}
+
+/**
+ * A handler throws this (or sets `retryable = false` on any error) to declare a
+ * failure non-retryable — the runner will not auto-retry even if attempts remain.
+ * Destructive operations should classify unsafe failures this way.
+ */
+export class JobNonRetryableError extends Error {
+  readonly retryable = false;
+  constructor(message: string, public readonly code = 'non_retryable') {
+    super(message);
+    this.name = 'JobNonRetryableError';
   }
 }
 
