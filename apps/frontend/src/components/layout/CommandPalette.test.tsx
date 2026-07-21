@@ -75,6 +75,41 @@ describe('CommandPalette', () => {
     expect(screen.queryByText('Pinned')).not.toBeInTheDocument();
   });
 
+  it('runs a matching quick action instead of navigating', async () => {
+    const run = vi.fn();
+    const onNavigate = vi.fn();
+    render(
+      <CommandPalette
+        open
+        entries={entries}
+        onNavigate={onNavigate}
+        onClose={vi.fn()}
+        actions={[{ id: 'scan', label: 'Scan library', icon: Circle, run }]}
+      />,
+    );
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'scan' } });
+    expect(await screen.findByText('Scan library')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Scan library'));
+    expect(run).toHaveBeenCalled();
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('surfaces async entity results under their own section', async () => {
+    const source = {
+      key: 'media-items',
+      title: 'Media',
+      search: vi.fn().mockResolvedValue([{ id: 'm1', label: 'The Matrix (1999)', icon: Circle, to: '/media/items/m1' }]),
+    };
+    const onNavigate = vi.fn();
+    render(<CommandPalette open entries={entries} onNavigate={onNavigate} onClose={vi.fn()} entitySources={[source]} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'matrix' } });
+    // Debounced async result appears, then navigates to the entity route.
+    expect(await screen.findByText('The Matrix (1999)')).toBeInTheDocument();
+    expect(source.search).toHaveBeenCalledWith('matrix');
+    fireEvent.click(screen.getByText('The Matrix (1999)'));
+    expect(onNavigate).toHaveBeenCalledWith('/media/items/m1');
+  });
+
   it('pins a row via its inline toggle without navigating', () => {
     const onTogglePin = vi.fn();
     const onNavigate = vi.fn();

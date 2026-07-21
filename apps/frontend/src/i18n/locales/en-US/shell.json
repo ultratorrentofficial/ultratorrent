@@ -23,7 +23,20 @@
     "pin": "Pin to sidebar",
     "unpin": "Unpin",
     "favorite": "Add to favorites",
-    "unfavorite": "Remove from favorites"
+    "unfavorite": "Remove from favorites",
+    "pages": "Pages",
+    "actions": "Actions",
+    "action": {
+      "addTorrent": "Add torrent",
+      "scanLibrary": "Scan library",
+      "findDuplicates": "Find duplicates",
+      "createRssRule": "Create RSS rule",
+      "runAutomation": "Automation rules"
+    },
+    "entity": {
+      "media": "Media",
+      "libraries": "Libraries"
+    }
   },
   "menu": {
     "open": "Open menu",

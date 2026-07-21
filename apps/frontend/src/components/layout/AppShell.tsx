@@ -47,6 +47,7 @@ import { formatSpeedCompact } from '@/lib/format';
 import { readStringSet, toggleInSet, writeStringSet } from '@/lib/persist-set';
 import { useNavBadges, type NavBadge } from '@/components/layout/useNavBadges';
 import { useNavPersonalization } from '@/components/layout/useNavPersonalization';
+import { usePaletteProviders } from '@/components/layout/usePaletteProviders';
 import { cn } from '@/lib/utils';
 
 /** A count/dot status badge on a nav item. Collapsed rail shows just a dot. */
@@ -138,6 +139,7 @@ export function AppShell() {
 
   const searchEntries = useMemo(() => flattenForSearch(groups), [groups]);
   const personalization = useNavPersonalization();
+  const { actions: paletteActions, entitySources: paletteEntities } = usePaletteProviders();
   const location = useLocation();
 
   // Remember visited pages for the "Recent" quick-access list. A detail route folds
@@ -232,6 +234,8 @@ export function AppShell() {
         onClose={() => setPaletteOpen(false)}
         entries={searchEntries}
         onNavigate={(to) => navigate(to)}
+        actions={paletteActions}
+        entitySources={paletteEntities}
         pinned={personalization.pinned}
         favorites={personalization.favorites}
         recent={personalization.recent}

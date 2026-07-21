@@ -23,7 +23,20 @@
     "pin": "Fijar a la barra",
     "unpin": "Quitar",
     "favorite": "Agregar a favoritos",
-    "unfavorite": "Quitar de favoritos"
+    "unfavorite": "Quitar de favoritos",
+    "pages": "Páginas",
+    "actions": "Acciones",
+    "action": {
+      "addTorrent": "Agregar torrent",
+      "scanLibrary": "Escanear biblioteca",
+      "findDuplicates": "Buscar duplicados",
+      "createRssRule": "Crear regla RSS",
+      "runAutomation": "Reglas de automatización"
+    },
+    "entity": {
+      "media": "Medios",
+      "libraries": "Bibliotecas"
+    }
   },
   "menu": {
     "open": "Abrir menú",
