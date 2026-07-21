@@ -2674,3 +2674,193 @@ model PlatformJobEvent {
   @@index([eventType])
   @@map("platform_job_events")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Visual Workflow Builder — a durable, versioned graph automation platform that
+// EXTENDS the Automation Engine (which stays as the simple-rule engine). Statuses
+// are Strings enforced by server-side state machines (matching the codebase
+// convention). Execution state is relational + queryable; the visual graph lives in
+// WorkflowVersion.graph (JSON), never the execution history. See
+// docs/WORKFLOW_BUILDER_ARCHITECTURE_REVIEW.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Workflow {
+  id                    String    @id @default(uuid())
+  name                  String
+  description           String?
+  workspaceKey          String?
+  enabled               Boolean   @default(false)
+  status                String    @default("draft") // draft | validation_failed | ready | published | disabled | archived
+  tags                  String[]  @default([])
+  // Denormalized pointers (no FK — avoids a circular relation with WorkflowVersion).
+  currentDraftVersionId String?
+  publishedVersionId    String?
+  createdById           String?
+  updatedById           String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  archivedAt            DateTime?
+
+  versions   WorkflowVersion[]
+  executions WorkflowExecution[]
+
+  @@index([status])
+  @@index([enabled])
+  @@index([workspaceKey])
+  @@index([updatedAt])
+  @@map("workflows")
+}
+
+model WorkflowVersion {
+  id                  String    @id @default(uuid())
+  workflowId          String
+  versionNumber       Int
+  status              String    @default("draft") // draft | validation_failed | ready | published | archived
+  graph               Json // the immutable-once-published workflow graph (nodes/edges/metadata)
+  triggerSummary      Json?
+  requiredPermissions String[]  @default([])
+  checksum            String
+  changeNotes         String?
+  createdById         String?
+  createdAt           DateTime  @default(now())
+  publishedAt         DateTime?
+  archivedAt          DateTime?
+
+  workflow   Workflow            @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  executions WorkflowExecution[]
+
+  @@unique([workflowId, versionNumber])
+  @@index([workflowId])
+  @@index([status])
+  @@map("workflow_versions")
+}
+
+model WorkflowExecution {
+  id                      String    @id @default(uuid())
+  workflowId              String
+  workflowVersionId       String
+  triggerType             String?
+  triggerEventId          String?
+  triggerSource           String?   @default("event") // event | manual | scheduled | subworkflow | webhook
+  correlationId           String?
+  traceId                 String?
+  status                  String    @default("queued") // see WorkflowExecutionStatus state machine
+  inputContext            Json?
+  outputSummary           Json?
+  currentNodeIds          String[]  @default([])
+  // Link to the Unified Jobs Center parent job for this execution.
+  jobId                   String?
+  // The identity actions run as (least-privilege; explicit for scheduled).
+  executionIdentityUserId String?
+  // Durable resume points (restart-safe): a delay's due time, a wait/approval expiry.
+  resumeAt                DateTime?
+  expiresAt               DateTime?
+  heartbeatAt             DateTime?
+  parentExecutionId       String? // for subworkflows
+  depth                   Int       @default(0)
+  startedAt               DateTime?
+  completedAt             DateTime?
+  failedAt                DateTime?
+  cancelledAt             DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  workflow  Workflow                @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  version   WorkflowVersion         @relation(fields: [workflowVersionId], references: [id])
+  nodes     WorkflowNodeExecution[]
+  approvals WorkflowApproval[]
+
+  @@index([status, createdAt])
+  @@index([workflowId, createdAt])
+  @@index([workflowVersionId])
+  @@index([correlationId])
+  @@index([status, resumeAt])
+  @@index([status, expiresAt])
+  @@index([heartbeatAt, status])
+  @@index([parentExecutionId])
+  @@map("workflow_executions")
+}
+
+model WorkflowNodeExecution {
+  id                  String    @id @default(uuid())
+  workflowExecutionId String
+  nodeId              String
+  nodeType            String
+  status              String    @default("pending") // see WorkflowNodeStatus state machine
+  attempt             Int       @default(1)
+  maxAttempts         Int       @default(1)
+  inputSummary        Json?
+  outputSummary       Json?
+  jobId               String? // linked Jobs Center child job for a long-running action node
+  errorCode           String?
+  errorMessage        String?
+  warnings            Json?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  execution WorkflowExecution @relation(fields: [workflowExecutionId], references: [id], onDelete: Cascade)
+
+  @@index([workflowExecutionId, nodeId])
+  @@index([status])
+  @@index([jobId])
+  @@map("workflow_node_executions")
+}
+
+model WorkflowApproval {
+  id                  String    @id @default(uuid())
+  workflowExecutionId String
+  nodeExecutionId     String?
+  status              String    @default("pending") // pending | approved | rejected | expired | cancelled
+  requestedFromUserId String?
+  requestedFromRoleId String?
+  requiredPermission  String?
+  riskLevel           String?   @default("normal") // normal | elevated | destructive
+  requestedAt         DateTime  @default(now())
+  respondedAt         DateTime?
+  respondedById       String?
+  comment             String?
+  expiresAt           DateTime?
+
+  execution WorkflowExecution @relation(fields: [workflowExecutionId], references: [id], onDelete: Cascade)
+
+  @@index([status, expiresAt])
+  @@index([workflowExecutionId])
+  @@map("workflow_approvals")
+}
+
+model WorkflowVariable {
+  id             String   @id @default(uuid())
+  scope          String   @default("workflow") // global | workflow
+  workflowId     String?
+  key            String
+  valueType      String   @default("string") // string | number | boolean | json | secret
+  encryptedValue String? // set for valueType=secret (SecretCipher)
+  plainValue     Json? // set for non-secret values
+  description    String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([scope, workflowId, key])
+  @@index([scope])
+  @@map("workflow_variables")
+}
+
+model WorkflowTemplate {
+  id                  String   @id @default(uuid())
+  key                 String   @unique
+  nameKey             String
+  descriptionKey      String?
+  category            String   @default("general")
+  graph               Json
+  requiredModules     String[] @default([])
+  requiredPermissions String[] @default([])
+  defaultEnabled      Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([category])
+  @@map("workflow_templates")
+}
