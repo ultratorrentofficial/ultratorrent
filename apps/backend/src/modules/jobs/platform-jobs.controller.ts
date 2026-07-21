@@ -10,8 +10,11 @@ import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/cur
 import { AuditService } from '../audit/audit.service';
 import { PlatformJobsQueryService } from './platform/platform-jobs-query.service';
 import { PlatformJobService } from './platform/platform-job.service';
+import { PlatformSchedulesService } from './platform/platform-schedules.service';
+import { PlatformWorkersService } from './platform/platform-workers.service';
 import { JobRegistry } from './platform/job-registry.service';
 import { JobListQueryDto, JobEventsQueryDto, BulkJobActionDto } from './dto/job-query.dto';
+import { PROGRESS_THROTTLE_MS, STALL_THRESHOLD_MS, STALL_SCAN_INTERVAL_MS, DEFAULT_MAX_ATTEMPTS } from './platform/job-constants';
 
 type JobAction = 'cancel' | 'pause' | 'resume' | 'retry' | 'rerun';
 
@@ -32,6 +35,8 @@ export class PlatformJobsController {
     private readonly query: PlatformJobsQueryService,
     private readonly jobs: PlatformJobService,
     private readonly registry: JobRegistry,
+    private readonly schedules: PlatformSchedulesService,
+    private readonly workers: PlatformWorkersService,
     private readonly audit: AuditService,
   ) {}
 
@@ -61,6 +66,33 @@ export class PlatformJobsController {
   @RequirePermissions(PERMISSIONS.JOBS_VIEW)
   list(@CurrentUser() user: AuthenticatedUser, @Query() q: JobListQueryDto) {
     return this.query.list(user, q);
+  }
+
+  // ── Schedules / Workers / Settings (read-only, honest) — before :id ─────────
+  @Get('schedules')
+  @RequirePermissions(PERMISSIONS.JOBS_VIEW)
+  scheduleList() {
+    return this.schedules.list();
+  }
+
+  @Get('workers')
+  @RequirePermissions(PERMISSIONS.JOBS_VIEW_WORKERS)
+  workerList() {
+    return this.workers.list();
+  }
+
+  @Get('settings')
+  @RequirePermissions(PERMISSIONS.JOBS_MANAGE_SETTINGS)
+  settings() {
+    // The actual runtime tuning values (single source: job-constants). Read-only —
+    // these are fixed today; the surface reports what the engine truly uses.
+    return {
+      progressThrottleMs: PROGRESS_THROTTLE_MS,
+      stallThresholdMs: STALL_THRESHOLD_MS,
+      stallScanIntervalMs: STALL_SCAN_INTERVAL_MS,
+      defaultMaxAttempts: DEFAULT_MAX_ATTEMPTS,
+      editable: false,
+    };
   }
 
   @Get(':id')

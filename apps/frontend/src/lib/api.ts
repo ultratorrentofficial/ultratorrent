@@ -429,6 +429,35 @@ export interface JobBulkResult {
   level: 'success' | 'partial' | 'failed';
 }
 
+export interface JobScheduleInfo {
+  name: string;
+  module: string;
+  triggerType: 'interval' | 'cron';
+  intervalMs: number | null;
+  cron: string | null;
+  enabled: boolean;
+}
+
+export interface JobWorkerInfo {
+  id: string;
+  host: string;
+  status: 'online' | 'draining' | 'lost';
+  startedAt: string;
+  version: string | null;
+  runningJobs: number;
+  capacity: number | null;
+  supportedQueues: string[];
+  inProcess: boolean;
+}
+
+export interface JobSettings {
+  progressThrottleMs: number;
+  stallThresholdMs: number;
+  stallScanIntervalMs: number;
+  defaultMaxAttempts: number;
+  editable: boolean;
+}
+
 export interface AuditEntry {
   id: string;
   userId: string | null;
@@ -2919,6 +2948,15 @@ export const api = {
     },
     bulk(action: 'cancel' | 'retry' | 'rerun', jobIds: string[]): Promise<JobBulkResult> {
       return request<JobBulkResult>(`/jobs/bulk/${action}`, { method: 'POST', body: { jobIds } });
+    },
+    schedules(): Promise<JobScheduleInfo[]> {
+      return request<JobScheduleInfo[]>('/jobs/schedules');
+    },
+    workers(): Promise<JobWorkerInfo[]> {
+      return request<JobWorkerInfo[]>('/jobs/workers');
+    },
+    settings(): Promise<JobSettings> {
+      return request<JobSettings>('/jobs/settings');
     },
   },
 

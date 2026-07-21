@@ -22,6 +22,7 @@ import {
   type JobProgress,
   type JobResult,
 } from './job.types';
+import { PROGRESS_THROTTLE_MS } from './job-constants';
 
 /** Backoff policy persisted on a job (all optional; sensible defaults applied). */
 interface RetryPolicy {
@@ -29,8 +30,6 @@ interface RetryPolicy {
   factor?: number;
   maxMs?: number;
 }
-
-const PROGRESS_THROTTLE_MS = 1000;
 
 /**
  * The heart of the Unified Jobs Center: the single writer of `platform_jobs` and

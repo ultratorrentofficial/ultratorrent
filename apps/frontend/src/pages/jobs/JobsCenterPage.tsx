@@ -35,6 +35,10 @@ export function JobsCenterPage() {
           const active = onList && (tab.status ? activeStatus === tab.status : !activeStatus);
           return <Tab key={tab.key} to={to} label={td(`nav.${tab.key}`)} active={active} />;
         })}
+        <span className="mx-1 h-4 w-px shrink-0 bg-border/60" aria-hidden />
+        <Tab to="/jobs/schedules" label={t('nav.schedules')} active={pathname === '/jobs/schedules'} />
+        <Tab to="/jobs/workers" label={t('nav.workers')} active={pathname === '/jobs/workers'} />
+        <Tab to="/jobs/settings" label={t('nav.settings')} active={pathname === '/jobs/settings'} />
       </nav>
 
       <Outlet />

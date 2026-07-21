@@ -172,5 +172,36 @@
   "toast": {
     "actionDone": "{{action}} solicitado",
     "actionFailed": "No se pudo {{action}} este trabajo"
+  },
+  "schedules": {
+    "title": "Tareas programadas",
+    "note": "Los programadores en segundo plano que se ejecutan en este proceso. Solo lectura — la gestión de programaciones es una capacidad futura.",
+    "name": "Tarea",
+    "module": "Módulo",
+    "trigger": "Disparador",
+    "interval": "Intervalo",
+    "enabled": "Activo",
+    "empty": "No hay tareas programadas."
+  },
+  "workers": {
+    "title": "Trabajadores",
+    "note": "UltraTorrent ejecuta hoy un único trabajador en proceso. Esto lo refleja con honestidad.",
+    "id": "Trabajador",
+    "host": "Host",
+    "status": "Estado",
+    "started": "Iniciado",
+    "version": "Versión",
+    "running": "Trabajos en ejecución",
+    "capacity": "Capacidad",
+    "inProcess": "En proceso",
+    "unbounded": "Sin límite"
+  },
+  "settingsPage": {
+    "title": "Ajustes de trabajos",
+    "note": "Los valores de ajuste activos del motor. Solo lectura — reflejan exactamente lo que usa el tiempo de ejecución.",
+    "progressThrottleMs": "Límite de persistencia de progreso",
+    "stallThresholdMs": "Umbral de estancamiento",
+    "stallScanIntervalMs": "Intervalo de escaneo de estancamiento",
+    "defaultMaxAttempts": "Intentos máximos por defecto"
   }
 }

@@ -4,8 +4,7 @@ import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { PlatformJobService } from './platform-job.service';
 
 /** A running job with no heartbeat past this is flagged stalled (advisory, not failed). */
-const STALL_THRESHOLD_MS = 5 * 60_000;
-const SCAN_INTERVAL_MS = 30_000;
+import { STALL_THRESHOLD_MS, STALL_SCAN_INTERVAL_MS } from './job-constants';
 
 /**
  * Stall & worker-health detection for the platform job engine.
@@ -29,7 +28,7 @@ export class JobReliabilityService {
     private readonly jobs: PlatformJobService,
   ) {}
 
-  @Interval('platform_job_stall_detector', SCAN_INTERVAL_MS)
+  @Interval('platform_job_stall_detector', STALL_SCAN_INTERVAL_MS)
   async detectStalled(): Promise<void> {
     try {
       const cutoff = new Date(Date.now() - STALL_THRESHOLD_MS);

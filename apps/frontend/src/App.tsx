@@ -16,6 +16,9 @@ import { JobsCenterPage } from '@/pages/jobs/JobsCenterPage';
 import { JobsOverviewPage } from '@/pages/jobs/JobsOverviewPage';
 import { JobsListPage } from '@/pages/jobs/JobsListPage';
 import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
+import { JobsSchedulesPage } from '@/pages/jobs/JobsSchedulesPage';
+import { JobsWorkersPage } from '@/pages/jobs/JobsWorkersPage';
+import { JobsSettingsPage } from '@/pages/jobs/JobsSettingsPage';
 import { TorrentsPage } from '@/pages/TorrentsPage';
 import { RssPage } from '@/pages/RssPage';
 import { RssRulePage } from '@/pages/RssRulePage';
@@ -128,6 +131,9 @@ export function App() {
                       <Route path="/jobs" element={<JobsCenterPage />}>
                         <Route index element={<JobsOverviewPage />} />
                         <Route path="list" element={<JobsListPage />} />
+                        <Route path="schedules" element={<JobsSchedulesPage />} />
+                        <Route path="workers" element={<JobsWorkersPage />} />
+                        <Route path="settings" element={<JobsSettingsPage />} />
                         <Route path=":id" element={<JobDetailPage />} />
                       </Route>
                     </Route>

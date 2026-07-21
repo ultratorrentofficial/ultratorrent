@@ -172,5 +172,36 @@
   "toast": {
     "actionDone": "{{action}} requested",
     "actionFailed": "Could not {{action}} this job"
+  },
+  "schedules": {
+    "title": "Scheduled tasks",
+    "note": "The background schedulers running in this process. Read-only — managed schedules are a future capability.",
+    "name": "Task",
+    "module": "Module",
+    "trigger": "Trigger",
+    "interval": "Interval",
+    "enabled": "Enabled",
+    "empty": "No scheduled tasks."
+  },
+  "workers": {
+    "title": "Workers",
+    "note": "UltraTorrent runs a single in-process worker today. This reflects it honestly.",
+    "id": "Worker",
+    "host": "Host",
+    "status": "Status",
+    "started": "Started",
+    "version": "Version",
+    "running": "Running jobs",
+    "capacity": "Capacity",
+    "inProcess": "In-process",
+    "unbounded": "Unbounded"
+  },
+  "settingsPage": {
+    "title": "Job settings",
+    "note": "The engine's active tuning values. Read-only — these reflect exactly what the runtime uses.",
+    "progressThrottleMs": "Progress persistence throttle",
+    "stallThresholdMs": "Stall threshold",
+    "stallScanIntervalMs": "Stall scan interval",
+    "defaultMaxAttempts": "Default max attempts"
   }
 }
