@@ -241,3 +241,45 @@ describe('external companion shortcut (Prowlarr)', () => {
     expect(item?.to).toBeUndefined();
   });
 });
+
+describe('information-architecture invariants (real NAV_GROUPS)', () => {
+  const allItems = (): { item: NavItem; groupId: string }[] => {
+    const out: { item: NavItem; groupId: string }[] = [];
+    const walk = (item: NavItem, groupId: string) => {
+      out.push({ item, groupId });
+      (item.children ?? []).forEach((c) => walk(c, groupId));
+    };
+    NAV_GROUPS.forEach((g) => g.items.forEach((i) => walk(i, g.id)));
+    return out;
+  };
+
+  it('composes the domains in NAV_DOMAINS order, with none empty', () => {
+    const ids = NAV_GROUPS.map((g) => g.id);
+    const domainOrder = NAV_DOMAINS.map((d) => d.id);
+    // Every composed group is a known domain, in the canonical order.
+    expect(ids).toEqual(domainOrder.filter((id) => ids.includes(id)));
+    // The consolidated top level stays small (the redesign's central goal).
+    expect(NAV_GROUPS.length).toBeLessThanOrEqual(9);
+    NAV_GROUPS.forEach((g) => expect(g.items.length).toBeGreaterThan(0));
+  });
+
+  it('gives every entry a stable id, label and icon', () => {
+    for (const { item } of allItems()) {
+      expect(item.id, JSON.stringify(item)).toBeTruthy();
+      expect(item.label).toBeTruthy();
+      expect(item.icon).toBeTruthy();
+    }
+  });
+
+  it('makes every leaf a real destination (a route, an action, or an external link)', () => {
+    for (const { item } of allItems()) {
+      const isLeaf = !(item.children && item.children.length);
+      if (isLeaf) expect(Boolean(item.to || item.action || item.external), `leaf ${item.id}`).toBe(true);
+    }
+  });
+
+  it('has globally-unique item ids', () => {
+    const ids = allItems().map(({ item }) => item.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
