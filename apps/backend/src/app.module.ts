@@ -22,6 +22,7 @@ import { ApiKeysModule } from './modules/apikeys/apikeys.module';
 import { FilesModule } from './modules/files/files.module';
 import { RssModule } from './modules/rss/rss.module';
 import { AutomationModule } from './modules/automation/automation.module';
+import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { TwoFactorModule } from './modules/two-factor/two-factor.module';
 import { AccountModule } from './modules/account/account.module';
 import { MediaModule } from './modules/media/media.module';
@@ -51,6 +52,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     EngineModule,
     MediaModule,
     AutomationModule,
+    WorkflowsModule,
     TwoFactorModule,
 
     // Feature modules

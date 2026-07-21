@@ -181,6 +181,15 @@ export const PERMISSIONS = {
   SUBTITLE_INTELLIGENCE_PROVIDERS: 'subtitle_intelligence.providers',
   SUBTITLE_INTELLIGENCE_SETTINGS: 'subtitle_intelligence.settings',
   SUBTITLE_INTELLIGENCE_ADMIN: 'subtitle_intelligence.admin',
+
+  // Visual Workflow Builder
+  WORKFLOWS_VIEW: 'workflows.view',
+  WORKFLOWS_CREATE: 'workflows.create',
+  WORKFLOWS_EDIT: 'workflows.edit',
+  WORKFLOWS_DELETE: 'workflows.delete',
+  WORKFLOWS_PUBLISH: 'workflows.publish',
+  WORKFLOWS_RUN: 'workflows.run',
+  WORKFLOWS_APPROVE: 'workflows.approve',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -227,6 +236,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.RSS_SHOW_STATUS_OVERRIDE,
     PERMISSIONS.AUTOMATION_VIEW,
     PERMISSIONS.AUTOMATION_MANAGE,
+    PERMISSIONS.WORKFLOWS_VIEW,
+    PERMISSIONS.WORKFLOWS_RUN,
     PERMISSIONS.INDEXERS_VIEW,
     PERMISSIONS.INDEXERS_MANAGE,
     PERMISSIONS.INDEXERS_TEST,
