@@ -79,7 +79,8 @@
     "Profile": "Perfil",
     "Subtitles": "Subtítulos",
     "Notifications": "Notificaciones",
-    "Media Server Analytics": "Analíticas del servidor"
+    "Media Server Analytics": "Analíticas del servidor",
+    "Jobs Center": "Centro de Trabajos"
   },
   "descriptions": {
     "Dashboard": "Resumen de descargas y actividad",
@@ -138,7 +139,8 @@
     "Profile": "Tu perfil, contraseña y seguridad",
     "Subtitles": "Adquisición, sincronización, validación y proveedores de subtítulos",
     "Notifications": "Centro de notificaciones — canales, reglas, entrega y salud",
-    "Media Server Analytics": "Analíticas de reproducción de Plex/Jellyfin/Emby, actividad en vivo e informes"
+    "Media Server Analytics": "Analíticas de reproducción de Plex/Jellyfin/Emby, actividad en vivo e informes",
+    "Jobs Center": "El plano de control operativo de toda la actividad en segundo plano"
   },
   "details": {
     "Account": "Cuenta",

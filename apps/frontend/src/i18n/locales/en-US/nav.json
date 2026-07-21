@@ -79,7 +79,8 @@
     "Profile": "Profile",
     "Subtitles": "Subtitles",
     "Notifications": "Notifications",
-    "Media Server Analytics": "Media Server Analytics"
+    "Media Server Analytics": "Media Server Analytics",
+    "Jobs Center": "Jobs Center"
   },
   "descriptions": {
     "Dashboard": "Overview of downloads and activity",
@@ -138,7 +139,8 @@
     "Profile": "Your profile, password and security",
     "Subtitles": "Subtitle acquisition, sync, validation and providers",
     "Notifications": "Notification Center — channels, rules, delivery and health",
-    "Media Server Analytics": "Plex/Jellyfin/Emby watch analytics, live activity and reports"
+    "Media Server Analytics": "Plex/Jellyfin/Emby watch analytics, live activity and reports",
+    "Jobs Center": "The operational control plane for all background activity"
   },
   "details": {
     "Account": "Account",

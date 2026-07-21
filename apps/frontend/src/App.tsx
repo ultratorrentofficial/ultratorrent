@@ -12,6 +12,10 @@ import { AppShell } from '@/components/layout/AppShell';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { ModuleHubPage } from '@/pages/ModuleHubPage';
+import { JobsCenterPage } from '@/pages/jobs/JobsCenterPage';
+import { JobsOverviewPage } from '@/pages/jobs/JobsOverviewPage';
+import { JobsListPage } from '@/pages/jobs/JobsListPage';
+import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
 import { TorrentsPage } from '@/pages/TorrentsPage';
 import { RssPage } from '@/pages/RssPage';
 import { RssRulePage } from '@/pages/RssRulePage';
@@ -116,6 +120,16 @@ export function App() {
                   <Route element={<ProtectedRoute permission={PERMISSIONS.INDEXERS_VIEW} />}>
                     <Route element={<AppShell />}>
                       <Route path="/indexers" element={<IndexersPage />} />
+                    </Route>
+                  </Route>
+
+                  <Route element={<ProtectedRoute permission={PERMISSIONS.JOBS_VIEW} />}>
+                    <Route element={<AppShell />}>
+                      <Route path="/jobs" element={<JobsCenterPage />}>
+                        <Route index element={<JobsOverviewPage />} />
+                        <Route path="list" element={<JobsListPage />} />
+                        <Route path=":id" element={<JobDetailPage />} />
+                      </Route>
                     </Route>
                   </Route>
 

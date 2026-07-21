@@ -290,6 +290,145 @@ export interface JobSummary {
   updatedAt: string;
 }
 
+// ── Unified Jobs Center (platform_jobs) ──────────────────────────────────────
+export type PlatformJobStatus =
+  | 'scheduled' | 'queued' | 'waiting' | 'blocked' | 'running' | 'pausing' | 'paused'
+  | 'retrying' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelling'
+  | 'cancelled' | 'skipped' | 'expired';
+
+export type JobActionKind = 'cancel' | 'pause' | 'resume' | 'retry' | 'rerun';
+
+export interface JobCapabilities {
+  cancellable: boolean;
+  pausable: boolean;
+  resumable: boolean;
+  retryable: boolean;
+}
+
+export interface PlatformJobItem {
+  id: string;
+  type: string;
+  name: string | null;
+  moduleKey: string;
+  workspaceKey: string | null;
+  status: PlatformJobStatus;
+  phase: string | null;
+  progressPercent: number;
+  source: string;
+  resourceType: string | null;
+  resourceId: string | null;
+  priority: number;
+  attempt: number;
+  maxAttempts: number;
+  createdById: string | null;
+  workerId: string | null;
+  queuedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  capabilities: JobCapabilities;
+}
+
+export interface PlatformJobDetail extends PlatformJobItem {
+  description: string | null;
+  correlationId: string | null;
+  parentJobId: string | null;
+  rootJobId: string | null;
+  scheduleId: string | null;
+  libraryId: string | null;
+  mediaItemId: string | null;
+  progressCurrent: number | null;
+  progressTotal: number | null;
+  progressUnit: string | null;
+  statusMessageKey: string | null;
+  scheduledFor: string | null;
+  heartbeatAt: string | null;
+  failedAt: string | null;
+  cancelledAt: string | null;
+  pausedAt: string | null;
+  retryAt: string | null;
+  timeoutSeconds: number | null;
+  requiredPermission: string | null;
+  visibilityScope: string;
+  inputSummary: unknown;
+  resultSummary: unknown;
+  errorCode: string | null;
+  errorMessage: string | null;
+  warnings: unknown;
+  metrics: unknown;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlatformJobEvent {
+  id: string;
+  jobId: string;
+  sequence: number;
+  level: 'debug' | 'info' | 'warning' | 'error' | 'success';
+  eventType: string;
+  messageKey: string | null;
+  sanitizedMessage: string | null;
+  progress: number | null;
+  metadata: unknown;
+  createdAt: string;
+}
+
+export interface JobsOverview {
+  byStatus: Record<string, number>;
+  running: number;
+  queued: number;
+  waiting: number;
+  blocked: number;
+  scheduled: number;
+  failed: number;
+  active: number;
+  completedToday: number;
+  failedToday: number;
+  cancelledToday: number;
+  successRate: number | null;
+}
+
+export interface JobCatalogEntry {
+  type: string;
+  moduleKey: string;
+  workspaceKey: string | null;
+  labelKey: string;
+  descriptionKey: string | null;
+  requiredPermission: string | null;
+  capabilities: JobCapabilities;
+}
+
+export interface JobListQuery {
+  page?: number;
+  pageSize?: number;
+  status?: PlatformJobStatus;
+  active?: boolean;
+  moduleKey?: string;
+  workspaceKey?: string;
+  type?: string;
+  source?: string;
+  createdById?: string;
+  correlationId?: string;
+  libraryId?: string;
+  resourceId?: string;
+  search?: string;
+  sort?: string;
+  order?: 'asc' | 'desc';
+}
+
+export interface JobActionResult {
+  ok: boolean;
+  jobId?: string;
+  reason?: string;
+}
+
+export interface JobBulkResult {
+  total: number;
+  succeeded: string[];
+  failed: { id: string; reason: string }[];
+  level: 'success' | 'partial' | 'failed';
+}
+
 export interface AuditEntry {
   id: string;
   userId: string | null;
@@ -2754,6 +2893,32 @@ export const api = {
           limit: query.limit,
         },
       });
+    },
+
+    // ── Unified Jobs Center (platform_jobs) ──────────────────────────────────
+    overview(): Promise<JobsOverview> {
+      return request<JobsOverview>('/jobs/overview');
+    },
+    catalog(): Promise<JobCatalogEntry[]> {
+      return request<JobCatalogEntry[]>('/jobs/catalog');
+    },
+    listPlatform(query: JobListQuery = {}): Promise<Paginated<PlatformJobItem>> {
+      return request<Paginated<PlatformJobItem>>('/jobs/list', { query: query as QueryParams });
+    },
+    detail(id: string): Promise<PlatformJobDetail> {
+      return request<PlatformJobDetail>(`/jobs/${id}`);
+    },
+    events(id: string, query: { page?: number; pageSize?: number; level?: string } = {}): Promise<Paginated<PlatformJobEvent>> {
+      return request<Paginated<PlatformJobEvent>>(`/jobs/${id}/events`, { query: query as QueryParams });
+    },
+    children(id: string): Promise<PlatformJobItem[]> {
+      return request<PlatformJobItem[]>(`/jobs/${id}/children`);
+    },
+    action(id: string, action: JobActionKind): Promise<JobActionResult> {
+      return request<JobActionResult>(`/jobs/${id}/${action}`, { method: 'POST' });
+    },
+    bulk(action: 'cancel' | 'retry' | 'rerun', jobIds: string[]): Promise<JobBulkResult> {
+      return request<JobBulkResult>(`/jobs/bulk/${action}`, { method: 'POST', body: { jobIds } });
     },
   },
 

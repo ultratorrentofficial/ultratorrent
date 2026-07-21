@@ -25,6 +25,7 @@ import enEngines from './locales/en-US/engines.json';
 import enIndexers from './locales/en-US/indexers.json';
 import enProwlarr from './locales/en-US/prowlarr.json';
 import enAudit from './locales/en-US/audit.json';
+import enJobs from './locales/en-US/jobs.json';
 import enDashboard from './locales/en-US/dashboard.json';
 import enAccount from './locales/en-US/account.json';
 import enSystem from './locales/en-US/system.json';
@@ -48,6 +49,7 @@ import esEngines from './locales/es-PR/engines.json';
 import esIndexers from './locales/es-PR/indexers.json';
 import esProwlarr from './locales/es-PR/prowlarr.json';
 import esAudit from './locales/es-PR/audit.json';
+import esJobs from './locales/es-PR/jobs.json';
 import esDashboard from './locales/es-PR/dashboard.json';
 import esAccount from './locales/es-PR/account.json';
 import esSystem from './locales/es-PR/system.json';
@@ -100,6 +102,7 @@ export const NAMESPACES = [
   'indexers',
   'prowlarr',
   'audit',
+  'jobs',
   'dashboard',
   'account',
   'system',
@@ -127,6 +130,7 @@ export const resources = {
     indexers: enIndexers,
     prowlarr: enProwlarr,
     audit: enAudit,
+    jobs: enJobs,
     dashboard: enDashboard,
     account: enAccount,
     system: enSystem,
@@ -152,6 +156,7 @@ export const resources = {
     indexers: esIndexers,
     prowlarr: esProwlarr,
     audit: esAudit,
+    jobs: esJobs,
     dashboard: esDashboard,
     account: esAccount,
     system: esSystem,

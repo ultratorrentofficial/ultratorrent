@@ -273,6 +273,7 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
   { slot: { domain: 'administration', order: 20 }, item: { id: 'audit', to: '/audit', label: 'Audit Log', icon: ShieldCheck, permission: PERMISSIONS.AUDIT_VIEW, module: 'audit', descriptionKey: 'Audit Log' } },
 
   // System — UltraTorrent itself (D-3: API Keys are a platform credential managed here).
+  { slot: { domain: 'system', order: 5 }, item: { id: 'jobs-center', to: '/jobs', label: 'Jobs Center', icon: ListChecks, permission: PERMISSIONS.JOBS_VIEW, descriptionKey: 'Jobs Center' } },
   { slot: { domain: 'system', order: 10 }, item: { id: 'modules', to: '/modules', label: 'Modules', icon: Boxes, permission: PERMISSIONS.MODULES_VIEW, descriptionKey: 'Modules' } },
   { slot: { domain: 'system', order: 20 }, item: { id: 'settings', to: '/settings', label: 'Settings', icon: Settings, permission: PERMISSIONS.SETTINGS_VIEW, module: 'settings', descriptionKey: 'Settings' } },
 ];

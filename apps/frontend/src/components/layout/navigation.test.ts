@@ -137,7 +137,7 @@ describe('visibleGroups (RBAC + module gating)', () => {
   it('splits Administration (people) and System (platform)', () => {
     const groups = visibleGroups(ALL);
     expect(groups.find((g) => g.title === 'Administration')?.items.map((i) => i.id)).toEqual(['users', 'audit']);
-    expect(groups.find((g) => g.title === 'System')?.items.map((i) => i.id)).toEqual(['modules', 'settings']);
+    expect(groups.find((g) => g.title === 'System')?.items.map((i) => i.id)).toEqual(['jobs-center', 'modules', 'settings']);
   });
 
   it('hides a module-gated item when the module is disabled and the user cannot manage modules', () => {
