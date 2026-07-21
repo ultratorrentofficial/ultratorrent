@@ -9,7 +9,10 @@
     "Automation": "Automatización",
     "Files": "Archivos",
     "Administration": "Administración",
-    "Account": "Cuenta"
+    "Account": "Cuenta",
+    "Dashboard": "Panel",
+    "Media": "Medios",
+    "Monitoring": "Monitoreo"
   },
   "items": {
     "Dashboard": "Panel",
@@ -70,7 +73,10 @@
     "Modules": "Módulos",
     "Settings": "Configuración",
     "Audit Log": "Registro de Auditoría",
-    "Profile": "Perfil"
+    "Profile": "Perfil",
+    "Subtitles": "Subtítulos",
+    "Notifications": "Notificaciones",
+    "Media Server Analytics": "Analíticas del servidor"
   },
   "descriptions": {
     "Dashboard": "Resumen de descargas y actividad",
@@ -126,7 +132,10 @@
     "Modules": "Activa o desactiva módulos",
     "Settings": "Configuración de la aplicación",
     "Audit Log": "Registro de auditoría de seguridad y actividad",
-    "Profile": "Tu perfil, contraseña y seguridad"
+    "Profile": "Tu perfil, contraseña y seguridad",
+    "Subtitles": "Adquisición, sincronización, validación y proveedores de subtítulos",
+    "Notifications": "Centro de notificaciones — canales, reglas, entrega y salud",
+    "Media Server Analytics": "Analíticas de reproducción de Plex/Jellyfin/Emby, actividad en vivo e informes"
   },
   "details": {
     "Account": "Cuenta",

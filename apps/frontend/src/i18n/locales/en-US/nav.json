@@ -9,7 +9,10 @@
     "Automation": "Automation",
     "Files": "Files",
     "Administration": "Administration",
-    "Account": "Account"
+    "Account": "Account",
+    "Dashboard": "Dashboard",
+    "Media": "Media",
+    "Monitoring": "Monitoring"
   },
   "items": {
     "Dashboard": "Dashboard",
@@ -70,7 +73,10 @@
     "Modules": "Modules",
     "Settings": "Settings",
     "Audit Log": "Audit Log",
-    "Profile": "Profile"
+    "Profile": "Profile",
+    "Subtitles": "Subtitles",
+    "Notifications": "Notifications",
+    "Media Server Analytics": "Media Server Analytics"
   },
   "descriptions": {
     "Dashboard": "Overview of downloads and activity",
@@ -126,7 +132,10 @@
     "Modules": "Enable or disable modules",
     "Settings": "Application settings",
     "Audit Log": "Security and activity audit trail",
-    "Profile": "Your profile, password and security"
+    "Profile": "Your profile, password and security",
+    "Subtitles": "Subtitle acquisition, sync, validation and providers",
+    "Notifications": "Notification Center — channels, rules, delivery and health",
+    "Media Server Analytics": "Plex/Jellyfin/Emby watch analytics, live activity and reports"
   },
   "details": {
     "Account": "Account",

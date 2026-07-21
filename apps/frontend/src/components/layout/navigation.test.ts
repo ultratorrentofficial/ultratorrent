@@ -39,14 +39,12 @@ const ALL: NavVisibilityCtx = { hasPermission: () => true, isEnabled: () => true
 describe('visibleGroups (RBAC + module gating)', () => {
   it('shows every group in order when all permissions and modules are granted', () => {
     expect(visibleGroups(ALL).map((g) => g.title)).toEqual([
-      'Overview',
+      'Dashboard',
       'Downloads',
-      'RSS & Acquisition',
-      'Media Management',
-      'Subtitle Intelligence',
-      'Media Server Analytics',
+      'Media',
       'Automation',
       'Files',
+      'Monitoring',
       'Administration',
       'Account',
     ]);
@@ -54,7 +52,7 @@ describe('visibleGroups (RBAC + module gating)', () => {
 
   it('keeps only ungated entries (Search, Profile) when the user holds nothing', () => {
     const groups = visibleGroups(ctx({}));
-    expect(groups.map((g) => g.title)).toEqual(['Overview', 'Account']);
+    expect(groups.map((g) => g.title)).toEqual(['Dashboard', 'Account']);
     expect(groups[0].items.map((i) => i.id)).toEqual(['search']); // Dashboard needs the module
     expect(groups[1].items.map((i) => i.id)).toEqual(['account']);
   });
@@ -69,14 +67,18 @@ describe('visibleGroups (RBAC + module gating)', () => {
     expect(downloads!.items.map((i) => i.id)).not.toContain('engines');
   });
 
-  it('hides a module-gated group when the module is disabled and the user cannot manage modules', () => {
+  it('hides a module-gated item when the module is disabled and the user cannot manage modules', () => {
+    // Media Manager items are gated; with the module off (and no manage rights) the
+    // Media domain has no visible Media-Manager entries.
     const groups = visibleGroups(ctx({ perms: [PERMISSIONS.MEDIA_MANAGER_VIEW], mods: [] }));
-    expect(groups.map((g) => g.title)).not.toContain('Media Management');
+    const media = groups.find((g) => g.title === 'Media');
+    expect(media?.items.some((i) => i.id === 'media-dashboard')).not.toBe(true);
   });
 
   it('keeps disabled-module entries visible for a module manager (they lead to the locked page)', () => {
     const groups = visibleGroups(ctx({ perms: [PERMISSIONS.MEDIA_MANAGER_VIEW], mods: [], canManageModules: true }));
-    expect(groups.map((g) => g.title)).toContain('Media Management');
+    const media = groups.find((g) => g.title === 'Media');
+    expect(media?.items.map((i) => i.id)).toContain('media-dashboard');
   });
 
   it('prunes hidden children while keeping a permitted parent', () => {

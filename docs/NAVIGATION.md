@@ -28,17 +28,28 @@ translated at render time via the `nav` i18n namespace (`groups`, `items`,
 
 ## Navigation hierarchy
 
-| Group | Entries (→ route) |
-|-------|-------------------|
-| **Overview** | Dashboard → `/dashboard` · Search → command palette |
-| **Downloads** | Torrents → `/torrents` (sub-menu: Downloading/Seeding/Completed/Paused/Errors) · Engines → `/engines` · Indexers → `/indexers` |
-| **RSS & Acquisition** | RSS Feeds → `/rss` · Release Scoring → `/release-scoring` · Acquisition Intelligence → `/media-acquisition` (sub-menu: Smart Download, Missing Episodes, Decision Simulator) · **Prowlarr** *(external link — shown only when the [Prowlarr integration](PROWLARR.md) is enabled and the user has `integrations.prowlarr.open`; opens the configured public URL in a new tab)* |
-| **Media Management** | Media Dashboard → `/media` · Media Items → `/media/items` · Libraries → `/media/libraries` · Unmatched Media → `/media/unmatched` · Duplicates → `/media/duplicates` · Rename Engine → `/media/rename-preview` · IMDb Settings → `/media/settings/imdb` · Media Settings → `/media/settings` |
-| **Media Server Analytics** *(module-gated)* | Analytics Dashboard → `/media-server-analytics` · Live Activity → `/media-server-analytics/live` · Recently Added → `/media-server-analytics/recently-added` · Watch History → `/media-server-analytics/watch-history` · Analytics Reports → `/media-server-analytics/reports` · Newsletters → `/media-server-analytics/newsletters` · Import Analytics → `/media-server-analytics/import` · Server Connections → `/media-server-analytics/connections` |
-| **Automation** | Automation Rules → `/automation` · Notification Center → `/notifications` · Notification Channels → `/notifications/channels` · Notification Rules → `/notifications/rules` · Notification Templates → `/notifications/templates` · Notification Recipients → `/notifications/recipients` · Recipient Groups → `/notifications/groups` · Delivery History → `/notifications/history` · Queue Monitor → `/notifications/queue` · Provider Health → `/notifications/provider-health` · Notification Preferences → `/notifications/preferences` · Notification Settings → `/notifications/settings` |
+The navigation is organised into **domains** (Phase 1 of the redesign — see
+[NAVIGATION_REDESIGN.md](NAVIGATION_REDESIGN.md)). A domain groups related modules so
+the rail stays short as the platform grows; Media consolidates Media Manager +
+Subtitles, Automation folds in the Notification Center, and Monitoring hosts Media
+Server Analytics. Sub-modules with many pages (Subtitles, Notifications, Media Server
+Analytics) nest under a parent whose own route is the module's dashboard.
+
+| Domain | Entries (→ route) |
+|--------|-------------------|
+| **Dashboard** | Dashboard → `/dashboard` · Search → command palette |
+| **Downloads** | Torrents → `/torrents` (sub-menu: Downloading/Seeding/Completed/Paused/Errors) · RSS Feeds → `/rss` · Indexers → `/indexers` · **Prowlarr** *(external link — shown only when the [Prowlarr integration](PROWLARR.md) is enabled and the user has `integrations.prowlarr.open`)* · Release Scoring → `/release-scoring` · Acquisition Intelligence → `/media-acquisition` (sub-menu: Smart Download, Missing Episodes, Decision Simulator) · Engines → `/engines` |
+| **Media** | Media Dashboard → `/media` · Media Items → `/media/items` · Libraries → `/media/libraries` · Unmatched Media → `/media/unmatched` · Duplicates → `/media/duplicates` · Rename Engine → `/media/rename-preview` · **Subtitles** → `/subtitles` (sub-menu: Search, Sync, Validation, Languages, History, Providers, Settings) · IMDb Settings → `/media/settings/imdb` · Media Settings → `/media/settings` |
+| **Automation** | Automation Rules → `/automation` · **Notifications** → `/notifications` (sub-menu: Channels, Rules, Templates, Recipients, Recipient Groups, Delivery History, Queue Monitor, Provider Health, Preferences, Settings) |
 | **Files** | File Manager → `/files` |
+| **Monitoring** | **Media Server Analytics** *(module-gated)* → `/media-server-analytics` (sub-menu: Live Activity, Recently Added, Watch History, Analytics Reports, Newsletters, Import Analytics, Server Connections) |
 | **Administration** | Users → `/users` · Modules → `/modules` · Settings → `/settings` · Audit Log → `/audit` |
 | **Account** | Profile → `/account` |
+
+> **Redesign in progress.** This reflects Phase-1 (the IA re-group). Later phases add
+> pinned/favorites/recent, an entity-aware command palette, badges, module landing
+> hubs, contextual sub-nav, a redesigned mobile drawer, and a registry-driven rail —
+> tracked in [NAVIGATION_REDESIGN.md](NAVIGATION_REDESIGN.md).
 
 ### Spec sub-features that are page sections (not separate routes)
 

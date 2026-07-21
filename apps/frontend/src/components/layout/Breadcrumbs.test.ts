@@ -4,7 +4,7 @@ import { crumbsFor } from './Breadcrumbs';
 describe('crumbsFor', () => {
   it('builds Group › Item for a top-level route', () => {
     expect(crumbsFor('/dashboard')).toEqual([
-      { label: 'Overview' },
+      { label: 'Dashboard' },
       { label: 'Dashboard', to: '/dashboard' },
     ]);
   });
@@ -18,7 +18,7 @@ describe('crumbsFor', () => {
 
   it('builds Group › Parent › Item for a nested sub-menu route', () => {
     expect(crumbsFor('/media-acquisition/dashboard')).toEqual([
-      { label: 'RSS & Acquisition' },
+      { label: 'Downloads' },
       { label: 'Acquisition Intelligence', to: '/media-acquisition' },
       { label: 'Smart Download', to: '/media-acquisition/dashboard' },
     ]);
@@ -26,7 +26,7 @@ describe('crumbsFor', () => {
 
   it('appends a detail crumb for a nested detail route', () => {
     expect(crumbsFor('/rss/rules/abc123')).toEqual([
-      { label: 'RSS & Acquisition' },
+      { label: 'Downloads' },
       { label: 'RSS Feeds', to: '/rss' },
       { label: 'Rule' },
     ]);
@@ -34,7 +34,7 @@ describe('crumbsFor', () => {
 
   it('appends a generic Details crumb for a media item detail page', () => {
     expect(crumbsFor('/media/items/abc123')).toEqual([
-      { label: 'Media Management' },
+      { label: 'Media' },
       { label: 'Media Items', to: '/media/items' },
       { label: 'Details' },
     ]);
