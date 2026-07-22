@@ -5,16 +5,33 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { mkdir, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
-import { WS_EVENTS, type TrashItemDto } from '@ultratorrent/shared';
+import {
+  DEFAULT_TRASH_RETENTION_DAYS,
+  TRASH_RETENTION_DAYS_KEY,
+  WS_EVENTS,
+  type TrashItemDto,
+} from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { SettingsService } from '../settings/settings.module';
 import { FilePathService, type FileOpContext } from './file-path.service';
 import { TRASH_DIR_NAME, type PathSafety } from './path-safety';
 import { computeSize, moveRecursive, pathExists, statSafe } from './file-fs.util';
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * How often the retention sweep runs. Hourly is deliberately coarse: the UI
+ * counts down to the exact `expiresAt` locally, so the only thing this cadence
+ * controls is how long an already-expired item lingers on disk — and sweeping a
+ * media library's trash more often than that buys nothing.
+ */
+const RETENTION_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
  * Soft-delete (Trash) manager. Moves deleted items into a `.ultratorrent-trash`
@@ -31,10 +48,107 @@ export class TrashService {
     private readonly paths: FilePathService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
+    private readonly settings: SettingsService,
   ) {}
 
   private get safety() {
     return this.paths.safety;
+  }
+
+  /**
+   * Retention window in days; `0` means "keep until purged by hand".
+   *
+   * Read per call rather than cached so an admin lowering the window takes effect
+   * on the next sweep without a restart. A missing/garbage value falls back to the
+   * default instead of throwing — a broken setting must not strand the sweep and
+   * let trash grow unbounded, nor make it delete on a window nobody chose.
+   */
+  async retentionDays(): Promise<number> {
+    let raw: unknown;
+    try {
+      raw = await this.settings.get(TRASH_RETENTION_DAYS_KEY);
+    } catch (err) {
+      this.logger.warn(
+        `Could not read ${TRASH_RETENTION_DAYS_KEY}: ${(err as Error).message}`,
+      );
+      return DEFAULT_TRASH_RETENTION_DAYS;
+    }
+    if (raw === undefined || raw === null || raw === '') return DEFAULT_TRASH_RETENTION_DAYS;
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (!Number.isFinite(n) || n < 0) {
+      this.logger.warn(
+        `Ignoring invalid ${TRASH_RETENTION_DAYS_KEY} value ${JSON.stringify(raw)}; using ${DEFAULT_TRASH_RETENTION_DAYS}.`,
+      );
+      return DEFAULT_TRASH_RETENTION_DAYS;
+    }
+    return n;
+  }
+
+  /** Absolute expiry instant for an item, or `null` when retention is disabled. */
+  expiryOf(deletedAt: Date, retentionDays: number): string | null {
+    if (retentionDays <= 0) return null;
+    return new Date(deletedAt.getTime() + retentionDays * MS_PER_DAY).toISOString();
+  }
+
+  /**
+   * Permanently remove trash whose retention window has elapsed.
+   *
+   * This is the ONLY thing that makes the Trash surface honest: it is a live view
+   * of what is recoverable, not a history log, so an entry disappearing here is
+   * exactly what the operator should see once the payload is gone.
+   *
+   * Failures are per-item and non-fatal — one undeletable payload (busy mount,
+   * permission) must not stop the rest of the sweep. A row whose payload is
+   * already missing is still dropped, since it is not recoverable either way.
+   */
+  async pruneExpired(): Promise<{ removed: number; bytes: number }> {
+    const retentionDays = await this.retentionDays();
+    if (retentionDays <= 0) return { removed: 0, bytes: 0 };
+
+    const cutoff = new Date(Date.now() - retentionDays * MS_PER_DAY);
+    const rows = await this.prisma.trashItem.findMany({ where: { deletedAt: { lt: cutoff } } });
+    if (!rows.length) return { removed: 0, bytes: 0 };
+
+    let removed = 0;
+    let bytes = 0;
+    for (const row of rows) {
+      try {
+        // Same guard as purge(): only ever unlink inside a trash directory, so a
+        // corrupted row can never point the sweep at live library content.
+        if (this.safety.isInsideTrash(row.trashPath)) {
+          await rm(row.trashPath, { recursive: true, force: true });
+        }
+        await this.prisma.trashItem.delete({ where: { id: row.id } });
+        removed++;
+        bytes += Number(row.size);
+      } catch (err) {
+        this.logger.warn(
+          `Retention sweep could not remove "${row.trashPath}": ${(err as Error).message}`,
+        );
+      }
+    }
+
+    if (removed > 0) {
+      await this.audit.record({
+        action: 'file.trash_prune',
+        result: 'success',
+        metadata: { removed, bytes, retentionDays },
+      });
+      this.realtime.broadcast(WS_EVENTS.FILES_TRASH_UPDATED, { action: 'pruned', count: removed });
+      this.logger.log(
+        `Retention sweep removed ${removed} expired trash item(s), reclaiming ${bytes} bytes.`,
+      );
+    }
+    return { removed, bytes };
+  }
+
+  @Interval('files_trash_retention_sweep', RETENTION_SWEEP_INTERVAL_MS)
+  async sweepExpired(): Promise<void> {
+    try {
+      await this.pruneExpired();
+    } catch (err) {
+      this.logger.warn(`Trash retention sweep failed: ${(err as Error).message}`);
+    }
   }
 
   /**
@@ -100,12 +214,30 @@ export class TrashService {
       metadata: { mode: 'trash', isDirectory: info.isDirectory(), bytes: size },
     });
     this.realtime.broadcast(WS_EVENTS.FILES_TRASH_UPDATED, { action: 'added', id: row.id });
-    return this.toDto(row);
+    return this.toDto(row, await this.retentionDays());
   }
 
+  /**
+   * Everything currently recoverable, newest first.
+   *
+   * Rows past their expiry are withheld and a sweep is kicked off: the hourly
+   * @{link sweepExpired} is what actually reclaims the disk, but an operator must
+   * never see a countdown sitting at zero next to a Restore button that is about
+   * to start failing. The list and the countdown agree by construction.
+   */
   async list(): Promise<TrashItemDto[]> {
+    const retentionDays = await this.retentionDays();
     const rows = await this.prisma.trashItem.findMany({ orderBy: { deletedAt: 'desc' } });
-    return rows.map((r) => this.toDto(r));
+    const now = Date.now();
+    const live = rows.filter(
+      (r) => retentionDays <= 0 || r.deletedAt.getTime() + retentionDays * MS_PER_DAY > now,
+    );
+    if (live.length !== rows.length) {
+      void this.pruneExpired().catch((err) =>
+        this.logger.warn(`Opportunistic trash prune failed: ${(err as Error).message}`),
+      );
+    }
+    return live.map((r) => this.toDto(r, retentionDays));
   }
 
   /** Restore a trashed item to its original location. Never overwrites silently. */
@@ -191,15 +323,18 @@ export class TrashService {
     return { removed: rows.length, bytes };
   }
 
-  private toDto(row: {
-    id: string;
-    originalPath: string;
-    name: string;
-    isDirectory: boolean;
-    size: bigint;
-    deletedAt: Date;
-    deletedById: string | null;
-  }): TrashItemDto {
+  private toDto(
+    row: {
+      id: string;
+      originalPath: string;
+      name: string;
+      isDirectory: boolean;
+      size: bigint;
+      deletedAt: Date;
+      deletedById: string | null;
+    },
+    retentionDays: number,
+  ): TrashItemDto {
     return {
       id: row.id,
       name: row.name,
@@ -208,6 +343,7 @@ export class TrashService {
       size: Number(row.size),
       deletedAt: row.deletedAt.toISOString(),
       deletedBy: row.deletedById,
+      expiresAt: this.expiryOf(row.deletedAt, retentionDays),
     };
   }
 }

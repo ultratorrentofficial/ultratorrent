@@ -55,8 +55,9 @@ function build(over: any = {}) {
   };
   const files: any = { remove: jest.fn(async () => undefined) };
   const audit: any = { record: jest.fn(async () => undefined) };
-  const svc = new DuplicateResolutionService(prisma, filePath, files, audit, { broadcast: jest.fn() } as any, { emit: jest.fn() } as any);
-  return { svc, state, prisma, files, audit, filePath };
+  const trash: any = { retentionDays: jest.fn(async () => 30), expiryOf: (d: Date, days: number) => (days > 0 ? new Date(d.getTime() + days * 86400000).toISOString() : null) };
+  const svc = new DuplicateResolutionService(prisma, filePath, files, trash, audit, { broadcast: jest.fn() } as any, { emit: jest.fn() } as any);
+  return { svc, state, prisma, files, audit, filePath, trash };
 }
 
 const item = (id: string, p: string, size: number) => ({
@@ -485,7 +486,8 @@ describe('bulk — a response carrying failures is never mistaken for a clean ru
     };
     const files: any = { remove: jest.fn(async () => undefined) };
     const audit: any = { record: jest.fn(async () => undefined) };
-    return { svc: new DuplicateResolutionService(prisma, filePath, files, audit, { broadcast: jest.fn() } as any, { emit: jest.fn() } as any), state, files };
+    const trash: any = { retentionDays: jest.fn(async () => 30), expiryOf: (d: Date, days: number) => (days > 0 ? new Date(d.getTime() + days * 86400000).toISOString() : null) };
+    return { svc: new DuplicateResolutionService(prisma, filePath, files, trash, audit, { broadcast: jest.fn() } as any, { emit: jest.fn() } as any), state, files };
   }
 
   /** Writes the real files, so the resolve path reaches the step under test. */
@@ -578,5 +580,122 @@ describe('bulk — a response carrying failures is never mistaken for a clean ru
     // findMany is stubbed to return everything, so assert the WHERE the service asks
     // for rather than the stub's output.
     expect(q.cap).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Trash & Recovery is a LIVE view, not a history log.
+ *
+ * Two defects lived here. A file the operator chose to delete permanently was still
+ * listed (as an unrestorable tombstone), which made the panel read as a journal of
+ * everything cleanup had ever touched. And the join itself never matched: the action
+ * journal stores an ABSOLUTE path while `TrashItem.originalPath` is ROOT-RELATIVE,
+ * so every row rendered "no longer in Trash" regardless of what was really there.
+ * The identity `toRelative` used elsewhere in this file would hide that second bug,
+ * so these cases model the real path shapes.
+ */
+describe('trashedByCleanup — only what is genuinely recoverable', () => {
+  const ROOT = '/library';
+
+  function build(opts: { actions: any[]; trash: any[]; retentionDays?: number }) {
+    const prisma: any = {
+      mediaDuplicateResolutionAction: { findMany: jest.fn(async () => opts.actions) },
+      trashItem: {
+        findMany: jest.fn(async ({ where }: any) => {
+          const wanted: string[] = where.originalPath.in;
+          return opts.trash.filter((t) => wanted.includes(t.originalPath));
+        }),
+      },
+    };
+    const filePath: any = {
+      // The real shape: strip the storage root, keep a leading slash.
+      storageSafety: {
+        toRelative: (p: string) => {
+          if (!p.startsWith(ROOT + '/')) throw new Error('Path is outside the allowed roots');
+          return p.slice(ROOT.length);
+        },
+      },
+    };
+    const days = opts.retentionDays ?? 30;
+    const trash: any = {
+      retentionDays: jest.fn(async () => days),
+      expiryOf: (d: Date, n: number) => (n > 0 ? new Date(d.getTime() + n * 86400000).toISOString() : null),
+    };
+    const svc = new DuplicateResolutionService(
+      prisma,
+      filePath,
+      { remove: jest.fn() } as any,
+      trash,
+      { record: jest.fn() } as any,
+      { broadcast: jest.fn() } as any,
+      { emit: jest.fn() } as any,
+    );
+    return { svc, prisma };
+  }
+
+  const action = (id: string, abs: string) => ({
+    id,
+    sourcePath: abs,
+    actionType: 'trash',
+    createdAt: new Date(),
+    resolutionId: 'r1',
+  });
+  const trashRow = (id: string, rel: string, deletedAt = new Date()) => ({
+    id,
+    originalPath: rel,
+    name: rel.split('/').pop(),
+    size: BigInt(10),
+    deletedAt,
+  });
+
+  it('lists a trashed file, matching absolute journal path to root-relative trash path', async () => {
+    const { svc } = build({
+      actions: [action('a1', '/library/TV/show.mkv')],
+      trash: [trashRow('t1', '/TV/show.mkv')],
+    });
+    const rows = await svc.trashedByCleanup();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ actionId: 'a1', trashItemId: 't1', restorable: true });
+    expect(rows[0].expiresAt).toEqual(expect.any(String));
+  });
+
+  it('omits a permanently deleted file while keeping its trashed sibling', async () => {
+    // Both files went through the same cleanup run; only the second was trashed.
+    // The trashed one keeps the result set non-empty, so this genuinely exercises
+    // the per-row drop rather than an early "nothing in Trash at all" return.
+    const { svc } = build({
+      actions: [action('a1', '/library/TV/gone.mkv'), action('a2', '/library/TV/kept.mkv')],
+      trash: [trashRow('t2', '/TV/kept.mkv')], // permanent delete never created a TrashItem
+    });
+    const rows = await svc.trashedByCleanup();
+    expect(rows.map((r) => r.actionId)).toEqual(['a2']);
+  });
+
+  it('omits an entry whose retention window has already elapsed', async () => {
+    const { svc } = build({
+      actions: [action('a1', '/library/TV/old.mkv')],
+      trash: [trashRow('t1', '/TV/old.mkv', new Date(Date.now() - 31 * 86400000))],
+      retentionDays: 30,
+    });
+    expect(await svc.trashedByCleanup()).toEqual([]);
+  });
+
+  it('reports no expiry when retention is disabled, and still lists the file', async () => {
+    const { svc } = build({
+      actions: [action('a1', '/library/TV/keep.mkv')],
+      trash: [trashRow('t1', '/TV/keep.mkv', new Date(Date.now() - 999 * 86400000))],
+      retentionDays: 0,
+    });
+    const rows = await svc.trashedByCleanup();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].expiresAt).toBeNull();
+  });
+
+  it('skips a journal path that no longer resolves inside the roots', async () => {
+    const { svc } = build({
+      actions: [action('a1', '/elsewhere/TV/x.mkv')],
+      trash: [trashRow('t1', '/TV/x.mkv')],
+    });
+    expect(await svc.trashedByCleanup()).toEqual([]);
   });
 });

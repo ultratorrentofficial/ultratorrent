@@ -223,11 +223,21 @@ subtitles are left in place. By default the media file goes to **Trash**
 (`FilesService.remove({ permanent: false })`), restorable until the retention window
 expires. Because these files are large, the cleanup dialog and Quick Clean also offer
 a **"Delete permanently (skip Trash)"** toggle (off by default) that removes them
-outright and frees the space immediately. The **Trash & Recovery** tab lists the
-resolution *journal* joined to live Trash entries — so a file purged by retention (or
-deleted permanently) still appears, with an explicit "no longer in Trash" state,
-rather than vanishing from the history. Restore reuses the existing
-`/files/trash/restore` route.
+outright and frees the space immediately.
+
+The **Trash & Recovery** tab is a **live recoverability view, not a history log**: a
+row appears only while a real Trash entry backs it. A file deleted permanently never
+shows up, and one the retention sweep has collected disappears rather than lingering
+as an unrestorable tombstone. Each row counts down `Nd hh:mm:ss` to its expiry and
+leaves the list when it hits zero. History lives in the resolution journal and the
+audit log, which is what those are for — mixing the two made it ambiguous which rows
+still meant anything.
+
+Rows are matched to Trash by rebasing the journal's **absolute** `sourcePath` onto its
+storage root, because `TrashItem.originalPath` is **root-relative**; comparing the two
+raw matched nothing and made every row render as unrecoverable. Restore reuses the
+existing `/files/trash/restore` route. Retention itself (`files.trashRetentionDays`,
+default 30 days) is documented in [FILE_MANAGER.md](FILE_MANAGER.md#retention).
 
 ## False positives
 

@@ -1709,6 +1709,13 @@ export interface DuplicateResolutionResult {
   reclaimedBytes: number;
 }
 
+/**
+ * A duplicate-cleanup file that is still recoverable from Trash.
+ *
+ * The endpoint only returns live entries, so `trashItemId` is always present and
+ * `restorable` is always true — both are kept so the shape stays explicit at the
+ * call site rather than relying on the reader knowing the filter.
+ */
 export interface DuplicateTrashEntry {
   actionId: string;
   resolutionId: string;
@@ -1719,6 +1726,8 @@ export interface DuplicateTrashEntry {
   name: string | null;
   size: number | null;
   deletedAt: string | null;
+  /** When retention will permanently remove it; null when retention is disabled. */
+  expiresAt: string | null;
   restorable: boolean;
 }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { File as FileIcon, Folder, RotateCcw, Trash2, TriangleAlert } from 'lucide-react';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Drawer, DrawerBody, DrawerFooter, DrawerHeader } from '@/components/ui/drawer';
 import { CenteredSpinner, EmptyState } from '@/components/ui/feedback';
 import { formatBytes, formatRelativeTime } from '@/lib/format';
+import { TrashCountdown } from '@/components/files/TrashCountdown';
 
 /** Trash Browser: list soft-deleted items, restore, permanently purge, empty. */
 export function TrashDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -28,6 +29,12 @@ export function TrashDrawer({ open, onClose }: { open: boolean; onClose: () => v
       qc.invalidateQueries({ queryKey: ['files'] }),
     ]);
   };
+
+  // An elapsed countdown means the server now withholds that row — refetch so it
+  // leaves the drawer the instant it stops being restorable.
+  const expire = useCallback(() => {
+    void qc.invalidateQueries({ queryKey: ['files-trash'] });
+  }, [qc]);
 
   const restore = async (id: string) => {
     setBusyId(id);
@@ -100,6 +107,11 @@ export function TrashDrawer({ open, onClose }: { open: boolean; onClose: () => v
                   <p className="truncate text-xs text-muted-foreground">
                     {item.originalPath} · {formatBytes(item.size)} · {formatRelativeTime(item.deletedAt)}
                   </p>
+                  <TrashCountdown
+                    expiresAt={item.expiresAt}
+                    onExpire={expire}
+                    className="truncate text-xs text-muted-foreground"
+                  />
                 </div>
                 <Button size="sm" variant="ghost" loading={busyId === item.id} onClick={() => restore(item.id)}>
                   <RotateCcw className="h-4 w-4" /> {t('trash.restore')}

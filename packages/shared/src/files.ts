@@ -137,7 +137,23 @@ export interface TrashItemDto {
   size: number;
   deletedAt: string;
   deletedBy: string | null;
+  /**
+   * When the retention sweep will permanently delete this item, or `null` when
+   * retention is disabled (`files.trashRetentionDays` = 0) and it is kept until
+   * someone purges it by hand.
+   *
+   * Sent as an absolute instant rather than a remaining-seconds number so the UI
+   * can tick a countdown down locally without re-polling, and so a stale response
+   * cannot make an expired item look like it still has time left.
+   */
+  expiresAt: string | null;
 }
+
+/** Settings key holding the Trash retention window, in days. `0` disables pruning. */
+export const TRASH_RETENTION_DAYS_KEY = 'files.trashRetentionDays';
+
+/** Retention window applied when the setting is unset. */
+export const DEFAULT_TRASH_RETENTION_DAYS = 30;
 
 // --- Move/copy conflict analysis ------------------------------------------
 

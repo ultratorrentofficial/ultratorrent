@@ -88,6 +88,29 @@ root-relative path, size, and who deleted it.
   directory.
 - The trash directory is hidden from normal browse listings.
 - Pass `permanent: true` to `delete` to bypass the trash entirely (irreversible).
+  A permanent delete never creates a `TrashItem`, so it never appears in any Trash
+  surface — those list what is recoverable, not what has happened.
+
+### Retention
+
+Trash is **not** a permanent archive. Each item carries an `expiresAt` (its
+`deletedAt` plus the retention window) and an hourly sweep permanently removes
+anything past it, freeing the disk the soft delete was still holding.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `files.trashRetentionDays` | `30` | Days an item stays recoverable. `0` disables pruning — items are kept until purged by hand. |
+
+Set it like any other setting (`PUT /api/settings/files.trashRetentionDays`). It is
+read per sweep, so a change takes effect without a restart. An unparseable value
+falls back to the default rather than disabling the sweep, so a typo can never let
+trash grow unbounded.
+
+Both Trash surfaces (the Files trash drawer and the Duplicate Center's Trash &
+Recovery tab) show a live `Nd hh:mm:ss` countdown to `expiresAt` and drop the row
+the moment it elapses. `GET /api/files/trash` withholds already-expired items even
+before the sweep collects them, so a listing never offers a Restore that is about
+to fail.
 
 ---
 

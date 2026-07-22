@@ -21,7 +21,13 @@ function fakePrisma() {
         store.set(data.id, row);
         return row;
       }),
-      findMany: jest.fn(async () => [...store.values()]),
+      // Honours the `deletedAt: { lt }` filter the retention sweep relies on —
+      // ignoring it would let a broken sweep "pass" by deleting everything.
+      findMany: jest.fn(async (args?: any) => {
+        const lt = args?.where?.deletedAt?.lt as Date | undefined;
+        const rows = [...store.values()];
+        return lt ? rows.filter((r) => r.deletedAt.getTime() < lt.getTime()) : rows;
+      }),
       findUnique: jest.fn(async ({ where }: any) => store.get(where.id) ?? null),
       delete: jest.fn(async ({ where }: any) => {
         store.delete(where.id);
@@ -50,6 +56,8 @@ describe('TrashService', () => {
       paths as any,
       { record: jest.fn().mockResolvedValue(undefined) } as any,
       { broadcast: jest.fn() } as any,
+      // Unset retention setting → the 30-day default, so items stay listed.
+      { get: async () => undefined, set: async () => {} } as any,
     );
   });
 
@@ -87,6 +95,108 @@ describe('TrashService', () => {
     await svc.moveToTrash(join(root, 'd.txt'));
     const res = await svc.empty();
     expect(res.removed).toBe(1);
+    expect(await svc.list()).toHaveLength(0);
+  });
+});
+
+/**
+ * Retention. Trash is a live view of what can still be recovered, so an entry has
+ * to carry its own deadline and has to actually disappear once that deadline
+ * passes — otherwise the surface degrades into the history log it must not be.
+ */
+describe('TrashService — retention', () => {
+  let root: string;
+  let prisma: ReturnType<typeof fakePrisma>;
+
+  /** Build a service whose retention setting returns `days` (undefined → default). */
+  function build(days?: number) {
+    const paths = new FilePathService(configFor(root), {
+      get: async () => undefined,
+      set: async () => {},
+    } as any);
+    return new TrashService(
+      prisma as any,
+      paths as any,
+      { record: jest.fn().mockResolvedValue(undefined) } as any,
+      { broadcast: jest.fn() } as any,
+      { get: async () => days, set: async () => {} } as any,
+    );
+  }
+
+  /** Backdate a stored row so it looks older than the retention window. */
+  function ageRow(id: string, days: number) {
+    const row = prisma.store.get(id);
+    row.deletedAt = new Date(Date.now() - days * 86400000);
+  }
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'ut-trash-ret-'));
+    prisma = fakePrisma();
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('stamps expiresAt 30 days out when the setting is unset', async () => {
+    const svc = build(undefined);
+    await writeFile(join(root, 'a.txt'), 'data');
+    const item = await svc.moveToTrash(join(root, 'a.txt'));
+    const expected = new Date(prisma.store.get(item.id).deletedAt.getTime() + 30 * 86400000);
+    expect(item.expiresAt).toBe(expected.toISOString());
+  });
+
+  it('honours a configured window', async () => {
+    const svc = build(7);
+    await writeFile(join(root, 'b.txt'), 'data');
+    const item = await svc.moveToTrash(join(root, 'b.txt'));
+    const expected = new Date(prisma.store.get(item.id).deletedAt.getTime() + 7 * 86400000);
+    expect(item.expiresAt).toBe(expected.toISOString());
+  });
+
+  it('reports no expiry and never prunes when retention is disabled', async () => {
+    const svc = build(0);
+    await writeFile(join(root, 'c.txt'), 'data');
+    const item = await svc.moveToTrash(join(root, 'c.txt'));
+    expect(item.expiresAt).toBeNull();
+
+    ageRow(item.id, 999);
+    expect(await svc.pruneExpired()).toEqual({ removed: 0, bytes: 0 });
+    expect(await svc.list()).toHaveLength(1);
+  });
+
+  it('falls back to the default window on a garbage setting rather than skipping the sweep', async () => {
+    const svc = build('nonsense' as any);
+    expect(await svc.retentionDays()).toBe(30);
+  });
+
+  it('prunes an expired item off disk and out of the listing, keeping fresh ones', async () => {
+    const svc = build(30);
+    await writeFile(join(root, 'old.txt'), 'data');
+    await writeFile(join(root, 'new.txt'), 'data');
+    const stale = await svc.moveToTrash(join(root, 'old.txt'));
+    const fresh = await svc.moveToTrash(join(root, 'new.txt'));
+    const stalePayload = join(root, '.ultratorrent-trash', `${stale.id}__old.txt`);
+
+    ageRow(stale.id, 31);
+
+    const res = await svc.pruneExpired();
+    expect(res.removed).toBe(1);
+    expect(await pathExists(stalePayload)).toBe(false);
+
+    const listed = await svc.list();
+    expect(listed.map((i) => i.id)).toEqual([fresh.id]);
+  });
+
+  it('withholds an item the moment its countdown elapses, before the sweep runs', async () => {
+    const svc = build(30);
+    await writeFile(join(root, 'e.txt'), 'data');
+    const item = await svc.moveToTrash(join(root, 'e.txt'));
+
+    // Past the window but the hourly sweep has not fired: the row is still in the
+    // table, and list() must not offer it as restorable.
+    ageRow(item.id, 31);
+    expect(prisma.store.has(item.id)).toBe(true);
     expect(await svc.list()).toHaveLength(0);
   });
 });

@@ -194,7 +194,10 @@
     "emptiedToast": "Papelera vaciada",
     "removedToast_one": "{{count}} elemento eliminado",
     "removedToast_other": "{{count}} elementos eliminados",
-    "emptyFailed": "Falló el vaciado de la Papelera"
+    "emptyFailed": "Falló el vaciado de la Papelera",
+    "expiresIn": "Se elimina en",
+    "noExpiry": "Se conserva hasta eliminarlo manualmente",
+    "expiring": "Eliminando ahora…"
   },
   "picker": {
     "defaultTitle": "Elige una ubicación",

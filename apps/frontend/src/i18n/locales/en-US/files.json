@@ -194,7 +194,10 @@
     "emptiedToast": "Emptied Trash",
     "removedToast_one": "{{count}} item removed",
     "removedToast_other": "{{count}} items removed",
-    "emptyFailed": "Empty Trash failed"
+    "emptyFailed": "Empty Trash failed",
+    "expiresIn": "Deletes in",
+    "noExpiry": "Kept until deleted manually",
+    "expiring": "Deleting now…"
   },
   "picker": {
     "defaultTitle": "Choose a location",

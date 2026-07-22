@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RotateCcw, Trash2 } from 'lucide-react';
@@ -8,15 +9,20 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { TrashCountdown } from '@/components/files/TrashCountdown';
 
 /**
- * What the Duplicate Center has sent to Trash, and how to get it back.
+ * What the Duplicate Center has in Trash right now, and how to get it back.
  *
- * The list is the resolution JOURNAL joined to live Trash entries, not the Trash
- * table alone. That matters after the retention window passes: the journal outlives
- * the Trash entry, so a purged file still appears with an explicit "no longer in
- * Trash" state rather than silently vanishing from the history — an operator asking
- * "what happened to that file?" gets an answer either way.
+ * Strictly a live recoverability view: the server returns only entries with a real
+ * Trash payload behind them, so a file deleted permanently never appears and one
+ * the retention sweep has taken disappears instead of lingering as a tombstone.
+ * This surface used to render the resolution journal, which meant unrecoverable
+ * rows sat here indefinitely and it read as a history log — the audit log and the
+ * resolution journal are where history belongs.
+ *
+ * Each row counts down to its own expiry and refetches the moment one elapses, so
+ * what is on screen and what is actually restorable never drift apart.
  *
  * Restore goes through the existing `/files/trash/restore` route rather than a
  * duplicate of it.
@@ -30,6 +36,12 @@ export function DuplicateTrashPanel() {
     queryKey: ['media', 'duplicates', 'trash'],
     queryFn: () => api.media.duplicateTrashHistory(),
   });
+
+  // One expiring row means the server will now withhold it; refetch so it leaves
+  // the list at zero rather than at the next incidental invalidation.
+  const expire = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['media', 'duplicates', 'trash'] });
+  }, [queryClient]);
 
   const restore = useMutation({
     mutationFn: (trashItemId: string) => api.files.trash.restore(trashItemId),
@@ -81,23 +93,22 @@ export function DuplicateTrashPanel() {
                 ) : null}
               </p>
             </div>
-            {r.restorable && r.trashItemId ? (
+            <div className="flex items-center gap-3">
+              <TrashCountdown
+                expiresAt={r.expiresAt}
+                onExpire={expire}
+                className="text-xs text-muted-foreground"
+              />
               <Button
                 variant="outline"
                 size="sm"
                 loading={restore.isPending}
-                onClick={() => restore.mutate(r.trashItemId!)}
+                disabled={!r.trashItemId}
+                onClick={() => r.trashItemId && restore.mutate(r.trashItemId)}
               >
                 <RotateCcw className="h-3.5 w-3.5" /> {t('duplicates.trash.restore')}
               </Button>
-            ) : (
-              <div className="text-right">
-                <Badge variant="secondary">{t('duplicates.trash.purged')}</Badge>
-                <p className="mt-1 max-w-[16rem] text-xs text-muted-foreground">
-                  {t('duplicates.trash.purgedHint')}
-                </p>
-              </div>
-            )}
+            </div>
           </CardContent>
         </Card>
       ))}

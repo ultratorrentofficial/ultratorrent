@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { FilesService } from '../files/files.service';
+import { TrashService } from '../files/trash.service';
 import { AuditService } from '../audit/audit.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
@@ -121,6 +122,7 @@ export class DuplicateResolutionService {
     private readonly prisma: PrismaService,
     private readonly filePath: FilePathService,
     private readonly files: FilesService,
+    private readonly trash: TrashService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
     private readonly eventBus: EventEmitter2,
@@ -669,13 +671,20 @@ export class DuplicateResolutionService {
   }
 
   /**
-   * Files this feature sent to Trash, newest first.
+   * Files this feature put in Trash that are STILL THERE, newest first.
    *
-   * Correlated with the resolution journal by path rather than by a new column on
-   * `TrashItem`: the Trash surface already exists and works (list/restore/purge), and
-   * the action journal already records every path the Duplicate Center removed, so a
-   * parallel origin field would be a second source of truth for something already
-   * knowable. Restore goes through the existing `/files/trash/restore` route.
+   * This is a live recoverability view, not a history log. A row appears only when
+   * a matching Trash entry actually exists, so a file the operator chose to delete
+   * permanently never shows up here, and one the retention sweep has taken is gone
+   * rather than lingering as a "no longer in Trash" tombstone. Anyone wanting the
+   * full history has the resolution journal and the audit log; padding this surface
+   * with unrecoverable entries only made it ambiguous which rows meant anything.
+   *
+   * Correlated with the journal by path rather than a new column on `TrashItem`,
+   * so there is no second source of truth — but note the two sides store DIFFERENT
+   * path shapes: the journal keeps an absolute path (`/downloads/TV/x.mkv`) while
+   * `TrashItem.originalPath` is root-relative (`/TV/x.mkv`). Comparing them raw
+   * matched nothing, which is why every row used to render as unrecoverable.
    */
   async trashedByCleanup(limit = 100) {
     const actions = await this.prisma.mediaDuplicateResolutionAction.findMany({
@@ -686,29 +695,54 @@ export class DuplicateResolutionService {
     });
     if (!actions.length) return [];
 
+    // Rebase each journal path onto its storage root before comparing. A path that
+    // no longer resolves inside the hard roots (root reconfigured since cleanup ran)
+    // simply has no live Trash entry, which is the honest answer.
+    const relById = new Map<string, string>();
+    for (const a of actions) {
+      if (!a.sourcePath) continue;
+      try {
+        relById.set(a.id, this.filePath.storageSafety.toRelative(a.sourcePath));
+      } catch {
+        /* outside the allowed roots — not recoverable through Trash */
+      }
+    }
+    if (!relById.size) return [];
+
     const items = await this.prisma.trashItem.findMany({
-      where: { originalPath: { in: actions.map((a) => a.sourcePath!).filter(Boolean) } },
+      where: { originalPath: { in: [...new Set(relById.values())] } },
       select: { id: true, originalPath: true, name: true, size: true, deletedAt: true },
     });
+    if (!items.length) return [];
     const byPath = new Map(items.map((t) => [t.originalPath, t]));
 
-    return actions.map((a) => {
-      const t = a.sourcePath ? byPath.get(a.sourcePath) : undefined;
-      return {
-        actionId: a.id,
-        resolutionId: a.resolutionId,
-        actionType: a.actionType,
-        originalPath: a.sourcePath,
-        removedAt: a.createdAt,
-        // Null when the retention window has already purged it — the journal
-        // outlives the Trash entry, and saying "gone" is better than implying it is
-        // still restorable.
-        trashItemId: t?.id ?? null,
-        name: t?.name ?? null,
-        size: t ? Number(t.size) : null,
-        deletedAt: t?.deletedAt ?? null,
-        restorable: !!t,
-      };
+    const retentionDays = await this.trash.retentionDays();
+    const now = Date.now();
+
+    return actions.flatMap((a) => {
+      const rel = relById.get(a.id);
+      const t = rel ? byPath.get(rel) : undefined;
+      if (!t) return [];
+      // Withhold anything already past its window; the sweep is about to remove it
+      // and a zeroed countdown next to a Restore button is a lie.
+      const expiresAt = this.trash.expiryOf(t.deletedAt, retentionDays);
+      if (expiresAt && Date.parse(expiresAt) <= now) return [];
+      return [
+        {
+          actionId: a.id,
+          resolutionId: a.resolutionId,
+          actionType: a.actionType,
+          originalPath: a.sourcePath,
+          removedAt: a.createdAt,
+          trashItemId: t.id,
+          name: t.name,
+          size: Number(t.size),
+          deletedAt: t.deletedAt,
+          /** When the retention sweep will take it; `null` if retention is off. */
+          expiresAt,
+          restorable: true,
+        },
+      ];
     });
   }
 

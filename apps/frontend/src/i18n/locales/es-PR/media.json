@@ -455,15 +455,13 @@
     },
     "trash": {
       "title": "Papelera y recuperación",
-      "subtitle": "Archivos que el Centro de duplicados movió a la Papelera. Restaura lo que necesites hasta que expire el período de retención.",
+      "subtitle": "Archivos que el Centro de Duplicados movió a la Papelera y aún se pueden restaurar. Los archivos eliminados permanentemente no aparecen aquí.",
       "empty": "Aún no se ha limpiado nada.",
-      "emptyBody": "Los archivos que muevas a la Papelera desde un grupo de duplicados aparecerán aquí.",
+      "emptyBody": "Los archivos que muevas a la Papelera desde un grupo de duplicados aparecen aquí hasta que venza su período de retención.",
       "removedAt": "Eliminado",
       "restore": "Restaurar",
       "restored": "Archivo restaurado",
       "restoreFailed": "No se pudo restaurar el archivo",
-      "purged": "Ya no está en la Papelera",
-      "purgedHint": "El período de retención expiró y este archivo se eliminó de forma permanente.",
       "loadError": "No se pudo cargar el historial de limpieza."
     },
     "quick": {

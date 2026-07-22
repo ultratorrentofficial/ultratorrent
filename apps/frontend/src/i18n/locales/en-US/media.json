@@ -455,15 +455,13 @@
     },
     "trash": {
       "title": "Trash & Recovery",
-      "subtitle": "Files the Duplicate Center moved to Trash. Restore anything until the retention period expires.",
+      "subtitle": "Files the Duplicate Center moved to Trash and can still restore. Permanently deleted files are not listed here.",
       "empty": "Nothing has been cleaned up yet.",
-      "emptyBody": "Files you move to Trash from a duplicate group are listed here.",
+      "emptyBody": "Files you move to Trash from a duplicate group appear here until their retention window expires.",
       "removedAt": "Removed",
       "restore": "Restore",
       "restored": "File restored",
       "restoreFailed": "Could not restore this file",
-      "purged": "No longer in Trash",
-      "purgedHint": "The retention period has passed and this file has been permanently removed.",
       "loadError": "Could not load the cleanup history."
     },
     "quick": {

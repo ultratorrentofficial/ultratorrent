@@ -51,6 +51,24 @@ export function formatEta(seconds: number | null | undefined): string {
   return parts.slice(0, 2).join(' ') || '0s';
 }
 
+/**
+ * Precise remaining time as `Nd hh:mm:ss` (the `Nd` dropped under a day).
+ *
+ * Unlike {@link formatEta}, which rounds to the two largest units for a glanceable
+ * estimate, this keeps every field so a Trash retention countdown visibly ticks —
+ * an operator deciding whether to restore a file wants to see the seconds move,
+ * not a figure that reads "2d" for two days. Returns `null` past zero so callers
+ * must handle the expired case explicitly rather than rendering `0d 00:00:00`.
+ */
+export function formatCountdown(msRemaining: number | null | undefined): string | null {
+  if (msRemaining == null || !Number.isFinite(msRemaining) || msRemaining <= 0) return null;
+  const total = Math.floor(msRemaining / 1000);
+  const days = Math.floor(total / 86400);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const clock = `${pad(Math.floor((total % 86400) / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
+  return days > 0 ? `${days}d ${clock}` : clock;
+}
+
 /** Format a 0..1 progress fraction as a whole-number percentage string. */
 export function formatPercent(fraction: number | null | undefined, fractionDigits = 1): string {
   if (fraction == null || !Number.isFinite(fraction)) return '0%';
