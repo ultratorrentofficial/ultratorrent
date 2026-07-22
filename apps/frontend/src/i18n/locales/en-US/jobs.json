@@ -203,5 +203,9 @@
     "stallThresholdMs": "Stall threshold",
     "stallScanIntervalMs": "Stall scan interval",
     "defaultMaxAttempts": "Default max attempts"
+  },
+  "type": {
+    "workflow_execution": "Workflow execution",
+    "workflow_node": "Workflow action"
   }
 }

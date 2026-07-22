@@ -54,7 +54,7 @@ class FakePrisma {
   seedWorkflow(graph: WorkflowGraph) {
     this.versions.set('v1', { id: 'v1', workflowId: 'w1', graph });
     this.workflows.set('w1', { id: 'w1', status: 'published', publishedVersionId: 'v1', enabled: true });
-    const exec = { id: 'e1', workflowId: 'w1', workflowVersionId: 'v1', status: 'queued', inputContext: {}, startedAt: null };
+    const exec = { id: 'e1', workflowId: 'w1', workflowVersionId: 'v1', status: 'queued', inputContext: {}, startedAt: null, jobId: null };
     this.execs.set('e1', exec);
     return 'e1';
   }
@@ -64,9 +64,16 @@ const registry = new WorkflowNodeRegistry();
 const audit = { record: jest.fn() } as any;
 const user = { id: 'u1', username: 'admin', roles: [], permissions: [] } as any;
 
+/** No-op Jobs Center mirror — the bridge is best-effort and must not affect execution logic. */
+const jobBridge = {
+  createExecutionJob: jest.fn().mockResolvedValue(null),
+  park: jest.fn(), unpark: jest.fn(), finish: jest.fn(),
+  startNodeJob: jest.fn().mockResolvedValue(null), finishNodeJob: jest.fn(), cancelJob: jest.fn(),
+} as any;
+
 function makeService(prisma: FakePrisma, run: jest.Mock) {
   const automation = { runWorkflowAction: run } as any;
-  return new WorkflowExecutionService(prisma as any, audit, registry, automation);
+  return new WorkflowExecutionService(prisma as any, audit, registry, automation, jobBridge);
 }
 
 const linear: WorkflowGraph = {
@@ -282,6 +289,31 @@ describe('WorkflowExecutionService.runExecution', () => {
     expect(run).not.toHaveBeenCalled(); // approve branch (the action) never ran
     expect(prisma.nodeExecs.find((n) => n.nodeId === 'a')?.status).toBe('skipped');
     expect(prisma.execs.get('e1').status).toBe('completed');
+  });
+
+  it('mirrors into the Jobs Center: long-running node → child job, finished on completion', async () => {
+    const prisma = new FakePrisma();
+    const id = prisma.seedWorkflow(linear); // action.media_scan_library is long-running
+    const run = jest.fn().mockResolvedValue(undefined);
+    jobBridge.startNodeJob.mockResolvedValueOnce('childjob1');
+    await makeService(prisma, run).runExecution(id);
+
+    expect(jobBridge.startNodeJob).toHaveBeenCalledWith(null, 'e1', 'a', 'media_scan_library');
+    expect(jobBridge.finishNodeJob).toHaveBeenCalledWith('childjob1', true);
+    expect(jobBridge.finish).toHaveBeenCalledWith(null, 'completed');
+    expect(prisma.nodeExecs.find((n) => n.nodeId === 'a')?.jobId).toBe('childjob1');
+  });
+
+  it('start() creates a parent Jobs Center job and stores its id on the execution', async () => {
+    const prisma = new FakePrisma();
+    prisma.versions.set('v1', { id: 'v1', workflowId: 'w1', graph: { schemaVersion: 1, nodes: [{ id: 't', type: 'trigger.manual', position: { x: 0, y: 0 } }], edges: [] } });
+    prisma.workflows.set('w1', { id: 'w1', name: 'WF', status: 'published', publishedVersionId: 'v1', enabled: true });
+    jobBridge.createExecutionJob.mockResolvedValueOnce('pjob1');
+    const svc = makeService(prisma, jest.fn());
+    const { executionId } = await svc.start('w1', { triggerSource: 'manual', identityUserId: 'u1' });
+
+    expect(jobBridge.createExecutionJob).toHaveBeenCalledWith(executionId, 'w1', 'WF', 'u1');
+    expect(prisma.execs.get(executionId)?.jobId).toBe('pjob1');
   });
 
   it('preserves variables across a durable pause', async () => {

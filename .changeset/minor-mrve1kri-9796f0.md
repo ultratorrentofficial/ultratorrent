@@ -1,0 +1,5 @@
+---
+"ultratorrent": minor
+---
+
+Workflow Builder Phase 8 — Jobs Center integration. Each workflow execution is mirrored into the Unified Jobs Center as a workflow.execution parent job, and each long-running action node as a workflow.node child job linked by parentJobId (definitions registered with JobRegistry; source:'workflow' already first-class so executions appear in existing /api/jobs surfaces). The mirror is best-effort and non-authoritative — a WorkflowJobBridge wraps every Jobs-Center call so an invalid transition or registry gap can never break the executor (execution DB state is the source of truth). Job status tracks the execution via only valid job-SM transitions: running on start, pausing→paused while durably waiting (parked out of RUNNING states so boot-reconcile won't fail a waiting job), back to running on resume, terminal on finalize. Cancelling a workflow also requestCancels its job, and a parked (waiting) execution finalizes immediately on cancel. WorkflowExecution.jobId / WorkflowNodeExecution.jobId store the links. 74 backend module tests; full green gate.

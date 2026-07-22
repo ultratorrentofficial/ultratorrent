@@ -203,5 +203,9 @@
     "stallThresholdMs": "Umbral de estancamiento",
     "stallScanIntervalMs": "Intervalo de escaneo de estancamiento",
     "defaultMaxAttempts": "Intentos máximos por defecto"
+  },
+  "type": {
+    "workflow_execution": "Ejecución de flujo",
+    "workflow_node": "Acción de flujo"
   }
 }

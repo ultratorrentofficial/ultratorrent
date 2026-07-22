@@ -3,6 +3,8 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AutomationEngine } from '../automation/automation.module';
 import { WorkflowNodeRegistry } from './node-registry.service';
+import { WorkflowJobBridge } from './workflow-job.bridge';
+import { LONG_RUNNING_ACTIONS } from './domain/action-metadata';
 import { planExecution, type NodeRunState, type NodeRunStatus } from './domain/execution-planner';
 import { evaluateCondition } from './domain/condition-eval';
 import { renderConfig, renderValue } from './domain/template';
@@ -52,6 +54,7 @@ export class WorkflowExecutionService implements OnModuleInit {
     private readonly audit: AuditService,
     private readonly registry: WorkflowNodeRegistry,
     private readonly automation: AutomationEngine,
+    private readonly jobBridge: WorkflowJobBridge,
   ) {}
 
   /** On boot, resume executions interrupted by a process restart (crash-safe). */
@@ -101,6 +104,9 @@ export class WorkflowExecutionService implements OnModuleInit {
       objectType: 'workflow_execution', objectId: execution.id,
       metadata: { workflowId, source: input.triggerSource ?? 'manual' },
     });
+    // Mirror into the Jobs Center as a parent job (best-effort — never blocks the run).
+    const jobId = await this.jobBridge.createExecutionJob(execution.id, workflowId, workflow.name, input.identityUserId);
+    if (jobId) await this.prisma.workflowExecution.update({ where: { id: execution.id }, data: { jobId } });
     // Fire-and-forget the run; progress is durable so a crash mid-run is recoverable.
     this.runExecution(execution.id).catch((err) => this.logger.error(`Run ${execution.id}: ${(err as Error).message}`));
     return { executionId: execution.id };
@@ -116,10 +122,17 @@ export class WorkflowExecutionService implements OnModuleInit {
     if (!ACTIVE_STATUSES.has(execution.status)) {
       throw new BadRequestException(`Execution is ${execution.status} and cannot be cancelled`);
     }
-    await this.prisma.workflowExecution.update({ where: { id: executionId }, data: { status: 'cancelling' } });
     await this.audit.record({
       userId: user.id, action: 'workflows.execution.cancelled', objectType: 'workflow_execution', objectId: executionId,
     });
+    await this.jobBridge.cancelJob(execution.jobId);
+    // A parked (durably waiting) execution has no running loop to observe the flag — finalize now.
+    if (WAITING_STATUSES.has(execution.status)) {
+      await this.finalize(executionId, 'cancelled');
+      return { status: 'cancelled' };
+    }
+    // A running execution: flag it; the run loop finalizes at the next wave boundary.
+    await this.prisma.workflowExecution.update({ where: { id: executionId }, data: { status: 'cancelling' } });
     return { status: 'cancelling' };
   }
 
@@ -246,9 +259,9 @@ export class WorkflowExecutionService implements OnModuleInit {
           return;
         }
 
-        const outcome = await this.processNode(node, category, context, failureBranchNodes.has(nodeId));
+        const outcome = await this.processNode(node, category, context, failureBranchNodes.has(nodeId), executionId, execution.jobId);
         states.set(nodeId, { status: outcome.status, firedPorts: outcome.firedPorts });
-        await this.persistNode(executionId, node, outcome.status, outcome.firedPorts, outcome.error, outcome.attempt);
+        await this.persistNode(executionId, node, outcome.status, outcome.firedPorts, outcome.error, outcome.attempt, outcome.jobId);
         if (outcome.warning) warnings = true;
         if (outcome.status === 'failed' && !outcome.handledByFailureBranch) { failed = true; break; }
       }
@@ -266,7 +279,9 @@ export class WorkflowExecutionService implements OnModuleInit {
     category: string,
     context: Record<string, unknown>,
     hasFailureEdge: boolean,
-  ): Promise<{ status: NodeRunStatus; firedPorts: string[]; warning?: boolean; error?: string; attempt?: number; handledByFailureBranch?: boolean }> {
+    executionId: string,
+    execJobId: string | null,
+  ): Promise<{ status: NodeRunStatus; firedPorts: string[]; warning?: boolean; error?: string; attempt?: number; handledByFailureBranch?: boolean; jobId?: string }> {
     const def = this.registry.get(node.type);
     const outs = def?.ports.outputs ?? ['out'];
 
@@ -288,7 +303,7 @@ export class WorkflowExecutionService implements OnModuleInit {
       case 'end':
         return { status: 'succeeded', firedPorts: [] };
       case 'action':
-        return this.dispatchAction(node, def?.actionId, context, hasFailureEdge);
+        return this.dispatchAction(node, def?.actionId, context, hasFailureEdge, executionId, execJobId);
       default:
         // transform / parallel / join: pure pass-through.
         return { status: 'succeeded', firedPorts: outs.length ? outs : ['out'] };
@@ -301,22 +316,31 @@ export class WorkflowExecutionService implements OnModuleInit {
     actionId: string | undefined,
     context: Record<string, unknown>,
     hasFailureEdge: boolean,
-  ): Promise<{ status: NodeRunStatus; firedPorts: string[]; error?: string; attempt?: number; handledByFailureBranch?: boolean }> {
+    executionId: string,
+    execJobId: string | null,
+  ): Promise<{ status: NodeRunStatus; firedPorts: string[]; error?: string; attempt?: number; handledByFailureBranch?: boolean; jobId?: string }> {
     if (!actionId) return { status: 'failed', firedPorts: [], error: 'no_action_id' };
     const params = renderConfig(node.config ?? {}, context);
     const maxAttempts = Math.max(1, Number(node.retryPolicy?.maxAttempts ?? 1));
     const timeoutMs = Number(node.timeoutSeconds ?? 0) * 1000;
 
+    // Long-running actions surface as a Jobs Center child job of the execution (best-effort).
+    const childJobId = LONG_RUNNING_ACTIONS.has(actionId)
+      ? await this.jobBridge.startNodeJob(execJobId, executionId, node.id, actionId)
+      : null;
+
     let lastError = '';
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         await withTimeout(this.automation.runWorkflowAction(actionId, params, context), timeoutMs);
-        return { status: 'succeeded', firedPorts: ['out'], attempt };
+        await this.jobBridge.finishNodeJob(childJobId, true);
+        return { status: 'succeeded', firedPorts: ['out'], attempt, jobId: childJobId ?? undefined };
       } catch (err) {
         lastError = (err as Error).message;
         if (attempt >= maxAttempts) break;
       }
     }
+    await this.jobBridge.finishNodeJob(childJobId, false);
     // Exhausted: route to the failure branch if one is wired, else fail the node/execution.
     return {
       status: 'failed',
@@ -324,6 +348,7 @@ export class WorkflowExecutionService implements OnModuleInit {
       error: lastError,
       attempt: maxAttempts,
       handledByFailureBranch: hasFailureEdge,
+      jobId: childJobId ?? undefined,
     };
   }
 
@@ -340,7 +365,7 @@ export class WorkflowExecutionService implements OnModuleInit {
 
   private async persistNode(
     executionId: string, node: WorkflowNode, status: NodeRunStatus, firedPorts: string[],
-    error?: string, attempt?: number,
+    error?: string, attempt?: number, jobId?: string,
   ): Promise<void> {
     const existing = await this.prisma.workflowNodeExecution.findFirst({
       where: { workflowExecutionId: executionId, nodeId: node.id }, select: { id: true },
@@ -351,6 +376,7 @@ export class WorkflowExecutionService implements OnModuleInit {
       outputSummary: { firedPorts } as object,
       errorMessage: error ?? null,
       errorCode: error ? 'action_failed' : null,
+      ...(jobId ? { jobId } : {}),
       completedAt: ['succeeded', 'failed', 'skipped'].includes(status) ? new Date() : null,
       startedAt: new Date(),
     };
@@ -417,10 +443,12 @@ export class WorkflowExecutionService implements OnModuleInit {
   }
 
   private async setWaiting(executionId: string, status: string, times: { resumeAt: Date | null; expiresAt: Date | null }): Promise<void> {
-    await this.prisma.workflowExecution.update({
+    const row = await this.prisma.workflowExecution.update({
       where: { id: executionId },
       data: { status, resumeAt: times.resumeAt, expiresAt: times.expiresAt, heartbeatAt: new Date() },
+      select: { jobId: true },
     });
+    await this.jobBridge.park(row.jobId);
   }
 
   /**
@@ -442,9 +470,11 @@ export class WorkflowExecutionService implements OnModuleInit {
       where: { workflowExecutionId: executionId, nodeId },
       data: { status: 'succeeded', outputSummary: { firedPorts: [port] } as object, completedAt: new Date() },
     });
-    await this.prisma.workflowExecution.update({
+    const row = await this.prisma.workflowExecution.update({
       where: { id: executionId }, data: { status: 'running', resumeAt: null, expiresAt: null },
+      select: { jobId: true },
     });
+    await this.jobBridge.unpark(row.jobId);
     await this.runExecution(executionId);
   }
 
@@ -458,9 +488,10 @@ export class WorkflowExecutionService implements OnModuleInit {
   private async finalize(executionId: string, status: string, reason?: string): Promise<void> {
     const now = new Date();
     const row = await this.prisma.workflowExecution.findUnique({
-      where: { id: executionId }, select: { outputSummary: true, inputContext: true },
+      where: { id: executionId }, select: { outputSummary: true, inputContext: true, jobId: true },
     });
     const prevSummary = (row?.outputSummary as object) ?? {};
+    await this.jobBridge.finish(row?.jobId ?? null, status);
     await this.prisma.workflowExecution.update({
       where: { id: executionId },
       data: {
