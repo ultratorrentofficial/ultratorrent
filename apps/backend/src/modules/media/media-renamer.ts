@@ -541,8 +541,17 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
   const items: RenamePlanItem[] = [];
   const destSeen = new Map<string, string>();
 
-  // Primary video destinations remembered so subtitles can mirror them.
-  const videoDest: { source: string; destNoExt: string }[] = [];
+  // Primary video destinations remembered so subtitles can mirror them. The episode
+  // identity travels with the destination because a subtitle must attach to the video
+  // that IS its episode — matching on shared filename characters alone silently
+  // reattaches it to a different one (see the second pass).
+  const videoDest: {
+    source: string;
+    destNoExt: string;
+    season: number | null;
+    episode: number | null;
+    episodeEnd: number | null;
+  }[] = [];
 
   // Does this batch contain any video at all? Decides whether a `theme.mp3` is a
   // show's theme tune (video present) or an ordinary track (a music folder).
@@ -690,7 +699,14 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
       warnings.push(`Duplicate destination "${destination}" from "${f.path}" and "${destSeen.get(destination)}".`);
     }
     destSeen.set(destination, f.path);
-    videoDest.push({ source: f.path, destNoExt: destination.slice(0, destination.length - c.ext.length) });
+    videoDest.push({
+      source: f.path,
+      destNoExt: destination.slice(0, destination.length - c.ext.length),
+      season: parsed.season,
+      episode: parsed.episode ?? parsed.absoluteEpisode,
+      // A two-parter covers a span, so a subtitle for either episode belongs to it.
+      episodeEnd: episodeRange(path.basename(f.path))?.end ?? parsed.episodeEnd ?? null,
+    });
     items.push({ source: f.path, destination, action, kind: c.kind, reason: range ? 'multi-episode video' : 'primary media file', skipped: false, isSubtitle: false, isSample: false, isExtra: false });
   }
 
@@ -703,10 +719,35 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
     const langMatch = LANG_TAG.exec(path.basename(f.path, ext));
     const lang = langMatch ? `.${langMatch[1].toLowerCase()}` : '';
 
+    // EPISODE IDENTITY FIRST. Shared filename characters are not identity: a library
+    // holding both organised and raw-release names scores a DIFFERENT episode higher
+    // than the right one, because the two styles diverge immediately —
+    //   "lucifer - s05e10 - bloody celestial karaoke jam.fin"
+    //      7 <- Lucifer.S05E10.1080p.HEVC.x265-MeGusta   (the correct video)
+    //     15 <- Lucifer - S05E12 - Daniel Espinoza Naked and Afraid
+    // so E10's subtitle landed on E12. Live, every stranded Season 5 subtitle
+    // collapsed onto E12. That is silent corruption whenever only one such subtitle
+    // exists, since a lone wrong destination collides with nothing and raises no
+    // conflict. So when the subtitle names an episode, only a video that IS that
+    // episode may claim it; prefix similarity merely breaks ties among those.
+    const subOwn = parseTorrentName(path.basename(f.path, ext));
+    const subEpisode = subOwn.episode ?? subOwn.absoluteEpisode;
+    const candidates =
+      subEpisode == null
+        ? videoDest
+        : videoDest.filter((v) => videoCoversEpisode(v, subOwn.season, subEpisode));
+
+    // Named an episode, but no video in this batch is that episode. Leaving it where
+    // it is keeps it findable; attaching it to the closest-looking name does not.
+    if (subEpisode != null && candidates.length === 0) {
+      items.push({ source: f.path, destination: null, action: 'skip', kind: 'general', reason: `no video for episode ${subOwn.season != null ? `S${subOwn.season}` : ''}E${subEpisode} in this batch`, skipped: true, isSubtitle: true, isSample: false, isExtra: false });
+      continue;
+    }
+
     // Best primary match: the video whose source basename shares the most.
     let best: { destNoExt: string } | null = null;
     let bestScore = -1;
-    for (const v of videoDest) {
+    for (const v of candidates) {
       const vBase = path.basename(v.source, path.extname(v.source)).toLowerCase();
       const score = commonPrefix(subBase, vBase);
       if (score > bestScore) { bestScore = score; best = v; }
@@ -784,6 +825,21 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
   // `parsed` on the plan stays the BATCH identity — it describes the request as a whole
   // (callers surface it as "what we think this source is"), not any one file.
   return { mode: ctx.mode, preset: ctx.preset, libraryPath: ctx.libraryPath, kind, parsed: sourceParsed, items, warnings };
+}
+
+/**
+ * Is `video` the episode the subtitle names? Season is compared only when BOTH sides
+ * carry one — an absolutely-numbered anime file has no season, and demanding one would
+ * exclude the very video it belongs to. A multi-episode file covers its whole span.
+ */
+function videoCoversEpisode(
+  video: { season: number | null; episode: number | null; episodeEnd: number | null },
+  season: number | null,
+  episode: number,
+): boolean {
+  if (video.episode == null) return false;
+  if (season != null && video.season != null && season !== video.season) return false;
+  return episode >= video.episode && episode <= (video.episodeEnd ?? video.episode);
 }
 
 function commonPrefix(a: string, b: string): number {

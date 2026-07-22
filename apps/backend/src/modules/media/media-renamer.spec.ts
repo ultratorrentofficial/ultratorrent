@@ -753,3 +753,85 @@ describe('buildRenamePlan — cleanup', () => {
     expect(byAction(plan, 'delete')).toEqual([]);
   });
 });
+
+describe('buildRenamePlan — a subtitle follows its EPISODE, not the closest-looking name', () => {
+  // Observed live on "Lucifer (2016)". Season 5 held organised .mp4s for E01–E08 and
+  // E12, while E09–E11/E13/E14 had only orphaned .srt/.nfo — their videos sat in the
+  // show root under raw release names. Prefix scoring then put every stranded subtitle
+  // on E12, because the two naming styles diverge at once:
+  //   "lucifer - s05e10 - bloody celestial karaoke jam.fin"
+  //      7 <- Lucifer.S05E10.1080p.HEVC.x265-MeGusta   (the correct video)
+  //     15 <- Lucifer - S05E12 - Daniel Espinoza Naked and Afraid
+  const plan = buildRenamePlan(ctx({
+    sourceName: 'Lucifer (2016)',
+    libraryPath: '/downloads/TV Shows',
+    files: [
+      { path: '/downloads/TV Shows/Lucifer (2016)/Lucifer.S05E10.1080p.HEVC.x265-MeGusta[eztv.re].mkv', size: BIG },
+      { path: '/downloads/TV Shows/Lucifer (2016)/Season 5/Lucifer - S05E12 - Daniel Espinoza Naked and Afraid.mp4', size: BIG },
+      { path: '/downloads/TV Shows/Lucifer (2016)/Season 5/Lucifer - S05E10 - Bloody Celestial Karaoke Jam.fin.srt', size: 40_000 },
+      { path: '/downloads/TV Shows/Lucifer (2016)/Season 5/Lucifer - S05E12 - Daniel Espinoza Naked and Afraid.heb.srt', size: 40_000 },
+    ],
+  }));
+
+  const sub = (needle: string) => plan.items.find((i) => i.isSubtitle && i.source.includes(needle));
+
+  it("sends E10's subtitle to E10, not to the higher-scoring E12", () => {
+    const s = sub('S05E10');
+    expect(s?.skipped).toBe(false);
+    expect(s?.destination).toContain('S05E10');
+    expect(s?.destination).toMatch(/\.fin\.srt$/);
+    expect(s?.destination).not.toContain('S05E12');
+  });
+
+  it("leaves E12's own subtitle on E12", () => {
+    expect(sub('S05E12')?.destination).toContain('S05E12');
+  });
+
+  it('gives the two subtitles distinct destinations (the live conflict)', () => {
+    expect(sub('S05E10')?.destination).not.toBe(sub('S05E12')?.destination);
+  });
+
+  it('skips a subtitle whose episode has no video here, rather than mis-attaching it', () => {
+    const p = buildRenamePlan(ctx({
+      sourceName: 'Lucifer (2016)',
+      libraryPath: '/downloads/TV Shows',
+      files: [
+        { path: '/downloads/TV Shows/Lucifer (2016)/Season 5/Lucifer - S05E12 - Daniel Espinoza Naked and Afraid.mp4', size: BIG },
+        { path: '/downloads/TV Shows/Lucifer (2016)/Season 5/Lucifer - S05E14 - Nothing Lasts Forever.hun.srt', size: 40_000 },
+      ],
+    }));
+    const s = p.items.find((i) => i.isSubtitle);
+    expect(s?.skipped).toBe(true);
+    expect(s?.destination).toBeNull();
+    expect(s?.reason).toContain('E14');
+  });
+
+  it('still attaches an episode-less subtitle by name similarity', () => {
+    // A movie's "2_English.srt" carries no episode and must keep working.
+    const p = buildRenamePlan(ctx({
+      sourceName: 'Some.Movie.2020.1080p.BluRay.x264-GRP',
+      libraryPath: '/downloads/Movies',
+      files: [
+        { path: '/downloads/Movies/Some.Movie.2020.1080p.BluRay.x264-GRP/Some.Movie.2020.1080p.BluRay.x264-GRP.mkv', size: BIG },
+        { path: '/downloads/Movies/Some.Movie.2020.1080p.BluRay.x264-GRP/2_English.srt', size: 40_000 },
+      ],
+    }));
+    const s = p.items.find((i) => i.isSubtitle);
+    expect(s?.skipped).toBe(false);
+    expect(s?.destination).toMatch(/\.srt$/);
+  });
+
+  it('lets a two-parter claim the subtitles of both episodes it covers', () => {
+    const p = buildRenamePlan(ctx({
+      sourceName: 'The Librarians',
+      libraryPath: '/downloads/TV Shows',
+      files: [
+        { path: '/downloads/TV Shows/The Librarians/The.Librarians.S01E01-E02.1080p.WEB.x264-GRP.mkv', size: BIG },
+        { path: '/downloads/TV Shows/The Librarians/The.Librarians.S01E02.en.srt', size: 40_000 },
+      ],
+    }));
+    const s = p.items.find((i) => i.isSubtitle);
+    expect(s?.skipped).toBe(false);
+    expect(s?.destination).toMatch(/\.en\.srt$/);
+  });
+});
