@@ -81,7 +81,8 @@
     "Notifications": "Notificaciones",
     "Media Server Analytics": "Analíticas del servidor",
     "Jobs Center": "Centro de Trabajos",
-    "Workflows": "Flujos de trabajo"
+    "Workflows": "Flujos de trabajo",
+    "Workflow Approvals": "Aprobaciones de flujo"
   },
   "descriptions": {
     "Dashboard": "Resumen de descargas y actividad",
@@ -142,7 +143,8 @@
     "Notifications": "Centro de notificaciones — canales, reglas, entrega y salud",
     "Media Server Analytics": "Analíticas de reproducción de Plex/Jellyfin/Emby, actividad en vivo e informes",
     "Jobs Center": "El plano de control operativo de toda la actividad en segundo plano",
-    "Workflows": "Diseña automatizaciones visualmente en un lienzo"
+    "Workflows": "Diseña automatizaciones visualmente en un lienzo",
+    "Workflow Approvals": "Decide pasos de flujo que esperan aprobación"
   },
   "details": {
     "Account": "Cuenta",

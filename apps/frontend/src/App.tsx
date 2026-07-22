@@ -21,6 +21,7 @@ import { JobsSchedulesPage } from '@/pages/jobs/JobsSchedulesPage';
 import { JobsWorkersPage } from '@/pages/jobs/JobsWorkersPage';
 import { JobsSettingsPage } from '@/pages/jobs/JobsSettingsPage';
 import { WorkflowsListPage } from '@/pages/workflows/WorkflowsListPage';
+import { WorkflowApprovalsPage } from '@/pages/workflows/WorkflowApprovalsPage';
 // The visual editor pulls in the @xyflow canvas — lazy-load it so it stays off the main bundle.
 const WorkflowEditorPage = lazy(() => import('@/pages/workflows/WorkflowEditorPage').then((m) => ({ default: m.WorkflowEditorPage })));
 import { TorrentsPage } from '@/pages/TorrentsPage';
@@ -146,6 +147,7 @@ export function App() {
                   <Route element={<ProtectedRoute permission={PERMISSIONS.WORKFLOWS_VIEW} />}>
                     <Route element={<AppShell />}>
                       <Route path="/workflows" element={<WorkflowsListPage />} />
+                      <Route path="/workflows/approvals" element={<WorkflowApprovalsPage />} />
                       <Route
                         path="/workflows/:id"
                         element={<Suspense fallback={null}><WorkflowEditorPage /></Suspense>}

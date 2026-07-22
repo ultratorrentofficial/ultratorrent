@@ -26,12 +26,29 @@ class FakePrisma {
     update: async ({ where, data }: any) => { const row = this.execs.get(where.id); Object.assign(row, data); return row; },
     findMany: async () => [],
   };
+  approvals: any[] = [];
+
   workflowNodeExecution = {
     findMany: async ({ where }: any) => this.nodeExecs.filter((n) => n.workflowExecutionId === where.workflowExecutionId),
-    findFirst: async ({ where }: any) => this.nodeExecs.find((n) => n.workflowExecutionId === where.workflowExecutionId && n.nodeId === where.nodeId) ?? null,
+    findFirst: async ({ where }: any) => this.nodeExecs.find((n) =>
+      n.workflowExecutionId === where.workflowExecutionId
+      && (where.nodeId === undefined || n.nodeId === where.nodeId)
+      && (where.status === undefined || n.status === where.status)) ?? null,
     create: async ({ data }: any) => { const row = { id: `n_${++this.seq}`, ...data }; this.nodeExecs.push(row); return row; },
     update: async ({ where, data }: any) => { const row = this.nodeExecs.find((n) => n.id === where.id); Object.assign(row, data); return row; },
-    updateMany: async () => ({ count: 0 }),
+    updateMany: async ({ where, data }: any) => {
+      const rows = this.nodeExecs.filter((n) => n.workflowExecutionId === where.workflowExecutionId && (where.nodeId === undefined || n.nodeId === where.nodeId) && (where.status === undefined || n.status === where.status));
+      rows.forEach((r) => Object.assign(r, data));
+      return { count: rows.length };
+    },
+  };
+
+  workflowApproval = {
+    create: async ({ data }: any) => { const row = { id: `ap_${++this.seq}`, requestedAt: new Date(), ...data }; this.approvals.push(row); return row; },
+    findUnique: async ({ where }: any) => this.approvals.find((a) => a.id === where.id) ?? null,
+    findMany: async ({ where }: any) => this.approvals.filter((a) => !where?.status || a.status === where.status),
+    update: async ({ where, data }: any) => { const row = this.approvals.find((a) => a.id === where.id); Object.assign(row, data); return row; },
+    updateMany: async ({ where, data }: any) => { const rows = this.approvals.filter((a) => a.workflowExecutionId === where.workflowExecutionId && a.status === where.status); rows.forEach((r) => Object.assign(r, data)); return { count: rows.length }; },
   };
 
   seedWorkflow(graph: WorkflowGraph) {
@@ -45,6 +62,7 @@ class FakePrisma {
 
 const registry = new WorkflowNodeRegistry();
 const audit = { record: jest.fn() } as any;
+const user = { id: 'u1', username: 'admin', roles: [], permissions: [] } as any;
 
 function makeService(prisma: FakePrisma, run: jest.Mock) {
   const automation = { runWorkflowAction: run } as any;
@@ -182,5 +200,114 @@ describe('WorkflowExecutionService.runExecution', () => {
     expect(prisma.execs.get('e1').status).toBe('waiting');
     expect(prisma.execs.get('e1').resumeAt).toBeInstanceOf(Date);
     expect(prisma.nodeExecs.find((n) => n.nodeId === 'e')).toBeUndefined(); // never reached the end
+  });
+
+  it('resumes a delayed execution and completes it (Phase 7)', async () => {
+    const prisma = new FakePrisma();
+    const graph: WorkflowGraph = {
+      schemaVersion: 1,
+      nodes: [
+        { id: 't', type: 'trigger.manual', position: { x: 0, y: 0 } },
+        { id: 'd', type: 'control.delay', position: { x: 1, y: 0 }, config: { duration: 60 } },
+        { id: 'a', type: 'action.media_scan_library', position: { x: 2, y: 0 } },
+      ],
+      edges: [
+        { id: '1', sourceNodeId: 't', targetNodeId: 'd' },
+        { id: '2', sourceNodeId: 'd', targetNodeId: 'a' },
+      ],
+    };
+    const id = prisma.seedWorkflow(graph);
+    const run = jest.fn().mockResolvedValue(undefined);
+    const svc = makeService(prisma, run);
+    await svc.runExecution(id);
+    expect(prisma.execs.get('e1').status).toBe('waiting');
+    expect(run).not.toHaveBeenCalled();
+
+    await svc.resume('e1', 'out'); // scheduler tick would call this
+    expect(prisma.execs.get('e1').status).toBe('completed');
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates an approval gate, then an approval decision resumes it', async () => {
+    const prisma = new FakePrisma();
+    const graph: WorkflowGraph = {
+      schemaVersion: 1,
+      nodes: [
+        { id: 't', type: 'trigger.manual', position: { x: 0, y: 0 } },
+        { id: 'ap', type: 'control.approval', position: { x: 1, y: 0 } },
+        { id: 'a', type: 'action.media_scan_library', position: { x: 2, y: 0 } },
+      ],
+      edges: [
+        { id: '1', sourceNodeId: 't', targetNodeId: 'ap' },
+        { id: '2', sourceNodeId: 'ap', sourcePort: 'approved', targetNodeId: 'a' },
+      ],
+    };
+    const id = prisma.seedWorkflow(graph);
+    const run = jest.fn().mockResolvedValue(undefined);
+    const svc = makeService(prisma, run);
+    await svc.runExecution(id);
+
+    expect(prisma.execs.get('e1').status).toBe('waiting_for_approval');
+    expect(prisma.approvals).toHaveLength(1);
+    expect(prisma.approvals[0].status).toBe('pending');
+
+    await svc.respondToApproval(prisma.approvals[0].id, 'approved', user);
+    expect(prisma.approvals[0].status).toBe('approved');
+    expect(prisma.execs.get('e1').status).toBe('completed');
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('a rejected approval routes down the reject branch, not the approve branch', async () => {
+    const prisma = new FakePrisma();
+    const graph: WorkflowGraph = {
+      schemaVersion: 1,
+      nodes: [
+        { id: 't', type: 'trigger.manual', position: { x: 0, y: 0 } },
+        { id: 'ap', type: 'control.approval', position: { x: 1, y: 0 } },
+        { id: 'a', type: 'action.media_scan_library', position: { x: 2, y: -1 } },
+        { id: 'r', type: 'control.end', position: { x: 2, y: 1 } },
+      ],
+      edges: [
+        { id: '1', sourceNodeId: 't', targetNodeId: 'ap' },
+        { id: '2', sourceNodeId: 'ap', sourcePort: 'approved', targetNodeId: 'a' },
+        { id: '3', sourceNodeId: 'ap', sourcePort: 'rejected', targetNodeId: 'r' },
+      ],
+    };
+    const id = prisma.seedWorkflow(graph);
+    const run = jest.fn().mockResolvedValue(undefined);
+    const svc = makeService(prisma, run);
+    await svc.runExecution(id);
+    await svc.respondToApproval(prisma.approvals[0].id, 'rejected', user);
+
+    expect(run).not.toHaveBeenCalled(); // approve branch (the action) never ran
+    expect(prisma.nodeExecs.find((n) => n.nodeId === 'a')?.status).toBe('skipped');
+    expect(prisma.execs.get('e1').status).toBe('completed');
+  });
+
+  it('preserves variables across a durable pause', async () => {
+    const prisma = new FakePrisma();
+    const graph: WorkflowGraph = {
+      schemaVersion: 1,
+      nodes: [
+        { id: 't', type: 'trigger.manual', position: { x: 0, y: 0 } },
+        { id: 'v', type: 'control.variable', position: { x: 1, y: 0 }, config: { key: 'lib', value: 'movies' } },
+        { id: 'd', type: 'control.delay', position: { x: 2, y: 0 }, config: { duration: 60 } },
+        { id: 'a', type: 'action.media_scan_library', position: { x: 3, y: 0 }, config: { libraryId: '{{vars.lib}}' } },
+      ],
+      edges: [
+        { id: '1', sourceNodeId: 't', targetNodeId: 'v' },
+        { id: '2', sourceNodeId: 'v', targetNodeId: 'd' },
+        { id: '3', sourceNodeId: 'd', targetNodeId: 'a' },
+      ],
+    };
+    const id = prisma.seedWorkflow(graph);
+    const run = jest.fn().mockResolvedValue(undefined);
+    const svc = makeService(prisma, run);
+    await svc.runExecution(id);
+    expect(prisma.execs.get('e1').outputSummary?.vars).toEqual({ lib: 'movies' });
+
+    await svc.resume('e1', 'out');
+    // The action, run after resume, received the variable set BEFORE the pause.
+    expect(run).toHaveBeenCalledWith('media_scan_library', { libraryId: 'movies' }, expect.any(Object));
   });
 });

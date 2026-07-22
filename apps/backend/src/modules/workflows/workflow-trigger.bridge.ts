@@ -51,8 +51,32 @@ export class WorkflowTriggerBridge {
           context: envelope.payload ?? {},
         });
       }
+
+      // Resume durable wait-for-event nodes whose declared eventType matches this event.
+      await this.resumeWaitingForEvent(event);
     } catch (err) {
       this.logger.debug(`Workflow trigger for "${event}" failed: ${(err as Error).message}`);
+    }
+  }
+
+  private async resumeWaitingForEvent(event: string): Promise<void> {
+    const waiting = await this.prisma.workflowExecution.findMany({
+      where: { status: 'waiting_for_event' },
+      select: { id: true, workflowVersionId: true },
+      take: 200,
+    });
+    for (const ex of waiting) {
+      const waitNode = await this.prisma.workflowNodeExecution.findFirst({
+        where: { workflowExecutionId: ex.id, status: 'waiting' }, select: { nodeId: true },
+      });
+      if (!waitNode) continue;
+      const version = await this.prisma.workflowVersion.findUnique({
+        where: { id: ex.workflowVersionId }, select: { graph: true },
+      });
+      const node = (version?.graph as unknown as WorkflowGraph)?.nodes?.find((n) => n.id === waitNode.nodeId);
+      if (node?.config?.eventType === event) {
+        await this.executions.resume(ex.id, 'completed');
+      }
     }
   }
 }

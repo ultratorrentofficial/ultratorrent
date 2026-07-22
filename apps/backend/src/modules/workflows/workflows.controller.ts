@@ -11,7 +11,7 @@ import { WorkflowService } from './workflow.service';
 import { WorkflowExecutionService } from './workflow-execution.service';
 import {
   CreateWorkflowDto, UpdateWorkflowDto, SaveDraftGraphDto, ValidateGraphDto,
-  PublishWorkflowDto, WorkflowListQueryDto, SimulateWorkflowDto, RunWorkflowDto,
+  PublishWorkflowDto, WorkflowListQueryDto, SimulateWorkflowDto, RunWorkflowDto, RespondApprovalDto,
 } from './dto/workflow.dto';
 
 @ApiTags('workflows')
@@ -104,6 +104,19 @@ export class WorkflowsController {
   @RequirePermissions(PERMISSIONS.WORKFLOWS_RUN)
   cancelExecution(@Param('executionId') executionId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.executions.cancel(executionId, user);
+  }
+
+  /** Pending approval gates awaiting a decision (approval center). */
+  @Get('approvals/pending')
+  @RequirePermissions(PERMISSIONS.WORKFLOWS_APPROVE)
+  pendingApprovals() {
+    return this.executions.listPendingApprovals();
+  }
+
+  @Post('approvals/:approvalId/respond')
+  @RequirePermissions(PERMISSIONS.WORKFLOWS_APPROVE)
+  respondApproval(@Param('approvalId') approvalId: string, @Body() dto: RespondApprovalDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.executions.respondToApproval(approvalId, dto.decision, user, dto.comment);
   }
 
   @Post(':id/enable')

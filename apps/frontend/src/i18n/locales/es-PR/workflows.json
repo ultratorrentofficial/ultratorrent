@@ -99,6 +99,21 @@
     "cancel": "Cancelar",
     "cancelled": "Cancelación solicitada"
   },
+  "approvals": {
+    "title": "Aprobaciones",
+    "subtitle": "Pasos de flujo que esperan tu decisión antes de continuar.",
+    "empty": "No hay aprobaciones pendientes",
+    "emptyHint": "Cuando un flujo llega a un paso de aprobación, aparece aquí.",
+    "risk": "Riesgo",
+    "requested": "Solicitado",
+    "expires": "Vence",
+    "permission": "Requiere",
+    "approve": "Aprobar",
+    "reject": "Rechazar",
+    "approved": "Aprobado",
+    "rejected": "Rechazado",
+    "error": "No se pudo registrar tu decisión"
+  },
   "toast": {
     "created": "Flujo creado",
     "saved": "Borrador guardado",

@@ -160,3 +160,14 @@ export interface WorkflowExecutionSummary {
   failedAt: string | null;
   createdAt: string;
 }
+
+export interface WorkflowApprovalItem {
+  id: string;
+  status: string;
+  requiredPermission: string | null;
+  riskLevel: string | null;
+  requestedAt: string;
+  expiresAt: string | null;
+  workflowExecutionId: string;
+  execution?: { workflowId: string; workflowVersionId: string };
+}

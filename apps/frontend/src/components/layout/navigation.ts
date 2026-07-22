@@ -230,7 +230,9 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
   { slot: { domain: 'media', order: 90 }, item: { id: 'media-settings', to: '/media/settings', label: 'Media Settings', icon: SlidersHorizontal, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', end: true, descriptionKey: 'Media Settings' } },
 
   { slot: { domain: 'automation', order: 10 }, item: { id: 'automation', to: '/automation', label: 'Automation Rules', icon: Bot, permission: PERMISSIONS.AUTOMATION_VIEW, module: 'automation', descriptionKey: 'Automation Rules' } },
-  { slot: { domain: 'automation', order: 15 }, item: { id: 'workflows', to: '/workflows', label: 'Workflows', icon: Workflow, permission: PERMISSIONS.WORKFLOWS_VIEW, descriptionKey: 'Workflows' } },
+  { slot: { domain: 'automation', order: 15 }, item: { id: 'workflows', to: '/workflows', label: 'Workflows', icon: Workflow, permission: PERMISSIONS.WORKFLOWS_VIEW, end: true, descriptionKey: 'Workflows', children: [
+    { id: 'workflow-approvals', to: '/workflows/approvals', label: 'Workflow Approvals', icon: ShieldCheck, permission: PERMISSIONS.WORKFLOWS_APPROVE, descriptionKey: 'Workflow Approvals' },
+  ] } },
   { slot: { domain: 'automation', order: 20 }, item: {
     id: 'notifications', to: '/notifications', label: 'Notifications', icon: Bell, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', end: true, descriptionKey: 'Notifications',
     children: [

@@ -99,6 +99,21 @@
     "cancel": "Cancel",
     "cancelled": "Cancellation requested"
   },
+  "approvals": {
+    "title": "Approvals",
+    "subtitle": "Workflow steps awaiting your decision before they continue.",
+    "empty": "No pending approvals",
+    "emptyHint": "When a workflow reaches an approval step, it appears here.",
+    "risk": "Risk",
+    "requested": "Requested",
+    "expires": "Expires",
+    "permission": "Requires",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "error": "Could not record your decision"
+  },
   "toast": {
     "created": "Workflow created",
     "saved": "Draft saved",

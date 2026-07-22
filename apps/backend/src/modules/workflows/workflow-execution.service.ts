@@ -10,8 +10,14 @@ import { EXECUTION_ACTIVE } from './domain/workflow-status';
 import type { WorkflowGraph, WorkflowNode } from './domain/workflow-graph.types';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
-/** Node categories that suspend the run for a time/event/approval — resumed by Phase 7. */
-const PAUSING = new Set(['delay', 'wait', 'approval']);
+/** Node categories that suspend the run for a time/event/approval/subworkflow. */
+const PAUSING = new Set(['delay', 'wait', 'approval', 'subworkflow']);
+
+/** Statuses from which a paused execution can be resumed. */
+const WAITING_STATUSES = new Set(['waiting', 'waiting_for_event', 'waiting_for_approval', 'paused']);
+
+/** Guard against runaway subworkflow nesting (self-recursion is also blocked at validate time). */
+const MAX_SUBWORKFLOW_DEPTH = 5;
 
 /** Widened (string-keyed) view of the active-status set for comparing raw DB status columns. */
 const ACTIVE_STATUSES: ReadonlySet<string> = EXECUTION_ACTIVE;
@@ -132,10 +138,42 @@ export class WorkflowExecutionService implements OnModuleInit {
   async getExecution(executionId: string) {
     const execution = await this.prisma.workflowExecution.findUnique({
       where: { id: executionId },
-      include: { nodes: { orderBy: { createdAt: 'asc' } } },
+      include: { nodes: { orderBy: { createdAt: 'asc' } }, approvals: { orderBy: { requestedAt: 'desc' } } },
     });
     if (!execution) throw new NotFoundException('Execution not found');
     return execution;
+  }
+
+  // ── Approval center ─────────────────────────────────────────────────────────
+  async listPendingApprovals(take = 50) {
+    const approvals = await this.prisma.workflowApproval.findMany({
+      where: { status: 'pending' },
+      orderBy: { requestedAt: 'asc' },
+      take: Math.min(take, 100),
+      include: { execution: { select: { workflowId: true, workflowVersionId: true } } },
+    });
+    return approvals;
+  }
+
+  async respondToApproval(approvalId: string, decision: 'approved' | 'rejected', user: AuthenticatedUser, comment?: string) {
+    const approval = await this.prisma.workflowApproval.findUnique({ where: { id: approvalId } });
+    if (!approval) throw new NotFoundException('Approval not found');
+    if (approval.status !== 'pending') throw new BadRequestException(`Approval already ${approval.status}`);
+    // Defense in depth: if the gate declared a specific permission, the responder must hold it.
+    if (approval.requiredPermission && !(user.permissions ?? []).includes(approval.requiredPermission)) {
+      throw new BadRequestException('You lack the permission required to decide this approval');
+    }
+    await this.prisma.workflowApproval.update({
+      where: { id: approvalId },
+      data: { status: decision, respondedById: user.id, respondedAt: new Date(), comment: comment ?? null },
+    });
+    await this.audit.record({
+      userId: user.id, action: `workflows.approval.${decision}`,
+      objectType: 'workflow_approval', objectId: approvalId,
+      metadata: { executionId: approval.workflowExecutionId },
+    });
+    await this.resume(approval.workflowExecutionId, decision === 'approved' ? 'approved' : 'rejected');
+    return { status: decision };
   }
 
   // ── The durable run loop ──────────────────────────────────────────────────
@@ -153,9 +191,11 @@ export class WorkflowExecutionService implements OnModuleInit {
       graph.edges.filter((e) => (e.sourcePort ?? 'out') === 'failure').map((e) => e.sourceNodeId),
     );
     const states = await this.loadStates(executionId);
+    // Accumulated variables survive across durable pauses (persisted in outputSummary.vars).
+    const savedVars = ((execution.outputSummary as { vars?: Record<string, unknown> } | null)?.vars) ?? {};
     const context: Record<string, unknown> = {
       trigger: (execution.inputContext ?? {}) as Record<string, unknown>,
-      vars: {},
+      vars: savedVars,
       ...((execution.inputContext ?? {}) as Record<string, unknown>),
     };
     const lookup = {
@@ -199,8 +239,11 @@ export class WorkflowExecutionService implements OnModuleInit {
         const category = def?.category ?? 'unknown';
 
         if (PAUSING.has(category)) {
-          await this.pauseAt(executionId, node, category);
-          return; // durable pause — resumed in Phase 7
+          // Single-active-wait model (matches the schema's execution-level resumeAt/expiresAt):
+          // arm this wait and stop; siblings resume after it resolves.
+          await this.saveVars(executionId, context.vars as Record<string, unknown>);
+          await this.armWait(executionId, node, category, context);
+          return;
         }
 
         const outcome = await this.processNode(node, category, context, failureBranchNodes.has(nodeId));
@@ -213,6 +256,7 @@ export class WorkflowExecutionService implements OnModuleInit {
       await this.prisma.workflowExecution.update({ where: { id: executionId }, data: { heartbeatAt: new Date() } });
     }
 
+    await this.saveVars(executionId, context.vars as Record<string, unknown>);
     await this.finalize(executionId, failed ? 'failed' : warnings ? 'completed_with_warnings' : 'completed');
   }
 
@@ -319,24 +363,104 @@ export class WorkflowExecutionService implements OnModuleInit {
     }
   }
 
-  private async pauseAt(executionId: string, node: WorkflowNode, category: string): Promise<void> {
+  /**
+   * Arm a durable wait at `node` and stop the run. Delay → time-based resume; wait → event or
+   * timeout resume; approval → an approval-center gate; subworkflow → a child execution whose
+   * completion resumes the parent. Exactly one node waits at a time (schema model).
+   */
+  private async armWait(
+    executionId: string, node: WorkflowNode, category: string, context: Record<string, unknown>,
+  ): Promise<void> {
     const now = Date.now();
-    const resumeAt = category === 'delay'
-      ? new Date(now + Number(node.config?.duration ?? 0) * 1000)
-      : null;
-    const expiresAt = node.timeoutSeconds ? new Date(now + Number(node.timeoutSeconds) * 1000) : null;
+    const timeoutS = Number(node.timeoutSeconds ?? 0);
+    const expiresAt = timeoutS > 0 ? new Date(now + timeoutS * 1000) : null;
     await this.persistNode(executionId, node, 'waiting', []);
+
+    if (category === 'delay') {
+      const resumeAt = new Date(now + Number(node.config?.duration ?? 0) * 1000);
+      await this.setWaiting(executionId, 'waiting', { resumeAt, expiresAt: null });
+      return;
+    }
+    if (category === 'wait') {
+      await this.setWaiting(executionId, 'waiting_for_event', { resumeAt: null, expiresAt });
+      return;
+    }
+    if (category === 'approval') {
+      const def = this.registry.get(node.type);
+      await this.prisma.workflowApproval.create({
+        data: {
+          workflowExecutionId: executionId,
+          status: 'pending',
+          requiredPermission: (node.config?.requiredPermission as string | undefined) ?? null,
+          riskLevel: def?.destructive ? 'destructive' : 'normal',
+          expiresAt,
+        },
+      });
+      await this.setWaiting(executionId, 'waiting_for_approval', { resumeAt: null, expiresAt });
+      return;
+    }
+    // subworkflow: start a version-pinned child; its completion resumes this parent.
+    const childWorkflowId = String(node.config?.workflowId ?? '');
+    const parent = await this.prisma.workflowExecution.findUnique({ where: { id: executionId }, select: { depth: true } });
+    const depth = (parent?.depth ?? 0) + 1;
+    if (!childWorkflowId || depth > MAX_SUBWORKFLOW_DEPTH) {
+      // Can't invoke — resume immediately down the failure path (or fail if unwired).
+      await this.setWaiting(executionId, 'waiting', { resumeAt: null, expiresAt: null });
+      await this.resumeNode(executionId, node.id, 'failure');
+      return;
+    }
+    await this.setWaiting(executionId, 'waiting', { resumeAt: null, expiresAt });
+    await this.start(childWorkflowId, {
+      triggerSource: 'subworkflow',
+      context: { ...(context.trigger as object), __parentExecutionId: executionId, __parentNodeId: node.id },
+    }).catch(() => this.resumeNode(executionId, node.id, 'failure'));
+  }
+
+  private async setWaiting(executionId: string, status: string, times: { resumeAt: Date | null; expiresAt: Date | null }): Promise<void> {
     await this.prisma.workflowExecution.update({
       where: { id: executionId },
-      data: {
-        status: category === 'approval' ? 'waiting_for_approval' : 'waiting',
-        resumeAt, expiresAt, heartbeatAt: new Date(),
-      },
+      data: { status, resumeAt: times.resumeAt, expiresAt: times.expiresAt, heartbeatAt: new Date() },
     });
+  }
+
+  /**
+   * Resume a paused execution: advance its single waiting node down `port` and continue the
+   * durable run. Idempotent — a no-op if the execution isn't waiting or has no waiting node.
+   */
+  async resume(executionId: string, port: string): Promise<void> {
+    const execution = await this.prisma.workflowExecution.findUnique({ where: { id: executionId }, select: { status: true } });
+    if (!execution || !WAITING_STATUSES.has(execution.status)) return;
+    const waitingNode = await this.prisma.workflowNodeExecution.findFirst({
+      where: { workflowExecutionId: executionId, status: 'waiting' }, select: { id: true, nodeId: true },
+    });
+    if (!waitingNode) return;
+    await this.resumeNode(executionId, waitingNode.nodeId, port);
+  }
+
+  private async resumeNode(executionId: string, nodeId: string, port: string): Promise<void> {
+    await this.prisma.workflowNodeExecution.updateMany({
+      where: { workflowExecutionId: executionId, nodeId },
+      data: { status: 'succeeded', outputSummary: { firedPorts: [port] } as object, completedAt: new Date() },
+    });
+    await this.prisma.workflowExecution.update({
+      where: { id: executionId }, data: { status: 'running', resumeAt: null, expiresAt: null },
+    });
+    await this.runExecution(executionId);
+  }
+
+  private async saveVars(executionId: string, vars: Record<string, unknown>): Promise<void> {
+    if (!vars || Object.keys(vars).length === 0) return;
+    const row = await this.prisma.workflowExecution.findUnique({ where: { id: executionId }, select: { outputSummary: true } });
+    const merged = { ...((row?.outputSummary as object) ?? {}), vars };
+    await this.prisma.workflowExecution.update({ where: { id: executionId }, data: { outputSummary: merged as object } });
   }
 
   private async finalize(executionId: string, status: string, reason?: string): Promise<void> {
     const now = new Date();
+    const row = await this.prisma.workflowExecution.findUnique({
+      where: { id: executionId }, select: { outputSummary: true, inputContext: true },
+    });
+    const prevSummary = (row?.outputSummary as object) ?? {};
     await this.prisma.workflowExecution.update({
       where: { id: executionId },
       data: {
@@ -344,13 +468,21 @@ export class WorkflowExecutionService implements OnModuleInit {
         completedAt: status === 'completed' || status === 'completed_with_warnings' ? now : null,
         failedAt: status === 'failed' ? now : null,
         cancelledAt: status === 'cancelled' ? now : null,
-        outputSummary: reason ? ({ reason } as object) : undefined,
+        outputSummary: (reason ? { ...prevSummary, reason } : prevSummary) as object,
       },
     });
     await this.audit.record({
       action: `workflows.execution.${status}`, objectType: 'workflow_execution', objectId: executionId,
       result: status === 'failed' ? 'failure' : 'success',
     });
+
+    // If this was a subworkflow child, resume the parent node down success/failure.
+    const input = (row?.inputContext as { __parentExecutionId?: string; __parentNodeId?: string } | null) ?? {};
+    if (input.__parentExecutionId && input.__parentNodeId) {
+      const ok = status === 'completed' || status === 'completed_with_warnings';
+      await this.resumeNode(input.__parentExecutionId, input.__parentNodeId, ok ? 'out' : 'failure')
+        .catch((err) => this.logger.error(`Parent resume failed: ${(err as Error).message}`));
+    }
   }
 }
 

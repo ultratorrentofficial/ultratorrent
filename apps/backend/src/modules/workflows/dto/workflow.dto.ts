@@ -56,6 +56,14 @@ export class RunWorkflowDto {
   context?: Record<string, unknown>;
 }
 
+export class RespondApprovalDto {
+  @IsIn(['approved', 'rejected'])
+  decision!: 'approved' | 'rejected';
+
+  @IsOptional() @IsString() @MaxLength(2000)
+  comment?: string;
+}
+
 export class SimulateWorkflowDto {
   /** Optional graph override; when omitted the workflow's current draft/published graph is used. */
   @IsOptional() @IsObject()

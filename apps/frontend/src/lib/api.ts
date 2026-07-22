@@ -39,7 +39,7 @@ export type { FileNode, FilePropertiesResponse, CleanupPreview, CleanupCategory,
 
 import type {
   WorkflowCatalog, WorkflowGraph, WorkflowValidationResult, WorkflowSummary,
-  WorkflowDetail, SaveDraftResult, SimulateResponse, WorkflowExecutionSummary,
+  WorkflowDetail, SaveDraftResult, SimulateResponse, WorkflowExecutionSummary, WorkflowApprovalItem,
 } from '@/pages/workflows/types';
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
@@ -3003,6 +3003,12 @@ export const api = {
     },
     cancelExecution(executionId: string): Promise<{ status: string }> {
       return request<{ status: string }>(`/workflows/executions/${executionId}/cancel`, { method: 'POST' });
+    },
+    pendingApprovals(): Promise<WorkflowApprovalItem[]> {
+      return request<WorkflowApprovalItem[]>('/workflows/approvals/pending');
+    },
+    respondApproval(approvalId: string, decision: 'approved' | 'rejected', comment?: string): Promise<{ status: string }> {
+      return request<{ status: string }>(`/workflows/approvals/${approvalId}/respond`, { method: 'POST', body: { decision, comment } });
     },
     enable(id: string): Promise<WorkflowSummary> {
       return request<WorkflowSummary>(`/workflows/${id}/enable`, { method: 'POST' });
