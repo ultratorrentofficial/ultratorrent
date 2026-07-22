@@ -50,6 +50,7 @@ export function MediaRenamePreviewPage() {
   const [dryRun, setDryRun] = useState(true);
   const [plan, setPlan] = useState<RenamePlan | null>(null);
   const [showUnchanged, setShowUnchanged] = useState(false);
+  const [showSkipped, setShowSkipped] = useState(false);
 
   const libraries = librariesQuery.data ?? [];
   const library: MediaLibrary | undefined = libraries.find((l) => l.id === libraryId);
@@ -107,11 +108,21 @@ export function MediaRenamePreviewPage() {
   const conflicts = conflictSet(plan ?? undefined);
   const hasConflicts = conflicts.size > 0;
 
-  // A settled library is almost entirely files already at their destination. Listing
-  // them buries the few that actually move — one live show planned 322 rows of which
-  // 10 were real work — so they are collapsed behind a count by default.
-  const unchangedCount = (plan?.items ?? []).filter((i) => i.unchanged).length;
-  const visibleItems = (plan?.items ?? []).filter((i) => showUnchanged || !i.unchanged);
+  // A settled library is almost entirely files already at their destination, plus
+  // files the plan will not touch at all. Neither is a rename candidate, and listing
+  // them buries the few that actually move — one live show returned 352 rows of which
+  // 44 were real work — so both groups collapse behind a count by default.
+  //
+  // The two are disjoint: the plan only marks `unchanged` on a file it did NOT skip.
+  // A skipped row still carries its `reason` (e.g. "no video for episode S05E14"), so
+  // it is one click away rather than gone; plan-level warnings stay visible above
+  // regardless.
+  const items = plan?.items ?? [];
+  const unchangedCount = items.filter((i) => i.unchanged).length;
+  const skippedCount = items.filter((i) => i.skipped).length;
+  const visibleItems = items.filter(
+    (i) => (showUnchanged || !i.unchanged) && (showSkipped || !i.skipped),
+  );
 
   return (
     <div className="space-y-6">
@@ -226,6 +237,18 @@ export function MediaRenamePreviewPage() {
                   {showUnchanged
                     ? t('renamePreview.hideUnchanged', { count: unchangedCount })
                     : t('renamePreview.showUnchanged', { count: unchangedCount })}
+                </Button>
+              )}
+              {skippedCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setShowSkipped((v) => !v)}
+                >
+                  {showSkipped
+                    ? t('renamePreview.hideSkipped', { count: skippedCount })
+                    : t('renamePreview.showSkipped', { count: skippedCount })}
                 </Button>
               )}
             </div>

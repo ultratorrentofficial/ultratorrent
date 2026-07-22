@@ -541,7 +541,11 @@
     "showUnchanged_other": "Show {{count}} files already in place",
     "hideUnchanged_one": "Hide {{count}} file already in place",
     "hideUnchanged_other": "Hide {{count}} files already in place",
-    "allInPlace": "Every file is already in place — nothing to rename."
+    "allInPlace": "Every file is already in place — nothing to rename.",
+    "showSkipped_one": "Show {{count}} skipped file",
+    "showSkipped_other": "Show {{count}} skipped files",
+    "hideSkipped_one": "Hide {{count}} skipped file",
+    "hideSkipped_other": "Hide {{count}} skipped files"
   },
   "settings": {
     "title": "Media Settings",

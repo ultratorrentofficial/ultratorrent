@@ -541,7 +541,11 @@
     "showUnchanged_other": "Mostrar {{count}} archivos que ya están en su lugar",
     "hideUnchanged_one": "Ocultar {{count}} archivo que ya está en su lugar",
     "hideUnchanged_other": "Ocultar {{count}} archivos que ya están en su lugar",
-    "allInPlace": "Todos los archivos ya están en su lugar — no hay nada que renombrar."
+    "allInPlace": "Todos los archivos ya están en su lugar — no hay nada que renombrar.",
+    "showSkipped_one": "Mostrar {{count}} archivo omitido",
+    "showSkipped_other": "Mostrar {{count}} archivos omitidos",
+    "hideSkipped_one": "Ocultar {{count}} archivo omitido",
+    "hideSkipped_other": "Ocultar {{count}} archivos omitidos"
   },
   "settings": {
     "title": "Ajustes de Medios",
