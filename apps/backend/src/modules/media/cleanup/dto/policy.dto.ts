@@ -58,3 +58,11 @@ export class SimulatePolicyDto {
   @IsOptional() @IsArray() @ArrayMaxSize(50) @IsString({ each: true })
   libraryIds?: string[];
 }
+
+export class CreateFromTemplateDto {
+  @IsString() @MaxLength(128)
+  templateKey!: string;
+
+  @IsOptional() @IsString() @MaxLength(200)
+  name?: string;
+}

@@ -10,6 +10,7 @@ import { validatePolicyDocument } from './domain/policy-validator';
 import { policyChecksum } from './domain/policy-checksum';
 import { describeConditions } from './domain/policy-evaluator';
 import { listConditions } from './domain/condition-catalog';
+import { CLEANUP_POLICY_TEMPLATES, getTemplate } from './domain/policy-templates';
 import {
   POLICY_DOCUMENT_SCHEMA_VERSION, POLICY_LIMITS, collectFieldIds,
   type CleanupPolicyDocument,
@@ -54,6 +55,42 @@ export class PolicyService {
       limits: POLICY_LIMITS,
       operators: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains', 'matches'],
     };
+  }
+
+  /**
+   * Starter templates. These are code, not seeded rows — nothing exists in the
+   * database until an operator deliberately instantiates one.
+   */
+  templates() {
+    return CLEANUP_POLICY_TEMPLATES.map((t) => ({
+      key: t.key,
+      nameKey: t.nameKey,
+      descriptionKey: t.descriptionKey,
+      rationaleKey: t.rationaleKey,
+      category: t.category,
+      mode: t.document.action.mode,
+      destination: t.document.action.destination,
+      summary: describeConditions(t.document.conditions),
+      document: t.document,
+    }));
+  }
+
+  /**
+   * Instantiate a template as a new DRAFT policy the operator owns. It arrives
+   * disabled and unpublished, exactly like any hand-built policy — a template is a
+   * starting point, never a shortcut past publish and enable.
+   */
+  async createFromTemplate(key: string, name: string | undefined, user: AuthenticatedUser) {
+    const template = getTemplate(key);
+    if (!template) throw new NotFoundException(`Unknown cleanup template "${key}"`);
+
+    const policy = await this.create({ name: name ?? key, description: template.descriptionKey }, user);
+    const saved = await this.saveDraft(policy.id, template.document, `Created from template "${key}"`, user);
+    await this.audit.record({
+      userId: user.id, action: 'library_cleanup.policy.created_from_template',
+      objectType: 'media_cleanup_policy', objectId: policy.id, metadata: { template: key },
+    });
+    return { policy: saved.policy, versionId: saved.versionId, validation: saved.validation, template: key };
   }
 
   // ── Read ────────────────────────────────────────────────────────────────────

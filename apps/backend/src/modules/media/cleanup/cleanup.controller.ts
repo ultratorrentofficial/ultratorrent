@@ -13,7 +13,7 @@ import {
 } from './dto/protection.dto';
 import {
   CreatePolicyDto, PolicyListQueryDto, PublishPolicyDto,
-  SavePolicyDraftDto, UpdatePolicyDto, ValidatePolicyDto,
+  SavePolicyDraftDto, UpdatePolicyDto, ValidatePolicyDto, CreateFromTemplateDto,
 } from './dto/policy.dto';
 
 /**
@@ -44,6 +44,13 @@ export class CleanupController {
     return this.policies.validate(dto.document);
   }
 
+  /** Starter templates. Code, not seeded rows — nothing exists until instantiated. */
+  @Get('templates')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
+  templates() {
+    return this.policies.templates();
+  }
+
   // ── Policies ───────────────────────────────────────────────────────────────
   @Get('policies')
   @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
@@ -55,6 +62,13 @@ export class CleanupController {
   @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_POLICY_CREATE)
   createPolicy(@Body() dto: CreatePolicyDto, @CurrentUser() user: AuthenticatedUser) {
     return this.policies.create(dto, user);
+  }
+
+  /** Instantiate a template as a new DRAFT policy — still disabled, still unpublished. */
+  @Post('policies/from-template')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_POLICY_CREATE)
+  createFromTemplate(@Body() dto: CreateFromTemplateDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.policies.createFromTemplate(dto.templateKey, dto.name, user);
   }
 
   @Get('policies/:id')

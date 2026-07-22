@@ -53,6 +53,30 @@ function summarize(field: string, operator: string, value: unknown): string {
   return `${field} ${op} ${v}`;
 }
 
+const ORDINAL_OPERATORS = new Set(['gt', 'gte', 'lt', 'lte']);
+
+/**
+ * Translate an authored enum LABEL into the ordinal the fact carries.
+ *
+ * An ordered enum like `resolutionClass` is authored the way a human says it
+ * ("< 1080p") but compared the way it sorts (an index). Without this the numeric
+ * comparator would run `Number('1080p')` → NaN, and every comparison against it
+ * would be false — so `resolutionClass < 1080p` would silently match NOTHING
+ * rather than failing loudly. Returns undefined when the label is not in the
+ * scale, which the caller treats as unmeasured rather than comparing against NaN.
+ */
+function coerceOrdinalValue(
+  enumValues: readonly string[] | undefined,
+  operator: string,
+  value: unknown,
+): { ok: true; value: unknown } | { ok: false } {
+  if (!enumValues || !ORDINAL_OPERATORS.has(operator)) return { ok: true, value };
+  if (typeof value === 'number') return { ok: true, value };
+  if (typeof value !== 'string') return { ok: false };
+  const idx = enumValues.indexOf(value);
+  return idx >= 0 ? { ok: true, value: idx } : { ok: false };
+}
+
 /** Was this fact actually measured, or is it a filename guess / absent? */
 function isMeasured(facts: EvaluationFacts): boolean {
   return facts.technical?.techSource === 'probe';
@@ -84,12 +108,18 @@ function evaluateLeaf(
     return { field: node.field, operator: node.operator, value: node.value, actual, result: 'unmeasured', summary };
   }
 
+  // An ordered enum is authored as a label but compared as an ordinal.
+  const coerced = coerceOrdinalValue(def.enumValues, node.operator, node.value);
+  if (!coerced.ok) {
+    return { field: node.field, operator: node.operator, value: node.value, actual, result: 'unmeasured', summary };
+  }
+
   return {
     field: node.field,
     operator: node.operator,
     value: node.value,
     actual,
-    result: applyOperator(node.operator, actual, node.value),
+    result: applyOperator(node.operator, actual, coerced.value),
     summary,
   };
 }

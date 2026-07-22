@@ -153,3 +153,43 @@ describe('describeConditions', () => {
     );
   });
 });
+
+describe('ordered enums are authored as labels but compared as ordinals', () => {
+  // Regression: the fact carries an ordinal while the policy is authored as
+  // "resolutionClass < 1080p". Comparing them directly ran Number('1080p') → NaN,
+  // so EVERY comparison was false and the brief's own headline policy would have
+  // silently matched nothing rather than failing loudly.
+  const measured = (ordinal: number): EvaluationFacts => ({
+    technical: { techSource: 'probe', resolutionOrdinal: ordinal },
+  });
+
+  it('matches a genuinely lower tier', () => {
+    // 3 = 720p, below 1080p (4)
+    expect(evaluatePolicy(leaf('technical.resolutionClass', 'lt', '1080p'), measured(3)).outcome).toBe('matched');
+  });
+
+  it('does not match an equal or higher tier', () => {
+    expect(evaluatePolicy(leaf('technical.resolutionClass', 'lt', '1080p'), measured(4)).outcome).toBe('not_matched');
+    expect(evaluatePolicy(leaf('technical.resolutionClass', 'lt', '1080p'), measured(6)).outcome).toBe('not_matched');
+  });
+
+  it('supports gte for a replacement floor', () => {
+    expect(evaluatePolicy(leaf('technical.resolutionClass', 'gte', '1080p'), measured(4)).outcome).toBe('matched');
+    expect(evaluatePolicy(leaf('technical.resolutionClass', 'gte', '1080p'), measured(3)).outcome).toBe('not_matched');
+  });
+
+  it('still accepts a raw ordinal', () => {
+    expect(evaluatePolicy(leaf('technical.resolutionClass', 'lt', 4), measured(3)).outcome).toBe('matched');
+  });
+
+  // Fail safe rather than comparing against NaN.
+  it('an unknown label is unmeasured, never a silent false', () => {
+    expect(evaluatePolicy(leaf('technical.resolutionClass', 'lt', '9000p'), measured(3)).outcome).toBe('unmeasured');
+  });
+
+  it('equality on an enum still compares labels, not ordinals', () => {
+    const f: EvaluationFacts = { metadata: { mediaKind: 'movie' } };
+    expect(evaluatePolicy(leaf('metadata.mediaKind', 'eq', 'movie'), f).outcome).toBe('matched');
+    expect(evaluatePolicy(leaf('metadata.mediaKind', 'eq', 'tv'), f).outcome).toBe('not_matched');
+  });
+});
