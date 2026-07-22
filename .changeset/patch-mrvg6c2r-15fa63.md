@@ -1,5 +1,0 @@
----
-"ultratorrent": patch
----
-
-Trash & Recovery is now a live view of what can actually be restored, not a history log. A file removed with "Delete permanently (skip Trash)" no longer appears there at all, and a file whose retention window has passed leaves the list instead of lingering as an unrestorable tombstone. Fixes the underlying join too: the resolution journal stores an absolute path while TrashItem.originalPath is root-relative, so the two never matched and EVERY row rendered as "no longer in Trash", including files that were sitting in Trash and were perfectly restorable. Adds real Trash retention, which did not exist before despite the UI copy referring to a retention window: files.trashRetentionDays (default 30, 0 disables) drives an hourly sweep that permanently removes expired items and reclaims the disk a soft delete was still holding. Every Trash entry now carries an absolute expiresAt, and both the Files trash drawer and the Duplicate Center panel show a live "Nd hh:mm:ss" countdown that drops the row the moment it reaches zero; listings withhold already-expired items so a Restore button is never offered for something about to fail.
