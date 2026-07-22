@@ -21,9 +21,9 @@ function build(
       // The shutdown path asks pg_stat_activity which builds are in flight, then
       // cancels each returned pid; the index-state path asks exists(name, valid).
       if (sql.includes('pg_stat_activity')) {
-        return (opts.activeBuildPids ?? []).map((pid) => ({ pid }));
+        // Postgres runs pg_cancel_backend(pid) inline; the rows come back cancelled.
+        return (opts.activeBuildPids ?? []).map((pid) => ({ pid, cancelled: true }));
       }
-      if (sql.includes('pg_cancel_backend')) return [{}];
       const [name, valid] = params as [string, boolean];
       const s = state[name] ?? 'missing';
       const hit = valid ? s === 'valid' : s === 'invalid';
@@ -102,18 +102,22 @@ describe('ImdbTrigramIndexService', () => {
       expect(lookup).toMatch(/CREATE INDEX CONCURRENTLY%/);
       expect(lookup).toMatch(/pid <> pg_backend_pid\(\)/); // never cancel ourselves
       expect(lookup).toMatch(/datname = current_database\(\)/);
-      expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
-        'SELECT pg_cancel_backend($1)',
-        4242,
-      );
+      // The cancel must happen server-side in this same statement. Reading the pid back
+      // and passing it to pg_cancel_backend($1) fails live with 42883, because Prisma
+      // marshals the number as int8 and only the int4 overload exists — a mocked client
+      // cannot catch that, so at least pin the shape that avoids it.
+      expect(lookup).toMatch(/pg_cancel_backend\(pid\)/);
+      expect(queried.some((s) => /pg_cancel_backend\(\$1\)/.test(s))).toBe(false);
     });
 
     it('cancels nothing when no build is in flight', async () => {
+      // The statement is always issued; with nothing matching it cancels zero rows.
       const { svc, queried } = build({}, { activeBuildPids: [] });
       svc.onModuleInit();
-      await svc.onModuleDestroy();
+      await expect(svc.onModuleDestroy()).resolves.toBeUndefined();
 
-      expect(queried.some((s) => s.includes('pg_cancel_backend'))).toBe(false);
+      const lookup = queried.find((s) => s.includes('pg_stat_activity'));
+      expect(lookup).toBeTruthy();
     });
 
     it('never starts another index once shutdown has begun', async () => {

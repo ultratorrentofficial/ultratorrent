@@ -84,19 +84,21 @@ export class ImdbTrigramIndexService implements OnModuleInit, OnModuleDestroy {
     try {
       // Index names are compile-time constants (see TRIGRAM_INDEXES), never input.
       const matches = TRIGRAM_INDEXES.map((idx) => `query LIKE '%"${idx.name}"%'`).join(' OR ');
+      // Cancel in the same statement that locates the backend, rather than reading the
+      // pid back and passing it to pg_cancel_backend(): Prisma marshals a JS number as
+      // int8, that overload does not exist, and the call fails with 42883. A mocked
+      // client cannot reproduce that — only a live build does.
       const rows = await this.prisma.$queryRawUnsafe<{ pid: number }[]>(
-        `SELECT pid FROM pg_stat_activity
+        `SELECT pid, pg_cancel_backend(pid) AS cancelled
+           FROM pg_stat_activity
           WHERE state = 'active'
             AND datname = current_database()
             AND pid <> pg_backend_pid()
             AND query LIKE 'CREATE INDEX CONCURRENTLY%'
             AND (${matches})`,
       );
-      if (!rows.length) return; // nothing building — the common case
-
       for (const { pid } of rows) {
-        this.logger.log(`Cancelling in-flight trigram index build (pid ${pid}) for shutdown`);
-        await this.prisma.$queryRawUnsafe('SELECT pg_cancel_backend($1)', pid);
+        this.logger.log(`Cancelled in-flight trigram index build (pid ${pid}) for shutdown`);
       }
     } catch (err) {
       // Never let a failed cancel block shutdown — worst case we fall back to the

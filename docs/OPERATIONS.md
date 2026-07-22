@@ -300,10 +300,23 @@ time systemctl stop ultratorrent-backend
 journalctl -u ultratorrent-backend -n 30 | grep -i cancel
 ```
 
-Expected: `Cancelling in-flight trigram index build (pid …) for shutdown`, then
-`Trigram index build cancelled for shutdown`, and the stop returns in seconds. If the
-stop instead takes minutes and no cancel line appears, the destroy ordering no longer
-holds and the cancel is silently no-opping.
+Expected: `Cancelled in-flight trigram index build (pid …) for shutdown`, then
+`Trigram index build cancelled for shutdown`, and the stop returns in well under a
+second (measured: **208 ms**, against ~8–9 min unfixed).
+
+Read the failure modes apart — they are not the same bug:
+
+| What you see | Meaning |
+| --- | --- |
+| Stop takes minutes, **no** cancel line at all | Destroy ordering no longer holds; the hook never ran while the pool was usable |
+| Cancel line, then `Could not cancel trigram index build: …` | The hook ran fine; the cancel statement itself failed |
+
+The second is not hypothetical — it is how this was first shipped. Reading the pid back
+and passing it to `pg_cancel_backend($1)` fails with
+`42883: function pg_cancel_backend(bigint) does not exist`, because Prisma marshals a JS
+number as int8 and only the int4 overload exists. The cancel is therefore done
+server-side, inside the statement that locates the backend, so no pid crosses into JS.
+Unit tests passed throughout — only this live check caught it.
 
 Note that an interrupted `CONCURRENTLY` build is *expected* to leave the index
 `INVALID` or absent; the next boot drops and rebuilds it. That is normal, not damage.
