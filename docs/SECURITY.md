@@ -479,6 +479,17 @@ redaction across all persisted inputs/results/events, sanitized errors, per-job
 permission-scoped WebSocket delivery, and preservation of file-path confinement / Trash-first
 / stale-plan validation for job-driven work. See **[JOB_SECURITY.md](JOB_SECURITY.md)**.
 
+## Visual Workflow Builder
+
+Durable, versioned visual automation has its own threat model — graphs are data (no
+`eval`/`Function`/shell; a fixed operator set + `{{path}}` templating only), a **double gate** on
+actions (publish-time validation **and** a runtime least-privilege re-check against the execution
+identity, failing closed), destructive-node safeguards + approval gates, **immutable published
+versions** with executions pinned to their version, DoS limits (acyclic graphs, node/edge/delay/
+parallel caps, recursion depth guard, 512 KB graph ceiling), reuse of the Automation Engine's
+SSRF-guarded webhook path, encrypted secret variables, and full audit. See
+**[WORKFLOW_SECURITY.md](WORKFLOW_SECURITY.md)**.
+
 ## Reporting a vulnerability
 
 Please report security issues **privately** — do not open a public GitHub issue

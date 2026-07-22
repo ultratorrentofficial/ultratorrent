@@ -4,6 +4,10 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { WorkflowExecutionService } from './workflow-execution.service';
 
 const TICK_MS = 15_000;
+const RETENTION_MS = 6 * 60 * 60 * 1000; // sweep every 6h
+/** Keep finished runs 7 days; keep FAILED runs 30 days (for diagnosis) — mirrors Jobs Center. */
+const RETAIN_FINISHED_DAYS = 7;
+const RETAIN_FAILED_DAYS = 30;
 
 /**
  * The durable-resume heartbeat. Reuses the platform's existing `@nestjs/schedule` (no second
@@ -54,6 +58,31 @@ export class WorkflowResumeService {
       this.logger.error(`Resume tick failed: ${(err as Error).message}`);
     } finally {
       this.running = false;
+    }
+  }
+
+  /**
+   * Prune old terminal executions so the tables don't grow unbounded. Node executions and
+   * approvals cascade-delete with the parent execution (FK onDelete: Cascade). Failed runs are
+   * retained longer for diagnosis. The Jobs Center mirror rows age out under their own retention.
+   */
+  @Interval('workflow_retention_cleanup', RETENTION_MS)
+  async retention(): Promise<void> {
+    try {
+      const now = Date.now();
+      const finishedCutoff = new Date(now - RETAIN_FINISHED_DAYS * 86_400_000);
+      const failedCutoff = new Date(now - RETAIN_FAILED_DAYS * 86_400_000);
+      const { count } = await this.prisma.workflowExecution.deleteMany({
+        where: {
+          OR: [
+            { status: { in: ['completed', 'completed_with_warnings', 'cancelled', 'expired'] }, createdAt: { lt: finishedCutoff } },
+            { status: 'failed', createdAt: { lt: failedCutoff } },
+          ],
+        },
+      });
+      if (count > 0) this.logger.log(`Workflow retention pruned ${count} old execution(s)`);
+    } catch (err) {
+      this.logger.error(`Workflow retention failed: ${(err as Error).message}`);
     }
   }
 }
