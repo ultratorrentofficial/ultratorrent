@@ -190,6 +190,29 @@ export const PERMISSIONS = {
   WORKFLOWS_PUBLISH: 'workflows.publish',
   WORKFLOWS_RUN: 'workflows.run',
   WORKFLOWS_APPROVE: 'workflows.approve',
+
+  // Library Cleanup Center
+  LIBRARY_CLEANUP_VIEW: 'library_cleanup.view',
+  LIBRARY_CLEANUP_POLICY_CREATE: 'library_cleanup.policy.create',
+  LIBRARY_CLEANUP_POLICY_EDIT: 'library_cleanup.policy.edit',
+  LIBRARY_CLEANUP_POLICY_PUBLISH: 'library_cleanup.policy.publish',
+  LIBRARY_CLEANUP_POLICY_ENABLE: 'library_cleanup.policy.enable',
+  LIBRARY_CLEANUP_POLICY_DELETE: 'library_cleanup.policy.delete',
+  LIBRARY_CLEANUP_RUN: 'library_cleanup.run',
+  LIBRARY_CLEANUP_SIMULATE: 'library_cleanup.simulate',
+  LIBRARY_CLEANUP_APPROVE: 'library_cleanup.approve',
+  LIBRARY_CLEANUP_CANCEL: 'library_cleanup.cancel',
+  LIBRARY_CLEANUP_PROTECTION_VIEW: 'library_cleanup.protection.view',
+  LIBRARY_CLEANUP_PROTECTION_CREATE: 'library_cleanup.protection.create',
+  LIBRARY_CLEANUP_PROTECTION_REVOKE: 'library_cleanup.protection.revoke',
+  /** Placing/removing a legal hold. Never granted by a blanket role inheritance. */
+  LIBRARY_CLEANUP_PROTECTION_LEGAL_HOLD: 'library_cleanup.protection.legal_hold',
+  LIBRARY_CLEANUP_TRASH: 'library_cleanup.trash',
+  LIBRARY_CLEANUP_RESTORE: 'library_cleanup.restore',
+  /** Irreversible removal, bypassing Trash. Never granted by a blanket role inheritance. */
+  LIBRARY_CLEANUP_PERMANENT_DELETE: 'library_cleanup.permanent_delete',
+  LIBRARY_CLEANUP_SETTINGS: 'library_cleanup.settings',
+  LIBRARY_CLEANUP_AUDIT: 'library_cleanup.audit',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -205,13 +228,26 @@ export enum SystemRole {
 }
 
 /**
+ * Permissions a blanket role inheritance must NEVER hand out. `ADMINISTRATOR`
+ * otherwise receives everything, which would implicitly grant irreversible
+ * deletion and the authority to lift a legal hold — both of which must be a
+ * deliberate, separately-audited grant rather than a side effect of being an
+ * admin. SUPER_ADMIN still short-circuits in the guard.
+ */
+export const NEVER_INHERITED_PERMISSIONS: Permission[] = [
+  PERMISSIONS.SYSTEM_MANAGE,
+  PERMISSIONS.LIBRARY_CLEANUP_PERMANENT_DELETE,
+  PERMISSIONS.LIBRARY_CLEANUP_PROTECTION_LEGAL_HOLD,
+];
+
+/**
  * Default permission assignments per built-in role. SUPER_ADMIN implicitly holds
  * every permission (enforced in the guard) so it is not enumerated here.
  */
 export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
   [SystemRole.SUPER_ADMIN]: ALL_PERMISSIONS,
   [SystemRole.ADMINISTRATOR]: ALL_PERMISSIONS.filter(
-    (p) => p !== PERMISSIONS.SYSTEM_MANAGE,
+    (p) => !NEVER_INHERITED_PERMISSIONS.includes(p),
   ),
   [SystemRole.POWER_USER]: [
     PERMISSIONS.TORRENTS_VIEW,
@@ -238,6 +274,10 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.AUTOMATION_MANAGE,
     PERMISSIONS.WORKFLOWS_VIEW,
     PERMISSIONS.WORKFLOWS_RUN,
+    // Cleanup: read + no-side-effect simulation only. No destructive grant.
+    PERMISSIONS.LIBRARY_CLEANUP_VIEW,
+    PERMISSIONS.LIBRARY_CLEANUP_SIMULATE,
+    PERMISSIONS.LIBRARY_CLEANUP_PROTECTION_VIEW,
     PERMISSIONS.INDEXERS_VIEW,
     PERMISSIONS.INDEXERS_MANAGE,
     PERMISSIONS.INDEXERS_TEST,

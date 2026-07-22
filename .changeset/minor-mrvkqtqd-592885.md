@@ -1,0 +1,5 @@
+---
+"ultratorrent": minor
+---
+
+Library Cleanup Center Phase 2 — data model, permissions & module manifest. Adds nine additive tables (media_cleanup_policies/policy_versions/runs/candidates/plans/actions/protections/quarantine_items + media_playback_aggregates) in migration 20260722030000_library_cleanup_core. Audit-bearing rows reference media by plain id (no FK) so a candidate's snapshot outlives the media row — the same rationale as MediaDuplicateCandidate.path; only the derived playback aggregate uses a cascading FK. Adds the 19-permission library_cleanup.* block and, per decision D-5, a NEVER_INHERITED_PERMISSIONS set so ADMINISTRATOR's blanket ALL_PERMISSIONS inheritance no longer hands out library_cleanup.permanent_delete or protection.legal_hold (nor system.manage, as before) — they must be granted deliberately. POWER_USER receives view/simulate/protection.view only. Registers the library_cleanup core module manifest (route /api/media/cleanup, Media workspace). No cleanup behaviour yet: schema, permissions and manifest only.

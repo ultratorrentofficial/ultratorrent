@@ -132,6 +132,8 @@ export const MODULE_IDS = {
   NOTIFICATION_CENTER: 'notification_center',
   // Core — subtitle acquisition, validation & synchronization (locked, always-on)
   SUBTITLE_INTELLIGENCE: 'subtitle_intelligence',
+  // Core — policy-driven, plan-executed library storage reclamation
+  LIBRARY_CLEANUP: 'library_cleanup',
 } as const;
 
 export type ModuleId = (typeof MODULE_IDS)[keyof typeof MODULE_IDS];

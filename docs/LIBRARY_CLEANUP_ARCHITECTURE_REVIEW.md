@@ -306,24 +306,28 @@ filesystem mutation.
 
 ---
 
-## 17. Open decisions requiring sign-off
+## 17. Decisions — RESOLVED 2026-07-22
 
-- **D-1 — Playback identity resolution.** History rows join to items by *title text only* (G2). Recommend:
-  build the aggregate on the conservative `resolveIdentityFromTitle` discipline (null rather than guess), and
-  treat unresolved items as **stale, not unwatched**. Alternative (larger): add a nullable `mediaItemId` to
-  `MediaServerWatchHistory` and backfill — better long-term, more invasive.
-- **D-2 — Completion threshold.** Recommend a new `cleanup.completionThresholdPercent` default **90**,
-  leaving Trakt's 80 untouched.
-- **D-3 — Fix G7/G8/G10 inside this feature?** Recommend **yes** — they are prerequisites for safe technical
-  and lock-aware policies, and fixing them benefits the duplicate path too. They are, strictly, defects in
-  shipped code outside this module's nominal boundary.
-- **D-4 — Approval mechanism.** Recommend a **cleanup-native** approval object (plan-scoped) rather than
-  routing through `WorkflowApproval`, which is bound to a `WorkflowExecution`. Workflow *nodes* can still
-  request cleanup approval by referencing a plan.
-- **D-5 — Admin blanket grant.** Should `permanent_delete` / `legal_hold` be excluded from
-  `ADMINISTRATOR`'s `ALL_PERMISSIONS` inheritance? Excluding them requires changing the role-seeding shape.
-- **D-6 — Scope of "protect a season".** With no season entity (G16), a season protection is stored as
-  `(showId, seasonNumber)` and resolved by query. Confirm acceptable.
+- **D-1 — Playback identity resolution → conservative match.** Build the aggregate on the existing
+  `resolveIdentityFromTitle` discipline (`trakt-sync.service.ts:709`), which returns **null rather than
+  guessing** on ambiguous strings. Unresolved history contributes to nothing, and an item whose aggregate
+  cannot be resolved is **stale, never "never watched"**. Adding a `mediaItemId` FK to
+  `MediaServerWatchHistory` is deferred as a possible follow-up, not a prerequisite.
+- **D-2 — Completion threshold → new setting, default 90.** `cleanup.completionThresholdPercent = 90`.
+  Trakt's `WATCHED_THRESHOLD_PCT = 80` is left untouched: "did Trakt consider it watched" and "is it safe to
+  delete this" are different questions, and the destructive one takes the stricter bar.
+- **D-3 — Fix G7/G8/G10/G12 → yes, all four.** They are prerequisites for a trustworthy technical- or
+  lock-aware policy, and the fixes also repair the existing duplicate-cleanup path (`locked`) and the Trash
+  restore path. Scheduled: G7/G8 in Phase 3, G10 in Phase 6, G12 in Phase 8.
+- **D-4 — Approval mechanism → cleanup-native.** A plan-scoped approval object, not `WorkflowApproval`
+  (which is bound to a `WorkflowExecution`). A workflow node may still request cleanup approval by
+  referencing a `cleanupPlanId`.
+- **D-5 — Admin blanket grant → exclude the two high-risk permissions.** `library_cleanup.permanent_delete`
+  and `library_cleanup.protection.legal_hold` are excluded from `ADMINISTRATOR`'s `ALL_PERMISSIONS`
+  inheritance, which changes the role-seeding shape from a single `SYSTEM_MANAGE` filter to an exclusion set.
+  They must be granted deliberately.
+- **D-6 — "Protect a season" → stored as `(showId, seasonNumber)`** and resolved by query, since no season
+  entity exists (G16).
 
 ---
 
@@ -359,7 +363,6 @@ i18n parity · prisma validate · BE+FE builds · **Nest boot verify** · docs �
 
 ---
 
-## 20. Sign-off gate
+## 20. Sign-off gate — CLEARED 2026-07-22
 
-Proceeding to Phase 2 requires agreement on **D-1 … D-6** and acceptance that **G7, G8, G10, G12** are fixed
-as part of this work (they are pre-existing defects that make otherwise-correct cleanup unsafe).
+D-1 … D-6 resolved (§17). **G7, G8, G10, G12** are accepted as in-scope fixes. Phase 2 may proceed.

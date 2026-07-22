@@ -753,6 +753,11 @@ model MediaItem {
   subtitleDownloads   SubtitleDownload[]
   subtitleHistory     SubtitleHistory[]
 
+  // Library Cleanup Center (core module `library_cleanup`). Derived playback
+  // facts cascade with the item; cleanup candidates/protections deliberately do
+  // NOT, so their audit snapshots outlive the media row.
+  playbackAggregate MediaPlaybackAggregate?
+
   // One row per file per library. The scanner used to check-then-create
   // (`findFirst` then `create`), so two concurrent scans of the same library both
   // saw "not present" and both inserted — 139 duplicated rows on a live host, all
@@ -2863,4 +2868,361 @@ model WorkflowTemplate {
 
   @@index([category])
   @@map("workflow_templates")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Library Cleanup Center (module `library_cleanup`)
+//
+// Policy-driven, plan-executed reclamation of library storage. Matching a policy
+// only ever creates a CANDIDATE; nothing is removed without a persisted,
+// approved MediaCleanupPlan whose per-file fingerprints still match the world.
+// Audit-bearing rows deliberately reference media by plain id (no FK) so the
+// history survives the media row — the same rationale as
+// MediaDuplicateCandidate.path. Derived data (MediaPlaybackAggregate) does use a
+// cascading FK. See docs/LIBRARY_CLEANUP_ARCHITECTURE_REVIEW.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A cleanup policy. Immutable-version parent: at most one mutable draft, and a
+/// frozen published version that runs are pinned to.
+model MediaCleanupPolicy {
+  id                      String    @id @default(uuid())
+  name                    String
+  description             String?
+  /// draft | validation_failed | ready | published | disabled | archived
+  status                  String    @default("draft")
+  /// Only an enabled + published policy may be run by a trigger.
+  enabled                 Boolean   @default(false)
+  /// Denormalized from the published version for list display / scheduler queries:
+  /// report_only | approval_required | auto_quarantine | auto_trash
+  mode                    String    @default("report_only")
+  /// Denormalized trigger config so the scheduler can select due policies cheaply.
+  scheduleCron            String?
+  freeSpaceTriggerPercent Int?
+  /// Denormalized pointers (no FK — mirrors Workflow, avoids a circular relation).
+  currentDraftVersionId   String?
+  publishedVersionId      String?
+  createdById             String?
+  updatedById             String?
+  lastRunAt               DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  archivedAt              DateTime?
+
+  versions MediaCleanupPolicyVersion[]
+  runs     MediaCleanupRun[]
+
+  @@index([status])
+  @@index([enabled])
+  @@index([enabled, scheduleCron])
+  @@index([enabled, freeSpaceTriggerPercent])
+  @@index([updatedAt])
+  @@map("media_cleanup_policies")
+}
+
+/// An immutable-once-published policy document. `document` holds scope,
+/// conditions, exclusions, action, retention, replacement and caps — everything a
+/// run must be pinned to.
+model MediaCleanupPolicyVersion {
+  id                  String    @id @default(uuid())
+  policyId            String
+  versionNumber       Int
+  /// draft | validation_failed | ready | published | archived
+  status              String    @default("draft")
+  document            Json
+  /// Layout-insensitive sha256 of the normalized document.
+  checksum            String
+  /// Underlying action permissions this version needs at run time.
+  requiredPermissions String[]  @default([])
+  /// Facts this version reads — drives the policy-scoped input digest.
+  factKeys            String[]  @default([])
+  changeNotes         String?
+  createdById         String?
+  createdAt           DateTime  @default(now())
+  publishedAt         DateTime?
+  archivedAt          DateTime?
+
+  policy MediaCleanupPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  runs   MediaCleanupRun[]
+
+  @@unique([policyId, versionNumber])
+  @@index([policyId])
+  @@index([status])
+  @@map("media_cleanup_policy_versions")
+}
+
+/// One evaluation of one pinned policy version.
+model MediaCleanupRun {
+  id                    String    @id @default(uuid())
+  policyId              String
+  policyVersionId       String
+  /// manual | scheduled | storage_pressure | automation | workflow
+  trigger               String    @default("manual")
+  /// queued | running | waiting_for_approval | completed | partial | failed | cancelling | cancelled
+  status                String    @default("queued")
+  /// A simulation never touches a provider or the filesystem.
+  simulate              Boolean   @default(false)
+  /// Jobs Center parent job.
+  jobId                 String?
+  /// Policy-scoped digest of the facts this version reads; a run whose digest is
+  /// unchanged short-circuits. Stored only after a run that finished.
+  inputDigest           String?
+  filesScanned          Int       @default(0)
+  itemsEvaluated        Int       @default(0)
+  candidatesMatched     Int       @default(0)
+  candidatesExcluded    Int       @default(0)
+  candidatesEligible    Int       @default(0)
+  estimatedReclaimBytes BigInt    @default(0)
+  actualReclaimBytes    BigInt    @default(0)
+  /// Per-exclusion-reason counts for the simulation summary.
+  exclusionBreakdown    Json?
+  errorSummary          String?
+  createdById           String?
+  startedAt             DateTime?
+  completedAt           DateTime?
+  failedAt              DateTime?
+  cancelledAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  policy     MediaCleanupPolicy        @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  version    MediaCleanupPolicyVersion @relation(fields: [policyVersionId], references: [id])
+  candidates MediaCleanupCandidate[]
+  plans      MediaCleanupPlan[]
+
+  @@index([policyId, createdAt])
+  @@index([status, createdAt])
+  @@index([jobId])
+  @@index([createdAt])
+  @@map("media_cleanup_runs")
+}
+
+/// One evaluated file. A candidate is a finding, never an instruction to delete.
+model MediaCleanupCandidate {
+  id                    String   @id @default(uuid())
+  runId                 String
+  policyVersionId       String
+  /// Plain ids (no FK): the snapshot must outlive the media row for audit.
+  mediaItemId           String?
+  mediaFileId           String?
+  mediaLibraryId        String?
+  /// Absolute path at evaluation time.
+  path                  String
+  fileSizeBytes         BigInt   @default(0)
+  /// discovered | candidate | excluded_protected | excluded_locked | excluded_active |
+  /// excluded_recent | excluded_unmeasured | excluded_ambiguous | pending_approval |
+  /// approved | quarantined | trashed | retention_pending | purged | rejected |
+  /// expired | cancelled | skipped_changed | failed | restored
+  status                String   @default("discovered")
+  /// Machine-readable exclusion discriminator when status is excluded_*.
+  exclusionReason       String?
+  /// sha256 over policy-relevant facts; re-checked immediately before execution.
+  fingerprint           String
+  /// Human- and machine-readable: facts, matchedConditions, estimatedReclaimBytes.
+  reasonSnapshot        Json
+  /// Explainable storage-pressure ranking.
+  rankScore             Float?
+  rankReasons           Json?
+  /// Replacement-aware cleanup: the verified surviving copy, if required.
+  replacementFileId     String?
+  replacementReasons    Json?
+  protectionState       Json?
+  estimatedReclaimBytes BigInt   @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  run MediaCleanupRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, status])
+  @@index([runId, rankScore])
+  @@index([mediaFileId])
+  @@index([mediaItemId])
+  @@index([status])
+  @@map("media_cleanup_candidates")
+}
+
+/// The persisted, approvable, execute-once selection. Execution endpoints accept
+/// a plan id and nothing else — never paths, never file ids.
+model MediaCleanupPlan {
+  id                    String    @id @default(uuid())
+  runId                 String
+  policyVersionId       String
+  /// draft | pending_approval | approved | rejected | executing | completed |
+  /// partial | failed | expired | cancelled
+  status                String    @default("draft")
+  /// quarantine | trash | permanent_delete
+  action                String    @default("trash")
+  retentionDays         Int?
+  candidateCount        Int       @default(0)
+  estimatedReclaimBytes BigInt    @default(0)
+  actualReclaimBytes    BigInt    @default(0)
+  /// Jobs Center job that executed this plan.
+  executionJobId        String?
+  createdById           String?
+  approvedById          String?
+  approvedAt            DateTime?
+  rejectedById          String?
+  rejectedAt            DateTime?
+  rejectionReason       String?
+  /// A plan not approved before this is refused.
+  expiresAt             DateTime?
+  executedAt            DateTime?
+  errorSummary          String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  run     MediaCleanupRun      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  actions MediaCleanupAction[]
+
+  @@index([runId])
+  @@index([status, expiresAt])
+  @@index([status, createdAt])
+  @@map("media_cleanup_plans")
+}
+
+/// The pinned per-file selection AND the execution journal. A row is created at
+/// plan time carrying the fingerprint the operator approved, then transitioned to
+/// `running` BEFORE the filesystem step — a transaction cannot roll back a file
+/// that already moved, so recovery needs a record of intent.
+model MediaCleanupAction {
+  id                String    @id @default(uuid())
+  planId            String
+  candidateId       String
+  mediaItemId       String?
+  mediaFileId       String?
+  /// quarantine | trash | permanent_delete | restore | purge
+  actionType        String
+  /// pending | running | completed | failed | skipped | compensated
+  status            String    @default("pending")
+  sourcePath        String
+  destinationPath   String?
+  /// The fingerprint approved in the plan; re-computed before execution.
+  pinnedFingerprint String
+  fileSizeBytes     BigInt    @default(0)
+  reclaimedBytes    BigInt    @default(0)
+  /// e.g. fingerprint_drift | protected | locked | active_playback | vanished
+  skipReason        String?
+  errorCode         String?
+  errorMessage      String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  plan MediaCleanupPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, status])
+  @@index([candidateId])
+  @@index([status])
+  @@index([mediaFileId])
+  @@map("media_cleanup_actions")
+}
+
+/// The protection registry. Protection is an ABSOLUTE exclusion for automation.
+/// Removal is a revocation, never a delete, so the history stays auditable.
+model MediaCleanupProtection {
+  id                    String    @id @default(uuid())
+  /// media_file | media_item | show | season | episode | library | path_prefix |
+  /// tag | collection | watchlist | torrent | external_identity
+  targetType            String
+  /// Stable database identity is authoritative.
+  mediaItemId           String?
+  mediaFileId           String?
+  mediaShowId           String?
+  mediaLibraryId        String?
+  /// No season entity exists, so a season is (showId, seasonNumber) — see D-6.
+  seasonNumber          Int?
+  episodeNumber         Int?
+  /// e.g. "imdb:tt0944947" — protects whatever currently resolves to it.
+  externalIdentityKey   String?
+  pathPrefix            String?
+  tagValue              String?
+  collectionId          String?
+  torrentHash           String?
+  /// Audit/reconciliation only — the id above is authoritative.
+  canonicalPathSnapshot String?
+  /// permanent | temporary | conditional | legal_hold
+  protectionType        String
+  /// conditional only: on_watchlist | partially_watched | torrent_ratio_below |
+  /// recently_added | job_active | in_collection | until_all_watched
+  conditionKind         String?
+  conditionConfig       Json?
+  reason                String
+  protectedUntil        DateTime?
+  createdByUserId       String
+  createdAt             DateTime  @default(now())
+  revokedAt             DateTime?
+  revokedByUserId       String?
+  revokeReason          String?
+
+  @@index([mediaItemId])
+  @@index([mediaFileId])
+  @@index([mediaShowId])
+  @@index([mediaLibraryId])
+  @@index([externalIdentityKey])
+  @@index([protectedUntil])
+  @@index([targetType, revokedAt])
+  @@index([revokedAt])
+  @@map("media_cleanup_protections")
+}
+
+/// A file moved to a controlled quarantine area inside the hard roots.
+/// Quarantine is NOT deletion; a newly-protected item is exempt from purge.
+model MediaCleanupQuarantineItem {
+  id              String    @id @default(uuid())
+  actionId        String?
+  planId          String?
+  runId           String?
+  policyVersionId String?
+  mediaItemId     String?
+  mediaFileId     String?
+  originalPath    String
+  quarantinePath  String    @unique
+  storageRoot     String
+  fileSizeBytes   BigInt    @default(0)
+  fingerprint     String
+  /// quarantined | restored | purged | expired
+  status          String    @default("quarantined")
+  restoreDeadline DateTime?
+  quarantinedAt   DateTime  @default(now())
+  restoredAt      DateTime?
+  restoredById    String?
+  purgedAt        DateTime?
+  purgedById      String?
+
+  @@index([status, restoreDeadline])
+  @@index([mediaFileId])
+  @@index([planId])
+  @@map("media_cleanup_quarantine_items")
+}
+
+/// Normalized per-item playback facts. Net-new: no per-item play count existed,
+/// and MediaUserWatch cannot supply one (@@unique([userId, key]) collapses
+/// rewatches). Counting is over completed history rows, never session heartbeats,
+/// so a 15s poll cannot inflate a count.
+model MediaPlaybackAggregate {
+  id                         String    @id @default(uuid())
+  mediaItemId                String    @unique
+  startedPlayCount           Int       @default(0)
+  completedPlayCount         Int       @default(0)
+  uniqueViewerCount          Int       @default(0)
+  lastPlayedAt               DateTime?
+  maximumProgressPercent     Int       @default(0)
+  averageProgressPercent     Float     @default(0)
+  totalPlaybackSeconds       BigInt    @default(0)
+  /// The threshold this aggregate was computed with — if the setting changes the
+  /// aggregate is stale, and stale must never read as "never watched".
+  completionThresholdPercent Int       @default(90)
+  /// Provenance: history rows seen vs. actually resolved to this item. A high
+  /// unresolved count means the aggregate is not trustworthy for deletion.
+  sourceRowCount             Int       @default(0)
+  resolvedSourceRowCount     Int       @default(0)
+  computedAt                 DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  item MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+
+  @@index([completedPlayCount])
+  @@index([lastPlayedAt])
+  @@index([computedAt])
+  @@map("media_playback_aggregates")
 }
