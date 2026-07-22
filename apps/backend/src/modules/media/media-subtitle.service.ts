@@ -3,57 +3,22 @@ import { readdir } from 'node:fs/promises';
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
+import { SubtitleTags, subtitleTagsFromName } from '../../common/languages';
 
 const SUBTITLE_EXT = new Set(['.srt', '.ass', '.ssa', '.sub', '.vtt', '.idx']);
 
-/** Common language tokens → ISO 639-1 (best effort). */
-const LANG_MAP: Record<string, string> = {
-  en: 'en', eng: 'en', english: 'en',
-  es: 'es', spa: 'es', spanish: 'es',
-  fr: 'fr', fre: 'fr', fra: 'fr', french: 'fr',
-  de: 'de', ger: 'de', deu: 'de', german: 'de',
-  it: 'it', ita: 'it', italian: 'it',
-  pt: 'pt', por: 'pt', portuguese: 'pt',
-  nl: 'nl', dut: 'nl', nld: 'nl', dutch: 'nl',
-  ja: 'ja', jpn: 'ja', japanese: 'ja',
-  ko: 'ko', kor: 'ko', korean: 'ko',
-  zh: 'zh', chi: 'zh', zho: 'zh', chinese: 'zh',
-  ru: 'ru', rus: 'ru', russian: 'ru',
-  ar: 'ar', ara: 'ar', arabic: 'ar',
-  pl: 'pl', pol: 'pl', polish: 'pl',
-  sv: 'sv', swe: 'sv', swedish: 'sv',
-  da: 'da', dan: 'da', danish: 'da',
-  no: 'no', nor: 'no', norwegian: 'no',
-  fi: 'fi', fin: 'fi', finnish: 'fi',
-};
-
-export interface ParsedSubtitle {
-  language: string;
-  forced: boolean;
-  sdh: boolean;
-}
+export type ParsedSubtitle = SubtitleTags;
 
 /**
  * Derive subtitle attributes from a sidecar filename. Handles patterns such as
  * `Movie.en.srt`, `Movie.eng.forced.srt`, `Movie.en.sdh.srt`,
  * `Movie.English.hi.vtt`. Pure — exported for unit testing.
+ *
+ * The vocabulary is the shared table in `common/languages`; this used to keep its
+ * own seventeen-language copy, which knew no Hebrew, Hungarian or Indonesian.
  */
 export function parseSubtitleFilename(filename: string): ParsedSubtitle {
-  const base = filename.replace(/\.[^.]+$/, ''); // drop extension
-  const tokens = base.split(/[.\s_-]+/).map((t) => t.toLowerCase());
-
-  let forced = false;
-  let sdh = false;
-  let language = 'und'; // undetermined
-
-  // Inspect trailing tokens (language/flags come after the base name).
-  for (const tok of tokens) {
-    if (tok === 'forced') forced = true;
-    else if (tok === 'sdh' || tok === 'hi' || tok === 'cc') sdh = true;
-    else if (LANG_MAP[tok]) language = LANG_MAP[tok];
-  }
-
-  return { language, forced, sdh };
+  return subtitleTagsFromName(filename.replace(/\.[^.]+$/, '')); // drop extension
 }
 
 /**

@@ -7,6 +7,7 @@
  * plan and (optionally) enriches metadata. This keeps it trivially testable.
  */
 import { parseTorrentName, ParsedTorrentMeta } from './../rss/torrent-name-parser';
+import { normalizeLanguageCode } from '../../common/languages';
 import * as path from 'node:path';
 
 export type MediaKind = 'tv' | 'anime' | 'movie' | 'music' | 'audiobook' | 'general';
@@ -248,17 +249,16 @@ export function matchesAnyGlob(basename: string, globs: string[]): boolean {
   });
 }
 
-/** Common ISO-639-2 → 639-1 aliases so a `.eng`/`.spa` sub matches a `en`/`es` keep-list. */
-const LANG_ALIASES: Record<string, string> = {
-  eng: 'en', spa: 'es', fre: 'fr', fra: 'fr', ger: 'de', deu: 'de', ita: 'it',
-  por: 'pt', dut: 'nl', nld: 'nl', jpn: 'ja', chi: 'zh', zho: 'zh', rus: 'ru',
-  kor: 'ko', ara: 'ar', hin: 'hi', swe: 'sv', nor: 'no', dan: 'da', fin: 'fi', pol: 'pl',
-};
-
-/** Normalize a language code to its 639-1 form when known (else lower-cased as-is). */
+/**
+ * Normalize a language code to its 639-1 form when known (else lower-cased as-is).
+ *
+ * Backed by the shared table in `common/languages`, so a `.heb`/`.hun`/`.ind` sub
+ * matches a `he`/`hu`/`id` keep-list. This used to carry its own 18-language copy,
+ * and a code outside it normalised to itself — which meant the cleanup pass deleted
+ * subtitles the operator had listed to keep, because the two spellings never met.
+ */
 export function normalizeLang(code: string): string {
-  const c = code.toLowerCase();
-  return LANG_ALIASES[c] ?? c;
+  return normalizeLanguageCode(code);
 }
 
 /** Classify a single file by extension + name hints. */

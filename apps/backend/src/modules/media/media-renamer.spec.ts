@@ -891,3 +891,49 @@ describe('buildRenamePlan — a sidecar follows its video across naming styles',
     expect(n?.destination).toBeNull();
   });
 });
+
+describe('buildRenamePlan — cleanup keep-list understands every spelling', () => {
+  // The keep-list field documents "ISO-639 language codes". Written the 639-1 way
+  // against a library of .heb/.hun sidecars, normalisation left "heb"/"hun" as
+  // themselves, they matched neither "he" nor "hu", and the cleanup pass DELETED
+  // them — while .eng survived only because "eng" was one of 18 hard-coded aliases.
+  const files = [
+    { path: '/downloads/TV Shows/Show/Season 5/Show - S05E12 - X.mp4', size: BIG },
+    { path: '/downloads/TV Shows/Show/Season 5/Show - S05E12 - X.heb.srt', size: 40_000 },
+    { path: '/downloads/TV Shows/Show/Season 5/Show - S05E12 - X.hun.srt', size: 40_000 },
+    { path: '/downloads/TV Shows/Show/Season 5/Show - S05E12 - X.eng.srt', size: 40_000 },
+    { path: '/downloads/TV Shows/Show/Season 5/Show - S05E12 - X.fra.srt', size: 40_000 },
+  ];
+  const plan = (keep: string[]) =>
+    buildRenamePlan(ctx({
+      sourceName: 'Show',
+      libraryPath: '/downloads/TV Shows',
+      files,
+      cleanup: {
+        enabled: true,
+        deleteGlobs: [],
+        subtitleKeepLanguages: keep,
+        pruneEmptyDirs: false,
+        removeLeftoverTorrent: false,
+      },
+    }));
+  const deleted = (keep: string[]) =>
+    plan(keep).items.filter((i) => i.action === 'delete').map((i) => i.source.split('.').slice(-2)[0]).sort();
+
+  it('keeps a 639-2 subtitle listed by its 639-1 code', () => {
+    expect(deleted(['en', 'he', 'hu'])).toEqual(['fra']);
+  });
+
+  it('keeps it when the list is written the 639-2 way instead', () => {
+    expect(deleted(['eng', 'heb', 'hun'])).toEqual(['fra']);
+  });
+
+  it('agrees whichever spelling the operator mixes', () => {
+    // The whole defect was that these two disagreed.
+    expect(deleted(['en', 'heb', 'hu'])).toEqual(deleted(['eng', 'he', 'hun']));
+  });
+
+  it('still deletes a language genuinely absent from the list', () => {
+    expect(deleted(['en'])).toEqual(['fra', 'heb', 'hun']);
+  });
+});

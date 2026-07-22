@@ -10,6 +10,7 @@
 import { Logger } from '@nestjs/common';
 import { readFile, readdir } from 'node:fs/promises';
 import * as path from 'node:path';
+import { SubtitleTags, subtitleTagsFromName } from '../../../common/languages';
 import {
   DownloadedSubtitle,
   NormalizedSubtitle,
@@ -30,30 +31,20 @@ export interface LocalRepoConfig {
   repoPath?: string | null;
 }
 
-const LANG2 = new Set(['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ja', 'ko', 'zh', 'ru', 'ar', 'pl', 'sv', 'da', 'no', 'fi']);
-const LANG3: Record<string, string> = {
-  eng: 'en', spa: 'es', fre: 'fr', fra: 'fr', ger: 'de', deu: 'de', ita: 'it', por: 'pt',
-  dut: 'nl', nld: 'nl', jpn: 'ja', kor: 'ko', chi: 'zh', zho: 'zh', rus: 'ru', ara: 'ar',
-};
-
 /** Collapse a name to lower-case alphanumeric-word form. Pure. */
 export function normalizeToken(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-/** Derive language + forced/sdh flags from a subtitle filename. Pure. */
-export function subtitleLangFromName(name: string): { language: string; forced: boolean; sdh: boolean } {
-  const base = name.replace(/\.[^.]+$/, '');
-  let language = 'und';
-  let forced = false;
-  let sdh = false;
-  for (const tok of base.toLowerCase().split(/[.\s_-]+/)) {
-    if (tok === 'forced') forced = true;
-    else if (tok === 'sdh' || tok === 'hi' || tok === 'cc') sdh = true;
-    else if (LANG2.has(tok)) language = tok;
-    else if (LANG3[tok]) language = LANG3[tok];
-  }
-  return { language, forced, sdh };
+/**
+ * Derive language + forced/sdh flags from a subtitle filename. Pure.
+ *
+ * This carried its own code table that knew `en`..`fi` in two-letter form but only
+ * sixteen of the three-letter ones — so a `.swe`/`.dan`/`.fin`/`.pol`/`.nor`/`.hin`
+ * sidecar it could name in one spelling went undetected in the other.
+ */
+export function subtitleLangFromName(name: string): SubtitleTags {
+  return subtitleTagsFromName(name.replace(/\.[^.]+$/, ''));
 }
 
 /**
