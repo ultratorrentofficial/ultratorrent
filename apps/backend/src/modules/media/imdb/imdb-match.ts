@@ -67,7 +67,15 @@ function sequelMarker(normalized: string): { base: string; num: number | null } 
   const last = tokens[tokens.length - 1];
   const num = /^\d{1,4}$/.test(last) ? Number(last) : (ROMAN[last] ?? null);
   if (num == null) return { base: normalized, num: null };
-  return { base: tokens.slice(0, -1).join(' '), num };
+  const rest = tokens.slice(0, -1);
+  // An ordinal qualifier belongs to the number, not the base title: "… Streaming
+  // Wars Part 2" is entry 2 of "… Streaming Wars", so dropping the qualifier is
+  // what lets it conflict with the unnumbered first film. Without this the bases
+  // ("… wars part" vs "… wars") differ and the gate never fires.
+  if (rest.length > 1 && /^(?:part|pt|chapter|ch|vol|volume)$/.test(rest[rest.length - 1])) {
+    rest.pop();
+  }
+  return { base: rest.join(' '), num };
 }
 
 /**

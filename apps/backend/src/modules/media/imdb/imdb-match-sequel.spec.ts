@@ -6,6 +6,30 @@ import { titlesAreSequelVariants } from './imdb-match';
  * "Ultimate Avengers 2" (2006) were matched to one id.
  */
 describe('titlesAreSequelVariants', () => {
+  it('flags a film against its "Part N" continuation', () => {
+    // Both 2022 — the year gate cannot separate them, so the sequel gate must.
+    expect(
+      titlesAreSequelVariants('South Park the Streaming Wars Part 2', 'South Park: The Streaming Wars'),
+    ).toBe(true);
+    expect(titlesAreSequelVariants('The Godfather Part II', 'The Godfather')).toBe(true);
+    expect(titlesAreSequelVariants('Kill Bill Vol. 2', 'Kill Bill Vol. 1')).toBe(true);
+    expect(titlesAreSequelVariants('John Wick Chapter 4', 'John Wick Chapter 2')).toBe(true);
+  });
+
+  it('does not flag a "Part N" title against itself', () => {
+    expect(
+      titlesAreSequelVariants('South Park the Streaming Wars Part 2', 'South Park: The Streaming Wars Part 2'),
+    ).toBe(false);
+    // The qualifier is dropped, so its two spellings still resolve equal.
+    expect(titlesAreSequelVariants('The Godfather Part II', 'The Godfather Part 2')).toBe(false);
+  });
+
+  it('never strips the qualifier down to an empty base', () => {
+    // An empty base would make every qualifier-only title collide with every other.
+    expect(titlesAreSequelVariants('Part 2', 'Chapter 3')).toBe(false);
+    expect(titlesAreSequelVariants('Volume 1', 'Part 2')).toBe(false);
+  });
+
   it('flags a film against its numbered sequel', () => {
     expect(titlesAreSequelVariants('Ultimate Avengers', 'Ultimate Avengers 2')).toBe(true);
     expect(titlesAreSequelVariants('Ultimate Avengers 2', 'Ultimate Avengers')).toBe(true);

@@ -190,11 +190,13 @@ export function parseTorrentName(raw: string): ParsedTorrentMeta {
     setCut(m.index);
   }
 
-  // Part
+  // Part — recorded here, but whether it ends the title is decided *after* the
+  // absolute-episode pass below, once every episodic signal is known.
+  let partIndex: number | null = null;
   if ((m = /\bpart[\s._-]*(\d{1,2})\b/i.exec(ws))) {
     meta.part = +m[1];
     explain('Part', String(meta.part), `Detected from "${m[0].trim()}".`);
-    setCut(m.index);
+    partIndex = m.index;
   }
 
   // Absolute / bare episode (anime): "Episode 05", "E05", or " - 05 "
@@ -205,6 +207,20 @@ export function parseTorrentName(raw: string): ParsedTorrentMeta {
       const idx = ws.indexOf(m[0].trim());
       setCut(idx);
     }
+  }
+
+  // "Part N" ends the title only for an EPISODIC release, where it numbers a
+  // multi-part episode ("Show S01E01 Part 2"). For a film it is part of the title,
+  // and cutting there renamed "South Park the Streaming Wars Part 2" to "South Park
+  // the Streaming Wars" — which TMDB then matched to *Part 1*, stamping the first
+  // film's ids on the sequel so duplicate detection grouped the two as one film.
+  // (A spelled-out part never matched this regex, so "Dune Part Two" already
+  // survived; a numeric one must too.)
+  if (
+    partIndex !== null &&
+    (meta.season !== null || meta.absoluteEpisode !== null || meta.airDate !== null)
+  ) {
+    setCut(partIndex);
   }
 
   // Year — a title can *start* with a 4-digit year (e.g. "1917 (2019)"), so

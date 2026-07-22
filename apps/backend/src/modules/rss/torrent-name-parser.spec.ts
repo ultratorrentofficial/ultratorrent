@@ -253,4 +253,31 @@ describe('parseTorrentName — dotted acronyms in titles', () => {
       expect(parseTorrentName('Show.S01E01-E99.1080p.mkv').episodeEnd).toBeNull();
     });
   });
+
+  describe('"Part N" in a film title', () => {
+    // Cutting the title at "Part N" renamed the sequel to the first film, which then
+    // matched the first film on TMDB and inherited its ids — the two rows came back
+    // as one "duplicate" on a live library.
+    it.each([
+      ['South Park the Streaming Wars Part 2 (2022) 1080p AAC.mp4', 'South Park the Streaming Wars Part 2', 2],
+      ['Harry.Potter.and.the.Deathly.Hallows.Part.1.2010.1080p.BluRay.x264-GRP', 'Harry Potter and the Deathly Hallows Part 1', 1],
+      ['Kill.Bill.Vol.2.2004.1080p.BluRay.x264-GRP', 'Kill Bill Vol 2', null],
+    ])('%s → %s', (name, title, part) => {
+      const p = parseTorrentName(name);
+      expect(p.title).toBe(title);
+      expect(p.part).toBe(part);
+    });
+
+    it('still ends the title at "Part N" for an episodic release', () => {
+      // Here "Part 2" numbers a multi-part episode, not the show.
+      const p = parseTorrentName('Show.Name.S01E01.Part.2.1080p.WEB.x264-GRP');
+      expect(p.title).toBe('Show Name');
+      expect(p.part).toBe(2);
+      expect(p.season).toBe(1);
+    });
+
+    it('keeps treating a spelled-out part as title text', () => {
+      expect(parseTorrentName('Dune.Part.Two.2024.2160p.BluRay-GRP').title).toBe('Dune Part Two');
+    });
+  });
 });
