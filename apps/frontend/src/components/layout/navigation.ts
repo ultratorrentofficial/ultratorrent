@@ -44,6 +44,10 @@ import {
   Bell,
   Send,
   FileText,
+  Recycle,
+  FileCog,
+  ClipboardCheck,
+  Trash2,
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { Permission } from '@ultratorrent/shared';
@@ -228,6 +232,16 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
   } },
   { slot: { domain: 'media', order: 80 }, item: { id: 'media-imdb', to: '/media/settings/imdb', label: 'IMDb Settings', icon: IdCard, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'IMDb Settings' } },
   { slot: { domain: 'media', order: 90 }, item: { id: 'media-settings', to: '/media/settings', label: 'Media Settings', icon: SlidersHorizontal, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', end: true, descriptionKey: 'Media Settings' } },
+  { slot: { domain: 'media', order: 100 }, item: {
+    id: 'library-cleanup', to: '/media/cleanup', label: 'Cleanup Center', icon: Recycle, permission: PERMISSIONS.LIBRARY_CLEANUP_VIEW, module: 'library_cleanup', end: true, descriptionKey: 'Cleanup Center',
+    children: [
+      { id: 'cleanup-policies', to: '/media/cleanup/policies', label: 'Cleanup Policies', icon: FileCog, permission: PERMISSIONS.LIBRARY_CLEANUP_VIEW, module: 'library_cleanup', descriptionKey: 'Cleanup Policies' },
+      { id: 'cleanup-runs', to: '/media/cleanup/runs', label: 'Cleanup Runs', icon: Gauge, permission: PERMISSIONS.LIBRARY_CLEANUP_VIEW, module: 'library_cleanup', descriptionKey: 'Cleanup Runs' },
+      { id: 'cleanup-plans', to: '/media/cleanup/plans', label: 'Cleanup Plans', icon: ClipboardCheck, permission: PERMISSIONS.LIBRARY_CLEANUP_VIEW, module: 'library_cleanup', descriptionKey: 'Cleanup Plans' },
+      { id: 'cleanup-quarantine', to: '/media/cleanup/quarantine', label: 'Cleanup Quarantine', icon: Trash2, permission: PERMISSIONS.LIBRARY_CLEANUP_VIEW, module: 'library_cleanup', descriptionKey: 'Cleanup Quarantine' },
+      { id: 'cleanup-protections', to: '/media/cleanup/protections', label: 'Cleanup Protections', icon: ShieldCheck, permission: PERMISSIONS.LIBRARY_CLEANUP_PROTECTION_VIEW, module: 'library_cleanup', descriptionKey: 'Cleanup Protections' },
+    ],
+  } },
 
   { slot: { domain: 'automation', order: 10 }, item: { id: 'automation', to: '/automation', label: 'Automation Rules', icon: Bot, permission: PERMISSIONS.AUTOMATION_VIEW, module: 'automation', descriptionKey: 'Automation Rules' } },
   { slot: { domain: 'automation', order: 15 }, item: { id: 'workflows', to: '/workflows', label: 'Workflows', icon: Workflow, permission: PERMISSIONS.WORKFLOWS_VIEW, end: true, descriptionKey: 'Workflows', children: [

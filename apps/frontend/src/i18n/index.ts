@@ -30,6 +30,7 @@ import enWorkflows from './locales/en-US/workflows.json';
 import enDashboard from './locales/en-US/dashboard.json';
 import enAccount from './locales/en-US/account.json';
 import enSystem from './locales/en-US/system.json';
+import enCleanup from './locales/en-US/cleanup.json';
 import esCommon from './locales/es-PR/common.json';
 import esNav from './locales/es-PR/nav.json';
 import esAuth from './locales/es-PR/auth.json';
@@ -55,6 +56,7 @@ import esWorkflows from './locales/es-PR/workflows.json';
 import esDashboard from './locales/es-PR/dashboard.json';
 import esAccount from './locales/es-PR/account.json';
 import esSystem from './locales/es-PR/system.json';
+import esCleanup from './locales/es-PR/cleanup.json';
 
 /**
  * i18n key conventions (read this before adding strings)
@@ -109,6 +111,7 @@ export const NAMESPACES = [
   'dashboard',
   'account',
   'system',
+  'cleanup',
 ] as const;
 
 export const resources = {
@@ -138,6 +141,7 @@ export const resources = {
     dashboard: enDashboard,
     account: enAccount,
     system: enSystem,
+    cleanup: enCleanup,
   },
   'es-PR': {
     common: esCommon,
@@ -165,6 +169,7 @@ export const resources = {
     dashboard: esDashboard,
     account: esAccount,
     system: esSystem,
+    cleanup: esCleanup,
   },
 } as const;
 

@@ -1,0 +1,250 @@
+{
+  "center": {
+    "title": "Centro de Limpieza",
+    "subtitle": "Recuperación de almacenamiento de la biblioteca guiada por políticas, explicable y reversible.",
+    "howItWorks": "La limpieza propone; las personas deciden. Una ejecución convierte las coincidencias de la política en candidatos: no se elimina nada. Un candidato se convierte en acción solo dentro de un plan aprobado cuyas huellas todavía coinciden con la realidad, y toda eliminación va a la Papelera o a Cuarentena, ambas recuperables.",
+    "stat": {
+      "policies": "Políticas",
+      "enabled": "Habilitadas",
+      "pendingApproval": "Esperando aprobación",
+      "quarantined": "En cuarentena",
+      "protections": "Protecciones",
+      "reclaimable": "Recuperable"
+    },
+    "tile": {
+      "policies": "Políticas",
+      "policiesDesc": "Políticas de limpieza versionadas y sus condiciones",
+      "runs": "Ejecuciones",
+      "runsDesc": "Escaneos y los candidatos que produjeron",
+      "plans": "Planes y aprobaciones",
+      "plansDesc": "Revisa y aprueba lo que propuso una ejecución",
+      "quarantine": "Cuarentena",
+      "quarantineDesc": "Archivos retenidos, restaurar o purgar",
+      "protections": "Protecciones",
+      "protectionsDesc": "Lo que la limpieza automática nunca puede tocar"
+    }
+  },
+  "policies": {
+    "title": "Políticas de Limpieza",
+    "subtitle": "Una política es un borrador más versiones publicadas congeladas. Publicar no la habilita: activar una política destructiva es un acto aparte y deliberado.",
+    "new": "Nueva política",
+    "fromTemplate": "Desde plantilla",
+    "empty": "Aún no hay políticas de limpieza",
+    "emptyDesc": "Comienza desde una plantilla o crea una política vacía, luego publícala y habilítala cuando estés listo.",
+    "col": {
+      "name": "Nombre",
+      "mode": "Modo",
+      "status": "Estado",
+      "enabled": "Habilitada",
+      "lastRun": "Última ejecución",
+      "actions": "Acciones"
+    },
+    "action": {
+      "simulate": "Simular",
+      "run": "Ejecutar",
+      "publish": "Publicar",
+      "enable": "Habilitar",
+      "disable": "Deshabilitar",
+      "archive": "Archivar",
+      "delete": "Eliminar",
+      "editDraft": "Editar borrador"
+    },
+    "create": {
+      "title": "Nueva política de limpieza",
+      "name": "Nombre",
+      "description": "Descripción",
+      "submit": "Crear política",
+      "templateTitle": "Crear desde plantilla",
+      "template": "Plantilla"
+    },
+    "draft": {
+      "title": "Documento de política (borrador)",
+      "help": "La política es un documento JSON evaluado por el motor restringido de la plataforma: no hay código ni nada ejecutable. Se planea un constructor visual de condiciones; por ahora, edita el documento directamente.",
+      "save": "Guardar borrador",
+      "validate": "Validar",
+      "valid": "El documento es válido",
+      "invalid": "El documento tiene errores",
+      "warnings": "Advertencias"
+    },
+    "confirmDelete": "¿Eliminar esta política y todas sus versiones? Esto no se puede deshacer.",
+    "confirmEnable": "¿Habilitar esta política? Una política habilitada y publicada puede ejecutarse por un horario o disparador.",
+    "publishFirst": "Publica la política antes de ejecutarla."
+  },
+  "runs": {
+    "title": "Ejecuciones de Limpieza",
+    "subtitle": "Una ejecución recorre el alcance de una política y registra lo que encontró. Produce candidatos, nunca eliminaciones.",
+    "empty": "Aún no hay ejecuciones",
+    "emptyDesc": "Ejecuta o simula una política para ver candidatos aquí.",
+    "col": {
+      "policy": "Política",
+      "trigger": "Disparador",
+      "status": "Estado",
+      "scanned": "Escaneados",
+      "eligible": "Elegibles",
+      "excluded": "Excluidos",
+      "reclaimable": "Recuperable",
+      "started": "Iniciada"
+    },
+    "cancel": "Cancelar",
+    "viewCandidates": "Ver candidatos",
+    "candidates": {
+      "title": "Candidatos",
+      "eligibleOnly": "Elegibles",
+      "excludedOnly": "Excluidos",
+      "empty": "No hay candidatos en esta vista",
+      "col": {
+        "path": "Ruta",
+        "size": "Tamaño",
+        "status": "Estado",
+        "reason": "Razón",
+        "rank": "Rango"
+      },
+      "buildPlan": "Crear plan con lo seleccionado",
+      "selected": "{{count}} seleccionados"
+    }
+  },
+  "plans": {
+    "title": "Planes y Aprobaciones",
+    "subtitle": "Un plan fija la versión de la política y la huella de cada candidato, así que lo que apruebas es exactamente lo que se ejecuta. La aprobación otorga permiso para actuar; la ejecución actúa, verificando todo primero.",
+    "empty": "Aún no hay planes",
+    "emptyDesc": "Crea un plan a partir de los candidatos de una ejecución para verlo aquí.",
+    "col": {
+      "destination": "Destino",
+      "status": "Estado",
+      "files": "Archivos",
+      "reclaimable": "Recuperable",
+      "expires": "Expira",
+      "created": "Creado"
+    },
+    "action": {
+      "approve": "Aprobar",
+      "reject": "Rechazar",
+      "execute": "Ejecutar",
+      "cancel": "Cancelar",
+      "viewActions": "Ver archivos"
+    },
+    "expired": "Expirado",
+    "confirmApprove": "¿Aprobar este plan? Otorga permiso para mover los archivos listados a {{destination}}.",
+    "confirmExecute": "¿Ejecutar este plan ahora? Cada archivo se vuelve a verificar justo antes de tocarlo; lo que esté protegido, bloqueado, ocupado o cambiado se omite.",
+    "rejectReason": "¿Por qué rechazas este plan?",
+    "cancelReason": "Razón (opcional)",
+    "executed": "Ejecutado: {{completed}} hechos, {{skipped}} omitidos, {{failed}} fallidos",
+    "actions": {
+      "title": "Archivos del plan",
+      "col": {
+        "path": "Ruta",
+        "action": "Acción",
+        "status": "Estado",
+        "size": "Tamaño",
+        "reason": "Razón"
+      }
+    }
+  },
+  "quarantine": {
+    "title": "Cuarentena",
+    "subtitle": "Archivos retenidos, sacados de la biblioteca pero nunca eliminados. Restaurar devuelve un archivo exactamente a donde estaba; purgar es el único paso irreversible.",
+    "empty": "La cuarentena está vacía",
+    "emptyDesc": "Los archivos que un plan de limpieza puso en cuarentena aparecerán aquí hasta que se restauren o purguen.",
+    "col": {
+      "path": "Ruta original",
+      "size": "Tamaño",
+      "status": "Estado",
+      "deadline": "Restaurar antes de",
+      "quarantined": "En cuarentena desde"
+    },
+    "restore": "Restaurar",
+    "purge": "Purgar",
+    "confirmRestore": "¿Restaurar este archivo a su ubicación original?",
+    "confirmPurge": "¿Eliminar permanentemente este archivo? Esto omite la Papelera y no se puede deshacer.",
+    "overwrite": "Sobrescribir lo que ahora esté en la ruta original"
+  },
+  "protections": {
+    "title": "Protecciones",
+    "subtitle": "Una protección le dice a la limpieza automática que nunca puede tocar algo. Las protecciones condicionales fallan cerradas; una retención legal no puede ser levantada por un operador común.",
+    "new": "Nueva protección",
+    "empty": "Aún no hay protecciones",
+    "emptyDesc": "Protege un archivo, biblioteca, serie, etiqueta o ruta para que la limpieza nunca pueda eliminarlo.",
+    "expiringSoon": "{{count}} protección por expirar pronto",
+    "expiringSoon_other": "{{count}} protecciones por expirar pronto",
+    "col": {
+      "target": "Objetivo",
+      "type": "Tipo",
+      "reason": "Razón",
+      "expires": "Expira",
+      "created": "Creada"
+    },
+    "revoke": "Revocar",
+    "confirmRevoke": "¿Revocar esta protección? La limpieza podrá actuar sobre el objetivo de nuevo.",
+    "revokeReason": "¿Por qué revocas esta protección?",
+    "create": {
+      "title": "Nueva protección",
+      "targetType": "Tipo de objetivo",
+      "protectionType": "Tipo de protección",
+      "reason": "Razón",
+      "reasonPlaceholder": "Por qué existe: requerido para el registro de auditoría",
+      "target": "Objetivo",
+      "libraryId": "Biblioteca",
+      "pathPrefix": "Prefijo de ruta",
+      "mediaItemId": "ID del elemento",
+      "protectedUntil": "Protegido hasta",
+      "submit": "Crear protección"
+    }
+  },
+  "mode": {
+    "report_only": "Solo informe",
+    "approval_required": "Requiere aprobación",
+    "auto_quarantine": "Cuarentena automática",
+    "auto_trash": "Papelera automática"
+  },
+  "status": {
+    "draft": "Borrador",
+    "validation_failed": "Inválido",
+    "ready": "Listo",
+    "published": "Publicado",
+    "disabled": "Deshabilitado",
+    "archived": "Archivado",
+    "queued": "En cola",
+    "running": "Ejecutando",
+    "completed": "Completado",
+    "partial": "Parcial",
+    "failed": "Fallido",
+    "cancelling": "Cancelando",
+    "cancelled": "Cancelado",
+    "pending_approval": "Esperando aprobación",
+    "approved": "Aprobado",
+    "rejected": "Rechazado",
+    "executing": "Ejecutando",
+    "expired": "Expirado",
+    "quarantined": "En cuarentena",
+    "restored": "Restaurado",
+    "purged": "Purgado"
+  },
+  "destination": {
+    "quarantine": "Cuarentena",
+    "trash": "Papelera"
+  },
+  "common": {
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "loadError": "No se pudieron cargar los datos de limpieza",
+    "actionFailed": "La acción falló"
+  },
+  "template": {
+    "oldUnwatchedLowRes": {
+      "name": "Películas viejas, no vistas, de baja resolución",
+      "desc": "Películas estrenadas antes de 2001, nunca vistas, por debajo de 1080p.",
+      "rationale": "Las películas viejas de baja resolución que nadie ha reproducido son lo más seguro para recuperar primero. Requiere aprobación."
+    },
+    "lowUse10bit": {
+      "name": "Medios de 10 bits de poco uso",
+      "desc": "Codificaciones de 10 bits con pocas reproducciones completas.",
+      "rationale": "Solo informe: 10 bits suele ser la mejor codificación, así que esto se marca para revisión en vez de eliminación."
+    },
+    "supersededH264": {
+      "name": "H.264 de 8 bits reemplazado con un sustituto verificado",
+      "desc": "Archivos H.264 de 8 bits donde ya existe una copia igual o mejor.",
+      "rationale": "Cuarentena, requiere aprobación: solo con un reemplazo sobreviviente verificado."
+    }
+  }
+}

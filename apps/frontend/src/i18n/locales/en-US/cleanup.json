@@ -1,0 +1,250 @@
+{
+  "center": {
+    "title": "Cleanup Center",
+    "subtitle": "Policy-driven, explainable, reversible reclamation of library storage.",
+    "howItWorks": "Cleanup proposes; people decide. A run turns policy matches into candidates — nothing is removed. A candidate becomes an action only inside an approved plan whose fingerprints still match the world, and every removal lands in Trash or Quarantine, both recoverable.",
+    "stat": {
+      "policies": "Policies",
+      "enabled": "Enabled",
+      "pendingApproval": "Awaiting approval",
+      "quarantined": "In quarantine",
+      "protections": "Protections",
+      "reclaimable": "Reclaimable"
+    },
+    "tile": {
+      "policies": "Policies",
+      "policiesDesc": "Versioned cleanup policies and their conditions",
+      "runs": "Runs",
+      "runsDesc": "Scans and the candidates they produced",
+      "plans": "Plans & approvals",
+      "plansDesc": "Review and approve what a run proposed",
+      "quarantine": "Quarantine",
+      "quarantineDesc": "Held files, restore or purge",
+      "protections": "Protections",
+      "protectionsDesc": "What automatic cleanup may never touch"
+    }
+  },
+  "policies": {
+    "title": "Cleanup Policies",
+    "subtitle": "A policy is a draft plus frozen published versions. Publishing does not enable it — arming a destructive policy is a separate, deliberate act.",
+    "new": "New policy",
+    "fromTemplate": "From template",
+    "empty": "No cleanup policies yet",
+    "emptyDesc": "Start from a template or create an empty policy, then publish and enable it when you are ready.",
+    "col": {
+      "name": "Name",
+      "mode": "Mode",
+      "status": "Status",
+      "enabled": "Enabled",
+      "lastRun": "Last run",
+      "actions": "Actions"
+    },
+    "action": {
+      "simulate": "Simulate",
+      "run": "Run",
+      "publish": "Publish",
+      "enable": "Enable",
+      "disable": "Disable",
+      "archive": "Archive",
+      "delete": "Delete",
+      "editDraft": "Edit draft"
+    },
+    "create": {
+      "title": "New cleanup policy",
+      "name": "Name",
+      "description": "Description",
+      "submit": "Create policy",
+      "templateTitle": "Create from template",
+      "template": "Template"
+    },
+    "draft": {
+      "title": "Policy document (draft)",
+      "help": "The policy is a JSON document evaluated by the platform's constrained engine — there is no code and nothing executable. A full visual condition builder is planned; for now, edit the document directly.",
+      "save": "Save draft",
+      "validate": "Validate",
+      "valid": "Document is valid",
+      "invalid": "Document has errors",
+      "warnings": "Warnings"
+    },
+    "confirmDelete": "Delete this policy and all its versions? This cannot be undone.",
+    "confirmEnable": "Enable this policy? An enabled, published policy can be run by a schedule or trigger.",
+    "publishFirst": "Publish the policy before running it."
+  },
+  "runs": {
+    "title": "Cleanup Runs",
+    "subtitle": "A run walks a policy's scope and records what it found. It produces candidates, never deletions.",
+    "empty": "No runs yet",
+    "emptyDesc": "Run or simulate a policy to see candidates here.",
+    "col": {
+      "policy": "Policy",
+      "trigger": "Trigger",
+      "status": "Status",
+      "scanned": "Scanned",
+      "eligible": "Eligible",
+      "excluded": "Excluded",
+      "reclaimable": "Reclaimable",
+      "started": "Started"
+    },
+    "cancel": "Cancel",
+    "viewCandidates": "View candidates",
+    "candidates": {
+      "title": "Candidates",
+      "eligibleOnly": "Eligible",
+      "excludedOnly": "Excluded",
+      "empty": "No candidates in this view",
+      "col": {
+        "path": "Path",
+        "size": "Size",
+        "status": "Status",
+        "reason": "Reason",
+        "rank": "Rank"
+      },
+      "buildPlan": "Build plan from selected",
+      "selected": "{{count}} selected"
+    }
+  },
+  "plans": {
+    "title": "Plans & Approvals",
+    "subtitle": "A plan pins the policy version and each candidate's fingerprint, so what you approve is exactly what runs. Approval grants permission to act; execution acts, re-checking everything first.",
+    "empty": "No plans yet",
+    "emptyDesc": "Build a plan from a run's candidates to see it here.",
+    "col": {
+      "destination": "Destination",
+      "status": "Status",
+      "files": "Files",
+      "reclaimable": "Reclaimable",
+      "expires": "Expires",
+      "created": "Created"
+    },
+    "action": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "execute": "Execute",
+      "cancel": "Cancel",
+      "viewActions": "View files"
+    },
+    "expired": "Expired",
+    "confirmApprove": "Approve this plan? It grants permission to remove the listed files to {{destination}}.",
+    "confirmExecute": "Execute this plan now? Each file is re-checked immediately before it is touched; anything protected, locked, busy or changed is skipped.",
+    "rejectReason": "Why are you rejecting this plan?",
+    "cancelReason": "Reason (optional)",
+    "executed": "Executed: {{completed}} done, {{skipped}} skipped, {{failed}} failed",
+    "actions": {
+      "title": "Plan files",
+      "col": {
+        "path": "Path",
+        "action": "Action",
+        "status": "Status",
+        "size": "Size",
+        "reason": "Reason"
+      }
+    }
+  },
+  "quarantine": {
+    "title": "Quarantine",
+    "subtitle": "Held files, moved out of the library but never deleted. Restore puts a file back exactly where it came from; purge is the one irreversible step.",
+    "empty": "Quarantine is empty",
+    "emptyDesc": "Files a cleanup plan quarantined will appear here until restored or purged.",
+    "col": {
+      "path": "Original path",
+      "size": "Size",
+      "status": "Status",
+      "deadline": "Restore by",
+      "quarantined": "Quarantined"
+    },
+    "restore": "Restore",
+    "purge": "Purge",
+    "confirmRestore": "Restore this file to its original location?",
+    "confirmPurge": "Permanently delete this file? This bypasses Trash and cannot be undone.",
+    "overwrite": "Overwrite whatever is now at the original path"
+  },
+  "protections": {
+    "title": "Protections",
+    "subtitle": "A protection tells automatic cleanup it may never touch something. Conditional protections fail closed; a legal hold cannot be lifted by an ordinary operator.",
+    "new": "New protection",
+    "empty": "No protections yet",
+    "emptyDesc": "Protect a file, library, show, tag or path so cleanup can never remove it.",
+    "expiringSoon": "{{count}} protection expiring soon",
+    "expiringSoon_other": "{{count}} protections expiring soon",
+    "col": {
+      "target": "Target",
+      "type": "Type",
+      "reason": "Reason",
+      "expires": "Expires",
+      "created": "Created"
+    },
+    "revoke": "Revoke",
+    "confirmRevoke": "Revoke this protection? Cleanup will be free to act on the target again.",
+    "revokeReason": "Why are you revoking this protection?",
+    "create": {
+      "title": "New protection",
+      "targetType": "Target type",
+      "protectionType": "Protection type",
+      "reason": "Reason",
+      "reasonPlaceholder": "Why this exists — required for the audit trail",
+      "target": "Target",
+      "libraryId": "Library",
+      "pathPrefix": "Path prefix",
+      "mediaItemId": "Media item id",
+      "protectedUntil": "Protected until",
+      "submit": "Create protection"
+    }
+  },
+  "mode": {
+    "report_only": "Report only",
+    "approval_required": "Approval required",
+    "auto_quarantine": "Auto quarantine",
+    "auto_trash": "Auto trash"
+  },
+  "status": {
+    "draft": "Draft",
+    "validation_failed": "Invalid",
+    "ready": "Ready",
+    "published": "Published",
+    "disabled": "Disabled",
+    "archived": "Archived",
+    "queued": "Queued",
+    "running": "Running",
+    "completed": "Completed",
+    "partial": "Partial",
+    "failed": "Failed",
+    "cancelling": "Cancelling",
+    "cancelled": "Cancelled",
+    "pending_approval": "Awaiting approval",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "executing": "Executing",
+    "expired": "Expired",
+    "quarantined": "Quarantined",
+    "restored": "Restored",
+    "purged": "Purged"
+  },
+  "destination": {
+    "quarantine": "Quarantine",
+    "trash": "Trash"
+  },
+  "common": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "close": "Close",
+    "loadError": "Could not load cleanup data",
+    "actionFailed": "Action failed"
+  },
+  "template": {
+    "oldUnwatchedLowRes": {
+      "name": "Old, unwatched, low-resolution movies",
+      "desc": "Movies released before 2001, never watched, below 1080p.",
+      "rationale": "Old low-res films nobody has played are the safest first thing to reclaim. Approval required."
+    },
+    "lowUse10bit": {
+      "name": "Low-use 10-bit media",
+      "desc": "10-bit encodes with few completed plays.",
+      "rationale": "Report only — 10-bit is usually the better encode, so this flags for review rather than removal."
+    },
+    "supersededH264": {
+      "name": "Superseded 8-bit H.264 with a verified replacement",
+      "desc": "8-bit H.264 files where an equal-or-better copy already exists.",
+      "rationale": "Quarantine, approval required — only ever with a verified surviving replacement."
+    }
+  }
+}

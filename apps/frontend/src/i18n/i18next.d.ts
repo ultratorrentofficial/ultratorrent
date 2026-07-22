@@ -24,6 +24,7 @@ import type workflows from './locales/en-US/workflows.json';
 import type dashboard from './locales/en-US/dashboard.json';
 import type account from './locales/en-US/account.json';
 import type system from './locales/en-US/system.json';
+import type cleanup from './locales/en-US/cleanup.json';
 
 // Type the default namespace + resource shape so `t()` keys are checked against
 // the en-US bundles (the canonical shape). Both languages share this shape.
@@ -56,6 +57,7 @@ declare module 'i18next' {
       dashboard: typeof dashboard;
       account: typeof account;
       system: typeof system;
+      cleanup: typeof cleanup;
     };
   }
 }

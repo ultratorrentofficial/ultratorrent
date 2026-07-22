@@ -44,6 +44,13 @@ import { MediaItemsPage } from '@/pages/media-manager/MediaItemsPage';
 import { MediaDetailPage } from '@/pages/media-manager/MediaDetailPage';
 import { MediaUnmatchedPage } from '@/pages/media-manager/MediaUnmatchedPage';
 import { MediaDuplicatesPage } from '@/pages/media-manager/MediaDuplicatesPage';
+import { CleanupCenterPage } from '@/pages/cleanup/CleanupCenterPage';
+import { CleanupPoliciesPage } from '@/pages/cleanup/CleanupPoliciesPage';
+import { CleanupRunsPage } from '@/pages/cleanup/CleanupRunsPage';
+import { CleanupRunDetailPage } from '@/pages/cleanup/CleanupRunDetailPage';
+import { CleanupPlansPage } from '@/pages/cleanup/CleanupPlansPage';
+import { CleanupQuarantinePage } from '@/pages/cleanup/CleanupQuarantinePage';
+import { CleanupProtectionsPage } from '@/pages/cleanup/CleanupProtectionsPage';
 import { MediaRenamePreviewPage } from '@/pages/media-manager/MediaRenamePreviewPage';
 import { MediaSettingsPage } from '@/pages/media-manager/MediaSettingsPage';
 import { MediaImdbSettingsPage } from '@/pages/media-manager/MediaImdbSettingsPage';
@@ -259,6 +266,27 @@ export function App() {
                           </ModuleRoute>
                         }
                       />
+                    </Route>
+                  </Route>
+
+                  {/* Library Cleanup Center — core module `library_cleanup`. Base
+                      view gated by LIBRARY_CLEANUP_VIEW; action-level permissions
+                      (approve, trash, permanent_delete, protection.*) are enforced
+                      inside each page and, authoritatively, on the server. */}
+                  <Route element={<ProtectedRoute permission={PERMISSIONS.LIBRARY_CLEANUP_VIEW} />}>
+                    <Route element={<AppShell />}>
+                      <Route path="/media/cleanup" element={<ModuleRoute moduleId="library_cleanup"><CleanupCenterPage /></ModuleRoute>} />
+                      <Route path="/media/cleanup/policies" element={<ModuleRoute moduleId="library_cleanup"><CleanupPoliciesPage /></ModuleRoute>} />
+                      <Route path="/media/cleanup/runs" element={<ModuleRoute moduleId="library_cleanup"><CleanupRunsPage /></ModuleRoute>} />
+                      <Route path="/media/cleanup/runs/:runId" element={<ModuleRoute moduleId="library_cleanup"><CleanupRunDetailPage /></ModuleRoute>} />
+                      <Route path="/media/cleanup/plans" element={<ModuleRoute moduleId="library_cleanup"><CleanupPlansPage /></ModuleRoute>} />
+                      <Route path="/media/cleanup/quarantine" element={<ModuleRoute moduleId="library_cleanup"><CleanupQuarantinePage /></ModuleRoute>} />
+                    </Route>
+                  </Route>
+                  {/* Protections carry their own view permission. */}
+                  <Route element={<ProtectedRoute permission={PERMISSIONS.LIBRARY_CLEANUP_PROTECTION_VIEW} />}>
+                    <Route element={<AppShell />}>
+                      <Route path="/media/cleanup/protections" element={<ModuleRoute moduleId="library_cleanup"><CleanupProtectionsPage /></ModuleRoute>} />
                     </Route>
                   </Route>
 

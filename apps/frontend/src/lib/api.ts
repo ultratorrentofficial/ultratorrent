@@ -2832,6 +2832,199 @@ export interface ProwlarrStatusResult {
   message: string;
 }
 
+// ── Library Cleanup Center ──────────────────────────────────────────────────
+export interface CleanupConditionDef {
+  id: string;
+  group: string;
+  label: string;
+  valueType: string;
+  operators: string[];
+  requiresMeasuredData?: boolean;
+  enumValues?: string[];
+  description?: string;
+}
+export interface CleanupCatalog {
+  schemaVersion: number;
+  conditions: CleanupConditionDef[];
+  limits: Record<string, number>;
+  operators: string[];
+}
+export interface CleanupTemplate {
+  key: string;
+  /** i18n keys (namespace-qualified as `cleanup.template.*`) resolved on the client. */
+  nameKey: string;
+  descriptionKey: string;
+  rationaleKey: string;
+  category: string;
+  mode: string;
+  destination: string;
+}
+export interface CleanupValidation {
+  valid: boolean;
+  errors: Array<{ path?: string; message: string }>;
+  warnings: Array<{ path?: string; message: string }>;
+}
+export interface CleanupPolicy {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  enabled: boolean;
+  mode: string;
+  scheduleCron: string | null;
+  freeSpaceTriggerPercent: number | null;
+  currentDraftVersionId: string | null;
+  publishedVersionId: string | null;
+  lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface CleanupPolicyVersion {
+  id: string;
+  version: number;
+  document: Record<string, unknown>;
+  changeNotes: string | null;
+  createdAt: string;
+}
+export interface CleanupPolicyDetail {
+  policy: CleanupPolicy;
+  draftVersion: CleanupPolicyVersion | null;
+  publishedVersion: CleanupPolicyVersion | null;
+  /** A human-readable rendering of the active document's conditions. */
+  summary: string | null;
+}
+/** `createPolicy` returns a flat policy; the from-template and draft-save paths wrap it. */
+export interface CleanupPolicyMutationResult {
+  policy: CleanupPolicy;
+  versionId?: string;
+  validation?: CleanupValidation;
+}
+export interface CleanupPolicyQuery { page?: number; pageSize?: number; status?: string }
+export interface CleanupRun {
+  id: string;
+  policyId: string;
+  policyVersionId: string;
+  trigger: string;
+  status: string;
+  simulate: boolean;
+  jobId: string | null;
+  filesScanned: number;
+  itemsEvaluated: number;
+  candidatesMatched: number;
+  candidatesExcluded: number;
+  candidatesEligible: number;
+  estimatedReclaimBytes: number | string;
+  exclusionBreakdown: Record<string, number> | null;
+  errorSummary: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+export interface CleanupRunQuery { page?: number; pageSize?: number; policyId?: string; status?: string }
+export interface CleanupCandidate {
+  id: string;
+  runId: string;
+  mediaItemId: string | null;
+  mediaFileId: string | null;
+  path: string;
+  fileSizeBytes: number | string;
+  status: string;
+  exclusionReason: string | null;
+  fingerprint: string;
+  reasonSnapshot: Record<string, unknown>;
+  rankScore: number | null;
+  rankReasons: Array<{ factor: string; points: number; detail: string }> | null;
+  estimatedReclaimBytes: number | string;
+}
+export interface CleanupCandidateQuery { page?: number; pageSize?: number; status?: string; sort?: string }
+export interface CleanupCreatePlan {
+  candidateIds: string[];
+  destination?: string;
+  retentionDays?: number;
+  expiresInHours?: number;
+  notes?: string;
+}
+export interface CleanupPlan {
+  id: string;
+  runId: string;
+  policyVersionId: string;
+  status: string;
+  action: string;
+  retentionDays: number | null;
+  candidateCount: number;
+  estimatedReclaimBytes: number | string;
+  actualReclaimBytes: number | string;
+  createdById: string | null;
+  approvedById: string | null;
+  approvedAt: string | null;
+  rejectedById: string | null;
+  rejectionReason: string | null;
+  expiresAt: string | null;
+  executedAt: string | null;
+  errorSummary: string | null;
+  createdAt: string;
+  skippedProtected?: number;
+}
+export interface CleanupPlanDetail extends CleanupPlan {
+  expired: boolean;
+  actionCounts: Record<string, number>;
+}
+export interface CleanupPlanQuery { page?: number; pageSize?: number; runId?: string; status?: string }
+export interface CleanupAction {
+  id: string;
+  planId: string;
+  candidateId: string;
+  actionType: string;
+  status: string;
+  sourcePath: string;
+  destinationPath: string | null;
+  fileSizeBytes: number | string;
+  reclaimedBytes: number | string;
+  skipReason: string | null;
+  errorMessage: string | null;
+}
+export interface CleanupQuarantineItem {
+  id: string;
+  planId: string | null;
+  mediaItemId: string | null;
+  mediaFileId: string | null;
+  originalPath: string;
+  quarantinePath: string;
+  storageRoot: string;
+  fileSizeBytes: number | string;
+  status: string;
+  restoreDeadline: string | null;
+  quarantinedAt: string;
+  restoredAt: string | null;
+  purgedAt: string | null;
+}
+export interface CleanupQuarantineQuery { page?: number; pageSize?: number; status?: string; planId?: string }
+export interface CleanupProtection {
+  id: string;
+  targetType: string;
+  protectionType: string;
+  reason: string;
+  mediaItemId: string | null;
+  mediaFileId: string | null;
+  mediaLibraryId: string | null;
+  pathPrefix?: string | null;
+  protectedUntil: string | null;
+  revokedAt: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+}
+export interface CleanupProtectionQuery { page?: number; pageSize?: number; protectionType?: string; targetType?: string; includeRevoked?: boolean }
+export interface CleanupCreateProtection {
+  targetType: string;
+  protectionType: string;
+  reason: string;
+  mediaItemId?: string;
+  mediaFileId?: string;
+  mediaLibraryId?: string;
+  pathPrefix?: string;
+  protectedUntil?: string;
+}
+
 export const api = {
   auth: {
     async login(
@@ -4446,6 +4639,122 @@ export const api = {
     },
     updateSettings(body: Partial<NotificationSettings>): Promise<NotificationSettings> {
       return request<NotificationSettings>('/notifications/settings', { method: 'PATCH', body });
+    },
+  },
+
+  // Library Cleanup Center — /api/media/cleanup/*. Nothing here removes a file:
+  // runs produce candidates, plans are approved, and only `executePlan` acts —
+  // and even that lands in Trash or Quarantine, both reversible.
+  cleanup: {
+    catalog(): Promise<CleanupCatalog> {
+      return request<CleanupCatalog>('/media/cleanup/catalog');
+    },
+    templates(): Promise<CleanupTemplate[]> {
+      return request<CleanupTemplate[]>('/media/cleanup/templates');
+    },
+    validate(document: unknown): Promise<CleanupValidation> {
+      return request<CleanupValidation>('/media/cleanup/validate', { method: 'POST', body: { document } });
+    },
+    // Policies
+    listPolicies(query: CleanupPolicyQuery = {}): Promise<Paginated<CleanupPolicy>> {
+      return request<Paginated<CleanupPolicy>>('/media/cleanup/policies', { query: query as QueryParams });
+    },
+    getPolicy(id: string): Promise<CleanupPolicyDetail> {
+      return request<CleanupPolicyDetail>(`/media/cleanup/policies/${id}`);
+    },
+    createPolicy(body: { name: string; description?: string }): Promise<CleanupPolicy> {
+      return request<CleanupPolicy>('/media/cleanup/policies', { method: 'POST', body });
+    },
+    createFromTemplate(body: { templateKey: string; name: string }): Promise<CleanupPolicyMutationResult> {
+      return request<CleanupPolicyMutationResult>('/media/cleanup/policies/from-template', { method: 'POST', body });
+    },
+    updatePolicy(id: string, body: { name?: string; description?: string }): Promise<CleanupPolicy> {
+      return request<CleanupPolicy>(`/media/cleanup/policies/${id}`, { method: 'PATCH', body });
+    },
+    saveDraft(id: string, document: unknown, changeNotes?: string): Promise<CleanupPolicyMutationResult> {
+      return request<CleanupPolicyMutationResult>(`/media/cleanup/policies/${id}/draft`, { method: 'PUT', body: { document, changeNotes } });
+    },
+    publishPolicy(id: string, changeNotes?: string): Promise<CleanupPolicy> {
+      return request<CleanupPolicy>(`/media/cleanup/policies/${id}/publish`, { method: 'POST', body: { changeNotes } });
+    },
+    enablePolicy(id: string): Promise<CleanupPolicy> {
+      return request<CleanupPolicy>(`/media/cleanup/policies/${id}/enable`, { method: 'POST', body: {} });
+    },
+    disablePolicy(id: string): Promise<CleanupPolicy> {
+      return request<CleanupPolicy>(`/media/cleanup/policies/${id}/disable`, { method: 'POST', body: {} });
+    },
+    archivePolicy(id: string): Promise<CleanupPolicy> {
+      return request<CleanupPolicy>(`/media/cleanup/policies/${id}/archive`, { method: 'POST', body: {} });
+    },
+    deletePolicy(id: string): Promise<void> {
+      return request<void>(`/media/cleanup/policies/${id}`, { method: 'DELETE' });
+    },
+    simulate(id: string): Promise<CleanupRun> {
+      return request<CleanupRun>(`/media/cleanup/policies/${id}/simulate`, { method: 'POST', body: {} });
+    },
+    run(id: string): Promise<CleanupRun> {
+      return request<CleanupRun>(`/media/cleanup/policies/${id}/run`, { method: 'POST', body: {} });
+    },
+    // Runs & candidates
+    listRuns(query: CleanupRunQuery = {}): Promise<Paginated<CleanupRun>> {
+      return request<Paginated<CleanupRun>>('/media/cleanup/runs', { query: query as QueryParams });
+    },
+    getRun(runId: string): Promise<CleanupRun> {
+      return request<CleanupRun>(`/media/cleanup/runs/${runId}`);
+    },
+    cancelRun(runId: string): Promise<{ status: string }> {
+      return request<{ status: string }>(`/media/cleanup/runs/${runId}/cancel`, { method: 'POST', body: {} });
+    },
+    listCandidates(runId: string, query: CleanupCandidateQuery = {}): Promise<Paginated<CleanupCandidate>> {
+      return request<Paginated<CleanupCandidate>>(`/media/cleanup/runs/${runId}/candidates`, { query: query as QueryParams });
+    },
+    createPlan(runId: string, body: CleanupCreatePlan): Promise<CleanupPlan> {
+      return request<CleanupPlan>(`/media/cleanup/runs/${runId}/plans`, { method: 'POST', body });
+    },
+    // Plans & approvals
+    listPlans(query: CleanupPlanQuery = {}): Promise<Paginated<CleanupPlan>> {
+      return request<Paginated<CleanupPlan>>('/media/cleanup/plans', { query: query as QueryParams });
+    },
+    getPlan(planId: string): Promise<CleanupPlanDetail> {
+      return request<CleanupPlanDetail>(`/media/cleanup/plans/${planId}`);
+    },
+    listActions(planId: string, query: { page?: number; pageSize?: number; status?: string } = {}): Promise<Paginated<CleanupAction>> {
+      return request<Paginated<CleanupAction>>(`/media/cleanup/plans/${planId}/actions`, { query: query as QueryParams });
+    },
+    approvePlan(planId: string): Promise<CleanupPlan> {
+      return request<CleanupPlan>(`/media/cleanup/plans/${planId}/approve`, { method: 'POST', body: {} });
+    },
+    rejectPlan(planId: string, reason: string): Promise<CleanupPlan> {
+      return request<CleanupPlan>(`/media/cleanup/plans/${planId}/reject`, { method: 'POST', body: { reason } });
+    },
+    cancelPlan(planId: string, reason?: string): Promise<CleanupPlan> {
+      return request<CleanupPlan>(`/media/cleanup/plans/${planId}/cancel`, { method: 'POST', body: { reason } });
+    },
+    executePlan(planId: string): Promise<CleanupPlan & { completed: number; skipped: number; failed: number }> {
+      return request(`/media/cleanup/plans/${planId}/execute`, { method: 'POST', body: {} });
+    },
+    // Quarantine
+    listQuarantine(query: CleanupQuarantineQuery = {}): Promise<Paginated<CleanupQuarantineItem>> {
+      return request<Paginated<CleanupQuarantineItem>>('/media/cleanup/quarantine', { query: query as QueryParams });
+    },
+    restoreQuarantine(id: string, overwrite = false): Promise<CleanupQuarantineItem> {
+      return request<CleanupQuarantineItem>(`/media/cleanup/quarantine/${id}/restore`, { method: 'POST', body: { overwrite } });
+    },
+    purgeQuarantine(id: string): Promise<CleanupQuarantineItem> {
+      return request<CleanupQuarantineItem>(`/media/cleanup/quarantine/${id}/purge`, { method: 'POST', body: {} });
+    },
+    // Protections
+    listProtections(query: CleanupProtectionQuery = {}): Promise<Paginated<CleanupProtection>> {
+      return request<Paginated<CleanupProtection>>('/media/cleanup/protections', { query: query as QueryParams });
+    },
+    expiringProtections(withinDays = 14): Promise<CleanupProtection[]> {
+      return request<CleanupProtection[]>('/media/cleanup/protections/expiring', { query: { withinDays } });
+    },
+    createProtection(body: CleanupCreateProtection): Promise<CleanupProtection> {
+      return request<CleanupProtection>('/media/cleanup/protections', { method: 'POST', body });
+    },
+    revokeProtection(id: string, reason: string): Promise<CleanupProtection> {
+      return request<CleanupProtection>(`/media/cleanup/protections/${id}/revoke`, { method: 'POST', body: { reason } });
     },
   },
 
