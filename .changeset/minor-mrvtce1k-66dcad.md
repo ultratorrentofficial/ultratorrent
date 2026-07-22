@@ -1,0 +1,5 @@
+---
+"ultratorrent": minor
+---
+
+Library Cleanup Center Phase 4 (part 1) — protection matcher. The pure, exhaustively-tested core of the Protection Registry: given a target and the stored protections, decide whether automatic cleanup is forbidden and why. Matches by stable database identity across all twelve scopes (file, item, show, season, episode, library, path prefix, tag, collection, watchlist, torrent, external identity); canonicalPathSnapshot is deliberately NOT consulted, since a moved file is still the same file and matching on its old path would both miss it and protect whatever now occupies that path. Path-prefix matching respects path-segment boundaries so /media/Movies cannot protect /media/Movies2, and normalises traversal first. Revoked and lapsed temporary protections stop protecting; permanent ones never lapse; legal holds are surfaced distinctly so an ordinary operator cannot lift one. Conditional protections FAIL CLOSED — an unknown fact or an unrecognised condition keeps the target protected, because uncertainty must never become deletion. Every matching rule is returned, not just the first, so the UI can explain all of them. 29 tests.
