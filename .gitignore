@@ -61,3 +61,8 @@ tmp/
 
 # Recall session logs (local tooling scratch; history.md runs to megabytes).
 .recall/
+
+# Private host inventory for docs/OPERATIONS.md — real aliases/addresses/paths.
+# The repo is public; identities never go in it.
+ops/hosts.local.md
+ops/*.local.md
