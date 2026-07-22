@@ -202,6 +202,13 @@ export const NOTIFICATION_EVENTS = {
   WORKFLOW_EXECUTION_FAILED: 'workflow.execution.failed',
   WORKFLOW_EXECUTION_COMPLETED: 'workflow.execution.completed',
   WORKFLOW_APPROVAL_REQUESTED: 'workflow.approval.requested',
+
+  // Library Cleanup Center — a cleanup plan is the only thing that can remove a
+  // file, so every decision on one is something an operator may want told about.
+  LIBRARY_CLEANUP_PLAN_PENDING_APPROVAL: 'library_cleanup.plan.pending_approval',
+  LIBRARY_CLEANUP_PLAN_APPROVED: 'library_cleanup.plan.approved',
+  LIBRARY_CLEANUP_PLAN_REJECTED: 'library_cleanup.plan.rejected',
+  LIBRARY_CLEANUP_PLAN_EXPIRED: 'library_cleanup.plan.expired',
 } as const;
 
 /**

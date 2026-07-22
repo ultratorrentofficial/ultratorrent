@@ -14,8 +14,9 @@ interface SeedRule {
 }
 
 /**
- * The default, fully-editable notification catalog. Seeded once (when no system
- * rules exist) so nothing is hardcoded — admins edit/disable/delete freely.
+ * The default, fully-editable notification catalog. Each entry is seeded exactly
+ * once, ever (see `seedRules`) so nothing is hardcoded — admins edit/disable/delete
+ * freely, and an entry added in a later release still reaches an existing install.
  * Rules target the Administrators group and the default channel(s); they match
  * immediately but only deliver once a channel is configured.
  */
@@ -81,7 +82,16 @@ const CATALOG: SeedRule[] = [
   { name: 'Workflow Failed', event: E.WORKFLOW_EXECUTION_FAILED, enabled: true, severity: 'critical', description: 'A workflow execution ended in failure.' },
   { name: 'Workflow Completed', event: E.WORKFLOW_EXECUTION_COMPLETED, enabled: false, severity: 'info' },
   { name: 'Workflow Approval Requested', event: E.WORKFLOW_APPROVAL_REQUESTED, enabled: true, severity: 'warning', description: 'A workflow is paused awaiting an approval decision.' },
+  // Library Cleanup Center — on by default except the routine approval, because a
+  // cleanup plan is the only thing in the platform that can remove a media file.
+  { name: 'Cleanup Plan Awaiting Approval', event: E.LIBRARY_CLEANUP_PLAN_PENDING_APPROVAL, enabled: true, severity: 'warning', description: 'A library cleanup plan is waiting for a decision before anything is removed.' },
+  { name: 'Cleanup Plan Approved', event: E.LIBRARY_CLEANUP_PLAN_APPROVED, enabled: true, severity: 'warning', description: 'A library cleanup plan was approved and may now execute.' },
+  { name: 'Cleanup Plan Rejected', event: E.LIBRARY_CLEANUP_PLAN_REJECTED, enabled: false, severity: 'info' },
+  { name: 'Cleanup Plan Expired', event: E.LIBRARY_CLEANUP_PLAN_EXPIRED, enabled: true, severity: 'info', description: 'A cleanup plan expired undecided; its snapshot is too old to act on.' },
 ];
+
+/** Records which catalog events have been seeded, so a new one lands on upgrade. */
+const SEEDED_RULES_KEY = 'notification_center.seeded_rule_events';
 
 @Injectable()
 export class NotificationSeedService implements OnModuleInit {
@@ -102,6 +112,12 @@ export class NotificationSeedService implements OnModuleInit {
     }
   }
 
+  /** Which catalog events have ever been seeded. Absent on installs predating this. */
+  private async loadSeededEvents(): Promise<string[]> {
+    const row = await this.prisma.setting.findUnique({ where: { key: SEEDED_RULES_KEY } });
+    return Array.isArray(row?.value) ? (row.value as unknown[]).map(String) : [];
+  }
+
   private async seedGroups(): Promise<string> {
     const existing = await this.prisma.notificationRecipientGroup.count({ where: { system: true } });
     if (existing === 0) {
@@ -118,22 +134,53 @@ export class NotificationSeedService implements OnModuleInit {
     return admins?.id ?? '';
   }
 
+  /**
+   * Seed each catalog entry EXACTLY ONCE, ever.
+   *
+   * This used to bail out entirely once any system rule existed, which protected
+   * admin edits but meant a catalog entry added in a later release never reached an
+   * existing install — the event simply never notified anyone, silently. Keying off
+   * "does a rule for this event exist" would instead resurrect one an admin
+   * deliberately deleted, so the seeded set is recorded in `settings` and consulted
+   * here: a new entry lands on upgrade, and nothing already decided is revisited.
+   */
   private async seedRules(adminsGroupId: string): Promise<void> {
-    const existing = await this.prisma.notificationRule.count({ where: { system: true } });
-    if (existing > 0) return; // already seeded — never clobber admin edits
-    await this.prisma.notificationRule.createMany({
-      data: CATALOG.map((r) => ({
-        name: r.name,
-        description: r.description ?? null,
-        enabled: r.enabled,
-        event: r.event,
-        severity: r.severity,
-        recipients: { groupIds: adminsGroupId ? [adminsGroupId] : [], mapEventUser: false } as object,
-        channelIds: [] as object,
-        conditions: [] as object,
-        system: true,
-      })),
+    const seeded = new Set(await this.loadSeededEvents());
+
+    // First run on an install that predates the marker: treat every rule already
+    // present as seeded, so an upgrade does not duplicate the original catalog.
+    if (seeded.size === 0) {
+      const existing = await this.prisma.notificationRule.findMany({
+        where: { system: true }, select: { event: true },
+      });
+      for (const row of existing) seeded.add(row.event);
+    }
+
+    const missing = CATALOG.filter((r) => !seeded.has(r.event));
+    if (missing.length) {
+      await this.prisma.notificationRule.createMany({
+        data: missing.map((r) => ({
+          name: r.name,
+          description: r.description ?? null,
+          enabled: r.enabled,
+          event: r.event,
+          severity: r.severity,
+          recipients: { groupIds: adminsGroupId ? [adminsGroupId] : [], mapEventUser: false } as object,
+          channelIds: [] as object,
+          conditions: [] as object,
+          system: true,
+        })),
+      });
+      // Name them only for a backfill — a fresh install seeds the whole catalog and
+      // 59 event names in one line is noise, not information.
+      const detail = missing.length <= 10 ? `: ${missing.map((r) => r.event).join(', ')}` : '';
+      this.logger.log(`Seeded ${missing.length} notification rule(s)${detail}`);
+    }
+
+    await this.prisma.setting.upsert({
+      where: { key: SEEDED_RULES_KEY },
+      create: { key: SEEDED_RULES_KEY, value: CATALOG.map((r) => r.event) },
+      update: { value: [...new Set([...seeded, ...CATALOG.map((r) => r.event)])] },
     });
-    this.logger.log(`Seeded ${CATALOG.length} default notification rules`);
   }
 }

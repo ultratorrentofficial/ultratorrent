@@ -8,6 +8,7 @@ import { CurrentUser, AuthenticatedUser } from '../../../common/decorators/curre
 import { ProtectionService } from './protection.service';
 import { PolicyService } from './policy.service';
 import { CandidateDiscoveryService } from './candidate-discovery.service';
+import { PlanService } from './plan.service';
 import {
   BulkCreateProtectionDto, CreateProtectionDto, ExpiringQueryDto,
   ProtectionListQueryDto, RevokeProtectionDto,
@@ -17,6 +18,9 @@ import {
   SavePolicyDraftDto, UpdatePolicyDto, ValidatePolicyDto, CreateFromTemplateDto,
 } from './dto/policy.dto';
 import { CandidateListQueryDto, RunListQueryDto } from './dto/run.dto';
+import {
+  ActionListQueryDto, CancelPlanDto, CreatePlanDto, PlanListQueryDto, RejectPlanDto,
+} from './dto/plan.dto';
 
 /**
  * Library Cleanup Center. Static routes are declared BEFORE any `:id` route so
@@ -31,6 +35,7 @@ export class CleanupController {
     private readonly protections: ProtectionService,
     private readonly policies: PolicyService,
     private readonly discovery: CandidateDiscoveryService,
+    private readonly plans: PlanService,
   ) {}
 
   // ── Catalogue & stateless validation ───────────────────────────────────────
@@ -166,6 +171,72 @@ export class CleanupController {
   @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
   listCandidates(@Param('runId') runId: string, @Query() query: CandidateListQueryDto) {
     return this.discovery.listCandidates(runId, query);
+  }
+
+  // ── Plans & approvals ──────────────────────────────────────────────────────
+  /**
+   * Build a plan from a run's candidates. The body carries CANDIDATE IDS only —
+   * never paths, never media file ids — so a request cannot name a file the policy
+   * did not match. There is deliberately no update endpoint: a plan changes only
+   * through a decision below.
+   */
+  @Post('runs/:runId/plans')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_RUN)
+  createPlan(
+    @Param('runId') runId: string,
+    @Body() dto: CreatePlanDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.plans.createPlan(runId, dto, user);
+  }
+
+  @Get('plans')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
+  listPlans(@Query() query: PlanListQueryDto) {
+    return this.plans.listPlans(query);
+  }
+
+  @Get('plans/:planId')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
+  getPlan(@Param('planId') planId: string) {
+    return this.plans.getPlan(planId);
+  }
+
+  @Get('plans/:planId/actions')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
+  listPlanActions(@Param('planId') planId: string, @Query() query: ActionListQueryDto) {
+    return this.plans.listActions(planId, query);
+  }
+
+  /**
+   * Approving grants permission to act; it does not act. The service additionally
+   * requires the permission matching the plan's destination, so a role that can
+   * wave through a quarantine cannot thereby wave through a delete.
+   */
+  @Post('plans/:planId/approve')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_APPROVE)
+  approvePlan(@Param('planId') planId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.plans.approve(planId, user);
+  }
+
+  @Post('plans/:planId/reject')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_APPROVE)
+  rejectPlan(
+    @Param('planId') planId: string,
+    @Body() dto: RejectPlanDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.plans.reject(planId, dto, user);
+  }
+
+  @Post('plans/:planId/cancel')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_CANCEL)
+  cancelPlan(
+    @Param('planId') planId: string,
+    @Body() dto: CancelPlanDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.plans.cancel(planId, dto, user);
   }
 
   // ── Protections ────────────────────────────────────────────────────────────
