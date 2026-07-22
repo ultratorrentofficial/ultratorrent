@@ -213,6 +213,38 @@ no manifest references, so deleting old **tags** in the registry is a prerequisi
 and the delete API is off unless the registry was started with
 `REGISTRY_STORAGE_DELETE_ENABLED=true`.
 
+### Postgres needs headroom the app never asks for
+
+Disk pressure does not only break deploys. A GIN trigram build on the IMDb catalogue
+spills several GB into `base/pgsql_tmp`, and when the volume is near full it fails
+with:
+
+```
+ERROR: could not write to file "base/pgsql_tmp/…": No space left on device
+```
+
+The failure is **silent from the application side and self-repeating**: the build dies,
+leaves the index `INVALID`, the next boot dutifully drops and rebuilds it, and it fails
+again — burning 6–10 minutes of CPU and I/O on every restart, indefinitely. The log
+line it produces (`Dropping invalid index … (a previous build was interrupted)`) is
+misleading: nothing interrupted it, it ran out of disk, and the service cannot tell
+those apart.
+
+Two things follow. Size headroom against the *largest table's index build*, not against
+steady-state usage — on a catalogue where `imdb_akas` alone is ~11 GB, a few GB free is
+not enough. And when a trigram index is mysteriously absent, check the Postgres log
+before the application log:
+
+```bash
+df -h /
+grep -E "No space left|CREATE INDEX" /var/log/postgresql/postgresql-*-main.log | tail
+psql -d ultratorrent -tAc "SELECT c.relname, i.indisvalid FROM pg_class c
+  JOIN pg_index i ON i.indexrelid=c.oid WHERE c.relname LIKE '%trgm%'"
+```
+
+`indisvalid = f` with no matching active statement in `pg_stat_activity` means a build
+died, not that one is running.
+
 ---
 
 ## Verification
@@ -240,6 +272,50 @@ h.get({host:"127.0.0.1",port:4000,path:"/api/system/version"},r=>{
 `localhost:4000` may be a *different* service entirely — always check through the
 container.
 
+### Verifying backend shutdown
+
+`ImdbTrigramIndexService` builds the IMDb GIN trigram indexes off the boot path with
+`CREATE INDEX CONCURRENTLY`, which can hold a Postgres connection for minutes. That
+statement used to stall shutdown: `PrismaService.onModuleDestroy` → `$disconnect()`
+waits for in-flight queries, so the process ignored `SIGTERM` until the build ended
+and systemd SIGKILLed it at `TimeoutStopSec`. The service now cancels the build in
+its own `onModuleDestroy` before Prisma disconnects.
+
+**That fix rests on Nest destroying dependents before their dependencies**, so the
+pool is still usable when the hook runs. A mocked Prisma cannot reproduce hook
+ordering or pool draining, so no unit test can catch a regression here — it has to be
+checked against a live process:
+
+```bash
+# 1. Force a build to be in flight (drops the index; it rebuilds on boot)
+psql -d ultratorrent -c 'DROP INDEX IF EXISTS "imdb_akas_title_trgm_idx"'
+systemctl restart ultratorrent-backend
+
+# 2. Confirm one is actually running before testing the cancel
+psql -tAc "SELECT pid, now()-query_start FROM pg_stat_activity
+            WHERE query LIKE 'CREATE INDEX CONCURRENTLY%' AND state='active'"
+
+# 3. Time the stop — seconds, not minutes
+time systemctl stop ultratorrent-backend
+journalctl -u ultratorrent-backend -n 30 | grep -i cancel
+```
+
+Expected: `Cancelling in-flight trigram index build (pid …) for shutdown`, then
+`Trigram index build cancelled for shutdown`, and the stop returns in seconds. If the
+stop instead takes minutes and no cancel line appears, the destroy ordering no longer
+holds and the cancel is silently no-opping.
+
+Note that an interrupted `CONCURRENTLY` build is *expected* to leave the index
+`INVALID` or absent; the next boot drops and rebuilds it. That is normal, not damage.
+
+Two unit settings back this up on a systemd host (record the real paths in
+`ops/hosts.local.md`, not here):
+
+- `Restart=always` — `Restart=on-failure` does **not** restart after a clean stop, so a
+  service stopped by hand or by a rebuild stays dead indefinitely and silently.
+- `TimeoutStopSec` well above the longest plausible build, so a stop that still ends up
+  waiting is not SIGKILLed mid-shutdown.
+
 ---
 
 ## Failure catalogue
@@ -255,6 +331,9 @@ Each of these cost a broken deploy. They are why the rules above exist.
 | 2026-07-14 | Postgres crash-loop, app down mid-deploy | Build cache filled the root disk to 100% | Prune every deploy |
 | 2026-07-21 | `docker compose down` failed, daemon wedged | Profile-gated services skipped, network still attached | `COMPOSE_PROFILES` in `.env` |
 | 2026-07-22 | Deployed image reported `gitSha: null` | Bare `docker compose build` | Build via `docker-build.sh` |
+| 2026-07-22 | Dev 502 on every `/api/` call | Backend stopped 4 days earlier; `Restart=on-failure` does not restart a clean stop | `Restart=always` on the unit |
+| 2026-07-22 | Backend ignored `SIGTERM` for ~8 min | `$disconnect()` waited on a `CREATE INDEX CONCURRENTLY` the service never tracked | Cancel the build in `onModuleDestroy` |
+| 2026-07-22 | IMDb aka lookups doing full scans; index never existed | Root disk at 96%; every GIN build died on `pgsql_tmp` ENOSPC and silently retried each boot | Size headroom for index builds |
 
 Shell gotcha behind the 2026-07-10 entry: `VAR=x cmd1 && cmd2` scopes `VAR` to
 `cmd1` only. For multi-step remote commands use

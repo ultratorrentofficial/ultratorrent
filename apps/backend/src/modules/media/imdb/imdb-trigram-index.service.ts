@@ -1,4 +1,9 @@
-import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 
 /**
@@ -28,16 +33,76 @@ const TRIGRAM_INDEXES = [
  * So: fire-and-forget on boot. The app serves normally while the index builds in
  * the background; a fresh install builds them instantly (empty catalogue) and an
  * existing one back-fills them without downtime. Idempotent — a no-op once built.
+ *
+ * Shutdown is the subtle part — see `onModuleDestroy`.
  */
 @Injectable()
-export class ImdbTrigramIndexService implements OnModuleInit {
+export class ImdbTrigramIndexService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ImdbTrigramIndexService.name);
+  /** The in-flight `ensureIndexes()` run, so shutdown can cancel rather than block. */
+  private building: Promise<void> | null = null;
+  private shuttingDown = false;
 
   constructor(private readonly prisma: PrismaService) {}
 
   onModuleInit(): void {
     // Deliberately NOT awaited: a multi-minute index build must never delay boot.
-    void this.ensureIndexes();
+    // Retained on `building` so shutdown can wait for the cancellation to land.
+    this.building = this.ensureIndexes();
+  }
+
+  /**
+   * A CONCURRENTLY build holds a pool connection for minutes, and
+   * `PrismaService.onModuleDestroy` → `$disconnect()` waits for in-flight queries.
+   * Left alone that stalls shutdown for the rest of the build (~8min measured), so
+   * systemd SIGKILLs at `TimeoutStopSec` and nothing gets to close cleanly.
+   *
+   * So cancel the build in Postgres first, then let the disconnect proceed.
+   *
+   * ORDERING: this only works because Nest destroys dependents before their
+   * dependencies, so this hook runs while the Prisma pool is still usable. If that
+   * ever stops holding, the cancel silently no-ops and the stall quietly returns.
+   * A mocked Prisma cannot reproduce hook ordering or pool draining, so no unit test
+   * can catch that regression — it is verified by a live SIGTERM check instead
+   * (docs/OPERATIONS.md, "Verifying backend shutdown").
+   */
+  async onModuleDestroy(): Promise<void> {
+    this.shuttingDown = true;
+    if (!this.building) return;
+
+    await this.cancelInFlightBuild();
+    await this.building; // ensureIndexes() never rejects
+    this.building = null;
+  }
+
+  /**
+   * Cancel by matching the statement in `pg_stat_activity` rather than a PID captured
+   * up front: Prisma pools connections, so a separately-issued `pg_backend_pid()` can
+   * easily name a different backend than the one running the DDL.
+   */
+  private async cancelInFlightBuild(): Promise<void> {
+    try {
+      // Index names are compile-time constants (see TRIGRAM_INDEXES), never input.
+      const matches = TRIGRAM_INDEXES.map((idx) => `query LIKE '%"${idx.name}"%'`).join(' OR ');
+      const rows = await this.prisma.$queryRawUnsafe<{ pid: number }[]>(
+        `SELECT pid FROM pg_stat_activity
+          WHERE state = 'active'
+            AND datname = current_database()
+            AND pid <> pg_backend_pid()
+            AND query LIKE 'CREATE INDEX CONCURRENTLY%'
+            AND (${matches})`,
+      );
+      if (!rows.length) return; // nothing building — the common case
+
+      for (const { pid } of rows) {
+        this.logger.log(`Cancelling in-flight trigram index build (pid ${pid}) for shutdown`);
+        await this.prisma.$queryRawUnsafe('SELECT pg_cancel_backend($1)', pid);
+      }
+    } catch (err) {
+      // Never let a failed cancel block shutdown — worst case we fall back to the
+      // old behaviour of waiting on the build.
+      this.logger.warn(`Could not cancel trigram index build: ${(err as Error).message}`);
+    }
   }
 
   async ensureIndexes(): Promise<void> {
@@ -45,6 +110,9 @@ export class ImdbTrigramIndexService implements OnModuleInit {
       await this.prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS pg_trgm');
 
       for (const idx of TRIGRAM_INDEXES) {
+        // Shutdown began — do not start another multi-minute build.
+        if (this.shuttingDown) return;
+
         // A CONCURRENTLY build that is interrupted leaves the index behind but
         // marked INVALID: the planner ignores it, yet `IF NOT EXISTS` sees the name
         // and would skip the rebuild forever. Drop it so we rebuild cleanly.
@@ -63,6 +131,11 @@ export class ImdbTrigramIndexService implements OnModuleInit {
         this.logger.log(`Built ${idx.name} in ${Math.round((Date.now() - started) / 1000)}s`);
       }
     } catch (err) {
+      if (this.shuttingDown) {
+        // We cancelled it on purpose; the next boot rebuilds. Not a failure.
+        this.logger.log('Trigram index build cancelled for shutdown; it will resume on next boot');
+        return;
+      }
       // Best-effort: a missing index only costs speed, never correctness, and must
       // never take the service down.
       this.logger.warn(`Could not ensure IMDb trigram indexes: ${(err as Error).message}`);
