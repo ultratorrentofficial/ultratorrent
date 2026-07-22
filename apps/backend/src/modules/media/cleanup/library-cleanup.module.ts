@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ProtectionService } from './protection.service';
+import { PolicyService } from './policy.service';
 import { CleanupController } from './cleanup.controller';
 
 /**
@@ -12,8 +13,8 @@ import { CleanupController } from './cleanup.controller';
  * and Trash seams — cleanup never touches the filesystem directly).
  */
 @Module({
-  providers: [ProtectionService],
+  providers: [ProtectionService, PolicyService],
   controllers: [CleanupController],
-  exports: [ProtectionService],
+  exports: [ProtectionService, PolicyService],
 })
 export class LibraryCleanupModule {}
