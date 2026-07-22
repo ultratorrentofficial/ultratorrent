@@ -1,5 +1,0 @@
----
-"ultratorrent": minor
----
-
-Library Cleanup Center Phase 4 (part 2) — Protection Registry service and API. Adds ProtectionService (create, bulk create, list, get, expiring-soon, revoke, evaluate) and the first LibraryCleanupModule routes under /api/media/cleanup/protections, RBAC-guarded and audited. Removal is a REVOCATION, never a delete, so the audit history survives. Shape validation refuses a protection whose scope field is missing, since that would silently protect nothing — the worst possible outcome for a safety registry. Legal holds are re-checked inside the service, not only at the route guard, because a job or workflow path can reach the service without traversing the controller; creation and revocation of a hold are audited under distinct actions. Bulk creation reports partial outcomes honestly, naming the index of each entry that failed rather than silently dropping it. A six-hourly expiry sweep announces only the protections whose deadline crossed since the previous tick, so a restart replays no backlog and a quiet period stays quiet; lapsing itself is done by the matcher, not the sweep. 42 new tests.
