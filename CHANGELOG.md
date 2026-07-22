@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.41.1] - 2026-07-22
+
+### Fixed
+- Fix duplicate cleanup failing with "Path is outside the allowed roots" whenever the file-manager Default Root Path is narrowed to a subtree that holds no media library.
+
 ## [0.41.0] - 2026-07-21
 
 ### Added
