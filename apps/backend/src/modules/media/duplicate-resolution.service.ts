@@ -566,6 +566,25 @@ export class DuplicateResolutionService {
           skipped++;
           continue;
         }
+        // `MediaItem.locked` takes an item out of EVERY automated path — scans,
+        // enrichment, the organizer, the renamer, automation. Duplicate cleanup was
+        // the one destructive path that never consulted it, so a locked item's file
+        // could still be trashed. Read at execution rather than preview: a lock
+        // applied while the operator was deciding must still take effect.
+        if (action.itemId) {
+          const item = await this.prisma.mediaItem.findUnique({
+            where: { id: action.itemId },
+            select: { locked: true },
+          });
+          if (item?.locked) {
+            await this.prisma.mediaDuplicateResolutionAction.update({
+              where: { id: row.id },
+              data: { status: 'skipped', errorMessage: 'item is locked' },
+            });
+            skipped++;
+            continue;
+          }
+        }
 
         // `storage` scope, matching the assertWithinHardRoots check above and the
         // one preview ran: a library may legitimately sit outside the admin's

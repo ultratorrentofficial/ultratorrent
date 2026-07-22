@@ -22,6 +22,8 @@ function build(over: any = {}) {
       update: jest.fn(async ({ data }: any) => Object.assign(state.group, data)),
     },
     mediaLibrary: { findMany: jest.fn(async () => state.libraries) },
+    // The cleanup path now consults MediaItem.locked before trashing.
+    mediaItem: { findUnique: jest.fn(async ({ where }: any) => ({ locked: state.lockedItemIds?.includes(where.id) ?? false })) },
     mediaDuplicateResolution: {
       create: jest.fn(async ({ data }: any) => {
         state.resolution = { id: 'r1', ...data, group: state.group };
@@ -302,6 +304,29 @@ describe('resolve — refuses to execute a plan it should not', () => {
     expect(files.remove).not.toHaveBeenCalled();
   });
 
+  // `MediaItem.locked` takes an item out of EVERY automated path — scans,
+  // enrichment, the organizer, the renamer, automation rules. Duplicate cleanup was
+  // the one destructive path that never consulted it, so a locked item's file could
+  // still be trashed. The check reads at EXECUTION, so a lock applied while the
+  // operator was deciding still takes effect.
+  it('refuses to trash a locked item, even with an approved plan', async () => {
+    const { svc, state, files } = await planned({ keep: 100, drop: 50 });
+    state.lockedItemIds = ['drop'];
+    const r = await svc.resolve('r1');
+    expect(r.trashed).toBe(0);
+    expect(r.skipped).toBe(1);
+    expect(files.remove).not.toHaveBeenCalled();
+    expect(state.actions[0].errorMessage).toBe('item is locked');
+  });
+
+  it('still trashes an unlocked item', async () => {
+    const { svc, state, files } = await planned({ keep: 100, drop: 50 });
+    state.lockedItemIds = ['some-other-item'];
+    const r = await svc.resolve('r1');
+    expect(r.trashed).toBe(1);
+    expect(files.remove).toHaveBeenCalled();
+  });
+
   it('skips a file that disappeared, without failing the run', async () => {
     const { svc, dropPath } = await planned({ keep: 100, drop: 50 });
     await rm(dropPath);
@@ -465,6 +490,7 @@ describe('bulk — a response carrying failures is never mistaken for a clean ru
         findMany: jest.fn(async () => Object.values(state.groups)),
       },
       mediaLibrary: { findMany: jest.fn(async () => [{ path: bulkDir }]) },
+      mediaItem: { findUnique: jest.fn(async () => ({ locked: false })) },
       mediaDuplicateResolution: {
         create: jest.fn(async ({ data }: any) => {
           const id = `r${++state.seq}`;
