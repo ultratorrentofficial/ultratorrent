@@ -59,7 +59,10 @@ export class SystemService {
         try {
           const fs = await statfs(path);
           const total = fs.blocks * fs.bsize;
-          const freePct = total ? (fs.bfree * fs.bsize) / total * 100 : 100;
+          // `bavail`, not `bfree`: the root-reserved blocks (5% by default on ext4)
+          // are not space anything here can use, so counting them overstates free
+          // space and makes the alert fire late — exactly when it matters.
+          const freePct = total ? (fs.bavail * fs.bsize) / total * 100 : 100;
           if (freePct < 10) emit(`disk:${path}`, NOTIFICATION_EVENTS.SYSTEM_DISK_SPACE_LOW, { mediaTitle: path, path, freePercent: Math.round(freePct) });
           else clear(`disk:${path}`);
         } catch { /* unavailable root — ignore */ }
@@ -128,7 +131,10 @@ export class SystemService {
         try {
           const fs = await statfs(path);
           const total = fs.blocks * fs.bsize;
-          const free = fs.bfree * fs.bsize;
+          // Same `bavail` reasoning as the health monitor above, and the same figure
+          // `df` calls "Avail" — reporting a larger number here than the one the
+          // low-disk alert fires on would just make the two contradict each other.
+          const free = fs.bavail * fs.bsize;
           return { path, total, free, used: total - free };
         } catch {
           return { path, total: 0, free: 0, used: 0, error: 'unavailable' };
