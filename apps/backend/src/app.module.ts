@@ -23,6 +23,7 @@ import { FilesModule } from './modules/files/files.module';
 import { RssModule } from './modules/rss/rss.module';
 import { AutomationModule } from './modules/automation/automation.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
+import { LibraryCleanupModule } from './modules/media/cleanup/library-cleanup.module';
 import { TwoFactorModule } from './modules/two-factor/two-factor.module';
 import { AccountModule } from './modules/account/account.module';
 import { MediaModule } from './modules/media/media.module';
@@ -53,6 +54,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     MediaModule,
     AutomationModule,
     WorkflowsModule,
+    LibraryCleanupModule,
     TwoFactorModule,
 
     // Feature modules

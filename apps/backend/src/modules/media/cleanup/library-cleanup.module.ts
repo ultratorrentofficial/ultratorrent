@@ -1,0 +1,19 @@
+import { Module } from '@nestjs/common';
+import { ProtectionService } from './protection.service';
+import { CleanupController } from './cleanup.controller';
+
+/**
+ * Library Cleanup Center (module `library_cleanup`).
+ *
+ * A sibling of MediaModule rather than more providers inside it: MediaModule is
+ * already 50+ providers and `@Global`, and this subsystem has its own boundary.
+ * Prisma, Audit and the event bus are global; FilesModule/MediaModule are imported
+ * where their services are needed (from Phase 8 onward, for the path-safe removal
+ * and Trash seams — cleanup never touches the filesystem directly).
+ */
+@Module({
+  providers: [ProtectionService],
+  controllers: [CleanupController],
+  exports: [ProtectionService],
+})
+export class LibraryCleanupModule {}
