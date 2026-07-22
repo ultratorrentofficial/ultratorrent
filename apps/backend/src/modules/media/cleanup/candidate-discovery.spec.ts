@@ -58,10 +58,15 @@ function makeService(over: {
     evaluate: jest.fn(async () => ({ isProtected: false, hasLegalHold: false, matches: [] })),
   };
   const filePath = { assertWithinHardRoots: jest.fn(() => undefined) };
+  const jobBridge = {
+    startRunJob: jest.fn(async () => 'job-1'),
+    finish: jest.fn(async () => undefined),
+  };
   const eventBus = { emit: jest.fn() };
 
   const service = new CandidateDiscoveryService(
-    prisma as never, audit as never, protections as never, filePath as never, eventBus as never,
+    prisma as never, audit as never, protections as never, filePath as never,
+    jobBridge as never, eventBus as never,
   );
   return { service, prisma, audit, created, runUpdates, get runRow() { return runRow; } };
 }

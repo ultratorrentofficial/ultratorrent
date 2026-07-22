@@ -100,13 +100,18 @@ function makeService(over: {
     },
   };
   const eventBus = { emit: jest.fn() };
+  // The Jobs Center mirror is observability, never authority — see the bridge tests.
+  const jobBridge = {
+    startExecutionJob: jest.fn(async () => 'job-1'),
+    finish: jest.fn(async () => undefined),
+  };
 
   const service = new PlanExecutorService(
     prisma as never, audit as never, protections as never, quarantine as never,
-    discovery as never, files as never, paths as never, eventBus as never,
+    discovery as never, files as never, paths as never, jobBridge as never, eventBus as never,
   );
   return {
-    service, prisma, audit, files, quarantine, protections, actionUpdates, planUpdates,
+    service, prisma, audit, files, quarantine, protections, jobBridge, actionUpdates, planUpdates,
     get planRow() { return planRow; },
     skipReason() { return actionUpdates.find((u) => u.data.status === 'skipped')?.data.skipReason; },
   };

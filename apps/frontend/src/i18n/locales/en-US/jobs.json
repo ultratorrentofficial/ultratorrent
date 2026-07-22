@@ -205,6 +205,8 @@
     "defaultMaxAttempts": "Default max attempts"
   },
   "type": {
+    "library_cleanup_execution": "Library cleanup execution",
+    "library_cleanup_run": "Library cleanup scan",
     "workflow_execution": "Workflow execution",
     "workflow_node": "Workflow action"
   }

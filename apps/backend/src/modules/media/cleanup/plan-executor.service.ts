@@ -10,6 +10,7 @@ import { pathExists, statSafe } from '../../files/file-fs.util';
 import { ProtectionService } from './protection.service';
 import { QuarantineService } from './quarantine.service';
 import { CandidateDiscoveryService } from './candidate-discovery.service';
+import { CleanupJobBridge } from './cleanup-job.bridge';
 import { canTransition, type PlanAction } from './domain/plan-contract';
 
 /**
@@ -42,6 +43,7 @@ export class PlanExecutorService {
     private readonly discovery: CandidateDiscoveryService,
     private readonly files: FilesService,
     private readonly paths: FilePathService,
+    private readonly jobBridge: CleanupJobBridge,
     private readonly eventBus: EventEmitter2,
   ) {}
 
@@ -65,9 +67,10 @@ export class PlanExecutorService {
       throw new BadRequestException('This plan expired before it ran; re-run the policy.');
     }
 
+    const jobId = await this.jobBridge.startExecutionJob(planId, `Cleanup plan ${planId.slice(0, 8)}`, user.id);
     await this.prisma.mediaCleanupPlan.update({
       where: { id: planId },
-      data: { status: 'executing', executedAt: new Date() },
+      data: { status: 'executing', executedAt: new Date(), executionJobId: jobId },
     });
     this.emit('media.cleanup.plan.executing', { planId, action: plan.action });
 
@@ -111,6 +114,7 @@ export class PlanExecutorService {
       },
     });
 
+    await this.jobBridge.finish(jobId, status);
     await this.audit.record({
       userId: user.id, action: 'library_cleanup.plan.executed',
       objectType: 'media_cleanup_plan', objectId: planId,

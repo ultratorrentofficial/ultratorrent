@@ -7,6 +7,7 @@ import { paginate, parsePage } from '../../../common/pagination';
 import type { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
 import { FilePathService } from '../../files/file-path.service';
 import { ProtectionService } from './protection.service';
+import { CleanupJobBridge } from './cleanup-job.bridge';
 import { evaluatePolicy } from './domain/policy-evaluator';
 import { evaluateExclusions } from './domain/exclusion-rules';
 import { candidateFingerprint } from './domain/candidate-fingerprint';
@@ -69,6 +70,7 @@ export class CandidateDiscoveryService {
     private readonly audit: AuditService,
     private readonly protections: ProtectionService,
     private readonly filePath: FilePathService,
+    private readonly jobBridge: CleanupJobBridge,
     private readonly eventBus: EventEmitter2,
   ) {}
 
@@ -101,6 +103,14 @@ export class CandidateDiscoveryService {
         createdById: opts.userId ?? null,
       },
     });
+    // A simulation is not work anyone needs to watch, so only real runs are mirrored.
+    if (!opts.simulate) {
+      const jobId = await this.jobBridge.startRunJob(run.id, policyId, policy.name, opts.userId);
+      if (jobId) {
+        await this.prisma.mediaCleanupRun.update({ where: { id: run.id }, data: { jobId } });
+      }
+    }
+
     await this.audit.record({
       userId: opts.userId,
       action: opts.simulate ? 'library_cleanup.run.simulated' : 'library_cleanup.run.started',
@@ -460,6 +470,11 @@ export class CandidateDiscoveryService {
 
   private async finalize(runId: string, status: string, reason?: string): Promise<void> {
     const now = new Date();
+    const existing = await this.prisma.mediaCleanupRun.findUnique({
+      where: { id: runId }, select: { jobId: true },
+    });
+    // Best-effort mirror; a Jobs Center problem must never change what the run did.
+    await this.jobBridge.finish(existing?.jobId ?? null, status);
     await this.prisma.mediaCleanupRun.update({
       where: { id: runId },
       data: {

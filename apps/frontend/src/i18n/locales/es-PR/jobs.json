@@ -205,6 +205,8 @@
     "defaultMaxAttempts": "Intentos máximos por defecto"
   },
   "type": {
+    "library_cleanup_execution": "Ejecución de limpieza de biblioteca",
+    "library_cleanup_run": "Escaneo de limpieza de biblioteca",
     "workflow_execution": "Ejecución de flujo",
     "workflow_node": "Acción de flujo"
   }

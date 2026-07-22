@@ -490,6 +490,24 @@ parallel caps, recursion depth guard, 512 KB graph ceiling), reuse of the Automa
 SSRF-guarded webhook path, encrypted secret variables, and full audit. See
 **[WORKFLOW_SECURITY.md](WORKFLOW_SECURITY.md)**.
 
+### Library Cleanup Center
+
+The only subsystem whose purpose is to remove a user's media, so its threat model is
+about wrong deletions rather than access. Removal travels one road — policy version →
+run → candidates → plan → approval → execution → Trash/Quarantine — and **no endpoint
+accepts a path**: plans are built from candidate ids and the server resolves every
+path from its own snapshot. Policies are **data, never code** (the platform's
+constrained evaluator; no `eval`, no expression language), with a third `unmeasured`
+outcome so "we could not tell" can never read as "it qualifies". Protection is
+re-checked **three times**, the last immediately before the filesystem call, and the
+approved **fingerprint is re-verified** at that same moment — failing closed if it
+cannot be recomputed. Approval needs `library_cleanup.approve` **plus** the
+permission matching the destination; `permanent_delete` and `protection.legal_hold`
+are excluded from blanket admin inheritance. Automatic policies must be scoped,
+capped and grace-periodded, publishing does not enable, a circuit breaker pauses the
+automatic path after repeated failures, and every removal lands somewhere
+recoverable. See **[LIBRARY_CLEANUP_SECURITY.md](LIBRARY_CLEANUP_SECURITY.md)**.
+
 ## Reporting a vulnerability
 
 Please report security issues **privately** — do not open a public GitHub issue
