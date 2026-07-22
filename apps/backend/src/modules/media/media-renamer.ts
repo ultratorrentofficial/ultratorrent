@@ -782,6 +782,8 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
     if (c.kind !== 'general') continue; // videos/audio/subtitles already planned
 
     const base = path.basename(f.path, c.ext);
+    const sideOwn = parseTorrentName(base);
+    const sideEpisode = sideOwn.episode ?? sideOwn.absoluteEpisode;
 
     // Longest matching video wins: with both "Show - S01E01" and "Show - S01E01 S01E02"
     // in a folder, a sidecar for the two-parter must not attach to the single episode.
@@ -789,16 +791,28 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
     let bestSuffix = '';
     let bestBaseLen = -1;
     for (const v of videoDest) {
-      const vBase = path.basename(v.source, path.extname(v.source));
-      if (!base.startsWith(vBase)) continue;
-      const suffix = base.slice(vBase.length);
-      // Either the same name, or the video's name plus a sidecar marker. A bare extra
-      // character means it is a DIFFERENT file (e.g. "Episode 2" vs "Episode 20").
-      if (suffix !== '' && !/^[-.]/.test(suffix)) continue;
-      if (vBase.length > bestBaseLen) {
-        best = v;
-        bestSuffix = suffix;
-        bestBaseLen = vBase.length;
+      // Same identity gate the subtitle pass uses: when both sides name an episode they
+      // must be the SAME episode, so a coincidental prefix cannot carry a sidecar across
+      // episodes. A video that names none (a film) is still open to its sidecars.
+      if (sideEpisode != null && v.episode != null && !videoCoversEpisode(v, sideOwn.season, sideEpisode)) continue;
+      // A sidecar is built on its video's name — but which name? For one sitting beside
+      // the raw release it is the CURRENT basename. For one already organised while its
+      // video is not (an episode whose .nfo/-thumb were left behind in `Season 05` when
+      // the video arrived as a fresh release), the name it was built on is the one the
+      // video is being renamed TO. Both are the same video, so try both and let the
+      // longest match win; the suffix comes out of whichever matched, so no sidecar
+      // marker ever has to be enumerated.
+      for (const vName of [path.basename(v.source, path.extname(v.source)), path.basename(v.destNoExt)]) {
+        if (!base.startsWith(vName)) continue;
+        const suffix = base.slice(vName.length);
+        // Either the same name, or the video's name plus a sidecar marker. A bare extra
+        // character means it is a DIFFERENT file (e.g. "Episode 2" vs "Episode 20").
+        if (suffix !== '' && !/^[-.]/.test(suffix)) continue;
+        if (vName.length > bestBaseLen) {
+          best = v;
+          bestSuffix = suffix;
+          bestBaseLen = vName.length;
+        }
       }
     }
 

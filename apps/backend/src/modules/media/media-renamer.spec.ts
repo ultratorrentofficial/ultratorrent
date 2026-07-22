@@ -835,3 +835,59 @@ describe('buildRenamePlan — a subtitle follows its EPISODE, not the closest-lo
     expect(s?.destination).toMatch(/\.en\.srt$/);
   });
 });
+
+describe('buildRenamePlan — a sidecar follows its video across naming styles', () => {
+  // The other half of the Lucifer (2016) case: E10's .nfo/-thumb were already organised
+  // in Season 5 while the video itself arrived as a raw release in the show root. The
+  // sidecar was built on the name the video is being renamed TO, not the one it has, so
+  // matching only the current basename orphaned it as a "non-media file".
+  const meta = (_s: string | undefined, season: number, episode: number) =>
+    season === 5 && episode === 10 ? { episodeTitle: 'Bloody Celestial Karaoke Jam' } : undefined;
+
+  const plan = buildRenamePlan(ctx({
+    sourceName: 'Lucifer (2016)',
+    libraryPath: '/downloads/TV Shows',
+    episodeMetaFor: meta,
+    files: [
+      { path: '/downloads/TV Shows/Lucifer (2016)/Lucifer.S05E10.1080p.HEVC.x265-MeGusta[eztv.re].mkv', size: BIG },
+      { path: '/downloads/TV Shows/Lucifer (2016)/Season 5/Lucifer - S05E10 - Bloody Celestial Karaoke Jam.nfo', size: 9_000 },
+      { path: '/downloads/TV Shows/Lucifer (2016)/Season 5/Lucifer - S05E10 - Bloody Celestial Karaoke Jam-thumb.jpg', size: 90_000 },
+      // Show-level artwork must keep standing still.
+      { path: '/downloads/TV Shows/Lucifer (2016)/poster.jpg', size: 90_000 },
+      { path: '/downloads/TV Shows/Lucifer (2016)/season05-poster.jpg', size: 90_000 },
+    ],
+  }));
+  const row = (needle: string) => plan.items.find((i) => i.source.endsWith(needle));
+
+  it('carries the orphaned .nfo to the video it describes', () => {
+    const n = row('Bloody Celestial Karaoke Jam.nfo');
+    expect(n?.skipped).toBe(false);
+    expect(n?.destination).toBe('/downloads/TV Shows/Lucifer/Season 5/Lucifer - S05E10 - Bloody Celestial Karaoke Jam.nfo');
+  });
+
+  it('keeps the sidecar marker when it carries -thumb.jpg', () => {
+    const t = row('Bloody Celestial Karaoke Jam-thumb.jpg');
+    expect(t?.skipped).toBe(false);
+    expect(t?.destination).toBe('/downloads/TV Shows/Lucifer/Season 5/Lucifer - S05E10 - Bloody Celestial Karaoke Jam-thumb.jpg');
+  });
+
+  it('still leaves show-level artwork exactly where it is', () => {
+    expect(row('poster.jpg')?.skipped).toBe(true);
+    expect(row('season05-poster.jpg')?.skipped).toBe(true);
+  });
+
+  it('never carries a sidecar to a different episode', () => {
+    const p = buildRenamePlan(ctx({
+      sourceName: 'Lucifer (2016)',
+      libraryPath: '/downloads/TV Shows',
+      episodeMetaFor: meta,
+      files: [
+        { path: '/downloads/TV Shows/Lucifer (2016)/Lucifer.S05E12.1080p.HEVC.x265-MeGusta.mkv', size: BIG },
+        { path: '/downloads/TV Shows/Lucifer (2016)/Season 5/Lucifer - S05E10 - Bloody Celestial Karaoke Jam.nfo', size: 9_000 },
+      ],
+    }));
+    const n = p.items.find((i) => i.source.endsWith('.nfo'));
+    expect(n?.skipped).toBe(true);
+    expect(n?.destination).toBeNull();
+  });
+});
