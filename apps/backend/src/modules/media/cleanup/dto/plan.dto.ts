@@ -1,5 +1,5 @@
 import {
-  ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsIn, IsInt,
+  ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsIn, IsInt,
   IsOptional, IsString, Max, MaxLength, Min,
 } from 'class-validator';
 
@@ -65,4 +65,19 @@ export class ActionListQueryDto {
   @IsOptional() @IsInt() @Min(1) @Max(200) pageSize?: number;
   @IsOptional() @IsIn(['pending', 'running', 'completed', 'failed', 'skipped', 'compensated'])
   status?: string;
+}
+
+export class QuarantineListQueryDto {
+  @IsOptional() @IsInt() @Min(1) page?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(200) pageSize?: number;
+  @IsOptional() @IsIn(['quarantined', 'restored', 'purged', 'expired']) status?: string;
+  @IsOptional() @IsString() @MaxLength(64) planId?: string;
+}
+
+export class RestoreQuarantineDto {
+  /**
+   * Something at the original path is very often the replacement that justified the
+   * cleanup, so putting the old file back over it has to be asked for explicitly.
+   */
+  @IsOptional() @IsBoolean() overwrite?: boolean;
 }

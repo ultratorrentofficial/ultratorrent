@@ -19,6 +19,29 @@ import type { PlaybackAggregateFacts } from './domain/playback-aggregate';
 /** Rows per page. Matches duplicate detection's proven page size. */
 const PAGE_SIZE = 500;
 
+/**
+ * The columns a fingerprint is computed from — declared ONCE, because the
+ * fingerprint taken at discovery and the one recomputed immediately before a file
+ * is removed must be the same computation over the same inputs. If they were
+ * written twice they would eventually disagree, and the failure is silent in the
+ * worst direction: either every plan drifts and nothing is ever cleaned, or none
+ * does and a changed file is deleted anyway.
+ */
+export const FILE_SELECT = {
+  id: true, path: true, size: true, width: true, height: true, videoCodec: true,
+  audioCodec: true, audioChannels: true, bitrateKbps: true, frameRate: true,
+  container: true, durationSec: true, videoBitDepth: true, chromaSubsampling: true,
+  hdrFormat: true, hdr: true, techSource: true, probedAt: true, probeError: true,
+} as const;
+
+export const ITEM_SELECT = {
+  id: true, libraryId: true, mediaType: true, year: true, matchStatus: true,
+  confidence: true, locked: true, createdAt: true, duplicateGroupId: true,
+  externalIds: { select: { provider: true, externalId: true } },
+  metadata: { select: { genres: true, tags: true, certification: true, rating: true, runtime: true, releaseDate: true } },
+  library: { select: { kind: true, path: true } },
+} as const;
+
 interface RunOptions {
   simulate: boolean;
   trigger: string;
@@ -145,21 +168,7 @@ export class CandidateDiscoveryService {
       const items = await this.prisma.mediaItem.findMany({
         where,
         // Narrow select: a library is tens of thousands of rows.
-        select: {
-          id: true, libraryId: true, mediaType: true, year: true, matchStatus: true,
-          confidence: true, locked: true, createdAt: true, duplicateGroupId: true,
-          externalIds: { select: { provider: true, externalId: true } },
-          metadata: { select: { genres: true, tags: true, certification: true, rating: true, runtime: true, releaseDate: true } },
-          files: {
-            select: {
-              id: true, path: true, size: true, width: true, height: true, videoCodec: true,
-              audioCodec: true, audioChannels: true, bitrateKbps: true, frameRate: true,
-              container: true, durationSec: true, videoBitDepth: true, chromaSubsampling: true,
-              hdrFormat: true, hdr: true, techSource: true, probedAt: true, probeError: true,
-            },
-          },
-          library: { select: { kind: true, path: true } },
-        },
+        select: { ...ITEM_SELECT, files: { select: FILE_SELECT } },
         orderBy: { id: 'asc' },
         cursor: cursor ? { id: cursor } : undefined,
         skip: cursor ? 1 : 0,
@@ -327,6 +336,54 @@ export class CandidateDiscoveryService {
       objectType: 'media_cleanup_run', objectId: runId,
     });
     return { status: 'cancelling' };
+  }
+
+  /**
+   * Recompute a file's fingerprint against the world as it is NOW, using exactly
+   * the code path discovery used. The executor calls this immediately before
+   * touching a file; anything but an identical hash is drift, and drift means skip.
+   *
+   * Returns null when the file's record has gone — the fingerprint's subject no
+   * longer exists, which the caller must treat as drift rather than as "unchanged".
+   */
+  async fingerprintNow(
+    mediaFileId: string,
+    policyVersionId: string,
+  ): Promise<{ fingerprint: string; facts: Record<string, unknown>; factKeys: string[] } | null> {
+    const version = await this.prisma.mediaCleanupPolicyVersion.findUnique({
+      where: { id: policyVersionId },
+    });
+    const document = version?.document as unknown as CleanupPolicyDocument | undefined;
+    if (!document) return null;
+
+    const file = await this.prisma.mediaFile.findUnique({
+      where: { id: mediaFileId },
+      select: { ...FILE_SELECT, item: { select: ITEM_SELECT } },
+    });
+    if (!file?.item) return null;
+
+    const factKeys = [...collectFieldIds(document.conditions)];
+    const ctx = await this.buildContext(file.item as never, file as never, document);
+    const facts = assembleEvaluationFacts(file as never, file.item as never, ctx);
+    const flat = flattenFacts(facts);
+
+    return {
+      fingerprint: candidateFingerprint({
+        mediaFileId: file.id,
+        path: file.path,
+        fileSizeBytes: file.size ?? 0,
+        modifiedAtMs: null,
+        identityKeys: (file.item.externalIds ?? []).map((e) => `${e.provider}:${e.externalId}`),
+        policyVersionId,
+        facts: flat,
+        factKeys,
+        isProtected: ctx.isProtected,
+        protectionIds: ctx.protectionIds ?? [],
+        replacementFileId: null,
+      }),
+      facts: flat,
+      factKeys,
+    };
   }
 
   // ── context ────────────────────────────────────────────────────────────────

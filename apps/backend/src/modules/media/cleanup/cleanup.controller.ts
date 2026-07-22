@@ -9,6 +9,8 @@ import { ProtectionService } from './protection.service';
 import { PolicyService } from './policy.service';
 import { CandidateDiscoveryService } from './candidate-discovery.service';
 import { PlanService } from './plan.service';
+import { PlanExecutorService } from './plan-executor.service';
+import { QuarantineService } from './quarantine.service';
 import {
   BulkCreateProtectionDto, CreateProtectionDto, ExpiringQueryDto,
   ProtectionListQueryDto, RevokeProtectionDto,
@@ -20,6 +22,7 @@ import {
 import { CandidateListQueryDto, RunListQueryDto } from './dto/run.dto';
 import {
   ActionListQueryDto, CancelPlanDto, CreatePlanDto, PlanListQueryDto, RejectPlanDto,
+  QuarantineListQueryDto, RestoreQuarantineDto,
 } from './dto/plan.dto';
 
 /**
@@ -36,6 +39,8 @@ export class CleanupController {
     private readonly policies: PolicyService,
     private readonly discovery: CandidateDiscoveryService,
     private readonly plans: PlanService,
+    private readonly executor: PlanExecutorService,
+    private readonly quarantine: QuarantineService,
   ) {}
 
   // ── Catalogue & stateless validation ───────────────────────────────────────
@@ -237,6 +242,47 @@ export class CleanupController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.plans.cancel(planId, dto, user);
+  }
+
+  /**
+   * Execute an approved plan. The ONLY endpoint in the subsystem that reaches the
+   * filesystem, and it accepts a plan id — never paths. Every safety check is
+   * re-run per file immediately before it is touched.
+   */
+  @Post('plans/:planId/execute')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_TRASH)
+  executePlan(@Param('planId') planId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.executor.execute(planId, user);
+  }
+
+  // ── Quarantine ─────────────────────────────────────────────────────────────
+  @Get('quarantine')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
+  listQuarantine(@Query() query: QuarantineListQueryDto) {
+    return this.quarantine.list(query);
+  }
+
+  @Get('quarantine/:id')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
+  getQuarantineItem(@Param('id') id: string) {
+    return this.quarantine.get(id);
+  }
+
+  @Post('quarantine/:id/restore')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_RESTORE)
+  restoreQuarantined(
+    @Param('id') id: string,
+    @Body() dto: RestoreQuarantineDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.quarantine.restore(id, user, dto.overwrite === true);
+  }
+
+  /** Irreversible. Separately permissioned, and protection is re-checked first. */
+  @Post('quarantine/:id/purge')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_PERMANENT_DELETE)
+  purgeQuarantined(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quarantine.purge(id, user);
   }
 
   // ── Protections ────────────────────────────────────────────────────────────

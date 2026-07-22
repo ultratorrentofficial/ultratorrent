@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TrashService } from './trash.service';
@@ -198,5 +198,82 @@ describe('TrashService — retention', () => {
     ageRow(item.id, 31);
     expect(prisma.store.has(item.id)).toBe(true);
     expect(await svc.list()).toHaveLength(0);
+  });
+});
+
+/**
+ * G12: system-initiated maintenance (duplicate cleanup, Library Cleanup) removes
+ * files in `storage` scope, which is pinned to the ops hard roots and never
+ * narrowed by the DB-configured Default Root Path. Restore, however, resolved the
+ * original path through the NARROWED browse boundary — so anything trashed from
+ * outside that subtree either could not be restored, or worse, was silently put
+ * back in the wrong place.
+ */
+describe('restoring something trashed in storage scope (G12)', () => {
+  let root: string;
+  let svc: TrashService;
+  let paths: FilePathService;
+  let prisma: ReturnType<typeof fakePrisma>;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'ut-trash-g12-'));
+    await mkdir(join(root, 'complete'), { recursive: true });
+    await mkdir(join(root, 'TV', 'Show'), { recursive: true });
+    prisma = fakePrisma();
+    // The narrowed browse root is a SUBTREE of the hard root — the live shape that
+    // broke duplicate cleanup on synoplex.
+    paths = new FilePathService(configFor(root), {
+      get: async () => join(root, 'complete'),
+      set: async () => {},
+    } as any);
+    svc = new TrashService(
+      prisma as any, paths as any,
+      { record: jest.fn().mockResolvedValue(undefined) } as any,
+      { broadcast: jest.fn() } as any,
+      { get: async () => undefined, set: async () => {} } as any,
+    );
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('restores to the real original path, not one rebased on the narrowed root', async () => {
+    const original = join(root, 'TV', 'Show', 'ep.mkv');
+    await writeFile(original, 'data');
+
+    const item = await svc.moveToTrash(original, { userId: 'u1' }, paths.storageSafety);
+    expect(await pathExists(original)).toBe(false);
+
+    await svc.restore(item.id, false);
+
+    expect(await pathExists(original)).toBe(true);
+    // The bug put it here instead, inside the narrowed browse root.
+    expect(await pathExists(join(root, 'complete', 'TV', 'Show', 'ep.mkv'))).toBe(false);
+  });
+
+  it('purges the payload of a storage-scope item instead of leaking it', async () => {
+    const original = join(root, 'TV', 'Show', 'leak.mkv');
+    await writeFile(original, 'data');
+    const item = await svc.moveToTrash(original, {}, paths.storageSafety);
+    const payload = join(root, '.ultratorrent-trash', `${item.id}__leak.mkv`);
+    expect(await pathExists(payload)).toBe(true);
+
+    await svc.purge(item.id);
+
+    // Previously the row went and the bytes stayed, so reclaimed-space was a lie.
+    expect(await pathExists(payload)).toBe(false);
+    expect(await svc.list()).toHaveLength(0);
+  });
+
+  it('refuses to restore when the recorded storage root is no longer configured', async () => {
+    const original = join(root, 'TV', 'Show', 'orphan.mkv');
+    await writeFile(original, 'data');
+    const item = await svc.moveToTrash(original, {}, paths.storageSafety);
+    // Simulate the operator removing that root from FILE_MANAGER_ROOTS entirely.
+    // (A root that merely MOVED inside the hard roots still resolves, and safely:
+    // the destination is still contained by the recorded root.)
+    prisma.store.get(item.id).storageRoot = join(tmpdir(), 'ut-not-a-configured-root');
+    await expect(svc.restore(item.id, false)).rejects.toThrow(/no longer configured/);
   });
 });

@@ -115,7 +115,7 @@ export class TrashService {
       try {
         // Same guard as purge(): only ever unlink inside a trash directory, so a
         // corrupted row can never point the sweep at live library content.
-        if (this.safety.isInsideTrash(row.trashPath)) {
+        if (this.payloadIsRemovable(row)) {
           await rm(row.trashPath, { recursive: true, force: true });
         }
         await this.prisma.trashItem.delete({ where: { id: row.id } });
@@ -246,7 +246,7 @@ export class TrashService {
     if (!row) throw new NotFoundException('Trash item not found');
 
     // Re-validate the original destination against current roots (fail-closed).
-    const dest = this.safety.resolveLogical(row.originalPath);
+    const dest = this.resolveOriginal(row);
     if (!(await pathExists(row.trashPath))) {
       // The on-disk payload vanished — drop the dangling record.
       await this.prisma.trashItem.delete({ where: { id } }).catch(() => undefined);
@@ -272,7 +272,55 @@ export class TrashService {
       metadata: { bytes: Number(row.size) },
     });
     this.realtime.broadcast(WS_EVENTS.FILES_TRASH_UPDATED, { action: 'restored', id });
-    return { path: this.safety.toRelative(dest) };
+    return { path: path.posix.join('/', path.relative(row.storageRoot, dest).split(path.sep).join('/')) };
+  }
+
+  /**
+   * Where a trashed item goes back to.
+   *
+   * `originalPath` is relative to the root that held the file when it was trashed,
+   * and the row records that root — so restore resolves against **that** root, not
+   * against `roots[0]` of whatever boundary happens to be asking. Going through
+   * `safety.resolveLogical` here was G12: for anything trashed in `storage` scope
+   * from outside a narrowed browse root, it rebased the path against the narrowed
+   * root and either rejected the restore or, worse, silently put the file back in
+   * the wrong place. The recorded root round-trips exactly; there is nothing to guess.
+   *
+   * Still fail-closed: the recorded root must still be a configured storage root,
+   * and the destination must land inside it.
+   */
+  private resolveOriginal(row: { originalPath: string; storageRoot: string }): string {
+    const root = path.resolve(row.storageRoot);
+    if (!this.paths.hardRoots.some((r) => root === path.resolve(r) || root.startsWith(path.resolve(r) + path.sep))) {
+      throw new BadRequestException(
+        'The storage root this item was trashed from is no longer configured; restore it by hand.',
+      );
+    }
+    if (typeof row.originalPath !== 'string' || row.originalPath.includes('\0')) {
+      throw new BadRequestException('Invalid original path');
+    }
+    const dest = path.resolve(root, row.originalPath.replace(/^\/+/, ''));
+    if (dest !== root && !dest.startsWith(root + path.sep)) {
+      throw new BadRequestException('Refusing to restore outside the item\'s own storage root');
+    }
+    return dest;
+  }
+
+  /**
+   * A trashed payload may be removed only from inside a trash directory — checked
+   * against the item's OWN recorded root. Asking the narrowed browse boundary
+   * (`this.safety`) returned false for anything trashed outside it, so the row was
+   * deleted while the payload stayed on disk forever: a silent leak that also made
+   * the reclaimed-bytes figure a lie.
+   */
+  private payloadIsRemovable(row: { trashPath: string; storageRoot: string }): boolean {
+    const root = path.resolve(row.storageRoot);
+    if (!this.paths.hardRoots.some((r) => root === path.resolve(r) || root.startsWith(path.resolve(r) + path.sep))) {
+      return false;
+    }
+    const trashDir = path.join(root, TRASH_DIR_NAME);
+    const resolved = path.resolve(row.trashPath);
+    return resolved.startsWith(trashDir + path.sep);
   }
 
   /** Permanently delete a single trashed item. */
@@ -280,7 +328,7 @@ export class TrashService {
     const row = await this.prisma.trashItem.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('Trash item not found');
     // Only ever remove paths that live inside a trash directory.
-    if (this.safety.isInsideTrash(row.trashPath)) {
+    if (this.payloadIsRemovable(row)) {
       await rm(row.trashPath, { recursive: true, force: true });
     }
     await this.prisma.trashItem.delete({ where: { id } });
@@ -302,10 +350,12 @@ export class TrashService {
     const rows = await this.prisma.trashItem.findMany();
     let bytes = 0;
     for (const row of rows) {
-      if (this.safety.isInsideTrash(row.trashPath)) {
+      if (this.payloadIsRemovable(row)) {
         await rm(row.trashPath, { recursive: true, force: true }).catch((e) =>
           this.logger.warn(`Failed to remove ${row.trashPath}: ${(e as Error).message}`),
         );
+      } else {
+        this.logger.warn(`Leaving ${row.trashPath}: outside any configured storage root`);
       }
       bytes += Number(row.size);
     }
