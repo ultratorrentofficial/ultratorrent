@@ -97,3 +97,63 @@ describe('resolutionFromHeight', () => {
     expect(resolutionFromHeight(undefined, undefined)).toBeUndefined();
   });
 });
+
+describe('parseMediaInfo — measured colour/depth (Library Cleanup Center)', () => {
+  it('reads bit depth, chroma and colour metadata from the video track', () => {
+    const t = parseMediaInfo(
+      mediaInfo({
+        video: {
+          BitDepth: '10',
+          ChromaSubsampling: '4:2:0',
+          colour_primaries: 'BT.2020',
+          transfer_characteristics: 'PQ',
+          matrix_coefficients: 'BT.2020 non-constant',
+          HDR_Format: 'Dolby Vision / SMPTE ST 2086',
+        },
+      }),
+    );
+    expect(t).toMatchObject({
+      videoBitDepth: 10,
+      chromaSubsampling: '4:2:0',
+      colorPrimaries: 'BT.2020',
+      colorTransfer: 'PQ',
+      colorSpace: 'BT.2020 non-constant',
+    });
+  });
+
+  it('keeps the FULL HDR_Format while the legacy hdr field stays truncated', () => {
+    const t = parseMediaInfo({
+      media: {
+        track: [
+          { '@type': 'General', Format: 'Matroska' },
+          { '@type': 'Video', Format: 'HEVC', Width: '3840', Height: '2160', HDR_Format: 'Dolby Vision / SMPTE ST 2086' },
+        ],
+      },
+    });
+    // The legacy consumers keep the short label…
+    expect(t.hdr).toBe('Dolby Vision');
+    // …while cleanup gets the side data it may need.
+    expect(t.hdrFormat).toBe('Dolby Vision / SMPTE ST 2086');
+  });
+
+  it('falls back to ColorSpace when matrix_coefficients is absent', () => {
+    const t = parseMediaInfo(mediaInfo({ video: { ColorSpace: 'YUV' } }));
+    expect(t.colorSpace).toBe('YUV');
+  });
+
+  // Absence must stay absent: an unmeasured depth is `unknown`, never a guess.
+  // The Cleanup Center refuses to delete on an unmeasured technical value.
+  it('omits colour/depth keys entirely when the container does not report them', () => {
+    const t = parseMediaInfo(mediaInfo({}));
+    expect(t).not.toHaveProperty('videoBitDepth');
+    expect(t).not.toHaveProperty('chromaSubsampling');
+    expect(t).not.toHaveProperty('colorPrimaries');
+    expect(t).not.toHaveProperty('hdrFormat');
+  });
+
+  it('treats an empty colour tag as unmeasured rather than as a value', () => {
+    const t = parseMediaInfo(mediaInfo({ video: { ChromaSubsampling: '   ', BitDepth: '0' } }));
+    expect(t).not.toHaveProperty('chromaSubsampling');
+    expect(t).not.toHaveProperty('videoBitDepth');
+  });
+});

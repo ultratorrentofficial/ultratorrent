@@ -34,12 +34,27 @@ export interface ProbedTech {
   hdr?: string;
   /** Derived from `height`, so it means the real thing, not a filename token. */
   resolution?: string;
+  /** Measured colour/depth facts. A filename saying `10bit` is a hint, not this. */
+  videoBitDepth?: number;
+  chromaSubsampling?: string;
+  colorPrimaries?: string;
+  colorTransfer?: string;
+  colorSpace?: string;
+  /** The FULL HDR_Format string; `hdr` above keeps the legacy truncated form. */
+  hdrFormat?: string;
 }
 
 const num = (v: unknown): number | undefined => {
   if (v == null) return undefined;
   const n = typeof v === 'number' ? v : parseFloat(String(v));
   return Number.isFinite(n) && n > 0 ? n : undefined;
+};
+
+/** A trimmed non-empty string, else undefined — an empty tag is not a measurement. */
+const str = (v: unknown): string | undefined => {
+  if (v == null) return undefined;
+  const s = String(v).trim();
+  return s.length ? s : undefined;
 };
 
 /**
@@ -110,6 +125,17 @@ export function parseMediaInfo(json: unknown): ProbedTech {
     // HDR_Format is absent on SDR files, which is exactly the signal we want.
     hdr: video.HDR_Format ? String(video.HDR_Format).split('/')[0].trim() : undefined,
     resolution: resolutionFromHeight(height, width),
+    // Measured colour/depth. mediainfo spells the colour keys with the British `u`
+    // and exposes bit depth per track; `BitDepth` is absent on some containers, in
+    // which case the field stays unmeasured rather than being guessed.
+    videoBitDepth: num(video.BitDepth),
+    chromaSubsampling: str(video.ChromaSubsampling),
+    colorPrimaries: str(video.colour_primaries),
+    colorTransfer: str(video.transfer_characteristics),
+    colorSpace: str(video.matrix_coefficients ?? video.ColorSpace),
+    // Unlike `hdr`, keep the whole string — "Dolby Vision / SMPTE ST 2086" says
+    // more than "Dolby Vision", and a policy may need the side data.
+    hdrFormat: str(video.HDR_Format),
   };
   // Drop undefined keys so a caller can spread this over a row without nulling
   // columns the probe simply didn't learn.

@@ -811,6 +811,18 @@ model MediaFile {
   audioChannels Int?
   frameRate     Float?
 
+  /// Measured colour/depth facts (mediainfo Video track). Never filename-derived:
+  /// a release name saying `10bit` is a hint, not a measurement, and the Library
+  /// Cleanup Center refuses to delete on an unmeasured technical value.
+  /// `hdrFormat` keeps the FULL mediainfo string (the legacy `hdr` above is
+  /// truncated at the first `/`, losing e.g. the SMPTE ST 2086 side data).
+  videoBitDepth     Int?
+  chromaSubsampling String?
+  colorPrimaries    String?
+  colorTransfer     String?
+  colorSpace        String?
+  hdrFormat         String?
+
   /// Where the tech metadata above came from: `filename` (guessed from the name)
   /// or `probe` (measured from the container). Provenance is the point — without
   /// it you cannot tell a trusted value from a guess, nor find what still needs

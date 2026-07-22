@@ -533,3 +533,34 @@ describe('MediaScannerService.countDuplicateShows — the scan reports, it never
     await expect(build(detect).countDuplicateShows(LIB, 10)).resolves.toBe(0);
   });
 });
+
+describe('MediaScannerService — technical provenance and measured-data survival', () => {
+  const src = readFileSync(require.resolve('./media-scanner.service.ts'), 'utf8');
+
+  // Without provenance a never-probed row is indistinguishable from an unset one,
+  // so anything deciding measured-vs-guessed has to infer it from `probedAt`. The
+  // Library Cleanup Center refuses to delete on an unmeasured technical value, so
+  // the discriminator has to actually be written.
+  it('stamps filename-derived tech with techSource "filename" on both write paths', () => {
+    const stamps = src.match(/techSource: 'filename'/g) ?? [];
+    expect(stamps.length).toBeGreaterThanOrEqual(2); // create-existing + create-new
+  });
+
+  // `tech` is parsed from the FILENAME, and the renamer strips exactly those tokens.
+  // Re-spreading it over a probed row replaces a measurement with a guess — and the
+  // row is then never re-probed, because the backfill's working set is
+  // "probedAt: null". The guess would stay forever, and a cleanup policy could
+  // delete on it.
+  it('does not overwrite a probed row with filename guesses on rescan', () => {
+    expect(src).toContain('existing.files[0]?.probedAt != null');
+    // The probed branch refreshes size only.
+    expect(src).toMatch(/probed\s*\?\s*\{\s*size: BigInt\(file\.size\)\s*\}/);
+  });
+
+  it('still refreshes size on every rescan regardless of provenance', () => {
+    // Both branches must carry the size write — a stale size breaks reclaim
+    // estimates and the fingerprint drift check.
+    const updateBranch = src.slice(src.indexOf('update: probed'), src.indexOf('update: probed') + 200);
+    expect(updateBranch).toContain('size: BigInt(file.size)');
+  });
+});

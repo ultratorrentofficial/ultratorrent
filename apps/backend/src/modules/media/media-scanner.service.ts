@@ -208,6 +208,13 @@ export class MediaScannerService {
       const parsedEpisodeEnd = identity.episodeEnd ?? null;
 
       if (existing) {
+        // A probed row owns its technical fields. `tech` here is parsed from the
+        // FILENAME, and the renamer strips exactly those tokens — so re-spreading it
+        // over a measured row replaces a measurement with a guess, and the row then
+        // never gets re-probed (the backfill's working set is "never probed"), leaving
+        // the guess permanently in place. Cleanup policies may delete on these fields,
+        // so a measurement must survive a rescan. Size is always refreshed.
+        const probed = existing.files[0]?.probedAt != null;
         await this.prisma.mediaFile.upsert({
           where: {
             id: existing.files[0]?.id ?? '00000000-0000-0000-0000-000000000000',
@@ -217,8 +224,11 @@ export class MediaScannerService {
             path: file.path,
             size: BigInt(file.size),
             ...tech,
+            techSource: 'filename',
           },
-          update: { size: BigInt(file.size), ...tech },
+          update: probed
+            ? { size: BigInt(file.size) }
+            : { size: BigInt(file.size), ...tech, techSource: 'filename' },
         });
         // Self-heal a never-identified episodic item: it still carries the raw
         // filename as its title and no season/episode. Only touched when the item
@@ -285,6 +295,10 @@ export class MediaScannerService {
                 path: file.path,
                 size: BigInt(file.size),
                 ...tech,
+                // Provenance, not decoration: without it a never-probed row is
+                // indistinguishable from an unset one, and anything deciding on
+                // measured-vs-guessed data has to infer it from `probedAt`.
+                techSource: 'filename',
               },
             },
           },
