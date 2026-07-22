@@ -27,6 +27,18 @@ class FakePrisma {
     findMany: async () => [],
   };
   approvals: any[] = [];
+  users = new Map<string, any>();
+
+  user = {
+    findUnique: async ({ where }: any) => this.users.get(where.id) ?? null,
+  };
+
+  seedUser(id: string, superAdmin: boolean, permissions: string[]) {
+    this.users.set(id, {
+      id,
+      roles: [{ role: { name: superAdmin ? 'SUPER_ADMIN' : 'USER', permissions: permissions.map((k) => ({ permission: { key: k } })) } }],
+    });
+  }
 
   workflowNodeExecution = {
     findMany: async ({ where }: any) => this.nodeExecs.filter((n) => n.workflowExecutionId === where.workflowExecutionId),
@@ -71,9 +83,11 @@ const jobBridge = {
   startNodeJob: jest.fn().mockResolvedValue(null), finishNodeJob: jest.fn(), cancelJob: jest.fn(),
 } as any;
 
+const eventBus = { emit: jest.fn() } as any;
+
 function makeService(prisma: FakePrisma, run: jest.Mock) {
   const automation = { runWorkflowAction: run } as any;
-  return new WorkflowExecutionService(prisma as any, audit, registry, automation, jobBridge);
+  return new WorkflowExecutionService(prisma as any, audit, registry, automation, jobBridge, eventBus);
 }
 
 const linear: WorkflowGraph = {
@@ -314,6 +328,40 @@ describe('WorkflowExecutionService.runExecution', () => {
 
     expect(jobBridge.createExecutionJob).toHaveBeenCalledWith(executionId, 'w1', 'WF', 'u1');
     expect(prisma.execs.get(executionId)?.jobId).toBe('pjob1');
+  });
+
+  it('denies an action the run identity lacks permission for (least-privilege re-check)', async () => {
+    const prisma = new FakePrisma();
+    prisma.seedWorkflow(linear); // action.media_scan_library requires media_manager.scan
+    prisma.seedUser('u1', false, []); // identity holds NO permissions
+    prisma.execs.get('e1').executionIdentityUserId = 'u1';
+    const run = jest.fn().mockResolvedValue(undefined);
+    await makeService(prisma, run).runExecution('e1');
+
+    expect(run).not.toHaveBeenCalled(); // never dispatched
+    const node = prisma.nodeExecs.find((n) => n.nodeId === 'a');
+    expect(node?.status).toBe('failed');
+    expect(node?.errorMessage).toContain('permission_denied');
+    expect(prisma.execs.get('e1').status).toBe('failed');
+  });
+
+  it('allows an action when the run identity holds the permission (or is super-admin)', async () => {
+    const prisma = new FakePrisma();
+    prisma.seedWorkflow(linear);
+    prisma.seedUser('u1', false, ['media_manager.scan']);
+    prisma.execs.get('e1').executionIdentityUserId = 'u1';
+    const run = jest.fn().mockResolvedValue(undefined);
+    await makeService(prisma, run).runExecution('e1');
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(prisma.execs.get('e1').status).toBe('completed');
+  });
+
+  it('emits a Notification Center event when an execution fails', async () => {
+    const prisma = new FakePrisma();
+    prisma.seedWorkflow(linear);
+    const run = jest.fn().mockRejectedValue(new Error('boom'));
+    await makeService(prisma, run).runExecution('e1');
+    expect(eventBus.emit).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ event: 'workflow.execution.failed' }));
   });
 
   it('preserves variables across a durable pause', async () => {

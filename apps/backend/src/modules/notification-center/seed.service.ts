@@ -77,6 +77,10 @@ const CATALOG: SeedRule[] = [
   { name: 'New Login', event: E.SYSTEM_NEW_LOGIN, enabled: false, severity: 'info' },
   { name: 'API Key Created', event: E.SYSTEM_API_KEY_CREATED, enabled: true, severity: 'warning' },
   { name: 'Settings Changed', event: E.SYSTEM_SETTINGS_CHANGED, enabled: false, severity: 'info' },
+  // Visual Workflow Builder
+  { name: 'Workflow Failed', event: E.WORKFLOW_EXECUTION_FAILED, enabled: true, severity: 'critical', description: 'A workflow execution ended in failure.' },
+  { name: 'Workflow Completed', event: E.WORKFLOW_EXECUTION_COMPLETED, enabled: false, severity: 'info' },
+  { name: 'Workflow Approval Requested', event: E.WORKFLOW_APPROVAL_REQUESTED, enabled: true, severity: 'warning', description: 'A workflow is paused awaiting an approval decision.' },
 ];
 
 @Injectable()

@@ -1,10 +1,12 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS, SystemRole } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AutomationEngine } from '../automation/automation.module';
 import { WorkflowNodeRegistry } from './node-registry.service';
 import { WorkflowJobBridge } from './workflow-job.bridge';
-import { LONG_RUNNING_ACTIONS } from './domain/action-metadata';
+import { LONG_RUNNING_ACTIONS, ACTION_PERMISSION } from './domain/action-metadata';
 import { planExecution, type NodeRunState, type NodeRunStatus } from './domain/execution-planner';
 import { evaluateCondition } from './domain/condition-eval';
 import { renderConfig, renderValue } from './domain/template';
@@ -23,6 +25,12 @@ const MAX_SUBWORKFLOW_DEPTH = 5;
 
 /** Widened (string-keyed) view of the active-status set for comparing raw DB status columns. */
 const ACTIVE_STATUSES: ReadonlySet<string> = EXECUTION_ACTIVE;
+
+/** The execution identity's effective authority, snapshotted once per run (run-local, never shared). */
+interface IdentityGrant {
+  superAdmin: boolean;
+  permissions: ReadonlySet<string>;
+}
 
 export interface StartExecutionInput {
   triggerType?: string;
@@ -55,6 +63,7 @@ export class WorkflowExecutionService implements OnModuleInit {
     private readonly registry: WorkflowNodeRegistry,
     private readonly automation: AutomationEngine,
     private readonly jobBridge: WorkflowJobBridge,
+    private readonly eventBus: EventEmitter2,
   ) {}
 
   /** On boot, resume executions interrupted by a process restart (crash-safe). */
@@ -198,6 +207,10 @@ export class WorkflowExecutionService implements OnModuleInit {
     const graph = version?.graph as unknown as WorkflowGraph | undefined;
     if (!graph) { await this.finalize(executionId, 'failed', 'missing_version'); return; }
 
+    // Snapshot the run identity's authority once — least-privilege re-check at dispatch time
+    // (defense in depth beyond publish-time validation). No identity (event/system) → skip.
+    const grant = await this.loadIdentityGrant(execution.executionIdentityUserId);
+
     const byId = new Map<string, WorkflowNode>(graph.nodes.map((n) => [n.id, n]));
     // Nodes that actually wire up a `failure` output — only these survive a failed action.
     const failureBranchNodes = new Set(
@@ -259,7 +272,7 @@ export class WorkflowExecutionService implements OnModuleInit {
           return;
         }
 
-        const outcome = await this.processNode(node, category, context, failureBranchNodes.has(nodeId), executionId, execution.jobId);
+        const outcome = await this.processNode(node, category, context, failureBranchNodes.has(nodeId), executionId, execution.jobId, grant);
         states.set(nodeId, { status: outcome.status, firedPorts: outcome.firedPorts });
         await this.persistNode(executionId, node, outcome.status, outcome.firedPorts, outcome.error, outcome.attempt, outcome.jobId);
         if (outcome.warning) warnings = true;
@@ -281,6 +294,7 @@ export class WorkflowExecutionService implements OnModuleInit {
     hasFailureEdge: boolean,
     executionId: string,
     execJobId: string | null,
+    grant: IdentityGrant | null,
   ): Promise<{ status: NodeRunStatus; firedPorts: string[]; warning?: boolean; error?: string; attempt?: number; handledByFailureBranch?: boolean; jobId?: string }> {
     const def = this.registry.get(node.type);
     const outs = def?.ports.outputs ?? ['out'];
@@ -303,7 +317,7 @@ export class WorkflowExecutionService implements OnModuleInit {
       case 'end':
         return { status: 'succeeded', firedPorts: [] };
       case 'action':
-        return this.dispatchAction(node, def?.actionId, context, hasFailureEdge, executionId, execJobId);
+        return this.dispatchAction(node, def?.actionId, context, hasFailureEdge, executionId, execJobId, grant);
       default:
         // transform / parallel / join: pure pass-through.
         return { status: 'succeeded', firedPorts: outs.length ? outs : ['out'] };
@@ -318,8 +332,22 @@ export class WorkflowExecutionService implements OnModuleInit {
     hasFailureEdge: boolean,
     executionId: string,
     execJobId: string | null,
+    grant: IdentityGrant | null,
   ): Promise<{ status: NodeRunStatus; firedPorts: string[]; error?: string; attempt?: number; handledByFailureBranch?: boolean; jobId?: string }> {
     if (!actionId) return { status: 'failed', firedPorts: [], error: 'no_action_id' };
+
+    // Least-privilege: the run identity must hold the action's permission. Skipped only when
+    // there is no identity (event/system runs rely on publish-time validation).
+    const required = ACTION_PERMISSION[actionId];
+    if (grant && required && !grant.superAdmin && !grant.permissions.has(required)) {
+      return {
+        status: 'failed',
+        firedPorts: hasFailureEdge ? ['failure'] : [],
+        error: `permission_denied: ${required}`,
+        handledByFailureBranch: hasFailureEdge,
+      };
+    }
+
     const params = renderConfig(node.config ?? {}, context);
     const maxAttempts = Math.max(1, Number(node.retryPolicy?.maxAttempts ?? 1));
     const timeoutMs = Number(node.timeoutSeconds ?? 0) * 1000;
@@ -423,6 +451,10 @@ export class WorkflowExecutionService implements OnModuleInit {
         },
       });
       await this.setWaiting(executionId, 'waiting_for_approval', { resumeAt: null, expiresAt });
+      this.emitEvent(NOTIFICATION_EVENTS.WORKFLOW_APPROVAL_REQUESTED, {
+        executionId, nodeId: node.id, requiredPermission: node.config?.requiredPermission ?? null,
+        riskLevel: def?.destructive ? 'destructive' : 'normal',
+      });
       return;
     }
     // subworkflow: start a version-pinned child; its completion resumes this parent.
@@ -478,6 +510,33 @@ export class WorkflowExecutionService implements OnModuleInit {
     await this.runExecution(executionId);
   }
 
+  /** Resolve the run identity's roles+permissions (replicates the auth guard's SUPER_ADMIN rule). */
+  private async loadIdentityGrant(userId: string | null): Promise<IdentityGrant | null> {
+    if (!userId) return null;
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } } },
+      });
+      if (!user) return { superAdmin: false, permissions: new Set() };
+      const roles = user.roles.map((ur) => ur.role.name);
+      const permissions = new Set(user.roles.flatMap((ur) => ur.role.permissions.map((rp) => rp.permission.key)));
+      return { superAdmin: roles.includes(SystemRole.SUPER_ADMIN), permissions };
+    } catch (err) {
+      this.logger.error(`loadIdentityGrant(${userId}) failed: ${(err as Error).message}`);
+      return { superAdmin: false, permissions: new Set() }; // fail closed
+    }
+  }
+
+  /** Emit a routable domain event onto the shared bus (Notification Center picks it up). */
+  private emitEvent(event: string, payload: Record<string, unknown>): void {
+    try {
+      this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload, at: new Date().toISOString() });
+    } catch (err) {
+      this.logger.debug(`emitEvent ${event} failed: ${(err as Error).message}`);
+    }
+  }
+
   private async saveVars(executionId: string, vars: Record<string, unknown>): Promise<void> {
     if (!vars || Object.keys(vars).length === 0) return;
     const row = await this.prisma.workflowExecution.findUnique({ where: { id: executionId }, select: { outputSummary: true } });
@@ -506,6 +565,13 @@ export class WorkflowExecutionService implements OnModuleInit {
       action: `workflows.execution.${status}`, objectType: 'workflow_execution', objectId: executionId,
       result: status === 'failed' ? 'failure' : 'success',
     });
+
+    // Notify the Notification Center on terminal outcomes (routable domain events).
+    if (status === 'failed') {
+      this.emitEvent(NOTIFICATION_EVENTS.WORKFLOW_EXECUTION_FAILED, { executionId, status, reason: reason ?? null });
+    } else if (status === 'completed' || status === 'completed_with_warnings') {
+      this.emitEvent(NOTIFICATION_EVENTS.WORKFLOW_EXECUTION_COMPLETED, { executionId, status });
+    }
 
     // If this was a subworkflow child, resume the parent node down success/failure.
     const input = (row?.inputContext as { __parentExecutionId?: string; __parentNodeId?: string } | null) ?? {};

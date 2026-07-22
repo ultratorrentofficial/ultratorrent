@@ -41,7 +41,9 @@
       "openJobs": "Open Jobs Center",
       "jobsRunning": "View running jobs",
       "jobsFailed": "View failed jobs",
-      "jobsScheduled": "View scheduled tasks"
+      "jobsScheduled": "View scheduled tasks",
+      "openWorkflows": "Open Workflows",
+      "openApprovals": "Workflow approvals"
     },
     "entity": {
       "media": "Media",

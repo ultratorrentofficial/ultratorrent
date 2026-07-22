@@ -197,6 +197,11 @@ export const NOTIFICATION_EVENTS = {
   JOB_STALLED: 'job.stalled',
   JOB_COMPLETED_WITH_WARNINGS: 'job.completed_with_warnings',
   JOB_RETRY_EXHAUSTED: 'job.retry_exhausted',
+
+  // Visual Workflow Builder — durable execution lifecycle the Notification Center can act on.
+  WORKFLOW_EXECUTION_FAILED: 'workflow.execution.failed',
+  WORKFLOW_EXECUTION_COMPLETED: 'workflow.execution.completed',
+  WORKFLOW_APPROVAL_REQUESTED: 'workflow.approval.requested',
 } as const;
 
 /**

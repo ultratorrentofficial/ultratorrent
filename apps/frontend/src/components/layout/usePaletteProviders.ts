@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Copy, Download, Film, Library, Rss, ScanSearch, Bot, Users, Briefcase, ListChecks } from 'lucide-react';
+import { Copy, Download, Film, Library, Rss, ScanSearch, Bot, Users, Briefcase, ListChecks, Workflow, ShieldCheck } from 'lucide-react';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { api, type JobSubsystem } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -49,6 +49,12 @@ export function usePaletteProviders(): { actions: PaletteAction[]; entitySources
     }
     if (hasPermission(PERMISSIONS.AUTOMATION_VIEW) && isEnabled('automation')) {
       out.push({ id: 'automation', label: t('command.action.runAutomation'), icon: Bot, keywords: 'rule trigger', scope: 'automation', run: () => navigate('/automation') });
+    }
+    if (hasPermission(PERMISSIONS.WORKFLOWS_VIEW)) {
+      out.push({ id: 'workflows', label: t('command.action.openWorkflows'), icon: Workflow, keywords: 'workflow automation canvas visual', scope: 'automation', run: () => navigate('/workflows') });
+    }
+    if (hasPermission(PERMISSIONS.WORKFLOWS_APPROVE)) {
+      out.push({ id: 'workflow-approvals', label: t('command.action.openApprovals'), icon: ShieldCheck, keywords: 'approve review pending workflow', scope: 'automation', run: () => navigate('/workflows/approvals') });
     }
     if (hasPermission(PERMISSIONS.JOBS_VIEW)) {
       out.push({ id: 'jobs-center', label: t('command.action.openJobs'), icon: ListChecks, keywords: 'jobs tasks background', scope: 'system', run: () => navigate('/jobs') });

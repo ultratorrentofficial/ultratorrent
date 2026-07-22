@@ -39,7 +39,8 @@
     "rss": "RSS",
     "media": "Gestor Multimedia",
     "system": "Sistema",
-    "legacy": "En la app"
+    "legacy": "En la app",
+    "workflow": "Flujos de trabajo"
   },
   "channels": {
     "title": "Canales",

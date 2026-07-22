@@ -39,7 +39,8 @@
     "rss": "RSS",
     "media": "Media Manager",
     "system": "System",
-    "legacy": "In-app"
+    "legacy": "In-app",
+    "workflow": "Workflows"
   },
   "channels": {
     "title": "Channels",

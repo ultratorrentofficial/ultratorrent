@@ -41,7 +41,9 @@
       "openJobs": "Abrir Centro de Trabajos",
       "jobsRunning": "Ver trabajos en ejecución",
       "jobsFailed": "Ver trabajos fallidos",
-      "jobsScheduled": "Ver tareas programadas"
+      "jobsScheduled": "Ver tareas programadas",
+      "openWorkflows": "Abrir Flujos de trabajo",
+      "openApprovals": "Aprobaciones de flujo"
     },
     "entity": {
       "media": "Medios",
