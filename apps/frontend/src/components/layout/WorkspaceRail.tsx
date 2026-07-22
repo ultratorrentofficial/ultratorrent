@@ -45,9 +45,10 @@ export function WorkspaceRail({
       <Link
         to="/dashboard"
         aria-label="UltraTorrent"
-        className="mb-2 grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="mb-2 grid h-10 w-10 shrink-0 place-items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        UT
+        {/* alt="" — the link already carries the accessible name. */}
+        <img src="/logo-mark.png" alt="" className="h-10 w-10 object-contain" />
       </Link>
 
       <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto scrollbar-none">

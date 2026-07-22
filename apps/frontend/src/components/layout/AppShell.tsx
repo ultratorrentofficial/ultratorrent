@@ -840,9 +840,7 @@ function Sidebar({
     >
       <div className="relative flex items-center px-1 py-4">
         {collapsed ? (
-          <span className="mx-auto grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
-            UT
-          </span>
+          <img src="/logo-mark.png" alt="UltraTorrent" className="mx-auto h-9 w-9 shrink-0 object-contain" />
         ) : workspace ? (
           <Link
             to={`/hub/${workspace.id}`}
