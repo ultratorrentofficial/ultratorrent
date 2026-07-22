@@ -534,8 +534,14 @@
     "badge": {
       "subtitle": "subtítulo",
       "sample": "muestra",
-      "conflict": "conflicto"
-    }
+      "conflict": "conflicto",
+      "unchanged": "en su lugar"
+    },
+    "showUnchanged_one": "Mostrar {{count}} archivo que ya está en su lugar",
+    "showUnchanged_other": "Mostrar {{count}} archivos que ya están en su lugar",
+    "hideUnchanged_one": "Ocultar {{count}} archivo que ya está en su lugar",
+    "hideUnchanged_other": "Ocultar {{count}} archivos que ya están en su lugar",
+    "allInPlace": "Todos los archivos ya están en su lugar — no hay nada que renombrar."
   },
   "settings": {
     "title": "Ajustes de Medios",

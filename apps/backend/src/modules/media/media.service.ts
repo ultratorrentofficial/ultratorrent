@@ -550,7 +550,10 @@ export class MediaService {
         continue;
       }
 
-      if (item.skipped || !item.destination) {
+      // Already where it belongs. Renaming a file onto itself is at best a no-op
+      // and at worst a way to lose it, and counting it as applied work overstates
+      // what the run did.
+      if (item.skipped || item.unchanged || !item.destination) {
         skipped++;
         continue;
       }

@@ -107,9 +107,9 @@ describe('buildRenamePlan — identity comes from each file, not the batch', () 
 
   it('gives each episode its own season and episode number', () => {
     const dests = plan.items.filter((i) => !i.skipped).map((i) => i.destination);
-    expect(dests).toContain('/media/TV/FBI/Season 8/FBI - S08E22.mkv');
-    expect(dests).toContain('/media/TV/FBI/Season 6/FBI - S06E01.mkv');
-    expect(dests).toContain('/media/TV/FBI/Season 5/FBI - S05E16.mkv');
+    expect(dests).toContain('/media/TV/FBI (2018)/Season 8/FBI - S08E22.mkv');
+    expect(dests).toContain('/media/TV/FBI (2018)/Season 6/FBI - S06E01.mkv');
+    expect(dests).toContain('/media/TV/FBI (2018)/Season 5/FBI - S05E16.mkv');
   });
 
   it('reports no duplicate destinations', () => {
@@ -159,19 +159,20 @@ describe('buildRenamePlan — episode titles come per episode', () => {
 
   it('gives each file its own episode title', () => {
     const dests = plan.items.filter((i) => !i.skipped).map((i) => i.destination);
-    expect(dests).toContain('/media/TV/FBI/Season 5/FBI - S05E23 - God Complex.mkv');
-    expect(dests).toContain('/media/TV/FBI/Season 8/FBI - S08E01 - Takeover.mkv');
+    expect(dests).toContain('/media/TV/FBI (2018)/Season 5/FBI - S05E23 - God Complex.mkv');
+    expect(dests).toContain('/media/TV/FBI (2018)/Season 8/FBI - S08E01 - Takeover.mkv');
   });
 
   it('falls back cleanly when an episode has no known title', () => {
     // S08E02 is absent from the map — it must render without a title (and without a
     // dangling separator), not inherit a neighbouring episode's.
     const dests = plan.items.filter((i) => !i.skipped).map((i) => i.destination);
-    expect(dests).toContain('/media/TV/FBI/Season 8/FBI - S08E02.mkv');
+    expect(dests).toContain('/media/TV/FBI (2018)/Season 8/FBI - S08E02.mkv');
   });
 
   it('keeps the series title from the batch meta', () => {
-    expect(plan.items.every((i) => !i.destination || i.destination.includes('/FBI/'))).toBe(true);
+    // The show folder carries the year, so the series segment is "FBI (2018)".
+    expect(plan.items.every((i) => !i.destination || i.destination.includes('/FBI (2018)/'))).toBe(true);
   });
 
   it('does not give one show the title of ANOTHER show with the same episode number', () => {
@@ -198,9 +199,9 @@ describe('buildRenamePlan — episode titles come per episode', () => {
       },
     }));
     const dests = mixed.items.filter((i) => !i.skipped).map((i) => i.destination);
-    expect(dests).toContain('/media/TV/FBI/Season 2/FBI - S02E13 - Payback.mkv');
+    expect(dests).toContain('/media/TV/FBI (2018)/Season 2/FBI - S02E13 - Payback.mkv');
     expect(dests).toContain(
-      '/media/TV/FBI International/Season 2/FBI International - S02E13 - Blood Feud.mkv',
+      '/media/TV/FBI International (2018)/Season 2/FBI International - S02E13 - Blood Feud.mkv',
     );
   });
 
@@ -216,7 +217,7 @@ describe('buildRenamePlan — episode titles come per episode', () => {
       meta: { seriesTitle: 'FBI' },
     }));
     expect(mixed.items[0]?.destination).toBe(
-      '/media/TV/FBI International/Season 2/FBI International - S02E13.mkv',
+      '/media/TV/FBI International (2018)/Season 2/FBI International - S02E13.mkv',
     );
   });
 });
@@ -274,7 +275,7 @@ describe('buildRenamePlan — provider id tags never reach a path', () => {
       libraryPath: '/media/TV',
     }));
     expect(plan.items[0]?.skipped).toBe(false);
-    expect(plan.items[0]?.destination).toBe('/media/TV/4400/Season 1/4400 - S01E01.mp4');
+    expect(plan.items[0]?.destination).toBe('/media/TV/4400 (2021)/Season 1/4400 - S01E01.mp4');
     expect(plan.warnings.filter((w) => w.includes('unsafe destination'))).toEqual([]);
   });
 });
@@ -862,13 +863,13 @@ describe('buildRenamePlan — a sidecar follows its video across naming styles',
   it('carries the orphaned .nfo to the video it describes', () => {
     const n = row('Bloody Celestial Karaoke Jam.nfo');
     expect(n?.skipped).toBe(false);
-    expect(n?.destination).toBe('/downloads/TV Shows/Lucifer/Season 5/Lucifer - S05E10 - Bloody Celestial Karaoke Jam.nfo');
+    expect(n?.destination).toBe('/downloads/TV Shows/Lucifer (2016)/Season 5/Lucifer - S05E10 - Bloody Celestial Karaoke Jam.nfo');
   });
 
   it('keeps the sidecar marker when it carries -thumb.jpg', () => {
     const t = row('Bloody Celestial Karaoke Jam-thumb.jpg');
     expect(t?.skipped).toBe(false);
-    expect(t?.destination).toBe('/downloads/TV Shows/Lucifer/Season 5/Lucifer - S05E10 - Bloody Celestial Karaoke Jam-thumb.jpg');
+    expect(t?.destination).toBe('/downloads/TV Shows/Lucifer (2016)/Season 5/Lucifer - S05E10 - Bloody Celestial Karaoke Jam-thumb.jpg');
   });
 
   it('still leaves show-level artwork exactly where it is', () => {
@@ -935,5 +936,59 @@ describe('buildRenamePlan — cleanup keep-list understands every spelling', () 
 
   it('still deletes a language genuinely absent from the list', () => {
     expect(deleted(['en'])).toEqual(['fra', 'heb', 'hun']);
+  });
+});
+
+describe('buildRenamePlan — the show folder keeps its year', () => {
+  // A settled library keeps shows in "Show Name (Year)" — 701 of 704 folders on the
+  // live one. The TV templates rendered "{Series Title}" with no year (the MOVIE
+  // templates already carried it), so every correctly-filed episode was planned as a
+  // move out of its own folder: one show produced 322 rows of which only 10 were real
+  // renames, and applying it would have restructured the whole library.
+  const files = [
+    { path: '/media/TV/Lucifer (2016)/Season 5/Lucifer - S05E12 - Daniel Espinoza Naked and Afraid.mp4', size: BIG },
+    { path: '/media/TV/Lucifer (2016)/Lucifer.S05E13.1080p.HEVC.x265-MeGusta.mkv', size: BIG },
+  ];
+  const plan = buildRenamePlan(ctx({
+    sourceName: 'Lucifer (2016)',
+    libraryPath: '/media/TV',
+    files,
+    episodeMetaFor: (_s, season, ep) =>
+      season === 5 && ep === 12
+        ? { episodeTitle: 'Daniel Espinoza Naked and Afraid' }
+        : season === 5 && ep === 13
+          ? { episodeTitle: 'A Little Harmless Stalking' }
+          : undefined,
+  }));
+  const row = (needle: string) => plan.items.find((i) => i.source.includes(needle));
+
+  it('leaves an already-correct episode exactly where it is', () => {
+    const r = row('S05E12');
+    expect(r?.destination).toBe(files[0].path);
+    expect(r?.unchanged).toBe(true);
+  });
+
+  it('still renames the one that genuinely needs it', () => {
+    const r = row('MeGusta');
+    expect(r?.unchanged).toBe(false);
+    expect(r?.destination).toBe('/media/TV/Lucifer (2016)/Season 5/Lucifer - S05E13 - A Little Harmless Stalking.mkv');
+  });
+
+  it('omits the year entirely when the show has none', () => {
+    const p = buildRenamePlan(ctx({
+      sourceName: '90 Day Fiance',
+      libraryPath: '/media/TV',
+      files: [{ path: '/media/TV/90 Day Fiance/90.Day.Fiance.S01E01.1080p.mkv', size: BIG }],
+    }));
+    // No "()" left behind by the missing token.
+    expect(p.items[0]?.destination).toBe('/media/TV/90 Day Fiance/Season 1/90 Day Fiance - S01E01.mkv');
+    expect(p.items[0]?.unchanged).toBe(false);
+  });
+
+  it('marks a skipped file as changed=false, not unchanged', () => {
+    // `unchanged` means "already in place"; a skipped file has no destination at all
+    // and must not be conflated with one, or the preview would hide it.
+    const sample = plan.items.find((i) => i.isSample);
+    expect(sample?.unchanged ?? false).toBe(false);
   });
 });

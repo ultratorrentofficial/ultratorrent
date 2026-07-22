@@ -140,6 +140,15 @@ export interface RenamePlanItem {
   isSubtitle: boolean;
   isSample: boolean;
   isExtra: boolean;
+  /**
+   * The file is ALREADY at its destination — nothing to do.
+   *
+   * A steady-state library is almost entirely these, and listing them buries the
+   * handful of files that genuinely move: on a live 322-file show only 10 rows were
+   * real work. The preview hides them by default, and the executor skips them rather
+   * than renaming a file onto itself.
+   */
+  unchanged: boolean;
 }
 
 export interface RenamePlan {
@@ -184,29 +193,29 @@ export interface PresetTemplates {
 
 export const PRESET_TEMPLATES: Record<Exclude<Preset, 'custom'>, PresetTemplates> = {
   plex: {
-    tv: '{Series Title}/Season {season}/{Series Title} - S{season:00}E{episode:00}{episodeEnd? - E{episodeEnd:00}} - {Episode Title}.{ext}',
-    anime: '{Series Title}/Season {season}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
+    tv: '{Series Title}{year? ({year})}/Season {season}/{Series Title} - S{season:00}E{episode:00}{episodeEnd? - E{episodeEnd:00}} - {Episode Title}.{ext}',
+    anime: '{Series Title}{year? ({year})}/Season {season}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
     movie: '{Movie Title} ({year})/{Movie Title} ({year}) - {Resolution}.{ext}',
     music: '{Artist}/{Album}/{Track:00} {Title}.{ext}',
     audiobook: '{Artist}/{Album}/{Album}.{ext}',
   },
   jellyfin: {
-    tv: '{Series Title}/Season {season}/{Series Title} S{season:00}E{episode:00} {Episode Title}.{ext}',
-    anime: '{Series Title}/Season {season}/{Series Title} S{season:00}E{episode:00} {Episode Title}.{ext}',
+    tv: '{Series Title}{year? ({year})}/Season {season}/{Series Title} S{season:00}E{episode:00} {Episode Title}.{ext}',
+    anime: '{Series Title}{year? ({year})}/Season {season}/{Series Title} S{season:00}E{episode:00} {Episode Title}.{ext}',
     movie: '{Movie Title} ({year})/{Movie Title} ({year}) [{Resolution}].{ext}',
     music: '{Artist}/{Album}/{Track:00} - {Title}.{ext}',
     audiobook: '{Artist}/{Album}/{Album}.{ext}',
   },
   emby: {
-    tv: '{Series Title}/Season {season}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
-    anime: '{Series Title}/Season {season}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
+    tv: '{Series Title}{year? ({year})}/Season {season}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
+    anime: '{Series Title}{year? ({year})}/Season {season}/{Series Title} - S{season:00}E{episode:00} - {Episode Title}.{ext}',
     movie: '{Movie Title} ({year})/{Movie Title} ({year}).{ext}',
     music: '{Artist}/{Album}/{Track:00} {Title}.{ext}',
     audiobook: '{Artist}/{Album}/{Album}.{ext}',
   },
   kodi: {
-    tv: '{Series Title}/Season {season}/{Series Title} S{season:00}E{episode:00}.{ext}',
-    anime: '{Series Title}/Season {season}/{Series Title} S{season:00}E{episode:00}.{ext}',
+    tv: '{Series Title}{year? ({year})}/Season {season}/{Series Title} S{season:00}E{episode:00}.{ext}',
+    anime: '{Series Title}{year? ({year})}/Season {season}/{Series Title} S{season:00}E{episode:00}.{ext}',
     movie: '{Movie Title} ({year})/{Movie Title} ({year}) {Resolution}.{ext}',
     music: '{Artist}/{Album}/{Track:00} - {Title}.{ext}',
     audiobook: '{Artist}/{Album}/{Album}.{ext}',
@@ -538,7 +547,9 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
   const sourceRange = episodeRange(ctx.sourceName);
   const action = modeToAction(ctx.mode);
   const warnings: string[] = [];
-  const items: RenamePlanItem[] = [];
+  // `unchanged` is derived once at the end (below) rather than at each push site,
+  // so a new push can never forget it and silently claim work that isn't there.
+  const items: Omit<RenamePlanItem, 'unchanged'>[] = [];
   const destSeen = new Map<string, string>();
 
   // Primary video destinations remembered so subtitles can mirror them. The episode
@@ -836,9 +847,16 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
 
   if (items.every((i) => i.skipped)) warnings.push('No renamable media files were found.');
 
+  // A file already sitting at its destination is not work. Marked here, once, so
+  // every push site gets it consistently.
+  const marked: RenamePlanItem[] = items.map((i) => ({
+    ...i,
+    unchanged: !i.skipped && i.destination !== null && i.destination === i.source,
+  }));
+
   // `parsed` on the plan stays the BATCH identity — it describes the request as a whole
   // (callers surface it as "what we think this source is"), not any one file.
-  return { mode: ctx.mode, preset: ctx.preset, libraryPath: ctx.libraryPath, kind, parsed: sourceParsed, items, warnings };
+  return { mode: ctx.mode, preset: ctx.preset, libraryPath: ctx.libraryPath, kind, parsed: sourceParsed, items: marked, warnings };
 }
 
 /**

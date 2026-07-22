@@ -1326,6 +1326,8 @@ export interface RenamePlanItem {
   isSubtitle: boolean;
   isSample: boolean;
   isExtra: boolean;
+  /** Already at its destination — hidden from the preview by default. */
+  unchanged: boolean;
 }
 
 export interface RenamePlan {

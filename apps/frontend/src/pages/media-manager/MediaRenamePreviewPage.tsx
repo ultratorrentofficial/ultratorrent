@@ -49,6 +49,7 @@ export function MediaRenamePreviewPage() {
   const [sourcePath, setSourcePath] = useState('');
   const [dryRun, setDryRun] = useState(true);
   const [plan, setPlan] = useState<RenamePlan | null>(null);
+  const [showUnchanged, setShowUnchanged] = useState(false);
 
   const libraries = librariesQuery.data ?? [];
   const library: MediaLibrary | undefined = libraries.find((l) => l.id === libraryId);
@@ -105,6 +106,12 @@ export function MediaRenamePreviewPage() {
 
   const conflicts = conflictSet(plan ?? undefined);
   const hasConflicts = conflicts.size > 0;
+
+  // A settled library is almost entirely files already at their destination. Listing
+  // them buries the few that actually move — one live show planned 322 rows of which
+  // 10 were real work — so they are collapsed behind a count by default.
+  const unchangedCount = (plan?.items ?? []).filter((i) => i.unchanged).length;
+  const visibleItems = (plan?.items ?? []).filter((i) => showUnchanged || !i.unchanged);
 
   return (
     <div className="space-y-6">
@@ -206,9 +213,21 @@ export function MediaRenamePreviewPage() {
               <Badge variant="info">{presetLabel(t, plan.preset)}</Badge>
               <Badge variant="outline">{modeLabel(t, plan.mode)}</Badge>
               <span className="text-xs text-muted-foreground">
-                {t('common.items', { count: plan.items.length })}
+                {t('common.items', { count: visibleItems.length })}
               </span>
               {hasConflicts && <Badge variant="destructive">{t('renamePreview.conflicts', { count: conflicts.size })}</Badge>}
+              {unchangedCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setShowUnchanged((v) => !v)}
+                >
+                  {showUnchanged
+                    ? t('renamePreview.hideUnchanged', { count: unchangedCount })
+                    : t('renamePreview.showUnchanged', { count: unchangedCount })}
+                </Button>
+              )}
             </div>
 
             {plan.warnings.length > 0 && (
@@ -219,11 +238,13 @@ export function MediaRenamePreviewPage() {
               </div>
             )}
 
-            {plan.items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t('common.noFilesToRename')}</p>
+            {visibleItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {unchangedCount > 0 ? t('renamePreview.allInPlace') : t('common.noFilesToRename')}
+              </p>
             ) : (
               <div className="space-y-2">
-                {plan.items.map((item, i) => {
+                {visibleItems.map((item, i) => {
                   const isConflict = item.destination != null && conflicts.has(item.destination);
                   return (
                     <div
@@ -233,11 +254,12 @@ export function MediaRenamePreviewPage() {
                         isConflict
                           ? 'border-destructive/50 bg-destructive/5'
                           : 'border-border/60',
-                        item.skipped && 'opacity-60',
+                        (item.skipped || item.unchanged) && 'opacity-60',
                       )}
                     >
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant={item.skipped ? 'secondary' : 'success'}>{item.action}</Badge>
+                        <Badge variant={item.skipped || item.unchanged ? 'secondary' : 'success'}>{item.action}</Badge>
+                        {item.unchanged && <Badge variant="outline">{t('renamePreview.badge.unchanged')}</Badge>}
                         {item.isSubtitle && <Badge variant="outline">{t('renamePreview.badge.subtitle')}</Badge>}
                         {item.isSample && <Badge variant="warning">{t('renamePreview.badge.sample')}</Badge>}
                         {isConflict && <Badge variant="destructive">{t('renamePreview.badge.conflict')}</Badge>}

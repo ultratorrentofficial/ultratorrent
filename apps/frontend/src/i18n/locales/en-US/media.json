@@ -534,8 +534,14 @@
     "badge": {
       "subtitle": "subtitle",
       "sample": "sample",
-      "conflict": "conflict"
-    }
+      "conflict": "conflict",
+      "unchanged": "in place"
+    },
+    "showUnchanged_one": "Show {{count}} file already in place",
+    "showUnchanged_other": "Show {{count}} files already in place",
+    "hideUnchanged_one": "Hide {{count}} file already in place",
+    "hideUnchanged_other": "Hide {{count}} files already in place",
+    "allInPlace": "Every file is already in place — nothing to rename."
   },
   "settings": {
     "title": "Media Settings",
