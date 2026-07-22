@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { FilesModule } from '../../files/files.module';
 import { ProtectionService } from './protection.service';
 import { PolicyService } from './policy.service';
+import { CandidateDiscoveryService } from './candidate-discovery.service';
 import { CleanupController } from './cleanup.controller';
 
 /**
@@ -13,8 +15,11 @@ import { CleanupController } from './cleanup.controller';
  * and Trash seams — cleanup never touches the filesystem directly).
  */
 @Module({
-  providers: [ProtectionService, PolicyService],
+  // FilesModule supplies FilePathService (storage-scope confinement) and, from
+  // Phase 8, FilesService/TrashService — cleanup never touches the filesystem itself.
+  imports: [FilesModule],
+  providers: [ProtectionService, PolicyService, CandidateDiscoveryService],
   controllers: [CleanupController],
-  exports: [ProtectionService, PolicyService],
+  exports: [ProtectionService, PolicyService, CandidateDiscoveryService],
 })
 export class LibraryCleanupModule {}

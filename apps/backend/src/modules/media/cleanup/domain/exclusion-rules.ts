@@ -97,17 +97,41 @@ export interface ExclusionVerdict {
 }
 
 export interface ExclusionOptions {
+  /**
+   * Required, so a caller cannot forget it. It still arrives from a Prisma `Json`
+   * column at runtime, where the type is a claim rather than a guarantee — hence
+   * the defensive default below.
+   */
   exclusions: PolicyExclusions;
   replacementRequired: boolean;
   now?: Date;
 }
+
+/**
+ * What a document with no usable exclusions block is read as. Every operator-tunable
+ * safety margin is set to its STRICTEST value, not its loosest: a policy whose
+ * exclusions we cannot read is a policy we do not trust, and the mandatory pass must
+ * never be the thing that throws — a crash here aborts the scan mid-page and strands
+ * the run, which is a worse outcome than excluding too much.
+ */
+const STRICTEST_EXCLUSIONS: PolicyExclusions = {
+  protected: true,
+  locked: true,
+  activePlayback: true,
+  incompleteDownload: true,
+  inFlightOperation: true,
+  ambiguousIdentity: true,
+  requireMeasuredTechnical: true,
+};
 
 export function evaluateExclusions(
   facts: ExclusionFacts,
   opts: ExclusionOptions,
 ): ExclusionVerdict {
   const now = opts.now ?? new Date();
-  const ex = opts.exclusions;
+  const ex = opts.exclusions && typeof opts.exclusions === 'object'
+    ? opts.exclusions
+    : STRICTEST_EXCLUSIONS;
   const reasons: ExclusionReason[] = [];
 
   // Absolute, in reporting order.

@@ -7,6 +7,7 @@ import { RequirePermissions } from '../../../common/decorators/permissions.decor
 import { CurrentUser, AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
 import { ProtectionService } from './protection.service';
 import { PolicyService } from './policy.service';
+import { CandidateDiscoveryService } from './candidate-discovery.service';
 import {
   BulkCreateProtectionDto, CreateProtectionDto, ExpiringQueryDto,
   ProtectionListQueryDto, RevokeProtectionDto,
@@ -15,6 +16,7 @@ import {
   CreatePolicyDto, PolicyListQueryDto, PublishPolicyDto,
   SavePolicyDraftDto, UpdatePolicyDto, ValidatePolicyDto, CreateFromTemplateDto,
 } from './dto/policy.dto';
+import { CandidateListQueryDto, RunListQueryDto } from './dto/run.dto';
 
 /**
  * Library Cleanup Center. Static routes are declared BEFORE any `:id` route so
@@ -28,6 +30,7 @@ export class CleanupController {
   constructor(
     private readonly protections: ProtectionService,
     private readonly policies: PolicyService,
+    private readonly discovery: CandidateDiscoveryService,
   ) {}
 
   // ── Catalogue & stateless validation ───────────────────────────────────────
@@ -119,6 +122,50 @@ export class CleanupController {
   @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_POLICY_DELETE)
   deletePolicy(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.policies.remove(id, user);
+  }
+
+  // ── Runs & candidates ──────────────────────────────────────────────────────
+  /** Simulate: evaluates the DRAFT and takes no action whatsoever. */
+  @Post('policies/:id/simulate')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_SIMULATE)
+  async simulate(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    const run = await this.discovery.startRun(id, { simulate: true, trigger: 'manual', userId: user.id, limit: 5000 });
+    await this.discovery.executeRun(run.id, 5000);
+    return this.discovery.getRun(run.id);
+  }
+
+  /** A real run. Still only produces candidates — nothing is removed here. */
+  @Post('policies/:id/run')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_RUN)
+  async run(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    const run = await this.discovery.startRun(id, { simulate: false, trigger: 'manual', userId: user.id });
+    // Discovery is read-only, so it is safe to await; execution (Phase 8) will not be.
+    await this.discovery.executeRun(run.id);
+    return this.discovery.getRun(run.id);
+  }
+
+  @Get('runs')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
+  listRuns(@Query() query: RunListQueryDto) {
+    return this.discovery.listRuns(query);
+  }
+
+  @Get('runs/:runId')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
+  getRun(@Param('runId') runId: string) {
+    return this.discovery.getRun(runId);
+  }
+
+  @Post('runs/:runId/cancel')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_CANCEL)
+  cancelRun(@Param('runId') runId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.discovery.cancelRun(runId, user);
+  }
+
+  @Get('runs/:runId/candidates')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
+  listCandidates(@Param('runId') runId: string, @Query() query: CandidateListQueryDto) {
+    return this.discovery.listCandidates(runId, query);
   }
 
   // ── Protections ────────────────────────────────────────────────────────────

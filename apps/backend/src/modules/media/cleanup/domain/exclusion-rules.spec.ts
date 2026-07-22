@@ -247,3 +247,33 @@ describe('candidateFingerprint', () => {
     expect(d).not.toContain('path');
   });
 });
+
+describe('a document whose exclusions block is unreadable', () => {
+  // The block is typed as required, but it arrives from a Json column.
+  const bare = {
+    isProtected: false, hasLegalHold: false, isLocked: false,
+    withinHardRoots: true, isSystemPath: false, isLibraryRoot: false, fileExists: true,
+    activePlayback: false, incompleteDownload: false, inFlightOperation: false,
+    hasActiveJob: false, pendingDuplicateResolution: false,
+    addedAt: new Date('2020-01-01T00:00:00Z'),
+    ambiguousIdentity: true,
+    technicalMeasured: false,
+    policyUsesMeasuredConditions: true,
+    playbackTrustworthy: true,
+    policyUsesPlaybackConditions: false,
+    playbackComputedAt: new Date('2026-06-01T00:00:00Z'),
+    maximumProgressPercent: null,
+    isLastSurvivingCopy: false,
+    hasVerifiedReplacement: false,
+  } as never;
+
+  it('does not throw', () => {
+    expect(() => evaluateExclusions(bare, { replacementRequired: false } as unknown as ExclusionOptions)).not.toThrow();
+  });
+
+  it('reads as the STRICTEST policy, not the loosest', () => {
+    const v = evaluateExclusions(bare, { replacementRequired: false } as unknown as ExclusionOptions);
+    expect(v.excluded).toBe(true);
+    expect(v.allReasons).toEqual(expect.arrayContaining(['ambiguous_identity', 'unmeasured_technical']));
+  });
+});
