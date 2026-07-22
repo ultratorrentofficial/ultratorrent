@@ -13,7 +13,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { FilePathService, type FileOpContext } from './file-path.service';
-import { TRASH_DIR_NAME } from './path-safety';
+import { TRASH_DIR_NAME, type PathSafety } from './path-safety';
 import { computeSize, moveRecursive, pathExists, statSafe } from './file-fs.util';
 
 /**
@@ -37,13 +37,24 @@ export class TrashService {
     return this.paths.safety;
   }
 
-  /** Move an already-validated absolute path into its root's trash directory. */
-  async moveToTrash(absPath: string, ctx: FileOpContext = {}): Promise<TrashItemDto> {
-    this.safety.assertDeletable(absPath);
-    if (this.safety.isInsideTrash(absPath)) {
+  /**
+   * Move an already-validated absolute path into its root's trash directory.
+   *
+   * `safety` defaults to the narrowed browse boundary. A caller performing
+   * storage maintenance passes {@link FilePathService.storageSafety} so the item
+   * is sited in the hard root that genuinely contains it — otherwise a narrowed
+   * Default Root Path makes `rootFor` miss and rejects the file outright.
+   */
+  async moveToTrash(
+    absPath: string,
+    ctx: FileOpContext = {},
+    safety: PathSafety = this.safety,
+  ): Promise<TrashItemDto> {
+    safety.assertDeletable(absPath);
+    if (safety.isInsideTrash(absPath)) {
       throw new BadRequestException('Item is already in the trash');
     }
-    const storageRoot = this.safety.rootFor(absPath);
+    const storageRoot = safety.rootFor(absPath);
     if (!storageRoot) {
       throw new BadRequestException('Item is outside the allowed roots');
     }
@@ -52,7 +63,10 @@ export class TrashService {
     if (!info) throw new NotFoundException('Item not found');
 
     const name = path.basename(absPath);
-    const originalPath = this.safety.toRelative(absPath);
+    // Same boundary as the containment check above: restore resolves this string
+    // again later, so rebasing it against a different root would record a path
+    // that no longer round-trips.
+    const originalPath = safety.toRelative(absPath);
     const trashDir = path.join(storageRoot, TRASH_DIR_NAME);
     await mkdir(trashDir, { recursive: true });
 

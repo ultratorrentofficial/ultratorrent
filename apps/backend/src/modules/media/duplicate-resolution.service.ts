@@ -565,7 +565,15 @@ export class DuplicateResolutionService {
           continue;
         }
 
-        await this.files.remove({ path: this.filePath.safety.toRelative(action.sourcePath), permanent }, ctx);
+        // `storage` scope, matching the assertWithinHardRoots check above and the
+        // one preview ran: a library may legitimately sit outside the admin's
+        // narrowed Default Root Path, and a browse preference must not decide
+        // which libraries can be maintained.
+        await this.files.remove(
+          { path: this.filePath.storageSafety.toRelative(action.sourcePath), permanent },
+          ctx,
+          'storage',
+        );
         reclaimed += st.size;
         trashed++;
         await this.prisma.mediaDuplicateResolutionAction.update({

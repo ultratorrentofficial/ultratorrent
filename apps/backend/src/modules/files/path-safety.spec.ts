@@ -68,6 +68,17 @@ describe('PathSafety', () => {
       expect(safety.toRelative('/downloads/movies/a.mkv')).toBe('/movies/a.mkv');
       expect(safety.toRelative('/media')).toBe('/');
     });
+
+    // It used to rebase an uncontained path against roots[0], yielding a string
+    // like "/../TV/show.mkv" that looked relative, passed through call after
+    // call, and only blew up when something resolved it back — surfacing the
+    // boundary error nowhere near the code that got the root wrong.
+    it('refuses a path no root contains rather than emitting a `..` escape', () => {
+      const narrowed = new PathSafety(['/downloads/complete']);
+      expect(() => narrowed.toRelative('/downloads/TV/show.mkv')).toThrow(
+        ForbiddenException,
+      );
+    });
   });
 
   describe('assertSafeName', () => {

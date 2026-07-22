@@ -69,6 +69,7 @@ export class FilePathService implements OnModuleInit {
   private readonly logger = new Logger(FilePathService.name);
   private readonly envRoots: string[];
   private _safety: PathSafety;
+  private readonly _storageSafety: PathSafety;
 
   constructor(
     private readonly config: ConfigService,
@@ -78,6 +79,7 @@ export class FilePathService implements OnModuleInit {
       path.resolve(r),
     );
     this._safety = new PathSafety(this.envRoots);
+    this._storageSafety = new PathSafety(this.envRoots);
   }
 
   async onModuleInit(): Promise<void> {
@@ -87,6 +89,26 @@ export class FilePathService implements OnModuleInit {
   /** Delegated per-call so a refresh() propagates to every consumer. */
   get safety(): PathSafety {
     return this._safety;
+  }
+
+  /**
+   * Boundary for system-initiated maintenance on operator-configured storage —
+   * duplicate cleanup and the like — pinned to the ops hard roots and never
+   * narrowed by {@link DEFAULT_ROOT_PATH_KEY}.
+   *
+   * The narrowed root is a *browse convenience*: it says where the file manager
+   * opens, not which files the system is permitted to maintain. Media libraries
+   * are configured independently and may sit anywhere inside the hard roots, so
+   * routing their maintenance through the narrowed `safety` let an unrelated UI
+   * preference silently disable duplicate cleanup for every library outside it —
+   * and worse, `toRelative` then rebased those paths against the wrong root and
+   * produced a `..`-escaping relative path that only failed containment on the
+   * way back in. Callers acting on a path they have already checked with
+   * {@link assertWithinHardRoots} must use this, so the check that admits the
+   * path and the check that acts on it are the same boundary.
+   */
+  get storageSafety(): PathSafety {
+    return this._storageSafety;
   }
 
   /** The ops-controlled outer boundary. */

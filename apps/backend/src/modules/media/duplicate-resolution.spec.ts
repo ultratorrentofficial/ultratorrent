@@ -49,11 +49,14 @@ function build(over: any = {}) {
         return p;
       }),
     safety: { toRelative: (p: string) => p },
+    // Cleanup must resolve against the hard roots, never the narrowed browse
+    // root — see the "narrowed Default Root Path" case below.
+    storageSafety: { toRelative: (p: string) => p },
   };
   const files: any = { remove: jest.fn(async () => undefined) };
   const audit: any = { record: jest.fn(async () => undefined) };
   const svc = new DuplicateResolutionService(prisma, filePath, files, audit, { broadcast: jest.fn() } as any, { emit: jest.fn() } as any);
-  return { svc, state, prisma, files, audit };
+  return { svc, state, prisma, files, audit, filePath };
 }
 
 const item = (id: string, p: string, size: number) => ({
@@ -227,6 +230,30 @@ describe('resolve — refuses to execute a plan it should not', () => {
     await ctx.svc.preview('g1', 'keep');
     return { ...ctx, keepPath, dropPath };
   }
+
+  // Regression: on a live install the admin set the file-manager Default Root
+  // Path to /downloads/complete while every media library sat elsewhere under
+  // /downloads. Preview validated against the hard roots and happily promised
+  // "Moving 1 file to Trash"; execution then resolved the same path through the
+  // *narrowed* root and refused it — "Path is outside the allowed roots" — so
+  // every cleanup, for every library, failed after the operator confirmed it.
+  // Where the file manager opens must not decide which storage can be maintained.
+  it('cleans up a library that sits outside a narrowed Default Root Path', async () => {
+    const { svc, files, filePath } = await planned({ keep: 100, drop: 50 });
+    // The narrowed browse boundary rejects every library path, exactly as the
+    // real PathSafety does once it is scoped to a subtree holding no library.
+    filePath.safety.toRelative = jest.fn(() => {
+      throw new Error('Path is outside the allowed roots');
+    });
+
+    const r = await svc.resolve('r1');
+
+    expect(r.status).toBe('completed');
+    expect(r.trashed).toBe(1);
+    // Storage scope, so FilesService resolves against the hard roots — the same
+    // boundary assertWithinHardRoots and preview already checked.
+    expect(files.remove.mock.calls[0][2]).toBe('storage');
+  });
 
   it('trashes the redundant copy by default (recoverable)', async () => {
     const { svc, files, state } = await planned({ keep: 100, drop: 50 });
@@ -454,6 +481,7 @@ describe('bulk — a response carrying failures is never mistaken for a clean ru
     const filePath: any = {
       assertWithinHardRoots: jest.fn((p: string) => { if (!p.startsWith(bulkDir)) throw new Error('outside roots'); return p; }),
       safety: { toRelative: (p: string) => p },
+      storageSafety: { toRelative: (p: string) => p },
     };
     const files: any = { remove: jest.fn(async () => undefined) };
     const audit: any = { record: jest.fn(async () => undefined) };

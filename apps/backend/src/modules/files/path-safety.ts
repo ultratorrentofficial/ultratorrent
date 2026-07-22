@@ -164,11 +164,22 @@ export class PathSafety {
     }
   }
 
-  /** Convert an absolute path to its root-relative form (always `/`-prefixed). */
+  /**
+   * Convert an absolute path to its root-relative form (always `/`-prefixed).
+   *
+   * Refuses a path no root contains rather than rebasing it against `roots[0]`.
+   * That fallback used to emit a `..`-escaping string (`/../TV/show.mkv`) which
+   * looked like a valid relative path, survived being passed around, and only
+   * failed containment when something resolved it back — reporting the boundary
+   * error far from the mistake that caused it.
+   */
   toRelative(absPath: string): string {
-    const root = this.rootFor(absPath) ?? this.normalizedRoots()[0];
-    if (!root) return absPath;
-    const rel = path.relative(root, path.resolve(absPath));
+    const resolved = path.resolve(absPath);
+    const root = this.rootFor(resolved);
+    if (!root) {
+      throw new ForbiddenException('Path is outside the allowed roots');
+    }
+    const rel = path.relative(root, resolved);
     return '/' + rel.split(path.sep).filter(Boolean).join('/');
   }
 }

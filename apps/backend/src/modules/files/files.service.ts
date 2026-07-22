@@ -45,6 +45,12 @@ import type {
 /** Largest file we will hash for the Properties dialog (64 MiB). */
 const HASH_LIMIT_BYTES = 64 * 1024 * 1024;
 
+/**
+ * Which path boundary an operation resolves against — the operator's narrowed
+ * browse root, or the ops hard roots for system-initiated storage maintenance.
+ */
+export type PathScope = 'browse' | 'storage';
+
 @Injectable()
 export class FilesService {
   constructor(
@@ -56,6 +62,10 @@ export class FilesService {
 
   private get safety() {
     return this.paths.safety;
+  }
+
+  private get storageSafety() {
+    return this.paths.storageSafety;
   }
 
   // --- read ----------------------------------------------------------------
@@ -218,13 +228,27 @@ export class FilesService {
     });
   }
 
-  async remove(dto: DeleteFileDto, ctx: FileOpContext = {}): Promise<FileOperationResult> {
+  /**
+   * Delete a path, to Trash unless `permanent`.
+   *
+   * `scope` selects the boundary the path is resolved against. `browse` (the
+   * default) honours the admin's narrowed Default Root Path, because the caller
+   * is the file manager and the operator is acting inside what they can see.
+   * `storage` pins to the ops hard roots and is for system-initiated maintenance
+   * on configured storage — see {@link FilePathService.storageSafety}.
+   */
+  async remove(
+    dto: DeleteFileDto,
+    ctx: FileOpContext = {},
+    scope: PathScope = 'browse',
+  ): Promise<FileOperationResult> {
+    const safety = scope === 'storage' ? this.storageSafety : this.safety;
     let rel = dto.path;
     this.emit('delete', { source: rel, at: new Date().toISOString() }, 'started');
     try {
-      const target = await this.safety.resolveExisting(dto.path);
-      this.safety.assertDeletable(target);
-      rel = this.safety.toRelative(target);
+      const target = await safety.resolveExisting(dto.path);
+      safety.assertDeletable(target);
+      rel = safety.toRelative(target);
       if (dto.permanent) {
         if (!(await pathExists(target))) throw new NotFoundException('Item not found');
         const bytes = await computeSize(target);
@@ -241,8 +265,10 @@ export class FilesService {
         this.emit('delete', { source: rel, bytes, result: 'success', at: new Date().toISOString() }, 'completed');
         return { operation: 'delete', ok: true, path: rel, bytes, message: 'permanently deleted' };
       }
-      // Trash mode (audits + emits trash.updated inside the trash service).
-      const item = await this.trash.moveToTrash(target, ctx);
+      // Trash mode (audits + emits trash.updated inside the trash service). The
+      // same safety goes with it so the trash directory is sited in the root that
+      // actually contains the file, not the narrowed browse root.
+      const item = await this.trash.moveToTrash(target, ctx, safety);
       this.emit('delete', { source: rel, bytes: item.size, result: 'success', at: new Date().toISOString() }, 'completed');
       return { operation: 'delete', ok: true, path: rel, bytes: item.size, message: 'moved to trash' };
     } catch (err) {
