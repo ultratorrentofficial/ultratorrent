@@ -229,6 +229,17 @@ export function sanitizeSegment(input: string): string {
   return input
     .replace(/[\\/:*?"<>|]/g, ' ')
     .replace(/\s+/g, ' ')
+    // An illegal character becomes a SPACE, and when it ended the title that space
+    // lands against the extension: "Et Tu, Doctor?.mp4" → "Et Tu, Doctor .mp4".
+    // renderTemplate's own tidy-up cannot catch this — it runs BEFORE sanitisation,
+    // when the '?' is still there and there is no stray space to see. The trailing
+    // trim below cannot either, because the space is not at the end of the segment.
+    // Left alone it renames every such episode to a name ending in a space, which
+    // also makes an already-correct file look like work in the preview forever.
+    // The extension may be compound — a subtitle carries its language tag
+    // (".en.srt"), so anchoring on a single dot-group would miss it entirely.
+    .replace(/\s*-\s*((?:\.[A-Za-z0-9]+)+)$/, '$1') // title was ENTIRELY illegal chars
+    .replace(/\s+((?:\.[A-Za-z0-9]+)+)$/, '$1') // …or merely ended with one
     .replace(/[ .]+$/g, '')
     .trim();
 }

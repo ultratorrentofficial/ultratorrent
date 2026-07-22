@@ -1,0 +1,5 @@
+---
+"ultratorrent": patch
+---
+
+A rename no longer leaves a space before the file extension. Illegal filename characters are replaced with a SPACE, so a title ending in one put that space right against the extension: Lucifer S01E08 ('Et Tu, Doctor?') planned a rename to 'Et Tu, Doctor .mp4'. Neither existing guard could catch it — renderTemplate's tidy-up runs BEFORE sanitisation, when the '?' is still present and there is no stray space to see, and the trailing trim only inspects the very end of the segment, where the extension sits. sanitizeSegment now drops whitespace that ends up against the extension, and the dangling ' - ' left when a title consisted entirely of illegal characters. The extension match allows a compound suffix so a subtitle's language tag ('.en.srt', '.en.forced.srt') is handled rather than missed. Beyond producing a wrong name, this made an already-correct file look like pending work in every preview forever; such files are now correctly reported as unchanged and disappear from the list.

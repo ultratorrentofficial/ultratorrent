@@ -992,3 +992,43 @@ describe('buildRenamePlan — the show folder keeps its year', () => {
     expect(sample?.unchanged ?? false).toBe(false);
   });
 });
+
+describe('sanitizeSegment — no space is left against the extension', () => {
+  // An illegal character becomes a SPACE, so a title ending in one put that space
+  // right before the extension: Lucifer S01E08 ("Et Tu, Doctor?") planned a rename to
+  // "Et Tu, Doctor .mp4". renderTemplate's tidy-up runs BEFORE sanitisation, when the
+  // '?' is still there, and the trailing trim only looks at the end of the segment —
+  // so neither could see it. Beyond being wrong, it made an already-correct file look
+  // like pending work in every future preview.
+  it.each([
+    ['Lucifer - S01E08 - Et Tu, Doctor?.mp4', 'Lucifer - S01E08 - Et Tu, Doctor.mp4'],
+    ['Movie: The Sequel.mkv', 'Movie The Sequel.mkv'],
+    // A compound extension: anchoring on one dot-group would miss the language tag.
+    ['Show - S01E01 - What Now?.en.srt', 'Show - S01E01 - What Now.en.srt'],
+    ['Show - S01E01 - What Now?.en.forced.srt', 'Show - S01E01 - What Now.en.forced.srt'],
+    // Title made ENTIRELY of illegal characters — drop the dangling separator too.
+    ['Show - S01E01 - ???.mp4', 'Show - S01E01.mp4'],
+    ['Show - S01E01 - ???.en.srt', 'Show - S01E01.en.srt'],
+  ])('%s → %s', (input, expected) => {
+    expect(sanitizeSegment(input)).toBe(expected);
+  });
+
+  it('leaves a legitimate name alone', () => {
+    // A dot inside the name is not a "space before the extension".
+    expect(sanitizeSegment('Dr. No.mkv')).toBe('Dr. No.mkv');
+    expect(sanitizeSegment('Show - S01E01 - Normal Title.mp4')).toBe('Show - S01E01 - Normal Title.mp4');
+    expect(sanitizeSegment('Lucifer (2016)')).toBe('Lucifer (2016)');
+  });
+
+  it('renders a whole plan without a trailing space, and calls it unchanged', () => {
+    const p = buildRenamePlan(ctx({
+      sourceName: 'Lucifer (2016)',
+      libraryPath: '/media/TV',
+      files: [{ path: '/media/TV/Lucifer (2016)/Season 1/Lucifer - S01E08 - Et Tu, Doctor.mp4', size: BIG }],
+      episodeMetaFor: () => ({ episodeTitle: 'Et Tu, Doctor?' }),
+    }));
+    expect(p.items[0]?.destination).toBe('/media/TV/Lucifer (2016)/Season 1/Lucifer - S01E08 - Et Tu, Doctor.mp4');
+    // The file is already correct, so it must not appear as work.
+    expect(p.items[0]?.unchanged).toBe(true);
+  });
+});
