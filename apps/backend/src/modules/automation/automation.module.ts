@@ -379,6 +379,20 @@ export class AutomationEngine {
   }
 
   /**
+   * Run a SINGLE action for the Visual Workflow executor, **reusing the engine's real
+   * dispatch** (RSS / subtitle / media / notification / webhook) — extend-not-replace, the
+   * workflow engine never reimplements action behavior. Torrent-native ops (move/pause/stop/
+   * delete) need a torrent-run context and remain unsupported from a workflow event context.
+   */
+  async runWorkflowAction(
+    type: string,
+    params: Record<string, unknown>,
+    context: Record<string, unknown>,
+  ): Promise<void> {
+    await this.runEventAction({ type, params }, context);
+  }
+
+  /**
    * POST a webhook payload to a rule-supplied URL, SSRF-guarded. Without this a rule
    * author could point the action at `http://169.254.169.254/…` (cloud metadata),
    * a Docker-internal service, or a localhost admin port. The guard blocks internal

@@ -90,6 +90,15 @@
     "steps": "Traza de ejecución",
     "clear": "Limpiar"
   },
+  "run": {
+    "run": "Ejecutar",
+    "started": "Ejecución iniciada",
+    "needsPublish": "Publica el flujo antes de ejecutarlo.",
+    "title": "Ejecuciones recientes",
+    "empty": "Aún no hay ejecuciones.",
+    "cancel": "Cancelar",
+    "cancelled": "Cancelación solicitada"
+  },
   "toast": {
     "created": "Flujo creado",
     "saved": "Borrador guardado",

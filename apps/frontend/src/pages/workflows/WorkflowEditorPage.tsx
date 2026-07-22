@@ -7,7 +7,7 @@ import {
   useNodesState, useEdgesState, type Connection, type Edge as FlowEdge, type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ArrowLeft, Save, Send, Power, PowerOff, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Save, Send, Power, PowerOff, FlaskConical, Play } from 'lucide-react';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -164,6 +164,22 @@ function WorkflowEditorInner() {
     onError: () => toast.error(t('toast.error')),
   });
 
+  const runMut = useMutation({
+    mutationFn: () => api.workflows.run(id),
+    onSuccess: () => {
+      toast.success(t('run.started'));
+      void qc.invalidateQueries({ queryKey: ['workflows', id, 'executions'] });
+    },
+    onError: () => toast.error(t('toast.error')),
+  });
+
+  const executionsQuery = useQuery({
+    queryKey: ['workflows', id, 'executions'],
+    queryFn: () => api.workflows.executions(id),
+    enabled: !!id && !!workflow?.publishedVersionId,
+    refetchInterval: 4000,
+  });
+
   const toggleMut = useMutation({
     mutationFn: (enable: boolean) => (enable ? api.workflows.enable(id) : api.workflows.disable(id)),
     onSuccess: (_res, enable) => {
@@ -207,6 +223,11 @@ function WorkflowEditorInner() {
           {canPublish && (
             <Button size="sm" disabled={publishMut.isPending} onClick={() => publishMut.mutate()}>
               <Send className="mr-1 h-4 w-4" />{t('editor.publish')}
+            </Button>
+          )}
+          {canRun && workflow.publishedVersionId && (
+            <Button size="sm" variant="outline" disabled={runMut.isPending} onClick={() => runMut.mutate()}>
+              <Play className="mr-1 h-4 w-4" />{t('run.run')}
             </Button>
           )}
           {canPublish && workflow.publishedVersionId && (
@@ -266,6 +287,22 @@ function WorkflowEditorInner() {
             <div className="border-b">
               <div className="px-3 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('simulate.title')}</div>
               <SimulationPanel result={simulation} onSelectNode={setSelectedId} />
+            </div>
+          )}
+          {workflow.publishedVersionId && (
+            <div className="border-b">
+              <div className="px-3 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('run.title')}</div>
+              <ul className="space-y-1 p-3 text-xs">
+                {(executionsQuery.data ?? []).length === 0 && <li className="text-muted-foreground">{t('run.empty')}</li>}
+                {(executionsQuery.data ?? []).slice(0, 8).map((ex) => (
+                  <li key={ex.id} className="flex items-center justify-between gap-2">
+                    <span className="truncate">
+                      <span className="font-mono text-[10px] text-muted-foreground">{ex.triggerSource}</span> · {ex.status}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">{new Date(ex.createdAt).toLocaleTimeString()}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           <AccessibleGraphView nodes={nodes} edges={edges} />

@@ -1,6 +1,7 @@
 import type { WorkflowGraph, WorkflowNode, WorkflowEdge } from './workflow-graph.types';
 import type { NodeDefinitionLookup } from './workflow-validator';
-import { evaluateCondition, resolvePath, type ConditionOperator } from './condition-eval';
+import { evaluateCondition, type ConditionOperator } from './condition-eval';
+import { renderConfig, renderValue } from './template';
 
 /** One node's simulated outcome. */
 export interface SimulationStep {
@@ -189,21 +190,6 @@ function chooseBranch(node: WorkflowNode, ctx: unknown, outs: string[]): string 
     }
   }
   return outs.includes('default') ? 'default' : outs[0] ?? 'default';
-}
-
-/** Render `{{path}}` templates inside string config values against the context. */
-function renderConfig(config: Record<string, unknown>, ctx: unknown): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(config)) out[k] = renderValue(v, ctx);
-  return out;
-}
-
-function renderValue(value: unknown, ctx: unknown): unknown {
-  if (typeof value !== 'string') return value;
-  return value.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, path: string) => {
-    const resolved = resolvePath(ctx, path);
-    return resolved == null ? '' : String(resolved);
-  });
 }
 
 /** Kahn topological order; falls back to input order for any leftover (defensive). */

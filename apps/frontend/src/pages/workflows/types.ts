@@ -149,3 +149,14 @@ export interface SimulateResponse {
   validation: WorkflowValidationResult;
   simulation: SimulationResult;
 }
+
+export interface WorkflowExecutionSummary {
+  id: string;
+  status: string;
+  triggerSource: string | null;
+  triggerType: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  failedAt: string | null;
+  createdAt: string;
+}

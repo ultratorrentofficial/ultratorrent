@@ -8,9 +8,10 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { WorkflowService } from './workflow.service';
+import { WorkflowExecutionService } from './workflow-execution.service';
 import {
   CreateWorkflowDto, UpdateWorkflowDto, SaveDraftGraphDto, ValidateGraphDto,
-  PublishWorkflowDto, WorkflowListQueryDto, SimulateWorkflowDto,
+  PublishWorkflowDto, WorkflowListQueryDto, SimulateWorkflowDto, RunWorkflowDto,
 } from './dto/workflow.dto';
 
 @ApiTags('workflows')
@@ -18,7 +19,10 @@ import {
 @Controller('workflows')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class WorkflowsController {
-  constructor(private readonly svc: WorkflowService) {}
+  constructor(
+    private readonly svc: WorkflowService,
+    private readonly executions: WorkflowExecutionService,
+  ) {}
 
   /** Node palette + engine limits. Static route declared before `:id`. */
   @Get('catalog')
@@ -75,6 +79,31 @@ export class WorkflowsController {
   @RequirePermissions(PERMISSIONS.WORKFLOWS_RUN)
   simulate(@Param('id') id: string, @Body() dto: SimulateWorkflowDto, @CurrentUser() user: AuthenticatedUser) {
     return this.svc.simulate(id, { graph: dto.graph, trigger: dto.trigger, vars: dto.vars }, user);
+  }
+
+  /** Start a real, durable execution of the published workflow (manual trigger). */
+  @Post(':id/run')
+  @RequirePermissions(PERMISSIONS.WORKFLOWS_RUN)
+  run(@Param('id') id: string, @Body() dto: RunWorkflowDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.executions.startManual(id, dto.context ?? {}, user);
+  }
+
+  @Get(':id/executions')
+  @RequirePermissions(PERMISSIONS.WORKFLOWS_VIEW)
+  listExecutions(@Param('id') id: string) {
+    return this.executions.listExecutions(id);
+  }
+
+  @Get('executions/:executionId')
+  @RequirePermissions(PERMISSIONS.WORKFLOWS_VIEW)
+  getExecution(@Param('executionId') executionId: string) {
+    return this.executions.getExecution(executionId);
+  }
+
+  @Post('executions/:executionId/cancel')
+  @RequirePermissions(PERMISSIONS.WORKFLOWS_RUN)
+  cancelExecution(@Param('executionId') executionId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.executions.cancel(executionId, user);
   }
 
   @Post(':id/enable')

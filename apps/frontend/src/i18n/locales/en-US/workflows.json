@@ -90,6 +90,15 @@
     "steps": "Execution trace",
     "clear": "Clear"
   },
+  "run": {
+    "run": "Run",
+    "started": "Execution started",
+    "needsPublish": "Publish the workflow before running it.",
+    "title": "Recent runs",
+    "empty": "No runs yet.",
+    "cancel": "Cancel",
+    "cancelled": "Cancellation requested"
+  },
   "toast": {
     "created": "Workflow created",
     "saved": "Draft saved",

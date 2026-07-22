@@ -39,7 +39,7 @@ export type { FileNode, FilePropertiesResponse, CleanupPreview, CleanupCategory,
 
 import type {
   WorkflowCatalog, WorkflowGraph, WorkflowValidationResult, WorkflowSummary,
-  WorkflowDetail, SaveDraftResult, SimulateResponse,
+  WorkflowDetail, SaveDraftResult, SimulateResponse, WorkflowExecutionSummary,
 } from '@/pages/workflows/types';
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
@@ -2994,6 +2994,15 @@ export const api = {
     },
     simulate(id: string, body: { graph?: WorkflowGraph; trigger?: Record<string, unknown>; vars?: Record<string, unknown> } = {}): Promise<SimulateResponse> {
       return request<SimulateResponse>(`/workflows/${id}/simulate`, { method: 'POST', body });
+    },
+    run(id: string, context?: Record<string, unknown>): Promise<{ executionId: string }> {
+      return request<{ executionId: string }>(`/workflows/${id}/run`, { method: 'POST', body: { context } });
+    },
+    executions(id: string): Promise<WorkflowExecutionSummary[]> {
+      return request<WorkflowExecutionSummary[]>(`/workflows/${id}/executions`);
+    },
+    cancelExecution(executionId: string): Promise<{ status: string }> {
+      return request<{ status: string }>(`/workflows/executions/${executionId}/cancel`, { method: 'POST' });
     },
     enable(id: string): Promise<WorkflowSummary> {
       return request<WorkflowSummary>(`/workflows/${id}/enable`, { method: 'POST' });

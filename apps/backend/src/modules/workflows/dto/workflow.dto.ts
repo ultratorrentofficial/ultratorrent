@@ -50,6 +50,12 @@ export class PublishWorkflowDto {
   changeNotes?: string;
 }
 
+export class RunWorkflowDto {
+  /** Trigger payload for this manual run. */
+  @IsOptional() @IsObject()
+  context?: Record<string, unknown>;
+}
+
 export class SimulateWorkflowDto {
   /** Optional graph override; when omitted the workflow's current draft/published graph is used. */
   @IsOptional() @IsObject()
