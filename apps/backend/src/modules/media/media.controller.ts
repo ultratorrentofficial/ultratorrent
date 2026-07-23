@@ -487,6 +487,68 @@ export class MediaController {
     return { requested: await this.jobs.requestCancel(jobId) };
   }
 
+  // Static (literal) duplicate routes MUST be declared before the `:groupId`
+  // routes below. Nest matches in declaration order, so a route like
+  // `duplicates/bulk/preview` placed AFTER `duplicates/:groupId/preview` is captured
+  // by the parameter route with `groupId="bulk"` and never runs — which silently
+  // broke "Quick Clean" (the bulk endpoints 400'd on an unknown `groupIds` body).
+
+  /**
+   * Groups safe to clean without opening each one. Eligibility is decided here, not
+   * by the client: only groups the engine neither flagged for review nor left without
+   * a keeper.
+   */
+  @Get('duplicates/quick-clean/candidates')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  quickCleanCandidates() {
+    return this.duplicateResolution.quickCleanCandidates();
+  }
+
+  /**
+   * What the Duplicate Center has sent to Trash. Restore goes through the existing
+   * `/api/files/trash/restore` route rather than a duplicate of it.
+   */
+  @Get('duplicates/trash/history')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  duplicateTrashHistory() {
+    return this.duplicateResolution.trashedByCleanup();
+  }
+
+  /** Plan a cleanup for many groups at once. Touches nothing. */
+  @Post('duplicates/bulk/preview')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  bulkPreviewDuplicates(@Body() body: BulkPreviewDto, @Req() req: Request) {
+    return this.duplicateResolution.bulkPreview(body.groupIds, body.keepByGroup ?? {}, auditCtx(req));
+  }
+
+  /** Execute many previewed plans. Destructive — same permission as a single resolve. */
+  @Post('duplicates/bulk/resolve')
+  @RequirePermissions(P.MEDIA_MANAGER_DELETE)
+  bulkResolveDuplicates(@Body() body: BulkResolveDto, @Req() req: Request) {
+    return this.duplicateResolution.bulkResolve(body.resolutionIds, auditCtx(req), {
+      permanent: body.permanent === true,
+    });
+  }
+
+  /**
+   * Execute a previewed plan. Destructive: redundant copies go to Trash (or are
+   * permanently removed when the caller opts in), so this needs DELETE in addition
+   * to the review permission. The literal `resolutions/` prefix keeps it clear of
+   * the `:groupId` routes.
+   */
+  @Post('duplicates/resolutions/:resolutionId/resolve')
+  @RequirePermissions(P.MEDIA_MANAGER_DELETE)
+  resolveDuplicateCleanup(
+    @Param('resolutionId') resolutionId: string,
+    @Body() body: ResolveCleanupDto,
+    @Req() req: Request,
+  ) {
+    return this.duplicateResolution.resolve(resolutionId, auditCtx(req), { permanent: body?.permanent === true });
+  }
+
+  // --- parameterized (`:groupId`) duplicate routes — declared LAST so they cannot
+  //     shadow any of the literal routes above.
+
   /** One group with the side-by-side comparison payload. */
   @Get('duplicates/:groupId')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
@@ -536,57 +598,6 @@ export class MediaController {
     @Req() req: Request,
   ) {
     return this.duplicateResolution.previewItemDeletion(groupId, body.deleteItemId, auditCtx(req));
-  }
-
-  /**
-   * Execute a previewed plan. Destructive: redundant copies go to Trash, so this
-   * needs DELETE in addition to the review permission.
-   */
-  @Post('duplicates/resolutions/:resolutionId/resolve')
-  @RequirePermissions(P.MEDIA_MANAGER_DELETE)
-  resolveDuplicateCleanup(
-    @Param('resolutionId') resolutionId: string,
-    @Body() body: ResolveCleanupDto,
-    @Req() req: Request,
-  ) {
-    return this.duplicateResolution.resolve(resolutionId, auditCtx(req), { permanent: body?.permanent === true });
-  }
-
-  /**
-   * Groups safe to clean without opening each one. Eligibility is decided here, not
-   * by the client: only groups the engine neither flagged for review nor left without
-   * a keeper.
-   */
-  @Get('duplicates/quick-clean/candidates')
-  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  quickCleanCandidates() {
-    return this.duplicateResolution.quickCleanCandidates();
-  }
-
-  /** Plan a cleanup for many groups at once. Touches nothing. */
-  @Post('duplicates/bulk/preview')
-  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  bulkPreviewDuplicates(@Body() body: BulkPreviewDto, @Req() req: Request) {
-    return this.duplicateResolution.bulkPreview(body.groupIds, body.keepByGroup ?? {}, auditCtx(req));
-  }
-
-  /** Execute many previewed plans. Destructive — same permission as a single resolve. */
-  @Post('duplicates/bulk/resolve')
-  @RequirePermissions(P.MEDIA_MANAGER_DELETE)
-  bulkResolveDuplicates(@Body() body: BulkResolveDto, @Req() req: Request) {
-    return this.duplicateResolution.bulkResolve(body.resolutionIds, auditCtx(req), {
-      permanent: body.permanent === true,
-    });
-  }
-
-  /**
-   * What the Duplicate Center has sent to Trash. Restore goes through the existing
-   * `/api/files/trash/restore` route rather than a duplicate of it.
-   */
-  @Get('duplicates/trash/history')
-  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  duplicateTrashHistory() {
-    return this.duplicateResolution.trashedByCleanup();
   }
 
   /** Put an ignored or resolved group back in front of the operator. */
