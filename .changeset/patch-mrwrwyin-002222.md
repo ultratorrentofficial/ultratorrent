@@ -1,0 +1,5 @@
+---
+"ultratorrent": patch
+---
+
+Duplicate detection no longer groups two different shows that share a title. Episode duplicate keys were built from normalized title + season + episode only, so S01E03 of 'Invasion' (2005) and S01E03 of 'Invasion' (2021) — two unrelated series — collapsed into one 'Same show / season / episode' duplicate. Detection now establishes show identity FIRST: episode keys (show_season_episode, the TV external-id scope, and the episode-scoped similar_filename) are scoped by the parent series id (seriesImdbId) when present and by title+year otherwise, and BOTH signals are emitted so genuine duplicates still group when either agrees — an identified copy matches an unidentified same-year copy, and two copies sharing a series id match even if one is missing its year — while two shows that merely share a title differ on both and never collapse. seriesImdbId is now loaded into the detection query. Existing libraries need media_duplicate_scan_state cleared for the corrected logic to re-run (the scan digest covers data, not code). 6 new regression tests.

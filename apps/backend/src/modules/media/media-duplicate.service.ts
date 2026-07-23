@@ -87,6 +87,8 @@ export interface DuplicateItemLike {
   year: number | null;
   season: number | null;
   episode: number | null;
+  /** Parent series tconst for a TV episode — the strongest show-identity signal. */
+  seriesImdbId?: string | null;
   externalIds?: Array<{ provider: string; externalId: string }>;
   files?: Array<{
     resolution: string | null;
@@ -107,6 +109,7 @@ interface DetectionItem {
   year: number | null;
   season: number | null;
   episode: number | null;
+  seriesImdbId: string | null;
   path: string;
   updatedAt: Date;
   externalIds: Array<{ provider: string; externalId: string }>;
@@ -204,6 +207,22 @@ export function duplicateKeys(item: DuplicateItemLike): Array<{
   const normTitle = normalizeTitle(item.title);
   const isMovie = !item.mediaType || item.mediaType === 'movie';
   const epMarker = episodeMarker(item);
+  const isEpisode = item.season != null && item.episode != null;
+
+  // A TV episode belongs to a SHOW, and the first thing detection must establish is
+  // that two episodes belong to the SAME show — otherwise S01E03 of one series and
+  // S01E03 of an unrelated series that happens to share a name collapse into a false
+  // "duplicate". Observed live: "Invasion (2005)" and "Invasion (2021)" both have an
+  // S01E03, and grouped as one.
+  //
+  // The show is identified in priority order by its series id (`seriesImdbId`), else
+  // by title + year. BOTH signals are emitted, so genuine duplicates group when
+  // EITHER agrees (an identified copy still matches an unidentified-but-same-year
+  // one, and a copy whose year is missing still matches on the series id), while two
+  // different shows that merely share a title differ on BOTH and never collapse.
+  const showScopes: string[] = [];
+  if (item.seriesImdbId) showScopes.push(`sid:${item.seriesImdbId}`);
+  showScopes.push(`ty:${normTitle}:${item.year ?? 'na'}`);
 
   // (c) external id — an entity-level signal, but NOT one to trust blindly:
   // contaminated metadata repeats a single id across genuinely different titles.
@@ -216,24 +235,28 @@ export function duplicateKeys(item: DuplicateItemLike): Array<{
   //    real job — catching a film whose filenames parse to different titles), but
   //    different release years never collapse, the same guarantee `title_year` and
   //    `similar_filename` already give.
-  //  - TV is scoped by show title + episode, since providers store a series-level
+  //  - TV is scoped by SHOW IDENTITY + episode, since providers store a series-level
   //    id on every episode row (and some data repeats one id across *different*
-  //    shows), so an unscoped id would merge a whole series.
+  //    shows), so an unscoped id would merge a whole series — or two of them.
   for (const ext of item.externalIds ?? []) {
-    const scope = isMovie ? `:${item.year ?? 'na'}` : `:${normTitle}${epMarker}`;
-    keys.push({ reason: 'external_id', key: `external_id:${ext.provider}:${ext.externalId}${scope}` });
+    if (isMovie) {
+      keys.push({ reason: 'external_id', key: `external_id:${ext.provider}:${ext.externalId}:${item.year ?? 'na'}` });
+    } else {
+      for (const scope of showScopes) {
+        keys.push({ reason: 'external_id', key: `external_id:${ext.provider}:${ext.externalId}:${scope}${epMarker}` });
+      }
+    }
   }
 
-  // (b) show + season + episode.
-  if (item.season != null && item.episode != null) {
-    keys.push({
-      reason: 'show_season_episode',
-      key: `sse:${normTitle}:s${item.season}:e${item.episode}`,
-    });
+  // (b) show + season + episode — gated by show identity, not title alone.
+  if (isEpisode) {
+    for (const scope of showScopes) {
+      keys.push({ reason: 'show_season_episode', key: `sse:${scope}:s${item.season}:e${item.episode}` });
+    }
   }
 
   // (a) title + year (movies / shows without episode markers).
-  if (item.season == null && item.episode == null) {
+  if (!isEpisode) {
     keys.push({
       reason: 'title_year',
       key: `ty:${normTitle}:${item.year ?? 'na'}`,
@@ -241,12 +264,17 @@ export function duplicateKeys(item: DuplicateItemLike): Array<{
   }
 
   // (d) similar filename — a fallback signal, but it must stay as specific as the
-  // primary keys: scoped to the episode for shows, and to the YEAR for movies, so
-  // different episodes of a series AND different films that share a title (e.g.
-  // Aladdin 1992 vs 2019) are never grouped together.
+  // primary keys: scoped to the SHOW + episode for shows, and to the YEAR for movies,
+  // so different episodes of a series, different shows that share a title, AND
+  // different films that share a title (Aladdin 1992 vs 2019) are never grouped.
   if (normTitle) {
-    const discriminator = epMarker || `:${item.year ?? 'na'}`;
-    keys.push({ reason: 'similar_filename', key: `fn:${normTitle}${discriminator}` });
+    if (isEpisode) {
+      for (const scope of showScopes) {
+        keys.push({ reason: 'similar_filename', key: `fn:${scope}${epMarker}` });
+      }
+    } else {
+      keys.push({ reason: 'similar_filename', key: `fn:${normTitle}:${item.year ?? 'na'}` });
+    }
   }
 
   return keys;
@@ -464,6 +492,7 @@ export class MediaDuplicateService {
           year: true,
           season: true,
           episode: true,
+          seriesImdbId: true,
           path: true,
           updatedAt: true,
           externalIds: { select: { provider: true, externalId: true } },

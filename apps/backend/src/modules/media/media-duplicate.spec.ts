@@ -67,6 +67,44 @@ describe('duplicateKeys — episode discrimination', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].itemIds.sort()).toEqual(['a', 'b']);
   });
+
+  // Two DIFFERENT shows sharing a title but not a year — the reported false positive.
+  it('does NOT group same-title shows from different years (Invasion 2005 vs 2021)', () => {
+    const a = ep('a', 'Invasion', 1, 3, { year: 2005 });
+    const b = ep('b', 'Invasion', 1, 3, { year: 2021 });
+    expect(detectDuplicateGroups([a, b])).toHaveLength(0);
+  });
+
+  it('does NOT group same-title different-year shows even with distinct series ids', () => {
+    const a = ep('a', 'Invasion', 1, 3, { year: 2005, seriesImdbId: 'tt0402711' });
+    const b = ep('b', 'Invasion', 1, 3, { year: 2021, seriesImdbId: 'tt11041332' });
+    const e1 = duplicateKeys(a).map((k) => k.key);
+    const e2 = duplicateKeys(b).map((k) => k.key);
+    expect(e1.some((k) => e2.includes(k))).toBe(false);
+    expect(detectDuplicateGroups([a, b])).toHaveLength(0);
+  });
+
+  it('still groups two files of the same show/episode/year', () => {
+    const a = ep('a', 'Invasion', 1, 3, { year: 2021, seriesImdbId: 'tt11041332' });
+    const b = ep('b', 'Invasion', 1, 3, { year: 2021, seriesImdbId: 'tt11041332' });
+    expect(detectDuplicateGroups([a, b])).toHaveLength(1);
+  });
+
+  // Recall preserved: an identified copy and an unidentified-but-same-year copy of
+  // the same show still match on the title+year signal.
+  it('groups an identified copy with an unidentified same-year copy', () => {
+    const identified = ep('a', 'Invasion', 1, 3, { year: 2021, seriesImdbId: 'tt11041332' });
+    const bareYear = ep('b', 'Invasion', 1, 3, { year: 2021 });
+    expect(detectDuplicateGroups([identified, bareYear])).toHaveLength(1);
+  });
+
+  // Recall preserved the other way: two copies whose years disagree (one missing)
+  // still match on the shared series id.
+  it('groups two copies with the same series id even when one year is missing', () => {
+    const withYear = ep('a', 'Invasion', 1, 3, { year: 2021, seriesImdbId: 'tt11041332' });
+    const noYear = ep('b', 'Invasion', 1, 3, { year: null, seriesImdbId: 'tt11041332' });
+    expect(detectDuplicateGroups([withYear, noYear])).toHaveLength(1);
+  });
 });
 
 describe('duplicateKeys — movies still work', () => {
