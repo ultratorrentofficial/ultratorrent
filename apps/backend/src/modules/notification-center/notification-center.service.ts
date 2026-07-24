@@ -104,7 +104,15 @@ export class NotificationCenterService {
 
     const template = rule.templateId ? await this.prisma.notificationTemplate.findUnique({ where: { id: rule.templateId } }) : null;
     const tpl: TemplateBodies = (template as unknown as TemplateBodies) ?? {};
-    const localizedVars: TemplateVars = { ...vars, userDisplayName: vars.userDisplayName ?? recipient.displayName };
+    // `actorName` must be read from the payload BEFORE `userDisplayName` falls back
+    // to the recipient — otherwise every actor-less event (a CPU alert, a failed
+    // feed) would render as though the person it was sent to had caused it.
+    const localizedVars: TemplateVars = {
+      ...vars,
+      actorName: vars.userDisplayName ?? null,
+      actionLabel: rule.name,
+      userDisplayName: vars.userDisplayName ?? recipient.displayName,
+    };
     const msg = buildMessage(tpl, localizedVars, channel.provider as NotificationKind);
     const body = channel.provider === 'telegram' ? (msg.markdown ?? msg.text) : msg.text;
 

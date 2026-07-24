@@ -105,6 +105,25 @@ describe('card renderers', () => {
     const md = cardToMarkdown({ ...card, title: 'A*B_C' });
     expect(md).toContain('A\\*B\\_C');
   });
+
+  it('renders who did what alongside the media, in every channel format', () => {
+    const played: NotificationCard = { ...card, action: 'User Started Watching', actor: 'Ernesto Homar' };
+    expect(cardToText(played)).toContain('User Started Watching · Ernesto Homar');
+    expect(cardToMarkdown(played)).toContain('User Started Watching · Ernesto Homar');
+    expect(cardToSms(played)).toContain('User Started Watching · Ernesto Homar: Dune');
+    expect(renderEmailHtml({ subject: 's', card: played, text: '', html: null, markdown: null })).toContain('User Started Watching · Ernesto Homar');
+  });
+
+  it('omits the context line entirely when the event names no actor or action', () => {
+    expect(cardToText(card)).not.toContain(' · Ernesto');
+    expect(cardToMarkdown(card).split('\n')[1] ?? '').not.toContain('undefined');
+    expect(cardToSms(card)).toBe(cardToSms({ ...card, actor: null, action: null }));
+  });
+
+  it('keeps the actor out of the SMS length budget calculation', () => {
+    const s = cardToSms({ ...card, action: 'User Started Watching', actor: 'Ernesto Homar' }, 40);
+    expect(s.length).toBeLessThanOrEqual(40);
+  });
 });
 
 describe('template rendering', () => {
@@ -133,6 +152,21 @@ describe('template rendering', () => {
   it('buildMessage prefers a channel-specific template body when provided', () => {
     const m = buildMessage({ sms: 'SMS: {{mediaTitle}}' }, { mediaTitle: 'Dune' }, 'sms');
     expect(m.text).toBe('SMS: Dune');
+  });
+
+  it('buildCard carries the acting user and the media through to the card', () => {
+    const c = buildCard({}, { mediaTitle: 'Sinners', actorName: 'Ernesto Homar', actionLabel: 'User Paused Playback' });
+    expect(c.title).toBe('Sinners');
+    expect(c.actor).toBe('Ernesto Homar');
+    expect(c.action).toBe('User Paused Playback');
+  });
+
+  it('never presents the recipient as the actor', () => {
+    // The pipeline falls `userDisplayName` back to the recipient's own name, so a
+    // card sourcing the actor from it would claim a CPU alert was caused by
+    // whoever it was sent to. Only `actorName` (payload-only) may feed `actor`.
+    const c = buildCard({}, { mediaTitle: 'CPU high', userDisplayName: 'Ernesto Homar' });
+    expect(c.actor).toBeNull();
   });
 });
 

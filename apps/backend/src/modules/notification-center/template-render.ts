@@ -83,6 +83,10 @@ export function buildCard(tpl: TemplateBodies, vars: TemplateVars): Notification
   return {
     title: renderString(tpl.title, vars) || toStr(vars.mediaTitle) || toStr(vars.title) || renderString(tpl.subject, vars) || 'Notification',
     subtitle: renderString(tpl.subtitle, vars) || toStr(vars.episodeTitle) || null,
+    // `actorName` is set from the event payload only — deliberately NOT
+    // `userDisplayName`, which the pipeline falls back to the recipient's name.
+    actor: toStr(vars.actorName) || null,
+    action: toStr(vars.actionLabel) || null,
     overview: toStr(vars.overview) || null,
     posterUrl: toStr(vars.posterUrl) || null,
     backdropUrl: toStr(vars.backdropUrl) || null,

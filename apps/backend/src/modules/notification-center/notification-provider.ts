@@ -57,6 +57,15 @@ export interface NotificationButton {
 export interface NotificationCard {
   title: string;
   subtitle?: string | null;
+  /**
+   * Who the event is about — the actor named by the *event payload*, never the
+   * recipient. A playback card that cannot say who is watching is useless, and
+   * naming the recipient instead would be an outright lie on any event (a CPU
+   * alert is not "caused by" whoever it was mailed to).
+   */
+  actor?: string | null;
+  /** What happened, in the admin's own words (the rule name). */
+  action?: string | null;
   overview?: string | null;
   posterUrl?: string | null;
   backdropUrl?: string | null;
@@ -202,11 +211,22 @@ function truncate(s: string, n: number): string {
   return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t;
 }
 
+/**
+ * "What happened, and to whom" — the line that turns an otherwise anonymous card
+ * into a report. Without it every playback event renders as just the media title,
+ * so "started watching" and "paused" are indistinguishable.
+ */
+export function cardContext(card: NotificationCard): string {
+  return [card.action, card.actor].filter(Boolean).join(' · ');
+}
+
 /** A readable multi-line plain-text rendering of a card (Telegram/WhatsApp/email fallback). */
 export function cardToText(card: NotificationCard): string {
   const lines: string[] = [];
   const head = card.subtitle ? `${card.title} — ${card.subtitle}` : card.title;
   lines.push(head);
+  const context = cardContext(card);
+  if (context) lines.push(context);
   const meta: string[] = [];
   if (card.badges?.length) meta.push(...card.badges);
   if (card.rating != null && card.rating > 0) meta.push(`★ ${card.rating.toFixed(1)}`);
@@ -223,14 +243,17 @@ export function cardToText(card: NotificationCard): string {
 /** A concise, single-purpose SMS rendering — no formatting, hard length cap. */
 export function cardToSms(card: NotificationCard, limit = 300): string {
   const head = card.subtitle ? `${card.title} — ${card.subtitle}` : card.title;
+  const context = cardContext(card);
   const extra = card.buttons?.[0]?.url ? ` ${card.buttons[0].url}` : '';
-  return truncate(`${head}${extra}`, limit);
+  return truncate(`${context ? `${context}: ` : ''}${head}${extra}`, limit);
 }
 
 /** Markdown rendering of a card (Telegram MarkdownV2-safe subset kept simple). */
 export function cardToMarkdown(card: NotificationCard): string {
   const lines: string[] = [];
   lines.push(`*${escapeMd(card.title)}*${card.subtitle ? ` — ${escapeMd(card.subtitle)}` : ''}`);
+  const context = cardContext(card);
+  if (context) lines.push(escapeMd(context));
   const meta: string[] = [];
   if (card.badges?.length) meta.push(...card.badges.map(escapeMd));
   if (card.rating != null && card.rating > 0) meta.push(`★ ${card.rating.toFixed(1)}`);

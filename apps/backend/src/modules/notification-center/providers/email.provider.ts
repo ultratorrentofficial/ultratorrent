@@ -2,6 +2,7 @@ import * as nodemailer from 'nodemailer';
 import {
   BaseNotificationProvider,
   escapeHtml,
+  cardContext,
   cardToText,
   type ConfigValidation,
   type HealthResult,
@@ -30,6 +31,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Responsive HTML email with an inline rich card. */
 export function renderEmailHtml(msg: NotificationMessage, brand = 'UltraTorrent'): string {
   const c = msg.card;
+  const context = cardContext(c);
   const badge = (t: string) =>
     `<span style="display:inline-block;background:#23232f;color:#c9c9d4;font:600 11px system-ui;padding:2px 8px;border-radius:6px;margin:0 4px 4px 0">${escapeHtml(t)}</span>`;
   const badges = [
@@ -52,6 +54,7 @@ export function renderEmailHtml(msg: NotificationMessage, brand = 'UltraTorrent'
         <td valign="top">
           <div style="font:700 18px system-ui;color:#f4f4f8">${escapeHtml(c.title)}</div>
           ${c.subtitle ? `<div style="font:600 13px system-ui;color:#9a9aa8;margin-top:2px">${escapeHtml(c.subtitle)}</div>` : ''}
+          ${context ? `<div style="font:600 13px system-ui;color:#f5a623;margin-top:4px">${escapeHtml(context)}</div>` : ''}
           ${badges ? `<div style="margin-top:8px">${badges}</div>` : ''}
           ${c.overview ? `<div style="font:400 13px/1.5 system-ui;color:#c9c9d4;margin-top:8px">${escapeHtml(c.overview)}</div>` : ''}
           ${buttons ? `<div style="margin-top:12px">${buttons}</div>` : ''}
