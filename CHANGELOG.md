@@ -45,6 +45,16 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.44.0] - 2026-07-24
+
+### Added
+- Notification rules: choose which channel(s) deliver each rule, with an apply-to-namespace bulk action
+
+### Fixed
+- Missing-episode detection no longer reports an announced-but-unreleased season as missing. The owned-vs-catalogue diff decided 'has this aired?' from the IMDb year alone (airYear > currentYear ? unaired : missing), which cannot tell an episode that aired earlier this year from one merely announced for later this year — both have airYear === currentYear. Ahsoka's season 2 (eight episodes IMDb stamps 2026, not yet released) was therefore flagged missing and would trigger fruitless searches. Classification now consults a TMDB 'aired boundary' — the last-aired season/episode from last_episode_to_air, resolved from the series IMDb id via /find — and treats an episode as aired iff it is at or before that boundary; for Ahsoka the boundary is S1E8, so season 2 is provably unaired even though TMDB does not list season 2 at all. The boundary is fetched only when the year check is actually ambiguous (some not-owned episode dated to the current year or with no year), so a fully-past library makes no network call, and any failure (no TMDB key, unresolved show, network) falls back to the previous year-granularity behaviour. Adds a pure classifyEpisode function with unit tests plus scanSeries coverage of the Ahsoka case.
+- Notifications name the acting user and what happened, not just the media title
+- Missing-episode search records a total indexer outage as failed instead of no_results. IndexerService.searchAll isolates per-indexer failures so one broken indexer cannot sink a search, but it swallowed them entirely — so when EVERY indexer failed it returned an empty candidate list indistinguishable from an honestly empty catalogue, and the caller stamped the episode no_results ('we looked and this release does not exist') when in truth nothing had looked. Observed live: Prowlarr had put EZTV (unreachable) and The Pirate Bay (over its request limit) in failure backoff, leaving only a current-episodes-only indexer, and all 113 missing 9-1-1 episodes were recorded as no_results. Adds searchAllDetailed returning the candidates plus run health (queried, failed, per-indexer failure messages); searchAll delegates to it and is unchanged for existing callers. The missing-episode search now reports failed with an auditable media_acquisition.missing_episode.indexers_unavailable record naming which indexers failed and why, but only when queried > 0 and every one of them failed — a partial outage still yields the surviving indexer's answer, so an empty result there is real and stays no_results. Retry behaviour is unchanged (failed and no_results share the same backoff); what changes is that the state is now true.
+
 ## [0.43.2] - 2026-07-24
 
 ### Fixed
