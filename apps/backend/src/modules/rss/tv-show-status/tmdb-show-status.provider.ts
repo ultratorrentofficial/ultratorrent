@@ -85,6 +85,33 @@ export class TmdbTvShowStatusProvider implements TvShowStatusProvider {
     };
   }
 
+  /**
+   * The aired boundary for a series identified by its IMDb id: the (season, episode)
+   * of the most recently aired episode across the whole show. Everything at or before
+   * it (season-major, episode-minor) has aired; everything after has not.
+   *
+   * This is what lets the missing-episode diff tell an *announced-but-unreleased*
+   * season from a genuinely missing one when the catalogue (IMDb) already lists the
+   * future season but no per-episode air date exists yet. Observed on *Ahsoka*: IMDb
+   * lists eight season-2 episodes stamped with the current year, TMDB has no season 2
+   * at all, but `last_episode_to_air` is S1E8 — so season 2 is provably unaired.
+   *
+   * Resolves the IMDb id to a TMDB show via `/find` (exact, not a title guess), then
+   * reads `last_episode_to_air`. Null when the key/id can't resolve or nothing has
+   * aired yet (a brand-new show) — the caller then falls back to year granularity.
+   */
+  async getAiredBoundaryByImdb(
+    imdbId: string,
+  ): Promise<{ seasonNumber: number; episodeNumber: number } | null> {
+    const found = await this.get(`/find/${imdbId}`, { external_source: 'imdb_id' });
+    const tvId = found?.tv_results?.[0]?.id;
+    if (tvId == null) return null;
+    const d = await this.get(`/tv/${tvId}`);
+    const e = d?.last_episode_to_air;
+    if (!e || e.season_number == null || e.episode_number == null) return null;
+    return { seasonNumber: Number(e.season_number), episodeNumber: Number(e.episode_number) };
+  }
+
   async getNextEpisode(externalId: string): Promise<EpisodeRef | null> {
     return (await this.getShowDetails(externalId))?.nextEpisode ?? null;
   }

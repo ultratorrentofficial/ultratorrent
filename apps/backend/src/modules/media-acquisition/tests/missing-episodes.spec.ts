@@ -1,4 +1,4 @@
-import { MissingEpisodesService } from '../missing-episodes.service';
+import { MissingEpisodesService, classifyEpisode } from '../missing-episodes.service';
 import { ImdbSeriesResolver } from '../imdb-series-resolver.service';
 import { normalizeTitle } from '../../rss/tv-show-status/tv-show-status-provider';
 
@@ -163,11 +163,18 @@ function makePrisma() {
   } as any;
 }
 
-function makeService(prisma: any) {
+function makeService(prisma: any, boundary: { seasonNumber: number; episodeNumber: number } | null = null) {
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const realtime = { broadcast: jest.fn() };
-  // ModuleRef stub: background status-warming resolves a no-op lookup.
-  const moduleRef = { get: () => ({ lookup: jest.fn().mockResolvedValue(undefined) }) };
+  // ModuleRef stub: TvShowStatusService's background warming resolves a no-op
+  // lookup, and its aired-boundary lookup returns whatever the test configures
+  // (null = no TMDB answer, so classification falls back to year granularity).
+  const moduleRef = {
+    get: () => ({
+      lookup: jest.fn().mockResolvedValue(undefined),
+      airedBoundary: jest.fn().mockResolvedValue(boundary),
+    }),
+  };
   const resolver = new ImdbSeriesResolver(prisma);
   return new MissingEpisodesService(prisma, audit as any, realtime as any, moduleRef as any, resolver);
 }
@@ -190,6 +197,41 @@ describe('MissingEpisodesService', () => {
     expect(byKey(1, 2).status).toBe('owned');
     expect(byKey(1, 3).status).toBe('missing');
     expect(byKey(2, 1).status).toBe('unaired'); // future air year
+  });
+
+  it('uses the TMDB aired boundary to keep an announced current-year season unaired (Ahsoka)', async () => {
+    // The Ahsoka case: IMDb already lists season 2, dated to the CURRENT year, but it
+    // has not aired. Year granularity alone (airYear === currentYear) would call it
+    // missing; the aired boundary (last-aired = S1E3 here) proves season 2 is unaired.
+    const prisma = makePrisma();
+    const currentYear = new Date().getFullYear();
+    // Re-stamp S2E1 to the CURRENT year (the ambiguous case), and own all of S1.
+    (prisma.iMDbTitle.rows.find((r: any) => r.tconst === 'ttS2E1') as any).startYear = currentYear;
+    prisma.mediaItem.seed([
+      { id: 'a1', seriesImdbId: 'ttSERIES', mediaType: 'tv', title: 'The Wire', season: 1, episode: 1 },
+      { id: 'a2', seriesImdbId: 'ttSERIES', mediaType: 'tv', title: 'The Wire', season: 1, episode: 2 },
+      { id: 'a3', seriesImdbId: 'ttSERIES', mediaType: 'tv', title: 'The Wire', season: 1, episode: 3 },
+    ]);
+    const svc = makeService(prisma, { seasonNumber: 1, episodeNumber: 3 }); // last aired = S1E3
+
+    const gap = await svc.scanSeries('wl1', 'u1');
+
+    expect(gap).toMatchObject({ owned: 3, missing: 0, unaired: 1 });
+    const rows = await svc.listForSeries('wl1');
+    const s2 = rows.find((r) => r.seasonNumber === 2 && r.episodeNumber === 1)!;
+    expect(s2.status).toBe('unaired'); // was 'missing' under year-only logic
+  });
+
+  it('with a boundary, an unowned episode at/before it is missing, after it is unaired', async () => {
+    const prisma = makePrisma();
+    const currentYear = new Date().getFullYear();
+    (prisma.iMDbTitle.rows.find((r: any) => r.tconst === 'ttS2E1') as any).startYear = currentYear;
+    // Own nothing; boundary = S2E1 → S1E1..3 and S2E1 all aired (missing), none after.
+    const svc = makeService(prisma, { seasonNumber: 2, episodeNumber: 1 });
+
+    const gap = await svc.scanSeries('wl1', 'u1');
+
+    expect(gap).toMatchObject({ owned: 0, missing: 4, unaired: 0 });
   });
 
   it('self-heals a series with no IMDb id: resolves from the catalogue, persists, and scans', async () => {
@@ -468,5 +510,51 @@ describe('MissingEpisodesService', () => {
     expect(wl1.showStatus).toBe('ended'); // joined from the tv_show_status cache
     expect(wl2.monitorable).toBe(false); // no imdb id
     expect(wl2.showStatus).toBeNull(); // not in the cache
+  });
+});
+
+describe('classifyEpisode (pure)', () => {
+  const today = new Date('2026-07-24');
+  const ep = (seasonNumber: number, episodeNumber: number, airYear: number | null) => ({
+    seasonNumber,
+    episodeNumber,
+    airYear,
+  });
+
+  it('owned always wins, boundary or not', () => {
+    expect(classifyEpisode(true, ep(2, 1, 2026), null, today)).toBe('owned');
+    expect(classifyEpisode(true, ep(2, 1, 2026), { seasonNumber: 1, episodeNumber: 8 }, today)).toBe('owned');
+  });
+
+  describe('with a TMDB aired boundary', () => {
+    const boundary = { seasonNumber: 1, episodeNumber: 8 }; // Ahsoka: last aired S1E8
+
+    it('marks an episode in a later, unaired season as unaired even when its year is the current year', () => {
+      expect(classifyEpisode(false, ep(2, 1, 2026), boundary, today)).toBe('unaired');
+      expect(classifyEpisode(false, ep(2, 8, 2026), boundary, today)).toBe('unaired');
+    });
+
+    it('marks an unowned episode at or before the boundary as missing', () => {
+      expect(classifyEpisode(false, ep(1, 8, 2023), boundary, today)).toBe('missing');
+      expect(classifyEpisode(false, ep(1, 3, 2023), boundary, today)).toBe('missing');
+    });
+
+    it('separates aired from unaired within the boundary season', () => {
+      const b = { seasonNumber: 3, episodeNumber: 5 }; // a show mid-season 3
+      expect(classifyEpisode(false, ep(3, 5, 2026), b, today)).toBe('missing');
+      expect(classifyEpisode(false, ep(3, 6, 2026), b, today)).toBe('unaired');
+    });
+  });
+
+  describe('without a boundary — year-granularity fallback (keyless install)', () => {
+    it('treats a past or current year as aired (missing) and a future year as unaired', () => {
+      expect(classifyEpisode(false, ep(1, 1, 2023), null, today)).toBe('missing');
+      expect(classifyEpisode(false, ep(2, 1, 2026), null, today)).toBe('missing'); // the old Ahsoka bug
+      expect(classifyEpisode(false, ep(2, 1, 2027), null, today)).toBe('unaired');
+    });
+
+    it('treats a missing year as unaired', () => {
+      expect(classifyEpisode(false, ep(2, 1, null), null, today)).toBe('unaired');
+    });
   });
 });

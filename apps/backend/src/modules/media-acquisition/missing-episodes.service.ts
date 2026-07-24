@@ -70,6 +70,45 @@ export interface SeasonSummary {
 const SPECIAL_SEASON = 0; // season 0 = specials, excluded from missing math (MVP)
 const TITLE_CHUNK = 1000;
 
+/** The last-aired episode across a show — everything after it is unaired. */
+export interface AiredBoundary {
+  seasonNumber: number;
+  episodeNumber: number;
+}
+
+/**
+ * Classify one catalogue episode as owned / missing / unaired.
+ *
+ * The "has it aired?" question is the subtle one. IMDb's dataset carries only a
+ * *year* for an episode, so a year-only comparison cannot tell an episode that aired
+ * earlier this year from one merely *announced* for later this year — both have
+ * `airYear === currentYear`. That mislabelled *Ahsoka* season 2 (eight episodes IMDb
+ * stamps with the current year, not yet released) as `missing` rather than `unaired`,
+ * so the whole season showed up as a gap and would trigger fruitless searches.
+ *
+ * When TMDB gives an aired boundary (the last-aired season/episode), it is
+ * authoritative: an episode has aired iff it is at or before the boundary. Only when
+ * no boundary is available (no TMDB key, unresolved show, or nothing aired yet) do we
+ * fall back to year granularity — the previous behaviour, so a keyless install is
+ * unchanged.
+ */
+export function classifyEpisode(
+  owned: boolean,
+  ep: { seasonNumber: number; episodeNumber: number; airYear: number | null },
+  boundary: AiredBoundary | null,
+  today: Date,
+): 'owned' | 'missing' | 'unaired' {
+  if (owned) return 'owned';
+  if (boundary) {
+    const aired =
+      ep.seasonNumber < boundary.seasonNumber ||
+      (ep.seasonNumber === boundary.seasonNumber && ep.episodeNumber <= boundary.episodeNumber);
+    return aired ? 'missing' : 'unaired';
+  }
+  const currentYear = today.getFullYear();
+  return ep.airYear == null || ep.airYear > currentYear ? 'unaired' : 'missing';
+}
+
 /**
  * Sonarr-style missing-episode detection. For a monitored series (a `series`/
  * `season` watchlist item carrying an IMDb id), it enumerates the local IMDb
@@ -164,6 +203,20 @@ export class MissingEpisodesService {
     });
     const owned = await this.ownedEpisodeSet(seriesTconst, item.title, series?.startYear ?? null);
 
+    // TMDB aired boundary, fetched only when the year check is actually ambiguous —
+    // i.e. some not-owned episode is dated to the current year (or has no year), the
+    // one case a year-only comparison can misread an announced-but-unreleased season
+    // as missing (see {@link classifyEpisode}). A fully-past library needs no call.
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const ambiguous = scoped.some(
+      (e) =>
+        e.seasonNumber !== SPECIAL_SEASON &&
+        !owned.has(this.key(e.seasonNumber, e.episodeNumber)) &&
+        (e.airYear == null || e.airYear >= currentYear),
+    );
+    const boundary = ambiguous ? await this.airedBoundary(seriesTconst) : null;
+
     // Preserve user "ignored" overrides across rescans; rebuild everything else.
     const existing = await this.prisma.wantedEpisode.findMany({ where: { watchlistItemId } });
     const ignoredKeys = new Set(
@@ -191,16 +244,16 @@ export class MissingEpisodesService {
       where: { watchlistItemId, status: { not: 'ignored' } },
     });
 
-    const currentYear = new Date().getFullYear();
     const rows = scoped
       .filter((ep) => ep.seasonNumber !== SPECIAL_SEASON)
       .filter((ep) => !ignoredKeys.has(this.key(ep.seasonNumber, ep.episodeNumber)))
       .map((ep) => {
-        const status = owned.has(this.key(ep.seasonNumber, ep.episodeNumber))
-          ? 'owned'
-          : ep.airYear == null || ep.airYear > currentYear
-            ? 'unaired'
-            : 'missing';
+        const status = classifyEpisode(
+          owned.has(this.key(ep.seasonNumber, ep.episodeNumber)),
+          ep,
+          boundary,
+          today,
+        );
         const base = {
           watchlistItemId,
           seriesTconst,
@@ -297,6 +350,21 @@ export class MissingEpisodesService {
     if (uncached.length) void this.warmShowStatuses(uncached);
 
     return summaries;
+  }
+
+  /**
+   * The TMDB aired boundary for a series, via the shared {@link TvShowStatusService}
+   * (resolved at call time through `moduleRef`, same as {@link warmShowStatuses}).
+   * Best-effort: any failure (no key, unresolved show, network) yields null and the
+   * caller falls back to year granularity.
+   */
+  private async airedBoundary(seriesTconst: string): Promise<AiredBoundary | null> {
+    try {
+      const svc = this.moduleRef.get(TvShowStatusService, { strict: false });
+      return await svc.airedBoundary(seriesTconst);
+    } catch {
+      return null;
+    }
   }
 
   /** Background: resolve + cache airing status for a bounded set of shows. */

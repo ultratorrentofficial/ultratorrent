@@ -166,6 +166,25 @@ export class TvShowStatusService {
     return result;
   }
 
+  /**
+   * The aired boundary (last-aired season/episode) for a series by IMDb id, from
+   * TMDB. Used by the missing-episode diff to tell an announced-but-unreleased season
+   * from a genuinely missing one. Returns null when no TMDB key is configured or the
+   * show/boundary can't be resolved — the caller then falls back to year granularity.
+   */
+  async airedBoundary(
+    imdbId: string,
+  ): Promise<{ seasonNumber: number; episodeNumber: number } | null> {
+    const key =
+      (await this.settings.get<string>('media.tmdbApiKey')) ?? process.env.TMDB_API_KEY;
+    if (!key || !imdbId) return null;
+    try {
+      return await new TmdbTvShowStatusProvider(key).getAiredBoundaryByImdb(imdbId);
+    } catch {
+      return null;
+    }
+  }
+
   // --- internals -----------------------------------------------------------
 
   /**
