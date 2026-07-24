@@ -156,6 +156,82 @@ describe('duplicateKeys — movies still work', () => {
     expect(groups[0].reason).toBe('external_id');
     expect(groups[0].itemIds.sort()).toEqual(['a', 'b']);
   });
+
+  it('does NOT group a film with its SAME-YEAR sequel on a shared id', () => {
+    // Real case reported live on 2026-07-24: "Ultimate Avengers" and "Ultimate
+    // Avengers 2" (separate files, both 2006) both carried imdb tt0803093 / tmdb
+    // 14611 — the sequel's id, written onto the first film before the movie matcher's
+    // sequel gate existed. The year scope cannot separate them: a film and its sequel
+    // routinely share a release year, so detection applies the sequel gate itself.
+    const sequelId = [
+      { provider: 'imdb', externalId: 'tt0803093' },
+      { provider: 'tmdb', externalId: '14611' },
+    ];
+    const first: DuplicateItemLike = { ...movie('a', 'Ultimate Avengers', 2006), externalIds: sequelId };
+    const second: DuplicateItemLike = { ...movie('b', 'Ultimate Avengers 2', 2006), externalIds: sequelId };
+    expect(detectDuplicateGroups([first, second])).toHaveLength(0);
+  });
+
+  it('still groups two copies of the SEQUEL itself, arabic or roman', () => {
+    // The gate must not cost a real duplicate: the same film always carries the same
+    // trailing number, and "2" and "II" are the same number.
+    const id = [{ provider: 'tmdb', externalId: '14611' }];
+    const a: DuplicateItemLike = { ...movie('a', 'Ultimate Avengers 2', 2006), externalIds: id };
+    const b: DuplicateItemLike = { ...movie('b', 'Ultimate Avengers II', 2006), externalIds: id };
+    const groups = detectDuplicateGroups([a, b]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].reason).toBe('external_id');
+    expect(groups[0].itemIds.sort()).toEqual(['a', 'b']);
+  });
+
+  it('still groups a numbered copy with a subtitled one (same film, not a sequel pair)', () => {
+    // "Ultimate Avengers 2" vs "Ultimate Avengers 2 Rise of the Panther" are one film.
+    // Splitting the bucket by sequel NUMBER would separate them (2 vs none); the gate
+    // is pairwise precisely so it does not.
+    const id = [{ provider: 'tmdb', externalId: '14611' }];
+    const a: DuplicateItemLike = { ...movie('a', 'Ultimate Avengers 2', 2006), externalIds: id };
+    const b: DuplicateItemLike = { ...movie('b', 'Ultimate Avengers 2 Rise of the Panther', 2006), externalIds: id };
+    const groups = detectDuplicateGroups([a, b]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].itemIds.sort()).toEqual(['a', 'b']);
+  });
+
+  it('keeps the real duplicates together when a sequel is mixed into the bucket', () => {
+    // Two copies of the first film plus the sequel, all sharing the bad id: the pair
+    // must still be reported, and the sequel must not be in the group.
+    const id = [{ provider: 'tmdb', externalId: '14611' }];
+    const withId = (rid: string, title: string): DuplicateItemLike => ({
+      ...movie(rid, title, 2006),
+      externalIds: id,
+    });
+    const groups = detectDuplicateGroups([
+      withId('a', 'Ultimate Avengers'),
+      withId('b', 'Ultimate Avengers'),
+      withId('c', 'Ultimate Avengers 2'),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].itemIds.sort()).toEqual(['a', 'b']);
+  });
+
+  it('gives a split bucket the same keys on a rescan whatever order rows arrive in', () => {
+    // The split must be deterministic, or an operator's "not a duplicate" decision
+    // would detach itself every time the database returned the rows differently.
+    const id = [{ provider: 'tmdb', externalId: '14611' }];
+    const withId = (rid: string, title: string): DuplicateItemLike => ({
+      ...movie(rid, title, 2006),
+      externalIds: id,
+    });
+    const items = [
+      withId('a', 'Ultimate Avengers'),
+      withId('b', 'Ultimate Avengers'),
+      withId('c', 'Ultimate Avengers 2'),
+      withId('d', 'Ultimate Avengers 2'),
+    ];
+    const forward = detectDuplicateGroups(items).map((g) => `${g.key}=${g.itemIds.sort().join(',')}`).sort();
+    const reversed = detectDuplicateGroups([...items].reverse()).map((g) => `${g.key}=${g.itemIds.sort().join(',')}`).sort();
+    expect(forward).toEqual(reversed);
+    expect(forward).toHaveLength(2);
+  });
 });
 
 describe('detectDuplicateGroups — group identity is stable across scans', () => {

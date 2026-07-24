@@ -8,6 +8,7 @@ import {
   WS_EVENTS,
   type DuplicateScanEventPayload,
 } from '@ultratorrent/shared';
+import { titlesAreSequelVariants } from './imdb/imdb-match';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { pageOf, parsePage } from '../../common/pagination';
@@ -301,10 +302,48 @@ interface DetectedGroup {
 }
 
 /**
+ * Split one `external_id` bucket so a film and its sequel never share a group.
+ *
+ * The movie matcher already refuses to write a sequel's id onto its predecessor
+ * (`titlesAreSequelVariants` in `pickBestMovie`), but that only protects ids written
+ * AFTER the gate landed — nothing re-fetches the rows the old matcher poisoned.
+ * Observed live: "Ultimate Avengers" and "Ultimate Avengers 2" (both 2006, separate
+ * files) both carried tt0803093 / tmdb 14611, written before the gate, and grouped as
+ * one duplicate offering 1.15 GB of "savings" that would have deleted a different film.
+ *
+ * So detection enforces the same rule independently. A shared id is evidence, not
+ * proof, and this is the one case where the movie key's year scope cannot help: a film
+ * and its sequel routinely share a release year.
+ *
+ * Only `external_id` needs it — every other reason builds its key from the normalized
+ * TITLE, which already tells "Ultimate Avengers" from "Ultimate Avengers 2".
+ *
+ * Members are placed greedily into the first part that holds no sequel variant of
+ * them, rather than partitioned by sequel number: the number alone would also split a
+ * genuine pair whose copies are named "Ultimate Avengers 2" and "Ultimate Avengers 2
+ * Rise of the Panther" (numbered vs subtitled), which are the same film. Ids are
+ * sorted first so the partition — and therefore the group key — is the same on every
+ * scan regardless of the order rows came back from the database.
+ */
+function splitSequelVariants(ids: string[], titleById: Map<string, string>): string[][] {
+  const parts: string[][] = [];
+  for (const id of [...ids].sort()) {
+    const title = titleById.get(id) ?? '';
+    const home = parts.find((part) =>
+      part.every((other) => !titlesAreSequelVariants(title, titleById.get(other) ?? '')),
+    );
+    if (home) home.push(id);
+    else parts.push([id]);
+  }
+  return parts;
+}
+
+/**
  * Pure grouping: assign each item to at most one duplicate group, preferring
  * the highest-confidence reason. Exported for unit testing.
  */
 export function detectDuplicateGroups(items: DuplicateItemLike[]): DetectedGroup[] {
+  const titleById = new Map(items.map((i) => [i.id, i.title]));
   // Bucket items by every key they produce.
   const buckets = new Map<string, { reason: DuplicateReason; ids: string[] }>();
   for (const item of items) {
@@ -319,6 +358,18 @@ export function detectDuplicateGroups(items: DuplicateItemLike[]): DetectedGroup
   // carried through so the group keeps one identity across scans.
   const candidates = [...buckets.entries()]
     .map(([key, b]) => ({ key, reason: b.reason, ids: [...new Set(b.ids)] }))
+    // A contaminated id cannot merge a film with its sequel (see
+    // {@link splitSequelVariants}). The first part keeps the bucket's key so an
+    // untouched group keeps its identity — and a decision made on it — across scans.
+    .flatMap((b) =>
+      b.reason !== 'external_id'
+        ? [b]
+        : splitSequelVariants(b.ids, titleById).map((ids, i) => ({
+            key: i === 0 ? b.key : `${b.key}#${i}`,
+            reason: b.reason,
+            ids,
+          })),
+    )
     .filter((b) => b.ids.length > 1)
     .sort(
       (a, b) =>
