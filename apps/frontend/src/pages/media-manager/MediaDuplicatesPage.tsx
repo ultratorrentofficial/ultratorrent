@@ -454,14 +454,19 @@ function DuplicateGroupCard({ group }: { group: MediaDuplicateGroup }) {
         {comparing ? (
           <DuplicateComparison groupId={group.id} />
         ) : (
-          <Table>
+          {/* table-fixed is load-bearing: in the default auto layout a long path in
+              the Item cell (the `truncate` below only clips within a bounded box)
+              expands the column to the path's intrinsic width and blows the table
+              past the viewport. Fixing the layout and pinning the short columns lets
+              the Item column take the rest and actually truncate. */}
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
                 <TableHead>{t('duplicates.col.item')}</TableHead>
-                <TableHead>{t('duplicates.col.year')}</TableHead>
-                <TableHead>{t('duplicates.col.se')}</TableHead>
-                <TableHead>{t('duplicates.col.resolution')}</TableHead>
-                <TableHead>{t('duplicates.col.size')}</TableHead>
+                <TableHead className="w-16">{t('duplicates.col.year')}</TableHead>
+                <TableHead className="w-24">{t('duplicates.col.se')}</TableHead>
+                <TableHead className="w-28">{t('duplicates.col.resolution')}</TableHead>
+                <TableHead className="w-28">{t('duplicates.col.size')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -489,10 +494,10 @@ function DuplicateGroupCard({ group }: { group: MediaDuplicateGroup }) {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>{item.year ?? '—'}</TableCell>
-                  <TableCell>{seasonEpisodeLabel(item.season, item.episode) || '—'}</TableCell>
-                  <TableCell>{item.bestResolution ?? '—'}</TableCell>
-                  <TableCell>{formatBytes(item.totalSize)}</TableCell>
+                  <TableCell className="whitespace-nowrap">{item.year ?? '—'}</TableCell>
+                  <TableCell className="whitespace-nowrap">{seasonEpisodeLabel(item.season, item.episode) || '—'}</TableCell>
+                  <TableCell className="whitespace-nowrap">{item.bestResolution ?? '—'}</TableCell>
+                  <TableCell className="whitespace-nowrap">{formatBytes(item.totalSize)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
