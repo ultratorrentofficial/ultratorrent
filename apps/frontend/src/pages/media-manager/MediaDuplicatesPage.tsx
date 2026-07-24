@@ -454,11 +454,11 @@ function DuplicateGroupCard({ group }: { group: MediaDuplicateGroup }) {
         {comparing ? (
           <DuplicateComparison groupId={group.id} />
         ) : (
-          {/* table-fixed is load-bearing: in the default auto layout a long path in
-              the Item cell (the `truncate` below only clips within a bounded box)
-              expands the column to the path's intrinsic width and blows the table
-              past the viewport. Fixing the layout and pinning the short columns lets
-              the Item column take the rest and actually truncate. */}
+          // table-fixed is load-bearing: in the default auto layout a long path in
+          // the Item cell (the `truncate` below only clips within a bounded box)
+          // expands the column to the path's intrinsic width and blows the table
+          // past the viewport. Fixing the layout and pinning the short columns lets
+          // the Item column take the rest and actually truncate.
           <Table className="table-fixed">
             <TableHeader>
               <TableRow>
