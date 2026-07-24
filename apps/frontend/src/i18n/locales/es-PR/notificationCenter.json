@@ -65,7 +65,20 @@
     "subtitle": "Cada notificación es una regla configurable. Activa, edita o elimina — nada está fijo en el código.",
     "loadError": "No se pudieron cargar las reglas.",
     "empty": "Aún no hay reglas.",
-    "triggered": "activada {{count}}×"
+    "triggered": "activada {{count}}×",
+    "routeTooltip": "Elige por cuáles canales se envía esta notificación",
+    "routeTitle": "Canales de envío — {{name}}",
+    "routeHelp": "Escoge los canales que entregan esta notificación. Déjala en los canales predeterminados para heredar los que estén marcados como tal; selecciona canales específicos para enviar este evento por su propia vía.",
+    "useDefaults": "Usar los canales predeterminados",
+    "defaultChannels": "Predeterminado: {{names}}",
+    "noDefaultChannel": "no hay canal predeterminado configurado",
+    "channelDisabled": "desactivado",
+    "noChannels": "Aún no hay canales configurados — agrega uno en la página de Canales.",
+    "applyToGroup": "Aplicar también a las {{count}} reglas de {{group}}",
+    "routingSaved": "Canales de envío actualizados para {{count}} regla(s).",
+    "routingSaveFailed": "No se pudieron actualizar los canales de envío.",
+    "cancel": "Cancelar",
+    "save": "Guardar"
   },
   "recipients": {
     "title": "Destinatarios",

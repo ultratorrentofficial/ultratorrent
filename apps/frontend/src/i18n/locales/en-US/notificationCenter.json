@@ -65,7 +65,20 @@
     "subtitle": "Every notification is a configurable rule. Toggle, edit or delete — nothing is hardcoded.",
     "loadError": "Could not load rules.",
     "empty": "No rules yet.",
-    "triggered": "triggered {{count}}×"
+    "triggered": "triggered {{count}}×",
+    "routeTooltip": "Choose which channels deliver this notification",
+    "routeTitle": "Delivery channels — {{name}}",
+    "routeHelp": "Pick the channels that deliver this notification. Leave it on the default channels to inherit whatever is marked default; select channels explicitly to route this event somewhere of its own.",
+    "useDefaults": "Use the default channels",
+    "defaultChannels": "Default: {{names}}",
+    "noDefaultChannel": "no default channel configured",
+    "channelDisabled": "disabled",
+    "noChannels": "No channels configured yet — add one on the Channels page.",
+    "applyToGroup": "Also apply to all {{count}} rules in {{group}}",
+    "routingSaved": "Delivery channels updated for {{count}} rule(s).",
+    "routingSaveFailed": "Could not update the delivery channels.",
+    "cancel": "Cancel",
+    "save": "Save"
   },
   "recipients": {
     "title": "Recipients",
