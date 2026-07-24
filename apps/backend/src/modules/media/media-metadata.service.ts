@@ -484,7 +484,14 @@ export class MediaMetadataService {
           externalId: String(extId),
           url: this.externalUrl(prov, String(extId), item.mediaType),
         },
-        update: { externalId: String(extId) },
+        // The url is DERIVED from the id, so it has to be rewritten with it. Updating
+        // `externalId` alone left the link pointing at the film the old (wrong) id
+        // named: after a re-fetch corrected "Ultimate Avengers" from tt0803093 to
+        // tt0491703, "View on IMDb" still opened the sequel.
+        update: {
+          externalId: String(extId),
+          url: this.externalUrl(prov, String(extId), item.mediaType),
+        },
       });
     }
 
