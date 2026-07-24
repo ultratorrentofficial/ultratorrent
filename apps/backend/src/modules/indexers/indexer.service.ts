@@ -23,6 +23,22 @@ export interface AuditCtx {
 }
 
 /**
+ * One fan-out search across the enabled indexers, plus how healthy that run was.
+ *
+ * `queried === failed` (with `queried > 0`) means NOTHING could answer — an empty
+ * `candidates` then says nothing about whether the release exists. See
+ * {@link IndexerService.searchAllDetailed}.
+ */
+export interface IndexerSearchRun {
+  candidates: IndexerCandidate[];
+  /** Enabled indexers attempted. Zero means none are configured/enabled. */
+  queried: number;
+  /** How many of them threw. */
+  failed: number;
+  failures: Array<{ name: string; message: string }>;
+}
+
+/**
  * CRUD + capability testing + search across Torznab/Newznab indexers. The API
  * key is AES-256-GCM encrypted inside `Indexer.config` (SecretCipher) and never
  * returned or logged. `searchAll` fans out across enabled indexers (priority
@@ -238,14 +254,36 @@ export class IndexerService {
    * per-indexer failures, filtering by each indexer's `minSeeders`, and
    * deduping candidates cross-indexer (infoHash, else release identity). The
    * result is priority-ordered then by seeders desc.
+   *
+   * Returns the candidates only. Callers that must distinguish "every indexer
+   * failed" from "the indexers answered and there is genuinely nothing" — the
+   * difference between a broken setup and an honest empty result — should use
+   * {@link searchAllDetailed} instead.
    */
   async searchAll(query: TvSearchQuery): Promise<IndexerCandidate[]> {
+    return (await this.searchAllDetailed(query)).candidates;
+  }
+
+  /**
+   * {@link searchAll} plus the health of the run: how many enabled indexers were
+   * queried and which ones failed.
+   *
+   * Per-indexer failures are isolated so one broken indexer cannot sink a search —
+   * but swallowing them entirely made a total outage indistinguishable from an empty
+   * catalogue. Observed live: Prowlarr had put EZTV and The Pirate Bay in failure
+   * backoff (EZTV unreachable, TPB over its request limit), leaving only a
+   * current-episodes-only indexer, so 113 missing *9-1-1* episodes were each recorded
+   * as `no_results` — "we looked and there is nothing", when the truth was "nothing
+   * could look". `queried`/`failed` is what lets a caller tell those apart and say so.
+   */
+  async searchAllDetailed(query: TvSearchQuery): Promise<IndexerSearchRun> {
     const rows = await this.prisma.indexer.findMany({
       where: { enabled: true },
       orderBy: [{ priority: 'asc' }, { name: 'asc' }],
     });
     const seen = new Set<string>();
     const out: IndexerCandidate[] = [];
+    const failures: Array<{ name: string; message: string }> = [];
     for (const row of rows) {
       try {
         const conn = this.connection(row);
@@ -261,10 +299,17 @@ export class IndexerService {
           out.push(c);
         }
       } catch (err) {
-        this.logger.warn(`Indexer search failed (${row.name}): ${(err as Error).message}`);
+        const message = (err as Error).message;
+        failures.push({ name: row.name, message });
+        this.logger.warn(`Indexer search failed (${row.name}): ${message}`);
       }
     }
-    return out.sort((a, b) => (b.seeders ?? -1) - (a.seeders ?? -1));
+    return {
+      candidates: out.sort((a, b) => (b.seeders ?? -1) - (a.seeders ?? -1)),
+      queried: rows.length,
+      failed: failures.length,
+      failures,
+    };
   }
 
   /** Ad-hoc search used by the controller's test-search endpoint. */

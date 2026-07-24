@@ -187,11 +187,41 @@ export class MissingEpisodeSearchService {
       return { wantedEpisodeId: wanted.id, searchStatus: 'failed' };
     }
 
-    const candidates = await this.indexers.searchAll({
+    const run = await this.indexers.searchAllDetailed({
       q: item.title,
       season: wanted.seasonNumber,
       ep: wanted.episodeNumber,
     });
+    // Every indexer failing is NOT "no results" — it is "nothing could look", and
+    // recording it as the former is a lie the operator acts on. Observed live: with
+    // EZTV and The Pirate Bay both in Prowlarr failure backoff, 113 missing *9-1-1*
+    // episodes were each stamped `no_results`, which reads as "this release does not
+    // exist" when the search never actually happened. `failed` is the honest state
+    // (it retries on the same backoff, so nothing is lost by telling the truth).
+    if (run.queried > 0 && run.failed === run.queried) {
+      const detail = run.failures.map((f) => `${f.name}: ${f.message}`).join('; ');
+      this.logger.warn(
+        `All ${run.queried} indexer(s) failed searching "${item.title}" ` +
+          `S${wanted.seasonNumber}E${wanted.episodeNumber} — recording as failed, not no_results. ${detail}`,
+      );
+      await this.setState(wanted.id, { searchStatus: 'failed', lastSearchedAt: new Date() });
+      await this.audit.record({
+        userId,
+        action: 'media_acquisition.missing_episode.indexers_unavailable',
+        objectType: 'wanted_episode',
+        objectId: wanted.id,
+        result: 'failure',
+        metadata: {
+          title: item.title,
+          season: wanted.seasonNumber,
+          episode: wanted.episodeNumber,
+          indexersQueried: run.queried,
+          failures: run.failures,
+        },
+      });
+      return { wantedEpisodeId: wanted.id, searchStatus: 'failed' };
+    }
+    const candidates = run.candidates;
     // Match preferences decide which release to grab: the show's RSS rule filters
     // when it has any, else the auto-download profiles, else the global defaults.
     const prefs = await this.matchPrefs.resolveCandidates(item);

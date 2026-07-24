@@ -22,6 +22,8 @@ const selection = (c: IndexerCandidate) => ({ candidate: c, matchedPriority: 0, 
 
 function build(over: {
   candidates?: IndexerCandidate[];
+  /** Health of the indexer fan-out — e.g. `{ queried: 2, failed: 2 }` for a total outage. */
+  indexerRun?: { queried?: number; failed?: number; failures?: Array<{ name: string; message: string }> };
   selected?: any; // pass `null` to force no-match; omit to auto-select the first candidate
   evaluation?: any;
   settings?: Record<string, unknown>;
@@ -99,7 +101,18 @@ function build(over: {
     return { isDirectory: () => true };
   });
 
-  const indexers = { searchAll: jest.fn(async () => over.candidates ?? []) };
+  // The service reads the DETAILED run so it can tell a total indexer outage from an
+  // honestly-empty catalogue. `indexerRun` overrides the health of that run; by
+  // default every indexer answered successfully.
+  const indexers = {
+    searchAllDetailed: jest.fn(async () => ({
+      candidates: over.candidates ?? [],
+      queried: 1,
+      failed: 0,
+      failures: [],
+      ...(over.indexerRun ?? {}),
+    })),
+  };
   const evaluator = { grabSelected: jest.fn(async () => over.evaluation ?? { id: 'ev1' }) };
   const matchPrefs = {
     resolveCandidates: jest.fn(async () => []),
@@ -481,6 +494,50 @@ describe('MissingEpisodeSearchService.sweep — resilience', () => {
     expect(summary).toMatchObject({ noResults: 1, grabbed: 0 });
     expect(evaluator.grabSelected).not.toHaveBeenCalled();
     expect(eventBus.emit).not.toHaveBeenCalled();
+    expect(updates[updates.length - 1]).toMatchObject({ searchStatus: 'no_results' });
+  });
+
+  it('records FAILED, not no_results, when every indexer failed', async () => {
+    // The 9-1-1 case: EZTV and TPB both in Prowlarr failure backoff. The candidate
+    // list is empty either way, so without run health this was stamped `no_results`
+    // — "we looked and this release does not exist" — when nothing had looked at all.
+    const { svc, updates, evaluator, audit } = build({
+      candidates: [],
+      indexerRun: {
+        queried: 2,
+        failed: 2,
+        failures: [
+          { name: 'EZTV', message: 'HTTP 429' },
+          { name: 'TPB', message: 'HTTP 429' },
+        ],
+      },
+    });
+
+    const summary = await svc.sweep();
+
+    expect(updates[updates.length - 1]).toMatchObject({ searchStatus: 'failed' });
+    expect(summary).toMatchObject({ grabbed: 0 });
+    expect(evaluator.grabSelected).not.toHaveBeenCalled();
+    // The outage is auditable, with which indexers failed and why.
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'media_acquisition.missing_episode.indexers_unavailable',
+        result: 'failure',
+        metadata: expect.objectContaining({ indexersQueried: 2 }),
+      }),
+    );
+  });
+
+  it('still records no_results when a surviving indexer answered with nothing', async () => {
+    // A PARTIAL outage is not an outage: one indexer answered, so an empty result is
+    // a real answer and must not be downgraded to `failed`.
+    const { svc, updates } = build({
+      candidates: [],
+      indexerRun: { queried: 2, failed: 1, failures: [{ name: 'EZTV', message: 'HTTP 429' }] },
+    });
+
+    await svc.sweep();
+
     expect(updates[updates.length - 1]).toMatchObject({ searchStatus: 'no_results' });
   });
 });

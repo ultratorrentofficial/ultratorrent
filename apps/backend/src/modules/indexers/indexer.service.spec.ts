@@ -87,6 +87,56 @@ describe('IndexerService.searchAll', () => {
     expect(results[0].seeders).toBe(100);
   });
 
+  it('reports run health so a total outage is distinguishable from an empty catalogue', async () => {
+    // The 9-1-1 case: every enabled indexer is in failure backoff. searchAll returns
+    // [] either way, so only queried/failed can tell "nothing could look" from
+    // "nothing exists" — and the caller records a different state for each.
+    const { svc, client, store } = build();
+    store.push(
+      { id: 'a', name: 'EZTV', enabled: true, priority: 10, categories: [5000], timeoutMs: 15000, minSeeders: null, capabilities: null, config: {} },
+      { id: 'b', name: 'TPB', enabled: true, priority: 20, categories: [5000], timeoutMs: 15000, minSeeders: null, capabilities: null, config: {} },
+    );
+    client.search.mockRejectedValue(new Error('HTTP 429'));
+
+    const run = await svc.searchAllDetailed({ q: '9-1-1', season: 9, ep: 1 });
+
+    expect(run.candidates).toEqual([]);
+    expect(run.queried).toBe(2);
+    expect(run.failed).toBe(2); // every indexer down
+    expect(run.failures.map((f) => f.name).sort()).toEqual(['EZTV', 'TPB']);
+    expect(run.failures[0].message).toContain('429');
+  });
+
+  it('a genuinely empty answer is queried>0 with failed=0', async () => {
+    const { svc, client, store } = build();
+    store.push({ id: 'a', name: 'showRSS', enabled: true, priority: 10, categories: [5000], timeoutMs: 15000, minSeeders: null, capabilities: null, config: {} });
+    client.search.mockResolvedValue([]);
+
+    const run = await svc.searchAllDetailed({ q: '9-1-1', season: 1, ep: 1 });
+
+    expect(run.candidates).toEqual([]);
+    expect(run.queried).toBe(1);
+    expect(run.failed).toBe(0); // the indexer answered — there is genuinely nothing
+  });
+
+  it('a partial outage still yields the surviving indexer’s candidates', async () => {
+    const { svc, client, store } = build();
+    store.push(
+      { id: 'a', name: 'down', enabled: true, priority: 10, categories: [5000], timeoutMs: 15000, minSeeders: null, capabilities: null, config: {} },
+      { id: 'b', name: 'up', enabled: true, priority: 20, categories: [5000], timeoutMs: 15000, minSeeders: null, capabilities: null, config: {} },
+    );
+    client.search.mockImplementation(async (c: any) => {
+      if (c.id === 'a') throw new Error('HTTP 429');
+      return [candidate({ title: 'The Show S01E01 1080p-GRP', infoHash: 'ok', seeders: 9 })];
+    });
+
+    const run = await svc.searchAllDetailed({ q: 'The Show', season: 1, ep: 1 });
+
+    expect(run.candidates.map((c) => c.infoHash)).toEqual(['ok']);
+    expect(run.queried).toBe(2);
+    expect(run.failed).toBe(1); // NOT a total outage — the caller must not report failed
+  });
+
   it('uses plain search when an indexer advertises tvSearch=false', async () => {
     const { svc, client, store } = build();
     store.push({ id: 'x', name: 'x', enabled: true, priority: 10, categories: [5000], timeoutMs: 15000, minSeeders: null, capabilities: { tvSearch: false }, config: {} });
