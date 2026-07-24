@@ -35,20 +35,60 @@ export function isGenericContainer(name: string): boolean {
 }
 
 /**
- * The name of the show folder for a file — the first parent that isn't a generic
- * `Season NN`/`Specials`/`Disc N` container, climbing upward but never past the
- * library root (so a file sitting directly under the library never adopts the
- * library folder's name as its title). Null when none qualifies.
+ * True for a folder that names ONE release of a season rather than the show — an
+ * unrenamed scene/download directory like
+ * `From.S04.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir`. The tell is scene/quality
+ * tokens (resolution, source, codec, release group) or a bare season marker: a real
+ * show-root folder ("From (2022)", "Loki (2021)", "9-1-1 (2018)", a "Marvel"
+ * collection) carries none of these — it is named for the show across all seasons,
+ * never for a single release.
+ */
+export function isReleaseFolder(name: string): boolean {
+  const p = parseTorrentName(name);
+  return (
+    p.resolution !== null ||
+    p.source !== null ||
+    p.codec !== null ||
+    p.releaseGroup !== null ||
+    p.season !== null
+  );
+}
+
+/**
+ * The name of the show folder for a file — the parent that names the SERIES,
+ * climbing upward but never past the library root (so a file sitting directly under
+ * the library never adopts the library folder's name as its title). Null when none
+ * qualifies.
+ *
+ * Two kinds of parent are climbed past, not just one:
+ *  - generic `Season NN`/`Specials`/`Disc N` containers, which never name a title; and
+ *  - a **release folder** — an unrenamed download dir like `From.S04.1080p…-NeoNoir`
+ *    that a torrent dropped BETWEEN the show root and the season folder. It parses to
+ *    a junk title ("From S04", the `.S04.` glued on because no episode number splits
+ *    it off), so stopping there mis-titles every episode under it. Observed live:
+ *    `From (2022)/From.S04.1080p.WEBRip.…-NeoNoir/Season 04/…S04E08.mkv` stored as
+ *    "From S04" while its already-renamed sibling stored the correct "From".
+ *
+ * The first meaningful parent is still kept as a `fallback`: when the release folder
+ * IS the top of the tree (a flat scene release with no show-root wrapper), there is
+ * nothing better above it, so it is returned rather than climbing into nothing.
  */
 export function showFolderName(filePath: string, libraryPath?: string): string | null {
   const segments = filePath.split(/[/\\]+/).filter(Boolean);
   segments.pop(); // drop the filename itself
   const rootDepth = libraryPath ? libraryPath.split(/[/\\]+/).filter(Boolean).length : 0;
+  let fallback: string | null = null;
   for (let i = segments.length - 1; i >= rootDepth; i--) {
-    if (isGenericContainer(segments[i])) continue;
-    return segments[i];
+    const seg = segments[i];
+    if (isGenericContainer(seg)) continue;
+    // First non-generic parent: the answer unless a real show root sits above it.
+    if (fallback === null) fallback = seg;
+    // A release/download folder is not the show root — go back once more (and again),
+    // up to the true series folder. Bounded by the library root by the loop itself.
+    if (isReleaseFolder(seg)) continue;
+    return seg;
   }
-  return null;
+  return fallback;
 }
 
 /**
@@ -381,8 +421,9 @@ export class MediaIdentificationService {
    * fragment the show into one series per episode. So for an **episodic** file
    * that sits inside a `Season NN`/`Specials` container (the strong signal of an
    * organised library), or whose filename yields no title at all, we take the
-   * series title (and year) from the first meaningful parent folder (climbing
-   * past the generic containers, bounded by the library root so we never grab the
+   * series title (and year) from the show-root folder (climbing past both generic
+   * `Season NN` containers AND an unrenamed release dir nested under the show root —
+   * see {@link showFolderName} — bounded by the library root so we never grab the
    * library folder itself). Season/episode/quality still come from the filename.
    *
    * When the file is *not* in such a container and the filename already names a
@@ -393,12 +434,7 @@ export class MediaIdentificationService {
     return parseItemIdentity(filePath, libraryPath);
   }
 
-  /**
-   * The name of the show folder for a file — the first parent that isn't a
-   * generic `Season NN`/`Specials`/`Disc N` container, climbing upward but never
-   * past the library root (so a file sitting directly under the library never
-   * adopts the library folder's name as its title). Null when none qualifies.
-   */
+  /** Instance wrapper — see the exported {@link showFolderName}. */
   private showFolderName(filePath: string, libraryPath?: string): string | null {
     return showFolderName(filePath, libraryPath);
   }

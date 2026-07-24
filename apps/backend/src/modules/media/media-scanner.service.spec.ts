@@ -102,6 +102,34 @@ describe('parseItemIdentity (what the scanner stores)', () => {
     expect(id.episode).toBe(5);
   });
 
+  it('climbs past an unrenamed release folder to the show root (From S04 regression)', () => {
+    // A whole season was downloaded but not yet renamed, so the torrent's release
+    // folder still sits BETWEEN the show root and the Season folder. It parses to the
+    // junk title "From S04" (the `.S04.` glues onto the title with no episode number
+    // to split it), which stored one duplicate as "From S04" beside its renamed
+    // sibling "From". The climb must pass the release folder and take the show root.
+    const id = parseItemIdentity(
+      `${LIB}/From (2022)/From.S04.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir/Season 04/From S04 FROM - S04E08.mkv`,
+      LIB,
+    );
+    expect(id.title).toBe('From'); // was "From S04"
+    expect(id.year).toBe(2022); // recovered from the show-root folder, not the release dir
+    expect(id.season).toBe(4);
+    expect(id.episode).toBe(8);
+  });
+
+  it('falls back to the release folder when it IS the top of the tree', () => {
+    // No show-root wrapper — the release folder is the only non-generic parent, so
+    // there is nothing better to climb to and it must still be used.
+    const id = parseItemIdentity(
+      `${LIB}/From.S04.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir/Season 04/From S04 FROM - S04E08.mkv`,
+      LIB,
+    );
+    expect(id.title).toBe('From S04');
+    expect(id.season).toBe(4);
+    expect(id.episode).toBe(8);
+  });
+
   it('leaves a movie without season/episode', () => {
     const id = parseItemIdentity(`${LIB}/../Movies/Dune Part Two (2024)/Dune Part Two (2024) [1080p].mkv`, LIB);
     expect(id.season).toBeNull();
