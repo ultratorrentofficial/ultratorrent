@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.44.1] - 2026-07-24
+
+### Fixed
+- Ships the notification actor/action card rendering that the v0.44.0 changelog already described. That work's changeset was consumed into the 0.44.0 release while its code was still uncommitted in a working tree, so the v0.44.0 tag and the images built from it do not contain it; v0.44.1 is the first release whose tag actually includes the code. No behaviour is added beyond what 0.44.0 documented: NotificationCard's actor/action fields, the shared cardContext() rendering across text/markdown/SMS/HTML-email, and actor sourced from the payload's actorName only (never the recipient fallback userDisplayName). Anyone running 0.44.0 needs 0.44.1 to actually get it.
+
 ## [0.44.0] - 2026-07-24
 
 ### Added
