@@ -44,6 +44,36 @@ export class MediaServerSessionService {
     return this.integrations.fetchArtwork(session.connectionId, session.artPath);
   }
 
+  /**
+   * Proxy the poster recorded on one user's notification.
+   *
+   * A "stopped watching" card outlives its session — the row is deleted the moment
+   * playback ends — so resolving artwork through the session would 404 on exactly
+   * the notification that needs it. The connection and provider path are recorded
+   * on the notification instead, and re-fetched here under the provider's
+   * credentials.
+   *
+   * The path is read from the STORED payload, never from the request: a caller
+   * cannot supply one, so this cannot be turned into a fetch-anything proxy. The
+   * `userId` filter is the ownership check — someone else's notification id simply
+   * does not match, and the caller cannot tell "not yours" from "no artwork".
+   */
+  async notificationArtwork(
+    userId: string,
+    notificationId: string,
+  ): Promise<{ body: Buffer; contentType: string } | null> {
+    const row = await this.prisma.userNotification.findFirst({
+      where: { id: notificationId, userId },
+      select: { payload: true },
+    });
+    if (!row) return null;
+    const payload = (row.payload ?? {}) as Record<string, unknown>;
+    const connectionId = payload.connectionId;
+    const artPath = payload.artPath;
+    if (typeof connectionId !== 'string' || typeof artPath !== 'string' || !artPath) return null;
+    return this.integrations.fetchArtwork(connectionId, artPath);
+  }
+
   private get enabled(): boolean {
     return this.registry.getStatus(MODULE_IDS.MEDIA_SERVER_ANALYTICS)?.enabled ?? false;
   }
@@ -103,6 +133,7 @@ export class MediaServerSessionService {
           showTitle: s.showTitle ?? null,
           seasonNumber: s.seasonNumber ?? null,
           episodeNumber: s.episodeNumber ?? null,
+          year: s.year ?? null,
           externalIds:
             s.externalIds && Object.keys(s.externalIds).length ? s.externalIds : undefined,
         };
@@ -123,6 +154,21 @@ export class MediaServerSessionService {
             device: s.device ?? null, client: s.client ?? null,
             playbackMethod: s.playbackMethod ?? null, resolution: s.resolution ?? null,
             videoCodec: s.videoCodec ?? null, audioCodec: s.audioCodec ?? null, bitrate: s.bitrateKbps ?? null,
+            // Show identity and year let a notification render "The Last of Us -
+            // S01E03" or "Dune (2021)" rather than the joined display string.
+            showTitle: s.showTitle ?? null,
+            seasonNumber: s.seasonNumber ?? null,
+            episodeNumber: s.episodeNumber ?? null,
+            year: s.year ?? null,
+            playbackState: s.playbackState ?? null,
+            progressPercent: s.progressPercent ?? null,
+            // Artwork is carried as connection + provider path, never a URL: the
+            // path is only fetchable through that connection's credentials, so
+            // storing it grants nothing on its own.
+            connectionId: conn.id,
+            artPath: s.artPath ?? null,
+            // Deliberately NOT ipAddress. No notification renders it, and the
+            // payload is stored on every recipient's row.
             startedAt: new Date().toISOString(),
           };
           this.emit(NOTIFICATION_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING, startPayload);
@@ -136,7 +182,7 @@ export class MediaServerSessionService {
       const current = await this.prisma.mediaServerSession.findMany({ where: { connectionId: conn.id } });
       for (const c of current) {
         if (!seen.has(c.providerSessionId)) {
-          await this.endSession(c);
+          await this.endSession(c, conn.name ?? conn.id);
           ended += 1;
         }
       }
@@ -144,7 +190,7 @@ export class MediaServerSessionService {
     return { connections: connections.length, active, ended };
   }
 
-  private async endSession(c: MediaServerSession): Promise<void> {
+  private async endSession(c: MediaServerSession, serverName: string): Promise<void> {
     const watchedSeconds = Math.max(0, Math.round((Date.now() - c.startedAt.getTime()) / 1000));
     await this.prisma.mediaServerWatchHistory.create({
       data: {
@@ -175,6 +221,14 @@ export class MediaServerSessionService {
     this.emit(NOTIFICATION_EVENTS.MEDIA_SERVER_USER_FINISHED_WATCHING, {
       mediaTitle: c.title, mediaType: c.mediaType, userDisplayName: c.userName, userId: c.providerUserId ?? null,
       libraryName: c.libraryName ?? null, watchedSeconds, completionPercent: c.progressPercent ?? null,
+      serverName,
+      showTitle: c.showTitle, seasonNumber: c.seasonNumber, episodeNumber: c.episodeNumber, year: c.year,
+      device: c.device, client: c.client,
+      // The session row is deleted immediately below, so the stop notification
+      // cannot resolve artwork through it. Carrying the connection and art path
+      // on the event is what lets the card still show a poster afterwards.
+      connectionId: c.connectionId,
+      artPath: c.artPath,
       stoppedAt: new Date().toISOString(),
     });
   }

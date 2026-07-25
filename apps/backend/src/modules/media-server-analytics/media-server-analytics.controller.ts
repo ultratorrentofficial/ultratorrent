@@ -81,6 +81,27 @@ export class MediaServerAnalyticsController {
     res.set({ 'Content-Type': img.contentType, 'Cache-Control': 'private, max-age=120' });
     return new StreamableFile(img.body);
   }
+  /**
+   * Proxy the poster for one of the CALLER's own notifications.
+   *
+   * Gated by ownership as well as the permission: the permission says "may see
+   * playback activity at all", ownership says "this particular card is yours".
+   * Both are required — a colleague's notification id must not resolve even for
+   * someone who can view live activity.
+   */
+  @Get('notifications/:notificationId/artwork')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY)
+  async notificationArtwork(
+    @CurrentUser() u: AuthenticatedUser,
+    @Param('notificationId') notificationId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const img = await this.sessions.notificationArtwork(u.id, notificationId);
+    if (!img) throw new NotFoundException('No artwork for this notification.');
+    res.set({ 'Content-Type': img.contentType, 'Cache-Control': 'private, max-age=300' });
+    return new StreamableFile(img.body);
+  }
+
   @Get('watch-history')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_HISTORY)
   watchHistory(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {

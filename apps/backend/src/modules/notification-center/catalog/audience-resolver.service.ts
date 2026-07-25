@@ -147,6 +147,19 @@ export class NotificationAudienceResolver {
    * role's stored rows), so it is matched by role instead of by permission — leaving
    * it out would quietly exclude the one account guaranteed to be able to act.
    */
+  /**
+   * Does this one user hold this permission?
+   *
+   * Delegates to the same filter the audience uses rather than re-querying, so the
+   * SUPER_ADMIN-holds-everything rule cannot be implemented twice and drift — a
+   * second, subtly different check is how an admin ends up excluded from exactly
+   * one surface.
+   */
+  async holdsPermission(userId: string, permission: string): Promise<boolean> {
+    const allowed = await this.filterByPermission([userId], permission);
+    return allowed.length > 0;
+  }
+
   private async filterByPermission(userIds: string[], permission: string): Promise<string[]> {
     if (!userIds.length) return [];
     const rows = await this.prisma.user.findMany({

@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
-  NOTIFICATION_BUS_CHANNEL, SEVERITY_RANK,
+  NOTIFICATION_BUS_CHANNEL, PERMISSIONS, SEVERITY_RANK,
   type DomainEventEnvelope, type NotificationSeverity,
 } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
@@ -11,6 +11,8 @@ import { getEventDefinition } from '../catalog/notification-catalog';
 import { NotificationAudienceResolver, type ResolvableEvent } from '../catalog/audience-resolver.service';
 import { UserNotificationPreferenceService } from '../preferences/user-preference.service';
 import { isWithinQuietHours, quietHoursEndAt } from '../schedule/quiet-hours';
+import { buildPresentation, hasPresentation } from '../render/presentation/presentation-registry';
+import type { PresentationLocale } from '../render/presentation/presentation.types';
 
 export interface DispatchSummary {
   eventKey: string;
@@ -165,7 +167,9 @@ export class PersonalNotificationDispatcher {
     let notificationId: string | null = null;
     const inAppRoute = pref.routes.find((r) => r.channelType === 'in_app');
     if (inAppRoute) {
-      notificationId = await this.createInApp(userId, definition.key, definition.category, severity, event, dedupeBase);
+      notificationId = await this.createInApp(
+        userId, definition.key, definition.category, severity, event, dedupeBase, profile,
+      );
       if (notificationId) summary.inAppCreated += 1;
     }
 
@@ -220,10 +224,37 @@ export class PersonalNotificationDispatcher {
   private async createInApp(
     userId: string, eventKey: string, category: string, severity: NotificationSeverity,
     event: ResolvableEvent, dedupeKey: string,
+    profile: { timezone: string | null; locale: string | null } | null,
   ): Promise<string | null> {
     const definition = getEventDefinition(eventKey)!;
     const payload = (event.payload ?? {}) as Record<string, unknown>;
-    const title = String(payload.title ?? payload.mediaTitle ?? definition.titleKey);
+
+    // Build the rich presentation BEFORE inserting, so the id it references is the
+    // row's own id. Generating the uuid here rather than letting the database
+    // default it keeps this to a single write — the alternative (insert, build,
+    // update) leaves a window where the card renders without its artwork.
+    const notificationId = randomUUID();
+    const presentation = hasPresentation(eventKey)
+      ? buildPresentation({
+          eventKey,
+          payload,
+          locale: profile?.locale === 'es-PR' ? 'es-PR' : ('en-US' as PresentationLocale),
+          timezone: profile?.timezone ?? null,
+          at: new Date().toISOString(),
+          // Resolved per recipient: watching habits are personal, and this is the
+          // one surface that reaches someone who never opened the dashboard.
+          canViewLiveActivity: await this.audience.holdsPermission(
+            userId, PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY,
+          ),
+          notificationId,
+        })
+      : null;
+
+    // A built presentation already contains a written sentence; the fallback chain
+    // ends at a raw catalogue key, which is what the inbox used to display.
+    const title = presentation
+      ? presentation.summary.text
+      : String(payload.title ?? payload.mediaTitle ?? definition.titleKey);
 
     try {
       const existing = await this.prisma.userNotification.findFirst({ where: { userId, dedupeKey } });
@@ -238,10 +269,13 @@ export class PersonalNotificationDispatcher {
       }
       const row = await this.prisma.userNotification.create({
         data: {
+          id: notificationId,
           userId, eventKey, category, severity, title,
           body: payload.message ? String(payload.message) : null,
-          deepLink: definition.deepLinkTemplate ?? null,
-          payload: payload as object,
+          deepLink: presentation?.action?.href ?? definition.deepLinkTemplate ?? null,
+          // The presentation rides in the payload rather than a column: it is render
+          // context, versioned, and optional — exactly what this Json field is for.
+          payload: (presentation ? { ...payload, presentation } : payload) as object,
           dedupeKey,
         },
       });

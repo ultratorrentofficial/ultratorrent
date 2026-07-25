@@ -1245,6 +1245,9 @@ model MediaServerSession {
   /// at from a title, which is how the wrong show gets marked watched.
   seasonNumber      Int?
   episodeNumber     Int?
+  /// Release year of a film, so a notification can disambiguate a title
+  /// ("Dune (2021)"). Null for episodes, which are identified by season+number.
+  year              Int?
   externalIds       Json?
   mediaType         String?
   libraryName       String?

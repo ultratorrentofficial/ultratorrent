@@ -80,6 +80,12 @@ export interface ProviderSession {
   seasonNumber?: number;
   episodeNumber?: number;
   /**
+   * Release year of the playing item, used to disambiguate a title in a
+   * notification ("Dune (2021)"). Only meaningful for a film — an episode is
+   * identified by its season and number, not the year it aired.
+   */
+  year?: number;
+  /**
    * Provider ids the media server already holds (imdb/tmdb/tvdb). Scrobbling
    * identifies an episode by show-ids + season + number; matching on a title
    * instead is how the wrong show gets marked watched.
@@ -327,6 +333,7 @@ export class PlexProvider implements MediaServerProvider {
         userName: m.User?.title,
         title: [m.grandparentTitle, m.title].filter(Boolean).join(' — ') || m.title || 'Unknown',
         showTitle: m.grandparentTitle ?? undefined,
+        year: typeof m.year === 'number' ? m.year : undefined,
         // Plex numbers an episode with parentIndex (season) + index (episode).
         seasonNumber: typeof m.parentIndex === 'number' ? m.parentIndex : undefined,
         episodeNumber: typeof m.index === 'number' ? m.index : undefined,
@@ -506,6 +513,7 @@ class JellyfinEmbyBase {
           userName: s.UserName,
           title: [item.SeriesName, item.Name].filter(Boolean).join(' — ') || item.Name || 'Unknown',
           showTitle: item.SeriesName ?? undefined,
+          year: typeof item.ProductionYear === 'number' ? item.ProductionYear : undefined,
           seasonNumber:
             typeof item.ParentIndexNumber === 'number' ? item.ParentIndexNumber : undefined,
           episodeNumber: typeof item.IndexNumber === 'number' ? item.IndexNumber : undefined,
