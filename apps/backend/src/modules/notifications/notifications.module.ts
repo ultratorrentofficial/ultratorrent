@@ -9,6 +9,7 @@ import { NotificationRecipientEligibilityService } from './recipient-eligibility
 import { NotificationRecipientResolver } from './recipient-resolver.service';
 import { NotificationChannelService } from './channels/notification-channel.service';
 import { NotificationDeliveryWorker } from './delivery/delivery-worker.service';
+import { TelegramLinkingService } from './channels/telegram-linking.service';
 
 /**
  * Personal notifications.
@@ -32,6 +33,7 @@ import { NotificationDeliveryWorker } from './delivery/delivery-worker.service';
     NotificationDispatcher,
     NotificationChannelService,
     NotificationDeliveryWorker,
+    TelegramLinkingService,
   ],
   controllers: [AccountNotificationsController],
   exports: [NotificationRecipientEligibilityService, NotificationInboxService],

@@ -288,7 +288,17 @@ describe('NotificationDeliveryWorker', () => {
         sent.push(m);
       }),
     };
-    return { worker: new NotificationDeliveryWorker(prisma, channels, mail), rows, sent, channels, mail };
+    const telegramSent: string[] = [];
+    const telegram: any = {
+      sendMessage: jest.fn(async (_chat: string, html: string) => {
+        if (opts.sendFails) throw new Error(opts.sendFails);
+        telegramSent.push(html);
+      }),
+    };
+    return {
+      worker: new NotificationDeliveryWorker(prisma, channels, mail, telegram),
+      rows, sent, telegramSent, channels, mail, telegram,
+    };
   };
 
   it('sends a due delivery and records provider_accepted, not delivered', async () => {
@@ -345,10 +355,19 @@ describe('NotificationDeliveryWorker', () => {
     expect(channels.recordFailure).toHaveBeenCalledWith('u1', 'email', 'refused');
   });
 
-  it('cancels an unimplemented channel instead of retrying it three times', async () => {
-    const { worker, rows, mail } = build({ delivery: { channelType: 'telegram' } });
+  it('sends Telegram through the bot, not the mail relay', async () => {
+    const { worker, rows, telegramSent, mail } = build({ delivery: { channelType: 'telegram' } });
+    expect(await worker.drain()).toMatchObject({ sent: 1 });
+    expect(mail.send).not.toHaveBeenCalled();
+    expect(telegramSent[0]).toContain('<b>Download Complete</b>');
+    expect(rows[0].status).toBe('provider_accepted');
+  });
+
+  it('cancels a still-unimplemented channel instead of retrying it three times', async () => {
+    const { worker, rows, mail, telegram } = build({ delivery: { channelType: 'discord' } });
     await worker.drain();
     expect(mail.send).not.toHaveBeenCalled();
+    expect(telegram.sendMessage).not.toHaveBeenCalled();
     expect(rows[0].suppressedReason).toBe('channel_not_implemented');
   });
 

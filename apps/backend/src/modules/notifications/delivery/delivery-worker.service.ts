@@ -5,6 +5,8 @@ import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { MailTransportService } from '../../../infrastructure/mail/mail-transport.service';
 import { NotificationChannelService } from '../channels/notification-channel.service';
 import { renderEmailHtml, renderEmailSubject, renderEmailText } from '../providers/email-renderer';
+import { renderTelegram } from '../providers/telegram-renderer';
+import { TelegramTransportService } from '../../../infrastructure/telegram/telegram-transport.service';
 
 /** Bounded, and not user-configurable — retries are an implementation detail. */
 const MAX_ATTEMPTS = 3;
@@ -34,6 +36,7 @@ export class NotificationDeliveryWorker {
     private readonly prisma: PrismaService,
     private readonly channels: NotificationChannelService,
     private readonly mail: MailTransportService,
+    private readonly telegram: TelegramTransportService,
   ) {}
 
   @Interval('notification_delivery_worker', 30_000)
@@ -121,9 +124,14 @@ export class NotificationDeliveryWorker {
           html: presentation ? renderEmailHtml(presentation) : `<p>${notification.title}</p>`,
           text: presentation ? renderEmailText(presentation) : notification.title,
         });
+      } else if (delivery.channelType === 'telegram') {
+        await this.telegram.sendMessage(
+          destination.address,
+          presentation ? renderTelegram(presentation) : notification.title,
+        );
       } else {
-        // Telegram and Discord land in Phases 5-6. Cancelled rather than retried:
-        // three attempts at something unimplemented is three identical failures.
+        // Discord lands in Phase 6. Cancelled rather than retried: three attempts
+        // at something unimplemented is three identical failures.
         return this.cancel(delivery.id, 'channel_not_implemented');
       }
 

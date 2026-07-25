@@ -34,6 +34,7 @@ export function NotificationChannelsPage() {
   const toast = useToast();
   const qc = useQueryClient();
   const [address, setAddress] = useState('');
+  const [telegramCode, setTelegramCode] = useState<{ code: string; botUsername: string; expiresInSeconds: number } | null>(null);
 
   const channels = useQuery({
     queryKey: ['account', 'notifications', 'channels'],
@@ -60,6 +61,24 @@ export function NotificationChannelsPage() {
     onError: (e: Error) => toast.error(e?.message || t('channels.testFailed')),
   });
 
+  const startTelegram = useMutation({
+    mutationFn: () => api.account.notifications.linkTelegram(),
+    onSuccess: (link) => setTelegramCode(link),
+    onError: (e: Error) => toast.error(e?.message || t('channels.connectFailed')),
+  });
+
+  const confirmTelegram = useMutation({
+    mutationFn: () => api.account.notifications.confirmTelegram(),
+    onSuccess: () => {
+      setTelegramCode(null);
+      invalidate();
+      toast.success(t('channels.connected'));
+    },
+    // Not-yet-received is the common case, not an error state — the user simply
+    // has not sent it yet, so the message says what to do next.
+    onError: (e: Error) => toast.error(e?.message || t('channels.telegramNotReceived')),
+  });
+
   const disconnect = useMutation({
     mutationFn: (type: string) => api.account.notifications.disconnectChannel(type),
     onSuccess: () => { invalidate(); toast.success(t('channels.disconnected')); },
@@ -71,7 +90,7 @@ export function NotificationChannelsPage() {
     return <ErrorState title={t('channels.loadError')} onRetry={() => void channels.refetch()} />;
   }
 
-  const { channels: list, platformEmailReady } = channels.data!;
+  const { channels: list, platformEmailReady, telegram } = channels.data!;
 
   return (
     <div className="space-y-4">
@@ -92,7 +111,7 @@ export function NotificationChannelsPage() {
 
       {list.map((channel: NotificationChannelDto) => {
         const Icon = ICONS[channel.type];
-        const available = channel.type === 'email';
+        const available = channel.type === 'email' || channel.type === 'telegram';
         return (
           <Card key={channel.type}>
             <CardContent className="space-y-3 p-4">
@@ -113,6 +132,35 @@ export function NotificationChannelsPage() {
 
               {!available ? (
                 <p className="text-sm text-muted-foreground">{t('channels.comingSoon')}</p>
+              ) : channel.type === 'telegram' && !channel.connected ? (
+                !telegram.configured ? (
+                  <p className="text-sm text-muted-foreground">{t('channels.telegramNotConfigured')}</p>
+                ) : telegramCode ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      {t('channels.telegramStep1', { bot: `@${telegramCode.botUsername}` })}
+                    </p>
+                    {/* Selectable, because the whole flow is "copy this there". */}
+                    <p className="select-all rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-center font-mono text-2xl tracking-[0.3em]">
+                      {telegramCode.code}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {t('channels.telegramExpires', { minutes: Math.round(telegramCode.expiresInSeconds / 60) })}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => confirmTelegram.mutate()} disabled={confirmTelegram.isPending}>
+                        {t('channels.telegramConfirm')}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setTelegramCode(null)}>
+                        {t('channels.telegramCancel')}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button size="sm" onClick={() => startTelegram.mutate()} disabled={startTelegram.isPending}>
+                    {t('channels.telegramConnect')}
+                  </Button>
+                )
               ) : channel.connected ? (
                 <div className="flex flex-wrap gap-2">
                   <Button

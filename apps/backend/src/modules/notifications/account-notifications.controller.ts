@@ -13,6 +13,8 @@ import { NotificationPreferenceService, type PreferencePatch } from './notificat
 import { NotificationInboxService, type InboxQuery } from './notification-inbox.service';
 import { NotificationChannelService } from './channels/notification-channel.service';
 import { MailTransportService } from '../../infrastructure/mail/mail-transport.service';
+import { TelegramTransportService } from '../../infrastructure/telegram/telegram-transport.service';
+import { TelegramLinkingService } from './channels/telegram-linking.service';
 import { allNotificationEvents } from './notification-catalog';
 
 const P = PERMISSIONS;
@@ -40,6 +42,8 @@ export class AccountNotificationsController {
     private readonly inbox: NotificationInboxService,
     private readonly channels: NotificationChannelService,
     private readonly mail: MailTransportService,
+    private readonly telegram: TelegramTransportService,
+    private readonly linking: TelegramLinkingService,
   ) {}
 
   // --- events + preferences -------------------------------------------------
@@ -97,7 +101,55 @@ export class AccountNotificationsController {
     return {
       channels: await this.channels.list(u.id),
       platformEmailReady: await this.mail.isConfigured(),
+      telegram: await this.telegram.getSettings(),
     };
+  }
+
+  /**
+   * Start Telegram linking: issue a one-time code.
+   *
+   * The code is returned exactly once and stored only as a hash. There is
+   * deliberately no endpoint that accepts a chat id — a chat id is guessable and
+   * unauthenticated, so accepting one would let anyone point another person's
+   * notifications at their own chat.
+   */
+  @Post('channels/telegram/link')
+  @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
+  async linkTelegram(@CurrentUser() u: AuthenticatedUser) {
+    await this.eligibility.assertEligible(u.id);
+    const settings = await this.telegram.getSettings();
+    if (!settings.configured) {
+      throw new BadRequestException('Telegram is not configured on this server yet.');
+    }
+    const { code, expiresInSeconds } = this.linking.issueCode(u.id);
+    return { code, expiresInSeconds, botUsername: settings.botUsername };
+  }
+
+  /**
+   * Finish linking: look for the code among the bot's recent messages.
+   *
+   * Polled here rather than by a background worker — linking is user-initiated
+   * and happens once per person, so a permanent poller would hold a connection
+   * open for a feature nobody uses twice.
+   */
+  @Post('channels/telegram/confirm')
+  @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
+  async confirmTelegram(@CurrentUser() u: AuthenticatedUser) {
+    await this.eligibility.assertEligible(u.id);
+
+    const updates = await this.telegram.getUpdates(this.linking.offset);
+    const matched = this.linking.redeem(u.id, updates);
+    if (!matched) {
+      throw new NotFoundException('No code received yet. Send the code to the bot, then try again.');
+    }
+
+    const view = await this.channels.connectTelegram(u.id, matched.chatId, matched.username);
+    // Redeeming the code already proved chat control, so this confirms rather
+    // than verifies — but a greeting tells the user it worked.
+    await this.telegram
+      .sendMessage(matched.chatId, '✅ <b>UltraTorrent</b> is now linked to this chat.')
+      .catch(() => undefined);
+    return view;
   }
 
   /**
@@ -124,29 +176,37 @@ export class AccountNotificationsController {
   @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
   async testChannel(@CurrentUser() u: AuthenticatedUser, @Param('type') type: string) {
     await this.eligibility.assertEligible(u.id);
-    if (type !== 'email') {
-      // Telegram and Discord arrive in Phases 5-6. Saying so is better than a
-      // generic failure that looks like the user's fault.
+    if (type !== 'email' && type !== 'telegram') {
+      // Discord arrives in Phase 6. Saying so is better than a generic failure
+      // that looks like the user's fault.
       throw new BadRequestException(`The ${type} channel is not available yet.`);
     }
 
-    const destination = await this.channels.resolveForTest(u.id, 'email');
-    if (!destination) throw new NotFoundException('No email connection to test.');
+    const channel = type as 'email' | 'telegram';
+    const destination = await this.channels.resolveForTest(u.id, channel);
+    if (!destination) throw new NotFoundException(`No ${channel} connection to test.`);
 
     try {
-      await this.mail.send({
-        to: destination.address,
-        subject: 'UltraTorrent — notification test',
-        html: '<p>Your UltraTorrent notification email is working.</p>',
-        text: 'Your UltraTorrent notification email is working.',
-      });
+      if (channel === 'email') {
+        await this.mail.send({
+          to: destination.address,
+          subject: 'UltraTorrent — notification test',
+          html: '<p>Your UltraTorrent notification email is working.</p>',
+          text: 'Your UltraTorrent notification email is working.',
+        });
+      } else {
+        await this.telegram.sendMessage(
+          destination.address,
+          '✅ <b>UltraTorrent</b> — your notification channel is working.',
+        );
+      }
     } catch (err) {
-      await this.channels.recordFailure(u.id, 'email', (err as Error).message);
-      // The provider's message is the useful one — "connection refused" tells an
+      await this.channels.recordFailure(u.id, channel, (err as Error).message);
+      // The provider's message is the useful one — "chat not found" tells an
       // operator far more than "test failed".
       throw new BadRequestException((err as Error).message || 'Test message failed.');
     }
-    return this.channels.markVerified(u.id, 'email');
+    return this.channels.markVerified(u.id, channel);
   }
 
   @Delete('channels/:type')
@@ -154,7 +214,32 @@ export class AccountNotificationsController {
   async disconnect(@CurrentUser() u: AuthenticatedUser, @Param('type') type: string) {
     await this.eligibility.assertEligible(u.id);
     await this.channels.disconnect(u.id, type as 'email' | 'telegram' | 'discord');
+    // Drop any half-finished linking, so a stale code cannot re-link later.
+    if (type === 'telegram') this.linking.cancel(u.id);
     return { ok: true };
+  }
+
+
+  // --- platform Telegram bot (operator configuration) ----------------------
+
+  /**
+   * Configure the shared bot.
+   *
+   * Guarded by `settings.manage`, not by a notification permission: this is
+   * platform infrastructure, exactly like the SMTP relay. The token is verified
+   * against `getMe` before it is stored, so an operator cannot save a typo and
+   * discover it only when someone tries to link, and it is never returned.
+   */
+  @Put('platform/telegram')
+  @RequirePermissions(P.SETTINGS_MANAGE)
+  setTelegramBot(@Body() body: { token?: string }) {
+    return this.telegram.updateSettings(body?.token ?? '');
+  }
+
+  @Get('platform/telegram')
+  @RequirePermissions(P.SETTINGS_MANAGE)
+  getTelegramBot() {
+    return this.telegram.getSettings();
   }
 
   // --- inbox ----------------------------------------------------------------

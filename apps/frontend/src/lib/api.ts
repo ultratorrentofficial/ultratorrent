@@ -3606,6 +3606,12 @@ export const api = {
       testChannel(type: string): Promise<NotificationChannelDto> {
         return request<NotificationChannelDto>(`/account/notifications/channels/${type}/test`, { method: 'POST' });
       },
+      linkTelegram(): Promise<TelegramLinkDto> {
+        return request<TelegramLinkDto>('/account/notifications/channels/telegram/link', { method: 'POST' });
+      },
+      confirmTelegram(): Promise<NotificationChannelDto> {
+        return request<NotificationChannelDto>('/account/notifications/channels/telegram/confirm', { method: 'POST' });
+      },
       disconnectChannel(type: string): Promise<{ ok: boolean }> {
         return request<{ ok: boolean }>(`/account/notifications/channels/${type}`, { method: 'DELETE' });
       },
@@ -4790,6 +4796,14 @@ export interface NotificationChannelsResponse {
   channels: NotificationChannelDto[];
   /** Whether the shared SMTP relay is configured at all. */
   platformEmailReady: boolean;
+  /** Whether the shared Telegram bot exists, and its public @username. */
+  telegram: { configured: boolean; botUsername: string };
+}
+
+export interface TelegramLinkDto {
+  code: string;
+  expiresInSeconds: number;
+  botUsername: string;
 }
 
 export interface InboxNotificationDto {

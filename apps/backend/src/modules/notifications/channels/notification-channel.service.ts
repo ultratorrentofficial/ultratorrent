@@ -119,6 +119,64 @@ export class NotificationChannelService {
   }
 
   /**
+   * Link a Telegram chat to this user, after they proved control of it.
+   *
+   * Verified immediately: unlike email, redeeming a code IS the proof — the
+   * message could only have come from a chat the user controls, so asking them
+   * to also pass a test would be ceremony.
+   *
+   * Refuses a chat already linked to a different account. Without that check,
+   * two users could point at one chat and each would silently receive the
+   * other's notifications.
+   */
+  async connectTelegram(
+    userId: string,
+    chatId: string,
+    username: string | null,
+  ): Promise<ChannelView> {
+    const claimed = await this.prisma.userNotificationChannel.findMany({
+      where: { type: 'telegram', deletedAt: null },
+      select: { userId: true, encryptedConfig: true },
+    });
+    for (const row of claimed) {
+      if (row.userId === userId) continue;
+      const config = (row.encryptedConfig ?? {}) as Record<string, unknown>;
+      if (typeof config.chatId !== 'string') continue;
+      let existing: string;
+      try {
+        existing = this.cipher.decrypt(config.chatId);
+      } catch {
+        continue; // unreadable after a key rotation — cannot conflict
+      }
+      if (existing === chatId) {
+        throw new BadRequestException('That Telegram chat is already linked to another account.');
+      }
+    }
+
+    await this.prisma.userNotificationChannel.upsert({
+      where: { userId_type: { userId, type: 'telegram' } },
+      create: {
+        userId,
+        type: 'telegram',
+        encryptedConfig: { chatId: this.cipher.encrypt(chatId) },
+        maskedDestination: username ? `@${username}` : 'Telegram chat',
+        enabled: true,
+        verifiedAt: new Date(),
+      },
+      update: {
+        encryptedConfig: { chatId: this.cipher.encrypt(chatId) },
+        maskedDestination: username ? `@${username}` : 'Telegram chat',
+        enabled: true,
+        verifiedAt: new Date(),
+        consecutiveFailures: 0,
+        lastError: null,
+        deletedAt: null,
+      },
+    });
+    return this.viewOf(userId, 'telegram');
+  }
+
+  /**
    * The real destination, for the delivery path only.
    *
    * Returns null unless the connection exists, is enabled and is verified —
@@ -133,15 +191,7 @@ export class NotificationChannelService {
       where: { userId, type, deletedAt: null, enabled: true, verifiedAt: { not: null } },
     });
     if (!row) return null;
-    const config = (row.encryptedConfig ?? {}) as Record<string, unknown>;
-    if (typeof config.address !== 'string') return null;
-    try {
-      return { id: row.id, address: this.cipher.decrypt(config.address) };
-    } catch {
-      // A rotated key makes the destination unreadable. Terminal, not retried —
-      // every attempt would fail identically.
-      return null;
-    }
+    return this.decodeDestination(row);
   }
 
   /** Destination for a test, which by definition runs before verification. */
@@ -153,11 +203,26 @@ export class NotificationChannelService {
       where: { userId, type, deletedAt: null },
     });
     if (!row) return null;
+    return this.decodeDestination(row);
+  }
+
+  /**
+   * Decrypt whichever destination field this channel type stores.
+   *
+   * One place, so a new channel adds a field name rather than another
+   * copy of the decrypt-and-swallow dance.
+   */
+  private decodeDestination(row: { id: string; encryptedConfig: unknown }):
+    { id: string; address: string } | null {
     const config = (row.encryptedConfig ?? {}) as Record<string, unknown>;
-    if (typeof config.address !== 'string') return null;
+    const encrypted = [config.address, config.chatId, config.webhookUrl]
+      .find((v): v is string => typeof v === 'string');
+    if (!encrypted) return null;
     try {
-      return { id: row.id, address: this.cipher.decrypt(config.address) };
+      return { id: row.id, address: this.cipher.decrypt(encrypted) };
     } catch {
+      // A rotated key makes the destination unreadable. Terminal, not retried —
+      // every attempt would fail identically.
       return null;
     }
   }

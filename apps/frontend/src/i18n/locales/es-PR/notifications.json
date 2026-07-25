@@ -38,7 +38,15 @@
       "unverified": "Sin verificar",
       "failing": "Fallando",
       "disabled": "Sin conectar"
-    }
+    },
+    "telegramConnect": "Conectar Telegram",
+    "telegramStep1": "Abre Telegram y envía este código a {{bot}}:",
+    "telegramStep2": "Luego vuelve y confirma.",
+    "telegramConfirm": "Ya lo envié",
+    "telegramExpires": "Este código vence en {{minutes}} minutos.",
+    "telegramNotConfigured": "Este servidor todavía no tiene un bot de Telegram configurado. Un administrador lo configura una vez, en Configuración.",
+    "telegramNotReceived": "Todavía no se recibió el código. Envíalo al bot y confirma de nuevo.",
+    "telegramCancel": "Cancelar"
   },
   "severities": {
     "info": "Información",

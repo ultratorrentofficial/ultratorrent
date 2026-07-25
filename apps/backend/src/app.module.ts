@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { MailModule } from './infrastructure/mail/mail.module';
+import { TelegramModule } from './infrastructure/telegram/telegram.module';
 import { DomainEventsModule } from './modules/domain-events/domain-events.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -44,6 +45,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot({ wildcard: true, delimiter: '.' }),
     MailModule,
+    TelegramModule,
     DomainEventsModule,
     NotificationsModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
