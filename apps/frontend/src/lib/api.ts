@@ -31,6 +31,7 @@ import type {
   NormalizedTorrent,
   NormalizedTracker,
   NotificationCategory,
+  NotificationPresentation,
   NotificationSeverity,
   Paginated,
   TorrentMatchedRule,
@@ -4439,6 +4440,20 @@ export const api = {
       if (!res.ok) throw new ApiError(res.status, `Live artwork failed (${res.status})`);
       return res.blob();
     },
+    /**
+     * Poster for one of the caller's own notifications. Separate from
+     * `liveArtwork` because a finished session's row is deleted the moment
+     * playback ends, so a stopped card has no session left to resolve through.
+     */
+    async notificationArtwork(notificationId: string): Promise<Blob> {
+      const token = getAccessToken();
+      const res = await fetch(
+        buildUrl(`/media-server-analytics/notifications/${notificationId}/artwork`),
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      if (!res.ok) throw new ApiError(res.status, `Notification artwork failed (${res.status})`);
+      return res.blob();
+    },
     watchHistory(query: PageQuery = {}): Promise<Paginated<MediaServerWatchHistoryRow>> {
       return request<Paginated<MediaServerWatchHistoryRow>>('/media-server-analytics/watch-history', { query: query as QueryParams });
     },
@@ -4754,6 +4769,8 @@ export interface InboxNotificationDto {
   read: boolean;
   archived: boolean;
   createdAt: string;
+  /** The rich card, when the event has a presentation builder. */
+  presentation: NotificationPresentation | null;
 }
 
 export interface InboxPageDto {
@@ -4893,8 +4910,18 @@ export interface MediaServerLiveSession {
   resolution: string | null;
   container: string | null;
   bitrateKbps: number | null;
-  artPath: string | null;
+  /**
+   * Whether the session has resolvable artwork. The provider-internal path is
+   * deliberately NOT sent — artwork comes from the authenticated proxy by
+   * session id, and `ipAddress` is not sent at all.
+   */
+  hasArtwork: boolean;
+  showTitle: string | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  year: number | null;
   startedAt: string;
+  updatedAt: string;
 }
 
 export interface MediaServerWatchHistoryRow {

@@ -2,18 +2,20 @@ import { useEffect } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Radio, Users, Activity, Cpu, Play, Pause, MonitorPlay } from 'lucide-react';
+import { RefreshCw, Radio, Users, Activity, Cpu, MonitorPlay } from 'lucide-react';
 import { api, type MediaServerLiveSession } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { useRealtime } from '@/realtime/RealtimeContext';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
 import { KpiTile } from './analytics-widgets';
-import { LivePoster } from './LivePoster';
+import {
+  PlaybackArtwork, PlaybackAvatar, PlaybackProgress, PlaybackStateBadge,
+} from '@/components/playback/PlaybackPrimitives';
+import { accentForPlaybackState } from '@/components/playback/playback-tokens';
+import { avatarFor, formatMediaLabel } from '@ultratorrent/shared';
 import { PLAYBACK_COLORS } from './analytics-colors';
 
 /** Normalize the many provider spellings of a playback method into four buckets. */
@@ -25,8 +27,6 @@ function methodKey(m: string | null): 'directplay' | 'directstream' | 'transcode
   return 'other';
 }
 const methodColor = (m: string | null) => PLAYBACK_COLORS[methodKey(m) === 'other' ? 'unknown' : methodKey(m)];
-const initials = (name: string | null) =>
-  (name ?? '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '?';
 const mbps = (kbps: number | null) => (kbps && kbps > 0 ? `${(kbps / 1000).toFixed(1)} Mbps` : null);
 
 export function LiveActivityPage() {
@@ -148,6 +148,17 @@ export function LiveActivityPage() {
 function SessionCard({ s, t }: { s: MediaServerLiveSession; t: TFunction<'mediaServerAnalytics'> }) {
   const color = methodColor(s.playbackMethod);
   const paused = s.playbackState === 'paused';
+  // Derived through the SAME helpers the notification card uses, so a live card
+  // and a playback notification cannot describe the same session differently.
+  const state = accentForPlaybackState(s.playbackState);
+  const avatar = avatarFor(s.userName);
+  const mediaLabel = formatMediaLabel({
+    title: s.title,
+    showTitle: s.showTitle,
+    seasonNumber: s.seasonNumber,
+    episodeNumber: s.episodeNumber,
+    year: s.year,
+  });
   const chips = [s.resolution, s.videoCodec?.toUpperCase(), mbps(s.bitrateKbps), s.container?.toUpperCase()].filter(Boolean) as string[];
 
   return (
@@ -155,29 +166,34 @@ function SessionCard({ s, t }: { s: MediaServerLiveSession; t: TFunction<'mediaS
       <div className="flex">
         <div className="w-1 shrink-0" style={{ background: color }} />
         <div className="flex min-w-0 flex-1 gap-3 p-3">
-          <LivePoster
-            sessionId={s.id}
-            hasArt={!!s.artPath}
-            mediaType={s.mediaType}
-            alt={s.title}
-            className="h-[112px] w-[75px] shrink-0 rounded-md ring-1 ring-white/10"
-          />
+          {s.hasArtwork ? (
+            <PlaybackArtwork
+              artwork={{
+                kind: 'session',
+                id: s.id,
+                aspect: 'poster',
+                alt: mediaLabel,
+                mediaType: s.mediaType,
+              }}
+              className="h-[112px] w-[75px] shrink-0 ring-1 ring-white/10"
+            />
+          ) : (
+            <div className="h-[112px] w-[75px] shrink-0 rounded-lg border border-white/5 bg-white/[0.04]" aria-hidden="true" />
+          )}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className="flex items-start gap-2">
-              <span className="min-w-0 flex-1 truncate font-medium leading-tight">{s.title}</span>
-              <Badge variant={paused ? 'secondary' : 'success'} className="shrink-0 gap-1">
-                {paused ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                {t(`liveActivity.state.${paused ? 'paused' : 'playing'}`)}
-              </Badge>
+              <span className="min-w-0 flex-1 truncate font-medium leading-tight" title={mediaLabel}>
+                {mediaLabel}
+              </span>
+              <PlaybackStateBadge
+                label={t(`liveActivity.state.${paused ? 'paused' : 'playing'}`)}
+                accent={state.accent}
+                icon={state.icon}
+              />
             </div>
 
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span
-                className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-semibold text-white"
-                style={{ background: color }}
-              >
-                {initials(s.userName)}
-              </span>
+              {avatar && <PlaybackAvatar avatar={avatar} accent={state.accent} size="sm" />}
               {s.userName && <span className="font-medium text-foreground/80">{s.userName}</span>}
               {s.device && <span>· {s.device}</span>}
               {s.libraryName && <span>· {s.libraryName}</span>}
@@ -194,13 +210,15 @@ function SessionCard({ s, t }: { s: MediaServerLiveSession; t: TFunction<'mediaS
             </div>
 
             {s.progressPercent != null && (
-              <div className="mt-auto flex items-center gap-2">
-                <Progress
-                  value={s.progressPercent / 100}
-                  className="flex-1"
-                  indicatorClassName={paused ? 'bg-muted-foreground' : undefined}
+              <div className="mt-auto">
+                <PlaybackProgress
+                  progress={{
+                    percent: Math.round(s.progressPercent),
+                    label: `${Math.round(s.progressPercent)}%`,
+                    positionLabel: null,
+                  }}
+                  accent={state.accent}
                 />
-                <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{Math.round(s.progressPercent)}%</span>
               </div>
             )}
           </div>

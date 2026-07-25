@@ -3014,6 +3014,15 @@ model UserNotification {
   body         String?
   /// In-app route target. Re-authorized on click — a hint, never a capability.
   deepLink     String?
+  /// The rendered rich card, already authorized and already redacted for THIS
+  /// user. Stored rather than rebuilt so a historical notification keeps saying
+  /// what it said — re-rendering against a changed catalogue rewrites the past.
+  presentation Json?
+  /// Connection + provider path for artwork, so a card whose session row is gone
+  /// can still resolve a poster. Not a URL: only fetchable via that connection's
+  /// credentials, so storing it grants nothing on its own.
+  artConnectionId String?
+  artPath         String?
   resourceType String?
   resourceId   String?
   readAt       DateTime?

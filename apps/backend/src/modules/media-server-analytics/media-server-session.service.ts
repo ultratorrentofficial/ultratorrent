@@ -13,6 +13,39 @@ import { MediaServerIntegrationService } from '../media/media-server-integration
  * session disappears it is written to `MediaServerWatchHistory`. This is the
  * media-server-native source of watch history (Tautulli import is the other).
  */
+
+/**
+ * What a live-activity consumer receives.
+ *
+ * Deliberately narrower than the row: no `ipAddress` (nothing renders it), and
+ * no `artPath` (a provider-internal path; artwork comes from the authed proxy).
+ */
+export interface LiveSessionView {
+  id: string;
+  connectionId: string;
+  userName: string | null;
+  title: string;
+  showTitle: string | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  year: number | null;
+  mediaType: string | null;
+  libraryName: string | null;
+  device: string | null;
+  client: string | null;
+  playbackState: string | null;
+  progressPercent: number | null;
+  playbackMethod: string | null;
+  videoCodec: string | null;
+  audioCodec: string | null;
+  resolution: string | null;
+  container: string | null;
+  bitrateKbps: number | null;
+  startedAt: Date;
+  updatedAt: Date;
+  hasArtwork: boolean;
+}
+
 @Injectable()
 export class MediaServerSessionService {
   private readonly logger = new Logger(MediaServerSessionService.name);
@@ -25,9 +58,83 @@ export class MediaServerSessionService {
     private readonly registry: ModuleRegistryService,
   ) {}
 
-  /** Live activity = the current reconciled session snapshot. */
-  liveActivity() {
-    return this.prisma.mediaServerSession.findMany({ orderBy: { updatedAt: 'desc' } });
+  /**
+   * Live activity — the current reconciled session snapshot, projected.
+   *
+   * An explicit `select`, not a bare `findMany()`. The previous version returned
+   * every column, which put **`ipAddress` on the wire** for every session; the
+   * frontend type happened not to declare it, but a TypeScript type is not a
+   * security boundary. Nothing renders a viewer's IP, so nothing should receive
+   * it.
+   *
+   * `artPath` is likewise withheld: it is a provider-internal path, and the
+   * client fetches artwork through the authenticated proxy by session id. A
+   * boolean is all the UI needs to decide between a poster and a placeholder.
+   */
+  async liveActivity(): Promise<LiveSessionView[]> {
+    const rows = await this.prisma.mediaServerSession.findMany({
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true, connectionId: true, userName: true, title: true,
+        showTitle: true, seasonNumber: true, episodeNumber: true, year: true,
+        mediaType: true, libraryName: true, device: true, client: true,
+        playbackState: true, progressPercent: true, playbackMethod: true,
+        videoCodec: true, audioCodec: true, resolution: true, container: true,
+        bitrateKbps: true, artPath: true, startedAt: true, updatedAt: true,
+      },
+    });
+    // Mapped field by field rather than spread. A spread would pass through
+    // whatever the query happened to return, making this correct only for as
+    // long as the `select` above stays correct — defence in depth is cheap here
+    // and the field this guards is a viewer's IP address.
+    return rows.map((r) => ({
+      id: r.id,
+      connectionId: r.connectionId,
+      userName: r.userName,
+      title: r.title,
+      showTitle: r.showTitle,
+      seasonNumber: r.seasonNumber,
+      episodeNumber: r.episodeNumber,
+      year: r.year,
+      mediaType: r.mediaType,
+      libraryName: r.libraryName,
+      device: r.device,
+      client: r.client,
+      playbackState: r.playbackState,
+      progressPercent: r.progressPercent,
+      playbackMethod: r.playbackMethod,
+      videoCodec: r.videoCodec,
+      audioCodec: r.audioCodec,
+      resolution: r.resolution,
+      container: r.container,
+      bitrateKbps: r.bitrateKbps,
+      startedAt: r.startedAt,
+      updatedAt: r.updatedAt,
+      hasArtwork: !!r.artPath,
+    }));
+  }
+
+  /**
+   * Proxy the poster recorded on one user's notification.
+   *
+   * A stopped-playback card outlives its session — the row is deleted the moment
+   * playback ends — so resolving through the session would 404 on exactly the
+   * card that needs it. The connection and provider path are read from the
+   * STORED notification, never from the request, so this cannot be turned into a
+   * fetch-anything proxy. The `userId` filter is the ownership check: someone
+   * else's notification id simply does not match, and the caller cannot tell
+   * "not yours" from "no artwork".
+   */
+  async notificationArtwork(
+    userId: string,
+    notificationId: string,
+  ): Promise<{ body: Buffer; contentType: string } | null> {
+    const row = await this.prisma.userNotification.findFirst({
+      where: { id: notificationId, userId },
+      select: { artConnectionId: true, artPath: true },
+    });
+    if (!row?.artConnectionId || !row.artPath) return null;
+    return this.integrations.fetchArtwork(row.artConnectionId, row.artPath);
   }
 
   /** Proxy the now-playing poster for a session through the provider's auth. */

@@ -1,5 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { InboxNotification, InboxPage, NotificationCategory, NotificationSeverity } from '@ultratorrent/shared';
+import {
+  isNotificationPresentation,
+  type InboxNotification, type InboxPage,
+  type NotificationCategory, type NotificationSeverity, type NotificationPresentation,
+} from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 
 export interface InboxQuery {
@@ -139,6 +143,7 @@ export class NotificationInboxService {
     readAt: Date | null;
     archivedAt: Date | null;
     createdAt: Date;
+    presentation?: unknown;
   }): InboxNotification {
     return {
       id: row.id,
@@ -153,6 +158,12 @@ export class NotificationInboxService {
       read: row.readAt !== null,
       archived: row.archivedAt !== null,
       createdAt: row.createdAt.toISOString(),
+      // Validated rather than cast: older rows predate the model, and an
+      // unrecognised shape must degrade to a plain row rather than throw inside
+      // the list and take every notification after it down.
+      presentation: isNotificationPresentation(row.presentation)
+        ? (row.presentation as NotificationPresentation)
+        : null,
     };
   }
 }

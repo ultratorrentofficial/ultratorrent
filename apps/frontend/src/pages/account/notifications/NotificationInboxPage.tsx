@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Pagination } from '@/components/ui/pagination';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { RichNotificationCard } from '@/components/playback/RichNotificationCard';
 
 const SEVERITY_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   info: 'secondary',
@@ -154,6 +155,21 @@ export function NotificationInboxPage() {
           {data.items.map((n) => (
             <Card key={n.id} className={n.read ? 'opacity-75' : undefined}>
               <CardContent className="space-y-1.5 p-3">
+                {/* The rich card already states who did what to which title, so
+                    the plain title line below is suppressed when one renders.
+                    The metadata row stays either way: severity, category and
+                    read state are inbox concerns the card knows nothing of. */}
+                {n.presentation && (
+                  <button
+                    type="button"
+                    onClick={() => open(n)}
+                    className="block w-full text-left"
+                    aria-label={n.presentation.summary.text}
+                  >
+                    <RichNotificationCard presentation={n.presentation} />
+                  </button>
+                )}
+
                 <div className="flex flex-wrap items-center gap-2">
                   {!n.read && (
                     <span
@@ -161,13 +177,15 @@ export function NotificationInboxPage() {
                       aria-label={t('inbox.states.unread')}
                     />
                   )}
-                  <button
-                    type="button"
-                    className="text-left font-medium hover:underline"
-                    onClick={() => open(n)}
-                  >
-                    {n.title}
-                  </button>
+                  {!n.presentation && (
+                    <button
+                      type="button"
+                      className="text-left font-medium hover:underline"
+                      onClick={() => open(n)}
+                    >
+                      {n.title}
+                    </button>
+                  )}
                   <Badge variant={SEVERITY_VARIANT[n.severity] ?? 'outline'}>
                     {t(`severities.${n.severity}`, { defaultValue: n.severity })}
                   </Badge>
@@ -180,7 +198,7 @@ export function NotificationInboxPage() {
                   </span>
                 </div>
 
-                {n.body && <p className="text-sm text-muted-foreground">{n.body}</p>}
+                {n.body && !n.presentation && <p className="text-sm text-muted-foreground">{n.body}</p>}
 
                 <div className="flex flex-wrap gap-1.5 border-t border-white/5 pt-1.5">
                   <Button

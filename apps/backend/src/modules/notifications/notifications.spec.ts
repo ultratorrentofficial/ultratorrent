@@ -373,16 +373,19 @@ describe('NotificationInboxService', () => {
 /* ---------------------------------------------------------------- dispatcher */
 
 describe('NotificationDispatcher', () => {
-  const build = (opts: { audience?: string[]; prefs?: Record<string, any>; failOn?: string } = {}) => {
+  const build = (opts: { audience?: string[]; prefs?: Record<string, any>; failOn?: string; canViewPlayback?: boolean } = {}) => {
     const created: any[] = [];
     const toUser = jest.fn();
     const prisma: any = {
+      // The dispatcher resolves playback-detail permission per recipient before
+      // building the rich card, so the mock must answer that too.
+      user: { findFirst: jest.fn(async () => (opts.canViewPlayback === false ? null : { id: 'u' })) },
       userNotification: {
         create: jest.fn(async ({ data }: any) => {
           if (opts.failOn === data.userId) {
             throw Object.assign(new Error('nope'), { code: 'P2002' });
           }
-          const row = { ...data, id: `n${created.length + 1}`, createdAt: new Date() };
+          const row = { ...data, id: data.id ?? `n${created.length + 1}`, createdAt: new Date() };
           created.push(row);
           return row;
         }),

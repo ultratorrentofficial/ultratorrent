@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { preferenceAllows, type DomainEventEnvelope } from '@ultratorrent/shared';
+import { randomUUID } from 'node:crypto';
+import { PERMISSIONS, preferenceAllows, type DomainEventEnvelope } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -7,6 +8,8 @@ import { getNotificationEvent } from './notification-catalog';
 import { NotificationPreferenceService } from './notification-preference.service';
 import { NotificationRecipientResolver } from './recipient-resolver.service';
 import { buildFallbackPresentation } from './notification-presentation';
+import { buildPresentation } from './presentation/presentation-builders';
+import type { PresentationLocale } from './presentation/presentation-strings';
 
 /** What one dispatch did, for tests and the admin health view. */
 export interface DispatchSummary {
@@ -48,6 +51,33 @@ export class NotificationDispatcher implements OnModuleInit {
     private readonly preferences: NotificationPreferenceService,
     private readonly realtime: RealtimeGateway,
   ) {}
+
+  /**
+   * May this recipient see playback detail (artwork, device, quality)?
+   *
+   * Same gate as the Live Activity dashboard. Watching habits are personal, and
+   * a notification is the one surface that reaches someone who never opened it.
+   * SUPER_ADMIN is matched by role, as everywhere else.
+   */
+  private async canViewPlaybackDetail(userId: string): Promise<boolean> {
+    const row = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        roles: {
+          some: {
+            role: {
+              OR: [
+                { name: 'SUPER_ADMIN' },
+                { permissions: { some: { permission: { key: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY } } } },
+              ],
+            },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    return !!row;
+  }
 
   onModuleInit(): void {
     this.unsubscribe = this.bus.subscribe('notification-dispatcher', async (envelope) => {
@@ -115,19 +145,39 @@ export class NotificationDispatcher implements OnModuleInit {
     definition: ReturnType<typeof getNotificationEvent> & object,
     envelope: DomainEventEnvelope,
   ): Promise<boolean> {
-    const presentation = buildFallbackPresentation(definition, envelope);
+    const fallback = buildFallbackPresentation(definition, envelope);
+    const payload = (envelope.payload ?? {}) as Record<string, unknown>;
+
+    // Generate the id up front so the presentation can reference it for artwork.
+    // The alternative — insert, build, update — leaves a window where the card
+    // renders without its poster.
+    const notificationId = randomUUID();
+    const rich = buildPresentation({
+      definition,
+      envelope,
+      locale: 'en-US' as PresentationLocale,
+      timezone: null,
+      canViewPlaybackDetail: await this.canViewPlaybackDetail(userId),
+      notificationId,
+    });
 
     try {
       const row = await this.prisma.userNotification.create({
         data: {
+          id: notificationId,
           userId,
           eventId: envelope.id,
           eventKey: definition.key,
           category: definition.category,
           severity: definition.severity,
-          title: presentation.title,
-          body: presentation.body,
-          deepLink: presentation.deepLink,
+          // The plain title stays the searchable, sortable text; the rich card
+          // is render context beside it.
+          title: rich ? rich.summary.text.slice(0, 300) : fallback.title,
+          body: fallback.body,
+          deepLink: rich?.action?.href ?? fallback.deepLink,
+          presentation: (rich ?? undefined) as object | undefined,
+          artConnectionId: rich?.artwork ? (payload.connectionId as string) ?? null : null,
+          artPath: rich?.artwork ? (payload.artPath as string) ?? null : null,
           resourceType: envelope.resourceType ?? null,
           resourceId: envelope.resourceId ?? null,
         },

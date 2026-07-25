@@ -118,6 +118,8 @@ export interface InboxNotification {
   read: boolean;
   archived: boolean;
   createdAt: string;
+  /** The rich card, when the event has a presentation builder. */
+  presentation: import('./notification-presentation.js').NotificationPresentation | null;
 }
 
 export interface InboxPage {
