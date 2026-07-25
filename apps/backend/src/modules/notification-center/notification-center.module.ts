@@ -16,6 +16,7 @@ import { PersonalChannelService } from './channels/personal-channel.service';
 import { PersonalNotificationDispatcher } from './delivery/personal-dispatcher.service';
 import { PersonalTransmitter } from './delivery/personal-transmitter.service';
 import { NotificationDeliveryWorker } from './delivery/delivery-worker.service';
+import { NotificationInboxService } from './inbox/inbox.service';
 import { AccountNotificationsController } from './preferences/account-notifications.controller';
 import { NotificationSeedService } from './seed.service';
 
@@ -43,6 +44,7 @@ import { NotificationSeedService } from './seed.service';
     PersonalNotificationDispatcher,
     PersonalTransmitter,
     NotificationDeliveryWorker,
+    NotificationInboxService,
     SecretCipher,
   ],
   controllers: [NotificationCenterController, AccountNotificationsController],
@@ -55,6 +57,7 @@ import { NotificationSeedService } from './seed.service';
     PersonalChannelService,
     PersonalNotificationDispatcher,
     PersonalTransmitter,
+    NotificationInboxService,
   ],
 })
 export class NotificationCenterModule {}

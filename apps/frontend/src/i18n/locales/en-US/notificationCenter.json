@@ -402,5 +402,47 @@
       "link_required": "Telegram must be linked with a code.",
       "generic": "Could not save that connection."
     }
+  },
+  "inbox": {
+    "title": "Notification inbox",
+    "subtitle": "Notifications addressed to you.",
+    "loadError": "Could not load your inbox.",
+    "empty": "Nothing here.",
+    "state": "Show",
+    "search": "Search",
+    "searchPlaceholder": "Search notifications…",
+    "total": "{{count}} total",
+    "markAllRead": "Mark all read",
+    "archiveRead": "Archive read",
+    "allRead": "Marked {{count}} as read.",
+    "archivedRead": "Archived {{count}}.",
+    "markRead": "Mark read",
+    "markUnread": "Mark unread",
+    "archive": "Archive",
+    "prev": "Previous",
+    "next": "Next",
+    "page": "Page {{page}} of {{pages}}",
+    "states": {
+      "unread": "Unread",
+      "read": "Read",
+      "all": "All",
+      "archived": "Archived"
+    },
+    "delivery": {
+      "queued": "queued",
+      "sending": "sending",
+      "provider_accepted": "accepted by provider",
+      "delivered": "delivered",
+      "retry_scheduled": "retrying",
+      "failed": "failed",
+      "suppressed": "suppressed",
+      "invalid_connection": "connection invalid",
+      "unverified_connection": "connection not verified",
+      "recipient_ineligible": "not eligible"
+    }
+  },
+  "bell": {
+    "unread": "{{count}} unread notifications",
+    "none": "No unread notifications"
   }
 }

@@ -3569,6 +3569,25 @@ export const api = {
       resetAll(): Promise<{ cleared: number }> {
         return request<{ cleared: number }>('/account/notifications/preferences/reset', { method: 'POST' });
       },
+      inbox(q: Record<string, string> = {}): Promise<InboxPage> {
+        const qs = new URLSearchParams(Object.entries(q).filter(([, v]) => v)).toString();
+        return request<InboxPage>(`/account/notifications/inbox${qs ? `?${qs}` : ''}`);
+      },
+      unreadCount(): Promise<{ unread: number }> {
+        return request<{ unread: number }>('/account/notifications/inbox/unread-count');
+      },
+      markRead(id: string, read = true): Promise<{ id: string; read: boolean }> {
+        return request<{ id: string; read: boolean }>(`/account/notifications/inbox/${id}/${read ? 'read' : 'unread'}`, { method: 'POST' });
+      },
+      archiveNotification(id: string): Promise<{ id: string; archived: boolean }> {
+        return request<{ id: string; archived: boolean }>(`/account/notifications/inbox/${id}/archive`, { method: 'POST' });
+      },
+      markAllRead(): Promise<{ updated: number }> {
+        return request<{ updated: number }>('/account/notifications/inbox/mark-all-read', { method: 'POST' });
+      },
+      archiveRead(): Promise<{ archived: number }> {
+        return request<{ archived: number }>('/account/notifications/inbox/archive-read', { method: 'POST' });
+      },
       channels(): Promise<PersonalChannel[]> {
         return request<PersonalChannel[]>('/account/notifications/channels');
       },
@@ -4954,6 +4973,32 @@ export interface NotificationEventDefinitionDto {
 export interface AccountNotificationEventRow {
   definition: NotificationEventDefinitionDto;
   preference: EffectiveEventPreference;
+}
+
+/** One in-app notification, owned by exactly one user. */
+export interface InboxItem {
+  id: string;
+  eventKey: string;
+  category: string;
+  severity: NotificationSeverity;
+  title: string;
+  body: string | null;
+  deepLink: string | null;
+  read: boolean;
+  archived: boolean;
+  /** Repeats collapsed into one row within the dedupe window. */
+  groupCount: number;
+  lastAt: string;
+  createdAt: string;
+  /** Per-channel outcome, so "was it also emailed?" is answerable. */
+  deliveries: Array<{ channelType: string; status: string }>;
+}
+
+export interface InboxPage {
+  items: InboxItem[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 /** Channel types that need a stored connection. In-app never appears here. */

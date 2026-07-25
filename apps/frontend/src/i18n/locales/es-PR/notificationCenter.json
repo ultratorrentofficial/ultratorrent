@@ -402,5 +402,47 @@
       "link_required": "Telegram debe vincularse con un código.",
       "generic": "No se pudo guardar esa conexión."
     }
+  },
+  "inbox": {
+    "title": "Bandeja de notificaciones",
+    "subtitle": "Notificaciones dirigidas a ti.",
+    "loadError": "No se pudo cargar tu bandeja.",
+    "empty": "No hay nada aquí.",
+    "state": "Mostrar",
+    "search": "Buscar",
+    "searchPlaceholder": "Buscar notificaciones…",
+    "total": "{{count}} en total",
+    "markAllRead": "Marcar todo como leído",
+    "archiveRead": "Archivar leídas",
+    "allRead": "Se marcaron {{count}} como leídas.",
+    "archivedRead": "Se archivaron {{count}}.",
+    "markRead": "Marcar como leída",
+    "markUnread": "Marcar como no leída",
+    "archive": "Archivar",
+    "prev": "Anterior",
+    "next": "Siguiente",
+    "page": "Página {{page}} de {{pages}}",
+    "states": {
+      "unread": "No leídas",
+      "read": "Leídas",
+      "all": "Todas",
+      "archived": "Archivadas"
+    },
+    "delivery": {
+      "queued": "en cola",
+      "sending": "enviando",
+      "provider_accepted": "aceptada por el proveedor",
+      "delivered": "entregada",
+      "retry_scheduled": "reintentando",
+      "failed": "falló",
+      "suppressed": "suprimida",
+      "invalid_connection": "conexión inválida",
+      "unverified_connection": "conexión sin verificar",
+      "recipient_ineligible": "no elegible"
+    }
+  },
+  "bell": {
+    "unread": "{{count}} notificaciones sin leer",
+    "none": "No hay notificaciones sin leer"
   }
 }

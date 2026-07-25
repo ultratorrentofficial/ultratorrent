@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -12,6 +12,7 @@ import {
   type RouteInput,
 } from './user-preference.service';
 import { PersonalChannelService } from '../channels/personal-channel.service';
+import { NotificationInboxService, type InboxQuery } from '../inbox/inbox.service';
 import type { ConnectionBackedChannelType } from '@ultratorrent/shared';
 
 const P = PERMISSIONS;
@@ -38,7 +39,59 @@ export class AccountNotificationsController {
     private readonly preferences: UserNotificationPreferenceService,
     private readonly eligibility: NotificationRecipientEligibilityService,
     private readonly channels: PersonalChannelService,
+    private readonly inbox: NotificationInboxService,
   ) {}
+
+  // --- personal inbox ------------------------------------------------------
+  @Get('inbox')
+  @RequirePermissions(P.NOTIFICATIONS_VIEW_OWN)
+  async listInbox(@Query() q: InboxQuery, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.inbox.list(userId, q ?? {});
+  }
+
+  // Static before dynamic, so these are not captured as `:notificationId`.
+  @Get('inbox/unread-count')
+  @RequirePermissions(P.NOTIFICATIONS_VIEW_OWN)
+  async unreadCount(@CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.inbox.unreadCount(userId);
+  }
+
+  @Post('inbox/mark-all-read')
+  @RequirePermissions(P.NOTIFICATIONS_VIEW_OWN)
+  async markAllRead(@CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.inbox.markAllRead(userId);
+  }
+
+  @Post('inbox/archive-read')
+  @RequirePermissions(P.NOTIFICATIONS_VIEW_OWN)
+  async archiveRead(@CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.inbox.archiveRead(userId);
+  }
+
+  @Post('inbox/:notificationId/read')
+  @RequirePermissions(P.NOTIFICATIONS_VIEW_OWN)
+  async markRead(@Param('notificationId') id: string, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.inbox.setRead(userId, id, true);
+  }
+
+  @Post('inbox/:notificationId/unread')
+  @RequirePermissions(P.NOTIFICATIONS_VIEW_OWN)
+  async markUnread(@Param('notificationId') id: string, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.inbox.setRead(userId, id, false);
+  }
+
+  @Post('inbox/:notificationId/archive')
+  @RequirePermissions(P.NOTIFICATIONS_VIEW_OWN)
+  async archiveOne(@Param('notificationId') id: string, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.inbox.archive(userId, id);
+  }
 
   // --- personal channel connections ---------------------------------------
   @Get('channels')
