@@ -13,6 +13,7 @@ import {
 } from './user-preference.service';
 import { PersonalChannelService } from '../channels/personal-channel.service';
 import { NotificationInboxService, type InboxQuery } from '../inbox/inbox.service';
+import { NotificationProfileService, type ProfilePatch } from '../schedule/notification-profile.service';
 import type { ConnectionBackedChannelType } from '@ultratorrent/shared';
 
 const P = PERMISSIONS;
@@ -40,7 +41,37 @@ export class AccountNotificationsController {
     private readonly eligibility: NotificationRecipientEligibilityService,
     private readonly channels: PersonalChannelService,
     private readonly inbox: NotificationInboxService,
+    private readonly profile: NotificationProfileService,
   ) {}
+
+  // --- profile: timezone, quiet hours, digests, pause ----------------------
+  @Get('profile')
+  @RequirePermissions(P.NOTIFICATIONS_VIEW_OWN)
+  async getProfile(@CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.profile.get(userId);
+  }
+
+  @Patch('profile')
+  @RequirePermissions(P.NOTIFICATIONS_MANAGE_OWN)
+  async updateProfile(@Body() body: ProfilePatch, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.profile.update(userId, body ?? {});
+  }
+
+  @Post('pause')
+  @RequirePermissions(P.NOTIFICATIONS_MANAGE_OWN)
+  async pause(@Body() body: { until?: string }, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.profile.pause(userId, body?.until);
+  }
+
+  @Post('resume')
+  @RequirePermissions(P.NOTIFICATIONS_MANAGE_OWN)
+  async resume(@CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.profile.resume(userId);
+  }
 
   // --- personal inbox ------------------------------------------------------
   @Get('inbox')

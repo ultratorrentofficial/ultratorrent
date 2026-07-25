@@ -6,6 +6,7 @@ import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { getEventDefinition } from '../catalog/notification-catalog';
 import { NotificationAudienceResolver, type ResolvableEvent } from '../catalog/audience-resolver.service';
 import { UserNotificationPreferenceService } from '../preferences/user-preference.service';
+import { isWithinQuietHours, quietHoursEndAt } from '../schedule/quiet-hours';
 
 export interface DispatchSummary {
   eventKey: string;
@@ -109,6 +110,19 @@ export class PersonalNotificationDispatcher {
       return false;
     }
 
+    // Quiet hours, evaluated in the RECIPIENT's timezone. `bypass` is what makes a
+    // security alert reach someone at 3am; `suppress` drops the event entirely;
+    // `digest` and `respect` both defer it, differing only in what releases it.
+    const inQuietHours = profile ? isWithinQuietHours(profile as never, new Date()) : false;
+    let deferUntil: Date | null = null;
+    if (inQuietHours && pref.quietHoursBehavior !== 'bypass') {
+      if (pref.quietHoursBehavior === 'suppress') {
+        summary.suppressed.push({ userId, reason: 'quiet_hours' });
+        return false;
+      }
+      deferUntil = quietHoursEndAt(profile as never, new Date());
+    }
+
     const definition = getEventDefinition(eventKey)!;
     const dedupeBase = this.dedupeKeyFor(userId, eventKey, event);
 
@@ -144,7 +158,7 @@ export class PersonalNotificationDispatcher {
         continue;
       }
       const queued = await this.queue(userId, notificationId, eventKey, route.channelType, connection.id,
-        `${dedupeBase}:${route.channelType}:${connection.id}`, null);
+        `${dedupeBase}:${route.channelType}:${connection.id}`, null, deferUntil);
       if (queued) summary.deliveriesQueued += 1;
     }
 
@@ -213,6 +227,7 @@ export class PersonalNotificationDispatcher {
     userId: string, notificationId: string | null, eventKey: string,
     channelType: string, channelId: string, dedupeKey: string,
     terminalStatus: string | null,
+    deferUntil: Date | null = null,
   ): Promise<boolean> {
     try {
       await this.prisma.userNotificationDelivery.create({
@@ -221,7 +236,8 @@ export class PersonalNotificationDispatcher {
           status: terminalStatus ?? 'queued',
           suppressedReason: terminalStatus ? 'no_verified_connection' : null,
           completedAt: terminalStatus ? new Date() : null,
-          nextAttemptAt: terminalStatus ? null : new Date(),
+          // A deferred delivery is queued now but not due until quiet hours end.
+          nextAttemptAt: terminalStatus ? null : (deferUntil ?? new Date()),
         },
       });
       return terminalStatus === null;
