@@ -8,6 +8,7 @@ import { NotificationChannelService } from './channel.service';
 import { NotificationDeliveryService } from './delivery.service';
 import { NotificationProviderHealthService } from './provider-health.service';
 import { NotificationAdminService } from './notification-admin.service';
+import { RecipientProvisioningService } from './recipient-provisioning.service';
 import { NotificationSeedService } from './seed.service';
 
 /**
@@ -26,9 +27,10 @@ import { NotificationSeedService } from './seed.service';
     NotificationProviderHealthService,
     NotificationAdminService,
     NotificationSeedService,
+    RecipientProvisioningService,
     SecretCipher,
   ],
   controllers: [NotificationCenterController],
-  exports: [NotificationCenterService],
+  exports: [NotificationCenterService, RecipientProvisioningService],
 })
 export class NotificationCenterModule {}

@@ -88,7 +88,8 @@
     "Users": "Usuarios",
     "Watch History": "Historial de Reproducción",
     "Workflow Approvals": "Aprobaciones de flujo",
-    "Workflows": "Flujos de trabajo"
+    "Workflows": "Flujos de trabajo",
+    "Routing Profiles": "Perfiles de enrutamiento"
   },
   "descriptions": {
     "Acquisition Intelligence": "Adquisición y mejoras inteligentes",
@@ -156,7 +157,8 @@
     "Users": "Cuentas de usuario, roles y permisos",
     "Watch History": "Historial de reproducciones completadas",
     "Workflow Approvals": "Decide pasos de flujo que esperan aprobación",
-    "Workflows": "Diseña automatizaciones visualmente en un lienzo"
+    "Workflows": "Diseña automatizaciones visualmente en un lienzo",
+    "Routing Profiles": "Enrutamiento de canales por persona: qué canales entregan cuáles eventos a cada usuario."
   },
   "details": {
     "Account": "Cuenta",

@@ -88,7 +88,8 @@
     "Users": "Users",
     "Watch History": "Watch History",
     "Workflow Approvals": "Workflow Approvals",
-    "Workflows": "Workflows"
+    "Workflows": "Workflows",
+    "Routing Profiles": "Routing Profiles"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",
@@ -156,7 +157,8 @@
     "Users": "User accounts, roles and permissions",
     "Watch History": "Completed playback history",
     "Workflow Approvals": "Decide workflow steps awaiting approval",
-    "Workflows": "Design automations visually on a canvas"
+    "Workflows": "Design automations visually on a canvas",
+    "Routing Profiles": "Per-person channel routing: which channels deliver which events to each user."
   },
   "details": {
     "Account": "Account",

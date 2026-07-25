@@ -93,7 +93,11 @@
     "whatsapp": "Número de WhatsApp",
     "createBtn": "Agregar destinatario",
     "created": "Destinatario agregado",
-    "saveFailed": "No se pudo guardar el destinatario"
+    "saveFailed": "No se pudo guardar el destinatario",
+    "fromUser": "usuario",
+    "external": "externo",
+    "disabled": "deshabilitado",
+    "userManaged": "Este destinatario proviene de una cuenta de usuario — elimina o desactiva el usuario en su lugar."
   },
   "history": {
     "title": "Historial de Envíos",
@@ -184,5 +188,34 @@
     "save": "Guardar",
     "saved": "Ajustes guardados",
     "saveFailed": "No se pudieron guardar los ajustes"
+  },
+  "routing": {
+    "title": "Perfil de enrutamiento",
+    "subtitle": "Elige qué canales entregan cuáles eventos a una persona. Esto prevalece sobre los canales de la regla — salvo una regla que un administrador marcó como forzada.",
+    "recipient": "Persona",
+    "selectRecipient": "Selecciona una persona…",
+    "external": "externo",
+    "disabled": "deshabilitado",
+    "syncUsers": "Sincronizar con usuarios",
+    "reconciled": "Destinatarios sincronizados con usuarios — {{created}} creados, {{adopted}} adoptados.",
+    "reconcileFailed": "No se pudieron sincronizar los destinatarios con los usuarios.",
+    "loadError": "No se pudieron cargar los perfiles de enrutamiento.",
+    "noChannels": "Aún no hay canales habilitados — agrega uno en la página de Canales.",
+    "allEventsHint": "Todos los eventos, salvo que un espacio de nombres o un evento individual lo anule.",
+    "eventCount": "{{count}} eventos",
+    "showEvents": "Anulaciones por evento",
+    "hideEvents": "Ocultar eventos",
+    "inherits": "hereda",
+    "clear": "Limpiar",
+    "saved": "Enrutamiento actualizado.",
+    "saveFailed": "No se pudo actualizar el enrutamiento.",
+    "effective": "va a {{names}} ({{from}})",
+    "fromExact": "este evento",
+    "fromNamespace": "espacio de nombres",
+    "fromAll": "todos los eventos",
+    "fromDefault": "canales predeterminados",
+    "forced": "forzada",
+    "forcedHint": "Un administrador fijó los canales de esta regla; un perfil de enrutamiento no puede cambiarla ni silenciarla.",
+    "forcedTo": "siempre va a {{names}}"
   }
 }

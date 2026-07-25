@@ -93,7 +93,11 @@
     "whatsapp": "WhatsApp number",
     "createBtn": "Add recipient",
     "created": "Recipient added",
-    "saveFailed": "Could not save the recipient"
+    "saveFailed": "Could not save the recipient",
+    "fromUser": "user",
+    "external": "external",
+    "disabled": "disabled",
+    "userManaged": "This recipient comes from a user account — remove or deactivate the user instead."
   },
   "history": {
     "title": "Delivery History",
@@ -184,5 +188,34 @@
     "save": "Save",
     "saved": "Settings saved",
     "saveFailed": "Could not save settings"
+  },
+  "routing": {
+    "title": "Routing profile",
+    "subtitle": "Choose which channels deliver which events to one person. This wins over a rule's own channels — except a rule an admin marked forced.",
+    "recipient": "Person",
+    "selectRecipient": "Select a person…",
+    "external": "external",
+    "disabled": "disabled",
+    "syncUsers": "Sync with users",
+    "reconciled": "Recipients synced with users — {{created}} created, {{adopted}} adopted.",
+    "reconcileFailed": "Could not sync recipients with users.",
+    "loadError": "Could not load routing profiles.",
+    "noChannels": "No enabled channels yet — add one on the Channels page.",
+    "allEventsHint": "Every event, unless a namespace or a single event below overrides it.",
+    "eventCount": "{{count}} events",
+    "showEvents": "Per-event overrides",
+    "hideEvents": "Hide events",
+    "inherits": "inherits",
+    "clear": "Clear",
+    "saved": "Routing updated.",
+    "saveFailed": "Could not update routing.",
+    "effective": "goes to {{names}} ({{from}})",
+    "fromExact": "this event",
+    "fromNamespace": "namespace",
+    "fromAll": "all events",
+    "fromDefault": "default channels",
+    "forced": "forced",
+    "forcedHint": "An admin pinned this rule's channels; a routing profile cannot change or mute it.",
+    "forcedTo": "always goes to {{names}}"
   }
 }

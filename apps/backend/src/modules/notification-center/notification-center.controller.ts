@@ -7,6 +7,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { NotificationChannelService } from './channel.service';
 import { NotificationRecipientService } from './recipient.service';
+import { RecipientProvisioningService } from './recipient-provisioning.service';
 import { NotificationAdminService } from './notification-admin.service';
 import { NotificationDeliveryService } from './delivery.service';
 
@@ -26,6 +27,7 @@ export class NotificationCenterController {
     private readonly recipients: NotificationRecipientService,
     private readonly admin: NotificationAdminService,
     private readonly delivery: NotificationDeliveryService,
+    private readonly provisioning: RecipientProvisioningService,
   ) {}
 
   // --- dashboard + providers ----------------------------------------------
@@ -198,6 +200,23 @@ export class NotificationCenterController {
   @RequirePermissions(P.NOTIFICATIONS_MANAGE_PREFERENCES)
   setPreference(@Body() body: { recipientId: string; event: string; channel?: string | null; enabled: boolean }, @CurrentUser() u: AuthenticatedUser) {
     return this.admin.setPreference(body, u?.id);
+  }
+
+  // --- routing profiles ----------------------------------------------------
+  @Get('routing/:recipientId')
+  @RequirePermissions(P.NOTIFICATIONS_VIEW)
+  routing(@Param('recipientId') recipientId: string) {
+    return this.admin.listRouting(recipientId);
+  }
+  @Put('routing')
+  @RequirePermissions(P.NOTIFICATIONS_MANAGE_PREFERENCES)
+  setRouting(@Body() body: { recipientId: string; event: string; channelIds: string[] }, @CurrentUser() u: AuthenticatedUser) {
+    return this.admin.setRouting(body, u?.id);
+  }
+  @Post('recipients/reconcile')
+  @RequirePermissions(P.NOTIFICATIONS_MANAGE_RECIPIENTS)
+  reconcileRecipients() {
+    return this.provisioning.reconcile();
   }
 
   // --- settings ------------------------------------------------------------

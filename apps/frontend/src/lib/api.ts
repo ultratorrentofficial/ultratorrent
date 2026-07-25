@@ -4634,6 +4634,19 @@ export const api = {
     setPreference(body: { recipientId: string; event: string; channel?: string | null; enabled: boolean }): Promise<NotificationPreference> {
       return request<NotificationPreference>('/notifications/preferences', { method: 'PUT', body });
     },
+    routing(recipientId: string): Promise<NotificationRouting[]> {
+      return request<NotificationRouting[]>(`/notifications/routing/${recipientId}`);
+    },
+    /** An empty `channelIds` clears the line (inherit), it does not mute the event. */
+    setRouting(body: { recipientId: string; event: string; channelIds: string[] }): Promise<NotificationRouting> {
+      return request<NotificationRouting>('/notifications/routing', { method: 'PUT', body });
+    },
+    reconcileRecipients(): Promise<{ created: number; adopted: number; updated: number; disabled: number }> {
+      return request<{ created: number; adopted: number; updated: number; disabled: number }>(
+        '/notifications/recipients/reconcile',
+        { method: 'POST' },
+      );
+    },
     settings(): Promise<NotificationSettings> {
       return request<NotificationSettings>('/notifications/settings');
     },
@@ -4801,6 +4814,8 @@ export interface NotificationRule {
   dedupeWindowSec: number;
   quietHoursOverride: boolean;
   system: boolean;
+  /** Admin pin: a recipient's routing profile cannot redirect or mute this rule. */
+  forced: boolean;
   triggerCount: number;
   lastTriggeredAt?: string | null;
 }
@@ -4817,6 +4832,18 @@ export interface NotificationRecipient {
   preferredChannelId?: string | null;
   enabled: boolean;
   userId?: string | null;
+}
+
+/**
+ * One line of a recipient's routing profile: "send me THIS event on THESE channels".
+ * `event` is an exact name, a namespace wildcard (`system.*`) or `*`; the most
+ * specific line wins, so a broad choice can be overridden for a single event.
+ */
+export interface NotificationRouting {
+  id: string;
+  recipientId: string;
+  event: string;
+  channelIds: string[];
 }
 
 export interface NotificationGroup {

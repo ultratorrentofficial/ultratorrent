@@ -78,6 +78,7 @@ import { NotificationTemplatesPage } from '@/pages/notification-center/Notificat
 import { NotificationGroupsPage } from '@/pages/notification-center/NotificationGroupsPage';
 import { NotificationQueuePage } from '@/pages/notification-center/NotificationQueuePage';
 import { NotificationProviderHealthPage } from '@/pages/notification-center/NotificationProviderHealthPage';
+import { NotificationRoutingPage } from '@/pages/notification-center/NotificationRoutingPage';
 import { NotificationPreferencesPage } from '@/pages/notification-center/NotificationPreferencesPage';
 import { NotificationSettingsPage } from '@/pages/notification-center/NotificationSettingsPage';
 import { ReleaseScoringPage } from '@/pages/release-scoring/ReleaseScoringPage';
@@ -508,6 +509,7 @@ export function App() {
                       <Route path="/notifications/history" element={<ModuleRoute moduleId="notification_center"><NotificationHistoryPage /></ModuleRoute>} />
                       <Route path="/notifications/queue" element={<ModuleRoute moduleId="notification_center"><NotificationQueuePage /></ModuleRoute>} />
                       <Route path="/notifications/provider-health" element={<ModuleRoute moduleId="notification_center"><NotificationProviderHealthPage /></ModuleRoute>} />
+                      <Route path="/notifications/routing" element={<ModuleRoute moduleId="notification_center"><NotificationRoutingPage /></ModuleRoute>} />
                       <Route path="/notifications/preferences" element={<ModuleRoute moduleId="notification_center"><NotificationPreferencesPage /></ModuleRoute>} />
                       <Route path="/notifications/settings" element={<ModuleRoute moduleId="notification_center"><NotificationSettingsPage /></ModuleRoute>} />
                     </Route>

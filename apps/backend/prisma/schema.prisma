@@ -2169,6 +2169,12 @@ model NotificationRule {
   schedule           Json      @default("{}")
   tags               Json      @default("[]")
   system             Boolean   @default(false)
+  /// Admin pin: this rule's `channelIds` are non-negotiable — a recipient's own
+  /// routing profile cannot redirect it, and a per-event opt-out cannot silence it.
+  /// Exists so a security or system alert can be *guaranteed* to reach a channel;
+  /// without it, "the user's profile wins" would let anyone mute a breach notice.
+  /// Only meaningful when `channelIds` is non-empty.
+  forced             Boolean   @default(false)
   triggerCount       Int       @default(0)
   lastTriggeredAt    DateTime?
   createdAt          DateTime  @default(now())
@@ -2235,6 +2241,35 @@ model NotificationPreference {
   @@unique([recipientId, event, channel])
   @@index([recipientId])
   @@map("notification_preferences")
+}
+
+/// One line of a recipient's personal routing profile: "send me THIS event on THESE
+/// channels". Positive routing, which `NotificationPreference` cannot express — that
+/// table is opt-*out* only (`enabled=false` suppresses), so it can subtract a channel
+/// but never add one, and a rule pinned to Telegram left email unreachable for
+/// everyone.
+///
+/// `event` is an exact name (`media_server.user_started_watching`), a **namespace
+/// wildcard** (`system.*`) or `*`. The wildcard is what makes this usable: a library
+/// has ~59 events across 7 namespaces, and "all system alerts by email" must not mean
+/// twelve hand-made rows. Resolution takes the MOST SPECIFIC match only — exact beats
+/// `ns.*` beats `*` — so a general rule can be overridden for one event without
+/// deleting it.
+///
+/// An empty `channelIds` means "no opinion, inherit" rather than "send nowhere";
+/// silencing an event is `NotificationPreference`'s job, and keeping the two apart is
+/// what stops an empty selection from being read as a mute.
+model NotificationRouting {
+  id          String   @id @default(uuid())
+  recipientId String
+  event       String
+  channelIds  Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([recipientId, event])
+  @@index([recipientId])
+  @@map("notification_routings")
 }
 
 model NotificationQueue {

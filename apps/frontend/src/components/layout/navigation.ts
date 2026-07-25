@@ -258,6 +258,7 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
       { id: 'nc-history', to: '/notifications/history', label: 'Delivery History', icon: History, permission: PERMISSIONS.NOTIFICATIONS_VIEW_HISTORY, module: 'notification_center', descriptionKey: 'Delivery History' },
       { id: 'nc-queue', to: '/notifications/queue', label: 'Queue Monitor', icon: Gauge, permission: PERMISSIONS.NOTIFICATIONS_VIEW_HISTORY, module: 'notification_center', descriptionKey: 'Queue Monitor' },
       { id: 'nc-health', to: '/notifications/provider-health', label: 'Provider Health', icon: Activity, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Provider Health' },
+      { id: 'nc-routing', to: '/notifications/routing', label: 'Routing Profiles', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES, module: 'notification_center', descriptionKey: 'Routing Profiles' },
       { id: 'nc-prefs', to: '/notifications/preferences', label: 'Notification Preferences', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES, module: 'notification_center', descriptionKey: 'Notification Preferences' },
       { id: 'nc-settings', to: '/notifications/settings', label: 'Notification Settings', icon: Settings, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_SETTINGS, module: 'notification_center', descriptionKey: 'Notification Settings' },
     ],

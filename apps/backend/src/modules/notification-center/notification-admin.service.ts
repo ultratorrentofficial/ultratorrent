@@ -171,6 +171,44 @@ export class NotificationAdminService {
     return row;
   }
 
+  /** One recipient's routing profile — every "this event → these channels" line. */
+  listRouting(recipientId: string) {
+    return this.prisma.notificationRouting.findMany({
+      where: { recipientId },
+      orderBy: { event: 'asc' },
+    });
+  }
+
+  /**
+   * Set (or clear) one line of a recipient's routing profile.
+   *
+   * An empty `channelIds` DELETES the line rather than storing an empty selection:
+   * "no opinion, inherit" and "send nowhere" must not be the same state, and only a
+   * missing row can mean the former. Silencing an event stays
+   * {@link setPreference}'s job.
+   */
+  async setRouting(input: { recipientId: string; event: string; channelIds: string[] }, userId?: string) {
+    const event = input.event.trim();
+    const channelIds = [...new Set((input.channelIds ?? []).filter(Boolean))];
+    if (!channelIds.length) {
+      const existing = await this.prisma.notificationRouting.findFirst({
+        where: { recipientId: input.recipientId, event },
+      });
+      if (existing) {
+        await this.prisma.notificationRouting.delete({ where: { id: existing.id } });
+        await this.audit.record({ userId, action: 'notification.routing.cleared', objectType: 'notification_routing', objectId: existing.id });
+      }
+      return { recipientId: input.recipientId, event, channelIds: [] };
+    }
+    const row = await this.prisma.notificationRouting.upsert({
+      where: { recipientId_event: { recipientId: input.recipientId, event } },
+      create: { recipientId: input.recipientId, event, channelIds: channelIds as object },
+      update: { channelIds: channelIds as object },
+    });
+    await this.audit.record({ userId, action: 'notification.routing.updated', objectType: 'notification_routing', objectId: row.id, metadata: { event, channelIds } });
+    return row;
+  }
+
   // --- module settings -----------------------------------------------------
   async getSettings() {
     const row = await this.prisma.setting.findUnique({ where: { key: 'notification_center.settings' } });

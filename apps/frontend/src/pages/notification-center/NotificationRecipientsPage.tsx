@@ -50,12 +50,28 @@ export function NotificationRecipientsPage() {
         <Card key={r.id}>
           <CardContent className="flex flex-wrap items-center gap-3 p-3 text-sm">
             <span className="font-medium">{r.displayName}</span>
+            {/* Where this recipient comes from. A user-derived row is kept in step with
+                its account (name, email, active state), so editing or deleting it here
+                would be undone by the next sync — the badge is what makes that visible
+                rather than surprising. */}
+            <Badge variant={r.userId ? 'secondary' : 'outline'}>
+              {r.userId ? t('recipients.fromUser') : t('recipients.external')}
+            </Badge>
+            {!r.enabled && <Badge variant="destructive">{t('recipients.disabled')}</Badge>}
             {r.email && <span className="text-xs text-muted-foreground">{r.email}</span>}
             {r.phone && <span className="text-xs text-muted-foreground">{r.phone}</span>}
             {r.telegramChatId && <Badge variant="outline">Telegram</Badge>}
             {r.whatsappNumber && <Badge variant="outline">WhatsApp</Badge>}
             <span className="flex-1" />
-            <Button variant="ghost" size="sm" onClick={() => remove.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!!r.userId}
+              title={r.userId ? t('recipients.userManaged') : undefined}
+              onClick={() => remove.mutate(r.id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
           </CardContent>
         </Card>
       ))}

@@ -13,6 +13,30 @@ import { buildMessage, type TemplateBodies, type TemplateVars } from './template
 import type { NotificationKind } from './notification-provider';
 
 /**
+ * Every profile/preference key that could apply to one event, from an exact match up
+ * to the catch-all: `media_server.user_paused` → the event itself, `media_server.*`
+ * and `*`. Used as the `IN` set so a single query fetches all candidate lines, which
+ * {@link eventSpecificity} then ranks.
+ */
+export function eventMatchKeys(event: string): string[] {
+  const keys = [event, '*'];
+  const dot = event.indexOf('.');
+  if (dot > 0) keys.push(`${event.slice(0, dot)}.*`);
+  return keys;
+}
+
+/**
+ * How specific a profile/preference key is: an exact event (2) beats a namespace
+ * wildcard (1) beats the catch-all (0). Ranking rather than unioning is deliberate —
+ * "all system alerts to email, except backup failures to Telegram" has to be sayable,
+ * and a union would send backup failures to both.
+ */
+export function eventSpecificity(key: string): number {
+  if (key === '*') return 0;
+  return key.endsWith('.*') ? 1 : 2;
+}
+
+/**
  * The centralized notification pipeline. Modules publish domain events onto the
  * bus (NOTIFICATION_BUS_CHANNEL); this is the sole subscriber. It evaluates
  * rules, resolves recipients + channels, renders per-channel templates, applies
@@ -54,7 +78,7 @@ export class NotificationCenterService {
       for (const recipient of recips) {
         const channels = await this.channelsFor(rule, recipient);
         for (const channel of channels) {
-          if (await this.optedOut(recipient.id, event, channel.provider)) continue;
+          if (await this.optedOut(rule, recipient.id, event, channel.provider)) continue;
           const enq = await this.enqueueFor(rule, event, eventRow.id, recipient, channel, vars, dedupeKey);
           if (enq) enqueued++;
         }
@@ -67,9 +91,37 @@ export class NotificationCenterService {
     return { enqueued, rules: matched.length };
   }
 
-  /** Channels a rule uses for a recipient: explicit rule channels, else the recipient's preferred, else defaults. */
+  /**
+   * Channels a rule uses for a recipient, most authoritative first:
+   *
+   *   1. a **forced** rule's own channels — an admin pin the recipient cannot move;
+   *   2. the recipient's **routing profile** for this event (most specific match);
+   *   3. the rule's channels;
+   *   4. the recipient's `preferredChannelId`;
+   *   5. the channels flagged `isDefault`.
+   *
+   * (2) is what makes a routing profile a profile rather than a filter: it can name a
+   * channel the *rule* never selected, so "my playback events go to Telegram" works
+   * even while the rule sits on the defaults. Opt-outs could only ever subtract, so
+   * before this a rule pinned to one channel put every other channel out of reach for
+   * everybody.
+   *
+   * (1) is the counterweight. Once a recipient can redirect delivery, nothing would
+   * stop them redirecting a breach notice into a channel nobody reads — so a rule may
+   * be marked `forced` and then owns its destinations outright.
+   */
   private async channelsFor(rule: NotificationRule, recipient: NotificationRecipient): Promise<NotificationChannel[]> {
     const ruleChannelIds = (rule.channelIds as unknown as string[]) ?? [];
+    if (rule.forced && ruleChannelIds.length) {
+      return this.prisma.notificationChannel.findMany({ where: { id: { in: ruleChannelIds }, enabled: true } });
+    }
+    const routed = await this.routedChannelIds(recipient.id, rule.event);
+    if (routed.length) {
+      const channels = await this.prisma.notificationChannel.findMany({ where: { id: { in: routed }, enabled: true } });
+      // A profile naming only disabled/deleted channels is a stale selection, not an
+      // instruction to send nowhere — fall through rather than silently drop delivery.
+      if (channels.length) return channels;
+    }
     if (ruleChannelIds.length) {
       return this.prisma.notificationChannel.findMany({ where: { id: { in: ruleChannelIds }, enabled: true } });
     }
@@ -80,10 +132,32 @@ export class NotificationCenterService {
     return this.prisma.notificationChannel.findMany({ where: { enabled: true, isDefault: true } });
   }
 
-  /** Respect explicit per-recipient opt-outs (event/channel scoped). */
-  private async optedOut(recipientId: string, event: string, provider: string): Promise<boolean> {
+  /**
+   * The recipient's chosen channels for one event — the MOST SPECIFIC profile line
+   * only (exact event > `namespace.*` > `*`), never a union. Specificity is what lets
+   * a broad line ("everything to email") be overridden for a single event without
+   * having to delete and re-enumerate it.
+   */
+  private async routedChannelIds(recipientId: string, event: string): Promise<string[]> {
+    const rows = await this.prisma.notificationRouting.findMany({
+      where: { recipientId, event: { in: eventMatchKeys(event) } },
+    });
+    if (!rows.length) return [];
+    const best = rows.sort((a, b) => eventSpecificity(b.event) - eventSpecificity(a.event))[0];
+    return ((best.channelIds as unknown as string[]) ?? []).filter(Boolean);
+  }
+
+  /**
+   * Respect explicit per-recipient opt-outs (event/channel scoped).
+   *
+   * A `forced` rule ignores them: an alert an admin pinned is one the recipient is not
+   * permitted to silence, and honouring the opt-out here would reopen exactly the hole
+   * `forced` exists to close.
+   */
+  private async optedOut(rule: NotificationRule, recipientId: string, event: string, provider: string): Promise<boolean> {
+    if (rule.forced) return false;
     const prefs = await this.prisma.notificationPreference.findMany({
-      where: { recipientId, event: { in: [event, '*'] }, enabled: false },
+      where: { recipientId, event: { in: eventMatchKeys(event) }, enabled: false },
     });
     return prefs.some((p) => p.channel == null || p.channel === provider);
   }
