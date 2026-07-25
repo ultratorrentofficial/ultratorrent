@@ -57,7 +57,6 @@ flowchart TD
       G --> H[Guarda SOLO argon2id&#40;secret&#41;]
       G --> R["Devuelve &lt;prefix&gt;.&lt;secret&gt; UNA SOLA VEZ"]
       H --> DB[(api_keys)]
-      C --> EV[Emite system.api_key_created<br/>keyName · prefix · userId · scopes<br/>NUNCA el secreto]
       DB --> L[GET /api/api-keys<br/>id · name · prefix · scopes ·<br/>lastUsedAt · revokedAt · createdAt]
       DB --> RV["DELETE /api/api-keys/:id<br/>suave: establece revokedAt"]
     end
@@ -169,7 +168,7 @@ Quieres que un cron job consulte `/api/system/health` y alerte si a un disco le 
 
 ### Prepararte para la auth por clave API antes de que llegue
 
-Si quieres estar listo: emite la clave ahora (`POST /api/api-keys`), nómbrala según su consumidor, y guarda el secreto en tu gestor de secretos. Cuando llegue la autenticación por clave, la credencial ya estará provista y ya estará auditada (`system.api_key_created` se emite al crearla, llevando el nombre de la clave, el prefijo, el usuario y los scopes — **nunca** el secreto). Hasta entonces, conecta el script con JWT.
+Si quieres estar listo: emite la clave ahora (`POST /api/api-keys`), nómbrala según su consumidor, y guarda el secreto en tu gestor de secretos. Cuando llegue la autenticación por clave, la credencial ya estará provista — y lo único recuperable después será su nombre, su prefijo y sus scopes, **nunca** el secreto. Hasta entonces, conecta el script con JWT.
 
 ## Solución de problemas
 
@@ -212,8 +211,8 @@ Para emitir, listar y revocar claves — la mitad de almacenamiento de la funcio
 **¿Cómo se guarda la clave?**
 Solo un **hash Argon2id** del secreto. El prefijo (`ut_` + 12 hex) se guarda en claro, porque es público e identifica la clave.
 
-**¿El secreto se registra o se emite en algún momento?**
-No. La creación emite `system.api_key_created` al bus de notificaciones con el **nombre, el prefijo, el id de usuario y los scopes** de la clave — deliberadamente **nunca** el secreto.
+**¿El secreto se registra o se expone en algún momento?**
+No. Se devuelve exactamente una vez, en la respuesta a la llamada de creación, y nunca más — solo se persiste su hash Argon2id. Nada más lo registra ni te lo devuelve. Lo único que queda visible después es el **nombre, el prefijo, el id de usuario y los scopes** de la clave.
 
 **¿Puedo revocar la clave de otra persona?**
 No. La revocación está limitada a tu propio `userId`.
@@ -231,7 +230,6 @@ Una **cuenta de usuario dedicada con el rol más bajo que funcione**, y el flujo
 - [ ] Intenta autenticar una petición con la clave. Esperado: **`401`** — confirmando, por ti mismo, que la auth por clave no está conectada.
 - [ ] Inicia sesión vía `POST /api/auth/login` y llama al mismo endpoint con el bearer token. Esperado: funciona.
 - [ ] Revoca la clave. Esperado: `revokedAt` queda establecido; la fila no se borra.
-- [ ] Confirma que `system.api_key_created` se disparó. Esperado: lleva el nombre, el prefijo, el usuario y los scopes — y **no** el secreto.
 
 ## Ver también
 

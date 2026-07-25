@@ -188,7 +188,7 @@ You want every episode of an ended show, once, and then nothing. Create the rule
 
 ### Get told when a show comes back
 
-Enable the seeded Automation rule on the `rss.show.became_active` trigger with a `notify_admin` action. When the hourly status refresh notices a `returning` show flip to `continuing`, you get a notification and the rule you already have starts catching episodes again.
+Create an Automation rule on the `rss.show.became_active` trigger with a `webhook` action pointed at whatever you use for alerts. When the hourly status refresh notices a `returning` show flip to `continuing`, the webhook fires with the show's context — and the rule you already have starts catching episodes again.
 
 ## Troubleshooting
 

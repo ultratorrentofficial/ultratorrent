@@ -29,7 +29,7 @@ En UltraTorrent **no hay licencias, ediciones, claves de producto ni funcionalid
 
 | Tier | Significado |
 |------|---------|
-| `core` | Siempre disponible, **no se puede desactivar**. El sistema no sería coherente sin él — auth, RBAC, motor, torrents, RSS, archivos, configuración, auditoría, Analíticas del Servidor de Medios, Centro de Notificaciones. |
+| `core` | Siempre disponible, **no se puede desactivar**. El sistema no sería coherente sin él — auth, RBAC, motor, torrents, RSS, archivos, configuración, auditoría, Analíticas del Servidor de Medios. |
 | `community` | Módulos opcionales incluidos, **activos por defecto pero conmutables** por un administrador — Gestor de Medios, Puntuación de Lanzamientos, Inteligencia de Adquisición de Medios. |
 
 ## Estado del módulo
@@ -81,7 +81,6 @@ flowchart TD
 
   subgraph Reaction [Reacción]
     AUTO[automation]
-    NC[notification_center]
   end
 
   AUTH --> RBAC
@@ -110,16 +109,11 @@ flowchart TD
   TOR -.->|torrent.completed| MM
   TOR -.->|torrent.completed| AUTO
 
-  MM -.->|eventos| NC
-  MSA -.->|eventos| NC
-  RSS -.->|eventos| NC
-  AUTO -.->|send_notification| NC
-
   classDef ext fill:#2b2b2b,stroke:#f5a623,color:#fff,stroke-dasharray: 4 3
   class IDX,PRW ext
 ```
 
-Las flechas sólidas son **dependencias declaradas en el manifiesto** (el registro las hace cumplir). Las flechas punteadas son **colaboraciones en tiempo de ejecución** — un módulo usando los datos o los eventos de otro sin una dependencia dura. Las cajas punteadas son subsistemas que no son módulos del registro: **Indexadores** está protegido por RBAC pero no tiene manifiesto, y **Prowlarr** es un contenedor externo opcional.
+Las flechas sólidas son **dependencias declaradas en el manifiesto** (el registro las hace cumplir). Las flechas punteadas son **colaboraciones en tiempo de ejecución** — un módulo usando los datos de otro, o llamándolo directamente, sin una dependencia dura. Las cajas punteadas son subsistemas que no son módulos del registro: **Indexadores** está protegido por RBAC pero no tiene manifiesto, y **Prowlarr** es un contenedor externo opcional.
 
 Lee el grafo como una historia:
 
@@ -127,7 +121,7 @@ Lee el grafo como una historia:
 2. **engine** habla con tu cliente de torrents; **torrents** es la UI y el ciclo de vida encima de él.
 3. **rss** vigila las fuentes; **release_scoring** califica lo que encuentra; **media_acquisition_intelligence** (Descarga Inteligente) decide si un lanzamiento calificado realmente vale la pena adquirirlo, y le pide al motor que lo capture.
 4. **files** le da a cada funcionalidad que toca rutas un sandbox seguro; **media_manager** organiza las descargas terminadas en bibliotecas; **media_server_analytics** reporta lo que la gente de verdad ve.
-5. **automation** y **notification_center** son la capa reactiva — todos los demás módulos emiten eventos hacia ellos.
+5. **automation** es la capa reactiva — la sincronización de torrents, RSS y los disparadores de subtítulos la invocan directamente cuando pasa algo. No hay bus de eventos; nada converge de forma genérica.
 
 ## Los módulos
 
@@ -162,7 +156,6 @@ Lee el grafo como una historia:
 | Módulo | Tier | Qué hace |
 |--------|------|--------------|
 | [Automatización](/modules/automation) | core | El motor de reglas disparador → condición → acción. |
-| Centro de Notificaciones | core | Mensajería basada en proveedores: reglas, plantillas, destinatarios, canales, cola de envío. |
 
 ### Administrar
 
@@ -205,7 +198,7 @@ Quieres un cliente de torrents sin cabeza con una buena UI web y nada más. Deja
 
 ### Una tubería de medios completa
 
-Quieres que RSS encuentre episodios, que Descarga Inteligente escoja el mejor lanzamiento y omita lo que ya tienes, que el Gestor de Medios archive el resultado en una biblioteca con forma de Plex, y que el Centro de Notificaciones te avise por Telegram cuando aterrice. Eso es: `rss` + `release_scoring` + `media_acquisition_intelligence` + `media_manager` + `notification_center`, todos activados (lo predeterminado). Empieza en [Inicio rápido](/learn/quick-start), y luego recorre [RSS](/modules/rss) → [Descarga Inteligente](/modules/smart-download) → [Gestor de Medios](/modules/media-manager).
+Quieres que RSS encuentre episodios, que Descarga Inteligente escoja el mejor lanzamiento y omita lo que ya tienes, y que el Gestor de Medios archive el resultado en una biblioteca con forma de Plex. Eso es: `rss` + `release_scoring` + `media_acquisition_intelligence` + `media_manager`, todos activados (lo predeterminado). Empieza en [Inicio rápido](/learn/quick-start), y luego recorre [RSS](/modules/rss) → [Descarga Inteligente](/modules/smart-download) → [Gestor de Medios](/modules/media-manager).
 
 ## Solución de problemas
 

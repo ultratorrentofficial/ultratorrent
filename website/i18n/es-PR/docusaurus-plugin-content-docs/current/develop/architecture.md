@@ -133,20 +133,18 @@ export interface TorrentEngineProvider {
 Ver [Providers](/develop/providers) para el modelo completo, incluyendo capacidades y
 `UnsupportedCapabilityError`.
 
-### Acoplamiento por eventos
+### Acoplamiento entre módulos
 
-Los módulos no se llaman entre sí directamente cuando pueden evitarlo. Tres mecanismos
-cargan los eventos de dominio:
+Los módulos se llaman entre sí **directamente** — no hay un bus de eventos en proceso. Al
+motor de automatización lo invocan llamadas directas desde la sincronización de torrents,
+RSS, los disparadores de subtítulos y los workflows. Desde ahí, tres mecanismos reparten
+los cambios de estado hacia afuera:
 
 1. **`RealtimeGateway`** empuja los cambios de estado a salas de socket delimitadas por permisos.
-2. **El motor de automatización** convierte eventos de dominio en reglas de condición/acción
+2. **El motor de automatización** convierte esas llamadas en reglas de condición/acción
    definidas por el usuario.
 3. **`MediaProcessingQueueService`** convierte reacciones de larga duración en trabajos
-   rastreados cuyo ciclo de vida se emite a su vez como eventos.
-
-También hay un bus interno (`@nestjs/event-emitter`, configurado con
-`{ wildcard: true, delimiter: '.' }` en `app.module.ts`) al que el Centro de Notificaciones
-se suscribe vía `NOTIFICATION_BUS_CHANNEL`.
+   rastreados cuyo ciclo de vida se difunde a su vez por el gateway.
 
 ## Diagrama de componentes
 
@@ -176,7 +174,6 @@ flowchart TB
       IENG["TorrentEngineProvider"]
       IMETA["MediaMetadataProvider"]
       IMS["MediaServerProvider"]
-      INOTIF["NotificationProvider"]
     end
     subgraph Infra["Capa de infraestructura"]
       RT["RTorrentProvider<br/>XML-RPC / SCGI"]
@@ -210,7 +207,6 @@ flowchart TB
   REG --> IENG
   SVC --> IMETA
   SVC --> IMS
-  SVC --> INOTIF
   IENG -.implementado por.-> RT
   IENG -.implementado por.-> QB
   IMETA -.implementado por.-> TMDB
@@ -298,7 +294,7 @@ Dos cosas de ese diagrama que vale la pena interiorizar:
 ## Datos y caché
 
 **PostgreSQL** vía **Prisma** es el almacén — usuarios/roles/permisos, snapshots de torrents,
-categorías/etiquetas, RSS, automatización, notificaciones, claves API, el registro de
+categorías/etiquetas, RSS, automatización, claves API, el registro de
 auditoría, la configuración y todo el modelo del Gestor de Medios. **Redis** respalda el
 caché y la coordinación de trabajos en segundo plano. **No hay un broker de colas externo**:
 el trabajo en segundo plano son intervalos de `@nestjs/schedule` más una cola de trabajos
@@ -332,8 +328,8 @@ La UI está completamente localizada con i18next — **en-US** (predeterminado/f
 - **`tsc` limpio ≠ arranca.** El chequeo de tipos y las pruebas unitarias no detectan errores
   de DI ni de cableado de módulos de NestJS. Antes de dar un cambio por terminado, arranca un
   build limpio.
-- **Ciclos.** Si dos módulos se necesitan mutuamente, una de las direcciones debe pasar por el
-  bus de eventos o por un `ModuleRef.get(...)` diferido. `AutomationModule` y `RssModule`
+- **Ciclos.** Si dos módulos se necesitan mutuamente, una de las direcciones debe pasar por
+  un `ModuleRef.get(...)` diferido. `AutomationModule` y `RssModule`
   hacen exactamente eso (un `forwardRef` para el ciclo de orden de carga de los módulos ES,
   y `ModuleRef` para la llamada).
 - **`@Global()` con moderación.** `EngineModule`, `AuditModule` y `RealtimeModule` son

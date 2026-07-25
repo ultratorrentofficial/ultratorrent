@@ -13,7 +13,7 @@ keywords: [prisma, postgresql, migraciones, esquema, seed, índice, concurrently
 **PostgreSQL** vía **Prisma**. El esquema (`apps/backend/prisma/schema.prisma`) contiene unos 88
 modelos que cubren identidad y RBAC, snapshots de torrents, RSS, automatización, todo el conjunto
 de modelos del Gestor de Medios, las analíticas del servidor de medios, el catálogo del conjunto de
-datos de IMDb, el Centro de Notificaciones, el registro de auditoría y la configuración.
+datos de IMDb, el registro de auditoría y la configuración.
 
 ## Propósito
 
@@ -54,8 +54,7 @@ nombre de tabla en snake_case.
 | Analíticas del servidor de medios | `MediaServerIntegration`, `MediaServerSession`, `MediaServerWatchHistory`, `MediaServerNewsletter`, … |
 | Adquisición de medios | `MediaAcquisitionWatchlistItem`, `WantedEpisode`, `WantedMovie`, `Indexer`, `MediaAcquisitionProfile`, … |
 | Conjuntos de datos de IMDb | `IMDbTitle`, `IMDbAka`, `IMDbEpisode`, `IMDbRating`, `IMDbDatasetImport`, … |
-| Centro de Notificaciones | `NotificationChannel`, `NotificationTemplate`, `NotificationRule`, `NotificationDelivery`, `NotificationQueue`, … |
-| Plataforma | `Setting`, `Notification`, `AuditLog`, `SystemEvent`, `ModuleState`, `ModuleEvent` |
+| Plataforma | `Setting`, `AuditLog`, `SystemEvent`, `ModuleState`, `ModuleEvent` |
 
 La referencia completa y generada está en [Esquema de la base de datos](/reference/database-schema).
 

@@ -2,7 +2,7 @@
 id: providers
 title: Providers
 sidebar_position: 4
-description: El sistema de providers — cómo UltraTorrent aísla cada servicio externo detrás de una interfaz, y cómo escribir un nuevo provider de motor, indexador, metadatos, servidor de medios o notificaciones.
+description: El sistema de providers — cómo UltraTorrent aísla cada servicio externo detrás de una interfaz, y cómo escribir un nuevo provider de motor, indexador, metadatos o servidor de medios.
 keywords: [providers, extensibilidad, motor de torrents, rtorrent, qbittorrent, tmdb, plex, jellyfin, torznab, capacidades]
 ---
 
@@ -11,8 +11,8 @@ keywords: [providers, extensibilidad, motor de torrents, rtorrent, qbittorrent, 
 ## Resumen
 
 Un **provider** es una interfaz en la capa de dominio que aísla un servicio externo — un
-motor de torrents, una fuente de metadatos, un servidor de medios, un notificador, un
-indexador — de la lógica de negocio que lo usa. Los servicios de aplicación dependen de la
+motor de torrents, una fuente de metadatos, un servidor de medios, un indexador — de la
+lógica de negocio que lo usa. Los servicios de aplicación dependen de la
 interfaz. Nunca importan el cliente de un vendor.
 
 **La regla de extensión:** una integración nueva es una **nueva implementación de una
@@ -45,7 +45,6 @@ protocolo**. Si es una *capacidad* de UltraTorrent en sí, lo que quieres es un
 | `TorrentEngineProvider` | Controlar un motor de BitTorrent | `RTorrentProvider` (XML-RPC/SCGI), `QbittorrentProvider` (Web API v2) |
 | `MediaMetadataProvider` | Resolver un título → metadatos | `LocalMetadataProvider`, `TmdbMetadataProvider`, `ImdbMetadataProvider` |
 | `MediaServerProvider` | Sondear un servidor, disparar una actualización de biblioteca, leer sesiones | Plex, Jellyfin, Emby, Kodi |
-| `NotificationProvider` | Entregar un mensaje a un canal | correo, SMS, Telegram, WhatsApp (+ fan-out a webhook/Discord/Slack en el módulo legacy de notificaciones) |
 | `ArtworkProvider` | ID externo → candidatos de ilustraciones descargables | `TmdbArtworkProvider` |
 | Cliente de indexador (Torznab/Newznab) | Buscar candidatos de lanzamientos en los indexadores | `TorznabClient` |
 | `TvShowStatusProvider` | Resolver el estado de emisión de una serie | TMDB → conjunto de datos de IMDb → local, en orden de confianza |
@@ -109,31 +108,6 @@ Quienes llaman atrapan `UnsupportedCapabilityError` y omiten esa función, en ve
 un error en rojo y alarmar al operador. Compara eso con un fallo *real* (el servidor está
 caído, el token está mal) — eso es un throw ordinario.
 
-El Centro de Notificaciones va más lejos y deriva un método `supports*()` por capacidad a
-partir de una sola llamada a `capabilities()`, así que un provider concreto implementa casi
-nada:
-
-```ts
-// apps/backend/src/modules/notification-center/notification-provider.ts
-export abstract class BaseNotificationProvider implements NotificationProvider {
-  abstract readonly kind: NotificationKind;
-  abstract capabilities(): NotificationCapabilities;
-  abstract validateRecipient(addr: NotificationAddress): boolean;
-  abstract normalizeRecipient(addr: NotificationAddress): string | null;
-  abstract send(config, addr, msg): Promise<SendResult>;
-  abstract testConnection(config): Promise<HealthResult>;
-
-  async connect(): Promise<void> {}
-  async healthCheck(config) { return this.testConnection(config); }
-  async sendBulk(config, addrs, msg) {
-    return Promise.all(addrs.map((a) => this.send(config, a, msg)));
-  }
-  supportsRichCards() { return this.capabilities().richCards; }
-  supportsMarkdown() { return this.capabilities().markdown; }
-  // …uno por capacidad
-}
-```
-
 ### Normalización — la regla de oro
 
 Mapea la representación del vendor a las formas compartidas `Normalized*`
@@ -152,7 +126,6 @@ flowchart LR
     SYNC["TorrentSyncService"]
     MS["MediaService"]
     MSI["MediaServerIntegrationService"]
-    NC["Entrega del NotificationCenter"]
     IX["IndexerService"]
   end
 
@@ -160,13 +133,11 @@ flowchart LR
     IENG["TorrentEngineProvider"]
     IMETA["MediaMetadataProvider"]
     IMS["MediaServerProvider"]
-    INOTIF["NotificationProvider"]
   end
 
   subgraph Wiring["Factories / registries"]
     EF["EngineProviderFactory"]
     ER["EngineRegistryService"]
-    NR["Registry de NotificationProvider"]
   end
 
   subgraph Impl["Infraestructura — adaptadores concretos"]
@@ -179,8 +150,6 @@ flowchart LR
     JF["JellyfinProvider"]
     EMBY["EmbyProvider"]
     KODI["KodiProvider"]
-    TG["TelegramProvider"]
-    EM["EmailProvider"]
     TZ["TorznabClient"]
   end
 
@@ -189,7 +158,6 @@ flowchart LR
   SYNC --> IENG
   MS --> IMETA
   MSI --> IMS
-  NC --> INOTIF
   IX --> TZ
 
   IENG -.- ER
@@ -203,12 +171,9 @@ flowchart LR
   IMS -.- JF
   IMS -.- EMBY
   IMS -.- KODI
-  INOTIF -.- NR
-  NR --> TG
-  NR --> EM
 
   classDef seam fill:#1f6feb22,stroke:#1f6feb;
-  class IENG,IMETA,IMS,INOTIF seam;
+  class IENG,IMETA,IMS seam;
 ```
 
 ## Paso a paso: escribe un nuevo provider de motor de torrents
@@ -364,12 +329,6 @@ Implementa `MediaServerProvider`. Declara `capabilities()` con honestidad, y lan
 (tokens/claves/contraseñas) se cifran con AES-GCM en reposo y se redactan en las respuestas de
 la API.
 
-### Un provider de notificaciones
-
-Extiende `BaseNotificationProvider`, implementa los cinco miembros abstractos y agrega una
-entrada en el factory. El registry expone `kind + capabilities + config schema` a la UI, así
-que el formulario del canal se renderiza solo a partir de tu declaración.
-
 ### Un indexador
 
 Los indexadores hablan **Torznab/Newznab**, así que en la práctica configuras un indexador
@@ -460,9 +419,9 @@ Hoy no. El seam existe (`bootstrap.ts` acepta `externalModules`, y
 un sistema publicado de plugins de terceros es trabajo futuro.
 
 **¿De dónde saca su configuración el provider?**
-De una fila en la base de datos — `TorrentEngine`, `MediaServerIntegration`, un `Channel` de
-notificaciones, un `Indexer` — con los secretos descifrados al momento de la llamada. Los
-providers no guardan estado respecto a la configuración: se les pasa.
+De una fila en la base de datos — `TorrentEngine`, `MediaServerIntegration`, un `Indexer` —
+con los secretos descifrados al momento de la llamada. Los providers no guardan estado
+respecto a la configuración: se les pasa.
 
 **¿Los providers corren en el camino del request?**
 Las llamadas al motor sí (una pausa es síncrona). El trabajo de metadatos, ilustraciones y
@@ -485,5 +444,5 @@ que un tercero lento nunca pueda provocar un timeout en un request HTTP.
 
 - [Arquitectura](/develop/architecture)
 - [Crear módulos](/develop/creating-modules)
-- [Módulos → Motores](/modules/engines) · [Indexadores](/modules/indexers) · Centro de Notificaciones
+- [Módulos → Motores](/modules/engines) · [Indexadores](/modules/indexers)
 - [Pruebas](/develop/testing)

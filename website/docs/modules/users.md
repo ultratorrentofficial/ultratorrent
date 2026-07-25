@@ -54,8 +54,8 @@ Change it before the instance is reachable by anyone else. This is step zero of 
 |------|--------------|
 | **Super Admin** | Everything. Bypasses granular checks entirely. |
 | **Administrator** | Everything **except `system.manage`**. In practice this means only a Super Admin can toggle background update checks. |
-| **Power User** | All `torrents.*` **except `delete_data`**; categories and tags; all `rss.*`; `automation.view` + `manage`; all `indexers.*`; all `integrations.prowlarr.*`; all `files.*`; `system.view`; most `media_manager.*` including IMDb; `notifications.view` + `manage_preferences`. **No `settings.*`, no `users.*`, no `audit.view`, no `apikeys.manage`.** |
-| **User** | `torrents.view/add/pause/resume/start/stop`; categories and tags; `rss.view` + show-status lookup; `files.view/preview/download`; `media_manager.view`; IMDb view + search; `notifications.view` + `manage_preferences`. |
+| **Power User** | All `torrents.*` **except `delete_data`**; categories and tags; all `rss.*`; `automation.view` + `manage`; all `indexers.*`; all `integrations.prowlarr.*`; all `files.*`; `system.view`; most `media_manager.*` including IMDb. **No `settings.*`, no `users.*`, no `audit.view`, no `apikeys.manage`.** |
+| **User** | `torrents.view/add/pause/resume/start/stop`; categories and tags; `rss.view` + show-status lookup; `files.view/preview/download`; `media_manager.view`; IMDb view + search. |
 | **Read-Only** | `torrents.view`, `rss.view` + show-status lookup, `automation.view`, `files.view/preview/download`, `system.view`, `media_manager.view`. |
 
 :::warning Custom roles do not exist yet

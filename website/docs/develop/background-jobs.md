@@ -37,7 +37,7 @@ Keep the API responsive, isolate failures, and make long operations observable.
 | Recurring polling / sweeps | `@Interval('<name>', ms)` |
 | A long operation the user started (scan a 20k-file library) | `MediaProcessingQueueService.runDetached()` |
 | A long operation whose result the caller needs | `MediaProcessingQueueService.run()` |
-| A reaction to a domain event | An automation action, or an event-bus subscriber |
+| A reaction to something that just happened | An automation action, invoked by a direct call |
 
 ## Prerequisites
 
@@ -58,13 +58,10 @@ The jobs that ship today:
 | --- | --- | --- |
 | *(unnamed)* torrent sync | 2 s | `TorrentSyncService` |
 | *(unnamed)* RSS poll | 60 s | `RssModule` |
-| `notification_delivery_worker` | 10 s | `DeliveryService` |
 | `media_server_session_poll` | 15 s | `MediaServerSessionService` |
-| `system_health_monitor` | 60 s | `SystemModule` |
 | `torrent_parking_sweep` | 5 min | `TorrentParkingService` |
 | `media_acquisition_rss_sweep` | 5 min | `MediaAcquisitionModule` |
 | `media_library_periodic_scan` | 5 min tick | `MediaLibraryScanSchedulerService` |
-| `notification_provider_health` | 5 min | `ProviderHealthService` |
 | `media_server_newsletter_dispatch` | 15 min | `MediaServerNewsletterService` |
 | `media_acquisition_watchlist_sweep` | 15 min | `MediaAcquisitionModule` |
 | `media_acquisition_quality_upgrade_sweep` | 30 min | `MediaAcquisitionModule` |
@@ -287,7 +284,6 @@ flowchart TB
   subgraph Sched["Schedulers — @nestjs/schedule"]
     T1["@Interval(2000)<br/>TorrentSyncService"]
     T2["@Interval('media_library_periodic_scan', 5min)"]
-    T3["@Interval('notification_delivery_worker', 10s)"]
   end
 
   subgraph Guard["Every tick"]
@@ -314,7 +310,6 @@ flowchart TB
 
   T1 --> G1
   T2 --> G1
-  T3 --> G1
   G1 --> G2
 ```
 

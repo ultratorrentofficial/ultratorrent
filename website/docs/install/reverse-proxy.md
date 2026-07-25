@@ -36,7 +36,7 @@ On a LAN you do not need a reverse proxy — open `http://<host>:8080` and you a
 You want one when you need a **hostname instead of a port**, **HTTPS**, or **one entrypoint in front of several self-hosted apps**.
 
 :::danger WebSockets are not optional
-UltraTorrent's UI is **live**: torrent progress, engine health, RSS runs, import progress, notifications — all pushed over a WebSocket at **`/ws/`**. A proxy that does not forward the `Upgrade` and `Connection` headers produces a UI that *looks* fine, loads, lets you log in — and then never updates. Progress bars sit at 0%. This is by far the most common reverse-proxy mistake, and every config below handles it.
+UltraTorrent's UI is **live**: torrent progress, engine health, RSS runs, import progress — all pushed over a WebSocket at **`/ws/`**. A proxy that does not forward the `Upgrade` and `Connection` headers produces a UI that *looks* fine, loads, lets you log in — and then never updates. Progress bars sit at 0%. This is by far the most common reverse-proxy mistake, and every config below handles it.
 :::
 
 :::tip Watch this tutorial

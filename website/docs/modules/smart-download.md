@@ -36,7 +36,7 @@ Leave it disabled if you genuinely want every match, immediately, with no judgem
 ## Prerequisites
 
 - The **Media Acquisition Intelligence** module enabled (it is on by default).
-- Its hard dependencies, all core and on by default: `rss`, `automation`, `release_scoring`, `notifications`, `settings`, `audit`, `rbac`, `module_registry`.
+- Its hard dependencies, all core and on by default: `rss`, `automation`, `release_scoring`, `settings`, `audit`, `rbac`, `module_registry`.
 - A working [engine](/modules/engines) — decisions actually download.
 - **A library that Smart Download can read.** Its "do I already own this?" logic diffs against [Media Manager](/modules/media-manager)'s `MediaItem` rows. A poorly-identified library makes every "already owned" check wrong.
 - At least one **acquisition profile** and at least one **watchlist item**.
@@ -263,8 +263,8 @@ Yes — it is a pure function of the gathered signals. That is why the Decision 
 **Why is `replace_existing` in the docs if it never happens?**
 The decision type exists in the model, but `decide()` does not currently emit it. It is reserved.
 
-**Are decisions notified?**
-Events are emitted (`media_acquisition.*`), and the Notification Center can route them. Deeper per-user notification on decision events, and firing Smart Download triggers into the [Automation](/modules/automation) engine, remain follow-ups.
+**Do decisions feed the Automation engine?**
+Not yet. Firing Smart Download triggers into the [Automation](/modules/automation) engine remains a follow-up.
 
 ## Checklist
 

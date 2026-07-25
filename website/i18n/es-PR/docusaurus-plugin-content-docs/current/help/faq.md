@@ -2,7 +2,7 @@
 id: faq
 title: Preguntas Frecuentes
 sidebar_position: 1
-description: Respuestas a las preguntas más comunes sobre UltraTorrent — instalación, configuración, descargas, RSS, medios, notificaciones, automatización, seguridad, Docker, rendimiento, API y desarrollo.
+description: Respuestas a las preguntas más comunes sobre UltraTorrent — instalación, configuración, descargas, RSS, medios, automatización, seguridad, Docker, rendimiento, API y desarrollo.
 keywords:
   - FAQ
   - preguntas
@@ -19,7 +19,6 @@ keywords:
   - descargas
   - RSS
   - medios
-  - notificaciones
   - automatización
   - seguridad
   - Docker
@@ -41,8 +40,8 @@ organizada por síntoma y cubre incidentes reales ya diagnosticados.
 Una **Plataforma de Adquisición y Gestión de Medios** autoalojada. Donde un cliente
 de torrents tradicional se detiene en "descarga este archivo", UltraTorrent sigue:
 identifica el lanzamiento, lo enriquece con metadatos, ilustraciones y subtítulos, lo renombra
-y lo archiva en la biblioteca correcta, genera archivos NFO acompañantes, actualiza tu servidor
-de medios y te notifica — todo gobernado por RBAC y observable en tiempo real.
+y lo archiva en la biblioteca correcta, genera archivos NFO acompañantes y actualiza tu servidor
+de medios — todo gobernado por RBAC y observable en tiempo real.
 
 Ver [Conceptos](/learn/concepts).
 
@@ -169,7 +168,7 @@ En ambos, deliberadamente:
   límite duro del gestor de archivos. Se definen al desplegar y **nunca se amplían en
   tiempo de ejecución**.
 - **La UI** guarda los valores *configurables por el operador*: motores, indexadores, fuentes RSS,
-  reglas de automatización, bibliotecas, canales de notificación.
+  reglas de automatización y bibliotecas.
 
 Las claves API que ingresas en la UI se **cifran en reposo con AES-256-GCM** y se redactan
 (`••••••••`) en cada respuesta de la API — nunca se escriben en `.env`.
@@ -398,15 +397,6 @@ Con índices GIN de trigramas: **180 ms** — una aceleración de **~265×**.
 
 Ver [Resolución de problemas](/operate/troubleshooting#a-library-scan-freezes-at-a-percentage-and-never-completes).
 
----
-
-## Notificaciones {#notifications}
-
-### ¿Qué canales están soportados? {#what-channels-are-supported}
-
-En la app, webhook, **Discord**, **Slack** y **Telegram**, con envío en paralelo a múltiples
-canales. Ver Centro de Notificaciones.
-
 ### ¿Qué servidores de medios puede actualizar? {#which-media-servers-can-it-refresh}
 
 **Plex, Jellyfin, Emby y Kodi.** Después de que una descarga se organiza, UltraTorrent puede
@@ -426,9 +416,10 @@ las acciones **atribuidas a un usuario** y los eventos que sí quieres ver indiv
 
 ### ¿Qué pueden hacer las reglas de automatización? {#what-can-automation-rules-do}
 
-Son **reglas de condición/acción dirigidas por eventos**. Un disparador (p. ej.
-`torrent.completed`) se activa, se evalúan las condiciones, y las acciones corren — renombrar,
-mover, borrar, notificar, actualizar un servidor de medios, y así. Ver
+Son **reglas de condición/acción**. Un disparador (p. ej. `torrent.completed`) lo levanta
+una llamada directa desde la sincronización de torrents, RSS o el procesamiento de subtítulos
+— no hay un bus de eventos —, se evalúan las condiciones, y las acciones corren: renombrar,
+mover, borrar, actualizar un servidor de medios, y así. Ver
 [Automatización](/modules/automation).
 
 ### ¿Se auditan las ejecuciones de automatización? {#are-automation-runs-audited}
@@ -677,7 +668,7 @@ implementa (añadir/quitar/iniciar/detener/reverificar/mover, prioridades de arc
 de velocidad, estadísticas). **No hacen falta cambios de UI ni de lógica de negocio.** De eso se trata
 precisamente la costura.
 
-### ¿Cómo añado una fuente de metadatos / servidor de medios / notificador? {#how-do-i-add-a-metadata-source--media-server--notifier}
+### ¿Cómo añado una fuente de metadatos o un servidor de medios? {#how-do-i-add-a-metadata-source-or-media-server}
 
 El mismo patrón. **Los proveedores son el mecanismo principal de extensibilidad**, y la regla es
 explícita:

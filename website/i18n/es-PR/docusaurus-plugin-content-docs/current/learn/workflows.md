@@ -2,7 +2,7 @@
 id: workflows
 title: Flujos de trabajo
 sidebar_position: 5
-description: Los siete flujos canónicos de punta a punta, como diagramas Mermaid — descargar una película, automatizar una serie, una regla RSS que se dispara, Descarga Inteligente llenando un hueco, importación y renombrado de medios, una notificación que se dispara, y copia de seguridad/restauración.
+description: Los seis flujos canónicos de punta a punta, como diagramas Mermaid — descargar una película, automatizar una serie, una regla RSS que se dispara, Descarga Inteligente llenando un hueco, importación y renombrado de medios, y copia de seguridad/restauración.
 keywords:
   - flujos de trabajo
   - de punta a punta
@@ -15,7 +15,6 @@ keywords:
   - episodio faltante
   - importación de medios
   - renombrar
-  - notificación
   - copia de seguridad
   - restaurar
   - automatización
@@ -25,7 +24,7 @@ keywords:
 
 # Flujos de trabajo
 
-Siete flujos. Cada uno es lo que *realmente* pasa, dibujado de punta a punta, con el
+Seis flujos. Cada uno es lo que *realmente* pasa, dibujado de punta a punta, con el
 componente dueño de cada paso nombrado.
 
 Lee el diagrama primero, después las notas debajo. Entre los dos explican casi todo
@@ -40,14 +39,12 @@ flowchart LR
   W3["3 · Una regla RSS<br/>se dispara"]
   W4["4 · Descarga Inteligente<br/>llena un hueco"]
   W5["5 · Importar<br/>y renombrar"]
-  W6["6 · Una notificación<br/>se dispara"]
-  W7["7 · Copia de seguridad<br/>y restauración"]
+  W6["6 · Copia de seguridad<br/>y restauración"]
 
   W1 --> W5
   W2 --> W3
   W3 --> W5
   W4 --> W5
-  W5 --> W6
 ```
 
 ## Propósito
@@ -284,9 +281,8 @@ sequenceDiagram
 :::caution Límites que vale la pena conocer
 La búsqueda automática es **solo de episodios** hoy — las filas `WantedMovie` cargan las
 mismas columnas de estado de agarre, pero todavía no hay búsqueda automática de películas.
-Los **disparadores de automatización** de Descarga Inteligente y las **notificaciones de
-decisión por usuario** tampoco están cableadas todavía, y `replace_existing` existe como
-tipo de decisión pero no se emite.
+Los **disparadores de automatización** de Descarga Inteligente tampoco están cableados
+todavía, y `replace_existing` existe como tipo de decisión pero no se emite.
 :::
 
 ![Página de Episodios Faltantes con la rejilla de temporadas y episodios](/img/screenshots/workflow-missing-episodes.png)
@@ -355,73 +351,7 @@ metadatos.
 
 ---
 
-## Flujo 6 — Una notificación se dispara
-
-Nada de las notificaciones está hardcodeado. **Cada** notificación es una regla tuya.
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant MOD as Cualquier módulo
-  participant BUS as Bus de eventos interno
-  participant NC as Centro de Notificaciones
-  participant RE as Motor de reglas
-  participant RC as Destinatarios + grupos
-  participant PR as Preferencias (exclusión voluntaria)
-  participant TE as Motor de plantillas
-  participant Q as Cola de envíos
-  participant CH as Proveedor de canal
-
-  MOD->>BUS: emite un sobre de evento<br/>(p. ej. download.torrent_completed)
-  BUS->>NC: el Centro es el único suscriptor
-  NC->>RE: empareja reglas habilitadas + condiciones
-  RE-->>NC: las reglas que se dispararon
-  NC->>RC: resuelve destinatarios (usuarios, grupos, el usuario del evento)
-  NC->>PR: respeta las exclusiones por usuario
-  NC->>TE: arma el mensaje + la tarjeta enriquecida por canal
-  NC->>Q: encola (deduplicado)
-  loop trabajador de envíos
-    Q->>Q: horas de silencio · límite de tasa · reintentos · escalación
-    Q->>CH: envía
-    CH-->>Q: estado
-  end
-  Q-->>NC: historial + WebSocket + auditoría
-```
-
-**Canales disponibles**
-
-| Canal | Backend | Renderizado |
-| --- | --- | --- |
-| **Email** | SMTP | Tarjeta HTML responsiva (póster, insignias, botones) + texto plano |
-| **Telegram** | Bot API | Foto + descripción en Markdown + botones de teclado en línea |
-| **SMS** | Twilio | Texto plano y conciso |
-| **WhatsApp** | Twilio | Texto enriquecido + póster |
-
-**Eventos sobre los que puedes construir reglas** incluyen descargas
-(`download.torrent_completed`, `download.torrent_failed`, `download.stalled`,
-`download.ratio_reached`), RSS (`rss.feed_failed`, `rss.rule_matched`,
-`rss.new_episode_available`), medios (`media.renamed`, `media.missing_subtitles`,
-`media.missing_episode_filled`, `media.library_scan_completed`), servidores de medios
-(`media_server.user_started_watching`, `media_server.server_offline`), y sistema
-(`system.disk_space_low`, `system.failed_login`, `system.new_login`,
-`system.update_available`).
-
-**Las páginas que vas a usar**
-
-| Página | Ruta | Para |
-| --- | --- | --- |
-| Centro de Notificaciones | `/notifications` | El panel. |
-| Canales | `/notifications/channels` | Configurar Email/Telegram/SMS/WhatsApp. Los secretos se cifran en reposo. |
-| Reglas | `/notifications/rules` | Evento → condiciones → canales → destinatarios. |
-| Destinatarios | `/notifications/recipients` | Quién recibe qué. |
-| Historial de Envíos | `/notifications/history` | La prueba de que salió (o de por qué no). |
-
-
-![Editor de reglas de notificación](/img/screenshots/workflow-notification-rule.png)
-
----
-
-## Flujo 7 — Copia de seguridad y restauración
+## Flujo 6 — Copia de seguridad y restauración
 
 El flujo menos emocionante y el único cuya ausencia te va a arruinar la semana.
 
@@ -458,8 +388,8 @@ cp .env env-backup-$(date +%F)
 
 :::danger `ENCRYPTION_KEY` y la base de datos son una sola unidad
 `ENCRYPTION_KEY` es lo que descifra las columnas cifradas de ese dump — secretos de
-2FA/TOTP, claves API de indexadores, tokens de servidores de medios, credenciales de
-notificaciones. **Una base de datos restaurada sin su clave correspondiente tiene un
+2FA/TOTP, claves API de indexadores y tokens de servidores de medios.
+**Una base de datos restaurada sin su clave correspondiente tiene un
 montón de secretos ilegibles adentro.** Respáldalos juntos, restáuralos juntos, y
 guárdalos en un sitio que no sea el host que estás respaldando.
 :::
@@ -499,8 +429,7 @@ _Video próximamente._
 | El mismo episodio agarrado dos veces | 3 | Análisis de la identidad de lanzamiento (dedup de nivel 3) |
 | Un episodio viejo nunca se llena | 4 | IMDb ID en la lista de seguimiento, resultados de indexadores, `autoSearchMissing` |
 | Los archivos se descargan pero nunca se renombran | 5 | Raíz de la biblioteca vs. ruta de guardado; ¿la biblioteca está habilitada? |
-| Nunca me entero de nada | 6 | Reglas de notificación, canales, destinatarios |
-| Lo perdí todo | 7 | Sí tomaste una copia de seguridad, ¿verdad? |
+| Lo perdí todo | 6 | Sí tomaste una copia de seguridad, ¿verdad? |
 
 ---
 
@@ -513,8 +442,7 @@ _Video próximamente._
 | La búsqueda de episodios faltantes no encuentra nada | Flujo 4 | El título de escena de la serie no se analiza al título de tu lista de seguimiento (un alias), o ningún indexador lo tiene. |
 | Todo queda en `pending_approval` | Flujo 4 | Tu perfil de adquisición tiene `approvalRequired`, o el puntaje está por debajo de `approvalScore`. |
 | Los medios se quedan en `unmatched` | Flujo 5 | Nombre de lanzamiento malo. Arréglalo en `/media/unmatched`, o mejora el nombrado en el origen. |
-| La regla de notificación nunca se dispara | Flujo 6 | Nombre de evento equivocado, una condición sin cumplir, ningún destinatario resuelto, o el usuario se excluyó. Revisa el **Historial de Envíos**. |
-| Restauré la BD, pero todos los indexadores fallan | Flujo 7 | `ENCRYPTION_KEY` equivocada. Las claves cifradas no se pueden descifrar. |
+| Restauré la BD, pero todos los indexadores fallan | Flujo 6 | `ENCRYPTION_KEY` equivocada. Las claves cifradas no se pueden descifrar. |
 
 ---
 
@@ -525,11 +453,6 @@ Cada decisión de Descarga Inteligente persiste su **traza completa**. El **Simu
 Decisiones** (`/media-acquisition/simulator`) reproduce el pipeline entero para cualquier
 nombre de lanzamiento con **cero efectos secundarios**. Te va a decir exactamente por qué
 algo se eligió o se rechazó en menos tiempo del que te toma formar una teoría.
-:::
-
-:::tip El Historial de Envíos es el equivalente para notificaciones
-`/notifications/history` muestra si un mensaje se encoló, se envió, se reintentó o falló —
-y por qué. Revísalo antes de asumir que una regla no se disparó.
 :::
 
 :::info Todo lo que muta queda auditado
@@ -568,7 +491,6 @@ dispara ningún trigger `media.*`.
 - [ ] Puedo nombrar los tres niveles de deduplicación de RSS.
 - [ ] Sé que la búsqueda automática de episodios faltantes es **opcional y está apagada por defecto**.
 - [ ] Sé que el escaneo periódico de biblioteca **nunca renombra**.
-- [ ] Sé que las notificaciones son **completamente guiadas por reglas** — nada está hardcodeado.
 - [ ] Tomé un `pg_dump` **y** respaldé el `.env` con `ENCRYPTION_KEY`.
 - [ ] Restauré esa copia de seguridad al menos una vez, en algún sitio desechable, y verifiqué que la prueba (**Test**) de un indexador todavía pasa.
 
@@ -578,7 +500,6 @@ dispara ningún trigger `media.*`.
 | --- | --- |
 | Agrega un torrent dentro de la raíz de una biblioteca y espera | Se renombra y aparece en el servidor de medios. |
 | Pega un nombre de lanzamiento en el Simulador de Decisiones | Una traza completa y clicable con una decisión y una razón. |
-| Dispara una regla de notificación | Una fila en el **Historial de Envíos** con estado `sent`. |
 | Restaura tu copia de seguridad en un stack limpio | Puedes iniciar sesión, y la prueba (**Test**) de un indexador pasa. |
 
 ### Próximos pasos
@@ -596,6 +517,6 @@ Escoge el flujo que quieres dominar y métete a fondo:
 - [Torrents](/modules/torrents) · [RSS](/modules/rss) · [Descarga Inteligente](/modules/smart-download)
 - [Episodios Faltantes](/modules/missing-episodes) · [Indexadores](/modules/indexers)
 - [Gestor de Medios](/modules/media-manager) · [Automatización](/modules/automation)
-- Centro de Notificaciones · [Auditoría](/modules/audit)
+- [Auditoría](/modules/audit)
 - [Copia de seguridad y restauración](/operate/backup) · [Actualizar](/install/upgrading)
 - [Solución de problemas](/operate/troubleshooting) · [Glosario](/help/glossary)

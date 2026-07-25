@@ -2,7 +2,7 @@
 id: system
 title: System & Settings
 sidebar_position: 17
-description: Health probes, resource monitoring, the version banner, update checks, and the application settings store.
+description: Health probes, the version banner, update checks, and the application settings store.
 keywords: [system, health, liveness, readiness, probe, uptime, disk space, cpu, memory, settings, version, update check, kubernetes, docker healthcheck]
 ---
 
@@ -10,7 +10,7 @@ keywords: [system, health, liveness, readiness, probe, uptime, disk space, cpu, 
 
 ## Overview
 
-This page covers the plumbing: the **System** module (health probes, resource monitoring, version and update information) and the **Settings** module (the key/value store that everything else configures itself from).
+This page covers the plumbing: the **System** module (health probes, version and update information) and the **Settings** module (the key/value store that everything else configures itself from).
 
 Neither is glamorous. Both are load-bearing — the health probes are what your orchestrator uses to decide whether UltraTorrent is alive, and the settings store is where half the product's configuration actually lives.
 
@@ -19,7 +19,7 @@ Both are **core** modules (`system`, permission `system.view` / `system.manage`;
 ## Why / when to use it
 
 - **You are deploying under Docker, Kubernetes, or systemd** and need liveness/readiness endpoints.
-- **You want to be told before the disk fills up** rather than after.
+- **You want to see free space on every configured root** in one request, before the disk fills up.
 - **You are diagnosing a slow or wedged instance** and need to see load, memory, engine health, and free space in one place.
 - **You need to know exactly which build is running** when reporting a bug.
 
@@ -52,38 +52,14 @@ flowchart TD
       H --> H3[disks: per FILE_MANAGER_ROOTS path<br/>total · free · used]
     end
 
-    subgraph Monitor["system_health_monitor — every 60s"]
-      M[Edge-fired. Emits ONCE on crossing<br/>into an alert state; clears on recovery.]
-      M --> D{Disk &lt; 10% free?}
-      M --> C{1-min load per core &gt; 90%?}
-      M --> ME{System memory &gt; 90% used?}
-      D -->|yes| E1[system.disk_space_low]
-      C -->|yes| E2[system.cpu_high]
-      ME -->|yes| E3[system.memory_high]
-    end
-
-    E1 --> NC[Notification Center]
-    E2 --> NC
-    E3 --> NC
-
     L -.docker healthcheck.-> ORCH[Orchestrator]
     R -.k8s readinessProbe.-> ORCH
 ```
 
-### The resource monitor
-
-`system_health_monitor` runs every **60 seconds** and is **edge-fired**: it emits once when a threshold is crossed and clears on recovery. It does not re-alert every minute while the condition persists, which is why it can safely be wired straight into your phone.
-
-| Alert | Threshold | Event |
-|-------|-----------|-------|
-| Disk | Any `FILE_MANAGER_ROOTS` path with **< 10 % free** | `system.disk_space_low` (with `path` and `freePercent`) |
-| CPU | 1-minute load average **per core > 90 %** | `system.cpu_high` (with `loadPercent`) |
-| Memory | System memory **> 90 % used** | `system.memory_high` (with `usedPercent`) |
-
-:::caution The thresholds are hard-coded
-10 %, 90 %, and 90 % are **constants, not settings**. There is no way to configure them today.
-
-Also: the alerting state is tracked **in memory**, so it **resets on restart** — after a restart, a still-breaching condition will alert again once.
+:::caution Nothing here alerts you on its own
+`/api/system/health` is a **pull** surface: it answers when you ask. There is no
+background resource monitor and nothing watches your thresholds for you — poll it
+from whatever monitoring you already run.
 :::
 
 ## Configuration
@@ -123,11 +99,9 @@ Settings are a **flat key/value store**, not sections. Six keys are seeded:
 | `engine.pollIntervalMs` | `2000` |
 | `fileManager.defaultRootPath` | `""` (empty = use the `FILE_MANAGER_ROOTS` env boundary as-is) |
 
-Every write emits `system.settings_changed` onto the notification bus carrying **only the key** — never the value, which may be sensitive.
-
 :::warning Two things about settings that will trip you up
 
-**1. Values in the `settings` table are NOT encrypted.** They are stored as plaintext JSON. Encryption exists in UltraTorrent — AES-256-GCM via `SecretCipher` — but it protects secrets in *other modules' own tables*: engine passwords, indexer and Prowlarr API keys, notification channel credentials, media-server tokens, TOTP secrets, and the IMDb API key. **Do not put a secret in the generic settings store.**
+**1. Values in the `settings` table are NOT encrypted.** They are stored as plaintext JSON. Encryption exists in UltraTorrent — AES-256-GCM via `SecretCipher` — but it protects secrets in *other modules' own tables*: engine passwords, indexer and Prowlarr API keys, media-server tokens, TOTP secrets, and the IMDb API key. **Do not put a secret in the generic settings store.**
 
 **2. The Settings *page* is not a schema.** Beyond a few purpose-built cards (Default Root Path, Email settings, Newsletter images, Prowlarr), it auto-renders a **generic key/value list of whatever keys happen to exist in the database** — choosing the widget by the JavaScript type of the value (boolean → a switch, number → a number input, object → read-only JSON, otherwise a text box).
 
@@ -170,11 +144,9 @@ Use **liveness** to decide whether to restart the container, and **readiness** t
 
 **2. Look at `/api/system/health` once, deliberately.** It is the single best diagnostic surface in the product: process load and memory, every engine's health with latency and version, and free space on every configured root. Bookmark it.
 
-**3. Wire the resource alerts into the Notification Center.** `system.disk_space_low` is the one that will save you. Enable its seeded rule, point it at a channel you actually read, and set `severity: critical` with `quietHoursOverride: true` — a full disk at 3 a.m. is worth waking up for.
+**3. Check the version.** `GET /api/system/version` (public) gives you the version, git tag, git SHA, and build time. Always include this when you report a bug.
 
-**4. Check the version.** `GET /api/system/version` (public) gives you the version, git tag, git SHA, and build time. Always include this when you report a bug.
-
-**5. Leave the settings you do not understand alone.** The Settings page auto-renders whatever keys exist. If you do not know what a key does, it is not there for you to tune.
+**4. Leave the settings you do not understand alone.** The Settings page auto-renders whatever keys exist. If you do not know what a key does, it is not there for you to tune.
 
 ## Screenshots
 
@@ -190,9 +162,9 @@ _Video coming soon._
 
 ## Real-world examples
 
-### Be told before the disk fills, not after
+### See the disk filling before it breaks everything
 
-A media stack fills its disk quietly and then everything fails in confusing ways at once: downloads stall, renames fail, the database refuses writes. The monitor checks every 60 seconds and fires `system.disk_space_low` when **any** `FILE_MANAGER_ROOTS` path drops below **10 % free** — once, on the edge, not every minute. Wire that event to Telegram via the Notification Center and you get hours of warning instead of a broken morning.
+A media stack fills its disk quietly and then everything fails in confusing ways at once: downloads stall, renames fail, the database refuses writes. `GET /api/system/health` reports `total`, `free` and `used` bytes for **every** `FILE_MANAGER_ROOTS` path, so a scrape from whatever monitoring you already run turns that silent failure into a number you can put a threshold on.
 
 ### Give Kubernetes an honest readiness signal
 
@@ -209,17 +181,16 @@ Something feels wrong. `GET /api/system/health` tells you, in one payload: the 1
 | `/api/system/ready` returns `degraded` | The database is unreachable — the `SELECT 1` failed. | Check Postgres, its credentials, and the network between it and the backend. |
 | The container is restarting in a loop | Your liveness probe is pointed at `/ready`, so a temporary database blip kills the container. | Point **liveness** at `/live` and **readiness** at `/ready`. They exist for different questions. |
 | I cannot toggle update checks | `PATCH /api/system/update/settings` requires **`system.manage`**, and the Administrator role is explicitly defined as *everything except `system.manage`*. | Use a **Super Admin** account. |
-| The disk alert fires repeatedly after a restart | The alerting state is tracked **in memory** and resets on restart, so a still-breaching condition alerts again once. | Expected. Fix the disk. |
-| I want to change the 10 % / 90 % thresholds | They are **hard-coded constants**, not settings. | Not configurable today. |
+| Nothing warned me the disk was full | There is **no background resource monitor**. `/api/system/health` reports free space only when something asks it. | Scrape `/api/system/health` from your own monitoring and alert there. |
 | A settings key will not save: `403` | `fileManager.defaultRootPath` is a **protected key** and cannot be written through the generic settings endpoints. | Use **Settings → Default Root Path**, which calls `PUT /api/files/root` and needs `settings.manage_root_path`. |
 | The version badge shows no commit hash | Historically, the git commit was only baked in when build args were passed. Fixed: it is now **always** baked in. | Update, and rebuild with the canonical build wrapper. |
 | Two installs show different Settings pages | Expected. Beyond the purpose-built cards, the page auto-renders **whatever keys exist in the database**, choosing a widget by the value's JavaScript type. | Not a bug. |
-| I put an API key in the settings store and it is in plaintext | **Settings values are not encrypted.** Encryption protects secrets in *other modules'* own tables, not this one. | Never store a secret here. Use the module that owns it — engines, indexers, notification channels, and media-server integrations all encrypt their own credentials. |
+| I put an API key in the settings store and it is in plaintext | **Settings values are not encrypted.** Encryption protects secrets in *other modules'* own tables, not this one. | Never store a secret here. Use the module that owns it — engines, indexers, and media-server integrations all encrypt their own credentials. |
 
 ## Best practices
 
 - **Point liveness and readiness at the right endpoints.** `/live` for "restart me", `/ready` for "send me traffic".
-- **Wire `system.disk_space_low` to a channel you actually read**, with a quiet-hours override. It is the single highest-value alert in the product.
+- **Scrape `/api/system/health` from your own monitoring.** Free space per root is in there, and nothing in UltraTorrent will warn you about it on its own.
 - **Never put a secret in the settings store.** It is plaintext.
 - **Include `GET /api/system/version` output in every bug report.** Version, git tag, git SHA, build time.
 - **Restrict `system.manage`.** It is the one permission Administrator deliberately does not hold.
@@ -229,7 +200,7 @@ Something feels wrong. `GET /api/system/health` tells you, in one payload: the 1
 
 - **Using `/ready` as the liveness probe**, which turns a transient database hiccup into a restart loop.
 - **Storing an API key or a password in the generic settings store**, where it is plaintext.
-- **Expecting the health thresholds to be configurable.** They are constants.
+- **Expecting UltraTorrent to alert you when a disk fills.** It reports; it does not watch.
 - **Trying to set the Default Root Path through `PATCH /api/settings`.** It is protected; it has its own route and its own permission.
 - **Assuming Administrator can do everything.** It cannot toggle update checks.
 
@@ -238,14 +209,12 @@ Something feels wrong. `GET /api/system/health` tells you, in one payload: the 1
 **Are the health endpoints public?**
 `/live`, `/ready`, and `/version` are **public and unauthenticated** — orchestrators cannot send a bearer token. `/health`, which is the detailed one, requires `system.view`.
 
-**How often does the resource monitor run?**
-Every **60 seconds**, and it is **edge-fired** — it alerts once on crossing a threshold, and clears on recovery, rather than re-alerting every minute.
-
-**Can I change the alert thresholds?**
-No. 10 % free disk, 90 % load per core, and 90 % memory are hard-coded.
+**Does anything watch load, memory, or free disk for me?**
+No. `/api/system/health` reports all three, but only when it is called. Poll it from
+your own monitoring if you want thresholds and alerts.
 
 **Are settings encrypted?**
-**No.** Values in the `settings` table are plaintext JSON. Secrets live in their owning module's table, AES-256-GCM encrypted (engine passwords, indexer and Prowlarr API keys, notification channel credentials, media-server tokens, TOTP secrets, the IMDb API key).
+**No.** Values in the `settings` table are plaintext JSON. Secrets live in their owning module's table, AES-256-GCM encrypted (engine passwords, indexer and Prowlarr API keys, media-server tokens, TOTP secrets, the IMDb API key).
 
 **Why does my Settings page look different from someone else's?**
 Because beyond a few purpose-built cards, it auto-renders whatever keys exist in the database, picking a widget by the value's type. It is not a fixed schema.
@@ -263,7 +232,6 @@ Administrator is defined as *every permission except `system.manage`* — and th
 - [ ] Stop Postgres and re-check `/ready`. Expected: `degraded`, `database: false` — and `/live` still `ok`.
 - [ ] Call `/api/system/health` with `system.view`. Expected: process, engines (with latency and version), and disks (with free bytes per root).
 - [ ] Wire the probes into your orchestrator. Expected: liveness → `/live`, readiness → `/ready`.
-- [ ] Enable the `system.disk_space_low` notification rule. Expected: it fires when a root drops below 10 % free.
 - [ ] Check the version badge. Expected: a release tag and an abbreviated commit hash.
 - [ ] Confirm no secret is stored in the generic settings table. Expected: none.
 

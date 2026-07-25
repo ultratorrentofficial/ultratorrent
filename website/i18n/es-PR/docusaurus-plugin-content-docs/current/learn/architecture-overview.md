@@ -111,7 +111,7 @@ límite de un contenedor.
 | --- | --- | --- |
 | Qué es | Una app de una sola página en React 18 + Vite, servida como archivos estáticos. | Un servidor de API en NestJS. |
 | Qué hace | Renderiza la UI. Nada más. | Todo lo demás. |
-| Le habla a | Solo al backend. | Postgres, Redis, el motor, los indexadores, los servidores de medios, los proveedores de notificaciones. |
+| Le habla a | Solo al backend. | Postgres, Redis, el motor, los indexadores, los servidores de medios. |
 | Publicado al host | Sí — `:8080` por defecto. | **No.** El frontend lo alcanza por la red interna. |
 
 :::warning El navegador nunca le habla a tu motor de torrents
@@ -127,9 +127,9 @@ que quedar expuesto a un navegador.
 
 | Contenedor | ¿Requerido? | Propósito | Si se cae… |
 | --- | --- | --- | --- |
-| **postgres** | ✅ Siempre | El sistema de registro: usuarios, roles, permisos, instantáneas de torrents, fuentes/reglas RSS, automatización, notificaciones, claves API, el registro de auditoría, la configuración y todo el conjunto de modelos del Gestor de Medios. | El backend no puede arrancar. **Esto es lo que respaldas.** |
+| **postgres** | ✅ Siempre | El sistema de registro: usuarios, roles, permisos, instantáneas de torrents, fuentes/reglas RSS, automatización, claves API, el registro de auditoría, la configuración y todo el conjunto de modelos del Gestor de Medios. | El backend no puede arrancar. **Esto es lo que respaldas.** |
 | **redis** | ✅ Siempre | Caché y coordinación de trabajos en segundo plano. | Todo se pone más lento; no se pierde estado. |
-| **backend** | ✅ Siempre | La API, el gateway de WebSocket, el bucle de sincronización del motor, la consulta de RSS, los trabajos programados, la tubería de medios, el envío de notificaciones. Corre `prisma migrate deploy` al arrancar. | Nada funciona. Revisa sus logs primero. |
+| **backend** | ✅ Siempre | La API, el gateway de WebSocket, el bucle de sincronización del motor, la consulta de RSS, los trabajos programados, la tubería de medios. Corre `prisma migrate deploy` al arrancar. | Nada funciona. Revisa sus logs primero. |
 | **frontend** | ✅ Siempre | Sirve la SPA en `:8080`. | La UI queda inalcanzable; la API sigue funcionando. |
 | **rtorrent** | Opcional (`--profile rtorrent`) | Motor de BitTorrent incluido, SCGI en `:5000`. | Las transferencias se detienen; UltraTorrent sigue corriendo. |
 | **qbittorrent** | Opcional (`--profile qbittorrent`) | Motor de BitTorrent incluido, Web API en `:8080` internamente, publicada en `:8081`. **Preferido para bibliotecas grandes.** | Las transferencias se detienen; UltraTorrent sigue corriendo. |
@@ -185,10 +185,10 @@ regla, biblioteca, usuario y decisión que hayas configurado.
 
 :::danger Respalda `ENCRYPTION_KEY` junto con la base de datos
 `ENCRYPTION_KEY` descifra lo que está guardado cifrado en esa base de datos —
-secretos de 2FA, claves API de indexadores, tokens de servidores de medios,
-credenciales de notificaciones. Una base de datos restaurada sin su clave
-correspondiente tiene un montón de secretos ilegibles adentro. Mantenlos juntos.
-Mira [Respaldo y restauración](/operate/backup).
+secretos de 2FA, claves API de indexadores, tokens de servidores de medios. Una
+base de datos restaurada sin su clave correspondiente tiene un montón de secretos
+ilegibles adentro. Mantenlos juntos. Mira
+[Respaldo y restauración](/operate/backup).
 :::
 
 ---
@@ -292,15 +292,6 @@ dispara un evento `media.*` al que tus reglas de automatización pueden reaccion
 **Resultado esperado:** un archivo correctamente nombrado en tu biblioteca,
 enriquecido con metadatos e ilustraciones, visible en tu servidor de medios.
 
-### Paso 7 — Salen las notificaciones
-
-Los módulos publican eventos en un bus interno. Las reglas del **Centro de
-Notificaciones** deciden **si**, **cuándo**, **cómo** y **a quién** — nada está
-hardcodeado. El envío corre en un worker con horas de silencio, límite de tasa,
-reintentos y escalamiento, por Correo, Telegram, SMS o WhatsApp.
-
-**Resultado esperado:** el mensaje que configuraste, en el canal que elegiste.
-
 ### Todo junto, en un solo diagrama
 
 ```mermaid
@@ -311,13 +302,12 @@ flowchart TB
   SYNC --> DONE{"¿100%?"}
   DONE -->|"no"| DL
   DONE -->|"sí"| EVT["torrent.completed"]
-  EVT --> AUTO["Reglas de automatización<br/>detener / mover / notificar / webhook"]
+  EVT --> AUTO["Reglas de automatización<br/>detener / mover / webhook"]
   EVT --> PIPE{"¿Dentro de la raíz de una<br/>biblioteca habilitada?"}
   PIPE -->|"no"| SEED["Solo comparte. No se organiza nada."]
   PIPE -->|"sí"| ORG["escanear → identificar → metadatos →<br/>renombrar/hardlink → ilustraciones →<br/>subtítulos → NFO"]
   ORG --> REF["Actualización del servidor de medios"]
-  REF --> NOTIF["Centro de Notificaciones<br/>reglas → canales"]
-  NOTIF --> END(["Listo"])
+  REF --> END(["Listo"])
   SEED --> END
 ```
 
@@ -388,9 +378,9 @@ dato.
 
 :::tip Todo lo que toma tiempo es un trabajo en segundo plano
 Escanear, metadatos, ilustraciones, subtítulos, renombrar, generar NFO, actualizar
-el servidor de medios, enviar notificaciones — nada de eso bloquea una petición
-HTTP. Cada unidad se persiste como un trabajo con estado en cola/corriendo/
-completado/fallido y transmite su progreso por WebSocket. Si una página parece
+el servidor de medios — nada de eso bloquea una petición HTTP. Cada unidad se
+persiste como un trabajo con estado en cola/corriendo/completado/fallido y
+transmite su progreso por WebSocket. Si una página parece
 "colgarse", normalmente no es así: busca el trabajo.
 :::
 
@@ -422,10 +412,10 @@ Sí, en el despliegue soportado. Respalda el caché y la coordinación de trabaj
 segundo plano.
 
 **¿UltraTorrent necesita conexión a internet para funcionar?**
-La aplicación en sí, no. Los metadatos (TMDB), las ilustraciones, la búsqueda en
-indexadores y el envío de notificaciones obviamente sí. El sitio de documentación
-está construido con un índice de búsqueda local y sin conexión precisamente porque
-los usuarios auto-alojados pueden estar aislados de la red.
+La aplicación en sí, no. Los metadatos (TMDB), las ilustraciones y la búsqueda en
+indexadores obviamente sí. El sitio de documentación está construido con un índice
+de búsqueda local y sin conexión precisamente porque los usuarios auto-alojados
+pueden estar aislados de la red.
 
 **¿Hay un broker o cola de mensajes externo?**
 No. El trabajo en segundo plano corre en el mismo proceso, persistido como
@@ -457,7 +447,7 @@ trabajos, con Redis para la coordinación — no hace falta ningún broker exter
 ### Próximos pasos
 
 1. [Mi primera descarga](/learn/first-download) — ejercita esta arquitectura, despacio.
-2. [Flujos de trabajo](/learn/workflows) — los siete flujos canónicos en diagramas.
+2. [Flujos de trabajo](/learn/workflows) — los seis flujos canónicos en diagramas.
 3. [Respaldo y restauración](/operate/backup) — ahora que sabes qué es lo que importa.
 4. [Arquitectura para desarrolladores](/develop/architecture) — las tripas, si las quieres.
 

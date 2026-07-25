@@ -20,15 +20,15 @@ controlled **only** by RBAC.
 
 The design goal that shapes almost every file you will touch: **new integrations are
 added as providers or modules, never by editing core business logic.** A new torrent
-engine, metadata source, media server, or notification channel should require zero
-changes to the services that consume it.
+engine, metadata source, or media server should require zero changes to the services
+that consume it.
 
 ## Purpose
 
 This section is for people who want to:
 
 - Add a feature module (manifest → permissions → routes → UI page).
-- Add a provider (engine, indexer, metadata, media server, notification channel).
+- Add a provider (engine, indexer, metadata, media server).
 - Understand the request lifecycle, the realtime gateway, and the background-job model.
 - Contribute a fix and get it through review, changesets, and release.
 
@@ -80,9 +80,9 @@ engine.
    `apps/backend/src/modules/module-registry/manifests.ts`. The registry validates
    manifests at boot, resolves the dependency graph, and rejects cycles.
 2. **Providers** — external services are reached only through interfaces
-   (`TorrentEngineProvider`, `MediaMetadataProvider`, `MediaServerProvider`,
-   `NotificationProvider`, …). Providers declare **capabilities**; a capability a
-   provider genuinely cannot serve throws `UnsupportedCapabilityError`.
+   (`TorrentEngineProvider`, `MediaMetadataProvider`, `MediaServerProvider`, …).
+   Providers declare **capabilities**; a capability a provider genuinely cannot serve
+   throws `UnsupportedCapabilityError`.
 3. **Permissions** — every protected route carries `JwtAuthGuard` + `PermissionsGuard`
    + `@RequirePermissions(...)`, drawn from the single catalogue in
    `packages/shared/src/permissions.ts`.
@@ -123,9 +123,8 @@ Every feature under `apps/backend/src/modules/` is a module. As of this writing:
 
 `account`, `apikeys`, `audit`, `auth`, `automation`, `dashboard`, `engine`, `files`,
 `indexers`, `integrations`, `media`, `media-acquisition`, `media-server-analytics`,
-`module-registry`, `notification-center`, `notifications`, `realtime`,
-`release-scoring`, `rss`, `search`, `settings`, `system`, `taxonomy`, `torrents`,
-`two-factor`, `users`.
+`module-registry`, `realtime`, `release-scoring`, `rss`, `search`, `settings`,
+`system`, `taxonomy`, `torrents`, `two-factor`, `users`.
 
 The authoritative, generated list — with tiers, dependencies and permissions — is the
 [Modules reference](/reference/modules).
@@ -200,7 +199,7 @@ flowchart TD
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | Backend refuses to boot: *"Module X depends on unknown module Y"* | A manifest references a module id that isn't in `ALL_MANIFESTS`. | Fix the `dependencies` array in `manifests.ts`. |
-| Backend refuses to boot: *"Circular dependency: …"* | Two manifests depend on each other. | Break the cycle — one direction should use an event or `ModuleRef` (lazy) instead. |
+| Backend refuses to boot: *"Circular dependency: …"* | Two manifests depend on each other. | Break the cycle — one direction should use `ModuleRef` (lazy) instead. |
 | Backend refuses to boot: *"Refusing to start: insecure secret configuration"* | `NODE_ENV=production` with unset/weak/identical `JWT_ACCESS_SECRET` / `ENCRYPTION_KEY`. | Set strong, distinct secrets ≥32 chars. See [Environment reference](/reference/environment). |
 | Types from `@ultratorrent/shared` are stale | The backend/frontend consume the **built** shared package. | Run its watch build, or `npm run build` from the root. |
 | A new permission 403s even for admins | The permission row isn't in the DB. | Re-run the seed. See [RBAC](/develop/rbac). |

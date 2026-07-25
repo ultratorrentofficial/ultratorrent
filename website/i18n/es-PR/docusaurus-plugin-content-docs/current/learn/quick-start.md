@@ -31,7 +31,7 @@ De cero a una primera descarga funcionando en aproximadamente **15 minutos**.
 UltraTorrent es una **plataforma autoalojada de adquisición y gestión de medios**. No es
 solo un cliente de torrents: envuelve un motor BitTorrent real (rTorrent o
 qBittorrent), y le añade búsqueda por indexadores, automatización RSS, detección de episodios
-faltantes, identificación y renombrado de medios, integración con servidores de medios, notificaciones y
+faltantes, identificación y renombrado de medios, integración con servidores de medios y
 control de acceso basado en roles — todo detrás de una sola interfaz web y una sola API REST.
 
 Esta página pone todo el stack a correr y te lleva hasta un torrent que llega al
@@ -164,7 +164,7 @@ ADMIN_PASSWORD=YourStrongAdminPassword
 
 :::warning Los tres secretos no son intercambiables
 `ENCRYPTION_KEY` cifra los secretos en reposo — secretos de 2FA/TOTP, claves API de indexadores,
-tokens de servidores de medios, credenciales de proveedores de notificaciones. **Cambiarla después
+tokens de servidores de medios. **Cambiarla después
 invalida todo lo que ya fue cifrado con ella.** Genérala una sola vez, guárdala en
 un gestor de contraseñas y respáldala junto con tu base de datos.
 :::

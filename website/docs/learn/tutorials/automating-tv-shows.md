@@ -27,7 +27,8 @@ keywords:
 **Level:** 🔵 Intermediate · **Time:** ~60 minutes
 
 The goal: a show you never think about again. New episodes arrive on their own.
-Old gaps fill themselves in. You find out only because a notification told you.
+Old gaps fill themselves in. You find out by opening the library and seeing the
+gaps gone.
 
 ## Overview
 
@@ -414,7 +415,7 @@ emits `rss.show_status.changed` plus the specific transition
 Surfacing the change is the platform's job. Deciding what to do about it is yours.
 If you *want* it automated, build an automation rule on the `rss.show.ended`
 trigger with an action like `convert_rule_to_backfill` (which turns off
-auto-download but keeps the rule) or `disable_rss_rule`. See
+auto-download but keeps the rule) or `disable_rss_rule`.
 :::
 
 **Expected result:** you find out when a show ends, and you decide what happens
@@ -438,7 +439,7 @@ _Video coming soon._
 | Auto-backfill | acquisition settings | `autoSearchMissing: true`, `maxSearchesPerSweep: 50` |
 | Forward | `/rss` → rule | Media type `tv`, save path `/downloads/tv`, auto-download on |
 | Quality | `/rss/rules/:id` | A ranked Match Preferences list |
-| When it ends | `/automation` | Trigger `rss.show.ended` → action `convert_rule_to_backfill` + `notify_admin` |
+| When it ends | `/automation` | Trigger `rss.show.ended` → action `convert_rule_to_backfill` |
 
 ### An automation rule for the day it ends
 
@@ -446,7 +447,6 @@ _Video coming soon._
 TRIGGER    rss.show.ended
 CONDITIONS (none — apply to every show)
 ACTIONS    convert_rule_to_backfill   ← keep the rule, stop forward grabbing
-           notify_admin               ← tell me
 ```
 
 ---
@@ -522,10 +522,10 @@ Your profile's wait policy (`waitForBetter` + `waitUntilScore`) is deliberately
 holding out for something better. See the **Waiting** queue on the Smart Download
 dashboard.
 
-**Are Smart Download decisions notified?**
-Not yet — per-user notifications on decision events and Smart Download automation
-triggers are **not yet implemented**. Use the queues, and the
-`media.missing_episode_filled` notification event that a successful grab does emit.
+**Where do I see what Smart Download decided?**
+On the dashboard queues, and in the decision trace for any release you paste into
+the Decision Simulator. Smart Download automation triggers are **not yet
+implemented**.
 
 ---
 

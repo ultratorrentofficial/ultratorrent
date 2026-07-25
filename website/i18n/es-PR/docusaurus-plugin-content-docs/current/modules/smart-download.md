@@ -36,7 +36,7 @@ Déjalo deshabilitado si de verdad quieres cada coincidencia, de inmediato, sin 
 ## Requisitos previos
 
 - El módulo **Media Acquisition Intelligence** habilitado (viene activado por defecto).
-- Sus dependencias duras, todas core y activadas por defecto: `rss`, `automation`, `release_scoring`, `notifications`, `settings`, `audit`, `rbac`, `module_registry`.
+- Sus dependencias duras, todas core y activadas por defecto: `rss`, `automation`, `release_scoring`, `settings`, `audit`, `rbac`, `module_registry`.
 - Un [motor](/modules/engines) funcional — las decisiones sí descargan.
 - **Una biblioteca que Descarga Inteligente pueda leer.** Su lógica de "¿ya tengo esto?" se compara contra las filas `MediaItem` del [Gestor de Medios](/modules/media-manager). Una biblioteca mal identificada hace que cada verificación de "ya en biblioteca" salga mal.
 - Al menos un **perfil de adquisición** y al menos un **elemento en la lista de seguimiento**.
@@ -263,8 +263,8 @@ Sí — es una función pura de las señales recogidas. Por eso el Simulador de 
 **¿Por qué está `replace_existing` en la documentación si nunca ocurre?**
 El tipo de decisión existe en el modelo, pero `decide()` no lo emite actualmente. Está reservado.
 
-**¿Se notifican las decisiones?**
-Se emiten eventos (`media_acquisition.*`), y el Centro de Notificaciones puede enrutarlos. Una notificación por usuario más profunda sobre eventos de decisión, y disparar los triggers de Descarga Inteligente hacia el motor de [Automatización](/modules/automation), siguen pendientes.
+**¿Las decisiones alimentan el motor de Automatización?**
+Todavía no. Disparar los triggers de Descarga Inteligente hacia el motor de [Automatización](/modules/automation) sigue pendiente.
 
 ## Lista de verificación
 
@@ -283,5 +283,4 @@ Se emiten eventos (`media_acquisition.*`), y el Centro de Notificaciones puede e
 - [Indexadores](/modules/indexers) — la mitad de búsqueda activa.
 - [Gestor de Medios](/modules/media-manager) — el estado de la biblioteca del que se calcula el "ya en biblioteca".
 - [Torrents](/modules/torrents) — donde aparece una decisión ejecutada.
-- Centro de Notificaciones — enterarte de las decisiones.
 - [Conceptos básicos](/learn/concepts)

@@ -195,7 +195,7 @@ uploading the data you now have to other peers.
 - Many private trackers **require** a minimum ratio or seed time. Stopping too
   early can get you banned from them.
 - `ratio.reached` is an **automation trigger**: "when this torrent hits ratio X,
-  stop it / move it / notify me" is a rule you can build in
+  stop it / move it" is a rule you can build in
   **Automation → Automation Rules**.
 
 :::warning Deleting a torrent can delete the file you just organised
@@ -589,7 +589,7 @@ Every capability is a **module** with a manifest (id, tier, dependencies,
 permissions, routes, menu, scheduler jobs). Tiers:
 
 - `core` — always available, **cannot be disabled** (auth, RBAC, engine, torrents,
-  RSS, files, settings, audit, notification center, media server analytics…).
+  RSS, files, settings, audit, media server analytics…).
 - `community` — bundled, on by default, **toggleable** by an admin (Media Manager,
   Release Scoring, Media Acquisition Intelligence…).
 
@@ -611,15 +611,8 @@ A condition/action rule triggered by an event. Torrent triggers
 (`torrent.completed`, `ratio.reached`), media triggers (`media.matched`,
 `media.missing_subtitles`, `media.rename_completed`…) and RSS show-status triggers
 (`rss.show.ended`, `rss.show_status.changed`…) drive actions like stop, delete,
-move, notify, webhook, `rename_for_media`, `media_server_refresh`, or
+move, webhook, `rename_for_media`, `media_server_refresh`, or
 `disable_rss_rule`.
-
-### Notification
-
-The **Notification Center** is rule-driven end to end: modules publish events, and
-*your* rules decide **if**, **when**, **how** and **to whom** a message is
-delivered. Nothing is hardcoded. Channels ship for **Email (SMTP)**, **Telegram**,
-**SMS (Twilio)** and **WhatsApp (Twilio)**.
 
 ---
 
@@ -742,7 +735,7 @@ If you can answer all eight, the rest of the documentation will read as
 
 1. [Architecture Overview](/learn/architecture-overview) — where each of these concepts physically runs.
 2. [My First Download](/learn/first-download) — the concepts, exercised end to end.
-3. [Workflows](/learn/workflows) — the seven canonical flows, as diagrams.
+3. [Workflows](/learn/workflows) — the six canonical flows, as diagrams.
 
 ---
 
@@ -752,6 +745,6 @@ If you can answer all eight, the rest of the documentation will read as
 - [Torrents](/modules/torrents) · [Engines](/modules/engines) · [Indexers](/modules/indexers)
 - [RSS](/modules/rss) · [Smart Download](/modules/smart-download) · [Missing Episodes](/modules/missing-episodes)
 - [Media Manager](/modules/media-manager) · [Media Server Analytics](/modules/media-server-analytics)
-- [Automation](/modules/automation) · Notification Center
+- [Automation](/modules/automation)
 - [Permissions](/reference/permissions) — the full RBAC catalogue.
 - [Modules](/reference/modules) — every module manifest.

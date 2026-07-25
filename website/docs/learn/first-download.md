@@ -303,7 +303,7 @@ sequenceDiagram
   S-->>S: diff against the last snapshot
   S->>A: torrent.completed
   S->>M: torrent.completed
-  Note over A: Your rules run —<br/>stop / move / notify / webhook
+  Note over A: Your rules run —<br/>stop / move / webhook
   Note over M: Only if an enabled library's<br/>root contains this save path
 ```
 
@@ -496,7 +496,7 @@ post-download pipeline picks it up automatically.
 
 :::tip Use categories from the start
 A category is free to set and becomes an automation condition later —
-*"when a torrent in category `movies` completes, notify me"*. Retrofitting them is
+*"when a torrent in category `movies` completes, move it"*. Retrofitting them is
 tedious.
 :::
 

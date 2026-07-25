@@ -42,7 +42,7 @@ flowchart TB
   subgraph A["🟣 ADVANCED — make it think"]
     A1["Smart RSS rules<br/>~60 min"]
     A2["Multiple indexers<br/>~45 min"]
-    A1 --> A2 --> A3
+    A1 --> A2
   end
 
   subgraph E["🟠 ENTERPRISE — make it survive"]
@@ -55,7 +55,7 @@ flowchart TB
 
   B3 --> I1
   I3 --> A1
-  A3 --> E1
+  A2 --> E1
 ```
 
 ## Purpose
@@ -132,12 +132,12 @@ buy — every feature is in the one open-source repository, gated only by RBAC.
 
 | # | Topic | Where | Afterwards you can… |
 | --- | --- | --- | --- |
-| 11 | Users, roles &amp; permissions | [Users](/modules/users) · [Permissions](/reference/permissions) | Give people exactly the access they need, and no more. |
-| 12 | Security hardening | [Security](/operate/security) · [Reverse proxy](/install/reverse-proxy) · [TLS](/install/tls) | Run it on a real network without regretting it. |
-| 13 | Backup, restore &amp; upgrade | [Backup](/operate/backup) · [Upgrading](/install/upgrading) | Lose the host and not lose the platform. |
-| 14 | Audit &amp; performance | [Audit](/modules/audit) · [Performance](/operate/performance) | Answer "who did that?" and "why is it slow?". |
-| 15 | Configuration profiles | [Configuration profiles](/operate/configuration-profiles) | Run consistent, reproducible configurations. |
-| 16 | Automate against the API | [REST API](/reference/api) | Script anything the UI can do — the SPA is just one client. |
+| 10 | Users, roles &amp; permissions | [Users](/modules/users) · [Permissions](/reference/permissions) | Give people exactly the access they need, and no more. |
+| 11 | Security hardening | [Security](/operate/security) · [Reverse proxy](/install/reverse-proxy) · [TLS](/install/tls) | Run it on a real network without regretting it. |
+| 12 | Backup, restore &amp; upgrade | [Backup](/operate/backup) · [Upgrading](/install/upgrading) | Lose the host and not lose the platform. |
+| 13 | Audit &amp; performance | [Audit](/modules/audit) · [Performance](/operate/performance) | Answer "who did that?" and "why is it slow?". |
+| 14 | Configuration profiles | [Configuration profiles](/operate/configuration-profiles) | Run consistent, reproducible configurations. |
+| 15 | Automate against the API | [REST API](/reference/api) | Script anything the UI can do — the SPA is just one client. |
 
 :::info There is no edition to buy
 UltraTorrent is a single open-source community product (AGPL-3.0-or-later). Every
@@ -159,8 +159,7 @@ flowchart TB
   Q3 -->|no| P3["→ Building a movie library"]
   Q3 -->|yes| Q4{"Do new episodes arrive<br/>without you?"}
   Q4 -->|no| P4["→ Automating TV shows<br/>+ Smart RSS rules"]
-  Q4 -->|yes| Q5{"Does it tell you when<br/>something happens<br/>or breaks?"}
-  Q5 -->|yes| Q6{"Have you TESTED<br/>a restore?"}
+  Q4 -->|yes| Q6{"Have you TESTED<br/>a restore?"}
   Q6 -->|no| P6["→ Backup and restore.<br/>Seriously. Today."]
   Q6 -->|yes| DONE(["You're running it properly."])
 ```
@@ -212,9 +211,8 @@ actually watch. You will notice mistakes immediately.
 :::
 
 :::tip Enable one thing at a time
-Especially in Advanced. If you turn on auto-search, upgrades, automation rules and
-notifications in one sitting and something misfires, you will not know which one
-did it.
+Especially in Advanced. If you turn on auto-search, upgrades and automation rules
+in one sitting and something misfires, you will not know which one did it.
 :::
 
 ---
@@ -250,7 +248,6 @@ You have completed the path when:
 - [ ] Your media server refreshes itself after an import.
 - [ ] A monitored series shows an accurate missing-episode count.
 - [ ] An RSS rule with a ranked preference list is grabbing (and upgrading).
-- [ ] A notification rule reaches you on a channel you actually read.
 - [ ] Non-admin users exist, with roles that give them only what they need.
 - [ ] The UI is behind TLS.
 - [ ] You have taken a backup **and restored it somewhere disposable**.

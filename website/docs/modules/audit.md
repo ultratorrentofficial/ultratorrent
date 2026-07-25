@@ -111,7 +111,6 @@ A representative sample — this is not exhaustive:
 | **Media Manager** | Destructive, rename, move, and integration actions. Test/refresh failures (`media.integration.test_failed`, `media.integration.refresh_failed`) — recorded **without secrets**. |
 | **RSS** | Rule creation, and separately `rss.rule.created_for_inactive_show` when someone overrides the ended-show warning. |
 | **Smart Download** | Evaluations, approvals, rejections, and overrides. |
-| **Notification Center** | Every channel/rule/template/recipient/preference change, plus manual sends and retries. |
 | **Modules** | Every enable and disable. |
 | **Prowlarr / Indexers** | Settings views and updates, API-key changes, connection tests, and opens. |
 

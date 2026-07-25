@@ -10,10 +10,13 @@ keywords: [automation, triggers, conditions, actions, rules engine, rising edge,
 
 ## Overview
 
-The automation engine turns **domain events** into **user-defined rules**: a *trigger*
-fires, the rule's *conditions* are checked, and its *actions* run. Rules are stored
-(`AutomationRule`), evaluated in `priority` order, and every run is logged
+The automation engine turns **things that happen in the product** into **user-defined
+rules**: a *trigger* fires, the rule's *conditions* are checked, and its *actions* run.
+Rules are stored (`AutomationRule`), evaluated in `priority` order, and every run is logged
 (`AutomationLog`) and mirrored into the audit trail.
+
+Triggers reach the engine by **direct call** — torrent sync, RSS, the subtitle triggers and
+workflows invoke it themselves. There is no event bus and no generic fan-in.
 
 The whole catalogue is exposed to the UI at `GET /api/automation/catalog`.
 
@@ -66,8 +69,6 @@ export const AUTOMATION_TRIGGERS = [
 
 /** Catalog of actions the engine can execute (metadata for the UI). */
 export const AUTOMATION_ACTIONS = [
-  { id: 'notify', label: 'Send notification', category: 'torrent' },
-  { id: 'send_notification', label: 'Send via Notification Center', category: 'notification' },
   { id: 'move', label: 'Move data', category: 'torrent' },
   { id: 'pause', label: 'Pause torrent', category: 'torrent' },
   { id: 'stop', label: 'Stop torrent', category: 'torrent' },
@@ -82,12 +83,10 @@ export const AUTOMATION_ACTIONS = [
   { id: 'media_generate_nfo', label: 'Generate NFO sidecars', category: 'media' },
   { id: 'media_rename', label: 'Rename media into the library', category: 'media' },
   { id: 'media_move', label: 'Move media into the library', category: 'media' },
-  { id: 'media_notify', label: 'Send media notification', category: 'media' },
   { id: 'media_server_refresh', label: 'Refresh a media server', category: 'media' },
   { id: 'refresh_rss_show_status', label: 'Refresh RSS show status', category: 'rss' },
   { id: 'disable_rss_rule', label: 'Disable RSS rule', category: 'rss' },
   { id: 'convert_rule_to_backfill', label: 'Convert rule to backfill only', category: 'rss' },
-  { id: 'notify_admin', label: 'Notify admin', category: 'rss' },
 ] as const;
 ```
 
@@ -118,10 +117,10 @@ This is the key structural fact about the engine, and the thing most likely to t
 | Path | Context | Which actions may run |
 | --- | --- | --- |
 | **`evaluate` / `evaluateMany` / `applyRules`** | A `NormalizedTorrent` | Everything — including engine actions (pause/move/delete) |
-| **`evaluateEvent(trigger, context)`** | A plain `Record<string, unknown>` event object | **Event-safe only**: notify / webhook / `send_notification` + delegated `rss_*` actions. A torrent engine action needs a real torrent and **errors out per rule.** |
+| **`evaluateEvent(trigger, context)`** | A plain `Record<string, unknown>` event object | **Event-safe only**: `webhook` + delegated `rss_*` actions. A torrent engine action needs a real torrent and **errors out per rule.** |
 
 ```ts
-/** Actions runnable without a torrent: notifications, webhooks, RSS delegates. */
+/** Actions runnable without a torrent: webhooks, RSS delegates. */
 private async runEventAction(action: Action, context: Record<string, unknown>): Promise<void> {
   const params = action.params ?? {};
 
@@ -131,13 +130,6 @@ private async runEventAction(action: Action, context: Record<string, unknown>): 
   }
 
   switch (action.type) {
-    case 'notify':
-    case 'notify_admin':
-      await this.notifications.dispatch({ /* … */ });
-      break;
-    case 'send_notification':
-      await this.sendViaCenter(params, context);
-      break;
     case 'webhook':
       await fetch(String(params.url), {
         method: 'POST',
@@ -292,7 +284,7 @@ flowchart TB
   subgraph Event["Event path — context is a plain object"]
     RSS["RSS show-status change"]
     EE["evaluateEvent(trigger, context)"]
-    REA["runEventAction() — event-safe ONLY<br/>notify · webhook · send_notification · rss_*"]
+    REA["runEventAction() — event-safe ONLY<br/>webhook · rss_*"]
     ERR["engine action → throws<br/>caught + logged per rule"]
   end
 
@@ -398,8 +390,9 @@ phantom success is recorded in the ledger and never retried.
 ## Step-by-step: add a new trigger
 
 1. **Add it to `AUTOMATION_TRIGGERS`** with an `id`, `label` and `category`.
-2. **Fire it.** From a torrent poll → `evaluate(trigger, torrent, previous)`. From a domain
-   event → `evaluateEvent(trigger, context)`. If your module would create a DI cycle by
+2. **Fire it.** From a torrent poll → `evaluate(trigger, torrent, previous)`. From anywhere
+   else → call `evaluateEvent(trigger, context)` **directly** from the code that did the
+   work; there is no event bus to publish to. If your module would create a DI cycle by
    injecting the engine, call it through a lazy `ModuleRef` as RSS does.
 3. **Ask the edge question.** If it is poll-driven, what happens to the entities that were
    *already* past the edge when the rule was created? If the answer is "nothing ever
@@ -426,18 +419,13 @@ phantom success is recorded in the ledger and never retried.
   that when you add a trigger to the poll loop.
 - **`priority` is `desc`.** Higher runs first.
 - **A rule's actions run in order, and a throw aborts the rest of that rule.** The run is
-  logged failed, a notification fires, and the next rule still runs.
+  logged failed, and the next rule still runs.
 
 ## FAQ
 
 **Where do I see what a rule did?**
 `AutomationLog` (the rule's own history) plus the audit trail — every run is mirrored as
 `automation.rule.executed` and appears in the dashboard's Recent activity.
-
-**Can automation rules be triggered by the Notification Center's events?**
-They are different systems. `NOTIFICATION_EVENTS` is the internal bus the Notification
-Center subscribes to for **rule-driven messaging**. `AUTOMATION_TRIGGERS` is the automation
-engine's own catalogue. The `send_notification` action bridges from automation into the
 
 **Can I run an arbitrary script?**
 No. There is a `webhook` action — POST to a URL you control.
@@ -463,5 +451,5 @@ keeps **no** engine-provider dependency in the media path — that separation is
 
 - [Background jobs](/develop/background-jobs) — the poll loop, idempotency, reconciliation
 - [Providers](/develop/providers) — why "success" must be verified
-- [Modules → Automation](/modules/automation) · [RSS](/modules/rss) · Notification Center
+- [Modules → Automation](/modules/automation) · [RSS](/modules/rss)
 - [Creating modules](/develop/creating-modules)

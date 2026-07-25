@@ -57,7 +57,6 @@ flowchart TD
       G --> H[Store ONLY argon2id&#40;secret&#41;]
       G --> R["Return &lt;prefix&gt;.&lt;secret&gt; ONCE"]
       H --> DB[(api_keys)]
-      C --> EV[Emit system.api_key_created<br/>keyName · prefix · userId · scopes<br/>NEVER the secret]
       DB --> L[GET /api/api-keys<br/>id · name · prefix · scopes ·<br/>lastUsedAt · revokedAt · createdAt]
       DB --> RV[DELETE /api/api-keys/:id<br/>soft: sets revokedAt]
     end
@@ -169,7 +168,7 @@ You want a cron job to hit `/api/system/health` and alert if a disk is low.
 
 ### Preparing for API-key auth before it lands
 
-If you want to be ready: issue the key now (`POST /api/api-keys`), name it after the consumer, and store the secret in your secret manager. When key authentication ships, the credential is already provisioned and already audited (`system.api_key_created` is emitted on creation, carrying the key name, prefix, user, and scopes — **never the secret**). Until then, wire the script with JWT.
+If you want to be ready: issue the key now (`POST /api/api-keys`), name it after the consumer, and store the secret in your secret manager. When key authentication ships, the credential is already provisioned — and the only thing recoverable afterwards is its name, prefix, and scopes, **never the secret**. Until then, wire the script with JWT.
 
 ## Troubleshooting
 
@@ -212,8 +211,8 @@ Issuing, listing, and revoking keys — the storage half of the feature, built c
 **How is the key stored?**
 Only an **Argon2id hash** of the secret. The prefix (`ut_` + 12 hex) is stored in the clear, because it is public and identifies the key.
 
-**Is the secret ever logged or emitted?**
-No. Creation emits `system.api_key_created` onto the notification bus with the key **name, prefix, user id, and scopes** — deliberately **never** the secret.
+**Is the secret ever logged or exposed?**
+No. It is returned exactly once, in the response to the create call, and never again — only its Argon2id hash is persisted. Nothing else logs it or hands it back. All that remains visible afterwards is the key's **name, prefix, user id, and scopes**.
 
 **Can I revoke someone else's key?**
 No. Revocation is scoped to your own `userId`.
@@ -231,7 +230,6 @@ A **dedicated user account with the lowest role that works**, and the JWT login/
 - [ ] Try to authenticate a request with the key. Expected: **`401`** — confirming, for yourself, that key auth is not wired.
 - [ ] Log in via `POST /api/auth/login` and call the same endpoint with the bearer token. Expected: it works.
 - [ ] Revoke the key. Expected: `revokedAt` is set; the row is not deleted.
-- [ ] Confirm `system.api_key_created` fired. Expected: it carries the name, prefix, user, and scopes — and **not** the secret.
 
 ## See also
 

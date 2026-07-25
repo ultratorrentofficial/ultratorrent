@@ -197,8 +197,8 @@ flowchart LR
 correctly named, with a poster.
 
 :::tip A refresh failure is a trigger, not a dead end
-`media.server_refresh_failed` is an automation trigger. Build a rule on it that
-notifies you — otherwise a silently broken integration can go unnoticed for weeks.
+`media.server_refresh_failed` is an automation trigger. Build a rule on it — a
+webhook, say — otherwise a silently broken integration can go unnoticed for weeks.
 :::
 
 ---
@@ -247,25 +247,6 @@ server.
 
 ![Live activity showing a now-playing session](/img/screenshots/plex-live-activity.png)
 
----
-
-### Step 7 — Build a notification on what your server does
-
-Now that events flow, wire them up. The Notification Center can route media-server
-events like:
-
-- `media_server.user_started_watching` / `user_finished_watching` / `user_paused` / `user_resumed` / `user_stopped`
-- `media_server.media_added` / `media_upgraded`
-- `media_server.server_online` / `server_offline`
-- `media_server.transcode_detected` / `high_bandwidth`
-- `media_server.newsletter_sent` / `newsletter_failed`
-
-Go to **Automation → Notification Rules** (`/notifications/rules`) and build one.
-A good first rule: **`media_server.server_offline` → notify me**.
-
-**Expected result:** you find out your server is down from a message, not from a
-family member.
-
 :::tip Watch this tutorial
 _Video coming soon._
 :::
@@ -291,13 +272,6 @@ Multiple connections of the same type are explicitly supported.
 | Needed for | New media appearing automatically | Live activity, history, reports, newsletters |
 | Set up first? | ✅ Yes | Afterwards |
 
-### A good first notification rule
-
-```text
-TRIGGER    media_server.server_offline
-ACTIONS    notify → Telegram → me
-```
-
 ---
 
 ## Troubleshooting
@@ -311,7 +285,7 @@ ACTIONS    notify → Telegram → me
 | Posters missing in Plex | No artwork fetched, or Plex is using its own agent. | Configure a metadata/artwork provider in `/media/settings`; check Plex's agent settings. |
 | Kodi shows no sessions | **Correct.** Kodi is a client library — it declares `sessions` and section-list as unsupported. | Nothing to fix. Use Plex/Jellyfin/Emby for session analytics. |
 | Live Activity is empty | Nothing is playing, or the server does not support sessions. | Press play. Check the connection's capability badges. |
-| Refresh silently stopped working | Token rotated, or the server moved. | Re-test the connection. Build a rule on `media.server_refresh_failed` so you find out next time. |
+| Refresh silently stopped working | Token rotated, or the server moved. | Re-test the connection, and check the connection's health on `/media-server-analytics/connections`. |
 | Secrets look like `••••••` | **Correct.** They are encrypted at rest and redacted on read. | Leave the field blank on edit to keep the stored value. |
 
 ---
@@ -384,8 +358,6 @@ action, permission-gated (`media_manager.delete`) and audited.
 - [ ] A connection exists in **Server Connections** (`/media-server-analytics/connections`), healthy, with a detected version and capabilities.
 - [ ] **Live Activity** shows a session when I press play.
 - [ ] **Watch History** is populating.
-- [ ] I have a notification rule on `media_server.server_offline`.
-- [ ] I have a notification (or automation) rule on `media.server_refresh_failed`.
 
 ### Expected results
 
@@ -395,19 +367,18 @@ action, permission-gated (`media_manager.delete`) and audited.
 | Your media server | New items appearing without manual scans |
 | `/media-server-analytics/connections` | Healthy, with version + capabilities |
 | `/media-server-analytics/live` | A session when something is playing |
-| `/notifications/history` | Delivered messages |
 
 ### Next steps
 
-2. [Automating TV shows](/learn/tutorials/automating-tv-shows) — fill the library that now refreshes itself.
-3. [Media Server Analytics](/modules/media-server-analytics) — the full module reference.
+1. [Automating TV shows](/learn/tutorials/automating-tv-shows) — fill the library that now refreshes itself.
+2. [Media Server Analytics](/modules/media-server-analytics) — the full module reference.
 
 ---
 
 ## See also
 
 - [Media Server Analytics](/modules/media-server-analytics) · [Media Manager](/modules/media-manager)
-- Notification Center · [Automation](/modules/automation)
-- [Workflows](/learn/workflows) — Workflows 5 and 6.
+- [Automation](/modules/automation)
+- [Workflows](/learn/workflows) — Workflow 5.
 - [Security](/operate/security) — how integration secrets are protected.
 - [Troubleshooting](/operate/troubleshooting) · [Glossary](/help/glossary)

@@ -25,8 +25,8 @@ keywords:
 # Documentación de UltraTorrent {#ultratorrent-documentation}
 
 **UltraTorrent** es una **plataforma auto-hospedada de adquisición y gestión de medios**. Busca
-medios, los descarga, los identifica, los organiza en una biblioteca limpia, le avisa a tu servidor
-de medios y *te* avisa a ti — según las reglas que tú escribas, sin que tengas que estar pendiente.
+medios, los descarga, los identifica, los organiza en una biblioteca limpia y le avisa a tu servidor
+de medios — según las reglas que tú escribas, sin que tengas que estar pendiente.
 
 Es una sola aplicación que reemplaza un montón de ellas: un gestor de clientes de descarga, un
 agregador de indexadores, un motor de automatización de RSS, un cazador de episodios faltantes, un
@@ -77,7 +77,6 @@ flowchart LR
 
     subgraph Tell["5 · Te reporta"]
         MS["Plex / Jellyfin / Emby"]
-        NC["Notificaciones"]
     end
 
     WL --> SD
@@ -88,7 +87,6 @@ flowchart LR
     ENG --> MM
     MM --> LIB
     LIB --> MS
-    MM --> NC
 
     style Want fill:#1f6feb22,stroke:#1f6feb
     style Find fill:#8957e522,stroke:#8957e5

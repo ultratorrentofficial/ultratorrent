@@ -20,15 +20,15 @@ se controla **solamente** con RBAC.
 
 La meta de diseño que moldea casi todos los archivos que vas a tocar: **las integraciones
 nuevas se añaden como providers o modules, nunca editando la lógica de negocio central.** Un
-nuevo motor de torrents, una fuente de metadatos, un servidor de medios o un canal de
-notificación no deberían requerir ningún cambio en los servicios que los consumen.
+nuevo motor de torrents, una fuente de metadatos o un servidor de medios no deberían requerir
+ningún cambio en los servicios que los consumen.
 
 ## Propósito
 
 Esta sección es para quien quiere:
 
 - Añadir un módulo de funcionalidad (manifest → permisos → rutas → página de UI).
-- Añadir un provider (engine, indexer, metadatos, servidor de medios, canal de notificación).
+- Añadir un provider (engine, indexer, metadatos, servidor de medios).
 - Entender el ciclo de vida del request, el gateway de tiempo real y el modelo de trabajos en
   segundo plano.
 - Contribuir un arreglo y llevarlo por revisión, changesets y release.
@@ -81,9 +81,9 @@ ningún motor en particular.
    `apps/backend/src/modules/module-registry/manifests.ts`. El registry valida los manifests
    al arrancar, resuelve el grafo de dependencias y rechaza los ciclos.
 2. **Providers** — a los servicios externos solo se llega a través de interfaces
-   (`TorrentEngineProvider`, `MediaMetadataProvider`, `MediaServerProvider`,
-   `NotificationProvider`, …). Los providers declaran **capabilities**; una capability que un
-   provider genuinamente no puede servir lanza `UnsupportedCapabilityError`.
+   (`TorrentEngineProvider`, `MediaMetadataProvider`, `MediaServerProvider`, …). Los
+   providers declaran **capabilities**; una capability que un provider genuinamente no
+   puede servir lanza `UnsupportedCapabilityError`.
 3. **Permisos** — toda ruta protegida lleva `JwtAuthGuard` + `PermissionsGuard`
    + `@RequirePermissions(...)`, tomados del catálogo único en
    `packages/shared/src/permissions.ts`.
@@ -124,9 +124,8 @@ Cada funcionalidad bajo `apps/backend/src/modules/` es un module. Al momento de 
 
 `account`, `apikeys`, `audit`, `auth`, `automation`, `dashboard`, `engine`, `files`,
 `indexers`, `integrations`, `media`, `media-acquisition`, `media-server-analytics`,
-`module-registry`, `notification-center`, `notifications`, `realtime`,
-`release-scoring`, `rss`, `search`, `settings`, `system`, `taxonomy`, `torrents`,
-`two-factor`, `users`.
+`module-registry`, `realtime`, `release-scoring`, `rss`, `search`, `settings`,
+`system`, `taxonomy`, `torrents`, `two-factor`, `users`.
 
 La lista autoritativa y generada —con tiers, dependencias y permisos— es la
 [referencia de Módulos](/reference/modules).
@@ -201,7 +200,7 @@ flowchart TD
 | Síntoma | Causa | Arreglo |
 | --- | --- | --- |
 | El backend se niega a arrancar: *"Module X depends on unknown module Y"* | Un manifest referencia un id de module que no está en `ALL_MANIFESTS`. | Corrige el arreglo `dependencies` en `manifests.ts`. |
-| El backend se niega a arrancar: *"Circular dependency: …"* | Dos manifests dependen uno del otro. | Rompe el ciclo — una de las direcciones debería usar un evento o `ModuleRef` (lazy) en su lugar. |
+| El backend se niega a arrancar: *"Circular dependency: …"* | Dos manifests dependen uno del otro. | Rompe el ciclo — una de las direcciones debería usar `ModuleRef` (lazy) en su lugar. |
 | El backend se niega a arrancar: *"Refusing to start: insecure secret configuration"* | `NODE_ENV=production` con `JWT_ACCESS_SECRET` / `ENCRYPTION_KEY` sin definir, débiles o idénticos. | Define secretos fuertes y distintos, de ≥32 caracteres. Ver [referencia de entorno](/reference/environment). |
 | Los tipos de `@ultratorrent/shared` están desactualizados | El backend/frontend consumen el paquete shared **compilado**. | Corre su build en modo watch, o `npm run build` desde la raíz. |
 | Un permiso nuevo da 403 hasta para los admins | La fila del permiso no está en la base de datos. | Vuelve a correr el seed. Ver [RBAC](/develop/rbac). |

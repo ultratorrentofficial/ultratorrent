@@ -18,7 +18,7 @@ receive live data they could not read over REST.
 ## Purpose
 
 Push state changes to the UI without polling: torrent lists, transfer stats, engine health,
-file operations, media-job progress, IMDb imports, RSS show-status, notification delivery.
+file operations, media-job progress, IMDb imports, RSS show-status.
 
 ## When to use
 
@@ -88,7 +88,6 @@ const SCOPED_PERMISSIONS = [
   PERMISSIONS.MEDIA_ACQUISITION_VIEW,
   PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW,
   PERMISSIONS.RSS_VIEW,
-  PERMISSIONS.NOTIFICATIONS_VIEW,
 ];
 ```
 
@@ -121,12 +120,7 @@ private roomForEvent(event: string): string {
   if (event.startsWith('rss.')) {
     return `perm:${PERMISSIONS.RSS_VIEW}`;
   }
-  // Notification Center realtime (delivery/queue/provider) — `notification.*`.
-  // The legacy in-app `notification` event (no dot) stays permission-free below.
-  if (event.startsWith('notification.')) {
-    return `perm:${PERMISSIONS.NOTIFICATIONS_VIEW}`;
-  }
-  // Permission-free events (e.g. in-app `notification`) go to all authenticated sockets.
+  // Permission-free events go to all authenticated sockets.
   return 'authenticated';
 }
 ```
@@ -137,8 +131,6 @@ The default branch returns `'authenticated'` — **every logged-in socket**. If 
 hold `widgets.view`. Adding the prefix to `roomForEvent()` is not optional.
 :::
 
-Note the deliberate distinction: `notification` (no dot) is the permission-free in-app
-toast; `notification.*` (dotted) is Notification Center delivery telemetry and is scoped.
 
 ### The event catalogue
 
@@ -150,7 +142,6 @@ export const WS_EVENTS = {
   TORRENTS_UPDATE: 'torrents:update',
   TORRENT_UPDATE: 'torrent:update',
   STATS_UPDATE: 'stats:update',
-  NOTIFICATION: 'notification',
   ENGINE_STATUS: 'engine:status',
   SYSTEM_HEALTH: 'system:health',
   FILES_OP_STARTED: 'files.operation.started',
@@ -164,7 +155,7 @@ export const WS_EVENTS = {
   MEDIA_JOB_PROGRESS: 'media_manager.job.progress',
   MEDIA_JOB_COMPLETED: 'media_manager.job.completed',
   MEDIA_JOB_FAILED: 'media_manager.job.failed',
-  // …IMDb dataset events, RSS show-status events, Notification Center events
+  // …IMDb dataset events, RSS show-status events
 } as const;
 ```
 
@@ -177,15 +168,14 @@ export const WS_EVENTS = {
 | `media_acquisition.*` | `perm:media_acquisition.view` | The acquisition sweeps |
 | `media_server.*` | `perm:media_server_analytics.view` | Session polling, sync, newsletters, imports |
 | `rss.*` | `perm:rss.view` | Show-status lookup and refresh |
-| `notification.*` | `perm:notifications.view` | Notification Center delivery |
-| `notification` (no dot) | `authenticated` | In-app toasts |
 
-Two distinct things share the word "event", and confusing them will cost you an afternoon:
+`WS_EVENTS` is what goes over the socket to browsers.
 
-- **`WS_EVENTS`** — what goes over the socket to browsers.
-- **`NOTIFICATION_EVENTS`** — internal **domain events** published on the
-  `@nestjs/event-emitter` bus under `NOTIFICATION_BUS_CHANNEL`, which the Notification
-  Center subscribes to and evaluates rules against. *Not WebSocket events.*
+:::note Domain events used to be a separate concept here
+A second constant, `NOTIFICATION_EVENTS`, once carried internal domain events on an
+in-process `@nestjs/event-emitter` bus. Both it and the bus were removed on 2026-07-25
+with the notification engine, so `WS_EVENTS` is now the only event vocabulary.
+:::
 
 ### Emitting
 
@@ -236,7 +226,6 @@ flowchart LR
     MQ["MediaProcessingQueueService"]
     FS["Files operations"]
     RS["RSS show-status"]
-    NC["Notification Center"]
   end
 
   GW["RealtimeGateway.broadcast()<br/>roomForEvent(event)"]
@@ -246,7 +235,6 @@ flowchart LR
     MM["perm:media_manager.view"]
     FV["perm:files.view"]
     RV["perm:rss.view"]
-    NV["perm:notifications.view"]
     AU["authenticated"]
   end
 
@@ -254,14 +242,12 @@ flowchart LR
   MQ --> GW
   FS --> GW
   RS --> GW
-  NC --> GW
 
   GW -->|"torrents:update · stats:update · engine:status"| RT
   GW -->|"media_manager.* · imdb.*"| MM
   GW -->|"files.*"| FV
   GW -->|"rss.*"| RV
-  GW -->|"notification.*"| NV
-  GW -->|"unmapped prefix ⚠️ · notification"| AU
+  GW -->|"unmapped prefix ⚠️"| AU
 ```
 
 ## The frontend
@@ -364,7 +350,7 @@ In dev, Vite proxies `/ws` to `http://localhost:4000` with `ws: true`.
   *"Never carries secrets."* Hold that line for every payload you add.
 - **Prefer an existing prefix.** A new prefix means a new mapping, a new permission, and a
   new way to leak. Reuse `media_manager.*` if the event is a media-manager event.
-- **`toUser()` exists.** Use it for something genuinely per-user (a personal notification)
+- **`toUser()` exists.** Use it for something genuinely per-user
   rather than broadcasting and filtering client-side.
 
 ## FAQ

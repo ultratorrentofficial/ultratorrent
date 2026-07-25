@@ -200,36 +200,36 @@ En `apps/backend/src/modules/module-registry/manifests.ts`, añade una entrada a
 ```ts
 // apps/backend/src/modules/module-registry/manifests.ts
 {
-  id: MODULE_IDS.NOTIFICATION_CENTER,
-  name: 'Notification Center',
+  id: MODULE_IDS.SUBTITLE_INTELLIGENCE,
+  name: 'Subtitle Intelligence',
   description:
-    'The centralized, provider-driven messaging platform. …',
+    'The definitive subtitle engine: fingerprints every media file, searches multiple providers, …',
   tier: 'core',
   enabledByDefault: true,
   dependencies: [
     MODULE_IDS.AUTH,
     MODULE_IDS.RBAC,
-    MODULE_IDS.MODULE_REGISTRY,
+    MODULE_IDS.FILES,
     MODULE_IDS.AUDIT,
     MODULE_IDS.SETTINGS,
+    MODULE_IDS.MEDIA_MANAGER,
   ],
   permissions: [
-    P.NOTIFICATIONS_VIEW,
-    P.NOTIFICATIONS_MANAGE_CHANNELS,
+    P.SUBTITLE_INTELLIGENCE_VIEW,
+    P.SUBTITLE_INTELLIGENCE_DOWNLOAD,
     // …
   ],
   menu: [
-    { label: 'Notification Center', path: '/notifications', icon: 'Bell', permission: P.NOTIFICATIONS_VIEW },
+    { label: 'Subtitle Intelligence', path: '/subtitles', icon: 'Captions', permission: P.SUBTITLE_INTELLIGENCE_VIEW },
   ],
-  routes: ['/api/notifications'],
+  routes: ['/api/subtitle-intelligence'],
   websocketEvents: [
-    'notification.sent',
-    'notification.failed',
+    'subtitle_intelligence.downloaded',
+    'subtitle_intelligence.download_failed',
     // …
   ],
-  schedulerJobs: ['notification_delivery_worker', 'notification_provider_health'],
-  settingsSections: ['notification-center'],
-  features: ['providers', 'channels', 'templates', 'delivery_queue', 'quiet_hours'],
+  schedulerJobs: ['subtitle_missing_scan', 'subtitle_provider_health'],
+  features: ['fingerprinting', 'multi_provider', 'scoring', 'validation', 'synchronization'],
 }
 ```
 
@@ -392,7 +392,7 @@ sequenceDiagram
 | --- | --- | --- |
 | El arranque falla: `Invalid manifest "x": bad tier` | El `tier` no es `core` ni `community`. | Corrige el manifest. |
 | El arranque falla: `Module "x" depends on unknown module "y"` | Un typo, o se te olvidó añadir el id a `MODULE_IDS`. | Añade el id / corrige la dependencia. |
-| El arranque falla: `Circular dependency: a → b → a` | Dos módulos se importan mutuamente. | Rómpelo: usa el bus de eventos, o un `ModuleRef.get(...)` perezoso (como hacen `AutomationModule` ↔ `RssModule`). |
+| El arranque falla: `Circular dependency: a → b → a` | Dos módulos se importan mutuamente. | Rómpelo con un `ModuleRef.get(...)` perezoso (como hacen `AutomationModule` ↔ `RssModule`). |
 | `Duplicate module id in manifests` | El mismo `id` aparece dos veces. | Elimina uno. |
 | `Core modules cannot be disabled` | Intentaste desactivar un módulo con `tier: 'core'`. | Cambia el tier, o no lo intentes. |
 | `Enable its dependencies first: audit, settings` | Activaste un módulo cuyas dependencias están apagadas. | Actívalas primero. |
@@ -402,12 +402,13 @@ sequenceDiagram
 ## Consejos
 
 - **Sigue un módulo existente.** `torrents`, `engine` y `audit` son las plantillas más limpias.
-  `notification-center` es la referencia para un módulo grande con providers.
+  `subtitle-intelligence` es la referencia para un módulo grande con providers.
 - **Declara tu superficie con honestidad.** `websocketEvents`, `schedulerJobs`, `settingsSections`
   y `features` son la razón por la que la [Referencia de módulos](/reference/modules) sigue siendo
   fiel a la realidad. Un trabajo del scheduler no declarado es un trabajo invisible.
 - **No crees un ciclo por ahorrarte una llamada.** Si el módulo A necesita algo del módulo B y B ya
-  necesita a A, una de las dos direcciones es un evento, no una llamada a un método.
+  necesita a A, una de las dos direcciones tiene que ser una búsqueda perezosa con `ModuleRef`,
+  no una dependencia en tiempo de compilación.
 - **Que `tsc` pase limpio no es suficiente.** La DI y el cableado de módulos solo fallan al arrancar.
   Arranca un build limpio antes de darlo por terminado.
 

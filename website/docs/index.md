@@ -23,8 +23,8 @@ keywords:
 # UltraTorrent Documentation
 
 **UltraTorrent** is a self-hosted **media acquisition and management platform**. It finds
-media, downloads it, identifies it, organises it into a clean library, tells your media
-server about it, and tells *you* about it — on rules you write, without you watching.
+media, downloads it, identifies it, organises it into a clean library, and tells your media
+server about it — on rules you write, without you watching.
 
 It is one application that replaces a stack of them: a download client manager, an indexer
 aggregator, an RSS automation engine, a missing-episode hunter, a library organiser, and a
@@ -75,7 +75,6 @@ flowchart LR
 
     subgraph Tell["5 · It reports back"]
         MS["Plex / Jellyfin / Emby"]
-        NC["Notifications"]
     end
 
     WL --> SD
@@ -86,7 +85,6 @@ flowchart LR
     ENG --> MM
     MM --> LIB
     LIB --> MS
-    MM --> NC
 
     style Want fill:#1f6feb22,stroke:#1f6feb
     style Find fill:#8957e522,stroke:#8957e5

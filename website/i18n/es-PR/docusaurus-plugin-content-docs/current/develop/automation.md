@@ -10,10 +10,14 @@ keywords: [automatización, triggers, condiciones, acciones, motor de reglas, fl
 
 ## Resumen
 
-El motor de automatización convierte **eventos del dominio** en **reglas definidas por el
-usuario**: se dispara un *trigger*, se verifican las *condiciones* de la regla y corren sus
+El motor de automatización convierte **lo que pasa en el producto** en **reglas definidas por
+el usuario**: se dispara un *trigger*, se verifican las *condiciones* de la regla y corren sus
 *acciones*. Las reglas se guardan (`AutomationRule`), se evalúan en orden de `priority`, y
 cada ejecución queda registrada (`AutomationLog`) y reflejada en el registro de auditoría.
+
+Los triggers llegan al motor por **llamada directa** — la sincronización de torrents, RSS, los
+triggers de subtítulos y los workflows lo invocan ellos mismos. No hay bus de eventos ni una
+entrada genérica de eventos.
 
 El catálogo completo se expone a la UI en `GET /api/automation/catalog`.
 
@@ -69,8 +73,6 @@ export const AUTOMATION_TRIGGERS = [
 
 /** Catálogo de acciones que el motor puede ejecutar (metadata para la UI). */
 export const AUTOMATION_ACTIONS = [
-  { id: 'notify', label: 'Send notification', category: 'torrent' },
-  { id: 'send_notification', label: 'Send via Notification Center', category: 'notification' },
   { id: 'move', label: 'Move data', category: 'torrent' },
   { id: 'pause', label: 'Pause torrent', category: 'torrent' },
   { id: 'stop', label: 'Stop torrent', category: 'torrent' },
@@ -85,12 +87,10 @@ export const AUTOMATION_ACTIONS = [
   { id: 'media_generate_nfo', label: 'Generate NFO sidecars', category: 'media' },
   { id: 'media_rename', label: 'Rename media into the library', category: 'media' },
   { id: 'media_move', label: 'Move media into the library', category: 'media' },
-  { id: 'media_notify', label: 'Send media notification', category: 'media' },
   { id: 'media_server_refresh', label: 'Refresh a media server', category: 'media' },
   { id: 'refresh_rss_show_status', label: 'Refresh RSS show status', category: 'rss' },
   { id: 'disable_rss_rule', label: 'Disable RSS rule', category: 'rss' },
   { id: 'convert_rule_to_backfill', label: 'Convert rule to backfill only', category: 'rss' },
-  { id: 'notify_admin', label: 'Notify admin', category: 'rss' },
 ] as const;
 ```
 
@@ -122,10 +122,10 @@ Este es el hecho estructural clave del motor, y lo que más probablemente te va 
 | Ruta | Contexto | Qué acciones pueden correr |
 | --- | --- | --- |
 | **`evaluate` / `evaluateMany` / `applyRules`** | Un `NormalizedTorrent` | Todo — incluidas las acciones del engine (pausar/mover/eliminar) |
-| **`evaluateEvent(trigger, context)`** | Un objeto de evento plano, `Record<string, unknown>` | **Solo las seguras para eventos**: notify / webhook / `send_notification` + las acciones `rss_*` delegadas. Una acción del engine de torrents necesita un torrent real y **falla con error por cada regla.** |
+| **`evaluateEvent(trigger, context)`** | Un objeto de evento plano, `Record<string, unknown>` | **Solo las seguras para eventos**: `webhook` + las acciones `rss_*` delegadas. Una acción del engine de torrents necesita un torrent real y **falla con error por cada regla.** |
 
 ```ts
-/** Acciones ejecutables sin un torrent: notificaciones, webhooks, delegados de RSS. */
+/** Acciones ejecutables sin un torrent: webhooks, delegados de RSS. */
 private async runEventAction(action: Action, context: Record<string, unknown>): Promise<void> {
   const params = action.params ?? {};
 
@@ -135,13 +135,6 @@ private async runEventAction(action: Action, context: Record<string, unknown>): 
   }
 
   switch (action.type) {
-    case 'notify':
-    case 'notify_admin':
-      await this.notifications.dispatch({ /* … */ });
-      break;
-    case 'send_notification':
-      await this.sendViaCenter(params, context);
-      break;
     case 'webhook':
       await fetch(String(params.url), {
         method: 'POST',
@@ -306,7 +299,7 @@ flowchart TB
   subgraph Event["Ruta del evento — el contexto es un objeto plano"]
     RSS["Cambio de estado de una serie en RSS"]
     EE["evaluateEvent(trigger, context)"]
-    REA["runEventAction() — SOLO las seguras para eventos<br/>notify · webhook · send_notification · rss_*"]
+    REA["runEventAction() — SOLO las seguras para eventos<br/>webhook · rss_*"]
     ERR["acción del engine → lanza excepción<br/>capturada + registrada por regla"]
   end
 
@@ -413,8 +406,10 @@ fantasma se registra en el ledger y nunca se reintenta.
 
 1. **Añádelo a `AUTOMATION_TRIGGERS`** con un `id`, un `label` y una `category`.
 2. **Dispáralo.** Desde una consulta de torrents → `evaluate(trigger, torrent, previous)`.
-   Desde un evento del dominio → `evaluateEvent(trigger, context)`. Si tu módulo crearía un
-   ciclo de DI al inyectar el motor, llámalo a través de un `ModuleRef` lazy, como hace RSS.
+   Desde cualquier otro sitio → llama a `evaluateEvent(trigger, context)` **directamente**
+   desde el código que hizo el trabajo; no hay ningún bus de eventos al que publicar. Si tu
+   módulo crearía un ciclo de DI al inyectar el motor, llámalo a través de un `ModuleRef`
+   lazy, como hace RSS.
 3. **Hazte la pregunta del flanco.** Si es impulsado por polling, ¿qué pasa con las entidades
    que *ya* estaban pasadas del flanco cuando se creó la regla? Si la respuesta es "nunca pasa
    nada", necesitas una pasada de backfill con un ledger de idempotencia compartido.
@@ -441,8 +436,7 @@ fantasma se registra en el ledger y nunca se reintenta.
   torrent. Preserva eso cuando añadas un trigger al bucle de polling.
 - **`priority` es `desc`.** El más alto corre primero.
 - **Las acciones de una regla corren en orden, y una excepción aborta el resto de esa regla.**
-  La ejecución se registra como fallida, se dispara una notificación, y la regla siguiente
-  igual corre.
+  La ejecución se registra como fallida, y la regla siguiente igual corre.
 
 ## Preguntas frecuentes
 
@@ -450,12 +444,6 @@ fantasma se registra en el ledger y nunca se reintenta.
 En `AutomationLog` (el historial propio de la regla) más el registro de auditoría — cada
 ejecución se refleja como `automation.rule.executed` y aparece en la Actividad reciente del
 Panel.
-
-**¿Pueden los eventos del Centro de Notificaciones disparar reglas de automatización?**
-Son sistemas distintos. `NOTIFICATION_EVENTS` es el bus interno al que el Centro de
-Notificaciones se suscribe para la **mensajería impulsada por reglas**. `AUTOMATION_TRIGGERS`
-es el catálogo propio del motor de automatización. La acción `send_notification` sirve de
-puente desde la automatización hacia el Centro de Notificaciones.
 
 **¿Puedo correr un script arbitrario?**
 No. Existe una acción `webhook` — un POST a una URL que tú controlas.
@@ -484,5 +472,5 @@ es deliberada.
 
 - [Trabajos en segundo plano](/develop/background-jobs) — el bucle de polling, la idempotencia y la reconciliación
 - [Providers](/develop/providers) — por qué hay que verificar el "éxito"
-- [Módulos → Automatización](/modules/automation) · [RSS](/modules/rss) · Centro de Notificaciones
+- [Módulos → Automatización](/modules/automation) · [RSS](/modules/rss)
 - [Crear módulos](/develop/creating-modules)

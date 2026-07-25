@@ -2,7 +2,7 @@
 id: faq
 title: Frequently Asked Questions
 sidebar_position: 1
-description: Answers to the most common UltraTorrent questions — installation, configuration, downloads, RSS, media, notifications, automation, security, Docker, performance, API and development.
+description: Answers to the most common UltraTorrent questions — installation, configuration, downloads, RSS, media, automation, security, Docker, performance, API and development.
 keywords:
   - FAQ
   - questions
@@ -19,7 +19,6 @@ keywords:
   - downloads
   - RSS
   - media
-  - notifications
   - automation
   - security
   - Docker
@@ -41,8 +40,8 @@ organised by symptom and covers real, diagnosed incidents.
 A self-hosted **Media Acquisition & Management Platform**. Where a traditional
 torrent client stops at "download this file", UltraTorrent continues: it
 identifies the release, enriches it with metadata, artwork and subtitles, renames
-and files it into the right library, generates NFO sidecars, refreshes your media
-server, and notifies you — all governed by RBAC and observable in real time.
+and files it into the right library, generates NFO sidecars, and refreshes your media
+server — all governed by RBAC and observable in real time.
 
 See [Concepts](/learn/concepts).
 
@@ -169,7 +168,7 @@ Both, deliberately:
   file-manager boundary. These are set at deploy time and are **never widened at
   runtime**.
 - **The UI** holds *operator-configurable* values: engines, indexers, RSS feeds,
-  automation rules, libraries, notification channels.
+  automation rules and libraries.
 
 API keys entered in the UI are **AES-256-GCM encrypted at rest** and redacted
 (`••••••••`) in every API response — they are never written to `.env`.
@@ -398,15 +397,6 @@ With GIN trigram indexes: **180 ms** — a **~265×** speedup.
 
 See [Troubleshooting](/operate/troubleshooting#a-library-scan-freezes-at-a-percentage-and-never-completes).
 
----
-
-## Notifications
-
-### What channels are supported?
-
-In-app, webhook, **Discord**, **Slack** and **Telegram**, with fan-out to multiple
-channels. See Notification Center.
-
 ### Which media servers can it refresh?
 
 **Plex, Jellyfin, Emby and Kodi.** After a download is organised, UltraTorrent can
@@ -426,10 +416,10 @@ item, so a single sweep of ~16 items produced ~48 rows and filled the feed. Burs
 
 ### What can automation rules do?
 
-They are **event-driven condition/action rules**. A trigger (e.g.
-`torrent.completed`) fires, conditions are evaluated, and actions run — rename,
-move, delete, notify, refresh a media server, and so on. See
-[Automation](/modules/automation).
+They are **condition/action rules**. A trigger (e.g. `torrent.completed`) is raised
+by a direct call from torrent sync, RSS or subtitle processing — there is no event
+bus — conditions are evaluated, and actions run: rename, move, delete, refresh a
+media server, and so on. See [Automation](/modules/automation).
 
 ### Are automation runs audited?
 
@@ -677,7 +667,7 @@ implements (add/remove/start/stop/recheck/move, file priorities, trackers, rate
 limits, stats). **No UI or business-logic changes are needed.** That is the whole
 point of the seam.
 
-### How do I add a metadata source / media server / notifier?
+### How do I add a metadata source or media server?
 
 Same pattern. **Providers are the primary extensibility mechanism**, and the rule is
 explicit:

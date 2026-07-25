@@ -197,7 +197,7 @@ Cuando un torrent termina de descargar no se detiene — empieza a hacer
 - Muchos trackers privados **exigen** un ratio mínimo o un tiempo de seeding
   mínimo. Detenerte demasiado pronto puede hacer que te expulsen.
 - `ratio.reached` es un **disparador de automatización**: "cuando este torrent
-  llegue al ratio X, deténlo / muévelo / notifícame" es una regla que puedes
+  llegue al ratio X, deténlo / muévelo" es una regla que puedes
   construir en **Automatización → Reglas de Automatización**.
 
 :::warning Eliminar un torrent puede eliminar el archivo que acabas de organizar
@@ -611,8 +611,8 @@ Cada capacidad es un **módulo** con un manifiesto (id, tier, dependencias,
 permisos, rutas, menú, trabajos del planificador). Tiers:
 
 - `core` — siempre disponible, **no se puede deshabilitar** (auth, RBAC, motor,
-  torrents, RSS, archivos, configuración, auditoría, centro de notificaciones,
-  analíticas del servidor de medios…).
+  torrents, RSS, archivos, configuración, auditoría, analíticas del servidor de
+  medios…).
 - `community` — incluido, activo por defecto, **conmutable** por un administrador
   (Gestor de Medios, Puntuación de Lanzamientos, Inteligencia de Adquisición de
   Medios…).
@@ -637,15 +637,8 @@ Una regla de condición/acción disparada por un evento. Los disparadores de tor
 (`media.matched`, `media.missing_subtitles`, `media.rename_completed`…) y los
 disparadores de estado de serie de RSS (`rss.show.ended`,
 `rss.show_status.changed`…) impulsan acciones como detener, eliminar, mover,
-notificar, webhook, `rename_for_media`, `media_server_refresh` o
+webhook, `rename_for_media`, `media_server_refresh` o
 `disable_rss_rule`.
-
-### Notificación
-
-El **Centro de Notificaciones** está gobernado por reglas de principio a fin: los
-módulos publican eventos, y *tus* reglas deciden **si**, **cuándo**, **cómo** y
-**a quién** se entrega un mensaje. Nada está hardcodeado. Vienen canales para
-**Correo (SMTP)**, **Telegram**, **SMS (Twilio)** y **WhatsApp (Twilio)**.
 
 ---
 
@@ -771,7 +764,7 @@ Si puedes contestar las ocho, el resto de la documentación se va a leer como
 
 1. [Resumen de la arquitectura](/learn/architecture-overview) — dónde corre físicamente cada uno de estos conceptos.
 2. [Mi primera descarga](/learn/first-download) — los conceptos, ejercitados de principio a fin.
-3. [Flujos de trabajo](/learn/workflows) — los siete flujos canónicos, en diagramas.
+3. [Flujos de trabajo](/learn/workflows) — los seis flujos canónicos, en diagramas.
 
 ---
 
@@ -781,6 +774,6 @@ Si puedes contestar las ocho, el resto de la documentación se va a leer como
 - [Torrents](/modules/torrents) · [Motores](/modules/engines) · [Indexadores](/modules/indexers)
 - [RSS](/modules/rss) · [Descarga Inteligente](/modules/smart-download) · [Episodios Faltantes](/modules/missing-episodes)
 - [Gestor de Medios](/modules/media-manager) · [Analíticas del Servidor de Medios](/modules/media-server-analytics)
-- [Automatización](/modules/automation) · Centro de Notificaciones
+- [Automatización](/modules/automation)
 - [Permisos](/reference/permissions) — el catálogo completo de RBAC.
 - [Módulos](/reference/modules) — cada manifiesto de módulo.

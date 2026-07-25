@@ -2,7 +2,7 @@
 id: providers
 title: Providers
 sidebar_position: 4
-description: The provider system — how UltraTorrent isolates every external service behind an interface, and how to write a new engine, indexer, metadata, media-server or notification provider.
+description: The provider system — how UltraTorrent isolates every external service behind an interface, and how to write a new engine, indexer, metadata or media-server provider.
 keywords: [providers, extensibility, torrent engine, rtorrent, qbittorrent, tmdb, plex, jellyfin, torznab, capabilities]
 ---
 
@@ -11,7 +11,7 @@ keywords: [providers, extensibility, torrent engine, rtorrent, qbittorrent, tmdb
 ## Overview
 
 A **provider** is an interface in the domain layer that isolates an external service — a
-torrent engine, a metadata source, a media server, a notifier, an indexer — from the
+torrent engine, a metadata source, a media server, an indexer — from the
 business logic that uses it. Application services depend on the interface. They never
 import a vendor client.
 
@@ -45,7 +45,6 @@ own protocol**. If it is a *capability* of UltraTorrent itself, you want a
 | `TorrentEngineProvider` | Control a BitTorrent engine | `RTorrentProvider` (XML-RPC/SCGI), `QbittorrentProvider` (Web API v2) |
 | `MediaMetadataProvider` | Resolve a title → metadata | `LocalMetadataProvider`, `TmdbMetadataProvider`, `ImdbMetadataProvider` |
 | `MediaServerProvider` | Probe a server, trigger a library refresh, read sessions | Plex, Jellyfin, Emby, Kodi |
-| `NotificationProvider` | Deliver a message to a channel | email, SMS, Telegram, WhatsApp (+ webhook/Discord/Slack fan-out in the legacy notifications module) |
 | `ArtworkProvider` | External id → downloadable artwork candidates | `TmdbArtworkProvider` |
 | Indexer client (Torznab/Newznab) | Search indexers for release candidates | `TorznabClient` |
 | `TvShowStatusProvider` | Resolve a show's airing status | TMDB → IMDb dataset → local, in confidence order |
@@ -107,30 +106,6 @@ Callers catch `UnsupportedCapabilityError` and skip that feature, rather than lo
 red error and alarming the operator. Contrast a *real* failure (the server is down, the
 token is wrong) — that is an ordinary throw.
 
-The Notification Center goes further and derives a `supports*()` method per capability
-from a single `capabilities()` call, so a concrete provider implements almost nothing:
-
-```ts
-// apps/backend/src/modules/notification-center/notification-provider.ts
-export abstract class BaseNotificationProvider implements NotificationProvider {
-  abstract readonly kind: NotificationKind;
-  abstract capabilities(): NotificationCapabilities;
-  abstract validateRecipient(addr: NotificationAddress): boolean;
-  abstract normalizeRecipient(addr: NotificationAddress): string | null;
-  abstract send(config, addr, msg): Promise<SendResult>;
-  abstract testConnection(config): Promise<HealthResult>;
-
-  async connect(): Promise<void> {}
-  async healthCheck(config) { return this.testConnection(config); }
-  async sendBulk(config, addrs, msg) {
-    return Promise.all(addrs.map((a) => this.send(config, a, msg)));
-  }
-  supportsRichCards() { return this.capabilities().richCards; }
-  supportsMarkdown() { return this.capabilities().markdown; }
-  // …one per capability
-}
-```
-
 ### Normalization — the golden rule
 
 Map the vendor's representation into the shared `Normalized*` shapes
@@ -148,7 +123,6 @@ flowchart LR
     SYNC["TorrentSyncService"]
     MS["MediaService"]
     MSI["MediaServerIntegrationService"]
-    NC["NotificationCenter delivery"]
     IX["IndexerService"]
   end
 
@@ -156,13 +130,11 @@ flowchart LR
     IENG["TorrentEngineProvider"]
     IMETA["MediaMetadataProvider"]
     IMS["MediaServerProvider"]
-    INOTIF["NotificationProvider"]
   end
 
   subgraph Wiring["Factories / registries"]
     EF["EngineProviderFactory"]
     ER["EngineRegistryService"]
-    NR["NotificationProvider registry"]
   end
 
   subgraph Impl["Infrastructure — concrete adapters"]
@@ -175,8 +147,6 @@ flowchart LR
     JF["JellyfinProvider"]
     EMBY["EmbyProvider"]
     KODI["KodiProvider"]
-    TG["TelegramProvider"]
-    EM["EmailProvider"]
     TZ["TorznabClient"]
   end
 
@@ -185,7 +155,6 @@ flowchart LR
   SYNC --> IENG
   MS --> IMETA
   MSI --> IMS
-  NC --> INOTIF
   IX --> TZ
 
   IENG -.- ER
@@ -199,12 +168,9 @@ flowchart LR
   IMS -.- JF
   IMS -.- EMBY
   IMS -.- KODI
-  INOTIF -.- NR
-  NR --> TG
-  NR --> EM
 
   classDef seam fill:#1f6feb22,stroke:#1f6feb;
-  class IENG,IMETA,IMS,INOTIF seam;
+  class IENG,IMETA,IMS seam;
 ```
 
 ## Step-by-step: write a new torrent engine provider
@@ -355,12 +321,6 @@ Implement `MediaServerProvider`. Declare `capabilities()` honestly, and throw
 `UnsupportedCapabilityError('sessions', this.kind)` for what you cannot serve. Secrets
 (tokens/keys/passwords) are AES-GCM encrypted at rest and redacted in API responses.
 
-### A notification provider
-
-Extend `BaseNotificationProvider`, implement the five abstract members, and add a factory
-entry. The registry exposes `kind + capabilities + config schema` to the UI, so the channel
-form renders itself from your declaration.
-
 ### An indexer
 
 Indexers speak **Torznab/Newznab**, so in practice you configure a new indexer rather than
@@ -449,8 +409,8 @@ Not today. The seam exists (`bootstrap.ts` accepts `externalModules`,
 third-party plugin system is future work.
 
 **Where does the provider get its config?**
-From a database row — `TorrentEngine`, `MediaServerIntegration`, a notification `Channel`,
-an `Indexer` — with secrets decrypted at call time. Providers are stateless with respect to
+From a database row — `TorrentEngine`, `MediaServerIntegration`, an `Indexer` — with
+secrets decrypted at call time. Providers are stateless with respect to
 config; it is passed in.
 
 **Do providers run in the request path?**
@@ -474,5 +434,5 @@ never time out an HTTP request.
 
 - [Architecture](/develop/architecture)
 - [Creating modules](/develop/creating-modules)
-- [Modules → Engines](/modules/engines) · [Indexers](/modules/indexers) · Notification Center
+- [Modules → Engines](/modules/engines) · [Indexers](/modules/indexers)
 - [Testing](/develop/testing)

@@ -372,7 +372,7 @@ for controlled acquisition.
 | Grabs succeed but nothing is organised | The rule's **save path** is not inside an enabled library's root. | Fix the save path. |
 | "Torrent URL resolves to a blocked internal address" | SSRF guard vs. a private-IP indexer. | Add the host to `SSRF_ALLOW_HOSTS` (keep `prowlarr`). |
 | A TV rule refuses to save | The show is `ended` / `canceled`. | Confirm the override (it is audited), or use a backfill rule. |
-| The feed stopped updating | The feed URL is dead or rate-limiting. | Watch for the `rss.feed_failed` notification event; check the feed history. |
+| The feed stopped updating | The feed URL is dead or rate-limiting. | Open the feed on `/rss` and check its status and history — a failing poll stops advancing the last-poll time and records the error. |
 
 ---
 
@@ -428,8 +428,9 @@ No. **RSS feeds are not indexers.** RSS is polled and pushes items at your rules
 indexers are *searched* on demand, over Torznab/Newznab, by the acquisition
 pipeline. Different subsystems.
 
-**Can I get notified when a feed breaks?**
-Yes — `rss.feed_failed` is a notification event. See
+**How do I find out when a feed breaks?**
+By looking: the feed's status and history on `/rss` record the failure, and its
+last-poll time stops advancing. Nothing pushes that to you.
 
 ---
 
@@ -462,7 +463,7 @@ Yes — `rss.feed_failed` is a notification event. See
 ### Next steps
 
 1. [Multiple indexers](/learn/tutorials/multiple-indexers) — give the engine more to choose from.
-3. [Automating TV shows](/learn/tutorials/automating-tv-shows) — pair forward RSS with backward gap-filling.
+2. [Automating TV shows](/learn/tutorials/automating-tv-shows) — pair forward RSS with backward gap-filling.
 
 ---
 

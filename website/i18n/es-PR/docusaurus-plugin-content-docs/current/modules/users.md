@@ -54,8 +54,8 @@ Cámbiala antes de que la instancia sea accesible para alguien más. Este es el 
 |------|--------------|
 | **Super Admin** | Todo. Se salta las verificaciones granulares por completo. |
 | **Administrator** | Todo **excepto `system.manage`**. En la práctica esto significa que solo un Super Admin puede activar o desactivar las verificaciones de actualización en segundo plano. |
-| **Power User** | Todos los `torrents.*` **excepto `delete_data`**; categorías y etiquetas; todos los `rss.*`; `automation.view` + `manage`; todos los `indexers.*`; todos los `integrations.prowlarr.*`; todos los `files.*`; `system.view`; casi todos los `media_manager.*` incluyendo IMDb; `notifications.view` + `manage_preferences`. **Nada de `settings.*`, nada de `users.*`, nada de `audit.view`, nada de `apikeys.manage`.** |
-| **User** | `torrents.view/add/pause/resume/start/stop`; categorías y etiquetas; `rss.view` + consulta del estado de la serie; `files.view/preview/download`; `media_manager.view`; ver y buscar en IMDb; `notifications.view` + `manage_preferences`. |
+| **Power User** | Todos los `torrents.*` **excepto `delete_data`**; categorías y etiquetas; todos los `rss.*`; `automation.view` + `manage`; todos los `indexers.*`; todos los `integrations.prowlarr.*`; todos los `files.*`; `system.view`; casi todos los `media_manager.*` incluyendo IMDb. **Nada de `settings.*`, nada de `users.*`, nada de `audit.view`, nada de `apikeys.manage`.** |
+| **User** | `torrents.view/add/pause/resume/start/stop`; categorías y etiquetas; `rss.view` + consulta del estado de la serie; `files.view/preview/download`; `media_manager.view`; ver y buscar en IMDb. |
 | **Read-Only** | `torrents.view`, `rss.view` + consulta del estado de la serie, `automation.view`, `files.view/preview/download`, `system.view`, `media_manager.view`. |
 
 :::warning Los roles personalizados todavía no existen

@@ -111,7 +111,6 @@ Una muestra representativa — esto no es exhaustivo:
 | **Gestor de Medios** | Acciones destructivas, de renombrado, de movimiento y de integración. Fallos de prueba/actualización (`media.integration.test_failed`, `media.integration.refresh_failed`) — registrados **sin secretos**. |
 | **RSS** | Creación de reglas, y por separado `rss.rule.created_for_inactive_show` cuando alguien ignora la advertencia de serie finalizada. |
 | **Descarga Inteligente** | Evaluaciones, aprobaciones, rechazos y anulaciones. |
-| **Centro de Notificaciones** | Cada cambio de canal/regla/plantilla/destinatario/preferencia, más los envíos manuales y los reintentos. |
 | **Módulos** | Cada activación y desactivación. |
 | **Prowlarr / Indexadores** | Vistas y actualizaciones de configuración, cambios de clave API, pruebas de conexión y aperturas. |
 

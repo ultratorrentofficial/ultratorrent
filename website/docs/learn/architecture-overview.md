@@ -111,7 +111,7 @@ crosses a container boundary.
 | --- | --- | --- |
 | What it is | A React 18 + Vite single-page app, served as static files. | A NestJS API server. |
 | What it does | Renders the UI. Nothing else. | Everything else. |
-| Talks to | Only the backend. | Postgres, Redis, the engine, indexers, media servers, notification providers. |
+| Talks to | Only the backend. | Postgres, Redis, the engine, indexers, media servers. |
 | Published to the host | Yes — `:8080` by default. | **No.** The frontend reaches it over the internal network. |
 
 :::warning The browser never talks to your torrent engine
@@ -127,9 +127,9 @@ be exposed to a browser.
 
 | Container | Required? | Purpose | If it dies… |
 | --- | --- | --- | --- |
-| **postgres** | ✅ Always | The system of record: users, roles, permissions, torrent snapshots, RSS feeds/rules, automation, notifications, API keys, the audit log, settings, and the whole Media Manager model set. | The backend cannot start. **This is what you back up.** |
+| **postgres** | ✅ Always | The system of record: users, roles, permissions, torrent snapshots, RSS feeds/rules, automation, API keys, the audit log, settings, and the whole Media Manager model set. | The backend cannot start. **This is what you back up.** |
 | **redis** | ✅ Always | Caching and background-job coordination. | Things get slower; state is not lost. |
-| **backend** | ✅ Always | The API, the WebSocket gateway, the engine sync loop, RSS polling, scheduled jobs, the media pipeline, notification delivery. Runs `prisma migrate deploy` on boot. | Nothing works. Check its logs first. |
+| **backend** | ✅ Always | The API, the WebSocket gateway, the engine sync loop, RSS polling, scheduled jobs, the media pipeline. Runs `prisma migrate deploy` on boot. | Nothing works. Check its logs first. |
 | **frontend** | ✅ Always | Serves the SPA on `:8080`. | The UI is unreachable; the API still works. |
 | **rtorrent** | Optional (`--profile rtorrent`) | Bundled BitTorrent engine, SCGI on `:5000`. | Transfers stop; UltraTorrent keeps running. |
 | **qbittorrent** | Optional (`--profile qbittorrent`) | Bundled BitTorrent engine, Web API on `:8080` internally, published on `:8081`. **Preferred for large libraries.** | Transfers stop; UltraTorrent keeps running. |
@@ -185,9 +185,9 @@ every rule, library, user and decision you ever configured.
 
 :::danger Back up `ENCRYPTION_KEY` with the database
 `ENCRYPTION_KEY` decrypts what is stored encrypted in that database — 2FA secrets,
-indexer API keys, media-server tokens, notification credentials. A database
-restored without its matching key has a lot of unreadable secrets in it. Keep them
-together. See [Backup &amp; restore](/operate/backup).
+indexer API keys, media-server tokens. A database restored without its matching
+key has a lot of unreadable secrets in it. Keep them together.
+See [Backup &amp; restore](/operate/backup).
 :::
 
 ---
@@ -287,15 +287,6 @@ fires a `media.*` event your automation rules can react to.
 **Expected result:** a correctly named file in your library, enriched with
 metadata and artwork, visible in your media server.
 
-### Step 7 — Notifications go out
-
-Modules publish events onto an internal bus. The **Notification Center**'s rules
-decide **if**, **when**, **how** and **to whom** — nothing is hardcoded. Delivery
-runs on a worker with quiet-hours, rate-limiting, retries and escalation, over
-Email, Telegram, SMS or WhatsApp.
-
-**Expected result:** the message you configured, in the channel you chose.
-
 ### The whole thing, on one diagram
 
 ```mermaid
@@ -306,13 +297,12 @@ flowchart TB
   SYNC --> DONE{"100%?"}
   DONE -->|no| DL
   DONE -->|yes| EVT["torrent.completed"]
-  EVT --> AUTO["Automation rules<br/>stop / move / notify / webhook"]
+  EVT --> AUTO["Automation rules<br/>stop / move / webhook"]
   EVT --> PIPE{"Inside an enabled<br/>library's root?"}
   PIPE -->|no| SEED["Just seeds. Nothing organised."]
   PIPE -->|yes| ORG["scan → identify → metadata →<br/>rename/hardlink → artwork →<br/>subtitles → NFO"]
   ORG --> REF["Media-server refresh"]
-  REF --> NOTIF["Notification Center<br/>rules → channels"]
-  NOTIF --> END(["Done"])
+  REF --> END(["Done"])
   SEED --> END
 ```
 
@@ -382,8 +372,8 @@ Kubernetes and your uptime monitor can check them. They expose no data.
 
 :::tip Everything long-running is a background job
 Scanning, metadata, artwork, subtitles, renaming, NFO generation, media-server
-refresh, notification delivery — none of it blocks an HTTP request. Each unit is
-persisted as a job with queued/running/completed/failed status and streams its
+refresh — none of it blocks an HTTP request. Each unit is persisted as a job with
+queued/running/completed/failed status and streams its
 progress over WebSocket. If a page seems to "hang", it usually is not: look for
 the job.
 :::
@@ -415,9 +405,9 @@ is why the bundled stack shares one volume.
 Yes, in the supported deployment. It backs caching and background-job coordination.
 
 **Does UltraTorrent need an internet connection to run?**
-The application itself, no. Metadata (TMDB), artwork, indexer search and
-notification delivery obviously do. The docs site itself is built with a local,
-offline search index precisely because self-hosted users may be air-gapped.
+The application itself, no. Metadata (TMDB), artwork and indexer search obviously
+do. The docs site itself is built with a local, offline search index precisely
+because self-hosted users may be air-gapped.
 
 **Is there an external message broker / queue?**
 No. Background work runs in-process, persisted as jobs, with Redis for
@@ -449,7 +439,7 @@ coordination — no external broker is required.
 ### Next steps
 
 1. [My First Download](/learn/first-download) — exercise this architecture, slowly.
-2. [Workflows](/learn/workflows) — the seven canonical flows as diagrams.
+2. [Workflows](/learn/workflows) — the six canonical flows as diagrams.
 3. [Backup &amp; restore](/operate/backup) — now that you know what matters.
 4. [Developer architecture](/develop/architecture) — the internals, if you want them.
 

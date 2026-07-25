@@ -29,7 +29,7 @@ There is **no licensing, edition, product key, or feature gating** in UltraTorre
 
 | Tier | Meaning |
 |------|---------|
-| `core` | Always available, **cannot be disabled**. The system would not be coherent without it — auth, RBAC, engine, torrents, RSS, files, settings, audit, Media Server Analytics, Notification Center. |
+| `core` | Always available, **cannot be disabled**. The system would not be coherent without it — auth, RBAC, engine, torrents, RSS, files, settings, audit, Media Server Analytics. |
 | `community` | Bundled optional modules, **on by default but toggleable** by an admin — Media Manager, Release Scoring, Media Acquisition Intelligence. |
 
 ## Module state
@@ -81,7 +81,6 @@ flowchart TD
 
   subgraph Reaction
     AUTO[automation]
-    NC[notification_center]
   end
 
   AUTH --> RBAC
@@ -110,16 +109,11 @@ flowchart TD
   TOR -.->|torrent.completed| MM
   TOR -.->|torrent.completed| AUTO
 
-  MM -.events.-> NC
-  MSA -.events.-> NC
-  RSS -.events.-> NC
-  AUTO -.send_notification.-> NC
-
   classDef ext fill:#2b2b2b,stroke:#f5a623,color:#fff,stroke-dasharray: 4 3
   class IDX,PRW ext
 ```
 
-Solid arrows are **declared manifest dependencies** (the registry enforces them). Dashed arrows are **runtime collaborations** — one module using another's data or events without a hard dependency. The dashed boxes are subsystems that are not registry modules: **Indexers** is RBAC-gated but has no manifest, and **Prowlarr** is an optional external container.
+Solid arrows are **declared manifest dependencies** (the registry enforces them). Dashed arrows are **runtime collaborations** — one module using another's data, or calling directly into it, without a hard dependency. The dashed boxes are subsystems that are not registry modules: **Indexers** is RBAC-gated but has no manifest, and **Prowlarr** is an optional external container.
 
 Read the graph as a story:
 
@@ -127,7 +121,7 @@ Read the graph as a story:
 2. **engine** talks to your torrent client; **torrents** is the UI and lifecycle on top of it.
 3. **rss** watches feeds; **release_scoring** grades what it finds; **media_acquisition_intelligence** (Smart Download) decides whether a graded release is actually worth acquiring, and asks the engine to grab it.
 4. **files** gives every path-touching feature a safe sandbox; **media_manager** organises finished downloads into libraries; **media_server_analytics** reports on what people actually watch.
-5. **automation** and **notification_center** are the reactive layer — every other module emits events into them.
+5. **automation** is the reactive layer — torrent sync, RSS, and the subtitle triggers call into it directly when something happens. There is no event bus; nothing fans in generically.
 
 ## The modules
 
@@ -162,7 +156,6 @@ Read the graph as a story:
 | Module | Tier | What it does |
 |--------|------|--------------|
 | [Automation](/modules/automation) | core | The trigger → condition → action rule engine. |
-| Notification Center | core | Provider-driven messaging: rules, templates, recipients, channels, delivery queue. |
 
 ### Administering
 
@@ -205,7 +198,7 @@ You want a headless torrent client with a good web UI and nothing else. Leave th
 
 ### A full media pipeline
 
-You want RSS to find episodes, Smart Download to pick the best release and skip what you already own, Media Manager to file the result into a Plex-shaped library, and Notification Center to Telegram you when it lands. That is: `rss` + `release_scoring` + `media_acquisition_intelligence` + `media_manager` + `notification_center`, all enabled (the default). Start at [Quick start](/learn/quick-start), then work through [RSS](/modules/rss) → [Smart Download](/modules/smart-download) → [Media Manager](/modules/media-manager).
+You want RSS to find episodes, Smart Download to pick the best release and skip what you already own, and Media Manager to file the result into a Plex-shaped library. That is: `rss` + `release_scoring` + `media_acquisition_intelligence` + `media_manager`, all enabled (the default). Start at [Quick start](/learn/quick-start), then work through [RSS](/modules/rss) → [Smart Download](/modules/smart-download) → [Media Manager](/modules/media-manager).
 
 ## Troubleshooting
 

@@ -129,19 +129,16 @@ export interface TorrentEngineProvider {
 See [Providers](/develop/providers) for the full model, including capabilities and
 `UnsupportedCapabilityError`.
 
-### Event-driven coupling
+### Module coupling
 
-Modules do not call each other directly where they can avoid it. Three mechanisms carry
-domain events:
+Modules call each other **directly** — there is no in-process event bus. The automation
+engine is invoked by direct calls from torrent sync, RSS, the subtitle triggers and
+workflows. Three mechanisms carry state changes outward from there:
 
 1. **`RealtimeGateway`** pushes state changes to permission-scoped socket rooms.
-2. **The automation engine** turns domain events into user-defined condition/action rules.
+2. **The automation engine** turns those calls into user-defined condition/action rules.
 3. **`MediaProcessingQueueService`** turns long-running reactions into tracked jobs whose
-   lifecycle is itself emitted as events.
-
-There is also an internal bus (`@nestjs/event-emitter`, configured with
-`{ wildcard: true, delimiter: '.' }` in `app.module.ts`) that the Notification Center
-subscribes to via `NOTIFICATION_BUS_CHANNEL`.
+   lifecycle is itself broadcast over the gateway.
 
 ## Component diagram
 
@@ -171,7 +168,6 @@ flowchart TB
       IENG["TorrentEngineProvider"]
       IMETA["MediaMetadataProvider"]
       IMS["MediaServerProvider"]
-      INOTIF["NotificationProvider"]
     end
     subgraph Infra["Infrastructure layer"]
       RT["RTorrentProvider<br/>XML-RPC / SCGI"]
@@ -205,7 +201,6 @@ flowchart TB
   REG --> IENG
   SVC --> IMETA
   SVC --> IMS
-  SVC --> INOTIF
   IENG -.implemented by.-> RT
   IENG -.implemented by.-> QB
   IMETA -.implemented by.-> TMDB
@@ -292,7 +287,7 @@ Two things worth internalising from that diagram:
 ## Data & caching
 
 **PostgreSQL** via **Prisma** is the store — users/roles/permissions, torrent snapshots,
-categories/tags, RSS, automation, notifications, API keys, the audit log, settings, and
+categories/tags, RSS, automation, API keys, the audit log, settings, and
 the full Media Manager model set. **Redis** backs caching and background-job coordination.
 There is **no external queue broker**: background work is `@nestjs/schedule` intervals plus
 an in-process job queue. See [Background jobs](/develop/background-jobs) — the "in-process"
@@ -323,8 +318,8 @@ enforced key parity. See [Internationalization](/develop/i18n).
 
 - **`tsc` clean ≠ it boots.** Type-checking and unit tests miss NestJS DI and
   module-wiring errors. Before you call a change done, boot a clean build.
-- **Cycles.** If two modules need each other, one direction should go through the event
-  bus or a lazy `ModuleRef.get(...)`. `AutomationModule` and `RssModule` do exactly this
+- **Cycles.** If two modules need each other, one direction should go through a lazy
+  `ModuleRef.get(...)`. `AutomationModule` and `RssModule` do exactly this
   (a `forwardRef` for the ES-module load-order cycle, `ModuleRef` for the call).
 - **`@Global()` sparingly.** `EngineModule`, `AuditModule`, and `RealtimeModule` are
   global because everything needs them. Your module probably isn't.

@@ -188,7 +188,7 @@ Quieres todos los episodios de una serie finalizada, una sola vez, y después na
 
 ### Que te avisen cuando una serie regrese
 
-Habilita la Regla de Automatización preconfigurada sobre el disparador `rss.show.became_active` con una acción `notify_admin`. Cuando la actualización horaria de estado note que una serie `returning` pasó a `continuing`, recibes una notificación y la regla que ya tienes empieza a atrapar episodios otra vez.
+Crea una Regla de Automatización sobre el disparador `rss.show.became_active` con una acción `webhook` apuntada a lo que uses para alertas. Cuando la actualización horaria de estado note que una serie `returning` pasó a `continuing`, el webhook se dispara con el contexto de la serie — y la regla que ya tienes empieza a atrapar episodios otra vez.
 
 ## Solución de problemas
 

@@ -16,7 +16,7 @@ keywords: [automation, rules, triggers, conditions, actions, torrent completed, 
 trigger  →  conditions (all must pass)  →  actions (run in order)
 ```
 
-That is the whole model, and it is deliberately small. "When a download completes, **and** its label is `movies`, **and** its ratio is above 2.0 — move it, then notify me."
+That is the whole model, and it is deliberately small. "When a download completes, **and** its label is `movies`, **and** its ratio is above 2.0 — move it, then stop seeding it."
 
 It is a **core** module (id `automation`, permissions `automation.view` / `automation.manage`), and it is what [Smart Download](/modules/smart-download) and [RSS](/modules/rss) both hook into.
 
@@ -33,7 +33,6 @@ If you find yourself doing the same thing by hand twice a week, it belongs here.
 
 - A working [engine](/modules/engines) (`automation` declares it as a hard dependency).
 - `automation.view` to see rules and their logs; `automation.manage` to create or change them.
-- For notification actions: a configured channel in the Notification Center.
 
 ## Concepts
 
@@ -41,7 +40,7 @@ If you find yourself doing the same thing by hand twice a week, it belongs here.
 
 **Condition** — a `{ field, op, value }` test against the event's context. Conditions are **ANDed**: *every* one must pass. **Zero conditions means the rule always matches.**
 
-**Action** — what to do. A rule has an ordered list, and they run **sequentially**. The first action to throw **aborts the remaining actions of that rule**, logs the run as `failed`, and dispatches an error notification.
+**Action** — what to do. A rule has an ordered list, and they run **sequentially**. The first action to throw **aborts the remaining actions of that rule** and logs the run as `failed`.
 
 **Priority** — an integer. **Higher priority runs first.** Every matching rule runs; there is no stop-after-first-match.
 
@@ -75,7 +74,7 @@ flowchart TD
     C -->|yes| A[Run actions IN ORDER]
 
     A --> A1[Action 1]
-    A1 -->|throws| FAIL[Abort remaining actions<br/>log 'failed'<br/>notify the error]
+    A1 -->|throws| FAIL[Abort remaining actions<br/>log 'failed']
     A1 -->|ok| A2[Action 2 → …]
     A2 --> OK[Log 'success']
 
@@ -133,31 +132,31 @@ Any operator that is not one of these eight evaluates to `false`, so the rule ne
 
 ### Actions
 
-Twenty-two actions exist, in four families.
+Eighteen actions exist, in four families.
 
 **Torrent actions** (need a real torrent — only valid on the torrent triggers):
 `move` (param `destination`), `pause`, `stop`, `delete`, `delete_with_data`, `rename_for_media` (params `preset`, `mode` — default `hardlink` — `libraryPath`, `template`).
 
 **Context-free actions** (valid on any trigger):
-`notify` (params `title`, `message`), `send_notification` (full Notification Center dispatch: `channelIds`, `recipientIds`, `groupIds`, `templateId`, `variables`, `priority`, `title`, `message`), `webhook` (POSTs JSON to `params.url`), `notify_admin` (event-context only).
+`webhook` (POSTs JSON to `params.url`).
 
 **Media actions:**
-`media_scan_library`, `media_match`, `media_fetch_metadata`, `media_fetch_artwork`, `media_generate_nfo`, `media_rename`, `media_move`, `media_server_refresh`, `media_notify`.
+`media_scan_library`, `media_match`, `media_fetch_metadata`, `media_fetch_artwork`, `media_generate_nfo`, `media_rename`, `media_move`, `media_server_refresh`.
 
 **RSS actions:**
 `refresh_rss_show_status`, `disable_rss_rule`, `convert_rule_to_backfill` (turns off `autoDownload` — keep the rule, stop forward auto-grabbing).
 
 :::caution Most triggers and actions are API-only today
-The **UI rule builder currently exposes only two triggers** (`torrent.completed`, `ratio.reached`) and **eight actions** (`notify`, `move`, `pause`, `stop`, `delete`, `delete_with_data`, `webhook`, `rename_for_media`), with condition fields limited to `name`, `label`, `state`, `ratio`, `size`, `progress`, `downloadRate`, `uploadRate`.
+The **UI rule builder currently exposes only two triggers** (`torrent.completed`, `ratio.reached`) and **seven actions** (`move`, `pause`, `stop`, `delete`, `delete_with_data`, `webhook`, `rename_for_media`), with condition fields limited to `name`, `label`, `state`, `ratio`, `size`, `progress`, `downloadRate`, `uploadRate`.
 
-The other **twelve triggers** (all `media.*` and `rss.*`) and **fourteen actions** (all `media_*`, `rss_*`, and `send_notification`) exist in the engine and are fully functional, but are reachable **only through the REST API** — `POST /api/automation/rules`. The full live catalog is at `GET /api/automation/catalog`.
+The other **twelve triggers** (all `media.*` and `rss.*`) and **eleven actions** (all `media_*` and `rss_*`) exist in the engine and are fully functional, but are reachable **only through the REST API** — `POST /api/automation/rules`. The full live catalog is at `GET /api/automation/catalog`.
 
 If you need them, create the rule via the API. It will run correctly; you just cannot author it in the form yet.
 :::
 
 ### Event-context rules
 
-The five `rss.*` triggers run through a separate path (`evaluateEvent`) that matches conditions against a **plain event object** rather than a torrent. Only **event-safe** actions are permitted there: `notify`, `notify_admin`, `send_notification`, `webhook`, and the three `rss_*` actions. Any other action id is rejected with `Action "<type>" is not valid for an event trigger`, logged as `failed`, and notified.
+The five `rss.*` triggers run through a separate path (`evaluateEvent`) that matches conditions against a **plain event object** rather than a torrent. Only **event-safe** actions are permitted there: `webhook` and the three `rss_*` actions. Any other action id is rejected with `Action "<type>" is not valid for an event trigger` and logged as `failed`.
 
 ### Rule fields
 
@@ -186,20 +185,20 @@ The five `rss.*` triggers run through a separate path (`evaluateEvent`) that mat
 
 **1. Go to Automation → Automation Rules.**
 
-**2. Create a rule with an obviously-safe action first.** Trigger `torrent.completed`, no conditions, one action: `notify`. Save it, enabled.
+**2. Create a rule that cannot do any harm first.** Trigger `torrent.completed`, no conditions, no actions at all. Save it, enabled.
 
-**3. Complete a download.** You get a notification. You have now proved the trigger fires and the action runs — which is the thing most people never actually verify before writing something destructive.
+**3. Complete a download.** Open the rule's **Execution log**: a `success` run appears, with the torrent's context. You have now proved the trigger fires and the rule matches — which is the thing most people never actually verify before writing something destructive.
 
 **4. Add a condition.** `label` `eq` `movies`. Complete a torrent with a different label. The rule should **not** run. Check the **Execution log** to confirm.
 
-**5. Now do something real.** Add a `move` action with a destination, or a `rename_for_media` action. Put it *after* the notify, so if the destructive action fails you still get told.
+**5. Now do something real.** Add a `move` action with a destination, or a `rename_for_media` action. The execution log records the run either way, so you can see whether it actually succeeded.
 
 **6. Watch the execution log.** Every run is recorded, success or failure. So is the [audit log](/modules/audit), under `automation.rule.executed`.
 
 :::danger There is no dry-run
 Automation has **no test, simulate, or preview** capability. A rule is either off or live.
 
-So: build the rule with a `notify` action first, prove the trigger and conditions behave, and only then swap in the action that deletes things. There is no undo, and a rule with zero conditions matches **everything**.
+So: build the rule with **no actions** first, watch the execution log to prove the trigger and conditions behave, and only then add the action that deletes things. There is no undo, and a rule with zero conditions matches **everything**.
 :::
 
 ## Screenshots
@@ -218,7 +217,7 @@ _Video coming soon._
 
 ### Stop seeding at a ratio target
 
-Trigger: `ratio.reached`. Condition: `ratio` `gte` `2.0`. Actions: `notify` (so you know), then `stop`.
+Trigger: `ratio.reached`. Condition: `ratio` `gte` `2.0`. Action: `stop`.
 
 Because `ratio.reached` is **rising-edge**, this fires exactly **once** — on the transition past 2.0 — not on every 2-second sync tick for the rest of the torrent's life. If you also want the data gone, use `delete_with_data` instead of `stop`, but test with `stop` first.
 
@@ -230,7 +229,7 @@ Trigger: `torrent.completed`. Condition: `label` `eq` `movies`. Action: `rename_
 
 ### Convert an RSS rule to backfill when a show ends (API-only today)
 
-Trigger: `rss.show.ended`. Actions: `notify_admin`, then `convert_rule_to_backfill`.
+Trigger: `rss.show.ended`. Action: `convert_rule_to_backfill`.
 
 When the hourly show-status refresh notices a monitored show has ended, this turns off that rule's auto-download — you keep the rule and its history, but it stops forward-grabbing episodes that will never air. The action targets a rule either by explicit `ruleId` or by the show identity carried on the trigger's context.
 
@@ -245,18 +244,18 @@ Trigger: `torrent.completed`. Action: `webhook` with your URL. It POSTs a JSON b
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | Completed torrents keep seeding despite a working delete rule | Two separate historical bugs. **(1)** `torrent.completed` only fired on the completion *edge*, so a torrent that was already complete when the rule was written never triggered. **(2)** rTorrent's `delete` did not verify that removal actually happened. Both are fixed — there is now a backfill (using successful log rows as a ledger) and delete verifies + retries. | Update. Then check the rule's **Execution log** — if the run shows `success` and the torrent is still there, it is an engine problem, not a rule problem. |
-| A rule never fires | Most likely an **unknown operator** (which evaluates to `false`), or an invalid regex in a `matches` condition (which also returns `false` rather than throwing). Or the trigger genuinely is not firing. | Check the operator against the eight listed above. Then set the rule to zero conditions and one `notify` action to prove the trigger itself fires. |
+| A rule never fires | Most likely an **unknown operator** (which evaluates to `false`), or an invalid regex in a `matches` condition (which also returns `false` rather than throwing). Or the trigger genuinely is not firing. | Check the operator against the eight listed above. Then set the rule to zero conditions and no actions to prove the trigger itself fires. |
 | A rule fires **constantly** | Zero conditions means **always matches**. And only `ratio.reached` is rising-edge — other triggers fire every time the event occurs. | Add conditions. |
 | Only some of a rule's actions ran | The **first action to throw aborts the rest** of that rule. | Read the **Execution log** — the failure message names what went wrong. Put non-destructive actions first. |
-| `Action "media_rename" is not valid for an event trigger` | Event-context rules (the `rss.*` triggers) only permit `notify`, `notify_admin`, `send_notification`, `webhook`, and the three `rss_*` actions. | Use a torrent or media trigger for torrent/media actions. |
+| `Action "media_rename" is not valid for an event trigger` | Event-context rules (the `rss.*` triggers) only permit `webhook` and the three `rss_*` actions. | Use a torrent or media trigger for torrent/media actions. |
 | I cannot find the `media.*` or `rss.*` triggers in the UI | The rule-builder form currently exposes only the two torrent triggers. The rest are engine-side and API-only. | Create the rule via `POST /api/automation/rules`. See `GET /api/automation/catalog` for the full live list. |
 | A numeric condition behaves oddly | `gt` / `gte` / `lt` / `lte` **coerce both sides to numbers**. Comparing a non-numeric field numerically gives you `NaN` semantics. | Compare numeric fields numerically; use `eq` / `contains` for strings. |
 | Two rules conflict | Every matching rule runs; there is no stop-after-first-match. Ordering is by **priority, descending**. | Use `priority` to sequence them, and make conditions mutually exclusive. |
 
 ## Best practices
 
-- **Prototype with `notify`.** Prove the trigger and the conditions before you attach anything destructive. There is no dry-run and no undo.
-- **Put the notify action first.** If a later action fails, you still get told.
+- **Prototype with no actions.** Prove the trigger and the conditions in the execution log before you attach anything destructive. There is no dry-run and no undo.
+- **Put the harmless actions first.** The first action to throw aborts the rest, so ordering decides how much of the rule ran.
 - **Never leave a destructive rule with zero conditions.** Zero conditions matches everything.
 - **Use `priority` deliberately** when rules could overlap.
 - **Read the execution log after any change.** It is the only feedback loop you have.
@@ -275,7 +274,7 @@ Trigger: `torrent.completed`. Action: `webhook` with your URL. It POSTs a JSON b
 ## FAQ
 
 **Can I test a rule before enabling it?**
-No. There is no dry-run, simulate, or preview endpoint in the automation module. Build it with `notify` and observe.
+No. There is no dry-run, simulate, or preview endpoint in the automation module. Build it with no actions and watch the execution log.
 
 **How often are torrent rules evaluated?**
 On the torrent-sync loop, which runs every **2 seconds**.
@@ -284,7 +283,7 @@ On the torrent-sync loop, which runs every **2 seconds**.
 **All** of them, in order of `priority` descending.
 
 **What happens if an action fails?**
-It aborts the remaining actions of that rule, the run is logged as `failed`, and an error notification is dispatched. Other rules are unaffected.
+It aborts the remaining actions of that rule and the run is logged as `failed`, with the failure message. Other rules are unaffected.
 
 **Why does my `ratio.reached` rule only fire once?**
 Because it is rising-edge — it fires on the *transition* into the matching state. If the previous state already satisfied the conditions, the rule is skipped. This is the desired behaviour, not a bug.
@@ -297,11 +296,11 @@ Yes. Every run writes `automation.rule.executed` to the [audit log](/modules/aud
 
 ## Checklist
 
-- [ ] Create a rule: `torrent.completed`, no conditions, one `notify` action. Expected: it fires on the next completion.
+- [ ] Create a rule: `torrent.completed`, no conditions, no actions. Expected: a `success` run is logged on the next completion.
 - [ ] Add a `label` `eq` condition. Expected: it fires for matching labels only; the execution log shows nothing for others.
 - [ ] Deliberately use an unknown operator. Expected: the rule never fires — confirming the silent-`false` behaviour.
-- [ ] Add a second action after the notify. Expected: both run, in order.
-- [ ] Make the second action fail (a bad destination). Expected: the run logs `failed`, and an error notification arrives.
+- [ ] Add two actions to the rule. Expected: both run, in order.
+- [ ] Make the second action fail (a bad destination). Expected: the run logs `failed`, with the failure message naming what threw.
 - [ ] Check the audit log. Expected: an `automation.rule.executed` row with `result: failure`.
 - [ ] Create a `ratio.reached` rule and let a torrent pass the threshold. Expected: it fires **exactly once**, not repeatedly.
 
@@ -310,6 +309,5 @@ Yes. Every run writes `automation.rule.executed` to the [audit log](/modules/aud
 - [Torrents](/modules/torrents) — where torrent triggers come from.
 - [Media Manager](/modules/media-manager) — `media.*` triggers and the media actions.
 - [RSS automation](/modules/rss) — `rss.*` triggers and the backfill action.
-- Notification Center — the `send_notification` action.
 - [Audit log](/modules/audit) — where rule runs are mirrored.
 - [API reference](/reference/api)

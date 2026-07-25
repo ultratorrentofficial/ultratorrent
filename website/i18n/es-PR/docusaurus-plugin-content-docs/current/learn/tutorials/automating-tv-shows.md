@@ -27,8 +27,8 @@ keywords:
 **Nivel:** 🔵 Intermedio · **Tiempo:** ~60 minutos
 
 La meta: una serie en la que nunca más tengas que pensar. Los episodios nuevos llegan
-solos. Los huecos viejos se rellenan solos. Te enteras solo porque una notificación te
-lo dijo.
+solos. Los huecos viejos se rellenan solos. Te enteras al abrir la biblioteca y ver
+que los huecos ya no están.
 
 ## Resumen
 
@@ -424,7 +424,7 @@ emite `rss.show_status.changed` más la transición específica
 Exponer el cambio es trabajo de la plataforma. Decidir qué hacer al respecto es tuyo. Si
 *quieres* que sea automático, construye una regla de automatización sobre el disparador
 `rss.show.ended` con una acción como `convert_rule_to_backfill` (que apaga la descarga
-automática pero conserva la regla) o `disable_rss_rule`. Mira
+automática pero conserva la regla) o `disable_rss_rule`.
 :::
 
 **Resultado esperado:** te enteras cuando una serie termina, y tú decides qué pasa
@@ -448,7 +448,7 @@ _Video próximamente._
 | Relleno automático | configuración de adquisición | `autoSearchMissing: true`, `maxSearchesPerSweep: 50` |
 | Hacia adelante | `/rss` → regla | Tipo de medio `tv`, ruta de guardado `/downloads/tv`, descarga automática activada |
 | Calidad | `/rss/rules/:id` | Una lista ordenada de Preferencias de coincidencia |
-| Cuando termine | `/automation` | Disparador `rss.show.ended` → acción `convert_rule_to_backfill` + `notify_admin` |
+| Cuando termine | `/automation` | Disparador `rss.show.ended` → acción `convert_rule_to_backfill` |
 
 ### Una regla de automatización para el día que termine
 
@@ -456,7 +456,6 @@ _Video próximamente._
 TRIGGER    rss.show.ended
 CONDITIONS (ninguna — aplica a toda serie)
 ACTIONS    convert_rule_to_backfill   ← conserva la regla, detén la captura hacia adelante
-           notify_admin               ← avísame
 ```
 
 ---
@@ -534,10 +533,10 @@ cambio de códec por sí solo (x264 → x265) **nunca** dispara una mejora.
 La política de espera de tu perfil (`waitForBetter` + `waitUntilScore`) está aguantando a
 propósito por algo mejor. Mira la cola **En espera** en el panel de Descarga Inteligente.
 
-**¿Se notifican las decisiones de Descarga Inteligente?**
-Todavía no — las notificaciones por usuario en eventos de decisión y los disparadores de
-automatización de Descarga Inteligente **aún no están implementados**. Usa las colas, y el
-evento de notificación `media.missing_episode_filled` que sí emite una captura exitosa.
+**¿Dónde veo lo que decidió Descarga Inteligente?**
+En las colas del panel, y en el rastro de decisión de cualquier lanzamiento que pegues
+en el Simulador de Decisiones. Los disparadores de automatización de Descarga
+Inteligente **aún no están implementados**.
 
 ---
 

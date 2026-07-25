@@ -303,7 +303,7 @@ sequenceDiagram
   S-->>S: compara contra la última instantánea
   S->>A: torrent.completed
   S->>M: torrent.completed
-  Note over A: Tus reglas corren —<br/>detener / mover / notificar / webhook
+  Note over A: Tus reglas corren —<br/>detener / mover / webhook
   Note over M: Solo si la raíz de una biblioteca habilitada<br/>contiene esta ruta de guardado
 ```
 
@@ -496,7 +496,7 @@ pipeline post-descarga lo recoge automáticamente.
 
 :::tip Usa categorías desde el principio
 Una categoría no cuesta nada configurarla y después se convierte en una condición de automatización —
-*"cuando un torrent en la categoría `movies` se complete, notifícame"*. Ponerlas después es
+*"cuando un torrent en la categoría `movies` se complete, muévelo"*. Ponerlas después es
 tedioso.
 :::
 

@@ -12,8 +12,8 @@ keywords: [prisma, postgresql, migrations, schema, seed, index, concurrently, P3
 
 **PostgreSQL** via **Prisma**. The schema (`apps/backend/prisma/schema.prisma`) holds ~88
 models covering identity and RBAC, torrent snapshots, RSS, automation, the full Media
-Manager model set, media-server analytics, the IMDb dataset catalogue, the Notification
-Center, the audit log, and settings.
+Manager model set, media-server analytics, the IMDb dataset catalogue, the audit log, and
+settings.
 
 ## Purpose
 
@@ -54,8 +54,7 @@ table name.
 | Media-server analytics | `MediaServerIntegration`, `MediaServerSession`, `MediaServerWatchHistory`, `MediaServerNewsletter`, … |
 | Media acquisition | `MediaAcquisitionWatchlistItem`, `WantedEpisode`, `WantedMovie`, `Indexer`, `MediaAcquisitionProfile`, … |
 | IMDb datasets | `IMDbTitle`, `IMDbAka`, `IMDbEpisode`, `IMDbRating`, `IMDbDatasetImport`, … |
-| Notification Center | `NotificationChannel`, `NotificationTemplate`, `NotificationRule`, `NotificationDelivery`, `NotificationQueue`, … |
-| Platform | `Setting`, `Notification`, `AuditLog`, `SystemEvent`, `ModuleState`, `ModuleEvent` |
+| Platform | `Setting`, `AuditLog`, `SystemEvent`, `ModuleState`, `ModuleEvent` |
 
 The complete, generated reference is at [Database schema](/reference/database-schema).
 

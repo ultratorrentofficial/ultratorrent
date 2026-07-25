@@ -42,7 +42,7 @@ flowchart TB
   subgraph A["🟣 AVANZADO — hazlo pensar"]
     A1["Reglas RSS inteligentes<br/>~60 min"]
     A2["Múltiples indexadores<br/>~45 min"]
-    A1 --> A2 --> A3
+    A1 --> A2
   end
 
   subgraph E["🟠 EMPRESARIAL — hazlo sobrevivir"]
@@ -55,7 +55,7 @@ flowchart TB
 
   B3 --> I1
   I3 --> A1
-  A3 --> E1
+  A2 --> E1
 ```
 
 ## Propósito
@@ -133,12 +133,12 @@ de código abierto, controlada solo por RBAC.
 
 | # | Tema | Dónde | Después vas a poder… |
 | --- | --- | --- | --- |
-| 11 | Usuarios, roles y permisos | [Usuarios](/modules/users) · [Permisos](/reference/permissions) | Darle a cada quien exactamente el acceso que necesita, y nada más. |
-| 12 | Endurecimiento de seguridad | [Seguridad](/operate/security) · [Proxy inverso](/install/reverse-proxy) · [TLS](/install/tls) | Correrlo en una red real sin arrepentirte. |
-| 13 | Copia de seguridad, restauración y actualización | [Copia de seguridad](/operate/backup) · [Actualizar](/install/upgrading) | Perder el host sin perder la plataforma. |
-| 14 | Auditoría y rendimiento | [Auditoría](/modules/audit) · [Rendimiento](/operate/performance) | Contestar "¿quién hizo eso?" y "¿por qué está lento?". |
-| 15 | Perfiles de configuración | [Perfiles de configuración](/operate/configuration-profiles) | Correr configuraciones consistentes y reproducibles. |
-| 16 | Automatizar contra la API | [API REST](/reference/api) | Programar cualquier cosa que la UI pueda hacer — la SPA es solo un cliente más. |
+| 10 | Usuarios, roles y permisos | [Usuarios](/modules/users) · [Permisos](/reference/permissions) | Darle a cada quien exactamente el acceso que necesita, y nada más. |
+| 11 | Endurecimiento de seguridad | [Seguridad](/operate/security) · [Proxy inverso](/install/reverse-proxy) · [TLS](/install/tls) | Correrlo en una red real sin arrepentirte. |
+| 12 | Copia de seguridad, restauración y actualización | [Copia de seguridad](/operate/backup) · [Actualizar](/install/upgrading) | Perder el host sin perder la plataforma. |
+| 13 | Auditoría y rendimiento | [Auditoría](/modules/audit) · [Rendimiento](/operate/performance) | Contestar "¿quién hizo eso?" y "¿por qué está lento?". |
+| 14 | Perfiles de configuración | [Perfiles de configuración](/operate/configuration-profiles) | Correr configuraciones consistentes y reproducibles. |
+| 15 | Automatizar contra la API | [API REST](/reference/api) | Programar cualquier cosa que la UI pueda hacer — la SPA es solo un cliente más. |
 
 :::info No hay ninguna edición que comprar
 UltraTorrent es un solo producto comunitario de código abierto (AGPL-3.0-or-later). Cada
@@ -160,8 +160,7 @@ flowchart TB
   Q3 -->|"no"| P3["→ Construir una biblioteca de películas"]
   Q3 -->|"sí"| Q4{"¿Los episodios nuevos llegan<br/>sin que hagas nada?"}
   Q4 -->|"no"| P4["→ Automatizar series de TV<br/>+ Reglas RSS inteligentes"]
-  Q4 -->|"sí"| Q5{"¿Te avisa cuando algo<br/>pasa o se rompe?"}
-  Q5 -->|"sí"| Q6{"¿Ya PROBASTE<br/>una restauración?"}
+  Q4 -->|"sí"| Q6{"¿Ya PROBASTE<br/>una restauración?"}
   Q6 -->|"no"| P6["→ Copia de seguridad y restauración.<br/>En serio. Hoy."]
   Q6 -->|"sí"| DONE(["Lo estás corriendo como se debe."])
 ```
@@ -213,9 +212,8 @@ que de verdad ves. Vas a notar los errores enseguida.
 :::
 
 :::tip Activa una cosa a la vez
-Sobre todo en Avanzado. Si prendes la búsqueda automática, las mejoras, las reglas de
-automatización y las notificaciones en una sola sentada y algo falla, no vas a saber cuál
-fue.
+Sobre todo en Avanzado. Si prendes la búsqueda automática, las mejoras y las reglas de
+automatización en una sola sentada y algo falla, no vas a saber cuál fue.
 :::
 
 ---
@@ -250,7 +248,6 @@ Completaste la ruta cuando:
 - [ ] Tu servidor de medios se refresca solo después de una importación.
 - [ ] Una serie monitoreada muestra un conteo de episodios faltantes correcto.
 - [ ] Una regla RSS con una lista de preferencias ordenada está agarrando (y mejorando).
-- [ ] Una regla de notificación te llega por un canal que de verdad lees.
 - [ ] Existen usuarios no administradores, con roles que les dan solo lo que necesitan.
 - [ ] La UI está detrás de TLS.
 - [ ] Tomaste una copia de seguridad **y la restauraste en algún sitio desechable**.

@@ -39,7 +39,7 @@ largas.
 | Polling / barridos recurrentes | `@Interval('<name>', ms)` |
 | Una operación larga que inició el usuario (escanear una biblioteca de 20k archivos) | `MediaProcessingQueueService.runDetached()` |
 | Una operación larga cuyo resultado necesita quien la llamó | `MediaProcessingQueueService.run()` |
-| Una reacción a un evento del dominio | Una acción de automatización, o un suscriptor del bus de eventos |
+| Una reacción a algo que acaba de pasar | Una acción de automatización, invocada por una llamada directa |
 
 ## Requisitos previos
 
@@ -60,13 +60,10 @@ Los jobs que se incluyen hoy:
 | --- | --- | --- |
 | *(sin nombre)* sincronización de torrents | 2 s | `TorrentSyncService` |
 | *(sin nombre)* consulta de RSS | 60 s | `RssModule` |
-| `notification_delivery_worker` | 10 s | `DeliveryService` |
 | `media_server_session_poll` | 15 s | `MediaServerSessionService` |
-| `system_health_monitor` | 60 s | `SystemModule` |
 | `torrent_parking_sweep` | 5 min | `TorrentParkingService` |
 | `media_acquisition_rss_sweep` | 5 min | `MediaAcquisitionModule` |
 | `media_library_periodic_scan` | tick de 5 min | `MediaLibraryScanSchedulerService` |
-| `notification_provider_health` | 5 min | `ProviderHealthService` |
 | `media_server_newsletter_dispatch` | 15 min | `MediaServerNewsletterService` |
 | `media_acquisition_watchlist_sweep` | 15 min | `MediaAcquisitionModule` |
 | `media_acquisition_quality_upgrade_sweep` | 30 min | `MediaAcquisitionModule` |
@@ -298,7 +295,6 @@ flowchart TB
   subgraph Sched["Schedulers — @nestjs/schedule"]
     T1["@Interval(2000)<br/>TorrentSyncService"]
     T2["@Interval('media_library_periodic_scan', 5min)"]
-    T3["@Interval('notification_delivery_worker', 10s)"]
   end
 
   subgraph Guard["En cada tick"]
@@ -325,7 +321,6 @@ flowchart TB
 
   T1 --> G1
   T2 --> G1
-  T3 --> G1
   G1 --> G2
 ```
 

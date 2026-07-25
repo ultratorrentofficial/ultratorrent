@@ -19,7 +19,7 @@ ciegas — así un usuario jamás recibe en vivo datos que no podría leer por R
 
 Empujar cambios de estado a la UI sin hacer polling: listas de torrents, estadísticas de
 transferencia, salud de los motores, operaciones de archivos, progreso de trabajos de medios,
-importaciones de IMDb, estado de series por RSS y envío de notificaciones.
+importaciones de IMDb y estado de series por RSS.
 
 ## Cuándo usarlo
 
@@ -89,7 +89,6 @@ const SCOPED_PERMISSIONS = [
   PERMISSIONS.MEDIA_ACQUISITION_VIEW,
   PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW,
   PERMISSIONS.RSS_VIEW,
-  PERMISSIONS.NOTIFICATIONS_VIEW,
 ];
 ```
 
@@ -122,12 +121,7 @@ private roomForEvent(event: string): string {
   if (event.startsWith('rss.')) {
     return `perm:${PERMISSIONS.RSS_VIEW}`;
   }
-  // Tiempo real del Centro de Notificaciones (envío/cola/provider) — `notification.*`.
-  // El evento heredado in-app `notification` (sin punto) queda sin permiso, más abajo.
-  if (event.startsWith('notification.')) {
-    return `perm:${PERMISSIONS.NOTIFICATIONS_VIEW}`;
-  }
-  // Los eventos sin permiso (p. ej. el `notification` in-app) van a todos los sockets autenticados.
+  // Los eventos sin permiso van a todos los sockets autenticados.
   return 'authenticated';
 }
 ```
@@ -138,9 +132,6 @@ inventas un evento `widgets.*` y se te olvida mapearlo, todos los usuarios lo re
 no `widgets.view`. Añadir el prefijo a `roomForEvent()` no es opcional.
 :::
 
-Fíjate en la distinción deliberada: `notification` (sin punto) es el toast in-app sin permiso;
-`notification.*` (con punto) es la telemetría de envío del Centro de Notificaciones y sí está
-limitada por permiso.
 
 ### El catálogo de eventos
 
@@ -152,7 +143,6 @@ export const WS_EVENTS = {
   TORRENTS_UPDATE: 'torrents:update',
   TORRENT_UPDATE: 'torrent:update',
   STATS_UPDATE: 'stats:update',
-  NOTIFICATION: 'notification',
   ENGINE_STATUS: 'engine:status',
   SYSTEM_HEALTH: 'system:health',
   FILES_OP_STARTED: 'files.operation.started',
@@ -166,7 +156,7 @@ export const WS_EVENTS = {
   MEDIA_JOB_PROGRESS: 'media_manager.job.progress',
   MEDIA_JOB_COMPLETED: 'media_manager.job.completed',
   MEDIA_JOB_FAILED: 'media_manager.job.failed',
-  // …eventos del dataset de IMDb, eventos de estado de series por RSS, eventos del Centro de Notificaciones
+  // …eventos del dataset de IMDb, eventos de estado de series por RSS
 } as const;
 ```
 
@@ -179,15 +169,17 @@ export const WS_EVENTS = {
 | `media_acquisition.*` | `perm:media_acquisition.view` | Los barridos de adquisición |
 | `media_server.*` | `perm:media_server_analytics.view` | Sondeo de sesiones, sincronización, boletines, importaciones |
 | `rss.*` | `perm:rss.view` | Consulta y actualización del estado de series |
-| `notification.*` | `perm:notifications.view` | Envíos del Centro de Notificaciones |
-| `notification` (sin punto) | `authenticated` | Toasts in-app |
 
 Dos cosas distintas comparten la palabra "evento", y confundirlas te va a costar una tarde:
 
-- **`WS_EVENTS`** — lo que viaja por el socket hacia los navegadores.
-- **`NOTIFICATION_EVENTS`** — **eventos de dominio** internos publicados en el bus de
-  `@nestjs/event-emitter` bajo `NOTIFICATION_BUS_CHANNEL`, a los que el Centro de
-  Notificaciones se suscribe y contra los que evalúa reglas. *No son eventos de WebSocket.*
+`WS_EVENTS` es lo que viaja por el socket hacia los navegadores.
+
+:::note Los eventos de dominio eran un concepto aparte
+Otra constante, `NOTIFICATION_EVENTS`, llevaba eventos de dominio internos por un bus
+en proceso (`@nestjs/event-emitter`). Tanto ella como el bus se eliminaron el 2026-07-25
+junto con el motor de notificaciones, así que `WS_EVENTS` es ahora el único vocabulario
+de eventos.
+:::
 
 ### Emitir
 
@@ -238,7 +230,6 @@ flowchart LR
     MQ["MediaProcessingQueueService"]
     FS["Operaciones de archivos"]
     RS["Estado de series por RSS"]
-    NC["Centro de Notificaciones"]
   end
 
   GW["RealtimeGateway.broadcast()<br/>roomForEvent(event)"]
@@ -248,7 +239,6 @@ flowchart LR
     MM["perm:media_manager.view"]
     FV["perm:files.view"]
     RV["perm:rss.view"]
-    NV["perm:notifications.view"]
     AU["authenticated"]
   end
 
@@ -256,14 +246,12 @@ flowchart LR
   MQ --> GW
   FS --> GW
   RS --> GW
-  NC --> GW
 
   GW -->|"torrents:update · stats:update · engine:status"| RT
   GW -->|"media_manager.* · imdb.*"| MM
   GW -->|"files.*"| FV
   GW -->|"rss.*"| RV
-  GW -->|"notification.*"| NV
-  GW -->|"prefijo sin mapear ⚠️ · notification"| AU
+  GW -->|"prefijo sin mapear ⚠️"| AU
 ```
 
 ## El frontend
@@ -367,7 +355,7 @@ En desarrollo, Vite hace proxy de `/ws` hacia `http://localhost:4000` con `ws: t
 - **Prefiere un prefijo existente.** Un prefijo nuevo significa un mapeo nuevo, un permiso
   nuevo y una manera nueva de filtrar datos. Reutiliza `media_manager.*` si el evento es del
   Gestor de Medios.
-- **`toUser()` existe.** Úsalo para algo genuinamente por usuario (una notificación personal)
+- **`toUser()` existe.** Úsalo para algo genuinamente por usuario
   en vez de hacer broadcast y filtrar en el cliente.
 
 ## Preguntas frecuentes

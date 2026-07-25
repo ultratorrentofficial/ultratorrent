@@ -36,7 +36,7 @@ En una LAN no necesitas un proxy inverso — abre `http://<host>:8080` y ya est�
 Quieres uno cuando necesitas un **nombre de host en vez de un puerto**, **HTTPS**, o **un solo punto de entrada frente a varias apps autoalojadas**.
 
 :::danger Los WebSockets no son opcionales
-La UI de UltraTorrent es **en vivo**: progreso de torrents, salud de los motores, ejecuciones de RSS, progreso de importación, notificaciones — todo se envía por un WebSocket en **`/ws/`**. Un proxy que no reenvía los encabezados `Upgrade` y `Connection` produce una UI que *aparenta* estar bien, carga, te deja iniciar sesión — y luego nunca se actualiza. Las barras de progreso se quedan en 0%. Este es de lejos el error más común con proxies inversos, y todas las configuraciones de abajo lo manejan.
+La UI de UltraTorrent es **en vivo**: progreso de torrents, salud de los motores, ejecuciones de RSS, progreso de importación — todo se envía por un WebSocket en **`/ws/`**. Un proxy que no reenvía los encabezados `Upgrade` y `Connection` produce una UI que *aparenta* estar bien, carga, te deja iniciar sesión — y luego nunca se actualiza. Las barras de progreso se quedan en 0%. Este es de lejos el error más común con proxies inversos, y todas las configuraciones de abajo lo manejan.
 :::
 
 :::tip Mira este tutorial

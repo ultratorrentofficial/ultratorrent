@@ -2,7 +2,7 @@
 id: workflows
 title: Workflows
 sidebar_position: 5
-description: The seven canonical end-to-end flows, as Mermaid diagrams — downloading a movie, automating a TV show, an RSS rule firing, Smart Download filling a gap, media import and rename, a notification firing, and backup/restore.
+description: The six canonical end-to-end flows, as Mermaid diagrams — downloading a movie, automating a TV show, an RSS rule firing, Smart Download filling a gap, media import and rename, and backup/restore.
 keywords:
   - workflows
   - end to end
@@ -15,7 +15,6 @@ keywords:
   - missing episode
   - media import
   - rename
-  - notification
   - backup
   - restore
   - automation
@@ -25,7 +24,7 @@ keywords:
 
 # Workflows
 
-Seven flows. Each one is what *actually* happens, drawn end to end, with the
+Six flows. Each one is what *actually* happens, drawn end to end, with the
 component that owns each step named.
 
 Read the diagram first, then the notes underneath it. Between them they explain
@@ -40,14 +39,12 @@ flowchart LR
   W3["3 · An RSS<br/>rule fires"]
   W4["4 · Smart Download<br/>fills a gap"]
   W5["5 · Import<br/>and rename"]
-  W6["6 · A notification<br/>fires"]
-  W7["7 · Backup<br/>and restore"]
+  W6["6 · Backup<br/>and restore"]
 
   W1 --> W5
   W2 --> W3
   W3 --> W5
   W4 --> W5
-  W5 --> W6
 ```
 
 ## Purpose
@@ -279,8 +276,8 @@ sequenceDiagram
 :::caution Limits worth knowing
 Automatic search is **episode-only** today — `WantedMovie` rows carry the same
 grab-state columns, but there is no automatic movie search yet. Smart Download's
-**automation triggers** and **per-user decision notifications** are also not wired
-yet, and `replace_existing` exists as a decision type but is not emitted.
+**automation triggers** are also not wired yet, and `replace_existing` exists as a
+decision type but is not emitted.
 :::
 
 ![Missing Episodes page with the season and episode grid](/img/screenshots/workflow-missing-episodes.png)
@@ -346,73 +343,7 @@ work and never re-hammer the metadata providers.
 
 ---
 
-## Workflow 6 — A notification fires
-
-Nothing about notifications is hardcoded. **Every** notification is a rule you own.
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant MOD as Any module
-  participant BUS as Internal event bus
-  participant NC as Notification Center
-  participant RE as Rule engine
-  participant RC as Recipients + groups
-  participant PR as Preferences (opt-out)
-  participant TE as Template engine
-  participant Q as Delivery queue
-  participant CH as Channel provider
-
-  MOD->>BUS: emit an event envelope<br/>(e.g. download.torrent_completed)
-  BUS->>NC: the Center is the sole subscriber
-  NC->>RE: match enabled rules + conditions
-  RE-->>NC: the rules that fired
-  NC->>RC: resolve recipients (users, groups, the event's user)
-  NC->>PR: honour per-user opt-outs
-  NC->>TE: build the message + rich card per channel
-  NC->>Q: enqueue (deduplicated)
-  loop delivery worker
-    Q->>Q: quiet hours · rate limit · retries · escalation
-    Q->>CH: send
-    CH-->>Q: status
-  end
-  Q-->>NC: history + WebSocket + audit
-```
-
-**Available channels**
-
-| Channel | Backend | Rendering |
-| --- | --- | --- |
-| **Email** | SMTP | Responsive HTML card (poster, badges, buttons) + plain text |
-| **Telegram** | Bot API | Photo + Markdown caption + inline-keyboard buttons |
-| **SMS** | Twilio | Concise plain text |
-| **WhatsApp** | Twilio | Rich text + poster media |
-
-**Events you can build rules on** include downloads (`download.torrent_completed`,
-`download.torrent_failed`, `download.stalled`, `download.ratio_reached`), RSS
-(`rss.feed_failed`, `rss.rule_matched`, `rss.new_episode_available`), media
-(`media.renamed`, `media.missing_subtitles`, `media.missing_episode_filled`,
-`media.library_scan_completed`), media servers
-(`media_server.user_started_watching`, `media_server.server_offline`), and system
-(`system.disk_space_low`, `system.failed_login`, `system.new_login`,
-`system.update_available`).
-
-**The pages you will use**
-
-| Page | Route | For |
-| --- | --- | --- |
-| Notification Center | `/notifications` | The dashboard. |
-| Channels | `/notifications/channels` | Configure Email/Telegram/SMS/WhatsApp. Secrets encrypted at rest. |
-| Rules | `/notifications/rules` | Event → conditions → channels → recipients. |
-| Recipients | `/notifications/recipients` | Who gets what. |
-| Delivery History | `/notifications/history` | Proof it went out (or why it did not). |
-
-
-![Notification rule editor](/img/screenshots/workflow-notification-rule.png)
-
----
-
-## Workflow 7 — Backup and restore
+## Workflow 6 — Backup and restore
 
 The least exciting workflow and the only one whose absence will ruin your week.
 
@@ -449,7 +380,7 @@ cp .env env-backup-$(date +%F)
 
 :::danger `ENCRYPTION_KEY` and the database are one unit
 `ENCRYPTION_KEY` is what decrypts the encrypted columns in that dump — 2FA/TOTP
-secrets, indexer API keys, media-server tokens, notification credentials.
+secrets, indexer API keys and media-server tokens.
 **A database restored without its matching key has a lot of unreadable secrets in
 it.** Back them up together, restore them together, and store them somewhere that
 is not the host you are backing up.
@@ -489,8 +420,7 @@ _Video coming soon._
 | The same episode grabbed twice | 3 | Release identity parsing (level-3 dedup) |
 | An old episode never fills in | 4 | Watchlist IMDb ID, indexer results, `autoSearchMissing` |
 | Files downloaded but never renamed | 5 | Library root vs. save path; library enabled? |
-| I never hear about anything | 6 | Notification rules, channels, recipients |
-| I lost everything | 7 | You did take a backup, right? |
+| I lost everything | 6 | You did take a backup, right? |
 
 ---
 
@@ -503,8 +433,7 @@ _Video coming soon._
 | Missing episode search finds nothing | Workflow 4 | The show's scene title does not parse to your watchlist title (an alias), or no indexer carries it. |
 | Everything is `pending_approval` | Workflow 4 | Your acquisition profile has `approvalRequired`, or the score is below `approvalScore`. |
 | Media stays `unmatched` | Workflow 5 | Poor release name. Fix on `/media/unmatched`, or improve the source naming. |
-| Notification rule never fires | Workflow 6 | Wrong event name, an unmet condition, no recipient resolved, or the user opted out. Check **Delivery History**. |
-| Restored DB, but indexers all fail | Workflow 7 | Wrong `ENCRYPTION_KEY`. The encrypted keys cannot be decrypted. |
+| Restored DB, but indexers all fail | Workflow 6 | Wrong `ENCRYPTION_KEY`. The encrypted keys cannot be decrypted. |
 
 ---
 
@@ -515,11 +444,6 @@ Every Smart Download decision persists its **full trace**. The **Decision
 Simulator** (`/media-acquisition/simulator`) replays the whole pipeline for any
 release name with **zero side effects**. It will tell you exactly why something was
 chosen or rejected in less time than it takes to form a theory.
-:::
-
-:::tip Delivery History is the notification equivalent
-`/notifications/history` shows whether a message was queued, sent, retried or
-failed — and why. Check it before assuming a rule did not fire.
 :::
 
 :::info Everything mutating is audited
@@ -558,7 +482,6 @@ dropped folders in place. But note it **never renames or moves**, and fires no
 - [ ] I can name the three levels of RSS deduplication.
 - [ ] I know that missing-episode auto-search is **opt-in and off by default**.
 - [ ] I know that the periodic library scan **never renames**.
-- [ ] I know that notifications are **entirely rule-driven** — nothing is hardcoded.
 - [ ] I have taken a `pg_dump` **and** backed up `.env` with `ENCRYPTION_KEY`.
 - [ ] I have restored that backup at least once, somewhere disposable, and verified an indexer **Test** still passes.
 
@@ -568,7 +491,6 @@ dropped folders in place. But note it **never renames or moves**, and fires no
 | --- | --- |
 | Add a torrent inside a library root, wait | It is renamed and appears in the media server. |
 | Paste a release name into the Decision Simulator | A full, clickable trace with a decision and a reason. |
-| Trigger a notification rule | A row in **Delivery History** with a `sent` status. |
 | Restore your backup on a clean stack | You can log in, and an indexer **Test** passes. |
 
 ### Next steps

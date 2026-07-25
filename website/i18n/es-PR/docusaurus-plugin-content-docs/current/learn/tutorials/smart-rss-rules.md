@@ -375,7 +375,7 @@ para una adquisición controlada.
 | Los agarres funcionan pero nada se organiza | La **ruta de guardado** de la regla no está dentro de la raíz de una biblioteca habilitada. | Arregla la ruta de guardado. |
 | "Torrent URL resolves to a blocked internal address" | El guardia SSRF contra un indexador con IP privada. | Agrega el host a `SSRF_ALLOW_HOSTS` (deja `prowlarr`). |
 | Una regla de TV se niega a guardarse | La serie está `ended` / `canceled`. | Confirma la anulación (queda auditada), o usa una regla de relleno. |
-| La fuente dejó de actualizarse | La URL de la fuente está muerta o te está limitando la tasa. | Vigila el evento de notificación `rss.feed_failed`; revisa el historial de la fuente. |
+| La fuente dejó de actualizarse | La URL de la fuente está muerta o te está limitando la tasa. | Abre la fuente en `/rss` y revisa su estado y su historial — una consulta fallida deja de avanzar la hora de la última consulta y registra el error. |
 
 ---
 
@@ -432,8 +432,9 @@ No. **Las fuentes RSS no son indexadores.** El RSS se consulta y empuja elemento
 reglas; los indexadores se *buscan* bajo demanda, sobre Torznab/Newznab, desde el pipeline de
 adquisición. Son subsistemas distintos.
 
-**¿Me pueden notificar cuando una fuente se rompe?**
-Sí — `rss.feed_failed` es un evento de notificación. Ver
+**¿Cómo me entero de que una fuente se rompió?**
+Mirando: el estado y el historial de la fuente en `/rss` registran la falla, y la hora
+de su última consulta deja de avanzar. Nada te lo empuja.
 
 ---
 
@@ -466,7 +467,7 @@ Sí — `rss.feed_failed` es un evento de notificación. Ver
 ### Próximos pasos
 
 1. [Múltiples indexadores](/learn/tutorials/multiple-indexers) — dale al motor más de dónde escoger.
-3. [Automatizar series de TV](/learn/tutorials/automating-tv-shows) — empareja el RSS hacia adelante con el llenado de huecos hacia atrás.
+2. [Automatizar series de TV](/learn/tutorials/automating-tv-shows) — empareja el RSS hacia adelante con el llenado de huecos hacia atrás.
 
 ---
 

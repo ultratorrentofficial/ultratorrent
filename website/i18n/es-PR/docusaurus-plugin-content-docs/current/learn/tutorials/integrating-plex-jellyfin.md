@@ -199,7 +199,8 @@ con el nombre correcto y con carátula.
 
 :::tip Un fallo de actualización es un disparador, no un callejón sin salida
 `media.server_refresh_failed` es un disparador de automatización. Crea una regla sobre
-él que te notifique — de lo contrario una integración rota en silencio puede pasar
+él — un webhook, por ejemplo — de lo contrario una integración rota en silencio puede
+pasar desapercibida durante semanas.
 :::
 
 ---
@@ -249,25 +250,6 @@ en tu servidor.
 
 ![Actividad en vivo mostrando una sesión en reproducción](/img/screenshots/plex-live-activity.png)
 
----
-
-### Paso 7 — Crea una notificación sobre lo que hace tu servidor
-
-Ahora que los eventos fluyen, conéctalos. El Centro de Notificaciones puede enrutar
-eventos de servidor de medios como:
-
-- `media_server.user_started_watching` / `user_finished_watching` / `user_paused` / `user_resumed` / `user_stopped`
-- `media_server.media_added` / `media_upgraded`
-- `media_server.server_online` / `server_offline`
-- `media_server.transcode_detected` / `high_bandwidth`
-- `media_server.newsletter_sent` / `newsletter_failed`
-
-Ve a **Automatización → Reglas de Notificación** (`/notifications/rules`) y crea una.
-Una buena primera regla: **`media_server.server_offline` → notifícame**.
-
-**Resultado esperado:** te enteras de que tu servidor está caído por un mensaje, no por
-un familiar.
-
 :::tip Mira este tutorial
 _Video próximamente._
 :::
@@ -293,13 +275,6 @@ Varias conexiones del mismo tipo están explícitamente soportadas.
 | Necesaria para | Que los medios nuevos aparezcan automáticamente | Actividad en vivo, historial, informes, boletines |
 | ¿Configurar primero? | ✅ Sí | Después |
 
-### Una buena primera regla de notificación
-
-```text
-TRIGGER    media_server.server_offline
-ACTIONS    notify → Telegram → me
-```
-
 ---
 
 ## Solución de problemas
@@ -313,7 +288,7 @@ ACTIONS    notify → Telegram → me
 | Faltan carátulas en Plex | No se descargaron carátulas, o Plex está usando su propio agente. | Configura un proveedor de metadatos/carátulas en `/media/settings`; revisa la configuración del agente de Plex. |
 | Kodi no muestra sesiones | **Correcto.** Kodi es una biblioteca cliente — declara `sessions` y la lista de secciones como no soportadas. | Nada que arreglar. Usa Plex/Jellyfin/Emby para analíticas de sesiones. |
 | Actividad en Vivo está vacía | No se está reproduciendo nada, o el servidor no soporta sesiones. | Dale a reproducir. Revisa las insignias de capacidades de la conexión. |
-| La actualización dejó de funcionar en silencio | El token rotó, o el servidor se mudó. | Vuelve a probar la conexión. Crea una regla sobre `media.server_refresh_failed` para enterarte la próxima vez. |
+| La actualización dejó de funcionar en silencio | El token rotó, o el servidor se mudó. | Vuelve a probar la conexión, y revisa la salud de la conexión en `/media-server-analytics/connections`. |
 | Los secretos se ven como `••••••` | **Correcto.** Están cifrados en reposo y ocultados al leerlos. | Deja el campo en blanco al editar para conservar el valor guardado. |
 
 ---
@@ -387,8 +362,6 @@ Gestor de Medios, protegida por permisos (`media_manager.delete`) y auditada.
 - [ ] Existe una conexión en **Conexiones de Servidor** (`/media-server-analytics/connections`), saludable, con una versión detectada y capacidades.
 - [ ] **Actividad en Vivo** muestra una sesión cuando le doy a reproducir.
 - [ ] El **Historial de Reproducción** se está poblando.
-- [ ] Tengo una regla de notificación sobre `media_server.server_offline`.
-- [ ] Tengo una regla de notificación (o automatización) sobre `media.server_refresh_failed`.
 
 ### Resultados esperados
 
@@ -398,19 +371,18 @@ Gestor de Medios, protegida por permisos (`media_manager.delete`) y auditada.
 | Tu servidor de medios | Elementos nuevos apareciendo sin escaneos manuales |
 | `/media-server-analytics/connections` | Saludable, con versión + capacidades |
 | `/media-server-analytics/live` | Una sesión cuando algo se está reproduciendo |
-| `/notifications/history` | Mensajes entregados |
 
 ### Próximos pasos
 
-2. [Automatizando series de TV](/learn/tutorials/automating-tv-shows) — llena la biblioteca que ahora se actualiza sola.
-3. [Analíticas del Servidor de Medios](/modules/media-server-analytics) — la referencia completa del módulo.
+1. [Automatizando series de TV](/learn/tutorials/automating-tv-shows) — llena la biblioteca que ahora se actualiza sola.
+2. [Analíticas del Servidor de Medios](/modules/media-server-analytics) — la referencia completa del módulo.
 
 ---
 
 ## Ver también
 
 - [Analíticas del Servidor de Medios](/modules/media-server-analytics) · [Gestor de Medios](/modules/media-manager)
-- Centro de Notificaciones · [Automatización](/modules/automation)
-- [Flujos de trabajo](/learn/workflows) — Flujos de trabajo 5 y 6.
+- [Automatización](/modules/automation)
+- [Flujos de trabajo](/learn/workflows) — Flujo de trabajo 5.
 - [Seguridad](/operate/security) — cómo se protegen los secretos de integración.
 - [Solución de problemas](/operate/troubleshooting) · [Glosario](/help/glossary)
