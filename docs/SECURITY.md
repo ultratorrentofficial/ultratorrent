@@ -203,6 +203,12 @@ into the catalog at load):
 | `release_scoring.*` | `view`, `manage` |
 | `media_server_analytics.*` | `view`, `view_live_activity`, `view_history`, `view_reports`, `view_users`, `export`, `manage_connections`, `manage_imports`, `run_imports`, `manage_newsletters`, `send_newsletters`, `manage_settings` |
 
+| `notifications.*` (self-service) | `view_own`, `manage_own`, `channels_manage_own` — held by every ordinary role, because managing your own notifications is part of owning an account rather than a privilege an admin grants |
+
+Personal notifications have their own threat model, covering recipient
+eligibility, cross-user access, Telegram code replay, Discord SSRF and secret
+handling: [NOTIFICATION_ENGINE_SECURITY.md](NOTIFICATION_ENGINE_SECURITY.md).
+
 `packages/shared/src/permissions.ts` remains the single source of truth — read it,
 not this table, when you need the exact key list.
 

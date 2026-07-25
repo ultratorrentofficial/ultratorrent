@@ -42,7 +42,9 @@ export interface DispatchSummary {
  * operation that produced the event, and must not stop the other subscribers
  * (automation, workflow waits) from seeing it.
  *
- * Phase 2 creates in-app rows only. External channels are queued here in Phase 4+.
+ * The in-app row is the carrier: it holds the rendered presentation that email,
+ * Telegram and Discord each project, so a user who wants only email still gets a
+ * row — it is simply never surfaced to them.
  */
 @Injectable()
 export class NotificationDispatcher implements OnModuleInit {
@@ -58,16 +60,21 @@ export class NotificationDispatcher implements OnModuleInit {
   ) {}
 
   /**
-   * May this recipient see playback detail (artwork, device, quality)?
+   * Which of these recipients may see playback detail (artwork, device, quality)?
    *
-   * Same gate as the Live Activity dashboard. Watching habits are personal, and
-   * a notification is the one surface that reaches someone who never opened it.
-   * SUPER_ADMIN is matched by role, as everywhere else.
+   * Same gate as the Live Activity dashboard — watching habits are personal, and
+   * a notification reaches someone who never opened it. SUPER_ADMIN is matched by
+   * role, as everywhere else.
+   *
+   * Resolved for the whole audience in ONE query. Done per recipient it is an
+   * N+1 on the dispatch of every playback event, which is the highest-volume
+   * event in the catalogue and the one most likely to have a large audience.
    */
-  private async canViewPlaybackDetail(userId: string): Promise<boolean> {
-    const row = await this.prisma.user.findFirst({
+  private async playbackDetailAudience(userIds: readonly string[]): Promise<Set<string>> {
+    if (!userIds.length) return new Set();
+    const rows = await this.prisma.user.findMany({
       where: {
-        id: userId,
+        id: { in: [...userIds] },
         roles: {
           some: {
             role: {
@@ -81,7 +88,7 @@ export class NotificationDispatcher implements OnModuleInit {
       },
       select: { id: true },
     });
-    return !!row;
+    return new Set(rows.map((r) => r.id));
   }
 
   onModuleInit(): void {
@@ -115,6 +122,9 @@ export class NotificationDispatcher implements OnModuleInit {
       if (!audience.length) return summary;
 
       const preferences = await this.preferences.effectiveForMany(audience, definition.key);
+      // Both per-recipient lookups are batched before the loop, so dispatch cost
+      // is two queries plus one insert per recipient — not four per recipient.
+      const maySeePlaybackDetail = await this.playbackDetailAudience(audience);
 
       for (const userId of audience) {
         const preference = preferences.get(userId);
@@ -134,7 +144,9 @@ export class NotificationDispatcher implements OnModuleInit {
           }
 
           const notificationId = await this.createInApp(
-            userId, definition, envelope, preferenceAllows(preference, 'in_app'),
+            userId, definition, envelope,
+            preferenceAllows(preference, 'in_app'),
+            maySeePlaybackDetail.has(userId),
           );
           if (notificationId) summary.created += 1;
           else summary.skipped += 1;
@@ -199,6 +211,7 @@ export class NotificationDispatcher implements OnModuleInit {
     definition: ReturnType<typeof getNotificationEvent> & object,
     envelope: DomainEventEnvelope,
     surfaceInApp: boolean,
+    canViewPlaybackDetail: boolean,
   ): Promise<string | null> {
     const fallback = buildFallbackPresentation(definition, envelope);
     const payload = (envelope.payload ?? {}) as Record<string, unknown>;
@@ -212,7 +225,7 @@ export class NotificationDispatcher implements OnModuleInit {
       envelope,
       locale: 'en-US' as PresentationLocale,
       timezone: null,
-      canViewPlaybackDetail: await this.canViewPlaybackDetail(userId),
+      canViewPlaybackDetail,
       notificationId,
     });
 

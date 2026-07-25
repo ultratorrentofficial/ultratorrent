@@ -106,6 +106,30 @@ sidebar lacks.
 - Keyboard: Esc closes drawer & palette; Enter/Arrows drive the palette.
 - Touch targets on the mobile bar are ≥ 44px tall.
 
+## Notification surfaces
+
+Notifications answer two questions and no more: *which events do I want*, and
+*where do I receive them*. That constraint is a UX rule, not only an
+architectural one — the system this replaced failed because its UI asked users to
+reason about rules, audiences, routing precedence and templates.
+
+- **The Events table is the whole configuration.** One row per event, one switch
+  per channel. No per-row destination picker, no priority, no schedule.
+- **Never offer a control the platform cannot honour.** A channel column is
+  disabled until that channel can actually deliver, and the page says *why*
+  ("Not connected", "no email relay configured") rather than failing at test time.
+- **Never show a destination.** Masks only. An unverified connection must not look
+  finished — it carries its own hint about what to do next.
+- **The rich card is the message.** Where a card renders, the plain title line is
+  suppressed rather than duplicated; severity, category and read state stay,
+  because those are inbox concerns the card knows nothing about.
+- **Accent is meaning, not decoration.** `stopped` is coral, `error` is red, and
+  they are deliberately different — playback ending is not a failure. Never convey
+  state by colour alone: every state also has an icon and an accessible label.
+- **Personal settings live under Account**, reached from the user menu. They are
+  not a rail entry, and there is no administrative screen that edits another
+  person's preferences.
+
 ## When you add a surface
 
 - Consume `useVisibleNavGroups()` / `NAV_GROUPS` — never re-derive the item list.

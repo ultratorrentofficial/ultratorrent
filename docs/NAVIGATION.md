@@ -64,6 +64,13 @@ Subtitles, and Monitoring hosts Media Server Analytics. Sub-modules with many pa
 (Subtitles, Media Server Analytics) nest under a parent whose own route is the
 module's dashboard.
 
+Personal notifications are reached from the **user menu**, not the rail:
+Notification inbox → `/account/notifications/inbox`, Notification events →
+`/account/notifications/events`, Notification channels →
+`/account/notifications/channels`. The rail is organised by platform capability,
+and per-user settings do not belong in it — `/account` has never been a rail
+entry either.
+
 | Domain | Entries (→ route) |
 |--------|-------------------|
 | **Dashboard** | Dashboard → `/dashboard` · Search → command palette |

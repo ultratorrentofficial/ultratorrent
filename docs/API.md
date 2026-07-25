@@ -15,6 +15,7 @@ directly from the NestJS controllers.
 - [Files — `/api/files`](#files--apifiles)
 - [RSS — `/api/rss`](#rss--apirss)
 - [Automation — `/api/automation`](#automation--apiautomation)
+- [Notifications — `/api/account/notifications`](#notifications--apiaccountnotifications)
 - [Indexers — `/api/indexers`](#indexers--apiindexers)
 - [Prowlarr integration — `/api/integrations/prowlarr`](#prowlarr-integration--apiintegrationsprowlarr)
 - [Media Server Analytics — `/api/media-server-analytics`](#media-server-analytics--apimedia-server-analytics)
@@ -486,6 +487,43 @@ media (`rename_for_media`, `media_scan_library`, `media_match`,
 > actions are reachable over the API but have no picker in the frontend yet.
 
 ---
+
+## Notifications — `/api/account/notifications`
+
+Self-service. **No route takes a user id** — the acting user always comes from the
+JWT, which is stronger than checking ownership on a supplied id because it cannot
+be forgotten on a route added later. Ownership violations return `404`, never
+`403`, so a response cannot confirm another user's ids exist.
+
+Full design: [NOTIFICATION_ENGINE.md](NOTIFICATION_ENGINE.md) ·
+threats: [NOTIFICATION_ENGINE_SECURITY.md](NOTIFICATION_ENGINE_SECURITY.md).
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET`    | `/api/account/notifications/events` | `notifications.view_own` |
+| `GET`    | `/api/account/notifications/preferences` | `notifications.view_own` |
+| `PUT`    | `/api/account/notifications/preferences/:eventKey` | `notifications.manage_own` |
+| `POST`   | `/api/account/notifications/preferences/bulk` | `notifications.manage_own` |
+| `GET`    | `/api/account/notifications/channels` | `notifications.view_own` |
+| `POST`   | `/api/account/notifications/channels/email` | `notifications.channels_manage_own` |
+| `POST`   | `/api/account/notifications/channels/telegram/link` | `notifications.channels_manage_own` |
+| `POST`   | `/api/account/notifications/channels/telegram/confirm` | `notifications.channels_manage_own` |
+| `POST`   | `/api/account/notifications/channels/discord` | `notifications.channels_manage_own` |
+| `POST`   | `/api/account/notifications/channels/:type/test` | `notifications.channels_manage_own` |
+| `DELETE` | `/api/account/notifications/channels/:type` | `notifications.channels_manage_own` |
+| `GET`    | `/api/account/notifications/inbox` | `notifications.view_own` |
+| `GET`    | `/api/account/notifications/inbox/unread-count` | `notifications.view_own` |
+| `POST`   | `/api/account/notifications/inbox/:id/{read,unread,archive}` | `notifications.manage_own` |
+| `POST`   | `/api/account/notifications/inbox/mark-all-read` | `notifications.manage_own` |
+| `GET`/`PUT` | `/api/account/notifications/platform/telegram` | `settings.manage` |
+
+The last is operator configuration of the shared bot — infrastructure, exactly
+like the SMTP relay, so it is gated on `settings.manage` rather than a
+notification permission.
+
+**Channel responses never contain a destination.** They carry a mask
+(`de••••@example.com`, `#alerts (…5678)`, `@handle`) plus health; no endpoint
+returns a real address, chat id or webhook URL.
 
 ## Indexers — `/api/indexers`
 

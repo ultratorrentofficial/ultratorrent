@@ -50,12 +50,12 @@ function humanize(key: string): string {
 }
 
 /**
- * The Phase 2 presentation: a readable title, a short body, a safe deep link.
+ * The plain fallback: a readable title, a short body, a safe deep link.
  *
- * Deliberately plain. Phase 3 replaces this with the canonical rich model
- * (artwork, avatar, facts, accent); until then a notification must still be
- * legible rather than showing a raw event key, which is exactly what the previous
- * engine shipped for months.
+ * Reached when a rich builder DECLINES — a playback event with no media title, a
+ * torrent event with no name. The rich model is the normal path; this exists so
+ * that a malformed payload still produces something legible rather than a raw
+ * event key, which is exactly what the previous engine shipped for months.
  *
  * The rendered strings are **stored**, so a notification says the same thing
  * forever. Re-rendering historical rows against a changed catalogue would

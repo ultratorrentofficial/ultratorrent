@@ -106,6 +106,9 @@ architecture.
   matches to the default engine.
 - **Rules engine** — condition/action automation triggered by events such as
   `torrent.completed`, with logging.
+- **Personal notifications** — each user chooses which events they want and where
+  they arrive: in-app, email, Telegram or Discord. No shared recipients, no rule
+  builder — see [NOTIFICATION_ENGINE.md](docs/NOTIFICATION_ENGINE.md).
 - **User & role management** — create users, assign roles, manage API keys, and
   edit platform settings from the API.
 - **Global search** — fast lookup across persisted torrent snapshots.
@@ -302,6 +305,8 @@ ultratorrent/
 | [WORKFLOW_BUILDER.md](docs/WORKFLOW_BUILDER.md) | The durable, versioned, visual automation builder — node catalog, validation, simulation, durable execution (waits/approvals/sub-workflows), Jobs Center integration, RBAC ([threat model](docs/WORKFLOW_SECURITY.md), [design review](docs/WORKFLOW_BUILDER_ARCHITECTURE_REVIEW.md)) |
 | [LIBRARY_CLEANUP.md](docs/LIBRARY_CLEANUP.md) | Policy-driven, explainable, reversible reclamation of library storage — immutable policy versions, the third `unmeasured` outcome, protections, candidates/fingerprints, plans & approvals, quarantine/Trash/restore, scheduling & storage pressure ([threat model](docs/LIBRARY_CLEANUP_SECURITY.md), [design review](docs/LIBRARY_CLEANUP_ARCHITECTURE_REVIEW.md)) |
 | [NAVIGATION.md](docs/NAVIGATION.md)     | The underlying registry-driven nav model shared by every surface — sidebar, breadcrumbs, command palette, Overviews, personalization, mobile ([shell UX](docs/UX_GUIDELINES.md)) |
+| [NOTIFICATION_ENGINE.md](docs/NOTIFICATION_ENGINE.md) | Personal notifications — the two questions it answers, ownership and eligibility, code-defined recipients, channels, presentation, delivery, API ([threat model](docs/NOTIFICATION_ENGINE_SECURITY.md)) |
+| [DOMAIN_EVENTS.md](docs/DOMAIN_EVENTS.md) | The shared platform event bus — envelope, guarantees, catalogue, subscribers, edge detection |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md)   | Local workflow, adding an engine provider, adding a module, testing, standards |
 | [CONTRIBUTING.md](docs/CONTRIBUTING.md) | Branching, conventional commits, PRs, DCO, CLA |
 | [CHANGELOG.md](CHANGELOG.md)            | Release notes (Keep a Changelog) |

@@ -377,9 +377,13 @@ describe('NotificationDispatcher', () => {
     const created: any[] = [];
     const toUser = jest.fn();
     const prisma: any = {
-      // The dispatcher resolves playback-detail permission per recipient before
-      // building the rich card, so the mock must answer that too.
-      user: { findFirst: jest.fn(async () => (opts.canViewPlayback === false ? null : { id: 'u' })) },
+      // The dispatcher resolves playback-detail permission for the WHOLE audience
+      // in one query before the loop, so the mock answers findMany.
+      user: {
+        findMany: jest.fn(async ({ where }: any) =>
+          opts.canViewPlayback === false ? [] : (where.id?.in ?? []).map((id: string) => ({ id })),
+        ),
+      },
       userNotification: {
         create: jest.fn(async ({ data }: any) => {
           if (opts.failOn === data.userId) {
@@ -405,7 +409,7 @@ describe('NotificationDispatcher', () => {
     const realtime: any = { toUser };
     return {
       svc: new NotificationDispatcher(prisma, bus, recipients, preferences, realtime),
-      created, toUser, recipients,
+      created, toUser, recipients, prisma,
     };
   };
 
@@ -473,6 +477,16 @@ describe('NotificationDispatcher', () => {
     const summary = await svc.dispatch(envelope() as never);
     expect(summary.created).toBe(2);
     expect(created.map((c) => c.userId)).toEqual(['u1', 'u3']);
+  });
+
+  it('resolves permissions ONCE for the whole audience, not per recipient', async () => {
+    // Both per-recipient lookups are batched before the loop. Done per recipient
+    // this is an N+1 on every playback event — the highest-volume event in the
+    // catalogue and the one most likely to have a large audience.
+    const { svc, prisma } = build({ audience: ['u1', 'u2', 'u3', 'u4'] });
+    await svc.dispatch(envelope() as never);
+    expect(prisma.user.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.user.findMany.mock.calls[0][0].where.id.in).toHaveLength(4);
   });
 
   it('emits to the recipient’s own socket room only', async () => {
