@@ -41,9 +41,6 @@ import {
   DownloadCloud,
   Mail,
   Users,
-  Bell,
-  Send,
-  FileText,
   Recycle,
   FileCog,
   ClipboardCheck,
@@ -247,26 +244,6 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
   { slot: { domain: 'automation', order: 15 }, item: { id: 'workflows', to: '/workflows', label: 'Workflows', icon: Workflow, permission: PERMISSIONS.WORKFLOWS_VIEW, end: true, descriptionKey: 'Workflows', children: [
     { id: 'workflow-approvals', to: '/workflows/approvals', label: 'Workflow Approvals', icon: ShieldCheck, permission: PERMISSIONS.WORKFLOWS_APPROVE, descriptionKey: 'Workflow Approvals' },
   ] } },
-  { slot: { domain: 'automation', order: 20 }, item: {
-    id: 'notifications', to: '/notifications', label: 'Notifications', icon: Bell, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', end: true, descriptionKey: 'Notifications',
-    children: [
-      { id: 'nc-channels', to: '/notifications/channels', label: 'Notification Channels', icon: Send, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Channels' },
-      { id: 'nc-rules', to: '/notifications/rules', label: 'Notification Rules', icon: ListChecks, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Rules' },
-      { id: 'nc-templates', to: '/notifications/templates', label: 'Notification Templates', icon: FileText, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Templates' },
-      { id: 'nc-recipients', to: '/notifications/recipients', label: 'Notification Recipients', icon: Users, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Notification Recipients' },
-      { id: 'nc-groups', to: '/notifications/groups', label: 'Recipient Groups', icon: Users, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Recipient Groups' },
-      { id: 'nc-history', to: '/notifications/history', label: 'Delivery History', icon: History, permission: PERMISSIONS.NOTIFICATIONS_VIEW_HISTORY, module: 'notification_center', descriptionKey: 'Delivery History' },
-      { id: 'nc-queue', to: '/notifications/queue', label: 'Queue Monitor', icon: Gauge, permission: PERMISSIONS.NOTIFICATIONS_VIEW_HISTORY, module: 'notification_center', descriptionKey: 'Queue Monitor' },
-      { id: 'nc-health', to: '/notifications/provider-health', label: 'Provider Health', icon: Activity, permission: PERMISSIONS.NOTIFICATIONS_VIEW, module: 'notification_center', descriptionKey: 'Provider Health' },
-      { id: 'nc-inbox', to: '/account/notifications/inbox', label: 'My Notification Inbox', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_VIEW_OWN, module: 'notification_center', descriptionKey: 'My Notification Inbox' },
-      { id: 'nc-my-events', to: '/account/notifications/events', label: 'My Notification Events', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_VIEW_OWN, module: 'notification_center', descriptionKey: 'My Notification Events' },
-      { id: 'nc-my-settings', to: '/account/notifications/settings', label: 'My Notification Settings', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_VIEW_OWN, module: 'notification_center', descriptionKey: 'My Notification Settings' },
-      { id: 'nc-my-channels', to: '/account/notifications/channels', label: 'My Notification Connections', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_VIEW_OWN, module: 'notification_center', descriptionKey: 'My Notification Connections' },
-      { id: 'nc-routing', to: '/notifications/routing', label: 'Routing Profiles', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES, module: 'notification_center', descriptionKey: 'Routing Profiles' },
-      { id: 'nc-prefs', to: '/notifications/preferences', label: 'Notification Preferences', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES, module: 'notification_center', descriptionKey: 'Notification Preferences' },
-      { id: 'nc-settings', to: '/notifications/settings', label: 'Notification Settings', icon: Settings, permission: PERMISSIONS.NOTIFICATIONS_MANAGE_SETTINGS, module: 'notification_center', descriptionKey: 'Notification Settings' },
-    ],
-  } },
 
   { slot: { domain: 'files', order: 10 }, item: { id: 'files', to: '/files', label: 'File Manager', icon: FolderTree, permission: PERMISSIONS.FILES_VIEW, module: 'files', descriptionKey: 'File Manager' } },
 

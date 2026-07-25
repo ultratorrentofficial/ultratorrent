@@ -6,13 +6,7 @@ import { FilePathService } from '../files/file-path.service';
 import { FilesService } from '../files/files.service';
 import { TrashService } from '../files/trash.service';
 import { AuditService } from '../audit/audit.service';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import {
-  NOTIFICATION_BUS_CHANNEL,
-  NOTIFICATION_EVENTS,
-  WS_EVENTS,
-  type DuplicateResolutionEventPayload,
-} from '@ultratorrent/shared';
+import { WS_EVENTS, type DuplicateResolutionEventPayload } from '@ultratorrent/shared';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { LANG_TAG, SUBTITLE_EXT } from './media-renamer';
 
@@ -125,7 +119,6 @@ export class DuplicateResolutionService {
     private readonly trash: TrashService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   /** One cleanup lifecycle event, scoped by the `media_manager.` name prefix. */
@@ -665,26 +658,6 @@ export class DuplicateResolutionService {
       reclaimedBytes: reclaimed,
     });
 
-    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-      event:
-        status === 'completed'
-          ? NOTIFICATION_EVENTS.MEDIA_DUPLICATE_CLEANUP_COMPLETED
-          : NOTIFICATION_EVENTS.MEDIA_DUPLICATE_CLEANUP_FAILED,
-      payload: {
-        // Name the surviving copy for a keep-one plan; for a deletion there is no
-        // single keeper, so fall back to a stable label.
-        mediaTitle: (preview.keepPath ?? survivorPaths[0])?.split('/').pop() ?? 'Duplicate cleanup',
-        groupId: resolution.groupId,
-        resolutionId,
-        status,
-        trashed,
-        skipped,
-        failed,
-        reclaimedBytes: reclaimed,
-        reviewUrl: '/media/duplicates',
-      },
-      at: new Date().toISOString(),
-    });
 
     return { resolutionId, status, trashed, skipped, failed, reclaimedBytes: reclaimed, permanent };
   }

@@ -15,8 +15,7 @@ import type { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsDefined } from 'class-validator';
 import { Prisma } from '@prisma/client';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { PERMISSIONS, NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
+import { PERMISSIONS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -49,7 +48,6 @@ function assertNotProtected(key: string): void {
 export class SettingsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   async getAll(): Promise<Record<string, unknown>> {
@@ -69,11 +67,6 @@ export class SettingsService {
       create: { key, value: value as Prisma.InputJsonValue },
     });
     // Don't echo the (possibly sensitive) value onto the bus — just the key.
-    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-      event: NOTIFICATION_EVENTS.SYSTEM_SETTINGS_CHANGED,
-      payload: { settingKey: key, mediaTitle: key },
-      at: new Date().toISOString(),
-    });
   }
 }
 

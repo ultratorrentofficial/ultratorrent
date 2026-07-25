@@ -22,7 +22,6 @@ describe('RssService.history filtering', () => {
       undefined as never,
       undefined as never,
       undefined as never,
-      { emit() {} } as never,
     );
     return { svc, rssHistory };
   }

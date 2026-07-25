@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS, SystemRole } from '@ultratorrent/shared';
+import { SystemRole } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AutomationEngine } from '../automation/automation.module';
@@ -63,7 +62,6 @@ export class WorkflowExecutionService implements OnModuleInit {
     private readonly registry: WorkflowNodeRegistry,
     private readonly automation: AutomationEngine,
     private readonly jobBridge: WorkflowJobBridge,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   /** On boot, resume executions interrupted by a process restart (crash-safe). */
@@ -451,10 +449,6 @@ export class WorkflowExecutionService implements OnModuleInit {
         },
       });
       await this.setWaiting(executionId, 'waiting_for_approval', { resumeAt: null, expiresAt });
-      this.emitEvent(NOTIFICATION_EVENTS.WORKFLOW_APPROVAL_REQUESTED, {
-        executionId, nodeId: node.id, requiredPermission: node.config?.requiredPermission ?? null,
-        riskLevel: def?.destructive ? 'destructive' : 'normal',
-      });
       return;
     }
     // subworkflow: start a version-pinned child; its completion resumes this parent.
@@ -529,13 +523,6 @@ export class WorkflowExecutionService implements OnModuleInit {
   }
 
   /** Emit a routable domain event onto the shared bus (Notification Center picks it up). */
-  private emitEvent(event: string, payload: Record<string, unknown>): void {
-    try {
-      this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload, at: new Date().toISOString() });
-    } catch (err) {
-      this.logger.debug(`emitEvent ${event} failed: ${(err as Error).message}`);
-    }
-  }
 
   private async saveVars(executionId: string, vars: Record<string, unknown>): Promise<void> {
     if (!vars || Object.keys(vars).length === 0) return;
@@ -568,9 +555,7 @@ export class WorkflowExecutionService implements OnModuleInit {
 
     // Notify the Notification Center on terminal outcomes (routable domain events).
     if (status === 'failed') {
-      this.emitEvent(NOTIFICATION_EVENTS.WORKFLOW_EXECUTION_FAILED, { executionId, status, reason: reason ?? null });
     } else if (status === 'completed' || status === 'completed_with_warnings') {
-      this.emitEvent(NOTIFICATION_EVENTS.WORKFLOW_EXECUTION_COMPLETED, { executionId, status });
     }
 
     // If this was a subworkflow child, resume the parent node down success/failure.

@@ -99,7 +99,6 @@ export class PlatformSchedulesService {
     if (n.includes('torrent')) return 'torrents';
     if (n.includes('rss')) return 'rss';
     if (n.includes('subtitle')) return 'subtitle_intelligence';
-    if (n.includes('notification')) return 'notification_center';
     if (n.includes('media_server') || n.includes('newsletter')) return 'media_server_analytics';
     if (n.includes('media') || n.includes('imdb') || n.includes('trakt') || n.includes('probe') || n.includes('library')) return 'media_manager';
     return 'system';

@@ -1,13 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma } from '@prisma/client';
-import {
-  NOTIFICATION_BUS_CHANNEL,
-  NOTIFICATION_EVENTS,
-  WS_EVENTS,
-  type DuplicateScanEventPayload,
-} from '@ultratorrent/shared';
+import { WS_EVENTS, type DuplicateScanEventPayload } from '@ultratorrent/shared';
 import { titlesAreSequelVariants } from './imdb/imdb-match';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -398,7 +392,6 @@ export class MediaDuplicateService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   /**
@@ -419,25 +412,6 @@ export class MediaDuplicateService {
     this.realtime.broadcast(event, payload);
   }
 
-  /**
-   * Emit a Notification Center domain event.
-   *
-   * Domain events only — this never sends a notification itself. Which rule fires,
-   * to whom, over which channel, is the Notification Center's decision.
-   *
-   * Payload keys are chosen to match what `buildCard` renders (`mediaTitle`,
-   * `libraryName`) plus raw fields a rule condition can filter on (`duplicateCount`,
-   * `wastedBytes`, `confidence`, `reason`), so a rule can say "only when more than
-   * 50 GB is reclaimable" without any code change.
-   */
-  private emitDomain(event: string, payload: Record<string, unknown>, dedupeKey?: string): void {
-    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-      event,
-      dedupeKey,
-      payload,
-      at: new Date().toISOString(),
-    });
-  }
 
   /**
    * Re-run duplicate detection across the whole library set.
@@ -731,45 +705,7 @@ export class MediaDuplicateService {
       scannedAt: new Date().toISOString(),
     };
 
-    // Dedupe on the shape of the result, not the timestamp: a scheduled scan that
-    // keeps finding the same 454 groups should notify once, not hourly.
-    this.emitDomain(
-      NOTIFICATION_EVENTS.MEDIA_DUPLICATE,
-      {
-        ...base,
-        mediaTitle: `${metrics.groupsDetected} duplicate group(s)`,
-        eventTime: base.scannedAt,
-      },
-      `duplicates:${metrics.groupsDetected}:${metrics.potentialSavingsBytes}`,
-    );
 
-    if (metrics.requiresReview > 0) {
-      this.emitDomain(
-        NOTIFICATION_EVENTS.MEDIA_DUPLICATE_REVIEW_REQUIRED,
-        { ...base, mediaTitle: `${metrics.requiresReview} duplicate group(s) need review` },
-        `duplicates-review:${metrics.requiresReview}`,
-      );
-    }
-
-    // A single high-confidence group is worth naming, because it is actionable in
-    // one click. The threshold matches the engine's own auto-safe bar.
-    const best = scored
-      .filter((s) => !s.rec.requiresReview && s.rec.keepId)
-      .sort((a, b) => b.rec.potentialSavingsBytes - a.rec.potentialSavingsBytes)[0];
-    if (best) {
-      this.emitDomain(
-        NOTIFICATION_EVENTS.MEDIA_DUPLICATE_DETECTED_EVENT,
-        {
-          mediaTitle: best.members[0]?.title ?? 'Duplicate media',
-          groupReason: best.group.reason,
-          confidence: best.rec.confidence,
-          fileCount: best.members.length,
-          wastedBytes: best.rec.potentialSavingsBytes,
-          reviewUrl: '/media/duplicates',
-        },
-        `duplicate-top:${best.group.key}`,
-      );
-    }
   }
 
   /**

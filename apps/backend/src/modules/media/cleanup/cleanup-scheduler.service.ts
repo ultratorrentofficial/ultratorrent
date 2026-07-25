@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { statfs } from 'node:fs/promises';
-import { NOTIFICATION_BUS_CHANNEL } from '@ultratorrent/shared';
 import { parseExpression } from 'cron-parser';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
@@ -40,7 +38,6 @@ export class CleanupSchedulerService {
     private readonly audit: AuditService,
     private readonly paths: FilePathService,
     private readonly discovery: CandidateDiscoveryService,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   @Interval('library_cleanup_scheduler', TICK_MS)
@@ -194,7 +191,6 @@ export class CleanupSchedulerService {
         result: ok ? 'success' : 'failure',
         metadata: { policyId, ...metadata },
       });
-      this.emit('media.cleanup.run.triggered', { runId: run.id, policyId, trigger, ...metadata });
     } catch (err) {
       this.record(policyId, false);
       this.logger.error(`${trigger} run for policy ${policyId} failed: ${(err as Error).message}`);
@@ -224,11 +220,4 @@ export class CleanupSchedulerService {
     }
   }
 
-  private emit(event: string, payload: Record<string, unknown>): void {
-    try {
-      this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload, at: new Date().toISOString() });
-    } catch (err) {
-      this.logger.debug(`emit ${event} failed: ${(err as Error).message}`);
-    }
-  }
 }

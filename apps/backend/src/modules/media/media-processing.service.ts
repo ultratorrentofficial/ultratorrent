@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as path from 'node:path';
 import type { MediaLibrary, Prisma } from '@prisma/client';
-import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS, type NormalizedTorrent } from '@ultratorrent/shared';
+import { type NormalizedTorrent } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AutomationEngine } from '../automation/automation.module';
 import { MediaScannerService } from './media-scanner.service';
@@ -62,16 +61,10 @@ export class MediaProcessingService {
     private readonly integrations: MediaServerIntegrationService,
     private readonly actions: MediaAutomationActions,
     private readonly queue: MediaProcessingQueueService,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   /** Publish a domain event onto the Notification Center bus (fire-and-forget). */
   private emitEvent(event: string, t: NormalizedTorrent, extra: Record<string, unknown> = {}): void {
-    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-      event,
-      payload: { torrentName: t.name, mediaTitle: t.name, hash: t.hash, ...extra },
-      at: new Date().toISOString(),
-    });
   }
 
   /** Fire a `media.*` automation trigger with the torrent as context (best-effort). */
@@ -132,7 +125,6 @@ export class MediaProcessingService {
       this.logger.warn(
         `Post-download workflow failed for ${t.name}: ${(err as Error).message}`,
       );
-      this.emitEvent(NOTIFICATION_EVENTS.MEDIA_PROCESSING_FAILED, t, { errorMessage: (err as Error).message });
     }
   }
 
@@ -320,7 +312,6 @@ export class MediaProcessingService {
 
     // Stage 6 — refresh any configured media servers so they pick up new files.
     await this.refreshServers(t);
-    this.emitEvent(NOTIFICATION_EVENTS.MEDIA_PROCESSING_COMPLETED, t, { libraryName: library.name, itemCount: fromDownload.length });
   }
 
   /** Best-effort per-item enrichment pipeline. Each stage is isolated. */
@@ -341,7 +332,6 @@ export class MediaProcessingService {
         identified.matchStatus === 'matched' ||
         identified.matchStatus === 'manual';
       this.fire(matched ? 'media.matched' : 'media.unmatched', t);
-      if (!matched) this.emitEvent(NOTIFICATION_EVENTS.MEDIA_METADATA_MATCH_FAILED, t, { itemId, libraryName: library.name });
     } catch (err) {
       this.logger.warn(`Identify failed for ${itemId}: ${(err as Error).message}`);
     }
@@ -362,7 +352,6 @@ export class MediaProcessingService {
     try {
       await this.actions.execute('media_rename', { itemId });
       this.fire('media.rename_completed', t);
-      this.emitEvent(NOTIFICATION_EVENTS.MEDIA_RENAMED, t, { itemId, libraryName: library.name });
     } catch (err) {
       this.logger.warn(`Rename failed for ${itemId}: ${(err as Error).message}`);
     }
@@ -375,7 +364,6 @@ export class MediaProcessingService {
         })) as { missing?: string[] };
         if (art?.missing && art.missing.length > 0) {
           this.fire('media.missing_artwork', t);
-          this.emitEvent(NOTIFICATION_EVENTS.MEDIA_MISSING_ARTWORK, t, { itemId, missing: art.missing });
         }
       } catch (err) {
         this.logger.warn(`Artwork failed for ${itemId}: ${(err as Error).message}`);
@@ -390,7 +378,6 @@ export class MediaProcessingService {
       const subs = await this.subtitles.detectMissing(itemId);
       if (subs.missing.length > 0) {
         this.fire('media.missing_subtitles', t);
-        this.emitEvent(NOTIFICATION_EVENTS.MEDIA_MISSING_SUBTITLES, t, { itemId, missing: subs.missing });
       }
     } catch (err) {
       this.logger.warn(`Subtitle scan failed for ${itemId}: ${(err as Error).message}`);

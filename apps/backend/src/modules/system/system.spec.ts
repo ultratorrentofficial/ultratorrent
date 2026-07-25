@@ -18,7 +18,7 @@ const NO_BUILD_INFO = { gitSha: null, gitTag: null, buildTime: null };
 
 function svc(values: Record<string, unknown> = {}) {
   const config = { get: (k: string) => values[k] } as any;
-  return new SystemService({} as any, {} as any, config, { emit() {} } as any);
+  return new SystemService({} as any, {} as any, config);
 }
 
 describe('SystemService.version', () => {

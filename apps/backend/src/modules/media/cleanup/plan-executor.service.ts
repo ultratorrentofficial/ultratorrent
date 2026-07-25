@@ -1,6 +1,4 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NOTIFICATION_BUS_CHANNEL } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import type { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
@@ -44,7 +42,6 @@ export class PlanExecutorService {
     private readonly files: FilesService,
     private readonly paths: FilePathService,
     private readonly jobBridge: CleanupJobBridge,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   /**
@@ -72,7 +69,6 @@ export class PlanExecutorService {
       where: { id: planId },
       data: { status: 'executing', executedAt: new Date(), executionJobId: jobId },
     });
-    this.emit('media.cleanup.plan.executing', { planId, action: plan.action });
 
     const actions = await this.prisma.mediaCleanupAction.findMany({
       where: { planId, status: 'pending' },
@@ -119,9 +115,6 @@ export class PlanExecutorService {
       userId: user.id, action: 'library_cleanup.plan.executed',
       objectType: 'media_cleanup_plan', objectId: planId,
       metadata: { destination: plan.action, completed, skipped, failed, reclaimedBytes: reclaimed.toString() },
-    });
-    this.emit('media.cleanup.plan.executed', {
-      planId, status, completed, skipped, failed, reclaimedBytes: reclaimed.toString(),
     });
 
     return { ...updated, completed, skipped, failed };
@@ -279,11 +272,4 @@ export class PlanExecutorService {
     return row?.candidateId ?? null;
   }
 
-  private emit(event: string, payload: Record<string, unknown>): void {
-    try {
-      this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload, at: new Date().toISOString() });
-    } catch (err) {
-      this.logger.debug(`emit ${event} failed: ${(err as Error).message}`);
-    }
-  }
 }

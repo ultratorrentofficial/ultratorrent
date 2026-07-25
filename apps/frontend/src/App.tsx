@@ -69,22 +69,6 @@ import { ReportsPage } from '@/pages/media-server-analytics/ReportsPage';
 import { RecentlyAddedPage } from '@/pages/media-server-analytics/RecentlyAddedPage';
 import { ImportAnalyticsPage } from '@/pages/media-server-analytics/ImportAnalyticsPage';
 import { NewslettersPage } from '@/pages/media-server-analytics/NewslettersPage';
-import { NotificationDashboardPage } from '@/pages/notification-center/NotificationDashboardPage';
-import { NotificationChannelsPage } from '@/pages/notification-center/NotificationChannelsPage';
-import { NotificationRulesPage } from '@/pages/notification-center/NotificationRulesPage';
-import { NotificationRecipientsPage } from '@/pages/notification-center/NotificationRecipientsPage';
-import { NotificationHistoryPage } from '@/pages/notification-center/NotificationHistoryPage';
-import { NotificationTemplatesPage } from '@/pages/notification-center/NotificationTemplatesPage';
-import { NotificationGroupsPage } from '@/pages/notification-center/NotificationGroupsPage';
-import { NotificationQueuePage } from '@/pages/notification-center/NotificationQueuePage';
-import { NotificationProviderHealthPage } from '@/pages/notification-center/NotificationProviderHealthPage';
-import { NotificationEventsPage } from '@/pages/account/notifications/NotificationEventsPage';
-import { NotificationInboxPage } from '@/pages/account/notifications/NotificationInboxPage';
-import { NotificationSettingsPage as MyNotificationSettingsPage } from '@/pages/account/notifications/NotificationSettingsPage';
-import { NotificationChannelsPage as MyNotificationChannelsPage } from '@/pages/account/notifications/NotificationChannelsPage';
-import { NotificationRoutingPage } from '@/pages/notification-center/NotificationRoutingPage';
-import { NotificationPreferencesPage } from '@/pages/notification-center/NotificationPreferencesPage';
-import { NotificationSettingsPage } from '@/pages/notification-center/NotificationSettingsPage';
 import { ReleaseScoringPage } from '@/pages/release-scoring/ReleaseScoringPage';
 import { AutomationPage } from '@/pages/AutomationPage';
 import { FilesPage } from '@/pages/FilesPage';
@@ -122,10 +106,6 @@ export function App() {
                       <Route path="/dashboard" element={<DashboardPage />} />
                       <Route path="/hub/:domainId" element={<ModuleHubPage />} />
                       <Route path="/account" element={<ProfilePage />} />
-                      <Route path="/account/notifications/inbox" element={<NotificationInboxPage />} />
-                      <Route path="/account/notifications/settings" element={<MyNotificationSettingsPage />} />
-                      <Route path="/account/notifications/events" element={<NotificationEventsPage />} />
-                      <Route path="/account/notifications/channels" element={<MyNotificationChannelsPage />} />
                     </Route>
                   </Route>
 
@@ -505,23 +485,6 @@ export function App() {
                     </Route>
                   </Route>
 
-                  {/* Notification Center — core module `notification_center`. */}
-                  <Route element={<ProtectedRoute permission={PERMISSIONS.NOTIFICATIONS_VIEW} />}>
-                    <Route element={<AppShell />}>
-                      <Route path="/notifications" element={<ModuleRoute moduleId="notification_center"><NotificationDashboardPage /></ModuleRoute>} />
-                      <Route path="/notifications/channels" element={<ModuleRoute moduleId="notification_center"><NotificationChannelsPage /></ModuleRoute>} />
-                      <Route path="/notifications/rules" element={<ModuleRoute moduleId="notification_center"><NotificationRulesPage /></ModuleRoute>} />
-                      <Route path="/notifications/recipients" element={<ModuleRoute moduleId="notification_center"><NotificationRecipientsPage /></ModuleRoute>} />
-                      <Route path="/notifications/groups" element={<ModuleRoute moduleId="notification_center"><NotificationGroupsPage /></ModuleRoute>} />
-                      <Route path="/notifications/templates" element={<ModuleRoute moduleId="notification_center"><NotificationTemplatesPage /></ModuleRoute>} />
-                      <Route path="/notifications/history" element={<ModuleRoute moduleId="notification_center"><NotificationHistoryPage /></ModuleRoute>} />
-                      <Route path="/notifications/queue" element={<ModuleRoute moduleId="notification_center"><NotificationQueuePage /></ModuleRoute>} />
-                      <Route path="/notifications/provider-health" element={<ModuleRoute moduleId="notification_center"><NotificationProviderHealthPage /></ModuleRoute>} />
-                      <Route path="/notifications/routing" element={<ModuleRoute moduleId="notification_center"><NotificationRoutingPage /></ModuleRoute>} />
-                      <Route path="/notifications/preferences" element={<ModuleRoute moduleId="notification_center"><NotificationPreferencesPage /></ModuleRoute>} />
-                      <Route path="/notifications/settings" element={<ModuleRoute moduleId="notification_center"><NotificationSettingsPage /></ModuleRoute>} />
-                    </Route>
-                  </Route>
 
                   {/* Release Scoring — core module `release_scoring`. */}
                   <Route element={<ProtectedRoute permission={PERMISSIONS.RELEASE_SCORING_VIEW} />}>

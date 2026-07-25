@@ -53,7 +53,7 @@ function makeService(over: {
   const eventBus = { emit: jest.fn() };
 
   const service = new CleanupSchedulerService(
-    prisma as never, audit as never, paths as never, discovery as never, eventBus as never,
+    prisma as never, audit as never, paths as never, discovery as never,
   );
   return { service, prisma, audit, discovery, eventBus };
 }

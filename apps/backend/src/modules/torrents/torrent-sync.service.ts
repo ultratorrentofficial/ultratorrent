@@ -1,12 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NormalizedTorrent, NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS, WS_EVENTS } from '@ultratorrent/shared';
+import { NormalizedTorrent, WS_EVENTS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AutomationEngine } from '../automation/automation.module';
-import { NotificationsService } from '../notifications/notifications.module';
 import { MediaProcessingService } from '../media/media-processing.service';
 import { TorrentNameRepairService } from './torrent-name-repair.service';
 
@@ -58,9 +56,7 @@ export class TorrentSyncService {
     private readonly registry: EngineRegistryService,
     private readonly realtime: RealtimeGateway,
     private readonly automation: AutomationEngine,
-    private readonly notifications: NotificationsService,
     private readonly mediaProcessing: MediaProcessingService,
-    private readonly eventBus: EventEmitter2,
     private readonly nameRepair: TorrentNameRepairService,
   ) {}
 
@@ -171,11 +167,6 @@ export class TorrentSyncService {
         // created an unowned in-app row broadcast to every connected client for the
         // same occurrence this event already describes, and the personal engine
         // resolves real recipients from it.
-        this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-          event: NOTIFICATION_EVENTS.DOWNLOAD_TORRENT_COMPLETED,
-          payload: { torrentName: t.name, mediaTitle: t.name, hash: t.hash, size: t.size, ratio: t.ratio, savePath: t.savePath ?? null, label: t.label ?? null, serverName: t.engineId },
-          at: new Date().toISOString(),
-        });
         await this.automation
           .evaluate('torrent.completed', t)
           .catch((err) =>

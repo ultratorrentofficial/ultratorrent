@@ -24,7 +24,7 @@ const base = { targetType: 'media_file', protectionType: 'permanent', reason: 'k
 
 function make() {
   const prisma = new FakePrisma();
-  return { prisma, svc: new ProtectionService(prisma as any, audit, eventBus) };
+  return { prisma, svc: new ProtectionService(prisma as any, audit) };
 }
 
 describe('ProtectionService.create — shape validation', () => {

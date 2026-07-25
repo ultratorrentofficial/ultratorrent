@@ -17,7 +17,6 @@ import { UsersModule } from './modules/users/users.module';
 import { TaxonomyModule } from './modules/taxonomy/taxonomy.module';
 import { SearchModule } from './modules/search/search.module';
 import { SystemModule } from './modules/system/system.module';
-import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ApiKeysModule } from './modules/apikeys/apikeys.module';
 import { FilesModule } from './modules/files/files.module';
 import { RssModule } from './modules/rss/rss.module';
@@ -33,7 +32,6 @@ import { IndexersModule } from './modules/indexers/indexers.module';
 import { ProwlarrIntegrationModule } from './modules/integrations/prowlarr/prowlarr.module';
 import { MediaAcquisitionModule } from './modules/media-acquisition/media-acquisition.module';
 import { MediaServerAnalyticsModule } from './modules/media-server-analytics/media-server-analytics.module';
-import { NotificationCenterModule } from './modules/notification-center/notification-center.module';
 import { SubtitleIntelligenceModule } from './modules/subtitle-intelligence/subtitle-intelligence.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 
@@ -49,7 +47,6 @@ import { JobsModule } from './modules/jobs/jobs.module';
     RealtimeModule,
     AuditModule,
     ModuleRegistryModule,
-    NotificationsModule,
     EngineModule,
     MediaModule,
     AutomationModule,
@@ -75,7 +72,6 @@ import { JobsModule } from './modules/jobs/jobs.module';
     ProwlarrIntegrationModule,
     MediaAcquisitionModule,
     MediaServerAnalyticsModule,
-    NotificationCenterModule,
     SubtitleIntelligenceModule,
     JobsModule,
   ],

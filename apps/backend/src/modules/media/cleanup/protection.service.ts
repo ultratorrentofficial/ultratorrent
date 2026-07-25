@@ -1,7 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NOTIFICATION_BUS_CHANNEL, PERMISSIONS } from '@ultratorrent/shared';
+import { PERMISSIONS } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { paginate, parsePage } from '../../../common/pagination';
@@ -46,7 +45,6 @@ export class ProtectionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   // ── Reads ──────────────────────────────────────────────────────────────────
@@ -132,9 +130,6 @@ export class ProtectionService {
       objectId: row.id,
       metadata: { targetType: dto.targetType, protectionType: dto.protectionType, reason: dto.reason },
     });
-    this.emit('media.cleanup.protection.created', {
-      protectionId: row.id, targetType: row.targetType, protectionType: row.protectionType,
-    });
     return row;
   }
 
@@ -177,7 +172,6 @@ export class ProtectionService {
       objectId: id,
       metadata: { targetType: row.targetType, protectionType: row.protectionType, reason },
     });
-    this.emit('media.cleanup.protection.revoked', { protectionId: id, reason });
     return updated;
   }
 
@@ -200,9 +194,6 @@ export class ProtectionService {
         take: 500,
       });
       for (const p of justExpired) {
-        this.emit('media.cleanup.protection.expired', {
-          protectionId: p.id, targetType: p.targetType, protectionType: p.protectionType,
-        });
         await this.audit.record({
           action: 'library_cleanup.protection.expired',
           objectType: 'media_cleanup_protection', objectId: p.id,
@@ -211,7 +202,6 @@ export class ProtectionService {
 
       const soon = await this.expiring(EXPIRY_WARN_DAYS);
       if (soon.length) {
-        this.emit('media.cleanup.protection.expiring', { count: soon.length, withinDays: EXPIRY_WARN_DAYS });
       }
       if (justExpired.length) {
         this.logger.log(`${justExpired.length} protection(s) lapsed since the last sweep`);
@@ -257,11 +247,4 @@ export class ProtectionService {
     }
   }
 
-  private emit(event: string, payload: Record<string, unknown>): void {
-    try {
-      this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload, at: new Date().toISOString() });
-    } catch (err) {
-      this.logger.debug(`emit ${event} failed: ${(err as Error).message}`);
-    }
-  }
 }

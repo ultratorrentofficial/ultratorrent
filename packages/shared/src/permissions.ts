@@ -67,7 +67,6 @@ export const PERMISSIONS = {
   SYSTEM_MANAGE: 'system.manage',
   APIKEYS_MANAGE: 'apikeys.manage',
   ENGINES_MANAGE: 'engines.manage',
-  NOTIFICATIONS_MANAGE: 'notifications.manage',
   MODULES_VIEW: 'modules.view',
   MODULES_MANAGE: 'modules.manage',
 
@@ -152,18 +151,6 @@ export const PERMISSIONS = {
 
   // Notification Center (core) — the centralized messaging platform. Supersedes
   // the legacy `notifications.manage` umbrella with a granular set.
-  NOTIFICATIONS_VIEW: 'notifications.view',
-  NOTIFICATIONS_MANAGE_CHANNELS: 'notifications.manage_channels',
-  NOTIFICATIONS_MANAGE_TEMPLATES: 'notifications.manage_templates',
-  NOTIFICATIONS_MANAGE_RULES: 'notifications.manage_rules',
-  NOTIFICATIONS_MANAGE_RECIPIENTS: 'notifications.manage_recipients',
-  NOTIFICATIONS_MANAGE_GROUPS: 'notifications.manage_groups',
-  NOTIFICATIONS_VIEW_HISTORY: 'notifications.view_history',
-  NOTIFICATIONS_RETRY: 'notifications.retry',
-  NOTIFICATIONS_SEND_TEST: 'notifications.send_test',
-  NOTIFICATIONS_MANAGE_PREFERENCES: 'notifications.manage_preferences',
-  NOTIFICATIONS_MANAGE_SETTINGS: 'notifications.manage_settings',
-  NOTIFICATIONS_ADMIN: 'notifications.admin',
 
   // --- Personal Notification Engine (self-service) -------------------------
   // Held by every ordinary account: managing your OWN notifications is not a
@@ -171,20 +158,11 @@ export const PERMISSIONS = {
   // surface, where the acting user always comes from the JWT — never from a
   // request parameter — so holding the permission conveys no access to anyone
   // else's data. Ownership is asserted separately and unconditionally.
-  NOTIFICATIONS_VIEW_OWN: 'notifications.view_own',
-  NOTIFICATIONS_MANAGE_OWN: 'notifications.manage_own',
-  NOTIFICATIONS_CHANNELS_MANAGE_OWN: 'notifications.channels.manage_own',
-  NOTIFICATIONS_DELIVERIES_VIEW_OWN: 'notifications.deliveries.view_own',
-  NOTIFICATIONS_DELIVERIES_RETRY_OWN: 'notifications.deliveries.retry_own',
 
   // --- Personal Notification Engine (administrative diagnostics) -----------
   // Operational visibility only. These must never become a back door into
   // another person's notifications: destinations stay masked and payloads are
   // redacted, and none of them can edit a user's preferences.
-  NOTIFICATIONS_ADMIN_HEALTH: 'notifications.admin.health',
-  NOTIFICATIONS_ADMIN_AUDIT: 'notifications.admin.audit',
-  NOTIFICATIONS_ADMIN_VIEW_USER_SUMMARY: 'notifications.admin.view_user_summary',
-  NOTIFICATIONS_ADMIN_RETRY_DELIVERY: 'notifications.admin.retry_delivery',
 
   // Integrations — Prowlarr companion (optional external indexer manager).
   INTEGRATIONS_PROWLARR_VIEW: 'integrations.prowlarr.view',
@@ -261,7 +239,6 @@ export const NEVER_INHERITED_PERMISSIONS: Permission[] = [
   PERMISSIONS.LIBRARY_CLEANUP_PROTECTION_LEGAL_HOLD,
   // Reads another person's notification activity. Personal data, so it is granted
   // deliberately rather than inherited with the ADMINISTRATOR bundle.
-  PERMISSIONS.NOTIFICATIONS_ADMIN_VIEW_USER_SUMMARY,
 ];
 
 /**
@@ -343,15 +320,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.SUBTITLE_INTELLIGENCE_MANAGE,
     PERMISSIONS.SUBTITLE_INTELLIGENCE_PROVIDERS,
     PERMISSIONS.SUBTITLE_INTELLIGENCE_SETTINGS,
-    PERMISSIONS.NOTIFICATIONS_VIEW,
-    PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES,
     // Managing your own notifications is part of owning an account, not a
     // privilege an administrator grants.
-    PERMISSIONS.NOTIFICATIONS_VIEW_OWN,
-    PERMISSIONS.NOTIFICATIONS_MANAGE_OWN,
-    PERMISSIONS.NOTIFICATIONS_CHANNELS_MANAGE_OWN,
-    PERMISSIONS.NOTIFICATIONS_DELIVERIES_VIEW_OWN,
-    PERMISSIONS.NOTIFICATIONS_DELIVERIES_RETRY_OWN,
     PERMISSIONS.JOBS_VIEW,
     PERMISSIONS.JOBS_VIEW_EVENTS,
     PERMISSIONS.JOBS_CANCEL,
@@ -378,15 +348,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.MEDIA_MANAGER_IMDB_SEARCH,
     PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW,
     PERMISSIONS.SUBTITLE_INTELLIGENCE_SEARCH,
-    PERMISSIONS.NOTIFICATIONS_VIEW,
-    PERMISSIONS.NOTIFICATIONS_MANAGE_PREFERENCES,
     // Managing your own notifications is part of owning an account, not a
     // privilege an administrator grants.
-    PERMISSIONS.NOTIFICATIONS_VIEW_OWN,
-    PERMISSIONS.NOTIFICATIONS_MANAGE_OWN,
-    PERMISSIONS.NOTIFICATIONS_CHANNELS_MANAGE_OWN,
-    PERMISSIONS.NOTIFICATIONS_DELIVERIES_VIEW_OWN,
-    PERMISSIONS.NOTIFICATIONS_DELIVERIES_RETRY_OWN,
     PERMISSIONS.JOBS_VIEW,
     PERMISSIONS.JOBS_VIEW_EVENTS,
   ],

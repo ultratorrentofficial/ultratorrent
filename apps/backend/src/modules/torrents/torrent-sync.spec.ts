@@ -68,13 +68,12 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
     };
     const registry = { list: () => [provider] };
     const realtime = { broadcast: jest.fn() };
-    const eventBus = { emit: jest.fn() };
 
     const svc = new TorrentSyncService(
       prisma as any, registry as any, realtime as any, automation as any,
-      notifications as any, mediaProcessing as any, eventBus as any, nameRepair as any,
+      mediaProcessing as any, nameRepair as any,
     );
-    return { svc, calls, prisma, mediaProcessing, automation, nameRepair, eventBus };
+    return { svc, calls, prisma, mediaProcessing, automation, nameRepair };
   }
 
   it('records the new state BEFORE acting on the transition', async () => {
@@ -119,16 +118,9 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
   });
 
   it('still fires the completion side-effects on a genuine edge', async () => {
-    const { svc, calls, mediaProcessing, eventBus } = build({ priorProgress: 0.5 });
+    const { svc, calls, mediaProcessing } = build({ priorProgress: 0.5 });
     await svc.sync();
     expect(mediaProcessing.handleTorrentCompleted).toHaveBeenCalledTimes(1);
     expect(calls).toContain('automation');
-    // The legacy `notifications.dispatch()` was removed as pure duplication: it
-    // created an unowned in-app row for the same occurrence this domain event
-    // already describes, and the personal engine resolves real recipients from it.
-    expect(eventBus.emit).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ event: 'download.torrent_completed' }),
-    );
   });
 });

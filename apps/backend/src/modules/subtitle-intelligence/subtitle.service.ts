@@ -8,12 +8,7 @@
  * planning, validation, naming) lives in sibling modules; this coordinates IO.
  */
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import {
-  NOTIFICATION_BUS_CHANNEL,
-  NOTIFICATION_EVENTS,
-  WS_EVENTS,
-} from '@ultratorrent/shared';
+import { WS_EVENTS } from '@ultratorrent/shared';
 import { Prisma, type SubtitleFingerprint } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -53,7 +48,6 @@ export class SubtitleService {
     private readonly install: SubtitleInstallService,
     private readonly realtime: RealtimeGateway,
     private readonly audit: AuditService,
-    private readonly eventBus: EventEmitter2,
     private readonly triggers: SubtitleTriggerService,
     private readonly globalSettings: SubtitleSettingsService,
   ) {}
@@ -375,7 +369,6 @@ export class SubtitleService {
       if (!valid) {
         await this.history(item.id, 'validated', { provider: candidate.provider, language: candidate.language, message: 'validation failed' });
         this.realtime.broadcast(WS_EVENTS.SUBTITLE_VALIDATION_FAILED, { itemId: item.id, provider: candidate.provider, language: candidate.language, issues: validation.issues, at: new Date().toISOString() });
-        this.emitDomain(NOTIFICATION_EVENTS.SUBTITLE_VALIDATION_FAILED, { mediaTitle: item.title, itemId: item.id, language: candidate.language, provider: candidate.provider });
         this.triggers.fire('subtitle.validation_failed', { title: item.title, itemId: item.id, language: candidate.language, provider: candidate.provider });
         await this.record(ctx, 'subtitle.download.rejected', 'media_item', item.id, { reason: 'invalid', provider: candidate.provider }, 'failure');
         return { installed: false, reason: 'validation_failed', validation };
@@ -412,7 +405,6 @@ export class SubtitleService {
 
       await this.history(item.id, 'downloaded', { provider: candidate.provider, language: candidate.language, score: candidate.score, message: result.variant ? 'installed (variant name — original kept)' : 'installed' });
       this.realtime.broadcast(WS_EVENTS.SUBTITLE_DOWNLOADED, { itemId: item.id, provider: candidate.provider, language: candidate.language, path: result.path, at: new Date().toISOString() });
-      this.emitDomain(NOTIFICATION_EVENTS.SUBTITLE_DOWNLOADED, { mediaTitle: item.title, itemId: item.id, language: candidate.language, provider: candidate.provider });
       this.triggers.fire('subtitle.downloaded', { title: item.title, itemId: item.id, language: candidate.language, provider: candidate.provider });
       await this.record(ctx, 'subtitle.download.installed', 'media_item', item.id, { provider: candidate.provider, language: candidate.language, score: candidate.score, path: result.path });
 
@@ -421,7 +413,6 @@ export class SubtitleService {
       const message = (err as Error).message;
       await this.history(item.id, 'failed', { provider: candidate.provider, language: candidate.language, message });
       this.realtime.broadcast(WS_EVENTS.SUBTITLE_DOWNLOAD_FAILED, { itemId: item.id, provider: candidate.provider, language: candidate.language, error: message, at: new Date().toISOString() });
-      this.emitDomain(NOTIFICATION_EVENTS.SUBTITLE_FAILED, { mediaTitle: item.title, itemId: item.id, language: candidate.language, provider: candidate.provider, error: message });
       await this.record(ctx, 'subtitle.download.failed', 'media_item', item.id, { provider: candidate.provider, error: message }, 'failure');
       return { installed: false, reason: 'download_failed', error: message };
     }
@@ -495,9 +486,6 @@ export class SubtitleService {
     });
   }
 
-  private emitDomain(event: string, payload: Record<string, unknown>) {
-    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload, at: new Date().toISOString() });
-  }
 
   private record(ctx: AuditCtx, action: string, objectType: string, objectId: string, metadata: Record<string, unknown>, result: 'success' | 'failure' = 'success') {
     return this.audit.record({ ...ctx, action, objectType, objectId, metadata, result });

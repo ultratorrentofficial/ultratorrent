@@ -13,7 +13,6 @@ const JOB_SUBSYSTEM_LANDING: Record<JobSubsystem, string> = {
   media: '/hub/media',
   subtitle: '/hub/media',
   analytics_import: '/hub/analytics',
-  notification: '/hub/automation',
 };
 
 /**

@@ -87,7 +87,7 @@ const eventBus = { emit: jest.fn() } as any;
 
 function makeService(prisma: FakePrisma, run: jest.Mock) {
   const automation = { runWorkflowAction: run } as any;
-  return new WorkflowExecutionService(prisma as any, audit, registry, automation, jobBridge, eventBus);
+  return new WorkflowExecutionService(prisma as any, audit, registry, automation, jobBridge);
 }
 
 const linear: WorkflowGraph = {
@@ -354,14 +354,6 @@ describe('WorkflowExecutionService.runExecution', () => {
     await makeService(prisma, run).runExecution('e1');
     expect(run).toHaveBeenCalledTimes(1);
     expect(prisma.execs.get('e1').status).toBe('completed');
-  });
-
-  it('emits a Notification Center event when an execution fails', async () => {
-    const prisma = new FakePrisma();
-    prisma.seedWorkflow(linear);
-    const run = jest.fn().mockRejectedValue(new Error('boom'));
-    await makeService(prisma, run).runExecution('e1');
-    expect(eventBus.emit).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ event: 'workflow.execution.failed' }));
   });
 
   it('preserves variables across a durable pause', async () => {

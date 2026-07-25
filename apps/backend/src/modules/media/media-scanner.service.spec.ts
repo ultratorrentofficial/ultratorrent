@@ -211,7 +211,7 @@ describe('MediaScannerService.reconcileShows', () => {
     };
     const showDuplicates = { detect: jest.fn(async () => []) };
     const svc = new MediaScannerService(
-      prisma as any, {} as any, {} as any, {} as any, {} as any, showDuplicates as any, resolver as any,
+      prisma as any, {} as any, {} as any, {} as any, showDuplicates as any, resolver as any,
     );
     return { svc, prisma, upserts, deletes, itemUpdates, showDuplicates, resolver };
   }
@@ -533,7 +533,7 @@ describe('MediaScannerService.countDuplicateShows — the scan reports, it never
 
   function build(detect: jest.Mock) {
     const svc = new MediaScannerService(
-      {} as any, {} as any, {} as any, {} as any, {} as any,
+      {} as any, {} as any, {} as any, {} as any,
       { detect } as any, {} as any,
     );
     return svc as any;

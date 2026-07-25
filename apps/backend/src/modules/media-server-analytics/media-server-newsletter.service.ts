@@ -1,8 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { paginate, parsePage } from '../../common/pagination';
 import { Interval } from '@nestjs/schedule';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { MODULE_IDS, NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
+import { MODULE_IDS } from '@ultratorrent/shared';
 import type { MediaServerNewsletter } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -55,7 +54,6 @@ export class MediaServerNewsletterService {
     private readonly realtime: RealtimeGateway,
     private readonly registry: ModuleRegistryService,
     private readonly images: NewsletterImageService,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   list() {
@@ -382,8 +380,6 @@ export class MediaServerNewsletterService {
 
     await this.prisma.mediaServerNewsletter.update({ where: { id }, data: { lastSuccessfulSendAt: new Date(), nextRunAt: this.nextRun(n.frequency) } });
     this.realtime.broadcast(failed && !sent ? 'media_server.newsletter.failed' : 'media_server.newsletter.sent', { id, sent, failed });
-    const evt = failed && !sent ? NOTIFICATION_EVENTS.MEDIA_SERVER_NEWSLETTER_FAILED : NOTIFICATION_EVENTS.MEDIA_SERVER_NEWSLETTER_SENT;
-    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event: evt, payload: { newsletterName: n.name, mediaTitle: n.name, sent, failed, serverName: opts.serverName ?? null }, at: new Date().toISOString() });
     await this.audit.record({ userId, action: 'media_server_analytics.newsletter.sent', objectType: 'media_server_newsletter', objectId: id, metadata: { sent, failed } });
     return { sent, failed };
   }

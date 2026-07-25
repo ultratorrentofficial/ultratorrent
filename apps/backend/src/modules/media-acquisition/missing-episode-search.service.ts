@@ -1,8 +1,6 @@
 import { readdir, stat } from 'node:fs/promises';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { WantedEpisode } from '@prisma/client';
-import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -64,7 +62,6 @@ export class MissingEpisodeSearchService {
     private readonly acquisition: MediaAcquisitionService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
-    private readonly eventBus: EventEmitter2,
     private readonly registry: ModuleRegistryService,
   ) {}
 
@@ -266,7 +263,7 @@ export class MissingEpisodeSearchService {
       downloadUrl: rel.downloadUrl,
       releaseTitle: rel.title,
     });
-    this.emitGrabbed(wanted, rel.title, evaluation.id);
+    this.broadcastGrabbed(wanted, rel.title, evaluation.id);
     await this.audit.record({
       userId,
       action: 'media_acquisition.missing_episode.grabbed',
@@ -476,20 +473,15 @@ export class MissingEpisodeSearchService {
     return this.prisma.wantedEpisode.updateMany({ where: { id }, data });
   }
 
-  private emitGrabbed(wanted: WantedEpisode, releaseTitle: string, evaluationId: string): void {
-    const payload = {
+  /** Tell any open Missing Episodes view that this episode was grabbed. */
+  private broadcastGrabbed(wanted: WantedEpisode, releaseTitle: string, evaluationId: string): void {
+    this.realtime.broadcast('media_acquisition.missing_episode.grabbed', {
       watchlistItemId: wanted.watchlistItemId,
       seriesTconst: wanted.seriesTconst,
       seasonNumber: wanted.seasonNumber,
       episodeNumber: wanted.episodeNumber,
       releaseTitle,
       evaluationId,
-    };
-    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-      event: NOTIFICATION_EVENTS.MEDIA_MISSING_EPISODE_FILLED,
-      payload,
-      at: new Date().toISOString(),
     });
-    this.realtime.broadcast('media_acquisition.missing_episode.grabbed', payload);
   }
 }

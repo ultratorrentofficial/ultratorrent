@@ -108,7 +108,7 @@ function makeService(over: {
 
   const service = new PlanExecutorService(
     prisma as never, audit as never, protections as never, quarantine as never,
-    discovery as never, files as never, paths as never, jobBridge as never, eventBus as never,
+    discovery as never, files as never, paths as never, jobBridge as never,
   );
   return {
     service, prisma, audit, files, quarantine, protections, jobBridge, actionUpdates, planUpdates,

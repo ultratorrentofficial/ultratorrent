@@ -112,7 +112,7 @@ const pair = (n: number) => [
 describe('Duplicate detection — scan cost and reporting', () => {
   it('reports what the run did, not a page of results', async () => {
     const prisma = makePrisma(pair(1));
-    const svc = new MediaDuplicateService(prisma, realtime(), bus());
+    const svc = new MediaDuplicateService(prisma, realtime());
 
     const m = await svc.detect();
 
@@ -128,7 +128,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
   it('batches group writes into transactions instead of a statement per group', async () => {
     // 60 groups → two batches of 50/10, not 240 sequential round trips.
     const prisma = makePrisma(Array.from({ length: 60 }, (_, i) => pair(i)).flat());
-    const svc = new MediaDuplicateService(prisma, realtime(), bus());
+    const svc = new MediaDuplicateService(prisma, realtime());
 
     const m = await svc.detect();
 
@@ -140,7 +140,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
 
   it('skips the whole write phase when nothing detection reads has changed', async () => {
     const prisma = makePrisma(pair(1));
-    const svc = new MediaDuplicateService(prisma, realtime(), bus());
+    const svc = new MediaDuplicateService(prisma, realtime());
 
     await svc.detect();
     const writesAfterFirst = prisma.state.statements;
@@ -162,7 +162,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
   it('re-detects once an item changes in a way that can move a group', async () => {
     const items = pair(1);
     const prisma = makePrisma(items);
-    const svc = new MediaDuplicateService(prisma, realtime(), bus());
+    const svc = new MediaDuplicateService(prisma, realtime());
     await svc.detect();
 
     // A file replaced by a bigger copy changes which one is recommended.
@@ -177,7 +177,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
     // Recording the digest for a run that never finished writing would convince the
     // next run that the database already matched the input.
     const prisma = makePrisma(Array.from({ length: 60 }, (_, i) => pair(i)).flat());
-    const svc = new MediaDuplicateService(prisma, realtime(), bus());
+    const svc = new MediaDuplicateService(prisma, realtime());
 
     let batches = 0;
     const signal = {
@@ -198,7 +198,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
     // not having it. The group id must survive too: it is what the ignore is on.
     const items = pair(1);
     const prisma = makePrisma(items);
-    const svc = new MediaDuplicateService(prisma, realtime(), bus());
+    const svc = new MediaDuplicateService(prisma, realtime());
 
     await svc.detect();
     expect(prisma.state.groups).toHaveLength(1);
@@ -224,7 +224,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
     // record and let the false positive return.
     const items = pair(1);
     const prisma = makePrisma(items);
-    const svc = new MediaDuplicateService(prisma, realtime(), bus());
+    const svc = new MediaDuplicateService(prisma, realtime());
     await svc.detect();
 
     prisma.state.groups.push(
@@ -242,7 +242,7 @@ describe('Duplicate detection — scan cost and reporting', () => {
 
   it('streams progress so a ten-second scan is not a blank spinner', async () => {
     const prisma = makePrisma(pair(1));
-    const svc = new MediaDuplicateService(prisma, realtime(), bus());
+    const svc = new MediaDuplicateService(prisma, realtime());
     const seen: number[] = [];
 
     await svc.detect(async (p) => { seen.push(p); });

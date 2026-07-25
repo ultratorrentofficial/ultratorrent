@@ -24,7 +24,7 @@ import {
   IsString,
 } from 'class-validator';
 import type { Request } from 'express';
-import { NormalizedTorrent, PERMISSIONS, NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS, type DomainEventEnvelope } from '@ultratorrent/shared';
+import { NormalizedTorrent, PERMISSIONS } from '@ultratorrent/shared';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
@@ -32,8 +32,6 @@ import { assertSafeOutboundUrl } from '../../common/ssrf';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { AuditService } from '../audit/audit.service';
 import { ModuleRef } from '@nestjs/core';
-import { NotificationsService } from '../notifications/notifications.module';
-import { NotificationCenterService } from '../notification-center/notification-center.service';
 import { MediaService } from '../media/media.service';
 import { MediaAutomationActions } from '../media/media-automation.actions';
 import { SubtitleAutomationActions } from '../subtitle-intelligence/automation/subtitle-automation.actions';
@@ -94,8 +92,6 @@ export const AUTOMATION_TRIGGERS = [
 
 /** Catalog of actions the engine can execute (metadata for the UI). */
 export const AUTOMATION_ACTIONS = [
-  { id: 'notify', label: 'Send notification', category: 'torrent' },
-  { id: 'send_notification', label: 'Send via Notification Center', category: 'notification' },
   { id: 'move', label: 'Move data', category: 'torrent' },
   { id: 'pause', label: 'Pause torrent', category: 'torrent' },
   { id: 'stop', label: 'Stop torrent', category: 'torrent' },
@@ -110,7 +106,6 @@ export const AUTOMATION_ACTIONS = [
   { id: 'media_generate_nfo', label: 'Generate NFO sidecars', category: 'media' },
   { id: 'media_rename', label: 'Rename media into the library', category: 'media' },
   { id: 'media_move', label: 'Move media into the library', category: 'media' },
-  { id: 'media_notify', label: 'Send media notification', category: 'media' },
   { id: 'media_server_refresh', label: 'Refresh a media server', category: 'media' },
   // Duplicate Center actions are non-destructive by design. There is no
   // "resolve duplicates" action: the brief requires that an automated destructive
@@ -124,7 +119,6 @@ export const AUTOMATION_ACTIONS = [
   { id: 'refresh_rss_show_status', label: 'Refresh RSS show status', category: 'rss' },
   { id: 'disable_rss_rule', label: 'Disable RSS rule', category: 'rss' },
   { id: 'convert_rule_to_backfill', label: 'Convert rule to backfill only', category: 'rss' },
-  { id: 'notify_admin', label: 'Notify admin', category: 'rss' },
   { id: 'subtitle_scan_missing', label: 'Scan a library for missing subtitles', category: 'subtitle' },
   { id: 'subtitle_download', label: 'Download subtitles for an item', category: 'subtitle' },
 ] as const;
@@ -176,14 +170,12 @@ export class AutomationEngine {
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: EngineRegistryService,
-    private readonly notifications: NotificationsService,
     private readonly media: MediaService,
     private readonly mediaActions: MediaAutomationActions,
     private readonly rssActions: RssAutomationActions,
     private readonly subtitleActions: SubtitleAutomationActions,
     private readonly audit: AuditService,
     private readonly moduleRef: ModuleRef,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   /** Evaluate every enabled rule for a trigger against a single torrent. */
@@ -261,15 +253,6 @@ export class AutomationEngine {
           // personal engine then decides who is eligible, who holds
           // `automation.view`, and what each of them personally chose. The legacy
           // path produced an unowned in-app row broadcast to everyone.
-          this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-            event: NOTIFICATION_EVENTS.AUTOMATION_RULE_FAILED,
-            payload: {
-              ruleName: rule.name,
-              message: `Rule "${rule.name}" failed: ${(err as Error).message}`,
-              error: (err as Error).message,
-            },
-            at: new Date().toISOString(),
-          });
         }
       }
     }
@@ -329,12 +312,6 @@ export class AutomationEngine {
         await this.logEvent(rule, 'success', context, null);
       } catch (err) {
         await this.logEvent(rule, 'failed', context, (err as Error).message);
-        await this.notifications.dispatch({
-          level: 'error',
-          title: 'Automation failed',
-          message: `Rule "${rule.name}" failed: ${(err as Error).message}`,
-          eventType: 'automation.failed',
-        });
       }
     }
   }
@@ -367,17 +344,6 @@ export class AutomationEngine {
     }
 
     switch (action.type) {
-      case 'notify':
-      case 'notify_admin':
-        await this.notifications.dispatch({
-          level: action.type === 'notify_admin' ? 'warning' : 'info',
-          title: String(params.title ?? 'Automation'),
-          message: String(params.message ?? context.title ?? ''),
-        });
-        break;
-      case 'send_notification':
-        await this.sendViaCenter(params, context);
-        break;
       case 'webhook':
         await this.postWebhook(params.url, { event: context, params });
         break;
@@ -415,20 +381,6 @@ export class AutomationEngine {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10000),
-    });
-  }
-
-  /** Dispatch through the Notification Center (the `send_notification` action). */
-  private async sendViaCenter(params: Record<string, unknown>, context: Record<string, unknown>): Promise<void> {
-    await this.moduleRef.get(NotificationCenterService, { strict: false }).dispatchDirect({
-      channelIds: params.channelIds as string[] | undefined,
-      recipientIds: params.recipientIds as string[] | undefined,
-      groupIds: params.groupIds as string[] | undefined,
-      templateId: params.templateId as string | undefined,
-      variables: { ...context, ...((params.variables as Record<string, unknown>) ?? {}) },
-      priority: params.priority as number | undefined,
-      title: (params.title as string) ?? (context.title as string) ?? undefined,
-      message: (params.message as string) ?? undefined,
     });
   }
 
@@ -523,12 +475,6 @@ export class AutomationEngine {
         await this.log(rule, 'success', context, null);
       } catch (err) {
         await this.log(rule, 'failed', context, (err as Error).message);
-        await this.notifications.dispatch({
-          level: 'error',
-          title: 'Automation failed',
-          message: `Rule "${rule.name}" failed: ${(err as Error).message}`,
-          eventType: 'automation.failed',
-        });
       }
     }
   }
@@ -603,17 +549,6 @@ export class AutomationEngine {
         await (await this.registry.resolve(t.engineId)).removeTorrentAndData(
           t.hash,
         );
-        break;
-      case 'notify':
-      case 'media_notify':
-        await this.notifications.dispatch({
-          level: 'info',
-          title: String(params.title ?? 'Automation'),
-          message: String(params.message ?? t.name),
-        });
-        break;
-      case 'send_notification':
-        await this.sendViaCenter(params, { title: t.name, mediaTitle: t.name, torrentName: t.name, hash: t.hash });
         break;
       case 'webhook':
         await this.postWebhook(params.url, { torrent: t, params });
@@ -748,29 +683,6 @@ export class AutomationController {
   }
 }
 
-/**
- * Bridges Unified Jobs Center operational events (published to the domain-event bus
- * by `PlatformJobService`) into the automation engine, so users can build rules that
- * react to `job.failed` / `job.stalled` / `job.completed_with_warnings` /
- * `job.retry_exhausted`. Decoupled: automation subscribes to the bus; the Jobs Center
- * never imports automation. Only `job.*` events are forwarded.
- */
-@Injectable()
-export class JobAutomationBridge {
-  private readonly logger = new Logger(JobAutomationBridge.name);
-  constructor(private readonly engine: AutomationEngine) {}
-
-  @OnEvent(NOTIFICATION_BUS_CHANNEL)
-  async onDomainEvent(envelope: DomainEventEnvelope): Promise<void> {
-    if (!envelope?.event?.startsWith('job.')) return;
-    try {
-      await this.engine.evaluateEvent(envelope.event, envelope.payload ?? {});
-    } catch (err) {
-      this.logger.debug(`Automation evaluate for ${envelope.event} failed: ${(err as Error).message}`);
-    }
-  }
-}
-
 @Global()
 @Module({
   // forwardRef guards the ES-module load-order cycle: RSS files import
@@ -778,7 +690,7 @@ export class JobAutomationBridge {
   // imports RssModule (for the RssAutomationActions delegate). The DI graph
   // itself is acyclic (RssModule never imports AutomationModule).
   imports: [forwardRef(() => RssModule)],
-  providers: [AutomationEngine, AutomationService, JobAutomationBridge],
+  providers: [AutomationEngine, AutomationService],
   controllers: [AutomationController],
   exports: [AutomationEngine],
 })

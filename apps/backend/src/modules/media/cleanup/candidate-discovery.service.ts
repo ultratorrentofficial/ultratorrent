@@ -1,6 +1,4 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NOTIFICATION_BUS_CHANNEL } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { paginate, parsePage } from '../../../common/pagination';
@@ -71,7 +69,6 @@ export class CandidateDiscoveryService {
     private readonly protections: ProtectionService,
     private readonly filePath: FilePathService,
     private readonly jobBridge: CleanupJobBridge,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   /** Create a run pinned to the policy's published version (or its draft, to simulate). */
@@ -117,7 +114,6 @@ export class CandidateDiscoveryService {
       objectType: 'media_cleanup_run', objectId: run.id,
       metadata: { policyId, versionId, trigger: opts.trigger },
     });
-    this.emit('media.cleanup.run.started', { runId: run.id, policyId, simulate: opts.simulate });
     return run;
   }
 
@@ -292,7 +288,6 @@ export class CandidateDiscoveryService {
           estimatedReclaimBytes: estimatedBytes, exclusionBreakdown: breakdown as object,
         },
       });
-      this.emit('media.cleanup.run.progress', { runId, scanned, evaluated, eligible });
 
       if (items.length < PAGE_SIZE) break;
       if (cap && evaluated >= cap) { truncated = true; break; }
@@ -486,16 +481,8 @@ export class CandidateDiscoveryService {
         errorSummary: reason ?? null,
       },
     });
-    this.emit(`media.cleanup.run.${status}`, { runId, reason: reason ?? null });
   }
 
-  private emit(event: string, payload: Record<string, unknown>): void {
-    try {
-      this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload, at: new Date().toISOString() });
-    } catch (err) {
-      this.logger.debug(`emit ${event}: ${(err as Error).message}`);
-    }
-  }
 }
 
 /** Does any condition in the tree demand probe-measured data? */

@@ -9,10 +9,9 @@
  * confined to the ops hard roots.
  */
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { readFile, writeFile, access } from 'node:fs/promises';
 import * as path from 'node:path';
-import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS, WS_EVENTS } from '@ultratorrent/shared';
+import { WS_EVENTS } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../../files/file-path.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
@@ -49,7 +48,6 @@ export class SubtitleSyncService {
     private readonly filePath: FilePathService,
     private readonly realtime: RealtimeGateway,
     private readonly audit: AuditService,
-    private readonly eventBus: EventEmitter2,
     private readonly triggers: SubtitleTriggerService,
   ) {}
 
@@ -155,11 +153,6 @@ export class SubtitleSyncService {
         provider: provider.name,
         method: result.method,
         offsetMs: result.offsetMs,
-        at: new Date().toISOString(),
-      });
-      this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-        event: NOTIFICATION_EVENTS.SUBTITLE_SYNCHRONIZED,
-        payload: { mediaTitle: download.item.title, itemId: download.itemId, language: download.language, provider: provider.name },
         at: new Date().toISOString(),
       });
       this.triggers.fire('subtitle.synchronized', { title: download.item.title, itemId: download.itemId, language: download.language, provider: provider.name });

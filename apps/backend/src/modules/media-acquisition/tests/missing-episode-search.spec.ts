@@ -1,4 +1,3 @@
-import { NOTIFICATION_EVENTS } from '@ultratorrent/shared';
 import { readdir, stat } from 'node:fs/promises';
 import { MissingEpisodeSearchService } from '../missing-episode-search.service';
 import type { IndexerCandidate } from '../../indexers/torznab-client';
@@ -133,7 +132,7 @@ function build(over: {
   const registry = { getStatus: jest.fn(() => ({ enabled: over.enabled ?? true })) };
   const svc = new MissingEpisodeSearchService(
     prisma as any, indexers as any, evaluator as any, matchPrefs as any, acquisition as any,
-    audit as any, realtime as any, eventBus as any, registry as any,
+    audit as any, realtime as any, registry as any,
   );
   return { svc, prisma, indexers, evaluator, matchPrefs, acquisition, audit, realtime, eventBus, updates };
 }
@@ -172,7 +171,6 @@ describe('MissingEpisodeSearchService.sweep — grab flow', () => {
     );
     const last = updates[updates.length - 1];
     expect(last).toMatchObject({ searchStatus: 'grabbed', grabbedEvaluationId: 'ev1', releaseTitle: 'The Wire S01E01 1080p WEB-DL x265-GRP' });
-    expect(eventBus.emit).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ event: NOTIFICATION_EVENTS.MEDIA_MISSING_EPISODE_FILLED }));
     expect(realtime.broadcast).toHaveBeenCalledWith('media_acquisition.missing_episode.grabbed', expect.anything());
   });
 

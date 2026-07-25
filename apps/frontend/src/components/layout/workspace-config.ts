@@ -18,6 +18,5 @@ export const WORKSPACE_ACTION_IDS: Record<string, string[]> = {
 export const WORKSPACE_JOB_SUBSYSTEMS: Record<string, JobSubsystem[] | 'all'> = {
   media: ['media', 'subtitle'],
   analytics: ['analytics_import'],
-  automation: ['notification'],
   system: 'all',
 };

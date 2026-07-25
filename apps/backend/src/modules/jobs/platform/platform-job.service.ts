@@ -1,7 +1,6 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { PlatformJob, Prisma } from '@prisma/client';
-import { WS_EVENTS, NOTIFICATION_EVENTS, NOTIFICATION_BUS_CHANNEL, type JobEventPayload } from '@ultratorrent/shared';
+import { WS_EVENTS, type JobEventPayload } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { JobRegistry } from './job-registry.service';
@@ -60,7 +59,6 @@ export class PlatformJobService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly registry: JobRegistry,
     private readonly realtime: RealtimeGateway,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   /**
@@ -74,22 +72,6 @@ export class PlatformJobService implements OnModuleInit {
       .catch(() => null);
     if (!row) return;
     try {
-      this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-        event,
-        dedupeKey: `${event}:${jobId}`,
-        payload: {
-          jobId: row.id,
-          jobType: row.type,
-          jobName: row.name,
-          moduleKey: row.moduleKey,
-          workspaceKey: row.workspaceKey,
-          errorCode: row.errorCode,
-          errorMessage: row.errorMessage,
-          correlationId: row.correlationId,
-          ...extra,
-        },
-        at: new Date().toISOString(),
-      });
     } catch {
       /* bus is best-effort */
     }
@@ -479,7 +461,6 @@ export class PlatformJobService implements OnModuleInit {
     if (withWarnings) await this.recordEvent(jobId, 'warning', { level: 'warning', metadata: { count: collectedWarnings.length } });
     await this.recordEvent(jobId, 'completed', { level: 'success' });
     this.emitRow(row, WS_EVENTS.JOB_COMPLETED);
-    if (withWarnings) await this.emitOperational(jobId, NOTIFICATION_EVENTS.JOB_COMPLETED_WITH_WARNINGS, { warningCount: collectedWarnings.length });
   }
 
   private async markFailed(jobId: string, err: unknown): Promise<void> {
@@ -491,7 +472,6 @@ export class PlatformJobService implements OnModuleInit {
     });
     await this.recordEvent(jobId, 'failed', { level: 'error', message: sanitized.message });
     await this.notify(jobId, WS_EVENTS.JOB_FAILED, sanitized.message);
-    await this.emitOperational(jobId, NOTIFICATION_EVENTS.JOB_FAILED);
   }
 
   private async markCancelled(jobId: string): Promise<void> {
@@ -503,7 +483,6 @@ export class PlatformJobService implements OnModuleInit {
   /** Broadcast a stalled event (called by the reliability scanner). */
   async broadcastStalled(jobId: string): Promise<void> {
     await this.notify(jobId, WS_EVENTS.JOB_STALLED);
-    await this.emitOperational(jobId, NOTIFICATION_EVENTS.JOB_STALLED);
   }
 
   /** Append a structured event with a monotonic per-job sequence. */

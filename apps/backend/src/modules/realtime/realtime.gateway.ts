@@ -22,7 +22,6 @@ const SCOPED_PERMISSIONS = [
   PERMISSIONS.MEDIA_ACQUISITION_VIEW,
   PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW,
   PERMISSIONS.RSS_VIEW,
-  PERMISSIONS.NOTIFICATIONS_VIEW,
 ];
 
 /**
@@ -98,12 +97,7 @@ export class RealtimeGateway
     if (event.startsWith('rss.')) {
       return `perm:${PERMISSIONS.RSS_VIEW}`;
     }
-    // Notification Center realtime (delivery/queue/provider) — `notification.*`.
-    // The legacy in-app `notification` event (no dot) stays permission-free below.
-    if (event.startsWith('notification.')) {
-      return `perm:${PERMISSIONS.NOTIFICATIONS_VIEW}`;
-    }
-    // Permission-free events (e.g. in-app `notification`) go to all authenticated sockets.
+    // Permission-free events go to all authenticated sockets.
     return 'authenticated';
   }
 

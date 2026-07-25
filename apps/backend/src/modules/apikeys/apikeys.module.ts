@@ -13,8 +13,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsArray, IsOptional, IsString } from 'class-validator';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'node:crypto';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { PERMISSIONS, NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
+import { PERMISSIONS } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -33,7 +32,6 @@ class CreateApiKeyDto {
 export class ApiKeysService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   async create(userId: string, dto: CreateApiKeyDto) {
@@ -50,11 +48,6 @@ export class ApiKeysService {
       },
     });
     // Never put the secret on the bus.
-    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-      event: NOTIFICATION_EVENTS.SYSTEM_API_KEY_CREATED,
-      payload: { keyName: dto.name, mediaTitle: dto.name, prefix, userId, scopes: dto.scopes ?? [] },
-      at: new Date().toISOString(),
-    });
     // The full key is shown exactly once.
     return { prefix, key: `${prefix}.${secret}`, name: dto.name };
   }

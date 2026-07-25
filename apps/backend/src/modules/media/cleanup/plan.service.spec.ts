@@ -102,7 +102,7 @@ function makeService(over: {
   };
   const eventBus = { emit: jest.fn() };
 
-  const service = new PlanService(prisma as never, audit as never, protections as never, eventBus as never);
+  const service = new PlanService(prisma as never, audit as never, protections as never);
   return {
     service, prisma, audit, eventBus, planUpdates, actionUpdates,
     get created() { return created; },
@@ -230,7 +230,6 @@ describe('approve', () => {
     const plan = await h.service.approve('p1', approver);
     expect(plan.status).toBe('approved');
     expect(h.planUpdates.at(-1)).toMatchObject({ status: 'approved', approvedById: 'u-approver' });
-    expect(h.eventBus.emit).toHaveBeenCalled();
   });
 
   // Most installs have one operator; a workflow nobody can complete is worse than

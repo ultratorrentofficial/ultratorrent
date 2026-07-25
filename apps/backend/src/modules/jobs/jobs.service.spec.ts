@@ -32,12 +32,6 @@ function makePrisma() {
         { id: 'a1', mode: 'one_time', status: 'pending', progress: 0, sourceId: 'src1', createdAt: D('2026-07-21T07:00:00Z'), updatedAt: D('2026-07-21T07:00:00Z') },
       ]),
     },
-    notificationQueue: {
-      findMany: jest.fn().mockResolvedValue([
-        { id: 'n1', deliveryId: 'del1', leasedAt: D('2026-07-21T12:00:00Z'), createdAt: D('2026-07-21T12:00:00Z') },
-        { id: 'n2', deliveryId: 'del2', leasedAt: null, createdAt: D('2026-07-21T06:00:00Z') },
-      ]),
-    },
   };
 }
 
@@ -45,7 +39,7 @@ describe('JobsService', () => {
   it('visibleSubsystems: super-admin sees every subsystem (rename dropped)', () => {
     const svc = new JobsService(makePrisma() as never);
     expect(svc.visibleSubsystems(user({ roles: [SystemRole.SUPER_ADMIN] })).sort()).toEqual(
-      ['analytics_import', 'media', 'notification', 'subtitle'],
+      ['analytics_import', 'media', 'subtitle'],
     );
   });
 
@@ -82,8 +76,6 @@ describe('JobsService', () => {
     expect(byId.m2).toBe('completed');
     expect(byId.s1).toBe('failed');
     expect(byId.a1).toBe('queued'); // analytics 'pending', not leased
-    expect(byId.n1).toBe('running'); // notification leased
-    expect(byId.n2).toBe('queued'); // notification not leased
   });
 
   it('filters to active (queued/running) jobs', async () => {

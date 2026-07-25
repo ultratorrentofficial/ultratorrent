@@ -28,7 +28,6 @@ import * as argon2 from 'argon2';
 import { PERMISSIONS, SystemRole } from '@ultratorrent/shared';
 import { ModuleRef } from '@nestjs/core';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
-import { RecipientProvisioningService } from '../notification-center/recipient-provisioning.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -58,24 +57,6 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly moduleRef: ModuleRef,
   ) {}
-
-  /**
-   * Keep the notification recipient list in step after a user changes.
-   *
-   * Resolved at call time via `ModuleRef` rather than constructor-injected: Users is a
-   * foundational module and Notification Center already depends on it, so importing
-   * the service directly would close a module cycle that only throws at bootstrap.
-   * Best-effort by design — a stale recipient list must never fail a user write, and
-   * the provisioning service reconciles again at boot regardless.
-   */
-  private syncRecipients(): void {
-    try {
-      const svc = this.moduleRef.get(RecipientProvisioningService, { strict: false });
-      void svc.reconcile().catch(() => undefined);
-    } catch {
-      /* Notification Center disabled or not yet initialised — boot reconcile covers it. */
-    }
-  }
 
   private serialize(user: any) {
     return {
@@ -150,7 +131,6 @@ export class UsersService {
       },
       include: { roles: { include: { role: true } } },
     });
-    this.syncRecipients();
     return this.serialize(user);
   }
 
@@ -184,7 +164,6 @@ export class UsersService {
         data: { revokedAt: new Date() },
       });
     }
-    this.syncRecipients();
     return this.serialize(user);
   }
 
@@ -195,7 +174,6 @@ export class UsersService {
       throw new BadRequestException('System users cannot be deleted');
     }
     await this.prisma.user.delete({ where: { id } });
-    this.syncRecipients();
     return { id };
   }
 

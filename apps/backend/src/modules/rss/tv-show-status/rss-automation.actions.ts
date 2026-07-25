@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
-import { NotificationsService } from '../../notifications/notifications.module';
 import { TvShowStatusService } from './tv-show-status.service';
 
 /** RSS action ids dispatched here by the AutomationEngine. */
@@ -28,7 +27,6 @@ export class RssAutomationActions {
   constructor(
     private readonly prisma: PrismaService,
     private readonly showStatus: TvShowStatusService,
-    private readonly notifications: NotificationsService,
   ) {}
 
   async execute(

@@ -50,7 +50,7 @@ const group = (over: any = {}) => ({
  * neither matters to the read paths under test, so both are inert stand-ins here.
  */
 const svc = (prisma: any) =>
-  new MediaDuplicateService(prisma, { broadcast: jest.fn() } as any, { emit: jest.fn() } as any);
+  new MediaDuplicateService(prisma, { broadcast: jest.fn() } as any);
 
 describe('Duplicate Center — list filtering', () => {
   it('defaults to OPEN groups only', async () => {

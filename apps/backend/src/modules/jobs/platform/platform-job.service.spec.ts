@@ -89,7 +89,7 @@ function makeService() {
   const registry = new JobRegistry();
   const prisma = fakePrisma();
   const eventBus = { emit: jest.fn() };
-  const svc = new TestJobService(prisma as never, registry, stubRealtime, eventBus as never);
+  const svc = new TestJobService(prisma as never, registry, stubRealtime);
   return { registry, prisma, svc, eventBus };
 }
 
@@ -147,8 +147,8 @@ describe('PlatformJobService', () => {
     expect(eventsFor(prisma, jobId)).toContain('warning');
   });
 
-  it('records a sanitized error on failure, rethrows, and emits a job.failed bus event', async () => {
-    const { registry, prisma, svc, eventBus } = makeService();
+  it('records a sanitized error on failure and rethrows', async () => {
+    const { registry, prisma, svc } = makeService();
     registry.register(baseDef(), { execute: async () => { throw Object.assign(new Error('boom token=abc'), { code: 'E_X' }); } });
     await expect(svc.run({ type: 'test.job', input: {} })).rejects.toThrow('boom');
     const stored = [...prisma._jobs.values()][0];
@@ -156,9 +156,6 @@ describe('PlatformJobService', () => {
     expect(stored.errorCode).toBe('E_X');
     expect(stored.errorMessage).toContain('token=' + REDACTED);
     expect(JSON.stringify(stored)).not.toContain('abc');
-    // Notification/Automation integration: a job.failed domain event is published.
-    const failedEvent = eventBus.emit.mock.calls.find((c) => (c[1] as { event?: string })?.event === 'job.failed');
-    expect(failedEvent).toBeDefined();
   });
 
   it('cancels a still-queued job immediately', async () => {

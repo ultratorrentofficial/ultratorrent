@@ -9,8 +9,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 export type JobSubsystem =
   | 'media'
   | 'subtitle'
-  | 'analytics_import'
-  | 'notification';
+  | 'analytics_import';
 
 /** Canonical, cross-subsystem job status. */
 export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -41,7 +40,6 @@ const SUBSYSTEM_PERMISSION: Record<JobSubsystem, string> = {
   media: PERMISSIONS.MEDIA_MANAGER_VIEW,
   subtitle: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW,
   analytics_import: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW,
-  notification: PERMISSIONS.NOTIFICATIONS_VIEW,
 };
 
 /** Map a platform_jobs status (15-state) down to the aggregator's canonical 5. */
@@ -161,23 +159,6 @@ export class JobsService {
           error: null,
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
-        }));
-      }
-      case 'notification': {
-        const rows = await this.prisma.notificationQueue.findMany({
-          orderBy: { createdAt: 'desc' },
-          take: PER_SUBSYSTEM_CAP,
-        });
-        return rows.map((r) => ({
-          id: r.id,
-          subsystem,
-          type: 'delivery',
-          status: normalizeStatus('queued', r.leasedAt != null),
-          progress: null,
-          label: r.deliveryId,
-          error: null,
-          createdAt: r.createdAt,
-          updatedAt: r.leasedAt ?? r.createdAt,
         }));
       }
     }

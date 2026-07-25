@@ -10,8 +10,6 @@
  * on-demand (bulk endpoint) and on a cadence (scheduler).
  */
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { SubtitleService } from '../subtitle.service';
 import { SubtitleTriggerService } from '../automation/subtitle-trigger.service';
@@ -34,7 +32,6 @@ export class SubtitleMissingScanService {
     private readonly prisma: PrismaService,
     private readonly subtitles: SubtitleService,
     private readonly triggers: SubtitleTriggerService,
-    private readonly eventBus: EventEmitter2,
     private readonly globalSettings: SubtitleSettingsService,
     private readonly sync: SubtitleSyncService,
   ) {}
@@ -78,11 +75,6 @@ export class SubtitleMissingScanService {
       gaps++;
 
       // Raise the gap: Notification Center + automation trigger + history.
-      this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-        event: NOTIFICATION_EVENTS.SUBTITLE_MISSING,
-        payload: { mediaTitle: item.title, itemId: item.id, libraryId, languages: missing },
-        at: new Date().toISOString(),
-      });
       this.triggers.fire('subtitle.missing', {
         title: item.title,
         itemId: item.id,

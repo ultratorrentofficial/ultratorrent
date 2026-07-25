@@ -36,7 +36,6 @@ import { WorkspaceRail } from '@/components/layout/WorkspaceRail';
 import { useSwipeToDismiss } from '@/components/layout/useSwipe';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
-import { NotificationBell } from '@/components/layout/NotificationBell';
 import {
   activeEntryId,
   flattenForSearch,
@@ -1042,7 +1041,6 @@ function TopBar({ onMenu, onAbout, onOpenCommand }: { onMenu: () => void; onAbou
           tone="success"
         />
         <ConnectionDot status={status} />
-        <NotificationBell />
         <LanguageSwitcher className="hidden sm:flex" />
         <UserMenu onAbout={onAbout} />
       </div>

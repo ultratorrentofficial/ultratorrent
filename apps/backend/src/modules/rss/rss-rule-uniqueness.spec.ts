@@ -24,7 +24,6 @@ function makeRss(findFirst: jest.Mock, existingRule: any = null) {
     { record: jest.fn() } as never,
     { broadcast: jest.fn() } as never,
     { get: jest.fn() } as never,
-    { emit() {} } as never,
   );
   return { svc, prisma, created, updated };
 }

@@ -116,7 +116,6 @@ export const MODULE_IDS = {
   FILES: 'files',
   SETTINGS: 'settings',
   AUDIT: 'audit',
-  NOTIFICATIONS: 'notifications',
   API_KEYS: 'api_keys',
   SYSTEM: 'system',
   SEARCH: 'search',
@@ -129,7 +128,6 @@ export const MODULE_IDS = {
   RELEASE_SCORING: 'release_scoring',
   MEDIA_ACQUISITION_INTELLIGENCE: 'media_acquisition_intelligence',
   MEDIA_SERVER_ANALYTICS: 'media_server_analytics',
-  NOTIFICATION_CENTER: 'notification_center',
   // Core — subtitle acquisition, validation & synchronization (locked, always-on)
   SUBTITLE_INTELLIGENCE: 'subtitle_intelligence',
   // Core — policy-driven, plan-executed library storage reclamation

@@ -295,7 +295,6 @@ const DIRECTORY: DirEntry[] = [
   { label: 'IMDb Provider', to: '/media/settings/imdb', permission: PERMISSIONS.MEDIA_MANAGER_IMDB_VIEW, description: 'IMDb dataset import + optional licensed API, refresh schedule, and matching options.' },
   { label: 'Subtitle Intelligence', to: '/subtitles/settings', permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, description: 'Auto-download, auto-sync, scan interval, default languages — plus providers and per-library language policy.' },
   { label: 'Media Acquisition', to: '/media-acquisition', permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, description: 'Missing-episode auto-search, scan frequency, per-sweep limits, quality upgrades, and acquisition profiles (Settings tab).' },
-  { label: 'Notification Center', to: '/notifications/settings', permission: PERMISSIONS.NOTIFICATIONS_VIEW, description: 'Channels, delivery rules, templates, recipients, quiet hours, and provider health.' },
   { label: 'Torrent Engines', to: '/engines', description: 'Connect and configure the torrent engines (rTorrent, qBittorrent).' },
   { label: 'Users & Roles', to: '/users', permission: PERMISSIONS.USERS_VIEW, description: 'User accounts, roles, granular permissions, and API keys.' },
 ];

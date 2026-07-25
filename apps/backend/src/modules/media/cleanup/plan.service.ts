@@ -3,8 +3,7 @@ import {
   NotFoundException, UnprocessableEntityException,
 } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS, SystemRole } from '@ultratorrent/shared';
+import { SystemRole } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { paginate, parsePage } from '../../../common/pagination';
@@ -53,7 +52,6 @@ export class PlanService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly protections: ProtectionService,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   // ── creation ───────────────────────────────────────────────────────────────
@@ -212,14 +210,6 @@ export class PlanService {
       },
     });
 
-    this.emit(NOTIFICATION_EVENTS.LIBRARY_CLEANUP_PLAN_PENDING_APPROVAL, {
-      planId: plan.id,
-      runId,
-      destination,
-      candidateCount: actionable.length,
-      estimatedReclaimBytes: estimated.toString(),
-      expiresAt: plan.expiresAt?.toISOString() ?? null,
-    }, `cleanup-plan:${plan.id}`);
 
     return { ...plan, skippedProtected: protectedNow.size };
   }
@@ -315,10 +305,6 @@ export class PlanService {
       },
     });
 
-    this.emit(NOTIFICATION_EVENTS.LIBRARY_CLEANUP_PLAN_APPROVED, {
-      planId, destination: plan.action, candidateCount: actionable,
-      approvedBy: user.username, selfApproved,
-    }, `cleanup-plan:${planId}`);
 
     return { ...updated, newlyProtected };
   }
@@ -336,9 +322,6 @@ export class PlanService {
       objectType: 'media_cleanup_plan', objectId: planId,
       metadata: { reason: dto.reason },
     });
-    this.emit(NOTIFICATION_EVENTS.LIBRARY_CLEANUP_PLAN_REJECTED, {
-      planId, reason: dto.reason, rejectedBy: user.username,
-    }, `cleanup-plan:${planId}`);
     return updated;
   }
 
@@ -380,10 +363,6 @@ export class PlanService {
           objectType: 'media_cleanup_plan', objectId: plan.id,
           metadata: { previousStatus: plan.status, candidateCount: plan.candidateCount },
         });
-        this.emit(NOTIFICATION_EVENTS.LIBRARY_CLEANUP_PLAN_EXPIRED, {
-          planId: plan.id, runId: plan.runId, previousStatus: plan.status,
-          candidateCount: plan.candidateCount,
-        }, `cleanup-plan:${plan.id}`);
       }
       if (due.length) this.logger.log(`Expired ${due.length} cleanup plan(s)`);
     } catch (err) {
@@ -454,13 +433,4 @@ export class PlanService {
     return updated;
   }
 
-  private emit(event: string, payload: Record<string, unknown>, dedupeKey?: string): void {
-    try {
-      this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
-        event, dedupeKey, payload, at: new Date().toISOString(),
-      });
-    } catch (err) {
-      this.logger.debug(`emit ${event} failed: ${(err as Error).message}`);
-    }
-  }
 }

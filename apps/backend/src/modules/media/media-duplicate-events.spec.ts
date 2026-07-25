@@ -1,4 +1,4 @@
-import { NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS, WS_EVENTS } from '@ultratorrent/shared';
+import { WS_EVENTS } from '@ultratorrent/shared';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { JobCancelledError } from './media-processing-queue.service';
 
@@ -12,7 +12,6 @@ import { JobCancelledError } from './media-processing-queue.service';
  */
 function build(items: any[] = []) {
   const broadcasts: Array<{ event: string; payload: any }> = [];
-  const domain: Array<{ channel: string; envelope: any }> = [];
   const groups: any[] = [];
 
   const prisma: any = {
@@ -41,9 +40,8 @@ function build(items: any[] = []) {
     $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
   };
   const realtime: any = { broadcast: (event: string, payload: any) => broadcasts.push({ event, payload }) };
-  const bus: any = { emit: (channel: string, envelope: any) => domain.push({ channel, envelope }) };
 
-  return { svc: new MediaDuplicateService(prisma, realtime, bus), broadcasts, domain, prisma };
+  return { svc: new MediaDuplicateService(prisma, realtime), broadcasts, prisma };
 }
 
 const pair = (n: number) => [
@@ -106,61 +104,16 @@ describe('Duplicate Center — events', () => {
     expect(names).not.toContain(WS_EVENTS.MEDIA_DUPLICATE_SCAN_COMPLETED);
   });
 
-  it('emits media.duplicate — the rule that was seeded enabled and never fired', async () => {
-    const { svc, domain } = build(pair(1));
-
-    await svc.detect();
-
-    const dupe = domain.find((d) => d.envelope.event === NOTIFICATION_EVENTS.MEDIA_DUPLICATE);
-    expect(dupe).toBeDefined();
-    expect(dupe!.channel).toBe(NOTIFICATION_BUS_CHANNEL);
-    // Keys the card renderer and rule conditions actually read.
-    expect(dupe!.envelope.payload.mediaTitle).toBeTruthy();
-    // Reclaimable = the bytes of the copies removed (the 720p, 1000), NOT the
-    // difference between keeper and loser.
-    expect(dupe!.envelope.payload.wastedBytes).toBe(1000);
-    expect(dupe!.envelope.payload.reviewUrl).toBe('/media/duplicates');
-    // Deduped on the shape of the result: a scheduled scan finding the same groups
-    // should notify once, not every hour.
-    expect(dupe!.envelope.dedupeKey).toBe('duplicates:1:1000');
-  });
-
-  it('says nothing when a scan finds nothing', async () => {
-    // A notification per scheduled scan saying "still nothing" is a notification an
-    // operator mutes, taking the real ones with it.
-    const { svc, domain } = build([]);
-    await svc.detect();
-    expect(domain).toHaveLength(0);
-  });
-
   it('stays silent on an unchanged rescan', async () => {
-    const { svc, domain, prisma, broadcasts } = build(pair(1));
+    const { svc, prisma, broadcasts } = build(pair(1));
     await svc.detect();
-    const after = domain.length;
 
     prisma.$queryRaw = jest.fn(async () => [{ digest: 'same' }]);
     prisma.mediaDuplicateScanState.findUnique = jest.fn(async () => ({ inputDigest: 'same' }));
     await svc.detect();
 
-    expect(domain).toHaveLength(after);
     // The scan itself still reports completion — the UI needs to stop spinning.
     expect(broadcasts.filter((b) => b.event === WS_EVENTS.MEDIA_DUPLICATE_SCAN_COMPLETED)).toHaveLength(2);
   });
 
-  it('raises review-required separately, so a rule can target only those', async () => {
-    // Two unmeasured copies: the engine withholds a keeper and forces review.
-    const unmeasured = pair(2).map((i) => ({
-      ...i,
-      files: [{ size: BigInt(1000), height: null, width: null, bitrateKbps: null, durationSec: null, audioChannels: null, resolution: '1080p', videoCodec: null }],
-    }));
-    const { svc, domain } = build(unmeasured);
-
-    await svc.detect();
-
-    const review = domain.find(
-      (d) => d.envelope.event === NOTIFICATION_EVENTS.MEDIA_DUPLICATE_REVIEW_REQUIRED,
-    );
-    expect(review).toBeDefined();
-    expect(review!.envelope.payload.requiresReview).toBeGreaterThan(0);
-  });
 });

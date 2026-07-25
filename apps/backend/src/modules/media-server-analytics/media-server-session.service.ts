@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { MODULE_IDS, NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS } from '@ultratorrent/shared';
+import { MODULE_IDS } from '@ultratorrent/shared';
 import type { MediaServerSession } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -24,13 +23,9 @@ export class MediaServerSessionService {
     private readonly integrations: MediaServerIntegrationService,
     private readonly realtime: RealtimeGateway,
     private readonly registry: ModuleRegistryService,
-    private readonly eventBus: EventEmitter2,
   ) {}
 
   /** Publish a domain event onto the Notification Center bus (fire-and-forget). */
-  private emit(event: string, payload: Record<string, unknown>): void {
-    this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, { event, payload, at: new Date().toISOString() });
-  }
 
   /** Live activity = the current reconciled session snapshot. */
   liveActivity() {
@@ -42,36 +37,6 @@ export class MediaServerSessionService {
     const session = await this.prisma.mediaServerSession.findUnique({ where: { id: sessionId } });
     if (!session?.artPath) return null;
     return this.integrations.fetchArtwork(session.connectionId, session.artPath);
-  }
-
-  /**
-   * Proxy the poster recorded on one user's notification.
-   *
-   * A "stopped watching" card outlives its session — the row is deleted the moment
-   * playback ends — so resolving artwork through the session would 404 on exactly
-   * the notification that needs it. The connection and provider path are recorded
-   * on the notification instead, and re-fetched here under the provider's
-   * credentials.
-   *
-   * The path is read from the STORED payload, never from the request: a caller
-   * cannot supply one, so this cannot be turned into a fetch-anything proxy. The
-   * `userId` filter is the ownership check — someone else's notification id simply
-   * does not match, and the caller cannot tell "not yours" from "no artwork".
-   */
-  async notificationArtwork(
-    userId: string,
-    notificationId: string,
-  ): Promise<{ body: Buffer; contentType: string } | null> {
-    const row = await this.prisma.userNotification.findFirst({
-      where: { id: notificationId, userId },
-      select: { payload: true },
-    });
-    if (!row) return null;
-    const payload = (row.payload ?? {}) as Record<string, unknown>;
-    const connectionId = payload.connectionId;
-    const artPath = payload.artPath;
-    if (typeof connectionId !== 'string' || typeof artPath !== 'string' || !artPath) return null;
-    return this.integrations.fetchArtwork(connectionId, artPath);
   }
 
   private get enabled(): boolean {
@@ -171,9 +136,7 @@ export class MediaServerSessionService {
             // payload is stored on every recipient's row.
             startedAt: new Date().toISOString(),
           };
-          this.emit(NOTIFICATION_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING, startPayload);
           if ((s.playbackMethod ?? '').toLowerCase().includes('transcode')) {
-            this.emit(NOTIFICATION_EVENTS.MEDIA_SERVER_TRANSCODE_DETECTED, startPayload);
           }
         }
       }
@@ -218,18 +181,5 @@ export class MediaServerSessionService {
     });
     await this.prisma.mediaServerSession.delete({ where: { id: c.id } });
     this.realtime.broadcast('media_server.session.ended', { connectionId: c.connectionId, title: c.title });
-    this.emit(NOTIFICATION_EVENTS.MEDIA_SERVER_USER_FINISHED_WATCHING, {
-      mediaTitle: c.title, mediaType: c.mediaType, userDisplayName: c.userName, userId: c.providerUserId ?? null,
-      libraryName: c.libraryName ?? null, watchedSeconds, completionPercent: c.progressPercent ?? null,
-      serverName,
-      showTitle: c.showTitle, seasonNumber: c.seasonNumber, episodeNumber: c.episodeNumber, year: c.year,
-      device: c.device, client: c.client,
-      // The session row is deleted immediately below, so the stop notification
-      // cannot resolve artwork through it. Carrying the connection and art path
-      // on the event is what lets the card still show a poster afterwards.
-      connectionId: c.connectionId,
-      artPath: c.artPath,
-      stoppedAt: new Date().toISOString(),
-    });
   }
 }

@@ -7,7 +7,7 @@ function build() {
   };
   const showStatus = { resolveByProviderId: jest.fn().mockResolvedValue({ normalizedStatus: 'ended' }) };
   const notifications = { dispatch: jest.fn().mockResolvedValue(undefined) };
-  const svc = new RssAutomationActions(prisma as any, showStatus as any, notifications as any);
+  const svc = new RssAutomationActions(prisma as any, showStatus as any);
   return { svc, prisma, showStatus, notifications };
 }
 

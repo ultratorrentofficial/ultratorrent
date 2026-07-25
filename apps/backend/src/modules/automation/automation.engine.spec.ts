@@ -35,7 +35,6 @@ describe('AutomationEngine — ratio.reached edge trigger', () => {
       automationLog: { create: jest.fn().mockResolvedValue(undefined) },
     } as any;
     const registry = { resolve: jest.fn().mockResolvedValue(provider) } as any;
-    const notifications = { dispatch: jest.fn().mockResolvedValue(undefined) } as any;
     const media = {} as any;
     const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const rssActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
@@ -43,16 +42,12 @@ describe('AutomationEngine — ratio.reached edge trigger', () => {
     const engine = new AutomationEngine(
       prisma,
       registry,
-      notifications,
       media,
       mediaActions,
       rssActions,
       { execute: jest.fn().mockResolvedValue(undefined) } as any,
       audit,
-      { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
-      // The engine now EMITS `automation.rule_failed` onto the bus instead of
-      // calling the legacy free-text dispatcher.
-      { emit: jest.fn() } as any,
+      { get: () => ({}) } as any,
     );
     return { engine, provider, mediaActions, audit };
   }
@@ -137,7 +132,6 @@ describe('AutomationEngine — media action dispatch', () => {
     } as any;
     const provider = { stopTorrent: jest.fn() };
     const registry = { resolve: jest.fn().mockResolvedValue(provider) } as any;
-    const notifications = { dispatch: jest.fn().mockResolvedValue(undefined) } as any;
     const media = {} as any;
     const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const rssActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
@@ -145,16 +139,12 @@ describe('AutomationEngine — media action dispatch', () => {
     const engine = new AutomationEngine(
       prisma,
       registry,
-      notifications,
       media,
       mediaActions,
       rssActions,
       { execute: jest.fn().mockResolvedValue(undefined) } as any,
       audit,
-      { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
-      // The engine now EMITS `automation.rule_failed` onto the bus instead of
-      // calling the legacy free-text dispatcher.
-      { emit: jest.fn() } as any,
+      { get: () => ({}) } as any,
     );
 
     await engine.evaluate('torrent.completed', torrent());
@@ -172,16 +162,12 @@ describe('AutomationEngine — duplicate actions dispatch to media, non-destruct
     new AutomationEngine(
       { automationRule: { findMany: jest.fn().mockResolvedValue([{ id: 'd1', name: 'r', conditions: [], actions: [{ type: DUP_ACTION, params: {} }] }]) }, automationLog: { create: jest.fn() } } as any,
       { resolve: jest.fn() } as any,
-      { dispatch: jest.fn() } as any,
       {} as any,
       mediaActions,
       { execute: jest.fn() } as any,
       { execute: jest.fn() } as any,
       { record: jest.fn() } as any,
-      { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
-      // The engine now EMITS `automation.rule_failed` onto the bus instead of
-      // calling the legacy free-text dispatcher.
-      { emit: jest.fn() } as any,
+      { get: () => ({}) } as any,
     );
 
   let DUP_ACTION = 'media_run_duplicate_scan';
@@ -253,21 +239,16 @@ describe('AutomationEngine — reconcileCompleted (completion backfill)', () => 
       },
     } as any;
     const registry = { resolve: jest.fn().mockResolvedValue(provider) } as any;
-    const notifications = { dispatch: jest.fn().mockResolvedValue(undefined) } as any;
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
     const engine = new AutomationEngine(
       prisma,
       registry,
-      notifications,
       {} as any,
       { execute: jest.fn() } as any,
       { execute: jest.fn() } as any,
       { execute: jest.fn() } as any,
       audit,
-      { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
-      // The engine now EMITS `automation.rule_failed` onto the bus instead of
-      // calling the legacy free-text dispatcher.
-      { emit: jest.fn() } as any,
+      { get: () => ({}) } as any,
     );
     return { engine, provider, prisma };
   }
@@ -333,13 +314,12 @@ describe('AutomationEngine — evaluateEvent (non-torrent event context)', () =>
       automationLog: { create: jest.fn().mockResolvedValue(undefined) },
     } as any;
     const registry = { resolve: jest.fn() } as any;
-    const notifications = { dispatch: jest.fn().mockResolvedValue(undefined) } as any;
     const media = {} as any;
     const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const rssActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const engine = new AutomationEngine(prisma, registry, notifications, media, mediaActions, rssActions, { execute: jest.fn().mockResolvedValue(undefined) } as any, audit, { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any, { emit: jest.fn() } as any);
-    return { engine, prisma, notifications, rssActions };
+    const engine = new AutomationEngine(prisma, registry, media, mediaActions, rssActions, { execute: jest.fn().mockResolvedValue(undefined) } as any, audit, { get: () => ({}) } as any);
+    return { engine, prisma, rssActions };
   }
 
   it('matches conditions against the event context and delegates an rss_* action', async () => {
@@ -366,19 +346,6 @@ describe('AutomationEngine — evaluateEvent (non-torrent event context)', () =>
     ]);
     await engine.evaluateEvent('rss.show.ended', CTX);
     expect(rssActions.execute).not.toHaveBeenCalled();
-  });
-
-  it('runs notify with the context title and logs success', async () => {
-    const { engine, notifications, prisma } = make([
-      { id: 'e3', name: 'Ping', conditions: [], actions: [{ type: 'notify' }] },
-    ]);
-    await engine.evaluateEvent('rss.show_status.changed', CTX);
-    expect(notifications.dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'Show' }),
-    );
-    expect(prisma.automationLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'success' }) }),
-    );
   });
 
   it('logs failure (and does not throw) when a torrent-only action is used', async () => {
