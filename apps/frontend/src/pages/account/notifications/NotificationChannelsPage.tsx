@@ -34,6 +34,7 @@ export function NotificationChannelsPage() {
   const toast = useToast();
   const qc = useQueryClient();
   const [address, setAddress] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState('');
   const [telegramCode, setTelegramCode] = useState<{ code: string; botUsername: string; expiresInSeconds: number } | null>(null);
 
   const channels = useQuery({
@@ -79,6 +80,12 @@ export function NotificationChannelsPage() {
     onError: (e: Error) => toast.error(e?.message || t('channels.telegramNotReceived')),
   });
 
+  const connectDiscord = useMutation({
+    mutationFn: (url: string) => api.account.notifications.connectDiscord(url),
+    onSuccess: () => { setWebhookUrl(''); invalidate(); toast.success(t('channels.connected')); },
+    onError: (e: Error) => toast.error(e?.message || t('channels.connectFailed')),
+  });
+
   const disconnect = useMutation({
     mutationFn: (type: string) => api.account.notifications.disconnectChannel(type),
     onSuccess: () => { invalidate(); toast.success(t('channels.disconnected')); },
@@ -111,7 +118,7 @@ export function NotificationChannelsPage() {
 
       {list.map((channel: NotificationChannelDto) => {
         const Icon = ICONS[channel.type];
-        const available = channel.type === 'email' || channel.type === 'telegram';
+        const available = true; // email, Telegram and Discord all deliver now
         return (
           <Card key={channel.type}>
             <CardContent className="space-y-3 p-4">
@@ -161,6 +168,26 @@ export function NotificationChannelsPage() {
                     {t('channels.telegramConnect')}
                   </Button>
                 )
+              ) : channel.type === 'discord' && !channel.connected ? (
+                <form
+                  className="space-y-2"
+                  onSubmit={(e) => { e.preventDefault(); connectDiscord.mutate(webhookUrl); }}
+                >
+                  <div className="space-y-1.5">
+                    <Label htmlFor="discord-webhook">{t('channels.discordWebhook')}</Label>
+                    <Input
+                      id="discord-webhook"
+                      type="url"
+                      value={webhookUrl}
+                      placeholder="https://discord.com/api/webhooks/…"
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">{t('channels.discordHint')}</p>
+                  </div>
+                  <Button type="submit" size="sm" disabled={connectDiscord.isPending || !webhookUrl.trim()}>
+                    {t('channels.connect')}
+                  </Button>
+                </form>
               ) : channel.connected ? (
                 <div className="flex flex-wrap gap-2">
                   <Button

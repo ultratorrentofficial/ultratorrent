@@ -3,6 +3,7 @@ import type { ConnectableChannelType } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { SecretCipher } from '../../../common/crypto/secret-cipher';
 import { isValidEmail, maskEmail } from './channel-validators';
+import { maskDiscordWebhook, parseDiscordWebhook } from './discord-validators';
 
 /** What the API returns for a connection. Never the destination itself. */
 export interface ChannelView {
@@ -174,6 +175,50 @@ export class NotificationChannelService {
       },
     });
     return this.viewOf(userId, 'telegram');
+  }
+
+  /**
+   * Connect a personal Discord webhook.
+   *
+   * Stored **unverified** — the caller sends a test and calls `markVerified` on
+   * success, exactly as with email. A webhook that Discord has since revoked
+   * parses fine and fails at send, so parsing is not proof of anything.
+   *
+   * The full URL never leaves this service: it is encrypted, and the mask shows
+   * a channel name plus the last four digits of the webhook id. The token half
+   * of the URL is a bearer credential and is never displayed, not even partially.
+   */
+  async connectDiscord(
+    userId: string,
+    webhookUrl: string,
+    channelName: string | null,
+  ): Promise<ChannelView> {
+    // Validated here as well as in the transport: a row must never be written
+    // with a URL that would be refused at send time.
+    const { url, webhookId } = parseDiscordWebhook(webhookUrl);
+
+    await this.prisma.userNotificationChannel.upsert({
+      where: { userId_type: { userId, type: 'discord' } },
+      create: {
+        userId,
+        type: 'discord',
+        encryptedConfig: { webhookUrl: this.cipher.encrypt(url) },
+        maskedDestination: maskDiscordWebhook(webhookId, channelName),
+        enabled: true,
+      },
+      update: {
+        encryptedConfig: { webhookUrl: this.cipher.encrypt(url) },
+        maskedDestination: maskDiscordWebhook(webhookId, channelName),
+        enabled: true,
+        // A new webhook has proved nothing; carrying verification over would let
+        // a revoked one inherit a working one's trust.
+        verifiedAt: null,
+        consecutiveFailures: 0,
+        lastError: null,
+        deletedAt: null,
+      },
+    });
+    return this.viewOf(userId, 'discord');
   }
 
   /**

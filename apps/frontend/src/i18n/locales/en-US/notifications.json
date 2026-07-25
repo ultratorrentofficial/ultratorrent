@@ -46,7 +46,9 @@
     "telegramExpires": "This code expires in {{minutes}} minutes.",
     "telegramNotConfigured": "This server has no Telegram bot configured yet. An administrator sets it up once, in Settings.",
     "telegramNotReceived": "No code received yet. Send it to the bot, then confirm again.",
-    "telegramCancel": "Cancel"
+    "telegramCancel": "Cancel",
+    "discordWebhook": "Discord webhook URL",
+    "discordHint": "In Discord: Server Settings → Integrations → Webhooks → New Webhook, then copy the URL."
   },
   "severities": {
     "info": "Info",

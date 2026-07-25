@@ -295,9 +295,16 @@ describe('NotificationDeliveryWorker', () => {
         telegramSent.push(html);
       }),
     };
+    const discordSent: any[] = [];
+    const discord: any = {
+      send: jest.fn(async (_url: string, payload: any) => {
+        if (opts.sendFails) throw new Error(opts.sendFails);
+        discordSent.push(payload);
+      }),
+    };
     return {
-      worker: new NotificationDeliveryWorker(prisma, channels, mail, telegram),
-      rows, sent, telegramSent, channels, mail, telegram,
+      worker: new NotificationDeliveryWorker(prisma, channels, mail, telegram, discord),
+      rows, sent, telegramSent, discordSent, channels, mail, telegram, discord,
     };
   };
 
@@ -363,11 +370,31 @@ describe('NotificationDeliveryWorker', () => {
     expect(rows[0].status).toBe('provider_accepted');
   });
 
-  it('cancels a still-unimplemented channel instead of retrying it three times', async () => {
-    const { worker, rows, mail, telegram } = build({ delivery: { channelType: 'discord' } });
+  it('sends Discord as an embed, with mentions disabled', async () => {
+    const { worker, rows, discordSent, mail } = build({ delivery: { channelType: 'discord' } });
+    expect(await worker.drain()).toMatchObject({ sent: 1 });
+    expect(mail.send).not.toHaveBeenCalled();
+    expect(discordSent[0]).toMatchObject({ allowed_mentions: { parse: [] } });
+    expect(discordSent[0].embeds[0].title).toBe('Download Complete');
+    expect(rows[0].status).toBe('provider_accepted');
+  });
+
+  it('cancels a Discord delivery with no rich presentation rather than sending a bare title', async () => {
+    // An embed needs structure; a bare title would look broken beside real cards.
+    const { worker, rows, discord } = build({
+      delivery: { channelType: 'discord' }, presentation: { nonsense: true },
+    });
+    await worker.drain();
+    expect(discord.send).not.toHaveBeenCalled();
+    expect(rows[0].suppressedReason).toBe('no_presentation');
+  });
+
+  it('cancels an unknown channel instead of retrying it three times', async () => {
+    const { worker, rows, mail, telegram, discord } = build({ delivery: { channelType: 'sms' } });
     await worker.drain();
     expect(mail.send).not.toHaveBeenCalled();
     expect(telegram.sendMessage).not.toHaveBeenCalled();
+    expect(discord.send).not.toHaveBeenCalled();
     expect(rows[0].suppressedReason).toBe('channel_not_implemented');
   });
 

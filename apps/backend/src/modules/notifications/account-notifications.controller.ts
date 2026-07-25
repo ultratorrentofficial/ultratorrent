@@ -15,6 +15,8 @@ import { NotificationChannelService } from './channels/notification-channel.serv
 import { MailTransportService } from '../../infrastructure/mail/mail-transport.service';
 import { TelegramTransportService } from '../../infrastructure/telegram/telegram-transport.service';
 import { TelegramLinkingService } from './channels/telegram-linking.service';
+import { DiscordTransportService } from '../../infrastructure/discord/discord-transport.service';
+import { renderDiscord } from './providers/discord-renderer';
 import { allNotificationEvents } from './notification-catalog';
 
 const P = PERMISSIONS;
@@ -44,6 +46,7 @@ export class AccountNotificationsController {
     private readonly mail: MailTransportService,
     private readonly telegram: TelegramTransportService,
     private readonly linking: TelegramLinkingService,
+    private readonly discord: DiscordTransportService,
   ) {}
 
   // --- events + preferences -------------------------------------------------
@@ -171,18 +174,35 @@ export class AccountNotificationsController {
     return this.testChannel(u, 'email');
   }
 
+  /**
+   * Connect a personal Discord webhook, then prove it works.
+   *
+   * Describing the webhook first turns a revoked or mistyped URL into a setup
+   * error rather than a notification that silently never arrives, and yields the
+   * channel name so the card can show `#alerts` instead of an opaque id.
+   */
+  @Post('channels/discord')
+  @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
+  async connectDiscord(@CurrentUser() u: AuthenticatedUser, @Body() body: { webhookUrl?: string }) {
+    await this.eligibility.assertEligible(u.id);
+    const raw = body?.webhookUrl ?? '';
+    // Throws on a non-Discord host, plaintext URL, embedded credentials, or a
+    // path that is not a webhook.
+    const info = await this.discord.describe(raw);
+    await this.channels.connectDiscord(u.id, raw, info.channelName);
+    return this.testChannel(u, 'discord');
+  }
+
   /** Send a test to a connected channel. Success is what marks it verified. */
   @Post('channels/:type/test')
   @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
   async testChannel(@CurrentUser() u: AuthenticatedUser, @Param('type') type: string) {
     await this.eligibility.assertEligible(u.id);
-    if (type !== 'email' && type !== 'telegram') {
-      // Discord arrives in Phase 6. Saying so is better than a generic failure
-      // that looks like the user's fault.
-      throw new BadRequestException(`The ${type} channel is not available yet.`);
+    if (type !== 'email' && type !== 'telegram' && type !== 'discord') {
+      throw new BadRequestException(`Unknown channel "${type}".`);
     }
 
-    const channel = type as 'email' | 'telegram';
+    const channel = type as 'email' | 'telegram' | 'discord';
     const destination = await this.channels.resolveForTest(u.id, channel);
     if (!destination) throw new NotFoundException(`No ${channel} connection to test.`);
 
@@ -194,11 +214,22 @@ export class AccountNotificationsController {
           html: '<p>Your UltraTorrent notification email is working.</p>',
           text: 'Your UltraTorrent notification email is working.',
         });
-      } else {
+      } else if (channel === 'telegram') {
         await this.telegram.sendMessage(
           destination.address,
           '✅ <b>UltraTorrent</b> — your notification channel is working.',
         );
+      } else {
+        await this.discord.send(destination.address, renderDiscord({
+          version: 2,
+          eventKey: 'channel.test',
+          accent: 'success',
+          icon: 'plug',
+          headline: { lead: 'UltraTorrent', trail: 'Connected' },
+          summary: { text: 'Your notification channel is working.', emphasis: null },
+          avatar: null, artwork: null, facts: [], progress: null, status: null, action: null,
+          timestamp: new Date().toISOString(),
+        }));
       }
     } catch (err) {
       await this.channels.recordFailure(u.id, channel, (err as Error).message);

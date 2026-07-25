@@ -3606,6 +3606,11 @@ export const api = {
       testChannel(type: string): Promise<NotificationChannelDto> {
         return request<NotificationChannelDto>(`/account/notifications/channels/${type}/test`, { method: 'POST' });
       },
+      connectDiscord(webhookUrl: string): Promise<NotificationChannelDto> {
+        return request<NotificationChannelDto>('/account/notifications/channels/discord', {
+          method: 'POST', body: { webhookUrl },
+        });
+      },
       linkTelegram(): Promise<TelegramLinkDto> {
         return request<TelegramLinkDto>('/account/notifications/channels/telegram/link', { method: 'POST' });
       },

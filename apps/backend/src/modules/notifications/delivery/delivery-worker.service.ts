@@ -7,6 +7,8 @@ import { NotificationChannelService } from '../channels/notification-channel.ser
 import { renderEmailHtml, renderEmailSubject, renderEmailText } from '../providers/email-renderer';
 import { renderTelegram } from '../providers/telegram-renderer';
 import { TelegramTransportService } from '../../../infrastructure/telegram/telegram-transport.service';
+import { renderDiscord } from '../providers/discord-renderer';
+import { DiscordTransportService } from '../../../infrastructure/discord/discord-transport.service';
 
 /** Bounded, and not user-configurable — retries are an implementation detail. */
 const MAX_ATTEMPTS = 3;
@@ -37,6 +39,7 @@ export class NotificationDeliveryWorker {
     private readonly channels: NotificationChannelService,
     private readonly mail: MailTransportService,
     private readonly telegram: TelegramTransportService,
+    private readonly discord: DiscordTransportService,
   ) {}
 
   @Interval('notification_delivery_worker', 30_000)
@@ -129,9 +132,14 @@ export class NotificationDeliveryWorker {
           destination.address,
           presentation ? renderTelegram(presentation) : notification.title,
         );
+      } else if (delivery.channelType === 'discord') {
+        if (!presentation) {
+          // An embed needs structure; there is nothing sensible to send without
+          // one, and a bare title would look broken next to real cards.
+          return this.cancel(delivery.id, 'no_presentation');
+        }
+        await this.discord.send(destination.address, renderDiscord(presentation));
       } else {
-        // Discord lands in Phase 6. Cancelled rather than retried: three attempts
-        // at something unimplemented is three identical failures.
         return this.cancel(delivery.id, 'channel_not_implemented');
       }
 
