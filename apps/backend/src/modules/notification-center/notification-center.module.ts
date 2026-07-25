@@ -19,6 +19,7 @@ import { NotificationDeliveryWorker } from './delivery/delivery-worker.service';
 import { NotificationInboxService } from './inbox/inbox.service';
 import { NotificationProfileService } from './schedule/notification-profile.service';
 import { NotificationDigestWorker } from './schedule/digest-worker.service';
+import { NotificationActionBridge } from './automation/notification-action-bridge.service';
 import { AccountNotificationsController } from './preferences/account-notifications.controller';
 import { NotificationSeedService } from './seed.service';
 
@@ -49,6 +50,7 @@ import { NotificationSeedService } from './seed.service';
     NotificationInboxService,
     NotificationProfileService,
     NotificationDigestWorker,
+    NotificationActionBridge,
     SecretCipher,
   ],
   controllers: [NotificationCenterController, AccountNotificationsController],
@@ -63,6 +65,7 @@ import { NotificationSeedService } from './seed.service';
     PersonalTransmitter,
     NotificationInboxService,
     NotificationProfileService,
+    NotificationActionBridge,
   ],
 })
 export class NotificationCenterModule {}
