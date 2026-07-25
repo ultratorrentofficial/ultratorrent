@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.47.0] - 2026-07-25
+
+### Added
+- Remove the notification engine entirely, ahead of a rebuild from scratch. BREAKING: both the legacy Notification Center and the personal engine are gone, along with the domain-event bus they consumed - which also removes automation and workflow domain-event triggering, since both subscribed to that same bus. 23 database tables are dropped, destroying the encrypted SMTP transport and Telegram bot token; both hosts were backed up first to notification-teardown-backups/.
+
 ## [0.46.0] - 2026-07-25
 
 ### Added
