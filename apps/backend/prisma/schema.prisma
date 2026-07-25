@@ -41,6 +41,13 @@ model User {
   notifications Notification[]
   traktAccount  TraktAccount?
 
+  // Personal Notification Engine. Cascade on delete: a deleted account keeps no
+  // inbox, no connections and no preferences.
+  notificationProfile     UserNotificationProfile?
+  notificationChannels    UserNotificationChannel[]
+  notificationPreferences UserNotificationPreference[]
+  personalNotifications   UserNotification[]
+
   @@map("users")
 }
 
@@ -2270,6 +2277,189 @@ model NotificationRouting {
   @@unique([recipientId, event])
   @@index([recipientId])
   @@map("notification_routings")
+}
+
+// ---------------------------------------------------------------------------
+// Personal Notification Engine (Phase 2 — ownership backbone).
+//
+// Notifications belong to a LOCALLY AUTHENTICATED UltraTorrent user. External
+// identities (`MediaServerUser` — Plex/Jellyfin/Emby viewers, Trakt links, API
+// clients) can never own any row below; `NotificationRecipientEligibilityService`
+// is the single authority and every writer must consult it.
+//
+// These models coexist with the legacy global tables (`NotificationRule`,
+// `NotificationRecipient`, …) until the Phase 10 cutover, so nothing is broken
+// mid-migration. Enums are Strings with documented values, matching the rest of
+// this schema (it declares no Prisma enums).
+// ---------------------------------------------------------------------------
+
+/// Profile-wide personal notification settings. One row per eligible user,
+/// created lazily on first use — its absence means "all defaults".
+model UserNotificationProfile {
+  id                String    @id @default(uuid())
+  userId            String    @unique
+  /// IANA zone for quiet hours + digests. Null = fall back to the server zone.
+  timezone          String?
+  locale            String?
+  quietHoursEnabled Boolean   @default(false)
+  /// Local "HH:mm". End < start means the window crosses midnight.
+  quietHoursStart   String?
+  quietHoursEnd     String?
+  /// Days the window applies to, 0=Sunday. Empty = every day.
+  quietHoursDays    Int[]     @default([])
+  digestDaily       Boolean   @default(false)
+  digestDailyAt     String?
+  digestWeekly      Boolean   @default(false)
+  digestWeeklyDay   Int?
+  digestWeeklyAt    String?
+  /// Global personal pause. A timestamp in the future suppresses everything.
+  pausedUntil       DateTime?
+  /// Set once the user completes (or skips) notification onboarding.
+  onboardedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_notification_profiles")
+}
+
+/// One personal delivery connection owned by exactly one user. A user may hold
+/// SEVERAL of the same `type` ("Work Email" + "Personal Email"), which is the
+/// deliberate improvement over the one-address-per-kind model it replaces.
+///
+/// `type`: email | telegram | whatsapp | discord. In-app needs no connection and
+/// is therefore never stored here. `sms` is intentionally absent — retired as a
+/// personal channel.
+model UserNotificationChannel {
+  id                  String    @id @default(uuid())
+  userId              String
+  type                String
+  name                String
+  enabled             Boolean   @default(true)
+  /// Preferred connection of this type when an event names the type but no
+  /// specific connection.
+  isDefault           Boolean   @default(false)
+  /// Null until a real round trip proved the destination reachable. Delivery
+  /// refuses an unverified connection rather than silently dropping messages.
+  verifiedAt          DateTime?
+  lastTestedAt        DateTime?
+  lastSuccessAt       DateTime?
+  lastFailureAt       DateTime?
+  consecutiveFailures Int       @default(0)
+  disabledReason      String?
+  /// AES-GCM via SecretCipher. Never returned by the API in any form.
+  encryptedConfig     Json
+  configVersion       Int       @default(1)
+  /// Display-safe form of the destination ("d•••s@gmail.com", "+1•••4507").
+  /// Stored so listings never need to decrypt to render.
+  destinationMask     String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  /// Soft delete: delivery history must outlive the connection it used.
+  deletedAt           DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, enabled])
+  @@map("user_notification_channels")
+}
+
+/// A user's deviation from an event's catalogue default — OVERRIDE ROWS ONLY.
+///
+/// Storage is lazy by decision: 62 events × N users of pre-created rows would be
+/// mostly-default noise, and every catalogue change would become a data
+/// migration. Effective settings = catalogue default ⊕ this row (when present).
+/// A null column means "inherit", which is why the flags are nullable rather
+/// than defaulted.
+model UserNotificationPreference {
+  id                   String   @id @default(uuid())
+  userId               String
+  /// A key from NOTIFICATION_EVENTS.
+  eventKey             String
+  enabled              Boolean?
+  /// immediate | quiet_hours_queue | daily_digest | weekly_digest | disabled | custom
+  deliveryMode         String?
+  /// respect | bypass | digest | suppress
+  quietHoursBehavior   String?
+  /// info | success | warning | error | critical | security
+  minSeverity          String?
+  dedupeWindowSec      Int?
+  aggregationWindowMin Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user   User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routes UserNotificationEventRoute[]
+
+  @@unique([userId, eventKey])
+  @@index([userId])
+  @@map("user_notification_preferences")
+}
+
+/// One selected destination for one event: "this event, on this channel type,
+/// via this specific connection". Normalized (rather than a column per channel)
+/// so ONE event can fan out to SEVERAL connections of the same type — e.g. a
+/// critical alert to both "Work Email" and "Ops Telegram".
+///
+/// `channelConnectionId` is null for the in-app route, which needs no connection.
+/// For every other type it MUST reference a connection owned by the same user as
+/// the parent preference; the database cannot express that across two hops, so
+/// the service layer enforces it and a regression test pins it.
+model UserNotificationEventRoute {
+  id                  String   @id @default(uuid())
+  preferenceId        String
+  /// in_app | email | telegram | whatsapp | discord
+  channelType         String
+  channelConnectionId String?
+  enabled             Boolean  @default(true)
+  /// Per-route override of the preference's delivery mode (e.g. in-app immediate
+  /// while email goes to the daily digest). Null = inherit.
+  deliveryMode        String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  preference UserNotificationPreference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+
+  @@unique([preferenceId, channelType, channelConnectionId])
+  @@index([preferenceId, channelType])
+  @@index([channelConnectionId])
+  @@map("user_notification_event_routes")
+}
+
+/// A personal in-app notification. Exactly one eligible owner — the property the
+/// legacy `Notification` table could not hold (`userId` was nullable there, and
+/// every row on a live install was unowned, i.e. broadcast to everyone).
+model UserNotification {
+  id         String    @id @default(uuid())
+  userId     String
+  eventKey   String
+  category   String
+  /// info | success | warning | error | critical | security
+  severity   String    @default("info")
+  title      String
+  body       String?
+  /// In-app route target; re-authorized on click, never trusted as a capability.
+  deepLink   String?
+  /// Render context only. Sensitive fields are minimized before storage.
+  payload    Json      @default("{}")
+  readAt     DateTime?
+  archivedAt DateTime?
+  /// Per-user dedupe identity; a repeat within the window bumps `groupCount`
+  /// instead of inserting. Scoped by user so one person's suppression can never
+  /// silence another's.
+  dedupeKey  String?
+  groupCount Int       @default(1)
+  lastAt     DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@index([userId, archivedAt])
+  @@map("user_notifications")
 }
 
 model NotificationQueue {

@@ -1,6 +1,7 @@
 export * from './permissions.js';
 export * from './torrent.js';
 export * from './events.js';
+export * from './notification-engine.js';
 export * from './api.js';
 export * from './modules.js';
 export * from './files.js';
