@@ -45,6 +45,18 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.48.0] - 2026-07-25
+
+### Added
+- Rebuild the platform domain-event bus (notifications rebuild, Phase 1). Restores shared pub/sub as DomainEventBus on the domain.event channel - named for what it is, not for one subscriber. Adds guarantees the previous bus never had: a catalogue that refuses unregistered keys, payload validation at the producer, idempotency by event id and by fact within a dedupe window, best-effort publishing that never throws, and per-subscriber failure isolation. Restores workflow event-waits (which silently expired) and generic automation fan-in.
+- Personal in-app notifications (Phase 2). Each user answers two questions - which events do I want, and where - with an Inbox and an Events matrix under Account. Every notification and preference is owned by exactly one locally authenticated user; recipients are fixed in code per event rather than configurable; preferences are lazy overrides and no external channel is ever enabled by default. 19 events catalogued, all with real producers.
+- Rich notification presentation and shared playback primitives (Phase 3). One canonical presentation model backs both the in-app card and the Live Activity dashboard, so playback notifications and live session cards share one implementation. Also fixes a standing privacy defect: liveActivity() returned every session column including ipAddress, and now projects explicitly.
+- Personal email notifications (Phase 4). One shared SMTP transport as infrastructure with a personal destination per user - reusing the transport that already existed for newsletters rather than adding a second. Connect-and-verify in one step, encrypted destinations that are never returned, asynchronous bounded-retry delivery that re-checks every precondition at send time, and HTML/plaintext rendering from the canonical presentation.
+- Personal Telegram notifications (Phase 5). One shared bot as infrastructure with per-user chat linking via a hashed, single-use, expiring code - a user never types a chat id. Includes rate limiting, replay prevention via an advancing update offset, duplicate-chat protection, and HTML rendering from the canonical presentation.
+- Personal Discord notifications (Phase 6). One personal webhook per user, with the SSRF allow-list applied to the supplied host rather than a resolved address so DNS rebinding cannot defeat it. Webhooks are encrypted and never returned, mentions are disabled at the payload level, and messages render as embeds carrying the accent as the stripe colour.
+- Wire real producers for all 19 catalogued notification events (Phase 7). Playback, torrents, storage, workflows, providers, security and user events now fire from live code, with edge detection shared by the three polled producers so a restart cannot announce everything that was already broken.
+- Notifications rebuild hardening and documentation (Phase 8). Fixes an N+1 in dispatch where the playback-detail permission was resolved per recipient, corrects comments that described build phases rather than behaviour, and adds NOTIFICATION_ENGINE.md, NOTIFICATION_ENGINE_SECURITY.md and DOMAIN_EVENTS.md alongside API, SECURITY, NAVIGATION, UX and README updates.
+
 ## [0.47.0] - 2026-07-25
 
 ### Added
