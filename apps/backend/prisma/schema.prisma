@@ -2386,6 +2386,14 @@ model UserNotificationPreference {
   minSeverity          String?
   dedupeWindowSec      Int?
   aggregationWindowMin Int?
+  /// Has the user taken control of this event's destinations?
+  ///
+  /// Needed because "no route rows" is otherwise ambiguous: it means *inherit the
+  /// catalogue default* for someone who only changed the delivery mode (a scalar
+  /// edit creates this row), but *send nowhere* for someone who deliberately
+  /// cleared every channel. Without the flag one of those two silently becomes the
+  /// other — either the user cannot switch in-app off, or a mode change wipes it.
+  routesOverridden     Boolean  @default(false)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
