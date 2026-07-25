@@ -47,6 +47,7 @@ model User {
   notificationChannels    UserNotificationChannel[]
   notificationPreferences UserNotificationPreference[]
   personalNotifications   UserNotification[]
+  notificationDeliveries  UserNotificationDelivery[]
 
   @@map("users")
 }
@@ -2468,6 +2469,96 @@ model UserNotification {
   @@index([userId, createdAt])
   @@index([userId, archivedAt])
   @@map("user_notifications")
+}
+
+/// One personal delivery: this user, this event, this destination.
+///
+/// Separate from the legacy `NotificationDelivery` (which is keyed by rule and
+/// global channel) because the two models cannot be reconciled — that one has no
+/// owner, and ownership is the entire point here. Both exist until the Phase 10
+/// cutover.
+///
+/// A row is created per ROUTE, not per event: choosing two Telegram destinations
+/// for one event produces two independently-retried deliveries, so one failing
+/// destination never suppresses the other.
+model UserNotificationDelivery {
+  id            String    @id @default(uuid())
+  userId        String
+  /// The in-app record this delivery accompanies, when one was created.
+  notificationId String?
+  eventKey      String
+  /// in_app | email | telegram | whatsapp | discord
+  channelType   String
+  /// Null for in-app, which needs no connection.
+  channelId     String?
+  /// See NOTIFICATION_DELIVERY_STATUSES. `provider_accepted` is deliberately NOT
+  /// `delivered`: most providers acknowledge receipt of the request, not receipt
+  /// by the person, and conflating them makes the history lie.
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  /// When the next attempt becomes due (exponential backoff + jitter).
+  nextAttemptAt DateTime?
+  lastError     String?
+  /// Classified failure cause, so terminal and transient are distinguishable
+  /// without parsing a message.
+  errorClass    String?
+  /// Why nothing was sent, when it was suppressed rather than attempted.
+  suppressedReason String?
+  /// Idempotency key: the same event must not enqueue the same delivery twice
+  /// if the bus redelivers.
+  dedupeKey     String?
+  queuedAt      DateTime  @default(now())
+  sentAt        DateTime?
+  completedAt   DateTime?
+
+  user     User                             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attemptLog UserNotificationDeliveryAttempt[]
+
+  @@unique([userId, dedupeKey])
+  @@index([status, nextAttemptAt])
+  @@index([userId, eventKey])
+  @@index([channelId])
+  @@map("user_notification_deliveries")
+}
+
+/// One attempt at one delivery. Kept per attempt rather than overwriting, so a
+/// flapping destination is visible as a pattern instead of a single last error.
+model UserNotificationDeliveryAttempt {
+  id          String   @id @default(uuid())
+  deliveryId  String
+  attempt     Int
+  status      String
+  errorClass  String?
+  /// Never contains credentials — providers return classified errors, not raw config.
+  error       String?
+  /// Round-trip time, for provider latency metrics.
+  durationMs  Int?
+  createdAt   DateTime @default(now())
+
+  delivery UserNotificationDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryId])
+  @@map("user_notification_delivery_attempts")
+}
+
+/// A delivery that exhausted its attempts or failed terminally.
+///
+/// Retained after the delivery itself is cleaned up: "why did this never arrive"
+/// is the question an operator actually asks, and it is unanswerable if the
+/// evidence is deleted with the row.
+model NotificationDeadLetter {
+  id          String   @id @default(uuid())
+  userId      String
+  eventKey    String
+  channelType String
+  errorClass  String?
+  error       String?
+  attempts    Int      @default(0)
+  payload     Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("notification_dead_letters")
 }
 
 model NotificationQueue {

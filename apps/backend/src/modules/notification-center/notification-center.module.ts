@@ -13,6 +13,7 @@ import { NotificationRecipientEligibilityService } from './recipient-eligibility
 import { NotificationAudienceResolver } from './catalog/audience-resolver.service';
 import { UserNotificationPreferenceService } from './preferences/user-preference.service';
 import { PersonalChannelService } from './channels/personal-channel.service';
+import { PersonalNotificationDispatcher } from './delivery/personal-dispatcher.service';
 import { AccountNotificationsController } from './preferences/account-notifications.controller';
 import { NotificationSeedService } from './seed.service';
 
@@ -37,6 +38,7 @@ import { NotificationSeedService } from './seed.service';
     NotificationAudienceResolver,
     UserNotificationPreferenceService,
     PersonalChannelService,
+    PersonalNotificationDispatcher,
     SecretCipher,
   ],
   controllers: [NotificationCenterController, AccountNotificationsController],
@@ -47,6 +49,7 @@ import { NotificationSeedService } from './seed.service';
     NotificationAudienceResolver,
     UserNotificationPreferenceService,
     PersonalChannelService,
+    PersonalNotificationDispatcher,
   ],
 })
 export class NotificationCenterModule {}
