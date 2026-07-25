@@ -90,7 +90,8 @@
     "Workflow Approvals": "Aprobaciones de flujo",
     "Workflows": "Flujos de trabajo",
     "Routing Profiles": "Perfiles de enrutamiento",
-    "My Notification Events": "Mis eventos de notificación"
+    "My Notification Events": "Mis eventos de notificación",
+    "My Notification Connections": "Mis conexiones de notificación"
   },
   "descriptions": {
     "Acquisition Intelligence": "Adquisición y mejoras inteligentes",
@@ -160,7 +161,8 @@
     "Workflow Approvals": "Decide pasos de flujo que esperan aprobación",
     "Workflows": "Diseña automatizaciones visualmente en un lienzo",
     "Routing Profiles": "Enrutamiento de canales por persona: qué canales entregan cuáles eventos a cada usuario.",
-    "My Notification Events": "Tus eventos de notificación personales: qué eventos te llegan y por cuáles canales."
+    "My Notification Events": "Tus eventos de notificación personales: qué eventos te llegan y por cuáles canales.",
+    "My Notification Connections": "Tus destinos personales de notificación: correo, Telegram, WhatsApp y Discord."
   },
   "details": {
     "Account": "Cuenta",

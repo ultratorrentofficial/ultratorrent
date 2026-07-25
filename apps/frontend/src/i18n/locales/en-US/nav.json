@@ -90,7 +90,8 @@
     "Workflow Approvals": "Workflow Approvals",
     "Workflows": "Workflows",
     "Routing Profiles": "Routing Profiles",
-    "My Notification Events": "My Notification Events"
+    "My Notification Events": "My Notification Events",
+    "My Notification Connections": "My Notification Connections"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",
@@ -160,7 +161,8 @@
     "Workflow Approvals": "Decide workflow steps awaiting approval",
     "Workflows": "Design automations visually on a canvas",
     "Routing Profiles": "Per-person channel routing: which channels deliver which events to each user.",
-    "My Notification Events": "Your personal notification events: which events reach you, and on which channels."
+    "My Notification Events": "Your personal notification events: which events reach you, and on which channels.",
+    "My Notification Connections": "Your personal notification destinations: email, Telegram, WhatsApp and Discord."
   },
   "details": {
     "Account": "Account",

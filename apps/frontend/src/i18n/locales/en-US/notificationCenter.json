@@ -333,5 +333,74 @@
       "restoreDefault": "Restore default",
       "close": "Close"
     }
+  },
+  "myChannels": {
+    "title": "Notification connections",
+    "subtitle": "Your personal destinations. Only you can see or use these.",
+    "loadError": "Could not load your connections.",
+    "count": "{{count}}",
+    "add": "Add",
+    "addTitle": "Add {{type}} connection",
+    "noneOfType": "No connections of this type yet.",
+    "name": "Name",
+    "namePlaceholder": "e.g. Work email",
+    "save": "Save",
+    "cancel": "Cancel",
+    "created": "Connection added.",
+    "revoked": "Connection revoked.",
+    "revokedWithRoutes": "Connection revoked; {{count}} event route(s) removed.",
+    "revokeConfirm": "Revoke “{{name}}”? Events routed to it will stop using it.",
+    "revoke": "Revoke",
+    "enable": "Enable",
+    "disable": "Disable",
+    "makeDefault": "Make default",
+    "default": "Default",
+    "defaultHint": "Used when an event names this channel without naming a connection.",
+    "verified": "Verified",
+    "yes": "Yes",
+    "notYet": "Not yet",
+    "lastSuccess": "Last success",
+    "failures": "Consecutive failures",
+    "unverifiedWarning": "Not verified yet — notifications will not be delivered here until it is.",
+    "health": {
+      "healthy": "Healthy",
+      "unverified": "Unverified",
+      "degraded": "Degraded",
+      "failing": "Failing",
+      "disabled": "Disabled"
+    },
+    "field": {
+      "email": "Email address",
+      "whatsapp": "Phone number",
+      "discord": "Discord webhook URL"
+    },
+    "placeholder": {
+      "email": "you@example.com",
+      "whatsapp": "+17875551234",
+      "discord": "https://discord.com/api/webhooks/…"
+    },
+    "hint": {
+      "email": "Where email notifications are sent. The mail server itself is configured by your administrator.",
+      "whatsapp": "Include the country code, for example +1 for the United States.",
+      "discord": "Create a webhook in your Discord server settings, then paste the URL here."
+    },
+    "telegram": {
+      "why": "Telegram is linked through a one-time code, so only you can bind your own chat.",
+      "start": "Get linking code",
+      "instructions": "Send this code to the UltraTorrent bot on Telegram:",
+      "expires": "Expires in {{minutes}} minutes. It can only be used once.",
+      "done": "Done"
+    },
+    "error": {
+      "invalid_email": "That does not look like a valid email address.",
+      "country_code_required": "Include the country code, for example +1787…",
+      "invalid_length": "That phone number does not look valid.",
+      "invalid_url": "That is not a valid URL.",
+      "https_required": "The webhook URL must use https.",
+      "host_not_allowed": "Only Discord webhook URLs are accepted.",
+      "not_a_webhook_path": "That Discord URL is not a webhook.",
+      "link_required": "Telegram must be linked with a code.",
+      "generic": "Could not save that connection."
+    }
   }
 }

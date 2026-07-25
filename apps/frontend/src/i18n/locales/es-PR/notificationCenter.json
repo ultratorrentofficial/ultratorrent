@@ -333,5 +333,74 @@
       "restoreDefault": "Restaurar predeterminado",
       "close": "Cerrar"
     }
+  },
+  "myChannels": {
+    "title": "Conexiones de notificación",
+    "subtitle": "Tus destinos personales. Solo tú puedes verlos o usarlos.",
+    "loadError": "No se pudieron cargar tus conexiones.",
+    "count": "{{count}}",
+    "add": "Agregar",
+    "addTitle": "Agregar conexión de {{type}}",
+    "noneOfType": "Aún no hay conexiones de este tipo.",
+    "name": "Nombre",
+    "namePlaceholder": "p. ej. Correo del trabajo",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "created": "Conexión agregada.",
+    "revoked": "Conexión revocada.",
+    "revokedWithRoutes": "Conexión revocada; se eliminaron {{count}} ruta(s) de eventos.",
+    "revokeConfirm": "¿Revocar “{{name}}”? Los eventos enrutados a ella dejarán de usarla.",
+    "revoke": "Revocar",
+    "enable": "Habilitar",
+    "disable": "Deshabilitar",
+    "makeDefault": "Hacer predeterminada",
+    "default": "Predeterminada",
+    "defaultHint": "Se usa cuando un evento nombra este canal sin nombrar una conexión.",
+    "verified": "Verificada",
+    "yes": "Sí",
+    "notYet": "Todavía no",
+    "lastSuccess": "Último éxito",
+    "failures": "Fallos consecutivos",
+    "unverifiedWarning": "Aún no verificada — no se entregarán notificaciones aquí hasta que lo esté.",
+    "health": {
+      "healthy": "Saludable",
+      "unverified": "Sin verificar",
+      "degraded": "Degradada",
+      "failing": "Fallando",
+      "disabled": "Deshabilitada"
+    },
+    "field": {
+      "email": "Dirección de correo",
+      "whatsapp": "Número de teléfono",
+      "discord": "URL del webhook de Discord"
+    },
+    "placeholder": {
+      "email": "tu@ejemplo.com",
+      "whatsapp": "+17875551234",
+      "discord": "https://discord.com/api/webhooks/…"
+    },
+    "hint": {
+      "email": "A dónde se envían las notificaciones por correo. El servidor de correo lo configura tu administrador.",
+      "whatsapp": "Incluye el código de país, por ejemplo +1 para Estados Unidos.",
+      "discord": "Crea un webhook en la configuración de tu servidor de Discord y pega la URL aquí."
+    },
+    "telegram": {
+      "why": "Telegram se vincula con un código de un solo uso, para que solo tú puedas vincular tu propio chat.",
+      "start": "Obtener código de vinculación",
+      "instructions": "Envía este código al bot de UltraTorrent en Telegram:",
+      "expires": "Expira en {{minutes}} minutos. Solo se puede usar una vez.",
+      "done": "Listo"
+    },
+    "error": {
+      "invalid_email": "Eso no parece una dirección de correo válida.",
+      "country_code_required": "Incluye el código de país, por ejemplo +1787…",
+      "invalid_length": "Ese número de teléfono no parece válido.",
+      "invalid_url": "Esa no es una URL válida.",
+      "https_required": "La URL del webhook debe usar https.",
+      "host_not_allowed": "Solo se aceptan URLs de webhook de Discord.",
+      "not_a_webhook_path": "Esa URL de Discord no es un webhook.",
+      "link_required": "Telegram debe vincularse con un código.",
+      "generic": "No se pudo guardar esa conexión."
+    }
   }
 }

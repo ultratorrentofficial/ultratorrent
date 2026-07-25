@@ -3569,6 +3569,29 @@ export const api = {
       resetAll(): Promise<{ cleared: number }> {
         return request<{ cleared: number }>('/account/notifications/preferences/reset', { method: 'POST' });
       },
+      channels(): Promise<PersonalChannel[]> {
+        return request<PersonalChannel[]>('/account/notifications/channels');
+      },
+      createChannel(body: { type: PersonalChannelType; name?: string; config: Record<string, unknown> }): Promise<PersonalChannel> {
+        return request<PersonalChannel>('/account/notifications/channels', { method: 'POST', body });
+      },
+      renameChannel(id: string, name: string): Promise<PersonalChannel> {
+        return request<PersonalChannel>(`/account/notifications/channels/${id}`, { method: 'PATCH', body: { name } });
+      },
+      deleteChannel(id: string): Promise<{ id: string; routesRemoved: number }> {
+        return request<{ id: string; routesRemoved: number }>(`/account/notifications/channels/${id}`, { method: 'DELETE' });
+      },
+      setChannelEnabled(id: string, enabled: boolean): Promise<PersonalChannel> {
+        return request<PersonalChannel>(`/account/notifications/channels/${id}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' });
+      },
+      makeChannelDefault(id: string): Promise<PersonalChannel> {
+        return request<PersonalChannel>(`/account/notifications/channels/${id}/default`, { method: 'POST' });
+      },
+      startTelegramLink(name: string): Promise<{ code: string; expiresInSeconds: number }> {
+        return request<{ code: string; expiresInSeconds: number }>('/account/notifications/channels/telegram/link', {
+          method: 'POST', body: { name },
+        });
+      },
       bulk(eventKeys: string[], action: AccountBulkAction): Promise<AccountBulkResult> {
         return request<AccountBulkResult>('/account/notifications/preferences/bulk', {
           method: 'POST', body: { eventKeys, action },
@@ -4931,6 +4954,31 @@ export interface NotificationEventDefinitionDto {
 export interface AccountNotificationEventRow {
   definition: NotificationEventDefinitionDto;
   preference: EffectiveEventPreference;
+}
+
+/** Channel types that need a stored connection. In-app never appears here. */
+export type PersonalChannelType = 'email' | 'telegram' | 'whatsapp' | 'discord';
+
+export type PersonalChannelHealth = 'healthy' | 'unverified' | 'degraded' | 'failing' | 'disabled';
+
+/** A personal connection as the API returns it — never the config itself. */
+export interface PersonalChannel {
+  id: string;
+  type: PersonalChannelType;
+  name: string;
+  enabled: boolean;
+  isDefault: boolean;
+  /** Display-safe destination; the raw value never leaves the server. */
+  destinationMask: string | null;
+  verified: boolean;
+  verifiedAt: string | null;
+  lastTestedAt: string | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  consecutiveFailures: number;
+  disabledReason: string | null;
+  health: PersonalChannelHealth;
+  createdAt: string;
 }
 
 export interface AccountPreferencePatch {
