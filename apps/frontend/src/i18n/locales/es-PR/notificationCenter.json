@@ -443,7 +443,11 @@
   },
   "bell": {
     "unread": "{{count}} notificaciones sin leer",
-    "none": "No hay notificaciones sin leer"
+    "none": "No hay notificaciones sin leer",
+    "panelTitle": "Notificaciones",
+    "loading": "Cargando…",
+    "loadError": "No se pudieron cargar las notificaciones.",
+    "viewAll": "Ver todas las notificaciones"
   },
   "mySettings": {
     "title": "Configuración de notificaciones",

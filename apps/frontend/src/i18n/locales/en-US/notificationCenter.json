@@ -443,7 +443,11 @@
   },
   "bell": {
     "unread": "{{count}} unread notifications",
-    "none": "No unread notifications"
+    "none": "No unread notifications",
+    "panelTitle": "Notifications",
+    "loading": "Loading…",
+    "loadError": "Could not load notifications.",
+    "viewAll": "View all notifications"
   },
   "mySettings": {
     "title": "Notification settings",

@@ -235,12 +235,9 @@ All five were answered: build for the two that fire · initials-only · reuse
 | 2 | `NotificationPresentation` in `@ultratorrent/shared`; builder registry; playback builder for both events; producer payloads enriched; `year` added to the session model and the Plex/Jellyfin/Emby maps; ownership-checked notification artwork proxy |
 | 3 | `RichNotificationCard` + `PresentationArtwork` + accent/icon token tables; inbox renders the card; `InboxItem.presentation` exposed (presentation only — never the rest of the stored payload) |
 | 4 | `presentationToText` / `Telegram` (HTML mode) / `Discord` (embed, accent as colour) / `EmailHtml` (inline styles, light palette); wired through the transmitter and delivery worker |
+| 3b | **Bell dropdown** (DoD #10): `NotificationBell` becomes a panel listing the eight most recent notifications as compact cards, with mark-all-read, per-row open, and a link to the full inbox. 12 tests. |
 
 ### Deliberately not built
-
-- **Bell dropdown.** `NotificationBell` is a count-only indicator with no list to
-  host a compact card. The `compact` variant exists and is unused; building the
-  dropdown is the remaining piece of DoD #10.
 - **Artwork on external channels.** No token-free URL exists, and minting one was
   ruled out. Discord omits the thumbnail per decision 4; Telegram and email omit
   it for the same reason rather than reaching into the media-server integration
