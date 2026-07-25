@@ -3,7 +3,6 @@ import { WorkflowNodeRegistry } from './node-registry.service';
 import { WorkflowService } from './workflow.service';
 import { WorkflowExecutionService } from './workflow-execution.service';
 import { WorkflowJobBridge } from './workflow-job.bridge';
-import { WorkflowTriggerBridge } from './workflow-trigger.bridge';
 import { WorkflowResumeService } from './workflow-resume.service';
 import { WorkflowsController } from './workflows.controller';
 
@@ -15,7 +14,7 @@ import { WorkflowsController } from './workflows.controller';
  * and the trigger bridge listens on the shared domain-event bus, so this module stays lean.
  */
 @Module({
-  providers: [WorkflowNodeRegistry, WorkflowService, WorkflowExecutionService, WorkflowJobBridge, WorkflowTriggerBridge, WorkflowResumeService],
+  providers: [WorkflowNodeRegistry, WorkflowService, WorkflowExecutionService, WorkflowJobBridge, WorkflowResumeService],
   controllers: [WorkflowsController],
   exports: [WorkflowNodeRegistry, WorkflowService, WorkflowExecutionService],
 })

@@ -14,7 +14,8 @@ const RETAIN_FAILED_DAYS = 30;
  * scheduler — non-negotiable): one named `@Interval` advances time-based waits. Delays whose
  * `resumeAt` has passed resume down their `out` port; event/approval waits whose `expiresAt`
  * has passed resume down `timeout` (expiring any pending approval first). Event arrival is
- * handled separately on the shared bus by {@link WorkflowTriggerBridge}. Resume is idempotent,
+ * no longer resumable on an event — the domain-event bus was removed, so an
+ * event-waiting execution now runs to its `expiresAt` and is expired. Resume is idempotent,
  * so a bus resume and a timeout tick can race harmlessly.
  */
 @Injectable()

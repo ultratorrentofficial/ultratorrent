@@ -105,9 +105,7 @@ architecture.
 - **RSS automation** — feeds with include/exclude rules that auto-download
   matches to the default engine.
 - **Rules engine** — condition/action automation triggered by events such as
-  `torrent.completed`, with logging and failure notifications.
-- **Notifications** — in-app plus fan-out to webhook, Discord, Slack, and
-  Telegram; completed downloads notify automatically.
+  `torrent.completed`, with logging.
 - **User & role management** — create users, assign roles, manage API keys, and
   edit platform settings from the API.
 - **Global search** — fast lookup across persisted torrent snapshots.

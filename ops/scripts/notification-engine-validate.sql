@@ -1,3 +1,10 @@
+-- =========================================================================
+-- REMOVED — historical record. Every table this script queries was dropped on
+-- 2026-07-25 (v0.47.0) when the notification engine was torn out for a rebuild.
+-- Running this now fails with "relation does not exist". Kept for the queries
+-- themselves, which encode what a correct migration had to prove.
+-- =========================================================================
+
 -- Personal Notification Engine — migration validation.
 --
 -- Every query below MUST return zero rows. Each one asserts an invariant the

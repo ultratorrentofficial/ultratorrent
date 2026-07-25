@@ -72,7 +72,10 @@ The platform is built to a consistent set of engineering principles:
   provider abstractions, so the core is isolated from any specific vendor or
   engine.
 - **Event-Driven Processing** — modules react to domain events rather than
-  calling each other directly, keeping them loosely coupled.
+  calling each other directly, keeping them loosely coupled. *(Aspirational as
+  of 2026-07-25: the in-process bus was removed with the notification engine and
+  the surviving paths are direct calls — see [Event-Driven
+  Architecture](#event-driven-architecture).)*
 - **Modular Design** — each capability is a self-contained NestJS module with a
   manifest, dependency graph, and permission block.
 - **Automation First** — acquisition and post-download work is expressed as
@@ -132,7 +135,7 @@ ship today; others are defined/planned as the ecosystem grows:
 | **TorrentEngineProvider** | Control a BitTorrent engine (add/remove/lifecycle/files/trackers/limits/stats) | **Implemented** — `RTorrentProvider` |
 | **MediaMetadataProvider** | Resolve titles → metadata (overview, cast, genres, external IDs) | **Implemented** — `LocalMetadataProvider`, `TmdbMetadataProvider`, `ImdbMetadataProvider` (compliant: user datasets / licensed API, no scraping) |
 | **MediaServerProvider** | Trigger library refreshes on a media server | **Implemented** — Plex, Jellyfin, Emby, Kodi connectors |
-| **NotificationProvider** | Deliver notifications to external channels | **Implemented** — in-app, webhook, Discord, Slack, Telegram fan-out |
+| **NotificationProvider** | Deliver notifications to external channels | **Removed (2026-07-25)** — the engine behind it was torn out for a rebuild; see the Change Log |
 | **ArtworkProvider** | Resolve an item's external id → downloadable artwork candidates (poster/fanart/logo/…) | **Implemented** — `TmdbArtworkProvider` (fanart.tv/TVDB planned); downloads share the upload magic-byte + size validation and a host allowlist |
 | **SubtitleProvider** | Discover and fetch subtitles | **Partial** — sidecar discovery ships today; remote subtitle download (e.g. OpenSubtitles) is planned |
 | **RSSProvider** | Poll and parse feeds into candidate releases | **Implemented** — the RSS module's polling/parse layer |
@@ -229,7 +232,6 @@ grouping mirrors [NAVIGATION.md](NAVIGATION.md):
   returns an accept/reject decision with reasons and warnings; consumed by RSS
   and acquisition intelligence.
 - **taxonomy** — categories & tags.
-- **notifications** — in-app + webhook/Discord/Slack/Telegram fan-out.
 - **dashboard**, **search**, **settings**, **apikeys**, **audit**, **system**
   (health/liveness/version), **realtime**, **module-registry**.
 
@@ -474,16 +476,34 @@ never overlaps the next tick) and each library is isolated.
 Modules communicate through **domain events**, not tight coupling: a module
 emits an event when something happens, and interested modules react. This keeps
 producers unaware of consumers and lets new behavior subscribe without editing
-the producer. In the current implementation this is realized by three
-cooperating mechanisms:
+the producer.
+
+> **The in-process domain-event bus was removed on 2026-07-25** along with the
+> notification engine — it was a single `@nestjs/event-emitter` channel named
+> `NOTIFICATION_BUS_CHANNEL`, and notifications were only one of its
+> subscribers. Nothing publishes or subscribes to it today. The pub/sub *shape*
+> described here is therefore the intended architecture, not the current
+> implementation; see the Change Log entry for what that costs.
+
+What remains in the current implementation:
 
 1. The **WebSocket gateway** (`RealtimeGateway`) pushes state-change events to
    permission-scoped client rooms (e.g. `media_manager.job.*` reaches only
-   `perm:media_manager.view`).
-2. The **automation engine's triggers/actions** carry domain events into
-   user-defined condition/action rules (`GET /api/automation/catalog`).
+   `perm:media_manager.view`). Unaffected — this is a separate mechanism.
+2. The **automation engine** is still invoked, but by **direct calls** from the
+   producers that care (torrent sync, RSS, subtitle triggers, workflows) rather
+   than by subscribing to a bus. Rules on those paths still fire; there is no
+   longer a generic fan-in that lets a new producer trigger automation without
+   editing it.
 3. The **`MediaProcessingJob` queue** turns long-running reactions into tracked
-   background jobs whose lifecycle is itself emitted as events.
+   background jobs. `MediaProcessingService` is likewise called directly by
+   torrent sync, not subscribed.
+
+**Known hole:** a workflow node that waits on an event has nothing left to wake
+it. `WorkflowExecutionService` still sets `waiting_for_event`, but the bridge
+that resumed those executions was a bus subscriber and is gone, so such an
+execution now runs to its `expiresAt` and is expired by `WorkflowResumeService`
+rather than resuming. Rebuilding the bus should restore this first.
 
 Representative platform events across the domain (some are live automation
 triggers / WS events today, others describe the intended event vocabulary as the
@@ -503,8 +523,6 @@ system grows):
 | `DuplicateDetected` | A duplicate group is formed. |
 | `AutomationTriggered` | An automation rule's trigger fires. |
 | `AutomationCompleted` | An automation rule's actions finish. |
-| `NotificationQueued` | A notification is enqueued for delivery. |
-| `NotificationSent` | A notification is delivered. |
 | `MediaServerRefreshRequested` | A media-server refresh is requested. |
 | `MediaServerRefreshCompleted` | A media-server refresh succeeds (failure: `media.server_refresh_failed`). |
 | `SettingsChanged` | A platform setting changes. |
@@ -537,7 +555,6 @@ Representative background workloads:
 | Rename execution | queued job |
 | NFO generation | queued job |
 | Media-server refresh | queued job |
-| Notification delivery | async fan-out |
 | Cleanup jobs | scheduled / on demand |
 
 ## Security model
@@ -585,7 +602,7 @@ To report a vulnerability, see the **Security** section of the
 ## Data & caching
 
 **PostgreSQL** via **Prisma** is the store (users/roles/permissions, torrent
-snapshots, categories/tags, RSS, automation, notifications, API keys, audit log,
+snapshots, categories/tags, RSS, automation, API keys, audit log,
 settings, and the full Media Manager model set). **Redis** backs caching and
 background-job coordination. Migrations live in
 `apps/backend/prisma/migrations`; the seed provisions permissions, system roles,
@@ -657,7 +674,7 @@ directly. This is the platform's current and planned integration surface:
 | **Subtitles** | OpenSubtitles (planned; sidecar discovery ships today) |
 | **Media servers** | Plex, Jellyfin, Emby, Kodi (implemented) |
 | **Indexers** | Torznab/Newznab (implemented — `indexers` module); **Prowlarr** as an optional companion container (implemented — link-only integration, not embedded) |
-| **Notifications** | Discord, Slack, Telegram, Email, Webhooks (webhook/Discord/Slack/Telegram implemented; email planned) |
+| **Notifications** | **None today.** The notification engine was removed on 2026-07-25 for a rebuild; nothing delivers to any channel until it lands. |
 | **Future** | Cloud storage, transcode/processing services, external identity providers |
 
 Each integration is (or will be) a provider implementation, added without
@@ -714,6 +731,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-07-25 | **The notification engine was removed in full, ahead of a rebuild — and the platform's domain-event bus went with it.** Both engines are gone: the legacy Notification Center (channels, rules, recipients, templates, delivery history, provider registry) and the Personal Notification Engine layered on top of it, together with 63 backend files, 19 frontend pages, 23 Prisma models, 23 tables, 37 permissions, 2 module manifests and 2 `MODULE_IDS`. **The important part is what shared its plumbing.** `NOTIFICATION_BUS_CHANNEL` was misnamed: it was the single in-process `@nestjs/event-emitter` channel every module published domain events on (`torrent.completed`, `media.detected`, `job.failed`, `workflow.execution.failed`, …), and notifications were merely one subscriber. Automation (`AutomationEventBridge`) and workflows (`WorkflowTriggerBridge`) were the others. Removing the 26 emit sites therefore removed **generic event-driven triggering**, not just the notify action — automation still fires from the direct calls that survive (torrent sync, RSS, subtitle triggers, workflows), but a new producer can no longer trigger a rule without editing it, and **a workflow waiting on an event has nothing left to wake it** (`waiting_for_event` executions now expire instead of resuming). Live exposure at the time was 1 automation rule (0 enabled) and 0 workflows, so nothing in use broke; the capability did. Also removed as collateral: `JobAutomationBridge` and `WorkflowTriggerBridge` (each existed only to subscribe), the **system health monitor** (it existed solely to publish `system.*` disk/CPU/memory alerts — those alerts no longer exist), the four automation notify actions, the `notification` job subsystem, and 22 now-dead `EventEmitter2` injections. **Data destroyed:** `notification_channels` held the encrypted SMTP transport and Telegram bot token — neither regenerable from this repository — plus 59 hand-configured rules and 15,325 event rows. Both hosts were dumped to `notification-teardown-backups/` (23 tables each, with a README) before the migration ran. Two pieces of collateral damage were caught during the teardown rather than shipped: `emitGrabbed()` did **two** jobs — publish to the bus *and* broadcast `media_acquisition.missing_episode.grabbed` to the UI — so removing it wholesale would have left the Missing Episodes page showing grabbed episodes as pending while type-checking clean (restored as `broadcastGrabbed()`); and an automated arity fixer trusted TS2554's column, which points at the first *positionally* surplus argument rather than the one actually removed, silently deleting `registry` and `nameRepair` from two specs and disabling module gating and name repair (both restored). Recorded for the next person: **`tsc` is not a gate for spec files here** — the backend tsconfig excludes them, so 19 broken suites type-checked clean and only the full Jest run found them. Released as 0.47.0 rather than the 1.0.0 the `major` rubric produces, to avoid spending that milestone on a deletion. |
 | 2026-07-25 | **Rich playback notification presentation — one canonical model, four channel projections.** Started/stopped watching notifications rendered as a bare line of text (in-app the *raw catalogue key*, externally a payload field), because every channel formatted the payload for itself. New `NotificationPresentation` in `@ultratorrent/shared` is the single channel-neutral model: one event builds one presentation, and the in-app card, email HTML, Telegram and Discord embed are *projections* of it rather than four independently drifting templates. Three rules hold it: **it is data, not markup** (`accent: 'negative'` is a meaning — the hex, the embed colour and the word are the renderer's business); **it arrives already redacted**, so a renderer cannot leak by rendering too much; and **artwork is a reference, never a URL**, because a link that worked without a token is permanent unauthenticated access to library artwork that outlives the notification. Builders are a **registry, not a switch** — an event opts in, so the 68 events that do not deserve a poster and a fact table keep plain rendering — and a builder that throws is contained: a malformed payload degrades the *card*, never the delivery. Built for the two events that actually have producers (`media_server.user_started_watching`, `user_finished_watching`); `media_server.user_stopped` stays unregistered because nothing emits it and a card that can never render is worse than none. Privacy is enforced in the builder rather than left to renderers: artwork requires `media_server_analytics.view_live_activity` **per recipient**, and **`ipAddress` is never read at any permission level** — the producer no longer puts it on the payload at all, so there is no path to it rather than a condition a later edit could invert. Two gaps the concept exposed: a stopped card **outlives its session** (the row is deleted the instant playback ends, so live-session artwork would 404 on exactly the card that needs it) — connection + provider path are now recorded on the notification and re-fetched through an ownership-checked proxy that reads the path from **stored state, never the request**, so it cannot become a fetch-anything proxy; and nothing carried a **release year**, making "Dune (2021)" unrenderable — added to the provider session shape (Plex `year`, Jellyfin/Emby `ProductionYear`) and to `media_server_sessions`. Avatars are **initials drawn in CSS with a server-derived stable hue**, because no avatar field exists in the schema and storing generated images to represent people is a feature a notification card does not justify. External channels **omit artwork entirely** — Discord renders images only from anonymously-fetchable URLs, and the same reasoning applies to Telegram and email here, so the poster stays an in-app affordance. Presentations are built once at dispatch and **stored**, never rebuilt at send: a retry days later must send the same message, not re-resolve "Today" and the recipient's permissions against retry-time state. 36 tests (both cards, both locales, the privacy gates, HTML/Markdown injection via media titles, provider length limits, astral-safe initials, calendar-date "Today" in the recipient's zone rather than a 24-hour window). |
 | 2026-07-25 | **Personal Notification Engine — notifications are owned by one locally authenticated user (phases 1–9 of 10).** Replaces a model with no ownership at all: in-app `Notification.userId` was **nullable and null for all 1,729 rows** on a live install (every notification a broadcast to the shared `authenticated` socket room), recipient resolution performed **no** permission/resource/eligibility check, and external delivery used **one shared credential set** for the whole install. See [NOTIFICATION_ENGINE.md](NOTIFICATION_ENGINE.md), [NOTIFICATION_ENGINE_SECURITY.md](NOTIFICATION_ENGINE_SECURITY.md) and the [gap analysis](NOTIFICATION_ENGINE_GAP_ANALYSIS.md). **Identity:** `NotificationRecipientEligibilityService` is the single fail-closed authority; **no `origin` column** was added because `users` already holds only local accounts, and it looks up **by primary key only** — never email/username, since a Plex account legitimately shares an operator's address. (`User.isSystem` means "seeded, undeletable", *not* "service identity"; filtering on it would silence the admin.) **Catalogue:** 69 events / 9 namespaces, each declaring category, severity, payload contract, supported channels, defaults, permission, audience, dedupe, aggregation and sensitivity; no default ever enables an external channel, since a connection the user has not created cannot deliver. **Resolution:** `audience ∩ eligible ∩ active ∩ RBAC`, eligibility *before* permissions so a foreign-namespace id never reaches the permission tables, and fail-closed — an unregistered event reaches nobody, never everybody. **Preferences:** lazy override rows, with `routesOverridden` distinguishing "inherit" from "send nowhere" (both are zero route rows). **Connections:** per-user, AES-GCM encrypted, never returned; several of one type allowed, so one event can fan out to two Telegram destinations. Discord added as a real personal channel with an SSRF allow-list applied to the **supplied** host (a resolve-then-fetch check is defeated by DNS rebinding); Telegram bound by single-use hashed linking codes, never a typed chat id; `sms` retired, Slack/webhooks reclassified as **integration messages**. **Delivery:** one row per route (independent retries), preconditions re-checked at attempt time (no delivery after deactivation/revocation), success recorded as `provider_accepted` never `delivered`, bounded retries with ±25% jitter so an outage does not re-create the herd. **Quiet hours** in the recipient's timezone with correct midnight-wrapping and start-day attribution; **digests** aggregate at assembly (not dispatch), claim the period before assembling, and deliver only to destinations the user already chose. **Automation** names an event, never a destination. Migration is validated by `ops/scripts/notification-engine-validate.sql` (12 queries; 1–11 must return zero). **Not yet done:** external message rendering (sends the event key), producers still on the legacy dispatcher, settings UI, channel test/verify, retention — the Phase 10 cutover. 219 new tests. |
 | 2026-07-25 | **Per-user notification routing profiles, and recipients derived from platform users.** Two gaps, one feature. (a) A recipient was a hand-made island whose `userId` nothing ever populated — a live install had a row carrying the admin's own email with `userId` null, so nothing connected the person receiving mail to the account that logs in. (b) Routing was global: `channelsFor()` resolved `rule.channelIds` → the recipient's single `preferredChannelId` → `isDefault`, and `NotificationPreference` could only **subtract** (opt-out), so a rule pinned to Telegram put email out of reach for *everyone* and no user could pick their own destinations per event. New `NotificationRouting` (`recipientId`, `event`, `channelIds`) expresses **positive** routing; `event` is an exact name, a **namespace wildcard** (`system.*`) or `*`, and resolution takes the single **most specific** line (exact > namespace > catch-all), **never a union** — so "all system alerts by email *except* backup failures to Telegram" is sayable, where a union would send backup failures to both. Wildcards apply to opt-outs too. Precedence becomes: **forced rule → recipient routing → rule channels → `preferredChannelId` → defaults**. `NotificationRule.forced` is the deliberate counterweight to "the user wins": an admin pins a security/system alert so no profile can redirect *or* mute it (forced bypasses opt-outs, else it would reopen the hole it closes). A routing line naming only disabled channels **falls through** rather than delivering nowhere — a stale selection must not become a black hole indistinguishable from success. `RecipientProvisioningService` reconciles idempotently at boot, on user create/update/delete (via `ModuleRef`, since Notification Center already depends on Users and a direct import would close a bootstrap-only cycle), and via `POST /notifications/recipients/reconcile`: it **adopts** an unlinked recipient whose email matches a user rather than duplicating it (the existing row carries the configured Telegram chat id), follows renames/deactivations, and **disables — never deletes** — a recipient whose user is gone, so its profile and delivery history survive. External recipients with no matching user are left untouched. New **Routing Profiles** page (namespace-first with per-event overrides, showing where each event actually lands and locking forced rules); the Recipients page marks each row user-derived or external and refuses to delete a user-derived one. Migration `20260725000000_notification_user_routing` is additive — with no routing rows and `forced=false`, delivery behaves exactly as before. Tests: 17 (every precedence branch, wildcard specificity, forced override, stale-channel fallback, six provisioning cases incl. idempotency). |

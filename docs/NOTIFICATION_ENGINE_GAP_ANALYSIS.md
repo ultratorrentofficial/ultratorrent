@@ -1,5 +1,21 @@
 # Personal Notification Engine — Phase 1: Audit, Gap Analysis & Target Architecture
 
+> ## ⚠️ Removed — historical record
+>
+> **The system described below no longer exists.** The entire notification engine
+> was torn out on **2026-07-25** (released as v0.47.0) for a rebuild from scratch:
+> code, 23 database tables, permissions, UI and the shared domain-event bus it
+> consumed. Nothing here describes running software.
+>
+> This document is kept deliberately, because the reasoning in it — the threat
+> model, the ownership rules, the failure modes found on a live install — is the
+> most useful input the rebuild has. Treat every "is"/"does" below as "did".
+>
+> Live credentials from the removed install (encrypted SMTP transport, Telegram
+> bot token) are in `notification-teardown-backups/`, not in this repository.
+> See the 2026-07-25 entry in [ARCHITECTURE.md](ARCHITECTURE.md#change-log).
+
+
 **Status:** design only — no implementation changes.
 **Date:** 2026-07-25 · **Baseline:** v0.45.0 (`8d3cc47`)
 
