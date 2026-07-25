@@ -137,14 +137,20 @@ personal channel.
 
 ## 5. Event catalog
 
-`NOTIFICATION_EVENTS` (packages/shared/src/events.ts:128) — **62 events, 7 namespaces**:
+`NOTIFICATION_EVENTS` (packages/shared/src/events.ts:128) — **69 events, 9 namespaces**:
 
 | Namespace | Events | | Namespace | Events |
 |---|---:|---|---|---:|
-| `media` | 14 | | `rss` | 6 |
-| `media_server` | 13 | | `subtitle` | 6 |
-| `system` | 12 | | `job` | 4 |
-| `download` | 7 | | | |
+| `media` | 14 | | `subtitle` | 6 |
+| `media_server` | 13 | | `job` | 4 |
+| `system` | 12 | | `library_cleanup` | 4 |
+| `download` | 7 | | `workflow` | 3 |
+| `rss` | 6 | | | |
+
+> **Correction (Phase 3).** An earlier pass reported 62 events / 7 namespaces. That
+> count came from a pattern requiring exactly one dot, which silently dropped the
+> three-segment keys — `workflow.execution.failed`, `library_cleanup.plan.*`. The
+> figures above are the corrected ones and are what the catalogue is built against.
 
 It is a **flat string-constant map** — no category, severity, payload schema, supported
 channels, defaults, required permission, audience resolver, dedupe, aggregation,
@@ -242,7 +248,7 @@ These change the schema, so they cannot be deferred:
 3. **Email transport** — personal SMTP per user, or shared infrastructure transport with
    a personal destination address? The repo has a shared-transport email provider today,
    so shared-transport + personal address is the smaller, safer extension.
-4. **Preference storage** — eager rows (62 events × N users) vs lazy defaults with
+4. **Preference storage** — eager rows (69 events × N users) vs lazy defaults with
    override rows only. **Recommend lazy** (the brief prefers it; 62 × users is wasteful
    and makes catalog changes a migration).
 5. **Legacy in-app history** — archive all 1,729 unowned rows, or attempt ownership
