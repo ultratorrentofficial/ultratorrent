@@ -2561,6 +2561,33 @@ model NotificationDeadLetter {
   @@map("notification_dead_letters")
 }
 
+/// One assembled digest for one user and period.
+///
+/// Recorded rather than derived so the worker is idempotent: "have I already sent
+/// Tuesday's daily digest?" must be answerable after a restart, and a duplicate
+/// digest is far more annoying than a late one. `periodEnd` is also what the next
+/// period starts from, so no notification can fall between two digests.
+model NotificationDigest {
+  id          String    @id @default(uuid())
+  userId      String
+  /// daily | weekly
+  kind        String
+  periodStart DateTime
+  periodEnd   DateTime
+  itemCount   Int       @default(0)
+  /// How many were omitted from the rendered body after the cap.
+  overflow    Int       @default(0)
+  /// pending | sent | empty  — `empty` records that the period was checked and
+  /// had nothing, which is why a quiet week produces no message at all.
+  status      String    @default("pending")
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, kind, periodEnd])
+  @@index([userId, createdAt])
+  @@map("notification_digests")
+}
+
 model NotificationQueue {
   id           String    @id @default(uuid())
   deliveryId   String    @unique
