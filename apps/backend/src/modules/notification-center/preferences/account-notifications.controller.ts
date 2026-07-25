@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -11,6 +11,8 @@ import {
   type PreferencePatch,
   type RouteInput,
 } from './user-preference.service';
+import { PersonalChannelService } from '../channels/personal-channel.service';
+import type { ConnectionBackedChannelType } from '@ultratorrent/shared';
 
 const P = PERMISSIONS;
 
@@ -35,7 +37,81 @@ export class AccountNotificationsController {
   constructor(
     private readonly preferences: UserNotificationPreferenceService,
     private readonly eligibility: NotificationRecipientEligibilityService,
+    private readonly channels: PersonalChannelService,
   ) {}
+
+  // --- personal channel connections ---------------------------------------
+  @Get('channels')
+  @RequirePermissions(P.NOTIFICATIONS_VIEW_OWN)
+  async listChannels(@CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.channels.list(userId);
+  }
+
+  @Post('channels')
+  @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
+  async createChannel(
+    @Body() body: { type: ConnectionBackedChannelType; name?: string; config?: Record<string, unknown> },
+    @CurrentUser() u: AuthenticatedUser,
+  ) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.channels.create(userId, body);
+  }
+
+  // Static before dynamic: `channels/telegram/link` must not be captured by
+  // `channels/:channelId`.
+  @Post('channels/telegram/link')
+  @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
+  async startTelegramLink(@Body() body: { name?: string }, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.channels.startTelegramLink(userId, body?.name ?? 'Telegram');
+  }
+
+  @Get('channels/:channelId')
+  @RequirePermissions(P.NOTIFICATIONS_VIEW_OWN)
+  async getChannel(@Param('channelId') channelId: string, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.channels.get(userId, channelId);
+  }
+
+  @Patch('channels/:channelId')
+  @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
+  async renameChannel(
+    @Param('channelId') channelId: string,
+    @Body() body: { name?: string },
+    @CurrentUser() u: AuthenticatedUser,
+  ) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.channels.rename(userId, channelId, body?.name ?? '');
+  }
+
+  @Delete('channels/:channelId')
+  @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
+  async deleteChannel(@Param('channelId') channelId: string, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.channels.remove(userId, channelId);
+  }
+
+  @Post('channels/:channelId/enable')
+  @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
+  async enableChannel(@Param('channelId') channelId: string, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.channels.setEnabled(userId, channelId, true);
+  }
+
+  @Post('channels/:channelId/disable')
+  @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
+  async disableChannel(@Param('channelId') channelId: string, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.channels.setEnabled(userId, channelId, false);
+  }
+
+  @Post('channels/:channelId/default')
+  @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
+  async defaultChannel(@Param('channelId') channelId: string, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.channels.makeDefault(userId, channelId);
+  }
 
   /** The event matrix: every active event with this user's effective settings. */
   @Get('events')
