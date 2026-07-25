@@ -444,5 +444,48 @@
   "bell": {
     "unread": "{{count}} notificaciones sin leer",
     "none": "No hay notificaciones sin leer"
+  },
+  "mySettings": {
+    "title": "Configuración de notificaciones",
+    "subtitle": "Horas de silencio, resúmenes y pausa — solo tuyos.",
+    "loadError": "No se pudo cargar tu configuración.",
+    "saved": "Configuración guardada.",
+    "saveFailed": "No se pudo guardar tu configuración.",
+    "save": "Guardar configuración",
+    "pauseTitle": "Pausar todas las notificaciones",
+    "pauseHint": "No se entregará nada mientras esté en pausa.",
+    "pausedUntil": "En pausa hasta {{when}}.",
+    "pause1h": "Pausar 1 hora",
+    "pause24h": "Pausar 24 horas",
+    "resume": "Reanudar",
+    "paused": "Notificaciones en pausa.",
+    "resumed": "Notificaciones reanudadas.",
+    "timezone": "Zona horaria",
+    "timezoneServer": "Usar la zona horaria del servidor",
+    "timezoneHint": "Las horas de silencio y los resúmenes se leen en esta zona horaria, no en la del servidor.",
+    "quietHours": "Horas de silencio",
+    "from": "Desde",
+    "to": "Hasta",
+    "days": "Días",
+    "quietHoursHint": "Durante las horas de silencio, las notificaciones esperan a que termine la ventana — salvo que un evento esté configurado para omitirlas.",
+    "daysHint": "Deja todos los días sin marcar para aplicar la ventana todos los días.",
+    "overnight": "Ventana nocturna — continúa pasada la medianoche hasta la mañana siguiente.",
+    "digests": "Resúmenes",
+    "digestsHint": "Los eventos configurados como resumen se recopilan y se entregan como un solo mensaje.",
+    "daily": "Resumen diario",
+    "dailyAt": "Hora del resumen diario",
+    "weekly": "Resumen semanal",
+    "weeklyDay": "Día del resumen semanal",
+    "weeklyAt": "Hora del resumen semanal",
+    "next": "Próximo: {{when}}",
+    "day": {
+      "0": "Dom",
+      "1": "Lun",
+      "2": "Mar",
+      "3": "Mié",
+      "4": "Jue",
+      "5": "Vie",
+      "6": "Sáb"
+    }
   }
 }

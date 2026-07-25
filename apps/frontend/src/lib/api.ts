@@ -3569,6 +3569,18 @@ export const api = {
       resetAll(): Promise<{ cleared: number }> {
         return request<{ cleared: number }>('/account/notifications/preferences/reset', { method: 'POST' });
       },
+      profile(): Promise<NotificationProfile> {
+        return request<NotificationProfile>('/account/notifications/profile');
+      },
+      updateProfile(body: Partial<NotificationProfile>): Promise<NotificationProfile> {
+        return request<NotificationProfile>('/account/notifications/profile', { method: 'PATCH', body });
+      },
+      pause(until?: string): Promise<NotificationProfile> {
+        return request<NotificationProfile>('/account/notifications/pause', { method: 'POST', body: { until } });
+      },
+      resume(): Promise<NotificationProfile> {
+        return request<NotificationProfile>('/account/notifications/resume', { method: 'POST' });
+      },
       inbox(q: Record<string, string> = {}): Promise<InboxPage> {
         const qs = new URLSearchParams(Object.entries(q).filter(([, v]) => v)).toString();
         return request<InboxPage>(`/account/notifications/inbox${qs ? `?${qs}` : ''}`);
@@ -4973,6 +4985,28 @@ export interface NotificationEventDefinitionDto {
 export interface AccountNotificationEventRow {
   definition: NotificationEventDefinitionDto;
   preference: EffectiveEventPreference;
+}
+
+/** Profile-wide personal notification settings. */
+export interface NotificationProfile {
+  timezone: string | null;
+  locale: string | null;
+  quietHoursEnabled: boolean;
+  /** Local "HH:mm". End before start means the window crosses midnight. */
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
+  /** 0 = Sunday. Empty means every day. */
+  quietHoursDays: number[];
+  digestDaily: boolean;
+  digestDailyAt: string | null;
+  digestWeekly: boolean;
+  digestWeeklyDay: number | null;
+  digestWeeklyAt: string | null;
+  pausedUntil: string | null;
+  /** Computed server-side, so the UI need not derive it from a time + zone. */
+  nextDailyDigestAt: string | null;
+  nextWeeklyDigestAt: string | null;
+  paused: boolean;
 }
 
 /** One in-app notification, owned by exactly one user. */

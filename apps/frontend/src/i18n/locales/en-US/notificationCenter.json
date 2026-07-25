@@ -444,5 +444,48 @@
   "bell": {
     "unread": "{{count}} unread notifications",
     "none": "No unread notifications"
+  },
+  "mySettings": {
+    "title": "Notification settings",
+    "subtitle": "Quiet hours, digests and pausing — all yours alone.",
+    "loadError": "Could not load your settings.",
+    "saved": "Settings saved.",
+    "saveFailed": "Could not save your settings.",
+    "save": "Save settings",
+    "pauseTitle": "Pause all notifications",
+    "pauseHint": "Nothing will be delivered while paused.",
+    "pausedUntil": "Paused until {{when}}.",
+    "pause1h": "Pause 1 hour",
+    "pause24h": "Pause 24 hours",
+    "resume": "Resume",
+    "paused": "Notifications paused.",
+    "resumed": "Notifications resumed.",
+    "timezone": "Timezone",
+    "timezoneServer": "Use the server timezone",
+    "timezoneHint": "Quiet hours and digest times are read in this timezone, not the server's.",
+    "quietHours": "Quiet hours",
+    "from": "From",
+    "to": "To",
+    "days": "Days",
+    "quietHoursHint": "During quiet hours, notifications wait until the window ends — unless an event is set to bypass them.",
+    "daysHint": "Leave every day unchecked to apply the window every day.",
+    "overnight": "Overnight window — it continues past midnight into the next morning.",
+    "digests": "Digests",
+    "digestsHint": "Events set to digest are collected and delivered as one summary.",
+    "daily": "Daily digest",
+    "dailyAt": "Daily digest time",
+    "weekly": "Weekly digest",
+    "weeklyDay": "Weekly digest day",
+    "weeklyAt": "Weekly digest time",
+    "next": "Next: {{when}}",
+    "day": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    }
   }
 }
