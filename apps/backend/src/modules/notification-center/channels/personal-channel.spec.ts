@@ -128,7 +128,15 @@ function build(rows: any[] = []) {
     decrypt: jest.fn((s: string) => { if (!s.startsWith('enc:')) throw new Error('bad'); return s.slice(4); }),
   };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
-  return { svc: new PersonalChannelService(prisma as any, audit as any, cipher as any), rows, cipher, audit };
+  // Typed loosely on purpose: tests override it with failure shapes carrying an
+  // errorClass, which a narrowly-inferred mock would reject.
+  const transmitter = {
+    transmit: jest.fn<Promise<Record<string, unknown>>, unknown[]>(async () => ({ ok: true, accepted: true })),
+  };
+  return {
+    svc: new PersonalChannelService(prisma as any, audit as any, cipher as any, transmitter as any),
+    rows, cipher, audit, transmitter,
+  };
 }
 
 describe('PersonalChannelService', () => {
@@ -262,6 +270,57 @@ describe('PersonalChannelService', () => {
       const { code } = await svc.startTelegramLink('me', 'T');
       const stored = JSON.stringify([...(svc as any).pendingLinks.values()]);
       expect(stored).not.toContain(code);
+    });
+  });
+
+  describe('test / verify', () => {
+    it('VERIFIES on a successful round trip — the only way verification is granted', async () => {
+      // Asserting ownership of an address would make the flag meaningless.
+      const { svc } = build();
+      const v = await svc.create('me', { type: 'email', config: { address: 'a@b.co' } });
+      expect(v.verified).toBe(false);
+      const r = await svc.test('me', v.id);
+      expect(r).toMatchObject({ ok: true, verified: true });
+      expect((await svc.get('me', v.id)).health).toBe('healthy');
+    });
+
+    it('records a failure without verifying', async () => {
+      const { svc, transmitter } = build();
+      transmitter.transmit.mockResolvedValue({ ok: false, errorClass: 'invalid_destination', error: 'HTTP 404' });
+      const v = await svc.create('me', { type: 'email', config: { address: 'a@b.co' } });
+      const r = await svc.test('me', v.id);
+      expect(r).toMatchObject({ ok: false, verified: false, error: 'invalid_destination' });
+      expect((await svc.get('me', v.id)).consecutiveFailures).toBe(1);
+    });
+
+    it('does NOT revoke an existing verification on one failed test', async () => {
+      // One bad night does not mean the address stopped being theirs.
+      const { svc, transmitter } = build();
+      const v = await svc.create('me', { type: 'email', config: { address: 'a@b.co' } });
+      await svc.test('me', v.id); // verifies
+      transmitter.transmit.mockResolvedValue({ ok: false, errorClass: 'timeout', error: 'timed out' });
+      const r = await svc.test('me', v.id);
+      expect(r.verified).toBe(true);
+      expect((await svc.get('me', v.id)).verified).toBe(true);
+    });
+
+    it('stores the classified reason, never the provider body', async () => {
+      // A provider body can echo the request, which for a webhook means the credential.
+      const { svc, transmitter, rows } = build();
+      transmitter.transmit.mockResolvedValue({
+        ok: false, errorClass: 'invalid_credentials', error: 'HTTP 401 token=SECRET',
+      });
+      const v = await svc.create('me', { type: 'email', config: { address: 'a@b.co' } });
+      await svc.test('me', v.id);
+      expect(rows[0].disabledReason).toBe('invalid_credentials');
+      expect(JSON.stringify(rows[0])).not.toContain('SECRET');
+    });
+
+    it("refuses to test another user's connection", async () => {
+      const { svc, rows, transmitter } = build();
+      await svc.create('other', { type: 'email', config: { address: 'a@b.co' } });
+      await expect(svc.test('me', rows[0].id)).rejects.toBeInstanceOf(NotFoundException);
+      expect(transmitter.transmit).not.toHaveBeenCalled();
     });
   });
 

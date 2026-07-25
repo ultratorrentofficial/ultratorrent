@@ -5,6 +5,7 @@ import { NotificationRecipientEligibilityService } from '../recipient-eligibilit
 import { getEventDefinition } from '../catalog/notification-catalog';
 import { decideRetry, type DeliveryErrorClass } from './delivery-policy';
 import { PersonalTransmitter } from './personal-transmitter.service';
+import { renderNotificationMessage, humanizeEventKey } from '../render/message-renderer';
 
 /** Deliveries claimed per tick. Bounds provider load and worker runtime. */
 const BATCH_SIZE = 25;
@@ -110,7 +111,30 @@ export class NotificationDeliveryWorker {
 
     const attemptNo = delivery.attempts + 1;
     const definition = getEventDefinition(delivery.eventKey);
-    const subject = definition ? definition.titleKey : delivery.eventKey;
+
+    // Render in the RECIPIENT's locale from the notification's own payload. Before
+    // this the worker sent `definition.titleKey`, so a delivered Telegram message
+    // read `events.download.torrent_completed.title`.
+    const profile = await this.prisma.userNotificationProfile.findUnique({
+      where: { userId: delivery.userId },
+      select: { locale: true },
+    });
+    const notification = delivery.notificationId
+      ? await this.prisma.userNotification.findUnique({
+          where: { id: delivery.notificationId },
+          select: { payload: true, body: true },
+        })
+      : null;
+    const rendered = definition
+      ? renderNotificationMessage(
+          definition,
+          (notification?.payload ?? {}) as Record<string, unknown>,
+          profile?.locale,
+        )
+      : { subject: humanizeEventKey(delivery.eventKey), text: humanizeEventKey(delivery.eventKey) };
+    // A digest already carries its assembled body; never discard it for a summary.
+    const subject = rendered.subject;
+    const text = notification?.body ? `${rendered.subject}\n\n${notification.body}` : rendered.text;
 
     const startedAt = Date.now();
     await this.prisma.userNotificationDelivery.update({
@@ -118,7 +142,7 @@ export class NotificationDeliveryWorker {
     });
 
     const result = await this.transmitter.transmit(
-      delivery.channelType, connection.encryptedConfig, subject, subject,
+      delivery.channelType, connection.encryptedConfig, subject, text,
     );
     const durationMs = Date.now() - startedAt;
 

@@ -9,6 +9,7 @@ import {
   validatePersonalChannelConfig,
 } from './personal-channel-validators';
 import type { PersonalChannelView } from './personal-channel.types';
+import { PersonalTransmitter } from '../delivery/personal-transmitter.service';
 
 /** How many consecutive failures before a connection reads as failing. */
 const FAILING_THRESHOLD = 3;
@@ -52,7 +53,64 @@ export class PersonalChannelService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly cipher: SecretCipher,
+    private readonly transmitter: PersonalTransmitter,
   ) {}
+
+  /**
+   * Send a test message and, if the provider accepts it, mark the connection
+   * verified.
+   *
+   * A real round trip is the ONLY thing that grants verification — the user
+   * asserting they own an address would make the flag meaningless and let delivery
+   * target something nobody proved they control. This is also the only way an
+   * external channel becomes usable, since delivery refuses an unverified one.
+   */
+  async test(userId: string, id: string): Promise<{ ok: boolean; verified: boolean; error?: string }> {
+    const row = await this.ownedOrThrow(userId, id);
+    const result = await this.transmitter.transmit(
+      row.type,
+      row.encryptedConfig,
+      'UltraTorrent test notification',
+      'If you can read this, this connection works. No further action is needed.',
+    );
+
+    if (result.ok) {
+      await this.prisma.userNotificationChannel.update({
+        where: { id },
+        data: {
+          lastTestedAt: new Date(), lastSuccessAt: new Date(),
+          consecutiveFailures: 0, disabledReason: null,
+          // First successful round trip is what verifies it; later tests do not
+          // re-stamp an existing verification.
+          verifiedAt: row.verifiedAt ?? new Date(),
+        },
+      });
+      await this.audit.record({
+        userId, action: 'notification.channel.tested',
+        objectType: 'user_notification_channel', objectId: id,
+        result: 'success', metadata: { type: row.type, destination: row.destinationMask },
+      });
+      return { ok: true, verified: true };
+    }
+
+    await this.prisma.userNotificationChannel.update({
+      where: { id },
+      data: {
+        lastTestedAt: new Date(), lastFailureAt: new Date(),
+        consecutiveFailures: { increment: 1 },
+        // The classified reason, never the provider body — it can echo the credential.
+        disabledReason: result.errorClass ?? 'send_failed',
+      },
+    });
+    await this.audit.record({
+      userId, action: 'notification.channel.tested',
+      objectType: 'user_notification_channel', objectId: id,
+      result: 'failure', metadata: { type: row.type, errorClass: result.errorClass },
+    });
+    // A failed test must NOT revoke an existing verification: one bad night does not
+    // mean the address stopped being theirs.
+    return { ok: false, verified: row.verifiedAt != null, error: result.errorClass ?? 'send_failed' };
+  }
 
   /** Derived, never stored — health is a function of current state. */
   private healthOf(row: {

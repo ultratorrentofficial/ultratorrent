@@ -176,6 +176,13 @@ export class AccountNotificationsController {
     return this.channels.remove(userId, channelId);
   }
 
+  @Post('channels/:channelId/test')
+  @RequirePermissions(P.NOTIFICATIONS_SEND_TEST)
+  async testChannel(@Param('channelId') channelId: string, @CurrentUser() u: AuthenticatedUser) {
+    const userId = await this.eligibility.assertEligible(u?.id);
+    return this.channels.test(userId, channelId);
+  }
+
   @Post('channels/:channelId/enable')
   @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
   async enableChannel(@Param('channelId') channelId: string, @CurrentUser() u: AuthenticatedUser) {

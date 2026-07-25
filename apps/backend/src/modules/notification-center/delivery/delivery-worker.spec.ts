@@ -9,7 +9,9 @@ function build(opts: {
   deliveries?: any[];
   connection?: any | null;
   eligible?: boolean;
-  transmit?: () => Promise<any>;
+  transmit?: (...args: any[]) => Promise<any>;
+  profile?: any;
+  notification?: any;
 } = {}) {
   const deliveries = opts.deliveries ?? [];
   const attempts: any[] = [];
@@ -34,6 +36,14 @@ function build(opts: {
     },
     notificationDeadLetter: {
       create: jest.fn(async ({ data }: any) => { deadLetters.push(data); return data; }),
+    },
+    // The worker renders in the recipient's locale from the notification payload,
+    // so both are part of its collaborator surface.
+    userNotificationProfile: {
+      findUnique: jest.fn(async () => opts.profile ?? null),
+    },
+    userNotification: {
+      findUnique: jest.fn(async () => opts.notification ?? null),
     },
   };
   const transmitter = {
@@ -157,6 +167,38 @@ describe('NotificationDeliveryWorker', () => {
     });
     const s = await svc.drain();
     expect(s.accepted).toBe(1); // the second still went
+  });
+
+  describe('rendering', () => {
+    it('sends readable text, never a raw i18n key', async () => {
+      const { svc, transmitter } = build({
+        deliveries: [queued({ notificationId: 'n1' })],
+        notification: { payload: { mediaTitle: 'Dune' }, body: null },
+      });
+      await svc.drain();
+      const [, , subject, text] = transmitter.transmit.mock.calls[0];
+      expect(subject).toBe('Torrent completed');
+      expect(String(text)).toContain('Dune');
+      expect(String(subject)).not.toContain('events.');
+    });
+
+    it('renders in the recipient locale', async () => {
+      const { svc, transmitter } = build({
+        deliveries: [queued({ eventKey: 'system.new_login' })],
+        profile: { locale: 'es-PR' },
+      });
+      await svc.drain();
+      expect(String(transmitter.transmit.mock.calls[0][2])).toContain('Nuevo inicio');
+    });
+
+    it('keeps an assembled digest body rather than replacing it with a summary', async () => {
+      const { svc, transmitter } = build({
+        deliveries: [queued({ notificationId: 'n1' })],
+        notification: { payload: {}, body: 'DOWNLOADS\n  • Torrent completed ×3' },
+      });
+      await svc.drain();
+      expect(String(transmitter.transmit.mock.calls[0][3])).toContain('×3');
+    });
   });
 
   it('does not overlap itself', async () => {

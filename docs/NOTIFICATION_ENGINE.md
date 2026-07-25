@@ -1,6 +1,8 @@
 # Personal Notification Engine
 
-**Status:** phases 1–9 implemented; Phase 10 cutover in progress (see §14).
+**Status:** phases 1–10 implemented except the producer cutover (see §15).
+Message rendering and channel verification are complete, so external delivery is
+functional end to end once a connection is tested.
 **Security model:** [NOTIFICATION_ENGINE_SECURITY.md](NOTIFICATION_ENGINE_SECURITY.md).
 **Audit + gap analysis:** [NOTIFICATION_ENGINE_GAP_ANALYSIS.md](NOTIFICATION_ENGINE_GAP_ANALYSIS.md).
 
@@ -327,15 +329,17 @@ rules still pinning channels.
 
 ## 15. Known gaps
 
-1. **External message rendering.** Bodies currently send the event key rather than
-   localized text. Must be fixed before external channels are switched on.
+1. ~~External message rendering~~ — **done.** Messages render in the recipient's
+   locale from the notification payload, with an allow-listed field set so a payload
+   gaining a secret cannot leak into a message body.
 2. **Producers not rewired.** `automation.module.ts`, `torrent-sync.service.ts` and
    `rss-automation.actions.ts` still call the legacy dispatcher. Each free-text call
    needs a registered event chosen deliberately — guessing would re-point a rule at a
    different audience.
 3. **No settings UI** for quiet hours and digests (API exists).
-4. **No channel test/verify endpoint**, so connections stay `unverified` and external
-   delivery is gated off until it exists.
+4. ~~No channel test/verify endpoint~~ — **done.** `POST channels/:id/test` sends a
+   real message and verifies on success; a failed test never revokes an existing
+   verification.
 5. **Legacy engine still running in parallel.**
 
 ---
