@@ -7,7 +7,6 @@ export const WS_EVENTS = {
   TORRENTS_UPDATE: 'torrents:update',
   TORRENT_UPDATE: 'torrent:update',
   STATS_UPDATE: 'stats:update',
-  NOTIFICATION: 'notification',
   ENGINE_STATUS: 'engine:status',
   SYSTEM_HEALTH: 'system:health',
   FILES_OP_STARTED: 'files.operation.started',
@@ -62,14 +61,6 @@ export const WS_EVENTS = {
   RSS_SHOW_BECAME_ACTIVE: 'rss.show.became_active',
   RSS_SHOW_ENDED: 'rss.show.ended',
   RSS_SHOW_CANCELED: 'rss.show.canceled',
-  // Notification Center realtime (scoped to notifications.view).
-  NOTIFICATION_SENT: 'notification.sent',
-  NOTIFICATION_FAILED: 'notification.failed',
-  NOTIFICATION_RETRY: 'notification.retry',
-  NOTIFICATION_QUEUE_UPDATED: 'notification.queue.updated',
-  NOTIFICATION_PROVIDER_ONLINE: 'notification.provider.online',
-  NOTIFICATION_PROVIDER_OFFLINE: 'notification.provider.offline',
-  NOTIFICATION_RULE_TRIGGERED: 'notification.rule.triggered',
   // Subtitle Intelligence (scoped to subtitle_intelligence.view). Job progress +
   // per-subtitle lifecycle for live UI.
   SUBTITLE_JOB_STARTED: 'subtitle_intelligence.job.started',
@@ -217,14 +208,6 @@ export interface TorrentsUpdatePayload {
   engineId: string;
   torrents: NormalizedTorrent[];
   at: string;
-}
-
-export interface NotificationPayload {
-  id: string;
-  level: 'info' | 'success' | 'warning' | 'error';
-  title: string;
-  message: string;
-  createdAt: string;
 }
 
 export interface EngineStatusPayload {

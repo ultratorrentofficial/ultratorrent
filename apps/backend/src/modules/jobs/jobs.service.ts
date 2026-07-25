@@ -4,8 +4,8 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 /** The persisted job subsystems the aggregator spans. Media & subtitle now come from
- *  `platform_jobs` (Phase 7 migration); analytics-import & notification remain on their
- *  own tables until they migrate. (`rename` was dropped — its table had no producer.) */
+ *  `platform_jobs` (Phase 7 migration); analytics-import remains on its own table
+ *  until it migrates. (`rename` was dropped — its table had no producer.) */
 export type JobSubsystem =
   | 'media'
   | 'subtitle'
@@ -69,8 +69,8 @@ function normalizeStatus(raw: string, leased?: boolean): JobStatus {
 
 /**
  * Read-only aggregator over the platform's persisted job tables
- * (`MediaProcessingJob`, `SubtitleJob`, `MediaRenameJob`, `MediaAnalyticsImportJob`,
- * `NotificationQueue`). Each subsystem is gated by its view permission, so a caller
+ * (`MediaProcessingJob`, `SubtitleJob`, `MediaRenameJob`, `MediaAnalyticsImportJob`).
+ * Each subsystem is gated by its view permission, so a caller
  * only ever sees the jobs of subsystems they can view. This is the data behind every
  * workspace "Jobs" surface and the System global jobs view. It never mutates —
  * cancellation stays on each subsystem's own controller.

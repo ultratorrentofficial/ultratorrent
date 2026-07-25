@@ -522,8 +522,6 @@ export class WorkflowExecutionService implements OnModuleInit {
     }
   }
 
-  /** Emit a routable domain event onto the shared bus (Notification Center picks it up). */
-
   private async saveVars(executionId: string, vars: Record<string, unknown>): Promise<void> {
     if (!vars || Object.keys(vars).length === 0) return;
     const row = await this.prisma.workflowExecution.findUnique({ where: { id: executionId }, select: { outputSummary: true } });

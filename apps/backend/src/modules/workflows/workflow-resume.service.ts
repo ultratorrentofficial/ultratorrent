@@ -13,10 +13,10 @@ const RETAIN_FAILED_DAYS = 30;
  * The durable-resume heartbeat. Reuses the platform's existing `@nestjs/schedule` (no second
  * scheduler — non-negotiable): one named `@Interval` advances time-based waits. Delays whose
  * `resumeAt` has passed resume down their `out` port; event/approval waits whose `expiresAt`
- * has passed resume down `timeout` (expiring any pending approval first). Event arrival is
- * no longer resumable on an event — the domain-event bus was removed, so an
- * event-waiting execution now runs to its `expiresAt` and is expired. Resume is idempotent,
- * so a bus resume and a timeout tick can race harmlessly.
+ * has passed resume down `timeout` (expiring any pending approval first). Event *arrival* is
+ * handled separately, on the shared domain-event bus, by {@link WorkflowEventBridge} — this
+ * service only enforces the deadline. Resume is idempotent, so an event resume and a timeout
+ * tick can race harmlessly.
  */
 @Injectable()
 export class WorkflowResumeService {

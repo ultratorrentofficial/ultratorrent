@@ -82,9 +82,9 @@ export class SystemService {
         try {
           const fs = await statfs(path);
           const total = fs.blocks * fs.bsize;
-          // Same `bavail` reasoning as the health monitor above, and the same figure
-          // `df` calls "Avail" — reporting a larger number here than the one the
-          // low-disk alert fires on would just make the two contradict each other.
+          // `bavail`, not `bfree`: the root-reserved blocks (5% by default on
+          // ext4) are not space anything here can use, and this is the figure
+          // `df` calls "Avail".
           const free = fs.bavail * fs.bsize;
           return { path, total, free, used: total - free };
         } catch {

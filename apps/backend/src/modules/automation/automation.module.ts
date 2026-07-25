@@ -25,10 +25,10 @@ import {
 } from 'class-validator';
 import type { Request } from 'express';
 import { NormalizedTorrent, PERMISSIONS } from '@ultratorrent/shared';
-import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
 import { assertSafeOutboundUrl } from '../../common/ssrf';
+import { AutomationEventBridge } from './automation-event.bridge';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { AuditService } from '../audit/audit.service';
 import { ModuleRef } from '@nestjs/core';
@@ -66,7 +66,7 @@ export const AUTOMATION_TRIGGERS = [
   { id: 'media.server_refresh_failed', label: 'When a media-server refresh fails', category: 'media' },
   // Duplicate Center. There is deliberately NO "exact duplicate detected" trigger:
   // exact-match detection needs content hashing, which does not exist, and a rule
-  // that can never fire is worse than an absent one — the Notification Center
+  // that can never fire is worse than an absent one — the catalogue
   // already carried one such dead rule for months.
   { id: 'media.duplicate_scan_completed', label: 'When a duplicate scan completes', category: 'media' },
   { id: 'media.duplicate_detected', label: 'When a high-confidence duplicate is detected', category: 'media' },
@@ -249,10 +249,6 @@ export class AutomationEngine {
           done.add(key); // don't re-run this rule for the same torrent this pass
         } catch (err) {
           await this.log(rule, 'failed', t, (err as Error).message);
-          // Emit a registered event rather than a free-text notification: the
-          // personal engine then decides who is eligible, who holds
-          // `automation.view`, and what each of them personally chose. The legacy
-          // path produced an unowned in-app row broadcast to everyone.
         }
       }
     }
@@ -316,7 +312,7 @@ export class AutomationEngine {
     }
   }
 
-  /** Actions runnable without a torrent: notifications, webhooks, RSS delegates. */
+  /** Actions runnable without a torrent: webhooks, RSS delegates. */
   private async runEventAction(
     action: Action,
     context: Record<string, unknown>,
@@ -354,7 +350,7 @@ export class AutomationEngine {
 
   /**
    * Run a SINGLE action for the Visual Workflow executor, **reusing the engine's real
-   * dispatch** (RSS / subtitle / media / notification / webhook) — extend-not-replace, the
+   * dispatch** (RSS / subtitle / media / webhook) — extend-not-replace, the
    * workflow engine never reimplements action behavior. Torrent-native ops (move/pause/stop/
    * delete) need a torrent-run context and remain unsupported from a workflow event context.
    */
@@ -690,7 +686,7 @@ export class AutomationController {
   // imports RssModule (for the RssAutomationActions delegate). The DI graph
   // itself is acyclic (RssModule never imports AutomationModule).
   imports: [forwardRef(() => RssModule)],
-  providers: [AutomationEngine, AutomationService],
+  providers: [AutomationEngine, AutomationService, AutomationEventBridge],
   controllers: [AutomationController],
   exports: [AutomationEngine],
 })

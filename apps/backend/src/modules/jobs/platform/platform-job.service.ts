@@ -62,9 +62,8 @@ export class PlatformJobService implements OnModuleInit {
   ) {}
 
   /**
-   * Publish an operational job event to the domain-event bus so the Notification
-   * Center and Automation can react (job failed / stalled / completed-with-warnings),
-   * without the Jobs Center importing either module. Sanitized fields only.
+   * Broadcast an operational job event (failed / stalled / completed-with-warnings)
+   * over realtime. Sanitized fields only.
    */
   private async emitOperational(jobId: string, event: string, extra: Record<string, unknown> = {}): Promise<void> {
     const row = await this.prisma.platformJob

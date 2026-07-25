@@ -27,7 +27,7 @@ const SCOPED_PERMISSIONS = [
 /**
  * Authenticated realtime channel. Clients pass a JWT access token via the
  * socket handshake auth. Each socket joins a private room (their id), a shared
- * `authenticated` room (permission-free events like notifications), and a
+ * `authenticated` room (permission-free events), and a
  * `perm:<key>` room for each view permission it holds.
  */
 @WebSocketGateway({

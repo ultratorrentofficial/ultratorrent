@@ -34,18 +34,3 @@ export interface LoginResponse extends AuthTokens {
   user: AuthUser;
 }
 
-export type NotificationChannel =
-  | 'in_app'
-  | 'email'
-  | 'webhook'
-  | 'discord'
-  | 'slack'
-  | 'telegram';
-
-export type SystemEventType =
-  | 'torrent.added'
-  | 'torrent.completed'
-  | 'torrent.failed'
-  | 'disk.full'
-  | 'engine.offline'
-  | 'automation.failed';

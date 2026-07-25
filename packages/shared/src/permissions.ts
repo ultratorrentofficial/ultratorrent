@@ -149,20 +149,8 @@ export const PERMISSIONS = {
   MEDIA_MANAGER_IMDB_SEARCH: 'media_manager.imdb.search',
   MEDIA_MANAGER_IMDB_MATCH: 'media_manager.imdb.match',
 
-  // Notification Center (core) — the centralized messaging platform. Supersedes
-  // the legacy `notifications.manage` umbrella with a granular set.
 
-  // --- Personal Notification Engine (self-service) -------------------------
-  // Held by every ordinary account: managing your OWN notifications is not a
-  // privilege an admin grants. These gate the /api/account/notifications/*
-  // surface, where the acting user always comes from the JWT — never from a
-  // request parameter — so holding the permission conveys no access to anyone
-  // else's data. Ownership is asserted separately and unconditionally.
 
-  // --- Personal Notification Engine (administrative diagnostics) -----------
-  // Operational visibility only. These must never become a back door into
-  // another person's notifications: destinations stay masked and payloads are
-  // redacted, and none of them can edit a user's preferences.
 
   // Integrations — Prowlarr companion (optional external indexer manager).
   INTEGRATIONS_PROWLARR_VIEW: 'integrations.prowlarr.view',
@@ -237,8 +225,6 @@ export const NEVER_INHERITED_PERMISSIONS: Permission[] = [
   PERMISSIONS.SYSTEM_MANAGE,
   PERMISSIONS.LIBRARY_CLEANUP_PERMANENT_DELETE,
   PERMISSIONS.LIBRARY_CLEANUP_PROTECTION_LEGAL_HOLD,
-  // Reads another person's notification activity. Personal data, so it is granted
-  // deliberately rather than inherited with the ADMINISTRATOR bundle.
 ];
 
 /**
@@ -320,8 +306,6 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.SUBTITLE_INTELLIGENCE_MANAGE,
     PERMISSIONS.SUBTITLE_INTELLIGENCE_PROVIDERS,
     PERMISSIONS.SUBTITLE_INTELLIGENCE_SETTINGS,
-    // Managing your own notifications is part of owning an account, not a
-    // privilege an administrator grants.
     PERMISSIONS.JOBS_VIEW,
     PERMISSIONS.JOBS_VIEW_EVENTS,
     PERMISSIONS.JOBS_CANCEL,
@@ -348,8 +332,6 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.MEDIA_MANAGER_IMDB_SEARCH,
     PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW,
     PERMISSIONS.SUBTITLE_INTELLIGENCE_SEARCH,
-    // Managing your own notifications is part of owning an account, not a
-    // privilege an administrator grants.
     PERMISSIONS.JOBS_VIEW,
     PERMISSIONS.JOBS_VIEW_EVENTS,
   ],

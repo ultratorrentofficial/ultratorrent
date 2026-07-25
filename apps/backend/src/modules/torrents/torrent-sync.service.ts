@@ -162,11 +162,6 @@ export class TorrentSyncService {
 
       if (prev.progress < 1 && t.progress >= 1) {
         risingEdges.add(t.hash);
-        // The domain event below is the ONLY notification path now. The legacy
-        // `notifications.dispatch()` that stood here was pure duplication: it
-        // created an unowned in-app row broadcast to every connected client for the
-        // same occurrence this event already describes, and the personal engine
-        // resolves real recipients from it.
         await this.automation
           .evaluate('torrent.completed', t)
           .catch((err) =>

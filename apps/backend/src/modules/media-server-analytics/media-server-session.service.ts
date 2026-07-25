@@ -25,8 +25,6 @@ export class MediaServerSessionService {
     private readonly registry: ModuleRegistryService,
   ) {}
 
-  /** Publish a domain event onto the Notification Center bus (fire-and-forget). */
-
   /** Live activity = the current reconciled session snapshot. */
   liveActivity() {
     return this.prisma.mediaServerSession.findMany({ orderBy: { updatedAt: 'desc' } });
@@ -119,7 +117,7 @@ export class MediaServerSessionService {
             device: s.device ?? null, client: s.client ?? null,
             playbackMethod: s.playbackMethod ?? null, resolution: s.resolution ?? null,
             videoCodec: s.videoCodec ?? null, audioCodec: s.audioCodec ?? null, bitrate: s.bitrateKbps ?? null,
-            // Show identity and year let a notification render "The Last of Us -
+            // Show identity and year let a consumer render "The Last of Us -
             // S01E03" or "Dune (2021)" rather than the joined display string.
             showTitle: s.showTitle ?? null,
             seasonNumber: s.seasonNumber ?? null,
@@ -132,7 +130,7 @@ export class MediaServerSessionService {
             // storing it grants nothing on its own.
             connectionId: conn.id,
             artPath: s.artPath ?? null,
-            // Deliberately NOT ipAddress. No notification renders it, and the
+            // Deliberately NOT ipAddress. Nothing downstream renders it, and the
             // payload is stored on every recipient's row.
             startedAt: new Date().toISOString(),
           };

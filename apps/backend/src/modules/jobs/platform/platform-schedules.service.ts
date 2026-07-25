@@ -15,8 +15,6 @@ const SCHEDULE_MODULE: Record<string, string> = {
   media_server_session_poll: 'media_server_analytics',
   media_server_newsletter_dispatch: 'media_server_analytics',
   media_server_metadata_sync: 'media_server_analytics',
-  notification_delivery_worker: 'notification_center',
-  notification_provider_health: 'notification_center',
   media_acquisition_rss_sweep: 'media_acquisition_intelligence',
   media_acquisition_watchlist_sweep: 'media_acquisition_intelligence',
   media_acquisition_quality_upgrade_sweep: 'media_acquisition_intelligence',

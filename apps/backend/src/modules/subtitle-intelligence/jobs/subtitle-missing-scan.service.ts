@@ -74,7 +74,7 @@ export class SubtitleMissingScanService {
       if (missing.length === 0) continue;
       gaps++;
 
-      // Raise the gap: Notification Center + automation trigger + history.
+      // Raise the gap: automation trigger + history.
       this.triggers.fire('subtitle.missing', {
         title: item.title,
         itemId: item.id,

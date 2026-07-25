@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { DomainEventsModule } from './modules/domain-events/domain-events.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import configuration from './config/configuration';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
@@ -40,6 +41,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot({ wildcard: true, delimiter: '.' }),
+    DomainEventsModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
 
     // Infrastructure & cross-cutting (global)

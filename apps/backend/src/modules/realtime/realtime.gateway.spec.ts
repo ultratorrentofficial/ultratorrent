@@ -33,7 +33,10 @@ describe('RealtimeGateway — permission-scoped feeds', () => {
     gateway.broadcast(WS_EVENTS.FILES_TRASH_UPDATED, {});
     expect(server.to).toHaveBeenCalledWith(`perm:${PERMISSIONS.FILES_VIEW}`);
 
-    gateway.broadcast(WS_EVENTS.NOTIFICATION, {});
+    // An event with no prefix mapping falls to the shared authenticated room.
+    // A literal is deliberate here: this asserts the DEFAULT branch, so it must
+    // not depend on some constant happening to stay unmapped.
+    gateway.broadcast('unmapped:event', {});
     expect(server.to).toHaveBeenCalledWith('authenticated');
   });
 

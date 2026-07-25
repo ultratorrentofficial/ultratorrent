@@ -139,8 +139,6 @@ export class RssService {
     private readonly moduleRef: ModuleRef,
   ) {}
 
-  /** Publish a domain event onto the Notification Center bus (fire-and-forget). */
-
   /**
    * Fire an RSS automation trigger with an event context. Resolved lazily via
    * ModuleRef (the engine depends on RSS, so a static inject would cycle) and

@@ -4,7 +4,7 @@
  * Ties the pieces together: fingerprint → progressive multi-provider search →
  * score → (on download) validate → install a media-server-correct sidecar → record
  * everything (download, validation, history), surface it to media_manager, emit a
- * realtime + Notification-Center event, and audit. Pure logic (scoring, search
+ * realtime, and audit. Pure logic (scoring, search
  * planning, validation, naming) lives in sibling modules; this coordinates IO.
  */
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';

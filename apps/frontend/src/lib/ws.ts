@@ -14,7 +14,6 @@ import {
   type ImdbEventPayload,
   type JobEventPayload,
   type MediaJobEventPayload,
-  type NotificationPayload,
   type StatsUpdatePayload,
   type TorrentsUpdatePayload,
 } from '@ultratorrent/shared';
@@ -26,7 +25,6 @@ export interface WsEventMap {
   [WS_EVENTS.TORRENTS_UPDATE]: TorrentsUpdatePayload;
   [WS_EVENTS.STATS_UPDATE]: StatsUpdatePayload;
   [WS_EVENTS.ENGINE_STATUS]: EngineStatusPayload;
-  [WS_EVENTS.NOTIFICATION]: NotificationPayload;
   [WS_EVENTS.FILES_OP_STARTED]: FileOperationEventPayload;
   [WS_EVENTS.FILES_OP_PROGRESS]: FileOperationEventPayload;
   [WS_EVENTS.FILES_OP_COMPLETED]: FileOperationEventPayload;
