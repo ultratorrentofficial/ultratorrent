@@ -16,7 +16,29 @@
     "in_app": "In-App",
     "email": "Email",
     "telegram": "Telegram",
-    "discord": "Discord"
+    "discord": "Discord",
+    "title": "Notification channels",
+    "subtitle": "Where your notifications arrive.",
+    "emailAddress": "Email address",
+    "connect": "Connect",
+    "connected": "Email connected and verified.",
+    "connectFailed": "Could not connect that address.",
+    "sendTest": "Send test",
+    "testSent": "Test message sent.",
+    "testFailed": "The test message failed.",
+    "disconnect": "Disconnect",
+    "disconnected": "Channel disconnected.",
+    "disconnectFailed": "Could not disconnect that channel.",
+    "loadError": "Could not load your channels.",
+    "comingSoon": "Not available yet.",
+    "unverifiedHint": "Send a test to verify this address before notifications are delivered to it.",
+    "smtpNotConfigured": "This server has no email relay configured yet, so email notifications cannot be set up. An administrator configures it once, in Settings.",
+    "health": {
+      "healthy": "Healthy",
+      "unverified": "Unverified",
+      "failing": "Failing",
+      "disabled": "Not connected"
+    }
   },
   "severities": {
     "info": "Info",

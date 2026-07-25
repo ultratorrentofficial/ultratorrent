@@ -51,6 +51,22 @@ export function NotificationEventsPage() {
     queryFn: () => api.account.notifications.preferences(),
   });
 
+  // A channel column is only usable once that channel can actually deliver.
+  // Offering a switch the platform cannot honour promises delivery that never
+  // arrives, which is worse than a visibly unavailable control.
+  const channels = useQuery({
+    queryKey: ['account', 'notifications', 'channels'],
+    queryFn: () => api.account.notifications.channels(),
+  });
+
+  const deliverable = useMemo(() => {
+    const map: Record<string, boolean> = { in_app: true };
+    for (const c of channels.data?.channels ?? []) {
+      map[c.type] = c.connected && c.verified && c.enabled;
+    }
+    return map;
+  }, [channels.data]);
+
   const update = useMutation({
     mutationFn: ({ eventKey, patch }: { eventKey: string; patch: Record<string, boolean> }) =>
       api.account.notifications.updatePreference(eventKey, patch),
@@ -144,9 +160,7 @@ export function NotificationEventsPage() {
                       {CHANNELS.map(({ type }) => {
                         const flag = FLAG[type];
                         const on = Boolean(row.preference[flag]);
-                        // Only in-app can deliver today. A switch the platform
-                        // cannot honour would promise delivery that never comes.
-                        const available = type === 'in_app';
+                        const available = deliverable[type] ?? false;
                         return (
                           <TableCell key={type} className="text-center">
                             <Switch

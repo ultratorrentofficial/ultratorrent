@@ -81,7 +81,8 @@
     "accountSecurity": "Cuenta y seguridad",
     "signOut": "Cerrar sesión",
     "notificationInbox": "Bandeja de notificaciones",
-    "notificationEvents": "Eventos de notificación"
+    "notificationEvents": "Eventos de notificación",
+    "notificationChannels": "Canales de notificación"
   },
   "language": {
     "label": "Idioma"

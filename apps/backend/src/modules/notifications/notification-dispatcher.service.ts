@@ -1,6 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { PERMISSIONS, preferenceAllows, type DomainEventEnvelope } from '@ultratorrent/shared';
+import {
+  CONNECTABLE_CHANNELS, PERMISSIONS, preferenceAllows,
+  type ConnectableChannelType, type DomainEventEnvelope,
+} from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -17,6 +20,8 @@ export interface DispatchSummary {
   audience: number;
   created: number;
   skipped: number;
+  /** External deliveries queued for the async worker. */
+  queued: number;
 }
 
 /**
@@ -96,6 +101,7 @@ export class NotificationDispatcher implements OnModuleInit {
       audience: 0,
       created: 0,
       skipped: 0,
+      queued: 0,
     };
 
     const definition = getNotificationEvent(envelope.eventKey);
@@ -112,18 +118,36 @@ export class NotificationDispatcher implements OnModuleInit {
 
       for (const userId of audience) {
         const preference = preferences.get(userId);
-        if (!preference || !preferenceAllows(preference, 'in_app')) {
+        if (!preference) {
           summary.skipped += 1;
           continue;
         }
         try {
-          const created = await this.createInApp(userId, definition, envelope);
-          if (created) summary.created += 1;
+          // The in-app row is also the carrier for external deliveries: it holds
+          // the rendered presentation each channel projects. A user who wants
+          // email but not in-app still gets a row — it is simply not surfaced.
+          const wantsAnything = CONNECTABLE_CHANNELS.some((c) => preferenceAllows(preference, c))
+            || preferenceAllows(preference, 'in_app');
+          if (!wantsAnything) {
+            summary.skipped += 1;
+            continue;
+          }
+
+          const notificationId = await this.createInApp(
+            userId, definition, envelope, preferenceAllows(preference, 'in_app'),
+          );
+          if (notificationId) summary.created += 1;
           else summary.skipped += 1;
+
+          for (const channel of CONNECTABLE_CHANNELS) {
+            if (!preferenceAllows(preference, channel)) continue;
+            const queued = await this.queueDelivery(userId, notificationId, definition.key, channel);
+            if (queued) summary.queued += 1;
+          }
         } catch (err) {
           summary.skipped += 1;
           this.logger.warn(
-            `In-app create for ${userId}/${definition.key} failed: ${(err as Error).message}`,
+            `Dispatch for ${userId}/${definition.key} failed: ${(err as Error).message}`,
           );
         }
       }
@@ -131,6 +155,36 @@ export class NotificationDispatcher implements OnModuleInit {
       this.logger.error(`Dispatch of ${envelope.eventKey} failed: ${(err as Error).message}`);
     }
     return summary;
+  }
+
+  /**
+   * Queue one external delivery.
+   *
+   * Idempotent on (notificationId, channelType), so a redelivered event cannot
+   * send the same person the same mail twice. Queuing never throws at the
+   * caller: a failure to queue email must not lose the in-app notification.
+   */
+  private async queueDelivery(
+    userId: string,
+    notificationId: string | null,
+    eventKey: string,
+    channelType: ConnectableChannelType,
+  ): Promise<boolean> {
+    if (!notificationId) return false; // nothing for the worker to render
+    try {
+      await this.prisma.userNotificationDelivery.create({
+        data: {
+          userId, notificationId, eventKey, channelType,
+          status: 'pending',
+          nextAttemptAt: new Date(),
+        },
+      });
+      return true;
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2002') return false; // already queued
+      this.logger.warn(`Queueing ${channelType} for ${userId} failed: ${(err as Error).message}`);
+      return false;
+    }
   }
 
   /**
@@ -144,7 +198,8 @@ export class NotificationDispatcher implements OnModuleInit {
     userId: string,
     definition: ReturnType<typeof getNotificationEvent> & object,
     envelope: DomainEventEnvelope,
-  ): Promise<boolean> {
+    surfaceInApp: boolean,
+  ): Promise<string | null> {
     const fallback = buildFallbackPresentation(definition, envelope);
     const payload = (envelope.payload ?? {}) as Record<string, unknown>;
 
@@ -183,19 +238,31 @@ export class NotificationDispatcher implements OnModuleInit {
         },
       });
 
-      // Personal room only. The gateway derives it from the JWT subject on
-      // connect, so this cannot be subscribed to by anyone else.
-      this.realtime.toUser(userId, 'account.notification.created', {
-        id: row.id,
-        eventKey: row.eventKey,
-        category: row.category,
-        severity: row.severity,
-        title: row.title,
-        createdAt: row.createdAt.toISOString(),
-      });
-      return true;
+      // Only announce it if the user actually wants it in-app. Someone who chose
+      // email only should not see a badge increment.
+      if (surfaceInApp) {
+        // Personal room only. The gateway derives it from the JWT subject on
+        // connect, so this cannot be subscribed to by anyone else.
+        this.realtime.toUser(userId, 'account.notification.created', {
+          id: row.id,
+          eventKey: row.eventKey,
+          category: row.category,
+          severity: row.severity,
+          title: row.title,
+          createdAt: row.createdAt.toISOString(),
+        });
+      }
+      return row.id;
     } catch (err) {
-      if ((err as { code?: string }).code === 'P2002') return false; // already delivered
+      // A redelivered event collides on (userId, eventId). Look up the existing
+      // row so external deliveries still attach to it rather than being lost.
+      if ((err as { code?: string }).code === 'P2002') {
+        const existing = await this.prisma.userNotification.findFirst({
+          where: { userId, eventId: envelope.id },
+          select: { id: true },
+        });
+        return existing?.id ?? null;
+      }
       throw err;
     }
   }

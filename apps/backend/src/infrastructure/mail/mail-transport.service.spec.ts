@@ -1,5 +1,5 @@
 import * as nodemailer from 'nodemailer';
-import { MediaServerEmailService } from './media-server-email.service';
+import { MailTransportService } from './mail-transport.service';
 
 jest.mock('nodemailer');
 
@@ -15,13 +15,15 @@ function setup(config: Record<string, unknown>) {
     },
   };
   const cipher = { encrypt: (v: string) => `enc:${v}`, decrypt: (v: string) => v.replace(/^enc:/, '') };
-  const svc = new MediaServerEmailService(prisma as any, cipher as any);
+  // The auth toggle lives in the shared transport now; the newsletter service
+  // is a façade over it, so the behaviour is tested where it actually is.
+  const svc = new MailTransportService(prisma as any, cipher as any);
   return { svc, createTransport, sendMail };
 }
 
 const BASE = { host: 'smtp.local', fromAddress: 'ut@local', encryptedPass: 'enc:secret', user: 'bob' };
 
-describe('MediaServerEmailService SMTP auth toggle', () => {
+describe('MailTransportService SMTP auth toggle', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('omits auth when auth is explicitly disabled, even with a username', async () => {

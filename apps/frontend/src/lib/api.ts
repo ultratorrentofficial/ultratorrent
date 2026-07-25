@@ -3595,6 +3595,20 @@ export const api = {
       markAllRead(): Promise<{ updated: number }> {
         return request<{ updated: number }>('/account/notifications/inbox/mark-all-read', { method: 'POST' });
       },
+      channels(): Promise<NotificationChannelsResponse> {
+        return request<NotificationChannelsResponse>('/account/notifications/channels');
+      },
+      connectEmail(address: string): Promise<NotificationChannelDto> {
+        return request<NotificationChannelDto>('/account/notifications/channels/email', {
+          method: 'POST', body: { address },
+        });
+      },
+      testChannel(type: string): Promise<NotificationChannelDto> {
+        return request<NotificationChannelDto>(`/account/notifications/channels/${type}/test`, { method: 'POST' });
+      },
+      disconnectChannel(type: string): Promise<{ ok: boolean }> {
+        return request<{ ok: boolean }>(`/account/notifications/channels/${type}`, { method: 'DELETE' });
+      },
     },
     profile(): Promise<AccountProfile> {
       return request<AccountProfile>('/account/profile');
@@ -4754,6 +4768,28 @@ export interface NotificationEventRowDto {
   definition: NotificationEventDefinitionDto;
   preference: NotificationPreferenceDto;
   customized: boolean;
+}
+
+
+export interface NotificationChannelDto {
+  type: 'email' | 'telegram' | 'discord';
+  connected: boolean;
+  enabled: boolean;
+  verified: boolean;
+  /** A mask such as `de••••@example.com`. The real destination is never sent. */
+  maskedDestination: string | null;
+  lastTestedAt: string | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  lastError: string | null;
+  consecutiveFailures: number;
+  health: string;
+}
+
+export interface NotificationChannelsResponse {
+  channels: NotificationChannelDto[];
+  /** Whether the shared SMTP relay is configured at all. */
+  platformEmailReady: boolean;
 }
 
 export interface InboxNotificationDto {

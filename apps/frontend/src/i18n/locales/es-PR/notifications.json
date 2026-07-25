@@ -16,7 +16,29 @@
     "in_app": "En la app",
     "email": "Correo",
     "telegram": "Telegram",
-    "discord": "Discord"
+    "discord": "Discord",
+    "title": "Canales de notificación",
+    "subtitle": "Dónde llegan tus notificaciones.",
+    "emailAddress": "Dirección de correo",
+    "connect": "Conectar",
+    "connected": "Correo conectado y verificado.",
+    "connectFailed": "No se pudo conectar esa dirección.",
+    "sendTest": "Enviar prueba",
+    "testSent": "Mensaje de prueba enviado.",
+    "testFailed": "El mensaje de prueba falló.",
+    "disconnect": "Desconectar",
+    "disconnected": "Canal desconectado.",
+    "disconnectFailed": "No se pudo desconectar ese canal.",
+    "loadError": "No se pudieron cargar tus canales.",
+    "comingSoon": "Todavía no disponible.",
+    "unverifiedHint": "Envía una prueba para verificar esta dirección antes de que se le entreguen notificaciones.",
+    "smtpNotConfigured": "Este servidor todavía no tiene un relé de correo configurado, así que no se pueden configurar notificaciones por correo. Un administrador lo configura una vez, en Configuración.",
+    "health": {
+      "healthy": "Saludable",
+      "unverified": "Sin verificar",
+      "failing": "Fallando",
+      "disabled": "Sin conectar"
+    }
   },
   "severities": {
     "info": "Información",

@@ -34,7 +34,7 @@ import { BreadcrumbProvider } from '@/components/layout/BreadcrumbContext';
 import { MobileDomainBar } from '@/components/layout/MobileDomainBar';
 import { WorkspaceRail } from '@/components/layout/WorkspaceRail';
 import { useSwipeToDismiss } from '@/components/layout/useSwipe';
-import { Inbox, SlidersHorizontal } from 'lucide-react';
+import { Inbox, Send, SlidersHorizontal } from 'lucide-react';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { NotificationBell } from '@/components/layout/NotificationBell';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
@@ -1179,6 +1179,17 @@ function UserMenu({ onAbout }: { onAbout: () => void }) {
             >
               <SlidersHorizontal className="h-4 w-4" />
               {t('user.notificationEvents')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                navigate('/account/notifications/channels');
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-white/5"
+            >
+              <Send className="h-4 w-4" />
+              {t('user.notificationChannels')}
             </button>
             <button
               type="button"

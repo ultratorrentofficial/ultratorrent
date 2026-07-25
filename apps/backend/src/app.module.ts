@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { MailModule } from './infrastructure/mail/mail.module';
 import { DomainEventsModule } from './modules/domain-events/domain-events.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -42,6 +43,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot({ wildcard: true, delimiter: '.' }),
+    MailModule,
     DomainEventsModule,
     NotificationsModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),

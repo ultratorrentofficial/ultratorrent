@@ -24,6 +24,7 @@ import { WorkflowsListPage } from '@/pages/workflows/WorkflowsListPage';
 import { WorkflowApprovalsPage } from '@/pages/workflows/WorkflowApprovalsPage';
 // The visual editor pulls in the @xyflow canvas — lazy-load it so it stays off the main bundle.
 const NotificationInboxPage = lazy(() => import('@/pages/account/notifications/NotificationInboxPage').then((m) => ({ default: m.NotificationInboxPage })));
+const NotificationChannelsPage = lazy(() => import('@/pages/account/notifications/NotificationChannelsPage').then((m) => ({ default: m.NotificationChannelsPage })));
 const NotificationEventsPage = lazy(() => import('@/pages/account/notifications/NotificationEventsPage').then((m) => ({ default: m.NotificationEventsPage })));
 const WorkflowEditorPage = lazy(() => import('@/pages/workflows/WorkflowEditorPage').then((m) => ({ default: m.WorkflowEditorPage })));
 import { TorrentsPage } from '@/pages/TorrentsPage';
@@ -110,6 +111,7 @@ export function App() {
                       <Route path="/account" element={<ProfilePage />} />
                       <Route path="/account/notifications/inbox" element={<NotificationInboxPage />} />
                       <Route path="/account/notifications/events" element={<NotificationEventsPage />} />
+                      <Route path="/account/notifications/channels" element={<NotificationChannelsPage />} />
                     </Route>
                   </Route>
 

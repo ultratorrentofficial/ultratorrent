@@ -40,6 +40,8 @@ model User {
   /// inbox and no preferences.
   notifications           UserNotification[]
   notificationPreferences UserNotificationPreference[]
+  notificationChannels    UserNotificationChannel[]
+  notificationDeliveries  UserNotificationDelivery[]
   apiKeys       ApiKey[]
   auditLogs     AuditLog[]
   traktAccount  TraktAccount?
@@ -3035,4 +3037,78 @@ model UserNotification {
   @@index([userId, readAt, createdAt])
   @@index([userId, archivedAt])
   @@map("user_notifications")
+}
+
+
+/// One user's connection to one external channel.
+///
+/// Exactly one active connection per (user, type) in this release. The schema
+/// stays extensible — dropping the unique constraint is all a multi-destination
+/// future needs — but exposing that complexity now would reintroduce the routing
+/// questions the rebuild exists to remove.
+model UserNotificationChannel {
+  id                  String    @id @default(uuid())
+  userId              String
+  /// email | telegram | discord
+  type                String
+  enabled             Boolean   @default(true)
+  /// Set once a test message has actually been accepted by the provider. An
+  /// unverified connection is never delivered to — a typo'd address must fail
+  /// visibly at setup, not silently for months.
+  verifiedAt          DateTime?
+  /// AES-256-GCM. Never returned by any endpoint, in any shape.
+  encryptedConfig     Json
+  /// What the UI shows instead: "de•••@example.com". Safe to display.
+  maskedDestination   String?
+  lastTestedAt        DateTime?
+  lastSuccessAt       DateTime?
+  lastFailureAt       DateTime?
+  lastError           String?
+  consecutiveFailures Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([userId, enabled])
+  @@map("user_notification_channels")
+}
+
+/// One attempt to deliver one notification to one channel.
+///
+/// A row per (notification, channel), so two channels retry independently and a
+/// broken Telegram cannot suppress the email.
+model UserNotificationDelivery {
+  id             String    @id @default(uuid())
+  userId         String
+  /// The in-app notification this accompanies, when one was created.
+  notificationId String?
+  eventKey       String
+  channelType    String
+  channelId      String?
+  /// pending | sending | provider_accepted | failed | cancelled
+  ///
+  /// `provider_accepted` is deliberately not `delivered`: a provider
+  /// acknowledges receipt of the REQUEST, not receipt by the person, and
+  /// conflating them makes the history lie.
+  status         String    @default("pending")
+  attempts       Int       @default(0)
+  /// When the next attempt becomes due (exponential backoff).
+  nextAttemptAt  DateTime?
+  lastError      String?
+  /// Why nothing was sent, when it was suppressed rather than attempted.
+  suppressedReason String?
+  createdAt      DateTime  @default(now())
+  sentAt         DateTime?
+  completedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Idempotency: the same notification must not queue the same channel twice.
+  @@unique([notificationId, channelType])
+  @@index([status, nextAttemptAt])
+  @@index([userId, createdAt])
+  @@map("user_notification_deliveries")
 }

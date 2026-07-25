@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { SecretCipher } from '../../common/crypto/secret-cipher';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { AccountNotificationsController } from './account-notifications.controller';
 import { NotificationDispatcher } from './notification-dispatcher.service';
@@ -6,6 +7,8 @@ import { NotificationInboxService } from './notification-inbox.service';
 import { NotificationPreferenceService } from './notification-preference.service';
 import { NotificationRecipientEligibilityService } from './recipient-eligibility.service';
 import { NotificationRecipientResolver } from './recipient-resolver.service';
+import { NotificationChannelService } from './channels/notification-channel.service';
+import { NotificationDeliveryWorker } from './delivery/delivery-worker.service';
 
 /**
  * Personal notifications.
@@ -21,11 +24,14 @@ import { NotificationRecipientResolver } from './recipient-resolver.service';
 @Module({
   imports: [RealtimeModule],
   providers: [
+    SecretCipher,
     NotificationRecipientEligibilityService,
     NotificationRecipientResolver,
     NotificationPreferenceService,
     NotificationInboxService,
     NotificationDispatcher,
+    NotificationChannelService,
+    NotificationDeliveryWorker,
   ],
   controllers: [AccountNotificationsController],
   exports: [NotificationRecipientEligibilityService, NotificationInboxService],

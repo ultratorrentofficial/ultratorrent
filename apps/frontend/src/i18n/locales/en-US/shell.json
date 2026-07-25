@@ -81,7 +81,8 @@
     "accountSecurity": "Account & security",
     "signOut": "Sign out",
     "notificationInbox": "Notification inbox",
-    "notificationEvents": "Notification events"
+    "notificationEvents": "Notification events",
+    "notificationChannels": "Notification channels"
   },
   "language": {
     "label": "Language"
