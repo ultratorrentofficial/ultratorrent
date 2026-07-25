@@ -1,5 +1,23 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  isNotificationPresentation,
+  type NotificationPresentation,
+} from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+
+/**
+ * Pull the rich card out of a stored payload, if there is a valid one.
+ *
+ * Rows predate this model and will keep arriving without it (most events have no
+ * builder), and an older row may carry an earlier schema version. Validating
+ * rather than casting means an unrecognised shape renders as a plain row instead
+ * of crashing the inbox for everything after it.
+ */
+function readPresentation(payload: unknown): NotificationPresentation | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const candidate = (payload as Record<string, unknown>).presentation;
+  return isNotificationPresentation(candidate) ? candidate : null;
+}
 
 export interface InboxQuery {
   page?: string;
@@ -27,6 +45,14 @@ export interface InboxItem {
   createdAt: string;
   /** Per-channel outcome for this notification, so "was it also emailed?" is answerable. */
   deliveries: Array<{ channelType: string; status: string }>;
+  /**
+   * The rich card, when the producing event has a builder registered.
+   *
+   * Only the presentation is exposed — never the rest of the stored payload,
+   * which holds raw producer fields (provider art paths, connection ids) that
+   * the card has no use for and the browser has no business receiving.
+   */
+  presentation: NotificationPresentation | null;
 }
 
 /**
@@ -114,6 +140,7 @@ export class NotificationInboxService {
       category: r.category,
       severity: r.severity,
       title: r.title,
+      presentation: readPresentation(r.payload),
       body: r.body,
       deepLink: r.deepLink,
       read: r.readAt != null,

@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import {
+  isNotificationPresentation,
+  type NotificationPresentation,
+} from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { NotificationRecipientEligibilityService } from '../recipient-eligibility.service';
 import { getEventDefinition } from '../catalog/notification-catalog';
@@ -34,6 +38,20 @@ export interface DrainSummary {
  * or disabled, and a retry minutes later must not still deliver. That is the
  * "delivery after deactivation" failure this engine is required not to have.
  */
+/**
+ * Read the stored rich card off a notification payload, if it has one.
+ *
+ * Digests, legacy rows and the majority of events carry no presentation, so this
+ * is the common case returning null — validated rather than cast so an older
+ * schema version degrades to plain text instead of throwing inside the worker
+ * and failing an otherwise deliverable notification.
+ */
+function readStoredPresentation(payload: unknown): NotificationPresentation | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const candidate = (payload as Record<string, unknown>).presentation;
+  return isNotificationPresentation(candidate) ? candidate : null;
+}
+
 @Injectable()
 export class NotificationDeliveryWorker {
   private readonly logger = new Logger(NotificationDeliveryWorker.name);
@@ -141,8 +159,14 @@ export class NotificationDeliveryWorker {
       where: { id: delivery.id }, data: { status: 'sending', attempts: attemptNo },
     });
 
+    // The rich card, when the producing event has one. Built once at dispatch and
+    // stored, rather than rebuilt here: a retry days later must send the same
+    // message, and rebuilding would re-resolve "Today" and the recipient's
+    // permissions against the state at retry time.
+    const presentation = readStoredPresentation(notification?.payload);
+
     const result = await this.transmitter.transmit(
-      delivery.channelType, connection.encryptedConfig, subject, text,
+      delivery.channelType, connection.encryptedConfig, subject, text, presentation,
     );
     const durationMs = Date.now() - startedAt;
 

@@ -1,8 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { NotificationPresentation } from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { SecretCipher } from '../../../common/crypto/secret-cipher';
 import { getNotificationProvider } from '../provider-registry';
 import { classifyHttpStatus, classifyThrown, parseRetryAfter, type DeliveryErrorClass } from './delivery-policy';
+import {
+  presentationToDiscord,
+  presentationToEmailHtml,
+  presentationToTelegram,
+} from '../render/presentation/channel-renderers';
 
 /** Outcome of one transmission attempt. */
 export interface TransmitResult {
@@ -90,6 +96,7 @@ export class PersonalTransmitter {
     encryptedConfig: unknown,
     subject: string,
     text: string,
+    presentation?: NotificationPresentation | null,
   ): Promise<TransmitResult> {
     const config = this.decrypt(encryptedConfig);
     if (!config) {
@@ -100,14 +107,25 @@ export class PersonalTransmitter {
 
     switch (channelType) {
       case 'discord':
-        return this.post(config.webhookUrl, { content: `**${subject}**\n${text}`.slice(0, 1900) });
+        // An embed when there is a presentation, because it is the only Discord
+        // surface with a colour — which is what distinguishes started from
+        // stopped at a glance. Plain content otherwise.
+        return this.post(
+          config.webhookUrl,
+          presentation
+            ? presentationToDiscord(presentation)
+            : { content: `**${subject}**\n${text}`.slice(0, 1900) },
+        );
 
       case 'telegram': {
         const token = await this.telegramBotToken();
         if (!token) return { ok: false, errorClass: 'invalid_credentials', error: 'no telegram bot configured' };
+        const rich = presentation ? presentationToTelegram(presentation) : null;
         return this.post(`https://api.telegram.org/bot${token}/sendMessage`, {
           chat_id: config.chatId,
-          text: `${subject}\n\n${text}`.slice(0, 4000),
+          ...(rich
+            ? { text: rich.text, parse_mode: rich.parseMode }
+            : { text: `${subject}\n\n${text}`.slice(0, 4000) }),
         });
       }
 
@@ -117,7 +135,7 @@ export class PersonalTransmitter {
         return { ok: false, errorClass: 'unsupported_template', error: 'whatsapp transport not configured' };
 
       case 'email':
-        return this.sendEmail(config.address, subject, text);
+        return this.sendEmail(config.address, subject, text, presentation);
 
       default:
         return { ok: false, errorClass: 'malformed_payload', error: `unsupported channel ${channelType}` };
@@ -131,7 +149,12 @@ export class PersonalTransmitter {
    * configures once, while the address it delivers to is the user's own. No user
    * supplies SMTP credentials, so there is no per-user secret to leak.
    */
-  private async sendEmail(address: string, subject: string, text: string): Promise<TransmitResult> {
+  private async sendEmail(
+    address: string,
+    subject: string,
+    text: string,
+    presentation?: NotificationPresentation | null,
+  ): Promise<TransmitResult> {
     const transport = await this.prisma.notificationChannel.findFirst({
       where: { provider: 'email', enabled: true },
       orderBy: { createdAt: 'asc' },
@@ -146,7 +169,15 @@ export class PersonalTransmitter {
       const result = await provider.send(
         cfg as never,
         { email: address } as never,
-        { subject, text, html: null, markdown: null, card: { title: subject, subtitle: null } } as never,
+        {
+          subject,
+          text,
+          // The HTML part is the rich card; `text` stays the plain fallback, so a
+          // client that refuses HTML still gets the same facts in the same order.
+          html: presentation ? presentationToEmailHtml(presentation) : null,
+          markdown: null,
+          card: { title: subject, subtitle: null },
+        } as never,
       );
       return result?.ok
         ? { ok: true, accepted: true }

@@ -1,7 +1,13 @@
 # Rich Playback Presentation — Phase 1: Audit, Architecture & Gap Analysis
 
-**Status:** design only — no implementation changes.
+**Status:** Phase 1 complete (this document). Phases 2–4 implemented — see §8.
 **Date:** 2026-07-25 · **Baseline:** `3170862` (Personal Notification Engine complete)
+
+> **The concept image arrived after this document was written**, and confirmed the
+> design in §4 with two refinements now built: the headline is **two-tone** (accent
+> lead + neutral trail), and the fact table's second row is labelled **Media** for a
+> film but **Episode** for an episode. Everything in §0.1 below stands as the record
+> of designing without it.
 
 Phase 1 deliverable per the brief: audit the existing code, define the presentation
 architecture, and report the gaps *before* modifying anything.
@@ -217,4 +223,32 @@ warns against permission proliferation.
 5. **Scope for this pass** — the notification presentation only, or notifications *and*
    the dashboard rebuild together?
 
-**No implementation has been performed.**
+All five were answered: build for the two that fire · initials-only · reuse
+`view_live_activity` · omit the Discord thumbnail · **notifications only**.
+
+---
+
+## 8. What was built (Phases 2–4)
+
+| Phase | Delivered |
+|---|---|
+| 2 | `NotificationPresentation` in `@ultratorrent/shared`; builder registry; playback builder for both events; producer payloads enriched; `year` added to the session model and the Plex/Jellyfin/Emby maps; ownership-checked notification artwork proxy |
+| 3 | `RichNotificationCard` + `PresentationArtwork` + accent/icon token tables; inbox renders the card; `InboxItem.presentation` exposed (presentation only — never the rest of the stored payload) |
+| 4 | `presentationToText` / `Telegram` (HTML mode) / `Discord` (embed, accent as colour) / `EmailHtml` (inline styles, light palette); wired through the transmitter and delivery worker |
+
+### Deliberately not built
+
+- **Bell dropdown.** `NotificationBell` is a count-only indicator with no list to
+  host a compact card. The `compact` variant exists and is unused; building the
+  dropdown is the remaining piece of DoD #10.
+- **Artwork on external channels.** No token-free URL exists, and minting one was
+  ruled out. Discord omits the thumbnail per decision 4; Telegram and email omit
+  it for the same reason rather than reaching into the media-server integration
+  to upload bytes. A real limitation, recorded rather than papered over.
+- **WhatsApp.** Renderers apply, but no transport is configured on this install,
+  so end-to-end delivery still cannot be demonstrated.
+- **Preview surface** (DoD #19) and the **dashboard rebuild** (excluded by
+  decision 5).
+- **The `liveActivity()` `ipAddress` leak (§2) is still open.** It is a dashboard
+  endpoint, and decision 5 scoped this pass to notifications. The *notification*
+  path no longer carries an IP at all. Worth fixing on its own.

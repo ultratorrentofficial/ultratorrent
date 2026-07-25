@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Archive, CheckCheck, Inbox, Mail, MailOpen } from 'lucide-react';
 import { api, type InboxItem } from '@/lib/api';
+import { RichNotificationCard } from '@/components/notifications/presentation/RichNotificationCard';
 import { useToast } from '@/components/ui/toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -132,11 +133,29 @@ export function NotificationInboxPage() {
           {data.items.map((n) => (
             <Card key={n.id} className={n.read ? 'opacity-75' : undefined}>
               <CardContent className="space-y-1.5 p-3">
+                {/* A rich card replaces the title line entirely — it already
+                    states who did what to which title, and repeating that above
+                    it reads as a duplicate. The metadata row below stays either
+                    way, because severity, grouping and per-channel delivery are
+                    inbox concerns the card knows nothing about. */}
+                {n.presentation && (
+                  <button
+                    type="button"
+                    onClick={() => open(n)}
+                    className="block w-full text-left"
+                    aria-label={n.presentation.summary.text}
+                  >
+                    <RichNotificationCard presentation={n.presentation} />
+                  </button>
+                )}
+
                 <div className="flex flex-wrap items-center gap-2">
                   {!n.read && <span className="h-2 w-2 rounded-full bg-primary" aria-label={t('inbox.states.unread')} />}
-                  <button type="button" className="text-left font-medium hover:underline" onClick={() => open(n)}>
-                    {titleOf(n)}
-                  </button>
+                  {!n.presentation && (
+                    <button type="button" className="text-left font-medium hover:underline" onClick={() => open(n)}>
+                      {titleOf(n)}
+                    </button>
+                  )}
                   {n.groupCount > 1 && <Badge variant="outline">×{n.groupCount}</Badge>}
                   <Badge variant={SEV_VARIANT[n.severity] ?? 'outline'}>
                     {t(`matrix.severity.${n.severity}`)}
@@ -150,7 +169,7 @@ export function NotificationInboxPage() {
                   </span>
                 </div>
 
-                {n.body && <p className="text-sm text-muted-foreground">{n.body}</p>}
+                {n.body && !n.presentation && <p className="text-sm text-muted-foreground">{n.body}</p>}
 
                 {n.deliveries.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">

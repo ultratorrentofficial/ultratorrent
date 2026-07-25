@@ -30,6 +30,7 @@ import type {
   NormalizedPeer,
   NormalizedTorrent,
   NormalizedTracker,
+  NotificationPresentation,
   Paginated,
   TorrentMatchedRule,
   TrashItemDto,
@@ -4473,6 +4474,23 @@ export const api = {
       if (!res.ok) throw new ApiError(res.status, `Live artwork failed (${res.status})`);
       return res.blob();
     },
+    /**
+     * Poster for one of the caller's own notifications.
+     *
+     * Separate from `liveArtwork` because a finished session's row is deleted the
+     * moment playback ends — a "stopped watching" card has no session left to
+     * resolve through, so the backend re-fetches from the provider using what it
+     * recorded on the notification.
+     */
+    async notificationArtwork(notificationId: string): Promise<Blob> {
+      const token = getAccessToken();
+      const res = await fetch(
+        buildUrl(`/media-server-analytics/notifications/${notificationId}/artwork`),
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      if (!res.ok) throw new ApiError(res.status, `Notification artwork failed (${res.status})`);
+      return res.blob();
+    },
     watchHistory(query: PageQuery = {}): Promise<Paginated<MediaServerWatchHistoryRow>> {
       return request<Paginated<MediaServerWatchHistoryRow>>('/media-server-analytics/watch-history', { query: query as QueryParams });
     },
@@ -5026,6 +5044,8 @@ export interface InboxItem {
   createdAt: string;
   /** Per-channel outcome, so "was it also emailed?" is answerable. */
   deliveries: Array<{ channelType: string; status: string }>;
+  /** The rich card, when the producing event has a builder registered. */
+  presentation: NotificationPresentation | null;
 }
 
 export interface InboxPage {
