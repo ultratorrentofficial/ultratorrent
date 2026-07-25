@@ -36,6 +36,10 @@ model User {
 
   roles         UserRole[]
   refreshTokens RefreshToken[]
+  /// Personal notifications. Cascade on delete: a removed account keeps no
+  /// inbox and no preferences.
+  notifications           UserNotification[]
+  notificationPreferences UserNotificationPreference[]
   apiKeys       ApiKey[]
   auditLogs     AuditLog[]
   traktAccount  TraktAccount?
@@ -2959,4 +2963,67 @@ model MediaPlaybackAggregate {
   @@index([lastPlayedAt])
   @@index([computedAt])
   @@map("media_playback_aggregates")
+}
+
+
+// ---------------------------------------------------------------------------
+// Personal notifications.
+//
+// Both models are owned by exactly ONE local user — that is the entire design.
+// The system they replace had a nullable `userId` that was null for every row on
+// a live install, which made every in-app notification a broadcast.
+// ---------------------------------------------------------------------------
+
+/// One user's answer for one event: do I want it, and where.
+///
+/// Rows are written lazily — only when someone changes something. A user who has
+/// never opened the page has no rows and gets catalogue defaults, so adding an
+/// event to the catalogue is not a data migration across every account.
+model UserNotificationPreference {
+  id              String   @id @default(uuid())
+  userId          String
+  eventKey        String
+  /// Master switch. Off means the event never reaches this person at all.
+  enabled         Boolean  @default(true)
+  inAppEnabled    Boolean  @default(true)
+  emailEnabled    Boolean  @default(false)
+  telegramEnabled Boolean  @default(false)
+  discordEnabled  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventKey])
+  @@index([userId])
+  @@map("user_notification_preferences")
+}
+
+/// One in-app notification, belonging to exactly one user.
+model UserNotification {
+  id           String    @id @default(uuid())
+  userId       String
+  /// The domain event occurrence this came from. With `userId` it is the
+  /// idempotency key: a redelivered event cannot notify the same person twice.
+  eventId      String
+  eventKey     String
+  category     String
+  /// info | success | warning | error
+  severity     String    @default("info")
+  title        String
+  body         String?
+  /// In-app route target. Re-authorized on click — a hint, never a capability.
+  deepLink     String?
+  resourceType String?
+  resourceId   String?
+  readAt       DateTime?
+  archivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([userId, readAt, createdAt])
+  @@index([userId, archivedAt])
+  @@map("user_notifications")
 }

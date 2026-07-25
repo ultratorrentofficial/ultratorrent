@@ -1,0 +1,152 @@
+{
+  "bell": {
+    "unread": "{{count}} notificaciones sin leer",
+    "none": "No hay notificaciones sin leer"
+  },
+  "categories": {
+    "playback": "Reproducción",
+    "downloads": "Descargas",
+    "storage": "Almacenamiento",
+    "workflows": "Flujos de trabajo",
+    "providers": "Proveedores",
+    "security": "Seguridad",
+    "users": "Usuarios"
+  },
+  "channels": {
+    "in_app": "En la app",
+    "email": "Correo",
+    "telegram": "Telegram",
+    "discord": "Discord"
+  },
+  "severities": {
+    "info": "Información",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "error": "Error"
+  },
+  "events": {
+    "title": "Eventos de notificación",
+    "subtitle": "Elige qué eventos quieres y dónde recibirlos.",
+    "event": "Evento",
+    "searchPlaceholder": "Buscar eventos…",
+    "category": "Categoría",
+    "allCategories": "Todas las categorías",
+    "empty": "Ningún evento coincide con tus filtros.",
+    "loadError": "No se pudo cargar tu configuración de notificaciones.",
+    "saveFailed": "No se pudo guardar ese cambio.",
+    "notConnected": "Sin conectar",
+    "media_server": {
+      "user_started_watching": {
+        "title": "Usuario comenzó a ver",
+        "description": "Alguien comenzó a reproducir algo en un servidor multimedia."
+      },
+      "user_stopped_watching": {
+        "title": "Usuario detuvo la reproducción",
+        "description": "Una sesión de reproducción terminó."
+      },
+      "refresh_failed": {
+        "title": "Falló la actualización del servidor",
+        "description": "Una actualización de biblioteca no se completó."
+      }
+    },
+    "torrent": {
+      "completed": {
+        "title": "Torrent completado",
+        "description": "Una descarga terminó."
+      },
+      "failed": {
+        "title": "Torrent fallido",
+        "description": "Una descarga entró en estado de error."
+      }
+    },
+    "system": {
+      "storage_warning": {
+        "title": "Poco almacenamiento",
+        "description": "Una ubicación de almacenamiento se está quedando sin espacio."
+      },
+      "storage_critical": {
+        "title": "Almacenamiento crítico",
+        "description": "Una ubicación de almacenamiento está casi llena."
+      },
+      "storage_recovered": {
+        "title": "Almacenamiento recuperado",
+        "description": "Una ubicación de almacenamiento tiene espacio otra vez."
+      }
+    },
+    "workflow": {
+      "approval_requested": {
+        "title": "Aprobación de flujo solicitada",
+        "description": "Un flujo de trabajo espera tu decisión."
+      },
+      "execution_failed": {
+        "title": "Flujo fallido",
+        "description": "Una ejecución de flujo de trabajo falló."
+      },
+      "execution_completed": {
+        "title": "Flujo completado",
+        "description": "Una ejecución de flujo de trabajo terminó con éxito."
+      }
+    },
+    "provider": {
+      "offline": {
+        "title": "Proveedor sin conexión",
+        "description": "Un servicio conectado dejó de responder."
+      },
+      "recovered": {
+        "title": "Proveedor recuperado",
+        "description": "Un servicio conectado responde de nuevo."
+      }
+    },
+    "security": {
+      "login_failed": {
+        "title": "Intento de inicio de sesión fallido",
+        "description": "Alguien intentó iniciar sesión en tu cuenta y falló."
+      },
+      "password_changed": {
+        "title": "Contraseña cambiada",
+        "description": "La contraseña de tu cuenta fue cambiada."
+      },
+      "api_key_created": {
+        "title": "Clave de API creada",
+        "description": "Se emitió una nueva clave de API para tu cuenta."
+      },
+      "two_factor_disabled": {
+        "title": "Doble factor desactivado",
+        "description": "La autenticación de doble factor fue desactivada."
+      }
+    },
+    "user": {
+      "created": {
+        "title": "Usuario creado",
+        "description": "Se añadió una nueva cuenta a la plataforma."
+      },
+      "role_changed": {
+        "title": "Roles de usuario cambiados",
+        "description": "Los roles de una cuenta fueron cambiados."
+      }
+    }
+  },
+  "inbox": {
+    "title": "Bandeja de entrada",
+    "subtitle": "Notificaciones enviadas a ti.",
+    "searchPlaceholder": "Buscar notificaciones…",
+    "state": "Estado",
+    "category": "Categoría",
+    "allCategories": "Todas las categorías",
+    "markRead": "Marcar como leída",
+    "markUnread": "Marcar como no leída",
+    "markAllRead": "Marcar todas como leídas",
+    "archive": "Archivar",
+    "allRead": "Todas las notificaciones marcadas como leídas.",
+    "empty": "Todavía no hay nada.",
+    "emptyHint": "Aquí aparecerán las notificaciones que hayas activado.",
+    "loadError": "No se pudo cargar tu bandeja de entrada.",
+    "actionFailed": "Esa acción falló.",
+    "states": {
+      "all": "Todas",
+      "unread": "Sin leer",
+      "read": "Leídas",
+      "archived": "Archivadas"
+    }
+  }
+}

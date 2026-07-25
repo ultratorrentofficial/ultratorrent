@@ -79,7 +79,9 @@
   },
   "user": {
     "accountSecurity": "Cuenta y seguridad",
-    "signOut": "Cerrar sesión"
+    "signOut": "Cerrar sesión",
+    "notificationInbox": "Bandeja de notificaciones",
+    "notificationEvents": "Eventos de notificación"
   },
   "language": {
     "label": "Idioma"

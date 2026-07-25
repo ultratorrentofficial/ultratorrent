@@ -149,6 +149,16 @@ export const PERMISSIONS = {
   MEDIA_MANAGER_IMDB_SEARCH: 'media_manager.imdb.search',
   MEDIA_MANAGER_IMDB_MATCH: 'media_manager.imdb.match',
 
+  // --- Personal notifications (self-service) --------------------------------
+  // Held by every ordinary account. Managing your OWN notifications is part of
+  // owning an account, not a privilege an admin grants. These gate
+  // /api/account/notifications/*, where the acting user always comes from the
+  // JWT — never a request parameter — so holding one conveys no access to
+  // anyone else's data. Ownership is asserted separately and unconditionally.
+  NOTIFICATIONS_VIEW_OWN: 'notifications.view_own',
+  NOTIFICATIONS_MANAGE_OWN: 'notifications.manage_own',
+  NOTIFICATIONS_CHANNELS_MANAGE_OWN: 'notifications.channels_manage_own',
+
 
 
 
@@ -237,6 +247,9 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     (p) => !NEVER_INHERITED_PERMISSIONS.includes(p),
   ),
   [SystemRole.POWER_USER]: [
+    PERMISSIONS.NOTIFICATIONS_VIEW_OWN,
+    PERMISSIONS.NOTIFICATIONS_MANAGE_OWN,
+    PERMISSIONS.NOTIFICATIONS_CHANNELS_MANAGE_OWN,
     PERMISSIONS.TORRENTS_VIEW,
     PERMISSIONS.TORRENTS_ADD,
     PERMISSIONS.TORRENTS_PAUSE,
@@ -314,6 +327,9 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.JOBS_VIEW_WORKERS,
   ],
   [SystemRole.USER]: [
+    PERMISSIONS.NOTIFICATIONS_VIEW_OWN,
+    PERMISSIONS.NOTIFICATIONS_MANAGE_OWN,
+    PERMISSIONS.NOTIFICATIONS_CHANNELS_MANAGE_OWN,
     PERMISSIONS.TORRENTS_VIEW,
     PERMISSIONS.TORRENTS_ADD,
     PERMISSIONS.TORRENTS_PAUSE,
@@ -336,6 +352,9 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.JOBS_VIEW_EVENTS,
   ],
   [SystemRole.READ_ONLY]: [
+    PERMISSIONS.NOTIFICATIONS_VIEW_OWN,
+    PERMISSIONS.NOTIFICATIONS_MANAGE_OWN,
+    PERMISSIONS.NOTIFICATIONS_CHANNELS_MANAGE_OWN,
     PERMISSIONS.TORRENTS_VIEW,
     PERMISSIONS.RSS_VIEW,
     PERMISSIONS.RSS_SHOW_STATUS_LOOKUP,

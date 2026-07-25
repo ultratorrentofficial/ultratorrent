@@ -23,6 +23,8 @@ import { JobsSettingsPage } from '@/pages/jobs/JobsSettingsPage';
 import { WorkflowsListPage } from '@/pages/workflows/WorkflowsListPage';
 import { WorkflowApprovalsPage } from '@/pages/workflows/WorkflowApprovalsPage';
 // The visual editor pulls in the @xyflow canvas — lazy-load it so it stays off the main bundle.
+const NotificationInboxPage = lazy(() => import('@/pages/account/notifications/NotificationInboxPage').then((m) => ({ default: m.NotificationInboxPage })));
+const NotificationEventsPage = lazy(() => import('@/pages/account/notifications/NotificationEventsPage').then((m) => ({ default: m.NotificationEventsPage })));
 const WorkflowEditorPage = lazy(() => import('@/pages/workflows/WorkflowEditorPage').then((m) => ({ default: m.WorkflowEditorPage })));
 import { TorrentsPage } from '@/pages/TorrentsPage';
 import { RssPage } from '@/pages/RssPage';
@@ -106,6 +108,8 @@ export function App() {
                       <Route path="/dashboard" element={<DashboardPage />} />
                       <Route path="/hub/:domainId" element={<ModuleHubPage />} />
                       <Route path="/account" element={<ProfilePage />} />
+                      <Route path="/account/notifications/inbox" element={<NotificationInboxPage />} />
+                      <Route path="/account/notifications/events" element={<NotificationEventsPage />} />
                     </Route>
                   </Route>
 

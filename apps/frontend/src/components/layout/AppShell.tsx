@@ -34,7 +34,9 @@ import { BreadcrumbProvider } from '@/components/layout/BreadcrumbContext';
 import { MobileDomainBar } from '@/components/layout/MobileDomainBar';
 import { WorkspaceRail } from '@/components/layout/WorkspaceRail';
 import { useSwipeToDismiss } from '@/components/layout/useSwipe';
+import { Inbox, SlidersHorizontal } from 'lucide-react';
 import { CommandPalette } from '@/components/layout/CommandPalette';
+import { NotificationBell } from '@/components/layout/NotificationBell';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import {
   activeEntryId,
@@ -1042,6 +1044,7 @@ function TopBar({ onMenu, onAbout, onOpenCommand }: { onMenu: () => void; onAbou
         />
         <ConnectionDot status={status} />
         <LanguageSwitcher className="hidden sm:flex" />
+        <NotificationBell />
         <UserMenu onAbout={onAbout} />
       </div>
     </header>
@@ -1154,6 +1157,28 @@ function UserMenu({ onAbout }: { onAbout: () => void }) {
             >
               <UserCog className="h-4 w-4" />
               {t('user.accountSecurity')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                navigate('/account/notifications/inbox');
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-white/5"
+            >
+              <Inbox className="h-4 w-4" />
+              {t('user.notificationInbox')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                navigate('/account/notifications/events');
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-white/5"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              {t('user.notificationEvents')}
             </button>
             <button
               type="button"

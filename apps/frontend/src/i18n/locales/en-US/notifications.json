@@ -1,0 +1,152 @@
+{
+  "bell": {
+    "unread": "{{count}} unread notifications",
+    "none": "No unread notifications"
+  },
+  "categories": {
+    "playback": "Playback",
+    "downloads": "Downloads",
+    "storage": "Storage",
+    "workflows": "Workflows",
+    "providers": "Providers",
+    "security": "Security",
+    "users": "Users"
+  },
+  "channels": {
+    "in_app": "In-App",
+    "email": "Email",
+    "telegram": "Telegram",
+    "discord": "Discord"
+  },
+  "severities": {
+    "info": "Info",
+    "success": "Success",
+    "warning": "Warning",
+    "error": "Error"
+  },
+  "events": {
+    "title": "Notification events",
+    "subtitle": "Choose which events you want, and where they arrive.",
+    "event": "Event",
+    "searchPlaceholder": "Search events…",
+    "category": "Category",
+    "allCategories": "All categories",
+    "empty": "No events match your filters.",
+    "loadError": "Could not load your notification settings.",
+    "saveFailed": "Could not save that change.",
+    "notConnected": "Not connected",
+    "media_server": {
+      "user_started_watching": {
+        "title": "User started watching",
+        "description": "Someone began playing something on a media server."
+      },
+      "user_stopped_watching": {
+        "title": "User stopped watching",
+        "description": "A playback session ended."
+      },
+      "refresh_failed": {
+        "title": "Media-server refresh failed",
+        "description": "A library refresh did not complete."
+      }
+    },
+    "torrent": {
+      "completed": {
+        "title": "Torrent completed",
+        "description": "A download finished."
+      },
+      "failed": {
+        "title": "Torrent failed",
+        "description": "A download entered the error state."
+      }
+    },
+    "system": {
+      "storage_warning": {
+        "title": "Storage low",
+        "description": "A storage location is running low on space."
+      },
+      "storage_critical": {
+        "title": "Storage critical",
+        "description": "A storage location is nearly full."
+      },
+      "storage_recovered": {
+        "title": "Storage recovered",
+        "description": "A storage location has free space again."
+      }
+    },
+    "workflow": {
+      "approval_requested": {
+        "title": "Workflow approval requested",
+        "description": "A workflow is waiting for your decision."
+      },
+      "execution_failed": {
+        "title": "Workflow failed",
+        "description": "A workflow run failed."
+      },
+      "execution_completed": {
+        "title": "Workflow completed",
+        "description": "A workflow run finished successfully."
+      }
+    },
+    "provider": {
+      "offline": {
+        "title": "Provider offline",
+        "description": "A connected service stopped responding."
+      },
+      "recovered": {
+        "title": "Provider recovered",
+        "description": "A connected service is responding again."
+      }
+    },
+    "security": {
+      "login_failed": {
+        "title": "Failed sign-in attempt",
+        "description": "Someone tried to sign in to your account and failed."
+      },
+      "password_changed": {
+        "title": "Password changed",
+        "description": "Your account password was changed."
+      },
+      "api_key_created": {
+        "title": "API key created",
+        "description": "A new API key was issued for your account."
+      },
+      "two_factor_disabled": {
+        "title": "Two-factor disabled",
+        "description": "Two-factor authentication was turned off."
+      }
+    },
+    "user": {
+      "created": {
+        "title": "User created",
+        "description": "A new account was added to the platform."
+      },
+      "role_changed": {
+        "title": "User roles changed",
+        "description": "An account's roles were changed."
+      }
+    }
+  },
+  "inbox": {
+    "title": "Inbox",
+    "subtitle": "Notifications sent to you.",
+    "searchPlaceholder": "Search notifications…",
+    "state": "State",
+    "category": "Category",
+    "allCategories": "All categories",
+    "markRead": "Mark read",
+    "markUnread": "Mark unread",
+    "markAllRead": "Mark all read",
+    "archive": "Archive",
+    "allRead": "All notifications marked read.",
+    "empty": "Nothing here yet.",
+    "emptyHint": "Notifications you have opted into will appear here.",
+    "loadError": "Could not load your inbox.",
+    "actionFailed": "That action failed.",
+    "states": {
+      "all": "All",
+      "unread": "Unread",
+      "read": "Read",
+      "archived": "Archived"
+    }
+  }
+}

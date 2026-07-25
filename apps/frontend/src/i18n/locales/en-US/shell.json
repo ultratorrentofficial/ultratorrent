@@ -79,7 +79,9 @@
   },
   "user": {
     "accountSecurity": "Account & security",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "notificationInbox": "Notification inbox",
+    "notificationEvents": "Notification events"
   },
   "language": {
     "label": "Language"

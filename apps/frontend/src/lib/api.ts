@@ -30,6 +30,8 @@ import type {
   NormalizedPeer,
   NormalizedTorrent,
   NormalizedTracker,
+  NotificationCategory,
+  NotificationSeverity,
   Paginated,
   TorrentMatchedRule,
   TrashItemDto,
@@ -3546,6 +3548,53 @@ export const api = {
   },
 
   account: {
+    /**
+     * Personal notifications. Every route derives the user from the JWT — none
+     * of them takes a user id, so there is no shape of call that reaches another
+     * person's data.
+     */
+    notifications: {
+      preferences(): Promise<{ rows: NotificationEventRowDto[] }> {
+        return request<{ rows: NotificationEventRowDto[] }>('/account/notifications/preferences');
+      },
+      updatePreference(
+        eventKey: string,
+        patch: Partial<Omit<NotificationPreferenceDto, 'eventKey'>>,
+      ): Promise<NotificationPreferenceDto> {
+        return request<NotificationPreferenceDto>(
+          `/account/notifications/preferences/${encodeURIComponent(eventKey)}`,
+          { method: 'PUT', body: patch },
+        );
+      },
+      bulkUpdate(
+        eventKeys: string[],
+        patch: Partial<Omit<NotificationPreferenceDto, 'eventKey'>>,
+      ): Promise<{ updated: number; skipped: string[] }> {
+        return request<{ updated: number; skipped: string[] }>('/account/notifications/preferences/bulk', {
+          method: 'POST',
+          body: { eventKeys, patch },
+        });
+      },
+      inbox(q: Record<string, string> = {}): Promise<InboxPageDto> {
+        const qs = new URLSearchParams(Object.entries(q).filter(([, v]) => v)).toString();
+        return request<InboxPageDto>(`/account/notifications/inbox${qs ? `?${qs}` : ''}`);
+      },
+      unreadCount(): Promise<{ unread: number }> {
+        return request<{ unread: number }>('/account/notifications/inbox/unread-count');
+      },
+      markRead(id: string, read = true): Promise<InboxNotificationDto> {
+        return request<InboxNotificationDto>(
+          `/account/notifications/inbox/${id}/${read ? 'read' : 'unread'}`,
+          { method: 'POST' },
+        );
+      },
+      archive(id: string): Promise<InboxNotificationDto> {
+        return request<InboxNotificationDto>(`/account/notifications/inbox/${id}/archive`, { method: 'POST' });
+      },
+      markAllRead(): Promise<{ updated: number }> {
+        return request<{ updated: number }>('/account/notifications/inbox/mark-all-read', { method: 'POST' });
+      },
+    },
     profile(): Promise<AccountProfile> {
       return request<AccountProfile>('/account/profile');
     },
@@ -4661,6 +4710,58 @@ export const api = {
   },
 
 };
+
+
+// --- Personal notifications --------------------------------------------------
+
+export interface NotificationEventDefinitionDto {
+  key: string;
+  category: NotificationCategory;
+  severity: NotificationSeverity;
+  titleKey: string;
+  descriptionKey: string;
+  defaultInApp: boolean;
+  recipientStrategy: string;
+  requiredPermission?: string;
+  presentationBuilder: string;
+}
+
+export interface NotificationPreferenceDto {
+  eventKey: string;
+  enabled: boolean;
+  inAppEnabled: boolean;
+  emailEnabled: boolean;
+  telegramEnabled: boolean;
+  discordEnabled: boolean;
+}
+
+export interface NotificationEventRowDto {
+  definition: NotificationEventDefinitionDto;
+  preference: NotificationPreferenceDto;
+  customized: boolean;
+}
+
+export interface InboxNotificationDto {
+  id: string;
+  eventKey: string;
+  category: NotificationCategory;
+  severity: NotificationSeverity;
+  title: string;
+  body: string | null;
+  deepLink: string | null;
+  resourceType: string | null;
+  resourceId: string | null;
+  read: boolean;
+  archived: boolean;
+  createdAt: string;
+}
+
+export interface InboxPageDto {
+  items: InboxNotificationDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
 
 export interface Newsletter {
   id: string;
