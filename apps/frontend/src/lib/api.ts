@@ -3546,6 +3546,35 @@ export const api = {
   },
 
   account: {
+    /** Personal notification engine — every route is scoped to the JWT's user. */
+    notifications: {
+      events(): Promise<AccountNotificationEventRow[]> {
+        return request<AccountNotificationEventRow[]>('/account/notifications/events');
+      },
+      setPreference(eventKey: string, body: AccountPreferencePatch): Promise<EffectiveEventPreference> {
+        return request<EffectiveEventPreference>(`/account/notifications/preferences/${encodeURIComponent(eventKey)}`, {
+          method: 'PUT', body,
+        });
+      },
+      setRoutes(eventKey: string, routes: EffectiveEventRouteInput[]): Promise<EffectiveEventPreference> {
+        return request<EffectiveEventPreference>(`/account/notifications/preferences/${encodeURIComponent(eventKey)}/routes`, {
+          method: 'PUT', body: { routes },
+        });
+      },
+      resetEvent(eventKey: string): Promise<EffectiveEventPreference> {
+        return request<EffectiveEventPreference>(`/account/notifications/preferences/${encodeURIComponent(eventKey)}/reset`, {
+          method: 'POST',
+        });
+      },
+      resetAll(): Promise<{ cleared: number }> {
+        return request<{ cleared: number }>('/account/notifications/preferences/reset', { method: 'POST' });
+      },
+      bulk(eventKeys: string[], action: AccountBulkAction): Promise<AccountBulkResult> {
+        return request<AccountBulkResult>('/account/notifications/preferences/bulk', {
+          method: 'POST', body: { eventKeys, action },
+        });
+      },
+    },
     profile(): Promise<AccountProfile> {
       return request<AccountProfile>('/account/profile');
     },
@@ -4844,6 +4873,83 @@ export interface NotificationRouting {
   recipientId: string;
   event: string;
   channelIds: string[];
+}
+
+
+// --- Personal Notification Engine ------------------------------------------
+
+export type NotificationChannelType = 'in_app' | 'email' | 'telegram' | 'whatsapp' | 'discord';
+export type NotificationDeliveryMode =
+  | 'immediate' | 'quiet_hours_queue' | 'daily_digest' | 'weekly_digest' | 'disabled' | 'custom';
+export type NotificationSeverity = 'info' | 'success' | 'warning' | 'error' | 'critical' | 'security';
+export type QuietHoursBehavior = 'respect' | 'bypass' | 'digest' | 'suppress';
+
+/** One selected destination. `channelConnectionId` is null only for the in-app route. */
+export interface EffectiveEventRouteInput {
+  channelType: NotificationChannelType;
+  channelConnectionId?: string | null;
+  enabled?: boolean;
+  deliveryMode?: NotificationDeliveryMode | null;
+}
+
+export interface EffectiveEventRoute {
+  channelType: NotificationChannelType;
+  channelConnectionId: string | null;
+  enabled: boolean;
+  deliveryMode: NotificationDeliveryMode | null;
+}
+
+export interface EffectiveEventPreference {
+  eventKey: string;
+  enabled: boolean;
+  deliveryMode: NotificationDeliveryMode;
+  quietHoursBehavior: QuietHoursBehavior;
+  minSeverity: NotificationSeverity | null;
+  dedupeWindowSec: number | null;
+  aggregationWindowMin: number | null;
+  routes: EffectiveEventRoute[];
+  /** True when nothing is stored and every value came from the catalogue. */
+  isDefault: boolean;
+}
+
+/** Catalogue metadata for one event, as the matrix renders it. */
+export interface NotificationEventDefinitionDto {
+  key: string;
+  category: string;
+  severity: NotificationSeverity;
+  titleKey: string;
+  descriptionKey: string;
+  supportedChannels: NotificationChannelType[];
+  requiredPermission?: string;
+  audience: string;
+  sensitivity: 'normal' | 'sensitive' | 'security';
+  deepLinkTemplate?: string;
+  deduplication?: { enabled: boolean; windowSeconds?: number };
+  aggregation?: { supported: boolean; defaultWindowMinutes?: number };
+}
+
+export interface AccountNotificationEventRow {
+  definition: NotificationEventDefinitionDto;
+  preference: EffectiveEventPreference;
+}
+
+export interface AccountPreferencePatch {
+  enabled?: boolean | null;
+  deliveryMode?: NotificationDeliveryMode | null;
+  quietHoursBehavior?: QuietHoursBehavior | null;
+  minSeverity?: string | null;
+}
+
+export type AccountBulkAction =
+  | { kind: 'enable_channel'; channelType: NotificationChannelType; channelConnectionId?: string | null }
+  | { kind: 'disable_channel'; channelType: NotificationChannelType }
+  | { kind: 'set_delivery_mode'; deliveryMode: NotificationDeliveryMode }
+  | { kind: 'set_enabled'; enabled: boolean }
+  | { kind: 'reset' };
+
+export interface AccountBulkResult {
+  applied: number;
+  skipped: Array<{ eventKey: string; reason: string }>;
 }
 
 export interface NotificationGroup {

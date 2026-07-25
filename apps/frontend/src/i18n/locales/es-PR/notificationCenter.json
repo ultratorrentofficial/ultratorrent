@@ -217,5 +217,121 @@
     "forced": "forzada",
     "forcedHint": "Un administrador fijó los canales de esta regla; un perfil de enrutamiento no puede cambiarla ni silenciarla.",
     "forcedTo": "siempre va a {{names}}"
+  },
+  "matrix": {
+    "title": "Eventos de notificación",
+    "subtitle": "Elige qué eventos te llegan y cómo. Estos ajustes son solo tuyos.",
+    "loadError": "No se pudieron cargar tus eventos de notificación.",
+    "saved": "Guardado.",
+    "saveFailed": "No se pudo guardar ese cambio.",
+    "noMatches": "Ningún evento coincide con estos filtros.",
+    "showing": "Mostrando {{visible}} de {{total}} eventos",
+    "selected": "{{count}} seleccionados",
+    "selectAll": "Seleccionar todos los eventos visibles",
+    "selectRow": "Seleccionar {{name}}",
+    "customized": "personalizado",
+    "resetAll": "Restaurar todos los valores predeterminados",
+    "resetAllConfirm": "¿Restaurar todos los eventos a sus valores predeterminados? Tus conexiones no se ven afectadas.",
+    "resetDone": "Valores predeterminados restaurados.",
+    "noDescription": "No hay descripción disponible.",
+    "bulkApplied": "Se actualizaron {{count}} eventos.",
+    "bulkPartial": "Se actualizaron {{applied}} eventos; {{skipped}} omitidos (no compatibles).",
+    "col": {
+      "event": "Evento",
+      "category": "Categoría",
+      "severity": "Severidad",
+      "whenToSend": "Cuándo enviar"
+    },
+    "cell": {
+      "enabled": "habilitado",
+      "disabled": "deshabilitado",
+      "unsupported": "no disponible para este evento"
+    },
+    "filters": {
+      "search": "Buscar",
+      "searchPlaceholder": "Buscar eventos…",
+      "categories": "Categorías",
+      "severity": "Severidad",
+      "channels": "Canales",
+      "state": "Estado",
+      "deliveryMode": "Cuándo enviar",
+      "clear": "Limpiar filtros ({{count}})"
+    },
+    "state": {
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado",
+      "customized": "Personalizado",
+      "default": "Predeterminado",
+      "missing_channel": "Falta conexión"
+    },
+    "channel": {
+      "in_app": "En la app",
+      "email": "Correo",
+      "telegram": "Telegram",
+      "whatsapp": "WhatsApp",
+      "discord": "Discord"
+    },
+    "severity": {
+      "info": "Información",
+      "success": "Éxito",
+      "warning": "Advertencia",
+      "error": "Error",
+      "critical": "Crítico",
+      "security": "Seguridad"
+    },
+    "mode": {
+      "immediate": "Inmediato",
+      "quiet_hours_queue": "En cola hasta que terminen las horas de silencio",
+      "daily_digest": "Resumen diario",
+      "weekly_digest": "Resumen semanal",
+      "disabled": "Deshabilitado",
+      "custom": "Personalizado"
+    },
+    "quiet": {
+      "respect": "Respetar horas de silencio",
+      "bypass": "Omitir horas de silencio",
+      "digest": "Convertir en resumen",
+      "suppress": "Suprimir"
+    },
+    "category": {
+      "security": "Seguridad",
+      "account": "Cuenta",
+      "system": "Sistema",
+      "storage": "Almacenamiento",
+      "downloads": "Descargas",
+      "media": "Medios",
+      "media_server": "Servidor de medios",
+      "automation": "Automatización",
+      "workflow": "Flujo de trabajo",
+      "jobs": "Trabajos"
+    },
+    "audience": {
+      "actor": "Tú, cuando lo causaste",
+      "subject_user": "Tú, cuando se trata de tu cuenta",
+      "resource_owner": "El propietario y quien lo ejecutó",
+      "approvers": "Personas que pueden aprobarlo",
+      "permission_holders": "Personas que pueden ver el recurso",
+      "administrators": "Administradores",
+      "explicit_users": "Personas indicadas",
+      "all_eligible_system_users": "Todos los usuarios"
+    },
+    "bulk": {
+      "enable": "Habilitar",
+      "disable": "Deshabilitar",
+      "enableInApp": "Habilitar en la app",
+      "disableInApp": "Deshabilitar en la app",
+      "setMode": "Establecer cuándo enviar…",
+      "reset": "Restaurar predeterminados"
+    },
+    "drawer": {
+      "audience": "Enviado a",
+      "supported": "Canales compatibles",
+      "routes": "Tus destinos",
+      "noRoutes": "Ninguno seleccionado",
+      "quietHours": "Horas de silencio",
+      "securityEvent": "Evento de seguridad — siempre se entrega",
+      "restoreDefault": "Restaurar predeterminado",
+      "close": "Cerrar"
+    }
   }
 }

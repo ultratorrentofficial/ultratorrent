@@ -89,7 +89,8 @@
     "Watch History": "Watch History",
     "Workflow Approvals": "Workflow Approvals",
     "Workflows": "Workflows",
-    "Routing Profiles": "Routing Profiles"
+    "Routing Profiles": "Routing Profiles",
+    "My Notification Events": "My Notification Events"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",
@@ -158,7 +159,8 @@
     "Watch History": "Completed playback history",
     "Workflow Approvals": "Decide workflow steps awaiting approval",
     "Workflows": "Design automations visually on a canvas",
-    "Routing Profiles": "Per-person channel routing: which channels deliver which events to each user."
+    "Routing Profiles": "Per-person channel routing: which channels deliver which events to each user.",
+    "My Notification Events": "Your personal notification events: which events reach you, and on which channels."
   },
   "details": {
     "Account": "Account",

@@ -78,6 +78,7 @@ import { NotificationTemplatesPage } from '@/pages/notification-center/Notificat
 import { NotificationGroupsPage } from '@/pages/notification-center/NotificationGroupsPage';
 import { NotificationQueuePage } from '@/pages/notification-center/NotificationQueuePage';
 import { NotificationProviderHealthPage } from '@/pages/notification-center/NotificationProviderHealthPage';
+import { NotificationEventsPage } from '@/pages/account/notifications/NotificationEventsPage';
 import { NotificationRoutingPage } from '@/pages/notification-center/NotificationRoutingPage';
 import { NotificationPreferencesPage } from '@/pages/notification-center/NotificationPreferencesPage';
 import { NotificationSettingsPage } from '@/pages/notification-center/NotificationSettingsPage';
@@ -118,6 +119,7 @@ export function App() {
                       <Route path="/dashboard" element={<DashboardPage />} />
                       <Route path="/hub/:domainId" element={<ModuleHubPage />} />
                       <Route path="/account" element={<ProfilePage />} />
+                      <Route path="/account/notifications/events" element={<NotificationEventsPage />} />
                     </Route>
                   </Route>
 

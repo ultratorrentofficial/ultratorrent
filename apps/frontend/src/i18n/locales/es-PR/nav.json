@@ -89,7 +89,8 @@
     "Watch History": "Historial de Reproducción",
     "Workflow Approvals": "Aprobaciones de flujo",
     "Workflows": "Flujos de trabajo",
-    "Routing Profiles": "Perfiles de enrutamiento"
+    "Routing Profiles": "Perfiles de enrutamiento",
+    "My Notification Events": "Mis eventos de notificación"
   },
   "descriptions": {
     "Acquisition Intelligence": "Adquisición y mejoras inteligentes",
@@ -158,7 +159,8 @@
     "Watch History": "Historial de reproducciones completadas",
     "Workflow Approvals": "Decide pasos de flujo que esperan aprobación",
     "Workflows": "Diseña automatizaciones visualmente en un lienzo",
-    "Routing Profiles": "Enrutamiento de canales por persona: qué canales entregan cuáles eventos a cada usuario."
+    "Routing Profiles": "Enrutamiento de canales por persona: qué canales entregan cuáles eventos a cada usuario.",
+    "My Notification Events": "Tus eventos de notificación personales: qué eventos te llegan y por cuáles canales."
   },
   "details": {
     "Account": "Cuenta",
