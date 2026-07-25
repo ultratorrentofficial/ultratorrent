@@ -18,6 +18,8 @@ import {
   MinLength,
 } from 'class-validator';
 import type { Request } from 'express';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
@@ -91,6 +93,7 @@ export class AccountController {
     private readonly auth: AuthService,
     private readonly twoFactor: TwoFactorService,
     private readonly audit: AuditService,
+    private readonly bus: DomainEventBus,
   ) {}
 
   @Get('profile')
@@ -118,6 +121,16 @@ export class AccountController {
       action: 'account.password_changed',
       result: 'success',
       ...reqCtx(req),
+    });
+    // Told to the account owner — an unexpected one here is how someone notices
+    // a compromise.
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.SECURITY_PASSWORD_CHANGED,
+      subjectUserId: user.id,
+      actorUserId: user.id,
+      resourceType: 'user',
+      resourceId: user.id,
+      payload: {},
     });
     return { success: true };
   }
@@ -160,6 +173,14 @@ export class AccountController {
       action: 'account.2fa_disabled',
       result: 'success',
       ...reqCtx(req),
+    });
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.SECURITY_TWO_FACTOR_DISABLED,
+      subjectUserId: user.id,
+      actorUserId: user.id,
+      resourceType: 'user',
+      resourceId: user.id,
+      payload: {},
     });
     return { success: true };
   }

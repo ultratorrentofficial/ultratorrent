@@ -3,6 +3,8 @@ import { ModuleRef } from '@nestjs/core';
 import * as path from 'node:path';
 import type { MediaLibrary, Prisma } from '@prisma/client';
 import { type NormalizedTorrent } from '@ultratorrent/shared';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AutomationEngine } from '../automation/automation.module';
 import { MediaScannerService } from './media-scanner.service';
@@ -51,6 +53,7 @@ export class MediaProcessingService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly bus: DomainEventBus,
     // Lazily resolved (see below) to break the MediaModule ⇄ AutomationModule
     // cycle: AutomationModule imports MediaService/MediaAutomationActions from
     // here, so AutomationEngine can't be a construction-time dependency.
@@ -397,7 +400,9 @@ export class MediaProcessingService {
   private async refreshServers(t: NormalizedTorrent): Promise<void> {
     const enabled = await this.prisma.mediaServerIntegration.findMany({
       where: { isEnabled: true },
-      select: { id: true },
+      // `name` is selected for the failure event, which must say WHICH server
+      // failed — "a media server could not refresh" is not actionable.
+      select: { id: true, name: true },
     });
     for (const integration of enabled) {
       try {
@@ -409,6 +414,12 @@ export class MediaProcessingService {
           `Media-server refresh failed for ${integration.id}: ${(err as Error).message}`,
         );
         this.fire('media.server_refresh_failed', t);
+        this.bus.publish({
+          eventKey: DOMAIN_EVENTS.MEDIA_SERVER_REFRESH_FAILED,
+          resourceType: 'media_server_integration',
+          resourceId: integration.id,
+          payload: { serverName: integration.name ?? integration.id, reason: (err as Error).message },
+        });
       }
     }
   }

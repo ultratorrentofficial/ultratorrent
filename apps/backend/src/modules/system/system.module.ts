@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import { statfs } from 'node:fs/promises';
 import * as os from 'node:os';
 import { PERMISSIONS } from '@ultratorrent/shared';
+import { StorageWatchService } from './storage-watch.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -171,7 +172,7 @@ export class SystemController {
 
 @Module({
   imports: [SettingsModule],
-  providers: [SystemService, SystemUpdateService],
+  providers: [StorageWatchService, SystemService, SystemUpdateService],
   controllers: [SystemController],
 })
 export class SystemModule {}

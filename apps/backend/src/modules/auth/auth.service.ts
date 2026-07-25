@@ -8,6 +8,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { AuthUser, LoginResponse } from '@ultratorrent/shared';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { TwoFactorService } from '../two-factor/two-factor.service';
 
@@ -35,6 +37,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly twoFactor: TwoFactorService,
+    private readonly bus: DomainEventBus,
   ) {}
 
   private hashToken(token: string): string {
@@ -120,8 +123,18 @@ export class AuthService {
    * threshold. Resets the counter when it locks so the next window starts clean.
    * Best-effort — a bookkeeping failure must not change the caller's 401.
    */
-  private async registerFailedLogin(user: { id: string; failedLoginAttempts: number }): Promise<void> {
+  private async registerFailedLogin(user: { id: string; failedLoginAttempts: number; username?: string }): Promise<void> {
     const attempts = (user.failedLoginAttempts ?? 0) + 1;
+    // The account OWNER is told, not administrators: someone trying to get into
+    // your account is your business first. Deduped by the bus, so a burst of
+    // attempts is one notification rather than one per guess.
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.SECURITY_LOGIN_FAILED,
+      subjectUserId: user.id,
+      resourceType: 'user',
+      resourceId: user.id,
+      payload: { username: user.username ?? 'your account', attempts },
+    });
     const lock = attempts >= AuthService.MAX_FAILED_ATTEMPTS;
     await this.prisma.user
       .update({

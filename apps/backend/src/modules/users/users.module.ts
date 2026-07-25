@@ -27,6 +27,8 @@ import {
 import * as argon2 from 'argon2';
 import { PERMISSIONS, SystemRole } from '@ultratorrent/shared';
 import { ModuleRef } from '@nestjs/core';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -56,6 +58,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly moduleRef: ModuleRef,
+    private readonly bus: DomainEventBus,
   ) {}
 
   private serialize(user: any) {
@@ -131,6 +134,14 @@ export class UsersService {
       },
       include: { roles: { include: { role: true } } },
     });
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.USER_CREATED,
+      actorUserId: actor.id,
+      subjectUserId: user.id,
+      resourceType: 'user',
+      resourceId: user.id,
+      payload: { username: user.username },
+    });
     return this.serialize(user);
   }
 
@@ -145,6 +156,16 @@ export class UsersService {
       await this.prisma.userRole.deleteMany({ where: { userId: id } });
       await this.prisma.userRole.createMany({
         data: roleIds.map((roleId) => ({ userId: id, roleId })),
+      });
+      // Published only when roles were actually part of the patch — a display-name
+      // edit is not a privilege change and must not look like one.
+      this.bus.publish({
+        eventKey: DOMAIN_EVENTS.USER_ROLE_CHANGED,
+        actorUserId: actor.id,
+        subjectUserId: id,
+        resourceType: 'user',
+        resourceId: id,
+        payload: { username: existing.username, roles: dto.roleNames },
       });
     }
     const user = await this.prisma.user.update({

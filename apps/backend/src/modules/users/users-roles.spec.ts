@@ -34,7 +34,7 @@ function makeService(overrides: Record<string, unknown> = {}) {
   // that throws exercises the intended path — recipient sync is best-effort and must
   // never fail a user write.
   const moduleRef = { get: () => { throw new Error('not available in unit test'); } };
-  return { svc: new UsersService(prisma as any, moduleRef as any), prisma };
+  return { svc: new UsersService(prisma as any, moduleRef as any, { publish: jest.fn(() => ({ published: true })) } as any), prisma };
 }
 
 describe('UsersService role-assignment guard (privilege escalation)', () => {

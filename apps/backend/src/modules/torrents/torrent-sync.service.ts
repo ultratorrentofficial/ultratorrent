@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { NormalizedTorrent, WS_EVENTS } from '@ultratorrent/shared';
+import { DOMAIN_EVENTS, TorrentState } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
+import { EdgeDetector } from '../domain-events/edge-detector';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -49,6 +52,8 @@ function withTimeout<T>(work: Promise<T>, label: string): Promise<T> {
 @Injectable()
 export class TorrentSyncService {
   private readonly logger = new Logger(TorrentSyncService.name);
+  /** Tracks which torrents are in the error state, so only transitions publish. */
+  private readonly errorState = new EdgeDetector();
   private syncing = false;
 
   constructor(
@@ -57,6 +62,7 @@ export class TorrentSyncService {
     private readonly realtime: RealtimeGateway,
     private readonly automation: AutomationEngine,
     private readonly mediaProcessing: MediaProcessingService,
+    private readonly bus: DomainEventBus,
     private readonly nameRepair: TorrentNameRepairService,
   ) {}
 
@@ -160,8 +166,28 @@ export class TorrentSyncService {
       const prev = priorMap.get(t.hash);
       if (!prev) continue; // no baseline yet — establish one, act next cycle
 
+      // A torrent entering the error state, published once. The sync loop sees
+      // the same state every 2s, so the edge is the event — not the observation.
+      const errorEdge = this.errorState.observe(t.hash, t.state === TorrentState.ERROR);
+      if (errorEdge === 'rising') {
+        this.bus.publish({
+          eventKey: DOMAIN_EVENTS.TORRENT_FAILED,
+          resourceType: 'torrent',
+          resourceId: t.hash,
+          // No error-message field exists on NormalizedTorrent, so the card says
+          // what failed without inventing a reason it cannot know.
+          payload: { torrentName: t.name, hash: t.hash },
+        });
+      }
+
       if (prev.progress < 1 && t.progress >= 1) {
         risingEdges.add(t.hash);
+        this.bus.publish({
+          eventKey: DOMAIN_EVENTS.TORRENT_COMPLETED,
+          resourceType: 'torrent',
+          resourceId: t.hash,
+          payload: { torrentName: t.name, hash: t.hash, sizeBytes: String(t.size ?? 0) },
+        });
         await this.automation
           .evaluate('torrent.completed', t)
           .catch((err) =>

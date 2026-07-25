@@ -107,6 +107,7 @@ describe('MediaProcessingService.handleTorrentCompleted', () => {
     const queue = queueStub();
     const svc = new MediaProcessingService(
       prisma,
+      { publish: jest.fn(() => ({ published: true })) } as any,
       // `fire()` resolves AutomationEngine lazily via ModuleRef — mock its .get().
       { get: () => automation } as any,
       scanner as any,
@@ -160,6 +161,7 @@ describe('MediaProcessingService.processLibrary (periodic scan + enrich)', () =>
     const queue = queueStub();
     const svc = new MediaProcessingService(
       prisma,
+      { publish: jest.fn(() => ({ published: true })) } as any,
       { get: () => ({ evaluate: jest.fn() }) } as any,
       scanner as any,
       identification as any,
@@ -247,7 +249,7 @@ describe('MediaProcessingService.handleTorrentCompleted — concurrency', () => 
     const prisma = {
       mediaLibrary: { findMany: jest.fn(async () => [{ id: 'lib1', name: 'TV', path: '/media/tv', isEnabled: true }]) },
     };
-    const svc = new MediaProcessingService(prisma as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    const svc = new MediaProcessingService(prisma as any, { publish: jest.fn(() => ({ published: true })) } as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     // Stand in for the real scan → identify → metadata → artwork → rename pipeline.
     (svc as any).runWorkflow = jest.fn(async () => {
       scans++;

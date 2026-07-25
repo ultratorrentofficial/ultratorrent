@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { MODULE_IDS } from '@ultratorrent/shared';
+import { DOMAIN_EVENTS, MODULE_IDS } from '@ultratorrent/shared';
 import type { MediaServerSession } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerIntegrationService } from '../media/media-server-integration.service';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 
 /**
  * Live activity + watch-history capture. A poller reconciles now-playing
@@ -56,6 +57,7 @@ export class MediaServerSessionService {
     private readonly integrations: MediaServerIntegrationService,
     private readonly realtime: RealtimeGateway,
     private readonly registry: ModuleRegistryService,
+    private readonly bus: DomainEventBus,
   ) {}
 
   /**
@@ -217,6 +219,36 @@ export class MediaServerSessionService {
             data: { connectionId: conn.id, providerSessionId: s.sessionId, ...data },
           });
           this.realtime.broadcast('media_server.session.started', { connectionId: conn.id, title: s.title, userName: s.userName });
+          // Published only on CREATE — the poller reconciles the same session
+          // every 15s, and this branch is the genuine start transition.
+          this.bus.publish({
+            eventKey: DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING,
+            resourceType: 'media_server_session',
+            resourceId: `${conn.id}:${s.sessionId}`,
+            payload: {
+              mediaTitle: s.title,
+              serverName: conn.name ?? conn.id,
+              userDisplayName: s.userName ?? null,
+              showTitle: s.showTitle ?? null,
+              seasonNumber: s.seasonNumber ?? null,
+              episodeNumber: s.episodeNumber ?? null,
+              year: s.year ?? null,
+              mediaType: s.mediaType ?? null,
+              libraryName: s.libraryName ?? null,
+              device: s.device ?? null,
+              client: s.client ?? null,
+              resolution: s.resolution ?? null,
+              playbackMethod: s.playbackMethod ?? null,
+              playbackState: s.playbackState ?? null,
+              progressPercent: s.progressPercent ?? null,
+              // Connection + provider path, never a URL: only fetchable through
+              // that connection's credentials, so storing it grants nothing.
+              connectionId: conn.id,
+              artPath: s.artPath ?? null,
+              // Deliberately NOT ipAddress. Nothing renders it.
+              startedAt: new Date().toISOString(),
+            },
+          });
           const startPayload = {
             mediaTitle: s.title, episodeTitle: null, mediaType: s.mediaType ?? null,
             userDisplayName: s.userName, userId: s.userId ?? null,
@@ -286,5 +318,33 @@ export class MediaServerSessionService {
     });
     await this.prisma.mediaServerSession.delete({ where: { id: c.id } });
     this.realtime.broadcast('media_server.session.ended', { connectionId: c.connectionId, title: c.title });
+    // Fired once, when the session vanishes from the provider — the genuine stop
+    // transition, not a heartbeat.
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.MEDIA_SERVER_USER_STOPPED_WATCHING,
+      resourceType: 'media_server_session',
+      resourceId: `${c.connectionId}:${c.providerSessionId}`,
+      payload: {
+        mediaTitle: c.title,
+        serverName,
+        userDisplayName: c.userName,
+        showTitle: c.showTitle,
+        seasonNumber: c.seasonNumber,
+        episodeNumber: c.episodeNumber,
+        year: c.year,
+        mediaType: c.mediaType,
+        libraryName: c.libraryName,
+        device: c.device,
+        client: c.client,
+        resolution: c.resolution,
+        completionPercent: c.progressPercent,
+        watchedSeconds,
+        // The session row is deleted above, so the stop card cannot resolve
+        // artwork through it — carrying these is what lets it show a poster.
+        connectionId: c.connectionId,
+        artPath: c.artPath,
+        stoppedAt: new Date().toISOString(),
+      },
+    });
   }
 }

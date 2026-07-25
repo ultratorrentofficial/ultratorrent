@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
 import { SystemRole } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AutomationEngine } from '../automation/automation.module';
@@ -62,6 +64,7 @@ export class WorkflowExecutionService implements OnModuleInit {
     private readonly registry: WorkflowNodeRegistry,
     private readonly automation: AutomationEngine,
     private readonly jobBridge: WorkflowJobBridge,
+    private readonly bus: DomainEventBus,
   ) {}
 
   /** On boot, resume executions interrupted by a process restart (crash-safe). */
@@ -449,6 +452,7 @@ export class WorkflowExecutionService implements OnModuleInit {
         },
       });
       await this.setWaiting(executionId, 'waiting_for_approval', { resumeAt: null, expiresAt });
+      await this.publishApprovalRequested(executionId);
       return;
     }
     // subworkflow: start a version-pinned child; its completion resumes this parent.
@@ -522,6 +526,64 @@ export class WorkflowExecutionService implements OnModuleInit {
     }
   }
 
+  /** Announce that a run is blocked on a human decision. */
+  private async publishApprovalRequested(executionId: string): Promise<void> {
+    try {
+      const execution = await this.prisma.workflowExecution.findUnique({
+        where: { id: executionId },
+        select: { workflow: { select: { name: true } } },
+      });
+      const name = execution?.workflow?.name;
+      if (!name) return;
+      this.bus.publish({
+        eventKey: DOMAIN_EVENTS.WORKFLOW_APPROVAL_REQUESTED,
+        resourceType: 'workflow_execution',
+        resourceId: executionId,
+        payload: { workflowName: name, executionId },
+      });
+    } catch (err) {
+      this.logger.warn(`Publishing approval request failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Publish a terminal workflow outcome.
+   *
+   * Only `failed` and `completed` are published — `cancelled` was a deliberate
+   * human action, and telling someone about a thing they just did is noise.
+   * `completed_with_warnings` counts as completed: the run finished, and the
+   * warnings are in the execution record for anyone who looks.
+   *
+   * Best-effort and never throwing: finalisation must succeed whether or not
+   * anyone is told.
+   */
+  private async publishTerminal(executionId: string, status: string, reason?: string): Promise<void> {
+    const eventKey =
+      status === 'failed'
+        ? DOMAIN_EVENTS.WORKFLOW_EXECUTION_FAILED
+        : status === 'completed' || status === 'completed_with_warnings'
+          ? DOMAIN_EVENTS.WORKFLOW_EXECUTION_COMPLETED
+          : null;
+    if (!eventKey) return;
+
+    try {
+      const execution = await this.prisma.workflowExecution.findUnique({
+        where: { id: executionId },
+        select: { workflowId: true, workflow: { select: { name: true } } },
+      });
+      const name = execution?.workflow?.name;
+      if (!name) return; // the contract requires a name; publishing without one would be refused
+      this.bus.publish({
+        eventKey,
+        resourceType: 'workflow_execution',
+        resourceId: executionId,
+        payload: { workflowName: name, executionId, reason: reason ?? null },
+      });
+    } catch (err) {
+      this.logger.warn(`Publishing workflow outcome failed: ${(err as Error).message}`);
+    }
+  }
+
   private async saveVars(executionId: string, vars: Record<string, unknown>): Promise<void> {
     if (!vars || Object.keys(vars).length === 0) return;
     const row = await this.prisma.workflowExecution.findUnique({ where: { id: executionId }, select: { outputSummary: true } });
@@ -546,6 +608,7 @@ export class WorkflowExecutionService implements OnModuleInit {
         outputSummary: (reason ? { ...prevSummary, reason } : prevSummary) as object,
       },
     });
+    await this.publishTerminal(executionId, status, reason);
     await this.audit.record({
       action: `workflows.execution.${status}`, objectType: 'workflow_execution', objectId: executionId,
       result: status === 'failed' ? 'failure' : 'success',

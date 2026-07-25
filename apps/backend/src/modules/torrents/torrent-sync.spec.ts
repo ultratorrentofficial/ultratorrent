@@ -71,7 +71,7 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
 
     const svc = new TorrentSyncService(
       prisma as any, registry as any, realtime as any, automation as any,
-      mediaProcessing as any, nameRepair as any,
+      mediaProcessing as any, { publish: jest.fn(() => ({ published: true })) } as any, nameRepair as any,
     );
     return { svc, calls, prisma, mediaProcessing, automation, nameRepair };
   }

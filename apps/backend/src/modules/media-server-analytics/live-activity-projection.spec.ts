@@ -11,7 +11,7 @@ function build(rows: any[]) {
     mediaServerSession: { findMany: jest.fn(async () => rows) },
   };
   const svc = new MediaServerSessionService(
-    prisma, {} as any, {} as any, {} as any,
+    prisma, {} as any, {} as any, {} as any, { publish: jest.fn(() => ({ published: true })) } as any,
   );
   return { svc, prisma };
 }

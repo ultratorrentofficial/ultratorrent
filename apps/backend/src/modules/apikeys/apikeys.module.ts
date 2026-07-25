@@ -14,6 +14,8 @@ import { IsArray, IsOptional, IsString } from 'class-validator';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'node:crypto';
 import { PERMISSIONS } from '@ultratorrent/shared';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -32,6 +34,7 @@ class CreateApiKeyDto {
 export class ApiKeysService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly bus: DomainEventBus,
   ) {}
 
   async create(userId: string, dto: CreateApiKeyDto) {
@@ -47,7 +50,16 @@ export class ApiKeysService {
         scopes: dto.scopes ?? [],
       },
     });
-    // Never put the secret on the bus.
+    // The NAME only — never the key, the secret or the hash. A payload is stored
+    // on the recipient's notification row and rendered in several places.
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.SECURITY_API_KEY_CREATED,
+      subjectUserId: userId,
+      actorUserId: userId,
+      resourceType: 'user',
+      resourceId: userId,
+      payload: { keyName: dto.name },
+    });
     // The full key is shown exactly once.
     return { prefix, key: `${prefix}.${secret}`, name: dto.name };
   }

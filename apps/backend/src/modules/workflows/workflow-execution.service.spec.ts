@@ -87,7 +87,7 @@ const eventBus = { emit: jest.fn() } as any;
 
 function makeService(prisma: FakePrisma, run: jest.Mock) {
   const automation = { runWorkflowAction: run } as any;
-  return new WorkflowExecutionService(prisma as any, audit, registry, automation, jobBridge);
+  return new WorkflowExecutionService(prisma as any, audit, registry, automation, jobBridge, { publish: jest.fn(() => ({ published: true })) } as any);
 }
 
 const linear: WorkflowGraph = {
