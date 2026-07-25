@@ -270,7 +270,7 @@ ultratorrent/
 │   │       │   └── prisma/        # PrismaService / PrismaModule
 │   │       ├── modules/           # auth, users, torrents, dashboard, engine, search,
 │   │       │                       #   settings, taxonomy, files, rss, automation,
-│   │       │                       #   notifications, apikeys, audit, system, realtime
+│   │       │                       #   apikeys, audit, system, realtime
 │   │       ├── app.module.ts       # root module — wires all modules + global guards
 │   │       └── main.ts             # bootstrap: helmet, CORS, /api prefix, Swagger
 │   └── frontend/                 # React + Vite + Tailwind SPA (@ultratorrent/frontend)
@@ -299,7 +299,7 @@ ultratorrent/
 | [PROWLARR.md](docs/PROWLARR.md)         | Optional Prowlarr companion container: profile, ports/volumes, UI integration, security |
 | [WORKSPACE_ARCHITECTURE.md](docs/WORKSPACE_ARCHITECTURE.md) | The Workspace model — the nine Workspaces, the global rail + contextual sidebar, Workspace Overviews, switching (Ctrl+1–9), the jobs aggregator, RBAC, scaling ([guidelines](docs/NAVIGATION_GUIDELINES.md), [standards](docs/MENU_STANDARDS.md)) |
 | [UNIFIED_JOBS_CENTER.md](docs/UNIFIED_JOBS_CENTER.md) | The operational control plane for all async work — platform job model, lifecycle/state machine, reliability (retry/pause/stall), RBAC, real-time, integration ([architecture](docs/JOB_ARCHITECTURE.md), [lifecycle](docs/JOB_LIFECYCLE.md), [handler dev](docs/JOB_HANDLER_DEVELOPMENT.md), [scheduling](docs/JOB_SCHEDULING.md), [security](docs/JOB_SECURITY.md)) |
-| [WORKFLOW_BUILDER.md](docs/WORKFLOW_BUILDER.md) | The durable, versioned, visual automation builder — node catalog, validation, simulation, durable execution (waits/approvals/sub-workflows), Jobs Center integration, RBAC/notifications ([threat model](docs/WORKFLOW_SECURITY.md), [design review](docs/WORKFLOW_BUILDER_ARCHITECTURE_REVIEW.md)) |
+| [WORKFLOW_BUILDER.md](docs/WORKFLOW_BUILDER.md) | The durable, versioned, visual automation builder — node catalog, validation, simulation, durable execution (waits/approvals/sub-workflows), Jobs Center integration, RBAC ([threat model](docs/WORKFLOW_SECURITY.md), [design review](docs/WORKFLOW_BUILDER_ARCHITECTURE_REVIEW.md)) |
 | [LIBRARY_CLEANUP.md](docs/LIBRARY_CLEANUP.md) | Policy-driven, explainable, reversible reclamation of library storage — immutable policy versions, the third `unmeasured` outcome, protections, candidates/fingerprints, plans & approvals, quarantine/Trash/restore, scheduling & storage pressure ([threat model](docs/LIBRARY_CLEANUP_SECURITY.md), [design review](docs/LIBRARY_CLEANUP_ARCHITECTURE_REVIEW.md)) |
 | [NAVIGATION.md](docs/NAVIGATION.md)     | The underlying registry-driven nav model shared by every surface — sidebar, breadcrumbs, command palette, Overviews, personalization, mobile ([shell UX](docs/UX_GUIDELINES.md)) |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md)   | Local workflow, adding an engine provider, adding a module, testing, standards |

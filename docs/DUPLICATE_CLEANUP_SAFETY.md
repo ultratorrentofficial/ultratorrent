@@ -190,12 +190,12 @@ A cleanup reports what actually happened:
 
 - `completed` — everything trashed
 - `partial` — some trashed, some skipped/failed — reported **as partial**, with a
-  distinct WS event and notification, never as a success with a count in the corner
+  distinct WS event, never as a success with a count in the corner
 - `failed` — nothing trashed
 
 An HTTP 200 carrying failures rendered as "done" is how an operator learns to
 distrust the tool, so the envelope makes the three outcomes distinguishable
-everywhere — API, WebSocket, and notification.
+everywhere — API and WebSocket.
 
 ## Path confinement and library-root protection
 

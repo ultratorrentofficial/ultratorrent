@@ -92,7 +92,7 @@ a session disappears it is written to `MediaServerWatchHistory` (with
 `watchedSeconds`), and `media_server.session.started/updated/ended` events fire.
 This is the media-server-native watch-history source; Tautulli import is the other.
 
-The poller also publishes onto the Notification Center's event bus
+The poller also used to publish onto the notification event bus
 (`media_server.user_started_watching` / `user_finished_watching` /
 `transcode_detected`), as did the newsletter dispatcher
 (`newsletter_sent` / `newsletter_failed`). **Those emitters were removed on
@@ -203,8 +203,6 @@ connection management, and Dashboard + Connections pages. Later phases:
   + a background import job with preview, duplicate-safe streaming, and progress.
   See [TAUTULLI_IMPORT.md](TAUTULLI_IMPORT.md). Users/libraries/statistics/
   newsletter import, mapping, and incremental sync remain.
-- ~~Notifications~~ ✅ — the session poller and newsletter dispatcher publish
-  `media_server.*` events onto the Notification Center bus.
 - ~~UI pages~~ ✅ — Dashboard, Connections, Live Activity, Watch History,
   Recently Added, Reports, Import, Newsletters.
 - **Automation triggers/actions** — still to come: the automation catalog

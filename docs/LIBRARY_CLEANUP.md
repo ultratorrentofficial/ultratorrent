@@ -227,7 +227,6 @@ simulate and protection-view only.
   Center problem can never affect what cleanup did. A plan execution is registered as
   **neither retryable nor resumable**: a generic retry would remove files under an
   approval granted for a different moment.
-- **Notifications** — four routable `library_cleanup.plan.*` events.
 - **Event bus / scheduler / RBAC / Trash / path safety** — all the platform's
   existing machinery. This module introduces no second scheduler, queue, event bus,
   rule evaluator, permission system, job system or file-deletion path.

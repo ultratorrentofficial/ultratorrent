@@ -15,7 +15,7 @@ by bolting on a competing queue.
 ## What it is
 
 Every long-running operation — a library scan, duplicate detection, a subtitle download,
-an analytics import, a notification batch — is a **platform job**: a normalized
+an analytics import — is a **platform job**: a normalized
 `platform_jobs` record with a status, progress, structured events, relationships, and
 sanitized inputs/results. The Jobs Center reads and controls these through one RBAC-scoped
 API and a live UI in the **System** workspace at **`/jobs`**.
@@ -81,8 +81,6 @@ Two guarantees:
 
 ## Integration
 
-- **Notification Center** — jobs publish `job.failed` / `job.stalled` /
-  `job.completed_with_warnings` domain events; build notification rules on them.
 - **Automation** — `job.*` triggers ("When a job fails/stalls/…") feed the rule engine via a
   decoupled bridge.
 - **Command palette** — `Ctrl+K` → Open Jobs Center / View running / View failed / View

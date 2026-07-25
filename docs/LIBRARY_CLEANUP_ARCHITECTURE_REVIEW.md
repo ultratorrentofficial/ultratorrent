@@ -1,5 +1,10 @@
 # Library Cleanup Center — Phase 1: Architecture Review & Gap Analysis
 
+> **Note (2026-07-25):** this is a point-in-time review, preserved as written. It
+> references the Notification Center and the shared domain-event bus, both of which
+> **no longer exist** — the notification engine and its bus were removed in v0.47.0.
+> Read those references as a record of what was true when the review was made.
+
 **Status:** Phase 1 — *design only, no implementation.* Await sign-off before code.
 **Module:** `library_cleanup` · `LibraryCleanupModule` · `/api/media/cleanup` · Media workspace → **Cleanup Center**
 **Authority:** [ARCHITECTURE.md](ARCHITECTURE.md) is canonical. This document records what exists, what is

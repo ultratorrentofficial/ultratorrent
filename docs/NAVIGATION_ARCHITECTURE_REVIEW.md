@@ -1,5 +1,10 @@
 # Navigation Architecture Review — the Workspace Model
 
+> **Note (2026-07-25):** this is a point-in-time review, preserved as written. It
+> references the Notification Center and the shared domain-event bus, both of which
+> **no longer exist** — the notification engine and its bus were removed in v0.47.0.
+> Read those references as a record of what was true when the review was made.
+
 **Status:** Phase 1 review — *design only, no implementation.* Await sign-off before code.
 **Author:** Navigation redesign, generation 2 (Workspace model).
 **Supersedes framing of:** [NAVIGATION_REDESIGN.md](NAVIGATION_REDESIGN.md) (generation 1 — the 8-domain

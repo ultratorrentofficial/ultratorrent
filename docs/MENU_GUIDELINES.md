@@ -16,7 +16,7 @@ belongs to exactly one:
 | **Dashboard** | "What's the state of my system right now?" | Overview, global Search |
 | **Downloads** | "Get me the content." | Torrents, RSS, Acquisition Intelligence, Indexers |
 | **Media** | "Organize what I have." | Media Manager, Subtitles, duplicates, artwork/NFO |
-| **Automation** | "Do things for me." | Automation Rules, Notification Center |
+| **Automation** | "Do things for me." | Automation Rules |
 | **Files** | "Work with the raw files." | File browser, trash & recovery |
 | **Monitoring** | "Is it healthy / what happened?" | Jobs, logs, analytics, media-server analytics |
 | **Administration** | "Configure the platform." | Users, RBAC, modules, integrations, settings |
@@ -37,7 +37,7 @@ probably two features.
    more top-level rows. The hub is the pressure-release valve, not the sidebar.
 
 3. **Nest a multi-page sub-module under one parent.** A sub-module with several pages
-   (Subtitles, Notifications, Media-Server Analytics) is **one** parent item whose own
+   (Subtitles, Media-Server Analytics) is **one** parent item whose own
    `to` is its dashboard, with the pages as `children`. Don't scatter its pages across
    the domain.
 

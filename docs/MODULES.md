@@ -21,7 +21,7 @@ There are **23** manifests in `manifests.ts`, split across two tiers:
 
 | Tier | Count | Meaning |
 |------|-------|---------|
-| `core` | 20 | Always available, **cannot be disabled** — auth, RBAC, account, users, engine, dashboard, torrents, search, taxonomy, RSS, automation, files, notifications, API keys, audit, system, settings, module registry, **media server analytics**, **notification center**. |
+| `core` | 18 | Always available, **cannot be disabled** — auth, RBAC, account, users, engine, dashboard, torrents, search, taxonomy, RSS, automation, files, API keys, audit, system, settings, module registry, **media server analytics**. |
 | `community` | 3 | Bundled optional modules, on by default but **toggleable** by an admin — **Media Manager**, **Release Scoring**, **Media Acquisition Intelligence**. These three are the *complete* community set. |
 
 Every module is `core` or `community`, and every module is available in the

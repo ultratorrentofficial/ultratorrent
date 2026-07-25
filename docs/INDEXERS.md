@@ -145,9 +145,9 @@ backoff · a re-entrancy guard on the sweep · cross-indexer dedup in `searchAll
   (≤700 MB)*. Editing requires `media_acquisition.manage_profiles`
   (`/api/media-acquisition/match-preferences`).
 
-## Notifications & events
-A successful grab emits `media.missing_episode_filled` on the Notification Center
-bus and broadcasts `media_acquisition.missing_episode.grabbed` over realtime.
+## Events
+A successful grab broadcasts `media_acquisition.missing_episode.grabbed` over
+realtime.
 
 ## Security notes
 - API keys are AES-256-GCM encrypted (SecretCipher), redacted in responses, and

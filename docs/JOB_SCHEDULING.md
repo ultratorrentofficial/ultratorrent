@@ -6,7 +6,7 @@ How UltraTorrent's scheduled/background work relates to the Unified Jobs Center.
 ## Today: `@nestjs/schedule` intervals
 
 Background schedulers are `@Interval`-decorated methods across the modules (RSS polling,
-torrent sync, notification delivery, media library periodic scan, subtitle missing-scan,
+torrent sync, media library periodic scan, subtitle missing-scan,
 media-server session poll, IMDb dataset auto-update, and more; there are no `@Cron` jobs).
 Each module manifest also declares logical `schedulerJobs` names.
 

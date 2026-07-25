@@ -75,15 +75,13 @@ node as a **`workflow.node` child job**, so runs are visible, cancellable, and r
 the Unified Jobs Center. The mirror is **best-effort and non-authoritative** — the execution DB
 state is the source of truth; a Jobs-Center hiccup can never break a run.
 
-## RBAC, audit, notifications
+## RBAC and audit
 
 - **Permissions:** `workflows.view / create / edit / delete / publish / run / approve`. Every API
   is guarded; every mutation is audited.
 - **Runtime least-privilege:** at dispatch time the execution identity must still hold each
   action's permission (defense in depth beyond publish-time validation); identity-less runs fail
   *closed*.
-- **Notifications:** `workflow.execution.failed`, `workflow.execution.completed`, and
-  `workflow.approval.requested` are routable Notification Center events.
 - **Search:** command-palette quick actions (Open Workflows / Approvals) + nav-derived page search.
 
 ## Retention

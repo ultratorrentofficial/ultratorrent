@@ -174,9 +174,6 @@ Smart Download is built in phases; these remain:
 - **Automation triggers** — firing workflow triggers (Smart Download Approved/Rejected/
   Upgrade…) into the Automation engine. The engine's trigger catalogue still has no
   acquisition entries; decisions are broadcast over WebSocket only.
-- **User notifications** — per-user notifications on decision events (approval required,
-  skipped, upgrade available). The one exception that *does* ship: a filled gap raises
-  `media.missing_episode_filled` on the Notification Center bus (seeded disabled).
 - **`replace_existing`** generation — the decision type exists but `decide()` does not yet
   emit it.
 

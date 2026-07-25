@@ -60,16 +60,16 @@ flowchart TD
 The navigation is organised into **domains** (Phase 1 of the redesign — see
 [NAVIGATION_REDESIGN.md](NAVIGATION_REDESIGN.md)). A domain groups related modules so
 the rail stays short as the platform grows; Media consolidates Media Manager +
-Subtitles, Automation folds in the Notification Center, and Monitoring hosts Media
-Server Analytics. Sub-modules with many pages (Subtitles, Notifications, Media Server
-Analytics) nest under a parent whose own route is the module's dashboard.
+Subtitles, and Monitoring hosts Media Server Analytics. Sub-modules with many pages
+(Subtitles, Media Server Analytics) nest under a parent whose own route is the
+module's dashboard.
 
 | Domain | Entries (→ route) |
 |--------|-------------------|
 | **Dashboard** | Dashboard → `/dashboard` · Search → command palette |
 | **Downloads** | Torrents → `/torrents` (sub-menu: Downloading/Seeding/Completed/Paused/Errors) · RSS Feeds → `/rss` · Indexers → `/indexers` · **Prowlarr** *(external link — shown only when the [Prowlarr integration](PROWLARR.md) is enabled and the user has `integrations.prowlarr.open`)* · Release Scoring → `/release-scoring` · Acquisition Intelligence → `/media-acquisition` (sub-menu: Smart Download, Missing Episodes, Decision Simulator) · Engines → `/engines` |
 | **Media** | Media Dashboard → `/media` · Media Items → `/media/items` · Libraries → `/media/libraries` · Unmatched Media → `/media/unmatched` · Duplicates → `/media/duplicates` · Rename Engine → `/media/rename-preview` · **Subtitles** → `/subtitles` (sub-menu: Search, Sync, Validation, Languages, History, Providers, Settings) · IMDb Settings → `/media/settings/imdb` · Media Settings → `/media/settings` |
-| **Automation** | Automation Rules → `/automation` · **Notifications** → `/notifications` (sub-menu: Channels, Rules, Templates, Recipients, Recipient Groups, Delivery History, Queue Monitor, Provider Health, Preferences, Settings) |
+| **Automation** | Automation Rules → `/automation` |
 | **Files** | File Manager → `/files` |
 | **Monitoring** | **Media Server Analytics** *(module-gated)* → `/media-server-analytics` (sub-menu: Live Activity, Recently Added, Watch History, Analytics Reports, Newsletters, Import Analytics, Server Connections) |
 | **Administration** | Users → `/users` · Modules → `/modules` · Settings → `/settings` · Audit Log → `/audit` |

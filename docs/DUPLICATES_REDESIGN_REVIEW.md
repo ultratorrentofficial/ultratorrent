@@ -1,5 +1,11 @@
 # Duplicate Media — Implementation Review & Redesign Plan
 
+> **Note (2026-07-25):** this document is a point-in-time review and is preserved
+> as written. It analyses the Notification Center, which **no longer exists** —
+> the whole notification engine and its domain-event bus were removed in v0.47.0.
+> Read every notification reference below as a record of what was true at the time,
+> not as a description of the product.
+
 **Status:** Phase 1 (review) complete. No production code changed by this document.
 **Date:** 2026-07-19
 **Scope:** `MediaDuplicateService`, `MediaShowDuplicateService`, their controllers, Prisma

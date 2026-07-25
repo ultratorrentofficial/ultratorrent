@@ -564,7 +564,7 @@ The automation engine registers Media Manager **triggers** (category `media`) an
 Eight of these (all except `media_notify`) are delegated to
 `MediaAutomationActions` in the media module, so the automation engine has no
 engine-provider dependency for media work; `media_notify` is handled inline by
-the automation engine's own notification path.
+the automation engine's own path.
 
 ---
 
@@ -687,7 +687,7 @@ All paths are under the global `/api` prefix, `@Controller('media')`, guarded by
 | POST | `/api/media/shows/duplicates/merge` | `media_manager.rename` + `media_manager.delete` |
 
 > The full Duplicate Center surface — detection, recommendation, cleanup, show-folder
-> merge, Quick Clean, bulk, Trash & Recovery, automation and notifications — is
+> merge, Quick Clean, bulk, Trash & Recovery and automation — is
 > documented in **[DUPLICATE_CENTER.md](DUPLICATE_CENTER.md)**,
 > **[DUPLICATE_DETECTION.md](DUPLICATE_DETECTION.md)** and
 > **[DUPLICATE_CLEANUP_SAFETY.md](DUPLICATE_CLEANUP_SAFETY.md)**. The complete

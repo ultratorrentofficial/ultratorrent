@@ -1,5 +1,11 @@
 # Navigation Redesign — Review & Design (Phase 1)
 
+> **Note (2026-07-25):** this document is a point-in-time review and is preserved
+> as written. It analyses the Notification Center, which **no longer exists** —
+> the whole notification engine and its domain-event bus were removed in v0.47.0.
+> Read every notification reference below as a record of what was true at the time,
+> not as a description of the product.
+
 **Status:** Review complete. No implementation has begun (per the brief's gate).
 **Scope:** UX / Information Architecture / Navigation / Sidebar redesign so the
 platform stays intuitive as it grows toward hundreds of features.

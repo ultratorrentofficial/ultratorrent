@@ -15,7 +15,6 @@ directly from the NestJS controllers.
 - [Files — `/api/files`](#files--apifiles)
 - [RSS — `/api/rss`](#rss--apirss)
 - [Automation — `/api/automation`](#automation--apiautomation)
-- [Notifications — `/api/notifications`](#notifications--apinotifications)
 - [Indexers — `/api/indexers`](#indexers--apiindexers)
 - [Prowlarr integration — `/api/integrations/prowlarr`](#prowlarr-integration--apiintegrationsprowlarr)
 - [Media Server Analytics — `/api/media-server-analytics`](#media-server-analytics--apimedia-server-analytics)
@@ -475,7 +474,7 @@ of truth. There are **14** triggers in three categories:
   `rss.show.became_active`, `rss.show.ended`, `rss.show.canceled`.
 
 Actions likewise span torrent (`move`, `pause`, `stop`, `delete`,
-`delete_with_data`, `notify`, `webhook`), notification (`send_notification`),
+`delete_with_data`, `webhook`),
 media (`rename_for_media`, `media_scan_library`, `media_match`,
 `media_fetch_metadata`, `media_fetch_artwork`, `media_generate_nfo`,
 `media_rename`, `media_move`, `media_notify`, `media_server_refresh`) and rss
@@ -485,71 +484,6 @@ media (`rename_for_media`, `media_scan_library`, `media_match`,
 > The **Automation Rules UI currently only offers the two torrent triggers**
 > (`torrent.completed`, `ratio.reached`); the remaining triggers and the media/rss
 > actions are reachable over the API but have no picker in the frontend yet.
-
----
-
-## Notifications — `/api/notifications`
-
-Two controllers share the `/api/notifications` prefix.
-
-### In-app inbox
-
-`NotificationsController` (`modules/notifications`), guarded by `JwtAuthGuard`
-only (any authenticated user) — tag `notifications`.
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `GET`  | `/api/notifications` | Bearer | The current user's notifications (and broadcasts), newest first, max 100 |
-| `POST` | `/api/notifications/:id/read` | Bearer | Mark a notification read |
-
-These are pushed in real time over WebSocket (the permission-free `notification`
-event, delivered to every authenticated socket).
-
-### Notification Center
-
-`NotificationCenterController` (`modules/notification-center`), guarded by
-`JwtAuthGuard` + `PermissionsGuard`. This is the delivery subsystem — channels,
-recipients, groups, templates, rules, queue and delivery history. Every route
-below is `RequirePermissions`-gated with a `notifications.*` permission.
-
-| Method | Path | Permission |
-|--------|------|------------|
-| `GET`    | `/api/notifications/dashboard` | `notifications.view` |
-| `GET`    | `/api/notifications/providers` | `notifications.view` |
-| `GET`    | `/api/notifications/channels` · `/channels/:id` | `notifications.view` |
-| `POST`   | `/api/notifications/channels` | `notifications.manage_channels` |
-| `PATCH`  | `/api/notifications/channels/:id` | `notifications.manage_channels` |
-| `DELETE` | `/api/notifications/channels/:id` | `notifications.manage_channels` |
-| `POST`   | `/api/notifications/channels/:id/test` | `notifications.send_test` |
-| `GET`    | `/api/notifications/recipients` | `notifications.view` |
-| `POST`   | `/api/notifications/recipients` | `notifications.manage_recipients` |
-| `PATCH`  | `/api/notifications/recipients/:id` | `notifications.manage_recipients` |
-| `DELETE` | `/api/notifications/recipients/:id` | `notifications.manage_recipients` |
-| `GET`    | `/api/notifications/groups` | `notifications.view` |
-| `POST`   | `/api/notifications/groups` | `notifications.manage_groups` |
-| `DELETE` | `/api/notifications/groups/:id` | `notifications.manage_groups` |
-| `PUT`    | `/api/notifications/groups/:id/members` | `notifications.manage_groups` |
-| `GET`    | `/api/notifications/templates` | `notifications.view` |
-| `POST`   | `/api/notifications/templates` | `notifications.manage_templates` |
-| `PATCH`  | `/api/notifications/templates/:id` | `notifications.manage_templates` |
-| `DELETE` | `/api/notifications/templates/:id` | `notifications.manage_templates` |
-| `POST`   | `/api/notifications/templates/preview` | `notifications.manage_templates` |
-| `GET`    | `/api/notifications/rules` · `/rules/:id` | `notifications.view` |
-| `POST`   | `/api/notifications/rules` | `notifications.manage_rules` |
-| `PATCH`  | `/api/notifications/rules/:id` | `notifications.manage_rules` |
-| `DELETE` | `/api/notifications/rules/:id` | `notifications.manage_rules` |
-| `GET`    | `/api/notifications/history` · `/queue` | `notifications.view_history` |
-| `POST`   | `/api/notifications/history/:id/retry` | `notifications.retry` |
-| `GET`    | `/api/notifications/preferences/:recipientId` | `notifications.view` |
-| `PUT`    | `/api/notifications/preferences` | `notifications.manage_preferences` |
-| `GET`    | `/api/notifications/settings` | `notifications.manage_settings` |
-| `PATCH`  | `/api/notifications/settings` | `notifications.manage_settings` |
-| `POST`   | `/api/notifications/test` | `notifications.send_test` |
-
-Modules stay decoupled from the Center: they publish a `DomainEventEnvelope` onto
-the single internal bus channel (`NOTIFICATION_BUS_CHANNEL`) using a name from
-`NOTIFICATION_EVENTS` (`packages/shared/src/events.ts`), and the Center is the
-sole subscriber — it evaluates rules and fans out to the configured channels.
 
 ---
 
@@ -992,13 +926,12 @@ const socket = io('/', { path: '/ws', auth: { token: accessToken } });
 On a valid token the socket joins three kinds of room; an invalid token
 disconnects it (`modules/realtime/realtime.gateway.ts`):
 
-- **`authenticated`** — every authenticated socket. Permission-free events (the
-  in-app `notification`) are emitted here.
+- **`authenticated`** — every authenticated socket. Permission-free events are emitted here.
 - **`user:<id>`** — private, for per-user delivery.
 - **`perm:<key>`** — one room per *view* permission the socket actually holds, out
   of `torrents.view`, `files.view`, `media_manager.view`,
-  `media_acquisition.view`, `media_server_analytics.view`, `rss.view`,
-  `notifications.view`. A `SUPER_ADMIN` joins all of them.
+  `media_acquisition.view`, `media_server_analytics.view`, `rss.view`.
+  A `SUPER_ADMIN` joins all of them.
 
 Every event is routed to exactly one room by its name prefix, so a client never
 receives realtime data it could not read over REST. Events
@@ -1016,14 +949,8 @@ receives realtime data it could not read over REST. Events
 | `imdb.dataset.import.{progress,completed,failed,cancelled}` | `ImdbEventPayload` | `media_manager.view` |
 | `imdb.match.completed` · `imdb.enrichment.completed` | `ImdbEventPayload` | `media_manager.view` |
 | `rss.show_status.{lookup.completed,lookup.failed,changed}`, `rss.rule.created_for_inactive_show`, `rss.show.{became_active,ended,canceled}` | — | `rss.view` |
-| `notification.{sent,failed,retry,rule.triggered}`, `notification.queue.updated`, `notification.provider.{online,offline}` | — | `notifications.view` (Notification Center) |
-| `notification` (`NOTIFICATION`) | `{ id, level, title, message, createdAt }` | **Permission-free** — the `authenticated` room, or `user:<id>` for a targeted notification |
 | `torrent:update` / `system:health` | — | Declared in `WS_EVENTS` but never emitted (reserved) |
 
-Note the two distinct notification families: the dotless `notification` event is
-the in-app inbox item and is *not* permission-scoped, while the dotted
-`notification.*` events are Notification Center delivery telemetry and require
-`notifications.view`.
 
 The `imdb.*` events never carry secrets; `ImdbEventPayload` fields include
 `id`/`itemId`/`imdbId`, `status`, `progress`, `message`, `recordsImported`,

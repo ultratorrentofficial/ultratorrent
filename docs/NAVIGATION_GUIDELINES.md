@@ -18,7 +18,7 @@ model and [MENU_STANDARDS.md](MENU_STANDARDS.md) for labels/icons/badges.
    capability genuinely belongs to none of the nine. Expect to justify it in review.
 
 4. **Cap a Workspace sidebar at ~7–10 primary items.** Overflow nests under a sub-module
-   parent (e.g. Subtitle Intelligence, the Notification Center) or lives behind the
+   parent (e.g. Subtitle Intelligence, Media Server Analytics) or lives behind the
    Workspace Overview — not as more top-level rows.
 
 5. **Every nav entry maps to a real route.** No dead links — enforced by

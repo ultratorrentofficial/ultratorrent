@@ -187,7 +187,6 @@ below; the feature-module groups are summarised after the table.
 | | `apikeys.manage` | `APIKEYS_MANAGE` |
 | | `engines.manage` | `ENGINES_MANAGE` |
 | | `modules.view` / `modules.manage` | `MODULES_VIEW` / `MODULES_MANAGE` |
-| | `notifications.manage` | `NOTIFICATIONS_MANAGE` (legacy umbrella) |
 
 The remaining groups follow the same `<group>.<action>` shape and are declared in
 the same file (several are also declared on their module's manifest and synced
@@ -203,7 +202,6 @@ into the catalog at load):
 | `media_acquisition.*` | `view`, `manage_watchlist`, `manage_profiles`, `evaluate`, `approve`, `reject`, `override`, `history`, `settings`, `export` |
 | `release_scoring.*` | `view`, `manage` |
 | `media_server_analytics.*` | `view`, `view_live_activity`, `view_history`, `view_reports`, `view_users`, `export`, `manage_connections`, `manage_imports`, `run_imports`, `manage_newsletters`, `send_newsletters`, `manage_settings` |
-| `notifications.*` (Notification Center) | `view`, `view_history`, `retry`, `send_test`, `manage_channels`, `manage_recipients`, `manage_groups`, `manage_templates`, `manage_rules`, `manage_preferences`, `manage_settings`, `admin` |
 
 `packages/shared/src/permissions.ts` remains the single source of truth — read it,
 not this table, when you need the exact key list.
@@ -214,8 +212,8 @@ not this table, when you need the exact key list.
 |------|-------------|
 | `SUPER_ADMIN` | **All** permissions; additionally bypasses granular checks in the guard |
 | `ADMINISTRATOR` | All permissions **except** `system.manage` |
-| `POWER_USER` | Every torrent action **except `torrents.delete_data`** (it can remove a torrent, but not its files on disk) + categories/tags + all `rss.*` + automation + all `indexers.*` + all `integrations.prowlarr.*` + **all `files.*`** (full file management incl. delete/bulk/cleanup) + `system.view` + `media_manager.*` (incl. IMDb, but **not** `delete`/`admin`) + `notifications.view`/`manage_preferences`. No admin/user/role management, no Media Server Analytics, no Media Acquisition, no Release Scoring. |
-| `USER` | View/add torrents, basic state changes (pause/resume/start/stop), categories/tags, `rss.view` + `rss.show_status.lookup`, read-only files (`files.view`/`preview`/`download`), `media_manager.view` + IMDb view/search, `notifications.view`/`manage_preferences` |
+| `POWER_USER` | Every torrent action **except `torrents.delete_data`** (it can remove a torrent, but not its files on disk) + categories/tags + all `rss.*` + automation + all `indexers.*` + all `integrations.prowlarr.*` + **all `files.*`** (full file management incl. delete/bulk/cleanup) + `system.view` + `media_manager.*` (incl. IMDb, but **not** `delete`/`admin`). No admin/user/role management, no Media Server Analytics, no Media Acquisition, no Release Scoring. |
+| `USER` | View/add torrents, basic state changes (pause/resume/start/stop), categories/tags, `rss.view` + `rss.show_status.lookup`, read-only files (`files.view`/`preview`/`download`), `media_manager.view` + IMDb view/search |
 | `READ_ONLY` | `torrents.view`, `rss.view` + `rss.show_status.lookup`, `automation.view`, read-only files (`files.view`/`preview`/`download`), `system.view`, `media_manager.view` |
 
 > `POWER_USER` deliberately withholds `torrents.delete_data`: the destructive
@@ -458,13 +456,11 @@ as their dedicated route** per action (e.g. `removeData` requires
 (an invalid token disconnects the socket) and joins each socket to a `perm:<key>`
 room for **each view permission it actually holds**, out of `torrents.view`,
 `files.view`, `media_manager.view`, `media_acquisition.view`,
-`media_server_analytics.view`, `rss.view` and `notifications.view` (`SUPER_ADMIN`
-joins all). Every event is routed to exactly one room by its name prefix, so a
-user never receives realtime data they could not read over REST. Two rooms are
-*not* permission-scoped: the private `user:<id>` room, and a shared
-`authenticated` room used only for permission-free events (the in-app
-`notification` inbox item) — the dotted `notification.*` Notification Center
-telemetry is scoped to `notifications.view` like everything else.
+`media_server_analytics.view` and `rss.view` (`SUPER_ADMIN` joins all). Every
+event is routed to exactly one room by its name prefix, so a user never receives
+realtime data they could not read over REST. Two rooms are *not*
+permission-scoped: the private `user:<id>` room, and a shared `authenticated`
+room used only for permission-free events.
 
 **Privilege-escalation guards.** Only a SUPER_ADMIN may grant the SUPER_ADMIN
 role, and no user may edit their own roles (`users.manage` alone cannot

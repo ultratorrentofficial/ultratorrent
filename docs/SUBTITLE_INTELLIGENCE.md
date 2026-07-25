@@ -314,9 +314,6 @@ Role grants: Power User holds view → settings (all but `admin`); User holds
 
 - **WebSocket** (scoped to `subtitle_intelligence.view`): `subtitle_intelligence.job.*`,
   `.downloaded`, `.download_failed`, `.synchronized`, `.validation_failed`.
-- **Notification Center** domain events on the bus: `subtitle.downloaded`,
-  `subtitle.failed`, `subtitle.missing`, `subtitle.synchronized`,
-  `subtitle.validation_failed`, `subtitle.updated`.
 - **Automation triggers** (category `subtitle`): `subtitle.missing`,
   `subtitle.downloaded`, `subtitle.synchronized`, `subtitle.validation_failed`.
   **Actions**: `subtitle_scan_missing` (scan a library — usable from any trigger,
@@ -353,7 +350,7 @@ re-entrancy-guarded, each unit isolated):
 
 The **missing-subtitle scan** diffs each matched item's present languages (this
 module's downloads + Media Manager's discovered sidecars) against the library's
-policy, raises `subtitle.missing` (Notification Center + automation trigger) per
+policy, raises `subtitle.missing` per
 gap, and — when `media.subtitles.autoDownload` is on — fetches the best candidate
 meeting the library's minimum score. It reads `MediaItem` rows, so it covers
 freshly-downloaded items on its next pass with **no media-pipeline coupling**. Run

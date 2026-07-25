@@ -37,7 +37,7 @@ removes them **safely**. It is a surface of the core **Media Manager** module
 - [False positives](#false-positives)
 - [Settings](#settings)
 - [RBAC](#rbac)
-- [Automation and notifications](#automation-and-notifications)
+- [Automation](#automation)
 - [Performance](#performance)
 - [Security guarantees](#security-guarantees)
 - [Troubleshooting](#troubleshooting)
@@ -266,11 +266,7 @@ rules (below) are where scheduled scans and thresholds are configured.
 The `POST /media/duplicates/detect` route runs `deleteMany` over stale groups, so it
 requires `scan`, not `view` — a read-only account cannot destroy grouping state.
 
-## Automation and notifications
-
-The Duplicate Center **emits domain events**; it never sends a notification directly.
-See [Automation triggers and actions](#automation-and-notifications) below and the
-Notification Center.
+## Automation
 
 **Automation triggers** (category *media*):
 
@@ -287,20 +283,12 @@ Notification Center.
 - Ignore Duplicate Group (`media_ignore_duplicate_group`)
 - Generate Duplicate Report (`media_duplicate_report`)
 - Refresh Media Server (`media_server_refresh`, shared)
-- Send Notification (`send_notification`, shared)
 
 > There is **no** automated destructive-cleanup action. The brief requires that one
 > be opted into behind a dedicated elevated permission, a persisted preview,
 > trash-only behaviour, a strict high-confidence policy and a configurable per-run
 > file/byte cap. Until all of those exist, shipping the action would be shipping the
 > risk. See [DUPLICATE_CLEANUP_SAFETY.md](DUPLICATE_CLEANUP_SAFETY.md#no-automated-cleanup).
-
-**Notification events** (Notification Center): `media.duplicate`,
-`media.duplicate_detected`, `media.duplicate_review_required`,
-`media.duplicate_cleanup_completed`, `media.duplicate_cleanup_failed`. Payloads carry
-the keys the card renderer and rule conditions read — `mediaTitle`, `wastedBytes`,
-`requiresReview`, `confidence`, `reviewUrl` — so a rule can say *"only when more than
-50 GB is reclaimable"* with no code change.
 
 **WebSocket events** (scoped to `media_manager.view`):
 `media_manager.duplicates.scan.{started,progress,completed,failed,cancelled}`,
