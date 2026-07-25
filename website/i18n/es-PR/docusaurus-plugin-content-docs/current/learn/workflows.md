@@ -416,7 +416,6 @@ sequenceDiagram
 | Destinatarios | `/notifications/recipients` | Quién recibe qué. |
 | Historial de Envíos | `/notifications/history` | La prueba de que salió (o de por qué no). |
 
-Recorrido completo: [Notificaciones y automatización](/learn/tutorials/notifications-and-automation).
 
 ![Editor de reglas de notificación](/img/screenshots/workflow-notification-rule.png)
 
@@ -589,7 +588,6 @@ Escoge el flujo que quieres dominar y métete a fondo:
 1. [Construir una biblioteca de películas](/learn/tutorials/building-a-movie-library) → Flujo 5
 2. [Automatizar series de TV](/learn/tutorials/automating-tv-shows) → Flujos 2 + 4
 3. [Reglas RSS inteligentes](/learn/tutorials/smart-rss-rules) → Flujo 3
-4. [Notificaciones y automatización](/learn/tutorials/notifications-and-automation) → Flujo 6
 
 ---
 
@@ -598,6 +596,6 @@ Escoge el flujo que quieres dominar y métete a fondo:
 - [Torrents](/modules/torrents) · [RSS](/modules/rss) · [Descarga Inteligente](/modules/smart-download)
 - [Episodios Faltantes](/modules/missing-episodes) · [Indexadores](/modules/indexers)
 - [Gestor de Medios](/modules/media-manager) · [Automatización](/modules/automation)
-- [Centro de Notificaciones](/modules/notification-center) · [Auditoría](/modules/audit)
+- Centro de Notificaciones · [Auditoría](/modules/audit)
 - [Copia de seguridad y restauración](/operate/backup) · [Actualizar](/install/upgrading)
 - [Solución de problemas](/operate/troubleshooting) · [Glosario](/help/glossary)

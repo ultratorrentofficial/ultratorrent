@@ -170,7 +170,7 @@ Usa **liveness** para decidir si reiniciar el contenedor, y **readiness** para d
 
 **2. Mira `/api/system/health` una vez, con calma.** Es la mejor superficie de diagnóstico del producto: carga y memoria del proceso, la salud de cada motor con latencia y versión, y el espacio libre de cada raíz configurada. Guárdala en marcadores.
 
-**3. Conecta las alertas de recursos al [Centro de Notificaciones](/modules/notification-center).** `system.disk_space_low` es la que te va a salvar. Activa su regla predefinida, apúntala a un canal que de verdad leas, y ponle `severity: critical` con `quietHoursOverride: true` — un disco lleno a las 3 a. m. bien vale despertarse.
+**3. Conecta las alertas de recursos al Centro de Notificaciones.** `system.disk_space_low` es la que te va a salvar. Activa su regla predefinida, apúntala a un canal que de verdad leas, y ponle `severity: critical` con `quietHoursOverride: true` — un disco lleno a las 3 a. m. bien vale despertarse.
 
 **4. Revisa la versión.** `GET /api/system/version` (público) te da la versión, el tag de git, el SHA de git y la hora de build. Inclúyelo siempre cuando reportes un error.
 
@@ -192,7 +192,7 @@ _Video próximamente._
 
 ### Que te avisen antes de que el disco se llene, no después
 
-Un stack de medios llena su disco calladito y luego todo falla de formas confusas a la vez: las descargas se estancan, los renombrados fallan, la base de datos se niega a escribir. El monitor revisa cada 60 segundos y dispara `system.disk_space_low` cuando **cualquier** ruta de `FILE_MANAGER_ROOTS` baja de **10 % libre** — una sola vez, en el flanco, no cada minuto. Conecta ese evento a Telegram por el [Centro de Notificaciones](/modules/notification-center) y tendrás horas de aviso en vez de una mañana rota.
+Un stack de medios llena su disco calladito y luego todo falla de formas confusas a la vez: las descargas se estancan, los renombrados fallan, la base de datos se niega a escribir. El monitor revisa cada 60 segundos y dispara `system.disk_space_low` cuando **cualquier** ruta de `FILE_MANAGER_ROOTS` baja de **10 % libre** — una sola vez, en el flanco, no cada minuto. Conecta ese evento a Telegram por el Centro de Notificaciones y tendrás horas de aviso en vez de una mañana rota.
 
 ### Darle a Kubernetes una señal de readiness honesta
 
@@ -270,7 +270,7 @@ Administrator está definido como *todos los permisos excepto `system.manage`* �
 ## Ver también
 
 - [Gestor de Archivos](/modules/files) — la Ruta raíz predeterminada y sus reglas de clave protegida.
-- [Centro de Notificaciones](/modules/notification-center) — enrutar las alertas `system.*`.
+- Centro de Notificaciones — enrutar las alertas `system.*`.
 - [Motores](/modules/engines) — la salud de motores que reporta `/health`.
 - [Resumen de módulos](/modules/) — el registro de módulos.
 - [Referencia de entorno](/reference/environment) — las variables detrás de todo esto.

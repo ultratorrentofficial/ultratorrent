@@ -478,7 +478,6 @@ Magnet, when both are available. Both are accepted.
 
 1. [Automating TV shows](/learn/tutorials/automating-tv-shows) — turn on the sweep now that search works.
 2. [Smart RSS rules](/learn/tutorials/smart-rss-rules) — decide *which* of those candidates you actually want.
-3. [Notifications and automation](/learn/tutorials/notifications-and-automation) — get told when an indexer goes down.
 
 ---
 

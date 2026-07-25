@@ -170,7 +170,7 @@ Use **liveness** to decide whether to restart the container, and **readiness** t
 
 **2. Look at `/api/system/health` once, deliberately.** It is the single best diagnostic surface in the product: process load and memory, every engine's health with latency and version, and free space on every configured root. Bookmark it.
 
-**3. Wire the resource alerts into the [Notification Center](/modules/notification-center).** `system.disk_space_low` is the one that will save you. Enable its seeded rule, point it at a channel you actually read, and set `severity: critical` with `quietHoursOverride: true` — a full disk at 3 a.m. is worth waking up for.
+**3. Wire the resource alerts into the Notification Center.** `system.disk_space_low` is the one that will save you. Enable its seeded rule, point it at a channel you actually read, and set `severity: critical` with `quietHoursOverride: true` — a full disk at 3 a.m. is worth waking up for.
 
 **4. Check the version.** `GET /api/system/version` (public) gives you the version, git tag, git SHA, and build time. Always include this when you report a bug.
 
@@ -192,7 +192,7 @@ _Video coming soon._
 
 ### Be told before the disk fills, not after
 
-A media stack fills its disk quietly and then everything fails in confusing ways at once: downloads stall, renames fail, the database refuses writes. The monitor checks every 60 seconds and fires `system.disk_space_low` when **any** `FILE_MANAGER_ROOTS` path drops below **10 % free** — once, on the edge, not every minute. Wire that event to Telegram via the [Notification Center](/modules/notification-center) and you get hours of warning instead of a broken morning.
+A media stack fills its disk quietly and then everything fails in confusing ways at once: downloads stall, renames fail, the database refuses writes. The monitor checks every 60 seconds and fires `system.disk_space_low` when **any** `FILE_MANAGER_ROOTS` path drops below **10 % free** — once, on the edge, not every minute. Wire that event to Telegram via the Notification Center and you get hours of warning instead of a broken morning.
 
 ### Give Kubernetes an honest readiness signal
 
@@ -270,7 +270,6 @@ Administrator is defined as *every permission except `system.manage`* — and th
 ## See also
 
 - [File Manager](/modules/files) — the Default Root Path and its protected-key rules.
-- [Notification Center](/modules/notification-center) — routing `system.*` alerts.
 - [Engines](/modules/engines) — the engine health that `/health` reports.
 - [Modules overview](/modules/) — the module registry.
 - [Environment reference](/reference/environment) — the variables behind all of this.

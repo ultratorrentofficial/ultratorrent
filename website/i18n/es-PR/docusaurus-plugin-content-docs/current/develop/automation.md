@@ -484,5 +484,5 @@ es deliberada.
 
 - [Trabajos en segundo plano](/develop/background-jobs) — el bucle de polling, la idempotencia y la reconciliación
 - [Providers](/develop/providers) — por qué hay que verificar el "éxito"
-- [Módulos → Automatización](/modules/automation) · [RSS](/modules/rss) · [Centro de Notificaciones](/modules/notification-center)
+- [Módulos → Automatización](/modules/automation) · [RSS](/modules/rss) · Centro de Notificaciones
 - [Crear módulos](/develop/creating-modules)

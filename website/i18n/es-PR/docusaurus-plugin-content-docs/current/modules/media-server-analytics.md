@@ -193,7 +193,7 @@ _Video próximamente._
 
 ### Averigua quién te está derritiendo la CPU
 
-Los ventiladores de tu servidor se oyen y no sabes por qué. Abre **Actividad en Vivo**. Dos usuarios están transmitiendo 4K HDR a dispositivos que no pueden hacer direct play, así que el servidor está transcodificando ambos — ahí está tu CPU. Ahora abre **Informes de Analíticas → Reproducción** y podrás ver si eso es habitual o algo puntual. Después conecta una regla del [Centro de Notificaciones](/modules/notification-center) sobre `transcode_detected` para enterarte *mientras* pasa, no después.
+Los ventiladores de tu servidor se oyen y no sabes por qué. Abre **Actividad en Vivo**. Dos usuarios están transmitiendo 4K HDR a dispositivos que no pueden hacer direct play, así que el servidor está transcodificando ambos — ahí está tu CPU. Ahora abre **Informes de Analíticas → Reproducción** y podrás ver si eso es habitual o algo puntual. Después conecta una regla del Centro de Notificaciones sobre `transcode_detected` para enterarte *mientras* pasa, no después.
 
 ### Migrar desde Tautulli sin perder tres años de historial
 
@@ -224,7 +224,7 @@ Configura SMTP. Crea un boletín acotado solo a **Series de TV** y **Películas*
 - **Mantén el hospedaje de pósters del boletín en Incrustar** a menos que tu instancia sea genuinamente alcanzable de forma pública. Es el modo que no se puede romper.
 - **Envía un boletín de prueba antes de programar uno.** Los fallos de SMTP son mucho más fáciles de depurar bajo demanda que en un cron.
 - **Acota los boletines por tipo de contenido.** Un resumen solo de TV es mucho más legible que un resumen de todo.
-- **Conecta `transcode_detected` al [Centro de Notificaciones](/modules/notification-center)** si tu servidor anda corto de CPU.
+- **Conecta `transcode_detected` al Centro de Notificaciones** si tu servidor anda corto de CPU.
 
 ## Errores comunes
 
@@ -271,7 +271,7 @@ El modo `self_hosted` sirve imágenes desde un controlador deliberadamente **sin
 ## Ver también
 
 - [Gestor de Medios](/modules/media-manager) — las conexiones de servidor y la capa de proveedores compartidas.
-- [Centro de Notificaciones](/modules/notification-center) — enrutar eventos `media_server.*` a Telegram, correo y SMS.
+- Centro de Notificaciones — enrutar eventos `media_server.*` a Telegram, correo y SMS.
 - [Automatización](/modules/automation) — reaccionar a eventos del servidor de medios.
 - [Resumen de módulos](/modules/) — dependencias entre módulos.
 - [Perfiles de configuración](/operate/configuration-profiles)

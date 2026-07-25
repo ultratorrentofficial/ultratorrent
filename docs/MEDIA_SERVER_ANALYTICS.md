@@ -94,9 +94,10 @@ This is the media-server-native watch-history source; Tautulli import is the oth
 
 The poller also publishes onto the Notification Center's event bus
 (`media_server.user_started_watching` / `user_finished_watching` /
-`transcode_detected`), as does the newsletter dispatcher
-(`newsletter_sent` / `newsletter_failed`) — see
-[NOTIFICATION_CENTER.md](NOTIFICATION_CENTER.md).
+`transcode_detected`), as did the newsletter dispatcher
+(`newsletter_sent` / `newsletter_failed`). **Those emitters were removed on
+2026-07-25** with the notification engine and its event bus — nothing publishes
+them today.
 
 ## Metadata sync
 

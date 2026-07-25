@@ -474,5 +474,5 @@ never time out an HTTP request.
 
 - [Architecture](/develop/architecture)
 - [Creating modules](/develop/creating-modules)
-- [Modules → Engines](/modules/engines) · [Indexers](/modules/indexers) · [Notification Center](/modules/notification-center)
+- [Modules → Engines](/modules/engines) · [Indexers](/modules/indexers) · Notification Center
 - [Testing](/develop/testing)

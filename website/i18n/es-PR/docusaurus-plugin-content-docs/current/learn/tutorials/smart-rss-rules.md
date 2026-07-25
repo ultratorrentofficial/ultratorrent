@@ -434,7 +434,6 @@ adquisición. Son subsistemas distintos.
 
 **¿Me pueden notificar cuando una fuente se rompe?**
 Sí — `rss.feed_failed` es un evento de notificación. Ver
-[Notificaciones y automatización](/learn/tutorials/notifications-and-automation).
 
 ---
 
@@ -467,7 +466,6 @@ Sí — `rss.feed_failed` es un evento de notificación. Ver
 ### Próximos pasos
 
 1. [Múltiples indexadores](/learn/tutorials/multiple-indexers) — dale al motor más de dónde escoger.
-2. [Notificaciones y automatización](/learn/tutorials/notifications-and-automation) — reacciona a `rss.feed_failed`, `rss.show.ended`, y a los agarres.
 3. [Automatizar series de TV](/learn/tutorials/automating-tv-shows) — empareja el RSS hacia adelante con el llenado de huecos hacia atrás.
 
 ---

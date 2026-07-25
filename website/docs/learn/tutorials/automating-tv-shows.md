@@ -415,7 +415,6 @@ Surfacing the change is the platform's job. Deciding what to do about it is your
 If you *want* it automated, build an automation rule on the `rss.show.ended`
 trigger with an action like `convert_rule_to_backfill` (which turns off
 auto-download but keeps the rule) or `disable_rss_rule`. See
-[Notifications and automation](/learn/tutorials/notifications-and-automation).
 :::
 
 **Expected result:** you find out when a show ends, and you decide what happens
@@ -560,7 +559,6 @@ triggers are **not yet implemented**. Use the queues, and the
 
 1. [Smart RSS rules](/learn/tutorials/smart-rss-rules) — make the *quality* decisions properly.
 2. [Multiple indexers](/learn/tutorials/multiple-indexers) — more sources = more gaps filled.
-3. [Notifications and automation](/learn/tutorials/notifications-and-automation) — get told, and react to `rss.show.ended`.
 
 ---
 

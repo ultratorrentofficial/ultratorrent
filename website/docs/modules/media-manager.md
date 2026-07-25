@@ -354,5 +354,5 @@ There is a rename **history** (`GET /api/media/history`), but no one-click undo.
 - [Smart Download](/modules/smart-download) — which reads this library to decide what you already own.
 - [Media Server Analytics](/modules/media-server-analytics) — which reuses the same server connections.
 - [Automation](/modules/automation) — `media.*` triggers and actions.
-- [Notification Center](/modules/notification-center) — being told when a library scan or rename completes.
+- Notification Center — being told when a library scan or rename completes.
 - [Security](/operate/security)

@@ -42,7 +42,6 @@ flowchart TB
   subgraph A["🟣 ADVANCED — make it think"]
     A1["Smart RSS rules<br/>~60 min"]
     A2["Multiple indexers<br/>~45 min"]
-    A3["Notifications and automation<br/>~45 min"]
     A1 --> A2 --> A3
   end
 
@@ -116,7 +115,6 @@ engine apply it consistently.
 | --- | --- | --- | --- | --- |
 | 8 | [Smart RSS rules](/learn/tutorials/smart-rss-rules) | ~60 min | Tutorials 5–6 | Build ranked preference lists, understand three-level dedup, and let rules *upgrade* what you already hold. |
 | 9 | [Multiple indexers](/learn/tutorials/multiple-indexers) | ~45 min | An indexer + Prowlarr | Fan searches across many indexers with priority, min-seeders and cross-indexer dedup — and survive Cloudflare. |
-| 10 | [Notifications and automation](/learn/tutorials/notifications-and-automation) | ~45 min | Any working flow | Build condition/action rules and rule-driven notifications over Email, Telegram, SMS and WhatsApp. |
 
 :::warning Advanced tutorials can delete data
 An RSS *upgrade* removes the superseded torrent **and its data** — deliberately.
@@ -162,7 +160,6 @@ flowchart TB
   Q3 -->|yes| Q4{"Do new episodes arrive<br/>without you?"}
   Q4 -->|no| P4["→ Automating TV shows<br/>+ Smart RSS rules"]
   Q4 -->|yes| Q5{"Does it tell you when<br/>something happens<br/>or breaks?"}
-  Q5 -->|no| P5["→ Notifications and automation"]
   Q5 -->|yes| Q6{"Have you TESTED<br/>a restore?"}
   Q6 -->|no| P6["→ Backup and restore.<br/>Seriously. Today."]
   Q6 -->|yes| DONE(["You're running it properly."])

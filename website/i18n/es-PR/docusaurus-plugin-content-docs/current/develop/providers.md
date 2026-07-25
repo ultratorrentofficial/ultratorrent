@@ -485,5 +485,5 @@ que un tercero lento nunca pueda provocar un timeout en un request HTTP.
 
 - [Arquitectura](/develop/architecture)
 - [Crear módulos](/develop/creating-modules)
-- [Módulos → Motores](/modules/engines) · [Indexadores](/modules/indexers) · [Centro de Notificaciones](/modules/notification-center)
+- [Módulos → Motores](/modules/engines) · [Indexadores](/modules/indexers) · Centro de Notificaciones
 - [Pruebas](/develop/testing)

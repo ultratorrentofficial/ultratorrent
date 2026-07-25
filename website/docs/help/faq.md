@@ -405,7 +405,7 @@ See [Troubleshooting](/operate/troubleshooting#a-library-scan-freezes-at-a-perce
 ### What channels are supported?
 
 In-app, webhook, **Discord**, **Slack** and **Telegram**, with fan-out to multiple
-channels. See [Notification Center](/modules/notification-center).
+channels. See Notification Center.
 
 ### Which media servers can it refresh?
 

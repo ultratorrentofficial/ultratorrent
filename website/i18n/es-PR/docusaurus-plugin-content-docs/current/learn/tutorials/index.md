@@ -42,7 +42,6 @@ flowchart TB
   subgraph A["🟣 AVANZADO — hazlo pensar"]
     A1["Reglas RSS inteligentes<br/>~60 min"]
     A2["Múltiples indexadores<br/>~45 min"]
-    A3["Notificaciones y automatización<br/>~45 min"]
     A1 --> A2 --> A3
   end
 
@@ -116,7 +115,6 @@ que el motor lo aplique de forma consistente.
 | --- | --- | --- | --- | --- |
 | 8 | [Reglas RSS inteligentes](/learn/tutorials/smart-rss-rules) | ~60 min | Tutoriales 5–6 | Armar listas de preferencias ordenadas, entender el dedup de tres niveles, y dejar que las reglas *mejoren* lo que ya tienes. |
 | 9 | [Múltiples indexadores](/learn/tutorials/multiple-indexers) | ~45 min | Un indexador + Prowlarr | Repartir búsquedas entre muchos indexadores con prioridad, seeders mínimos y dedup entre indexadores — y sobrevivir a Cloudflare. |
-| 10 | [Notificaciones y automatización](/learn/tutorials/notifications-and-automation) | ~45 min | Cualquier flujo funcionando | Armar reglas de condición/acción y notificaciones guiadas por reglas sobre Email, Telegram, SMS y WhatsApp. |
 
 :::warning Los tutoriales avanzados pueden borrar datos
 Una *mejora* de RSS elimina el torrent superado **y sus datos** — a propósito. Una regla de
@@ -163,7 +161,6 @@ flowchart TB
   Q3 -->|"sí"| Q4{"¿Los episodios nuevos llegan<br/>sin que hagas nada?"}
   Q4 -->|"no"| P4["→ Automatizar series de TV<br/>+ Reglas RSS inteligentes"]
   Q4 -->|"sí"| Q5{"¿Te avisa cuando algo<br/>pasa o se rompe?"}
-  Q5 -->|"no"| P5["→ Notificaciones y automatización"]
   Q5 -->|"sí"| Q6{"¿Ya PROBASTE<br/>una restauración?"}
   Q6 -->|"no"| P6["→ Copia de seguridad y restauración.<br/>En serio. Hoy."]
   Q6 -->|"sí"| DONE(["Lo estás corriendo como se debe."])

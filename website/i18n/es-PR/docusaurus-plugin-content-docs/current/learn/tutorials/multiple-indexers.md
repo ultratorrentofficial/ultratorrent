@@ -488,7 +488,6 @@ Magnet, cuando ambos están disponibles. Se aceptan los dos.
 
 1. [Automatizando series de TV](/learn/tutorials/automating-tv-shows) — enciende el barrido ahora que la búsqueda funciona.
 2. [Reglas RSS inteligentes](/learn/tutorials/smart-rss-rules) — decide *cuál* de esos candidatos quieres realmente.
-3. [Notificaciones y automatización](/learn/tutorials/notifications-and-automation) — que te avisen cuando un indexador se caiga.
 
 ---
 

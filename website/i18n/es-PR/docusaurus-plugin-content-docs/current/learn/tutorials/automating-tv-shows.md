@@ -425,7 +425,6 @@ Exponer el cambio es trabajo de la plataforma. Decidir qué hacer al respecto es
 *quieres* que sea automático, construye una regla de automatización sobre el disparador
 `rss.show.ended` con una acción como `convert_rule_to_backfill` (que apaga la descarga
 automática pero conserva la regla) o `disable_rss_rule`. Mira
-[Notificaciones y automatización](/learn/tutorials/notifications-and-automation).
 :::
 
 **Resultado esperado:** te enteras cuando una serie termina, y tú decides qué pasa
@@ -572,7 +571,6 @@ evento de notificación `media.missing_episode_filled` que sí emite una captura
 
 1. [Reglas RSS inteligentes](/learn/tutorials/smart-rss-rules) — toma las decisiones de *calidad* como es debido.
 2. [Múltiples indexadores](/learn/tutorials/multiple-indexers) — más fuentes = más huecos rellenados.
-3. [Notificaciones y automatización](/learn/tutorials/notifications-and-automation) — entérate, y reacciona a `rss.show.ended`.
 
 ---
 

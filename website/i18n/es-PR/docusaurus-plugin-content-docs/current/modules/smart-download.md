@@ -264,7 +264,7 @@ Sí — es una función pura de las señales recogidas. Por eso el Simulador de 
 El tipo de decisión existe en el modelo, pero `decide()` no lo emite actualmente. Está reservado.
 
 **¿Se notifican las decisiones?**
-Se emiten eventos (`media_acquisition.*`), y el [Centro de Notificaciones](/modules/notification-center) puede enrutarlos. Una notificación por usuario más profunda sobre eventos de decisión, y disparar los triggers de Descarga Inteligente hacia el motor de [Automatización](/modules/automation), siguen pendientes.
+Se emiten eventos (`media_acquisition.*`), y el Centro de Notificaciones puede enrutarlos. Una notificación por usuario más profunda sobre eventos de decisión, y disparar los triggers de Descarga Inteligente hacia el motor de [Automatización](/modules/automation), siguen pendientes.
 
 ## Lista de verificación
 
@@ -283,5 +283,5 @@ Se emiten eventos (`media_acquisition.*`), y el [Centro de Notificaciones](/modu
 - [Indexadores](/modules/indexers) — la mitad de búsqueda activa.
 - [Gestor de Medios](/modules/media-manager) — el estado de la biblioteca del que se calcula el "ya en biblioteca".
 - [Torrents](/modules/torrents) — donde aparece una decisión ejecutada.
-- [Centro de Notificaciones](/modules/notification-center) — enterarte de las decisiones.
+- Centro de Notificaciones — enterarte de las decisiones.
 - [Conceptos básicos](/learn/concepts)

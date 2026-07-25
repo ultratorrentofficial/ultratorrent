@@ -33,7 +33,7 @@ If you find yourself doing the same thing by hand twice a week, it belongs here.
 
 - A working [engine](/modules/engines) (`automation` declares it as a hard dependency).
 - `automation.view` to see rules and their logs; `automation.manage` to create or change them.
-- For notification actions: a configured channel in the [Notification Center](/modules/notification-center).
+- For notification actions: a configured channel in the Notification Center.
 
 ## Concepts
 
@@ -139,7 +139,7 @@ Twenty-two actions exist, in four families.
 `move` (param `destination`), `pause`, `stop`, `delete`, `delete_with_data`, `rename_for_media` (params `preset`, `mode` — default `hardlink` — `libraryPath`, `template`).
 
 **Context-free actions** (valid on any trigger):
-`notify` (params `title`, `message`), `send_notification` (full [Notification Center](/modules/notification-center) dispatch: `channelIds`, `recipientIds`, `groupIds`, `templateId`, `variables`, `priority`, `title`, `message`), `webhook` (POSTs JSON to `params.url`), `notify_admin` (event-context only).
+`notify` (params `title`, `message`), `send_notification` (full Notification Center dispatch: `channelIds`, `recipientIds`, `groupIds`, `templateId`, `variables`, `priority`, `title`, `message`), `webhook` (POSTs JSON to `params.url`), `notify_admin` (event-context only).
 
 **Media actions:**
 `media_scan_library`, `media_match`, `media_fetch_metadata`, `media_fetch_artwork`, `media_generate_nfo`, `media_rename`, `media_move`, `media_server_refresh`, `media_notify`.
@@ -310,6 +310,6 @@ Yes. Every run writes `automation.rule.executed` to the [audit log](/modules/aud
 - [Torrents](/modules/torrents) — where torrent triggers come from.
 - [Media Manager](/modules/media-manager) — `media.*` triggers and the media actions.
 - [RSS automation](/modules/rss) — `rss.*` triggers and the backfill action.
-- [Notification Center](/modules/notification-center) — the `send_notification` action.
+- Notification Center — the `send_notification` action.
 - [Audit log](/modules/audit) — where rule runs are mirrored.
 - [API reference](/reference/api)

@@ -407,7 +407,6 @@ sequenceDiagram
 | Recipients | `/notifications/recipients` | Who gets what. |
 | Delivery History | `/notifications/history` | Proof it went out (or why it did not). |
 
-Full walkthrough: [Notifications and automation](/learn/tutorials/notifications-and-automation).
 
 ![Notification rule editor](/img/screenshots/workflow-notification-rule.png)
 
@@ -579,7 +578,6 @@ Pick the flow you want to own and go deep:
 1. [Building a movie library](/learn/tutorials/building-a-movie-library) → Workflow 5
 2. [Automating TV shows](/learn/tutorials/automating-tv-shows) → Workflows 2 + 4
 3. [Smart RSS rules](/learn/tutorials/smart-rss-rules) → Workflow 3
-4. [Notifications and automation](/learn/tutorials/notifications-and-automation) → Workflow 6
 
 ---
 
@@ -588,6 +586,5 @@ Pick the flow you want to own and go deep:
 - [Torrents](/modules/torrents) · [RSS](/modules/rss) · [Smart Download](/modules/smart-download)
 - [Missing Episodes](/modules/missing-episodes) · [Indexers](/modules/indexers)
 - [Media Manager](/modules/media-manager) · [Automation](/modules/automation)
-- [Notification Center](/modules/notification-center) · [Audit](/modules/audit)
 - [Backup &amp; restore](/operate/backup) · [Upgrading](/install/upgrading)
 - [Troubleshooting](/operate/troubleshooting) · [Glossary](/help/glossary)

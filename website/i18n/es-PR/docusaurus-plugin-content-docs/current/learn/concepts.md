@@ -781,6 +781,6 @@ Si puedes contestar las ocho, el resto de la documentación se va a leer como
 - [Torrents](/modules/torrents) · [Motores](/modules/engines) · [Indexadores](/modules/indexers)
 - [RSS](/modules/rss) · [Descarga Inteligente](/modules/smart-download) · [Episodios Faltantes](/modules/missing-episodes)
 - [Gestor de Medios](/modules/media-manager) · [Analíticas del Servidor de Medios](/modules/media-server-analytics)
-- [Automatización](/modules/automation) · [Centro de Notificaciones](/modules/notification-center)
+- [Automatización](/modules/automation) · Centro de Notificaciones
 - [Permisos](/reference/permissions) — el catálogo completo de RBAC.
 - [Módulos](/reference/modules) — cada manifiesto de módulo.

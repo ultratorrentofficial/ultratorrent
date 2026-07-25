@@ -582,7 +582,6 @@ No — ese es justamente el punto del resto de la documentación. Ve
 1. **Deja de hacer esto a mano** → [Flujos de trabajo](/learn/workflows)
 2. **Construye una biblioteca de verdad** → [Construir una biblioteca de películas](/learn/tutorials/building-a-movie-library)
 3. **No vuelvas a perderte un episodio** → [Automatizar series de TV](/learn/tutorials/automating-tv-shows)
-4. **Que te avisen cuando pasen cosas** → [Notificaciones y automatización](/learn/tutorials/notifications-and-automation)
 
 ---
 

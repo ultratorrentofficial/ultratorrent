@@ -18,7 +18,7 @@ This page is generated from `the @Controller / @Get / @RequirePermissions decora
 Every endpoint below was read from the controllers themselves, including the **exact
 permission** its guard enforces.
 
-- **276 endpoints** across **14 controllers**
+- **368 endpoints** across **19 controllers**
 - Base URL: `http://<host>:<port>/api`
 
 ## Authentication
@@ -154,6 +154,8 @@ From `FilesController`.
 | `POST` | `/api/files/copy` | `FILES_COPY` | `copy` |
 | `POST` | `/api/files/delete` | `FILES_DELETE` | `remove` |
 | `POST` | `/api/files/bulk` | `FILES_BULK_ACTIONS` | `bulk` |
+| `POST` | `/api/files/move-conflicts` | `FILES_VIEW` | `moveConflicts` |
+| `POST` | `/api/files/resolve-conflicts` | `FILES_MOVE`, `FILES_COPY`, `FILES_DELETE` | `resolveConflicts` |
 | `POST` | `/api/files/cleanup-preview` | `FILES_CLEANUP` | `cleanupPreview` |
 | `POST` | `/api/files/cleanup-execute` | `FILES_CLEANUP` | `cleanupExecute` |
 | `GET` | `/api/files/trash` | `FILES_VIEW` | `listTrash` |
@@ -187,6 +189,38 @@ From `ProwlarrController`.
 | `GET` | `/api/integrations/prowlarr/status` | `INTEGRATIONS_PROWLARR_VIEW` | `status` |
 | `POST` | `/api/integrations/prowlarr/open` | `INTEGRATIONS_PROWLARR_OPEN` | `open` |
 
+## `/jobs`
+
+From `JobsController`.
+
+| Method | Path | Permission | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/jobs` | — | `list` |
+
+## `/jobs`
+
+From `PlatformJobsController`.
+
+| Method | Path | Permission | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/jobs/overview` | `JOBS_VIEW` | `overview` |
+| `GET` | `/api/jobs/catalog` | `JOBS_VIEW` | `catalog` |
+| `GET` | `/api/jobs/list` | `JOBS_VIEW` | `list` |
+| `GET` | `/api/jobs/schedules` | `JOBS_VIEW` | `scheduleList` |
+| `GET` | `/api/jobs/workers` | `JOBS_VIEW_WORKERS` | `workerList` |
+| `GET` | `/api/jobs/settings` | `JOBS_MANAGE_SETTINGS` | `settings` |
+| `GET` | `/api/jobs/:id` | `JOBS_VIEW` | `detail` |
+| `GET` | `/api/jobs/:id/events` | `JOBS_VIEW` | `events` |
+| `GET` | `/api/jobs/:id/children` | `JOBS_VIEW` | `children` |
+| `POST` | `/api/jobs/bulk/cancel` | `JOBS_BULK_MANAGE`, `JOBS_CANCEL` | `bulkCancel` |
+| `POST` | `/api/jobs/bulk/retry` | `JOBS_BULK_MANAGE`, `JOBS_RETRY` | `bulkRetry` |
+| `POST` | `/api/jobs/bulk/rerun` | `JOBS_BULK_MANAGE`, `JOBS_RERUN` | `bulkRerun` |
+| `POST` | `/api/jobs/:id/cancel` | `JOBS_CANCEL` | `cancel` |
+| `POST` | `/api/jobs/:id/pause` | `JOBS_PAUSE` | `pause` |
+| `POST` | `/api/jobs/:id/resume` | `JOBS_RESUME` | `resume` |
+| `POST` | `/api/jobs/:id/retry` | `JOBS_RETRY` | `retry` |
+| `POST` | `/api/jobs/:id/rerun` | `JOBS_RERUN` | `rerun` |
+
 ## `/media`
 
 From `MediaController`.
@@ -209,6 +243,8 @@ From `MediaController`.
 | `POST` | `/api/media/items/reidentify` | `MEDIA_MANAGER_MATCH` | `reidentifyItems` |
 | `POST` | `/api/media/items/:id/match` | `MEDIA_MANAGER_MATCH` | `matchItem` |
 | `POST` | `/api/media/items/:id/unmatch` | `MEDIA_MANAGER_MATCH` | `unmatchItem` |
+| `POST` | `/api/media/items/:id/lock` | `MEDIA_MANAGER_EDIT_METADATA` | `lockItem` |
+| `POST` | `/api/media/items/:id/unlock` | `MEDIA_MANAGER_EDIT_METADATA` | `unlockItem` |
 | `POST` | `/api/media/items/:id/metadata/fetch` | `MEDIA_MANAGER_EDIT_METADATA` | `fetchMetadata` |
 | `PATCH` | `/api/media/items/:id/metadata` | `MEDIA_MANAGER_EDIT_METADATA` | `updateMetadata` |
 | `GET` | `/api/media/items/:id/artwork` | `MEDIA_MANAGER_VIEW` | `listArtwork` |
@@ -221,8 +257,20 @@ From `MediaController`.
 | `POST` | `/api/media/items/:id/subtitles/scan` | `MEDIA_MANAGER_MANAGE_SUBTITLES` | `scanSubtitles` |
 | `GET` | `/api/media/items/:id/subtitles/missing` | `MEDIA_MANAGER_VIEW` | `missingSubtitles` |
 | `POST` | `/api/media/nfo/generate` | `MEDIA_MANAGER_GENERATE_NFO` | `generateNfo` |
+| `GET` | `/api/media/duplicates/overview` | `MEDIA_MANAGER_VIEW` | `duplicatesOverview` |
 | `GET` | `/api/media/duplicates` | `MEDIA_MANAGER_VIEW` | `listDuplicates` |
-| `POST` | `/api/media/duplicates/detect` | `MEDIA_MANAGER_VIEW` | `detectDuplicates` |
+| `POST` | `/api/media/duplicates/detect` | `MEDIA_MANAGER_SCAN` | `detectDuplicates` |
+| `POST` | `/api/media/jobs/:jobId/cancel` | `MEDIA_MANAGER_SCAN` | `cancelJob` |
+| `GET` | `/api/media/duplicates/quick-clean/candidates` | `MEDIA_MANAGER_VIEW` | `quickCleanCandidates` |
+| `GET` | `/api/media/duplicates/trash/history` | `MEDIA_MANAGER_VIEW` | `duplicateTrashHistory` |
+| `POST` | `/api/media/duplicates/bulk/preview` | `MEDIA_MANAGER_VIEW` | `bulkPreviewDuplicates` |
+| `POST` | `/api/media/duplicates/bulk/resolve` | `MEDIA_MANAGER_DELETE` | `bulkResolveDuplicates` |
+| `POST` | `/api/media/duplicates/resolutions/:resolutionId/resolve` | `MEDIA_MANAGER_DELETE` | `resolveDuplicateCleanup` |
+| `GET` | `/api/media/duplicates/:groupId` | `MEDIA_MANAGER_VIEW` | `getDuplicateGroup` |
+| `POST` | `/api/media/duplicates/:groupId/ignore` | `MEDIA_MANAGER_MATCH` | `ignoreDuplicateGroup` |
+| `POST` | `/api/media/duplicates/:groupId/preview` | `MEDIA_MANAGER_VIEW` | `previewDuplicateCleanup` |
+| `POST` | `/api/media/duplicates/:groupId/preview-delete` | `MEDIA_MANAGER_VIEW` | `previewDuplicateItemDeletion` |
+| `POST` | `/api/media/duplicates/:groupId/reopen` | `MEDIA_MANAGER_MATCH` | `reopenDuplicateGroup` |
 | `GET` | `/api/media/shows/duplicates` | `MEDIA_MANAGER_VIEW` | `detectDuplicateShows` |
 | `POST` | `/api/media/shows/duplicates/preview` | `MEDIA_MANAGER_VIEW` | `previewShowMerge` |
 | `POST` | `/api/media/shows/duplicates/merge` | `MEDIA_MANAGER_RENAME`, `MEDIA_MANAGER_DELETE` | `mergeShows` |
@@ -233,6 +281,8 @@ From `MediaController`.
 | `POST` | `/api/media/server-integrations/:id/test` | `MEDIA_MANAGER_MANAGE_INTEGRATIONS` | `testIntegration` |
 | `POST` | `/api/media/server-integrations/:id/refresh` | `MEDIA_MANAGER_MANAGE_INTEGRATIONS` | `refreshIntegration` |
 | `POST` | `/api/media/providers/tmdb/test` | `SETTINGS_MANAGE` | `testTmdbApi` |
+| `POST` | `/api/media/providers/tvdb/test` | `SETTINGS_MANAGE` | `testTvdbApi` |
+| `GET` | `/api/media/providers` | `MEDIA_MANAGER_VIEW` | `listProviders` |
 | `GET` | `/api/media/providers/imdb/status` | `MEDIA_MANAGER_IMDB_VIEW` | `imdbStatus` |
 | `GET` | `/api/media/providers/imdb/settings` | `MEDIA_MANAGER_IMDB_VIEW` | `imdbSettings` |
 | `PATCH` | `/api/media/providers/imdb/settings` | `MEDIA_MANAGER_IMDB_CONFIGURE` | `updateImdbSettings` |
@@ -326,6 +376,7 @@ From `MediaServerAnalyticsController`.
 | `GET` | `/api/media-server-analytics/reports/heatmap` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `reportHeatmap` |
 | `GET` | `/api/media-server-analytics/reports/trends` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `reportTrends` |
 | `GET` | `/api/media-server-analytics/reports/resolutions` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `reportResolutions` |
+| `GET` | `/api/media-server-analytics/reports/plays` | `MEDIA_SERVER_ANALYTICS_VIEW_HISTORY` | `reportPlays` |
 | `GET` | `/api/media-server-analytics/reports/library-growth` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `reportLibraryGrowth` |
 | `GET` | `/api/media-server-analytics/reports/bandwidth` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `reportBandwidth` |
 | `GET` | `/api/media-server-analytics/export/watch-history` | `MEDIA_SERVER_ANALYTICS_EXPORT` | `exportWatchHistory` |
@@ -346,6 +397,8 @@ From `MediaServerAnalyticsController`.
 | `GET` | `/api/media-server-analytics/import-jobs` | `MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS` | `listImportJobs` |
 | `GET` | `/api/media-server-analytics/import-jobs/:id` | `MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS` | `getImportJob` |
 | `GET` | `/api/media-server-analytics/newsletters` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `listNewsletters` |
+| `GET` | `/api/media-server-analytics/newsletters/recipient-options` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `newsletterRecipientOptions` |
+| `PATCH` | `/api/media-server-analytics/newsletters/recipient-options/:userId` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `setRecipientEmail` |
 | `POST` | `/api/media-server-analytics/newsletters` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `createNewsletter` |
 | `GET` | `/api/media-server-analytics/newsletters/:id` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `getNewsletter` |
 | `PATCH` | `/api/media-server-analytics/newsletters/:id` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `updateNewsletter` |
@@ -376,6 +429,68 @@ From `NewsletterImageController`.
 | --- | --- | --- | --- |
 | `GET` | `/api/media-server-analytics/nl-image/:id` | — | `serve` |
 
+## `/media/cleanup`
+
+From `CleanupController`.
+
+| Method | Path | Permission | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/media/cleanup/catalog` | `LIBRARY_CLEANUP_VIEW` | `catalog` |
+| `POST` | `/api/media/cleanup/validate` | `LIBRARY_CLEANUP_VIEW` | `validate` |
+| `GET` | `/api/media/cleanup/templates` | `LIBRARY_CLEANUP_VIEW` | `templates` |
+| `GET` | `/api/media/cleanup/policies` | `LIBRARY_CLEANUP_VIEW` | `listPolicies` |
+| `POST` | `/api/media/cleanup/policies` | `LIBRARY_CLEANUP_POLICY_CREATE` | `createPolicy` |
+| `POST` | `/api/media/cleanup/policies/from-template` | `LIBRARY_CLEANUP_POLICY_CREATE` | `createFromTemplate` |
+| `GET` | `/api/media/cleanup/policies/:id` | `LIBRARY_CLEANUP_VIEW` | `getPolicy` |
+| `PATCH` | `/api/media/cleanup/policies/:id` | `LIBRARY_CLEANUP_POLICY_EDIT` | `updatePolicy` |
+| `PUT` | `/api/media/cleanup/policies/:id/draft` | `LIBRARY_CLEANUP_POLICY_EDIT` | `saveDraft` |
+| `POST` | `/api/media/cleanup/policies/:id/publish` | `LIBRARY_CLEANUP_POLICY_PUBLISH` | `publishPolicy` |
+| `POST` | `/api/media/cleanup/policies/:id/enable` | `LIBRARY_CLEANUP_POLICY_ENABLE` | `enablePolicy` |
+| `POST` | `/api/media/cleanup/policies/:id/disable` | `LIBRARY_CLEANUP_POLICY_ENABLE` | `disablePolicy` |
+| `POST` | `/api/media/cleanup/policies/:id/archive` | `LIBRARY_CLEANUP_POLICY_DELETE` | `archivePolicy` |
+| `DELETE` | `/api/media/cleanup/policies/:id` | `LIBRARY_CLEANUP_POLICY_DELETE` | `deletePolicy` |
+| `POST` | `/api/media/cleanup/policies/:id/simulate` | `LIBRARY_CLEANUP_SIMULATE` | `simulate` |
+| `POST` | `/api/media/cleanup/policies/:id/run` | `LIBRARY_CLEANUP_RUN` | `run` |
+| `GET` | `/api/media/cleanup/runs` | `LIBRARY_CLEANUP_VIEW` | `listRuns` |
+| `GET` | `/api/media/cleanup/runs/:runId` | `LIBRARY_CLEANUP_VIEW` | `getRun` |
+| `POST` | `/api/media/cleanup/runs/:runId/cancel` | `LIBRARY_CLEANUP_CANCEL` | `cancelRun` |
+| `GET` | `/api/media/cleanup/runs/:runId/candidates` | `LIBRARY_CLEANUP_VIEW` | `listCandidates` |
+| `POST` | `/api/media/cleanup/runs/:runId/plans` | `LIBRARY_CLEANUP_RUN` | `createPlan` |
+| `GET` | `/api/media/cleanup/plans` | `LIBRARY_CLEANUP_VIEW` | `listPlans` |
+| `GET` | `/api/media/cleanup/plans/:planId` | `LIBRARY_CLEANUP_VIEW` | `getPlan` |
+| `GET` | `/api/media/cleanup/plans/:planId/actions` | `LIBRARY_CLEANUP_VIEW` | `listPlanActions` |
+| `POST` | `/api/media/cleanup/plans/:planId/approve` | `LIBRARY_CLEANUP_APPROVE` | `approvePlan` |
+| `POST` | `/api/media/cleanup/plans/:planId/reject` | `LIBRARY_CLEANUP_APPROVE` | `rejectPlan` |
+| `POST` | `/api/media/cleanup/plans/:planId/cancel` | `LIBRARY_CLEANUP_CANCEL` | `cancelPlan` |
+| `POST` | `/api/media/cleanup/plans/:planId/execute` | `LIBRARY_CLEANUP_TRASH` | `executePlan` |
+| `GET` | `/api/media/cleanup/quarantine` | `LIBRARY_CLEANUP_VIEW` | `listQuarantine` |
+| `GET` | `/api/media/cleanup/quarantine/:id` | `LIBRARY_CLEANUP_VIEW` | `getQuarantineItem` |
+| `POST` | `/api/media/cleanup/quarantine/:id/restore` | `LIBRARY_CLEANUP_RESTORE` | `restoreQuarantined` |
+| `POST` | `/api/media/cleanup/quarantine/:id/purge` | `LIBRARY_CLEANUP_PERMANENT_DELETE` | `purgeQuarantined` |
+| `GET` | `/api/media/cleanup/protections/expiring` | `LIBRARY_CLEANUP_PROTECTION_VIEW` | `expiring` |
+| `GET` | `/api/media/cleanup/protections` | `LIBRARY_CLEANUP_PROTECTION_VIEW` | `listProtections` |
+| `POST` | `/api/media/cleanup/protections` | `LIBRARY_CLEANUP_PROTECTION_CREATE` | `createProtection` |
+| `POST` | `/api/media/cleanup/protections/bulk` | `LIBRARY_CLEANUP_PROTECTION_CREATE` | `bulkCreateProtections` |
+| `GET` | `/api/media/cleanup/protections/:id` | `LIBRARY_CLEANUP_PROTECTION_VIEW` | `getProtection` |
+| `POST` | `/api/media/cleanup/protections/:id/revoke` | `LIBRARY_CLEANUP_PROTECTION_REVOKE` | `revokeProtection` |
+
+## `/media/trakt`
+
+From `TraktController`.
+
+| Method | Path | Permission | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/media/trakt/status` | `MEDIA_MANAGER_VIEW` | `status` |
+| `POST` | `/api/media/trakt/device/start` | `MEDIA_MANAGER_VIEW` | `startDevice` |
+| `POST` | `/api/media/trakt/device/poll` | `MEDIA_MANAGER_VIEW` | `pollDevice` |
+| `DELETE` | `/api/media/trakt/link` | `MEDIA_MANAGER_VIEW` | `disconnect` |
+| `PATCH` | `/api/media/trakt/settings` | `MEDIA_MANAGER_VIEW` | `updateSettings` |
+| `POST` | `/api/media/trakt/sync/watchlist` | `MEDIA_ACQUISITION_MANAGE_WATCHLIST` | `importWatchlist` |
+| `POST` | `/api/media/trakt/sync/collection` | `MEDIA_MANAGER_VIEW` | `pushCollection` |
+| `POST` | `/api/media/trakt/sync/watched` | `MEDIA_MANAGER_VIEW` | `syncWatched` |
+| `POST` | `/api/media/trakt/sync/ratings` | `MEDIA_MANAGER_VIEW` | `syncRatings` |
+| `POST` | `/api/media/trakt/sync/backfill` | `MEDIA_MANAGER_VIEW` | `backfill` |
+
 ## `/modules`
 
 From `ModuleRegistryController`.
@@ -391,47 +506,6 @@ From `ModuleRegistryController`.
 | `POST` | `/api/modules/:id/enable` | `MODULES_MANAGE` | `enable` |
 | `POST` | `/api/modules/:id/disable` | `MODULES_MANAGE` | `disable` |
 
-## `/notifications`
-
-From `NotificationCenterController`.
-
-| Method | Path | Permission | Handler |
-| --- | --- | --- | --- |
-| `GET` | `/api/notifications/dashboard` | `NOTIFICATIONS_VIEW` | `dashboard` |
-| `GET` | `/api/notifications/providers` | `NOTIFICATIONS_VIEW` | `providers` |
-| `GET` | `/api/notifications/channels` | `NOTIFICATIONS_VIEW` | `listChannels` |
-| `POST` | `/api/notifications/channels` | `NOTIFICATIONS_MANAGE_CHANNELS` | `createChannel` |
-| `GET` | `/api/notifications/channels/:id` | `NOTIFICATIONS_VIEW` | `getChannel` |
-| `PATCH` | `/api/notifications/channels/:id` | `NOTIFICATIONS_MANAGE_CHANNELS` | `updateChannel` |
-| `DELETE` | `/api/notifications/channels/:id` | `NOTIFICATIONS_MANAGE_CHANNELS` | `deleteChannel` |
-| `POST` | `/api/notifications/channels/:id/test` | `NOTIFICATIONS_SEND_TEST` | `testChannel` |
-| `GET` | `/api/notifications/recipients` | `NOTIFICATIONS_VIEW` | `listRecipients` |
-| `POST` | `/api/notifications/recipients` | `NOTIFICATIONS_MANAGE_RECIPIENTS` | `createRecipient` |
-| `PATCH` | `/api/notifications/recipients/:id` | `NOTIFICATIONS_MANAGE_RECIPIENTS` | `updateRecipient` |
-| `DELETE` | `/api/notifications/recipients/:id` | `NOTIFICATIONS_MANAGE_RECIPIENTS` | `deleteRecipient` |
-| `GET` | `/api/notifications/groups` | `NOTIFICATIONS_VIEW` | `listGroups` |
-| `POST` | `/api/notifications/groups` | `NOTIFICATIONS_MANAGE_GROUPS` | `createGroup` |
-| `DELETE` | `/api/notifications/groups/:id` | `NOTIFICATIONS_MANAGE_GROUPS` | `deleteGroup` |
-| `PUT` | `/api/notifications/groups/:id/members` | `NOTIFICATIONS_MANAGE_GROUPS` | `setGroupMembers` |
-| `GET` | `/api/notifications/templates` | `NOTIFICATIONS_VIEW` | `listTemplates` |
-| `POST` | `/api/notifications/templates` | `NOTIFICATIONS_MANAGE_TEMPLATES` | `createTemplate` |
-| `PATCH` | `/api/notifications/templates/:id` | `NOTIFICATIONS_MANAGE_TEMPLATES` | `updateTemplate` |
-| `DELETE` | `/api/notifications/templates/:id` | `NOTIFICATIONS_MANAGE_TEMPLATES` | `deleteTemplate` |
-| `POST` | `/api/notifications/templates/preview` | `NOTIFICATIONS_MANAGE_TEMPLATES` | `previewTemplate` |
-| `GET` | `/api/notifications/rules` | `NOTIFICATIONS_VIEW` | `listRules` |
-| `GET` | `/api/notifications/rules/:id` | `NOTIFICATIONS_VIEW` | `getRule` |
-| `POST` | `/api/notifications/rules` | `NOTIFICATIONS_MANAGE_RULES` | `createRule` |
-| `PATCH` | `/api/notifications/rules/:id` | `NOTIFICATIONS_MANAGE_RULES` | `updateRule` |
-| `DELETE` | `/api/notifications/rules/:id` | `NOTIFICATIONS_MANAGE_RULES` | `deleteRule` |
-| `GET` | `/api/notifications/history` | `NOTIFICATIONS_VIEW_HISTORY` | `history` |
-| `GET` | `/api/notifications/queue` | `NOTIFICATIONS_VIEW_HISTORY` | `queue` |
-| `POST` | `/api/notifications/history/:id/retry` | `NOTIFICATIONS_RETRY` | `retry` |
-| `GET` | `/api/notifications/preferences/:recipientId` | `NOTIFICATIONS_VIEW` | `preferences` |
-| `PUT` | `/api/notifications/preferences` | `NOTIFICATIONS_MANAGE_PREFERENCES` | `setPreference` |
-| `GET` | `/api/notifications/settings` | `NOTIFICATIONS_MANAGE_SETTINGS` | `getSettings` |
-| `PATCH` | `/api/notifications/settings` | `NOTIFICATIONS_MANAGE_SETTINGS` | `updateSettings` |
-| `POST` | `/api/notifications/test` | `NOTIFICATIONS_SEND_TEST` | `test` |
-
 ## `/release-scoring`
 
 From `ReleaseScoringController`.
@@ -440,6 +514,33 @@ From `ReleaseScoringController`.
 | --- | --- | --- | --- |
 | `POST` | `/api/release-scoring/score` | `RELEASE_SCORING_VIEW` | `score` |
 | `POST` | `/api/release-scoring/test-rule` | `RELEASE_SCORING_VIEW` | `testRule` |
+
+## `/subtitle-intelligence`
+
+From `SubtitleIntelligenceController`.
+
+| Method | Path | Permission | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/subtitle-intelligence/settings` | `SUBTITLE_INTELLIGENCE_VIEW` | `getSettings` |
+| `PATCH` | `/api/subtitle-intelligence/settings` | `SUBTITLE_INTELLIGENCE_SETTINGS` | `updateSettings` |
+| `GET` | `/api/subtitle-intelligence/dashboard` | `SUBTITLE_INTELLIGENCE_VIEW` | `dashboard` |
+| `GET` | `/api/subtitle-intelligence/providers` | `SUBTITLE_INTELLIGENCE_VIEW` | `listProviders` |
+| `PATCH` | `/api/subtitle-intelligence/providers/:provider` | `SUBTITLE_INTELLIGENCE_PROVIDERS` | `upsertProvider` |
+| `POST` | `/api/subtitle-intelligence/providers/:provider/test` | `SUBTITLE_INTELLIGENCE_PROVIDERS` | `testProvider` |
+| `POST` | `/api/subtitle-intelligence/providers/health-check` | `SUBTITLE_INTELLIGENCE_PROVIDERS` | `healthCheckAll` |
+| `POST` | `/api/subtitle-intelligence/libraries/:libraryId/scan-missing` | `SUBTITLE_INTELLIGENCE_SEARCH` | `scanMissing` |
+| `GET` | `/api/subtitle-intelligence/libraries/:libraryId/languages` | `SUBTITLE_INTELLIGENCE_VIEW` | `getLanguages` |
+| `PATCH` | `/api/subtitle-intelligence/libraries/:libraryId/languages` | `SUBTITLE_INTELLIGENCE_SETTINGS` | `setLanguages` |
+| `POST` | `/api/subtitle-intelligence/items/:id/fingerprint` | `SUBTITLE_INTELLIGENCE_SEARCH` | `fingerprint` |
+| `POST` | `/api/subtitle-intelligence/items/:id/search` | `SUBTITLE_INTELLIGENCE_SEARCH` | `search` |
+| `GET` | `/api/subtitle-intelligence/items/:id/candidates` | `SUBTITLE_INTELLIGENCE_VIEW` | `candidates` |
+| `POST` | `/api/subtitle-intelligence/candidates/:candidateId/download` | `SUBTITLE_INTELLIGENCE_DOWNLOAD` | `download` |
+| `POST` | `/api/subtitle-intelligence/validate` | `SUBTITLE_INTELLIGENCE_VIEW` | `validate` |
+| `GET` | `/api/subtitle-intelligence/sync/capabilities` | `SUBTITLE_INTELLIGENCE_VIEW` | `syncCapabilities` |
+| `POST` | `/api/subtitle-intelligence/downloads/:downloadId/synchronize` | `SUBTITLE_INTELLIGENCE_SYNCHRONIZE` | `synchronize` |
+| `GET` | `/api/subtitle-intelligence/downloads/:downloadId/synchronizations` | `SUBTITLE_INTELLIGENCE_VIEW` | `synchronizations` |
+| `GET` | `/api/subtitle-intelligence/downloads` | `SUBTITLE_INTELLIGENCE_VIEW` | `downloads` |
+| `GET` | `/api/subtitle-intelligence/history` | `SUBTITLE_INTELLIGENCE_VIEW` | `history` |
 
 ## `/torrents`
 
@@ -474,6 +575,32 @@ From `TorrentsController`.
 | `POST` | `/api/torrents/:hash/files/priority` | `TORRENTS_MANAGE_FILES` | `filePriority` |
 | `POST` | `/api/torrents/:hash/trackers` | `TORRENTS_MANAGE_TRACKERS` | `addTracker` |
 | `DELETE` | `/api/torrents/:hash/trackers` | `TORRENTS_MANAGE_TRACKERS` | `removeTracker` |
+
+## `/workflows`
+
+From `WorkflowsController`.
+
+| Method | Path | Permission | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/workflows/catalog` | `WORKFLOWS_VIEW` | `catalog` |
+| `POST` | `/api/workflows/validate` | `WORKFLOWS_VIEW` | `validate` |
+| `GET` | `/api/workflows` | `WORKFLOWS_VIEW` | `list` |
+| `POST` | `/api/workflows` | `WORKFLOWS_CREATE` | `create` |
+| `GET` | `/api/workflows/:id` | `WORKFLOWS_VIEW` | `get` |
+| `PATCH` | `/api/workflows/:id` | `WORKFLOWS_EDIT` | `update` |
+| `PUT` | `/api/workflows/:id/graph` | `WORKFLOWS_EDIT` | `saveDraft` |
+| `POST` | `/api/workflows/:id/publish` | `WORKFLOWS_PUBLISH` | `publish` |
+| `POST` | `/api/workflows/:id/simulate` | `WORKFLOWS_RUN` | `simulate` |
+| `POST` | `/api/workflows/:id/run` | `WORKFLOWS_RUN` | `run` |
+| `GET` | `/api/workflows/:id/executions` | `WORKFLOWS_VIEW` | `listExecutions` |
+| `GET` | `/api/workflows/executions/:executionId` | `WORKFLOWS_VIEW` | `getExecution` |
+| `POST` | `/api/workflows/executions/:executionId/cancel` | `WORKFLOWS_RUN` | `cancelExecution` |
+| `GET` | `/api/workflows/approvals/pending` | `WORKFLOWS_APPROVE` | `pendingApprovals` |
+| `POST` | `/api/workflows/approvals/:approvalId/respond` | `WORKFLOWS_APPROVE` | `respondApproval` |
+| `POST` | `/api/workflows/:id/enable` | `WORKFLOWS_PUBLISH` | `enable` |
+| `POST` | `/api/workflows/:id/disable` | `WORKFLOWS_PUBLISH` | `disable` |
+| `POST` | `/api/workflows/:id/archive` | `WORKFLOWS_DELETE` | `archive` |
+| `DELETE` | `/api/workflows/:id` | `WORKFLOWS_DELETE` | `remove` |
 
 ## See also
 

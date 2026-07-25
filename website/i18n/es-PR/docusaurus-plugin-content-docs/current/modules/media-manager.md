@@ -354,5 +354,5 @@ Hay un **historial** de renombrados (`GET /api/media/history`), pero no hay desh
 - [Descarga Inteligente](/modules/smart-download) — que lee esta biblioteca para decidir qué ya tienes.
 - [Analíticas del Servidor de Medios](/modules/media-server-analytics) — que reutiliza las mismas conexiones de servidor.
 - [Automatización](/modules/automation) — disparadores y acciones `media.*`.
-- [Centro de Notificaciones](/modules/notification-center) — que te avisa cuando un escaneo o renombrado de biblioteca termina.
+- Centro de Notificaciones — que te avisa cuando un escaneo o renombrado de biblioteca termina.
 - [Seguridad](/operate/security)

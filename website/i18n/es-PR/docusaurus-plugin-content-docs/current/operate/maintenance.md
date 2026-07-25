@@ -379,7 +379,7 @@ Si la rutina saca algo a la luz, la solución casi seguro está en
 ## Consejos {#tips}
 
 - **Automatiza el chequeo diario en una notificación.** El propio
-  [Centro de Notificaciones](/modules/notification-center) de UltraTorrent puede avisarte
+  Centro de Notificaciones de UltraTorrent puede avisarte
   cuando algo falle — úsalo en vez de depender de que tú te acuerdes de mirar.
 - **Anota el `RestartCount` cada semana.** El número absoluto no dice nada; la
   **tendencia** es toda la señal.
@@ -448,4 +448,4 @@ añadas `--volumes`.
 - [Rendimiento](/operate/performance)
 - [Seguridad](/operate/security)
 - [Perfiles de configuración](/operate/configuration-profiles)
-- [Auditoría](/modules/audit) · [Centro de Notificaciones](/modules/notification-center) · [Sistema](/modules/system)
+- [Auditoría](/modules/audit) · Centro de Notificaciones · [Sistema](/modules/system)

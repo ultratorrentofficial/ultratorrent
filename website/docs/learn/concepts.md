@@ -752,6 +752,6 @@ If you can answer all eight, the rest of the documentation will read as
 - [Torrents](/modules/torrents) · [Engines](/modules/engines) · [Indexers](/modules/indexers)
 - [RSS](/modules/rss) · [Smart Download](/modules/smart-download) · [Missing Episodes](/modules/missing-episodes)
 - [Media Manager](/modules/media-manager) · [Media Server Analytics](/modules/media-server-analytics)
-- [Automation](/modules/automation) · [Notification Center](/modules/notification-center)
+- [Automation](/modules/automation) · Notification Center
 - [Permissions](/reference/permissions) — the full RBAC catalogue.
 - [Modules](/reference/modules) — every module manifest.

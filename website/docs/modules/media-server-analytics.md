@@ -193,7 +193,7 @@ _Video coming soon._
 
 ### Find out who is melting your CPU
 
-Your server's fans are audible and you do not know why. Open **Live Activity**. Two users are streaming 4K HDR to devices that cannot direct-play it, so the server is transcoding both — that is your CPU. Now open **Analytics Reports → Playback** and you can see whether that is habitual or a one-off. Then wire a [Notification Center](/modules/notification-center) rule on `transcode_detected` so you find out *while* it happens, not after.
+Your server's fans are audible and you do not know why. Open **Live Activity**. Two users are streaming 4K HDR to devices that cannot direct-play it, so the server is transcoding both — that is your CPU. Now open **Analytics Reports → Playback** and you can see whether that is habitual or a one-off. Then wire a Notification Center rule on `transcode_detected` so you find out *while* it happens, not after.
 
 ### Migrate off Tautulli without losing three years of history
 
@@ -224,7 +224,7 @@ Configure SMTP. Create a newsletter scoped to **TV Shows** and **Movies** only. 
 - **Keep newsletter poster hosting on Embed** unless your instance is genuinely publicly reachable. It is the mode that cannot break.
 - **Send a test newsletter before scheduling one.** SMTP failures are much easier to debug on demand than on a cron.
 - **Scope newsletters by content type.** A TV-only digest is far more readable than an everything digest.
-- **Wire `transcode_detected` into the [Notification Center](/modules/notification-center)** if your server is CPU-constrained.
+- **Wire `transcode_detected` into the Notification Center** if your server is CPU-constrained.
 
 ## Common mistakes
 
@@ -271,7 +271,7 @@ The `self_hosted` mode serves images from a deliberately **unguarded** controlle
 ## See also
 
 - [Media Manager](/modules/media-manager) — the shared server connections and provider layer.
-- [Notification Center](/modules/notification-center) — routing `media_server.*` events to Telegram, email, and SMS.
+- Notification Center — routing `media_server.*` events to Telegram, email, and SMS.
 - [Automation](/modules/automation) — reacting to media-server events.
 - [Modules overview](/modules/) — module dependencies.
 - [Configuration profiles](/operate/configuration-profiles)

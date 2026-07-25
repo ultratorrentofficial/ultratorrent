@@ -430,7 +430,6 @@ pipeline. Different subsystems.
 
 **Can I get notified when a feed breaks?**
 Yes — `rss.feed_failed` is a notification event. See
-[Notifications and automation](/learn/tutorials/notifications-and-automation).
 
 ---
 
@@ -463,7 +462,6 @@ Yes — `rss.feed_failed` is a notification event. See
 ### Next steps
 
 1. [Multiple indexers](/learn/tutorials/multiple-indexers) — give the engine more to choose from.
-2. [Notifications and automation](/learn/tutorials/notifications-and-automation) — react to `rss.feed_failed`, `rss.show.ended`, and grabs.
 3. [Automating TV shows](/learn/tutorials/automating-tv-shows) — pair forward RSS with backward gap-filling.
 
 ---

@@ -13,7 +13,7 @@ Esta página se genera desde `apps/backend/prisma/schema.prisma` durante el buil
 :::
 
 UltraTorrent guarda todo en **PostgreSQL**, gestionado por **Prisma**. Hay
-**89 modelos**. Un solo diagrama ER de todos sería ilegible, así que están
+**110 modelos**. Un solo diagrama ER de todos sería ilegible, así que están
 agrupados por dominio más abajo.
 
 :::tip Nunca edites la base de datos a mano
@@ -219,6 +219,8 @@ Tabla: `users`
 | `isActive` | `Boolean` |
 | `isSystem` | `Boolean` |
 | `lastLoginAt` | `DateTime?` |
+| `failedLoginAttempts` | `Int` |
+| `lockedUntil` | `DateTime?` |
 | `totpSecret` | `String?` |
 | `totpEnabled` | `Boolean` |
 | `recoveryCodes` | `String[]` |
@@ -324,7 +326,7 @@ Tabla: `indexers`
 
 ## Gestor de Medios
 
-_20 modelos._
+_35 modelos._
 
 ```mermaid
 erDiagram
@@ -340,6 +342,8 @@ erDiagram
   MediaItem ||--o{ MediaNfoFile : "nfoFiles"
   MediaItem ||--o{ MediaCollectionItem : "collections"
   MediaItem }o--|| MediaDuplicateGroup : "duplicateGroup"
+  MediaItem ||--o{ MediaDuplicateCandidate : "duplicateCandidates"
+  MediaItem }o--|| MediaPlaybackAggregate : "playbackAggregate"
   MediaFile }o--|| MediaItem : "item"
   MediaMetadata }o--|| MediaItem : "item"
   MediaArtwork }o--|| MediaItem : "item"
@@ -349,12 +353,79 @@ erDiagram
   MediaCollectionItem }o--|| MediaCollection : "collection"
   MediaCollectionItem }o--|| MediaItem : "item"
   MediaDuplicateGroup ||--o{ MediaItem : "items"
+  MediaDuplicateGroup ||--o{ MediaDuplicateCandidate : "candidates"
+  MediaDuplicateGroup ||--o{ MediaDuplicateResolution : "resolutions"
+  MediaDuplicateCandidate }o--|| MediaDuplicateGroup : "group"
+  MediaDuplicateCandidate }o--|| MediaItem : "item"
+  MediaDuplicateResolution }o--|| MediaDuplicateGroup : "group"
+  MediaDuplicateResolution ||--o{ MediaDuplicateResolutionAction : "actions"
+  MediaDuplicateResolutionAction }o--|| MediaDuplicateResolution : "resolution"
   MediaAnalyticsImportSource ||--o{ MediaAnalyticsImportJob : "jobs"
   MediaAnalyticsImportJob }o--|| MediaAnalyticsImportSource : "source"
   MediaNfoFile }o--|| MediaItem : "item"
   MediaRenameJob ||--o{ MediaRenameFile : "files"
   MediaRenameFile }o--|| MediaRenameJob : "job"
+  MediaCleanupPolicy ||--o{ MediaCleanupPolicyVersion : "versions"
+  MediaCleanupPolicy ||--o{ MediaCleanupRun : "runs"
+  MediaCleanupPolicyVersion }o--|| MediaCleanupPolicy : "policy"
+  MediaCleanupPolicyVersion ||--o{ MediaCleanupRun : "runs"
+  MediaCleanupRun }o--|| MediaCleanupPolicy : "policy"
+  MediaCleanupRun }o--|| MediaCleanupPolicyVersion : "version"
+  MediaCleanupRun ||--o{ MediaCleanupCandidate : "candidates"
+  MediaCleanupRun ||--o{ MediaCleanupPlan : "plans"
+  MediaCleanupCandidate }o--|| MediaCleanupRun : "run"
+  MediaCleanupPlan }o--|| MediaCleanupRun : "run"
+  MediaCleanupPlan ||--o{ MediaCleanupAction : "actions"
+  MediaCleanupAction }o--|| MediaCleanupPlan : "plan"
+  MediaPlaybackAggregate }o--|| MediaItem : "item"
 ```
+
+### `MediaUserWatch`
+
+Tabla: `media_user_watches`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `userId` | `String` |
+| `key` | `String` |
+| `mediaType` | `String` |
+| `imdbId` | `String?` |
+| `tmdbId` | `String?` |
+| `tvdbId` | `String?` |
+| `showTitle` | `String?` |
+| `title` | `String?` |
+| `year` | `Int?` |
+| `season` | `Int?` |
+| `episode` | `Int?` |
+| `watchedAt` | `DateTime` |
+| `source` | `String` |
+| `syncedAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+
+### `MediaUserRating`
+
+Tabla: `media_user_ratings`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `userId` | `String` |
+| `key` | `String` |
+| `mediaType` | `String` |
+| `imdbId` | `String?` |
+| `tmdbId` | `String?` |
+| `tvdbId` | `String?` |
+| `showTitle` | `String?` |
+| `title` | `String?` |
+| `season` | `Int?` |
+| `episode` | `Int?` |
+| `rating` | `Int` |
+| `ratedAt` | `DateTime` |
+| `source` | `String` |
+| `syncedAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
 
 ### `MediaLibrary`
 
@@ -409,8 +480,10 @@ Tabla: `media_items`
 | `year` | `Int?` |
 | `season` | `Int?` |
 | `episode` | `Int?` |
+| `episodeEnd` | `Int?` |
 | `matchStatus` | `String` |
 | `confidence` | `Float` |
+| `locked` | `Boolean` |
 | `path` | `String` |
 | `duplicateGroupId` | `String?` |
 | `seriesImdbId` | `String?` |
@@ -435,6 +508,22 @@ Tabla: `media_files`
 | `language` | `String?` |
 | `releaseGroup` | `String?` |
 | `quality` | `String?` |
+| `width` | `Int?` |
+| `height` | `Int?` |
+| `bitrateKbps` | `Int?` |
+| `durationSec` | `Int?` |
+| `audioChannels` | `Int?` |
+| `frameRate` | `Float?` |
+| `videoBitDepth` | `Int?` |
+| `chromaSubsampling` | `String?` |
+| `colorPrimaries` | `String?` |
+| `colorTransfer` | `String?` |
+| `colorSpace` | `String?` |
+| `hdrFormat` | `String?` |
+| `techSource` | `String?` |
+| `probedAt` | `DateTime?` |
+| `probeError` | `String?` |
+| `probeAttempts` | `Int` |
 | `createdAt` | `DateTime` |
 
 ### `MediaMetadata`
@@ -462,6 +551,7 @@ Tabla: `media_metadata`
 | `certification` | `String?` |
 | `tags` | `Json` |
 | `providerName` | `String?` |
+| `fieldSources` | `Json?` |
 | `updatedAt` | `DateTime` |
 
 ### `MediaArtwork`
@@ -572,8 +662,95 @@ Tabla: `media_duplicate_groups`
 | Column | Type |
 | --- | --- |
 | `id` | `String` |
+| `groupKey` | `String` |
+| `groupType` | `String` |
 | `reason` | `String` |
+| `status` | `String` |
+| `confidence` | `Int` |
+| `requiresReview` | `Boolean` |
+| `potentialSavingsBytes` | `BigInt` |
+| `recommendedItemId` | `String?` |
+| `recommendation` | `Json?` |
+| `warnings` | `Json?` |
+| `version` | `Int` |
+| `ignoredReason` | `String?` |
+| `ignoredById` | `String?` |
+| `ignoredAt` | `DateTime?` |
+| `resolvedById` | `String?` |
+| `resolvedAt` | `DateTime?` |
 | `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `MediaDuplicateScanState`
+
+Tabla: `media_duplicate_scan_state`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `inputDigest` | `String` |
+| `updatedAt` | `DateTime` |
+| `createdAt` | `DateTime` |
+
+### `MediaDuplicateCandidate`
+
+Tabla: `media_duplicate_candidates`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `groupId` | `String` |
+| `itemId` | `String` |
+| `path` | `String` |
+| `fileSize` | `BigInt` |
+| `hash` | `String?` |
+| `qualityScore` | `Int` |
+| `recommendationRank` | `Int` |
+| `recommendationReasons` | `Json?` |
+| `selectedAction` | `String` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `MediaDuplicateResolution`
+
+Tabla: `media_duplicate_resolutions`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `scope` | `String` |
+| `groupId` | `String?` |
+| `status` | `String` |
+| `keepItemId` | `String?` |
+| `canonicalShowId` | `String?` |
+| `inputFingerprint` | `String?` |
+| `preview` | `Json?` |
+| `groupVersion` | `Int` |
+| `expectedSavingsBytes` | `BigInt` |
+| `actualSavingsBytes` | `BigInt` |
+| `errorSummary` | `String?` |
+| `createdById` | `String?` |
+| `startedAt` | `DateTime?` |
+| `completedAt` | `DateTime?` |
+| `failedAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+
+### `MediaDuplicateResolutionAction`
+
+Tabla: `media_duplicate_resolution_actions`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `resolutionId` | `String` |
+| `actionType` | `String` |
+| `status` | `String` |
+| `sourcePath` | `String?` |
+| `destinationPath` | `String?` |
+| `errorMessage` | `String?` |
+| `metadata` | `Json?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
 
 ### `MediaAnalyticsImportSource`
 
@@ -705,6 +882,239 @@ Tabla: `media_naming_templates`
 | `template` | `String` |
 | `enabled` | `Boolean` |
 | `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `MediaCleanupPolicy`
+
+Tabla: `media_cleanup_policies`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `name` | `String` |
+| `description` | `String?` |
+| `status` | `String` |
+| `enabled` | `Boolean` |
+| `mode` | `String` |
+| `scheduleCron` | `String?` |
+| `freeSpaceTriggerPercent` | `Int?` |
+| `currentDraftVersionId` | `String?` |
+| `publishedVersionId` | `String?` |
+| `createdById` | `String?` |
+| `updatedById` | `String?` |
+| `lastRunAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+| `archivedAt` | `DateTime?` |
+
+### `MediaCleanupPolicyVersion`
+
+Tabla: `media_cleanup_policy_versions`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `policyId` | `String` |
+| `versionNumber` | `Int` |
+| `status` | `String` |
+| `document` | `Json` |
+| `checksum` | `String` |
+| `requiredPermissions` | `String[]` |
+| `factKeys` | `String[]` |
+| `changeNotes` | `String?` |
+| `createdById` | `String?` |
+| `createdAt` | `DateTime` |
+| `publishedAt` | `DateTime?` |
+| `archivedAt` | `DateTime?` |
+
+### `MediaCleanupRun`
+
+Tabla: `media_cleanup_runs`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `policyId` | `String` |
+| `policyVersionId` | `String` |
+| `trigger` | `String` |
+| `status` | `String` |
+| `simulate` | `Boolean` |
+| `jobId` | `String?` |
+| `inputDigest` | `String?` |
+| `filesScanned` | `Int` |
+| `itemsEvaluated` | `Int` |
+| `candidatesMatched` | `Int` |
+| `candidatesExcluded` | `Int` |
+| `candidatesEligible` | `Int` |
+| `estimatedReclaimBytes` | `BigInt` |
+| `actualReclaimBytes` | `BigInt` |
+| `exclusionBreakdown` | `Json?` |
+| `errorSummary` | `String?` |
+| `createdById` | `String?` |
+| `startedAt` | `DateTime?` |
+| `completedAt` | `DateTime?` |
+| `failedAt` | `DateTime?` |
+| `cancelledAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `MediaCleanupCandidate`
+
+Tabla: `media_cleanup_candidates`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `runId` | `String` |
+| `policyVersionId` | `String` |
+| `mediaItemId` | `String?` |
+| `mediaFileId` | `String?` |
+| `mediaLibraryId` | `String?` |
+| `path` | `String` |
+| `fileSizeBytes` | `BigInt` |
+| `status` | `String` |
+| `exclusionReason` | `String?` |
+| `fingerprint` | `String` |
+| `reasonSnapshot` | `Json` |
+| `rankScore` | `Float?` |
+| `rankReasons` | `Json?` |
+| `replacementFileId` | `String?` |
+| `replacementReasons` | `Json?` |
+| `protectionState` | `Json?` |
+| `estimatedReclaimBytes` | `BigInt` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `MediaCleanupPlan`
+
+Tabla: `media_cleanup_plans`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `runId` | `String` |
+| `policyVersionId` | `String` |
+| `status` | `String` |
+| `action` | `String` |
+| `retentionDays` | `Int?` |
+| `candidateCount` | `Int` |
+| `estimatedReclaimBytes` | `BigInt` |
+| `actualReclaimBytes` | `BigInt` |
+| `executionJobId` | `String?` |
+| `createdById` | `String?` |
+| `approvedById` | `String?` |
+| `approvedAt` | `DateTime?` |
+| `rejectedById` | `String?` |
+| `rejectedAt` | `DateTime?` |
+| `rejectionReason` | `String?` |
+| `expiresAt` | `DateTime?` |
+| `executedAt` | `DateTime?` |
+| `errorSummary` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `MediaCleanupAction`
+
+Tabla: `media_cleanup_actions`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `planId` | `String` |
+| `candidateId` | `String` |
+| `mediaItemId` | `String?` |
+| `mediaFileId` | `String?` |
+| `actionType` | `String` |
+| `status` | `String` |
+| `sourcePath` | `String` |
+| `destinationPath` | `String?` |
+| `pinnedFingerprint` | `String` |
+| `fileSizeBytes` | `BigInt` |
+| `reclaimedBytes` | `BigInt` |
+| `skipReason` | `String?` |
+| `errorCode` | `String?` |
+| `errorMessage` | `String?` |
+| `startedAt` | `DateTime?` |
+| `completedAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `MediaCleanupProtection`
+
+Tabla: `media_cleanup_protections`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `targetType` | `String` |
+| `mediaItemId` | `String?` |
+| `mediaFileId` | `String?` |
+| `mediaShowId` | `String?` |
+| `mediaLibraryId` | `String?` |
+| `seasonNumber` | `Int?` |
+| `episodeNumber` | `Int?` |
+| `externalIdentityKey` | `String?` |
+| `pathPrefix` | `String?` |
+| `tagValue` | `String?` |
+| `collectionId` | `String?` |
+| `torrentHash` | `String?` |
+| `canonicalPathSnapshot` | `String?` |
+| `protectionType` | `String` |
+| `conditionKind` | `String?` |
+| `conditionConfig` | `Json?` |
+| `reason` | `String` |
+| `protectedUntil` | `DateTime?` |
+| `createdByUserId` | `String` |
+| `createdAt` | `DateTime` |
+| `revokedAt` | `DateTime?` |
+| `revokedByUserId` | `String?` |
+| `revokeReason` | `String?` |
+
+### `MediaCleanupQuarantineItem`
+
+Tabla: `media_cleanup_quarantine_items`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `actionId` | `String?` |
+| `planId` | `String?` |
+| `runId` | `String?` |
+| `policyVersionId` | `String?` |
+| `mediaItemId` | `String?` |
+| `mediaFileId` | `String?` |
+| `originalPath` | `String` |
+| `quarantinePath` | `String` |
+| `storageRoot` | `String` |
+| `fileSizeBytes` | `BigInt` |
+| `fingerprint` | `String` |
+| `status` | `String` |
+| `restoreDeadline` | `DateTime?` |
+| `quarantinedAt` | `DateTime` |
+| `restoredAt` | `DateTime?` |
+| `restoredById` | `String?` |
+| `purgedAt` | `DateTime?` |
+| `purgedById` | `String?` |
+
+### `MediaPlaybackAggregate`
+
+Tabla: `media_playback_aggregates`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `mediaItemId` | `String` |
+| `startedPlayCount` | `Int` |
+| `completedPlayCount` | `Int` |
+| `uniqueViewerCount` | `Int` |
+| `lastPlayedAt` | `DateTime?` |
+| `maximumProgressPercent` | `Int` |
+| `averageProgressPercent` | `Float` |
+| `totalPlaybackSeconds` | `BigInt` |
+| `completionThresholdPercent` | `Int` |
+| `sourceRowCount` | `Int` |
+| `resolvedSourceRowCount` | `Int` |
+| `computedAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 
 ## Adquisición de medios (Smart Download)
@@ -928,6 +1338,11 @@ Tabla: `media_server_sessions`
 | `providerUserId` | `String?` |
 | `userName` | `String?` |
 | `title` | `String` |
+| `showTitle` | `String?` |
+| `seasonNumber` | `Int?` |
+| `episodeNumber` | `Int?` |
+| `year` | `Int?` |
+| `externalIds` | `Json?` |
 | `mediaType` | `String?` |
 | `libraryName` | `String?` |
 | `device` | `String?` |
@@ -1003,6 +1418,7 @@ Tabla: `media_server_users`
 | `connectionId` | `String?` |
 | `providerUserId` | `String?` |
 | `userName` | `String` |
+| `email` | `String?` |
 | `plays` | `Int` |
 | `lastSeenAt` | `DateTime?` |
 | `createdAt` | `DateTime` |
@@ -1075,277 +1491,59 @@ Tabla: `media_server_configs`
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 
-## Centro de Notificaciones
-
-_13 modelos._
-
-```mermaid
-erDiagram
-```
-
-### `Notification`
-
-Tabla: `notifications`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `userId` | `String?` |
-| `level` | `String` |
-| `title` | `String` |
-| `message` | `String` |
-| `eventType` | `String?` |
-| `readAt` | `DateTime?` |
-| `createdAt` | `DateTime` |
-
-### `NotificationChannel`
-
-Tabla: `notification_channels`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `name` | `String` |
-| `description` | `String?` |
-| `provider` | `String` |
-| `enabled` | `Boolean` |
-| `isDefault` | `Boolean` |
-| `priority` | `Int` |
-| `config` | `Json` |
-| `capabilities` | `Json` |
-| `rateLimitPerMin` | `Int?` |
-| `retryPolicy` | `Json` |
-| `quietHours` | `Json` |
-| `allowedEvents` | `Json` |
-| `allowedGroupIds` | `Json` |
-| `healthStatus` | `String` |
-| `lastHealthCheckAt` | `DateTime?` |
-| `lastError` | `String?` |
-| `sentCount` | `Int` |
-| `failedCount` | `Int` |
-| `createdAt` | `DateTime` |
-| `updatedAt` | `DateTime` |
-
-### `NotificationRecipient`
-
-Tabla: `notification_recipients`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `displayName` | `String` |
-| `email` | `String?` |
-| `phone` | `String?` |
-| `telegramChatId` | `String?` |
-| `whatsappNumber` | `String?` |
-| `language` | `String` |
-| `timezone` | `String?` |
-| `preferredChannelId` | `String?` |
-| `enabled` | `Boolean` |
-| `quietHours` | `Json` |
-| `preferences` | `Json` |
-| `userId` | `String?` |
-| `createdAt` | `DateTime` |
-| `updatedAt` | `DateTime` |
-
-### `NotificationRecipientGroup`
-
-Tabla: `notification_recipient_groups`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `name` | `String` |
-| `description` | `String?` |
-| `system` | `Boolean` |
-| `createdAt` | `DateTime` |
-| `updatedAt` | `DateTime` |
-
-### `NotificationRecipientMember`
-
-Tabla: `notification_recipient_members`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `groupId` | `String` |
-| `recipientId` | `String` |
-| `createdAt` | `DateTime` |
-
-### `NotificationTemplate`
-
-Tabla: `notification_templates`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `name` | `String` |
-| `description` | `String?` |
-| `event` | `String?` |
-| `subject` | `String?` |
-| `title` | `String?` |
-| `subtitle` | `String?` |
-| `html` | `String?` |
-| `text` | `String?` |
-| `markdown` | `String?` |
-| `sms` | `String?` |
-| `whatsapp` | `String?` |
-| `telegram` | `String?` |
-| `card` | `Json` |
-| `variables` | `Json` |
-| `locale` | `String` |
-| `system` | `Boolean` |
-| `createdAt` | `DateTime` |
-| `updatedAt` | `DateTime` |
-
-### `NotificationRule`
-
-Tabla: `notification_rules`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `name` | `String` |
-| `description` | `String?` |
-| `enabled` | `Boolean` |
-| `event` | `String` |
-| `priority` | `Int` |
-| `severity` | `String` |
-| `conditions` | `Json` |
-| `recipients` | `Json` |
-| `channelIds` | `Json` |
-| `templateId` | `String?` |
-| `variables` | `Json` |
-| `quietHoursOverride` | `Boolean` |
-| `dedupeWindowSec` | `Int` |
-| `retryPolicy` | `Json` |
-| `escalationPolicy` | `Json` |
-| `rateLimitPerHour` | `Int?` |
-| `schedule` | `Json` |
-| `tags` | `Json` |
-| `system` | `Boolean` |
-| `triggerCount` | `Int` |
-| `lastTriggeredAt` | `DateTime?` |
-| `createdAt` | `DateTime` |
-| `updatedAt` | `DateTime` |
-
-### `NotificationDelivery`
-
-Tabla: `notification_deliveries`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `ruleId` | `String?` |
-| `eventId` | `String?` |
-| `event` | `String` |
-| `channelId` | `String?` |
-| `provider` | `String` |
-| `recipientId` | `String?` |
-| `destination` | `String?` |
-| `templateId` | `String?` |
-| `subject` | `String?` |
-| `renderedBody` | `String?` |
-| `card` | `Json` |
-| `priority` | `Int` |
-| `severity` | `String` |
-| `status` | `String` |
-| `attempts` | `Int` |
-| `maxAttempts` | `Int` |
-| `dedupeKey` | `String?` |
-| `scheduledFor` | `DateTime?` |
-| `nextAttemptAt` | `DateTime?` |
-| `sentAt` | `DateTime?` |
-| `deliveredAt` | `DateTime?` |
-| `failedAt` | `DateTime?` |
-| `error` | `String?` |
-| `providerMessageId` | `String?` |
-| `createdAt` | `DateTime` |
-| `updatedAt` | `DateTime` |
-
-### `NotificationPreference`
-
-Tabla: `notification_preferences`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `recipientId` | `String` |
-| `event` | `String` |
-| `channel` | `String?` |
-| `enabled` | `Boolean` |
-| `createdAt` | `DateTime` |
-| `updatedAt` | `DateTime` |
-
-### `NotificationQueue`
-
-Tabla: `notification_queue`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `deliveryId` | `String` |
-| `priority` | `Int` |
-| `scheduledFor` | `DateTime` |
-| `leasedAt` | `DateTime?` |
-| `attempts` | `Int` |
-| `createdAt` | `DateTime` |
-
-### `NotificationAttachment`
-
-Tabla: `notification_attachments`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `deliveryId` | `String?` |
-| `templateId` | `String?` |
-| `filename` | `String` |
-| `contentType` | `String?` |
-| `url` | `String?` |
-| `artworkId` | `String?` |
-| `cid` | `String?` |
-| `createdAt` | `DateTime` |
-
-### `NotificationEvent`
-
-Tabla: `notification_events`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `event` | `String` |
-| `payload` | `Json` |
-| `dedupeKey` | `String?` |
-| `matchedRules` | `Int` |
-| `processedAt` | `DateTime?` |
-| `createdAt` | `DateTime` |
-
-### `NotificationStatistics`
-
-Tabla: `notification_statistics`
-
-| Column | Type |
-| --- | --- |
-| `id` | `String` |
-| `date` | `DateTime` |
-| `provider` | `String?` |
-| `channelId` | `String?` |
-| `event` | `String?` |
-| `sent` | `Int` |
-| `delivered` | `Int` |
-| `failed` | `Int` |
-| `skipped` | `Int` |
-| `createdAt` | `DateTime` |
-| `updatedAt` | `DateTime` |
-
 ## Plataforma
 
-_10 modelos._
+_29 modelos._
 
 ```mermaid
 erDiagram
+  SubtitleDownload }o--|| SubtitleValidation : "validation"
+  SubtitleDownload ||--o{ SubtitleSynchronization : "synchronizations"
+  SubtitleValidation }o--|| SubtitleDownload : "download"
+  SubtitleSynchronization }o--|| SubtitleDownload : "download"
+  PlatformJob }o--|| PlatformJob : "parent"
+  PlatformJob ||--o{ PlatformJob : "children"
+  PlatformJob ||--o{ PlatformJobEvent : "events"
+  PlatformJobEvent }o--|| PlatformJob : "job"
+  Workflow ||--o{ WorkflowVersion : "versions"
+  Workflow ||--o{ WorkflowExecution : "executions"
+  WorkflowVersion }o--|| Workflow : "workflow"
+  WorkflowVersion ||--o{ WorkflowExecution : "executions"
+  WorkflowExecution }o--|| Workflow : "workflow"
+  WorkflowExecution }o--|| WorkflowVersion : "version"
+  WorkflowExecution ||--o{ WorkflowNodeExecution : "nodes"
+  WorkflowExecution ||--o{ WorkflowApproval : "approvals"
+  WorkflowNodeExecution }o--|| WorkflowExecution : "execution"
+  WorkflowApproval }o--|| WorkflowExecution : "execution"
 ```
+
+### `TraktAccount`
+
+Tabla: `trakt_accounts`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `userId` | `String` |
+| `username` | `String?` |
+| `slug` | `String?` |
+| `accessToken` | `String` |
+| `refreshToken` | `String` |
+| `expiresAt` | `DateTime` |
+| `scope` | `String?` |
+| `syncCollection` | `Boolean` |
+| `syncWatched` | `Boolean` |
+| `syncRatings` | `Boolean` |
+| `syncWatchlist` | `Boolean` |
+| `scrobbleEnabled` | `Boolean` |
+| `mediaServerUserName` | `String?` |
+| `lastCollectionSyncAt` | `DateTime?` |
+| `lastWatchedSyncAt` | `DateTime?` |
+| `lastRatingsSyncAt` | `DateTime?` |
+| `lastWatchlistSyncAt` | `DateTime?` |
+| `lastError` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
 
 ### `Permission`
 
@@ -1489,6 +1687,431 @@ Tabla: `acquisition_match_candidates`
 | `sizeRules` | `Json` |
 | `lastMatchedAt` | `DateTime?` |
 | `matchCount` | `Int` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `SubtitleProviderConfig`
+
+Tabla: `subtitle_provider_configs`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `provider` | `String` |
+| `isEnabled` | `Boolean` |
+| `priority` | `Int` |
+| `config` | `Json` |
+| `healthy` | `Boolean?` |
+| `lastCheckedAt` | `DateTime?` |
+| `lastError` | `String?` |
+| `quotaRemaining` | `Int?` |
+| `quotaResetAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `SubtitleFingerprint`
+
+Tabla: `subtitle_fingerprints`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `itemId` | `String` |
+| `fileId` | `String?` |
+| `movieHash` | `String?` |
+| `sha256` | `String?` |
+| `fileSize` | `BigInt` |
+| `runtimeSec` | `Int?` |
+| `frameRate` | `Float?` |
+| `resolution` | `String?` |
+| `videoCodec` | `String?` |
+| `audioCodec` | `String?` |
+| `audioLanguage` | `String?` |
+| `container` | `String?` |
+| `source` | `String?` |
+| `releaseGroup` | `String?` |
+| `hdr` | `String?` |
+| `edition` | `String?` |
+| `season` | `Int?` |
+| `episode` | `Int?` |
+| `imdbId` | `String?` |
+| `tmdbId` | `String?` |
+| `tvdbId` | `String?` |
+| `mediaType` | `String?` |
+| `computedAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `SubtitleCandidate`
+
+Tabla: `subtitle_candidates`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `itemId` | `String` |
+| `provider` | `String` |
+| `providerFileId` | `String?` |
+| `language` | `String` |
+| `releaseName` | `String?` |
+| `filename` | `String?` |
+| `movieHash` | `String?` |
+| `imdbId` | `String?` |
+| `tmdbId` | `String?` |
+| `tvdbId` | `String?` |
+| `season` | `Int?` |
+| `episode` | `Int?` |
+| `runtimeSec` | `Int?` |
+| `downloads` | `Int?` |
+| `uploader` | `String?` |
+| `rating` | `Float?` |
+| `trustedUploader` | `Boolean` |
+| `machineTranslated` | `Boolean` |
+| `hearingImpaired` | `Boolean` |
+| `forced` | `Boolean` |
+| `fileSize` | `BigInt?` |
+| `downloadUrl` | `String?` |
+| `matchLevel` | `Int?` |
+| `score` | `Int` |
+| `scoreTier` | `String?` |
+| `scoreBreakdown` | `Json?` |
+| `rawMetadata` | `Json?` |
+| `createdAt` | `DateTime` |
+
+### `SubtitleDownload`
+
+Tabla: `subtitle_downloads`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `itemId` | `String` |
+| `provider` | `String` |
+| `language` | `String` |
+| `forced` | `Boolean` |
+| `hearingImpaired` | `Boolean` |
+| `path` | `String` |
+| `releaseName` | `String?` |
+| `score` | `Int` |
+| `scoreTier` | `String?` |
+| `matchLevel` | `Int?` |
+| `fileSize` | `BigInt` |
+| `status` | `String` |
+| `validationId` | `String?` |
+| `providerFileId` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `SubtitleValidation`
+
+Tabla: `subtitle_validations`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `format` | `String?` |
+| `valid` | `Boolean` |
+| `cueCount` | `Int` |
+| `startMs` | `Int?` |
+| `endMs` | `Int?` |
+| `issues` | `Json` |
+| `runtimeDeltaSec` | `Int?` |
+| `method` | `String?` |
+| `createdAt` | `DateTime` |
+
+### `SubtitleLanguageSetting`
+
+Tabla: `subtitle_language_settings`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `libraryId` | `String` |
+| `requiredLanguages` | `Json` |
+| `preferredLanguages` | `Json` |
+| `forcedLanguages` | `Json` |
+| `hearingImpaired` | `Boolean` |
+| `machineTranslation` | `Boolean` |
+| `preferredProviders` | `Json` |
+| `synchronizationRequired` | `Boolean` |
+| `minimumScore` | `Int` |
+| `automaticReplacement` | `Boolean` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `SubtitleHistory`
+
+Tabla: `subtitle_history`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `itemId` | `String?` |
+| `action` | `String` |
+| `provider` | `String?` |
+| `language` | `String?` |
+| `score` | `Int?` |
+| `message` | `String?` |
+| `metadata` | `Json?` |
+| `createdAt` | `DateTime` |
+
+### `SubtitleJob`
+
+Tabla: `subtitle_jobs`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `type` | `String` |
+| `status` | `String` |
+| `libraryId` | `String?` |
+| `itemId` | `String?` |
+| `provider` | `String?` |
+| `language` | `String?` |
+| `payload` | `Json` |
+| `result` | `Json?` |
+| `error` | `String?` |
+| `progress` | `Int` |
+| `startedAt` | `DateTime?` |
+| `finishedAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `SubtitleSynchronization`
+
+Tabla: `subtitle_synchronizations`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `downloadId` | `String` |
+| `provider` | `String` |
+| `method` | `String` |
+| `version` | `String?` |
+| `offsetMs` | `Int` |
+| `driftFactor` | `Float` |
+| `confidence` | `Float?` |
+| `matchedRegions` | `Json?` |
+| `originalPath` | `String` |
+| `syncedPath` | `String` |
+| `status` | `String` |
+| `message` | `String?` |
+| `createdAt` | `DateTime` |
+
+### `PlatformJob`
+
+Tabla: `platform_jobs`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `type` | `String` |
+| `name` | `String?` |
+| `description` | `String?` |
+| `moduleKey` | `String` |
+| `workspaceKey` | `String?` |
+| `sourceType` | `String` |
+| `sourceId` | `String?` |
+| `correlationId` | `String?` |
+| `parentJobId` | `String?` |
+| `rootJobId` | `String?` |
+| `scheduleId` | `String?` |
+| `workflowExecutionId` | `String?` |
+| `resourceType` | `String?` |
+| `resourceId` | `String?` |
+| `libraryId` | `String?` |
+| `mediaItemId` | `String?` |
+| `status` | `String` |
+| `phase` | `String?` |
+| `progressPercent` | `Int` |
+| `progressCurrent` | `Int?` |
+| `progressTotal` | `Int?` |
+| `progressUnit` | `String?` |
+| `statusMessageKey` | `String?` |
+| `statusMessageParams` | `Json?` |
+| `queuedAt` | `DateTime` |
+| `scheduledFor` | `DateTime?` |
+| `startedAt` | `DateTime?` |
+| `heartbeatAt` | `DateTime?` |
+| `completedAt` | `DateTime?` |
+| `failedAt` | `DateTime?` |
+| `cancelledAt` | `DateTime?` |
+| `pausedAt` | `DateTime?` |
+| `resumedAt` | `DateTime?` |
+| `expiresAt` | `DateTime?` |
+| `priority` | `Int` |
+| `queueName` | `String?` |
+| `workerId` | `String?` |
+| `attempt` | `Int` |
+| `maxAttempts` | `Int` |
+
+### `PlatformJobEvent`
+
+Tabla: `platform_job_events`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `jobId` | `String` |
+| `sequence` | `Int` |
+| `level` | `String` |
+| `eventType` | `String` |
+| `messageKey` | `String?` |
+| `messageParams` | `Json?` |
+| `sanitizedMessage` | `String?` |
+| `progress` | `Int?` |
+| `metadata` | `Json?` |
+| `createdAt` | `DateTime` |
+
+### `Workflow`
+
+Tabla: `workflows`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `name` | `String` |
+| `description` | `String?` |
+| `workspaceKey` | `String?` |
+| `enabled` | `Boolean` |
+| `status` | `String` |
+| `tags` | `String[]` |
+| `currentDraftVersionId` | `String?` |
+| `publishedVersionId` | `String?` |
+| `createdById` | `String?` |
+| `updatedById` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+| `archivedAt` | `DateTime?` |
+
+### `WorkflowVersion`
+
+Tabla: `workflow_versions`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `workflowId` | `String` |
+| `versionNumber` | `Int` |
+| `status` | `String` |
+| `graph` | `Json` |
+| `triggerSummary` | `Json?` |
+| `requiredPermissions` | `String[]` |
+| `checksum` | `String` |
+| `changeNotes` | `String?` |
+| `createdById` | `String?` |
+| `createdAt` | `DateTime` |
+| `publishedAt` | `DateTime?` |
+| `archivedAt` | `DateTime?` |
+
+### `WorkflowExecution`
+
+Tabla: `workflow_executions`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `workflowId` | `String` |
+| `workflowVersionId` | `String` |
+| `triggerType` | `String?` |
+| `triggerEventId` | `String?` |
+| `triggerSource` | `String?` |
+| `correlationId` | `String?` |
+| `traceId` | `String?` |
+| `status` | `String` |
+| `inputContext` | `Json?` |
+| `outputSummary` | `Json?` |
+| `currentNodeIds` | `String[]` |
+| `jobId` | `String?` |
+| `executionIdentityUserId` | `String?` |
+| `resumeAt` | `DateTime?` |
+| `expiresAt` | `DateTime?` |
+| `heartbeatAt` | `DateTime?` |
+| `parentExecutionId` | `String?` |
+| `depth` | `Int` |
+| `startedAt` | `DateTime?` |
+| `completedAt` | `DateTime?` |
+| `failedAt` | `DateTime?` |
+| `cancelledAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `WorkflowNodeExecution`
+
+Tabla: `workflow_node_executions`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `workflowExecutionId` | `String` |
+| `nodeId` | `String` |
+| `nodeType` | `String` |
+| `status` | `String` |
+| `attempt` | `Int` |
+| `maxAttempts` | `Int` |
+| `inputSummary` | `Json?` |
+| `outputSummary` | `Json?` |
+| `jobId` | `String?` |
+| `errorCode` | `String?` |
+| `errorMessage` | `String?` |
+| `warnings` | `Json?` |
+| `startedAt` | `DateTime?` |
+| `completedAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `WorkflowApproval`
+
+Tabla: `workflow_approvals`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `workflowExecutionId` | `String` |
+| `nodeExecutionId` | `String?` |
+| `status` | `String` |
+| `requestedFromUserId` | `String?` |
+| `requestedFromRoleId` | `String?` |
+| `requiredPermission` | `String?` |
+| `riskLevel` | `String?` |
+| `requestedAt` | `DateTime` |
+| `respondedAt` | `DateTime?` |
+| `respondedById` | `String?` |
+| `comment` | `String?` |
+| `expiresAt` | `DateTime?` |
+
+### `WorkflowVariable`
+
+Tabla: `workflow_variables`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `scope` | `String` |
+| `workflowId` | `String?` |
+| `key` | `String` |
+| `valueType` | `String` |
+| `encryptedValue` | `String?` |
+| `plainValue` | `Json?` |
+| `description` | `String?` |
+| `createdById` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `WorkflowTemplate`
+
+Tabla: `workflow_templates`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `key` | `String` |
+| `nameKey` | `String` |
+| `descriptionKey` | `String?` |
+| `category` | `String` |
+| `graph` | `Json` |
+| `requiredModules` | `String[]` |
+| `requiredPermissions` | `String[]` |
+| `defaultEnabled` | `Boolean` |
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 

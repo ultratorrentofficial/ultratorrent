@@ -264,7 +264,7 @@ Yes — it is a pure function of the gathered signals. That is why the Decision 
 The decision type exists in the model, but `decide()` does not currently emit it. It is reserved.
 
 **Are decisions notified?**
-Events are emitted (`media_acquisition.*`), and the [Notification Center](/modules/notification-center) can route them. Deeper per-user notification on decision events, and firing Smart Download triggers into the [Automation](/modules/automation) engine, remain follow-ups.
+Events are emitted (`media_acquisition.*`), and the Notification Center can route them. Deeper per-user notification on decision events, and firing Smart Download triggers into the [Automation](/modules/automation) engine, remain follow-ups.
 
 ## Checklist
 
@@ -283,5 +283,4 @@ Events are emitted (`media_acquisition.*`), and the [Notification Center](/modul
 - [Indexers](/modules/indexers) — the active-search half.
 - [Media Manager](/modules/media-manager) — the library state that "already owned" is computed from.
 - [Torrents](/modules/torrents) — where an executed decision shows up.
-- [Notification Center](/modules/notification-center) — being told about decisions.
 - [Core concepts](/learn/concepts)

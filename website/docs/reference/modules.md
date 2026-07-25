@@ -40,7 +40,6 @@ graph LR
   auth["auth"] --> automation["automation"]
   engine["engine"] --> automation["automation"]
   auth["auth"] --> files["files"]
-  auth["auth"] --> notifications["notifications"]
   auth["auth"] --> api_keys["api_keys"]
   auth["auth"] --> audit["audit"]
   auth["auth"] --> settings["settings"]
@@ -54,7 +53,6 @@ graph LR
   rbac["rbac"] --> media_acquisition_intelligence["media_acquisition_intelligence"]
   module_registry["module_registry"] --> media_acquisition_intelligence["media_acquisition_intelligence"]
   audit["audit"] --> media_acquisition_intelligence["media_acquisition_intelligence"]
-  notifications["notifications"] --> media_acquisition_intelligence["media_acquisition_intelligence"]
   settings["settings"] --> media_acquisition_intelligence["media_acquisition_intelligence"]
   rss["rss"] --> media_acquisition_intelligence["media_acquisition_intelligence"]
   automation["automation"] --> media_acquisition_intelligence["media_acquisition_intelligence"]
@@ -63,15 +61,21 @@ graph LR
   rbac["rbac"] --> media_server_analytics["media_server_analytics"]
   module_registry["module_registry"] --> media_server_analytics["media_server_analytics"]
   audit["audit"] --> media_server_analytics["media_server_analytics"]
-  notifications["notifications"] --> media_server_analytics["media_server_analytics"]
   settings["settings"] --> media_server_analytics["media_server_analytics"]
   media_manager["media_manager"] --> media_server_analytics["media_server_analytics"]
   automation["automation"] --> media_server_analytics["media_server_analytics"]
-  auth["auth"] --> notification_center["notification_center"]
-  rbac["rbac"] --> notification_center["notification_center"]
-  module_registry["module_registry"] --> notification_center["notification_center"]
-  audit["audit"] --> notification_center["notification_center"]
-  settings["settings"] --> notification_center["notification_center"]
+  auth["auth"] --> subtitle_intelligence["subtitle_intelligence"]
+  rbac["rbac"] --> subtitle_intelligence["subtitle_intelligence"]
+  files["files"] --> subtitle_intelligence["subtitle_intelligence"]
+  audit["audit"] --> subtitle_intelligence["subtitle_intelligence"]
+  settings["settings"] --> subtitle_intelligence["subtitle_intelligence"]
+  media_manager["media_manager"] --> subtitle_intelligence["subtitle_intelligence"]
+  auth["auth"] --> library_cleanup["library_cleanup"]
+  rbac["rbac"] --> library_cleanup["library_cleanup"]
+  files["files"] --> library_cleanup["library_cleanup"]
+  audit["audit"] --> library_cleanup["library_cleanup"]
+  settings["settings"] --> library_cleanup["library_cleanup"]
+  media_manager["media_manager"] --> library_cleanup["library_cleanup"]
 ```
 
 ## All modules
@@ -90,7 +94,6 @@ graph LR
 | **RSS automation** | `rss` | core | ✅ | `auth`, `engine` |
 | **Automation** | `automation` | core | ✅ | `auth`, `engine` |
 | **File manager** | `files` | core | ✅ | `auth` |
-| **Notifications** | `notifications` | core | ✅ | `auth` |
 | **API keys** | `api_keys` | core | ✅ | `auth` |
 | **Audit log** | `audit` | core | ✅ | `auth` |
 | **System health** | `system` | core | ✅ | — |
@@ -98,9 +101,10 @@ graph LR
 | **Module registry** | `module_registry` | core | ✅ | `auth`, `rbac` |
 | **Media Manager** | `media_manager` | community | ✅ | `auth`, `files` |
 | **Release Scoring** | `release_scoring` | community | ✅ | `auth`, `rss` |
-| **Media Acquisition Intelligence** | `media_acquisition_intelligence` | community | ✅ | `auth`, `rbac`, `module_registry`, `audit`, `notifications`, `settings`, `rss`, `automation`, `release_scoring` |
-| **Media Server Analytics** | `media_server_analytics` | core | ✅ | `auth`, `rbac`, `module_registry`, `audit`, `notifications`, `settings`, `media_manager`, `automation` |
-| **Notification Center** | `notification_center` | core | ✅ | `auth`, `rbac`, `module_registry`, `audit`, `settings` |
+| **Media Acquisition Intelligence** | `media_acquisition_intelligence` | community | ✅ | `auth`, `rbac`, `module_registry`, `audit`, `settings`, `rss`, `automation`, `release_scoring` |
+| **Media Server Analytics** | `media_server_analytics` | core | ✅ | `auth`, `rbac`, `module_registry`, `audit`, `settings`, `media_manager`, `automation` |
+| **Subtitle Intelligence** | `subtitle_intelligence` | core | ✅ | `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager` |
+| **Library Cleanup Center** | `library_cleanup` | core | ✅ | `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager` |
 
 ## Authentication
 
@@ -238,18 +242,6 @@ Path-safe browsing and file operations.
 
 **Owns routes:** `/api/files`
 
-## Notifications
-
-`notifications` · tier `core` · enabled by default
-
-In-app feed + multi-channel fan-out.
-
-**Depends on:** `auth`
-
-**Introduces permissions:** `notifications.manage`
-
-**Owns routes:** `/api/notifications`
-
 ## API keys
 
 `api_keys` · tier `core` · enabled by default
@@ -338,7 +330,7 @@ Explainable 0–100 scoring of RSS releases with reasons, warnings, and a recomm
 
 Decides what media to acquire from library gaps, release quality, duplicate risk, watchlists, acquisition profiles, and automation context — explainable decisions, never direct file operations.
 
-**Depends on:** `auth`, `rbac`, `module_registry`, `audit`, `notifications`, `settings`, `rss`, `automation`, `release_scoring`
+**Depends on:** `auth`, `rbac`, `module_registry`, `audit`, `settings`, `rss`, `automation`, `release_scoring`
 
 **Introduces permissions:** `media_acquisition.view`, `media_acquisition.manage_watchlist`, `media_acquisition.manage_profiles`, `media_acquisition.evaluate`, `media_acquisition.approve`, `media_acquisition.reject`, `media_acquisition.override`, `media_acquisition.history`, `media_acquisition.export`, `media_acquisition.settings`
 
@@ -350,23 +342,35 @@ Decides what media to acquire from library gaps, release quality, duplicate risk
 
 Media server monitoring, analytics, recently-added, watch history, live activity, user/library statistics, scheduled newsletters, and Tautulli analytics import — across Plex, Jellyfin, Emby, and Kodi.
 
-**Depends on:** `auth`, `rbac`, `module_registry`, `audit`, `notifications`, `settings`, `media_manager`, `automation`
+**Depends on:** `auth`, `rbac`, `module_registry`, `audit`, `settings`, `media_manager`, `automation`
 
 **Introduces permissions:** `media_server_analytics.view`, `media_server_analytics.manage_connections`, `media_server_analytics.manage_mappings`, `media_server_analytics.view_live_activity`, `media_server_analytics.view_users`, `media_server_analytics.view_history`, `media_server_analytics.view_reports`, `media_server_analytics.export`, `media_server_analytics.manage_newsletters`, `media_server_analytics.send_newsletters`, `media_server_analytics.manage_imports`, `media_server_analytics.run_imports`, `media_server_analytics.manage_settings`, `media_server_analytics.admin`
 
 **Owns routes:** `/api/media-server-analytics`
 
-## Notification Center
+## Subtitle Intelligence
 
-`notification_center` · tier `core` · enabled by default
+`subtitle_intelligence` · tier `core` · enabled by default
 
-The centralized, provider-driven messaging platform. Every module publishes events; configurable rules decide if/when/how/to-whom notifications are delivered across Email, SMS, Telegram, WhatsApp and future providers — with templates, recipients, groups, a delivery queue, retries, quiet hours, dedup, escalation, and full delivery history.
+The definitive subtitle engine: fingerprints every media file (movie hash + technical metadata), searches multiple providers with a progressively-relaxed strategy (hash → release → external id → title), scores and validates each candidate, installs the best as a media-server-correct sidecar (never overwriting an original), and can synchronize it to the audio. Per-library language policy, automation, and background monitoring.
 
-**Depends on:** `auth`, `rbac`, `module_registry`, `audit`, `settings`
+**Depends on:** `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager`
 
-**Introduces permissions:** `notifications.view`, `notifications.manage_channels`, `notifications.manage_templates`, `notifications.manage_rules`, `notifications.manage_recipients`, `notifications.manage_groups`, `notifications.view_history`, `notifications.retry`, `notifications.send_test`, `notifications.manage_preferences`, `notifications.manage_settings`, `notifications.admin`
+**Introduces permissions:** `subtitle_intelligence.view`, `subtitle_intelligence.search`, `subtitle_intelligence.download`, `subtitle_intelligence.synchronize`, `subtitle_intelligence.manage`, `subtitle_intelligence.providers`, `subtitle_intelligence.settings`, `subtitle_intelligence.admin`
 
-**Owns routes:** `/api/notifications`
+**Owns routes:** `/api/subtitle-intelligence`
+
+## Library Cleanup Center
+
+`library_cleanup` · tier `core` · enabled by default
+
+Policy-driven reclamation of library storage. Users build versioned cleanup policies from a catalogue of metadata, playback, technical, storage and safety conditions; a run turns matches into CANDIDATES, never deletions. Nothing is removed except through a persisted, approved plan whose per-file fingerprints still match the world, and protected, locked, actively-playing, in-flight, ambiguous or unmeasured files are refused server-side. Removal goes to quarantine or Trash through the existing path-safe file services; permanent deletion is a manual, separately-permissioned operation.
+
+**Depends on:** `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager`
+
+**Introduces permissions:** `library_cleanup.view`, `library_cleanup.policy.create`, `library_cleanup.policy.edit`, `library_cleanup.policy.publish`, `library_cleanup.policy.enable`, `library_cleanup.policy.delete`, `library_cleanup.run`, `library_cleanup.simulate`, `library_cleanup.approve`, `library_cleanup.cancel`, `library_cleanup.protection.view`, `library_cleanup.protection.create`, `library_cleanup.protection.revoke`, `library_cleanup.protection.legal_hold`, `library_cleanup.trash`, `library_cleanup.restore`, `library_cleanup.permanent_delete`, `library_cleanup.settings`, `library_cleanup.audit`
+
+**Owns routes:** `/api/media/cleanup`
 
 ## See also
 

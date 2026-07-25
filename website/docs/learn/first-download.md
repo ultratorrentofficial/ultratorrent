@@ -582,7 +582,6 @@ No — that is the entire point of the rest of the docs. See
 1. **Stop doing this by hand** → [Workflows](/learn/workflows)
 2. **Build a real library** → [Building a movie library](/learn/tutorials/building-a-movie-library)
 3. **Never miss an episode again** → [Automating TV shows](/learn/tutorials/automating-tv-shows)
-4. **Get told when things happen** → [Notifications and automation](/learn/tutorials/notifications-and-automation)
 
 ---
 

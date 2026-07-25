@@ -17,7 +17,7 @@ simplemente conjuntos con nombre de esos permisos. Tanto los guards de ruta del 
 de capacidades del frontend leen este mismo catálogo, así que lo que ves aquí es
 exactamente lo que se aplica.
 
-- **116 permisos** en **22 dominios**
+- **152 permisos** en **25 dominios**
 - **5 roles integrados**
 
 ## Cómo leer esto
@@ -31,11 +31,11 @@ exactamente lo que se aplica.
 
 | Rol | Permisos que tiene |
 | --- | --- |
-| `SUPER_ADMIN` | 116 of 116 |
-| `ADMINISTRATOR` | 115 of 116 |
-| `POWER_USER` | 58 of 116 |
-| `USER` | 18 of 116 |
-| `READ_ONLY` | 9 of 116 |
+| `SUPER_ADMIN` | 152 of 152 |
+| `ADMINISTRATOR` | 149 of 152 |
+| `POWER_USER` | 74 of 152 |
+| `USER` | 20 of 152 |
+| `READ_ONLY` | 11 of 152 |
 
 ## `apikeys`
 
@@ -100,6 +100,50 @@ exactamente lo que se aplica.
 | `integrations.prowlarr.manage` | `INTEGRATIONS_PROWLARR_MANAGE` | ✅ | ✅ | ✅ | — | — |
 | `integrations.prowlarr.test` | `INTEGRATIONS_PROWLARR_TEST` | ✅ | ✅ | ✅ | — | — |
 | `integrations.prowlarr.open` | `INTEGRATIONS_PROWLARR_OPEN` | ✅ | ✅ | ✅ | — | — |
+
+## `jobs`
+
+| Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
+| --- | --- | :---: | :---: | :---: | :---: | :---: |
+| `jobs.view` | `JOBS_VIEW` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `jobs.view_all` | `JOBS_VIEW_ALL` | ✅ | ✅ | — | — | — |
+| `jobs.view_events` | `JOBS_VIEW_EVENTS` | ✅ | ✅ | ✅ | ✅ | — |
+| `jobs.view_diagnostics` | `JOBS_VIEW_DIAGNOSTICS` | ✅ | ✅ | — | — | — |
+| `jobs.cancel` | `JOBS_CANCEL` | ✅ | ✅ | ✅ | — | — |
+| `jobs.pause` | `JOBS_PAUSE` | ✅ | ✅ | — | — | — |
+| `jobs.resume` | `JOBS_RESUME` | ✅ | ✅ | — | — | — |
+| `jobs.retry` | `JOBS_RETRY` | ✅ | ✅ | ✅ | — | — |
+| `jobs.rerun` | `JOBS_RERUN` | ✅ | ✅ | ✅ | — | — |
+| `jobs.bulk_manage` | `JOBS_BULK_MANAGE` | ✅ | ✅ | — | — | — |
+| `jobs.manage_schedules` | `JOBS_MANAGE_SCHEDULES` | ✅ | ✅ | — | — | — |
+| `jobs.run_schedules` | `JOBS_RUN_SCHEDULES` | ✅ | ✅ | — | — | — |
+| `jobs.view_workers` | `JOBS_VIEW_WORKERS` | ✅ | ✅ | ✅ | — | — |
+| `jobs.manage_settings` | `JOBS_MANAGE_SETTINGS` | ✅ | ✅ | — | — | — |
+| `jobs.admin` | `JOBS_ADMIN` | ✅ | ✅ | — | — | — |
+
+## `library_cleanup`
+
+| Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
+| --- | --- | :---: | :---: | :---: | :---: | :---: |
+| `library_cleanup.view` | `LIBRARY_CLEANUP_VIEW` | ✅ | ✅ | ✅ | — | — |
+| `library_cleanup.policy.create` | `LIBRARY_CLEANUP_POLICY_CREATE` | ✅ | ✅ | — | — | — |
+| `library_cleanup.policy.edit` | `LIBRARY_CLEANUP_POLICY_EDIT` | ✅ | ✅ | — | — | — |
+| `library_cleanup.policy.publish` | `LIBRARY_CLEANUP_POLICY_PUBLISH` | ✅ | ✅ | — | — | — |
+| `library_cleanup.policy.enable` | `LIBRARY_CLEANUP_POLICY_ENABLE` | ✅ | ✅ | — | — | — |
+| `library_cleanup.policy.delete` | `LIBRARY_CLEANUP_POLICY_DELETE` | ✅ | ✅ | — | — | — |
+| `library_cleanup.run` | `LIBRARY_CLEANUP_RUN` | ✅ | ✅ | — | — | — |
+| `library_cleanup.simulate` | `LIBRARY_CLEANUP_SIMULATE` | ✅ | ✅ | ✅ | — | — |
+| `library_cleanup.approve` | `LIBRARY_CLEANUP_APPROVE` | ✅ | ✅ | — | — | — |
+| `library_cleanup.cancel` | `LIBRARY_CLEANUP_CANCEL` | ✅ | ✅ | — | — | — |
+| `library_cleanup.protection.view` | `LIBRARY_CLEANUP_PROTECTION_VIEW` | ✅ | ✅ | ✅ | — | — |
+| `library_cleanup.protection.create` | `LIBRARY_CLEANUP_PROTECTION_CREATE` | ✅ | ✅ | — | — | — |
+| `library_cleanup.protection.revoke` | `LIBRARY_CLEANUP_PROTECTION_REVOKE` | ✅ | ✅ | — | — | — |
+| `library_cleanup.protection.legal_hold` | `LIBRARY_CLEANUP_PROTECTION_LEGAL_HOLD` | ✅ | — | — | — | — |
+| `library_cleanup.trash` | `LIBRARY_CLEANUP_TRASH` | ✅ | ✅ | — | — | — |
+| `library_cleanup.restore` | `LIBRARY_CLEANUP_RESTORE` | ✅ | ✅ | — | — | — |
+| `library_cleanup.permanent_delete` | `LIBRARY_CLEANUP_PERMANENT_DELETE` | ✅ | — | — | — | — |
+| `library_cleanup.settings` | `LIBRARY_CLEANUP_SETTINGS` | ✅ | ✅ | — | — | — |
+| `library_cleanup.audit` | `LIBRARY_CLEANUP_AUDIT` | ✅ | ✅ | — | — | — |
 
 ## `media_acquisition`
 
@@ -175,24 +219,6 @@ exactamente lo que se aplica.
 | `modules.view` | `MODULES_VIEW` | ✅ | ✅ | — | — | — |
 | `modules.manage` | `MODULES_MANAGE` | ✅ | ✅ | — | — | — |
 
-## `notifications`
-
-| Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
-| --- | --- | :---: | :---: | :---: | :---: | :---: |
-| `notifications.manage` | `NOTIFICATIONS_MANAGE` | ✅ | ✅ | — | — | — |
-| `notifications.view` | `NOTIFICATIONS_VIEW` | ✅ | ✅ | ✅ | ✅ | — |
-| `notifications.manage_channels` | `NOTIFICATIONS_MANAGE_CHANNELS` | ✅ | ✅ | — | — | — |
-| `notifications.manage_templates` | `NOTIFICATIONS_MANAGE_TEMPLATES` | ✅ | ✅ | — | — | — |
-| `notifications.manage_rules` | `NOTIFICATIONS_MANAGE_RULES` | ✅ | ✅ | — | — | — |
-| `notifications.manage_recipients` | `NOTIFICATIONS_MANAGE_RECIPIENTS` | ✅ | ✅ | — | — | — |
-| `notifications.manage_groups` | `NOTIFICATIONS_MANAGE_GROUPS` | ✅ | ✅ | — | — | — |
-| `notifications.view_history` | `NOTIFICATIONS_VIEW_HISTORY` | ✅ | ✅ | — | — | — |
-| `notifications.retry` | `NOTIFICATIONS_RETRY` | ✅ | ✅ | — | — | — |
-| `notifications.send_test` | `NOTIFICATIONS_SEND_TEST` | ✅ | ✅ | — | — | — |
-| `notifications.manage_preferences` | `NOTIFICATIONS_MANAGE_PREFERENCES` | ✅ | ✅ | ✅ | ✅ | — |
-| `notifications.manage_settings` | `NOTIFICATIONS_MANAGE_SETTINGS` | ✅ | ✅ | — | — | — |
-| `notifications.admin` | `NOTIFICATIONS_ADMIN` | ✅ | ✅ | — | — | — |
-
 ## `release_scoring`
 
 | Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
@@ -223,6 +249,19 @@ exactamente lo que se aplica.
 | `settings.view` | `SETTINGS_VIEW` | ✅ | ✅ | — | — | — |
 | `settings.manage` | `SETTINGS_MANAGE` | ✅ | ✅ | — | — | — |
 | `settings.manage_root_path` | `SETTINGS_MANAGE_ROOT_PATH` | ✅ | ✅ | — | — | — |
+
+## `subtitle_intelligence`
+
+| Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
+| --- | --- | :---: | :---: | :---: | :---: | :---: |
+| `subtitle_intelligence.view` | `SUBTITLE_INTELLIGENCE_VIEW` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `subtitle_intelligence.search` | `SUBTITLE_INTELLIGENCE_SEARCH` | ✅ | ✅ | ✅ | ✅ | — |
+| `subtitle_intelligence.download` | `SUBTITLE_INTELLIGENCE_DOWNLOAD` | ✅ | ✅ | ✅ | — | — |
+| `subtitle_intelligence.synchronize` | `SUBTITLE_INTELLIGENCE_SYNCHRONIZE` | ✅ | ✅ | ✅ | — | — |
+| `subtitle_intelligence.manage` | `SUBTITLE_INTELLIGENCE_MANAGE` | ✅ | ✅ | ✅ | — | — |
+| `subtitle_intelligence.providers` | `SUBTITLE_INTELLIGENCE_PROVIDERS` | ✅ | ✅ | ✅ | — | — |
+| `subtitle_intelligence.settings` | `SUBTITLE_INTELLIGENCE_SETTINGS` | ✅ | ✅ | ✅ | — | — |
+| `subtitle_intelligence.admin` | `SUBTITLE_INTELLIGENCE_ADMIN` | ✅ | ✅ | — | — | — |
 
 ## `system`
 
@@ -262,6 +301,18 @@ exactamente lo que se aplica.
 | --- | --- | :---: | :---: | :---: | :---: | :---: |
 | `users.view` | `USERS_VIEW` | ✅ | ✅ | — | — | — |
 | `users.manage` | `USERS_MANAGE` | ✅ | ✅ | — | — | — |
+
+## `workflows`
+
+| Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
+| --- | --- | :---: | :---: | :---: | :---: | :---: |
+| `workflows.view` | `WORKFLOWS_VIEW` | ✅ | ✅ | ✅ | — | — |
+| `workflows.create` | `WORKFLOWS_CREATE` | ✅ | ✅ | — | — | — |
+| `workflows.edit` | `WORKFLOWS_EDIT` | ✅ | ✅ | — | — | — |
+| `workflows.delete` | `WORKFLOWS_DELETE` | ✅ | ✅ | — | — | — |
+| `workflows.publish` | `WORKFLOWS_PUBLISH` | ✅ | ✅ | — | — | — |
+| `workflows.run` | `WORKFLOWS_RUN` | ✅ | ✅ | ✅ | — | — |
+| `workflows.approve` | `WORKFLOWS_APPROVE` | ✅ | ✅ | — | — | — |
 
 ## Ver también
 

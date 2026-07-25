@@ -199,7 +199,6 @@ correctly named, with a poster.
 :::tip A refresh failure is a trigger, not a dead end
 `media.server_refresh_failed` is an automation trigger. Build a rule on it that
 notifies you — otherwise a silently broken integration can go unnoticed for weeks.
-See [Notifications and automation](/learn/tutorials/notifications-and-automation).
 :::
 
 ---
@@ -400,7 +399,6 @@ action, permission-gated (`media_manager.delete`) and audited.
 
 ### Next steps
 
-1. [Notifications and automation](/learn/tutorials/notifications-and-automation) — react to everything you just wired up.
 2. [Automating TV shows](/learn/tutorials/automating-tv-shows) — fill the library that now refreshes itself.
 3. [Media Server Analytics](/modules/media-server-analytics) — the full module reference.
 
@@ -409,7 +407,7 @@ action, permission-gated (`media_manager.delete`) and audited.
 ## See also
 
 - [Media Server Analytics](/modules/media-server-analytics) · [Media Manager](/modules/media-manager)
-- [Notification Center](/modules/notification-center) · [Automation](/modules/automation)
+- Notification Center · [Automation](/modules/automation)
 - [Workflows](/learn/workflows) — Workflows 5 and 6.
 - [Security](/operate/security) — how integration secrets are protected.
 - [Troubleshooting](/operate/troubleshooting) · [Glossary](/help/glossary)

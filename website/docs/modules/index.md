@@ -162,7 +162,7 @@ Read the graph as a story:
 | Module | Tier | What it does |
 |--------|------|--------------|
 | [Automation](/modules/automation) | core | The trigger → condition → action rule engine. |
-| [Notification Center](/modules/notification-center) | core | Provider-driven messaging: rules, templates, recipients, channels, delivery queue. |
+| Notification Center | core | Provider-driven messaging: rules, templates, recipients, channels, delivery queue. |
 
 ### Administering
 

@@ -200,7 +200,6 @@ con el nombre correcto y con carátula.
 :::tip Un fallo de actualización es un disparador, no un callejón sin salida
 `media.server_refresh_failed` es un disparador de automatización. Crea una regla sobre
 él que te notifique — de lo contrario una integración rota en silencio puede pasar
-desapercibida por semanas. Ver [Notificaciones y automatización](/learn/tutorials/notifications-and-automation).
 :::
 
 ---
@@ -403,7 +402,6 @@ Gestor de Medios, protegida por permisos (`media_manager.delete`) y auditada.
 
 ### Próximos pasos
 
-1. [Notificaciones y automatización](/learn/tutorials/notifications-and-automation) — reacciona a todo lo que acabas de conectar.
 2. [Automatizando series de TV](/learn/tutorials/automating-tv-shows) — llena la biblioteca que ahora se actualiza sola.
 3. [Analíticas del Servidor de Medios](/modules/media-server-analytics) — la referencia completa del módulo.
 
@@ -412,7 +410,7 @@ Gestor de Medios, protegida por permisos (`media_manager.delete`) y auditada.
 ## Ver también
 
 - [Analíticas del Servidor de Medios](/modules/media-server-analytics) · [Gestor de Medios](/modules/media-manager)
-- [Centro de Notificaciones](/modules/notification-center) · [Automatización](/modules/automation)
+- Centro de Notificaciones · [Automatización](/modules/automation)
 - [Flujos de trabajo](/learn/workflows) — Flujos de trabajo 5 y 6.
 - [Seguridad](/operate/security) — cómo se protegen los secretos de integración.
 - [Solución de problemas](/operate/troubleshooting) · [Glosario](/help/glossary)

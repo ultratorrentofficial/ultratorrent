@@ -162,7 +162,7 @@ Lee el grafo como una historia:
 | Módulo | Tier | Qué hace |
 |--------|------|--------------|
 | [Automatización](/modules/automation) | core | El motor de reglas disparador → condición → acción. |
-| [Centro de Notificaciones](/modules/notification-center) | core | Mensajería basada en proveedores: reglas, plantillas, destinatarios, canales, cola de envío. |
+| Centro de Notificaciones | core | Mensajería basada en proveedores: reglas, plantillas, destinatarios, canales, cola de envío. |
 
 ### Administrar
 

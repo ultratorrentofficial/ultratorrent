@@ -33,7 +33,7 @@ Si te encuentras haciendo lo mismo a mano dos veces por semana, su lugar es aqu�
 
 - Un [motor](/modules/engines) funcionando (`automation` lo declara como dependencia dura).
 - `automation.view` para ver las reglas y sus registros; `automation.manage` para crearlas o cambiarlas.
-- Para acciones de notificación: un canal configurado en el [Centro de Notificaciones](/modules/notification-center).
+- Para acciones de notificación: un canal configurado en el Centro de Notificaciones.
 
 ## Conceptos
 
@@ -139,7 +139,7 @@ Existen veintidós acciones, en cuatro familias.
 `move` (parámetro `destination`), `pause`, `stop`, `delete`, `delete_with_data`, `rename_for_media` (parámetros `preset`, `mode` — por defecto `hardlink` — `libraryPath`, `template`).
 
 **Acciones sin contexto** (válidas en cualquier disparador):
-`notify` (parámetros `title`, `message`), `send_notification` (despacho completo del [Centro de Notificaciones](/modules/notification-center): `channelIds`, `recipientIds`, `groupIds`, `templateId`, `variables`, `priority`, `title`, `message`), `webhook` (hace POST de JSON a `params.url`), `notify_admin` (solo en contexto de evento).
+`notify` (parámetros `title`, `message`), `send_notification` (despacho completo del Centro de Notificaciones: `channelIds`, `recipientIds`, `groupIds`, `templateId`, `variables`, `priority`, `title`, `message`), `webhook` (hace POST de JSON a `params.url`), `notify_admin` (solo en contexto de evento).
 
 **Acciones de medios:**
 `media_scan_library`, `media_match`, `media_fetch_metadata`, `media_fetch_artwork`, `media_generate_nfo`, `media_rename`, `media_move`, `media_server_refresh`, `media_notify`.
@@ -310,6 +310,6 @@ Sí. Cada corrida escribe `automation.rule.executed` en el [registro de auditor�
 - [Torrents](/modules/torrents) — de dónde vienen los disparadores de torrent.
 - [Gestor de Medios](/modules/media-manager) — los disparadores `media.*` y las acciones de medios.
 - [Automatización RSS](/modules/rss) — los disparadores `rss.*` y la acción de backfill.
-- [Centro de Notificaciones](/modules/notification-center) — la acción `send_notification`.
+- Centro de Notificaciones — la acción `send_notification`.
 - [Registro de Auditoría](/modules/audit) — donde se reflejan las corridas de las reglas.
 - [Referencia de la API](/reference/api)

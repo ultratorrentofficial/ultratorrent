@@ -438,7 +438,6 @@ phantom success is recorded in the ledger and never retried.
 They are different systems. `NOTIFICATION_EVENTS` is the internal bus the Notification
 Center subscribes to for **rule-driven messaging**. `AUTOMATION_TRIGGERS` is the automation
 engine's own catalogue. The `send_notification` action bridges from automation into the
-Notification Center.
 
 **Can I run an arbitrary script?**
 No. There is a `webhook` action — POST to a URL you control.
@@ -464,5 +463,5 @@ keeps **no** engine-provider dependency in the media path — that separation is
 
 - [Background jobs](/develop/background-jobs) — the poll loop, idempotency, reconciliation
 - [Providers](/develop/providers) — why "success" must be verified
-- [Modules → Automation](/modules/automation) · [RSS](/modules/rss) · [Notification Center](/modules/notification-center)
+- [Modules → Automation](/modules/automation) · [RSS](/modules/rss) · Notification Center
 - [Creating modules](/develop/creating-modules)

@@ -405,7 +405,7 @@ Ver [Resolución de problemas](/operate/troubleshooting#a-library-scan-freezes-a
 ### ¿Qué canales están soportados? {#what-channels-are-supported}
 
 En la app, webhook, **Discord**, **Slack** y **Telegram**, con envío en paralelo a múltiples
-canales. Ver [Centro de Notificaciones](/modules/notification-center).
+canales. Ver Centro de Notificaciones.
 
 ### ¿Qué servidores de medios puede actualizar? {#which-media-servers-can-it-refresh}
 

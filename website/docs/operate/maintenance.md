@@ -377,7 +377,7 @@ If the routine surfaces something, the fix is almost certainly in
 ## Tips
 
 - **Automate the daily check into a notification.** UltraTorrent's own
-  [Notification Center](/modules/notification-center) can tell you when things fail
+  Notification Center can tell you when things fail
   — use it rather than relying on yourself to look.
 - **Write down `RestartCount` each week.** The absolute number is meaningless; the
   **trend** is the whole signal.
@@ -446,4 +446,4 @@ add `--volumes`.
 - [Performance](/operate/performance)
 - [Security](/operate/security)
 - [Configuration Profiles](/operate/configuration-profiles)
-- [Audit](/modules/audit) · [Notification Center](/modules/notification-center) · [System](/modules/system)
+- [Audit](/modules/audit) · Notification Center · [System](/modules/system)

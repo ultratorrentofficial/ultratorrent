@@ -270,7 +270,7 @@ requires `scan`, not `view` — a read-only account cannot destroy grouping stat
 
 The Duplicate Center **emits domain events**; it never sends a notification directly.
 See [Automation triggers and actions](#automation-and-notifications) below and the
-[Notification Center](NOTIFICATION_CENTER.md).
+Notification Center.
 
 **Automation triggers** (category *media*):
 
@@ -375,5 +375,5 @@ duplication; the migration cleared the phantoms.
 See also: [DUPLICATE_DETECTION.md](DUPLICATE_DETECTION.md) ·
 [DUPLICATE_CLEANUP_SAFETY.md](DUPLICATE_CLEANUP_SAFETY.md) ·
 [MEDIA_MANAGER.md](MEDIA_MANAGER.md) · [API.md](API.md) ·
-[NOTIFICATION_CENTER.md](NOTIFICATION_CENTER.md) · [SECURITY.md](SECURITY.md) ·
+[SECURITY.md](SECURITY.md) ·
 [ARCHITECTURE.md](ARCHITECTURE.md).
