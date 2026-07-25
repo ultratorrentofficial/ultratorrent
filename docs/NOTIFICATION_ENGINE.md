@@ -1,6 +1,6 @@
 # Personal Notification Engine
 
-**Status:** phases 1–10 implemented except the producer cutover (see §15).
+**Status:** phases 1–10 implemented. The personal engine is live on the event bus.
 Message rendering and channel verification are complete, so external delivery is
 functional end to end once a connection is tested.
 **Security model:** [NOTIFICATION_ENGINE_SECURITY.md](NOTIFICATION_ENGINE_SECURITY.md).
@@ -52,7 +52,7 @@ Filtering on it would silence the primary operator.
 
 ## 3. The event catalogue
 
-Code-defined, **69 events across 9 namespaces**. Each declares category, severity,
+Code-defined, **70 events across 10 namespaces**. Each declares category, severity,
 i18n keys, required payload fields, supported channels, new-user defaults, required
 permission, audience, deduplication, aggregation, sensitivity and an optional
 deep-link template.
@@ -332,10 +332,13 @@ rules still pinning channels.
 1. ~~External message rendering~~ — **done.** Messages render in the recipient's
    locale from the notification payload, with an allow-listed field set so a payload
    gaining a secret cannot leak into a message body.
-2. **Producers not rewired.** `automation.module.ts`, `torrent-sync.service.ts` and
-   `rss-automation.actions.ts` still call the legacy dispatcher. Each free-text call
-   needs a registered event chosen deliberately — guessing would re-point a rule at a
-   different audience.
+2. ~~Producers not rewired~~ — **done.** The personal dispatcher now subscribes to
+   `NOTIFICATION_BUS_CHANNEL`, which was the actual cutover: producers already
+   emitted registered events there, but the legacy service was the *sole*
+   subscriber, so the personal engine sat inert. `torrent-sync`'s legacy call was
+   pure duplication and was removed; `automation` now emits the new
+   `automation.rule_failed` event instead of a free-text dispatch. Both engines
+   observe the same bus, so the legacy path keeps working alongside.
 3. **No settings UI** for quiet hours and digests (API exists).
 4. ~~No channel test/verify endpoint~~ — **done.** `POST channels/:id/test` sends a
    real message and verifies on success; a failed test never revokes an existing

@@ -50,6 +50,9 @@ describe('AutomationEngine — ratio.reached edge trigger', () => {
       { execute: jest.fn().mockResolvedValue(undefined) } as any,
       audit,
       { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
+      // The engine now EMITS `automation.rule_failed` onto the bus instead of
+      // calling the legacy free-text dispatcher.
+      { emit: jest.fn() } as any,
     );
     return { engine, provider, mediaActions, audit };
   }
@@ -149,6 +152,9 @@ describe('AutomationEngine — media action dispatch', () => {
       { execute: jest.fn().mockResolvedValue(undefined) } as any,
       audit,
       { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
+      // The engine now EMITS `automation.rule_failed` onto the bus instead of
+      // calling the legacy free-text dispatcher.
+      { emit: jest.fn() } as any,
     );
 
     await engine.evaluate('torrent.completed', torrent());
@@ -173,6 +179,9 @@ describe('AutomationEngine — duplicate actions dispatch to media, non-destruct
       { execute: jest.fn() } as any,
       { record: jest.fn() } as any,
       { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
+      // The engine now EMITS `automation.rule_failed` onto the bus instead of
+      // calling the legacy free-text dispatcher.
+      { emit: jest.fn() } as any,
     );
 
   let DUP_ACTION = 'media_run_duplicate_scan';
@@ -256,6 +265,9 @@ describe('AutomationEngine — reconcileCompleted (completion backfill)', () => 
       { execute: jest.fn() } as any,
       audit,
       { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any,
+      // The engine now EMITS `automation.rule_failed` onto the bus instead of
+      // calling the legacy free-text dispatcher.
+      { emit: jest.fn() } as any,
     );
     return { engine, provider, prisma };
   }
@@ -326,7 +338,7 @@ describe('AutomationEngine — evaluateEvent (non-torrent event context)', () =>
     const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const rssActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const engine = new AutomationEngine(prisma, registry, notifications, media, mediaActions, rssActions, { execute: jest.fn().mockResolvedValue(undefined) } as any, audit, { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any);
+    const engine = new AutomationEngine(prisma, registry, notifications, media, mediaActions, rssActions, { execute: jest.fn().mockResolvedValue(undefined) } as any, audit, { get: () => ({ dispatchDirect: async () => ({ enqueued: 0 }) }) } as any, { emit: jest.fn() } as any);
     return { engine, prisma, notifications, rssActions };
   }
 

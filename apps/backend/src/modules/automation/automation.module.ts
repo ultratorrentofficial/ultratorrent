@@ -24,8 +24,8 @@ import {
   IsString,
 } from 'class-validator';
 import type { Request } from 'express';
-import { NormalizedTorrent, PERMISSIONS, NOTIFICATION_BUS_CHANNEL, type DomainEventEnvelope } from '@ultratorrent/shared';
-import { OnEvent } from '@nestjs/event-emitter';
+import { NormalizedTorrent, PERMISSIONS, NOTIFICATION_BUS_CHANNEL, NOTIFICATION_EVENTS, type DomainEventEnvelope } from '@ultratorrent/shared';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
 import { assertSafeOutboundUrl } from '../../common/ssrf';
@@ -183,6 +183,7 @@ export class AutomationEngine {
     private readonly subtitleActions: SubtitleAutomationActions,
     private readonly audit: AuditService,
     private readonly moduleRef: ModuleRef,
+    private readonly eventBus: EventEmitter2,
   ) {}
 
   /** Evaluate every enabled rule for a trigger against a single torrent. */
@@ -256,11 +257,18 @@ export class AutomationEngine {
           done.add(key); // don't re-run this rule for the same torrent this pass
         } catch (err) {
           await this.log(rule, 'failed', t, (err as Error).message);
-          await this.notifications.dispatch({
-            level: 'error',
-            title: 'Automation failed',
-            message: `Rule "${rule.name}" failed: ${(err as Error).message}`,
-            eventType: 'automation.failed',
+          // Emit a registered event rather than a free-text notification: the
+          // personal engine then decides who is eligible, who holds
+          // `automation.view`, and what each of them personally chose. The legacy
+          // path produced an unowned in-app row broadcast to everyone.
+          this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
+            event: NOTIFICATION_EVENTS.AUTOMATION_RULE_FAILED,
+            payload: {
+              ruleName: rule.name,
+              message: `Rule "${rule.name}" failed: ${(err as Error).message}`,
+              error: (err as Error).message,
+            },
+            at: new Date().toISOString(),
           });
         }
       }

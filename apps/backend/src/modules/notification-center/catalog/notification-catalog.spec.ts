@@ -19,10 +19,13 @@ describe('notification catalog integrity', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it('covers the 69 personal-notification events across 9 namespaces', () => {
-    expect(NOTIFICATION_CATALOG).toHaveLength(69);
+  it('covers every personal-notification event across 10 namespaces', () => {
+    // 69 pre-existing events plus `automation.rule_failed`, added during the
+    // producer cutover because the automation engine had no registered event to
+    // emit and was still calling the legacy free-text dispatcher.
+    expect(NOTIFICATION_CATALOG).toHaveLength(70);
     const namespaces = new Set(NOTIFICATION_CATALOG.map((d) => d.key.split('.')[0]));
-    expect(namespaces.size).toBe(9);
+    expect(namespaces.size).toBe(10);
   });
 
   it('only registers keys that exist in NOTIFICATION_EVENTS', () => {

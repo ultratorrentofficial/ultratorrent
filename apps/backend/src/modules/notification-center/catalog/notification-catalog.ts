@@ -433,6 +433,17 @@ export const NOTIFICATION_CATALOG: NotificationEventDefinition[] = [
     requiredPermission: P.JOBS_VIEW, sensitivity: 'normal', deepLinkTemplate: '/jobs',
   }),
 
+  // -------------------------------------------------------------- automation
+  def(E.AUTOMATION_RULE_FAILED, {
+    category: 'automation', severity: 'error', audience: 'permission_holders',
+    requiredPayloadFields: [], defaultPreferences: IN_APP,
+    requiredPermission: P.AUTOMATION_VIEW, sensitivity: 'normal',
+    deepLinkTemplate: '/automation',
+    // A rule failing on every torrent in a sweep is one problem, not fifty.
+    deduplication: { enabled: true, windowSeconds: 900, keyFields: ['ruleName'] },
+    aggregation: { supported: true, defaultWindowMinutes: 30 },
+  }),
+
   // ---------------------------------------------------------------- workflow
   def(E.WORKFLOW_EXECUTION_FAILED, {
     // Owner + requester, not "all admins": a failed run belongs to whoever ran it.

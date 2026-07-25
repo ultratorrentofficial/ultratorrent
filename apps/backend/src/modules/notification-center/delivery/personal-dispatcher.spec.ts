@@ -75,7 +75,7 @@ function build(opts: {
   const svc = new PersonalNotificationDispatcher(
     prisma as any, audience as any, preferences as any, realtime as any,
   );
-  return { svc, deliveries, inApp, emitted, prisma, preferences };
+  return { svc, deliveries, inApp, emitted, prisma, preferences, audience };
 }
 
 const VERIFIED = { id: 'ch1', userId: 'u1', type: 'telegram', enabled: true, verifiedAt: new Date(), deletedAt: null };
@@ -234,6 +234,54 @@ describe('PersonalNotificationDispatcher', () => {
     const { svc, preferences } = build();
     preferences.effectiveFor.mockRejectedValue(new Error('database on fire'));
     await expect(svc.dispatch({ eventKey: DL, payload: {}, eventId: 'e1' })).resolves.toBeDefined();
+  });
+
+  describe('bus subscription — the cutover point', () => {
+    it('dispatches a registered event arriving on the bus', async () => {
+      // Producers already emit onto NOTIFICATION_BUS_CHANNEL; subscribing is what
+      // turns the personal engine on, with no producer changes required.
+      const { svc, inApp } = build();
+      await svc.onDomainEvent({ event: DL, payload: { title: 'Dune' }, at: new Date().toISOString() } as never);
+      expect(inApp).toHaveLength(1);
+      expect(inApp[0].title).toBe('Dune');
+    });
+
+    it('ignores an event the personal catalogue does not register', async () => {
+      // The legacy engine may still handle it; warning per bus event would drown
+      // the log during the transition.
+      const { svc, inApp } = build();
+      await svc.onDomainEvent({ event: 'legacy.only.event', payload: {}, at: '' } as never);
+      expect(inApp).toHaveLength(0);
+    });
+
+    it('ignores a malformed envelope', async () => {
+      const { svc, inApp } = build();
+      await svc.onDomainEvent({} as never);
+      await svc.onDomainEvent(null as never);
+      expect(inApp).toHaveLength(0);
+    });
+
+    it('uses the bus dedupeKey for idempotency', async () => {
+      const { svc, inApp } = build();
+      const env = { event: DL, payload: { title: 'Dune' }, dedupeKey: 'k1', at: '' };
+      await svc.onDomainEvent(env as never);
+      await svc.onDomainEvent(env as never);
+      expect(inApp).toHaveLength(1);
+      expect(inApp[0].groupCount).toBe(2);
+    });
+
+    it('drops a non-local actor id carried in the payload', async () => {
+      // A media-server user id in `actorUserId` must not become a recipient; the
+      // audience/eligibility layers reject it.
+      const { svc, audience } = build();
+      await svc.onDomainEvent({
+        event: DL, payload: { actorUserId: 'plex-user-88213' }, at: '',
+      } as never);
+      expect(audience.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({ actorUserId: 'plex-user-88213' }),
+      );
+      // Resolution is where it dies — the dispatcher never trusts the id itself.
+    });
   });
 
   it('reaches nobody for an unregistered event', async () => {

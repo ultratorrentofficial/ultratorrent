@@ -198,6 +198,10 @@ export const NOTIFICATION_EVENTS = {
   JOB_COMPLETED_WITH_WARNINGS: 'job.completed_with_warnings',
   JOB_RETRY_EXHAUSTED: 'job.retry_exhausted',
 
+  // Automation Engine — a rule that failed is the one automation outcome an
+  // operator needs told about; success is visible in the rule's own log.
+  AUTOMATION_RULE_FAILED: 'automation.rule_failed',
+
   // Visual Workflow Builder — durable execution lifecycle the Notification Center can act on.
   WORKFLOW_EXECUTION_FAILED: 'workflow.execution.failed',
   WORKFLOW_EXECUTION_COMPLETED: 'workflow.execution.completed',

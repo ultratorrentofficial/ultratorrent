@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { createHash } from 'node:crypto';
-import { SEVERITY_RANK, type NotificationSeverity } from '@ultratorrent/shared';
+import {
+  NOTIFICATION_BUS_CHANNEL, SEVERITY_RANK,
+  type DomainEventEnvelope, type NotificationSeverity,
+} from '@ultratorrent/shared';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { getEventDefinition } from '../catalog/notification-catalog';
@@ -47,6 +51,37 @@ export class PersonalNotificationDispatcher {
     private readonly preferences: UserNotificationPreferenceService,
     private readonly realtime: RealtimeGateway,
   ) {}
+
+  /**
+   * Bus subscriber — the cutover point.
+   *
+   * Producers already emit registered events onto `NOTIFICATION_BUS_CHANNEL`; until
+   * now the legacy Notification Center was the *sole* subscriber, which is why the
+   * personal engine sat inert. Subscribing here is what turns it on, and it needs no
+   * producer changes: both engines observe the same bus, so the legacy path keeps
+   * working while the personal one runs beside it.
+   *
+   * An event the personal catalogue does not register is ignored silently — the
+   * legacy engine may still handle it, and logging a warning per bus event would
+   * drown the log during the transition.
+   */
+  @OnEvent(NOTIFICATION_BUS_CHANNEL, { async: true })
+  async onDomainEvent(envelope: DomainEventEnvelope): Promise<void> {
+    if (!envelope?.event) return;
+    if (!getEventDefinition(envelope.event)) return;
+    const payload = (envelope.payload ?? {}) as Record<string, unknown>;
+    await this.dispatch({
+      eventKey: envelope.event,
+      payload,
+      // Producers put the acting user under one of these when there is one. A value
+      // that is not a local account is dropped by eligibility, so an id from another
+      // namespace (a media-server user id) cannot become a recipient.
+      actorUserId: (payload.actorUserId as string) ?? null,
+      subjectUserId: (payload.subjectUserId as string) ?? null,
+      resourceOwnerUserId: (payload.resourceOwnerUserId as string) ?? null,
+      eventId: envelope.dedupeKey ?? undefined,
+    });
+  }
 
   /**
    * Dispatch one event.

@@ -166,18 +166,11 @@ export class TorrentSyncService {
 
       if (prev.progress < 1 && t.progress >= 1) {
         risingEdges.add(t.hash);
-        // A throw here used to abort the whole tick — skipping the name repair and
-        // the engine-status broadcast — for a notification nobody reads.
-        await this.notifications
-          .dispatch({
-            level: 'success',
-            title: 'Download complete',
-            message: t.name,
-            eventType: 'torrent.completed',
-          })
-          .catch((err) =>
-            this.logger.warn(`Completion notification failed: ${err.message}`),
-          );
+        // The domain event below is the ONLY notification path now. The legacy
+        // `notifications.dispatch()` that stood here was pure duplication: it
+        // created an unowned in-app row broadcast to every connected client for the
+        // same occurrence this event already describes, and the personal engine
+        // resolves real recipients from it.
         this.eventBus.emit(NOTIFICATION_BUS_CHANNEL, {
           event: NOTIFICATION_EVENTS.DOWNLOAD_TORRENT_COMPLETED,
           payload: { torrentName: t.name, mediaTitle: t.name, hash: t.hash, size: t.size, ratio: t.ratio, savePath: t.savePath ?? null, label: t.label ?? null, serverName: t.engineId },
