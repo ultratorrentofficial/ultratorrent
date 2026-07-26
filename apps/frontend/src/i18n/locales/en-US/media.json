@@ -1656,5 +1656,28 @@
       "mergeFailed": "The merge failed",
       "truncated": "Showing {{shown}} of {{total}} families. Each one is checked against the folders on disk, so the list is capped."
     }
+  },
+  "browser": {
+    "title": "Library Browser",
+    "pickLibrary": "Choose a library to browse.",
+    "allLibraries": "All libraries",
+    "noLibraries": "No libraries configured yet.",
+    "empty": "Nothing in this library yet.",
+    "loadFailed": "Could not load the library.",
+    "loadingMore": "Loading more…",
+    "viewMode": "View mode",
+    "showCount": "{{count}} show",
+    "showCount_other": "{{count}} shows",
+    "itemCount": "{{count}} item",
+    "itemCount_other": "{{count}} items",
+    "episodeCount": "{{count}} episode",
+    "episodeCount_other": "{{count}} episodes",
+    "mode": {
+      "poster": "Poster wall",
+      "grid": "Grid",
+      "list": "List",
+      "compact": "Compact",
+      "table": "Table"
+    }
   }
 }

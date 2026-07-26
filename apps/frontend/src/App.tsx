@@ -26,6 +26,7 @@ import { WorkflowApprovalsPage } from '@/pages/workflows/WorkflowApprovalsPage';
 const NotificationInboxPage = lazy(() => import('@/pages/account/notifications/NotificationInboxPage').then((m) => ({ default: m.NotificationInboxPage })));
 const NotificationChannelsPage = lazy(() => import('@/pages/account/notifications/NotificationChannelsPage').then((m) => ({ default: m.NotificationChannelsPage })));
 const NotificationEventsPage = lazy(() => import('@/pages/account/notifications/NotificationEventsPage').then((m) => ({ default: m.NotificationEventsPage })));
+const LibraryBrowserPage = lazy(() => import('@/pages/library-browser/LibraryBrowserPage').then((m) => ({ default: m.LibraryBrowserPage })));
 const WorkflowEditorPage = lazy(() => import('@/pages/workflows/WorkflowEditorPage').then((m) => ({ default: m.WorkflowEditorPage })));
 import { TorrentsPage } from '@/pages/TorrentsPage';
 import { RssPage } from '@/pages/RssPage';
@@ -193,6 +194,14 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_manager">
                             <MediaLibrariesPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/browse"
+                        element={
+                          <ModuleRoute moduleId="media_manager">
+                            <LibraryBrowserPage />
                           </ModuleRoute>
                         }
                       />

@@ -1656,5 +1656,28 @@
       "mergeFailed": "La combinación falló",
       "truncated": "Mostrando {{shown}} de {{total}} familias. Cada una se verifica contra las carpetas en disco, así que la lista tiene un límite."
     }
+  },
+  "browser": {
+    "title": "Explorador de bibliotecas",
+    "pickLibrary": "Escoge una biblioteca para explorar.",
+    "allLibraries": "Todas las bibliotecas",
+    "noLibraries": "Todavía no hay bibliotecas configuradas.",
+    "empty": "Todavía no hay nada en esta biblioteca.",
+    "loadFailed": "No se pudo cargar la biblioteca.",
+    "loadingMore": "Cargando más…",
+    "viewMode": "Modo de vista",
+    "showCount": "{{count}} serie",
+    "showCount_other": "{{count}} series",
+    "itemCount": "{{count}} elemento",
+    "itemCount_other": "{{count}} elementos",
+    "episodeCount": "{{count}} episodio",
+    "episodeCount_other": "{{count}} episodios",
+    "mode": {
+      "poster": "Muro de carteles",
+      "grid": "Cuadrícula",
+      "list": "Lista",
+      "compact": "Compacta",
+      "table": "Tabla"
+    }
   }
 }

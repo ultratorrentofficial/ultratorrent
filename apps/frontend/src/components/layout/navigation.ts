@@ -17,6 +17,7 @@ import {
   IdCard,
   Languages,
   Library,
+  LayoutGrid,
   SearchX,
   SlidersHorizontal,
   Wand2,
@@ -213,6 +214,7 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
   } },
 
   { slot: { domain: 'media', order: 10 }, item: { id: 'media-dashboard', to: '/media', label: 'Media Dashboard', icon: Clapperboard, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', end: true, descriptionKey: 'Media Dashboard' } },
+  { slot: { domain: 'media', order: 15 }, item: { id: 'library-browser', to: '/media/browse', label: 'Library Browser', icon: LayoutGrid, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Library Browser' } },
   { slot: { domain: 'media', order: 20 }, item: { id: 'media-items', to: '/media/items', label: 'Media Items', icon: Film, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Media Items' } },
   { slot: { domain: 'media', order: 30 }, item: { id: 'media-libraries', to: '/media/libraries', label: 'Libraries', icon: Library, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Libraries' } },
   { slot: { domain: 'media', order: 40 }, item: { id: 'media-unmatched', to: '/media/unmatched', label: 'Unmatched Media', icon: SearchX, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Unmatched Media' } },

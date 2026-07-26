@@ -95,7 +95,8 @@
     "My Notification Inbox": "My Notification Inbox",
     "My Notification Settings": "My Notification Settings",
     "Inbox": "Inbox",
-    "Notification Events": "Notification Events"
+    "Notification Events": "Notification Events",
+    "Library Browser": "Library Browser"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",
@@ -170,7 +171,8 @@
     "My Notification Inbox": "Notifications addressed to you personally.",
     "My Notification Settings": "Your quiet hours, digest schedule and global pause.",
     "Inbox": "Notifications sent to you.",
-    "Notification Events": "Choose which events you want, and where they arrive."
+    "Notification Events": "Choose which events you want, and where they arrive.",
+    "Library Browser": "Browse every library as a poster wall, with drill-down into shows and episodes."
   },
   "details": {
     "Account": "Account",
