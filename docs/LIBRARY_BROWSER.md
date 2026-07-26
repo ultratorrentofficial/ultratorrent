@@ -86,6 +86,39 @@ are null until `MediaProbeService` has measured the file; a placeholder per fiel
 would fill the row with dashes and imply the data is missing rather than simply
 unmeasured.
 
+## Selection, and why the action bar is not wired yet
+
+Selection is pure functions over a `Set`, not component state. The range rules
+are the fiddly part and are far easier to get right away from React — and the
+list is virtualized, so a selection must survive rows unmounting as they scroll
+out of view. Anything derived from rendered DOM would silently forget what is
+off-screen.
+
+Two rules worth stating:
+
+- **Select-all covers the rows currently loaded**, not the library. Paging is
+  incremental; claiming to select 500 000 items while holding 60 would make
+  every count and every subsequent action a lie. A whole-library operation is a
+  server-side *scope*, not a selection.
+- **A selection is pruned when the list changes.** One that outlived its rows
+  would act on things the user can no longer see — the worst possible input to a
+  destructive bulk operation.
+
+**The blocker.** No existing endpoint accepts a set of ids:
+
+| Endpoint | Scope |
+|---|---|
+| `POST /media/items/reidentify` | `{ libraryId, matchStatus }` — a whole library |
+| `POST /media/nfo/generate` | one `itemId` **or** a whole `libraryId` |
+| `POST /media/items/:id/lock`, `…/metadata/fetch` | one item |
+
+So a bulk action over a selection would have to fan out N requests from the
+browser — N round trips, no single job, no single audit record, and no progress.
+That is the wrong shape for a workspace whose operations are supposed to be
+jobs. Wiring the bar honestly needs id-list bulk endpoints that dispatch one
+job and audit one operation; that is the next piece of backend work, not a
+frontend one.
+
 ## Paging
 
 Server-side and additive. Rows are appended as the grid nears its end, so
@@ -96,7 +129,10 @@ enormous response. Nothing fetches a whole library.
 
 Stated so the gaps are not mistaken for bugs:
 
-- **No multi-selection or context action bar** — Phase 2.
+- **The context action bar is not wired.** The selection model beneath it is
+  built and tested (`selection.ts`) — plain/ctrl/shift click, checkbox,
+  select-all-loaded, and pruning when the list changes. What is missing is
+  **backend support**, not UI: see below.
 - **No filters or search** beyond what the underlying endpoints accept — Phase 3.
 - **No issues panel, no export** — later phases.
 - **No music/audiobook/photo hierarchies** — needs the schema migration above.
