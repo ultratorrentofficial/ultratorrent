@@ -1226,6 +1226,14 @@ model MediaServerSession {
   /// "S01E03 • Long Long Time" on separate lines. `title` joins the two for
   /// display and re-splitting it is ambiguous for any title containing a dash.
   episodeTitle      String?
+  /// Consecutive polls this session has been absent from the provider.
+  ///
+  /// A media server drops a session from its list transiently — while buffering,
+  /// on a transcode decision change, or when a client re-registers with a new id.
+  /// Ending on the first miss turned one viewing into several, which produced
+  /// spurious stop/start notifications and inflated the play counts that Library
+  /// Cleanup uses to decide what is safe to delete.
+  missedPolls       Int      @default(0)
   /// Season/episode of the playing item, and the provider ids the media server
   /// already knows (imdb/tmdb/tvdb). Trakt identifies an episode as
   /// show-ids + season + number; without these a scrobble can only be guessed

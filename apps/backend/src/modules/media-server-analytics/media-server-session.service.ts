@@ -47,6 +47,15 @@ export interface LiveSessionView {
   hasArtwork: boolean;
 }
 
+/**
+ * Consecutive missed polls before a session is declared over.
+ *
+ * Four polls ≈ 60s at the 15s cadence. Chosen from this platform's own live
+ * history, where transient absences cluster at 0–45s and long-tail past 90s;
+ * a longer window would start merging genuinely separate viewings.
+ */
+const GRACE_POLLS = 4;
+
 @Injectable()
 export class MediaServerSessionService {
   private readonly logger = new Logger(MediaServerSessionService.name);
@@ -178,6 +187,12 @@ export class MediaServerSessionService {
       if (!result.supported) continue;
 
       const seen = new Set<string>();
+      // Loaded once so a session whose provider id changed can be re-attached to
+      // its existing row rather than becoming a second one.
+      const rows = await this.prisma.mediaServerSession.findMany({ where: { connectionId: conn.id } });
+      const byProviderId = new Map(rows.map((r) => [r.providerSessionId, r]));
+      const claimed = new Set<string>();
+
       for (const s of result.sessions) {
         seen.add(s.sessionId);
         active += 1;
@@ -210,11 +225,45 @@ export class MediaServerSessionService {
           externalIds:
             s.externalIds && Object.keys(s.externalIds).length ? s.externalIds : undefined,
         };
-        const existing = await this.prisma.mediaServerSession.findUnique({
-          where: { connectionId_providerSessionId: { connectionId: conn.id, providerSessionId: s.sessionId } },
-        });
+        // Same id → the same session, still playing.
+        let existing = byProviderId.get(s.sessionId) ?? null;
+
+        if (!existing) {
+          /*
+           * No row under this id, but a client that re-registers mid-playback
+           * gets a NEW provider session id for the SAME viewing. Treating that
+           * as a fresh session is what produced "finished watching" immediately
+           * followed by "resumed watching" — and, in the history, overlapping
+           * rows whose start preceded the previous row's stop.
+           *
+           * Adopt a row only if it is the same person watching the same thing on
+           * the same device, and its own id has disappeared from this poll. That
+           * last condition is what stops a second simultaneous play on another
+           * device being swallowed into the first.
+           */
+          existing = rows.find((r) =>
+            !claimed.has(r.id) &&
+            !seen.has(r.providerSessionId) &&
+            r.title === s.title &&
+            (r.userName ?? null) === (s.userName ?? null) &&
+            (r.device ?? null) === (s.device ?? null),
+          ) ?? null;
+
+          if (existing) {
+            this.logger.debug(
+              `Re-attaching session ${existing.providerSessionId} → ${s.sessionId} (${s.title}).`,
+            );
+          }
+        }
+
         if (existing) {
-          await this.prisma.mediaServerSession.update({ where: { id: existing.id }, data });
+          claimed.add(existing.id);
+          await this.prisma.mediaServerSession.update({
+            where: { id: existing.id },
+            // `missedPolls` resets and the provider id is re-pointed: a session
+            // that came back is present, whatever it is now called.
+            data: { ...data, providerSessionId: s.sessionId, missedPolls: 0 },
+          });
         } else {
           await this.prisma.mediaServerSession.create({
             data: { connectionId: conn.id, providerSessionId: s.sessionId, ...data },
@@ -278,18 +327,33 @@ export class MediaServerSessionService {
             // payload is stored on every recipient's row.
             startedAt: new Date().toISOString(),
           };
-          if ((s.playbackMethod ?? '').toLowerCase().includes('transcode')) {
-          }
         }
       }
 
-      // Sessions that vanished since the last poll → completed playback.
-      const current = await this.prisma.mediaServerSession.findMany({ where: { connectionId: conn.id } });
-      for (const c of current) {
-        if (!seen.has(c.providerSessionId)) {
-          await this.endSession(c, conn.name ?? conn.id);
-          ended += 1;
+      /*
+       * Sessions still missing after the grace period → genuinely finished.
+       *
+       * A single missed poll is not an ending. Measured against this install's
+       * own history, absences cluster at 15–45s — one to three polls — and are
+       * followed by the same person resuming the same title. Ending on the first
+       * miss split one viewing into several.
+       *
+       * The cost is that a real stop is reported up to GRACE_POLLS × 15s late,
+       * which is invisible in a notification and worth far more than accuracy in
+       * the play counts that decide what gets deleted.
+       */
+      for (const c of rows) {
+        if (claimed.has(c.id) || seen.has(c.providerSessionId)) continue;
+
+        const missed = c.missedPolls + 1;
+        if (missed < GRACE_POLLS) {
+          await this.prisma.mediaServerSession.update({
+            where: { id: c.id }, data: { missedPolls: missed },
+          });
+          continue;
         }
+        await this.endSession(c, conn.name ?? conn.id);
+        ended += 1;
       }
     }
     return { connections: connections.length, active, ended };
