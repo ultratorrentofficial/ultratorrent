@@ -65,6 +65,27 @@ the shell's sidebar collapses without the window resizing at all.
 `columnsForWidth` never returns zero: a zero makes the row count `Infinity` and
 the virtualizer allocates an unbounded scroll height.
 
+## Drill-down
+
+Selecting a show opens its seasons and episodes, served by the existing
+`GET /media/series/episodes` — which already returns episodes grouped into
+ordered seasons with a season poster (falling back to the show's).
+
+The state lives in the **URL**, not component state: browser Back must return to
+the wall, and a show view should survive a reload and be linkable.
+
+Seasons render plainly — a show has tens at most. Episodes are virtualized,
+because a long-running series genuinely reaches several hundred in one season.
+The view lands on the first season rather than an accordion that must be opened
+before anything is visible, and season zero is labelled **Specials**, not
+"Season 0".
+
+Technical detail on an episode row is shown **only where the file has it**. The
+renamer strips exactly those tokens from filenames, so on a renamed library most
+are null until `MediaProbeService` has measured the file; a placeholder per field
+would fill the row with dashes and imply the data is missing rather than simply
+unmeasured.
+
 ## Paging
 
 Server-side and additive. Rows are appended as the grid nears its end, so
@@ -79,9 +100,7 @@ Stated so the gaps are not mistaken for bugs:
 - **No filters or search** beyond what the underlying endpoints accept — Phase 3.
 - **No issues panel, no export** — later phases.
 - **No music/audiobook/photo hierarchies** — needs the schema migration above.
-- **Drill-down is partial**: a show opens the existing item list filtered by
-  title. The Season → Episode surface is the existing `SeriesGroupedList`, not
-  yet folded into the browser.
+- Drill-down **is** in place — Library → Show → Season → Episode, below.
 - **Operations are unchanged** — metadata, artwork, rename, cleanup, subtitles
   and jobs are reached through their existing pages. The browser does not
   reimplement them, and Phase 2 wires them into a selection-aware toolbar.

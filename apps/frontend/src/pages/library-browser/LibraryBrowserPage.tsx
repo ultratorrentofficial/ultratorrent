@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
 import { VirtualPosterGrid } from './VirtualPosterGrid';
+import { ShowDetailView } from './ShowDetailView';
 import { VIEW_MODES, readViewMode, writeViewMode, type ViewMode } from './view-mode';
 
 const MODE_ICON: Record<ViewMode, typeof LayoutGrid> = {
@@ -43,6 +44,10 @@ export function LibraryBrowserPage() {
   const [params, setParams] = useSearchParams();
 
   const libraryId = params.get('library');
+  // Drill-down state in the URL rather than component state: browser Back must
+  // return to the wall, and a show view should survive a reload and be linkable.
+  const showKey = params.get('show');
+  const showTitle = params.get('showTitle') ?? '';
   const [mode, setMode] = useState<ViewMode>(() => readViewMode(libraryId));
 
   // Re-read on library change: the preference is per library, so switching
@@ -125,6 +130,19 @@ export function LibraryBrowserPage() {
 
   /* -------------------------------------------------------------- the browser */
 
+  if (showKey) {
+    return (
+      <div className="flex h-[calc(100vh-8rem)] flex-col">
+        <ShowDetailView
+          showKey={showKey}
+          libraryId={library.id}
+          title={showTitle || library.name}
+          onBack={() => setParams({ library: library.id })}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
       <header className="flex flex-wrap items-center gap-3">
@@ -179,7 +197,9 @@ export function LibraryBrowserPage() {
                 <ShowCell
                   show={row}
                   mode={mode}
-                  onOpen={() => navigate(`/media/items?title=${encodeURIComponent(row.title)}`)}
+                  onOpen={() =>
+                    setParams({ library: libraryId!, show: row.key, showTitle: row.title })
+                  }
                 />
               ) : (
                 <ItemCell item={row} mode={mode} onOpen={() => navigate(`/media/items/${row.id}`)} />

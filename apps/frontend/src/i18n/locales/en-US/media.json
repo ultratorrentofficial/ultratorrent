@@ -1678,6 +1678,14 @@
       "list": "List",
       "compact": "Compact",
       "table": "Table"
-    }
+    },
+    "backToLibrary": "Back to library",
+    "seasonCount": "{{count}} season",
+    "seasonCount_other": "{{count}} seasons",
+    "seasonNumber": "Season {{number}}",
+    "specials": "Specials",
+    "noEpisodes": "No episodes found for this show.",
+    "locked": "Locked",
+    "unmatched": "Unmatched"
   }
 }
