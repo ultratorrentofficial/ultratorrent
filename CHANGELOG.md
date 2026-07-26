@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.48.2] - 2026-07-26
+
+### Fixed
+- Fix React #426 when opening the notification pages: lazy routes had no Suspense boundary; AppShell's Outlet is now guarded, covering every lazy page
+
 ## [0.48.1] - 2026-07-26
 
 ### Fixed
