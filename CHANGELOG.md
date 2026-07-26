@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.49.0] - 2026-07-26
+
+### Added
+- Telegram notifications are now per-user: each person connects their own @BotFather bot on the Channels page, replacing the shared operator-configured bot that had no UI
+
 ## [0.48.2] - 2026-07-26
 
 ### Fixed
