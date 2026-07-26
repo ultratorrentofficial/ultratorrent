@@ -5,7 +5,20 @@ import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { MailTransportService } from '../../../infrastructure/mail/mail-transport.service';
 import { NotificationChannelService } from '../channels/notification-channel.service';
 import { renderEmailHtml, renderEmailSubject, renderEmailText } from '../providers/email-renderer';
-import { renderTelegram } from '../providers/telegram-renderer';
+import { ModuleRef } from '@nestjs/core';
+import { renderTelegramPost } from '../providers/telegram-renderer';
+import { prepareTelegramPhoto, type TelegramPhoto } from '../providers/telegram-artwork';
+import { MediaServerSessionService } from '../../media-server-analytics/media-server-session.service';
+import { SettingsService } from '../../settings/settings.module';
+
+/**
+ * Where this install is reachable from outside.
+ *
+ * Set through the generic Settings page (`settings.manage`); absent by default,
+ * because no correct value can be guessed and a wrong one produces buttons that
+ * lead nowhere.
+ */
+export const APP_URL_SETTING_KEY = 'app.publicUrl';
 import { TelegramTransportService } from '../../../infrastructure/telegram/telegram-transport.service';
 import { renderDiscord } from '../providers/discord-renderer';
 import { DiscordTransportService } from '../../../infrastructure/discord/discord-transport.service';
@@ -40,7 +53,46 @@ export class NotificationDeliveryWorker {
     private readonly mail: MailTransportService,
     private readonly telegram: TelegramTransportService,
     private readonly discord: DiscordTransportService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  /**
+   * The externally reachable base URL, for the one inline button.
+   *
+   * Read per send rather than cached: an operator setting it should not require
+   * a restart to take effect, and this runs at most twice a minute.
+   */
+  private async appUrl(): Promise<string | null> {
+    try {
+      const settings = this.moduleRef.get(SettingsService, { strict: false });
+      const value = await settings.get<string>(APP_URL_SETTING_KEY);
+      return typeof value === 'string' && value.trim() ? value.trim() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Artwork bytes for a stored notification, or null.
+   *
+   * Resolved lazily through `ModuleRef`: the analytics module owns the
+   * connection credentials, and importing it here would tie the notification
+   * module to the very producer that publishes into it. Every failure — missing
+   * permission, deleted connection, unreachable server, a non-image — returns
+   * null, because a poster must never cost the message.
+   */
+  private async artworkFor(userId: string, notificationId: string): Promise<TelegramPhoto | null> {
+    try {
+      const sessions = this.moduleRef.get(MediaServerSessionService, { strict: false });
+      // Ownership and the Live Activity permission are enforced inside, and it
+      // reads connection + path from STORED state, never from anything supplied.
+      const art = await sessions.notificationArtwork(userId, notificationId);
+      return prepareTelegramPhoto(art);
+    } catch (err) {
+      this.logger.debug(`Artwork unavailable for ${notificationId}: ${(err as Error).message}`);
+      return null;
+    }
+  }
 
   @Interval('notification_delivery_worker', 30_000)
   async tick(): Promise<void> {
@@ -134,11 +186,44 @@ export class NotificationDeliveryWorker {
         // their bot between queueing and sending.
         const bot = await this.channels.resolveTelegramBot(delivery.userId);
         if (!bot) return this.cancel(delivery.id, 'telegram_bot_missing');
-        await this.telegram.sendMessage(
-          bot.token,
-          destination.address,
-          presentation ? renderTelegram(presentation) : notification.title,
-        );
+
+        if (!presentation) {
+          await this.telegram.sendMessage(bot.token, destination.address, notification.title);
+        } else {
+          // Artwork is fetched only when the presentation says the recipient may
+          // see it — the builder already made that decision per recipient, so a
+          // renderer cannot widen it.
+          const photo = presentation.artwork?.kind === 'notification' && delivery.notificationId
+            ? await this.artworkFor(delivery.userId, delivery.notificationId)
+            : null;
+
+          const post = renderTelegramPost(presentation, {
+            appUrl: await this.appUrl(),
+            withPhoto: !!photo,
+          });
+
+          if (photo) {
+            try {
+              await this.telegram.sendPhoto(
+                bot.token, destination.address, photo, post.caption, post.button,
+              );
+            } catch (err) {
+              // The words matter more than the picture. Re-render without the
+              // photo so the longer message limit applies, and send plain.
+              this.logger.debug(`Telegram photo failed, falling back to text: ${(err as Error).message}`);
+              const plain = renderTelegramPost(presentation, {
+                appUrl: await this.appUrl(), withPhoto: false,
+              });
+              await this.telegram.sendMessage(
+                bot.token, destination.address, plain.caption, plain.button,
+              );
+            }
+          } else {
+            await this.telegram.sendMessage(
+              bot.token, destination.address, post.caption, post.button,
+            );
+          }
+        }
       } else if (delivery.channelType === 'discord') {
         if (!presentation) {
           // An embed needs structure; there is nothing sensible to send without

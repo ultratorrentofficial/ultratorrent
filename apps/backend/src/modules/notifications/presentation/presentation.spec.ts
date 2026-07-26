@@ -118,6 +118,146 @@ describe('formatWhen', () => {
 
 /* ------------------------------------------------------------------ playback */
 
+describe('playback: the compact media model', () => {
+  const P = { mediaTitle: 'Dune', year: 2021, userDisplayName: 'Dennis', serverName: 'Plex' };
+
+  it('splits a movie into a single titled line', () => {
+    const p = buildPresentation(playback(P))!;
+    expect(p.media).toEqual({ kind: 'movie', primary: 'Dune (2021)', secondary: null });
+  });
+
+  it('splits an episode into series + episode line', () => {
+    const p = buildPresentation(playback({
+      ...P, mediaTitle: 'The Last of Us — Long Long Time', showTitle: 'The Last of Us',
+      episodeTitle: 'Long Long Time', seasonNumber: 1, episodeNumber: 3,
+    }))!;
+    expect(p.media).toEqual({
+      kind: 'episode', primary: 'The Last of Us', secondary: 'S01E03 • Long Long Time',
+    });
+  });
+
+  it('keeps the episode code when the provider reports no episode name', () => {
+    const p = buildPresentation(playback({
+      ...P, showTitle: 'The Last of Us', seasonNumber: 1, episodeNumber: 3,
+    }))!;
+    expect(p.media!.secondary).toBe('S01E03');
+  });
+
+  it('treats music as track + artist', () => {
+    // Media servers put the artist in the same slot as a show title.
+    const p = buildPresentation(playback({
+      ...P, mediaTitle: 'Hotel California', showTitle: 'Eagles', mediaType: 'track',
+    }))!;
+    expect(p.media).toEqual({ kind: 'music', primary: 'Hotel California', secondary: 'Eagles' });
+  });
+
+  it('uses listening wording for music, not watching', () => {
+    const p = buildPresentation(playback({
+      ...P, mediaTitle: 'Hotel California', showTitle: 'Eagles', mediaType: 'track',
+    }))!;
+    expect(p.summary.text).toContain('started listening to');
+  });
+
+  it('summarizes quality as one short line, not a spec sheet', () => {
+    const p = buildPresentation(playback({
+      ...P, resolution: '4k', videoDynamicRange: 'HDR10',
+      device: 'Living Room Apple TV', client: 'Plex for Apple TV',
+      playbackMethod: 'transcode', bitrateKbps: 32000,
+    }))!;
+    expect(p.context).toBe('4K HDR • Living Room Apple TV');
+    // The things the old format dumped in.
+    expect(p.context).not.toContain('transcode');
+    expect(p.context).not.toContain('32000');
+  });
+
+  it('normalizes resolutions providers report inconsistently', () => {
+    const at = (resolution: string) => buildPresentation(playback({ ...P, resolution }))!.context;
+    expect(at('4k')).toBe('4K');
+    expect(at('2160')).toBe('4K');
+    expect(at('1080')).toBe('1080p');
+    expect(at('1080p')).toBe('1080p');
+  });
+
+  it('does not claim HDR for an SDR stream', () => {
+    const p = buildPresentation(playback({ ...P, resolution: '1080p', videoDynamicRange: 'SDR' }))!;
+    expect(p.context).toBe('1080p');
+  });
+
+  it('never puts more than two facts on the context line', () => {
+    const p = buildPresentation(playback({
+      ...P, resolution: '4k', videoDynamicRange: 'HDR10', device: 'Apple TV', progressPercent: 42,
+    }))!;
+    expect(p.context!.split(' • ')).toHaveLength(2);
+  });
+
+  it('calls a part-way start a resume, and leads with the progress', () => {
+    const p = buildPresentation(playback({ ...P, progressPercent: 42, device: 'Living Room TV' }))!;
+    expect(p.summary.text).toContain('resumed watching');
+    expect(p.context).toBe('Resumed at 42% • Living Room TV');
+  });
+
+  it('does not call a genuine start a resume', () => {
+    // Players report a second or two of offset on a real start.
+    const p = buildPresentation(playback({ ...P, progressPercent: 2 }))!;
+    expect(p.summary.text).toContain('started watching');
+    expect(p.context ?? '').not.toContain('Resumed');
+  });
+
+  it('offers exactly one action, pointing at Live Activity', () => {
+    const p = buildPresentation(playback(P))!;
+    expect(p.action).toEqual({
+      label: 'View Live Activity', href: '/media-server-analytics/live', icon: 'monitor',
+    });
+  });
+
+  /* --------------------------------------------------------------- privacy */
+
+  it('redacts the user identity without the Live Activity permission', () => {
+    const p = buildPresentation(playback(P, DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING, {
+      canViewPlaybackDetail: false,
+    }))!;
+    expect(p.summary.text).toBe('A user started watching Dune (2021)');
+    expect(JSON.stringify(p)).not.toContain('Dennis');
+  });
+
+  it('redacts device and quality without the permission', () => {
+    const p = buildPresentation(playback({
+      ...P, resolution: '4k', device: 'Living Room Apple TV',
+    }, DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING, { canViewPlaybackDetail: false }))!;
+    expect(p.context).toBeNull();
+    expect(JSON.stringify(p)).not.toContain('Living Room');
+  });
+
+  it('still reports resume progress when detail is redacted', () => {
+    // Progress is about the notification's own subject, not the device.
+    const p = buildPresentation(playback({
+      ...P, progressPercent: 42, device: 'Living Room Apple TV',
+    }, DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING, { canViewPlaybackDetail: false }))!;
+    expect(p.context).toBe('Resumed at 42%');
+    expect(p.context).not.toContain('Living Room');
+  });
+
+  it('never reads an ip address at any permission level', () => {
+    const p = buildPresentation(playback({ ...P, ipAddress: '10.0.0.9' }))!;
+    expect(JSON.stringify(p)).not.toContain('10.0.0.9');
+  });
+
+  it('translates the compact model too', () => {
+    const p = buildPresentation(playback(P, DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING, {
+      locale: 'es-PR',
+    }))!;
+    expect(p.summary.text).toBe('Dennis comenzó a ver Dune (2021)');
+    expect(p.action!.label).toBe('Ver actividad en vivo');
+  });
+
+  it('translates the redacted subject as well', () => {
+    const p = buildPresentation(playback(P, DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING, {
+      locale: 'es-PR', canViewPlaybackDetail: false,
+    }))!;
+    expect(p.summary.text).toBe('Un usuario comenzó a ver Dune (2021)');
+  });
+});
+
 describe('playback presentation', () => {
   it('builds the started card', () => {
     const p = buildPresentation(playback({ mediaTitle: 'Dune', year: 2021, userDisplayName: 'Dennis' }))!;
@@ -222,7 +362,8 @@ describe('playback presentation', () => {
     expect(p.summary.text).toBe('Dennis comenzó a ver Dune (2021)');
     expect(p.status).toBe('Reproduciendo ahora');
     expect(p.facts.map((f) => f.label)).toEqual(expect.arrayContaining(['Usuario', 'Contenido', 'Hora']));
-    expect(p.action!.label).toBe('Ver detalles');
+    // One primary action, and it is the Live Activity button.
+    expect(p.action!.label).toBe('Ver actividad en vivo');
   });
 
   it('coerces the numeric strings some providers send', () => {

@@ -117,6 +117,25 @@ export interface PresentationSummary {
   emphasis?: string | null;
 }
 
+/**
+ * What is playing, split into the two lines every surface wants.
+ *
+ * `formatMediaLabel` joins these into one string for a compact row; a poster-led
+ * layout needs them apart, because "The Last of Us" is the title and
+ * "S01E03 • Long Long Time" is subordinate to it. Splitting a joined label back
+ * apart is guesswork, so the split is made once, here, and carried.
+ *
+ * Channel-neutral on purpose: this is not a Telegram field. The in-app card and
+ * Live Activity read the same two lines, which is what stops them drifting.
+ */
+export interface PresentationMedia {
+  kind: 'movie' | 'episode' | 'music' | 'audiobook' | 'other';
+  /** The thing's own name — a film, a series, a track, a book. */
+  primary: string;
+  /** Subordinate detail: episode code + title, artist, author. Null when none. */
+  secondary: string | null;
+}
+
 export interface NotificationPresentation {
   version: typeof PRESENTATION_VERSION;
   eventKey: string;
@@ -126,6 +145,23 @@ export interface NotificationPresentation {
   summary: PresentationSummary;
   avatar?: PresentationAvatar | null;
   artwork?: PresentationArtwork | null;
+  /**
+   * Structured media identity, when the event is about something playing.
+   *
+   * Optional rather than required, and the version stays at 2: presentations are
+   * STORED, so historical rows predate this field. A renderer must fall back to
+   * `summary` when it is absent rather than assume every row has it.
+   */
+  media?: PresentationMedia | null;
+  /**
+   * One short line of context — "4K HDR • Living Room Apple TV".
+   *
+   * At most two compact facts, already localized and already redacted. It exists
+   * because `facts` is a table: correct for a card with room, wrong for a phone
+   * notification, where a labelled list reads as a monitoring alert. A surface
+   * picks one or the other; both come from the same builder.
+   */
+  context?: string | null;
   facts: PresentationFact[];
   progress?: PresentationProgress | null;
   /** Short state chip — "Now playing", "Paused". */
@@ -177,6 +213,49 @@ export function avatarFor(name: string | null | undefined): PresentationAvatar |
 export function formatEpisodeCode(season: number, episode: number): string {
   const pad = (n: number) => String(Math.max(0, Math.trunc(n))).padStart(2, '0');
   return `S${pad(season)}E${pad(episode)}`;
+}
+
+/**
+ * Split what is playing into its two display lines.
+ *
+ * The counterpart to `formatMediaLabel`, which joins the same facts into one
+ * string. Both live here so Telegram, the in-app card and Live Activity cannot
+ * drift — a renderer that formatted titles itself would be the drift.
+ *
+ * Music and audiobooks need no new producer fields: media servers report the
+ * artist/author in the same slot they use for a show title (Plex's
+ * `grandparentTitle`), so the existing `showTitle` carries it.
+ */
+export function formatMediaParts(input: {
+  title: string;
+  showTitle?: string | null;
+  episodeTitle?: string | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+  year?: number | null;
+  mediaType?: string | null;
+}): PresentationMedia {
+  const { title, showTitle, episodeTitle, seasonNumber, episodeNumber, year } = input;
+  const type = (input.mediaType ?? '').toLowerCase();
+
+  if (type === 'track' || type === 'audio' || type === 'music') {
+    return { kind: 'music', primary: title, secondary: showTitle?.trim() || null };
+  }
+  if (type === 'audiobook' || type === 'book') {
+    return { kind: 'audiobook', primary: title, secondary: showTitle?.trim() || null };
+  }
+
+  if (showTitle && seasonNumber != null && episodeNumber != null) {
+    const code = formatEpisodeCode(seasonNumber, episodeNumber);
+    // The episode's own name is genuinely optional — a provider may not report
+    // it, and "S01E03" alone is still a complete answer.
+    const name = episodeTitle?.trim();
+    return { kind: 'episode', primary: showTitle, secondary: name ? `${code} • ${name}` : code };
+  }
+  if (showTitle) return { kind: 'episode', primary: showTitle, secondary: null };
+
+  if (year) return { kind: 'movie', primary: `${title} (${year})`, secondary: null };
+  return { kind: 'other', primary: title, secondary: null };
 }
 
 /**

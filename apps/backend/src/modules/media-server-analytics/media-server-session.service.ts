@@ -230,6 +230,7 @@ export class MediaServerSessionService {
               serverName: conn.name ?? conn.id,
               userDisplayName: s.userName ?? null,
               showTitle: s.showTitle ?? null,
+              episodeTitle: s.episodeTitle ?? null,
               seasonNumber: s.seasonNumber ?? null,
               episodeNumber: s.episodeNumber ?? null,
               year: s.year ?? null,
@@ -238,6 +239,9 @@ export class MediaServerSessionService {
               device: s.device ?? null,
               client: s.client ?? null,
               resolution: s.resolution ?? null,
+              // Summarized into one short quality line by the presentation
+              // builder — never rendered raw.
+              videoDynamicRange: s.videoDynamicRange ?? null,
               playbackMethod: s.playbackMethod ?? null,
               playbackState: s.playbackState ?? null,
               progressPercent: s.progressPercent ?? null,

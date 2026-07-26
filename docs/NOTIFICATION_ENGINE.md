@@ -222,6 +222,103 @@ limitation, stated rather than hidden.
 
 ---
 
+## Telegram playback posts
+
+Playback is the one event people receive constantly, so it gets a shape of its
+own: **a poster, three short lines, one button.**
+
+```
+[ cover artwork ]
+
+Dennis started watching
+Dune: Part Two (2024)
+
+4K HDR • Living Room Apple TV          [ View Live Activity ]
+```
+
+An episode names the series first, because that is what the poster shows:
+
+```
+Dennis started watching
+The Last of Us
+S01E03 • Long Long Time
+
+1080p • Bedroom TV
+```
+
+A start that begins part-way through is a resume, and leads with the progress:
+
+```
+Dennis resumed watching
+Dune: Part Two (2024)
+
+Resumed at 42% • Living Room Apple TV
+```
+
+**Design rules.**
+
+- **The artwork is the hero**, so the words stay out of its way. What this
+  replaced was a stacked list of `Label: value` rows plus a timestamp Telegram
+  already prints beside every message — a monitoring alert, not a notification
+  about a film someone just put on.
+- **Natural language, never the event name.** `media_server.user_started_watching`
+  stays internal; a person reads "Dennis started watching". Music and audiobooks
+  say *listening to*, as whole localized clauses — Spanish binds verb and
+  preposition ("comenzó a ver"), so assembling one from fragments produces
+  grammatical nonsense in one language while looking fine in the other.
+- **One context line, at most two facts**, in priority order: resume progress,
+  then a quality summary, then the device. Bitrate, codec, container, server
+  name, audio and subtitle language are all deliberately absent.
+- **One button.** More choices make it a page.
+
+**Where the words come from.** All of it is the canonical presentation:
+`summary` for the phrase, `media` for the title lines, `context` for the quality
+line. Nothing is re-derived in the provider, which is what stops Telegram
+drifting from the in-app card and Live Activity.
+
+### Artwork
+
+Uploaded as **multipart bytes**, never a URL. Telegram would happily fetch a
+link, but that means minting a publicly reachable artwork URL that outlives the
+notification — the thing the presentation model exists to refuse. Bytes keep
+library artwork behind the platform's own auth and leave nothing fetchable
+afterwards.
+
+The image is validated by **magic bytes, not the declared content type**: a media
+server that serves an HTML error page labelled `image/png` would otherwise cost a
+whole delivery attempt. PNG, JPEG and WEBP only, under 8 MB — below Telegram's
+own 10 MB ceiling, so an oversized poster degrades to text here rather than being
+rejected there. The filename sent is a fixed `poster.png`; the provider-internal
+path never travels to a third party.
+
+**Artwork never costs the message.** No permission, no connection, an unreachable
+server, a non-image, a failed upload — every one falls back to the same words as
+a plain message.
+
+### Privacy
+
+Redaction happens in the builder, per recipient, so a renderer cannot widen it.
+Without `media_server_analytics.view_live_activity`:
+
+```
+A user started watching
+Dune: Part Two (2024)
+```
+
+Identity, device, quality and artwork are all withheld together — gating the
+poster while naming the person would be the wrong half. Resume progress survives
+redaction, because it describes the notification's own subject rather than the
+person's device. `ipAddress` is never read at any permission level.
+
+### The button
+
+`View Live Activity`, built from the externally reachable base URL in the
+`app.publicUrl` setting plus a literal href from the builder. **It is omitted
+entirely when that setting is unset** — a link to `localhost` from someone's
+phone reads as a broken notification rather than a missing setting.
+
+---
+
 ## Delivery
 
 ```

@@ -243,14 +243,34 @@ describe('email rendering', () => {
 
 /* ------------------------------------------------------------------ worker */
 
+/** A playback presentation in the shape the new builder emits. */
+const playbackPresentation = (over: Partial<NotificationPresentation> = {}): NotificationPresentation => ({
+  version: PRESENTATION_VERSION,
+  eventKey: 'media_server.user_started_watching',
+  accent: 'started', icon: 'play',
+  headline: { lead: 'User Started', trail: 'Watching' },
+  summary: { text: 'Dennis started watching Dune (2021)', emphasis: 'Dune (2021)' },
+  media: { kind: 'movie', primary: 'Dune (2021)', secondary: null },
+  context: '4K HDR • Living Room Apple TV',
+  avatar: null,
+  artwork: { kind: 'notification', id: 'n1', aspect: 'poster', alt: 'Poster', mediaType: 'movie' },
+  facts: [], progress: null, status: 'Now Playing',
+  action: { label: 'View Live Activity', href: '/media-server-analytics/live', icon: 'monitor' },
+  timestamp: '2026-07-26T20:00:00Z',
+  ...over,
+});
+
 describe('NotificationDeliveryWorker', () => {
   const build = (opts: {
     delivery?: Partial<Record<string, unknown>>;
     active?: boolean;
     destination?: { id: string; address: string } | null;
     telegramBot?: { token: string; botUsername: string; chatId: string | null } | null;
+    appUrl?: string;
+    artwork?: { body: Buffer; contentType: string } | null;
     presentation?: unknown;
     sendFails?: string;
+    photoFails?: string;
   } = {}) => {
     const rows: any[] = [{
       id: 'd1', userId: 'u1', notificationId: 'n1', eventKey: 'torrent.completed',
@@ -296,10 +316,28 @@ describe('NotificationDeliveryWorker', () => {
       }),
     };
     const telegramSent: string[] = [];
+    const telegramPhotos: any[] = [];
     const telegram: any = {
       sendMessage: jest.fn(async (_token: string, _chat: string, html: string) => {
         if (opts.sendFails) throw new Error(opts.sendFails);
         telegramSent.push(html);
+      }),
+      sendPhoto: jest.fn(async (_token: string, _chat: string, _photo: any, caption: string) => {
+        if (opts.photoFails) throw new Error(opts.photoFails);
+        if (opts.sendFails) throw new Error(opts.sendFails);
+        telegramPhotos.push({ photo: _photo, caption });
+      }),
+    };
+    // Resolved lazily by the worker for the app URL and for artwork bytes.
+    // Throwing is the "not available" path, which must degrade to text-only.
+    const moduleRef: any = {
+      get: jest.fn((token: any) => {
+        const name = token?.name ?? '';
+        if (name === 'SettingsService') return { get: async () => opts.appUrl ?? undefined };
+        if (name === 'MediaServerSessionService') {
+          return { notificationArtwork: async () => opts.artwork ?? null };
+        }
+        throw new Error(`unexpected ${name}`);
       }),
     };
     const discordSent: any[] = [];
@@ -310,8 +348,8 @@ describe('NotificationDeliveryWorker', () => {
       }),
     };
     return {
-      worker: new NotificationDeliveryWorker(prisma, channels, mail, telegram, discord),
-      rows, sent, telegramSent, discordSent, channels, mail, telegram, discord,
+      worker: new NotificationDeliveryWorker(prisma, channels, mail, telegram, discord, moduleRef),
+      rows, sent, telegramSent, telegramPhotos, discordSent, channels, mail, telegram, discord, moduleRef,
     };
   };
 
@@ -375,7 +413,9 @@ describe('NotificationDeliveryWorker', () => {
     expect(mail.send).not.toHaveBeenCalled();
     expect(telegramSent[0]).toContain('<b>Download Complete</b>');
     // Sent with THIS recipient's bot token, not a platform-wide one.
-    expect(telegram.sendMessage).toHaveBeenCalledWith('bot-token', 'a@b.co', expect.any(String));
+    expect(telegram.sendMessage).toHaveBeenCalledWith(
+      'bot-token', 'a@b.co', expect.any(String), null,
+    );
     expect(rows[0].status).toBe('provider_accepted');
   });
 
@@ -390,6 +430,81 @@ describe('NotificationDeliveryWorker', () => {
     expect(await worker.drain()).toMatchObject({ sent: 0 });
     expect(telegramSent).toHaveLength(0);
     expect(rows[0].status).toBe('cancelled');
+  });
+
+  it('uploads artwork as a photo when the presentation carries a reference', async () => {
+    // A real PNG header — the worker sniffs magic bytes, not the declared type.
+    const png = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64),
+    ]);
+    const { worker, telegram, telegramPhotos } = build({
+      delivery: { channelType: 'telegram' },
+      presentation: playbackPresentation(),
+      artwork: { body: png, contentType: 'image/png' },
+      appUrl: 'https://ultra.example.com',
+    });
+    expect(await worker.drain()).toMatchObject({ sent: 1 });
+
+    expect(telegram.sendMessage).not.toHaveBeenCalled();
+    expect(telegramPhotos).toHaveLength(1);
+    expect(telegramPhotos[0].photo.contentType).toBe('image/png');
+    // A fixed name — the provider-internal path must never travel to Telegram.
+    expect(telegramPhotos[0].photo.filename).toBe('poster.png');
+  });
+
+  it('falls back to text when the photo upload fails', async () => {
+    const png = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64),
+    ]);
+    const { worker, rows, telegram, telegramSent } = build({
+      delivery: { channelType: 'telegram' },
+      presentation: playbackPresentation(),
+      artwork: { body: png, contentType: 'image/png' },
+      photoFails: 'PHOTO_INVALID_DIMENSIONS',
+    });
+    // The words matter more than the picture: still delivered, not retried.
+    expect(await worker.drain()).toMatchObject({ sent: 1 });
+    expect(telegram.sendMessage).toHaveBeenCalled();
+    expect(telegramSent[0]).toContain('Dennis started watching');
+    expect(rows[0].status).toBe('provider_accepted');
+  });
+
+  it('sends text-only when the artwork is not a real image', async () => {
+    // An HTML error page served with an image content-type is the realistic case.
+    const { worker, telegram, telegramPhotos } = build({
+      delivery: { channelType: 'telegram' },
+      presentation: playbackPresentation(),
+      artwork: { body: Buffer.from('<html>404</html>'), contentType: 'image/png' },
+    });
+    expect(await worker.drain()).toMatchObject({ sent: 1 });
+    expect(telegramPhotos).toHaveLength(0);
+    expect(telegram.sendMessage).toHaveBeenCalled();
+  });
+
+  it('omits the button when no public app URL is configured', async () => {
+    const { worker, telegram } = build({
+      delivery: { channelType: 'telegram' },
+      presentation: playbackPresentation(),
+    });
+    await worker.drain();
+    // A link to nowhere reads as a broken notification, so there is no link.
+    expect(telegram.sendMessage).toHaveBeenCalledWith(
+      'bot-token', 'a@b.co', expect.any(String), null,
+    );
+  });
+
+  it('builds exactly one absolute button when the app URL is set', async () => {
+    const { worker, telegram } = build({
+      delivery: { channelType: 'telegram' },
+      presentation: playbackPresentation(),
+      appUrl: 'https://ultra.example.com/',
+    });
+    await worker.drain();
+    const button = (telegram.sendMessage as jest.Mock).mock.calls[0][3];
+    expect(button).toEqual({
+      text: 'View Live Activity',
+      url: 'https://ultra.example.com/media-server-analytics/live',
+    });
   });
 
   it('sends Discord as an embed, with mentions disabled', async () => {

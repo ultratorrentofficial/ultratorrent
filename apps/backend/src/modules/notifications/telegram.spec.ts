@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { PRESENTATION_VERSION, type NotificationPresentation } from '@ultratorrent/shared';
 import { TelegramLinkingService } from './channels/telegram-linking.service';
 import { NotificationChannelService } from './channels/notification-channel.service';
-import { renderTelegram } from './providers/telegram-renderer';
+import { renderTelegram, renderTelegramPost } from './providers/telegram-renderer';
 
 const update = (over: Partial<{ updateId: number; chatId: string; text: string; fromUsername: string | null }> = {}) => ({
   updateId: 1, chatId: '555', text: '', fromUsername: 'dennis', ...over,
@@ -284,43 +284,187 @@ const presentation = (over: Partial<NotificationPresentation> = {}): Notificatio
 });
 
 describe('telegram rendering', () => {
-  it('bolds the headline and the emphasized span', () => {
-    const out = renderTelegram(presentation());
-    expect(out).toContain('<b>User Started Watching</b>');
-    expect(out).toContain('<b>Dune (2021)</b>');
-    expect(out).toContain('▶️');
+  /*
+   * The playback post is deliberately short: a poster, three lines, one button.
+   * What it replaced was a stacked list of "Label: value" rows plus a timestamp
+   * Telegram already prints beside every message — a monitoring alert, not a
+   * notification about a film someone just put on.
+   */
+  const movie = () => presentation({
+    media: { kind: 'movie', primary: 'Dune: Part Two (2024)', secondary: null },
+    context: '4K HDR • Living Room Apple TV',
+    summary: { text: 'Dennis started watching Dune: Part Two (2024)', emphasis: 'Dune: Part Two (2024)' },
   });
 
-  it('escapes a title that would otherwise be markup', () => {
+  const episode = () => presentation({
+    media: { kind: 'episode', primary: 'The Last of Us', secondary: 'S01E03 • Long Long Time' },
+    context: '1080p • Bedroom TV',
+    summary: { text: 'Dennis started watching The Last of Us - S01E03', emphasis: 'The Last of Us - S01E03' },
+  });
+
+  it('renders a movie as phrase, title, context — and nothing else', () => {
+    const out = renderTelegram(movie());
+    expect(out).toBe(
+      '<b>Dennis started watching</b>\n' +
+      '<b>Dune: Part Two (2024)</b>\n' +
+      '\n' +
+      '4K HDR • Living Room Apple TV',
+    );
+  });
+
+  it('renders an episode with the series above the episode line', () => {
+    const out = renderTelegram(episode());
+    expect(out).toBe(
+      '<b>Dennis started watching</b>\n' +
+      '<b>The Last of Us</b>\n' +
+      'S01E03 • Long Long Time\n' +
+      '\n' +
+      '1080p • Bedroom TV',
+    );
+  });
+
+  it('never uses the internal event name as the visible headline', () => {
+    const out = renderTelegram(movie());
+    // "User Started Watching" is an event label; a person reads a sentence.
+    expect(out).not.toContain('User Started');
+    expect(out).not.toContain('media_server.user_started_watching');
+  });
+
+  it('carries no labels, dividers, or duplicate timestamp', () => {
+    const out = renderTelegram(movie());
+    for (const banned of ['User:', 'Media:', 'Device:', 'Time:', 'Quality:', 'Player:', '—————', '---']) {
+      expect(out).not.toContain(banned);
+    }
+    // Telegram stamps every message itself; repeating it is noise.
+    expect(out).not.toContain('2026');
+  });
+
+  it('stays within five short lines', () => {
+    expect(renderTelegram(episode()).split('\n').length).toBeLessThanOrEqual(5);
+  });
+
+  it('drops the context line rather than inventing one', () => {
+    const out = renderTelegram(presentation({ ...movie(), context: null }));
+    expect(out).toBe('<b>Dennis started watching</b>\n<b>Dune: Part Two (2024)</b>');
+  });
+
+  it('reads naturally when the user identity was redacted', () => {
     const out = renderTelegram(presentation({
-      summary: { text: 'Dennis watched <script>alert(1)</script>', emphasis: '<script>alert(1)</script>' },
+      ...movie(),
+      summary: { text: 'A user started watching Dune: Part Two (2024)', emphasis: 'Dune: Part Two (2024)' },
+      context: '4K HDR',
+    }));
+    expect(out).toContain('<b>A user started watching</b>');
+    expect(out).not.toContain('Dennis');
+  });
+
+  it('says "resumed" when the builder decided it was a resume', () => {
+    const out = renderTelegram(presentation({
+      ...movie(),
+      summary: { text: 'Dennis resumed watching Dune: Part Two (2024)', emphasis: 'Dune: Part Two (2024)' },
+      context: 'Resumed at 42% • Living Room Apple TV',
+    }));
+    expect(out).toContain('<b>Dennis resumed watching</b>');
+    expect(out).toContain('Resumed at 42%');
+  });
+
+  it('escapes a media title that would otherwise be markup', () => {
+    const out = renderTelegram(presentation({
+      ...movie(),
+      media: { kind: 'movie', primary: '<script>alert(1)</script>', secondary: null },
     }));
     expect(out).not.toContain('<script>');
     expect(out).toContain('&lt;script&gt;');
   });
 
+  it('neutralises a mention so a title cannot page a group', () => {
+    const out = renderTelegram(presentation({
+      ...movie(),
+      media: { kind: 'movie', primary: '@everyone (2024)', secondary: null },
+    }));
+    // Telegram only resolves a mention for a real username; the point is that it
+    // is inert text and cannot become an entity through markup.
+    expect(out).toContain('@everyone (2024)');
+    expect(out).not.toContain('<a ');
+  });
+
+  it('truncates a long title on characters, not code units', () => {
+    const out = renderTelegramPost(presentation({
+      ...movie(),
+      media: { kind: 'movie', primary: '😀'.repeat(2000), secondary: null },
+    }), { withPhoto: true });
+    expect(Array.from(out.caption).length).toBeLessThanOrEqual(1024);
+    // A sliced surrogate pair is invalid UTF-8 and Telegram rejects the send.
+    expect(out.caption).not.toMatch(/[\uD800-\uDBFF]$/);
+  });
+
+  it('uses the 1024 caption limit for a photo and 4096 for a message', () => {
+    const long = presentation({ ...movie(), media: { kind: 'movie', primary: 'x'.repeat(9000), secondary: null } });
+    expect(Array.from(renderTelegramPost(long, { withPhoto: true }).caption).length).toBeLessThanOrEqual(1024);
+    expect(Array.from(renderTelegramPost(long, { withPhoto: false }).caption).length).toBeLessThanOrEqual(4096);
+  });
+
+  it('publishes no URL in the caption itself', () => {
+    expect(renderTelegram(movie())).not.toContain('http');
+  });
+
+  it('renders a Spanish post from a Spanish presentation', () => {
+    const out = renderTelegram(presentation({
+      ...movie(),
+      summary: { text: 'Dennis comenzó a ver Dune: Part Two (2024)', emphasis: 'Dune: Part Two (2024)' },
+      context: '4K HDR • Apple TV de la sala',
+    }));
+    expect(out).toBe(
+      '<b>Dennis comenzó a ver</b>\n' +
+      '<b>Dune: Part Two (2024)</b>\n' +
+      '\n' +
+      '4K HDR • Apple TV de la sala',
+    );
+  });
+
+  /* ------------------------------------------------------------ the button */
+
+  it('builds exactly one absolute button', () => {
+    const { button } = renderTelegramPost(movie(), { appUrl: 'https://ultra.example.com' });
+    expect(button).toEqual({
+      text: 'View', url: 'https://ultra.example.com/media-server-analytics',
+    });
+  });
+
+  it('omits the button when no app URL is configured', () => {
+    expect(renderTelegramPost(movie(), { appUrl: null }).button).toBeNull();
+    expect(renderTelegramPost(movie()).button).toBeNull();
+  });
+
+  it('refuses a base URL that is not http(s)', () => {
+    // Telegram rejects any other scheme, and a button that never opens reads as
+    // a broken notification.
+    expect(renderTelegramPost(movie(), { appUrl: 'ftp://x.example.com' }).button).toBeNull();
+    expect(renderTelegramPost(movie(), { appUrl: 'javascript:alert(1)' }).button).toBeNull();
+  });
+
+  it('tolerates a trailing slash on the configured URL', () => {
+    const { button } = renderTelegramPost(movie(), { appUrl: 'https://ultra.example.com///' });
+    expect(button!.url).toBe('https://ultra.example.com/media-server-analytics');
+  });
+
+  /* ------------------------------- non-playback keeps the informative style */
+
+  it('still renders facts for a non-playback event', () => {
+    const out = renderTelegram(presentation({
+      eventKey: 'system.storage_critical',
+      facts: [{ icon: 'disk', label: 'Free space', value: '2%' }],
+    }));
+    // A storage warning genuinely wants its numbers.
+    expect(out).toContain('2%');
+  });
+
   it('escapes fact values too', () => {
     const out = renderTelegram(presentation({
+      eventKey: 'system.storage_critical',
       facts: [{ icon: 'user', label: 'User', value: '<b>hax</b>' }],
     }));
     expect(out).not.toContain('<b>hax</b>');
     expect(out).toContain('&lt;b&gt;hax&lt;/b&gt;');
-  });
-
-  it('stays inside the 4096-character limit', () => {
-    const out = renderTelegram(presentation({ summary: { text: 'x'.repeat(9000), emphasis: null } }));
-    expect(Array.from(out).length).toBeLessThanOrEqual(4096);
-  });
-
-  it('omits artwork rather than publishing a URL for it', () => {
-    const out = renderTelegram(presentation());
-    expect(out).not.toContain('http');
-  });
-
-  it('includes progress when the presentation has it', () => {
-    const out = renderTelegram(presentation({
-      progress: { percent: 42, label: '42% watched', positionLabel: null },
-    }));
-    expect(out).toContain('42% watched');
   });
 });

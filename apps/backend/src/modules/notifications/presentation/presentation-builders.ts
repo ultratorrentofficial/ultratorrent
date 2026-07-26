@@ -4,6 +4,7 @@ import {
   avatarFor,
   formatDuration,
   formatMediaLabel,
+  formatMediaParts,
   type DomainEventEnvelope,
   type NotificationEventDefinition,
   type NotificationPresentation,
@@ -53,6 +54,40 @@ function num(payload: Record<string, unknown>, key: string): number | null {
 
 const clampPercent = (n: number) => Math.min(100, Math.max(0, Math.round(n)));
 
+/**
+ * Below this, a "start" really is a start.
+ *
+ * Media servers report a second or two of offset on a genuine start, and a
+ * player that restores position reports a few percent. Calling those "resumed"
+ * would be wrong far more often than it was right.
+ */
+const RESUME_THRESHOLD_PERCENT = 5;
+
+/**
+ * "4K HDR", "1080p" — a summary, never the raw stream description.
+ *
+ * Providers report resolution inconsistently ("4k", "2160", "1080p"), so it is
+ * normalized rather than passed through. Dolby Vision and HDR10 both collapse to
+ * "HDR": the distinction matters to a transcoding decision, not to someone
+ * reading a phone notification.
+ */
+function qualitySummary(resolution: string | null, dynamicRange: string | null): string | null {
+  const raw = (resolution ?? '').trim().toLowerCase();
+  let res: string | null = null;
+  if (raw) {
+    if (raw === '4k' || raw === '2160' || raw === '2160p' || raw === 'uhd') res = '4K';
+    else if (/^\d+$/.test(raw)) res = `${raw}p`;
+    else res = raw.replace(/^(\d+)p$/, '$1p').toUpperCase() === raw.toUpperCase() && /p$/.test(raw)
+      ? raw
+      : raw.toUpperCase();
+  }
+
+  const range = (dynamicRange ?? '').trim().toLowerCase();
+  const hdr = range && range !== 'sdr' ? 'HDR' : null;
+
+  return [res, hdr].filter(Boolean).join(' ') || null;
+}
+
 /* ---------------------------------------------------------------- playback */
 
 /**
@@ -88,7 +123,22 @@ const buildPlayback: PresentationBuilder = (ctx) => {
     title, showTitle, seasonNumber, episodeNumber, year: num(payload, 'year'),
   });
 
-  const userName = str(payload, 'userDisplayName') ?? s('someone', locale);
+  // The same facts, split into two display lines. Computed once here so every
+  // channel renders the same title — a renderer formatting its own would drift.
+  const mediaType = str(payload, 'mediaType');
+  const media = formatMediaParts({
+    title, showTitle, episodeTitle: str(payload, 'episodeTitle'),
+    seasonNumber, episodeNumber, year: num(payload, 'year'), mediaType,
+  });
+
+  // Identity is playback detail too. Watching habits are personal, and the name
+  // is the most personal part of them — gating artwork while naming the person
+  // would be the wrong half. Without the permission the clause still reads:
+  // "A user started watching".
+  const realName = str(payload, 'userDisplayName');
+  const userName = ctx.canViewPlaybackDetail
+    ? realName ?? s('someone', locale)
+    : s('aUser', locale);
   const when = str(payload, started ? 'startedAt' : 'stoppedAt') ?? envelope.occurredAt;
 
   const facts: PresentationFact[] = [
@@ -144,6 +194,40 @@ const buildPlayback: PresentationBuilder = (ctx) => {
       }
     : null;
 
+  // A "start" that begins part-way through is a resume. The producer publishes one
+  // event for both, and the distinction is visible only in the progress it carries
+  // — so it is derived here rather than invented as a second event.
+  const startPercent = started && rawPercent != null ? clampPercent(rawPercent) : null;
+  const resumed = startPercent != null && startPercent >= RESUME_THRESHOLD_PERCENT;
+
+  const listening = media.kind === 'music' || media.kind === 'audiobook';
+  const phrase = s(
+    started
+      ? resumed
+        ? listening ? 'resumedListeningPhrase' : 'resumedWatchingPhrase'
+        : listening ? 'startedListeningPhrase' : 'startedWatchingPhrase'
+      : 'stoppedSummary',
+    locale,
+    { name: userName, media: mediaLabel },
+  );
+
+  // One short context line, at most two facts. Priority: resume progress, then a
+  // quality summary, then the device. More than two reads as a spec sheet, which
+  // is the format this replaces.
+  const contextParts: string[] = [];
+  if (resumed) contextParts.push(s('resumedAt', locale, { percent: startPercent! }));
+  if (ctx.canViewPlaybackDetail) {
+    if (contextParts.length < 2) {
+      const q = qualitySummary(str(payload, 'resolution'), str(payload, 'videoDynamicRange'));
+      if (q) contextParts.push(q);
+    }
+    if (contextParts.length < 2) {
+      const where = str(payload, 'device') ?? str(payload, 'client');
+      if (where) contextParts.push(where);
+    }
+  }
+  const context = contextParts.length ? contextParts.join(' • ') : null;
+
   const playbackState = str(payload, 'playbackState');
   const status = started
     ? s(playbackState === 'paused' ? 'paused' : playbackState === 'buffering' ? 'buffering' : 'nowPlaying', locale)
@@ -161,17 +245,24 @@ const buildPlayback: PresentationBuilder = (ctx) => {
       trail: s(started ? 'startedTrail' : 'stoppedTrail', locale),
     },
     summary: {
-      text: s(started ? 'startedSummary' : 'stoppedSummary', locale, { name: userName, media: mediaLabel }),
+      // `emphasis` must be a substring of `text` for splitSummary to find it, so
+      // the start phrase is completed with the media label here. Compact channels
+      // read `media`/`context` instead and never re-join these.
+      text: started ? `${phrase} ${mediaLabel}` : phrase,
       emphasis: mediaLabel,
     },
     avatar: avatarFor(userName),
     artwork,
+    media,
+    context,
     facts,
     progress,
     status,
     action: {
-      label: s(started ? 'viewDetails' : 'viewActivity', locale),
-      href: started ? '/media-server-analytics' : '/media-server-analytics/watch-history',
+      // Exactly one. The destination re-authorizes on arrival, so this is a hint,
+      // never a capability — and it is a literal, never payload-derived.
+      label: s(started ? 'viewLiveActivity' : 'viewActivity', locale),
+      href: started ? '/media-server-analytics/live' : '/media-server-analytics/watch-history',
       icon: started ? 'monitor' : 'activity',
     },
     timestamp: when,

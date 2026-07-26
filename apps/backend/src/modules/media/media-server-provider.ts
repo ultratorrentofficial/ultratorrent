@@ -76,9 +76,24 @@ export interface ProviderSession {
    * "Show — Episode" display string, and splitting that back apart is guesswork.
    */
   showTitle?: string;
+  /**
+   * The episode's own name, when the item is one.
+   *
+   * `title` above joins show and episode for display; carrying the episode name
+   * separately is what lets a poster-led layout put the series on one line and
+   * "S01E03 • Long Long Time" beneath it, without splitting the joined string
+   * back apart — which the join makes ambiguous for any title containing a dash.
+   */
+  episodeTitle?: string;
   /** Season/episode of the playing item. */
   seasonNumber?: number;
   episodeNumber?: number;
+  /**
+   * HDR format as the server reports it ("HDR10", "Dolby Vision", "SDR").
+   *
+   * Only ever summarized — a notification says "4K HDR", never the raw string.
+   */
+  videoDynamicRange?: string;
   /**
    * Release year of the playing item, used to disambiguate a title in a
    * notification ("Dune (2021)"). Only meaningful for a film — an episode is
@@ -333,6 +348,8 @@ export class PlexProvider implements MediaServerProvider {
         userName: m.User?.title,
         title: [m.grandparentTitle, m.title].filter(Boolean).join(' — ') || m.title || 'Unknown',
         showTitle: m.grandparentTitle ?? undefined,
+        // Only when there IS a parent: for a film, `title` is already the name.
+        episodeTitle: m.grandparentTitle ? m.title ?? undefined : undefined,
         year: typeof m.year === 'number' ? m.year : undefined,
         // Plex numbers an episode with parentIndex (season) + index (episode).
         seasonNumber: typeof m.parentIndex === 'number' ? m.parentIndex : undefined,
@@ -353,6 +370,7 @@ export class PlexProvider implements MediaServerProvider {
         videoCodec: media.videoCodec,
         audioCodec: media.audioCodec,
         resolution: media.videoResolution,
+        videoDynamicRange: media.videoDynamicRange ?? undefined,
         container: part.container ?? media.container,
         bitrateKbps: typeof media.bitrate === 'number' ? media.bitrate : undefined, // Plex reports kbps
         // Prefer the show poster for episodes, else the item's own thumb.
@@ -513,6 +531,7 @@ class JellyfinEmbyBase {
           userName: s.UserName,
           title: [item.SeriesName, item.Name].filter(Boolean).join(' — ') || item.Name || 'Unknown',
           showTitle: item.SeriesName ?? undefined,
+          episodeTitle: item.SeriesName ? item.Name ?? undefined : undefined,
           year: typeof item.ProductionYear === 'number' ? item.ProductionYear : undefined,
           seasonNumber:
             typeof item.ParentIndexNumber === 'number' ? item.ParentIndexNumber : undefined,
@@ -528,6 +547,7 @@ class JellyfinEmbyBase {
           videoCodec: video?.Codec,
           audioCodec: audio?.Codec,
           resolution: video?.Height ? `${video.Height}p` : undefined,
+          videoDynamicRange: video?.VideoRange ?? undefined,
           container: item.Container,
           // Jellyfin/Emby report bitrate in bps — normalize to kbps.
           bitrateKbps: typeof video?.BitRate === 'number' ? Math.round(video.BitRate / 1000) : undefined,

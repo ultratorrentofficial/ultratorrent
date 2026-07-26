@@ -3,7 +3,11 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 const API_BASE = 'https://api.telegram.org';
 /** Telegram rejects a message over 4096 characters outright. */
 const MAX_MESSAGE = 4096;
+/** A photo caption is capped far lower than a message. */
+const MAX_CAPTION = 1024;
 const TIMEOUT_MS = 10_000;
+/** Uploading an image legitimately takes longer than a JSON call. */
+const UPLOAD_TIMEOUT_MS = 30_000;
 
 /** One inbound message, reduced to what linking needs. */
 export interface TelegramUpdate {
@@ -54,7 +58,12 @@ export class TelegramTransportService {
    * media title is arbitrary user-visible text. HTML needs five escapes and
    * fails softer.
    */
-  async sendMessage(token: string, chatId: string, html: string): Promise<void> {
+  async sendMessage(
+    token: string,
+    chatId: string,
+    html: string,
+    button?: { text: string; url: string } | null,
+  ): Promise<void> {
     await this.call(token, 'sendMessage', {
       chat_id: chatId,
       text: html.slice(0, MAX_MESSAGE),
@@ -62,7 +71,43 @@ export class TelegramTransportService {
       // Notifications are not conversations; a link preview would push the
       // actual message off screen on mobile.
       disable_web_page_preview: true,
+      ...(button && { reply_markup: { inline_keyboard: [[button]] } }),
     });
+  }
+
+  /**
+   * Send a photo with a caption and at most one inline button.
+   *
+   * The image is uploaded as **multipart bytes**, never a URL. Telegram will
+   * happily fetch a link, but that would mean minting a publicly reachable
+   * artwork URL that outlives the notification — the exact thing the
+   * presentation model refuses to do. Uploading bytes keeps library artwork
+   * behind the platform's own auth and leaves nothing fetchable afterwards.
+   *
+   * Callers must fall back to `sendMessage` if this throws: an image is an
+   * enhancement, and a notification that fails to arrive because a poster was
+   * unavailable is worse than a plain one.
+   */
+  async sendPhoto(
+    token: string,
+    chatId: string,
+    photo: { bytes: Buffer; filename: string; contentType: string },
+    caption: string,
+    button?: { text: string; url: string } | null,
+  ): Promise<void> {
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('caption', caption.slice(0, MAX_CAPTION));
+    form.append('parse_mode', 'HTML');
+    if (button) {
+      form.append('reply_markup', JSON.stringify({ inline_keyboard: [[button]] }));
+    }
+    // Uint8Array view rather than the Buffer itself: undici's Blob rejects a
+    // Buffer with a non-zero byteOffset, which a sliced Buffer has.
+    const view = new Uint8Array(photo.bytes.buffer, photo.bytes.byteOffset, photo.bytes.byteLength);
+    form.append('photo', new Blob([view], { type: photo.contentType }), photo.filename);
+
+    await this.callForm(token, 'sendPhoto', form);
   }
 
   /**
@@ -98,6 +143,38 @@ export class TelegramTransportService {
         };
       })
       .filter((u): u is TelegramUpdate => u !== null);
+  }
+
+  /**
+   * One multipart Bot API call.
+   *
+   * Separate from `call` because fetch must set its own `Content-Type` with the
+   * multipart boundary — supplying `application/json` here produces a request
+   * Telegram cannot parse, and the failure looks like a bad token.
+   *
+   * A longer timeout than a JSON call: this uploads an image.
+   */
+  private async callForm(token: string, method: string, form: FormData): Promise<void> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${API_BASE}/bot${token}/${method}`, {
+        method: 'POST',
+        body: form,
+        signal: controller.signal,
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; description?: string };
+      if (!res.ok || !json.ok) {
+        throw new BadRequestException(json.description ?? `Telegram ${method} failed (${res.status}).`);
+      }
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') {
+        throw new BadRequestException('Telegram did not respond in time.');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /**

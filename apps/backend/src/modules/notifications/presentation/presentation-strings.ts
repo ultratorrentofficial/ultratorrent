@@ -26,6 +26,38 @@ export const STRINGS = {
     'en-US': '{name} stopped watching {media}',
     'es-PR': '{name} dejó de ver {media}',
   } satisfies Copy,
+
+  /*
+   * Natural-language playback phrases.
+   *
+   * Whole clauses, not fragments assembled at render time: Spanish puts the verb
+   * and preposition together ("comenzó a ver"), so concatenating a verb with a
+   * separate "to" produces grammatical nonsense in one language while looking
+   * fine in the other. `{name}` is the only substitution.
+   *
+   * These replace the old two-tone headline for compact surfaces. "User Started
+   * Watching" is an event label; a person reads "Dennis started watching".
+   */
+  startedWatchingPhrase: {
+    'en-US': '{name} started watching',
+    'es-PR': '{name} comenzó a ver',
+  } satisfies Copy,
+  resumedWatchingPhrase: {
+    'en-US': '{name} resumed watching',
+    'es-PR': '{name} continuó viendo',
+  } satisfies Copy,
+  startedListeningPhrase: {
+    'en-US': '{name} started listening to',
+    'es-PR': '{name} comenzó a escuchar',
+  } satisfies Copy,
+  resumedListeningPhrase: {
+    'en-US': '{name} resumed listening to',
+    'es-PR': '{name} continuó escuchando',
+  } satisfies Copy,
+  /** Stands in for a name the recipient may not see. Reads as a clause subject. */
+  aUser: { 'en-US': 'A user', 'es-PR': 'Un usuario' } satisfies Copy,
+  resumedAt: { 'en-US': 'Resumed at {percent}%', 'es-PR': 'Retomado al {percent}%' } satisfies Copy,
+
   nowPlaying: { 'en-US': 'Now Playing', 'es-PR': 'Reproduciendo ahora' } satisfies Copy,
   paused: { 'en-US': 'Paused', 'es-PR': 'En pausa' } satisfies Copy,
   buffering: { 'en-US': 'Buffering', 'es-PR': 'Almacenando en búfer' } satisfies Copy,
@@ -107,6 +139,7 @@ export const STRINGS = {
   viewProviders: { 'en-US': 'View providers', 'es-PR': 'Ver proveedores' } satisfies Copy,
   reviewAccount: { 'en-US': 'Review account', 'es-PR': 'Revisar cuenta' } satisfies Copy,
   viewUsers: { 'en-US': 'View users', 'es-PR': 'Ver usuarios' } satisfies Copy,
+  viewLiveActivity: { 'en-US': 'View Live Activity', 'es-PR': 'Ver actividad en vivo' } satisfies Copy,
 
   // --- misc -----------------------------------------------------------------
   posterAlt: { 'en-US': 'Poster for {title}', 'es-PR': 'Póster de {title}' } satisfies Copy,
