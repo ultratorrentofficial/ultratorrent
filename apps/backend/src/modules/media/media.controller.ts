@@ -37,6 +37,7 @@ import {
 } from './media-metadata.service';
 import { MediaArtworkService, ArtworkUpload } from './media-artwork.service';
 import { MediaSubtitleService } from './media-subtitle.service';
+import { MediaBulkService } from './media-bulk.service';
 import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
@@ -84,6 +85,7 @@ export class MediaController {
     private readonly artwork: MediaArtworkService,
     private readonly subtitles: MediaSubtitleService,
     private readonly nfo: MediaNfoService,
+    private readonly bulk: MediaBulkService,
     private readonly duplicates: MediaDuplicateService,
     private readonly duplicateResolution: DuplicateResolutionService,
     private readonly showDuplicates: MediaShowDuplicateService,
@@ -282,6 +284,42 @@ export class MediaController {
       'media_identification',
       { libraryId: filter.libraryId ?? null, payload: filter },
       (report) => this.identification.identifyBulk(filter, report),
+    );
+  }
+
+  /*
+   * Bulk over an explicit selection.
+   *
+   * The third scope the Media Manager lacked: `items/reidentify` is
+   * library-wide and `nfo/generate` is one item or a library, so a browser
+   * selection had no server-side shape. Each route dispatches ONE job and
+   * writes ONE audit row, which a client-side fan-out cannot do.
+   */
+  @Post('items/bulk/metadata')
+  @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
+  bulkRefreshMetadata(@Body() body: { itemIds?: string[] }, @Req() req: Request) {
+    return this.bulk.refreshMetadata(body?.itemIds ?? [], auditCtx(req), (id) =>
+      this.metadata.fetchMetadata(id, auditCtx(req)),
+    );
+  }
+
+  @Post('items/bulk/lock')
+  @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
+  bulkLock(@Body() body: { itemIds?: string[] }, @Req() req: Request) {
+    return this.bulk.setLocked(body?.itemIds ?? [], true, auditCtx(req));
+  }
+
+  @Post('items/bulk/unlock')
+  @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
+  bulkUnlock(@Body() body: { itemIds?: string[] }, @Req() req: Request) {
+    return this.bulk.setLocked(body?.itemIds ?? [], false, auditCtx(req));
+  }
+
+  @Post('items/bulk/nfo')
+  @RequirePermissions(P.MEDIA_MANAGER_GENERATE_NFO)
+  bulkNfo(@Body() body: { itemIds?: string[] }, @Req() req: Request) {
+    return this.bulk.generateNfo(body?.itemIds ?? [], auditCtx(req), (id) =>
+      this.nfo.generate({ itemId: id }, auditCtx(req)),
     );
   }
 

@@ -104,7 +104,11 @@ Two rules worth stating:
   would act on things the user can no longer see — the worst possible input to a
   destructive bulk operation.
 
-**The blocker.** No existing endpoint accepts a set of ids:
+**Resolved.** `POST /media/items/bulk/{metadata,lock,unlock,nfo}` now take an
+explicit `{ itemIds }`, dispatch **one** job and write **one** audit row. The
+frontend bar is still to be wired, but the shape it needs exists.
+
+The three scopes, for reference:
 
 | Endpoint | Scope |
 |---|---|
@@ -112,12 +116,12 @@ Two rules worth stating:
 | `POST /media/nfo/generate` | one `itemId` **or** a whole `libraryId` |
 | `POST /media/items/:id/lock`, `…/metadata/fetch` | one item |
 
-So a bulk action over a selection would have to fan out N requests from the
-browser — N round trips, no single job, no single audit record, and no progress.
-That is the wrong shape for a workspace whose operations are supposed to be
-jobs. Wiring the bar honestly needs id-list bulk endpoints that dispatch one
-job and audit one operation; that is the next piece of backend work, not a
-frontend one.
+A client-side fan-out would have given N round trips, no single job to watch,
+and N audit rows for one operator action. The bulk service instead resolves the
+ids once (duplicates collapse; unknown ids come back as `missing` rather than
+being silently dropped), skips locked items the way every other bulk path does,
+refuses a selection over 1 000, and runs detached so the browser gets a job id
+immediately.
 
 ## Paging
 

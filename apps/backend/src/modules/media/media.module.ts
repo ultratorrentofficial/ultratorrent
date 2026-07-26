@@ -12,6 +12,7 @@ import { MediaMetadataService } from './media-metadata.service';
 import { MetadataProviderRegistry } from './metadata-provider-registry.service';
 import { MediaArtworkService } from './media-artwork.service';
 import { MediaSubtitleService } from './media-subtitle.service';
+import { MediaBulkService } from './media-bulk.service';
 import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
@@ -71,6 +72,7 @@ import { MediaController } from './media.controller';
     MediaArtworkService,
     MediaSubtitleService,
     MediaNfoService,
+    MediaBulkService,
     MediaDuplicateService,
     MediaShowDuplicateService,
     DuplicateResolutionService,
@@ -100,6 +102,7 @@ import { MediaController } from './media.controller';
     MediaArtworkService,
     MediaSubtitleService,
     MediaNfoService,
+    MediaBulkService,
     MediaDuplicateService,
     MediaServerIntegrationService,
     MediaProcessingQueueService,

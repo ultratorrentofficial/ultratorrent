@@ -524,6 +524,14 @@ operator setting on `settings.manage`; that put a personal channel behind an
 administrator. The SMTP relay stays global because a relay really is a server the
 platform owns.
 
+**Bulk routes take an explicit id list**, the third scope alongside per-item and
+per-library. Each dispatches **one** job and writes **one** audit row, which a
+client-side fan-out cannot: N requests would give N audit rows for one operator
+action and nothing to watch. Ids are resolved against the database (duplicates
+collapse, unknown ids are *returned* as `missing`), locked items are skipped
+silently, and a selection over 1 000 is refused — a library-wide operation is a
+scope, not a list.
+
 **Channel responses never contain a destination.** They carry a mask
 (`de••••@example.com`, `#alerts (…5678)`, `@handle`) plus health; no endpoint
 returns a real address, chat id or webhook URL.
@@ -733,6 +741,9 @@ detection, media-server integrations, and a rename engine. See
 | `GET`   | `/api/media/items` | `media_manager.view` (`?mediaType`, `?matchStatus`, `?libraryId`) |
 | `GET`   | `/api/media/items/:id` | `media_manager.view` |
 | `PATCH` | `/api/media/items/:id` | `media_manager.edit_metadata` |
+| `POST`  | `/api/media/items/bulk/metadata` | `media_manager.edit_metadata` — `{ itemIds }`, one job |
+| `POST`  | `/api/media/items/bulk/lock` · `/unlock` | `media_manager.edit_metadata` — `{ itemIds }` |
+| `POST`  | `/api/media/items/bulk/nfo` | `media_manager.generate_nfo` — `{ itemIds }`, one job |
 | `POST`  | `/api/media/items/:id/match` | `media_manager.match` (empty body re-runs auto-identify; a body matches manually) |
 | `POST`  | `/api/media/items/:id/unmatch` | `media_manager.match` |
 | `POST`  | `/api/media/items/:id/metadata/fetch` | `media_manager.edit_metadata` |
