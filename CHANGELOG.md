@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.48.1] - 2026-07-26
+
+### Fixed
+- Notifications: add a Dashboard nav rail entry (Inbox/Events/Channels) and register the module in the core registry, so the engine is discoverable rather than reachable only from the avatar menu
+
 ## [0.48.0] - 2026-07-25
 
 ### Added
