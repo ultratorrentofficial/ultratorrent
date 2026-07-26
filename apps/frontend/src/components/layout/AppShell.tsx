@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -57,6 +57,7 @@ import { useNavBadges, type NavBadge } from '@/components/layout/useNavBadges';
 import { useNavPersonalization } from '@/components/layout/useNavPersonalization';
 import { usePaletteProviders } from '@/components/layout/usePaletteProviders';
 import { cn } from '@/lib/utils';
+import { CenteredSpinner } from '@/components/ui/feedback';
 
 /** A count/dot status badge on a nav item. Collapsed rail shows just a dot. */
 function NavBadgePill({ badge, collapsed }: { badge: NavBadge; collapsed?: boolean }) {
@@ -307,7 +308,17 @@ export function AppShell() {
         <main className="flex-1 overflow-y-auto scrollbar-thin">
           {/* Bottom padding clears the fixed mobile domain bar (hidden on lg+). */}
           <div className="mx-auto w-full max-w-[1600px] px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
-            <Outlet />
+            {/*
+              Every page renders through here, and a lazy() one suspends on first
+              visit. Without a boundary React aborts the navigation outright
+              (#426) rather than showing a fallback, so the route simply fails —
+              which is exactly how the notification pages shipped in 0.48.0.
+              Guarding the outlet covers every page instead of relying on each
+              lazy route remembering its own <Suspense>.
+            */}
+            <Suspense fallback={<CenteredSpinner />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>
