@@ -93,7 +93,9 @@
     "My Notification Events": "My Notification Events",
     "My Notification Connections": "My Notification Connections",
     "My Notification Inbox": "My Notification Inbox",
-    "My Notification Settings": "My Notification Settings"
+    "My Notification Settings": "My Notification Settings",
+    "Inbox": "Inbox",
+    "Notification Events": "Notification Events"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",
@@ -127,13 +129,13 @@
     "Modules": "Enable or disable modules",
     "Newsletters": "Scheduled email newsletters",
     "Notification Center": "Delivery dashboard, provider health and recent notifications",
-    "Notification Channels": "Email, SMS, Telegram and WhatsApp delivery channels",
+    "Notification Channels": "Connect email, Telegram or Discord.",
     "Notification Preferences": "Per-recipient event opt-outs",
     "Notification Recipients": "People and groups who receive notifications",
     "Notification Rules": "Which events notify whom, on which channels",
     "Notification Settings": "Branding, locale and delivery defaults",
     "Notification Templates": "Reusable message templates with variables + preview",
-    "Notifications": "Notification Center — channels, rules, delivery and health",
+    "Notifications": "Your inbox, which events you want, and where they arrive.",
     "Profile": "Your profile, password and security",
     "Provider Health": "Live health of each notification channel",
     "Prowlarr": "Open the Prowlarr indexer manager",
@@ -166,7 +168,9 @@
     "My Notification Events": "Your personal notification events: which events reach you, and on which channels.",
     "My Notification Connections": "Your personal notification destinations: email, Telegram, WhatsApp and Discord.",
     "My Notification Inbox": "Notifications addressed to you personally.",
-    "My Notification Settings": "Your quiet hours, digest schedule and global pause."
+    "My Notification Settings": "Your quiet hours, digest schedule and global pause.",
+    "Inbox": "Notifications sent to you.",
+    "Notification Events": "Choose which events you want, and where they arrive."
   },
   "details": {
     "Account": "Account",

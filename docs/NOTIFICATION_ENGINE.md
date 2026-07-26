@@ -45,7 +45,10 @@ Account → Notifications
     └── Channels   email · Telegram · Discord
 ```
 
-Reached from the user menu. There is **no global notification settings page**,
+Reached from **Dashboard → Notifications** in the nav rail, and from the user menu.
+It sits inside Dashboard rather than as its own workspace because the rail is
+capped at nine domains by design; a personal inbox is part of "your stuff at a
+glance", not a tenth top-level concern. There is **no global settings page**,
 because there is no global notification state to configure — and no way for an
 administrator to edit another person's preferences.
 

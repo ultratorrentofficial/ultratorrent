@@ -165,6 +165,28 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     routes: ['/api/api-keys'],
   },
   {
+    id: MODULE_IDS.NOTIFICATIONS,
+    name: 'Notifications',
+    description:
+      'Personal notifications. Each user chooses which events they want and where they arrive — in-app, email, Telegram or Discord. Recipients are fixed in code per event; there is no rule builder, audience designer or template editor.',
+    tier: 'core',
+    // Core and always on. A disabled notification module would leave producers
+    // publishing into a dispatcher that is not listening — events would fire,
+    // deliveries would never queue, and nothing would say why.
+    enabledByDefault: true,
+    dependencies: [MODULE_IDS.AUTH, MODULE_IDS.RBAC],
+    permissions: [
+      P.NOTIFICATIONS_VIEW_OWN,
+      P.NOTIFICATIONS_MANAGE_OWN,
+      P.NOTIFICATIONS_CHANNELS_MANAGE_OWN,
+    ],
+    routes: ['/api/account/notifications'],
+    menu: [
+      { label: 'Notifications', path: '/account/notifications/inbox', icon: 'Bell', permission: P.NOTIFICATIONS_VIEW_OWN },
+    ],
+    websocketEvents: ['account.notification.created'],
+  },
+  {
     id: MODULE_IDS.AUDIT,
     name: 'Audit log',
     description: 'Append-only audit trail of sensitive actions.',

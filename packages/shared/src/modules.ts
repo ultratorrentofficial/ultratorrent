@@ -129,6 +129,7 @@ export const MODULE_IDS = {
   MEDIA_ACQUISITION_INTELLIGENCE: 'media_acquisition_intelligence',
   MEDIA_SERVER_ANALYTICS: 'media_server_analytics',
   // Core — subtitle acquisition, validation & synchronization (locked, always-on)
+  NOTIFICATIONS: 'notifications',
   SUBTITLE_INTELLIGENCE: 'subtitle_intelligence',
   // Core — policy-driven, plan-executed library storage reclamation
   LIBRARY_CLEANUP: 'library_cleanup',

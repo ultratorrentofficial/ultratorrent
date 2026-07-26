@@ -1,4 +1,7 @@
 import {
+  Send,
+  Inbox,
+  Bell,
   Award,
   Bot,
   Workflow,
@@ -244,6 +247,15 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
   { slot: { domain: 'automation', order: 15 }, item: { id: 'workflows', to: '/workflows', label: 'Workflows', icon: Workflow, permission: PERMISSIONS.WORKFLOWS_VIEW, end: true, descriptionKey: 'Workflows', children: [
     { id: 'workflow-approvals', to: '/workflows/approvals', label: 'Workflow Approvals', icon: ShieldCheck, permission: PERMISSIONS.WORKFLOWS_APPROVE, descriptionKey: 'Workflow Approvals' },
   ] } },
+
+  { slot: { domain: 'dashboard', order: 30 }, item: {
+    id: 'my-notifications', to: '/account/notifications/inbox', label: 'Notifications', icon: Bell,
+    permission: PERMISSIONS.NOTIFICATIONS_VIEW_OWN, module: 'notifications', descriptionKey: 'Notifications',
+    children: [
+      { id: 'my-notifications-inbox', to: '/account/notifications/inbox', label: 'Inbox', icon: Inbox, permission: PERMISSIONS.NOTIFICATIONS_VIEW_OWN, descriptionKey: 'Inbox' },
+      { id: 'my-notifications-events', to: '/account/notifications/events', label: 'Notification Events', icon: SlidersHorizontal, permission: PERMISSIONS.NOTIFICATIONS_VIEW_OWN, descriptionKey: 'Notification Events' },
+      { id: 'my-notifications-channels', to: '/account/notifications/channels', label: 'Notification Channels', icon: Send, permission: PERMISSIONS.NOTIFICATIONS_CHANNELS_MANAGE_OWN, descriptionKey: 'Notification Channels' },
+    ] } },
 
   { slot: { domain: 'files', order: 10 }, item: { id: 'files', to: '/files', label: 'File Manager', icon: FolderTree, permission: PERMISSIONS.FILES_VIEW, module: 'files', descriptionKey: 'File Manager' } },
 

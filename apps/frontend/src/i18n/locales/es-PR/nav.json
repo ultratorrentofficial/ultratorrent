@@ -52,7 +52,7 @@
     "Modules": "Módulos",
     "Newsletters": "Boletines",
     "Notification Center": "Centro de Notificaciones",
-    "Notification Channels": "Canales de Notificación",
+    "Notification Channels": "Canales de notificación",
     "Notification Preferences": "Preferencias de Notificación",
     "Notification Recipients": "Destinatarios de Notificación",
     "Notification Rules": "Reglas de Notificación",
@@ -93,7 +93,9 @@
     "My Notification Events": "Mis eventos de notificación",
     "My Notification Connections": "Mis conexiones de notificación",
     "My Notification Inbox": "Mi bandeja de notificaciones",
-    "My Notification Settings": "Mi configuración de notificaciones"
+    "My Notification Settings": "Mi configuración de notificaciones",
+    "Inbox": "Bandeja de entrada",
+    "Notification Events": "Eventos de notificación"
   },
   "descriptions": {
     "Acquisition Intelligence": "Adquisición y mejoras inteligentes",
@@ -127,13 +129,13 @@
     "Modules": "Activa o desactiva módulos",
     "Newsletters": "Boletines por correo programados",
     "Notification Center": "Panel de envíos, salud de proveedores y notificaciones recientes",
-    "Notification Channels": "Canales de envío Email, SMS, Telegram y WhatsApp",
+    "Notification Channels": "Conecta correo, Telegram o Discord.",
     "Notification Preferences": "Exclusiones de eventos por destinatario",
     "Notification Recipients": "Personas y grupos que reciben notificaciones",
     "Notification Rules": "Qué eventos notifican a quién y por qué canales",
     "Notification Settings": "Marca, idioma y valores predeterminados de envío",
     "Notification Templates": "Plantillas de mensajes reutilizables con variables + vista previa",
-    "Notifications": "Centro de notificaciones — canales, reglas, entrega y salud",
+    "Notifications": "Tu bandeja de entrada, qué eventos quieres y dónde recibirlos.",
     "Profile": "Tu perfil, contraseña y seguridad",
     "Provider Health": "Salud en vivo de cada canal de notificación",
     "Prowlarr": "Abre el gestor de indexadores Prowlarr",
@@ -166,7 +168,9 @@
     "My Notification Events": "Tus eventos de notificación personales: qué eventos te llegan y por cuáles canales.",
     "My Notification Connections": "Tus destinos personales de notificación: correo, Telegram, WhatsApp y Discord.",
     "My Notification Inbox": "Notificaciones dirigidas a ti personalmente.",
-    "My Notification Settings": "Tus horas de silencio, tu resumen programado y la pausa global."
+    "My Notification Settings": "Tus horas de silencio, tu resumen programado y la pausa global.",
+    "Inbox": "Notificaciones enviadas a ti.",
+    "Notification Events": "Elige qué eventos quieres y dónde recibirlos."
   },
   "details": {
     "Account": "Cuenta",

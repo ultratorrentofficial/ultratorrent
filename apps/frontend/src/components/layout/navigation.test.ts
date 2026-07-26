@@ -342,3 +342,45 @@ describe('information-architecture invariants (real NAV_GROUPS)', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+describe('personal notifications in the rail', () => {
+  /**
+   * A slot whose `domain` is not registered does not error — it falls into the
+   * `Extensions` fallback, which looks plausible in review and wrong in the
+   * product. That happened: notifications were first added under an `account`
+   * domain that did not exist, and the only thing that surfaced it was the i18n
+   * parity gate complaining about a missing "Extensions" group title.
+   */
+  it('does not fall into the Extensions fallback', () => {
+    // A slot naming an unregistered domain lands here silently. It happened once,
+    // and only the i18n parity gate noticed.
+    expect(NAV_GROUPS.map((g) => g.title)).not.toContain('Extensions');
+  });
+
+  it('lives inside Dashboard rather than adding a tenth workspace', () => {
+    // The rail is capped at nine domains — the redesign's central goal. A personal
+    // inbox is part of "your stuff at a glance", not a new top-level concern.
+    const dashboard = NAV_GROUPS.find((g) => g.id === 'dashboard');
+    expect(dashboard).toBeDefined();
+    expect(dashboard!.items.find((i) => i.id === 'my-notifications')?.to)
+      .toBe('/account/notifications/inbox');
+  });
+
+  it('exposes inbox, events and channels as children', () => {
+    const entry = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.id === 'my-notifications')!;
+    expect((entry.children ?? []).map((c) => c.to)).toEqual([
+      '/account/notifications/inbox',
+      '/account/notifications/events',
+      '/account/notifications/channels',
+    ]);
+  });
+
+  it('gates every notification entry on a permission', () => {
+    const entry = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.id === 'my-notifications')!;
+    // An ungated entry renders for accounts that cannot open the page.
+    expect(entry.permission).toBe(PERMISSIONS.NOTIFICATIONS_VIEW_OWN);
+    for (const child of entry.children ?? []) {
+      expect(child.permission).toBeTruthy();
+    }
+  });
+});
