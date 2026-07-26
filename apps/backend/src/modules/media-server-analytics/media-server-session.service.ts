@@ -203,6 +203,7 @@ export class MediaServerSessionService {
           // The scrobbler reads these: a title alone cannot tell Trakt which
           // episode of which show was watched.
           showTitle: s.showTitle ?? null,
+          episodeTitle: s.episodeTitle ?? null,
           seasonNumber: s.seasonNumber ?? null,
           episodeNumber: s.episodeNumber ?? null,
           year: s.year ?? null,
@@ -254,7 +255,7 @@ export class MediaServerSessionService {
             },
           });
           const startPayload = {
-            mediaTitle: s.title, episodeTitle: null, mediaType: s.mediaType ?? null,
+            mediaTitle: s.title, episodeTitle: s.episodeTitle ?? null, mediaType: s.mediaType ?? null,
             userDisplayName: s.userName, userId: s.userId ?? null,
             serverName: conn.name ?? conn.id, libraryName: s.libraryName ?? null,
             device: s.device ?? null, client: s.client ?? null,
@@ -333,6 +334,7 @@ export class MediaServerSessionService {
         serverName,
         userDisplayName: c.userName,
         showTitle: c.showTitle,
+        episodeTitle: c.episodeTitle,
         seasonNumber: c.seasonNumber,
         episodeNumber: c.episodeNumber,
         year: c.year,

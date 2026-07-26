@@ -5,12 +5,14 @@ import {
   formatDuration,
   formatMediaLabel,
   formatMediaParts,
+  splitDuration,
   type DomainEventEnvelope,
   type NotificationEventDefinition,
   type NotificationPresentation,
   type PresentationFact,
 } from '@ultratorrent/shared';
 import { formatWhen, s, type PresentationLocale } from './presentation-strings';
+import { DEFAULT_COMPLETION_THRESHOLD_PERCENT } from '../../media/cleanup/domain/playback-aggregate';
 
 /**
  * Everything a builder may consider.
@@ -62,6 +64,20 @@ const clampPercent = (n: number) => Math.min(100, Math.max(0, Math.round(n)));
  * would be wrong far more often than it was right.
  */
 const RESUME_THRESHOLD_PERCENT = 5;
+
+/**
+ * "1h 09m" or "24 min", in the recipient's language.
+ *
+ * Minutes are zero-padded only when hours precede them, so "1h 09m" lines up
+ * while a bare "9 min" does not read as a clock.
+ */
+function watchedLabel(seconds: number, locale: PresentationLocale): string | null {
+  const { hours, minutes } = splitDuration(seconds);
+  if (!hours && !minutes) return null; // under 30s — saying "0 min" is noise
+  return hours
+    ? s('durationHoursMinutes', locale, { hours, minutes: String(minutes).padStart(2, '0') })
+    : s('durationMinutes', locale, { minutes });
+}
 
 /**
  * "4K HDR", "1080p" — a summary, never the raw stream description.
@@ -200,13 +216,20 @@ const buildPlayback: PresentationBuilder = (ctx) => {
   const startPercent = started && rawPercent != null ? clampPercent(rawPercent) : null;
   const resumed = startPercent != null && startPercent >= RESUME_THRESHOLD_PERCENT;
 
+  // "Finished" is a claim about the session, so it uses the platform's existing
+  // completion threshold rather than a second definition that could drift from
+  // the one the cleanup aggregates already rely on.
+  const completed = !started && percent != null && percent >= DEFAULT_COMPLETION_THRESHOLD_PERCENT;
+
   const listening = media.kind === 'music' || media.kind === 'audiobook';
   const phrase = s(
     started
       ? resumed
         ? listening ? 'resumedListeningPhrase' : 'resumedWatchingPhrase'
         : listening ? 'startedListeningPhrase' : 'startedWatchingPhrase'
-      : 'stoppedSummary',
+      : completed
+        ? listening ? 'finishedListeningPhrase' : 'finishedWatchingPhrase'
+        : listening ? 'stoppedListeningPhrase' : 'stoppedWatchingPhrase',
     locale,
     { name: userName, media: mediaLabel },
   );
@@ -215,8 +238,11 @@ const buildPlayback: PresentationBuilder = (ctx) => {
   // quality summary, then the device. More than two reads as a spec sheet, which
   // is the format this replaces.
   const contextParts: string[] = [];
-  if (resumed) contextParts.push(s('resumedAt', locale, { percent: startPercent! }));
   if (ctx.canViewPlaybackDetail) {
+    // Progress is playback detail like the rest. Reporting how far through
+    // someone was, while withholding their name and device, would leak the more
+    // personal half of the same fact.
+    if (resumed) contextParts.push(s('resumedAt', locale, { percent: startPercent! }));
     if (contextParts.length < 2) {
       const q = qualitySummary(str(payload, 'resolution'), str(payload, 'videoDynamicRange'));
       if (q) contextParts.push(q);
@@ -226,6 +252,31 @@ const buildPlayback: PresentationBuilder = (ctx) => {
       if (where) contextParts.push(where);
     }
   }
+  /*
+   * A stopped session answers "did they finish, and how long were they in?" —
+   * so its context line is progress and duration, not resolution and device.
+   * Priority: completed state, then progress, then duration, and the device only
+   * when there is no progress at all to report.
+   */
+  if (!started) {
+    contextParts.length = 0;
+    if (ctx.canViewPlaybackDetail) {
+      if (completed) contextParts.push(s('completedState', locale));
+      else if (percent != null) contextParts.push(s('percentWatchedShort', locale, { percent }));
+
+      const duration = watchedSeconds != null && watchedSeconds > 0
+        ? watchedLabel(watchedSeconds, locale)
+        : null;
+      if (duration && contextParts.length < 2) contextParts.push(duration);
+
+      // Only when progress data is missing entirely does the device earn a slot.
+      if (!contextParts.length) {
+        const where = str(payload, 'device') ?? str(payload, 'client');
+        if (where) contextParts.push(where);
+      }
+    }
+  }
+
   const context = contextParts.length ? contextParts.join(' • ') : null;
 
   const playbackState = str(payload, 'playbackState');
@@ -248,7 +299,7 @@ const buildPlayback: PresentationBuilder = (ctx) => {
       // `emphasis` must be a substring of `text` for splitSummary to find it, so
       // the start phrase is completed with the media label here. Compact channels
       // read `media`/`context` instead and never re-join these.
-      text: started ? `${phrase} ${mediaLabel}` : phrase,
+      text: `${phrase} ${mediaLabel}`,
       emphasis: mediaLabel,
     },
     avatar: avatarFor(userName),

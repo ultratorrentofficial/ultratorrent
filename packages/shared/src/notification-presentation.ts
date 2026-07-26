@@ -280,6 +280,22 @@ export function formatMediaLabel(input: {
   return title;
 }
 
+/**
+ * Split a duration into whole hours and minutes, for human phrasing.
+ *
+ * The counterpart to `formatDuration`, which produces a clock reading. "1:09:00"
+ * is right for a scrubber and wrong in a sentence — a notification says "1h 09m".
+ * Only the split lives here; the words come from localized templates, because
+ * Spanish spaces and abbreviates them differently ("2 h 46 min").
+ *
+ * Rounds to the nearest minute: a stop notification reporting "24 min 37 s"
+ * would be precise about something nobody is measuring.
+ */
+export function splitDuration(totalSeconds: number): { hours: number; minutes: number } {
+  const total = Math.max(0, Math.round(totalSeconds / 60));
+  return { hours: Math.floor(total / 60), minutes: total % 60 };
+}
+
 /** `01:12:30`, or `12:30` under an hour. */
 export function formatDuration(totalSeconds: number): string {
   const s = Math.max(0, Math.trunc(totalSeconds));

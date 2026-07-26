@@ -197,6 +197,20 @@ describe('domain event catalogue', () => {
     }
   });
 
+  it('suppresses a second stop for the same session inside the window', () => {
+    // The producer publishes once when a session vanishes; this is the guard for
+    // a reconcile pass that sees the same disappearance again.
+    const { bus } = make();
+    const stop = () => ({
+      eventKey: DOMAIN_EVENTS.MEDIA_SERVER_USER_STOPPED_WATCHING,
+      resourceType: 'media_server_session',
+      resourceId: 'conn-1:sess-9',
+      payload: { mediaTitle: 'Dune: Part Two', serverName: 'Plex' },
+    });
+    expect(bus.publish(stop()).published).toBe(true);
+    expect(bus.publish(stop()).published).toBe(false);
+  });
+
   it('gives every polled event a dedupe window', () => {
     // These have producers that re-observe the same state on a timer; without a
     // window each would republish on every tick.
@@ -205,6 +219,9 @@ describe('domain event catalogue', () => {
       DOMAIN_EVENTS.PROVIDER_OFFLINE,
       DOMAIN_EVENTS.SYSTEM_STORAGE_CRITICAL,
       DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING,
+      // A stop is published once per vanished session, but a reconcile pass that
+      // re-observed the same disappearance would otherwise notify twice.
+      DOMAIN_EVENTS.MEDIA_SERVER_USER_STOPPED_WATCHING,
     ]) {
       expect(getDomainEventDefinition(key)!.deduplicationWindowSeconds).toBeGreaterThan(0);
     }

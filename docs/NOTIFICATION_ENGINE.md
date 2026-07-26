@@ -276,6 +276,55 @@ Resumed at 42% • Living Room Apple TV
 line. Nothing is re-derived in the provider, which is what stops Telegram
 drifting from the in-app card and Live Activity.
 
+### When playback stops
+
+The same shape, answering a different question — not *what is on* but *did they
+finish, and how long were they in?*
+
+```
+Dennis stopped watching
+Dune: Part Two (2024)
+
+42% watched • 1h 09m
+```
+
+```
+Dennis stopped watching
+The Last of Us
+S01E03 • Long Long Time
+
+42% watched • 24 min
+```
+
+Past the completion threshold it says so, and the wording changes with it:
+
+```
+Dennis finished watching
+Dune: Part Two (2024)
+
+Completed • 2h 46m
+```
+
+**"Finished" is the platform's existing definition of finished** —
+`DEFAULT_COMPLETION_THRESHOLD_PERCENT`, the same 90% the cleanup aggregates use.
+A second definition here would drift from the one deletion decisions rely on.
+
+The context line is progress and duration, in priority order: completed state,
+then percentage, then duration. The device earns a slot **only** when there is no
+progress at all to report — resolution, codec, bitrate and server name never do.
+Unknown progress is omitted rather than rendered as `0% watched`, which would
+claim something false. A duration under half a minute is dropped for the same
+reason.
+
+Durations are whole localized templates, not a number glued to a unit: English
+closes them up ("2h 46m"), Spanish spaces and abbreviates them ("2 h 46 min").
+
+**One stop per session.** The producer publishes when a session vanishes from the
+provider, after deleting the row — so a reconcile pass cannot fire a second one —
+and the event carries a dedupe window in case it does. The final progress and
+watched duration are the values captured at session close, not re-derived from
+heartbeats.
+
 ### Artwork
 
 Uploaded as **multipart bytes**, never a URL. Telegram would happily fetch a
@@ -305,10 +354,17 @@ A user started watching
 Dune: Part Two (2024)
 ```
 
-Identity, device, quality and artwork are all withheld together — gating the
-poster while naming the person would be the wrong half. Resume progress survives
-redaction, because it describes the notification's own subject rather than the
-person's device. `ipAddress` is never read at any permission level.
+Identity, device, quality, artwork **and progress** are withheld together —
+gating the poster while naming the person, or reporting how far through someone
+was while hiding who they are, would each leak the more personal half of the same
+fact. A redacted stop keeps the title and drops the context line entirely:
+
+```
+A user stopped watching
+Dune: Part Two (2024)
+```
+
+`ipAddress` is never read at any permission level.
 
 ### The button
 

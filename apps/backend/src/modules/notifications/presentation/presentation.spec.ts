@@ -228,13 +228,14 @@ describe('playback: the compact media model', () => {
     expect(JSON.stringify(p)).not.toContain('Living Room');
   });
 
-  it('still reports resume progress when detail is redacted', () => {
-    // Progress is about the notification's own subject, not the device.
+  it('redacts resume progress too, not just the device', () => {
+    // Progress is playback detail like the rest: reporting how far through
+    // someone was, while withholding their name, leaks the more personal half.
     const p = buildPresentation(playback({
       ...P, progressPercent: 42, device: 'Living Room Apple TV',
     }, DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING, { canViewPlaybackDetail: false }))!;
-    expect(p.context).toBe('Resumed at 42%');
-    expect(p.context).not.toContain('Living Room');
+    expect(p.context).toBeNull();
+    expect(JSON.stringify(p)).not.toContain('42');
   });
 
   it('never reads an ip address at any permission level', () => {
@@ -255,6 +256,133 @@ describe('playback: the compact media model', () => {
       locale: 'es-PR', canViewPlaybackDetail: false,
     }))!;
     expect(p.summary.text).toBe('Un usuario comenzó a ver Dune (2021)');
+  });
+});
+
+describe('playback: stopped and finished', () => {
+  const S = { mediaTitle: 'Dune: Part Two', year: 2024, userDisplayName: 'Dennis', serverName: 'Plex' };
+  const stopped = (payload: Record<string, unknown>, over = {}) =>
+    buildPresentation(playback({ ...S, ...payload }, DOMAIN_EVENTS.MEDIA_SERVER_USER_STOPPED_WATCHING, over))!;
+
+  it('reads as a sentence, not an event label', () => {
+    const p = stopped({ completionPercent: 42, watchedSeconds: 24 * 60 });
+    expect(p.summary.text).toBe('Dennis stopped watching Dune: Part Two (2024)');
+    expect(p.summary.text).not.toContain('User Stopped');
+  });
+
+  it('puts progress and duration on one short line', () => {
+    const p = stopped({ completionPercent: 42, watchedSeconds: 24 * 60 });
+    expect(p.context).toBe('42% watched • 24 min');
+  });
+
+  it('formats an hour-plus session as hours and padded minutes', () => {
+    const p = stopped({ completionPercent: 42, watchedSeconds: 69 * 60 });
+    expect(p.context).toBe('42% watched • 1h 09m');
+  });
+
+  it('says "finished" once the completion threshold is met', () => {
+    // The platform's existing threshold, not a second definition of "done".
+    const p = stopped({ completionPercent: 95, watchedSeconds: 166 * 60 });
+    expect(p.summary.text).toBe('Dennis finished watching Dune: Part Two (2024)');
+    expect(p.context).toBe('Completed • 2h 46m');
+  });
+
+  it('does not say "finished" just below the threshold', () => {
+    const p = stopped({ completionPercent: 89, watchedSeconds: 60 * 60 });
+    expect(p.summary.text).toContain('stopped watching');
+    expect(p.context).toContain('89% watched');
+  });
+
+  it('never claims 0% when progress is unknown', () => {
+    const p = stopped({ watchedSeconds: 24 * 60 });
+    expect(p.context).toBe('24 min');
+    expect(p.context).not.toContain('0%');
+  });
+
+  it('falls back to the device only when there is no progress at all', () => {
+    const p = stopped({ device: 'Bedroom TV' });
+    expect(p.context).toBe('Bedroom TV');
+  });
+
+  it('prefers progress over the device when both exist', () => {
+    const p = stopped({ completionPercent: 87, device: 'Bedroom TV' });
+    expect(p.context).toBe('87% watched');
+    expect(p.context).not.toContain('Bedroom');
+  });
+
+  it('never puts more than two facts on the line', () => {
+    const p = stopped({ completionPercent: 95, watchedSeconds: 3600, device: 'Bedroom TV' });
+    expect(p.context!.split(' • ')).toHaveLength(2);
+  });
+
+  it('omits a duration too short to be worth reporting', () => {
+    const p = stopped({ completionPercent: 3, watchedSeconds: 12 });
+    expect(p.context).toBe('3% watched');
+  });
+
+  it('renders an episode as series + episode line', () => {
+    const p = stopped({
+      mediaTitle: 'The Last of Us — Long Long Time', showTitle: 'The Last of Us',
+      episodeTitle: 'Long Long Time', seasonNumber: 1, episodeNumber: 3,
+      completionPercent: 42, watchedSeconds: 24 * 60,
+    });
+    expect(p.media).toEqual({
+      kind: 'episode', primary: 'The Last of Us', secondary: 'S01E03 • Long Long Time',
+    });
+    expect(p.context).toBe('42% watched • 24 min');
+  });
+
+  it('uses listening wording for a finished album', () => {
+    const p = stopped({
+      mediaTitle: 'Hotel California', showTitle: 'Eagles', mediaType: 'track',
+      completionPercent: 98, watchedSeconds: 40 * 60,
+    });
+    expect(p.summary.text).toContain('finished listening to');
+  });
+
+  it('offers exactly one action', () => {
+    const p = stopped({ completionPercent: 42 });
+    expect(p.action).toEqual({
+      label: 'View activity', href: '/media-server-analytics/watch-history', icon: 'activity',
+    });
+  });
+
+  /* --------------------------------------------------------------- privacy */
+
+  it('redacts identity and progress together', () => {
+    const p = stopped(
+      { completionPercent: 42, watchedSeconds: 1440, device: 'Bedroom TV' },
+      { canViewPlaybackDetail: false },
+    );
+    expect(p.summary.text).toBe('A user stopped watching Dune: Part Two (2024)');
+    expect(p.context).toBeNull();
+    const json = JSON.stringify(p);
+    expect(json).not.toContain('Dennis');
+    expect(json).not.toContain('Bedroom');
+  });
+
+  it('never reads an ip address at any permission level', () => {
+    const p = stopped({ completionPercent: 42, ipAddress: '10.0.0.9' });
+    expect(JSON.stringify(p)).not.toContain('10.0.0.9');
+  });
+
+  /* ---------------------------------------------------------- localization */
+
+  it('translates the stopped caption', () => {
+    const p = stopped({ completionPercent: 42, watchedSeconds: 24 * 60 }, { locale: 'es-PR' });
+    expect(p.summary.text).toBe('Dennis dejó de ver Dune: Part Two (2024)');
+    expect(p.context).toBe('42% visto • 24 min');
+  });
+
+  it('translates the completed caption, spacing the duration the Spanish way', () => {
+    const p = stopped({ completionPercent: 95, watchedSeconds: 166 * 60 }, { locale: 'es-PR' });
+    expect(p.summary.text).toBe('Dennis terminó de ver Dune: Part Two (2024)');
+    expect(p.context).toBe('Completado • 2 h 46 min');
+  });
+
+  it('translates the redacted subject', () => {
+    const p = stopped({ completionPercent: 42 }, { locale: 'es-PR', canViewPlaybackDetail: false });
+    expect(p.summary.text).toBe('Un usuario dejó de ver Dune: Part Two (2024)');
   });
 });
 

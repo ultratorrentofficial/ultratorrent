@@ -422,6 +422,88 @@ describe('telegram rendering', () => {
     );
   });
 
+  /* ---------------------------------------------------- stopped / finished */
+
+  const stoppedMovie = () => presentation({
+    eventKey: 'media_server.user_stopped_watching',
+    icon: 'stop', accent: 'stopped',
+    media: { kind: 'movie', primary: 'Dune: Part Two (2024)', secondary: null },
+    context: '42% watched • 1h 09m',
+    summary: { text: 'Dennis stopped watching Dune: Part Two (2024)', emphasis: 'Dune: Part Two (2024)' },
+  });
+
+  it('renders a stopped movie as phrase, title, progress', () => {
+    expect(renderTelegram(stoppedMovie())).toBe(
+      '<b>Dennis stopped watching</b>\n' +
+      '<b>Dune: Part Two (2024)</b>\n' +
+      '\n' +
+      '42% watched • 1h 09m',
+    );
+  });
+
+  it('renders a stopped episode with the series above the episode line', () => {
+    const out = renderTelegram(presentation({
+      ...stoppedMovie(),
+      media: { kind: 'episode', primary: 'The Last of Us', secondary: 'S01E03 • Long Long Time' },
+      context: '42% watched • 24 min',
+      summary: { text: 'Dennis stopped watching The Last of Us', emphasis: 'The Last of Us' },
+    }));
+    expect(out).toBe(
+      '<b>Dennis stopped watching</b>\n' +
+      '<b>The Last of Us</b>\n' +
+      'S01E03 • Long Long Time\n' +
+      '\n' +
+      '42% watched • 24 min',
+    );
+  });
+
+  it('renders the completed variation', () => {
+    const out = renderTelegram(presentation({
+      ...stoppedMovie(),
+      context: 'Completed • 2h 46m',
+      summary: { text: 'Dennis finished watching Dune: Part Two (2024)', emphasis: 'Dune: Part Two (2024)' },
+    }));
+    expect(out).toContain('<b>Dennis finished watching</b>');
+    expect(out).toContain('Completed • 2h 46m');
+  });
+
+  it('carries none of the old stop-format labels', () => {
+    const out = renderTelegram(stoppedMovie());
+    for (const banned of ['Progress:', 'Watched:', 'Device:', 'Server:', 'Time:', 'Episode:', 'HEVC']) {
+      expect(out).not.toContain(banned);
+    }
+    expect(out).not.toContain('User Stopped');
+  });
+
+  it('drops the context line when progress was redacted', () => {
+    const out = renderTelegram(presentation({ ...stoppedMovie(), context: null }));
+    expect(out).toBe('<b>Dennis stopped watching</b>\n<b>Dune: Part Two (2024)</b>');
+  });
+
+  it('reads naturally when the stopped user was redacted', () => {
+    const out = renderTelegram(presentation({
+      ...stoppedMovie(),
+      summary: { text: 'A user stopped watching Dune: Part Two (2024)', emphasis: 'Dune: Part Two (2024)' },
+      context: null,
+    }));
+    expect(out).toContain('<b>A user stopped watching</b>');
+    expect(out).not.toContain('Dennis');
+  });
+
+  it('renders a Spanish stopped post', () => {
+    const out = renderTelegram(presentation({
+      ...stoppedMovie(),
+      summary: { text: 'Dennis dejó de ver Dune: Part Two (2024)', emphasis: 'Dune: Part Two (2024)' },
+      context: '42% visto • 24 min',
+    }));
+    expect(out).toContain('<b>Dennis dejó de ver</b>');
+    expect(out).toContain('42% visto • 24 min');
+  });
+
+  it('stays within five short lines', () => {
+    expect(renderTelegram(stoppedMovie()).split('\n').length).toBeLessThanOrEqual(5);
+  });
+
   /* ------------------------------------------------------------ the button */
 
   it('builds exactly one absolute button', () => {

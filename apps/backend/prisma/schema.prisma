@@ -1222,6 +1222,10 @@ model MediaServerSession {
   /// "Show — Episode" display string). Scrobbling an episode needs the show, and
   /// splitting a display string back apart is guesswork.
   showTitle         String?
+  /// The episode's OWN name, so a stop notification can render the series and
+  /// "S01E03 • Long Long Time" on separate lines. `title` joins the two for
+  /// display and re-splitting it is ambiguous for any title containing a dash.
+  episodeTitle      String?
   /// Season/episode of the playing item, and the provider ids the media server
   /// already knows (imdb/tmdb/tvdb). Trakt identifies an episode as
   /// show-ids + season + number; without these a scrobble can only be guessed

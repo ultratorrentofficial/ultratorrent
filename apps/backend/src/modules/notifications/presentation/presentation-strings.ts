@@ -58,6 +58,35 @@ export const STRINGS = {
   aUser: { 'en-US': 'A user', 'es-PR': 'Un usuario' } satisfies Copy,
   resumedAt: { 'en-US': 'Resumed at {percent}%', 'es-PR': 'Retomado al {percent}%' } satisfies Copy,
 
+  stoppedWatchingPhrase: {
+    'en-US': '{name} stopped watching',
+    'es-PR': '{name} dejó de ver',
+  } satisfies Copy,
+  finishedWatchingPhrase: {
+    'en-US': '{name} finished watching',
+    'es-PR': '{name} terminó de ver',
+  } satisfies Copy,
+  stoppedListeningPhrase: {
+    'en-US': '{name} stopped listening to',
+    'es-PR': '{name} dejó de escuchar',
+  } satisfies Copy,
+  finishedListeningPhrase: {
+    'en-US': '{name} finished listening to',
+    'es-PR': '{name} terminó de escuchar',
+  } satisfies Copy,
+
+  /*
+   * Context-line fragments for a finished session.
+   *
+   * Durations are whole templates rather than a number glued to a unit: English
+   * writes "2h 46m" closed up, Spanish writes "2 h 46 min" spaced. Assembling
+   * one from parts gets one language wrong every time.
+   */
+  completedState: { 'en-US': 'Completed', 'es-PR': 'Completado' } satisfies Copy,
+  percentWatchedShort: { 'en-US': '{percent}% watched', 'es-PR': '{percent}% visto' } satisfies Copy,
+  durationHoursMinutes: { 'en-US': '{hours}h {minutes}m', 'es-PR': '{hours} h {minutes} min' } satisfies Copy,
+  durationMinutes: { 'en-US': '{minutes} min', 'es-PR': '{minutes} min' } satisfies Copy,
+
   nowPlaying: { 'en-US': 'Now Playing', 'es-PR': 'Reproduciendo ahora' } satisfies Copy,
   paused: { 'en-US': 'Paused', 'es-PR': 'En pausa' } satisfies Copy,
   buffering: { 'en-US': 'Buffering', 'es-PR': 'Almacenando en búfer' } satisfies Copy,
