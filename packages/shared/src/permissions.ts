@@ -140,6 +140,7 @@ export const PERMISSIONS = {
   MEDIA_MANAGER_GENERATE_NFO: 'media_manager.generate_nfo',
   MEDIA_MANAGER_MANAGE_INTEGRATIONS: 'media_manager.manage_integrations',
   MEDIA_MANAGER_DELETE: 'media_manager.delete',
+  MEDIA_MANAGER_EXPORT: 'media_manager.export',
   MEDIA_MANAGER_ADMIN: 'media_manager.admin',
 
   // Media Manager — IMDb metadata provider (compliant dataset/licensed-API).
@@ -307,6 +308,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.MEDIA_MANAGER_RENAME,
     PERMISSIONS.MEDIA_MANAGER_MOVE_FILES,
     PERMISSIONS.MEDIA_MANAGER_GENERATE_NFO,
+    PERMISSIONS.MEDIA_MANAGER_EXPORT,
     PERMISSIONS.MEDIA_MANAGER_IMDB_VIEW,
     PERMISSIONS.MEDIA_MANAGER_IMDB_SEARCH,
     PERMISSIONS.MEDIA_MANAGER_IMDB_CONFIGURE,

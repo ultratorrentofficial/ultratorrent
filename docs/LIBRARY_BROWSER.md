@@ -185,6 +185,33 @@ result set would act on rows the filter has just hidden.
 (unmatched / matched / manual). One status at a time, because the server takes
 one — letting two appear selected would misrepresent the query.
 
+## Export
+
+`GET /media/items/export.csv`, gated on the new `media_manager.export`
+permission — export is a bulk read of library contents, which is why it is its
+own permission rather than folded into `view`, matching `media_acquisition` and
+`media_server_analytics`.
+
+**Streamed, never materialised.** The analytics CSV loads up to 50 000 rows into
+an array and joins it; at the sizes this workspace targets that is an
+out-of-memory error rather than a slow response. Peak memory here is one page
+regardless of library size.
+
+**Keyset pagination on `id`**, not `OFFSET`. A deep offset makes Postgres walk
+every skipped row, so the last page of a large export costs far more than the
+first — and an offset is unstable under concurrent inserts, which skips or
+repeats rows.
+
+**The same filters as the browser.** An export that silently covers more than the
+screen is a disclosure bug.
+
+**Formula injection is neutralised.** A cell beginning `=`, `+`, `-` or `@` is
+executed by spreadsheet software on open. Media titles are arbitrary text from
+filenames and providers, so this is the realistic path, not a theoretical one.
+
+The audit row is written **after** the stream drains and carries the count that
+actually left — a generator created and abandoned exported nothing.
+
 ## Paging
 
 Server-side and additive. Rows are appended as the grid nears its end, so
@@ -204,7 +231,11 @@ Stated so the gaps are not mistaken for bugs:
   parameters on `GET /media/items` — the columns exist on `MediaFile` and
   `MediaMetadata` but nothing filters on them, so offering those controls would
   be UI that silently does nothing. They need backend query support first.
-- **No issues panel, no export** — later phases.
+- **CSV export ships; Excel, JSON and PDF do not.** There is no PDF library in
+  the repository and adding one for a table is a poor trade; Excel is CSV for
+  every practical purpose here. JSON would be a small addition to the same
+  service if it is wanted.
+- **No issues panel** — later phase.
 - **No music/audiobook/photo hierarchies** — needs the schema migration above.
 - Drill-down **is** in place — Library → Show → Season → Episode, below.
 - **Operations are unchanged** — metadata, artwork, rename, cleanup, subtitles

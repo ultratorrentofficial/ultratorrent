@@ -11,6 +11,7 @@ import {
   Res,
   StreamableFile,
   UseGuards,
+  Header,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -38,6 +39,7 @@ import {
 import { MediaArtworkService, ArtworkUpload } from './media-artwork.service';
 import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaBulkService } from './media-bulk.service';
+import { MediaExportService } from './media-export.service';
 import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
@@ -86,6 +88,7 @@ export class MediaController {
     private readonly subtitles: MediaSubtitleService,
     private readonly nfo: MediaNfoService,
     private readonly bulk: MediaBulkService,
+    private readonly exporter: MediaExportService,
     private readonly duplicates: MediaDuplicateService,
     private readonly duplicateResolution: DuplicateResolutionService,
     private readonly showDuplicates: MediaShowDuplicateService,
@@ -295,6 +298,28 @@ export class MediaController {
    * selection had no server-side shape. Each route dispatches ONE job and
    * writes ONE audit row, which a client-side fan-out cannot do.
    */
+  /**
+   * CSV of the current view.
+   *
+   * Streamed rather than buffered: at the sizes this workspace targets,
+   * materialising the whole export is an out-of-memory error, not a slow
+   * response. Takes the same filters as the browser, so an export covers what
+   * the operator can see and not more.
+   */
+  @Get('items/export.csv')
+  @RequirePermissions(P.MEDIA_MANAGER_EXPORT)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="media-items.csv"')
+  exportItems(
+    @Query('libraryId') libraryId: string | undefined,
+    @Query('mediaType') mediaType: string | undefined,
+    @Query('matchStatus') matchStatus: string | undefined,
+    @Query('search') search: string | undefined,
+    @Req() req: Request,
+  ) {
+    return this.exporter.streamCsv({ libraryId, mediaType, matchStatus, search }, auditCtx(req));
+  }
+
   @Post('items/bulk/metadata')
   @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
   bulkRefreshMetadata(@Body() body: { itemIds?: string[] }, @Req() req: Request) {
