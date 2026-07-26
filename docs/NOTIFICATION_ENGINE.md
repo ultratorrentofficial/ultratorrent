@@ -134,7 +134,7 @@ too.
 |---|---|---|
 | **In-app** | none | always available |
 | **Email** | shared SMTP relay, configured once by an operator | test send |
-| **Telegram** | shared bot, configured once by an operator | linking code |
+| **Telegram** | the user's own bot, from @BotFather | linking code |
 | **Discord** | the user's own webhook | test send |
 
 One active connection per user per channel. The schema stays extensible —
@@ -154,6 +154,22 @@ believes they are covered and is not. Re-pointing an address resets verification
 so a typo cannot inherit a working address's trust.
 
 ### Telegram
+
+**Each user brings their own bot**, exactly as each brings their own Discord
+webhook. This was originally one shared bot an operator configured — the theory
+being that a bot token is infrastructure like the SMTP relay. It is not. An SMTP
+relay is a server the platform owns; a bot is a Telegram identity the *person*
+owns, and making it an operator setting put a personal channel behind an
+administrator. The relay stays global for exactly the inverse reason.
+
+Connecting is two steps, because Telegram needs two facts: the token (verified
+against `getMe` before storage, so a typo is refused immediately) and a chat.
+Storing the token creates the connection but leaves it **unverified** — a working
+token proves a bot exists, not that there is anywhere to deliver.
+
+Replacing the token clears any linked chat and resets that user's update
+watermark: a chat id belongs to one bot, and a watermark carried across would skip
+the very message carrying the next code.
 
 **A user never types a chat id.** A chat id is guessable and unauthenticated, so
 accepting one from a form would let anyone route another person's notifications to
@@ -245,6 +261,7 @@ POST   /api/account/notifications/preferences/bulk
 
 GET    /api/account/notifications/channels
 POST   /api/account/notifications/channels/email
+POST   /api/account/notifications/channels/telegram/bot
 POST   /api/account/notifications/channels/telegram/link
 POST   /api/account/notifications/channels/telegram/confirm
 POST   /api/account/notifications/channels/discord
@@ -257,13 +274,6 @@ POST   /api/account/notifications/inbox/:id/read
 POST   /api/account/notifications/inbox/:id/unread
 POST   /api/account/notifications/inbox/:id/archive
 POST   /api/account/notifications/inbox/mark-all-read
-```
-
-Operator configuration (`settings.manage`), because a bot token is infrastructure
-exactly like the SMTP relay:
-
-```
-GET/PUT /api/account/notifications/platform/telegram
 ```
 
 Permissions: `notifications.view_own`, `notifications.manage_own`,
@@ -296,6 +306,10 @@ it once; the Channels page says so rather than failing at test time.
 
 **"Telegram says no code received."** The bot only sees messages sent *to* it.
 Send the code, then confirm. Codes expire in ten minutes and are single-use.
+Check you are messaging *your* bot — the one whose token you pasted.
+
+**"Telegram says add a bot token first."** Telegram is per-user: create a bot with
+@BotFather, paste its token, then link a chat. No administrator is involved.
 
 **"Discord rejected my URL."** Only `discord.com`, `discordapp.com`,
 `canary.discord.com` and `ptb.discord.com` are accepted, over https, with no port

@@ -44,11 +44,15 @@
     "telegramStep2": "Then come back and confirm.",
     "telegramConfirm": "I've sent it",
     "telegramExpires": "This code expires in {{minutes}} minutes.",
-    "telegramNotConfigured": "This server has no Telegram bot configured yet. An administrator sets it up once, in Settings.",
+    "telegramNotConfigured": "You have not connected a Telegram bot yet. Create one with @BotFather and paste its token below.",
     "telegramNotReceived": "No code received yet. Send it to the bot, then confirm again.",
     "telegramCancel": "Cancel",
     "discordWebhook": "Discord webhook URL",
-    "discordHint": "In Discord: Server Settings → Integrations → Webhooks → New Webhook, then copy the URL."
+    "discordHint": "In Discord: Server Settings → Integrations → Webhooks → New Webhook, then copy the URL.",
+    "telegramToken": "Bot token",
+    "telegramTokenHint": "In Telegram, message @BotFather → /newbot, then paste the token it gives you. The bot is yours; UltraTorrent only uses it to message you.",
+    "telegramBotSaved": "Bot connected. Now link the chat it should message.",
+    "telegramChangeBot": "Use a different bot"
   },
   "severities": {
     "info": "Info",

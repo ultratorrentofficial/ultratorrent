@@ -78,17 +78,41 @@ describe('TelegramLinkingService', () => {
 
   it('advances its offset past everything it has seen, so nothing replays', () => {
     const svc = new TelegramLinkingService();
-    expect(svc.offset).toBe(0);
+    expect(svc.offsetFor('u1')).toBe(0);
     const { code } = svc.issueCode('u1');
     svc.redeem('u1', [update({ updateId: 7, text: code })]);
     // Acknowledges through 7, so Telegram will not resend it.
-    expect(svc.offset).toBe(8);
+    expect(svc.offsetFor('u1')).toBe(8);
   });
 
   it('advances the offset even when nothing matched', () => {
     const svc = new TelegramLinkingService();
     svc.redeem('u1', [update({ updateId: 4, text: 'hello' })]);
-    expect(svc.offset).toBe(5);
+    expect(svc.offsetFor('u1')).toBe(5);
+  });
+
+  it('tracks offsets per user, because each user has their own bot', () => {
+    // A single shared counter was correct for one shared bot. With per-user
+    // bots it would let one user's high update id suppress another's messages,
+    // and their linking would never find the code.
+    const svc = new TelegramLinkingService();
+    svc.redeem('u1', [update({ updateId: 900, text: 'hello' })]);
+    expect(svc.offsetFor('u1')).toBe(901);
+    expect(svc.offsetFor('u2')).toBe(0);
+
+    const { code } = svc.issueCode('u2');
+    const matched = svc.redeem('u2', [update({ updateId: 3, text: code })]);
+    expect(matched).not.toBeNull();
+  });
+
+  it('resets a user offset when they replace their bot', () => {
+    // The new bot's update stream starts from low ids; a carried-over watermark
+    // would skip the very message carrying the next code.
+    const svc = new TelegramLinkingService();
+    svc.redeem('u1', [update({ updateId: 500, text: 'hello' })]);
+    expect(svc.offsetFor('u1')).toBe(501);
+    svc.resetOffset('u1');
+    expect(svc.offsetFor('u1')).toBe(0);
   });
 
   it('ignores messages that carry no code', () => {
@@ -137,6 +161,19 @@ describe('Telegram chat linking', () => {
             return true;
           }) ?? null,
         ),
+        findUnique: jest.fn(async ({ where }: any) =>
+          store.find(
+            (r) => r.userId === where.userId_type.userId && r.type === where.userId_type.type,
+          ) ?? null,
+        ),
+        update: jest.fn(async ({ where, data }: any) => {
+          const row = store.find(
+            (r) => r.userId === where.userId_type.userId && r.type === where.userId_type.type,
+          );
+          if (!row) throw new Error('no such row');
+          Object.assign(row, data);
+          return row;
+        }),
         upsert: jest.fn(async ({ where, create, update: upd }: any) => {
           const existing = store.find(
             (r) => r.userId === where.userId_type.userId && r.type === where.userId_type.type,
@@ -152,20 +189,36 @@ describe('Telegram chat linking', () => {
     return { svc: new NotificationChannelService(prisma, cipher as any), store };
   };
 
+  /**
+   * A user who has already connected their own bot.
+   *
+   * Linking a chat requires one — the token is what sends the messages, so a
+   * chat linked without it would look verified and deliver nothing.
+   */
+  const withBot = (userId: string, over: Record<string, unknown> = {}) => ({
+    userId, type: 'telegram', enabled: true, verifiedAt: null,
+    encryptedConfig: { botToken: 'enc:tok', botUsername: 'mybot' },
+    deletedAt: null, consecutiveFailures: 0, ...over,
+  });
+
   it('links a chat and marks it verified immediately', async () => {
     // Redeeming the code already proved chat control — a separate test would be
     // ceremony.
-    const { svc, store } = build();
+    const { svc, store } = build([withBot('u1')]);
     const view = await svc.connectTelegram('u1', '555', 'dennis');
     expect(view.verified).toBe(true);
     expect(view.maskedDestination).toBe('@dennis');
     expect(store[0].encryptedConfig.chatId).toBe('enc:555');
+    // The bot token survives linking. Replacing encryptedConfig wholesale would
+    // delete the credential and leave a verified connection that cannot send.
+    expect(store[0].encryptedConfig.botToken).toBe('enc:tok');
   });
 
   it('never returns the chat id, only a handle', async () => {
-    const { svc } = build();
+    const { svc } = build([withBot('u1')]);
     const view = await svc.connectTelegram('u1', '555', 'dennis');
     expect(JSON.stringify(view)).not.toContain('555');
+    expect(JSON.stringify(view)).not.toContain('tok');
   });
 
   it('refuses a chat already linked to another account', async () => {
@@ -178,32 +231,33 @@ describe('Telegram chat linking', () => {
   });
 
   it('lets the SAME user re-link their own chat', async () => {
-    const { svc } = build([{
-      userId: 'u1', type: 'telegram', enabled: true, verifiedAt: new Date(),
-      encryptedConfig: { chatId: 'enc:555' }, deletedAt: null, consecutiveFailures: 0,
-    }]);
+    const { svc } = build([withBot('u1', {
+      verifiedAt: new Date(),
+      encryptedConfig: { botToken: 'enc:tok', botUsername: 'mybot', chatId: 'enc:555' },
+    })]);
     await expect(svc.connectTelegram('u1', '555', 'dennis')).resolves.toBeDefined();
   });
 
   it('ignores an undecryptable row when checking for duplicates', async () => {
     // A row from before a key rotation cannot be compared, and must not block a
     // legitimate link.
-    const { svc } = build([{
-      userId: 'other', type: 'telegram', enabled: true, verifiedAt: new Date(),
-      encryptedConfig: { chatId: 'garbage' }, deletedAt: null, consecutiveFailures: 0,
-    }]);
+    const { svc } = build([
+      { userId: 'other', type: 'telegram', enabled: true, verifiedAt: new Date(),
+        encryptedConfig: { chatId: 'garbage' }, deletedAt: null, consecutiveFailures: 0 },
+      withBot('u1'),
+    ]);
     await expect(svc.connectTelegram('u1', '555', 'dennis')).resolves.toBeDefined();
   });
 
   it('resolves the decrypted chat id for the delivery path only', async () => {
-    const { svc } = build();
+    const { svc } = build([withBot('u1')]);
     await svc.connectTelegram('u1', '555', 'dennis');
     // The delivery path gets the real id; nothing user-facing ever does.
     expect(await svc.resolveDestination('u1', 'telegram')).toMatchObject({ address: '555' });
   });
 
   it('stops resolving once the chat is disconnected', async () => {
-    const { svc, store } = build();
+    const { svc, store } = build([withBot('u1')]);
     await svc.connectTelegram('u1', '555', 'dennis');
     store[0].deletedAt = new Date();
     expect(await svc.resolveDestination('u1', 'telegram')).toBeNull();

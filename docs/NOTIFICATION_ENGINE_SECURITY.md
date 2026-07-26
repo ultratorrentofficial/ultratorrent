@@ -88,6 +88,14 @@ chat.
 - An advancing `getUpdates` **offset**, so a consumed message cannot be replayed.
 - Redemption refuses a code belonging to a different user even with the plaintext.
 
+**The offset is per user.** Each person brings their own bot, so each has an
+independent update stream. A single shared counter — correct when there was one
+shared bot — would let one user's high update id suppress another's messages
+entirely: not a leak, but a silent denial of service in which linking simply
+never finds the code. Replacing a bot resets that user's watermark, because the
+new bot's ids start low and a carried-over watermark would skip past the next
+code.
+
 **Residual risk.** Six digits is guessable in principle; single use, a ten-minute
 window, per-user rate limiting and the requirement to already control *some* chat
 make it impractical here.
@@ -102,6 +110,16 @@ other's notifications.
 **Control.** Linking refuses a chat already bound to a different account. A user
 re-linking their **own** chat is allowed. A row that no longer decrypts after key
 rotation is skipped rather than blocking a legitimate link.
+
+Per-user bots narrow this further: one user's bot can only read chats that have
+started *it*, so cross-user chat visibility is bounded by Telegram itself rather
+than by our check alone. The check stays, because two people can still both start
+the same bot — or point two bots at one group.
+
+**Linking merges into the stored config rather than replacing it.** Writing the
+chat id over the whole blob would delete the bot token that sends the messages,
+leaving a connection that reports linked-and-verified and silently delivers
+nothing. A test pins it.
 
 ---
 
@@ -133,7 +151,11 @@ hostnames*. A general-purpose webhook feature would need far more.
 **Threat.** SMTP passwords, bot tokens, chat ids or webhook URLs reach a
 response, a log or a notification body.
 
-**Controls.** All AES-256-GCM encrypted at rest. Decryption happens only in the
+**Controls.** All AES-256-GCM encrypted at rest — including each user's Telegram
+bot token, which is a per-user bearer credential the platform now holds on their
+behalf. Only `NotificationChannelService` can obtain a decrypted token, via a
+single narrow accessor, so the surface that could leak one stays small; the
+transport itself stores nothing. Decryption happens only in the
 channel service, only for the delivery path and the test route. Endpoints return
 masks; **no read method returns a real destination**. The Discord webhook token
 never appears, not even partially. The API-key event carries the key *name* only.

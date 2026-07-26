@@ -154,18 +154,25 @@ export class NotificationChannelService {
       }
     }
 
-    await this.prisma.userNotificationChannel.upsert({
+    // Merge, never replace: the row already holds this user's bot token, and
+    // overwriting encryptedConfig wholesale would delete the credential that
+    // sends the messages — leaving a connection that looks linked and verified
+    // and cannot deliver anything.
+    const existingRow = await this.prisma.userNotificationChannel.findUnique({
       where: { userId_type: { userId, type: 'telegram' } },
-      create: {
-        userId,
-        type: 'telegram',
-        encryptedConfig: { chatId: this.cipher.encrypt(chatId) },
-        maskedDestination: username ? `@${username}` : 'Telegram chat',
-        enabled: true,
-        verifiedAt: new Date(),
-      },
-      update: {
-        encryptedConfig: { chatId: this.cipher.encrypt(chatId) },
+      select: { encryptedConfig: true },
+    });
+    const config = (existingRow?.encryptedConfig ?? {}) as Record<string, unknown>;
+    if (typeof config.botToken !== 'string') {
+      throw new BadRequestException('Connect your Telegram bot before linking a chat.');
+    }
+
+    const merged = { ...config, chatId: this.cipher.encrypt(chatId) };
+
+    await this.prisma.userNotificationChannel.update({
+      where: { userId_type: { userId, type: 'telegram' } },
+      data: {
+        encryptedConfig: merged,
         maskedDestination: username ? `@${username}` : 'Telegram chat',
         enabled: true,
         verifiedAt: new Date(),
@@ -175,6 +182,73 @@ export class NotificationChannelService {
       },
     });
     return this.viewOf(userId, 'telegram');
+  }
+
+  /**
+   * Store this user's own Telegram bot token.
+   *
+   * The same shape as a personal Discord webhook: the credential belongs to the
+   * person, not the platform. Verified against `getMe` before it is stored, so a
+   * typo is refused here rather than discovered when a notification silently
+   * fails to arrive.
+   *
+   * Stored **unverified** — a working token proves a bot exists, not that a chat
+   * has been linked to it, and there is nowhere to deliver until one has been.
+   * Replacing the token clears any previously linked chat: a chat id belongs to
+   * one bot, and carrying it across would point the new bot at a conversation it
+   * cannot see.
+   */
+  async connectTelegramBot(userId: string, token: string, botUsername: string): Promise<ChannelView> {
+    await this.prisma.userNotificationChannel.upsert({
+      where: { userId_type: { userId, type: 'telegram' } },
+      create: {
+        userId,
+        type: 'telegram',
+        encryptedConfig: { botToken: this.cipher.encrypt(token), botUsername },
+        maskedDestination: `@${botUsername}`,
+        enabled: true,
+        verifiedAt: null,
+      },
+      update: {
+        // No chatId: a new bot has no linked chat.
+        encryptedConfig: { botToken: this.cipher.encrypt(token), botUsername },
+        maskedDestination: `@${botUsername}`,
+        enabled: true,
+        verifiedAt: null,
+        consecutiveFailures: 0,
+        lastError: null,
+        deletedAt: null,
+      },
+    });
+    return this.viewOf(userId, 'telegram');
+  }
+
+  /**
+   * This user's bot token and linked chat, for the delivery and linking paths.
+   *
+   * Kept beside `resolveDestination` rather than exposed as a generic getter:
+   * the token is a bearer credential, and the fewer callers that can obtain one
+   * the smaller the surface that can leak it.
+   */
+  async resolveTelegramBot(userId: string):
+    Promise<{ token: string; botUsername: string; chatId: string | null } | null> {
+    const row = await this.prisma.userNotificationChannel.findFirst({
+      where: { userId, type: 'telegram', deletedAt: null },
+      select: { encryptedConfig: true },
+    });
+    const config = (row?.encryptedConfig ?? {}) as Record<string, unknown>;
+    if (typeof config.botToken !== 'string') return null;
+    try {
+      return {
+        token: this.cipher.decrypt(config.botToken),
+        botUsername: typeof config.botUsername === 'string' ? config.botUsername : '',
+        chatId: typeof config.chatId === 'string' ? this.cipher.decrypt(config.chatId) : null,
+      };
+    } catch {
+      // Unreadable after a key rotation — treated as not configured rather than
+      // throwing, so the channel reports "reconnect" instead of erroring.
+      return null;
+    }
   }
 
   /**

@@ -507,6 +507,7 @@ threats: [NOTIFICATION_ENGINE_SECURITY.md](NOTIFICATION_ENGINE_SECURITY.md).
 | `GET`    | `/api/account/notifications/channels` | `notifications.view_own` |
 | `POST`   | `/api/account/notifications/channels/email` | `notifications.channels_manage_own` |
 | `POST`   | `/api/account/notifications/channels/telegram/link` | `notifications.channels_manage_own` |
+| `POST`   | `/api/account/notifications/channels/telegram/bot` | `notifications.channels_manage_own` |
 | `POST`   | `/api/account/notifications/channels/telegram/confirm` | `notifications.channels_manage_own` |
 | `POST`   | `/api/account/notifications/channels/discord` | `notifications.channels_manage_own` |
 | `POST`   | `/api/account/notifications/channels/:type/test` | `notifications.channels_manage_own` |
@@ -515,11 +516,13 @@ threats: [NOTIFICATION_ENGINE_SECURITY.md](NOTIFICATION_ENGINE_SECURITY.md).
 | `GET`    | `/api/account/notifications/inbox/unread-count` | `notifications.view_own` |
 | `POST`   | `/api/account/notifications/inbox/:id/{read,unread,archive}` | `notifications.manage_own` |
 | `POST`   | `/api/account/notifications/inbox/mark-all-read` | `notifications.manage_own` |
-| `GET`/`PUT` | `/api/account/notifications/platform/telegram` | `settings.manage` |
 
-The last is operator configuration of the shared bot — infrastructure, exactly
-like the SMTP relay, so it is gated on `settings.manage` rather than a
-notification permission.
+**Telegram is per-user, not platform configuration.** Each person supplies their
+own bot token (`channels/telegram/bot`) exactly as they supply their own Discord
+webhook, so it is gated on `notifications.channels_manage_own`. It was briefly an
+operator setting on `settings.manage`; that put a personal channel behind an
+administrator. The SMTP relay stays global because a relay really is a server the
+platform owns.
 
 **Channel responses never contain a destination.** They carry a mask
 (`de••••@example.com`, `#alerts (…5678)`, `@handle`) plus health; no endpoint

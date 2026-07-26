@@ -3611,6 +3611,16 @@ export const api = {
           method: 'POST', body: { webhookUrl },
         });
       },
+      /**
+       * Store this user's own bot token — the Telegram equivalent of pasting a
+       * Discord webhook. The token is verified server-side before it is saved
+       * and is never returned.
+       */
+      connectTelegramBot(token: string): Promise<NotificationChannelDto> {
+        return request<NotificationChannelDto>('/account/notifications/channels/telegram/bot', {
+          method: 'POST', body: { token },
+        });
+      },
       linkTelegram(): Promise<TelegramLinkDto> {
         return request<TelegramLinkDto>('/account/notifications/channels/telegram/link', { method: 'POST' });
       },

@@ -35,6 +35,7 @@ export function NotificationChannelsPage() {
   const qc = useQueryClient();
   const [address, setAddress] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [botToken, setBotToken] = useState('');
   const [telegramCode, setTelegramCode] = useState<{ code: string; botUsername: string; expiresInSeconds: number } | null>(null);
 
   const channels = useQuery({
@@ -60,6 +61,16 @@ export function NotificationChannelsPage() {
     mutationFn: (type: string) => api.account.notifications.testChannel(type),
     onSuccess: () => { invalidate(); toast.success(t('channels.testSent')); },
     onError: (e: Error) => toast.error(e?.message || t('channels.testFailed')),
+  });
+
+  const connectTelegramBot = useMutation({
+    mutationFn: (token: string) => api.account.notifications.connectTelegramBot(token),
+    onSuccess: () => {
+      setBotToken('');
+      invalidate();
+      toast.success(t('channels.telegramBotSaved'));
+    },
+    onError: (e: Error) => toast.error(e?.message || t('channels.connectFailed')),
   });
 
   const startTelegram = useMutation({
@@ -139,9 +150,34 @@ export function NotificationChannelsPage() {
 
               {!available ? (
                 <p className="text-sm text-muted-foreground">{t('channels.comingSoon')}</p>
-              ) : channel.type === 'telegram' && !channel.connected ? (
+              ) : /*
+                   Telegram is two steps, so it cannot key off `connected` the way
+                   the others do: storing the bot token creates the row, which
+                   makes `connected` true while there is still nowhere to deliver.
+                   Verification — a linked chat — is the real gate.
+                */
+                channel.type === 'telegram' && (!telegram.configured || !channel.verified) ? (
                 !telegram.configured ? (
-                  <p className="text-sm text-muted-foreground">{t('channels.telegramNotConfigured')}</p>
+                  <form
+                    className="space-y-2"
+                    onSubmit={(e) => { e.preventDefault(); connectTelegramBot.mutate(botToken); }}
+                  >
+                    <div className="space-y-1.5">
+                      <Label htmlFor="telegram-token">{t('channels.telegramToken')}</Label>
+                      <Input
+                        id="telegram-token"
+                        type="password"
+                        autoComplete="off"
+                        value={botToken}
+                        placeholder="123456789:AA…"
+                        onChange={(e) => setBotToken(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">{t('channels.telegramTokenHint')}</p>
+                    </div>
+                    <Button type="submit" size="sm" disabled={connectTelegramBot.isPending || !botToken.trim()}>
+                      {t('channels.connect')}
+                    </Button>
+                  </form>
                 ) : telegramCode ? (
                   <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">
@@ -164,9 +200,21 @@ export function NotificationChannelsPage() {
                     </div>
                   </div>
                 ) : (
-                  <Button size="sm" onClick={() => startTelegram.mutate()} disabled={startTelegram.isPending}>
-                    {t('channels.telegramConnect')}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => startTelegram.mutate()} disabled={startTelegram.isPending}>
+                      {t('channels.telegramConnect')}
+                    </Button>
+                    {/* Without this a valid token for the WRONG bot is a dead end:
+                        the row exists, so nothing else offers a way out. */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => disconnect.mutate('telegram')}
+                      disabled={disconnect.isPending}
+                    >
+                      {t('channels.telegramChangeBot')}
+                    </Button>
+                  </div>
                 )
               ) : channel.type === 'discord' && !channel.connected ? (
                 <form

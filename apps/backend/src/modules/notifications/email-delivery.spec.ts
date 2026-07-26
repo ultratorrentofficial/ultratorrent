@@ -248,6 +248,7 @@ describe('NotificationDeliveryWorker', () => {
     delivery?: Partial<Record<string, unknown>>;
     active?: boolean;
     destination?: { id: string; address: string } | null;
+    telegramBot?: { token: string; botUsername: string; chatId: string | null } | null;
     presentation?: unknown;
     sendFails?: string;
   } = {}) => {
@@ -278,6 +279,12 @@ describe('NotificationDeliveryWorker', () => {
       resolveDestination: jest.fn(async () =>
         opts.destination === undefined ? { id: 'c1', address: 'a@b.co' } : opts.destination,
       ),
+      // The bot belongs to the recipient, so the worker resolves it per delivery.
+      resolveTelegramBot: jest.fn(async () =>
+        opts.telegramBot === undefined
+          ? { token: 'bot-token', botUsername: 'mybot', chatId: '99' }
+          : opts.telegramBot,
+      ),
       recordSuccess: jest.fn(),
       recordFailure: jest.fn(),
     };
@@ -290,7 +297,7 @@ describe('NotificationDeliveryWorker', () => {
     };
     const telegramSent: string[] = [];
     const telegram: any = {
-      sendMessage: jest.fn(async (_chat: string, html: string) => {
+      sendMessage: jest.fn(async (_token: string, _chat: string, html: string) => {
         if (opts.sendFails) throw new Error(opts.sendFails);
         telegramSent.push(html);
       }),
@@ -363,11 +370,26 @@ describe('NotificationDeliveryWorker', () => {
   });
 
   it('sends Telegram through the bot, not the mail relay', async () => {
-    const { worker, rows, telegramSent, mail } = build({ delivery: { channelType: 'telegram' } });
+    const { worker, rows, telegramSent, mail, telegram } = build({ delivery: { channelType: 'telegram' } });
     expect(await worker.drain()).toMatchObject({ sent: 1 });
     expect(mail.send).not.toHaveBeenCalled();
     expect(telegramSent[0]).toContain('<b>Download Complete</b>');
+    // Sent with THIS recipient's bot token, not a platform-wide one.
+    expect(telegram.sendMessage).toHaveBeenCalledWith('bot-token', 'a@b.co', expect.any(String));
     expect(rows[0].status).toBe('provider_accepted');
+  });
+
+  it('cancels a Telegram delivery when the recipient no longer has a bot', async () => {
+    // Re-checked at send time like every other precondition: a user can replace
+    // or disconnect their bot between queueing and sending. Cancelled rather
+    // than retried — retrying cannot conjure a credential back.
+    const { worker, rows, telegramSent } = build({
+      delivery: { channelType: 'telegram' },
+      telegramBot: null,
+    });
+    expect(await worker.drain()).toMatchObject({ sent: 0 });
+    expect(telegramSent).toHaveLength(0);
+    expect(rows[0].status).toBe('cancelled');
   });
 
   it('sends Discord as an embed, with mentions disabled', async () => {

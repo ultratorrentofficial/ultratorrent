@@ -37,12 +37,17 @@ export class TelegramLinkingService {
   /** userId → issue timestamps inside the current window. */
   private readonly issued = new Map<string, number[]>();
   /**
-   * Highest Telegram update id already consumed.
+   * userId → highest Telegram update id already consumed for THAT user's bot.
    *
    * Acknowledging past it means a message carrying a code cannot be replayed
    * later to re-link a chat.
+   *
+   * Per user, not global: every user brings their own bot, so each has an
+   * independent update stream. A single shared counter — correct when there was
+   * one shared bot — would let one user's high update id suppress another's
+   * messages entirely, and the linking would simply never find the code.
    */
-  private updateOffset = 0;
+  private readonly updateOffsets = new Map<string, number>();
 
   /**
    * Issue a code for one user.
@@ -82,7 +87,7 @@ export class TelegramLinkingService {
     this.prune();
 
     let matched: { chatId: string; username: string | null } | null = null;
-    let highestUpdateId = this.updateOffset;
+    let highestUpdateId = this.updateOffsets.get(userId) ?? 0;
 
     for (const update of updates) {
       highestUpdateId = Math.max(highestUpdateId, update.updateId);
@@ -101,13 +106,16 @@ export class TelegramLinkingService {
     }
 
     // Advance past everything seen, so a consumed message cannot be replayed.
-    if (highestUpdateId > this.updateOffset) this.updateOffset = highestUpdateId;
+    if (highestUpdateId > (this.updateOffsets.get(userId) ?? 0)) {
+      this.updateOffsets.set(userId, highestUpdateId);
+    }
     return matched;
   }
 
-  /** The offset to pass to `getUpdates`, acknowledging what we already read. */
-  get offset(): number {
-    return this.updateOffset > 0 ? this.updateOffset + 1 : 0;
+  /** The offset to pass to `getUpdates` for one user, acknowledging what we read. */
+  offsetFor(userId: string): number {
+    const seen = this.updateOffsets.get(userId) ?? 0;
+    return seen > 0 ? seen + 1 : 0;
   }
 
   /** Drop a user's pending code — used when they cancel or disconnect. */
@@ -115,6 +123,17 @@ export class TelegramLinkingService {
     for (const [hash, link] of this.pending) {
       if (link.userId === userId) this.pending.delete(hash);
     }
+  }
+
+  /**
+   * Forget a user's consumed-update watermark.
+   *
+   * Called when they replace their bot token: the new bot has its own update
+   * stream starting from low ids, and a watermark carried over from the old bot
+   * could skip past the very message carrying the next code.
+   */
+  resetOffset(userId: string): void {
+    this.updateOffsets.delete(userId);
   }
 
   private assertNotRateLimited(userId: string): void {

@@ -128,7 +128,14 @@ export class NotificationDeliveryWorker {
           text: presentation ? renderEmailText(presentation) : notification.title,
         });
       } else if (delivery.channelType === 'telegram') {
+        // The bot belongs to the recipient, so the token is resolved per
+        // delivery rather than held by the transport. Re-read at send time like
+        // every other precondition: a user may have replaced or disconnected
+        // their bot between queueing and sending.
+        const bot = await this.channels.resolveTelegramBot(delivery.userId);
+        if (!bot) return this.cancel(delivery.id, 'telegram_bot_missing');
         await this.telegram.sendMessage(
+          bot.token,
           destination.address,
           presentation ? renderTelegram(presentation) : notification.title,
         );

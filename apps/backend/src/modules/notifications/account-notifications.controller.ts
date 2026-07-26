@@ -104,7 +104,9 @@ export class AccountNotificationsController {
     return {
       channels: await this.channels.list(u.id),
       platformEmailReady: await this.mail.isConfigured(),
-      telegram: await this.telegram.getSettings(),
+      // Per user, not platform-wide: each person brings their own bot, so
+      // "configured" is a fact about this user's connection.
+      telegram: await this.telegramStatusFor(u.id),
     };
   }
 
@@ -120,12 +122,12 @@ export class AccountNotificationsController {
   @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
   async linkTelegram(@CurrentUser() u: AuthenticatedUser) {
     await this.eligibility.assertEligible(u.id);
-    const settings = await this.telegram.getSettings();
-    if (!settings.configured) {
-      throw new BadRequestException('Telegram is not configured on this server yet.');
+    const bot = await this.channels.resolveTelegramBot(u.id);
+    if (!bot) {
+      throw new BadRequestException('Add your Telegram bot token before linking a chat.');
     }
     const { code, expiresInSeconds } = this.linking.issueCode(u.id);
-    return { code, expiresInSeconds, botUsername: settings.botUsername };
+    return { code, expiresInSeconds, botUsername: bot.botUsername };
   }
 
   /**
@@ -140,7 +142,12 @@ export class AccountNotificationsController {
   async confirmTelegram(@CurrentUser() u: AuthenticatedUser) {
     await this.eligibility.assertEligible(u.id);
 
-    const updates = await this.telegram.getUpdates(this.linking.offset);
+    const bot = await this.channels.resolveTelegramBot(u.id);
+    if (!bot) {
+      throw new BadRequestException('Add your Telegram bot token before linking a chat.');
+    }
+
+    const updates = await this.telegram.getUpdates(bot.token, this.linking.offsetFor(u.id));
     const matched = this.linking.redeem(u.id, updates);
     if (!matched) {
       throw new NotFoundException('No code received yet. Send the code to the bot, then try again.');
@@ -150,7 +157,7 @@ export class AccountNotificationsController {
     // Redeeming the code already proved chat control, so this confirms rather
     // than verifies — but a greeting tells the user it worked.
     await this.telegram
-      .sendMessage(matched.chatId, '✅ <b>UltraTorrent</b> is now linked to this chat.')
+      .sendMessage(bot.token, matched.chatId, '✅ <b>UltraTorrent</b> is now linked to this chat.')
       .catch(() => undefined);
     return view;
   }
@@ -215,7 +222,10 @@ export class AccountNotificationsController {
           text: 'Your UltraTorrent notification email is working.',
         });
       } else if (channel === 'telegram') {
+        const bot = await this.channels.resolveTelegramBot(u.id);
+        if (!bot) throw new NotFoundException('No Telegram bot configured.');
         await this.telegram.sendMessage(
+          bot.token,
           destination.address,
           '✅ <b>UltraTorrent</b> — your notification channel is working.',
         );
@@ -251,26 +261,34 @@ export class AccountNotificationsController {
   }
 
 
-  // --- platform Telegram bot (operator configuration) ----------------------
-
   /**
-   * Configure the shared bot.
+   * Connect this user's own Telegram bot.
    *
-   * Guarded by `settings.manage`, not by a notification permission: this is
-   * platform infrastructure, exactly like the SMTP relay. The token is verified
-   * against `getMe` before it is stored, so an operator cannot save a typo and
-   * discover it only when someone tries to link, and it is never returned.
+   * Guarded by the same self-service permission as the Discord webhook, not by
+   * `settings.manage`. A bot token is a Telegram identity the *person* owns, so
+   * making it an operator setting — as this originally was — put a personal
+   * channel behind an administrator. The SMTP relay stays global because a relay
+   * really is a server the platform owns.
+   *
+   * The token is verified before storage and is never returned by any endpoint.
    */
-  @Put('platform/telegram')
-  @RequirePermissions(P.SETTINGS_MANAGE)
-  setTelegramBot(@Body() body: { token?: string }) {
-    return this.telegram.updateSettings(body?.token ?? '');
+  @Post('channels/telegram/bot')
+  @RequirePermissions(P.NOTIFICATIONS_CHANNELS_MANAGE_OWN)
+  async setTelegramBot(@CurrentUser() u: AuthenticatedUser, @Body() body: { token?: string }) {
+    await this.eligibility.assertEligible(u.id);
+    const token = (body?.token ?? '').trim();
+    const { username } = await this.telegram.verifyToken(token);
+    // A replaced bot has its own update stream; a watermark from the old one
+    // could skip the very message carrying the next linking code.
+    this.linking.resetOffset(u.id);
+    this.linking.cancel(u.id);
+    return this.channels.connectTelegramBot(u.id, token, username);
   }
 
-  @Get('platform/telegram')
-  @RequirePermissions(P.SETTINGS_MANAGE)
-  getTelegramBot() {
-    return this.telegram.getSettings();
+  /** Whether THIS user has a usable bot, and which one to message. */
+  private async telegramStatusFor(userId: string) {
+    const bot = await this.channels.resolveTelegramBot(userId);
+    return { configured: Boolean(bot), botUsername: bot?.botUsername ?? '' };
   }
 
   // --- inbox ----------------------------------------------------------------
