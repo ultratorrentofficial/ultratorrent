@@ -30,6 +30,14 @@ import {
 } from '@/components/ui/dialog';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 
+/**
+ * How an account is named to a person: their full name, falling back to the
+ * login handle. The handle still appears beside it in the list — this is for the
+ * places where only one name fits.
+ */
+const nameOf = (user: { displayName?: string | null; username: string }) =>
+  user.displayName || user.username;
+
 export function UsersPage() {
   const { t } = useTranslation('users');
   const toast = useToast();
@@ -48,10 +56,10 @@ export function UsersPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['users'] });
 
   const remove = async (user: User) => {
-    if (!confirm(t('confirm.delete', { username: user.username }))) return;
+    if (!confirm(t('confirm.delete', { username: nameOf(user) }))) return;
     try {
       await api.users.remove(user.id);
-      toast.success(t('toast.deleted'), user.username);
+      toast.success(t('toast.deleted'), nameOf(user));
       invalidate();
     } catch (err) {
       toast.error(t('toast.deleteFailed'), err instanceof ApiError ? err.message : undefined);
@@ -230,7 +238,7 @@ function CreateUserDialog({ onClose, onSaved }: { onClose: () => void; onSaved: 
         roleNames,
       };
       await api.users.create(body);
-      toast.success(t('toast.created'), body.username);
+      toast.success(t('toast.created'), nameOf(body));
       onSaved();
     } catch (err) {
       toast.error(t('toast.createFailed'), err instanceof ApiError ? err.message : undefined);
@@ -323,7 +331,7 @@ function EditUserDialog({
         roleNames,
       };
       await api.users.update(user.id, body);
-      toast.success(t('toast.updated'), user.username);
+      toast.success(t('toast.updated'), displayName.trim() || user.username);
       onSaved();
     } catch (err) {
       toast.error(t('toast.updateFailed'), err instanceof ApiError ? err.message : undefined);
@@ -335,7 +343,7 @@ function EditUserDialog({
   return (
     <Dialog open onClose={onClose} className="max-w-lg">
       <DialogHeader>
-        <DialogTitle>{t('edit.title', { username: user.username })}</DialogTitle>
+        <DialogTitle>{t('edit.title', { username: nameOf(user) })}</DialogTitle>
         <DialogDescription>{t('edit.description')}</DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2">

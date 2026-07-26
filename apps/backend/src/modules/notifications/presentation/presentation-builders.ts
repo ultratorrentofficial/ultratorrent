@@ -490,7 +490,9 @@ const buildSecurity: PresentationBuilder = (ctx) => {
     : key === DOMAIN_EVENTS.SECURITY_API_KEY_CREATED ? 'apiKeyCreatedTrail'
     : 'loginFailedTrail';
 
-  const name = str(payload, 'keyName') ?? str(payload, 'username') ?? '';
+  // A person is named by their full name; the login handle is the fallback for an
+  // account that never set one.
+  const name = str(payload, 'keyName') ?? str(payload, 'displayName') ?? str(payload, 'username') ?? '';
   const summaryKey =
     key === DOMAIN_EVENTS.SECURITY_PASSWORD_CHANGED ? 'passwordChangedSummary'
     : key === DOMAIN_EVENTS.SECURITY_TWO_FACTOR_DISABLED ? 'twoFactorDisabledSummary'
@@ -523,7 +525,7 @@ const buildSecurity: PresentationBuilder = (ctx) => {
 const buildUser: PresentationBuilder = (ctx) => {
   const { envelope, locale, timezone } = ctx;
   const payload = (envelope.payload ?? {}) as Record<string, unknown>;
-  const name = str(payload, 'username');
+  const name = str(payload, 'displayName') ?? str(payload, 'username');
   if (!name) return null;
 
   const created = envelope.eventKey === DOMAIN_EVENTS.USER_CREATED;

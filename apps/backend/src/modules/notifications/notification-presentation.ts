@@ -18,6 +18,9 @@ const TITLE_FIELDS = [
   'workflowName',
   'providerName',
   'serverName',
+  // Full name first: a person reading an alert recognises "Dennis Ayala", not
+  // "dayala". The handle stays as the fallback for accounts without one.
+  'displayName',
   'username',
   'keyName',
   'path',

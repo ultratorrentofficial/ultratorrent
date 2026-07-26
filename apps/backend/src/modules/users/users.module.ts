@@ -140,7 +140,7 @@ export class UsersService {
       subjectUserId: user.id,
       resourceType: 'user',
       resourceId: user.id,
-      payload: { username: user.username },
+      payload: { username: user.username, displayName: user.displayName },
     });
     return this.serialize(user);
   }
@@ -165,7 +165,13 @@ export class UsersService {
         subjectUserId: id,
         resourceType: 'user',
         resourceId: id,
-        payload: { username: existing.username, roles: dto.roleNames },
+        payload: {
+          username: existing.username,
+          // The patch may rename them in the same request — the notification
+          // should say who they are now, not who they were.
+          displayName: dto.displayName ?? existing.displayName,
+          roles: dto.roleNames,
+        },
       });
     }
     const user = await this.prisma.user.update({

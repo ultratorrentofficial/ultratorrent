@@ -54,7 +54,7 @@ export class DashboardService {
     const rows = await this.prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
       take: Math.max(limit * 8, 120),
-      include: { user: { select: { username: true } } },
+      include: { user: { select: { username: true, displayName: true } } },
     });
     return collapseActivity(rows, limit);
   }
@@ -81,8 +81,17 @@ export type AuditRow = {
   result: string;
   metadata: unknown;
   createdAt: Date;
-  user: { username: string } | null;
+  user: { username: string; displayName?: string | null } | null;
 };
+
+/**
+ * How an actor is named in the feed: their full name, falling back to the login
+ * handle for an account that never set one. The feed is read by people, and a
+ * person is recognised by their name, not by their handle.
+ */
+function actorName(row: AuditRow): string | null {
+  return row.user?.displayName || row.user?.username || null;
+}
 
 const ACRONYMS: Record<string, string> = {
   imdb: 'IMDb',
@@ -100,7 +109,8 @@ export function toActivityItem(row: AuditRow): ActivityItem {
   const meta = asMeta(row.metadata);
   const described = describeActivity(row, meta);
   let message = described.message;
-  if (row.user?.username) message += ` · ${row.user.username}`;
+  const actor = actorName(row);
+  if (actor) message += ` · ${actor}`;
 
   return {
     id: row.id,
@@ -192,7 +202,8 @@ function burstLabel(rep: AuditRow): string {
   } else {
     label = genericMessage(rep);
   }
-  if (rep.user?.username) label += ` · ${rep.user.username}`;
+  const actor = actorName(rep);
+  if (actor) label += ` · ${actor}`;
   return label;
 }
 

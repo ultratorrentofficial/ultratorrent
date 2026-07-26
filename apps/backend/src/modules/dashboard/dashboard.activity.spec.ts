@@ -116,6 +116,13 @@ describe('dashboard activity — toActivityItem', () => {
     expect(item.message).toBe('Torrent added · dennis');
     expect(item.detail).toBeNull();
   });
+
+  it('credits the actor by full name when the account has one', () => {
+    const item = toActivityItem(
+      row({ action: 'added', objectType: 'torrent', user: { username: 'dayala', displayName: 'Dennis Ayala' } }),
+    );
+    expect(item.message).toBe('Torrent added · Dennis Ayala');
+  });
 });
 
 describe('dashboard activity — collapseActivity (bursty enrichment)', () => {

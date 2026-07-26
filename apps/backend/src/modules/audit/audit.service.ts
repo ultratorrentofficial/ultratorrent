@@ -109,7 +109,7 @@ export class AuditService {
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { user: { select: { username: true } } },
+        include: { user: { select: { username: true, displayName: true } } },
       }),
       this.prisma.auditLog.count({ where }),
     ]);

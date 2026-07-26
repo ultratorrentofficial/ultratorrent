@@ -550,6 +550,18 @@ describe('other presentation builders', () => {
     }
   });
 
+  it('names a person by their full name, falling back to the login handle', () => {
+    const named = build(DOMAIN_EVENTS.USER_CREATED, { username: 'dayala', displayName: 'Dennis Ayala' })!;
+    expect(named.summary.emphasis).toBe('Dennis Ayala');
+    expect(named.facts.map((f) => f.value)).toContain('Dennis Ayala');
+
+    const handleOnly = build(DOMAIN_EVENTS.USER_CREATED, { username: 'dayala' })!;
+    expect(handleOnly.summary.emphasis).toBe('dayala');
+
+    const failed = build(DOMAIN_EVENTS.SECURITY_LOGIN_FAILED, { username: 'dayala', displayName: 'Dennis Ayala' })!;
+    expect(failed.summary.emphasis).toBe('Dennis Ayala');
+  });
+
   it('declines a builder whose required field is missing', () => {
     expect(build(DOMAIN_EVENTS.TORRENT_COMPLETED, {})).toBeNull();
     expect(build(DOMAIN_EVENTS.SYSTEM_STORAGE_WARNING, { path: '/mnt/a' })).toBeNull();

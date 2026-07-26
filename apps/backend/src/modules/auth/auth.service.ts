@@ -123,7 +123,12 @@ export class AuthService {
    * threshold. Resets the counter when it locks so the next window starts clean.
    * Best-effort — a bookkeeping failure must not change the caller's 401.
    */
-  private async registerFailedLogin(user: { id: string; failedLoginAttempts: number; username?: string }): Promise<void> {
+  private async registerFailedLogin(user: {
+    id: string;
+    failedLoginAttempts: number;
+    username?: string;
+    displayName?: string | null;
+  }): Promise<void> {
     const attempts = (user.failedLoginAttempts ?? 0) + 1;
     // The account OWNER is told, not administrators: someone trying to get into
     // your account is your business first. Deduped by the bus, so a burst of
@@ -133,7 +138,11 @@ export class AuthService {
       subjectUserId: user.id,
       resourceType: 'user',
       resourceId: user.id,
-      payload: { username: user.username ?? 'your account', attempts },
+      payload: {
+        username: user.username ?? 'your account',
+        displayName: user.displayName ?? undefined,
+        attempts,
+      },
     });
     const lock = attempts >= AuthService.MAX_FAILED_ATTEMPTS;
     await this.prisma.user

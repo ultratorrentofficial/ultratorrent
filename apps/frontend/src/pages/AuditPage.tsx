@@ -86,7 +86,8 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
   const [open, setOpen] = useState(false);
   const d = describeAudit(entry);
   const Icon = d.Icon;
-  const actor = entry.user?.username ?? 'system';
+  // Full name over login handle — the trail is read to answer "who did this?".
+  const actor = entry.user?.displayName || entry.user?.username || 'system';
   const metaFields = humanizeMetadata(entry.metadata);
   const hasDetails = metaFields.length > 0 || !!entry.objectId || !!entry.userAgent;
 
