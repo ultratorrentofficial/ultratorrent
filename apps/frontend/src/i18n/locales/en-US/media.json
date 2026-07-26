@@ -1704,6 +1704,16 @@
     "bulkMissing": "{{count}} item could not be found.",
     "bulkMissing_other": "{{count}} items could not be found.",
     "bulkFailed": "The operation failed.",
-    "selectedCount_other": "{{count}} selected"
+    "selectedCount_other": "{{count}} selected",
+    "searchLabel": "Search this library",
+    "searchPlaceholder": "Search by title…",
+    "matchStatus": "Match status",
+    "clearFilters": "Clear filters",
+    "noMatches": "Nothing matches those filters.",
+    "status": {
+      "unmatched": "Unmatched",
+      "matched": "Matched",
+      "manual": "Manual"
+    }
   }
 }

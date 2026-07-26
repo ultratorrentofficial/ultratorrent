@@ -1704,6 +1704,16 @@
     "bulkApplied_other": "Aplicado a {{count}} elementos.",
     "bulkMissing": "No se encontró {{count}} elemento.",
     "bulkMissing_other": "No se encontraron {{count}} elementos.",
-    "bulkFailed": "La operación falló."
+    "bulkFailed": "La operación falló.",
+    "searchLabel": "Buscar en esta biblioteca",
+    "searchPlaceholder": "Buscar por título…",
+    "matchStatus": "Estado de emparejamiento",
+    "clearFilters": "Limpiar filtros",
+    "noMatches": "Nada coincide con esos filtros.",
+    "status": {
+      "unmatched": "Sin emparejar",
+      "matched": "Emparejado",
+      "manual": "Manual"
+    }
   }
 }

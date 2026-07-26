@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { VirtualPosterGrid } from './VirtualPosterGrid';
 import { ShowDetailView } from './ShowDetailView';
 import { ContextActionBar } from './ContextActionBar';
+import { BrowserFilterBar, EMPTY_FILTERS, type BrowserFilters } from './BrowserFilterBar';
 import { EMPTY_SELECTION, applyClick, clearSelection, pruneSelection, type SelectionState } from './selection';
 import { VIEW_MODES, readViewMode, writeViewMode, type ViewMode } from './view-mode';
 
@@ -52,6 +53,7 @@ export function LibraryBrowserPage() {
   const showTitle = params.get('showTitle') ?? '';
   const [mode, setMode] = useState<ViewMode>(() => readViewMode(libraryId));
   const [selection, setSelection] = useState<SelectionState>(EMPTY_SELECTION);
+  const [filters, setFilters] = useState<BrowserFilters>(EMPTY_FILTERS);
 
   // Re-read on library change: the preference is per library, so switching
   // libraries should restore that library's own layout rather than carry one over.
@@ -75,21 +77,29 @@ export function LibraryBrowserPage() {
   const browsesByShow = library ? library.kind === 'tv' || library.kind === 'anime' : false;
 
   const shows = useInfiniteQuery({
-    queryKey: ['library-browser', 'series', libraryId],
+    queryKey: ['library-browser', 'series', libraryId, filters.search, filters.matchStatus],
     enabled: !!libraryId && browsesByShow,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
-      api.media.listSeries({ libraryId: libraryId!, page: pageParam, pageSize: PAGE_SIZE }),
+      api.media.listSeries({
+        libraryId: libraryId!, page: pageParam, pageSize: PAGE_SIZE,
+        search: filters.search || undefined,
+        matchStatus: filters.matchStatus ?? undefined,
+      }),
     getNextPageParam: (last, all) =>
       all.flatMap((p) => p.items).length < last.total ? all.length + 1 : undefined,
   });
 
   const items = useInfiniteQuery({
-    queryKey: ['library-browser', 'items', libraryId],
+    queryKey: ['library-browser', 'items', libraryId, filters.search, filters.matchStatus],
     enabled: !!libraryId && !browsesByShow,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
-      api.media.listItems({ libraryId: libraryId!, page: pageParam, pageSize: PAGE_SIZE }),
+      api.media.listItems({
+        libraryId: libraryId!, page: pageParam, pageSize: PAGE_SIZE,
+        search: filters.search || undefined,
+        matchStatus: filters.matchStatus ?? undefined,
+      }),
     getNextPageParam: (last, all) =>
       all.flatMap((p) => p.items).length < last.total ? all.length + 1 : undefined,
   });
@@ -116,6 +126,10 @@ export function LibraryBrowserPage() {
 
   // Switching library is a different list entirely; carrying ids across is never right.
   useEffect(() => setSelection(EMPTY_SELECTION), [libraryId]);
+  // A new result set is a new list; a selection made against the old one would
+  // act on rows the filter has just hidden.
+  useEffect(() => setSelection(EMPTY_SELECTION), [filters.search, filters.matchStatus]);
+  useEffect(() => setFilters(EMPTY_FILTERS), [libraryId]);
 
   const loadMore = useCallback(() => {
     if (active.hasNextPage && !active.isFetchingNextPage) active.fetchNextPage();
@@ -198,6 +212,8 @@ export function LibraryBrowserPage() {
           })}
         </div>
       </header>
+
+      <BrowserFilterBar value={filters} onChange={setFilters} />
 
       {!browsesByShow && (
         <ContextActionBar

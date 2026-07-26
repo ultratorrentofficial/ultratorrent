@@ -134,6 +134,27 @@ being silently dropped), skips locked items the way every other bulk path does,
 refuses a selection over 1 000, and runs detached so the browser gets a job id
 immediately.
 
+## Search and filtering
+
+Filtering happens **server-side**, and the active filters are part of the query
+key, so changing one resets paging rather than appending a filtered page to an
+unfiltered list.
+
+That placement is the point: the browser holds one screenful of an incrementally
+paged library. Filtering the loaded rows would search the 60 fetched so far and
+confidently report no matches for a title sitting later in the library.
+
+Search is debounced (250 ms) — each change is a round trip *and* a full list
+reset — and the box does not re-emit the value it was handed, or the debounce
+would fire on mount and reset paging for nothing.
+
+A selection is cleared whenever the filters change. One made against the previous
+result set would act on rows the filter has just hidden.
+
+**What is filterable:** title (case-insensitive contains) and match status
+(unmatched / matched / manual). One status at a time, because the server takes
+one — letting two appear selected would misrepresent the query.
+
 ## Paging
 
 Server-side and additive. Rows are appended as the grid nears its end, so
@@ -148,7 +169,11 @@ Stated so the gaps are not mistaken for bugs:
   metadata, generate NFO, lock, unlock, plus scan with nothing selected. Rename,
   artwork, cleanup, subtitles and delete remain on their own pages until they
   grow id-list endpoints of the same shape.
-- **No filters or search** beyond what the underlying endpoints accept — Phase 3.
+- **Filters cover what the server can answer**: title search and match status.
+  Resolution, HDR, codec, genre, year, studio and runtime are **not** query
+  parameters on `GET /media/items` — the columns exist on `MediaFile` and
+  `MediaMetadata` but nothing filters on them, so offering those controls would
+  be UI that silently does nothing. They need backend query support first.
 - **No issues panel, no export** — later phases.
 - **No music/audiobook/photo hierarchies** — needs the schema migration above.
 - Drill-down **is** in place — Library → Show → Season → Episode, below.
