@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.50.0] - 2026-07-26
+
+### Added
+- Telegram playback notifications are now short and artwork-led: a poster, a natural-language line, the title, one quality/device line and a single View Live Activity button
+- Telegram stopped-watching notifications are now short and artwork-led, with finished-watching wording at the existing completion threshold and a progress/duration context line
+
 ## [0.49.0] - 2026-07-26
 
 ### Added
