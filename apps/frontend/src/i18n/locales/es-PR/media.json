@@ -1686,6 +1686,24 @@
     "specials": "Especiales",
     "noEpisodes": "No se encontraron episodios para esta serie.",
     "locked": "Bloqueado",
-    "unmatched": "Sin emparejar"
+    "unmatched": "Sin emparejar",
+    "noSelection": "Nada seleccionado",
+    "selectedCount": "{{count}} seleccionado",
+    "selectedCount_other": "{{count}} seleccionados",
+    "actions": "Acciones",
+    "clearSelection": "Limpiar selección",
+    "scanLibrary": "Escanear biblioteca",
+    "scanStarted": "Escaneo de la biblioteca iniciado.",
+    "refreshMetadata": "Actualizar metadatos",
+    "generateNfo": "Generar NFO",
+    "lock": "Bloquear",
+    "unlock": "Desbloquear",
+    "bulkQueued": "En cola para {{count}} elemento.",
+    "bulkQueued_other": "En cola para {{count}} elementos.",
+    "bulkApplied": "Aplicado a {{count}} elemento.",
+    "bulkApplied_other": "Aplicado a {{count}} elementos.",
+    "bulkMissing": "No se encontró {{count}} elemento.",
+    "bulkMissing_other": "No se encontraron {{count}} elementos.",
+    "bulkFailed": "La operación falló."
   }
 }

@@ -1686,6 +1686,24 @@
     "specials": "Specials",
     "noEpisodes": "No episodes found for this show.",
     "locked": "Locked",
-    "unmatched": "Unmatched"
+    "unmatched": "Unmatched",
+    "noSelection": "Nothing selected",
+    "selectedCount": "{{count}} selected",
+    "actions": "Actions",
+    "clearSelection": "Clear selection",
+    "scanLibrary": "Scan library",
+    "scanStarted": "Library scan started.",
+    "refreshMetadata": "Refresh metadata",
+    "generateNfo": "Generate NFO",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "bulkQueued": "Queued for {{count}} item.",
+    "bulkQueued_other": "Queued for {{count}} items.",
+    "bulkApplied": "Applied to {{count}} item.",
+    "bulkApplied_other": "Applied to {{count}} items.",
+    "bulkMissing": "{{count}} item could not be found.",
+    "bulkMissing_other": "{{count}} items could not be found.",
+    "bulkFailed": "The operation failed.",
+    "selectedCount_other": "{{count}} selected"
   }
 }

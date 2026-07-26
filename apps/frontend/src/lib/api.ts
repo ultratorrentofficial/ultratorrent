@@ -477,7 +477,7 @@ export interface AuditEntry {
   userAgent: string | null;
   metadata?: Record<string, unknown> | null;
   createdAt: string;
-  user?: { username: string } | null;
+  user?: { username: string; displayName?: string | null } | null;
   /** The show/episode this row targeted, when it targets media. */
   target?: AuditTarget | null;
 }
@@ -1212,6 +1212,14 @@ export interface MediaItemQuery {
   title?: string;
   page?: number;
   pageSize?: number;
+}
+
+/** Result of a bulk operation over an explicit id list. */
+export interface MediaBulkResult {
+  /** Empty for synchronous operations (lock/unlock). */
+  jobId: string;
+  accepted: number;
+  missing: string[];
 }
 
 export interface MediaItemPage {
@@ -3898,6 +3906,20 @@ export const api = {
     // events; the `completed` event's `result` is the MediaScanResult.
     scanLibrary(id: string): Promise<{ jobId: string }> {
       return request<{ jobId: string }>(`/media/libraries/${id}/scan`, { method: 'POST' });
+    },
+    /**
+     * Bulk over an explicit selection — one job, one audit row.
+     *
+     * `missing` names ids that resolved to nothing; the caller surfaces them
+     * rather than assuming everything selected was acted on.
+     */
+    bulkItems(
+      operation: 'metadata' | 'lock' | 'unlock' | 'nfo',
+      itemIds: string[],
+    ): Promise<MediaBulkResult> {
+      return request<MediaBulkResult>(`/media/items/bulk/${operation}`, {
+        method: 'POST', body: { itemIds },
+      });
     },
     listItems(query: MediaItemQuery = {}): Promise<MediaItemPage> {
       return request<MediaItemPage>('/media/items', { query: query as QueryParams });

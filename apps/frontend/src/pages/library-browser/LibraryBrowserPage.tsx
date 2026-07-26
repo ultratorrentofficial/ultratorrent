@@ -11,6 +11,8 @@ import { EmptyState, ErrorState, Skeleton } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
 import { VirtualPosterGrid } from './VirtualPosterGrid';
 import { ShowDetailView } from './ShowDetailView';
+import { ContextActionBar } from './ContextActionBar';
+import { EMPTY_SELECTION, applyClick, clearSelection, pruneSelection, type SelectionState } from './selection';
 import { VIEW_MODES, readViewMode, writeViewMode, type ViewMode } from './view-mode';
 
 const MODE_ICON: Record<ViewMode, typeof LayoutGrid> = {
@@ -49,6 +51,7 @@ export function LibraryBrowserPage() {
   const showKey = params.get('show');
   const showTitle = params.get('showTitle') ?? '';
   const [mode, setMode] = useState<ViewMode>(() => readViewMode(libraryId));
+  const [selection, setSelection] = useState<SelectionState>(EMPTY_SELECTION);
 
   // Re-read on library change: the preference is per library, so switching
   // libraries should restore that library's own layout rather than carry one over.
@@ -97,6 +100,22 @@ export function LibraryBrowserPage() {
     [active.data],
   );
   const total = active.data?.pages?.[0]?.total ?? 0;
+
+  // Selection is only meaningful over items — the bulk endpoints take item ids,
+  // and a "show" is a projection with no id of its own.
+  const selectableIds = useMemo(
+    () => (browsesByShow ? [] : (rows as MediaItem[]).map((r) => r.id)),
+    [rows, browsesByShow],
+  );
+
+  // Drop anything no longer in the list. A selection that outlived its rows
+  // would act on items the user can no longer see.
+  useEffect(() => {
+    setSelection((s) => pruneSelection(s, selectableIds));
+  }, [selectableIds]);
+
+  // Switching library is a different list entirely; carrying ids across is never right.
+  useEffect(() => setSelection(EMPTY_SELECTION), [libraryId]);
 
   const loadMore = useCallback(() => {
     if (active.hasNextPage && !active.isFetchingNextPage) active.fetchNextPage();
@@ -180,6 +199,14 @@ export function LibraryBrowserPage() {
         </div>
       </header>
 
+      {!browsesByShow && (
+        <ContextActionBar
+          libraryId={library.id}
+          selectedIds={[...selection.ids]}
+          onClear={() => setSelection(clearSelection())}
+        />
+      )}
+
       {active.isLoading ? (
         <BrowserSkeleton />
       ) : active.isError ? (
@@ -202,7 +229,15 @@ export function LibraryBrowserPage() {
                   }
                 />
               ) : (
-                <ItemCell item={row} mode={mode} onOpen={() => navigate(`/media/items/${row.id}`)} />
+                <ItemCell
+                  item={row}
+                  mode={mode}
+                  selected={selection.ids.has(row.id)}
+                  onSelect={(mods) =>
+                    setSelection((s) => applyClick(s, row.id, selectableIds, mods))
+                  }
+                  onOpen={() => navigate(`/media/items/${row.id}`)}
+                />
               )
             }
           />
@@ -271,15 +306,32 @@ function ShowCell({ show, mode, onOpen }: {
   );
 }
 
-function ItemCell({ item, mode, onOpen }: { item: MediaItem; mode: ViewMode; onOpen: () => void }) {
+function ItemCell({ item, mode, selected, onSelect, onOpen }: {
+  item: MediaItem;
+  mode: ViewMode;
+  selected: boolean;
+  onSelect: (mods: { shift?: boolean; meta?: boolean }) => void;
+  onOpen: () => void;
+}) {
   const listish = mode === 'list' || mode === 'table';
   return (
     <button
       type="button"
-      onClick={onOpen}
+      aria-pressed={selected}
+      onClick={(e) => {
+        // A modified click selects; a plain click opens. Selecting on every
+        // click would make the grid unnavigable.
+        if (e.shiftKey || e.metaKey || e.ctrlKey) {
+          e.preventDefault();
+          onSelect({ shift: e.shiftKey, meta: e.metaKey || e.ctrlKey });
+          return;
+        }
+        onOpen();
+      }}
       className={cn(
         'group w-full overflow-hidden rounded-lg text-left transition-transform',
         listish ? 'flex items-center gap-3 px-2' : 'hover:-translate-y-0.5',
+        selected && 'ring-2 ring-sky-400/70',
       )}
     >
       <MediaPoster

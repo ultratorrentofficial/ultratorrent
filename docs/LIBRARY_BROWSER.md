@@ -104,9 +104,20 @@ Two rules worth stating:
   would act on things the user can no longer see — the worst possible input to a
   destructive bulk operation.
 
-**Resolved.** `POST /media/items/bulk/{metadata,lock,unlock,nfo}` now take an
-explicit `{ itemIds }`, dispatch **one** job and write **one** audit row. The
-frontend bar is still to be wired, but the shape it needs exists.
+**Resolved.** `POST /media/items/bulk/{metadata,lock,unlock,nfo}` take an
+explicit `{ itemIds }`, dispatch **one** job and write **one** audit row, and
+the toolbar now uses them.
+
+Selection applies to **items, not shows** — the bulk routes take item ids, and a
+show is a projection with no id of its own. A **modified** click selects
+(shift for a range, ctrl/cmd to toggle); a plain click opens. Selecting on every
+click would make the grid unnavigable.
+
+The toolbar reports honestly: a job id means *queued*, not *done*, and ids that
+resolved to nothing are surfaced rather than swallowed, because acting on fewer
+items than were selected must not look like plain success. Each action is hidden
+without its permission — not the security boundary, which is the server guard,
+but a button that always fails is its own kind of lie.
 
 The three scopes, for reference:
 
@@ -133,10 +144,10 @@ enormous response. Nothing fetches a whole library.
 
 Stated so the gaps are not mistaken for bugs:
 
-- **The context action bar is not wired.** The selection model beneath it is
-  built and tested (`selection.ts`) — plain/ctrl/shift click, checkbox,
-  select-all-loaded, and pruning when the list changes. What is missing is
-  **backend support**, not UI: see below.
+- **The action bar covers four operations**, not the full spec list: refresh
+  metadata, generate NFO, lock, unlock, plus scan with nothing selected. Rename,
+  artwork, cleanup, subtitles and delete remain on their own pages until they
+  grow id-list endpoints of the same shape.
 - **No filters or search** beyond what the underlying endpoints accept — Phase 3.
 - **No issues panel, no export** — later phases.
 - **No music/audiobook/photo hierarchies** — needs the schema migration above.
