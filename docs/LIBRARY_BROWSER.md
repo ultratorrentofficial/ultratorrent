@@ -11,6 +11,36 @@ single-column list. Phase 1 of the Library Browser & Media Operations Workspace.
 
 ---
 
+## Decision: projection, not a hierarchy (2026-07-26)
+
+The browser projects hierarchy from flat `MediaItem` rows. It does **not**
+introduce Show / Season / Episode / Artist / Album / Track / Author / Book /
+Photo entities. This was decided explicitly, not by omission.
+
+**What that buys.** No migration, and no risk to three shipped subsystems that
+depend on the current invariant: duplicate detection is built on
+`@@unique([libraryId, path])` — one row per file per library — and Library
+Cleanup decides what to *delete* from aggregates keyed on flat items. Reworking
+the entity model underneath those, alongside a new browser, is how a data-loss
+bug happens.
+
+**What it costs, stated plainly.**
+
+- **Music, audiobooks and photos cannot be browsed as hierarchies.**
+  `MediaItem.mediaType` admits only video types, so there is nothing to project
+  an Artist or an Author from. `MediaLibrary.kind` accepts `music` and
+  `audiobook`, but nothing produces such items — they scan as `other_video`.
+- **A show has no id of its own**, being a projection. It cannot be selected,
+  locked, or passed to a bulk operation; selection therefore applies to items.
+
+**If that changes.** Moving to real entities is its own project — schema,
+migration of ~29k rows on live libraries, and coordinated changes to
+identification, duplicate detection, rename, cleanup, NFO, media-server sync and
+Trakt scrobbling. It should be planned and reviewed on its own, not folded into
+browser work.
+
+---
+
 ## What it is, and is not
 
 It **composes existing endpoints**; it adds none of its own and changes no
