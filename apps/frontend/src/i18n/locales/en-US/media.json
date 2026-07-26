@@ -1714,6 +1714,12 @@
       "unmatched": "Unmatched",
       "matched": "Matched",
       "manual": "Manual"
+    },
+    "issue": {
+      "unmatched": "Unmatched",
+      "missing_artwork": "No artwork",
+      "missing_subtitles": "No subtitles",
+      "duplicate": "Duplicate"
     }
   }
 }

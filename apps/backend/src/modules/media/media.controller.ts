@@ -40,6 +40,7 @@ import { MediaArtworkService, ArtworkUpload } from './media-artwork.service';
 import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaBulkService } from './media-bulk.service';
 import { MediaExportService } from './media-export.service';
+import type { IssueKind } from './media-item.service';
 import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
@@ -214,6 +215,7 @@ export class MediaController {
     @Query('libraryId') libraryId?: string,
     @Query('search') search?: string,
     @Query('title') title?: string,
+    @Query('issue') issue?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -223,6 +225,7 @@ export class MediaController {
       libraryId,
       search,
       title,
+      issue: issue as IssueKind | undefined,
       page: page ? Number.parseInt(page, 10) : undefined,
       pageSize: pageSize ? Number.parseInt(pageSize, 10) : undefined,
     });
@@ -306,6 +309,13 @@ export class MediaController {
    * response. Takes the same filters as the browser, so an export covers what
    * the operator can see and not more.
    */
+  /** Issue counts for one library — the browser's Issues chips. */
+  @Get('items/issues')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  issueCounts(@Query('libraryId') libraryId: string) {
+    return this.items.issueCounts(libraryId);
+  }
+
   @Get('items/export.csv')
   @RequirePermissions(P.MEDIA_MANAGER_EXPORT)
   @Header('Content-Type', 'text/csv; charset=utf-8')

@@ -9,6 +9,31 @@ import {
   resolveGroup,
 } from './series-grouping';
 
+/**
+ * The library problems an operator acts on.
+ *
+ * Deliberately only those decidable from the database. "Missing file" and
+ * "broken artwork" need to stat the filesystem or decode an image, which is a
+ * scan, not a query — reporting them from a list endpoint would either lie or
+ * make browsing wait on disk.
+ */
+export const ISSUE_KINDS = ['unmatched', 'missing_artwork', 'missing_subtitles', 'duplicate'] as const;
+export type IssueKind = (typeof ISSUE_KINDS)[number];
+
+/** The `where` fragment for one issue. One definition, used by list AND counts. */
+export function issueWhere(kind: IssueKind): Prisma.MediaItemWhereInput {
+  switch (kind) {
+    case 'unmatched':
+      return { matchStatus: 'unmatched' };
+    case 'missing_artwork':
+      return { artwork: { none: {} } };
+    case 'missing_subtitles':
+      return { subtitles: { none: {} } };
+    case 'duplicate':
+      return { duplicateGroupId: { not: null } };
+  }
+}
+
 export interface ItemFilters {
   mediaType?: string;
   matchStatus?: string;
@@ -16,6 +41,8 @@ export interface ItemFilters {
   search?: string;
   /** Exact show title — used to fetch one series' episodes for the grouped TV view. */
   title?: string;
+  /** Narrow to items carrying one library issue. */
+  issue?: IssueKind;
   page?: number;
   pageSize?: number;
 }
@@ -38,6 +65,30 @@ export class MediaItemService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * How many items carry each issue, for one library.
+   *
+   * Counted per issue rather than grouped in one pass: the conditions overlap —
+   * an unmatched item usually also lacks artwork — so a single GROUP BY would
+   * have to pick one bucket per item and would under-report every other issue.
+   *
+   * `artwork: { none: {} }` compiles to `NOT IN (subquery)`, which Postgres
+   * cannot satisfy from an index and which hung the Media Manager dashboard at
+   * ~390k artwork rows. These counts are therefore scoped to ONE library, where
+   * the outer filter keeps the row set small; a library-wide equivalent belongs
+   * in the dashboard, which uses hand-written anti-joins for exactly this reason.
+   */
+  async issueCounts(libraryId: string): Promise<Record<IssueKind, number>> {
+    const base: Prisma.MediaItemWhereInput = { libraryId };
+    const entries = await Promise.all(
+      ISSUE_KINDS.map(async (kind) => [
+        kind,
+        await this.prisma.mediaItem.count({ where: { ...base, ...issueWhere(kind) } }),
+      ] as const),
+    );
+    return Object.fromEntries(entries) as Record<IssueKind, number>;
+  }
+
+  /**
    * Paginated item listing for the media browser. Libraries can hold tens of
    * thousands of items, so this NEVER returns the whole set — it pages
    * (`page`/`pageSize`, capped) and returns a `total` for the pager. Only the
@@ -48,6 +99,7 @@ export class MediaItemService {
     if (filters.mediaType) where.mediaType = filters.mediaType;
     if (filters.matchStatus) where.matchStatus = filters.matchStatus;
     if (filters.libraryId) where.libraryId = filters.libraryId;
+    if (filters.issue) Object.assign(where, issueWhere(filters.issue));
     if (filters.title) where.title = filters.title; // exact — one show's episodes
     else if (filters.search?.trim()) where.title = { contains: filters.search.trim(), mode: 'insensitive' };
 

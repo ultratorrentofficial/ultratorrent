@@ -1204,6 +1204,7 @@ export interface MediaItem {
 }
 
 export interface MediaItemQuery {
+  issue?: MediaIssueKind;
   mediaType?: string;
   matchStatus?: string;
   libraryId?: string;
@@ -1215,6 +1216,9 @@ export interface MediaItemQuery {
 }
 
 /** Result of a bulk operation over an explicit id list. */
+/** Library problems decidable from the database — see LIBRARY_BROWSER.md. */
+export type MediaIssueKind = 'unmatched' | 'missing_artwork' | 'missing_subtitles' | 'duplicate';
+
 export interface MediaBulkResult {
   /** Empty for synchronous operations (lock/unlock). */
   jobId: string;
@@ -3920,6 +3924,10 @@ export const api = {
       return request<MediaBulkResult>(`/media/items/bulk/${operation}`, {
         method: 'POST', body: { itemIds },
       });
+    },
+    /** Issue counts for one library — the browser's Issues chips. */
+    issueCounts(libraryId: string): Promise<Record<MediaIssueKind, number>> {
+      return request<Record<MediaIssueKind, number>>('/media/items/issues', { query: { libraryId } });
     },
     listItems(query: MediaItemQuery = {}): Promise<MediaItemPage> {
       return request<MediaItemPage>('/media/items', { query: query as QueryParams });

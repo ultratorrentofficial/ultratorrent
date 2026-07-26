@@ -66,6 +66,12 @@ export function LibraryBrowserPage() {
 
   const libraries = useQuery({ queryKey: ['media', 'libraries'], queryFn: api.media.listLibraries });
 
+  const issues = useQuery({
+    queryKey: ['library-browser', 'issues', libraryId],
+    enabled: !!libraryId,
+    queryFn: () => api.media.issueCounts(libraryId!),
+  });
+
   const library = useMemo(
     () => libraries.data?.find((l) => l.id === libraryId) ?? null,
     [libraries.data, libraryId],
@@ -77,7 +83,7 @@ export function LibraryBrowserPage() {
   const browsesByShow = library ? library.kind === 'tv' || library.kind === 'anime' : false;
 
   const shows = useInfiniteQuery({
-    queryKey: ['library-browser', 'series', libraryId, filters.search, filters.matchStatus],
+    queryKey: ['library-browser', 'series', libraryId, filters.search, filters.matchStatus, filters.issue],
     enabled: !!libraryId && browsesByShow,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
@@ -85,13 +91,14 @@ export function LibraryBrowserPage() {
         libraryId: libraryId!, page: pageParam, pageSize: PAGE_SIZE,
         search: filters.search || undefined,
         matchStatus: filters.matchStatus ?? undefined,
+        issue: filters.issue ?? undefined,
       }),
     getNextPageParam: (last, all) =>
       all.flatMap((p) => p.items).length < last.total ? all.length + 1 : undefined,
   });
 
   const items = useInfiniteQuery({
-    queryKey: ['library-browser', 'items', libraryId, filters.search, filters.matchStatus],
+    queryKey: ['library-browser', 'items', libraryId, filters.search, filters.matchStatus, filters.issue],
     enabled: !!libraryId && !browsesByShow,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
@@ -99,6 +106,7 @@ export function LibraryBrowserPage() {
         libraryId: libraryId!, page: pageParam, pageSize: PAGE_SIZE,
         search: filters.search || undefined,
         matchStatus: filters.matchStatus ?? undefined,
+        issue: filters.issue ?? undefined,
       }),
     getNextPageParam: (last, all) =>
       all.flatMap((p) => p.items).length < last.total ? all.length + 1 : undefined,
@@ -128,7 +136,7 @@ export function LibraryBrowserPage() {
   useEffect(() => setSelection(EMPTY_SELECTION), [libraryId]);
   // A new result set is a new list; a selection made against the old one would
   // act on rows the filter has just hidden.
-  useEffect(() => setSelection(EMPTY_SELECTION), [filters.search, filters.matchStatus]);
+  useEffect(() => setSelection(EMPTY_SELECTION), [filters.search, filters.matchStatus, filters.issue]);
   useEffect(() => setFilters(EMPTY_FILTERS), [libraryId]);
 
   const loadMore = useCallback(() => {
@@ -213,7 +221,7 @@ export function LibraryBrowserPage() {
         </div>
       </header>
 
-      <BrowserFilterBar value={filters} onChange={setFilters} />
+      <BrowserFilterBar value={filters} onChange={setFilters} issueCounts={issues.data} />
 
       {!browsesByShow && (
         <ContextActionBar

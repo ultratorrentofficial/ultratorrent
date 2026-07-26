@@ -185,6 +185,30 @@ result set would act on rows the filter has just hidden.
 (unmatched / matched / manual). One status at a time, because the server takes
 one — letting two appear selected would misrepresent the query.
 
+## Issues
+
+Issues appear as chips carrying their count, and selecting one filters the grid.
+The panel *is* the browser, filtered — a separate list of the same items under a
+different heading would drift from it.
+
+Four kinds, each decidable from the database: **unmatched**, **no artwork**,
+**no subtitles**, **duplicate**. A chip with a zero count is hidden rather than
+disabled: a list of problems the library does not have is noise, and the absence
+is the good news.
+
+`issueWhere()` is one definition used by both the listing and the counts, so a
+chip can never disagree with what it filters to.
+
+Counts are taken **per issue, not as one grouped pass**. The conditions overlap —
+an unmatched item usually also lacks artwork — so a single `GROUP BY` would put
+each item in one bucket and under-report every other issue.
+
+They are also scoped to **one library**. `artwork: { none: {} }` compiles to
+`NOT IN (subquery)`, which Postgres cannot satisfy from an index; that is what
+hung the Media Manager dashboard at ~390k artwork rows. The library filter keeps
+the row set small. A library-wide equivalent belongs in the dashboard, which
+uses hand-written anti-joins for exactly this reason.
+
 ## Export
 
 `GET /media/items/export.csv`, gated on the new `media_manager.export`
@@ -235,7 +259,9 @@ Stated so the gaps are not mistaken for bugs:
   the repository and adding one for a table is a poor trade; Excel is CSV for
   every practical purpose here. JSON would be a small addition to the same
   service if it is wanted.
-- **No issues panel** — later phase.
+- **Issues cover what a query can decide.** "Missing file" and "broken artwork"
+  need to stat disk or decode an image — a scan, not a query. Reporting them
+  from a list endpoint would either lie or make browsing wait on I/O.
 - **No music/audiobook/photo hierarchies** — needs the schema migration above.
 - Drill-down **is** in place — Library → Show → Season → Episode, below.
 - **Operations are unchanged** — metadata, artwork, rename, cleanup, subtitles

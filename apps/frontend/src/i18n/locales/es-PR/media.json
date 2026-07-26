@@ -1714,6 +1714,12 @@
       "unmatched": "Sin emparejar",
       "matched": "Emparejado",
       "manual": "Manual"
+    },
+    "issue": {
+      "unmatched": "Sin emparejar",
+      "missing_artwork": "Sin carátula",
+      "missing_subtitles": "Sin subtítulos",
+      "duplicate": "Duplicado"
     }
   }
 }

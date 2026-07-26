@@ -9,18 +9,24 @@ import { cn } from '@/lib/utils';
 export const MATCH_STATUSES = ['unmatched', 'matched', 'manual'] as const;
 export type MatchStatusFilter = (typeof MATCH_STATUSES)[number];
 
+export const ISSUE_KINDS = [
+  'unmatched', 'missing_artwork', 'missing_subtitles', 'duplicate',
+] as const;
+export type IssueKind = (typeof ISSUE_KINDS)[number];
+
 export interface BrowserFilters {
   search: string;
   matchStatus: MatchStatusFilter | null;
+  issue: IssueKind | null;
 }
 
-export const EMPTY_FILTERS: BrowserFilters = { search: '', matchStatus: null };
+export const EMPTY_FILTERS: BrowserFilters = { search: '', matchStatus: null, issue: null };
 
 /** Long enough that a typist does not fire a query per keystroke, short enough to feel instant. */
 export const SEARCH_DEBOUNCE_MS = 250;
 
 export function hasActiveFilters(f: BrowserFilters): boolean {
-  return f.search.trim() !== '' || f.matchStatus !== null;
+  return f.search.trim() !== '' || f.matchStatus !== null || f.issue !== null;
 }
 
 /**
@@ -38,10 +44,12 @@ export function hasActiveFilters(f: BrowserFilters): boolean {
  * sitting later in the library.
  */
 export function BrowserFilterBar({
-  value, onChange,
+  value, onChange, issueCounts,
 }: {
   value: BrowserFilters;
   onChange: (next: BrowserFilters) => void;
+  /** Per-issue counts for this library; chips with none are hidden. */
+  issueCounts?: Partial<Record<IssueKind, number>>;
 }) {
   const { t } = useTranslation('media');
   const [text, setText] = useState(value.search);
@@ -90,6 +98,29 @@ export function BrowserFilterBar({
           </button>
         ))}
       </div>
+
+      {/*
+        Issues, as chips carrying their count. A chip with a zero count is
+        hidden rather than disabled: a list of problems the library does not
+        have is noise, and the absence IS the good news.
+      */}
+      {ISSUE_KINDS.filter((k) => (issueCounts?.[k] ?? 0) > 0).map((kind) => (
+        <button
+          key={kind}
+          type="button"
+          aria-pressed={value.issue === kind}
+          onClick={() => onChange({ ...value, issue: value.issue === kind ? null : kind })}
+          className={cn(
+            'rounded-md border px-2 py-1 text-xs transition-colors',
+            value.issue === kind
+              ? 'border-amber-400/50 bg-amber-400/15 text-amber-200'
+              : 'border-white/10 text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {t(`browser.issue.${kind}`)}
+          <span className="ml-1 opacity-70">{issueCounts?.[kind]}</span>
+        </button>
+      ))}
 
       {hasActiveFilters(value) && (
         <Button size="sm" variant="ghost" onClick={() => onChange(EMPTY_FILTERS)}>
