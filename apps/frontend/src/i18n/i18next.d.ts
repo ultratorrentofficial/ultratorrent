@@ -1,4 +1,5 @@
 import 'i18next';
+import type actions from './locales/en-US/actions.json';
 import type common from './locales/en-US/common.json';
 import type nav from './locales/en-US/nav.json';
 import type auth from './locales/en-US/auth.json';
@@ -32,6 +33,7 @@ declare module 'i18next' {
   interface CustomTypeOptions {
     defaultNS: 'common';
     resources: {
+      actions: typeof actions;
       common: typeof common;
       nav: typeof nav;
       auth: typeof auth;

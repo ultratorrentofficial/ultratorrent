@@ -31,6 +31,7 @@ import type {
   NormalizedTorrent,
   NormalizedTracker,
   NotificationCategory,
+  ActionCatalog,
   NotificationPresentation,
   NotificationSeverity,
   Paginated,
@@ -3758,6 +3759,17 @@ export const api = {
     },
   },
 
+  contextActions: {
+    /**
+     * Every action this caller could use, before a selection narrows it.
+     *
+     * Fetched once and re-filtered in the browser as the selection changes —
+     * see the resolution split in `@ultratorrent/shared/actions`.
+     */
+    catalog(): Promise<ActionCatalog> {
+      return request<ActionCatalog>('/context-actions/catalog');
+    },
+  },
   modules: {
     list(): Promise<ModuleStatus[]> {
       return request<ModuleStatus[]>('/modules');

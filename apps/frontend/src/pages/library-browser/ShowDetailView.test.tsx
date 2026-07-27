@@ -7,8 +7,13 @@ import { ShowDetailView } from './ShowDetailView';
 const apiSpy = vi.hoisted(() => ({
   seriesEpisodes: vi.fn(), seriesHealth: vi.fn(),
   bulkItems: vi.fn(), scanLibrary: vi.fn(),
+  // The action bar is CAMA-driven now: it asks the server what may be done
+  // rather than hardcoding buttons, so this surface needs a catalogue too.
+  catalog: vi.fn(),
 }));
-vi.mock('@/lib/api', () => ({ api: { media: apiSpy } }));
+vi.mock('@/lib/api', () => ({
+  api: { media: apiSpy, contextActions: { catalog: apiSpy.catalog } },
+}));
 vi.mock('@/components/ui/toast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), toast: vi.fn() }),
 }));
@@ -47,6 +52,22 @@ beforeEach(() => {
   apiSpy.seriesHealth.mockResolvedValue({
     score: 0, status: 'unknown', seasons: [], episodes: [],
     totals: { episodes: 0, seasons: 0, bytes: '0' },
+  });
+
+  apiSpy.catalog.mockReset();
+  apiSpy.bulkItems.mockReset();
+  apiSpy.bulkItems.mockResolvedValue({ jobId: 'j1', accepted: 1, missing: [] });
+  // The bar only renders inside Operations Mode here, so the catalogue is the
+  // Media Manager's item actions.
+  apiSpy.catalog.mockResolvedValue({
+    actions: [
+      {
+        id: 'media.metadata.refresh', group: 'metadata', entityTypes: ['media_item'],
+        arity: 'any', operationsOnly: false, destructive: false,
+        whenUnavailable: 'hide', async: true, order: 10,
+      },
+    ],
+    diagnostics: { total: 1, withheld: { permission: 0, module: 0, feature: 0, provider: 0 } },
   });
 });
 

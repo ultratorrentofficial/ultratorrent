@@ -171,6 +171,9 @@ export function ShowDetailView({
               libraryId={libraryId}
               selectedIds={[...selection.ids]}
               onClear={() => setSelection(clearSelection())}
+              /* The bar only renders inside Operations Mode here, so advanced
+                 actions are exactly what this surface is for. */
+              operationsMode
             />
           )}
 

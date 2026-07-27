@@ -1,0 +1,58 @@
+{
+  "bar": {
+    "label": "Actions",
+    "library": "Library",
+    "selected": "{{count}} selected",
+    "selected_one": "{{count}} selected",
+    "noSelection": "Nothing selected",
+    "noneForSelection": "No actions for this selection",
+    "loading": "Loading actions…",
+    "unavailable": "Actions could not be loaded. Reload to try again.",
+    "clear": "Clear selection"
+  },
+  "group": {
+    "media": "Media",
+    "playback": "Playback",
+    "metadata": "Metadata",
+    "artwork": "Artwork",
+    "subtitles": "Subtitles",
+    "versions": "Versions",
+    "collections": "Collections",
+    "analytics": "Analytics",
+    "maintenance": "Maintenance",
+    "export": "Export",
+    "administration": "Administration"
+  },
+  "reason": {
+    "maxSelection": "Too many items selected for this action.",
+    "entityCapability": "Not available for everything selected."
+  },
+  "action": {
+    "media": {
+      "library": {
+        "scan": "Scan library"
+      },
+      "metadata": {
+        "refresh": "Refresh metadata"
+      },
+      "nfo": {
+        "generate": "Generate NFO"
+      },
+      "item": {
+        "lock": "Lock",
+        "unlock": "Unlock",
+        "rename": "Rename",
+        "export": "Export CSV"
+      }
+    }
+  },
+  "result": {
+    "queued": "Queued for {{count}} item",
+    "queued_other": "Queued for {{count}} items",
+    "applied": "Applied to {{count}} item",
+    "applied_other": "Applied to {{count}} items",
+    "missing": "{{count}} item could not be found",
+    "missing_other": "{{count}} items could not be found",
+    "failed": "That action could not be completed."
+  }
+}

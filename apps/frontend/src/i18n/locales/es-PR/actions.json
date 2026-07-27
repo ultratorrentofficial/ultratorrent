@@ -1,0 +1,58 @@
+{
+  "bar": {
+    "label": "Acciones",
+    "library": "Biblioteca",
+    "selected": "{{count}} seleccionados",
+    "selected_one": "{{count}} seleccionado",
+    "noSelection": "Nada seleccionado",
+    "noneForSelection": "No hay acciones para esta selección",
+    "loading": "Cargando acciones…",
+    "unavailable": "No se pudieron cargar las acciones. Recarga para intentarlo de nuevo.",
+    "clear": "Limpiar selección"
+  },
+  "group": {
+    "media": "Medios",
+    "playback": "Reproducción",
+    "metadata": "Metadatos",
+    "artwork": "Arte",
+    "subtitles": "Subtítulos",
+    "versions": "Versiones",
+    "collections": "Colecciones",
+    "analytics": "Analíticas",
+    "maintenance": "Mantenimiento",
+    "export": "Exportar",
+    "administration": "Administración"
+  },
+  "reason": {
+    "maxSelection": "Demasiados elementos seleccionados para esta acción.",
+    "entityCapability": "No está disponible para todo lo seleccionado."
+  },
+  "action": {
+    "media": {
+      "library": {
+        "scan": "Escanear biblioteca"
+      },
+      "metadata": {
+        "refresh": "Actualizar metadatos"
+      },
+      "nfo": {
+        "generate": "Generar NFO"
+      },
+      "item": {
+        "lock": "Bloquear",
+        "unlock": "Desbloquear",
+        "rename": "Renombrar",
+        "export": "Exportar CSV"
+      }
+    }
+  },
+  "result": {
+    "queued": "En cola para {{count}} elemento",
+    "queued_other": "En cola para {{count}} elementos",
+    "applied": "Aplicado a {{count}} elemento",
+    "applied_other": "Aplicado a {{count}} elementos",
+    "missing": "No se encontró {{count}} elemento",
+    "missing_other": "No se encontraron {{count}} elementos",
+    "failed": "No se pudo completar esa acción."
+  }
+}
