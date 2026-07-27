@@ -91,11 +91,33 @@ function makeService(over: {
     })),
   };
 
-  const service = new QuarantineService(prisma as never, audit as never, paths as never, protections as never);
-  return { service, prisma, audit, updates, get row() { return row; } };
+  // Relocation bookkeeping: the records follow the file into quarantine and
+  // back, so a restore rejoins the row that still holds its metadata.
+  const relocation = { recordMoveSafe: jest.fn(async (_from: string, _to: string) => undefined) };
+  const service = new QuarantineService(
+    prisma as never, audit as never, paths as never, protections as never, relocation as never,
+  );
+  return { service, prisma, audit, updates, relocation, get row() { return row; } };
 }
 
 afterEach(() => jest.clearAllMocks());
+
+describe('the records follow the file', () => {
+  it('relocates the records into quarantine, not just the file', async () => {
+    /*
+     * Leaving them at the original path makes the next scan prune the item —
+     * and metadata, artwork, subtitles and NFO all cascade from MediaItem, so
+     * the enrichment would be gone before anyone restored it. A reversible move
+     * that destroys the record is not reversible.
+     */
+    const h = makeService();
+    await h.service.quarantine({ absPath: SOURCE, fingerprint: 'fp1' });
+    expect(h.relocation.recordMoveSafe).toHaveBeenCalledTimes(1);
+    const [from, to] = h.relocation.recordMoveSafe.mock.calls[0];
+    expect(from).toBe(SOURCE);
+    expect(to).toContain('__');
+  });
+});
 
 describe('quarantining is a move, not a deletion', () => {
   it('moves the file into the reserved directory in its own root', async () => {

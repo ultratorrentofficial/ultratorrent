@@ -741,6 +741,7 @@ detection, media-server integrations, and a rename engine. See
 | `GET`   | `/api/media/items` | `media_manager.view` (`?mediaType`, `?matchStatus`, `?libraryId`) |
 | `GET`   | `/api/media/items/:id` | `media_manager.view` |
 | `PATCH` | `/api/media/items/:id` | `media_manager.edit_metadata` |
+| `GET`   | `/api/media/libraries/:id/consistency` | `media_manager.view` — reports rows whose file is gone; never repairs |
 | `GET`   | `/api/media/items/export.csv` | `media_manager.export` — streamed, same filters as the browser |
 | `POST`  | `/api/media/items/bulk/metadata` | `media_manager.edit_metadata` — `{ itemIds }`, one job |
 | `POST`  | `/api/media/items/bulk/lock` · `/unlock` | `media_manager.edit_metadata` — `{ itemIds }` |

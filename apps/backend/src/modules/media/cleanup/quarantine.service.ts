@@ -9,6 +9,7 @@ import { paginate, parsePage } from '../../../common/pagination';
 import type { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
 import { FilePathService } from '../../files/file-path.service';
 import { moveRecursive, pathExists, computeSize } from '../../files/file-fs.util';
+import { MediaRelocationService } from '../media-relocation.service';
 import { ProtectionService } from './protection.service';
 
 /**
@@ -43,6 +44,7 @@ export class QuarantineService {
     private readonly audit: AuditService,
     private readonly paths: FilePathService,
     private readonly protections: ProtectionService,
+    private readonly relocation: MediaRelocationService,
   ) {}
 
   /**
@@ -106,6 +108,16 @@ export class QuarantineService {
 
     try {
       await moveRecursive(abs, quarantinePath, false);
+      /*
+       * The records follow the file into quarantine.
+       *
+       * Leaving them at the original path makes the next scan prune the item —
+       * and because metadata, artwork, subtitles and NFO all cascade from
+       * MediaItem, the enrichment would be gone before anyone restored it. The
+       * whole point of quarantine is that it is reversible, and a reversible
+       * move that destroys the record is not.
+       */
+      await this.relocation.recordMoveSafe(abs, quarantinePath);
     } catch (err) {
       // The move failed, so the file is still where it was. Drop the row rather
       // than leave a record claiming a quarantine that never happened.
@@ -164,6 +176,9 @@ export class QuarantineService {
 
     await mkdir(path.dirname(dest), { recursive: true });
     await moveRecursive(row.quarantinePath, dest, overwrite);
+    // Back again: the same bookkeeping in reverse, so a restored file rejoins
+    // the record that still holds its metadata and artwork.
+    await this.relocation.recordMoveSafe(row.quarantinePath, dest);
     const updated = await this.prisma.mediaCleanupQuarantineItem.update({
       where: { id },
       data: { status: 'restored', restoredAt: new Date(), restoredById: user.id },

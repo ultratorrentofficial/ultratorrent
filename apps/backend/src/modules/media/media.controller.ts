@@ -42,6 +42,7 @@ import { MediaArtworkService, ArtworkUpload } from './media-artwork.service';
 import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaBulkService } from './media-bulk.service';
 import { MediaExportService } from './media-export.service';
+import { MediaConsistencyService } from './media-consistency.service';
 import type { IssueKind } from './media-item.service';
 import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
@@ -92,6 +93,7 @@ export class MediaController {
     private readonly nfo: MediaNfoService,
     private readonly bulk: MediaBulkService,
     private readonly exporter: MediaExportService,
+    private readonly consistency: MediaConsistencyService,
     private readonly duplicates: MediaDuplicateService,
     private readonly duplicateResolution: DuplicateResolutionService,
     private readonly showDuplicates: MediaShowDuplicateService,
@@ -274,6 +276,19 @@ export class MediaController {
    * and unit tests cannot see this — only a real request can.
    */
   /** Issue counts for one library — the browser's Issues chips. */
+  /**
+   * Does the database still describe what is on disk?
+   *
+   * Reports only — never repairs. A checker that silently fixed things would
+   * hide the defect it exists to reveal, and the right fix for a stale row
+   * (relink vs prune) depends on what actually happened to the file.
+   */
+  @Get('libraries/:id/consistency')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  checkConsistency(@Param('id') id: string) {
+    return this.consistency.check(id);
+  }
+
   @Get('items/issues')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   issueCounts(@Query('libraryId') libraryId: string) {
