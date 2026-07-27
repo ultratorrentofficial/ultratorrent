@@ -21,6 +21,7 @@ import {
   RefreshCw,
   RotateCw,
   ScanLine,
+  Square,
   Trash2,
   Unlock,
   type LucideIcon,
@@ -37,6 +38,7 @@ const ICONS: Record<string, LucideIcon> = {
   RefreshCw,
   RotateCw,
   ScanLine,
+  Square,
   Trash2,
   Unlock,
 };

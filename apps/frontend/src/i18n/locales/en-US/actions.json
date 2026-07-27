@@ -51,6 +51,14 @@
       "resume": "Resume",
       "retry": "Retry",
       "rerun": "Run again"
+    },
+    "torrents": {
+      "resume": "Resume",
+      "pause": "Pause",
+      "stop": "Stop",
+      "recheck": "Recheck",
+      "remove": "Remove",
+      "removeData": "Remove with data"
     }
   },
   "result": {

@@ -51,6 +51,14 @@
       "resume": "Reanudar",
       "retry": "Reintentar",
       "rerun": "Ejecutar de nuevo"
+    },
+    "torrents": {
+      "resume": "Reanudar",
+      "pause": "Pausar",
+      "stop": "Detener",
+      "recheck": "Reverificar",
+      "remove": "Eliminar",
+      "removeData": "Eliminar con datos"
     }
   },
   "result": {

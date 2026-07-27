@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -100,6 +100,26 @@ export function JobsListPage() {
       return next;
     });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(jobs.map((j) => j.id)));
+
+  /*
+   * Keep the selection to what is actually on screen.
+   *
+   * A selection is only meaningful against rows we hold: an action resolves
+   * from each job's advertised capabilities, and a job on another page has none
+   * we can read. Without this the bar would act on the loaded subset while the
+   * user believed it covered everything they had ticked — acting on fewer items
+   * than were selected, silently, which is the failure this framework exists to
+   * avoid. Paging away therefore drops the selection rather than hiding it.
+   */
+  useEffect(() => {
+    if (query.isFetching) return;
+    setSelected((current) => {
+      if (current.size === 0) return current;
+      const onPage = new Set(jobs.map((j) => j.id));
+      const kept = [...current].filter((id) => onPage.has(id));
+      return kept.length === current.size ? current : new Set(kept);
+    });
+  }, [jobs, query.isFetching]);
 
   /*
    * The selection as entity refs, each carrying what that job can currently

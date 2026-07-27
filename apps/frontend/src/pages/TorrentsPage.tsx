@@ -12,7 +12,7 @@ import {
   Plus,
   Search,
 } from 'lucide-react';
-import { TorrentState, type NormalizedTorrent } from '@ultratorrent/shared';
+import { TorrentState, type EntityRef, type NormalizedTorrent } from '@ultratorrent/shared';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { ApiError, api, type TorrentQuery } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -44,6 +44,7 @@ import { cn } from '@/lib/utils';
 import { TorrentStateDot } from '@/components/torrents/TorrentStateBadge';
 import { TorrentDrawer } from '@/components/torrents/TorrentDrawer';
 import { BulkToolbar } from '@/components/torrents/BulkToolbar';
+import { torrentCapabilities } from '@/components/torrents/torrentCapabilities';
 import { AddTorrentDialog } from '@/components/torrents/AddTorrentDialog';
 
 const PAGE_SIZE = 25;
@@ -160,6 +161,24 @@ export function TorrentsPage() {
   const allOnPageSelected = rows.length > 0 && rows.every((t) => selected.has(t.hash));
   const someOnPageSelected = rows.some((t) => selected.has(t.hash));
 
+  /*
+   * The selection as entity refs, each advertising what its current state
+   * allows. Built from `rows` — the live-merged list — rather than from the
+   * hashes alone, because a bare hash says nothing about whether the torrent
+   * can be paused right now.
+   */
+  const torrentSelection = useMemo<EntityRef[]>(
+    () =>
+      rows
+        .filter((torrent) => selected.has(torrent.hash))
+        .map((torrent) => ({
+          type: 'torrent' as const,
+          id: torrent.hash,
+          capabilities: torrentCapabilities(torrent),
+        })),
+    [rows, selected],
+  );
+
   const toggleAll = () => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -262,7 +281,9 @@ export function TorrentsPage() {
         </div>
       </div>
 
-      {selected.size > 0 && <BulkToolbar selected={[...selected]} onClear={() => setSelected(new Set())} />}
+      {torrentSelection.length > 0 && (
+        <BulkToolbar selection={torrentSelection} onClear={() => setSelected(new Set())} />
+      )}
 
       {/* Table */}
       <div className="overflow-hidden rounded-lg glass">

@@ -1,119 +1,99 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { Pause, Play, RefreshCw, Square, Trash2, X } from 'lucide-react';
-import { PERMISSIONS } from '@ultratorrent/shared';
+import type { EntityRef } from '@ultratorrent/shared';
 import { ApiError, api, type BulkAction } from '@/lib/api';
-import { useAuth } from '@/auth/AuthContext';
 import { useToast } from '@/components/ui/toast';
-import { Button } from '@/components/ui/button';
+import { ActionBar, type ActionHandler } from '@/actions/ActionBar';
+import { useContextActions } from '@/actions/useContextActions';
 import { DeleteTorrentDialog } from './DeleteTorrentDialog';
 
 export interface BulkToolbarProps {
-  selected: string[];
+  /** The selected torrents, each carrying what its state currently allows. */
+  selection: EntityRef[];
   onClear: () => void;
 }
 
-export function BulkToolbar({ selected, onClear }: BulkToolbarProps) {
+/**
+ * Bulk actions over selected torrents, resolved from the CAMA catalogue.
+ *
+ * This bar and `TorrentActionsBar` were near-duplicate implementations of one
+ * list. Both gated on permission — so unlike the Jobs Center this is a
+ * consolidation, not a repair — but **neither considered torrent state**:
+ * Resume was live on a downloading torrent and Pause on a stopped one, and
+ * every such click was a request the engine would reject. State now travels
+ * with each entity, so an action appears only where it can actually run.
+ */
+export function BulkToolbar({ selection, onClear }: BulkToolbarProps) {
   const { t } = useTranslation('torrents');
-  const { hasPermission } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [pending, setPending] = useState<BulkAction | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<'remove' | 'removeData' | null>(null);
 
-  if (selected.length === 0) return null;
+  const { groups, isLoading, isError } = useContextActions({ selection });
 
-  const run = async (action: BulkAction, label: string) => {
-    setPending(action);
+  const run = async (action: BulkAction, hashes: string[]) => {
+    setPending(true);
     try {
-      await api.torrents.bulk(selected, action);
-      toast.success(t('bulk.appliedTitle', { action: label }), t('count', { count: selected.length }));
+      await api.torrents.bulk(hashes, action);
+      toast.success(
+        t('bulk.appliedTitle', { action: t(`bulk.action.${action}` as 'bulk.action.resume') }),
+        t('count', { count: hashes.length }),
+      );
       await queryClient.invalidateQueries({ queryKey: ['torrents'] });
+      onClear();
     } catch (err) {
-      toast.error(t('bulk.failedTitle', { action: label.toLowerCase() }), err instanceof ApiError ? err.message : undefined);
+      toast.error(
+        t('bulk.failedTitle', { action: action }),
+        err instanceof ApiError ? err.message : undefined,
+      );
     } finally {
-      setPending(null);
+      setPending(false);
     }
   };
 
+  const handlers = useMemo<Record<string, ActionHandler>>(
+    () => ({
+      'torrents.resume': (sel) => run('resume', sel.map((e) => e.id)),
+      'torrents.pause': (sel) => run('pause', sel.map((e) => e.id)),
+      'torrents.stop': (sel) => run('stop', sel.map((e) => e.id)),
+      'torrents.recheck': (sel) => run('recheck', sel.map((e) => e.id)),
+      // Both deletions confirm first: they are the only actions here that
+      // cannot be undone by clicking the opposite button.
+      'torrents.remove': () => setConfirmDelete('remove'),
+      'torrents.removeData': () => setConfirmDelete('removeData'),
+    }),
+    // `run` closes over nothing that changes per render beyond the toast and
+    // query client, both stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  if (selection.length === 0) return null;
+
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/[0.08] px-3 py-2 animate-fade-in">
-        <button
-          type="button"
-          onClick={onClear}
-          className="rounded-md p-1 text-muted-foreground hover:bg-white/5 hover:text-foreground"
-          aria-label={t('bulk.clearAria')}
-        >
-          <X className="h-4 w-4" />
-        </button>
-        <span className="text-sm font-medium">{t('bulk.selected', { count: selected.length })}</span>
-
-        <div className="mx-1 h-5 w-px bg-border" />
-
-        <Button
-          variant="ghost"
-          size="sm"
-          loading={pending === 'resume'}
-          disabled={!hasPermission(PERMISSIONS.TORRENTS_RESUME)}
-          onClick={() => run('resume', t('bulk.action.resume'))}
-        >
-          <Play className="h-4 w-4" /> {t('bulk.resume')}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          loading={pending === 'pause'}
-          disabled={!hasPermission(PERMISSIONS.TORRENTS_PAUSE)}
-          onClick={() => run('pause', t('bulk.action.pause'))}
-        >
-          <Pause className="h-4 w-4" /> {t('bulk.pause')}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          loading={pending === 'stop'}
-          disabled={!hasPermission(PERMISSIONS.TORRENTS_STOP)}
-          onClick={() => run('stop', t('bulk.action.stop'))}
-        >
-          <Square className="h-4 w-4" /> {t('bulk.stop')}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          loading={pending === 'recheck'}
-          disabled={!hasPermission(PERMISSIONS.TORRENTS_RECHECK)}
-          onClick={() => run('recheck', t('bulk.action.recheck'))}
-        >
-          <RefreshCw className="h-4 w-4" /> {t('bulk.recheck')}
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive hover:bg-destructive/10"
-          disabled={!hasPermission(PERMISSIONS.TORRENTS_DELETE)}
-          onClick={() => setConfirmDelete(true)}
-        >
-          <Trash2 className="h-4 w-4" /> {t('bulk.delete')}
-        </Button>
-      </div>
+      <ActionBar
+        groups={groups}
+        selection={selection}
+        handlers={handlers}
+        onClear={onClear}
+        busy={pending}
+        isLoading={isLoading}
+        isError={isError}
+        primaryGroups={['media']}
+      />
 
       <DeleteTorrentDialog
-        open={confirmDelete}
-        count={selected.length}
-        onClose={() => setConfirmDelete(false)}
-        onConfirm={async (withData) => {
-          try {
-            await api.torrents.bulk(selected, withData ? 'removeData' : 'remove');
-            toast.success(t('bulk.deletedTitle'), t('count', { count: selected.length }));
-            await queryClient.invalidateQueries({ queryKey: ['torrents'] });
-            setConfirmDelete(false);
-            onClear();
-          } catch (err) {
-            toast.error(t('bulk.deleteFailed'), err instanceof ApiError ? err.message : undefined);
-          }
+        open={confirmDelete !== null}
+        count={selection.length}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={(withData) => {
+          const action: BulkAction =
+            confirmDelete === 'removeData' || withData ? 'removeData' : 'remove';
+          setConfirmDelete(null);
+          void run(action, selection.map((e) => e.id));
         }}
       />
     </>
