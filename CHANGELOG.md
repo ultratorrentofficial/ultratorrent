@@ -45,6 +45,15 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.55.0] - 2026-07-27
+
+### Added
+- Close the NFO round-trip: parse sorttitle/premiered/tag, emit premiered and tag, and decode XML entities so titles containing & survive a rebuild
+
+### Fixed
+- Playback alerts name the viewer as the media server's account list knows them (Dennis Ayala) rather than the login its sessions endpoint reports (dennis.ayala)
+- Playback alerts prefer the account record over the shadow account a playing session mints under the viewer's login, so the name resolves even when the person is recorded twice
+
 ## [0.54.1] - 2026-07-27
 
 ### Fixed
