@@ -43,6 +43,7 @@ import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaBulkService } from './media-bulk.service';
 import { MediaExportService } from './media-export.service';
 import { MediaConsistencyService } from './media-consistency.service';
+import { ShowHealthService } from './health/show-health.service';
 import type { IssueKind } from './media-item.service';
 import { MediaNfoService } from './media-nfo.service';
 import { MediaDuplicateService } from './media-duplicate.service';
@@ -94,6 +95,7 @@ export class MediaController {
     private readonly bulk: MediaBulkService,
     private readonly exporter: MediaExportService,
     private readonly consistency: MediaConsistencyService,
+    private readonly showHealth: ShowHealthService,
     private readonly duplicates: MediaDuplicateService,
     private readonly duplicateResolution: DuplicateResolutionService,
     private readonly showDuplicates: MediaShowDuplicateService,
@@ -287,6 +289,13 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   checkConsistency(@Param('id') id: string) {
     return this.consistency.check(id);
+  }
+
+  /** Health for a show, its seasons and every episode — one pass. */
+  @Get('series/health')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  seriesHealth(@Query('key') key: string, @Query('libraryId') libraryId?: string) {
+    return this.showHealth.forShow(key, libraryId);
   }
 
   @Get('items/issues')

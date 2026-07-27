@@ -15,6 +15,7 @@ import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaBulkService } from './media-bulk.service';
 import { MediaRelocationService } from './media-relocation.service';
 import { MediaConsistencyService } from './media-consistency.service';
+import { ShowHealthService } from './health/show-health.service';
 import { FileEventBridge } from './file-event.bridge';
 import { MediaExportService } from './media-export.service';
 import { MediaNfoService } from './media-nfo.service';
@@ -79,6 +80,8 @@ import { MediaController } from './media.controller';
     MediaBulkService,
     MediaRelocationService,
     MediaConsistencyService,
+    ShowHealthService,
+    MediaHealthService,
     FileEventBridge,
     MediaExportService,
     MediaDuplicateService,
@@ -113,6 +116,7 @@ import { MediaController } from './media.controller';
     MediaBulkService,
     MediaRelocationService,
     MediaConsistencyService,
+    MediaHealthService,
     FileEventBridge,
     MediaExportService,
     MediaDuplicateService,
