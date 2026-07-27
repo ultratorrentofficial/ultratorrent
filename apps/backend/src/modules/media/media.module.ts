@@ -1,4 +1,6 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, type OnModuleInit } from '@nestjs/common';
+import { CapabilityRegistry } from '../context-actions/capability-registry.service';
+import { MEDIA_ACTIONS } from './media-actions';
 import { SettingsModule } from '../settings/settings.module';
 import { FilesModule } from '../files/files.module';
 import { SecretCipher } from '../../common/crypto/secret-cipher';
@@ -129,4 +131,18 @@ import { MediaController } from './media.controller';
     ImdbService,
   ],
 })
-export class MediaModule {}
+/**
+ * Contributes the Media Manager's actions to the CAMA registry at boot.
+ *
+ * Registration lives here rather than in the registry so the module owning the
+ * endpoints also owns the declarations of what they are — the registry stays
+ * ignorant of media, which is what lets a future module add actions without
+ * anything in `context-actions` changing.
+ */
+export class MediaModule implements OnModuleInit {
+  constructor(private readonly capabilities: CapabilityRegistry) {}
+
+  onModuleInit(): void {
+    this.capabilities.registerAll(MEDIA_ACTIONS);
+  }
+}

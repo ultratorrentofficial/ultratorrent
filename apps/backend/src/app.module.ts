@@ -32,6 +32,7 @@ import { TwoFactorModule } from './modules/two-factor/two-factor.module';
 import { AccountModule } from './modules/account/account.module';
 import { MediaModule } from './modules/media/media.module';
 import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
+import { ContextActionsModule } from './modules/context-actions/context-actions.module';
 import { ReleaseScoringModule } from './modules/release-scoring/release-scoring.module';
 import { IndexersModule } from './modules/indexers/indexers.module';
 import { ProwlarrIntegrationModule } from './modules/integrations/prowlarr/prowlarr.module';
@@ -57,6 +58,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     RealtimeModule,
     AuditModule,
     ModuleRegistryModule,
+    ContextActionsModule,
     EngineModule,
     MediaModule,
     AutomationModule,
