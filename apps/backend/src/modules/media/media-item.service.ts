@@ -326,6 +326,10 @@ export class MediaItemService {
         metadata: true,
         externalIds: true,
         artwork: { orderBy: { selected: 'desc' } },
+        // Counted, not listed: the row shows "3 subtitles", and loading every
+        // subtitle record for a 200-episode season to render a number would be
+        // the same waste as loading the files to count them.
+        _count: { select: { subtitles: true } },
       },
     });
 

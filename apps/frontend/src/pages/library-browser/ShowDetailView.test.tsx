@@ -101,6 +101,56 @@ describe('ShowDetailView', () => {
     expect(bare.parentElement?.textContent).toBe('Unprobed episode');
   });
 
+  describe('episode rows carry their own info and art', () => {
+    const rich = (over: Record<string, unknown> = {}) => episode(3, {
+      title: 'The Last of Us',                       // MediaItem.title is the SHOW
+      metadata: { title: 'Long Long Time', runtime: 76 },
+      artwork: [
+        { id: 'a1', type: 'poster', url: '/p.jpg', localPath: null, selected: true },
+        { id: 'a2', type: 'episode_thumbnail', url: '/still.jpg', localPath: null, selected: false },
+      ],
+      files: [{ id: 'f', itemId: 'e3', path: '/x', size: '1', container: 'mkv',
+        videoCodec: 'HEVC', audioCodec: null, resolution: '2160p', hdr: 'HDR10',
+        language: null, releaseGroup: null, quality: null, createdAt: '' }],
+      _count: { subtitles: 3 },
+      ...over,
+    });
+
+    const withEpisodes = (eps: unknown[]) =>
+      ({ key: 'k', seasons: [{ seasonNumber: 1, episodeCount: eps.length, poster: null, episodes: eps }] });
+
+    it('shows the EPISODE name, not the show name', async () => {
+      // MediaItem.title holds the show (taken from the folder, since a filename
+      // usually carries only the episode name), so the episode name is metadata.
+      renderIt(withEpisodes([rich()]));
+      expect(await screen.findByText('Long Long Time')).toBeInTheDocument();
+    });
+
+    it('uses the episode still rather than the show poster', async () => {
+      // Falling back to the poster would repeat one image down the whole list
+      // and say nothing about the episode.
+      renderIt(withEpisodes([rich()]));
+      expect(await screen.findByAltText('Long Long Time')).toBeInTheDocument();
+    });
+
+    it('renders runtime alongside the technical facts', async () => {
+      renderIt(withEpisodes([rich()]));
+      expect(await screen.findByText('2160p · HDR10 · HEVC · 76 min')).toBeInTheDocument();
+    });
+
+    it('shows a subtitle count only when there are subtitles', async () => {
+      renderIt(withEpisodes([rich(), rich({ id: 'none', metadata: { title: 'Silent' }, _count: { subtitles: 0 } })]));
+      expect(await screen.findByTitle('3 subtitles')).toBeInTheDocument();
+      // A "0" badge would read as a defect rather than as an absence.
+      expect(screen.queryByTitle('0 subtitles')).not.toBeInTheDocument();
+    });
+
+    it('falls back to the item title when metadata has no episode name', async () => {
+      renderIt(withEpisodes([rich({ metadata: null })]));
+      expect(await screen.findByText('The Last of Us')).toBeInTheDocument();
+    });
+  });
+
   it('flags an unmatched episode', async () => {
     renderIt({
       key: 'k',

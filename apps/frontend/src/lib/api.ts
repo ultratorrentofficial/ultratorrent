@@ -1200,6 +1200,8 @@ export interface MediaItem {
   files?: MediaFile[];
   metadata?: MediaMetadata | null;
   artwork?: MediaArtwork[];
+  /** Relation counts the browser renders as numbers rather than lists. */
+  _count?: { subtitles?: number };
   externalIds?: MediaExternalId[];
 }
 

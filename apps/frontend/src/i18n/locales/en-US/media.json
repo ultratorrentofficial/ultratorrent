@@ -1720,7 +1720,10 @@
       "missing_artwork": "No artwork",
       "missing_subtitles": "No subtitles",
       "duplicate": "Duplicate"
-    }
+    },
+    "minutes": "{{count}} min",
+    "subtitleCount": "{{count}} subtitle",
+    "subtitleCount_other": "{{count}} subtitles"
   },
   "rename": {
     "undo": {
