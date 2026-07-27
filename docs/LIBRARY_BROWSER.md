@@ -203,11 +203,17 @@ Counts are taken **per issue, not as one grouped pass**. The conditions overlap 
 an unmatched item usually also lacks artwork — so a single `GROUP BY` would put
 each item in one bucket and under-report every other issue.
 
-They are also scoped to **one library**. `artwork: { none: {} }` compiles to
-`NOT IN (subquery)`, which Postgres cannot satisfy from an index; that is what
-hung the Media Manager dashboard at ~390k artwork rows. The library filter keeps
-the row set small. A library-wide equivalent belongs in the dashboard, which
-uses hand-written anti-joins for exactly this reason.
+**Relation-absence issues use a raw anti-join, never a Prisma relation filter.**
+`{ none: {} }` compiles to `NOT IN (subquery)`, which Postgres cannot satisfy
+from the index on `itemId` — the same construct that hung the Media Manager
+dashboard. Scoping to one library does **not** rescue it: measured on a live
+25 312-item library, `NOT IN` did not finish inside two minutes while the
+equivalent `NOT EXISTS` took **337 ms**.
+
+So `issueWhere()` returns `{}` for those kinds and `needsAntiJoin()` routes them
+to SQL — a caller cannot reintroduce the slow clause by accident. Listing runs
+the anti-join to get the page's ids, then Prisma loads those rows with their
+relations: two indexed queries instead of one that never finishes.
 
 ## Export
 

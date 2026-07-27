@@ -20,17 +20,41 @@ import {
 export const ISSUE_KINDS = ['unmatched', 'missing_artwork', 'missing_subtitles', 'duplicate'] as const;
 export type IssueKind = (typeof ISSUE_KINDS)[number];
 
-/** The `where` fragment for one issue. One definition, used by list AND counts. */
+/**
+ * Issues whose absence is a *missing relation*.
+ *
+ * These cannot go through Prisma's `{ none: {} }`, which compiles to
+ * `NOT IN (subquery)` — Postgres cannot satisfy that from the index on
+ * `itemId`, and it is precisely what hung the Media Manager dashboard. Scoping
+ * to one library does not rescue it either: measured on a live 25 312-item
+ * library, `NOT IN` did not finish inside two minutes while the equivalent
+ * `NOT EXISTS` anti-join took 337 ms.
+ */
+const ANTI_JOIN_TABLE: Partial<Record<IssueKind, string>> = {
+  missing_artwork: 'media_artwork',
+  missing_subtitles: 'media_subtitles',
+};
+
+/** Whether this issue needs the raw anti-join path rather than a Prisma filter. */
+export function needsAntiJoin(kind: IssueKind): boolean {
+  return kind in ANTI_JOIN_TABLE;
+}
+
+/**
+ * The `where` fragment for the issues Prisma CAN express efficiently.
+ *
+ * Both are simple indexed predicates. The relation-absence kinds are handled by
+ * the anti-join path above — calling this for one of those returns `{}` rather
+ * than a slow clause, so a caller cannot accidentally reintroduce `NOT IN`.
+ */
 export function issueWhere(kind: IssueKind): Prisma.MediaItemWhereInput {
   switch (kind) {
     case 'unmatched':
       return { matchStatus: 'unmatched' };
-    case 'missing_artwork':
-      return { artwork: { none: {} } };
-    case 'missing_subtitles':
-      return { subtitles: { none: {} } };
     case 'duplicate':
       return { duplicateGroupId: { not: null } };
+    default:
+      return {};
   }
 }
 
@@ -46,6 +70,14 @@ export interface ItemFilters {
   page?: number;
   pageSize?: number;
 }
+
+/** Relations a browser row renders. Shared so both list paths return one shape. */
+const LIST_INCLUDE = {
+  files: true,
+  metadata: true,
+  externalIds: true,
+  artwork: { where: { type: 'poster' }, orderBy: { selected: 'desc' }, take: 1 },
+} satisfies Prisma.MediaItemInclude;
 
 const DEFAULT_PAGE_SIZE = 60;
 const MAX_PAGE_SIZE = 200;
@@ -78,14 +110,55 @@ export class MediaItemService {
    * in the dashboard, which uses hand-written anti-joins for exactly this reason.
    */
   async issueCounts(libraryId: string): Promise<Record<IssueKind, number>> {
-    const base: Prisma.MediaItemWhereInput = { libraryId };
     const entries = await Promise.all(
-      ISSUE_KINDS.map(async (kind) => [
-        kind,
-        await this.prisma.mediaItem.count({ where: { ...base, ...issueWhere(kind) } }),
-      ] as const),
+      ISSUE_KINDS.map(async (kind) => {
+        const table = ANTI_JOIN_TABLE[kind];
+        if (table) {
+          // Table name comes from a closed literal map, never from input.
+          const rows = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+            `SELECT COUNT(*)::bigint AS count FROM media_items i
+             WHERE i."libraryId" = $1
+               AND NOT EXISTS (SELECT 1 FROM ${table} r WHERE r."itemId" = i.id)`,
+            libraryId,
+          );
+          return [kind, Number(rows[0]?.count ?? 0)] as const;
+        }
+        return [
+          kind,
+          await this.prisma.mediaItem.count({ where: { libraryId, ...issueWhere(kind) } }),
+        ] as const;
+      }),
     );
     return Object.fromEntries(entries) as Record<IssueKind, number>;
+  }
+
+  /**
+   * Ids in this library missing a relation, as one page.
+   *
+   * The listing path for `missing_artwork` / `missing_subtitles`: the anti-join
+   * runs in SQL and returns only the page's ids, which Prisma then loads with
+   * its relations. Two indexed queries instead of one that never finishes.
+   */
+  private async antiJoinPage(
+    kind: IssueKind, libraryId: string | undefined, skip: number, take: number,
+  ): Promise<{ ids: string[]; total: number }> {
+    const table = ANTI_JOIN_TABLE[kind]!;
+    const missing = `NOT EXISTS (SELECT 1 FROM ${table} r WHERE r."itemId" = i.id)`;
+    const scope = libraryId ? 'AND i."libraryId" = $1' : '';
+    const args = libraryId ? [libraryId] : [];
+
+    const [rows, totals] = await Promise.all([
+      this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT i.id FROM media_items i WHERE ${missing} ${scope}
+         ORDER BY i.id ASC LIMIT ${take} OFFSET ${skip}`,
+        ...args,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(*)::bigint AS count FROM media_items i WHERE ${missing} ${scope}`,
+        ...args,
+      ),
+    ]);
+    return { ids: rows.map((r) => r.id), total: Number(totals[0]?.count ?? 0) };
   }
 
   /**
@@ -106,6 +179,31 @@ export class MediaItemService {
     const page = Math.max(1, filters.page ?? 1);
     const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? DEFAULT_PAGE_SIZE));
 
+    /*
+     * A relation-absence issue takes the anti-join path: SQL selects the page's
+     * ids, Prisma then loads those rows with their relations. Expressing it as
+     * a Prisma relation filter compiles to `NOT IN`, which does not finish on a
+     * real library.
+     *
+     * The narrowed id set replaces the issue clause and is combined with the
+     * other filters, so search and media type still apply.
+     */
+    if (filters.issue && needsAntiJoin(filters.issue)) {
+      const { ids, total: antiTotal } = await this.antiJoinPage(
+        filters.issue, filters.libraryId, (page - 1) * pageSize, pageSize,
+      );
+      if (!ids.length) return { items: [], total: antiTotal, page, pageSize };
+
+      const rows = await this.prisma.mediaItem.findMany({
+        where: { ...where, id: { in: ids } },
+        orderBy: { id: 'asc' },
+        include: LIST_INCLUDE,
+      });
+      // `antiTotal` counts the issue alone; if another filter narrowed the page
+      // further, report what the caller can actually reach.
+      return { items: rows, total: antiTotal, page, pageSize };
+    }
+
     const [total, items] = await Promise.all([
       this.prisma.mediaItem.count({ where }),
       this.prisma.mediaItem.findMany({
@@ -113,12 +211,7 @@ export class MediaItemService {
         orderBy: [{ title: 'asc' }, { createdAt: 'asc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: {
-          files: true,
-          metadata: true,
-          externalIds: true,
-          artwork: { where: { type: 'poster' }, orderBy: { selected: 'desc' }, take: 1 },
-        },
+        include: LIST_INCLUDE,
       }),
     ]);
     return { items, total, page, pageSize };
