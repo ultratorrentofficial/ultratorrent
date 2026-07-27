@@ -159,6 +159,41 @@ describe('Duplicate Center — ignore and reopen', () => {
   });
 });
 
+/**
+ * A group whose membership fell below two is not a duplicate of anything, and it
+ * kept offering the vanished copy's bytes as reclaimable — live on synoplex, a
+ * "Same show / season / episode" group promising 980 MB whose compare view listed
+ * one 697 MB file, because the other copy's file had been removed outside
+ * UltraTorrent and the scan that noticed pruned the item but not the group.
+ */
+describe('Duplicate Center — orphaned groups', () => {
+  function rawPrisma(deleted: number) {
+    const statements: string[] = [];
+    return {
+      statements,
+      $executeRaw: jest.fn(async (strings: TemplateStringsArray) => {
+        statements.push(strings.join(' ').replace(/\s+/g, ' ').trim());
+        return deleted;
+      }),
+    } as any;
+  }
+
+  it('deletes open groups left with fewer than two members', async () => {
+    const prisma = rawPrisma(3);
+    expect(await svc(prisma).pruneOrphanedGroups()).toBe(3);
+    expect(prisma.statements[0]).toContain('DELETE FROM media_duplicate_groups');
+    expect(prisma.statements[0]).toContain('< 2');
+  });
+
+  it('spares a group a human has ignored or resolved', async () => {
+    const prisma = rawPrisma(0);
+    await svc(prisma).pruneOrphanedGroups();
+    // "These are not duplicates" and the record of a completed resolution are both
+    // meant to outlive the members they were decided about.
+    expect(prisma.statements[0]).toContain("status = 'open'");
+  });
+});
+
 describe('Duplicate Center — overview', () => {
   it('aggregates rather than counting loaded rows', async () => {
     const prisma = makePrisma([group()]);

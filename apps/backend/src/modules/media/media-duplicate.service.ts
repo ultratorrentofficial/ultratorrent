@@ -1110,6 +1110,39 @@ export class MediaDuplicateService {
     });
   }
 
+  /**
+   * Drop open groups whose membership has fallen below two — they are no longer
+   * duplicates of anything.
+   *
+   * Membership is a foreign key on the ITEM, so deleting an item silently
+   * un-members it: the group row survives with the `potentialSavingsBytes` that
+   * were computed while the other copy still existed. Observed live on synoplex —
+   * a "Same show / season / episode" group for `From` S04E08 offering 980 MB of
+   * savings whose compare view listed a single 697 MB file. The second copy's file
+   * had been removed outside UltraTorrent; the scan that noticed pruned the item
+   * and left the group behind, still open, still counted in the reclaimable total.
+   *
+   * Detection does drop such a group — it is no longer produced, and an unseen
+   * open group is deleted on the next run — but that run only happens when
+   * something schedules it. On synoplex nothing had for three days, and the
+   * Duplicate Center's only entry in that window was the phantom. So the prune
+   * runs where membership actually breaks, rather than waiting for a scan.
+   *
+   * `open` only: an ignored group is a human saying "these are not duplicates" and
+   * a resolved one is history. Both are meant to outlive their members.
+   */
+  async pruneOrphanedGroups(): Promise<number> {
+    const removed = await this.prisma.$executeRaw`
+      DELETE FROM media_duplicate_groups g
+      WHERE g.status = 'open'
+        AND (SELECT count(*) FROM media_items i WHERE i."duplicateGroupId" = g.id) < 2
+    `;
+    if (removed > 0) {
+      this.logger.log(`Pruned ${removed} duplicate group(s) left with fewer than two members`);
+    }
+    return removed;
+  }
+
   private async getOrThrow(groupId: string) {
     const g = await this.prisma.mediaDuplicateGroup.findUnique({ where: { id: groupId } });
     if (!g) throw new NotFoundException('Duplicate group not found');

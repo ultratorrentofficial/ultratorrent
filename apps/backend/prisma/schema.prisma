@@ -1086,7 +1086,10 @@ model MediaDuplicateCandidate {
   groupId String
   itemId  String
 
-  /// Snapshotted so a resolution stays auditable after the item row is deleted.
+  /// Snapshotted so a plan stays readable once the file has MOVED — not a
+  /// permanent audit record: `itemId` cascades, so deleting the item deletes this
+  /// row with it. The durable journal of what was actually done to a file is
+  /// `MediaDuplicateResolutionAction`, which hangs off the resolution instead.
   path     String
   fileSize BigInt  @default(0)
   hash     String?

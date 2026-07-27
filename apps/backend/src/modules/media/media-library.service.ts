@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
+import { MediaDuplicateService } from './media-duplicate.service';
 
 export interface LibraryInput {
   name?: string;
@@ -24,6 +25,7 @@ export class MediaLibraryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly filePath: FilePathService,
+    private readonly duplicates: MediaDuplicateService,
   ) {}
 
   list() {
@@ -79,7 +81,11 @@ export class MediaLibraryService {
     });
   }
 
-  remove(id: string) {
-    return this.prisma.mediaLibrary.delete({ where: { id } });
+  async remove(id: string) {
+    const library = await this.prisma.mediaLibrary.delete({ where: { id } });
+    // The library's items cascade away with it, so any duplicate group that spanned
+    // this library and another is left holding one side of a comparison.
+    await this.duplicates.pruneOrphanedGroups();
+    return library;
   }
 }

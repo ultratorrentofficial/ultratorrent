@@ -10,6 +10,7 @@ import { MediaArtworkService } from './media-artwork.service';
 import { MediaMetadataService, parseNfoXml } from './media-metadata.service';
 import { TV_TYPES, parseFolderTitle, showCanonicalKey } from './series-grouping';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
+import { MediaDuplicateService } from './media-duplicate.service';
 
 /** Library kinds whose contents are shows (and therefore get MediaShow rows). */
 const SHOW_LIBRARY_KINDS = ['tv', 'anime'];
@@ -154,6 +155,7 @@ export class MediaScannerService {
     private readonly artwork: MediaArtworkService,
     private readonly metadata: MediaMetadataService,
     private readonly showDuplicates: MediaShowDuplicateService,
+    private readonly duplicates: MediaDuplicateService,
     private readonly imdbResolver: ImdbSeriesResolver,
   ) {}
 
@@ -324,6 +326,11 @@ export class MediaScannerService {
         removed = (await this.prisma.mediaItem.deleteMany({ where: { id: { in: staleIds } } })).count;
         this.logger.log(`Scan of ${library.name}: pruned ${removed} item(s) whose files no longer exist`);
         await report?.(88, `Pruned ${removed} stale item(s) whose files were gone`);
+        // A pruned item takes its duplicate-group membership with it, and a group
+        // left holding one member is not a duplicate of anything — it would keep
+        // offering the vanished copy's bytes as reclaimable until something
+        // rescheduled detection.
+        await this.duplicates.pruneOrphanedGroups();
       }
     }
 
