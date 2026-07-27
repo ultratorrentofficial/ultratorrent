@@ -12,6 +12,18 @@ import { DOMAIN_EVENTS, type DomainEventDefinition } from '@ultratorrent/shared'
  * happens to send would make the contract brittle for no benefit.
  */
 const DEFINITIONS: readonly DomainEventDefinition[] = [
+  // --- Files ---------------------------------------------------------------
+  {
+    key: DOMAIN_EVENTS.FILE_MOVED,
+    description: 'A file was renamed or moved on disk, by any subsystem.',
+    // Both paths, because a consumer's whole job is to follow the file.
+    requiredFields: ['from', 'to'],
+  },
+  {
+    key: DOMAIN_EVENTS.FILE_DELETED,
+    description: 'A file was removed from disk (trashed or permanently).',
+    requiredFields: ['path'],
+  },
   // --- Playback ------------------------------------------------------------
   {
     key: DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING,

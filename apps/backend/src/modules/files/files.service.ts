@@ -31,6 +31,8 @@ import {
   pathExists,
   statSafe,
 } from './file-fs.util';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { TrashService } from './trash.service';
 import type {
   BulkOperationDto,
@@ -58,7 +60,33 @@ export class FilesService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
     private readonly trash: TrashService,
+    private readonly bus: DomainEventBus,
   ) {}
+
+  /**
+   * Publish a file-level fact.
+   *
+   * Best-effort by construction: `publish()` never throws, and a bookkeeping
+   * subscriber must not be able to fail an operation that already touched disk.
+   */
+  private announceMove(from: string, to: string): void {
+    if (from === to) return;
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.FILE_MOVED,
+      resourceType: 'file',
+      resourceId: to,
+      payload: { from, to },
+    });
+  }
+
+  private announceDelete(path: string): void {
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.FILE_DELETED,
+      resourceType: 'file',
+      resourceId: path,
+      payload: { path },
+    });
+  }
 
   private get safety() {
     return this.paths.safety;
@@ -179,6 +207,10 @@ export class FilesService {
           throw new ConflictException('A file or folder with that name already exists');
         }
         await rename(src, dest);
+        // Say what happened. Media follows the file through the bus rather than
+        // this module reaching into it — media already depends on files, so a
+        // direct call would close a cycle.
+        this.announceMove(src, dest);
         return { path: this.safety.toRelative(dest) };
       },
     });
@@ -202,6 +234,7 @@ export class FilesService {
         }
         const bytes = await computeSize(src);
         await moveRecursive(src, dest, !!dto.overwrite);
+        this.announceMove(src, dest);
         return { path: this.safety.toRelative(dest), bytes };
       },
     });
@@ -269,6 +302,9 @@ export class FilesService {
       // same safety goes with it so the trash directory is sited in the root that
       // actually contains the file, not the narrowed browse root.
       const item = await this.trash.moveToTrash(target, ctx, safety);
+      // Trashing is a removal from the library as far as media records are
+      // concerned — the file is no longer where any of them say it is.
+      this.announceDelete(target);
       this.emit('delete', { source: rel, bytes: item.size, result: 'success', at: new Date().toISOString() }, 'completed');
       return { operation: 'delete', ok: true, path: rel, bytes: item.size, message: 'moved to trash' };
     } catch (err) {

@@ -33,6 +33,16 @@ export const DOMAIN_EVENTS = {
   MEDIA_SERVER_REFRESH_FAILED: 'media_server.refresh_failed',
 
   // --- Torrents ------------------------------------------------------------
+  /*
+   * File-level facts, published by whatever moved the bytes.
+   *
+   * The seam that keeps the database honest without coupling modules: the file
+   * manager cannot call into media (media already depends on files, so that
+   * would be a cycle), and any future mover gets the bookkeeping for free by
+   * publishing rather than by remembering to update five tables.
+   */
+  FILE_MOVED: 'file.moved',
+  FILE_DELETED: 'file.deleted',
   TORRENT_COMPLETED: 'torrent.completed',
   TORRENT_FAILED: 'torrent.failed',
 

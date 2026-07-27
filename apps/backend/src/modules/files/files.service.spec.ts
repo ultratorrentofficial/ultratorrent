@@ -13,6 +13,7 @@ function configFor(root: string): any {
 describe('FilesService', () => {
   let root: string;
   let svc: FilesService;
+  let bus: { publish: jest.Mock };
   let audit: { record: jest.Mock };
   let realtime: { broadcast: jest.Mock };
   let trash: { moveToTrash: jest.Mock };
@@ -30,7 +31,10 @@ describe('FilesService', () => {
         return { size: 5 };
       }),
     };
-    svc = new FilesService(paths as any, audit as any, realtime as any, trash as any);
+    // The bus: file operations announce what they did so media records can
+    // follow, without files depending on media (which would be a cycle).
+    bus = { publish: jest.fn(() => ({ published: true })) };
+    svc = new FilesService(paths as any, audit as any, realtime as any, trash as any, bus as any);
   });
 
   afterEach(async () => {
@@ -229,4 +233,33 @@ describe('FilesService', () => {
       expect(res.results[1].message).toMatch(/no longer exists/i);
     });
   });
+
+  describe('file operations announce themselves', () => {
+    /*
+     * The seam that keeps the database honest. Files cannot call into media —
+     * media already depends on files, so that would be a cycle — so a mover
+     * says what it did and media follows.
+     *
+     * Before this, consistency meant every author of a file operation
+     * remembering to update five tables. The rename engine forgot for as long
+     * as it existed; the file manager never did it at all.
+     */
+    it('publishes a move when a file is renamed', async () => {
+      await writeFile(join(root, 'a.mkv'), 'video');
+      await svc.rename({ path: 'a.mkv', newName: 'b.mkv' } as never);
+      const events = bus.publish.mock.calls.map((c) => c[0] as any);
+      const moved = events.find((e) => e.eventKey === 'file.moved');
+      expect(moved).toBeDefined();
+      expect(moved.payload.from).toContain('a.mkv');
+      expect(moved.payload.to).toContain('b.mkv');
+    });
+
+    it('never announces a move that did not happen', () => {
+      // A rename onto the same name is a no-op; announcing it would make every
+      // subscriber do pointless work.
+      expect((svc as any).announceMove('/x/a.mkv', '/x/a.mkv')).toBeUndefined();
+      expect(bus.publish).not.toHaveBeenCalled();
+    });
+  });
+
 });
