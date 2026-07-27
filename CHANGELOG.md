@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.51.2] - 2026-07-27
+
+### Fixed
+- Duplicate groups left with one member after their other copy's file disappeared are pruned where the deletion happens, instead of lingering as a phantom duplicate with stale reclaimable bytes
+- Fix issue counts and filtering reintroducing the NOT IN pathology: relation-absence issues now use NOT EXISTS anti-joins
+
 ## [0.51.1] - 2026-07-27
 
 ### Fixed
