@@ -1776,5 +1776,9 @@
     "whatToFix": "Qué corregir",
     "nothingToFix": "No hay nada que requiera atención.",
     "episodeShare": "{{count}} · {{share}} %"
+  },
+  "ops": {
+    "toggle": "Operaciones",
+    "selectEpisode": "Seleccionar episodio {{number}}"
   }
 }

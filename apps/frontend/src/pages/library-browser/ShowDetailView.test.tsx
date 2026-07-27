@@ -4,8 +4,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@/i18n';
 import { ShowDetailView } from './ShowDetailView';
 
-const apiSpy = vi.hoisted(() => ({ seriesEpisodes: vi.fn(), seriesHealth: vi.fn() }));
+const apiSpy = vi.hoisted(() => ({
+  seriesEpisodes: vi.fn(), seriesHealth: vi.fn(),
+  bulkItems: vi.fn(), scanLibrary: vi.fn(),
+}));
 vi.mock('@/lib/api', () => ({ api: { media: apiSpy } }));
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), toast: vi.fn() }),
+}));
+vi.mock('@/auth/AuthContext', () => ({ useAuth: () => ({ hasPermission: () => true }) }));
 
 // The poster resolves artwork through an authenticated fetch; the drill-down's
 // behaviour has nothing to do with image bytes.
@@ -229,6 +236,63 @@ describe('ShowDetailView', () => {
       renderIt();
       const badge = await screen.findByLabelText('Not scored — 0');
       expect(badge.textContent).toContain('—');
+    });
+  });
+
+  describe('Operations Mode', () => {
+    const openOps = async () => {
+      renderIt();
+      await screen.findByText('Episode 1');
+      fireEvent.click(screen.getByText('Operations'));
+    };
+
+    it('is off until asked for', async () => {
+      /*
+       * Most visits are to look at a show, not maintain it. Permanent
+       * checkboxes make a media page feel like a file manager.
+       */
+      renderIt();
+      await screen.findByText('Episode 1');
+      expect(screen.queryByLabelText('Select episode 1')).not.toBeInTheDocument();
+      expect(screen.queryByText('Nothing selected')).not.toBeInTheDocument();
+    });
+
+    it('reveals checkboxes and the bulk toolbar', async () => {
+      await openOps();
+      expect(await screen.findByLabelText('Select episode 1')).toBeInTheDocument();
+      expect(screen.getByText('Nothing selected')).toBeInTheDocument();
+    });
+
+    it('selects an episode and offers operations over it', async () => {
+      await openOps();
+      fireEvent.click(await screen.findByLabelText('Select episode 1'));
+      expect(await screen.findByText('1 selected')).toBeInTheDocument();
+      expect(screen.getByText('Refresh metadata')).toBeInTheDocument();
+    });
+
+    it('sends the selection to the bulk endpoint as one request', async () => {
+      apiSpy.bulkItems.mockResolvedValue({ jobId: 'j1', accepted: 1, missing: [] });
+      await openOps();
+      fireEvent.click(await screen.findByLabelText('Select episode 1'));
+      fireEvent.click(await screen.findByText('Refresh metadata'));
+      await waitFor(() => expect(apiSpy.bulkItems).toHaveBeenCalledWith('metadata', ['e1']));
+    });
+
+    it('drops the selection when Operations Mode is left', async () => {
+      // A selection that outlived its mode would act on rows nobody can see.
+      await openOps();
+      fireEvent.click(await screen.findByLabelText('Select episode 1'));
+      await screen.findByText('1 selected');
+      fireEvent.click(screen.getByText('Operations'));
+      await waitFor(() => expect(screen.queryByText('1 selected')).not.toBeInTheDocument());
+    });
+
+    it('drops the selection when another season is opened', async () => {
+      await openOps();
+      fireEvent.click(await screen.findByLabelText('Select episode 1'));
+      await screen.findByText('1 selected');
+      fireEvent.click(screen.getByText('Season 2'));
+      await waitFor(() => expect(screen.queryByText('1 selected')).not.toBeInTheDocument());
     });
   });
 

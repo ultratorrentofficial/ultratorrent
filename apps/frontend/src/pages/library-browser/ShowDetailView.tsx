@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { Captions, ChevronLeft, Lock } from 'lucide-react';
+import { Captions, ChevronLeft, Lock, SlidersHorizontal } from 'lucide-react';
 import { api, type HealthStatus, type MediaItem, type MediaSeasonGroup } from '@/lib/api';
 import { MediaPoster } from '@/components/media/MediaPoster';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,8 @@ import { VirtualPosterGrid } from './VirtualPosterGrid';
 import { episodeTitleOf } from './episode-title';
 import { HealthBadge } from './HealthBadge';
 import { ShowOverview } from './ShowOverview';
+import { ContextActionBar } from './ContextActionBar';
+import { EMPTY_SELECTION, applyClick, clearSelection, pruneSelection, toggleChecked, type SelectionState } from './selection';
 
 /**
  * One show, drilled into its seasons and episodes.
@@ -42,6 +44,14 @@ export function ShowDetailView({
    * an empty tab is a worse answer than an absent one.
    */
   const [tab, setTab] = useState<'overview' | 'episodes'>('episodes');
+  /*
+   * Operations Mode turns a browser into a workspace: checkboxes, health
+   * reasons on every row, and the bulk toolbar. Off by default, because most
+   * visits are to look at a show rather than to maintain it, and permanent
+   * checkboxes make a media page feel like a file manager.
+   */
+  const [opsMode, setOpsMode] = useState(false);
+  const [selection, setSelection] = useState<SelectionState>(EMPTY_SELECTION);
 
   const query = useQuery({
     queryKey: ['library-browser', 'episodes', showKey, libraryId],
@@ -79,6 +89,16 @@ export function ShowDetailView({
     return seasons[0] ?? null;
   }, [openSeason, seasons]);
 
+  const visibleIds = useMemo(
+    () => (activeSeason?.episodes ?? []).map((e) => e.id),
+    [activeSeason],
+  );
+
+  // Switching season, or leaving Operations Mode, must not leave a selection
+  // pointing at rows nobody can see.
+  useEffect(() => setSelection((sel) => pruneSelection(sel, visibleIds)), [visibleIds]);
+  useEffect(() => { if (!opsMode) setSelection(clearSelection()); }, [opsMode]);
+
   return (
     <div className="flex h-full flex-col gap-4">
       <header className="flex items-center gap-3">
@@ -93,6 +113,16 @@ export function ShowDetailView({
         {health.data && (
           <HealthBadge score={health.data.score} status={health.data.status} />
         )}
+        <span className="flex-1" />
+        <Button
+          size="sm"
+          variant={opsMode ? 'secondary' : 'ghost'}
+          aria-pressed={opsMode}
+          onClick={() => setOpsMode((v) => !v)}
+        >
+          <SlidersHorizontal className="mr-1.5 h-4 w-4" aria-hidden />
+          {t('ops.toggle')}
+        </Button>
       </header>
 
       <div className="flex gap-1 border-b border-white/10" role="tablist">
@@ -136,6 +166,14 @@ export function ShowDetailView({
             ))}
           </div>
 
+          {opsMode && libraryId && (
+            <ContextActionBar
+              libraryId={libraryId}
+              selectedIds={[...selection.ids]}
+              onClear={() => setSelection(clearSelection())}
+            />
+          )}
+
           <div className="min-h-0 flex-1">
             {activeSeason && (
               <VirtualPosterGrid
@@ -143,7 +181,16 @@ export function ShowDetailView({
                 mode="list"
                 itemKey={(ep) => ep.id}
                 renderItem={(ep) => (
-                  <EpisodeRow episode={ep} health={healthByEpisode.get(ep.id) ?? null} />
+                  <EpisodeRow
+                    episode={ep}
+                    health={healthByEpisode.get(ep.id) ?? null}
+                    opsMode={opsMode}
+                    selected={selection.ids.has(ep.id)}
+                    onToggle={() => setSelection((sel) => toggleChecked(sel, ep.id))}
+                    onSelect={(mods) =>
+                      setSelection((sel) => applyClick(sel, ep.id, visibleIds, mods))
+                    }
+                  />
                 )}
                 emptyState={<EmptyState title={t('browser.noEpisodes')} />}
               />
@@ -195,9 +242,13 @@ function SeasonCard({
   );
 }
 
-function EpisodeRow({ episode, health }: {
+function EpisodeRow({ episode, health, opsMode, selected, onToggle, onSelect }: {
   episode: MediaItem;
   health: { score: number; status: HealthStatus; reasons: string[] } | null;
+  opsMode: boolean;
+  selected: boolean;
+  onToggle: () => void;
+  onSelect: (mods: { shift?: boolean; meta?: boolean }) => void;
 }) {
   const { t } = useTranslation('media');
   const file = episode.files?.[0];
@@ -238,7 +289,30 @@ function EpisodeRow({ episode, health }: {
   ].filter(Boolean) as string[];
 
   return (
-    <div className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-white/[0.04]">
+    <div
+      className={cn(
+        'flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-white/[0.04]',
+        selected && 'bg-sky-400/10 ring-1 ring-inset ring-sky-400/40',
+      )}
+      // A modified click ranges or toggles, exactly as in the grid, so the two
+      // surfaces do not teach different habits.
+      onClick={opsMode ? (e) => {
+        if (e.shiftKey || e.metaKey || e.ctrlKey) {
+          e.preventDefault();
+          onSelect({ shift: e.shiftKey, meta: e.metaKey || e.ctrlKey });
+        }
+      } : undefined}
+    >
+      {opsMode && (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={t('ops.selectEpisode', { number: episode.episode ?? 0 })}
+          className="h-4 w-4 shrink-0 accent-sky-400"
+        />
+      )}
       <span className="w-9 shrink-0 text-right font-mono text-xs text-muted-foreground">
         {episode.episode != null ? `E${String(episode.episode).padStart(2, '0')}` : '—'}
       </span>
@@ -261,6 +335,14 @@ function EpisodeRow({ episode, health }: {
           <p className="truncate text-xs text-muted-foreground">{facts.join(' · ')}</p>
         )}
       </div>
+
+      {/* In Operations Mode the reasons stop being a tooltip: maintaining a
+          season means scanning what is wrong, not hovering each row. */}
+      {opsMode && health?.reasons.length ? (
+        <span className="hidden shrink-0 max-w-[18rem] truncate text-xs text-amber-200/80 lg:block">
+          {health.reasons.map((r) => t(`health.reason.${r}` as 'health.reason.unmatched')).join(' · ')}
+        </span>
+      ) : null}
 
       {health && (
         <HealthBadge
