@@ -45,12 +45,14 @@ function fakePrisma() {
 describe('TrashService', () => {
   let root: string;
   let svc: TrashService;
+  let bus: { publish: jest.Mock };
   let prisma: ReturnType<typeof fakePrisma>;
 
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), 'ut-trash-'));
     prisma = fakePrisma();
     const paths = new FilePathService(configFor(root), { get: async () => undefined, set: async () => {} } as any);
+    bus = { publish: jest.fn(() => ({ published: true })) };
     svc = new TrashService(
       prisma as any,
       paths as any,
@@ -58,6 +60,9 @@ describe('TrashService', () => {
       { broadcast: jest.fn() } as any,
       // Unset retention setting → the 30-day default, so items stay listed.
       { get: async () => undefined, set: async () => {} } as any,
+      // The bus: a restore puts a file back into a library, which the media
+      // module reconciles by rescanning the destination folder.
+      bus as any,
     );
   });
 
@@ -81,6 +86,24 @@ describe('TrashService', () => {
     await svc.restore(item.id, false);
     expect(await pathExists(join(root, 'b.txt'))).toBe(true);
     expect(await svc.list()).toHaveLength(0);
+  });
+
+  it('announces a restore so the library reconciles the returned file', async () => {
+    /*
+     * The records were removed when the file was trashed, so nothing follows a
+     * path here. What matters is the confined rescan this triggers: without it
+     * a restored film sits on disk invisible to the library until someone runs
+     * a full scan.
+     */
+    await writeFile(join(root, 'restored.mkv'), 'data');
+    const item = await svc.moveToTrash(join(root, 'restored.mkv'));
+    bus.publish.mockClear();
+    await svc.restore(item.id, false);
+
+    const events = bus.publish.mock.calls.map((c) => c[0] as any);
+    const moved = events.find((e) => e.eventKey === 'file.moved');
+    expect(moved).toBeDefined();
+    expect(moved.payload.to).toBe(join(root, 'restored.mkv'));
   });
 
   it('refuses to restore over an existing item without overwrite', async () => {
@@ -120,6 +143,7 @@ describe('TrashService — retention', () => {
       { record: jest.fn().mockResolvedValue(undefined) } as any,
       { broadcast: jest.fn() } as any,
       { get: async () => days, set: async () => {} } as any,
+      { publish: jest.fn(() => ({ published: true })) } as any,
     );
   }
 
@@ -231,6 +255,7 @@ describe('restoring something trashed in storage scope (G12)', () => {
       { record: jest.fn().mockResolvedValue(undefined) } as any,
       { broadcast: jest.fn() } as any,
       { get: async () => undefined, set: async () => {} } as any,
+      { publish: jest.fn(() => ({ published: true })) } as any,
     );
   });
 

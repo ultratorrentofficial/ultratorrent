@@ -15,6 +15,8 @@ import {
   WS_EVENTS,
   type TrashItemDto,
 } from '@ultratorrent/shared';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -49,6 +51,7 @@ export class TrashService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
     private readonly settings: SettingsService,
+    private readonly bus: DomainEventBus,
   ) {}
 
   private get safety() {
@@ -272,6 +275,21 @@ export class TrashService {
       metadata: { bytes: Number(row.size) },
     });
     this.realtime.broadcast(WS_EVENTS.FILES_TRASH_UPDATED, { action: 'restored', id });
+    /*
+     * A restore puts a file back into a library, so it is a move like any other.
+     *
+     * The records were removed when it was trashed, so nothing follows the path
+     * here — what matters is that the confined rescan this triggers recreates
+     * the item at its restored location. Without it, a restored film would sit
+     * on disk invisible to the library until someone ran a full scan.
+     */
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.FILE_MOVED,
+      resourceType: 'file',
+      resourceId: dest,
+      payload: { from: row.trashPath, to: dest },
+    });
+
     return { path: path.posix.join('/', path.relative(row.storageRoot, dest).split(path.sep).join('/')) };
   }
 
