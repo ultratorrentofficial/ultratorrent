@@ -50,6 +50,14 @@ describe('session continuity', () => {
       mediaServerWatchHistory: {
         create: jest.fn(async ({ data }: any) => { history.push(data); return data; }),
       },
+      // The accounts synced from the media server, which is where a playback card
+      // gets the viewer's full name from.
+      mediaServerUser: {
+        findMany: jest.fn(async () => [
+          { connectionId: null, providerUserId: '383757', userName: 'Dennis Ayala' },
+          { connectionId: null, providerUserId: '19587074', userName: 'Madeline Ayala' },
+        ]),
+      },
     };
 
     let sessions: any[] = [];
@@ -264,6 +272,27 @@ describe('session continuity', () => {
     expect(t.starts()).toHaveLength(1);
     expect(t.stops()).toHaveLength(0);
     expect(t.history).toHaveLength(0);
+  });
+
+  it('names the viewer by their full name, not the login the session reported', async () => {
+    const t = build();
+    t.setSessions([episode(6, { userName: 'dennis.ayala' })]);
+    await t.svc.poll();
+    // Plex answers `/status/sessions` with a login and its account list with
+    // `Dennis Ayala`; the alert should use the latter.
+    expect(t.starts()[0].payload.userDisplayName).toBe('Dennis Ayala');
+
+    t.setSessions([]);
+    for (let i = 0; i < 4; i += 1) await t.svc.poll();
+    expect(t.stops()[0].payload.userDisplayName).toBe('Dennis Ayala');
+  });
+
+  it('keeps the session row on the provider’s own name', async () => {
+    const t = build();
+    t.setSessions([episode(6, { userName: 'dennis.ayala' })]);
+    await t.svc.poll();
+    // Analytics group by this; rewriting it would split one person's history.
+    expect(t.store[0].userName).toBe('dennis.ayala');
   });
 
   it('keys the start event on the item, so the dedupe window cannot swallow the next episode', async () => {

@@ -9,6 +9,7 @@ import { MediaServerIntegrationService } from '../media/media-server-integration
 import type { ProviderSession } from '../media/media-server-provider';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { isNewViewing, viewingKey } from './viewing-identity';
+import { resolveViewerName } from './viewer-name';
 
 /**
  * Live activity + watch-history capture. A poller reconciles now-playing
@@ -282,12 +283,12 @@ export class MediaServerSessionService {
               ...(newItem ? { startedAt: new Date() } : {}),
             },
           });
-          if (newItem) this.announceStart(conn, s);
+          if (newItem) await this.announceStart(conn, s);
         } else {
           await this.prisma.mediaServerSession.create({
             data: { connectionId: conn.id, providerSessionId: s.sessionId, ...data },
           });
-          this.announceStart(conn, s);
+          await this.announceStart(conn, s);
         }
       }
 
@@ -321,6 +322,27 @@ export class MediaServerSessionService {
   }
 
   /**
+   * The viewer's name as a person would write it, resolved against the accounts
+   * synced from the media server — see {@link resolveViewerName} for why the
+   * session's own name cannot be trusted to be one.
+   *
+   * Only for DISPLAY. The session and watch-history rows keep the provider's own
+   * value, which is what analytics group by; rewriting it there would silently
+   * split one person's history across two spellings.
+   */
+  private async viewerName(
+    connectionId: string,
+    providerUserId: string | null,
+    userName: string | null,
+  ): Promise<string | null> {
+    if (!userName) return null;
+    const known = await this.prisma.mediaServerUser.findMany({
+      select: { connectionId: true, providerUserId: true, userName: true },
+    });
+    return resolveViewerName(known, { connectionId, providerUserId, userName });
+  }
+
+  /**
    * Announce that something has begun playing: the live-activity broadcast and
    * the domain event a notification is built from.
    *
@@ -331,10 +353,10 @@ export class MediaServerSessionService {
    * republishing the same start, and keying it on the session alone would make it
    * swallow the next episode too.
    */
-  private announceStart(
+  private async announceStart(
     conn: { id: string; name: string | null },
     s: ProviderSession,
-  ): void {
+  ): Promise<void> {
     this.realtime.broadcast('media_server.session.started', {
       connectionId: conn.id,
       title: s.title,
@@ -347,7 +369,7 @@ export class MediaServerSessionService {
       payload: {
         mediaTitle: s.title,
         serverName: conn.name ?? conn.id,
-        userDisplayName: s.userName ?? null,
+        userDisplayName: await this.viewerName(conn.id, s.userId ?? null, s.userName ?? null),
         showTitle: s.showTitle ?? null,
         episodeTitle: s.episodeTitle ?? null,
         seasonNumber: s.seasonNumber ?? null,
@@ -412,7 +434,7 @@ export class MediaServerSessionService {
       payload: {
         mediaTitle: c.title,
         serverName,
-        userDisplayName: c.userName,
+        userDisplayName: await this.viewerName(c.connectionId, c.providerUserId, c.userName),
         showTitle: c.showTitle,
         episodeTitle: c.episodeTitle,
         seasonNumber: c.seasonNumber,
