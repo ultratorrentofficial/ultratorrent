@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.52.0] - 2026-07-27
+
+### Added
+- Rename undo: reverse a rename run by moving files back to their recorded sources, with guards for a shared media tree
+
 ## [0.51.2] - 2026-07-27
 
 ### Fixed
