@@ -286,6 +286,10 @@ export class FilesService {
         if (!(await pathExists(target))) throw new NotFoundException('Item not found');
         const bytes = await computeSize(target);
         await rm(target, { recursive: true, force: true });
+        // A permanent delete is the same fact as a trash as far as records are
+        // concerned: the file is no longer where any of them say it is. Missing
+        // this branch would have left the one irreversible path unannounced.
+        this.announceDelete(target);
         await this.audit.record({
           userId: ctx.userId,
           action: 'file.deleted',

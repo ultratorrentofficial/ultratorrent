@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -159,9 +159,16 @@ export class MediaScannerService {
     private readonly imdbResolver: ImdbSeriesResolver,
   ) {}
 
+  /**
+   * @param subPath Confine the scan to one directory inside the library.
+   *   Used after a file-manager operation so a single folder reconciles without
+   *   walking a 500 000-item tree. Both the walk **and** the prune are scoped:
+   *   pruning against a partial walk would delete every item outside it.
+   */
   async scanLibrary(
     libraryId: string,
     report?: (progress: number, message?: string) => void | Promise<void>,
+    subPath?: string,
   ): Promise<ScanSummary> {
     const library = await this.prisma.mediaLibrary.findUnique({
       where: { id: libraryId },
@@ -171,8 +178,22 @@ export class MediaScannerService {
     // The library root must live inside the allowed storage roots.
     const root = this.filePath.assertWithinHardRoots(library.path);
 
+    /*
+     * A confined scan still resolves through the hard roots, and must sit
+     * inside this library — a caller-supplied subdirectory is untrusted input,
+     * and `..` would otherwise walk somewhere it has no business.
+     */
+    let scanRoot = root;
+    if (subPath) {
+      const candidate = this.filePath.assertWithinHardRoots(subPath);
+      if (candidate !== root && !candidate.startsWith(`${root}/`)) {
+        throw new BadRequestException('That folder is not inside the library.');
+      }
+      scanRoot = candidate;
+    }
+
     await report?.(2, `Reading “${library.name}” folder tree…`);
-    const files = await this.walk(root);
+    const files = await this.walk(scanRoot);
     await report?.(5, `Found ${files.length} file(s) to process`);
     let added = 0;
     let updated = 0;
@@ -321,7 +342,13 @@ export class MediaScannerService {
     if (files.length > 0) {
       const present = new Set(files.map((f) => f.path));
       const existingItems = await this.prisma.mediaItem.findMany({ where: { libraryId }, select: { id: true, path: true } });
-      const staleIds = existingItems.filter((i) => !present.has(i.path)).map((i) => i.id);
+      // Scoped to what was actually walked. A partial walk compared against the
+      // WHOLE library would read every unvisited item as missing and delete it —
+      // the library, gone, because one folder was scanned.
+      const inScope = (p: string) => scanRoot === root || p === scanRoot || p.startsWith(`${scanRoot}/`);
+      const staleIds = existingItems
+        .filter((i) => inScope(i.path) && !present.has(i.path))
+        .map((i) => i.id);
       if (staleIds.length > 0) {
         removed = (await this.prisma.mediaItem.deleteMany({ where: { id: { in: staleIds } } })).count;
         this.logger.log(`Scan of ${library.name}: pruned ${removed} item(s) whose files no longer exist`);

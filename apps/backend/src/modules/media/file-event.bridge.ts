@@ -1,7 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { DOMAIN_EVENTS, DOMAIN_EVENT_CHANNEL, type DomainEventEnvelope } from '@ultratorrent/shared';
+import { dirname } from 'node:path';
+import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { MediaRelocationService } from './media-relocation.service';
+import { MediaScannerService } from './media-scanner.service';
+
+/** Quiet period before a touched directory is rescanned. */
+const SCAN_DEBOUNCE_MS = 5_000;
 
 /**
  * Keeps media records in step with whatever moved the bytes.
@@ -19,7 +25,60 @@ import { MediaRelocationService } from './media-relocation.service';
 export class FileEventBridge {
   private readonly logger = new Logger(FileEventBridge.name);
 
-  constructor(private readonly relocation: MediaRelocationService) {}
+  /** Directories awaiting a confined rescan, and the timer that will run them. */
+  private readonly pending = new Set<string>();
+  private timer: NodeJS.Timeout | null = null;
+
+  constructor(
+    private readonly relocation: MediaRelocationService,
+    private readonly prisma: PrismaService,
+    private readonly scanner: MediaScannerService,
+  ) {}
+
+  /**
+   * Reconcile a touched directory shortly after the fact.
+   *
+   * **Order matters.** Relocation runs first and preserves identity — the record
+   * follows the file, keeping its id, metadata and artwork. The scan runs second
+   * and provides completeness: it notices what no event described, such as files
+   * copied in by hand. Reversed, the scan would prune the stale row and cascade
+   * its enrichment away before relocation could save it, which is exactly the
+   * damage this whole seam exists to stop.
+   *
+   * Debounced because a bulk delete of forty files emits forty events, and forty
+   * scans of the same folder would be thirty-nine wasted walks.
+   */
+  private scheduleScan(filePath: string): void {
+    this.pending.add(dirname(filePath));
+    if (this.timer) return;
+    this.timer = setTimeout(() => {
+      const dirs = [...this.pending];
+      this.pending.clear();
+      this.timer = null;
+      void this.rescan(dirs);
+    }, SCAN_DEBOUNCE_MS);
+    // Never hold the process open for a bookkeeping scan.
+    this.timer.unref?.();
+  }
+
+  private async rescan(dirs: string[]): Promise<void> {
+    const libraries = await this.prisma.mediaLibrary.findMany({
+      where: { isEnabled: true },
+      select: { id: true, path: true },
+    });
+
+    for (const dir of dirs) {
+      // Only directories inside a library are our business; the file manager
+      // spans every storage root, most of which hold no media.
+      const owner = libraries.find((l) => dir === l.path || dir.startsWith(`${l.path}/`));
+      if (!owner) continue;
+      try {
+        await this.scanner.scanLibrary(owner.id, undefined, dir);
+      } catch (err) {
+        this.logger.warn(`Follow-up scan of ${dir} failed: ${(err as Error).message}`);
+      }
+    }
+  }
 
   @OnEvent(DOMAIN_EVENT_CHANNEL)
   async handle(envelope: DomainEventEnvelope): Promise<void> {
@@ -29,16 +88,24 @@ export class FileEventBridge {
       if (envelope.eventKey === DOMAIN_EVENTS.FILE_MOVED) {
         const from = typeof payload.from === 'string' ? payload.from : null;
         const to = typeof payload.to === 'string' ? payload.to : null;
-        if (from && to) await this.relocation.recordMove(from, to);
+        if (from && to) {
+          await this.relocation.recordMove(from, to);
+          // Both ends: a file can leave one library folder and enter another.
+          this.scheduleScan(from);
+          this.scheduleScan(to);
+        }
         return;
       }
 
       if (envelope.eventKey === DOMAIN_EVENTS.FILE_DELETED) {
         const path = typeof payload.path === 'string' ? payload.path : null;
-        // Sidecar rows only — deleting the MediaItem here would cascade its
-        // metadata and artwork away on a file-manager delete, and the scanner
-        // already prunes an item whose video is genuinely gone.
-        if (path) await this.relocation.recordDelete(path);
+        // Clears the item and everything beneath it for a folder. If the video
+        // is gone the item is going regardless — withholding it would only
+        // leave a window where the database described a file that is not there.
+        if (path) {
+          await this.relocation.recordDelete(path);
+          this.scheduleScan(path);
+        }
         return;
       }
     } catch (err) {

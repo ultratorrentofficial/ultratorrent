@@ -50,13 +50,7 @@ export class MediaRelocationService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Follow one file to its new location.
-   *
-   * Matched on the **exact** old path rather than a prefix. A prefix match would
-   * rewrite every record under a directory that merely shares a name prefix
-   * (`/media/Show` also prefixes `/media/Show Two`), and a rename plan already
-   * names each file it moves — so exactness costs nothing and removes a whole
-   * class of silent corruption.
+   * Follow a file — or a whole folder — to its new location.
    *
    * One transaction: a half-applied relocation is a row pointing at neither the
    * old nor the new location.
@@ -64,21 +58,43 @@ export class MediaRelocationService {
   async recordMove(from: string, to: string): Promise<RelocationResult> {
     if (!from || !to || from === to) return { ...EMPTY };
 
+    const fromDir = `${from}/`;
+    const toDir = `${to}/`;
+
+    /*
+     * Two matches, because a "path" may name a file or a directory.
+     *
+     * The exact match follows a moved file. The prefix match follows everything
+     * *inside* a moved directory — renaming `Vivo (2021)` to `Vivo (2021)
+     * [1080p]` moves every file beneath it, and an exact match alone would
+     * update nothing at all.
+     *
+     * Containment is tested with `substring(...) = $` rather than `LIKE`: a path
+     * may legitimately contain `%` or `_`, which `LIKE` would treat as
+     * wildcards and over-match. Comparing a fixed-length prefix has no
+     * metacharacters to escape. The trailing slash is what stops `/media/Show`
+     * from matching `/media/Show Two`.
+     */
+    const rewrite = (table: string, column: string) =>
+      this.prisma.$executeRawUnsafe(
+        `UPDATE ${table}
+            SET "${column}" = CASE WHEN "${column}" = $1 THEN $2
+                                   ELSE $4 || substring("${column}" from char_length($3) + 1) END
+          WHERE "${column}" = $1
+             OR substring("${column}", 1, char_length($3)) = $3`,
+        from, to, fromDir, toDir,
+      );
+
+    // Table and column names come from closed literals; every value is bound.
     const [items, files, subtitles, nfo, artwork] = await this.prisma.$transaction([
-      this.prisma.mediaItem.updateMany({ where: { path: from }, data: { path: to } }),
-      this.prisma.mediaFile.updateMany({ where: { path: from }, data: { path: to } }),
-      this.prisma.mediaSubtitle.updateMany({ where: { path: from }, data: { path: to } }),
-      this.prisma.mediaNfoFile.updateMany({ where: { path: from }, data: { path: to } }),
-      this.prisma.mediaArtwork.updateMany({ where: { localPath: from }, data: { localPath: to } }),
+      rewrite('media_items', 'path'),
+      rewrite('media_files', 'path'),
+      rewrite('media_subtitles', 'path'),
+      rewrite('media_nfo_files', 'path'),
+      rewrite('media_artwork', 'localPath'),
     ]);
 
-    return {
-      items: items.count,
-      files: files.count,
-      subtitles: subtitles.count,
-      nfo: nfo.count,
-      artwork: artwork.count,
-    };
+    return { items, files, subtitles, nfo, artwork };
   }
 
   /**
@@ -100,28 +116,47 @@ export class MediaRelocationService {
   }
 
   /**
-   * Forget a file that has genuinely been deleted.
+   * Forget what has genuinely been deleted — a file, or a whole folder.
    *
-   * Sidecar rows only: deleting the `MediaItem` here would cascade its metadata
-   * and artwork away, and cleanup removing a stray `.srt` is not a statement
-   * about the film. An item whose *video* is gone is the scanner's business,
-   * which prunes it deliberately and prunes duplicate groups with it.
+   * This deletes the `MediaItem` too, which an earlier version deliberately did
+   * not. That caution was wrong: if the video is gone, the item is going away
+   * regardless — the scanner prunes it on the next pass, cascading the same
+   * children. Withholding it bought nothing except a window in which the
+   * database described a file that no longer existed, which is the exact defect
+   * this service exists to remove.
+   *
+   * A deleted **folder** clears everything beneath it. That is the common case
+   * from the file manager, and matching only the exact path left every record
+   * inside a removed directory pointing at nothing.
    */
   async recordDelete(path: string): Promise<RelocationResult> {
     if (!path) return { ...EMPTY };
 
-    const [subtitles, nfo, artwork] = await this.prisma.$transaction([
-      this.prisma.mediaSubtitle.deleteMany({ where: { path } }),
-      this.prisma.mediaNfoFile.deleteMany({ where: { path } }),
-      this.prisma.mediaArtwork.deleteMany({ where: { localPath: path } }),
+    const dir = `${path}/`;
+
+    const purge = (table: string, column: string) =>
+      this.prisma.$executeRawUnsafe(
+        `DELETE FROM ${table}
+          WHERE "${column}" = $1
+             OR substring("${column}", 1, char_length($2)) = $2`,
+        path, dir,
+      );
+
+    /*
+     * Order matters. Sidecars go first because some belong to items that
+     * survive — a `.srt` deleted on its own says nothing about the film.
+     * `media_items` goes LAST because deleting it cascades its remaining
+     * children, and doing that first would make the earlier counts meaningless.
+     */
+    const [subtitles, nfo, artwork, files, items] = await this.prisma.$transaction([
+      purge('media_subtitles', 'path'),
+      purge('media_nfo_files', 'path'),
+      purge('media_artwork', 'localPath'),
+      purge('media_files', 'path'),
+      purge('media_items', 'path'),
     ]);
 
-    return {
-      ...EMPTY,
-      subtitles: subtitles.count,
-      nfo: nfo.count,
-      artwork: artwork.count,
-    };
+    return { items, files, subtitles, nfo, artwork };
   }
 
   /**
