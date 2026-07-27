@@ -1723,7 +1723,8 @@
     },
     "minutes": "{{count}} min",
     "subtitleCount": "{{count}} subtitle",
-    "subtitleCount_other": "{{count}} subtitles"
+    "subtitleCount_other": "{{count}} subtitles",
+    "untitledEpisode": "Episode {{number}}"
   },
   "rename": {
     "undo": {

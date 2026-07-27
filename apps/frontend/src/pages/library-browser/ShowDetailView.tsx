@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
 import { VirtualPosterGrid } from './VirtualPosterGrid';
+import { episodeTitleOf } from './episode-title';
 
 /**
  * One show, drilled into its seasons and episodes.
@@ -138,18 +139,23 @@ function EpisodeRow({ episode }: { episode: MediaItem }) {
   const meta = episode.metadata;
 
   /*
-   * The episode's OWN still, never the show poster.
-   *
-   * `MediaItem.title` for an episode is the SHOW's title (taken from the show
-   * folder, because a filename usually carries only the episode name), so the
-   * episode name lives in its metadata. Falling back to the show poster would
-   * repeat one image down the whole list and say nothing about the episode.
+   * The episode's OWN still, never the show poster — a poster repeated down a
+   * list says nothing about any episode.
    */
   const still = episode.artwork?.find(
     (a) => a.type === 'episode_thumbnail' || a.type === 'thumbnail',
   ) ?? null;
 
-  const episodeTitle = meta?.title?.trim() || null;
+  /*
+   * Both `MediaItem.title` and `metadata.title` hold the SHOW's name on a real
+   * library, so the episode name comes from the filename the renamer wrote.
+   * See `episode-title.ts` — this was measured, not assumed.
+   */
+  const episodeTitle = episodeTitleOf({
+    path: episode.path,
+    metadataTitle: meta?.title ?? null,
+    showTitle: episode.title,
+  });
   const subtitles = episode._count?.subtitles ?? 0;
 
   /*
@@ -181,7 +187,11 @@ function EpisodeRow({ episode }: { episode: MediaItem }) {
       />
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm">{episodeTitle ?? episode.title}</p>
+        {/* No episode name known — the number already identifies the row, and
+            repeating the series title would be noise. */}
+        <p className={cn('truncate text-sm', !episodeTitle && 'text-muted-foreground')}>
+          {episodeTitle ?? t('browser.untitledEpisode', { number: episode.episode ?? 0 })}
+        </p>
         {facts.length > 0 && (
           <p className="truncate text-xs text-muted-foreground">{facts.join(' · ')}</p>
         )}

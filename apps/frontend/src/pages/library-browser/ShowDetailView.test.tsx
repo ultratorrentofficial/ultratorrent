@@ -39,13 +39,14 @@ beforeEach(() => {
 const episode = (n: number, over: Record<string, unknown> = {}) => ({
   id: `e${n}`, libraryId: 'lib', mediaType: 'tv', title: `Episode ${n}`,
   sortTitle: null, year: null, season: 1, episode: n,
-  matchStatus: 'matched', confidence: 1, locked: false, path: `/x/e${n}.mkv`,
+  matchStatus: 'matched', confidence: 1, locked: false,
+  path: `/tv/Show/Season 1/Show - S01E0${n} - Episode ${n}.mkv`,
   createdAt: '2026-01-01T00:00:00Z', files: [], ...over,
 });
 
 const seasons = [
   { seasonNumber: 1, episodeCount: 2, poster: null, episodes: [episode(1), episode(2)] },
-  { seasonNumber: 2, episodeCount: 1, poster: null, episodes: [episode(1, { id: 's2e1', title: 'Second season opener' })] },
+  { seasonNumber: 2, episodeCount: 1, poster: null, episodes: [episode(1, { id: 's2e1', path: '/tv/Show/Season 2/Show - S02E01 - Second season opener.mkv' })] },
 ];
 
 function renderIt(data: unknown = { key: 'k', seasons }) {
@@ -90,7 +91,7 @@ describe('ShowDetailView', () => {
           episode(1, { files: [{ id: 'f1', itemId: 'e1', path: '/x', size: '1', container: null,
             videoCodec: 'HEVC', audioCodec: null, resolution: '2160p', hdr: 'HDR10',
             language: null, releaseGroup: null, quality: null, createdAt: '' }] }),
-          episode(2, { id: 'bare', title: 'Unprobed episode', files: [] }),
+          episode(2, { id: 'bare', path: '/tv/Show/Season 1/Show - S01E02 - Unprobed episode.mkv', files: [] }),
         ],
       }],
     });
@@ -104,6 +105,9 @@ describe('ShowDetailView', () => {
   describe('episode rows carry their own info and art', () => {
     const rich = (over: Record<string, unknown> = {}) => episode(3, {
       title: 'The Last of Us',                       // MediaItem.title is the SHOW
+      // A release-style filename carries no episode name, so metadata answers —
+      // the "enriched at episode level" case.
+      path: '/tv/The Last of Us/Season 1/The.Last.of.Us.S01E03.1080p.WEB-DL.mkv',
       metadata: { title: 'Long Long Time', runtime: 76 },
       artwork: [
         { id: 'a1', type: 'poster', url: '/p.jpg', localPath: null, selected: true },
@@ -145,9 +149,24 @@ describe('ShowDetailView', () => {
       expect(screen.queryByTitle('0 subtitles')).not.toBeInTheDocument();
     });
 
-    it('falls back to the item title when metadata has no episode name', async () => {
+    it('says "Episode N" rather than repeating the series name', async () => {
+      /*
+       * Both MediaItem.title and metadata.title hold the SHOW's name on a real
+       * library — measured: all eight episodes of A Gentleman in Moscow carried
+       * the series name in metadata. Echoing it would repeat one string down
+       * every row and identify nothing.
+       */
       renderIt(withEpisodes([rich({ metadata: null })]));
-      expect(await screen.findByText('The Last of Us')).toBeInTheDocument();
+      expect(await screen.findByText('Episode 3')).toBeInTheDocument();
+      // Once, as the page heading — not again in the row beneath it.
+      expect(screen.getAllByText('The Last of Us')).toHaveLength(1);
+    });
+
+    it('prefers the filename when the renamer wrote the episode name', async () => {
+      renderIt(withEpisodes([rich({
+        path: '/tv/x/The Last of Us - S01E03 - Long, Long Time.mkv', metadata: null,
+      })]));
+      expect(await screen.findByText('Long, Long Time')).toBeInTheDocument();
     });
   });
 
