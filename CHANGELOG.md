@@ -45,6 +45,19 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.57.0] - 2026-07-27
+
+### Added
+- Context-Aware Management Actions (CAMA) framework foundation
+- Library Browser action bar is now CAMA-driven
+- Jobs Center bulk actions are CAMA-driven and permission-gated
+- Torrents bulk actions are CAMA-driven and state-aware
+- Row-level ActionMenu; Jobs rows and torrent drawer migrated
+- File Manager bulk actions are CAMA-driven
+
+### Fixed
+- Item History shows only that item's rename operations, with timestamps
+
 ## [0.56.0] - 2026-07-27
 
 ### Added
