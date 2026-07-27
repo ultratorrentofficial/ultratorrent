@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { Pause, Play, RefreshCw, Square, Trash2 } from 'lucide-react';
-import { TorrentState, type NormalizedTorrent } from '@ultratorrent/shared';
-import { PERMISSIONS } from '@ultratorrent/shared';
+import type { EntityRef, NormalizedTorrent } from '@ultratorrent/shared';
 import { ApiError, api, type TorrentAction } from '@/lib/api';
-import { useAuth } from '@/auth/AuthContext';
 import { useToast } from '@/components/ui/toast';
-import { Button } from '@/components/ui/button';
+import { ActionMenu } from '@/actions/ActionMenu';
+import { useContextActions } from '@/actions/useContextActions';
+import type { ActionHandler } from '@/actions/ActionBar';
+import { torrentCapabilities } from './torrentCapabilities';
 import { DeleteTorrentDialog } from './DeleteTorrentDialog';
 
 export interface TorrentActionsBarProps {
@@ -15,90 +15,72 @@ export interface TorrentActionsBarProps {
   onDeleted?: () => void;
 }
 
-const PAUSED_STATES = new Set<TorrentState>([
-  TorrentState.PAUSED,
-  TorrentState.STOPPED,
-  TorrentState.QUEUED,
-]);
-
+/**
+ * Actions for a single torrent, in the drawer.
+ *
+ * Shares its resolution with the bulk toolbar rather than reimplementing it.
+ * The two were near-duplicate lists that had already drifted: this bar counted
+ * a QUEUED torrent among the paused states while the bulk path treated it as
+ * running, so the same torrent offered opposite actions depending on where you
+ * clicked it. One declaration plus one `torrentCapabilities()` makes that class
+ * of disagreement unrepresentable.
+ *
+ * It also showed Pause and Resume as an either/or derived from state alone, so
+ * the wrong one was live whenever the state was one the set did not model.
+ */
 export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps) {
   const { t } = useTranslation('torrents');
-  const { hasPermission } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [pending, setPending] = useState<TorrentAction | null>(null);
+  const [pending, setPending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const isPaused = PAUSED_STATES.has(torrent.state);
+  const selection = useMemo<EntityRef[]>(
+    () => [{ type: 'torrent', id: torrent.hash, capabilities: torrentCapabilities(torrent) }],
+    [torrent],
+  );
 
-  const run = async (action: TorrentAction, label: string) => {
-    setPending(action);
-    try {
-      await api.torrents.action(torrent.hash, action);
-      toast.success(t('actions.requested', { action: label }));
-      await queryClient.invalidateQueries({ queryKey: ['torrents'] });
-    } catch (err) {
-      toast.error(t('actions.failed', { action: label.toLowerCase() }), err instanceof ApiError ? err.message : undefined);
-    } finally {
-      setPending(null);
-    }
-  };
+  const { groups } = useContextActions({ selection });
+
+  const handlers = useMemo<Record<string, ActionHandler>>(() => {
+    const run = async (action: TorrentAction, label: string) => {
+      setPending(true);
+      try {
+        await api.torrents.action(torrent.hash, action);
+        toast.success(t('actions.requested', { action: label }));
+        await queryClient.invalidateQueries({ queryKey: ['torrents'] });
+      } catch (err) {
+        toast.error(
+          t('actions.failed', { action: label.toLowerCase() }),
+          err instanceof ApiError ? err.message : undefined,
+        );
+      } finally {
+        setPending(false);
+      }
+    };
+
+    return {
+      'torrents.resume': () => void run('resume', t('actions.resume')),
+      'torrents.pause': () => void run('pause', t('actions.pause')),
+      'torrents.stop': () => void run('stop', t('actions.stop')),
+      'torrents.recheck': () => void run('recheck', t('actions.recheck')),
+      // Both deletions route through the same confirmation; the dialog's own
+      // checkbox decides whether data goes with it.
+      'torrents.remove': () => setConfirmDelete(true),
+      'torrents.removeData': () => setConfirmDelete(true),
+    };
+  }, [torrent.hash, t, toast, queryClient]);
 
   return (
     <>
-      <div className="flex w-full items-center gap-2">
-        {isPaused ? (
-          <Button
-            variant="subtle"
-            size="sm"
-            loading={pending === 'resume'}
-            disabled={!hasPermission(PERMISSIONS.TORRENTS_RESUME)}
-            onClick={() => run('resume', t('actions.resume'))}
-          >
-            <Play className="h-4 w-4" /> {t('actions.resume')}
-          </Button>
-        ) : (
-          <Button
-            variant="subtle"
-            size="sm"
-            loading={pending === 'pause'}
-            disabled={!hasPermission(PERMISSIONS.TORRENTS_PAUSE)}
-            onClick={() => run('pause', t('actions.pause'))}
-          >
-            <Pause className="h-4 w-4" /> {t('actions.pause')}
-          </Button>
-        )}
-
-        <Button
-          variant="subtle"
-          size="sm"
-          loading={pending === 'stop'}
-          disabled={!hasPermission(PERMISSIONS.TORRENTS_STOP)}
-          onClick={() => run('stop', t('actions.stop'))}
-        >
-          <Square className="h-4 w-4" /> {t('actions.stop')}
-        </Button>
-
-        <Button
-          variant="subtle"
-          size="sm"
-          loading={pending === 'recheck'}
-          disabled={!hasPermission(PERMISSIONS.TORRENTS_RECHECK)}
-          onClick={() => run('recheck', t('actions.recheck'))}
-        >
-          <RefreshCw className="h-4 w-4" /> {t('actions.recheck')}
-        </Button>
-
-        <Button
-          variant="destructive"
-          size="sm"
-          className="ml-auto"
-          disabled={!hasPermission(PERMISSIONS.TORRENTS_DELETE)}
-          onClick={() => setConfirmDelete(true)}
-        >
-          <Trash2 className="h-4 w-4" /> {t('actions.delete')}
-        </Button>
-      </div>
+      <ActionMenu
+        groups={groups}
+        selection={selection}
+        handlers={handlers}
+        variant="icons"
+        busy={pending}
+        className="w-full"
+      />
 
       <DeleteTorrentDialog
         open={confirmDelete}
@@ -113,7 +95,10 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
             setConfirmDelete(false);
             onDeleted?.();
           } catch (err) {
-            toast.error(t('actions.deleteFailed'), err instanceof ApiError ? err.message : undefined);
+            toast.error(
+              t('actions.deleteFailed'),
+              err instanceof ApiError ? err.message : undefined,
+            );
           }
         }}
       />

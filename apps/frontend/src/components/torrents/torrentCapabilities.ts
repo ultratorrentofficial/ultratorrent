@@ -15,30 +15,44 @@ export interface TorrentLike {
   state: TorrentState;
 }
 
-/** States where the torrent is actively working and can be paused or stopped. */
-const RUNNING = new Set<TorrentState>([
+/*
+ * `QUEUED` is the case the two prior implementations disagreed about:
+ * `TorrentActionsBar` counted it among the paused states (offering Resume),
+ * while the bulk path treated it as running (offering Pause). Consolidating
+ * forced the question, and neither was quite right — a queued torrent is
+ * scheduled but not transferring, so it can be *started* now or *stopped* out
+ * of the queue, but there is nothing in flight to pause.
+ */
+
+/** Actively moving bytes — the only state where pausing means anything. */
+const TRANSFERRING = new Set<TorrentState>([
   TorrentState.DOWNLOADING,
   TorrentState.SEEDING,
-  TorrentState.QUEUED,
   TorrentState.ALLOCATING,
 ]);
 
-/** States where it is halted and can be resumed or started. */
+/** Not transferring, so it can be started or resumed. */
 const HALTED = new Set<TorrentState>([
   TorrentState.PAUSED,
   TorrentState.STOPPED,
   TorrentState.ERROR,
   TorrentState.COMPLETED,
+  TorrentState.QUEUED,
 ]);
 
 export function torrentCapabilities(torrent: TorrentLike): string[] {
   const caps: string[] = [];
 
-  if (RUNNING.has(torrent.state)) {
-    caps.push('pause', 'stop');
+  if (TRANSFERRING.has(torrent.state)) {
+    caps.push('pause');
   }
   if (HALTED.has(torrent.state)) {
     caps.push('resume', 'start');
+  }
+  // Stopping applies to anything not already stopped — including a queued
+  // torrent, which is how you take it out of the queue.
+  if (torrent.state !== TorrentState.STOPPED && torrent.state !== TorrentState.UNKNOWN) {
+    caps.push('stop');
   }
 
   /*

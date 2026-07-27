@@ -69,5 +69,8 @@
     "missing": "{{count}} item could not be found",
     "missing_other": "{{count}} items could not be found",
     "failed": "That action could not be completed."
+  },
+  "menu": {
+    "label": "More actions"
   }
 }

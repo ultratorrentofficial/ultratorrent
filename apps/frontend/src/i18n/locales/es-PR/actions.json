@@ -69,5 +69,8 @@
     "missing": "No se encontró {{count}} elemento",
     "missing_other": "No se encontraron {{count}} elementos",
     "failed": "No se pudo completar esa acción."
+  },
+  "menu": {
+    "label": "Más acciones"
   }
 }

@@ -5,13 +5,8 @@ import { torrentCapabilities } from './torrentCapabilities';
 const at = (state: TorrentState) => torrentCapabilities({ state });
 
 describe('torrentCapabilities', () => {
-  it('lets a working torrent be paused or stopped, not resumed', () => {
-    for (const s of [
-      TorrentState.DOWNLOADING,
-      TorrentState.SEEDING,
-      TorrentState.QUEUED,
-      TorrentState.ALLOCATING,
-    ]) {
+  it('lets a transferring torrent be paused or stopped, not resumed', () => {
+    for (const s of [TorrentState.DOWNLOADING, TorrentState.SEEDING, TorrentState.ALLOCATING]) {
       expect(at(s)).toEqual(expect.arrayContaining(['pause', 'stop']));
       // The defect this fixes: Resume was live on a downloading torrent, and
       // the click was a request the engine would reject.
@@ -24,6 +19,25 @@ describe('torrentCapabilities', () => {
       expect(at(s)).toEqual(expect.arrayContaining(['resume', 'start']));
       expect(at(s)).not.toContain('pause');
     }
+  });
+
+  it('treats a queued torrent as startable and stoppable, but not pausable', () => {
+    /*
+     * The case the two prior implementations disagreed on: the drawer bar
+     * counted QUEUED as paused (offering Resume), the bulk path as running
+     * (offering Pause). A queued torrent is scheduled but not transferring, so
+     * it can be started now or taken out of the queue — there is nothing in
+     * flight to pause.
+     */
+    const caps = at(TorrentState.QUEUED);
+    expect(caps).toEqual(expect.arrayContaining(['start', 'resume', 'stop']));
+    expect(caps).not.toContain('pause');
+  });
+
+  it('offers stop for anything not already stopped', () => {
+    expect(at(TorrentState.STOPPED)).not.toContain('stop');
+    expect(at(TorrentState.DOWNLOADING)).toContain('stop');
+    expect(at(TorrentState.PAUSED)).toContain('stop');
   });
 
   it('treats an errored torrent as halted and still recheckable', () => {

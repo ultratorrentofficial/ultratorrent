@@ -2,12 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Ban, Pause, Play, RefreshCw, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { api, type JobActionKind, type PlatformJobItem, type PlatformJobStatus } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Pagination } from '@/components/ui/pagination';
@@ -16,31 +15,52 @@ import { useToast } from '@/components/ui/toast';
 import { statusVariant, jobDuration } from './jobStatus';
 import { jobCapabilities } from './jobCapabilities';
 import { ActionBar, type ActionHandler } from '@/actions/ActionBar';
+import { ActionMenu } from '@/actions/ActionMenu';
 import { useContextActions } from '@/actions/useContextActions';
 import type { EntityRef } from '@ultratorrent/shared';
 
 const PAGE_SIZE = 25;
 
-/** Which actions a row offers, given its status + declared capabilities. */
-function rowActions(job: PlatformJobItem): JobActionKind[] {
-  const active = ['scheduled', 'queued', 'waiting', 'blocked', 'running', 'pausing', 'retrying'].includes(job.status);
-  const terminal = ['completed', 'completed_with_warnings', 'failed', 'cancelled', 'skipped', 'expired'].includes(job.status);
-  const out: JobActionKind[] = [];
-  if (job.capabilities.cancellable && active) out.push('cancel');
-  if (job.capabilities.pausable && job.status === 'running') out.push('pause');
-  if (job.capabilities.resumable && job.status === 'paused') out.push('resume');
-  if (job.capabilities.retryable && job.status === 'failed') out.push('retry');
-  if (terminal) out.push('rerun');
-  return out;
-}
+/**
+ * One row's actions, resolved from the CAMA catalogue.
+ *
+ * Replaces `rowActions(job)`, which derived buttons from status and applied no
+ * permission check whatever — every viewer saw live Cancel and Retry controls
+ * regardless of their grants. The catalogue applies the permission; the job
+ * advertises what its state allows.
+ *
+ * A component per row rather than one resolution hoisted to the page, because
+ * each row is its own selection. The catalogue is a single shared react-query
+ * entry, so twenty-five rows still make one request.
+ */
+function JobRowActions({
+  job,
+  busy,
+  onRun,
+}: {
+  job: PlatformJobItem;
+  busy: boolean;
+  onRun: (id: string, action: JobActionKind) => void;
+}) {
+  const selection = useMemo<EntityRef[]>(
+    () => [{ type: 'job', id: job.id, capabilities: jobCapabilities(job) }],
+    [job],
+  );
+  const { groups } = useContextActions({ selection });
 
-const ACTION_ICON: Record<JobActionKind, typeof Ban> = {
-  cancel: Ban,
-  pause: Pause,
-  resume: Play,
-  retry: RotateCcw,
-  rerun: RefreshCw,
-};
+  const handlers = useMemo<Record<string, ActionHandler>>(
+    () => ({
+      'jobs.cancel': () => onRun(job.id, 'cancel'),
+      'jobs.pause': () => onRun(job.id, 'pause'),
+      'jobs.resume': () => onRun(job.id, 'resume'),
+      'jobs.retry': () => onRun(job.id, 'retry'),
+      'jobs.rerun': () => onRun(job.id, 'rerun'),
+    }),
+    [job.id, onRun],
+  );
+
+  return <ActionMenu groups={groups} selection={selection} handlers={handlers} busy={busy} />;
+}
 
 /**
  * The shared, route-driven job list. Filtered by the `?status=` query param (the
@@ -245,23 +265,12 @@ export function JobsListPage() {
                       <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{td(`source.${job.source}`, { defaultValue: job.source })}</TableCell>
                       <TableCell className="hidden lg:table-cell text-sm tabular-nums text-muted-foreground">{jobDuration(job.startedAt, job.completedAt)}</TableCell>
                       <TableCell>
-                        <div className="flex items-center justify-end gap-1">
-                          {rowActions(job).map((action) => {
-                            const Icon = ACTION_ICON[action];
-                            return (
-                              <Button
-                                key={action}
-                                size="icon"
-                                variant="ghost"
-                                title={td(`action.${action}`)}
-                                aria-label={td(`action.${action}`)}
-                                disabled={act.isPending}
-                                onClick={() => act.mutate({ id: job.id, action })}
-                              >
-                                <Icon className="h-4 w-4" />
-                              </Button>
-                            );
-                          })}
+                        <div className="flex items-center justify-end">
+                          <JobRowActions
+                            job={job}
+                            busy={act.isPending}
+                            onRun={(id, action) => act.mutate({ id, action })}
+                          />
                         </div>
                       </TableCell>
                     </TableRow>
