@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.51.1] - 2026-07-27
+
+### Fixed
+- Fix the media issues and CSV export routes: literal paths were shadowed by items/:id, and the CSV serialized as JSON instead of streaming
+
 ## [0.51.0] - 2026-07-27
 
 ### Added
