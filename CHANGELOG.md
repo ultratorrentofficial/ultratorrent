@@ -45,6 +45,22 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.51.0] - 2026-07-27
+
+### Added
+- Library Browser Phase 1: a virtualized poster-first browser over existing media endpoints, with five view modes remembered per library
+- Library Browser: drill down from a show into its seasons and episodes, with URL-backed navigation
+- Media bulk operations over an explicit item selection: metadata refresh, lock/unlock and NFO for {itemIds}, each one job and one audit record
+- Library Browser: selection-aware context action bar wired to the bulk endpoints (metadata, NFO, lock/unlock, scan)
+- Library Browser: server-side debounced search and match-status filtering
+- Media CSV export: streamed, keyset-paged, browser-filtered, audited, with a new media_manager.export permission
+- Library Browser: issue chips (unmatched, missing artwork, missing subtitles, duplicate) with per-library counts that filter the grid
+
+### Fixed
+- Fix the Media Manager dashboard hanging forever: replace Prisma NOT IN subqueries for missing artwork/subtitles with indexed NOT EXISTS anti-joins
+- Library Browser: selection model for multi-select over the virtualized grid (click/ctrl/shift/checkbox, select-all-loaded, pruning)
+- Notifications, activity feed and audit trail now name a person by their full name, falling back to the login handle
+
 ## [0.50.1] - 2026-07-26
 
 ### Fixed
