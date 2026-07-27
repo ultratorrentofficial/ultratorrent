@@ -1,4 +1,6 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, type OnModuleInit } from '@nestjs/common';
+import { CapabilityRegistry } from '../context-actions/capability-registry.service';
+import { JOB_ACTIONS } from './jobs-actions';
 import { JobsService } from './jobs.service';
 import { JobsController } from './jobs.controller';
 import { PlatformJobsController } from './platform-jobs.controller';
@@ -27,4 +29,11 @@ import { JobRetentionService } from './platform/job-retention.service';
   controllers: [JobsController, PlatformJobsController],
   exports: [JobsService, JobRegistry, PlatformJobService, PlatformJobsQueryService],
 })
-export class JobsModule {}
+/** Contributes the Jobs Center's actions to the CAMA registry at boot. */
+export class JobsModule implements OnModuleInit {
+  constructor(private readonly capabilities: CapabilityRegistry) {}
+
+  onModuleInit(): void {
+    this.capabilities.registerAll(JOB_ACTIONS);
+  }
+}

@@ -11,11 +11,15 @@
  * requirement for the contributing module.
  */
 import {
+  Ban,
   Download,
   FileCog,
   Lock,
+  Pause,
   PenLine,
+  Play,
   RefreshCw,
+  RotateCw,
   ScanLine,
   Trash2,
   Unlock,
@@ -23,11 +27,15 @@ import {
 } from 'lucide-react';
 
 const ICONS: Record<string, LucideIcon> = {
+  Ban,
   Download,
   FileCog,
   Lock,
+  Pause,
   PenLine,
+  Play,
   RefreshCw,
+  RotateCw,
   ScanLine,
   Trash2,
   Unlock,

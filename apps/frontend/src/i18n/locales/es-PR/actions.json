@@ -44,6 +44,13 @@
         "rename": "Renombrar",
         "export": "Exportar CSV"
       }
+    },
+    "jobs": {
+      "cancel": "Cancelar",
+      "pause": "Pausar",
+      "resume": "Reanudar",
+      "retry": "Reintentar",
+      "rerun": "Ejecutar de nuevo"
     }
   },
   "result": {

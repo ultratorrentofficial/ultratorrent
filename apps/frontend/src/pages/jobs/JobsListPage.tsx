@@ -14,6 +14,10 @@ import { Pagination } from '@/components/ui/pagination';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { useToast } from '@/components/ui/toast';
 import { statusVariant, jobDuration } from './jobStatus';
+import { jobCapabilities } from './jobCapabilities';
+import { ActionBar, type ActionHandler } from '@/actions/ActionBar';
+import { useContextActions } from '@/actions/useContextActions';
+import type { EntityRef } from '@ultratorrent/shared';
 
 const PAGE_SIZE = 25;
 
@@ -96,7 +100,36 @@ export function JobsListPage() {
       return next;
     });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(jobs.map((j) => j.id)));
-  const selectedIds = useMemo(() => [...selected], [selected]);
+
+  /*
+   * The selection as entity refs, each carrying what that job can currently
+   * have done to it. This is what lets one declaration serve a mixed selection:
+   * an action is offered only when every selected job advertises it, so Cancel
+   * over four running jobs and one finished one is correctly withheld rather
+   * than silently cancelling four of five.
+   */
+  const jobSelection = useMemo<EntityRef[]>(
+    () =>
+      jobs
+        .filter((j) => selected.has(j.id))
+        .map((j) => ({ type: 'job' as const, id: j.id, capabilities: jobCapabilities(j) })),
+    [jobs, selected],
+  );
+
+  const {
+    groups: actionGroups,
+    isLoading: actionsLoading,
+    isError: actionsError,
+  } = useContextActions({ selection: jobSelection });
+
+  const actionHandlers = useMemo<Record<string, ActionHandler>>(
+    () => ({
+      'jobs.cancel': (sel) => bulk.mutate({ action: 'cancel', ids: sel.map((e) => e.id) }),
+      'jobs.retry': (sel) => bulk.mutate({ action: 'retry', ids: sel.map((e) => e.id) }),
+      'jobs.rerun': (sel) => bulk.mutate({ action: 'rerun', ids: sel.map((e) => e.id) }),
+    }),
+    [bulk],
+  );
 
   if (query.isLoading) return <CenteredSpinner label={t('title')} />;
   if (query.isError) return <ErrorState message={t('empty.hint')} onRetry={() => query.refetch()} />;
@@ -120,22 +153,27 @@ export function JobsListPage() {
         </div>
       </div>
 
-      {/* Bulk toolbar */}
+      {/*
+        The bulk toolbar, resolved from the CAMA catalogue.
+
+        It previously offered Cancel, Retry and Rerun unconditionally, with no
+        permission check of any kind and no regard for whether the selected jobs
+        were in a state that admitted the action — a Cancel over five completed
+        jobs was a live button. Now each selected job advertises what it can
+        actually have done to it, and the action is offered only when EVERY one
+        of them does.
+      */}
       {selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-card/40 px-3 py-2">
-          <span className="text-sm font-medium">{t('bulk.selected', { count: selected.size })}</span>
-          <div className="ml-auto flex gap-1.5">
-            <Button size="sm" variant="outline" disabled={bulk.isPending} onClick={() => bulk.mutate({ action: 'cancel', ids: selectedIds })}>
-              {t('bulk.cancel')}
-            </Button>
-            <Button size="sm" variant="outline" disabled={bulk.isPending} onClick={() => bulk.mutate({ action: 'retry', ids: selectedIds })}>
-              {t('bulk.retry')}
-            </Button>
-            <Button size="sm" variant="outline" disabled={bulk.isPending} onClick={() => bulk.mutate({ action: 'rerun', ids: selectedIds })}>
-              {t('bulk.rerun')}
-            </Button>
-          </div>
-        </div>
+        <ActionBar
+          groups={actionGroups}
+          selection={jobSelection}
+          handlers={actionHandlers}
+          onClear={() => setSelected(new Set())}
+          busy={bulk.isPending}
+          isLoading={actionsLoading}
+          isError={actionsError}
+          primaryGroups={['maintenance']}
+        />
       )}
 
       {jobs.length === 0 ? (
