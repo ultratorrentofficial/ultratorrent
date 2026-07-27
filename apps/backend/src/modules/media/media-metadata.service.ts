@@ -91,8 +91,41 @@ export function parseNfoXml(xml: string): Partial<MediaMetadataDetails> {
   if (year && /^\d{4}$/.test(year)) details.year = Number(year);
   const runtime = pick('runtime');
   if (runtime && /^\d+$/.test(runtime)) details.runtime = Number(runtime);
-  const rating = pick('rating');
-  if (rating && !Number.isNaN(Number(rating))) details.rating = Number(rating);
+  /*
+   * Ratings come in two shapes and only one of them is ours.
+   *
+   * Our writer emits a flat `<rating>5.3</rating>`. tinyMediaManager and modern
+   * Kodi emit a nested block:
+   *
+   *     <ratings>
+   *       <rating default="true" max="10" name="NFO"><value>5.3</value></rating>
+   *     </ratings>
+   *
+   * Reading only the flat form meant every rating in a TMM-written library was
+   * silently dropped — invisible to a synthetic round-trip test, because that
+   * test round-trips OUR writer's output.
+   *
+   * `max` is honoured because the same block carries sources on different
+   * scales: Metacritic is out of 100, and storing 75 unscaled would render as a
+   * near-perfect score.
+   */
+  const flatRating = pick('rating');
+  if (flatRating && !Number.isNaN(Number(flatRating))) {
+    details.rating = Number(flatRating);
+  } else {
+    const blocks = [...xml.matchAll(/<rating\b([^>]*)>([\s\S]*?)<\/rating>/gi)];
+    // The one marked default, else the first that carries a value.
+    const chosen = blocks.find((b) => /default\s*=\s*["']true["']/i.test(b[1])) ?? blocks[0];
+    if (chosen) {
+      const value = /<value>([\s\S]*?)<\/value>/i.exec(chosen[2])?.[1]?.trim();
+      const max = Number(/max\s*=\s*["'](\d+)["']/i.exec(chosen[1])?.[1] ?? '10');
+      const n = Number(value);
+      if (value && !Number.isNaN(n) && max > 0) {
+        // Normalized to the 10-point scale everything downstream assumes.
+        details.rating = max === 10 ? n : Math.round((n / max) * 10 * 100) / 100;
+      }
+    }
+  }
   const genres = pickAll('genre');
   if (genres.length) details.genres = genres;
   const studios = pickAll('studio');

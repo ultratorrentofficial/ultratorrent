@@ -90,6 +90,49 @@ describe('NFO write → read', () => {
     expect(parseNfoXml(xml).externalIds?.tvdb).toBe('7984092');
   });
 
+  describe('ratings, as real files actually write them', () => {
+    /*
+     * These came from sampling tinyMediaManager 3.1.16.1 output on a live
+     * library. The synthetic round-trip above passed while every one of these
+     * silently lost its rating, because a round-trip test only ever exercises
+     * OUR writer's shape.
+     */
+    const nested = (attrs: string, value: string) =>
+      `<movie><title>x</title><ratings><rating ${attrs}><value>${value}</value>` +
+      `<votes>335</votes></rating></ratings></movie>`;
+
+    it('reads the nested TMM/Kodi block', () => {
+      expect(parseNfoXml(nested('default="true" max="10" name="NFO"', '5.3')).rating).toBe(5.3);
+    });
+
+    it('still reads our own flat form', () => {
+      expect(parseNfoXml('<movie><rating>7.1</rating></movie>').rating).toBe(7.1);
+    });
+
+    it('prefers the default rating over the first one', () => {
+      const xml = '<movie><ratings>' +
+        '<rating max="100" name="metacritic"><value>75</value></rating>' +
+        '<rating default="true" max="10" name="imdb"><value>8.2</value></rating>' +
+        '</ratings></movie>';
+      expect(parseNfoXml(xml).rating).toBe(8.2);
+    });
+
+    it('normalizes a different scale rather than storing it raw', () => {
+      // Metacritic is out of 100; storing 75 unscaled renders as near-perfect.
+      expect(parseNfoXml(nested('max="100" name="metacritic"', '75')).rating).toBe(7.5);
+    });
+
+    it('assumes a 10-point scale when max is absent', () => {
+      expect(parseNfoXml(nested('name="NFO"', '6.4')).rating).toBe(6.4);
+    });
+
+    it('ignores an empty or non-numeric rating', () => {
+      expect(parseNfoXml(nested('max="10"', '')).rating).toBeUndefined();
+      expect(parseNfoXml(nested('max="10"', 'n/a')).rating).toBeUndefined();
+      expect(parseNfoXml('<movie><ratings></ratings></movie>').rating).toBeUndefined();
+    });
+  });
+
   it('ignores a release date that is not a date', () => {
     const back = parseNfoXml('<movie><title>x</title><premiered>unknown</premiered></movie>');
     expect(back.releaseDate).toBeUndefined();
