@@ -45,6 +45,18 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.56.0] - 2026-07-27
+
+### Added
+- Library Browser episode rows show the episode still, its own title, runtime and subtitle count
+- Media health scoring: per-episode, per-season and per-show scores with reasons, from checks a query can decide
+- Show workspace renders health at show, season and episode level with explanatory reasons
+- Show workspace Overview tab: counts, storage, health score and a prioritised what-to-fix list
+- Operations Mode in the show workspace: checkboxes, visible health reasons and the bulk toolbar over a season's episodes
+
+### Fixed
+- Group episodes that live inside their torrent's release folder under the real show instead of listing each as its own series
+
 ## [0.55.1] - 2026-07-27
 
 ### Fixed
