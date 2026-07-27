@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.54.0] - 2026-07-27
+
+### Added
+- File Manager and Trash now publish file.moved/file.deleted so media records follow every file operation
+- File Manager actions update media records for files and folders, followed by a debounced confined rescan of the touched directory
+
 ## [0.53.0] - 2026-07-27
 
 ### Added
