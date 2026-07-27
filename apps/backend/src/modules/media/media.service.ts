@@ -20,6 +20,7 @@ import {
 } from 'node:fs/promises';
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { MediaRelocationService } from './media-relocation.service';
 import { paginate, parsePage } from '../../common/pagination';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { SettingsService } from '../settings/settings.module';
@@ -86,6 +87,7 @@ export class MediaService {
     private readonly settings: SettingsService,
     private readonly registry: EngineRegistryService,
     private readonly audit: AuditService,
+    private readonly relocation: MediaRelocationService,
     private readonly providers: MetadataProviderRegistry,
   ) {}
 
@@ -545,6 +547,9 @@ export class MediaService {
           this.assertWithin(realSrc, roots, 'source');
           sourceDirs.add(path.dirname(realSrc));
           await unlink(realSrc);
+          // Sidecar rows only — see recordDelete. A stray .srt going away is
+          // not a statement about the film.
+          await this.relocation.recordDelete(realSrc).catch(() => undefined);
           deleted++;
           await this.log(item, plan.mode, 'success', req.hash, null, runId);
         } catch (err) {
@@ -578,6 +583,11 @@ export class MediaService {
 
         await mkdir(path.dirname(dest), { recursive: true });
         await this.execute(item.action, realSrc, dest);
+        // The database follows the file. Without this the row keeps the old
+        // path, the next scan inserts a second row at the new one and prunes
+        // the first — taking its metadata, artwork, subtitles and lock with it,
+        // because all of those cascade from MediaItem.
+        await this.relocation.recordMoveSafe(realSrc, dest);
         sourceDirs.add(path.dirname(realSrc));
         applied++;
         await this.log(item, plan.mode, 'success', req.hash, null, runId);
@@ -787,6 +797,8 @@ export class MediaService {
 
         await mkdir(path.dirname(to), { recursive: true });
         await this.execute('move', from, to);
+        // Undo is a move like any other: the records follow it back.
+        await this.relocation.recordMoveSafe(from, to);
         await this.prisma.mediaRenameOperation.update({
           where: { id: op.id },
           data: { undoneAt: new Date() },

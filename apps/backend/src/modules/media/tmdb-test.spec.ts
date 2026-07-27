@@ -53,6 +53,8 @@ describe('MediaService.testTmdbKey', () => {
       settings as any,
       null as any,
       audit as any,
+      // Relocation bookkeeping: unused by testTmdbKey, which touches no files.
+      null as any,
       // The provider registry: unused by testTmdbKey, which constructs the
       // provider it is asked to verify directly from the supplied/saved key.
       null as any,
