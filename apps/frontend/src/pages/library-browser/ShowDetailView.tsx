@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { VirtualPosterGrid } from './VirtualPosterGrid';
 import { episodeTitleOf } from './episode-title';
 import { HealthBadge } from './HealthBadge';
+import { ShowOverview } from './ShowOverview';
 
 /**
  * One show, drilled into its seasons and episodes.
@@ -34,6 +35,13 @@ export function ShowDetailView({
 }) {
   const { t } = useTranslation('media');
   const [openSeason, setOpenSeason] = useState<number | null>(null);
+  /*
+   * Two tabs, not twelve. Stubbing Artwork/Versions/Analytics panels that have
+   * no backing data would advertise capability the platform does not have —
+   * `media_playback_aggregates` is empty and there is no versions model — and
+   * an empty tab is a worse answer than an absent one.
+   */
+  const [tab, setTab] = useState<'overview' | 'episodes'>('episodes');
 
   const query = useQuery({
     queryKey: ['library-browser', 'episodes', showKey, libraryId],
@@ -87,7 +95,28 @@ export function ShowDetailView({
         )}
       </header>
 
-      {query.isLoading ? (
+      <div className="flex gap-1 border-b border-white/10" role="tablist">
+        {(['overview', 'episodes'] as const).map((id) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={cn(
+              '-mb-px border-b-2 px-3 py-1.5 text-sm transition-colors',
+              tab === id
+                ? 'border-sky-400 text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {t(`overview.tab.${id}`)}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' ? (
+        <ShowOverview health={health.data ?? null} loading={health.isLoading} />
+      ) : query.isLoading ? (
         <SeasonSkeleton />
       ) : query.isError ? (
         <ErrorState message={t('browser.loadFailed')} onRetry={() => query.refetch()} />

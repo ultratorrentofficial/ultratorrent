@@ -1764,5 +1764,17 @@
     },
     "showScore": "Health",
     "seasonScore": "Season health"
+  },
+  "overview": {
+    "tab": {
+      "overview": "Overview",
+      "episodes": "Episodes"
+    },
+    "seasons": "Seasons",
+    "episodes": "Episodes",
+    "storage": "Storage",
+    "whatToFix": "What to fix",
+    "nothingToFix": "Nothing needs attention.",
+    "episodeShare": "{{count}} · {{share}}%"
   }
 }
