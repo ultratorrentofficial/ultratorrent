@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.54.1] - 2026-07-27
+
+### Fixed
+- A media-server session that autoplays the next episode now reports each episode: one start notification, one watch-history row and one Trakt scrobble per episode, instead of one for the whole binge
+- Trash restore announces itself so a restored file is reconciled into its library
+
 ## [0.54.0] - 2026-07-27
 
 ### Added
