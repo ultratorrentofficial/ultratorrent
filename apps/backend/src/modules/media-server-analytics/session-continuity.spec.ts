@@ -201,6 +201,84 @@ describe('session continuity', () => {
     expect(t.history[0].percentComplete).toBe(96);
   });
 
+  /**
+   * The binge, measured live on synoplex: one provider session id
+   * (`lib5u42oofqu59730m2ng1t7`, `dennis.ayala`, Windows) carried Criminal Minds
+   * from 02:16 to 04:54 across eight episodes. A start published only on row
+   * CREATE therefore fired once for the whole evening — one Telegram alert, and
+   * one history row titled after the last episode.
+   */
+  const episode = (n: number, over: Record<string, unknown> = {}) => session({
+    sessionId: 'lib5u42', userName: 'dennis.ayala', device: 'Windows',
+    title: `Criminal Minds — Episode ${n}`, showTitle: 'Criminal Minds',
+    seasonNumber: 18, episodeNumber: n, progressPercent: 5, ...over,
+  });
+
+  it('publishes a start per episode when one session autoplays through several', async () => {
+    const t = build();
+    t.setSessions([episode(6)]);
+    await t.svc.poll();
+    await t.svc.poll(); // still the same episode — no second start
+    expect(t.starts()).toHaveLength(1);
+
+    t.setSessions([episode(7)]);  // autoplay, same provider session id
+    await t.svc.poll();
+    t.setSessions([episode(8)]);
+    await t.svc.poll();
+
+    expect(t.starts()).toHaveLength(3);
+    expect(t.starts().map((e) => e.payload.episodeNumber)).toEqual([6, 7, 8]);
+    // Each finished episode is a stop and a history row of its own.
+    expect(t.stops().map((e) => e.payload.episodeNumber)).toEqual([6, 7]);
+    expect(t.history.map((h) => h.title)).toEqual([
+      'Criminal Minds — Episode 6',
+      'Criminal Minds — Episode 7',
+    ]);
+    // Still one row, now on episode 8.
+    expect(t.store).toHaveLength(1);
+    expect(t.store[0].episodeNumber).toBe(8);
+  });
+
+  it('starts the clock again for the next episode', async () => {
+    const t = build();
+    t.setSessions([episode(6)]);
+    await t.svc.poll();
+    const firstStart = t.store[0].startedAt;
+
+    t.setSessions([episode(7)]);
+    await t.svc.poll();
+    // Otherwise episode 7's watched time includes all of episode 6.
+    expect(t.store[0].startedAt.getTime()).toBeGreaterThanOrEqual(firstStart.getTime());
+    expect(t.store[0].startedAt).not.toBe(firstStart);
+  });
+
+  it('does not read a momentary loss of show metadata as a new episode', async () => {
+    const t = build();
+    t.setSessions([episode(6)]);
+    await t.svc.poll();
+
+    // Same title, but the provider dropped show/season/episode for one poll.
+    t.setSessions([episode(6, { showTitle: null, seasonNumber: null, episodeNumber: null })]);
+    await t.svc.poll();
+
+    expect(t.starts()).toHaveLength(1);
+    expect(t.stops()).toHaveLength(0);
+    expect(t.history).toHaveLength(0);
+  });
+
+  it('keys the start event on the item, so the dedupe window cannot swallow the next episode', async () => {
+    const t = build();
+    t.setSessions([episode(6)]);
+    await t.svc.poll();
+    t.setSessions([episode(7)]);
+    await t.svc.poll();
+
+    const [first, second] = t.starts();
+    // Same session, different resource — the window suppresses a republished
+    // start, never a genuinely different episode.
+    expect(first.resourceId).not.toBe(second.resourceId);
+  });
+
   it('writes one history row per viewing, not one per poll gap', async () => {
     const t = build();
     t.setSessions([session({ progressPercent: 58 })]);

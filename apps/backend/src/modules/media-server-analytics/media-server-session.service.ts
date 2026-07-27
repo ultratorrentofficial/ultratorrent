@@ -6,7 +6,9 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerIntegrationService } from '../media/media-server-integration.service';
+import type { ProviderSession } from '../media/media-server-provider';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
+import { isNewViewing, viewingKey } from './viewing-identity';
 
 /**
  * Live activity + watch-history capture. A poller reconciles now-playing
@@ -258,75 +260,34 @@ export class MediaServerSessionService {
 
         if (existing) {
           claimed.add(existing.id);
+          /*
+           * A client that autoplays the next episode keeps ONE provider session
+           * id, so "the row already exists" does not mean "the same viewing".
+           * Treat a changed item as the end of one and the start of the next:
+           * otherwise a whole binge is a single row, notified once, written to
+           * history under whichever episode happened to be last.
+           */
+          const newItem = isNewViewing(existing, data);
+          if (newItem) await this.recordStop(existing, conn.name ?? conn.id);
+
           await this.prisma.mediaServerSession.update({
             where: { id: existing.id },
             // `missedPolls` resets and the provider id is re-pointed: a session
-            // that came back is present, whatever it is now called.
-            data: { ...data, providerSessionId: s.sessionId, missedPolls: 0 },
+            // that came back is present, whatever it is now called. `startedAt`
+            // restarts only for a new item, so its watched time is its own.
+            data: {
+              ...data,
+              providerSessionId: s.sessionId,
+              missedPolls: 0,
+              ...(newItem ? { startedAt: new Date() } : {}),
+            },
           });
+          if (newItem) this.announceStart(conn, s);
         } else {
           await this.prisma.mediaServerSession.create({
             data: { connectionId: conn.id, providerSessionId: s.sessionId, ...data },
           });
-          this.realtime.broadcast('media_server.session.started', { connectionId: conn.id, title: s.title, userName: s.userName });
-          // Published only on CREATE — the poller reconciles the same session
-          // every 15s, and this branch is the genuine start transition.
-          this.bus.publish({
-            eventKey: DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING,
-            resourceType: 'media_server_session',
-            resourceId: `${conn.id}:${s.sessionId}`,
-            payload: {
-              mediaTitle: s.title,
-              serverName: conn.name ?? conn.id,
-              userDisplayName: s.userName ?? null,
-              showTitle: s.showTitle ?? null,
-              episodeTitle: s.episodeTitle ?? null,
-              seasonNumber: s.seasonNumber ?? null,
-              episodeNumber: s.episodeNumber ?? null,
-              year: s.year ?? null,
-              mediaType: s.mediaType ?? null,
-              libraryName: s.libraryName ?? null,
-              device: s.device ?? null,
-              client: s.client ?? null,
-              resolution: s.resolution ?? null,
-              // Summarized into one short quality line by the presentation
-              // builder — never rendered raw.
-              videoDynamicRange: s.videoDynamicRange ?? null,
-              playbackMethod: s.playbackMethod ?? null,
-              playbackState: s.playbackState ?? null,
-              progressPercent: s.progressPercent ?? null,
-              // Connection + provider path, never a URL: only fetchable through
-              // that connection's credentials, so storing it grants nothing.
-              connectionId: conn.id,
-              artPath: s.artPath ?? null,
-              // Deliberately NOT ipAddress. Nothing renders it.
-              startedAt: new Date().toISOString(),
-            },
-          });
-          const startPayload = {
-            mediaTitle: s.title, episodeTitle: s.episodeTitle ?? null, mediaType: s.mediaType ?? null,
-            userDisplayName: s.userName, userId: s.userId ?? null,
-            serverName: conn.name ?? conn.id, libraryName: s.libraryName ?? null,
-            device: s.device ?? null, client: s.client ?? null,
-            playbackMethod: s.playbackMethod ?? null, resolution: s.resolution ?? null,
-            videoCodec: s.videoCodec ?? null, audioCodec: s.audioCodec ?? null, bitrate: s.bitrateKbps ?? null,
-            // Show identity and year let a consumer render "The Last of Us -
-            // S01E03" or "Dune (2021)" rather than the joined display string.
-            showTitle: s.showTitle ?? null,
-            seasonNumber: s.seasonNumber ?? null,
-            episodeNumber: s.episodeNumber ?? null,
-            year: s.year ?? null,
-            playbackState: s.playbackState ?? null,
-            progressPercent: s.progressPercent ?? null,
-            // Artwork is carried as connection + provider path, never a URL: the
-            // path is only fetchable through that connection's credentials, so
-            // storing it grants nothing on its own.
-            connectionId: conn.id,
-            artPath: s.artPath ?? null,
-            // Deliberately NOT ipAddress. Nothing downstream renders it, and the
-            // payload is stored on every recipient's row.
-            startedAt: new Date().toISOString(),
-          };
+          this.announceStart(conn, s);
         }
       }
 
@@ -359,7 +320,62 @@ export class MediaServerSessionService {
     return { connections: connections.length, active, ended };
   }
 
-  private async endSession(c: MediaServerSession, serverName: string): Promise<void> {
+  /**
+   * Announce that something has begun playing: the live-activity broadcast and
+   * the domain event a notification is built from.
+   *
+   * Called for a brand-new session AND for a new item inside a session that was
+   * already running, because both are the same fact to anyone downstream. The
+   * `resourceId` carries the item's identity as well as the session's — the
+   * event's five-minute dedupe window exists to swallow a pause-and-resume
+   * republishing the same start, and keying it on the session alone would make it
+   * swallow the next episode too.
+   */
+  private announceStart(
+    conn: { id: string; name: string | null },
+    s: ProviderSession,
+  ): void {
+    this.realtime.broadcast('media_server.session.started', {
+      connectionId: conn.id,
+      title: s.title,
+      userName: s.userName,
+    });
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING,
+      resourceType: 'media_server_session',
+      resourceId: `${conn.id}:${s.sessionId}:${viewingKey(s)}`,
+      payload: {
+        mediaTitle: s.title,
+        serverName: conn.name ?? conn.id,
+        userDisplayName: s.userName ?? null,
+        showTitle: s.showTitle ?? null,
+        episodeTitle: s.episodeTitle ?? null,
+        seasonNumber: s.seasonNumber ?? null,
+        episodeNumber: s.episodeNumber ?? null,
+        year: s.year ?? null,
+        mediaType: s.mediaType ?? null,
+        libraryName: s.libraryName ?? null,
+        device: s.device ?? null,
+        client: s.client ?? null,
+        resolution: s.resolution ?? null,
+        // Summarized into one short quality line by the presentation
+        // builder — never rendered raw.
+        videoDynamicRange: s.videoDynamicRange ?? null,
+        playbackMethod: s.playbackMethod ?? null,
+        playbackState: s.playbackState ?? null,
+        progressPercent: s.progressPercent ?? null,
+        // Connection + provider path, never a URL: only fetchable through
+        // that connection's credentials, so storing it grants nothing.
+        connectionId: conn.id,
+        artPath: s.artPath ?? null,
+        // Deliberately NOT ipAddress. Nothing renders it.
+        startedAt: new Date().toISOString(),
+      },
+    });
+  }
+
+  /** A finished session: write history, tell everyone, but leave the row alone. */
+  private async recordStop(c: MediaServerSession, serverName: string): Promise<void> {
     const watchedSeconds = Math.max(0, Math.round((Date.now() - c.startedAt.getTime()) / 1000));
     await this.prisma.mediaServerWatchHistory.create({
       data: {
@@ -385,14 +401,14 @@ export class MediaServerSessionService {
         importSource: 'live',
       },
     });
-    await this.prisma.mediaServerSession.delete({ where: { id: c.id } });
     this.realtime.broadcast('media_server.session.ended', { connectionId: c.connectionId, title: c.title });
-    // Fired once, when the session vanishes from the provider — the genuine stop
-    // transition, not a heartbeat.
+    // Fired once per VIEWING — when the session vanishes from the provider, or
+    // when it moves on to a different item — never as a heartbeat. Same reason as
+    // the start event for keying the id on the item as well as the session.
     this.bus.publish({
       eventKey: DOMAIN_EVENTS.MEDIA_SERVER_USER_STOPPED_WATCHING,
       resourceType: 'media_server_session',
-      resourceId: `${c.connectionId}:${c.providerSessionId}`,
+      resourceId: `${c.connectionId}:${c.providerSessionId}:${viewingKey(c)}`,
       payload: {
         mediaTitle: c.title,
         serverName,
@@ -409,12 +425,20 @@ export class MediaServerSessionService {
         resolution: c.resolution,
         completionPercent: c.progressPercent,
         watchedSeconds,
-        // The session row is deleted above, so the stop card cannot resolve
-        // artwork through it — carrying these is what lets it show a poster.
+        // The stop card outlives the session row — deleted when the session
+        // ends, repointed at the next episode when it does not — so it cannot
+        // resolve artwork through it. Carrying these is what lets it show a
+        // poster.
         connectionId: c.connectionId,
         artPath: c.artPath,
         stoppedAt: new Date().toISOString(),
       },
     });
+  }
+
+  /** A session that vanished from the provider: record the stop, drop the row. */
+  private async endSession(c: MediaServerSession, serverName: string): Promise<void> {
+    await this.recordStop(c, serverName);
+    await this.prisma.mediaServerSession.delete({ where: { id: c.id } });
   }
 }

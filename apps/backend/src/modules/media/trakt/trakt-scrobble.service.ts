@@ -26,6 +26,7 @@ import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { TraktAuthService } from './trakt-auth.service';
 import { TraktClient, buildScrobbleBody, normalizeUserName, type ScrobbleSubject } from './trakt-client';
 import { watchKey } from './trakt-sync.service';
+import { viewingKey } from '../../media-server-analytics/viewing-identity';
 
 /** Trakt marks an item watched when a scrobble stops at or above this progress. */
 export const WATCHED_THRESHOLD_PCT = 80;
@@ -116,8 +117,17 @@ export class TraktScrobbleService {
       const action: ScrobbleAction = paused ? 'pause' : 'start';
       const prev = this.tracked.get(session.id);
 
+      /*
+       * A session row outlives the item playing in it: a client that autoplays the
+       * next episode keeps one provider session id, and the poller repoints the
+       * row at the new episode. Comparing only the ACTION would see `start` →
+       * `start` and say nothing, so a binge reached Trakt as a single episode.
+       */
+      const movedOn = !!prev && viewingKey(prev.subject) !== viewingKey(subject);
+      if (movedOn) await this.closeScrobble(client, prev!);
+
       // Only on a transition: Trakt does not want (and throttles) a heartbeat.
-      if (!prev || prev.action !== action) {
+      if (!prev || prev.action !== action || movedOn) {
         await this.send(client, account.userId, action, subject, progress);
       }
       this.tracked.set(session.id, { userId: account.userId, action, progress, subject });
@@ -128,14 +138,28 @@ export class TraktScrobbleService {
     for (const [sessionId, state] of [...this.tracked.entries()]) {
       if (seen.has(sessionId)) continue;
       this.tracked.delete(sessionId);
-      try {
-        await this.send(client, state.userId, 'stop', state.subject, state.progress);
-        if (state.progress >= WATCHED_THRESHOLD_PCT) {
-          await this.recordWatch(state.userId, state.subject);
-        }
-      } catch (err) {
-        this.logger.warn(`Could not stop scrobble for ${sessionId}: ${(err as Error).message}`);
+      await this.closeScrobble(client, state);
+    }
+  }
+
+  /**
+   * Stop an open scrobble at its last known progress, and mark it watched if that
+   * progress reached Trakt's threshold.
+   *
+   * Shared by the two ways a viewing ends: the session disappearing, and the
+   * session moving on to a different item. Failures are logged and swallowed — a
+   * close that cannot be delivered must not abort the sweep for everyone else.
+   */
+  private async closeScrobble(client: TraktClient, state: TrackedSession): Promise<void> {
+    try {
+      await this.send(client, state.userId, 'stop', state.subject, state.progress);
+      if (state.progress >= WATCHED_THRESHOLD_PCT) {
+        await this.recordWatch(state.userId, state.subject);
       }
+    } catch (err) {
+      this.logger.warn(
+        `Could not stop scrobble for ${state.subject.title ?? 'unknown'}: ${(err as Error).message}`,
+      );
     }
   }
 

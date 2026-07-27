@@ -336,6 +336,47 @@ describe('TraktScrobbleService', () => {
     expect(posts).toEqual(['/scrobble/start']);
   });
 
+  it('closes and reopens the scrobble when one session autoplays the next episode', async () => {
+    // A session ROW outlives the item in it: Plex keeps one session id across a
+    // binge, so comparing only the action saw start → start and said nothing.
+    const prisma = {
+      traktAccount: { findMany: jest.fn().mockResolvedValue([account]) },
+      mediaServerSession: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([session({ progressPercent: 92 })])
+          .mockResolvedValueOnce([
+            session({ episodeNumber: 4, title: 'Silo — Truth', progressPercent: 3 }),
+          ]),
+      },
+      mediaUserWatch: { upsert: jest.fn().mockResolvedValue({}) },
+    };
+    const auth = {
+      credentials: jest.fn().mockResolvedValue({ clientId: 'id', clientSecret: 's' }),
+      accessTokenFor: jest.fn().mockResolvedValue('token'),
+    };
+    const posts: Array<{ path: string; body: any }> = [];
+    jest
+      .spyOn(require('./trakt-client').TraktClient.prototype, 'post')
+      .mockImplementation(async (...args: unknown[]) => {
+        posts.push({ path: args[0] as string, body: args[1] });
+        return {};
+      });
+    const svc = new TraktScrobbleService(prisma as any, auth as any);
+
+    await svc.sweep();
+    await svc.sweep();
+
+    expect(posts.map((p) => p.path)).toEqual([
+      '/scrobble/start', '/scrobble/stop', '/scrobble/start',
+    ]);
+    // Episode 3 stopped at ITS last progress, past the threshold, so it counts as
+    // watched — and episode 4 opens at its own.
+    expect(posts[1].body.progress).toBe(92);
+    expect(posts[2].body.progress).toBe(3);
+    expect(prisma.mediaUserWatch.upsert).toHaveBeenCalled();
+  });
+
   it('does not scrobble an item it cannot identify', async () => {
     const { svc, posts } = build([
       session({ externalIds: {}, showTitle: null, seasonNumber: null, episodeNumber: null }),
