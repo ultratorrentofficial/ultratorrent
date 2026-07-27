@@ -12,12 +12,17 @@
  */
 import {
   Ban,
+  Copy,
   Download,
+  Eye,
   FileCog,
+  FolderInput,
+  FolderOpen,
   Lock,
   Pause,
   PenLine,
   Play,
+  Sparkles,
   RefreshCw,
   RotateCw,
   ScanLine,
@@ -29,8 +34,12 @@ import {
 
 const ICONS: Record<string, LucideIcon> = {
   Ban,
+  Copy,
   Download,
+  Eye,
   FileCog,
+  FolderInput,
+  FolderOpen,
   Lock,
   Pause,
   PenLine,
@@ -38,6 +47,7 @@ const ICONS: Record<string, LucideIcon> = {
   RefreshCw,
   RotateCw,
   ScanLine,
+  Sparkles,
   Square,
   Trash2,
   Unlock,

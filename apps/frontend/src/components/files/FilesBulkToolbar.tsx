@@ -1,11 +1,11 @@
-import { useTranslation } from 'react-i18next';
-import { Copy, FolderInput, Sparkles, Trash2, X } from 'lucide-react';
-import { PERMISSIONS } from '@ultratorrent/shared';
-import { useAuth } from '@/auth/AuthContext';
-import { Button } from '@/components/ui/button';
+import { useMemo } from 'react';
+import type { EntityRef } from '@ultratorrent/shared';
+import { ActionBar, type ActionHandler } from '@/actions/ActionBar';
+import { useContextActions } from '@/actions/useContextActions';
 
 export interface FilesBulkToolbarProps {
-  count: number;
+  /** The selected entries, each advertising what it is. */
+  selection: EntityRef[];
   onMove: () => void;
   onCopy: () => void;
   onDelete: () => void;
@@ -14,8 +14,20 @@ export interface FilesBulkToolbarProps {
   cleanupBusy?: boolean;
 }
 
+/**
+ * Bulk actions over selected files, resolved from the CAMA catalogue.
+ *
+ * The File Manager was already the best-gated surface in the app — this bar
+ * checked four permissions and the context menu seven — so nothing here is a
+ * repair. What it gains is sharing: the same declarations now serve this bar,
+ * the context menu, and anything added later, instead of three places each
+ * remembering the same seven checks.
+ *
+ * Actions needing exactly one entry (rename, preview, download, open) resolve
+ * away on a multi-selection without this component knowing they exist.
+ */
 export function FilesBulkToolbar({
-  count,
+  selection,
   onMove,
   onCopy,
   onDelete,
@@ -23,43 +35,30 @@ export function FilesBulkToolbar({
   onClear,
   cleanupBusy,
 }: FilesBulkToolbarProps) {
-  const { hasPermission } = useAuth();
-  const { t } = useTranslation('files');
-  if (count === 0) return null;
+  const { groups, isLoading, isError } = useContextActions({ selection });
+
+  const handlers = useMemo<Record<string, ActionHandler>>(
+    () => ({
+      'files.move': onMove,
+      'files.copy': onCopy,
+      'files.delete': onDelete,
+      'files.cleanup': onCleanup,
+    }),
+    [onMove, onCopy, onDelete, onCleanup],
+  );
+
+  if (selection.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/[0.08] px-3 py-2 animate-fade-in">
-      <button
-        type="button"
-        onClick={onClear}
-        className="rounded-md p-1 text-muted-foreground hover:bg-white/5 hover:text-foreground"
-        aria-label={t('bulk.clearSelection')}
-      >
-        <X className="h-4 w-4" />
-      </button>
-      <span className="text-sm font-medium">{t('bulk.selected', { count })}</span>
-      <div className="mx-1 h-5 w-px bg-border" />
-
-      {hasPermission(PERMISSIONS.FILES_MOVE) && (
-        <Button variant="ghost" size="sm" onClick={onMove}>
-          <FolderInput className="h-4 w-4" /> {t('bulk.move')}
-        </Button>
-      )}
-      {hasPermission(PERMISSIONS.FILES_COPY) && (
-        <Button variant="ghost" size="sm" onClick={onCopy}>
-          <Copy className="h-4 w-4" /> {t('bulk.copy')}
-        </Button>
-      )}
-      {hasPermission(PERMISSIONS.FILES_CLEANUP) && (
-        <Button variant="ghost" size="sm" loading={cleanupBusy} onClick={onCleanup}>
-          <Sparkles className="h-4 w-4" /> {t('bulk.cleanupSelected')}
-        </Button>
-      )}
-      {hasPermission(PERMISSIONS.FILES_DELETE) && (
-        <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={onDelete}>
-          <Trash2 className="h-4 w-4" /> {t('bulk.delete')}
-        </Button>
-      )}
-    </div>
+    <ActionBar
+      groups={groups}
+      selection={selection}
+      handlers={handlers}
+      onClear={onClear}
+      busy={cleanupBusy}
+      isLoading={isLoading}
+      isError={isError}
+      primaryGroups={['maintenance']}
+    />
   );
 }

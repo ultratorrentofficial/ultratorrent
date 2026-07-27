@@ -59,6 +59,16 @@
       "recheck": "Reverificar",
       "remove": "Eliminar",
       "removeData": "Eliminar con datos"
+    },
+    "files": {
+      "open": "Abrir",
+      "preview": "Vista previa",
+      "download": "Descargar",
+      "rename": "Renombrar",
+      "move": "Mover",
+      "copy": "Copiar",
+      "cleanup": "Limpiar",
+      "delete": "Eliminar"
     }
   },
   "result": {

@@ -1,4 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, type OnModuleInit } from '@nestjs/common';
+import { CapabilityRegistry } from '../context-actions/capability-registry.service';
+import { FILE_ACTIONS } from './files-actions';
 import { SettingsModule } from '../settings/settings.module';
 import { FilePathService } from './file-path.service';
 import { FilesService } from './files.service';
@@ -19,4 +21,11 @@ import { FilesController } from './files.controller';
   controllers: [FilesController],
   exports: [FilesService, TrashService, FileCleanupService, FilePathService],
 })
-export class FilesModule {}
+/** Contributes the File Manager's actions to the CAMA registry at boot. */
+export class FilesModule implements OnModuleInit {
+  constructor(private readonly capabilities: CapabilityRegistry) {}
+
+  onModuleInit(): void {
+    this.capabilities.registerAll(FILE_ACTIONS);
+  }
+}

@@ -18,6 +18,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { PERMISSIONS, WS_EVENTS } from '@ultratorrent/shared';
+import type { EntityRef } from '@ultratorrent/shared';
 import { ApiError, api, type FileNode } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { useAuth } from '@/auth/AuthContext';
@@ -30,6 +31,7 @@ import { ContextMenu, type ContextMenuEntry, type ContextMenuState } from '@/com
 import { cn } from '@/lib/utils';
 import { FilesToolbar } from '@/components/files/FilesToolbar';
 import { FilesBulkToolbar } from '@/components/files/FilesBulkToolbar';
+import { fileCapabilities } from '@/components/files/fileCapabilities';
 import { bulkLevel, failureReasons } from '@/components/files/bulk-result';
 import { CleanupWizard } from '@/components/files/CleanupWizard';
 import { TrashDrawer } from '@/components/files/TrashDrawer';
@@ -97,6 +99,23 @@ export function FilesPage() {
     const q = search.trim().toLowerCase();
     return q ? list.filter((n) => n.name.toLowerCase().includes(q)) : list;
   }, [data, search]);
+
+  /*
+   * The selection as entity refs, each advertising whether it is a directory.
+   * Actions that only make sense for one kind — preview, download, open —
+   * resolve away without the toolbar knowing they exist.
+   */
+  const fileSelection = useMemo<EntityRef[]>(
+    () =>
+      items
+        .filter((node) => selected.has(node.path))
+        .map((node) => ({
+          type: 'file' as const,
+          id: node.path,
+          capabilities: fileCapabilities(node),
+        })),
+    [items, selected],
+  );
 
   const allSelected = items.length > 0 && items.every((n) => selected.has(n.path));
   const someSelected = items.some((n) => selected.has(n.path));
@@ -217,9 +236,9 @@ export function FilesPage() {
         ))}
       </nav>
 
-      {selected.size > 0 && (
+      {fileSelection.length > 0 && (
         <FilesBulkToolbar
-          count={selected.size}
+          selection={fileSelection}
           cleanupBusy={cleanupBusy}
           onMove={() => setMoveCopy({ mode: 'move', paths: [...selected] })}
           onCopy={() => setMoveCopy({ mode: 'copy', paths: [...selected] })}

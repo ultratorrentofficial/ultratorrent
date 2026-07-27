@@ -59,6 +59,16 @@
       "recheck": "Recheck",
       "remove": "Remove",
       "removeData": "Remove with data"
+    },
+    "files": {
+      "open": "Open",
+      "preview": "Preview",
+      "download": "Download",
+      "rename": "Rename",
+      "move": "Move",
+      "copy": "Copy",
+      "cleanup": "Clean up",
+      "delete": "Delete"
     }
   },
   "result": {
