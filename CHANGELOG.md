@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.55.1] - 2026-07-27
+
+### Fixed
+- Parse nested TMM/Kodi rating blocks with scale normalization, so real-world NFOs keep their ratings
+
 ## [0.55.0] - 2026-07-27
 
 ### Added
