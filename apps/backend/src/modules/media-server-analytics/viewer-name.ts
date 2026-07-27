@@ -23,6 +23,12 @@ export interface KnownViewer {
   connectionId: string | null;
   providerUserId: string | null;
   userName: string;
+  /**
+   * Present on rows that came from the media server's ACCOUNT LIST, absent on
+   * rows synthesized from playing sessions — which is what tells the person's
+   * account apart from the shadow of their login. See {@link preferAccountRecord}.
+   */
+  email?: string | null;
 }
 
 export interface SessionViewer {
@@ -65,15 +71,39 @@ export function resolveViewerName(known: KnownViewer[], session: SessionViewer):
   if (session.providerUserId) {
     const sameId = known.filter((k) => k.providerUserId != null && k.providerUserId === session.providerUserId);
     const scoped = sameId.find((k) => k.connectionId === session.connectionId);
-    if (scoped) return scoped.userName;
+    if (scoped) return preferAccountRecord(known, scoped.userName);
     const unscoped = sameId.filter((k) => k.connectionId == null);
-    if (unscoped.length === 1) return unscoped[0].userName;
+    if (unscoped.length === 1) return preferAccountRecord(known, unscoped[0].userName);
   }
 
-  if (known.some((k) => k.userName === raw)) return raw;
+  if (known.some((k) => k.userName === raw)) return preferAccountRecord(known, raw);
 
   const key = normalizeUserName(raw);
   if (!key) return raw;
   const matches = known.filter((k) => normalizeUserName(k.userName) === key);
-  return matches.length === 1 ? matches[0].userName : raw;
+  return matches.length === 1 ? preferAccountRecord(known, matches[0].userName) : raw;
+}
+
+/**
+ * Upgrade a resolved name to the spelling on the person's ACCOUNT, when the same
+ * person is recorded twice.
+ *
+ * Playing a session mints an account row under whatever name the session
+ * reported, so synoplex holds both `dennis.ayala` (connection-scoped, no email,
+ * 77 plays — the shadow of the login) and `Dennis Ayala` (from Plex's account
+ * list, with an email, 2151 plays). Matching by provider id then lands on the
+ * shadow with total confidence and answers with the login — the exact thing this
+ * module exists to avoid.
+ *
+ * The email is the discriminator: an account list carries one, a row synthesized
+ * from a session does not. So among rows that normalize to the same identity, one
+ * and only one bearing an email IS the account record. Anything else — no email,
+ * several emails, a single row — is left exactly as resolved, because then there
+ * is no evidence of which spelling is the person's own.
+ */
+function preferAccountRecord(known: KnownViewer[], name: string): string {
+  const key = normalizeUserName(name);
+  if (!key) return name;
+  const withEmail = known.filter((k) => normalizeUserName(k.userName) === key && !!k.email);
+  return withEmail.length === 1 ? withEmail[0].userName : name;
 }

@@ -337,7 +337,7 @@ export class MediaServerSessionService {
   ): Promise<string | null> {
     if (!userName) return null;
     const known = await this.prisma.mediaServerUser.findMany({
-      select: { connectionId: true, providerUserId: true, userName: true },
+      select: { connectionId: true, providerUserId: true, userName: true, email: true },
     });
     return resolveViewerName(known, { connectionId, providerUserId, userName });
   }

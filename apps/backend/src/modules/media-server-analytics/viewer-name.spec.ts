@@ -21,6 +21,45 @@ describe('resolveViewerName', () => {
     expect(resolveViewerName(known, session())).toBe('Dennis Ayala');
   });
 
+  /**
+   * The shape that actually shipped and still said `dennis.ayala`: playing a
+   * session mints an account row under the name the SESSION reported, so the
+   * person exists twice — as their login on the connection, and as their account
+   * in Plex's list. Matching by provider id landed on the shadow with total
+   * confidence.
+   */
+  it('prefers the account record over the shadow row a session minted', () => {
+    const both: KnownViewer[] = [
+      { connectionId: 'c1', providerUserId: '1', userName: 'dennis.ayala', email: null },
+      { connectionId: null, providerUserId: '383757', userName: 'Dennis Ayala', email: 'dennis.ayala@gmail.com' },
+    ];
+    // An exact id match on the shadow is still an exact match — it just is not
+    // the name to show.
+    expect(resolveViewerName(both, session())).toBe('Dennis Ayala');
+  });
+
+  it('leaves the resolved name alone when the duplicate carries no email either', () => {
+    const both: KnownViewer[] = [
+      { connectionId: 'c1', providerUserId: '1', userName: 'dennis.ayala', email: null },
+      { connectionId: null, providerUserId: '383757', userName: 'Dennis Ayala', email: null },
+    ];
+    // Nothing distinguishes an account record from a session shadow here, so
+    // there is no evidence for preferring either spelling.
+    expect(resolveViewerName(both, session())).toBe('dennis.ayala');
+  });
+
+  it('refuses to upgrade when two accounts with emails normalize the same', () => {
+    // Live on synoplex: two separate `Juan Hernandez` rows, both with emails.
+    const twoJuans: KnownViewer[] = [
+      { connectionId: 'c1', providerUserId: '5', userName: 'juan.hernandez', email: null },
+      { connectionId: null, providerUserId: '6', userName: 'Juan Hernandez', email: 'a@example.com' },
+      { connectionId: null, providerUserId: '7', userName: 'Juan Hernandez', email: 'b@example.com' },
+    ];
+    expect(
+      resolveViewerName(twoJuans, session({ userName: 'juan.hernandez', providerUserId: '5' })),
+    ).toBe('juan.hernandez');
+  });
+
   it('prefers an exact id on the same connection over any name matching', () => {
     const scoped: KnownViewer[] = [
       { connectionId: 'c1', providerUserId: '77', userName: 'Maria Ayala' },
