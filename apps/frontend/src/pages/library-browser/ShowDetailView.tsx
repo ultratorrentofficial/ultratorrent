@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Captions, ChevronLeft, Lock } from 'lucide-react';
-import { api, type MediaItem, type MediaSeasonGroup } from '@/lib/api';
+import { api, type HealthStatus, type MediaItem, type MediaSeasonGroup } from '@/lib/api';
 import { MediaPoster } from '@/components/media/MediaPoster';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, Skeleton } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
 import { VirtualPosterGrid } from './VirtualPosterGrid';
 import { episodeTitleOf } from './episode-title';
+import { HealthBadge } from './HealthBadge';
 
 /**
  * One show, drilled into its seasons and episodes.
@@ -39,6 +40,28 @@ export function ShowDetailView({
     queryFn: () => api.media.seriesEpisodes(showKey, { libraryId }),
   });
 
+  /*
+   * Health is a separate query on purpose: it scores every episode of the show,
+   * so it is heavier than the episode list and must not delay first paint. The
+   * list renders immediately and badges appear when the score arrives.
+   */
+  const health = useQuery({
+    queryKey: ['library-browser', 'health', showKey, libraryId],
+    queryFn: () => api.media.seriesHealth(showKey, libraryId),
+  });
+
+  const healthByEpisode = useMemo(() => {
+    const map = new Map<string, { score: number; status: HealthStatus; reasons: string[] }>();
+    for (const e of health.data?.episodes ?? []) map.set(e.itemId, e);
+    return map;
+  }, [health.data]);
+
+  const healthBySeason = useMemo(() => {
+    const map = new Map<number, { score: number; status: HealthStatus }>();
+    for (const s of health.data?.seasons ?? []) map.set(s.seasonNumber, s);
+    return map;
+  }, [health.data]);
+
   const seasons = query.data?.seasons ?? [];
 
   // Default to the first season once loaded, so the drill-down lands on
@@ -59,6 +82,9 @@ export function ShowDetailView({
         {!!seasons.length && (
           <Badge variant="outline">{t('browser.seasonCount', { count: seasons.length })}</Badge>
         )}
+        {health.data && (
+          <HealthBadge score={health.data.score} status={health.data.status} />
+        )}
       </header>
 
       {query.isLoading ? (
@@ -74,6 +100,7 @@ export function ShowDetailView({
               <SeasonCard
                 key={season.seasonNumber}
                 season={season}
+                health={healthBySeason.get(season.seasonNumber) ?? null}
                 active={activeSeason?.seasonNumber === season.seasonNumber}
                 onOpen={() => setOpenSeason(season.seasonNumber)}
               />
@@ -86,7 +113,9 @@ export function ShowDetailView({
                 items={activeSeason.episodes}
                 mode="list"
                 itemKey={(ep) => ep.id}
-                renderItem={(ep) => <EpisodeRow episode={ep} />}
+                renderItem={(ep) => (
+                  <EpisodeRow episode={ep} health={healthByEpisode.get(ep.id) ?? null} />
+                )}
                 emptyState={<EmptyState title={t('browser.noEpisodes')} />}
               />
             )}
@@ -98,9 +127,10 @@ export function ShowDetailView({
 }
 
 function SeasonCard({
-  season, active, onOpen,
+  season, health, active, onOpen,
 }: {
   season: MediaSeasonGroup;
+  health: { score: number; status: HealthStatus } | null;
   active: boolean;
   onOpen: () => void;
 }) {
@@ -125,7 +155,10 @@ function SeasonCard({
         size="thumb"
         className="aspect-[2/3] w-full rounded-md bg-white/5"
       />
-      <p className="mt-1.5 truncate text-xs font-medium">{label}</p>
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <p className="truncate text-xs font-medium">{label}</p>
+        {health && <HealthBadge score={health.score} status={health.status} className="ml-auto" />}
+      </div>
       <p className="truncate text-[11px] text-muted-foreground">
         {t('browser.episodeCount', { count: season.episodeCount })}
       </p>
@@ -133,7 +166,10 @@ function SeasonCard({
   );
 }
 
-function EpisodeRow({ episode }: { episode: MediaItem }) {
+function EpisodeRow({ episode, health }: {
+  episode: MediaItem;
+  health: { score: number; status: HealthStatus; reasons: string[] } | null;
+}) {
   const { t } = useTranslation('media');
   const file = episode.files?.[0];
   const meta = episode.metadata;
@@ -196,6 +232,15 @@ function EpisodeRow({ episode }: { episode: MediaItem }) {
           <p className="truncate text-xs text-muted-foreground">{facts.join(' · ')}</p>
         )}
       </div>
+
+      {health && (
+        <HealthBadge
+          score={health.score}
+          status={health.status}
+          reasons={health.reasons}
+          className="shrink-0"
+        />
+      )}
 
       {subtitles > 0 && (
         <span

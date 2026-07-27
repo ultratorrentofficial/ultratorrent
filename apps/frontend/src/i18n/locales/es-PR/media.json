@@ -1745,5 +1745,24 @@
         "outside_roots": "Fuera de las rutas permitidas"
       }
     }
+  },
+  "health": {
+    "status": {
+      "healthy": "Saludable",
+      "attention": "Requiere atención",
+      "problem": "Problema",
+      "unknown": "Sin evaluar"
+    },
+    "reason": {
+      "unmatched": "Sin emparejar",
+      "duplicate": "Duplicado",
+      "missing_metadata": "Sin metadatos",
+      "missing_artwork": "Sin carátula",
+      "missing_subtitles": "Sin subtítulos",
+      "unorganised_path": "No está en una carpeta de temporada",
+      "not_analyzed": "Sin analizar"
+    },
+    "showScore": "Salud",
+    "seasonScore": "Salud de la temporada"
   }
 }

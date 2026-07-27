@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@/i18n';
 import { ShowDetailView } from './ShowDetailView';
 
-const apiSpy = vi.hoisted(() => ({ seriesEpisodes: vi.fn() }));
+const apiSpy = vi.hoisted(() => ({ seriesEpisodes: vi.fn(), seriesHealth: vi.fn() }));
 vi.mock('@/lib/api', () => ({ api: { media: apiSpy } }));
 
 // The poster resolves artwork through an authenticated fetch; the drill-down's
@@ -34,6 +34,13 @@ vi.mock('./VirtualPosterGrid', () => ({
 
 beforeEach(() => {
   apiSpy.seriesEpisodes.mockReset();
+  // No health by default: the list must render before scores arrive, since
+  // scoring every episode is heavier than listing them.
+  apiSpy.seriesHealth.mockReset();
+  apiSpy.seriesHealth.mockResolvedValue({
+    score: 0, status: 'unknown', seasons: [], episodes: [],
+    totals: { episodes: 0, seasons: 0, bytes: '0' },
+  });
 });
 
 const episode = (n: number, over: Record<string, unknown> = {}) => ({
@@ -167,6 +174,61 @@ describe('ShowDetailView', () => {
         path: '/tv/x/The Last of Us - S01E03 - Long, Long Time.mkv', metadata: null,
       })]));
       expect(await screen.findByText('Long, Long Time')).toBeInTheDocument();
+    });
+  });
+
+  describe('health', () => {
+    const withHealth = (over: Record<string, unknown>) => {
+      apiSpy.seriesHealth.mockResolvedValue({
+        score: 92, status: 'healthy',
+        seasons: [{ seasonNumber: 1, episodes: 2, score: 92, status: 'healthy', reasonCounts: {} }],
+        episodes: [
+          { itemId: 'e1', season: 1, episode: 1, score: 93, status: 'healthy', reasons: ['missing_subtitles'] },
+          { itemId: 'e2', season: 1, episode: 2, score: 83, status: 'attention', reasons: ['unorganised_path'] },
+        ],
+        totals: { episodes: 2, seasons: 1, bytes: '123' },
+        ...over,
+      });
+    };
+
+    it('shows the show score, the season score and each episode score', async () => {
+      withHealth({});
+      renderIt();
+      // 92 appears twice — the show header and its single season — which is
+      // itself the assertion that both levels render.
+      expect(await screen.findAllByLabelText('Healthy — 92')).toHaveLength(2);
+      expect(await screen.findByLabelText('Healthy — 93')).toBeInTheDocument();
+      expect(await screen.findByLabelText('Needs attention — 83')).toBeInTheDocument();
+    });
+
+    it('explains a badge through its reasons', async () => {
+      // A number alone tells an operator something is wrong but not what.
+      withHealth({});
+      renderIt();
+      expect(await screen.findByTitle('Not filed into a season folder')).toBeInTheDocument();
+    });
+
+    it('renders the episode list before health arrives', async () => {
+      /*
+       * Scoring every episode of a show is heavier than listing them, so a slow
+       * score must never delay first paint.
+       */
+      apiSpy.seriesHealth.mockImplementation(() => new Promise(() => {}));
+      renderIt();
+      expect(await screen.findByText('Episode 1')).toBeInTheDocument();
+    });
+
+    it('still renders the list when scoring fails outright', async () => {
+      apiSpy.seriesHealth.mockRejectedValue(new Error('boom'));
+      renderIt();
+      expect(await screen.findByText('Episode 1')).toBeInTheDocument();
+    });
+
+    it('shows a dash rather than a zero for an unscored show', async () => {
+      // "Nothing to score" is not "all good", and a 0 would read as a failure.
+      renderIt();
+      const badge = await screen.findByLabelText('Not scored — 0');
+      expect(badge.textContent).toContain('—');
     });
   });
 

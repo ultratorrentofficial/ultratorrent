@@ -1745,5 +1745,24 @@
         "outside_roots": "Outside the allowed roots"
       }
     }
+  },
+  "health": {
+    "status": {
+      "healthy": "Healthy",
+      "attention": "Needs attention",
+      "problem": "Problem",
+      "unknown": "Not scored"
+    },
+    "reason": {
+      "unmatched": "Unmatched",
+      "duplicate": "Duplicate",
+      "missing_metadata": "No metadata",
+      "missing_artwork": "No artwork",
+      "missing_subtitles": "No subtitles",
+      "unorganised_path": "Not filed into a season folder",
+      "not_analyzed": "Not analyzed"
+    },
+    "showScore": "Health",
+    "seasonScore": "Season health"
   }
 }

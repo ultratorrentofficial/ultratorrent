@@ -1251,6 +1251,35 @@ export interface MediaItemPage {
   pageSize: number;
 }
 
+export type HealthStatus = 'healthy' | 'attention' | 'problem' | 'unknown';
+
+export interface EpisodeHealth {
+  itemId: string;
+  season: number | null;
+  episode: number | null;
+  score: number;
+  status: HealthStatus;
+  /** Machine-readable reason keys; the UI translates them. */
+  reasons: string[];
+}
+
+export interface SeasonHealth {
+  seasonNumber: number;
+  episodes: number;
+  score: number;
+  status: HealthStatus;
+  reasonCounts: Record<string, number>;
+}
+
+export interface ShowHealth {
+  score: number;
+  status: HealthStatus;
+  seasons: SeasonHealth[];
+  episodes: EpisodeHealth[];
+  /** `bytes` is a string: a library-sized byte count loses precision as a double. */
+  totals: { episodes: number; seasons: number; bytes: string };
+}
+
 /** One show in the grouped TV browser. */
 export interface MediaSeriesGroup {
   /** Opaque round-trip token identifying this show (folder or title) — pass to `seriesEpisodes`. */
@@ -3960,6 +3989,10 @@ export const api = {
     },
     listSeries(query: MediaItemQuery = {}): Promise<Paginated<MediaSeriesGroup>> {
       return request<Paginated<MediaSeriesGroup>>('/media/series', { query: query as QueryParams });
+    },
+    /** Health for a show, its seasons and every episode — one pass. */
+    seriesHealth(key: string, libraryId?: string): Promise<ShowHealth> {
+      return request<ShowHealth>('/media/series/health', { query: { key, libraryId } });
     },
     seriesEpisodes(key: string, opts: { matchStatus?: string; libraryId?: string } = {}): Promise<MediaSeriesEpisodes> {
       return request<MediaSeriesEpisodes>('/media/series/episodes', { query: { key, ...opts } as QueryParams });
