@@ -21,7 +21,9 @@ import {
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { MediaRelocationService } from './media-relocation.service';
-import { paginate, parsePage } from '../../common/pagination';
+import { historyScope } from './history-scope';
+import { Prisma, type MediaRenameOperation } from '@prisma/client';
+import { paginate, parsePage, type Page } from '../../common/pagination';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { SettingsService } from '../settings/settings.module';
 import { AuditService } from '../audit/audit.service';
@@ -135,6 +137,64 @@ export class MediaService {
 
   history(page?: string, pageSize?: string) {
     return paginate(this.prisma.mediaRenameOperation, { orderBy: { createdAt: 'desc' } }, parsePage(page, pageSize));
+  }
+
+  /**
+   * The rename history of ONE item.
+   *
+   * Scoped in the database rather than by filtering a page of the global log in
+   * the browser: an item's operations may be arbitrarily far down that log, so a
+   * client-side filter silently reports "no history" for an item that has plenty.
+   *
+   * What counts as this item's operation:
+   *
+   * - the item's own path or any of its files' paths, on **either** side of the
+   *   operation. Matching only `source` misses every rename that produced the
+   *   path the item now has — which is to say, all of them.
+   * - a sidecar sharing the file's stem (`…/Movie (2018).en.srt`, `.nfo`). The
+   *   user's rule: what sits beside the media belongs to the media.
+   * - the containing folder, so a folder rename appears in the history of what
+   *   was inside it. For this platform's layout that folder is the movie's own
+   *   or the season's; for a file sitting loose in a library root it is the
+   *   root, and a rename of that root legitimately affects the item anyway.
+   *
+   * Prefix comparisons use `substring(...) = ` rather than `LIKE`: `%` and `_`
+   * are legal filename characters, and as wildcards they would pull in a
+   * neighbouring item's operations — the exact defect this method exists to fix.
+   */
+  async itemHistory(itemId: string, page?: string, pageSize?: string): Promise<Page<MediaRenameOperation>> {
+    const params = parsePage(page, pageSize);
+    const empty = { items: [], total: 0, page: params.page, pageSize: params.pageSize };
+
+    const item = await this.prisma.mediaItem.findUnique({
+      where: { id: itemId },
+      select: { path: true, files: { select: { path: true } } },
+    });
+    if (!item) return empty;
+
+    const { paths, stems } = historyScope(item.path, item.files.map((f) => f.path));
+    if (!paths.length) return empty;
+
+    const where = Prisma.sql`
+      o.source = ANY(${paths}::text[])
+      OR o.destination = ANY(${paths}::text[])
+      OR EXISTS (
+        SELECT 1 FROM unnest(${stems}::text[]) AS s
+         WHERE substring(o.source, 1, char_length(s)) = s
+            OR substring(o.destination, 1, char_length(s)) = s
+      )`;
+
+    const [rows, counted] = await Promise.all([
+      this.prisma.$queryRaw<MediaRenameOperation[]>(Prisma.sql`
+        SELECT o.* FROM media_rename_operations o
+         WHERE ${where}
+         ORDER BY o."createdAt" DESC
+         LIMIT ${params.take} OFFSET ${params.skip}`),
+      this.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+        SELECT count(*)::bigint AS count FROM media_rename_operations o WHERE ${where}`),
+    ]);
+
+    return { items: rows, total: Number(counted[0]?.count ?? 0), page: params.page, pageSize: params.pageSize };
   }
 
   // --- path safety -------------------------------------------------------

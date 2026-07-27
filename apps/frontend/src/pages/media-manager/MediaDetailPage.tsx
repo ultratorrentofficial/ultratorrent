@@ -29,7 +29,7 @@ import {
   type MediaMetadata,
   type MediaMetadataUpdateInput,
 } from '@/lib/api';
-import { formatBytes, formatNumber } from '@/lib/format';
+import { formatBytes, formatDateTime, formatNumber, formatRelativeTime } from '@/lib/format';
 import { useAuth } from '@/auth/AuthContext';
 import { useBreadcrumbEntity } from '@/components/layout/BreadcrumbContext';
 import { PERMISSIONS } from '@ultratorrent/shared';
@@ -1236,22 +1236,21 @@ function NfoTab({ item }: { item: MediaItemDetail }) {
 
 function ItemHistoryTab({ item }: { item: MediaItemDetail }) {
   const { t } = useTranslation('media');
+  /*
+   * Scoped server-side by `itemId`. This used to fetch the global log, filter it
+   * in the browser, and — when nothing matched — fall back to the 20 most recent
+   * operations library-wide, presenting another title's renames as this item's
+   * own history. There is no fallback now: nothing to show means nothing.
+   */
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['media', 'history', 'detail'],
-    queryFn: () => api.media.history({ pageSize: 200 }),
+    queryKey: ['media', 'history', 'item', item.id],
+    queryFn: () => api.media.history({ itemId: item.id, pageSize: 100 }),
   });
 
   if (isLoading) return <CenteredSpinner label={t('detail.history.loading')} />;
   if (isError) return <ErrorState message={t('detail.history.error')} onRetry={() => refetch()} />;
 
-  const filePaths = new Set(item.files.map((f) => f.path));
-  const related = (data?.items ?? []).filter(
-    (op) =>
-      op.source === item.path ||
-      op.source.startsWith(item.path) ||
-      filePaths.has(op.source),
-  );
-  const rows = related.length > 0 ? related : (data?.items ?? []).slice(0, 20);
+  const rows = data?.items ?? [];
 
   if (rows.length === 0) {
     return (
@@ -1276,9 +1275,6 @@ function ItemHistoryTab({ item }: { item: MediaItemDetail }) {
 
   return (
     <div className="space-y-2">
-      {related.length === 0 && (
-        <p className="text-xs text-muted-foreground">{t('detail.history.noMatch')}</p>
-      )}
       {rows.map((op) => (
         <Card key={op.id}>
           <CardContent className="p-4">
@@ -1287,6 +1283,15 @@ function ItemHistoryTab({ item }: { item: MediaItemDetail }) {
                 {op.status}
               </Badge>
               <Badge variant="outline">{op.action}</Badge>
+              {/* When it happened: relative for scanning, exact on hover and for
+                  screen readers, since "2 days ago" cannot be correlated with a log. */}
+              <time
+                dateTime={op.createdAt}
+                title={formatDateTime(op.createdAt)}
+                className="ml-auto text-xs tabular-nums text-muted-foreground"
+              >
+                {formatRelativeTime(op.createdAt)}
+              </time>
             </div>
             <p className="mt-2 break-all font-mono text-xs text-muted-foreground">{op.source}</p>
             {op.destination && (

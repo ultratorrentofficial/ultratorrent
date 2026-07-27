@@ -1003,10 +1003,21 @@ export class MediaController {
     return this.media.undoRun(body.runId, auditCtx(req));
   }
 
+  /**
+   * The rename log. With `itemId`, only the operations belonging to that item —
+   * scoped in SQL, because the item's entries may sit arbitrarily deep in a log
+   * the client can only ever hold a page of.
+   */
   @Get('history')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  history(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
-    return this.media.history(page, pageSize);
+  history(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('itemId') itemId?: string,
+  ) {
+    return itemId
+      ? this.media.itemHistory(itemId, page, pageSize)
+      : this.media.history(page, pageSize);
   }
 
   // --- cleanup rules (junk deletion during rename) ----------------------

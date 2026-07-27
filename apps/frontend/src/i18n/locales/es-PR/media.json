@@ -1148,8 +1148,7 @@
       "loading": "Cargando historial…",
       "error": "No se pudo cargar el historial.",
       "emptyTitle": "No hay historial",
-      "emptyBody": "Las operaciones de renombrado aplicadas se registran aquí.",
-      "noMatch": "Ninguna operación coincidió con este elemento — mostrando actividad reciente."
+      "emptyBody": "Aquí se registran las operaciones de renombrado de este elemento."
     }
   },
   "acquisition": {

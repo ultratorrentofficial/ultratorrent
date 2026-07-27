@@ -1148,8 +1148,7 @@
       "loading": "Loading history…",
       "error": "Could not load history.",
       "emptyTitle": "No history",
-      "emptyBody": "Applied rename operations are recorded here.",
-      "noMatch": "No operations matched this item — showing recent activity."
+      "emptyBody": "Rename operations for this item are recorded here."
     }
   },
   "acquisition": {

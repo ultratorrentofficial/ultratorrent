@@ -4223,7 +4223,8 @@ export const api = {
     apply(body: RenameRequest): Promise<RenameApplyResult> {
       return request<RenameApplyResult>('/media/apply', { method: 'POST', body });
     },
-    history(query: PageQuery = {}): Promise<Paginated<MediaRenameOperation>> {
+    /** Pass `itemId` to get one item's operations instead of the whole log. */
+    history(query: PageQuery & { itemId?: string } = {}): Promise<Paginated<MediaRenameOperation>> {
       return request<Paginated<MediaRenameOperation>>('/media/history', { query: query as QueryParams });
     },
     // --- IMDb provider ----------------------------------------------------
