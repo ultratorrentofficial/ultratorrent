@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import {
   Body,
   Controller,
@@ -263,6 +264,48 @@ export class MediaController {
     return this.items.episodesForSeries(key, { matchStatus, libraryId });
   }
 
+  /*
+   * These two MUST stay above `items/:id`.
+   *
+   * Nest matches in declaration order, so a literal segment declared after a
+   * parameterised one is swallowed by it: `items/issues` was being read as an
+   * item whose id is "issues" and answered 404 "Item not found". Type-checking
+   * and unit tests cannot see this — only a real request can.
+   */
+  /** Issue counts for one library — the browser's Issues chips. */
+  @Get('items/issues')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  issueCounts(@Query('libraryId') libraryId: string) {
+    return this.items.issueCounts(libraryId);
+  }
+
+  /**
+   * CSV of the current view.
+   *
+   * Streamed rather than buffered: at the sizes this workspace targets,
+   * materialising the whole export is an out-of-memory error, not a slow
+   * response. Takes the same filters as the browser, so an export covers what
+   * the operator can see and not more.
+   */
+  @Get('items/export.csv')
+  @RequirePermissions(P.MEDIA_MANAGER_EXPORT)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="media-items.csv"')
+  exportItems(
+    @Query('libraryId') libraryId: string | undefined,
+    @Query('mediaType') mediaType: string | undefined,
+    @Query('matchStatus') matchStatus: string | undefined,
+    @Query('search') search: string | undefined,
+    @Req() req: Request,
+  ) {
+    // Wrapped in a Readable: returning the async generator directly makes Nest
+    // serialize it as JSON — the response was a bare `{}` rather than a CSV.
+    // `StreamableFile` is what actually streams it to the client.
+    return new StreamableFile(
+      Readable.from(this.exporter.streamCsv({ libraryId, mediaType, matchStatus, search }, auditCtx(req))),
+    );
+  }
+
   @Get('items/:id')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   getItem(@Param('id') id: string) {
@@ -301,35 +344,6 @@ export class MediaController {
    * selection had no server-side shape. Each route dispatches ONE job and
    * writes ONE audit row, which a client-side fan-out cannot do.
    */
-  /**
-   * CSV of the current view.
-   *
-   * Streamed rather than buffered: at the sizes this workspace targets,
-   * materialising the whole export is an out-of-memory error, not a slow
-   * response. Takes the same filters as the browser, so an export covers what
-   * the operator can see and not more.
-   */
-  /** Issue counts for one library — the browser's Issues chips. */
-  @Get('items/issues')
-  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  issueCounts(@Query('libraryId') libraryId: string) {
-    return this.items.issueCounts(libraryId);
-  }
-
-  @Get('items/export.csv')
-  @RequirePermissions(P.MEDIA_MANAGER_EXPORT)
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="media-items.csv"')
-  exportItems(
-    @Query('libraryId') libraryId: string | undefined,
-    @Query('mediaType') mediaType: string | undefined,
-    @Query('matchStatus') matchStatus: string | undefined,
-    @Query('search') search: string | undefined,
-    @Req() req: Request,
-  ) {
-    return this.exporter.streamCsv({ libraryId, mediaType, matchStatus, search }, auditCtx(req));
-  }
-
   @Post('items/bulk/metadata')
   @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
   bulkRefreshMetadata(@Body() body: { itemIds?: string[] }, @Req() req: Request) {
