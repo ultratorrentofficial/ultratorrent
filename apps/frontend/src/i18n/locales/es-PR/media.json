@@ -1721,5 +1721,25 @@
       "missing_subtitles": "Sin subtítulos",
       "duplicate": "Duplicado"
     }
+  },
+  "rename": {
+    "undo": {
+      "title": "Deshacer un renombrado",
+      "none": "No hay renombrados que se puedan deshacer.",
+      "run": "{{count}} archivo · {{when}}",
+      "run_other": "{{count}} archivos · {{when}}",
+      "button": "Deshacer",
+      "confirm": "¿Devolver estos archivos a sus nombres anteriores?",
+      "done": "Se revirtió {{count}} archivo.",
+      "done_other": "Se revirtieron {{count}} archivos.",
+      "partial": "{{skipped}} no se pudieron revertir.",
+      "failed": "No se pudo deshacer.",
+      "reason": {
+        "not_reversible": "Eliminado por la limpieza — no hay nada que restaurar",
+        "moved_since": "Ya no está donde lo dejó el renombrado",
+        "original_path_occupied": "Otro archivo usa ahora el nombre original",
+        "outside_roots": "Fuera de las rutas permitidas"
+      }
+    }
   }
 }

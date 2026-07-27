@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -511,16 +513,19 @@ export class MediaService {
     skipped: number;
     failed: number;
     deleted: number;
+    /** Groups this apply's operations. Pass to `undoRun` to reverse it. */
+    runId: string;
     plan: RenamePlan;
   }> {
     const plan = await this.buildPlan(req);
+    const runId = randomUUID();
     let applied = 0;
     let skipped = 0;
     let failed = 0;
     let deleted = 0;
 
     if (plan.mode === 'preview' || req.dryRun) {
-      return { applied: 0, skipped: plan.items.length, failed: 0, deleted: 0, plan };
+      return { applied: 0, skipped: plan.items.length, failed: 0, deleted: 0, runId, plan };
     }
 
     const roots = await this.allowedRoots();
@@ -541,10 +546,10 @@ export class MediaService {
           sourceDirs.add(path.dirname(realSrc));
           await unlink(realSrc);
           deleted++;
-          await this.log(item, plan.mode, 'success', req.hash, null);
+          await this.log(item, plan.mode, 'success', req.hash, null, runId);
         } catch (err) {
           failed++;
-          await this.log(item, plan.mode, 'failed', req.hash, (err as Error).message);
+          await this.log(item, plan.mode, 'failed', req.hash, (err as Error).message, runId);
           this.logger.warn(`cleanup delete failed: ${(err as Error).message}`);
         }
         continue;
@@ -575,10 +580,10 @@ export class MediaService {
         await this.execute(item.action, realSrc, dest);
         sourceDirs.add(path.dirname(realSrc));
         applied++;
-        await this.log(item, plan.mode, 'success', req.hash, null);
+        await this.log(item, plan.mode, 'success', req.hash, null, runId);
       } catch (err) {
         failed++;
-        await this.log(item, plan.mode, 'failed', req.hash, (err as Error).message);
+        await this.log(item, plan.mode, 'failed', req.hash, (err as Error).message, runId);
         this.logger.warn(`rename failed: ${(err as Error).message}`);
       }
     }
@@ -620,7 +625,7 @@ export class MediaService {
       },
     });
 
-    return { applied, skipped, failed, deleted, plan };
+    return { applied, skipped, failed, deleted, runId, plan };
   }
 
   /**
@@ -717,12 +722,123 @@ export class MediaService {
     }
   }
 
+  /**
+   * Reverse one rename run.
+   *
+   * Undo is a **move back**, not a re-plan: the recorded destination returns to
+   * the recorded source. Re-deriving the original name from a template would
+   * give whatever the template says today, which is not necessarily where the
+   * file came from.
+   *
+   * Every reversal is guarded, because the tree is shared with Plex, Kodi and
+   * tinyMediaManager and may have moved on since the run:
+   *
+   * - the destination must still exist — otherwise something already moved it,
+   *   and putting *a* file back would be guessing;
+   * - the source must NOT exist — writing over whatever now occupies the old
+   *   path is how an undo destroys the thing it was meant to protect;
+   * - both paths are re-checked against the allowed roots at undo time, so a
+   *   root narrowed since the run cannot be escaped through an old row.
+   *
+   * Deletions are **not** undoable: cleanup removed the file, and this engine
+   * has nothing to restore it from. They are reported, not silently skipped.
+   *
+   * Reversed newest-first so a rename chain unwinds in the order it was made.
+   */
+  async undoRun(runId: string, ctx: AuditContext = {}): Promise<{
+    runId: string;
+    undone: number;
+    skipped: Array<{ source: string; reason: string }>;
+    failed: number;
+  }> {
+    const ops = await this.prisma.mediaRenameOperation.findMany({
+      where: { runId, status: 'success', undoneAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!ops.length) {
+      throw new NotFoundException('Nothing to undo for that run.');
+    }
+
+    const roots = await this.allowedRoots();
+    const skipped: Array<{ source: string; reason: string }> = [];
+    let undone = 0;
+    let failed = 0;
+
+    for (const op of ops) {
+      if (op.action === 'delete' || !op.destination) {
+        skipped.push({ source: op.source, reason: 'not_reversible' });
+        continue;
+      }
+      try {
+        // Re-validated now, not trusted from when the row was written.
+        const from = this.assertWithin(op.destination, roots, 'source');
+        const to = this.assertWithin(op.source, roots, 'destination');
+
+        if (!(await stat(from).catch(() => null))) {
+          skipped.push({ source: op.source, reason: 'moved_since' });
+          continue;
+        }
+        if (await stat(to).catch(() => null)) {
+          // Something occupies the original path. Overwriting it would destroy
+          // a file this run never touched.
+          skipped.push({ source: op.source, reason: 'original_path_occupied' });
+          continue;
+        }
+
+        await mkdir(path.dirname(to), { recursive: true });
+        await this.execute('move', from, to);
+        await this.prisma.mediaRenameOperation.update({
+          where: { id: op.id },
+          data: { undoneAt: new Date() },
+        });
+        undone += 1;
+      } catch (err) {
+        failed += 1;
+        this.logger.warn(`rename undo failed for ${op.source}: ${(err as Error).message}`);
+      }
+    }
+
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.rename.undo',
+      objectType: 'media_rename_run',
+      objectId: runId,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { undone, skipped: skipped.length, failed, total: ops.length },
+    });
+
+    return { runId, undone, skipped, failed };
+  }
+
+  /** Runs that can still be undone, newest first — what the UI offers. */
+  async undoableRuns(limit = 20): Promise<Array<{
+    runId: string; at: string; operations: number; mode: string;
+  }>> {
+    const rows = await this.prisma.mediaRenameOperation.findMany({
+      where: { status: 'success', undoneAt: null, runId: { not: null }, action: { not: 'delete' } },
+      orderBy: { createdAt: 'desc' },
+      take: limit * 200,
+      select: { runId: true, createdAt: true, mode: true },
+    });
+    const byRun = new Map<string, { at: Date; operations: number; mode: string }>();
+    for (const r of rows) {
+      const seen = byRun.get(r.runId!);
+      if (seen) seen.operations += 1;
+      else byRun.set(r.runId!, { at: r.createdAt, operations: 1, mode: r.mode });
+    }
+    return [...byRun.entries()]
+      .slice(0, limit)
+      .map(([runId, v]) => ({ runId, at: v.at.toISOString(), operations: v.operations, mode: v.mode }));
+  }
+
   private async log(
     item: { source: string; destination: string | null; action: string; kind: string },
     mode: string,
     status: string,
     torrentHash: string | undefined,
     message: string | null,
+    runId?: string,
   ): Promise<void> {
     await this.prisma.mediaRenameOperation
       .create({
@@ -735,6 +851,7 @@ export class MediaService {
           status,
           message,
           torrentHash,
+          runId,
         },
       })
       .catch(() => undefined);

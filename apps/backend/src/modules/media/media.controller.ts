@@ -13,6 +13,7 @@ import {
   StreamableFile,
   UseGuards,
   Header,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -956,6 +957,26 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_RENAME)
   apply(@Req() req: Request) {
     return this.media.apply((req.body ?? {}) as RenameRequest);
+  }
+
+  /** Rename runs that can still be reversed, newest first. */
+  @Get('rename/undoable')
+  @RequirePermissions(P.MEDIA_MANAGER_RENAME)
+  undoableRuns() {
+    return this.media.undoableRuns();
+  }
+
+  /**
+   * Reverse one rename run.
+   *
+   * Takes a run id, never a list of paths: what executes is the reverse of what
+   * was recorded, so a caller cannot direct a move by supplying its own.
+   */
+  @Post('rename/undo')
+  @RequirePermissions(P.MEDIA_MANAGER_RENAME)
+  undoRename(@Body() body: { runId?: string }, @Req() req: Request) {
+    if (!body?.runId) throw new BadRequestException('A runId is required.');
+    return this.media.undoRun(body.runId, auditCtx(req));
   }
 
   @Get('history')

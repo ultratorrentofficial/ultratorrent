@@ -1498,10 +1498,18 @@ model MediaRenameOperation {
   status      String // success | failed | skipped
   message     String?
   torrentHash String?
+  /// Groups every operation of ONE apply, so an undo reverses a run rather than
+  /// a file. Null for rows written before undo existed — those cannot be undone
+  /// as a set, which is why the endpoint takes a runId rather than a timestamp.
+  runId       String?
+  /// When this operation was reversed. Set once; a second undo is a no-op
+  /// rather than a re-move, which would put the file back where it is not.
+  undoneAt    DateTime?
   createdAt   DateTime @default(now())
 
   @@index([torrentHash])
   @@index([createdAt])
+  @@index([runId])
   @@map("media_rename_operations")
 }
 

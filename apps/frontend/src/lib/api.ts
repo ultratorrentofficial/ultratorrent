@@ -1219,6 +1219,22 @@ export interface MediaItemQuery {
 /** Library problems decidable from the database — see LIBRARY_BROWSER.md. */
 export type MediaIssueKind = 'unmatched' | 'missing_artwork' | 'missing_subtitles' | 'duplicate';
 
+/** One reversible rename run. */
+export interface RenameRun {
+  runId: string;
+  at: string;
+  operations: number;
+  mode: string;
+}
+
+export interface RenameUndoResult {
+  runId: string;
+  undone: number;
+  /** Operations that could not be reversed, with why. */
+  skipped: Array<{ source: string; reason: string }>;
+  failed: number;
+}
+
 export interface MediaBulkResult {
   /** Empty for synchronous operations (lock/unlock). */
   jobId: string;
@@ -3908,6 +3924,14 @@ export const api = {
     // Fire-and-forget: returns the job id immediately (the scan runs in the
     // background). Track progress + completion via the media_manager.job.* WS
     // events; the `completed` event's `result` is the MediaScanResult.
+    /** Rename runs that can still be reversed, newest first. */
+    undoableRenameRuns(): Promise<RenameRun[]> {
+      return request<RenameRun[]>('/media/rename/undoable');
+    },
+    /** Reverse one rename run by id — never by supplying paths. */
+    undoRename(runId: string): Promise<RenameUndoResult> {
+      return request<RenameUndoResult>('/media/rename/undo', { method: 'POST', body: { runId } });
+    },
     scanLibrary(id: string): Promise<{ jobId: string }> {
       return request<{ jobId: string }>(`/media/libraries/${id}/scan`, { method: 'POST' });
     },

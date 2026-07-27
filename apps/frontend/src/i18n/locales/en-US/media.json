@@ -1721,5 +1721,25 @@
       "missing_subtitles": "No subtitles",
       "duplicate": "Duplicate"
     }
+  },
+  "rename": {
+    "undo": {
+      "title": "Undo a rename",
+      "none": "No rename runs can be undone.",
+      "run": "{{count}} file · {{when}}",
+      "run_other": "{{count}} files · {{when}}",
+      "button": "Undo this run",
+      "confirm": "Move these files back to their previous names?",
+      "done": "Reversed {{count}} file.",
+      "done_other": "Reversed {{count}} files.",
+      "partial": "{{skipped}} could not be reversed.",
+      "failed": "The undo failed.",
+      "reason": {
+        "not_reversible": "Deleted by cleanup — nothing to restore",
+        "moved_since": "No longer where the rename left it",
+        "original_path_occupied": "Something else now uses the original name",
+        "outside_roots": "Outside the allowed roots"
+      }
+    }
   }
 }

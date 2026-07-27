@@ -10,6 +10,7 @@ import {
   type RenamePlan,
   type RenameRequest,
 } from '@/lib/api';
+import { RenameUndoPanel } from './RenameUndoPanel';
 import { useAuth } from '@/auth/AuthContext';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { useToast } from '@/components/ui/toast';
@@ -302,6 +303,9 @@ export function MediaRenamePreviewPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Undo lives beside preview: both are the safety half of the engine. */}
+      {canApply && <RenameUndoPanel />}
     </div>
   );
 }
