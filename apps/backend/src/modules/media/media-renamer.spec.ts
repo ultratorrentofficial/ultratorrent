@@ -307,9 +307,10 @@ describe('buildRenamePlan — reports a file sitting in the wrong show folder', 
   });
 
   it('stays quiet for a file in a release subfolder of its own show folder', () => {
-    // showFolderRoot climbs past `Season NN` but not past a release directory, so
-    // comparing immediate folders flagged correctly-filed files. 27 of 36 warnings on
-    // the live library were this false positive.
+    // Comparing immediate folders flagged correctly-filed files: 27 of 36 warnings
+    // on the live library were this false positive. `showFolderRoot` now climbs
+    // past the release directory as well as `Season NN`, which is what keeps this
+    // quiet — and what stops the browser listing the release as its own series.
     const plan = buildRenamePlan(ctx({
       sourceName: 'FBI International (2021)',
       files: [
@@ -559,6 +560,36 @@ describe('buildRenamePlan — identity name resolves a bare filename', () => {
 });
 
 describe('isSeasonContainer / showFolderRoot', () => {
+  it('climbs past a release folder, so an episode is not its own show', () => {
+    /*
+     * A torrent extracts into a directory named after the release and the
+     * episode lands inside it. Treating that as a show folder put
+     * "A.Gentleman.in.Moscow.S01E05.1080p.HEVC.x265-MeGusta[TGx] · 1 episode"
+     * in the browser beside the real show — 175 such episodes on the live
+     * library, each its own phantom series.
+     */
+    expect(showFolderRoot(
+      '/tv/A Gentleman in Moscow (2024)/A.Gentleman.in.Moscow.S01E05.1080p.HEVC.x265-MeGusta[TGx]/f.mkv',
+    )).toBe('/tv/A Gentleman in Moscow (2024)');
+  });
+
+  it('climbs a release folder nested inside a season folder', () => {
+    expect(showFolderRoot('/tv/Show (2020)/Season 1/Show.S01E02.1080p.WEB-DL/f.mkv'))
+      .toBe('/tv/Show (2020)');
+  });
+
+  it('keeps a show folder that merely looks technical', () => {
+    // Only an episode marker disqualifies a folder; a real show folder may carry
+    // anything else, and climbing on "1080p" alone would eat legitimate names.
+    expect(showFolderRoot('/tv/S.W.A.T. (2017)/Season 1/ep.mkv')).toBe('/tv/S.W.A.T. (2017)');
+    expect(showFolderRoot('/tv/1080 (2019)/ep.mkv')).toBe('/tv/1080 (2019)');
+  });
+
+  it('never climbs past the filesystem root', () => {
+    // A pathological name must not walk off the top.
+    expect(showFolderRoot('/S01E01.1080p/f.mkv')).toBe('/');
+  });
+
   it('recognises season/specials containers', () => {
     expect(isSeasonContainer('Season 8')).toBe(true);
     expect(isSeasonContainer('Season 08')).toBe(true);

@@ -518,9 +518,38 @@ function isUnder(file: string, folder: string): boolean {
   return p === f || p.startsWith(f + '/') || p.startsWith(f + '\\');
 }
 
+/**
+ * A folder that is a **release**, not a show.
+ *
+ * A torrent extracts into a directory named after the release —
+ * `A.Gentleman.in.Moscow.S01E05.1080p.HEVC.x265-MeGusta[TGx]` — and the episode
+ * lands inside it. Such a folder names ONE episode, so it can never be a show
+ * folder, and treating it as one made every un-organised episode appear in the
+ * browser as its own series.
+ *
+ * Keyed on an episode marker rather than on release tokens like `1080p`: a real
+ * show folder may legitimately carry almost anything else, but never `SxxExx`.
+ */
+export function isReleaseFolder(name: string): boolean {
+  return /\bs\d{1,2}[\s._-]*e\d{1,3}\b/i.test(name);
+}
+
 export function showFolderRoot(source: string): string {
-  const dir = path.dirname(source);
-  return isSeasonContainer(path.basename(dir)) ? path.dirname(dir) : dir;
+  let dir = path.dirname(source);
+  /*
+   * Climb past every container that is not the show itself — a season folder, a
+   * release folder, or a release folder nested inside a season folder. Bounded
+   * so a pathological name cannot walk to the filesystem root; two levels covers
+   * every layout seen in practice and the third is slack.
+   */
+  for (let i = 0; i < 3; i += 1) {
+    const name = path.basename(dir);
+    if (!name || (!isSeasonContainer(name) && !isReleaseFolder(name))) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break; // hit the filesystem root
+    dir = parent;
+  }
+  return dir;
 }
 
 /**
