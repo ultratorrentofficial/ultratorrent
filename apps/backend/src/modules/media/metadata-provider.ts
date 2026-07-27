@@ -44,6 +44,8 @@ export interface MediaMetadata {
 export interface MediaMetadataDetails {
   title?: string;
   originalTitle?: string;
+  /** Sorting name when it differs from the title ("Matrix, The"). */
+  sortTitle?: string;
   overview?: string;
   releaseDate?: string | null; // ISO date (YYYY-MM-DD)
   year?: number;

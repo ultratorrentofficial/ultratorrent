@@ -30,6 +30,9 @@ export interface NfoData {
   writers?: string[];
   cast?: Array<{ name: string; role?: string }>;
   externalIds?: Record<string, string>;
+  /** ISO date. Written as <premiered>, which is what Kodi and TMM read. */
+  releaseDate?: string | null;
+  tags?: string[];
 }
 
 /** Escape a value for inclusion in XML text/attribute content. */
@@ -69,6 +72,11 @@ export function buildNfoXml(type: NfoType, data: NfoData): string {
   body += tag('plot', data.overview);
   if (data.runtime != null) body += tag('runtime', data.runtime);
   if (data.certification) body += tag('mpaa', data.certification);
+  // <premiered> rather than <releasedate>: it is the element Kodi and
+  // tinyMediaManager both read, and writing the one nobody reads is the same as
+  // writing nothing.
+  if (data.releaseDate) body += tag('premiered', data.releaseDate);
+  for (const t of data.tags ?? []) body += tag('tag', t);
   if (type === 'season' && data.season != null) {
     body += tag('seasonnumber', data.season);
   }

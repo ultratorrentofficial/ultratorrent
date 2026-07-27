@@ -55,15 +55,31 @@ export interface AuditContext {
  * metadata when no online provider is configured.
  */
 export function parseNfoXml(xml: string): Partial<MediaMetadataDetails> {
+  /**
+   * Decode the five XML entities.
+   *
+   * Our own writer escapes them, so without this a round-trip corrupts every
+   * title containing one: "Dungeons & Dragons" comes back as
+   * "Dungeons &amp; Dragons" and is then written back double-escaped. `&amp;`
+   * is expanded LAST, or `&amp;lt;` would decode to `<` instead of `&lt;`.
+   */
+  const decode = (text: string): string =>
+    text
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;|&apos;/g, "'")
+      .replace(/&amp;/g, '&');
+
   const pick = (tag: string): string | undefined => {
     const m = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i').exec(xml);
-    return m ? m[1].trim() : undefined;
+    return m ? decode(m[1].trim()) : undefined;
   };
   const pickAll = (tag: string): string[] => {
     const re = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'gi');
     const out: string[] = [];
     let m: RegExpExecArray | null;
-    while ((m = re.exec(xml))) out.push(m[1].trim());
+    while ((m = re.exec(xml))) out.push(decode(m[1].trim()));
     return out;
   };
   const details: Partial<MediaMetadataDetails> = { providerName: 'local-nfo' };
@@ -83,6 +99,22 @@ export function parseNfoXml(xml: string): Partial<MediaMetadataDetails> {
   if (studios.length) details.studios = studios;
   const cert = pick('mpaa') ?? pick('certification');
   if (cert) details.certification = cert;
+  /*
+   * Round-trip completeness. Each of these was written by our own NFO writer
+   * and dropped on the way back in, which is exactly the asymmetry that makes a
+   * rebuild-from-disk lossy: whatever the writer emits and the parser ignores
+   * is data that only exists in Postgres.
+   */
+  const sortTitle = pick('sorttitle');
+  if (sortTitle) details.sortTitle = sortTitle;
+  // <premiered> is the Kodi/TMM element; the others appear in older sidecars.
+  const released = pick('premiered') ?? pick('releasedate') ?? pick('aired');
+  if (released && /^\d{4}-\d{2}-\d{2}/.test(released)) {
+    details.releaseDate = released.slice(0, 10);
+  }
+  const tags = pickAll('tag');
+  if (tags.length) details.tags = tags;
+
   const originalTitle = pick('originaltitle');
   if (originalTitle) details.originalTitle = originalTitle;
   const directors = pickAll('director');
@@ -95,8 +127,10 @@ export function parseNfoXml(xml: string): Partial<MediaMetadataDetails> {
   const actorRe = /<actor>([\s\S]*?)<\/actor>/gi;
   let am: RegExpExecArray | null;
   while ((am = actorRe.exec(xml))) {
-    const name = /<name>([\s\S]*?)<\/name>/i.exec(am[1])?.[1]?.trim();
-    const role = /<role>([\s\S]*?)<\/role>/i.exec(am[1])?.[1]?.trim();
+    const raw = /<name>([\s\S]*?)<\/name>/i.exec(am[1])?.[1]?.trim();
+    const name = raw ? decode(raw) : undefined;
+    const rawRole = /<role>([\s\S]*?)<\/role>/i.exec(am[1])?.[1]?.trim();
+    const role = rawRole ? decode(rawRole) : undefined;
     if (name) cast.push(role ? { name, role } : { name });
   }
   if (cast.length) details.cast = cast;
