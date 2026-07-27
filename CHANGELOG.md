@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.53.0] - 2026-07-27
+
+### Added
+- A file move now updates every path-bearing record instead of leaving a stale row for the next scan to delete along with the item's enrichment
+- Quarantine and restore now move their database records; a consistency endpoint reports rows whose file is gone
+
 ## [0.52.0] - 2026-07-27
 
 ### Added
