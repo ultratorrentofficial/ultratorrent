@@ -7,7 +7,8 @@ import { useAuth } from '@/auth/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/input';
+import { Input, Label } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 /** Sentinel for "follow the device" — a `<select>` cannot carry a null value. */
 const AUTO = '';
@@ -93,28 +94,25 @@ export function TimezoneSection({
         <div className="space-y-1.5">
           <Label htmlFor="pf-timezone">{t('timezone.label')}</Label>
           {options.length > 0 ? (
-            <select
-              id="pf-timezone"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              className="h-9 w-full rounded-md border border-white/10 bg-white/[0.03] px-3 text-sm"
-            >
+            /* The shared Select, not a hand-rolled one: it carries the design
+               system's chrome and the chevron, and its `bg-card` follows the
+               theme rather than a literal colour. */
+            <Select id="pf-timezone" value={value} onChange={(e) => setValue(e.target.value)}>
               <option value={AUTO}>{t('timezone.auto', { zone: device })}</option>
               {options.map((zone) => (
                 <option key={zone} value={zone}>
                   {zone.replace(/_/g, ' ')}
                 </option>
               ))}
-            </select>
+            </Select>
           ) : (
             /* Older runtimes cannot enumerate zones; free text beats an empty
                dropdown, and the server validates either way. */
-            <input
+            <Input
               id="pf-timezone"
               value={value}
               placeholder={device}
               onChange={(e) => setValue(e.target.value)}
-              className="h-9 w-full rounded-md border border-white/10 bg-white/[0.03] px-3 text-sm"
             />
           )}
         </div>

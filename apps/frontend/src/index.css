@@ -6,6 +6,19 @@
 
 @layer base {
   :root {
+    /*
+     * Tell the browser this is a dark UI so it renders NATIVE controls to
+     * match — most visibly the `<select>` dropdown list, which the OS draws
+     * rather than the page. Without this the list came up with a white
+     * background while the options inherited the select's light `color`,
+     * making them white on white: invisible, and not fixable from the
+     * element's own styles because the popup is not part of the document.
+     *
+     * One declaration covers every native control in the app — selects,
+     * scrollbars, date pickers, form autofill.
+     */
+    color-scheme: dark;
+
     /* The dark theme is the default. A light theme is provided for
        completeness but the app ships `class="dark"` on <html>. */
     --background: 240 24% 5%;
