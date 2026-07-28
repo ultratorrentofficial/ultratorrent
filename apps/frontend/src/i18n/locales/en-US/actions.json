@@ -74,6 +74,9 @@
       "detect": "Detect duplicates",
       "ignore": "Not duplicates",
       "reopen": "Reopen"
+    },
+    "subtitles": {
+      "search": "Find subtitles"
     }
   },
   "result": {

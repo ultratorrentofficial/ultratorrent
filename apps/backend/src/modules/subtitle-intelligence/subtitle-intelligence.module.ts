@@ -1,4 +1,6 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, type OnModuleInit } from '@nestjs/common';
+import { CapabilityRegistry } from '../context-actions/capability-registry.service';
+import { SUBTITLE_ACTIONS } from './subtitle-actions';
 import { SettingsModule } from '../settings/settings.module';
 import { FilesModule } from '../files/files.module';
 import { SecretCipher } from '../../common/crypto/secret-cipher';
@@ -56,4 +58,22 @@ import { SubtitleSettingsService } from './settings/subtitle-settings.service';
     SubtitleAutomationActions,
   ],
 })
-export class SubtitleIntelligenceModule {}
+/**
+ * Contributes the subtitle actions, and seeds provider availability at boot.
+ *
+ * The seed matters: provider capability is a snapshot the registry holds in
+ * memory, so without it a restart would leave every subtitle action withheld
+ * until the next scheduled health check — the feature would look removed rather
+ * than pending.
+ */
+export class SubtitleIntelligenceModule implements OnModuleInit {
+  constructor(
+    private readonly capabilities: CapabilityRegistry,
+    private readonly providerSettings: SubtitleProviderSettingsService,
+  ) {}
+
+  async onModuleInit(): Promise<void> {
+    this.capabilities.registerAll(SUBTITLE_ACTIONS);
+    await this.providerSettings.publishActionCapability();
+  }
+}

@@ -74,6 +74,9 @@
       "detect": "Detectar duplicados",
       "ignore": "No son duplicados",
       "reopen": "Reabrir"
+    },
+    "subtitles": {
+      "search": "Buscar subtítulos"
     }
   },
   "result": {

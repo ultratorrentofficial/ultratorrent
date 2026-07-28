@@ -11,6 +11,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, type SubtitleProviderConfig } from '@prisma/client';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { SecretCipher } from '../../../common/crypto/secret-cipher';
+import { CapabilityRegistry } from '../../context-actions/capability-registry.service';
+import { SUBTITLE_PROVIDER_CAPABILITY } from '../subtitle-actions';
 
 export const REDACTED = '••••••••';
 const SECRET_KEYS = new Set(['apiKey', 'username', 'password', 'token']);
@@ -41,6 +43,7 @@ export class SubtitleProviderSettingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cipher: SecretCipher,
+    private readonly capabilities: CapabilityRegistry,
   ) {}
 
   /** Decrypt a stored row's secret keys for provider use. */
@@ -159,5 +162,33 @@ export class SubtitleProviderSettingsService {
         ...(health.quotaResetAt !== undefined ? { quotaResetAt: health.quotaResetAt } : {}),
       },
     });
+
+    await this.publishActionCapability();
+  }
+
+  /**
+   * Tell the action registry whether subtitle providers can be reached.
+   *
+   * Placed here rather than at each caller because this is the one choke point
+   * every health path already goes through — the scheduler, the manual test and
+   * check-all all record through it. Wiring it at the callers would mean a
+   * fourth path added later silently leaves the catalogue stale.
+   *
+   * Never throws into the caller: a health check that succeeded must not be
+   * reported as failed because a downstream registry update did.
+   */
+  async publishActionCapability(): Promise<void> {
+    try {
+      const usable = await this.prisma.subtitleProviderConfig.count({
+        where: { isEnabled: true, healthy: true },
+      });
+      this.capabilities.setProviderCapability(SUBTITLE_PROVIDER_CAPABILITY, usable > 0);
+    } catch {
+      /*
+       * Leave the previous value rather than guessing. Clearing it would remove
+       * the subtitle actions on a transient database blip; asserting it would
+       * offer downloads that cannot run.
+       */
+    }
   }
 }

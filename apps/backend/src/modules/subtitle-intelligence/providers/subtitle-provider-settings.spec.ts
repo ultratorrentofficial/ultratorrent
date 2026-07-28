@@ -1,3 +1,4 @@
+import { CapabilityRegistry } from '../../context-actions/capability-registry.service';
 import { REDACTED, SubtitleProviderSettingsService } from './subtitle-provider-settings.service';
 import { SecretCipher } from '../../../common/crypto/secret-cipher';
 
@@ -47,7 +48,7 @@ describe('SubtitleProviderSettingsService (secret handling)', () => {
   const cipher = new SecretCipher({ get: () => 'unit-test-encryption-secret' } as any);
   const make = () => {
     const prisma = fakePrisma();
-    return { prisma, svc: new SubtitleProviderSettingsService(prisma as any, cipher) };
+    return { prisma, svc: new SubtitleProviderSettingsService(prisma as any, cipher, new CapabilityRegistry()) };
   };
 
   it('encrypts secret keys at rest (never stores plaintext)', async () => {
