@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.57.4] - 2026-07-28
+
+### Fixed
+- Native dropdowns render dark instead of white-on-white
+- Every displayed date honours the user timezone, enforced by a guard test
+
 ## [0.57.3] - 2026-07-28
 
 ### Fixed
