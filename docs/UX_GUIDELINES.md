@@ -130,9 +130,50 @@ reason about rules, audiences, routing precedence and templates.
   not a rail entry, and there is no administrative screen that edits another
   person's preferences.
 
+## Actions (CAMA)
+
+Actions follow the same rule as navigation: **one registry, many projections**.
+A screen never hardcodes a toolbar — it asks what applies to the current selection.
+Mechanics are in [CAMA.md](CAMA.md); the conventions a surface must honour:
+
+- **Never build an action list by hand.** Render `<ActionBar>` (toolbars) or
+  `<ActionMenu>` (row clusters and kebabs) from `useContextActions()`. Both take the
+  same contract, so a surface can switch shape without changing anything else.
+- **A surface supplies handlers, not decisions.** What an action *is*, who may run it
+  and when it applies are declared server-side. The surface only says how its ids run.
+- **An action with no handler is never rendered.** The registry is platform-wide and
+  will legitimately resolve actions your screen has not wired up; a button that does
+  nothing reads as a broken feature, which is worse than the action living elsewhere.
+- **Entities advertise their own state.** A row carries `capabilities` (`cancel`,
+  `editable`, `ignorable`); an action requiring one is offered only when **every**
+  selected entity advertises it — never applied to the qualifying subset.
+- **Declare against a real endpoint.** Declaring an action is one object literal, which
+  makes it cheap to declare one nothing can serve. `action-endpoint.spec.ts` enforces this.
+- **Hiding is the default; disabling is a choice.** Hide what is irrelevant. Disable —
+  with the reason in the title — when absence would read as a lost feature, as the
+  Media Manager does for a locked item.
+
+### Operations Mode vs "nothing is hidden"
+
+Principle 1 says nothing is removed to make room, and Operations Mode hides advanced
+actions. These do not conflict, and the distinction is the point:
+
+- **Withholding** an action the user cannot run, or that cannot apply to what they
+  selected, is honesty. It was never available.
+- **Deferring** an action behind Operations Mode is *progressive disclosure*
+  (principle 4), not removal. It stays permitted, stays in the command palette, and
+  stays one toggle away — it is simply not in front of someone who came to look at a
+  show rather than maintain one.
+
+What would violate principle 1 is dropping a capability because a surface was
+redesigned. CAMA does the opposite: it makes every declared action reachable from
+every surface that wires it, instead of only the screen someone remembered to add it to.
+
 ## When you add a surface
 
 - Consume `useVisibleNavGroups()` / `NAV_GROUPS` — never re-derive the item list.
+- Render actions from `useContextActions()` — never a hand-built toolbar.
 - Localize every string in **both** locales.
 - Add a focused test (see the list in [NAVIGATION.md](NAVIGATION.md#tests)).
-- Verify it degrades: empty nav, storage failure, RBAC-pruned domain, no active match.
+- Verify it degrades: empty nav, storage failure, RBAC-pruned domain, no active match,
+  and an **empty or unreachable action catalogue** (say so; do not render blank chrome).

@@ -8,10 +8,16 @@ registry — the same relationship the sidebar, breadcrumbs, command palette and
 switcher already have to `NAV_GROUPS` ([UX_GUIDELINES.md](UX_GUIDELINES.md), principle 2).
 
 > **Status: foundation shipped, migration in progress.** The contract, the registry,
-> the resolver and the API exist and are tested. **7** actions are declared (Media
-> Manager). An audit found **120** distinct action surfaces across the app; they are
-> being migrated workspace by workspace. Until that finishes, static toolbars and CAMA
-> coexist, and this document describes the target as well as the present.
+> the resolver and the API exist and are tested. **31** actions are declared across
+> five modules (Media Manager, Duplicates, Jobs, Torrents, Files, Subtitles), and **9**
+> of the **120** audited action surfaces are migrated. Until the rest follow, static
+> toolbars and CAMA coexist, and this document describes the target as well as the
+> present.
+>
+> Every declaration is checked against its real endpoint by `action-endpoint.spec.ts`.
+> That gate exists because an audit of the first 30 declarations found 13 wrong —
+> wrong permission, wrong arity, or no such endpoint — none of which any other gate
+> could see.
 
 ## Why
 
@@ -141,9 +147,11 @@ offering work the platform cannot do. Prefer leaving it out.
 
 ## Adding an action
 
-1. Declare it in your module's actions file (see `media-actions.ts`).
-2. Register it from the module's `onModuleInit` via `CapabilityRegistry.registerAll()`.
-3. Add the i18n key `action.<id>` to **both** locales.
+The step-by-step recipe — including the mistakes that have actually been made — lives
+in [DEVELOPMENT.md](DEVELOPMENT.md#adding-an-action-cama), beside "Adding a module".
+In short: declare it, register it from `onModuleInit`, map it in
+`action-endpoint.spec.ts`, add the label to both locales, and wire a handler on each
+surface that should offer it.
 
 No UI changes. The registry rejects duplicate ids (two modules claiming one id is a
 wiring bug, and last-write-wins would make the winner depend on module load order) and

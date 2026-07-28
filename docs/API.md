@@ -612,6 +612,63 @@ on a bad or expired token so it reveals nothing.
 
 ---
 
+## Context actions — `/api/context-actions`
+
+`@Controller('context-actions')` guarded — the Context-Aware Management Actions
+catalogue. See [CAMA.md](CAMA.md).
+
+| Method | Path | Permission | Body |
+|--------|------|------------|------|
+| `GET` | `/api/context-actions/catalog` | *authenticated only* | — |
+
+Returns every action the **caller** could use, before any selection narrows it:
+
+```jsonc
+{
+  "actions": [
+    {
+      "id": "media.metadata.refresh",   // dot-namespaced; also the i18n key stem
+      "group": "metadata",              // one of eleven platform-wide groups
+      "entityTypes": ["media_item"],
+      "arity": "any",                   // none | single | multi | any
+      "operationsOnly": false,          // hidden outside Operations Mode
+      "destructive": false,
+      "whenUnavailable": "hide",        // hide | disable, when blocked
+      "requiresEntityCapability": null, // a token the entity must advertise
+      "maxSelection": 1000,
+      "async": true,                    // dispatches a job; expect a job id back
+      "icon": "RefreshCw",
+      "order": 10
+    }
+  ],
+  "diagnostics": {
+    "total": 31,
+    "withheld": { "permission": 4, "module": 0, "feature": 0, "provider": 1 }
+  }
+}
+```
+
+**Not permission-gated**, deliberately and for the same reason as
+`GET /api/modules/enabled`: the answer is derived entirely from the caller's own
+grants, so it discloses nothing they could not infer by watching which buttons
+appear. Requiring a permission to ask "what may I do?" would show a user without
+it an empty interface.
+
+The preconditions the server already evaluated — `permissions`, `module`,
+`feature`, `providerCapability` — are **stripped** from the response. A caller
+that passed them does not need them; one that failed them never receives the
+action at all.
+
+`diagnostics` is not consumed by the UI. It exists so "why can't I see Download
+Subtitles?" is answered by the API rather than by reading resolution code; each
+withheld action is attributed to the **first** condition that ruled it out, so
+the counts sum to `total` minus the actions returned.
+
+**This endpoint is not a security boundary.** Every other endpoint keeps its own
+`@RequirePermissions` guard; this one only decides what is worth *offering*.
+
+---
+
 ## Settings — `/api/settings`
 
 `@Controller('settings')` guarded — tag `settings`.

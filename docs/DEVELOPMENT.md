@@ -201,6 +201,60 @@ modules/<feature>/
 
 Follow the existing modules (`torrents`, `engine`, `audit`) as templates.
 
+## Adding an action (CAMA)
+
+Actions are **declared, not drawn**. A module says what can be done and under what
+conditions; every action surface is a projection of that one registry. Concepts and
+rationale are in [CAMA.md](CAMA.md) — this is the mechanical recipe.
+
+1. **Declare it** in your module's `<feature>-actions.ts`:
+
+   ```ts
+   export const FEATURE_ACTIONS: ActionDescriptor[] = [
+     {
+       id: 'feature.thing.do',            // dot-namespaced, globally unique
+       group: 'maintenance',              // one of eleven platform-wide groups
+       entityTypes: ['media_item'],
+       arity: 'any',                      // none | single | multi | any
+       permissions: [P.FEATURE_DO],       // ALL required — the check is AND
+       module: MODULE_IDS.FEATURE,        // optional; must be a REAL manifest id
+       maxSelection: MAX_BULK_IDS,        // import the constant, never copy the number
+     },
+   ];
+   ```
+
+2. **Register it** from the module's `onModuleInit` via
+   `CapabilityRegistry.registerAll(...)`. The registry is `@Global`, so no import edge
+   is needed and none should be added.
+
+3. **Map it in `action-endpoint.spec.ts`** to the controller handler it dispatches to,
+   or add it to `UNMAPPED` with a reason. The spec fails if an action is neither.
+
+4. **Add the label** `action.<id>` to **both** locales, and an icon name to
+   `action-icons.ts` if you want one.
+
+5. **Wire a handler** on each surface that should offer it. An action with no handler
+   is never rendered.
+
+### The mistakes that have actually been made here
+
+- **Declaring against an endpoint that does not exist, or takes something else.**
+  `subtitles.download` was declared on `media_item`; the endpoint takes a subtitle
+  *candidate*. `media.item.export` was declared over a selection; the endpoint takes
+  view filters and would have exported more rows than were selected. Check the route
+  before declaring — a declaration is one object literal, which is what makes this easy.
+- **Missing the extra permission a bulk route requires.** `POST jobs/bulk/cancel` needs
+  `jobs.bulk_manage` *on top of* `jobs.cancel`. One declaration spanning both routes
+  gave a working row button and a 403 the moment a second row was selected. Where the
+  single and bulk routes differ, declare **two** actions.
+- **Naming a module that is not a manifest.** An action gated on a non-existent module
+  id is withheld forever, silently — an absent module is never enabled. Jobs, Indexers
+  and Workflows have permissions but *no* manifest; they are RBAC-gated only.
+- **Deriving state in the surface.** If an action depends on entity state, have the
+  entity advertise a capability (`cancel`, `ignorable`) and declare
+  `requiresEntityCapability`. Hand-written status branches drift: the Jobs list and
+  detail page had two copies that disagreed, and both forgot to check permission.
+
 ## Testing
 
 The backend is configured for **Jest** with `ts-jest`:
