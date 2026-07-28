@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Post,
   Put,
@@ -11,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { PERMISSIONS } from '@ultratorrent/shared';
+import { PERMISSIONS, SystemRole } from '@ultratorrent/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -44,6 +46,32 @@ import {
   SetRootPathDto,
   TrashRestoreDto,
 } from './dto/file.dto';
+
+/**
+ * Which permission each bulk operation really needs.
+ *
+ * Mirrors `BULK_ACTION_PERMISSIONS` in TorrentsService. `cleanup` deletes files
+ * like `delete` does — it is a filtered deletion, not a lesser one — so it
+ * carries the same requirement rather than the weaker `files.cleanup`, which
+ * governs the separate scan/preview routes.
+ */
+const BULK_OPERATION_PERMISSIONS: Record<string, string> = {
+  move: PERMISSIONS.FILES_MOVE,
+  copy: PERMISSIONS.FILES_COPY,
+  delete: PERMISSIONS.FILES_DELETE,
+  cleanup: PERMISSIONS.FILES_DELETE,
+};
+
+/** Refuse a bulk operation the caller could not perform one-at-a-time. */
+export function assertBulkOperationAllowed(operation: string, user: AuthenticatedUser): void {
+  const required = BULK_OPERATION_PERMISSIONS[operation];
+  if (!required) throw new BadRequestException(`Unsupported bulk operation: ${operation}`);
+  // SUPER_ADMIN bypasses granular checks, mirroring PermissionsGuard.
+  if (user.roles?.includes(SystemRole.SUPER_ADMIN)) return;
+  if (!user.permissions?.includes(required)) {
+    throw new ForbiddenException(`Missing permission(s): ${required}`);
+  }
+}
 
 /** Extract audit context (user + ip + UA) from the request. */
 function opCtx(req: Request, user?: AuthenticatedUser): FileOpContext {
@@ -219,9 +247,23 @@ export class FilesController {
     return this.files.remove(dto, opCtx(req, user));
   }
 
+  /**
+   * Bulk file operations.
+   *
+   * The route guard can only require `files.bulk_actions`, because one endpoint
+   * serves move, copy, delete and cleanup. Without a second check that made
+   * `files.bulk_actions` a superset of every file permission: a user granted it
+   * for moving files could **delete** them, since the service dispatches on
+   * `dto.operation` with no further authorisation.
+   *
+   * So the operation's own permission is enforced here, exactly as
+   * `TorrentsService.bulk` does for the same reason — that endpoint's guard is
+   * likewise blanket (`torrents.view`) with the real check inside.
+   */
   @Post('bulk')
   @RequirePermissions(PERMISSIONS.FILES_BULK_ACTIONS)
   bulk(@Body() dto: BulkOperationDto, @Req() req: Request, @CurrentUser() user: AuthenticatedUser) {
+    assertBulkOperationAllowed(dto.operation, user);
     return this.files.bulk(dto, opCtx(req, user));
   }
 

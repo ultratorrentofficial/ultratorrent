@@ -43,7 +43,8 @@ export const DUPLICATE_ACTIONS: ActionDescriptor[] = [
      */
     ...base,
     id: 'duplicates.ignore',
-    arity: 'any',
+    // `POST duplicates/:groupId/ignore` takes ONE group; there is no bulk route.
+    arity: 'single',
     permissions: [P.MEDIA_MANAGER_MATCH],
     requiresEntityCapability: 'ignorable',
     icon: 'EyeOff',
@@ -52,7 +53,7 @@ export const DUPLICATE_ACTIONS: ActionDescriptor[] = [
   {
     ...base,
     id: 'duplicates.reopen',
-    arity: 'any',
+    arity: 'single',
     permissions: [P.MEDIA_MANAGER_MATCH],
     requiresEntityCapability: 'reopenable',
     icon: 'RotateCw',

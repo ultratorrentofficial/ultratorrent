@@ -139,22 +139,24 @@ describe('ContextActionBar — what it refuses to render', () => {
   it('never renders an action it has no handler for', async () => {
     /*
      * The load-bearing safety rule. The registry is platform-wide and resolves
-     * actions a surface may not have wired up — export and rename are declared
-     * but unhandled here. A rendered button that does nothing reads as a broken
-     * feature, which is worse than the action living somewhere else.
+     * actions a surface may not have wired up — a subtitle or duplicate action
+     * can reach a media selection. A rendered button that does nothing reads as
+     * a broken feature, which is worse than the action living somewhere else.
      */
     apiSpy.catalog.mockResolvedValue(
       catalogOf([
         ...CATALOG,
-        action({ id: 'media.item.export', group: 'export', order: 10 }),
-        action({ id: 'media.item.rename', group: 'maintenance', operationsOnly: true, order: 50 }),
+        // Ids this surface has no handler for. Deliberately not real actions:
+        // the rule under test is about the handler map, not about any one id.
+        action({ id: 'subtitles.search', group: 'subtitles', order: 10 }),
+        action({ id: 'duplicates.detect', group: 'maintenance', operationsOnly: true, order: 50 }),
       ]),
     );
     renderBar(['a'], { operationsMode: true });
 
     expect(await screen.findByText('Refresh metadata')).toBeInTheDocument();
-    expect(screen.queryByText('Export CSV')).not.toBeInTheDocument();
-    expect(screen.queryByText('Rename')).not.toBeInTheDocument();
+    expect(screen.queryByText('Find subtitles')).not.toBeInTheDocument();
+    expect(screen.queryByText('Detect duplicates')).not.toBeInTheDocument();
   });
 
   it('renders nothing actionable when the catalogue is empty', async () => {

@@ -87,6 +87,11 @@ export const TORRENT_ACTIONS: ActionDescriptor[] = [
      *
      * Neither requires a capability token: a torrent in any state can be
      * removed, which is the point of removing it.
+     *
+     * `removeData` requires ONLY `torrents.delete_data`, matching
+     * `DELETE :hash/data` and the bulk map. Also demanding `torrents.delete`
+     * read as defence in depth but simply withheld the action from anyone
+     * granted the stronger permission without the weaker one.
      */
     ...base,
     id: 'torrents.remove',
@@ -100,7 +105,7 @@ export const TORRENT_ACTIONS: ActionDescriptor[] = [
     ...base,
     id: 'torrents.removeData',
     group: 'maintenance',
-    permissions: [P.TORRENTS_DELETE, P.TORRENTS_DELETE_DATA],
+    permissions: [P.TORRENTS_DELETE_DATA],
     destructive: true,
     operationsOnly: true,
     icon: 'Trash2',

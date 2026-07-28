@@ -164,9 +164,11 @@ export function JobsListPage() {
 
   const actionHandlers = useMemo<Record<string, ActionHandler>>(
     () => ({
-      'jobs.cancel': (sel) => bulk.mutate({ action: 'cancel', ids: sel.map((e) => e.id) }),
-      'jobs.retry': (sel) => bulk.mutate({ action: 'retry', ids: sel.map((e) => e.id) }),
-      'jobs.rerun': (sel) => bulk.mutate({ action: 'rerun', ids: sel.map((e) => e.id) }),
+      // The *Bulk ids, not the single ones: the bulk routes require
+      // jobs.bulk_manage on top of the verb, so they are separate declarations.
+      'jobs.cancelBulk': (sel) => bulk.mutate({ action: 'cancel', ids: sel.map((e) => e.id) }),
+      'jobs.retryBulk': (sel) => bulk.mutate({ action: 'retry', ids: sel.map((e) => e.id) }),
+      'jobs.rerunBulk': (sel) => bulk.mutate({ action: 'rerun', ids: sel.map((e) => e.id) }),
     }),
     [bulk],
   );

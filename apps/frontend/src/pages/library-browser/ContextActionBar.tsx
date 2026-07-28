@@ -81,10 +81,9 @@ export function ContextActionBar({
    * What this surface knows how to run.
    *
    * Only these ids render. The registry is platform-wide and will resolve
-   * actions a surface has not wired up — `media.item.rename` and
-   * `media.item.export` are declared but not handled here yet — and rendering
-   * one would be a button that does nothing, which reads as a broken feature
-   * rather than a missing one.
+   * actions a surface has not wired up — a subtitle or duplicate action can
+   * reach a media selection — and rendering one would be a button that does
+   * nothing, which reads as a broken feature rather than a missing one.
    */
   const handlers = useMemo<Record<string, ActionHandler>>(
     () => ({

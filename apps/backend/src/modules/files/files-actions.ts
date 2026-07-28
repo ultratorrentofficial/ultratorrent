@@ -75,7 +75,7 @@ export const FILE_ACTIONS: ActionDescriptor[] = [
     id: 'files.move',
     group: 'maintenance',
     arity: 'any',
-    permissions: [P.FILES_MOVE],
+    permissions: [P.FILES_MOVE, P.FILES_BULK_ACTIONS],
     icon: 'FolderInput',
     order: 20,
   },
@@ -84,16 +84,22 @@ export const FILE_ACTIONS: ActionDescriptor[] = [
     id: 'files.copy',
     group: 'maintenance',
     arity: 'any',
-    permissions: [P.FILES_COPY],
+    permissions: [P.FILES_COPY, P.FILES_BULK_ACTIONS],
     icon: 'Copy',
     order: 30,
   },
   {
+    /*
+     * Cleanup dispatches through POST files/bulk with operation 'cleanup',
+     * which deletes. It therefore requires `files.delete`, not the weaker
+     * `files.cleanup` — that permission governs the separate scan/preview
+     * routes, which take a folder and candidate list rather than a selection.
+     */
     ...base,
     id: 'files.cleanup',
     group: 'maintenance',
     arity: 'any',
-    permissions: [P.FILES_CLEANUP],
+    permissions: [P.FILES_DELETE, P.FILES_BULK_ACTIONS],
     icon: 'Sparkles',
     order: 40,
   },
@@ -101,12 +107,17 @@ export const FILE_ACTIONS: ActionDescriptor[] = [
     /*
      * Delete goes to trash and is recoverable, so it is not marked
      * operations-only — but it is destructive, and the surface confirms it.
+     *
+     * `files.bulk_actions` is required alongside `files.delete` because the
+     * client switches to POST files/bulk above one item, and that route guards
+     * on it. Declaring only `files.delete` gave a working single delete and a
+     * 403 the moment a second file was selected.
      */
     ...base,
     id: 'files.delete',
     group: 'maintenance',
     arity: 'any',
-    permissions: [P.FILES_DELETE],
+    permissions: [P.FILES_DELETE, P.FILES_BULK_ACTIONS],
     destructive: true,
     icon: 'Trash2',
     order: 90,

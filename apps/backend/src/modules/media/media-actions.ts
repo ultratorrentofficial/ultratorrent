@@ -84,32 +84,21 @@ export const MEDIA_ACTIONS: ActionDescriptor[] = [
     maxSelection: MAX_BULK_IDS,
     order: 40,
   },
-  {
-    /*
-     * Operations-only: renaming moves files on disk, which is not what someone
-     * browsing a library came to do. Still permitted, still in the palette —
-     * simply not in the way. See `operationsOnly` in the shared contract.
-     */
-    id: 'media.item.rename',
-    group: 'maintenance',
-    entityTypes: ['media_item'],
-    arity: 'any',
-    permissions: [P.MEDIA_MANAGER_RENAME],
-    module: 'media_manager',
-    icon: 'PenLine',
-    operationsOnly: true,
-    async: true,
-    maxSelection: MAX_BULK_IDS,
-    order: 50,
-  },
-  {
-    id: 'media.item.export',
-    group: 'export',
-    entityTypes: ['media_item'],
-    arity: 'any',
-    permissions: [P.MEDIA_MANAGER_EXPORT],
-    module: 'media_manager',
-    icon: 'Download',
-    order: 10,
-  },
 ];
+
+/*
+ * Deliberately NOT declared:
+ *
+ * - **Rename** (`media.item.rename`). Nothing accepts media item ids for a
+ *   rename: `POST media/apply` takes a `RenameRequest` carrying a torrent hash
+ *   or a single filesystem path, and `POST media/libraries/:id/organize` takes
+ *   a *library*. The action was declared `arity: 'any'` over `media_item` and
+ *   survived only because the browser declined to handle it — one handler-map
+ *   entry from shipping a button nothing could serve.
+ * - **Export** (`media.item.export`). `GET media/items/export.csv` takes view
+ *   FILTERS, not an id list, and streams whatever they match. Offered over a
+ *   selection it would have exported more rows than were selected — quietly,
+ *   which is the worst way to be wrong about a data export.
+ *
+ * Both return when an endpoint accepts what the surface would send.
+ */

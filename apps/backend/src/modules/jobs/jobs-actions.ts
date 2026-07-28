@@ -38,12 +38,10 @@ const base = {
   group: 'maintenance',
   entityTypes: ['job'] as EntityType[],
   /*
-   * `any`: one job or a hundred take the same route. The Jobs Center's bulk
-   * endpoints accept an id list, so a row action is simply a selection of one —
-   * which is what lets the row cluster and the bulk toolbar resolve from one
-   * declaration instead of the two divergent copies they are today.
+   * Arity is per action, not shared: the Jobs Center has bulk routes for
+   * cancel/retry/rerun ONLY. Declaring pause and resume as `any` advertised a
+   * bulk capability the API does not have.
    */
-  arity: 'any',
   /*
    * No `module` constraint on purpose. The Jobs Center ships controllers and
    * permissions but has no module manifest — like Indexers, Workflows and the
@@ -51,7 +49,6 @@ const base = {
    * does not exist would withhold every one of these actions, since an absent
    * module is never enabled.
    */
-  maxSelection: MAX_BULK_JOBS,
   /*
    * Disabled rather than hidden.
    *
@@ -63,45 +60,24 @@ const base = {
 } as const;
 
 export const JOB_ACTIONS: ActionDescriptor[] = [
-  {
-    ...base,
-    id: 'jobs.cancel',
-    permissions: [P.JOBS_CANCEL],
-    requiresEntityCapability: 'cancel',
-    icon: 'Ban',
-    destructive: true,
-    order: 10,
-  },
-  {
-    ...base,
-    id: 'jobs.pause',
-    permissions: [P.JOBS_PAUSE],
-    requiresEntityCapability: 'pause',
-    icon: 'Pause',
-    order: 20,
-  },
-  {
-    ...base,
-    id: 'jobs.resume',
-    permissions: [P.JOBS_RESUME],
-    requiresEntityCapability: 'resume',
-    icon: 'Play',
-    order: 30,
-  },
-  {
-    ...base,
-    id: 'jobs.retry',
-    permissions: [P.JOBS_RETRY],
-    requiresEntityCapability: 'retry',
-    icon: 'RotateCw',
-    order: 40,
-  },
-  {
-    ...base,
-    id: 'jobs.rerun',
-    permissions: [P.JOBS_RERUN],
-    requiresEntityCapability: 'rerun',
-    icon: 'RefreshCw',
-    order: 50,
-  },
+  // --- one job: POST jobs/:id/<verb> ------------------------------------
+  { ...base, arity: 'single', id: 'jobs.cancel', permissions: [P.JOBS_CANCEL], requiresEntityCapability: 'cancel', icon: 'Ban', destructive: true, order: 10 },
+  { ...base, arity: 'single', id: 'jobs.pause', permissions: [P.JOBS_PAUSE], requiresEntityCapability: 'pause', icon: 'Pause', order: 20 },
+  { ...base, arity: 'single', id: 'jobs.resume', permissions: [P.JOBS_RESUME], requiresEntityCapability: 'resume', icon: 'Play', order: 30 },
+  { ...base, arity: 'single', id: 'jobs.retry', permissions: [P.JOBS_RETRY], requiresEntityCapability: 'retry', icon: 'RotateCw', order: 40 },
+  { ...base, arity: 'single', id: 'jobs.rerun', permissions: [P.JOBS_RERUN], requiresEntityCapability: 'rerun', icon: 'RefreshCw', order: 50 },
+
+  /*
+   * --- many jobs: POST jobs/bulk/<verb> ---------------------------------
+   *
+   * Separate declarations because the bulk routes require `jobs.bulk_manage`
+   * IN ADDITION to the verb. Declaring one action across both meant a user
+   * holding `jobs.cancel` alone got a working row button and a 403 on any
+   * multi-selection — same action, same enabled state, different outcome by
+   * selection size. There is deliberately no bulk pause or resume: the API has
+   * none.
+   */
+  { ...base, arity: 'multi', maxSelection: MAX_BULK_JOBS, id: 'jobs.cancelBulk', permissions: [P.JOBS_BULK_MANAGE, P.JOBS_CANCEL], requiresEntityCapability: 'cancel', icon: 'Ban', destructive: true, order: 10 },
+  { ...base, arity: 'multi', maxSelection: MAX_BULK_JOBS, id: 'jobs.retryBulk', permissions: [P.JOBS_BULK_MANAGE, P.JOBS_RETRY], requiresEntityCapability: 'retry', icon: 'RotateCw', order: 40 },
+  { ...base, arity: 'multi', maxSelection: MAX_BULK_JOBS, id: 'jobs.rerunBulk', permissions: [P.JOBS_BULK_MANAGE, P.JOBS_RERUN], requiresEntityCapability: 'rerun', icon: 'RefreshCw', order: 50 },
 ];

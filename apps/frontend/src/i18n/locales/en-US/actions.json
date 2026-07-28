@@ -40,9 +40,7 @@
       },
       "item": {
         "lock": "Lock",
-        "unlock": "Unlock",
-        "rename": "Rename",
-        "export": "Export CSV"
+        "unlock": "Unlock"
       }
     },
     "jobs": {
@@ -50,7 +48,10 @@
       "pause": "Pause",
       "resume": "Resume",
       "retry": "Retry",
-      "rerun": "Run again"
+      "rerun": "Run again",
+      "cancelBulk": "Cancel",
+      "retryBulk": "Retry",
+      "rerunBulk": "Run again"
     },
     "torrents": {
       "resume": "Resume",
