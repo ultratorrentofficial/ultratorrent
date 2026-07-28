@@ -1,6 +1,6 @@
 {
   "name": "ultratorrent",
-  "version": "0.57.5",
+  "version": "0.57.6",
   "private": true,
   "description": "UltraTorrent — a modern, self-hosted torrent management platform",
   "license": "AGPL-3.0-or-later",

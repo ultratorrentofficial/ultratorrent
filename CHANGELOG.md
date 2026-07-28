@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.57.6] - 2026-07-28
+
+### Fixed
+- A-Z jump rail in the Library Browser
+- Newsletter movie cards show their metadata; poster budget shared across sections
+
 ## [0.57.5] - 2026-07-28
 
 ### Fixed
