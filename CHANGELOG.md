@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.57.2] - 2026-07-28
+
+### Fixed
+- A disabled action now says why it cannot run
+
 ## [0.57.1] - 2026-07-28
 
 ### Fixed
