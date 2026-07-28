@@ -1,6 +1,7 @@
 import { Global, Module, type OnModuleInit } from '@nestjs/common';
 import { CapabilityRegistry } from '../context-actions/capability-registry.service';
 import { MEDIA_ACTIONS } from './media-actions';
+import { DUPLICATE_ACTIONS } from './duplicates-actions';
 import { SettingsModule } from '../settings/settings.module';
 import { FilesModule } from '../files/files.module';
 import { SecretCipher } from '../../common/crypto/secret-cipher';
@@ -143,6 +144,6 @@ export class MediaModule implements OnModuleInit {
   constructor(private readonly capabilities: CapabilityRegistry) {}
 
   onModuleInit(): void {
-    this.capabilities.registerAll(MEDIA_ACTIONS);
+    this.capabilities.registerAll([...MEDIA_ACTIONS, ...DUPLICATE_ACTIONS]);
   }
 }

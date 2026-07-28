@@ -1,8 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import type { EntityRef } from '@ultratorrent/shared';
+import { ActionMenu } from '@/actions/ActionMenu';
+import { useContextActions } from '@/actions/useContextActions';
+import type { ActionHandler } from '@/actions/ActionBar';
+import { duplicateCapabilities } from './duplicateCapabilities';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, EyeOff, RotateCcw, ScanSearch, Star, X } from 'lucide-react';
+import { Copy, ScanSearch, Star, X } from 'lucide-react';
 import { ApiError, api, type DuplicateDetectionMetrics, type MediaDuplicateGroup } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { WS_EVENTS } from '@ultratorrent/shared';
@@ -54,6 +59,38 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
+
+/**
+ * One duplicate group's actions, resolved from the CAMA catalogue.
+ *
+ * The group advertises whether it can be dismissed or reopened; the catalogue
+ * applies `media_manager.match`. A component per group because each is its own
+ * selection — the catalogue itself is one shared react-query entry.
+ */
+function GroupRowActions({
+  group,
+  busy,
+  onIgnore,
+  onReopen,
+}: {
+  group: { id: string; status: string };
+  busy: boolean;
+  onIgnore: () => void;
+  onReopen: () => void;
+}) {
+  const selection = useMemo<EntityRef[]>(
+    () => [{ type: 'duplicate_group', id: group.id, capabilities: duplicateCapabilities(group) }],
+    [group],
+  );
+  const { groups } = useContextActions({ selection });
+
+  const handlers = useMemo<Record<string, ActionHandler>>(
+    () => ({ 'duplicates.ignore': onIgnore, 'duplicates.reopen': onReopen }),
+    [onIgnore, onReopen],
+  );
+
+  return <ActionMenu groups={groups} selection={selection} handlers={handlers} busy={busy} />;
+}
 
 export function MediaDuplicatesPage() {
   const toast = useToast();
@@ -433,15 +470,18 @@ function DuplicateGroupCard({ group }: { group: MediaDuplicateGroup }) {
           </div>
           <div className="flex items-center gap-2">
             <CompareToggleButton open={comparing} onToggle={() => setComparing((v) => !v)} />
-            {group.status === 'open' ? (
-              <Button variant="ghost" size="sm" onClick={() => ignore.mutate()} loading={ignore.isPending}>
-                <EyeOff className="h-3.5 w-3.5" /> {t('duplicates.notDuplicates')}
-              </Button>
-            ) : (
-              <Button variant="ghost" size="sm" onClick={() => reopen.mutate()} loading={reopen.isPending}>
-                <RotateCcw className="h-3.5 w-3.5" /> {t('duplicates.reopen')}
-              </Button>
-            )}
+            {/*
+              Resolved from the CAMA catalogue. This was a status ternary with
+              no permission check at all, while the endpoint behind it requires
+              media_manager.match — so every viewer saw a live control most of
+              them could not use.
+            */}
+            <GroupRowActions
+              group={group}
+              busy={ignore.isPending || reopen.isPending}
+              onIgnore={() => ignore.mutate()}
+              onReopen={() => reopen.mutate()}
+            />
           </div>
         </div>
 

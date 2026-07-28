@@ -69,6 +69,11 @@
       "copy": "Copy",
       "cleanup": "Clean up",
       "delete": "Delete"
+    },
+    "duplicates": {
+      "detect": "Detect duplicates",
+      "ignore": "Not duplicates",
+      "reopen": "Reopen"
     }
   },
   "result": {

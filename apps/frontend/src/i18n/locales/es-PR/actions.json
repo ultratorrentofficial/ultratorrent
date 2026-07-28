@@ -69,6 +69,11 @@
       "copy": "Copiar",
       "cleanup": "Limpiar",
       "delete": "Eliminar"
+    },
+    "duplicates": {
+      "detect": "Detectar duplicados",
+      "ignore": "No son duplicados",
+      "reopen": "Reabrir"
     }
   },
   "result": {
