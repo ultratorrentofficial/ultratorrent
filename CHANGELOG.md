@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.57.1] - 2026-07-28
+
+### Fixed
+- Duplicate group actions are CAMA-driven and permission-gated
+- Subtitle actions gate on provider availability
+- Audit CAMA declarations against endpoints; close a files bulk permission escalation
+
 ## [0.57.0] - 2026-07-27
 
 ### Added
