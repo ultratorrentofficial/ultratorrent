@@ -4082,6 +4082,27 @@ export const api = {
         const refreshed = await performRefresh();
         if (refreshed) res = await doFetch();
       }
+      /*
+       * The same argument as the 401 case above, for the other status a poster
+       * grid actually hits.
+       *
+       * Each tile is its own request, so scrolling a large library can outrun
+       * the API rate limit. Without a retry the first 429 left that tile empty
+       * for the life of the page — which is what "a lot of movies have no
+       * artwork" turned out to be, with the files, rows and endpoint all fine.
+       *
+       * Backs off by `Retry-After` when the server sends one, and gives up
+       * after two attempts: a poster is worth a short wait, never a retry storm
+       * against a server already saying it is overloaded.
+       */
+      for (let attempt = 0; attempt < 2 && res.status === 429; attempt += 1) {
+        const after = Number(res.headers.get('retry-after'));
+        const waitMs = Number.isFinite(after) && after > 0 ? after * 1000 : 1500 * (attempt + 1);
+        // Jitter so a screenful of tiles does not retry in lockstep and
+        // reproduce the burst that caused the throttle.
+        await new Promise((r) => setTimeout(r, waitMs + Math.random() * 400));
+        res = await doFetch();
+      }
       if (!res.ok) throw new ApiError(res.status, `Artwork image failed (${res.status})`);
       return res.blob();
     },

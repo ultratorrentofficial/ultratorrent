@@ -498,6 +498,22 @@ export class MediaController {
    */
   @Get('artwork/:artworkId/image')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  /*
+   * Well above the global 120/min, because this route is not an API call in the
+   * sense the global limit is protecting against — it is the image tag for a
+   * poster, one request per tile.
+   *
+   * A single screen of the Library Browser is ~45 posters, so scrolling a real
+   * library exhausted the global bucket within seconds and every subsequent
+   * poster came back 429. The UI has no retry, so those tiles stayed empty for
+   * as long as the page lived: reported as "a lot of movies with no artwork"
+   * when the files, the rows and this endpoint were all correct.
+   *
+   * Still bounded rather than skipped: responses are cached for a day, so even
+   * heavy browsing settles quickly, and an unbounded image route is worth
+   * avoiding regardless.
+   */
+  @Throttle({ default: { limit: 1200, ttl: 60_000 } })
   async artworkImage(
     @Param('artworkId') artworkId: string,
     @Res({ passthrough: true }) res: Response,
