@@ -327,12 +327,30 @@ function movieCard(m: NewsletterItem, opts: RenderOptions): string {
   const accent = style.accent ?? C.amber;
   const rt = style.showRuntime !== false ? runtimeLabel(m.runtime) : null;
   const rating = style.showRatings !== false ? renderRating(m.rating, accent) : '';
+
+  /*
+   * The same fields a show card carries.
+   *
+   * This card rendered only poster, title, year and rating, so a film arrived
+   * with no description while an episode of a series got one — from the same
+   * `metadata` row, fetched by the same query. Reported as "movie items not
+   * showing the metadata"; it was never missing data, only never rendered.
+   * Every toggle is honoured exactly as `tvCard` honours it.
+   */
+  const overview = style.showOverview !== false && m.overview ? truncate(m.overview, 140) : '';
+  const badges: string[] = [];
+  if (style.showGenres !== false && m.genres?.length) badges.push(m.genres.join(' · '));
+  if (m.certification) badges.push(m.certification);
+  if (style.showLibraryBadges && m.library) badges.push(m.library);
+
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
     <tr><td align="center" valign="top">${poster({ url: m.posterUrl, cid: m.posterCid }, m.title[0] ?? '?', 120, accent)}</td></tr>
     <tr><td style="padding-top:8px;text-align:center">
       <div style="font:700 13px system-ui,-apple-system,sans-serif;color:${C.text}">${escapeHtml(m.title)}</div>
       <div style="font:600 11px system-ui,-apple-system,sans-serif;color:${C.muted};margin-top:2px">${[m.year, rt].filter(Boolean).join(' · ')}</div>
       ${rating ? `<div style="margin-top:6px">${rating}</div>` : ''}
+      ${overview ? `<div style="font:400 12px/1.5 system-ui,-apple-system,sans-serif;color:${C.muted};margin-top:8px;text-align:left">${escapeHtml(overview)}</div>` : ''}
+      ${badges.length ? `<div style="margin-top:8px">${renderBadges(badges)}</div>` : ''}
     </td></tr>
   </table>`;
 }

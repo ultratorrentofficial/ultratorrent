@@ -259,7 +259,8 @@
     "sendFailed": "Could not send",
     "created": "Newsletter created",
     "testSent": "Test sent",
-    "nextRun": "Next: {{date}}"
+    "nextRun": "Next: {{date}}",
+    "previewFailed": "Could not build the preview."
   },
   "kpi": {
     "activeStreams": "Active streams",

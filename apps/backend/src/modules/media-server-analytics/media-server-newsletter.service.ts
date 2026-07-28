@@ -273,8 +273,8 @@ export class MediaServerNewsletterService {
   ): Promise<EmailAttachment[]> {
     // One poster per show (by show title, falling back to the representative
     // item) + per movie (by id), across all sections, in render order, capped.
-    const targets: { art?: PosterArt; setCid: (cid: string) => void; setUrl: (url: string) => void }[] =
-      content.sections.flatMap((sec) => [
+    type Target = { art?: PosterArt; setCid: (cid: string) => void; setUrl: (url: string) => void };
+    const bySection: Target[][] = content.sections.map((sec) => [
         ...sec.shows.map((s) => ({
           art: showPosters.get(s.title) ?? (s.posterItemId ? posters.get(s.posterItemId) : undefined),
           setCid: (cid: string) => (s.posterCid = cid),
@@ -286,11 +286,31 @@ export class MediaServerNewsletterService {
           setUrl: (url: string) => (m.posterUrl = url),
         })),
       ]);
+    const targets: Target[] = bySection.flat();
+
+    /*
+     * Spend the poster budget across sections, not first-come.
+     *
+     * Targets are built in render order, so TV comes first and a busy week of
+     * television exhausted MAX_POSTERS before a single film was reached —
+     * measured on a real library: exactly 30 distinct shows in the window
+     * against a cap of 30, leaving every movie without art. Interleaving takes
+     * one from each section in turn, so a section is only starved when the
+     * budget genuinely cannot cover the sections.
+     */
+    const interleaved: typeof targets = [];
+    for (let i = 0; interleaved.length < targets.length; i += 1) {
+      let progressed = false;
+      for (const group of bySection) {
+        if (i < group.length) { interleaved.push(group[i]); progressed = true; }
+      }
+      if (!progressed) break;
+    }
 
     const { mode, publicBaseUrl } = await this.images.effectiveMode();
     const attachments: EmailAttachment[] = [];
     let used = 0;
-    for (const tgt of targets) {
+    for (const tgt of interleaved) {
       if (used >= MAX_POSTERS) break;
       if (!tgt.art) continue;
 

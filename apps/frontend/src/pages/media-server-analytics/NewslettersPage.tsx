@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Pencil, Play, Send, Trash2, X } from 'lucide-react';
@@ -166,6 +166,18 @@ export function NewslettersPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ name: '', frequency: 'weekly', recipients: [] as string[], dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] as string[] });
   const [preview, setPreview] = useState<{ id: string; data: NewsletterPreview } | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * Bring the preview into view when it opens.
+   *
+   * It renders after the newsletter list AND the whole "New newsletter" form,
+   * so on a page this tall it appeared well below the fold — pressing Preview
+   * looked like nothing happened at all, which is exactly how it was reported.
+   */
+  useEffect(() => {
+    if (preview) previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [preview]);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
   const [testTo, setTestTo] = useState<Record<string, string>>({});
   // Per-campaign edit of the core fields (name / frequency / recipients) that
@@ -202,7 +214,12 @@ export function NewslettersPage() {
     mutationFn: ({ id, patch }: { id: string; patch: Partial<Newsletter> }) => api.mediaServerAnalytics.updateNewsletter(id, patch),
     onSuccess: invalidate,
   });
-  const doPreview = useMutation({ mutationFn: (id: string) => api.mediaServerAnalytics.previewNewsletter(id) });
+  const doPreview = useMutation({
+    mutationFn: (id: string) => api.mediaServerAnalytics.previewNewsletter(id),
+    // Without this a failed preview is indistinguishable from a working one
+    // that rendered somewhere the reader cannot see.
+    onError: (e: Error) => toast.error(e?.message || t('newsletter.previewFailed')),
+  });
   const send = useMutation({
     mutationFn: (id: string) => api.mediaServerAnalytics.sendNewsletter(id),
     onSuccess: (r) => { toast.success(t('newsletter.sent', { sent: r.sent, failed: r.failed })); invalidate(); },
@@ -341,7 +358,7 @@ export function NewslettersPage() {
           </Card>
 
           {preview && (
-            <Card>
+            <Card ref={previewRef}>
               <CardContent className="space-y-3 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
