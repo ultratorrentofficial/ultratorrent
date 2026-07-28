@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -18,7 +19,7 @@ import {
   MinLength,
 } from 'class-validator';
 import type { Request } from 'express';
-import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DOMAIN_EVENTS, normalizeTimezone } from '@ultratorrent/shared';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -34,6 +35,12 @@ import { AuditService } from '../audit/audit.service';
 class UpdateProfileDto {
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() @MaxLength(120) displayName?: string;
+  /**
+   * IANA zone, or null/'' /'auto' for "follow the device". Validated in the
+   * service against `Intl` rather than by a decorator, because the valid set is
+   * whatever this runtime can actually format — see `normalizeTimezone`.
+   */
+  @IsOptional() timezone?: string | null;
 }
 class ChangePasswordDto {
   @IsString() currentPassword!: string;
@@ -61,6 +68,7 @@ export class AccountService {
       email: user.email,
       displayName: user.displayName,
       roles: user.roles.map((r) => r.role.name),
+      timezone: user.timezone,
       twoFactorEnabled: user.totpEnabled,
       lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
@@ -68,9 +76,33 @@ export class AccountService {
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
+    /*
+     * `timezone` is tri-state and the three states must stay distinct:
+     * absent from the body = leave it alone; null/''/'auto' = follow the device;
+     * a zone name = use it. Collapsing "absent" into "null" would silently
+     * reset someone's zone every time they edited their display name.
+     */
+    let timezone: string | null | undefined;
+    /*
+     * `!== undefined`, NOT `'timezone' in dto`. class-transformer defines
+     * optional properties on the instance, so `in` is true even for a body that
+     * never mentioned them — which made every display-name edit silently reset
+     * the zone to "follow the device". Found by exercising the endpoint; the
+     * comment below described the trap while the code fell into it.
+     */
+    if (dto.timezone !== undefined) {
+      const normalized = normalizeTimezone(dto.timezone);
+      if (normalized === undefined) {
+        // Refused rather than stored as null: quietly discarding a mistyped
+        // zone leaves the user believing they set one.
+        throw new BadRequestException(`Unknown timezone: ${String(dto.timezone)}`);
+      }
+      timezone = normalized;
+    }
+
     await this.prisma.user.update({
       where: { id: userId },
-      data: { email: dto.email, displayName: dto.displayName },
+      data: { email: dto.email, displayName: dto.displayName, timezone },
     });
     return this.profile(userId);
   }

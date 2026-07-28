@@ -686,6 +686,8 @@ export interface AccountProfile {
   email: string;
   displayName: string | null;
   roles: string[];
+  /** IANA zone for displaying times; null means follow the device. */
+  timezone: string | null;
   twoFactorEnabled: boolean;
   lastLoginAt: string | null;
   createdAt: string;
@@ -3697,6 +3699,8 @@ export const api = {
     updateProfile(body: {
       email?: string;
       displayName?: string;
+      /** IANA zone, or null to follow the device. Omit to leave unchanged. */
+      timezone?: string | null;
     }): Promise<AccountProfile> {
       return request<AccountProfile>('/account/profile', {
         method: 'PATCH',

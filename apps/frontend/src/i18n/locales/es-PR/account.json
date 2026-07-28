@@ -67,5 +67,15 @@
     "codesCopied": "Códigos de recuperación copiados",
     "disabled": "Dos factores desactivado",
     "disableFailed": "No se pudo desactivar"
+  },
+  "timezone": {
+    "title": "Zona horaria",
+    "description": "Las horas en toda la aplicación — historial, auditoría y alertas — se muestran en esta zona. Las alertas enviadas por Telegram, Discord o correo también la usan.",
+    "label": "Zona horaria de visualización",
+    "auto": "Seguir este dispositivo ({{zone}})",
+    "previewLabel": "Ahora mismo, en esta zona",
+    "save": "Guardar zona horaria",
+    "saved": "Zona horaria actualizada.",
+    "failed": "No se pudo guardar la zona horaria."
   }
 }

@@ -70,13 +70,29 @@ export class NotificationDispatcher implements OnModuleInit {
    * N+1 on the dispatch of every playback event, which is the highest-volume
    * event in the catalogue and the one most likely to have a large audience.
    */
-  private async playbackDetailAudience(userIds: readonly string[]): Promise<Set<string>> {
-    if (!userIds.length) return new Set();
+  private async audienceFacts(userIds: readonly string[]): Promise<{
+    playbackDetail: Set<string>;
+    timezones: Map<string, string>;
+  }> {
+    if (!userIds.length) return { playbackDetail: new Set(), timezones: new Map() };
+
+    /*
+     * ONE query for every per-recipient fact.
+     *
+     * Dispatch cost must not scale with audience size — a test pins this at a
+     * single `user.findMany`, and it caught a second one being added here for
+     * timezones. So the role check became a *narrowed relation* rather than a
+     * `where` filter: filtering by role would return only privileged users,
+     * and timezones are needed for all of them. `take: 1` makes the join a
+     * membership test rather than a fetch.
+     */
     const rows = await this.prisma.user.findMany({
-      where: {
-        id: { in: [...userIds] },
+      where: { id: { in: [...userIds] } },
+      select: {
+        id: true,
+        timezone: true,
         roles: {
-          some: {
+          where: {
             role: {
               OR: [
                 { name: 'SUPER_ADMIN' },
@@ -84,11 +100,19 @@ export class NotificationDispatcher implements OnModuleInit {
               ],
             },
           },
+          select: { roleId: true },
+          take: 1,
         },
       },
-      select: { id: true },
     });
-    return new Set(rows.map((r) => r.id));
+
+    const playbackDetail = new Set<string>();
+    const timezones = new Map<string, string>();
+    for (const row of rows) {
+      if (row.roles.length > 0) playbackDetail.add(row.id);
+      if (row.timezone) timezones.set(row.id, row.timezone);
+    }
+    return { playbackDetail, timezones };
   }
 
   onModuleInit(): void {
@@ -124,7 +148,8 @@ export class NotificationDispatcher implements OnModuleInit {
       const preferences = await this.preferences.effectiveForMany(audience, definition.key);
       // Both per-recipient lookups are batched before the loop, so dispatch cost
       // is two queries plus one insert per recipient — not four per recipient.
-      const maySeePlaybackDetail = await this.playbackDetailAudience(audience);
+      const { playbackDetail: maySeePlaybackDetail, timezones } =
+        await this.audienceFacts(audience);
 
       for (const userId of audience) {
         const preference = preferences.get(userId);
@@ -147,6 +172,7 @@ export class NotificationDispatcher implements OnModuleInit {
             userId, definition, envelope,
             preferenceAllows(preference, 'in_app'),
             maySeePlaybackDetail.has(userId),
+            timezones.get(userId) ?? null,
           );
           if (notificationId) summary.created += 1;
           else summary.skipped += 1;
@@ -212,6 +238,7 @@ export class NotificationDispatcher implements OnModuleInit {
     envelope: DomainEventEnvelope,
     surfaceInApp: boolean,
     canViewPlaybackDetail: boolean,
+    timezone: string | null,
   ): Promise<string | null> {
     const fallback = buildFallbackPresentation(definition, envelope);
     const payload = (envelope.payload ?? {}) as Record<string, unknown>;
@@ -224,7 +251,18 @@ export class NotificationDispatcher implements OnModuleInit {
       definition,
       envelope,
       locale: 'en-US' as PresentationLocale,
-      timezone: null,
+      /*
+       * The recipient's zone, not the server's.
+       *
+       * This was hardcoded `null`, which means `Intl` falls back to the host
+       * clock — UTC in a container. Every Telegram, Discord and email alert
+       * therefore carried a time that was right for nobody, and unlike the web
+       * UI there is no browser downstream to correct it. `null` still means
+       * "follow the device" for a person who has not chosen a zone, which for
+       * these channels resolves to the server; that is the existing behaviour,
+       * now reached only when nothing better is known.
+       */
+      timezone,
       canViewPlaybackDetail,
       notificationId,
     });

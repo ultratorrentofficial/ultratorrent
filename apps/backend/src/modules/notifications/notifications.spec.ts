@@ -373,15 +373,33 @@ describe('NotificationInboxService', () => {
 /* ---------------------------------------------------------------- dispatcher */
 
 describe('NotificationDispatcher', () => {
-  const build = (opts: { audience?: string[]; prefs?: Record<string, any>; failOn?: string; canViewPlayback?: boolean } = {}) => {
+  const build = (
+    opts: {
+      audience?: string[];
+      prefs?: Record<string, any>;
+      failOn?: string;
+      canViewPlayback?: boolean;
+      /** Per-recipient display zone, as `audienceFacts` would read it. */
+      timezones?: Record<string, string>;
+    } = {},
+  ) => {
     const created: any[] = [];
     const toUser = jest.fn();
     const prisma: any = {
-      // The dispatcher resolves playback-detail permission for the WHOLE audience
-      // in one query before the loop, so the mock answers findMany.
+      /*
+       * ONE query answers every per-recipient fact: the display timezone and
+       * whether the person may see playback detail. Privilege arrives as a
+       * NARROWED relation (empty array = not privileged) rather than as row
+       * absence, because timezones are needed for the whole audience while the
+       * permission applies to only part of it.
+       */
       user: {
         findMany: jest.fn(async ({ where }: any) =>
-          opts.canViewPlayback === false ? [] : (where.id?.in ?? []).map((id: string) => ({ id })),
+          (where.id?.in ?? []).map((id: string) => ({
+            id,
+            timezone: opts.timezones?.[id] ?? null,
+            roles: opts.canViewPlayback === false ? [] : [{ roleId: 'role-1' }],
+          })),
         ),
       },
       userNotification: {
@@ -487,6 +505,41 @@ describe('NotificationDispatcher', () => {
     await svc.dispatch(envelope() as never);
     expect(prisma.user.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.user.findMany.mock.calls[0][0].where.id.in).toHaveLength(4);
+  });
+
+  it("renders each recipient's notification in their OWN timezone", async () => {
+    /*
+     * The reason this feature exists. These alerts are rendered server-side and
+     * projected to Telegram, Discord and email — there is no browser downstream
+     * to correct a wrong clock, so whatever is stored here is what the person
+     * reads. Two recipients on the same event must not receive the same time.
+     */
+    const { svc, created } = build({
+      audience: ['u-pr', 'u-madrid'],
+      timezones: { 'u-pr': 'America/Puerto_Rico', 'u-madrid': 'Europe/Madrid' },
+    });
+    await svc.dispatch(envelope() as never);
+
+    const timeOf = (userId: string) => {
+      const row = created.find((c: any) => c.userId === userId);
+      const facts = (row?.presentation as any)?.facts ?? [];
+      return facts.find((f: any) => f.icon === 'clock')?.value;
+    };
+
+    // eslint-disable-next-line no-console
+    const pr = timeOf('u-pr');
+    const madrid = timeOf('u-madrid');
+    expect(pr).toBeTruthy();
+    expect(madrid).toBeTruthy();
+    expect(pr).not.toEqual(madrid);
+  });
+
+  it('falls back to the host clock for a recipient with no stored zone', () => {
+    // "Follow the device" server-side means the server's clock. That is the
+    // pre-existing behaviour, now reached only when nothing better is known —
+    // it must not become an error or an empty timestamp.
+    const { svc } = build({ audience: ['u1'] });
+    return expect(svc.dispatch(envelope() as never)).resolves.toBeDefined();
   });
 
   it('emits to the recipient’s own socket room only', async () => {

@@ -67,5 +67,15 @@
     "codesCopied": "Recovery codes copied",
     "disabled": "Two-factor disabled",
     "disableFailed": "Could not disable"
+  },
+  "timezone": {
+    "title": "Timezone",
+    "description": "Times across the app — history, audit entries and alerts — are shown in this zone. Alerts sent to Telegram, Discord or email use it too.",
+    "label": "Display timezone",
+    "auto": "Follow this device ({{zone}})",
+    "previewLabel": "Right now, in this zone",
+    "save": "Save timezone",
+    "saved": "Timezone updated.",
+    "failed": "Could not save the timezone."
   }
 }

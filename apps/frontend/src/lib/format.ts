@@ -84,18 +84,64 @@ export function formatRatio(ratio: number | null | undefined): string {
   return ratio.toFixed(2);
 }
 
+/**
+ * The zone every absolute timestamp is rendered in.
+ *
+ * A module-level value rather than a parameter, deliberately. Timestamps are a
+ * global display concern exactly like language: i18next holds the active
+ * language centrally and `t()` takes no locale argument, and threading a zone
+ * through the several hundred `formatDateTime` call sites would be the same
+ * mistake with more diff. `AuthProvider` sets this once from the signed-in
+ * user, and every timestamp in the app follows.
+ *
+ * `null` means "follow the device", which is what the app did before this
+ * existed and what an account keeps until someone chooses otherwise.
+ */
+let displayTimezone: string | null = null;
+
+/** Set the zone all timestamps render in. Call on sign-in and on change. */
+export function setDisplayTimezone(timezone: string | null): void {
+  displayTimezone = timezone;
+}
+
+export function getDisplayTimezone(): string | null {
+  return displayTimezone;
+}
+
+/**
+ * Options carrying the active zone.
+ *
+ * Passing `timeZone: undefined` is what makes "follow the device" work: `Intl`
+ * treats an absent zone as the host's, so the same code path serves both cases
+ * without a branch at every call site.
+ */
+function withZone(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormatOptions {
+  return { ...options, timeZone: displayTimezone ?? undefined };
+}
+
 /** Format an absolute date/time from an ISO string. */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  try {
+    return date.toLocaleString(undefined, withZone({
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }));
+  } catch {
+    /*
+     * A stored zone can outlive the runtime that knows it — IANA renames zones,
+     * and a value written elsewhere may be unknown here. Showing the device's
+     * time is wrong by hours; showing nothing is wrong by everything.
+     */
+    return date.toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  }
 }
 
 /** Compact relative time, e.g. "3m ago" / "in 2h". */
@@ -138,11 +184,15 @@ export function formatRelativeTimeShort(iso: string | null | undefined): string 
   if (Number.isNaN(date.getTime())) return '—';
   const days = Math.abs(date.getTime() - Date.now()) / 86_400_000;
   if (days < 30) return formatRelativeTime(iso);
-  return date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  try {
+    return date.toLocaleDateString(undefined, withZone({
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }));
+  } catch {
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
 }
 
 /** Pluralize a count with a unit, e.g. count(2, "peer") -> "2 peers". */

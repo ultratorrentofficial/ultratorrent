@@ -10,6 +10,7 @@ import {
 import type { AuthUser, Permission } from '@ultratorrent/shared';
 import { SystemRole } from '@ultratorrent/shared';
 import { api, getTokens, onAuthChange } from '@/lib/api';
+import { setDisplayTimezone } from '@/lib/format';
 import { wsClient } from '@/lib/ws';
 
 interface AuthContextValue {
@@ -25,6 +26,18 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+
+  /*
+   * Apply the user's display zone the moment their identity is known.
+   *
+   * Set centrally rather than passed to every formatter, exactly as i18next
+   * holds the active language — see `setDisplayTimezone`. Clearing it on sign-out
+   * matters: the next person at the same browser must not inherit the previous
+   * user's zone.
+   */
+  useEffect(() => {
+    setDisplayTimezone(user?.timezone ?? null);
+  }, [user?.timezone]);
   const [status, setStatus] = useState<AuthContextValue['status']>('loading');
   const mounted = useRef(true);
 

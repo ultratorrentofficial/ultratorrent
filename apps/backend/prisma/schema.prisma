@@ -19,6 +19,11 @@ model User {
   username            String    @unique
   email               String    @unique
   displayName         String?
+  /// IANA zone (`America/Puerto_Rico`) used to render every timestamp shown to
+  /// this person — in the UI and, more importantly, in notifications the server
+  /// renders where no browser is involved. NULL means "follow the device",
+  /// which is what every existing account gets and what the UI did before.
+  timezone            String?
   passwordHash        String
   isActive            Boolean   @default(true)
   isSystem            Boolean   @default(false)

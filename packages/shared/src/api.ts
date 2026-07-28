@@ -23,6 +23,8 @@ export interface AuthUser {
   roles: string[];
   permissions: string[];
   isActive: boolean;
+  /** IANA zone for displaying times; null means follow the device. */
+  timezone: string | null;
 }
 
 export interface LoginRequest {

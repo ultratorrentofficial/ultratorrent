@@ -70,6 +70,9 @@ export class AuthService {
       roles,
       permissions,
       isActive: user.isActive,
+      // Sent with the identity so the client can apply it before rendering its
+      // first timestamp, rather than showing device time and then correcting it.
+      timezone: user.timezone,
     };
   }
 

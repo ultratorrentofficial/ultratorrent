@@ -1,3 +1,4 @@
+import { TimezoneSection } from '@/pages/account/TimezoneSection';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -55,6 +56,7 @@ export function ProfilePage() {
         lastLoginAt={data.lastLoginAt}
         onSaved={refresh}
       />
+      <TimezoneSection timezone={data.timezone} onSaved={refresh} />
       <PasswordSection />
       <TwoFactorSection enabled={data.twoFactorEnabled} onChanged={refresh} />
     </div>
