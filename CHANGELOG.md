@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.57.5] - 2026-07-28
+
+### Fixed
+- Drop three unusable indexes on imdb_titles: the primaryTitle/originalTitle btrees, which cannot serve the case-insensitive (ILIKE) lookups the code actually issues and were superseded by the runtime GIN trigram indexes, and the titleType index, a redundant prefix of the (titleType, startYear) composite. Reclaims ~645 MB on a full catalogue with no query losing an access path.
+- Documentation screenshots from a generated demo library
+- Poster grid no longer rate-limits itself into blank artwork
+
 ## [0.57.4] - 2026-07-28
 
 ### Fixed
