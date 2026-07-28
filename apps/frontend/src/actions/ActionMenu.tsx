@@ -98,17 +98,23 @@ export function ActionMenu({
         {actions.map((v) => {
           const Icon = actionIcon(v.action.icon);
           const label = (t as DynamicT)(`action.${v.action.id}`);
-          return (
+          const reason = v.enabled ? undefined : (t as DynamicT)(reasonKey(v.reason));
+          const button = (
             <Button
               key={v.action.id}
               size="sm"
               variant="ghost"
               className="h-7 w-7 p-0"
               disabled={busy || !v.enabled}
-              // The icon carries no text, so the label must reach a screen
-              // reader some other way.
-              aria-label={label}
-              title={v.enabled ? label : (t as DynamicT)(reasonKey(v.reason))}
+              /*
+               * The icon carries no text, so the label must reach a screen
+               * reader some other way — and when the action is blocked the
+               * REASON has to reach it too. A `title` alone does not: a
+               * disabled button is `pointer-events-none`, so the browser never
+               * fires the hover that would show it.
+               */
+              aria-label={reason ? `${label} — ${reason}` : label}
+              title={reason ?? label}
               onClick={(e) => {
                 // Rows are usually clickable themselves; acting must not also
                 // open the drawer behind the button.
@@ -122,6 +128,16 @@ export function ActionMenu({
                 <span className="text-xs">{label.slice(0, 1)}</span>
               )}
             </Button>
+          );
+
+          // The wrapper is what makes the tooltip reachable: it is not
+          // disabled, so it still receives hover and carries the title.
+          return reason ? (
+            <span key={v.action.id} title={reason} className="inline-flex cursor-not-allowed">
+              {button}
+            </span>
+          ) : (
+            button
           );
         })}
       </div>
@@ -155,13 +171,18 @@ export function ActionMenu({
           {actions.map((v) => {
             const Icon = actionIcon(v.action.icon);
             const label = (t as DynamicT)(`action.${v.action.id}`);
+            const reason = v.enabled ? undefined : (t as DynamicT)(reasonKey(v.reason));
             return (
               <button
                 key={v.action.id}
                 type="button"
                 role="menuitem"
                 disabled={v.enabled === false}
-                title={v.enabled ? undefined : (t as DynamicT)(reasonKey(v.reason))}
+                // A menu item has visible text, so the reason goes on the
+                // accessible name rather than relying on a hover a disabled
+                // control never receives.
+                aria-label={reason ? `${label} — ${reason}` : undefined}
+                title={reason}
                 onClick={(e) => {
                   e.stopPropagation();
                   run(v.action.id);

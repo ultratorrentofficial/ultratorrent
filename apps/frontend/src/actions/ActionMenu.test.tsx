@@ -67,7 +67,16 @@ describe('ActionMenu — icons variant', () => {
     expect(rowClick).not.toHaveBeenCalled();
   });
 
-  it('disables a blocked action and says why', () => {
+  it('disables a blocked action and makes the reason REACHABLE', () => {
+    /*
+     * The earlier version of this test asserted the button carried a `title`.
+     * It did — and the tooltip still never appeared, because the Button sets
+     * `disabled:pointer-events-none`, so the browser fires no hover on it.
+     * Reported from the live UI as "no tooltip explaining why".
+     *
+     * The assertions are now about reachability: the accessible name carries
+     * the reason, and the title sits on a wrapper that is NOT disabled.
+     */
     render(
       <ActionMenu
         groups={groups([verdict(action({ id: 'jobs.cancel' }), false)])}
@@ -75,9 +84,24 @@ describe('ActionMenu — icons variant', () => {
         handlers={{ 'jobs.cancel': vi.fn() }}
       />,
     );
-    const button = screen.getByRole('button', { name: 'Cancel' });
+    const button = screen.getByRole('button', { name: /Cancel .* available/i });
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', expect.stringMatching(/not available/i));
+
+    const wrapper = button.parentElement!;
+    expect(wrapper).toHaveAttribute('title', expect.stringMatching(/available/i));
+  });
+
+  it("leaves an enabled action's name clean", () => {
+    // The reason is appended only when there is one; an enabled control must
+    // not read "Cancel — Not available for everything selected".
+    render(
+      <ActionMenu
+        groups={groups([verdict(action({ id: 'jobs.cancel' }))])}
+        selection={selection}
+        handlers={{ 'jobs.cancel': vi.fn() }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
   });
 });
 

@@ -186,17 +186,37 @@ function ActionButton({
   const Icon: LucideIcon | null = actionIcon(action.icon);
   const label = (t as DynamicT)(`action.${action.id}`);
 
-  return (
+  const why = enabled ? undefined : (t as DynamicT)(reasonKey(reason));
+
+  const button = (
     <Button
       size="sm"
       variant={action.destructive ? 'destructive' : 'ghost'}
       disabled={busy || !enabled}
-      title={enabled ? undefined : (t as DynamicT)(reasonKey(reason))}
+      // The label is visible, so the REASON is what the accessible name must
+      // add. A `title` alone never appears: a disabled button is
+      // `pointer-events-none`, so the browser fires no hover to show it.
+      aria-label={why ? `${label} — ${why}` : undefined}
+      title={why}
       onClick={onRun}
     >
       {Icon && <Icon className="mr-1.5 h-4 w-4" aria-hidden />}
       {label}
     </Button>
+  );
+
+  /*
+   * A blocked action is wrapped so the explanation is reachable at all. The
+   * wrapper is not disabled, so it still receives hover and carries the title —
+   * without it, choosing `whenUnavailable: 'disable'` produced a dead control
+   * that said nothing, which is worse than hiding the action outright.
+   */
+  return why ? (
+    <span title={why} className="inline-flex cursor-not-allowed">
+      {button}
+    </span>
+  ) : (
+    button
   );
 }
 
