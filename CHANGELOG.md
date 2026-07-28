@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.57.3] - 2026-07-28
+
+### Fixed
+- Per-user timezone for all displayed times, including server-sent alerts
+
 ## [0.57.2] - 2026-07-28
 
 ### Fixed
