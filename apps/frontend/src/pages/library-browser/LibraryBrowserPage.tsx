@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { VirtualPosterGrid } from './VirtualPosterGrid';
 import { ShowDetailView } from './ShowDetailView';
 import { ContextActionBar } from './ContextActionBar';
+import { AlphabetRail } from './AlphabetRail';
 import { BrowserFilterBar, EMPTY_FILTERS, type BrowserFilters } from './BrowserFilterBar';
 import { EMPTY_SELECTION, applyClick, clearSelection, pruneSelection, type SelectionState } from './selection';
 import { VIEW_MODES, readViewMode, writeViewMode, type ViewMode } from './view-mode';
@@ -97,8 +98,31 @@ export function LibraryBrowserPage() {
       all.flatMap((p) => p.items).length < last.total ? all.length + 1 : undefined,
   });
 
+  /*
+   * The letter the listing is anchored at, or null for the top. Part of the
+   * items query key, so choosing one restarts the infinite query from that
+   * letter rather than appending to what is already loaded.
+   */
+  const [startsAt, setStartsAt] = useState<string | null>(null);
+
+  /*
+   * Counts per initial letter. Not fetched while an issue filter is active:
+   * the aggregate deliberately does not apply those anti-join filters, so the
+   * rail would advertise letters the filtered list does not contain.
+   */
+  const alphabet = useQuery({
+    queryKey: ['library-browser', 'alphabet', libraryId, filters.search, filters.matchStatus],
+    enabled: !!libraryId && !browsesByShow && !filters.issue,
+    queryFn: () =>
+      api.media.itemAlphabet({
+        libraryId: libraryId!,
+        search: filters.search || undefined,
+        matchStatus: filters.matchStatus ?? undefined,
+      }),
+  });
+
   const items = useInfiniteQuery({
-    queryKey: ['library-browser', 'items', libraryId, filters.search, filters.matchStatus, filters.issue],
+    queryKey: ['library-browser', 'items', libraryId, filters.search, filters.matchStatus, filters.issue, startsAt],
     enabled: !!libraryId && !browsesByShow,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
@@ -107,6 +131,7 @@ export function LibraryBrowserPage() {
         search: filters.search || undefined,
         matchStatus: filters.matchStatus ?? undefined,
         issue: filters.issue ?? undefined,
+        startsAt: startsAt ?? undefined,
       }),
     getNextPageParam: (last, all) =>
       all.flatMap((p) => p.items).length < last.total ? all.length + 1 : undefined,
@@ -236,7 +261,8 @@ export function LibraryBrowserPage() {
       ) : active.isError ? (
         <ErrorState message={t('browser.loadFailed')} onRetry={() => active.refetch()} />
       ) : (
-        <div className="min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 gap-1">
+          <div className="min-h-0 min-w-0 flex-1">
           <VirtualPosterGrid
             items={rows as Array<MediaSeriesGroup | MediaItem>}
             mode={mode}
@@ -265,6 +291,19 @@ export function LibraryBrowserPage() {
               )
             }
           />
+          </div>
+
+          {/* TV libraries browse by show, whose rows are projections without a
+              stable title index; and an issue filter makes the aggregate
+              inconsistent with the list, so the rail is withheld in both cases
+              rather than shown wrong. */}
+          {!browsesByShow && !filters.issue && (
+            <AlphabetRail
+              entries={alphabet.data ?? []}
+              active={startsAt}
+              onJump={setStartsAt}
+            />
+          )}
         </div>
       )}
 

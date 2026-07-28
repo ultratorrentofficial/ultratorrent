@@ -1216,6 +1216,8 @@ export interface MediaItemQuery {
   search?: string;
   /** Exact show title — fetch one series' episodes for the grouped TV view. */
   title?: string;
+  /** Anchor the listing at the first title from this letter onward. */
+  startsAt?: string;
   page?: number;
   pageSize?: number;
 }
@@ -4259,6 +4261,12 @@ export const api = {
     },
     apply(body: RenameRequest): Promise<RenameApplyResult> {
       return request<RenameApplyResult>('/media/apply', { method: 'POST', body });
+    },
+    /** Item counts per initial letter, for the A–Z jump rail. */
+    itemAlphabet(query: {
+      libraryId?: string; mediaType?: string; matchStatus?: string; search?: string;
+    }): Promise<Array<{ letter: string; count: number }>> {
+      return request('/media/items/alphabet', { query: query as QueryParams });
     },
     /** Pass `itemId` to get one item's operations instead of the whole log. */
     history(query: PageQuery & { itemId?: string } = {}): Promise<Paginated<MediaRenameOperation>> {

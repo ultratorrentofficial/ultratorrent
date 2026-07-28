@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import {
   TV_TYPES,
@@ -67,6 +67,14 @@ export interface ItemFilters {
   title?: string;
   /** Narrow to items carrying one library issue. */
   issue?: IssueKind;
+  /**
+   * Jump the listing to the first title at or after this letter.
+   *
+   * An **anchor**, not a filter: `>=` rather than `starts with`, so landing on
+   * M keeps N, O, P below it and scrolling continues naturally — which is what
+   * an A–Z rail is for. Filtering to M alone would strand the reader there.
+   */
+  startsAt?: string;
   page?: number;
   pageSize?: number;
 }
@@ -175,6 +183,16 @@ export class MediaItemService {
     if (filters.issue) Object.assign(where, issueWhere(filters.issue));
     if (filters.title) where.title = filters.title; // exact — one show's episodes
     else if (filters.search?.trim()) where.title = { contains: filters.search.trim(), mode: 'insensitive' };
+    else if (filters.startsAt) {
+      /*
+       * Compared with the same collation the ORDER BY uses, so the anchor lands
+       * exactly where the reader sees that letter begin. '#' means "numbers and
+       * symbols", which sort before letters — that is the head of the list, so
+       * it needs no predicate at all.
+       */
+      const letter = filters.startsAt.trim().toUpperCase().slice(0, 1);
+      if (/^[A-Z]$/.test(letter)) where.title = { gte: letter };
+    }
 
     const page = Math.max(1, filters.page ?? 1);
     const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? DEFAULT_PAGE_SIZE));
@@ -215,6 +233,61 @@ export class MediaItemService {
       }),
     ]);
     return { items, total, page, pageSize };
+  }
+
+  /**
+   * How many items sit under each initial letter.
+   *
+   * Powers the A–Z rail: a letter with nothing under it is shown disabled
+   * rather than hidden, so the rail keeps a stable shape and does not reflow as
+   * a library grows — and a reader is told the letter is empty rather than left
+   * wondering where it went.
+   *
+   * One grouped scan rather than 27 counts. Anything not A–Z collapses into
+   * '#' (numbers, symbols, non-Latin), which is also where those titles sort.
+   */
+  async alphabet(filters: ItemFilters = {}): Promise<Array<{ letter: string; count: number }>> {
+    /*
+     * Grouped in SQL, not in Node. Selecting every title back to count first
+     * characters would pull one row per item — 25k on this library's TV shows
+     * and 500k at the size this browser is designed for — to produce 27 numbers.
+     *
+     * `issue` is deliberately NOT applied: those filters are relation-absence
+     * anti-joins, and the client hides the rail entirely when one is active, so
+     * a partially-filtered rail can never be shown. Accepting the filter here
+     * and ignoring it would be the trap.
+     */
+    const conds: Prisma.Sql[] = [];
+    if (filters.libraryId) conds.push(Prisma.sql`"libraryId" = ${filters.libraryId}`);
+    if (filters.mediaType) conds.push(Prisma.sql`"mediaType" = ${filters.mediaType}`);
+    if (filters.matchStatus) conds.push(Prisma.sql`"matchStatus" = ${filters.matchStatus}`);
+    if (filters.search?.trim()) {
+      conds.push(Prisma.sql`title ILIKE ${'%' + filters.search.trim() + '%'}`);
+    }
+    const where = conds.length
+      ? Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}`
+      : Prisma.empty;
+
+    const rows = await this.prisma.$queryRaw<Array<{ letter: string; count: bigint }>>(Prisma.sql`
+      SELECT CASE WHEN upper(left(btrim(title), 1)) BETWEEN 'A' AND 'Z'
+                  THEN upper(left(btrim(title), 1))
+                  ELSE '#' END AS letter,
+             count(*)::bigint AS count
+        FROM media_items
+        ${where}
+       GROUP BY 1`);
+
+    const counts = new Map(rows.map((r) => [r.letter, Number(r.count)]));
+
+    /*
+     * Always all 27 entries, in order. A letter with nothing under it is
+     * returned with count 0 so the client can disable it in place — the rail
+     * keeps a stable shape instead of reflowing as a library grows, and the
+     * reader is told the letter is empty rather than left wondering where it
+     * went.
+     */
+    const letters = ['#', ...Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i))];
+    return letters.map((letter) => ({ letter, count: counts.get(letter) ?? 0 }));
   }
 
   /**

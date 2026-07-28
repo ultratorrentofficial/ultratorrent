@@ -1723,7 +1723,13 @@
     "minutes": "{{count}} min",
     "subtitleCount": "{{count}} subtitle",
     "subtitleCount_other": "{{count}} subtitles",
-    "untitledEpisode": "Episode {{number}}"
+    "untitledEpisode": "Episode {{number}}",
+    "alphabet": {
+      "label": "Jump to letter",
+      "all": "All",
+      "jump": "{{letter}} — {{count}} title",
+      "jump_other": "{{letter}} — {{count}} titles"
+    }
   },
   "rename": {
     "undo": {

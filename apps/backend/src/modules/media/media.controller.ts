@@ -213,6 +213,24 @@ export class MediaController {
   }
 
   // --- items -------------------------------------------------------------
+  /**
+   * Item counts per initial letter, for the A–Z jump rail.
+   *
+   * Declared above `items/:id` — Nest matches in declaration order, and a
+   * literal path below a parameterised one is read as an id. That has bitten
+   * this controller before (`items/issues`, `items/export.csv`).
+   */
+  @Get('items/alphabet')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  itemAlphabet(
+    @Query('libraryId') libraryId?: string,
+    @Query('mediaType') mediaType?: string,
+    @Query('matchStatus') matchStatus?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.items.alphabet({ libraryId, mediaType, matchStatus, search });
+  }
+
   @Get('items')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   listItems(
@@ -222,6 +240,7 @@ export class MediaController {
     @Query('search') search?: string,
     @Query('title') title?: string,
     @Query('issue') issue?: string,
+    @Query('startsAt') startsAt?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -230,6 +249,7 @@ export class MediaController {
       matchStatus,
       libraryId,
       search,
+      startsAt,
       title,
       issue: issue as IssueKind | undefined,
       page: page ? Number.parseInt(page, 10) : undefined,
