@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/format';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { CalendarClock, RefreshCw, Tv } from 'lucide-react';
@@ -54,7 +55,7 @@ export function ShowStatusBadge({ status }: { status: RssShowStatus }) {
 function fmt(date: string | null): string | null {
   if (!date) return null;
   const d = new Date(date);
-  return Number.isNaN(d.getTime()) ? date : d.toLocaleDateString();
+  return Number.isNaN(d.getTime()) ? date : formatDate(d.toISOString());
 }
 
 /**

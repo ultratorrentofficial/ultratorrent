@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/format';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -123,7 +124,7 @@ export function WorkflowsListPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {new Date(wf.updatedAt).toLocaleString()}
+                      {formatDateTime(wf.updatedAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" onClick={() => navigate(`/workflows/${wf.id}`)}>

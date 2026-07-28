@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/format';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -194,7 +195,10 @@ export function NotificationInboxPage() {
                   </span>
                   <span className="flex-1" />
                   <span className="text-[11px] text-muted-foreground">
-                    {new Date(n.createdAt).toLocaleString()}
+                    {/* formatDateTime, not a raw toLocaleString: the latter
+                        silently follows the browser and ignores the zone the
+                        user chose in their profile. */}
+                    {formatDateTime(n.createdAt)}
                   </span>
                 </div>
 

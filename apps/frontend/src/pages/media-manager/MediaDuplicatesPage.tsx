@@ -12,7 +12,7 @@ import { ApiError, api, type DuplicateDetectionMetrics, type MediaDuplicateGroup
 import { wsClient } from '@/lib/ws';
 import { WS_EVENTS } from '@ultratorrent/shared';
 import { Progress } from '@/components/ui/progress';
-import { formatBytes } from '@/lib/format';
+import { formatBytes, formatDate } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -235,7 +235,7 @@ export function MediaDuplicatesPage() {
           <StatTile label={t('duplicates.stat.ignored')} value={String(o.groups.ignored)} />
           <StatTile
             label={t('duplicates.stat.lastScan')}
-            value={o.lastDetectedAt ? new Date(o.lastDetectedAt).toLocaleDateString() : '—'}
+            value={formatDate(o.lastDetectedAt)}
           />
         </div>
       ) : null}

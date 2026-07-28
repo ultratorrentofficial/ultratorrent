@@ -1,3 +1,4 @@
+import { formatDateTime, formatTime } from '@/lib/format';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -87,12 +88,12 @@ export function JobDetailPage() {
             <Fact label={t('detail.attempt', { attempt: job.attempt, max: job.maxAttempts })} value="" />
             <Fact label={t('column.source')} value={td(`source.${job.source}`, { defaultValue: job.source })} />
             <Fact label={t('column.priority')} value={String(job.priority)} />
-            <Fact label={t('detail.createdAt')} value={new Date(job.createdAt).toLocaleString()} />
-            {job.startedAt && <Fact label={t('detail.startedAt')} value={new Date(job.startedAt).toLocaleString()} />}
-            {job.completedAt && <Fact label={t('detail.completedAt')} value={new Date(job.completedAt).toLocaleString()} />}
+            <Fact label={t('detail.createdAt')} value={formatDateTime(job.createdAt)} />
+            {job.startedAt && <Fact label={t('detail.startedAt')} value={formatDateTime(job.startedAt)} />}
+            {job.completedAt && <Fact label={t('detail.completedAt')} value={formatDateTime(job.completedAt)} />}
             <Fact label={t('column.duration')} value={jobDuration(job.startedAt, job.completedAt)} />
             {job.workerId && <Fact label={t('detail.worker')} value={job.workerId} />}
-            {job.heartbeatAt && <Fact label={t('detail.heartbeat')} value={new Date(job.heartbeatAt).toLocaleString()} />}
+            {job.heartbeatAt && <Fact label={t('detail.heartbeat')} value={formatDateTime(job.heartbeatAt)} />}
             {job.resourceId && <Fact label={t('detail.resource')} value={`${job.resourceType ?? ''} ${job.resourceId}`} />}
           </CardContent>
         </Card>
@@ -146,7 +147,7 @@ export function JobDetailPage() {
             <ol className="space-y-1.5">
               {events.map((ev) => (
                 <li key={ev.id} className="flex items-start gap-3 text-sm">
-                  <span className="w-16 shrink-0 tabular-nums text-xs text-muted-foreground">{new Date(ev.createdAt).toLocaleTimeString()}</span>
+                  <span className="w-16 shrink-0 tabular-nums text-xs text-muted-foreground">{formatTime(ev.createdAt)}</span>
                   <Badge variant={ev.level === 'error' ? 'destructive' : ev.level === 'warning' ? 'warning' : ev.level === 'success' ? 'success' : 'secondary'}>
                     {ev.eventType}
                   </Badge>

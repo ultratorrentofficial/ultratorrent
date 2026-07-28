@@ -1,3 +1,4 @@
+import { getDisplayTimezone } from '@/lib/format';
 import {
   Activity, AlertTriangle, Clock, Download, Film, Gauge, HardDrive, Library,
   Monitor, Pause, Percent, Play, Plug, Server, Shield, Square, Tv, User, Workflow,
@@ -114,5 +115,15 @@ export function relativeTime(iso: string, locale: string, now: Date = new Date()
   if (minutes < 60) return locale.startsWith('es') ? `hace ${minutes} min` : `${minutes}m ago`;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return locale.startsWith('es') ? `hace ${hours} h` : `${hours}h ago`;
-  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(then);
+  // Zone-aware: past the relative window this renders an absolute date, which
+  // must follow the user's chosen zone like every other absolute time.
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      month: 'short',
+      day: 'numeric',
+      timeZone: getDisplayTimezone() ?? undefined,
+    }).format(then);
+  } catch {
+    return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(then);
+  }
 }

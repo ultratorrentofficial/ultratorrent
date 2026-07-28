@@ -1,3 +1,4 @@
+import { formatTime } from '@/lib/format';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   WS_EVENTS,
@@ -98,11 +99,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       setBandwidth((prev) => {
         const sample: BandwidthSample = {
           t: now,
-          label: new Date(now).toLocaleTimeString(undefined, {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-          }),
+          // Chart tick labels follow the user's zone like every other time.
+          label: formatTime(now, true),
           down: totals.downloadRate,
           up: totals.uploadRate,
         };

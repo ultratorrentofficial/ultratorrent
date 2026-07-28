@@ -169,11 +169,29 @@ What would violate principle 1 is dropping a capability because a surface was
 redesigned. CAMA does the opposite: it makes every declared action reachable from
 every surface that wires it, instead of only the screen someone remembered to add it to.
 
+## Times
+
+Every displayed moment goes through `lib/format.ts` — `formatDateTime`,
+`formatDate`, `formatTime`, `formatRelativeTime`. Never `toLocaleDateString()`,
+`toLocaleString()` or `new Intl.DateTimeFormat` directly.
+
+The reason is not tidiness. Each user has a **display timezone** on their profile
+(`User.timezone`, null = follow the device), and the helpers are what apply it.
+A raw call silently follows the *browser* instead, which looks correct on your own
+machine and is wrong for anyone who set a zone.
+
+This is enforced, not trusted: `src/lib/format-usage.test.ts` fails on a raw call
+outside a short allow-list. It exists because the timezone feature shipped with
+the helpers made zone-aware and **14 call sites still bypassing them** — including
+the notification inbox, the surface the feature was asked for. A user reported it;
+no gate caught it. If you need a shape the helpers do not offer, add it to
+`format.ts` rather than reaching past it.
+
 ## When you add a surface
 
 - Consume `useVisibleNavGroups()` / `NAV_GROUPS` — never re-derive the item list.
 - Render actions from `useContextActions()` — never a hand-built toolbar.
-- Localize every string in **both** locales.
+- Localize every string in **both** locales, and format every time through `format.ts`.
 - Add a focused test (see the list in [NAVIGATION.md](NAVIGATION.md#tests)).
 - Verify it degrades: empty nav, storage failure, RBAC-pruned domain, no active match,
   and an **empty or unreachable action catalogue** (say so; do not render blank chrome).

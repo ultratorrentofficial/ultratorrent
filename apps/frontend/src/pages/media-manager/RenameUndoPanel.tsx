@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Undo2 } from 'lucide-react';
@@ -70,7 +71,7 @@ export function RenameUndoPanel() {
                 <p className="truncate text-sm">
                   {t('rename.undo.run', {
                     count: run.operations,
-                    when: new Date(run.at).toLocaleString(),
+                    when: formatDateTime(run.at),
                   })}
                 </p>
                 <p className="text-xs text-muted-foreground">{run.mode}</p>

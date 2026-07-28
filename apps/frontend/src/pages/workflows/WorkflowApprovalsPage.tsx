@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/format';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Check, X, ShieldCheck } from 'lucide-react';
@@ -65,8 +66,8 @@ export function WorkflowApprovalsPage() {
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {t('approvals.requested')}: {new Date(ap.requestedAt).toLocaleString()}
-                    {ap.expiresAt && <> · {t('approvals.expires')}: {new Date(ap.expiresAt).toLocaleString()}</>}
+                    {t('approvals.requested')}: {formatDateTime(ap.requestedAt)}
+                    {ap.expiresAt && <> · {t('approvals.expires')}: {formatDateTime(ap.expiresAt)}</>}
                   </div>
                   <div className="truncate font-mono text-[10px] text-muted-foreground">exec {ap.workflowExecutionId}</div>
                 </div>

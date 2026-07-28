@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/format';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
@@ -28,7 +29,7 @@ export function JobsWorkersPage() {
               </div>
               <dl className="space-y-1 text-sm">
                 <Row label={t('workers.host')} value={w.host} />
-                <Row label={t('workers.started')} value={new Date(w.startedAt).toLocaleString()} />
+                <Row label={t('workers.started')} value={formatDateTime(w.startedAt)} />
                 <Row label={t('workers.running')} value={String(w.runningJobs)} />
                 <Row label={t('workers.capacity')} value={w.capacity == null ? t('workers.unbounded') : String(w.capacity)} />
                 {w.version && <Row label={t('workers.version')} value={w.version} />}

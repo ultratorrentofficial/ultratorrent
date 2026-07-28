@@ -1,3 +1,4 @@
+import { formatTime } from '@/lib/format';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -299,7 +300,7 @@ function WorkflowEditorInner() {
                     <span className="truncate">
                       <span className="font-mono text-[10px] text-muted-foreground">{ex.triggerSource}</span> · {ex.status}
                     </span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">{new Date(ex.createdAt).toLocaleTimeString()}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">{formatTime(ex.createdAt)}</span>
                   </li>
                 ))}
               </ul>

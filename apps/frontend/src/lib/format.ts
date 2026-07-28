@@ -144,6 +144,51 @@ export function formatDateTime(iso: string | null | undefined): string {
   }
 }
 
+/**
+ * Date only, in the user's zone.
+ *
+ * Exists so a caller that wants a date has no reason to reach for a raw
+ * `toLocaleDateString()`, which silently follows the browser and ignores the
+ * chosen zone — the defect that shipped in the notification inbox.
+ */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  try {
+    return date.toLocaleDateString(undefined, withZone({
+      year: 'numeric', month: 'short', day: 'numeric',
+    }));
+  } catch {
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+}
+
+/**
+ * Clock time only, in the user's zone.
+ *
+ * `withSeconds` is for live charts, whose x-axis ticks are seconds apart and
+ * would otherwise repeat the same label.
+ */
+export function formatTime(
+  iso: string | number | null | undefined,
+  withSeconds = false,
+): string {
+  if (iso == null) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  const opts: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(withSeconds ? { second: '2-digit' } : {}),
+  };
+  try {
+    return date.toLocaleTimeString(undefined, withZone(opts));
+  } catch {
+    return date.toLocaleTimeString(undefined, opts);
+  }
+}
+
 /** Compact relative time, e.g. "3m ago" / "in 2h". */
 export function formatRelativeTime(iso: string | null | undefined): string {
   if (!iso) return '—';

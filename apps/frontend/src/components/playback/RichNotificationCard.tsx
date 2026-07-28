@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { splitSummary, type NotificationPresentation } from '@ultratorrent/shared';
 import { cn } from '@/lib/utils';
+import { formatDateTime } from '@/lib/format';
 import { ACCENT_TOKENS, PRESENTATION_ICONS, relativeTime } from './playback-tokens';
 import {
   PlaybackArtwork, PlaybackAvatar, PlaybackFacts, PlaybackProgress, PlaybackTitle,
@@ -77,7 +78,12 @@ export function RichNotificationCard({
           <span className="text-xs font-semibold tracking-[0.14em] text-muted-foreground">
             ULTRATORRENT
           </span>
-          <time className="ml-auto text-xs text-muted-foreground" dateTime={presentation.timestamp}>
+          <time
+            className="ml-auto text-xs text-muted-foreground"
+            dateTime={presentation.timestamp}
+            /* The absolute time, rendered LIVE in the viewer's zone. */
+            title={formatDateTime(presentation.timestamp)}
+          >
             {relativeTime(presentation.timestamp, i18n.language)}
           </time>
         </header>
@@ -100,7 +106,25 @@ export function RichNotificationCard({
                 {after}
               </p>
             </div>
-            <PlaybackFacts facts={presentation.facts} accent={presentation.accent} />
+            {/*
+              The clock fact is dropped here, and only here.
+
+              `presentation` is rendered ONCE, server-side, when the notification
+              is created — that is what gets projected to Telegram, Discord and
+              email, correctly in each recipient's zone at send time. But it is
+              frozen: an account that later changes its timezone would keep
+              reading the old one in its inbox forever, and an account that had
+              none was reading the server's UTC.
+
+              In-app there is no reason to show a baked string. The header time
+              above renders from `presentation.timestamp` on every paint, so it
+              always reflects the zone in force now. Keeping both would show two
+              times that disagree.
+            */}
+            <PlaybackFacts
+              facts={presentation.facts.filter((f) => f.icon !== 'clock')}
+              accent={presentation.accent}
+            />
           </div>
 
           {presentation.artwork && (
