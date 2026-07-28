@@ -134,12 +134,51 @@ architecture.
 
 ## Screenshots
 
-> _Screenshots coming soon._ Drop images into `docs/images/` and reference them
-> here once the frontend is built out.
+> Every screenshot is taken against a **generated demo library** — the titles,
+> posters and file paths are invented, so nothing here is anyone's real media.
+> Regenerate with `node ops/scripts/demo-seed.mjs` (dev databases only).
 
-| Dashboard | Torrent list | Torrent details |
-|-----------|--------------|-----------------|
-| _placeholder_ | _placeholder_ | _placeholder_ |
+### Library Browser
+
+Browse a whole library as artwork, drill into a show, and act on a selection.
+
+![Library Browser](docs/images/library-browser.png)
+
+Selecting items reveals only the actions that apply to them — see
+[Context-Aware Management Actions](docs/CAMA.md).
+
+![Selection actions](docs/images/library-selection.png)
+
+### Show workspace
+
+Season and episode health, technical detail per episode, and an Operations mode
+for maintenance work.
+
+![Show workspace](docs/images/tv-show.png)
+
+### Dashboard & Media Manager
+
+| Dashboard | Media Manager |
+|---|---|
+| ![Dashboard](docs/images/dashboard.png) | ![Media Manager](docs/images/media-dashboard.png) |
+
+| Media items | Duplicates |
+|---|---|
+| ![Media items](docs/images/media-items.png) | ![Duplicates](docs/images/duplicates.png) |
+
+### Downloads, jobs and files
+
+| Torrents | Jobs Center |
+|---|---|
+| ![Torrents](docs/images/torrents.png) | ![Jobs Center](docs/images/jobs.png) |
+
+| File manager | Cleanup Center |
+|---|---|
+| ![File manager](docs/images/files.png) | ![Cleanup Center](docs/images/cleanup.png) |
+
+### Automation
+
+![Workflows](docs/images/workflows.png)
 
 ## Architecture at a glance
 
