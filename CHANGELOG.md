@@ -45,6 +45,16 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.58.0] - 2026-07-29
+
+### Added
+- Newsletters can carry their own title, and the footer credits UltraTorrent with its real version linked to the repo
+- Library Browser can move a selection to another library, remove items from the library, or delete their files from disk
+
+### Fixed
+- Live Activity names the viewer instead of their Plex login handle, and the Plex server owner is no longer split into two users
+- Movie newsletter cards use a two-column layout: artwork, year, runtime and rating on the left, description on the right
+
 ## [0.57.6] - 2026-07-28
 
 ### Fixed
