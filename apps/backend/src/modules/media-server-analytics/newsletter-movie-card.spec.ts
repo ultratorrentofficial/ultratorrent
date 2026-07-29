@@ -82,3 +82,75 @@ describe('movie card metadata', () => {
     expect(out).toContain('&lt;script&gt;');
   });
 });
+
+/**
+ * The two-column layout itself.
+ *
+ * Requested as "a 2-column area per title … artwork, year, duration and rating
+ * on the left and the movie description on the right", replacing a stacked
+ * card. These assert the structure rather than the styling: which column each
+ * fact lands in is the design, the pixel values are not.
+ */
+describe('movie card layout', () => {
+  /** The markup of the left (poster) column, up to the gutter that ends it. */
+  const leftCol = (out: string) => out.split('class="mposter"')[1]?.split('class="gut"')[0] ?? '';
+  /** The markup of the right (description) column. */
+  const rightCol = (out: string) => out.split('class="mbody"')[1] ?? '';
+
+  it('puts the poster, year, duration and rating in the left column', () => {
+    const out = html([movie()]);
+    const left = leftCol(out);
+    expect(left).toContain('2023');
+    expect(left).toMatch(/1h 48m/);
+    expect(left).toMatch(/7\.8/);
+  });
+
+  it('puts the title and description in the right column', () => {
+    const right = rightCol(html([movie()]));
+    expect(right).toContain('The Lantern Problem');
+    expect(right).toContain('A lighthouse keeper counts the ships');
+  });
+
+  it('keeps the description out of the poster column', () => {
+    // The whole point of the change: side by side, not stacked.
+    expect(leftCol(html([movie()]))).not.toContain('A lighthouse keeper');
+  });
+
+  it('gives each film a full-width row rather than a half-width grid cell', () => {
+    /*
+     * A two-column card nested in the two-up grid would leave the description
+     * ~180px — narrower than the stacked layout it replaced. Movies use
+     * full-width rows; `class="col"` is the grid cell, and no movie may sit in
+     * one.
+     */
+    expect(html([movie(), movie({ id: 'm2', title: 'Second Feature' })])).not.toContain('class="col"');
+  });
+
+  it('omits the facts line entirely when year and runtime are both absent', () => {
+    // An empty line under the poster reads as a broken card.
+    const out = html([movie({ year: null, runtime: null })]);
+    expect(out).toContain('The Lantern Problem');
+    expect(out).not.toContain('undefined');
+    expect(out).not.toContain('null');
+  });
+
+  it('collapses the two columns on a phone', () => {
+    // At 320px the description would get ~170px beside a 120px poster.
+    const out = html([movie()]);
+    expect(out).toMatch(/@media only screen and \(max-width:600px\)/);
+    expect(out).toMatch(/\.mposter\{[^}]*display:block!important/);
+    expect(out).toMatch(/\.mbody\{[^}]*width:100%!important/);
+  });
+
+  it('centres the poster once stacked', () => {
+    // A display:block image of fixed width ignores the cell's text-align.
+    expect(html([movie()])).toMatch(/margin:0 auto/);
+  });
+
+  it('allows a longer overview than the stacked card did', () => {
+    // The column is ~500px now; 140 characters was budgeted for ~300px.
+    const long = 'x'.repeat(400);
+    const out = html([movie({ overview: long })]);
+    expect(out).toContain('x'.repeat(250));
+  });
+});

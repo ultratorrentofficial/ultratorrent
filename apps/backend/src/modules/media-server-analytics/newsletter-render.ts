@@ -2,7 +2,8 @@
  * Pure newsletter content + rendering — no IO, so it is fully unit-testable.
  * Produces an original UltraTorrent dark "media digest" email: a centered
  * container, amber accents, a branded header, section headers with count
- * summaries, poster-left TV show cards, a movie poster grid, 5-star ratings,
+ * summaries, poster-left TV show cards, full-width two-column movie rows
+ * (artwork and facts left, description right), 5-star ratings,
  * metadata badges and a three-area footer. Built entirely from tables + inline
  * styles (plus a small `<style>` block for mobile) for broad email-client
  * compatibility. All user text is HTML-escaped; all labels are injected via
@@ -30,7 +31,9 @@ const C = {
 
 /**
  * Content-type groups a newsletter can cover. Episodic types render as grouped
- * Show cards (title + episode count); the rest render as a poster grid. A
+ * Show cards (title + episode count); the rest render as flat item rows. The
+ * `grid` layout key names the GROUPING — one card per item rather than per
+ * show — not the geometry, which is a full-width two-column row. A
  * newsletter can be scoped to any subset (see `contentSections`); when it
  * covers several, each becomes its own section — Tautulli-style.
  */
@@ -262,10 +265,14 @@ export function renderBadges(badges: string[]): string {
 function poster(src: { url?: string | null; cid?: string | null }, initial: string, w: number, accent: string): string {
   const h = Math.round(w * 1.5);
   const imgSrc = src.url ? escapeHtml(src.url) : src.cid ? `cid:${escapeHtml(src.cid)}` : null;
+  // `margin:0 auto` is what centres the poster once a movie card stacks on a
+  // phone: the cell gets `text-align:center`, which a `display:block` image of
+  // fixed width ignores. Inside a cell of its own width — every other use — the
+  // auto margins compute to zero and nothing moves.
   if (imgSrc) {
-    return `<img src="${imgSrc}" width="${w}" alt="" style="display:block;width:${w}px;max-width:100%;height:auto;border-radius:8px;border:1px solid ${C.divider}" />`;
+    return `<img src="${imgSrc}" width="${w}" alt="" style="display:block;width:${w}px;max-width:100%;height:auto;margin:0 auto;border-radius:8px;border:1px solid ${C.divider}" />`;
   }
-  return `<div style="width:${w}px;height:${h}px;border-radius:8px;background:${C.cardAlt};border:1px solid ${C.divider};text-align:center;line-height:${h}px;color:${accent};font:700 ${Math.round(w / 3)}px system-ui,-apple-system,sans-serif">${escapeHtml(initial.toUpperCase())}</div>`;
+  return `<div style="width:${w}px;height:${h}px;margin:0 auto;border-radius:8px;background:${C.cardAlt};border:1px solid ${C.divider};text-align:center;line-height:${h}px;color:${accent};font:700 ${Math.round(w / 3)}px system-ui,-apple-system,sans-serif">${escapeHtml(initial.toUpperCase())}</div>`;
 }
 
 function sectionHeader(icon: string, title: string, countHtml: string): string {
@@ -294,6 +301,9 @@ function countSummary(parts: { n: number; label: string }[], accent: string): st
 // cards in a row stay the same height even with different overview lengths.
 const CARD_PANEL = `background:${C.card};border:1px solid ${C.border};border-radius:12px;padding:12px`;
 
+/** Movie poster column. Fixed, so every row's text column starts on one line. */
+const MOVIE_POSTER_W = 100;
+
 /** Inner content of a TV show card (the panel is supplied by the grid cell). */
 function tvCard(show: NewsletterShow, opts: RenderOptions): string {
   const style = opts.style ?? {};
@@ -321,38 +331,50 @@ function tvCard(show: NewsletterShow, opts: RenderOptions): string {
     </tr></table>`;
 }
 
-/** Inner content of a movie card (the panel is supplied by the grid cell). */
+/**
+ * Inner content of a movie card (the panel is supplied by the row cell).
+ *
+ * Two columns per title: the **identity** on the left — poster, year, runtime,
+ * rating, the facts you scan — and the **description** on the right, which is
+ * the only part that needs to be read. Stacked top-to-bottom, as this was, a
+ * film's overview sat under a centred poster in a ~300px column and every card
+ * became a tall ragged block; side by side, the poster sets a fixed height the
+ * text fills, so a row reads as one object and a list of them scans evenly.
+ *
+ * Every toggle is honoured exactly as `tvCard` honours it — this card once
+ * rendered only poster, title, year and rating, so a film arrived with no
+ * description while an episode of a series got one from the same `metadata`
+ * row. Reported as "movie items not showing the metadata".
+ */
 function movieCard(m: NewsletterItem, opts: RenderOptions): string {
   const style = opts.style ?? {};
   const accent = style.accent ?? C.amber;
   const rt = style.showRuntime !== false ? runtimeLabel(m.runtime) : null;
   const rating = style.showRatings !== false ? renderRating(m.rating, accent) : '';
 
-  /*
-   * The same fields a show card carries.
-   *
-   * This card rendered only poster, title, year and rating, so a film arrived
-   * with no description while an episode of a series got one — from the same
-   * `metadata` row, fetched by the same query. Reported as "movie items not
-   * showing the metadata"; it was never missing data, only never rendered.
-   * Every toggle is honoured exactly as `tvCard` honours it.
-   */
-  const overview = style.showOverview !== false && m.overview ? truncate(m.overview, 140) : '';
+  // Roughly twice the old budget: the overview now owns a ~500px column of its
+  // own rather than sharing a half-width card with the poster above it.
+  const overview = style.showOverview !== false && m.overview ? truncate(m.overview, 300) : '';
   const badges: string[] = [];
   if (style.showGenres !== false && m.genres?.length) badges.push(m.genres.join(' · '));
   if (m.certification) badges.push(m.certification);
   if (style.showLibraryBadges && m.library) badges.push(m.library);
+  // Both are optional — an empty line here would read as a broken card.
+  const facts = [m.year, rt].filter(Boolean).join(' · ');
 
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-    <tr><td align="center" valign="top">${poster({ url: m.posterUrl, cid: m.posterCid }, m.title[0] ?? '?', 120, accent)}</td></tr>
-    <tr><td style="padding-top:8px;text-align:center">
-      <div style="font:700 13px system-ui,-apple-system,sans-serif;color:${C.text}">${escapeHtml(m.title)}</div>
-      <div style="font:600 11px system-ui,-apple-system,sans-serif;color:${C.muted};margin-top:2px">${[m.year, rt].filter(Boolean).join(' · ')}</div>
-      ${rating ? `<div style="margin-top:6px">${rating}</div>` : ''}
-      ${overview ? `<div style="font:400 12px/1.5 system-ui,-apple-system,sans-serif;color:${C.muted};margin-top:8px;text-align:left">${escapeHtml(overview)}</div>` : ''}
-      ${badges.length ? `<div style="margin-top:8px">${renderBadges(badges)}</div>` : ''}
-    </td></tr>
-  </table>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td class="mposter" valign="top" width="${MOVIE_POSTER_W}" style="width:${MOVIE_POSTER_W}px">
+        ${poster({ url: m.posterUrl, cid: m.posterCid }, m.title[0] ?? '?', MOVIE_POSTER_W, accent)}
+        ${facts ? `<div style="margin-top:8px;font:600 11px system-ui,-apple-system,sans-serif;color:${C.muted}">${escapeHtml(facts)}</div>` : ''}
+        ${rating ? `<div style="margin-top:6px">${rating}</div>` : ''}
+      </td>
+      <td class="gut" width="16" style="width:16px;font-size:0;line-height:0">&nbsp;</td>
+      <td class="mbody" valign="top">
+        <div style="font:700 15px system-ui,-apple-system,sans-serif;color:${C.text}">${escapeHtml(m.title)}</div>
+        ${overview ? `<div style="font:400 13px/1.6 system-ui,-apple-system,sans-serif;color:${C.muted};margin-top:6px">${escapeHtml(overview)}</div>` : ''}
+        ${badges.length ? `<div style="margin-top:10px">${renderBadges(badges)}</div>` : ''}
+      </td>
+    </tr></table>`;
 }
 
 /** Two-up grid: panel on each cell (equal height by the row model) + a gutter. */
@@ -375,8 +397,23 @@ function tvGrid(shows: NewsletterShow[], opts: RenderOptions): string {
   return twoColGrid(shows.map((s) => tvCard(s, opts)));
 }
 
-function movieGrid(movies: NewsletterItem[], opts: RenderOptions): string {
-  return twoColGrid(movies.map((m) => movieCard(m, opts)));
+/**
+ * Movies: one card per row, full width.
+ *
+ * The two-up grid is what forces the choice. A movie card is itself two
+ * columns now, and nesting that inside a half-width grid cell leaves the
+ * description about 180px — narrower than it was when stacked, so the
+ * redesign would undo itself. Full-width rows give the overview ~500px, and a
+ * single column of them scans faster than a grid regardless: the eye tracks
+ * one edge instead of two.
+ */
+function movieList(movies: NewsletterItem[], opts: RenderOptions): string {
+  const rows: string[] = [];
+  movies.forEach((m, i) => {
+    rows.push(`<tr><td valign="top" bgcolor="${C.card}" style="${CARD_PANEL}">${movieCard(m, opts)}</td></tr>`);
+    if (i + 1 < movies.length) rows.push(`<tr><td height="12" style="height:12px;font-size:0;line-height:0">&nbsp;</td></tr>`);
+  });
+  return `<tr><td style="padding:0 24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows.join('')}</table></td></tr>`;
 }
 
 function header(content: NewsletterContent, opts: RenderOptions): string {
@@ -407,11 +444,20 @@ function footer(opts: RenderOptions): string {
   </td></tr>`;
 }
 
+/*
+ * A movie card's two columns collapse on a phone. Held side by side at 320px
+ * the poster alone takes 120 of it and the description is left with ~170px —
+ * five or six words a line. Stacking is the lesser evil at that width, and
+ * only at that width: the layout the redesign is for survives everywhere the
+ * column actually fits.
+ */
 const MOBILE_STYLE = `@media only screen and (max-width:600px){
   .container{width:100%!important}
   .col{display:block!important;width:100%!important;box-sizing:border-box!important;margin-bottom:12px!important}
   .gut{display:none!important}
   .fcol{display:block!important;width:100%!important;text-align:center!important;padding:6px 0!important}
+  .mposter{display:block!important;width:100%!important;text-align:center!important;padding:0 0 12px 0!important}
+  .mbody{display:block!important;width:100%!important}
 }`;
 
 const SECTION_ICON: Record<string, string> = { tv: '📺', movie: '🎬', music: '🎵', documentary: '🎥', other: '📦' };
@@ -426,7 +472,7 @@ export function renderHtml(content: NewsletterContent, opts: RenderOptions): str
     const summary = countSummary(section.count.map((c) => ({ n: c.n, label: s[c.labelKey] })), accent);
     sections.push(sectionHeader(SECTION_ICON[section.key] ?? '📦', s[section.titleKey], summary));
     if (section.layout === 'shows') sections.push(tvGrid(section.shows.slice(0, cap), opts));
-    else sections.push(movieGrid(section.movies.slice(0, cap), opts));
+    else sections.push(movieList(section.movies.slice(0, cap), opts));
   }
   const empty = `<tr><td style="padding:40px 24px;text-align:center;font:400 14px system-ui,-apple-system,sans-serif;color:${C.muted}">${escapeHtml(s.empty)}</td></tr>`;
 
