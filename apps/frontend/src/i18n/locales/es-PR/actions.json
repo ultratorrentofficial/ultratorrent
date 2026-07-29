@@ -44,7 +44,11 @@
         "unlock": "Desbloquear",
         "move": "Mover a biblioteca…",
         "remove": "Quitar de la biblioteca",
-        "deleteFiles": "Borrar archivos…"
+        "deleteFiles": "Borrar archivos…",
+        "rename": "Renombrar…"
+      },
+      "cleanup": {
+        "runItems": "Ejecutar política de limpieza…"
       }
     },
     "jobs": {
@@ -97,7 +101,8 @@
     "label": "Más acciones"
   },
   "confirm": {
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "close": "Cerrar"
   },
   "move": {
     "title": "Mover a otra biblioteca",
@@ -119,5 +124,29 @@
     "typeCount_one": "Escribe 1 para confirmar",
     "typeCount_other": "Escribe {{count}} para confirmar",
     "filesSubmit": "Borrar archivos"
+  },
+  "contextMenu": {
+    "label": "Acciones del elemento"
+  },
+  "rename": {
+    "title": "Renombrar",
+    "body": "Renombra “{{title}}” usando la plantilla de esta biblioteca.",
+    "loading": "Construyendo el plan…",
+    "previewFailed": "No se pudo construir un plan de renombrado.",
+    "noChanges": "Ya coincide con la plantilla — nada que renombrar.",
+    "submit": "Aplicar renombrado"
+  },
+  "cleanup": {
+    "title": "Ejecutar política de limpieza",
+    "body_one": "Evalúa 1 elemento contra una política de limpieza.",
+    "body_other": "Evalúa {{count}} elementos contra una política de limpieza.",
+    "policy": "Política",
+    "choose": "Elige una política…",
+    "submit": "Ejecutar",
+    "noPolicies": "No hay ninguna política publicada disponible.",
+    "managePolicies": "Administrar políticas",
+    "result": "{{matched}} candidato(s) de {{evaluated}} elemento(s) evaluados.",
+    "resultNote": "No se eliminó nada — los candidatos aún pasan por un plan y aprobación.",
+    "viewRuns": "Ver ejecuciones de limpieza"
   }
 }

@@ -54,6 +54,16 @@ export function LibraryBrowserPage() {
   const showTitle = params.get('showTitle') ?? '';
   const [mode, setMode] = useState<ViewMode>(() => readViewMode(libraryId));
   const [selection, setSelection] = useState<SelectionState>(EMPTY_SELECTION);
+  /*
+   * The open right-click menu. Held here rather than in the cell so only one can
+   * be open, and so the selection is reconciled before the menu resolves its
+   * actions — the menu asks the server what applies to a selection, and that
+   * question has to be asked about the final one.
+   */
+  const [contextMenu, setContextMenu] = useState<{
+    anchor: { x: number; y: number };
+    item: { id: string; title: string; path: string };
+  } | null>(null);
   const [filters, setFilters] = useState<BrowserFilters>(EMPTY_FILTERS);
 
   // Re-read on library change: the preference is per library, so switching
@@ -251,8 +261,11 @@ export function LibraryBrowserPage() {
       {!browsesByShow && (
         <ContextActionBar
           libraryId={library.id}
+          library={library}
           selectedIds={[...selection.ids]}
           onClear={() => setSelection(clearSelection())}
+          contextMenu={contextMenu}
+          onCloseContextMenu={() => setContextMenu(null)}
         />
       )}
 
@@ -287,6 +300,22 @@ export function LibraryBrowserPage() {
                     setSelection((s) => applyClick(s, row.id, selectableIds, mods))
                   }
                   onOpen={() => navigate(`/media/items/${row.id}`)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    /*
+                     * Explorer semantics: right-clicking a tile that is not part
+                     * of the selection makes it the selection; right-clicking
+                     * inside an existing one leaves it alone, so a menu opened
+                     * over 30 marked films still acts on all 30.
+                     */
+                    if (!selection.ids.has(row.id)) {
+                      setSelection(applyClick(EMPTY_SELECTION, row.id, selectableIds, {}));
+                    }
+                    setContextMenu({
+                      anchor: { x: e.clientX, y: e.clientY },
+                      item: { id: row.id, title: row.title, path: row.path },
+                    });
+                  }}
                 />
               )
             }
@@ -369,18 +398,20 @@ function ShowCell({ show, mode, onOpen }: {
   );
 }
 
-function ItemCell({ item, mode, selected, onSelect, onOpen }: {
+function ItemCell({ item, mode, selected, onSelect, onOpen, onContextMenu }: {
   item: MediaItem;
   mode: ViewMode;
   selected: boolean;
   onSelect: (mods: { shift?: boolean; meta?: boolean }) => void;
   onOpen: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
 }) {
   const listish = mode === 'list' || mode === 'table';
   return (
     <button
       type="button"
       aria-pressed={selected}
+      onContextMenu={onContextMenu}
       onClick={(e) => {
         // A modified click selects; a plain click opens. Selecting on every
         // click would make the grid unnavigable.

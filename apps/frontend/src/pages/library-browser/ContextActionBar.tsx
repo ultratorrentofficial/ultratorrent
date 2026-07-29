@@ -2,12 +2,15 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { EntityRef } from '@ultratorrent/shared';
-import { api } from '@/lib/api';
+import { api, type MediaLibrary } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { ActionBar, type ActionHandler } from '@/actions/ActionBar';
 import { useContextActions } from '@/actions/useContextActions';
 import { useJobRefresh } from './useJobRefresh';
+import { CleanupItemDialog } from './CleanupItemDialog';
 import { ConfirmDeleteDialog, type DeleteMode } from './ConfirmDeleteDialog';
+import { ItemContextMenu, type ContextMenuAnchor } from './ItemContextMenu';
+import { RenameItemDialog } from './RenameItemDialog';
 import { MoveToLibraryDialog } from './MoveToLibraryDialog';
 
 type BulkOp = 'metadata' | 'lock' | 'unlock' | 'nfo' | 'remove' | 'delete-files';
@@ -27,14 +30,26 @@ type BulkOp = 'metadata' | 'lock' | 'unlock' | 'nfo' | 'remove' | 'delete-files'
  */
 export function ContextActionBar({
   libraryId,
+  library,
   selectedIds,
   onClear,
   operationsMode = false,
+  contextMenu,
+  onCloseContextMenu,
 }: {
   libraryId: string;
+  /** The open library, for rename settings. Null while it loads. */
+  library?: MediaLibrary | null;
   selectedIds: readonly string[];
   onClear: () => void;
   operationsMode?: boolean;
+  /**
+   * An open right-click menu: where it was opened and what it applies to. The
+   * PAGE owns this, because only the grid knows which tile was clicked and
+   * whether it was already part of the selection.
+   */
+  contextMenu?: { anchor: ContextMenuAnchor; item: { id: string; title: string; path: string } } | null;
+  onCloseContextMenu?: () => void;
 }) {
   const { t } = useTranslation('actions');
   const toast = useToast();
@@ -61,6 +76,8 @@ export function ContextActionBar({
    */
   const [confirmMode, setConfirmMode] = useState<DeleteMode | null>(null);
   const [movingOpen, setMovingOpen] = useState(false);
+  const [renaming, setRenaming] = useState<{ id: string; title: string; path: string } | null>(null);
+  const [cleaningIds, setCleaningIds] = useState<string[] | null>(null);
   /*
    * Detached operations finish long after their request returns, so the grid is
    * refreshed on the job's completion event rather than on the response — see
@@ -126,10 +143,20 @@ export function ContextActionBar({
       'media.item.unlock': (sel) => bulk.mutate({ op: 'unlock', ids: idsOf(sel) }),
       // These two ask before they act; the dialog owns the mutation call.
       'media.item.move': () => setMovingOpen(true),
+      /*
+       * Rename is arity 'one', so the resolver guarantees a single entity — but
+       * only the right-click path carries its path, so it falls back to the
+       * context target rather than guessing from an id.
+       */
+      'media.item.rename': (sel) => {
+        const target = contextMenu?.item ?? null;
+        if (target && (sel.length !== 1 || sel[0].id === target.id)) setRenaming(target);
+      },
+      'media.cleanup.runItems': (sel) => setCleaningIds(idsOf(sel)),
       'media.item.remove': () => setConfirmMode('remove'),
       'media.item.deleteFiles': () => setConfirmMode('files'),
     }),
-    [bulk, scan],
+    [bulk, scan, contextMenu],
   );
 
   return (
@@ -154,6 +181,40 @@ export function ContextActionBar({
           bulk.mutate({ op: confirmMode === 'files' ? 'delete-files' : 'remove', ids: [...selectedIds] });
           setConfirmMode(null);
         }}
+      />
+      {contextMenu && onCloseContextMenu && (
+        <ItemContextMenu
+          anchor={contextMenu.anchor}
+          /*
+           * Right-clicking a tile inside an existing multi-selection acts on the
+           * whole selection; right-clicking outside it acts on that one item.
+           * The page has already reconciled the selection, so trusting it here
+           * keeps one rule in one place.
+           */
+          selection={
+            selectedIds.includes(contextMenu.item.id) && selectedIds.length > 1
+              ? selection
+              : [{ type: 'media_item', id: contextMenu.item.id }]
+          }
+          handlers={handlers}
+          onClose={onCloseContextMenu}
+        />
+      )}
+      <RenameItemDialog
+        open={renaming !== null}
+        item={renaming}
+        library={library ?? null}
+        onClose={() => setRenaming(null)}
+        onApplied={() => {
+          toast.success(t('result.applied', { count: 1 }));
+          qc.invalidateQueries({ queryKey: ['library-browser'] });
+        }}
+      />
+      <CleanupItemDialog
+        open={cleaningIds !== null}
+        count={cleaningIds?.length ?? 0}
+        itemIds={cleaningIds ?? []}
+        onClose={() => setCleaningIds(null)}
       />
       <MoveToLibraryDialog
         open={movingOpen}

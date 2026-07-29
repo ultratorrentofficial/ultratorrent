@@ -46,6 +46,17 @@ interface RunOptions {
   trigger: string;
   userId?: string;
   limit?: number;
+  /**
+   * Narrow the run to these items, on top of the policy's own scope.
+   *
+   * A policy normally sweeps whole libraries. Running one against a single item
+   * — "clean up this film" from the Library Browser — is the same evaluation
+   * over a smaller set, NOT a different code path: the same conditions, the
+   * same mandatory exclusion pass, the same reason snapshot. Persisted on the
+   * run so a one-file sweep in the history reads as deliberate rather than as a
+   * policy that suddenly matched almost nothing.
+   */
+  itemIds?: string[];
 }
 
 /**
@@ -97,6 +108,7 @@ export class CandidateDiscoveryService {
         trigger: opts.trigger,
         status: 'queued',
         simulate: opts.simulate,
+        scopeItemIds: opts.itemIds?.length ? (opts.itemIds as object) : undefined,
         createdById: opts.userId ?? null,
       },
     });
@@ -157,7 +169,7 @@ export class CandidateDiscoveryService {
       measured: usesMeasured(document.conditions),
       playback: factKeys.some((k) => k.startsWith('playback.')),
     };
-    const where = this.scopeWhere(document);
+    const where = this.scopeWhere(document, run.scopeItemIds as string[] | null);
 
     let scanned = 0, evaluated = 0, matched = 0, excluded = 0, eligible = 0;
     let estimatedBytes = 0n;
@@ -455,11 +467,21 @@ export class CandidateDiscoveryService {
     };
   }
 
-  private scopeWhere(document: CleanupPolicyDocument): Record<string, unknown> {
+  private scopeWhere(
+    document: CleanupPolicyDocument,
+    itemIds?: string[] | null,
+  ): Record<string, unknown> {
     const where: Record<string, unknown> = {};
     const scope = document.scope ?? {};
     if (scope.libraryIds?.length) where.libraryId = { in: scope.libraryIds };
     if (scope.libraryKinds?.length) where.library = { kind: { in: scope.libraryKinds } };
+    /*
+     * Intersected with the policy's scope, never substituted for it. An item
+     * outside the policy's libraries must still be out of the run — otherwise
+     * right-clicking would quietly widen a policy past what it was published
+     * to cover.
+     */
+    if (itemIds?.length) where.id = { in: itemIds };
     return where;
   }
 

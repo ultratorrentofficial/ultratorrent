@@ -4801,6 +4801,16 @@ export const api = {
     listPolicies(query: CleanupPolicyQuery = {}): Promise<Paginated<CleanupPolicy>> {
       return request<Paginated<CleanupPolicy>>('/media/cleanup/policies', { query: query as QueryParams });
     },
+    /**
+     * Run a published policy against specific items only — the Library
+     * Browser's per-item cleanup. Intersected server-side with the policy's own
+     * scope, so it cannot reach media the policy does not cover.
+     */
+    runPolicyOnItems(id: string, itemIds: string[]): Promise<CleanupRun> {
+      return request<CleanupRun>(`/media/cleanup/policies/${id}/run-items`, {
+        method: 'POST', body: { itemIds },
+      });
+    },
     getPolicy(id: string): Promise<CleanupPolicyDetail> {
       return request<CleanupPolicyDetail>(`/media/cleanup/policies/${id}`);
     },

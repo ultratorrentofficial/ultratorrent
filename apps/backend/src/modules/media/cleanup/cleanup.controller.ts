@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -150,6 +150,32 @@ export class CleanupController {
   async run(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const run = await this.discovery.startRun(id, { simulate: false, trigger: 'manual', userId: user.id });
     // Discovery is read-only, so it is safe to await; execution (Phase 8) will not be.
+    await this.discovery.executeRun(run.id);
+    return this.discovery.getRun(run.id);
+  }
+
+  /**
+   * A real run narrowed to specific items — "clean up this film" from the
+   * Library Browser.
+   *
+   * Deliberately the same discovery path as a library-wide run, only over a
+   * smaller set: same conditions, same mandatory exclusion pass, same reason
+   * snapshot. The item ids are **intersected** with the policy's own scope, so
+   * this cannot reach media the policy was not published to cover. Like the
+   * sweep above it produces candidates and removes nothing.
+   */
+  @Post('policies/:id/run-items')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_RUN)
+  async runItems(
+    @Param('id') id: string,
+    @Body() body: { itemIds?: string[] },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const itemIds = [...new Set((body?.itemIds ?? []).filter((v) => typeof v === 'string' && v))];
+    if (!itemIds.length) throw new BadRequestException('No items selected.');
+    const run = await this.discovery.startRun(id, {
+      simulate: false, trigger: 'manual', userId: user.id, itemIds,
+    });
     await this.discovery.executeRun(run.id);
     return this.discovery.getRun(run.id);
   }

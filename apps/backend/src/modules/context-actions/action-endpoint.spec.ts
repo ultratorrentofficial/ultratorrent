@@ -22,6 +22,7 @@
 import 'reflect-metadata';
 import { PERMISSIONS_KEY } from '../../common/decorators/permissions.decorator';
 import { MediaController } from '../media/media.controller';
+import { CleanupController } from '../media/cleanup/cleanup.controller';
 import { PlatformJobsController } from '../jobs/platform-jobs.controller';
 import { TorrentsController } from '../torrents/torrents.controller';
 import { FilesController } from '../files/files.controller';
@@ -50,9 +51,12 @@ const ROUTES: Record<string, Array<[Ctor, string]>> = {
   'media.nfo.generate': [[MediaController, 'bulkNfo']],
   'media.item.lock': [[MediaController, 'bulkLock']],
   'media.item.unlock': [[MediaController, 'bulkUnlock']],
+  'media.item.rename': [[MediaController, 'apply']],
   'media.item.move': [[MediaController, 'bulkMove']],
   'media.item.remove': [[MediaController, 'bulkRemove']],
   'media.item.deleteFiles': [[MediaController, 'bulkDeleteFiles']],
+
+  'media.cleanup.runItems': [[CleanupController, 'runItems']],
 
   // --- duplicates --------------------------------------------------------
   'duplicates.detect': [[MediaController, 'detectDuplicates']],

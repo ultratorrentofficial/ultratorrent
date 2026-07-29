@@ -44,7 +44,11 @@
         "unlock": "Unlock",
         "move": "Move to library…",
         "remove": "Remove from library",
-        "deleteFiles": "Delete files…"
+        "deleteFiles": "Delete files…",
+        "rename": "Rename…"
+      },
+      "cleanup": {
+        "runItems": "Run cleanup policy…"
       }
     },
     "jobs": {
@@ -97,7 +101,8 @@
     "label": "More actions"
   },
   "confirm": {
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "move": {
     "title": "Move to another library",
@@ -119,5 +124,29 @@
     "typeCount_one": "Type 1 to confirm",
     "typeCount_other": "Type {{count}} to confirm",
     "filesSubmit": "Delete files"
+  },
+  "contextMenu": {
+    "label": "Item actions"
+  },
+  "rename": {
+    "title": "Rename",
+    "body": "Rename “{{title}}” using this library’s naming template.",
+    "loading": "Building the plan…",
+    "previewFailed": "Could not build a rename plan.",
+    "noChanges": "Already matches the template — nothing to rename.",
+    "submit": "Apply rename"
+  },
+  "cleanup": {
+    "title": "Run cleanup policy",
+    "body_one": "Evaluate 1 item against a cleanup policy.",
+    "body_other": "Evaluate {{count}} items against a cleanup policy.",
+    "policy": "Policy",
+    "choose": "Choose a policy…",
+    "submit": "Run",
+    "noPolicies": "No published policy is available to run.",
+    "managePolicies": "Manage policies",
+    "result": "{{matched}} candidate(s) from {{evaluated}} item(s) evaluated.",
+    "resultNote": "Nothing was removed — candidates still go through a plan and approval.",
+    "viewRuns": "View cleanup runs"
   }
 }

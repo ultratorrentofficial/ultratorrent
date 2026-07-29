@@ -2748,6 +2748,10 @@ model MediaCleanupRun {
   actualReclaimBytes    BigInt    @default(0)
   /// Per-exclusion-reason counts for the simulation summary.
   exclusionBreakdown    Json?
+  /// Item ids this run was narrowed to, on top of the policy's own scope. Null
+  /// for an ordinary library-wide sweep. Recorded so a run that evaluated one
+  /// file reads as deliberate rather than as a policy that stopped matching.
+  scopeItemIds          Json?
   errorSummary          String?
   createdById           String?
   startedAt             DateTime?
