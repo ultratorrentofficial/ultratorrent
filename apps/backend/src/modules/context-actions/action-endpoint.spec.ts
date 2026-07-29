@@ -50,6 +50,9 @@ const ROUTES: Record<string, Array<[Ctor, string]>> = {
   'media.nfo.generate': [[MediaController, 'bulkNfo']],
   'media.item.lock': [[MediaController, 'bulkLock']],
   'media.item.unlock': [[MediaController, 'bulkUnlock']],
+  'media.item.move': [[MediaController, 'bulkMove']],
+  'media.item.remove': [[MediaController, 'bulkRemove']],
+  'media.item.deleteFiles': [[MediaController, 'bulkDeleteFiles']],
 
   // --- duplicates --------------------------------------------------------
   'duplicates.detect': [[MediaController, 'detectDuplicates']],

@@ -119,7 +119,13 @@ export type ActionGroup =
   | 'analytics'
   | 'maintenance'
   | 'export'
-  | 'administration';
+  | 'administration'
+  /**
+   * Irreversible operations — erasing media, not merely unlisting it. Last in
+   * the order and its own group so a destructive button is never adjacent to
+   * the routine one it resembles.
+   */
+  | 'destructive';
 
 /** Display order for groups, so every surface presents them identically. */
 export const ACTION_GROUP_ORDER: readonly ActionGroup[] = [
@@ -134,6 +140,7 @@ export const ACTION_GROUP_ORDER: readonly ActionGroup[] = [
   'maintenance',
   'export',
   'administration',
+  'destructive',
 ] as const;
 
 /**

@@ -84,6 +84,52 @@ export const MEDIA_ACTIONS: ActionDescriptor[] = [
     maxSelection: MAX_BULK_IDS,
     order: 40,
   },
+  {
+    /*
+     * Move to another library. The files follow the rows — see
+     * `MediaBulkService.moveToLibrary` for why a reassignment that left the
+     * media under the old root would simply be re-imported on the next scan.
+     */
+    id: 'media.item.move',
+    group: 'media',
+    entityTypes: ['media_item'],
+    arity: 'any',
+    permissions: [P.MEDIA_MANAGER_MOVE_FILES],
+    module: 'media_manager',
+    icon: 'FolderInput',
+    maxSelection: MAX_BULK_IDS,
+    order: 50,
+  },
+  {
+    /*
+     * The two deletes are separate actions, not one action with a checkbox.
+     * They differ in permission, in reversibility and in what they mean, and a
+     * mis-click between them is the difference between a tidy-up and lost
+     * media. `whenUnavailable: 'hide'` on the destructive one so an operator
+     * without the grant never sees an erase button at all.
+     */
+    id: 'media.item.remove',
+    group: 'destructive',
+    entityTypes: ['media_item'],
+    arity: 'any',
+    permissions: [P.MEDIA_MANAGER_DELETE],
+    module: 'media_manager',
+    icon: 'ListX',
+    maxSelection: MAX_BULK_IDS,
+    order: 60,
+  },
+  {
+    id: 'media.item.deleteFiles',
+    group: 'destructive',
+    entityTypes: ['media_item'],
+    arity: 'any',
+    permissions: [P.MEDIA_MANAGER_DELETE_FILES],
+    module: 'media_manager',
+    icon: 'Trash2',
+    maxSelection: MAX_BULK_IDS,
+    whenUnavailable: 'hide',
+    order: 70,
+  },
 ];
 
 /*

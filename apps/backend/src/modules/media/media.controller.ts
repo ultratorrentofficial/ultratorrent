@@ -409,6 +409,37 @@ export class MediaController {
     return this.bulk.setLocked(body?.itemIds ?? [], false, auditCtx(req));
   }
 
+  /**
+   * Drop the library rows; the files stay on disk. The reversible half of
+   * "delete" — see `media-bulk.service.ts` for why it is a separate route from
+   * the one below rather than a flag on it.
+   */
+  @Post('items/bulk/remove')
+  @RequirePermissions(P.MEDIA_MANAGER_DELETE)
+  bulkRemove(@Body() body: { itemIds?: string[] }, @Req() req: Request) {
+    return this.bulk.removeFromLibrary(body?.itemIds ?? [], auditCtx(req));
+  }
+
+  /**
+   * Erase the media from disk, then drop the rows. Irreversible, so it demands
+   * `delete_files` — a grant that lets someone tidy the library must not also
+   * let them destroy the media, which is exactly the escalation a single
+   * `media_manager.delete` on both routes would create.
+   */
+  @Post('items/bulk/delete-files')
+  @RequirePermissions(P.MEDIA_MANAGER_DELETE_FILES)
+  bulkDeleteFiles(@Body() body: { itemIds?: string[] }, @Req() req: Request) {
+    return this.bulk.deleteFiles(body?.itemIds ?? [], auditCtx(req));
+  }
+
+  /** Reassign a selection to another library, moving its files under that root. */
+  @Post('items/bulk/move')
+  @RequirePermissions(P.MEDIA_MANAGER_MOVE_FILES)
+  bulkMove(@Body() body: { itemIds?: string[]; targetLibraryId?: string }, @Req() req: Request) {
+    if (!body?.targetLibraryId) throw new BadRequestException('targetLibraryId is required.');
+    return this.bulk.moveToLibrary(body?.itemIds ?? [], body.targetLibraryId, auditCtx(req));
+  }
+
   @Post('items/bulk/nfo')
   @RequirePermissions(P.MEDIA_MANAGER_GENERATE_NFO)
   bulkNfo(@Body() body: { itemIds?: string[] }, @Req() req: Request) {

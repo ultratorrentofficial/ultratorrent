@@ -21,7 +21,8 @@
     "analytics": "Analíticas",
     "maintenance": "Mantenimiento",
     "export": "Exportar",
-    "administration": "Administración"
+    "administration": "Administración",
+    "destructive": "Eliminar"
   },
   "reason": {
     "maxSelection": "Demasiados elementos seleccionados para esta acción.",
@@ -40,7 +41,10 @@
       },
       "item": {
         "lock": "Bloquear",
-        "unlock": "Desbloquear"
+        "unlock": "Desbloquear",
+        "move": "Mover a biblioteca…",
+        "remove": "Quitar de la biblioteca",
+        "deleteFiles": "Borrar archivos…"
       }
     },
     "jobs": {
@@ -91,5 +95,29 @@
   },
   "menu": {
     "label": "Más acciones"
+  },
+  "confirm": {
+    "cancel": "Cancelar"
+  },
+  "move": {
+    "title": "Mover a otra biblioteca",
+    "body_one": "Mueve 1 elemento, y su archivo, a otra biblioteca.",
+    "body_other": "Mueve {{count}} elementos, y sus archivos, a otra biblioteca.",
+    "destination": "Biblioteca de destino",
+    "choose": "Elige una biblioteca…",
+    "submit": "Mover",
+    "noTargets": "No hay otra biblioteca a la cual mover estos elementos."
+  },
+  "delete": {
+    "removeTitle": "Quitar de la biblioteca",
+    "removeBody_one": "Quita 1 elemento de la biblioteca. El archivo permanece en el disco, así que un reescaneo lo traerá de vuelta.",
+    "removeBody_other": "Quita {{count}} elementos de la biblioteca. Los archivos permanecen en el disco, así que un reescaneo los traerá de vuelta.",
+    "removeSubmit": "Quitar",
+    "filesTitle": "Borrar archivos del disco",
+    "filesBody_one": "Borra permanentemente 1 elemento y su contenido del disco. Esto no se puede deshacer.",
+    "filesBody_other": "Borra permanentemente {{count}} elementos y su contenido del disco. Esto no se puede deshacer.",
+    "typeCount_one": "Escribe 1 para confirmar",
+    "typeCount_other": "Escribe {{count}} para confirmar",
+    "filesSubmit": "Borrar archivos"
   }
 }

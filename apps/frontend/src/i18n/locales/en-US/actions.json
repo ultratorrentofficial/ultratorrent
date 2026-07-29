@@ -21,7 +21,8 @@
     "analytics": "Analytics",
     "maintenance": "Maintenance",
     "export": "Export",
-    "administration": "Administration"
+    "administration": "Administration",
+    "destructive": "Delete"
   },
   "reason": {
     "maxSelection": "Too many items selected for this action.",
@@ -40,7 +41,10 @@
       },
       "item": {
         "lock": "Lock",
-        "unlock": "Unlock"
+        "unlock": "Unlock",
+        "move": "Move to library…",
+        "remove": "Remove from library",
+        "deleteFiles": "Delete files…"
       }
     },
     "jobs": {
@@ -91,5 +95,29 @@
   },
   "menu": {
     "label": "More actions"
+  },
+  "confirm": {
+    "cancel": "Cancel"
+  },
+  "move": {
+    "title": "Move to another library",
+    "body_one": "Move 1 item, and its files, into another library.",
+    "body_other": "Move {{count}} items, and their files, into another library.",
+    "destination": "Destination library",
+    "choose": "Choose a library…",
+    "submit": "Move",
+    "noTargets": "There is no other library to move these into."
+  },
+  "delete": {
+    "removeTitle": "Remove from library",
+    "removeBody_one": "Remove 1 item from the library. The file stays on disk, so a rescan will bring it back.",
+    "removeBody_other": "Remove {{count}} items from the library. The files stay on disk, so a rescan will bring them back.",
+    "removeSubmit": "Remove",
+    "filesTitle": "Delete files from disk",
+    "filesBody_one": "Permanently delete 1 item and its media from disk. This cannot be undone.",
+    "filesBody_other": "Permanently delete {{count}} items and their media from disk. This cannot be undone.",
+    "typeCount_one": "Type 1 to confirm",
+    "typeCount_other": "Type {{count}} to confirm",
+    "filesSubmit": "Delete files"
   }
 }

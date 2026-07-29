@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { EntityRef } from '@ultratorrent/shared';
@@ -6,8 +6,10 @@ import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { ActionBar, type ActionHandler } from '@/actions/ActionBar';
 import { useContextActions } from '@/actions/useContextActions';
+import { ConfirmDeleteDialog, type DeleteMode } from './ConfirmDeleteDialog';
+import { MoveToLibraryDialog } from './MoveToLibraryDialog';
 
-type BulkOp = 'metadata' | 'lock' | 'unlock' | 'nfo';
+type BulkOp = 'metadata' | 'lock' | 'unlock' | 'nfo' | 'remove' | 'delete-files';
 
 /**
  * The Library Browser's action surface — now a projection of the CAMA registry.
@@ -51,9 +53,17 @@ export function ContextActionBar({
 
   const { groups, isLoading, isError } = useContextActions({ selection, operationsMode });
 
+  /*
+   * Destructive and destination-taking actions open a dialog instead of firing.
+   * The handler map's job is to START the action; for these two, starting it
+   * means asking a question first.
+   */
+  const [confirmMode, setConfirmMode] = useState<DeleteMode | null>(null);
+  const [movingOpen, setMovingOpen] = useState(false);
+
   const bulk = useMutation({
     mutationFn: ({ op, ids }: { op: BulkOp; ids: string[] }) => api.media.bulkItems(op, ids),
-    onSuccess: (result, { op }) => {
+    onSuccess: (result) => {
       // A job id means the work is still running — saying "done" would be false.
       toast.success(
         result.jobId
@@ -63,9 +73,9 @@ export function ContextActionBar({
       // Ids that resolved to nothing are surfaced, never swallowed: acting on
       // fewer items than were selected must not look like success.
       if (result.missing.length) toast.error(t('result.missing', { count: result.missing.length }));
-      if (op === 'lock' || op === 'unlock') {
-        qc.invalidateQueries({ queryKey: ['library-browser'] });
-      }
+      // Anything that changes what the grid should show has to invalidate it —
+      // a removed item that stays on screen reads as a failed delete.
+      qc.invalidateQueries({ queryKey: ['library-browser'] });
       onClear();
     },
     onError: (e: Error) => toast.error(e?.message || t('result.failed')),
@@ -74,6 +84,19 @@ export function ContextActionBar({
   const scan = useMutation({
     mutationFn: () => api.media.scanLibrary(libraryId),
     onSuccess: () => toast.success(t('result.queued', { count: 1 })),
+    onError: (e: Error) => toast.error(e?.message || t('result.failed')),
+  });
+
+  const move = useMutation({
+    mutationFn: ({ ids, targetLibraryId }: { ids: string[]; targetLibraryId: string }) =>
+      api.media.bulkMoveItems(ids, targetLibraryId),
+    onSuccess: (result) => {
+      toast.success(t('result.queued', { count: result.accepted }));
+      if (result.missing.length) toast.error(t('result.missing', { count: result.missing.length }));
+      qc.invalidateQueries({ queryKey: ['library-browser'] });
+      setMovingOpen(false);
+      onClear();
+    },
     onError: (e: Error) => toast.error(e?.message || t('result.failed')),
   });
 
@@ -92,21 +115,46 @@ export function ContextActionBar({
       'media.nfo.generate': (sel) => bulk.mutate({ op: 'nfo', ids: idsOf(sel) }),
       'media.item.lock': (sel) => bulk.mutate({ op: 'lock', ids: idsOf(sel) }),
       'media.item.unlock': (sel) => bulk.mutate({ op: 'unlock', ids: idsOf(sel) }),
+      // These two ask before they act; the dialog owns the mutation call.
+      'media.item.move': () => setMovingOpen(true),
+      'media.item.remove': () => setConfirmMode('remove'),
+      'media.item.deleteFiles': () => setConfirmMode('files'),
     }),
     [bulk, scan],
   );
 
   return (
-    <ActionBar
-      groups={groups}
-      selection={selection}
-      handlers={handlers}
-      onClear={onClear}
-      busy={bulk.isPending || scan.isPending}
-      isLoading={isLoading}
-      isError={isError}
-      primaryGroups={['metadata', 'maintenance']}
-    />
+    <>
+      <ActionBar
+        groups={groups}
+        selection={selection}
+        handlers={handlers}
+        onClear={onClear}
+        busy={bulk.isPending || scan.isPending || move.isPending}
+        isLoading={isLoading}
+        isError={isError}
+        primaryGroups={['metadata', 'maintenance']}
+      />
+      <ConfirmDeleteDialog
+        open={confirmMode !== null}
+        mode={confirmMode ?? 'remove'}
+        count={selectedIds.length}
+        busy={bulk.isPending}
+        onClose={() => setConfirmMode(null)}
+        onConfirm={() => {
+          bulk.mutate({ op: confirmMode === 'files' ? 'delete-files' : 'remove', ids: [...selectedIds] });
+          setConfirmMode(null);
+        }}
+      />
+      <MoveToLibraryDialog
+        open={movingOpen}
+        count={selectedIds.length}
+        currentLibraryId={libraryId}
+        busy={move.isPending}
+        onClose={() => setMovingOpen(false)}
+        onConfirm={(targetLibraryId) => move.mutate({ ids: [...selectedIds], targetLibraryId })}
+      />
+    </>
   );
 }
 

@@ -1,5 +1,5 @@
 import { WS_EVENTS } from '@ultratorrent/shared';
-import { MediaProcessingQueueService, JobCancelledError } from './media-processing-queue.service';
+import { MediaProcessingQueueService, JobCancelledError, MEDIA_JOB_TYPES } from './media-processing-queue.service';
 import type { JobExecutionContext } from '../jobs/platform/job.types';
 
 function build(updateManyResult = { count: 0 }) {
@@ -52,7 +52,9 @@ describe('MediaProcessingQueueService.onModuleInit', () => {
   it('registers a platform definition per media job type and reconciles legacy rows', async () => {
     const { svc, prisma, registry } = build({ count: 30 });
     await svc.onModuleInit();
-    expect(registry.register).toHaveBeenCalledTimes(10); // one per MediaJobType
+    // Derived, not restated: adding a job type should not fail this test, but
+    // failing to REGISTER one should.
+    expect(registry.register).toHaveBeenCalledTimes(MEDIA_JOB_TYPES.length);
     expect(registry.register.mock.calls[0][0].type).toMatch(/^media\./);
     expect(prisma.mediaProcessingJob.updateMany).toHaveBeenCalledWith({
       where: { status: { in: ['queued', 'running'] } },

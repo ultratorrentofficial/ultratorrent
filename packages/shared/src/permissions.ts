@@ -139,7 +139,15 @@ export const PERMISSIONS = {
   MEDIA_MANAGER_MOVE_FILES: 'media_manager.move_files',
   MEDIA_MANAGER_GENERATE_NFO: 'media_manager.generate_nfo',
   MEDIA_MANAGER_MANAGE_INTEGRATIONS: 'media_manager.manage_integrations',
+  /** Drop library rows. The files are untouched, so a rescan undoes it. */
   MEDIA_MANAGER_DELETE: 'media_manager.delete',
+  /**
+   * Erase media from disk. Strictly stronger than `delete` and separate from
+   * it for the same reason `torrents.delete_data` is separate from
+   * `torrents.delete`: tidying a library and destroying media are different
+   * privileges, and one route guarding both makes the weaker grant a superset.
+   */
+  MEDIA_MANAGER_DELETE_FILES: 'media_manager.delete_files',
   MEDIA_MANAGER_EXPORT: 'media_manager.export',
   MEDIA_MANAGER_ADMIN: 'media_manager.admin',
 

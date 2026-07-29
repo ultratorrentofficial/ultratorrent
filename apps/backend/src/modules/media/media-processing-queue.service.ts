@@ -22,7 +22,9 @@ export type MediaJobType =
   | 'library_organize'
   | 'nfo_generate'
   | 'media_server_refresh'
-  | 'duplicate_detect';
+  | 'duplicate_detect'
+  | 'media_delete_files'
+  | 'media_move';
 
 export interface CreateJobOptions {
   libraryId?: string | null;
@@ -52,9 +54,11 @@ export interface JobSignal {
   throwIfCancelled(): void;
 }
 
-const MEDIA_JOB_TYPES: MediaJobType[] = [
+/** Every media job type, exported so callers and tests derive it rather than restate it. */
+export const MEDIA_JOB_TYPES: MediaJobType[] = [
   'library_scan', 'media_identification', 'metadata_fetch', 'artwork_fetch', 'subtitle_scan',
   'rename_execute', 'library_organize', 'nfo_generate', 'media_server_refresh', 'duplicate_detect',
+  'media_delete_files', 'media_move',
 ];
 
 /**

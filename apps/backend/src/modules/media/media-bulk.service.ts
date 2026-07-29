@@ -1,3 +1,5 @@
+import { copyFile, mkdir, rename, unlink } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -15,7 +17,35 @@ import { MediaProcessingQueueService } from './media-processing-queue.service';
  */
 export const MAX_BULK_IDS = 1000;
 
-export type BulkOperation = 'refresh_metadata' | 'lock' | 'unlock' | 'generate_nfo';
+/**
+ * Move one file, tolerating a cross-device destination.
+ *
+ * `rename` is atomic and instant, and fails with `EXDEV` the moment the two
+ * paths are on different filesystems — which, for a library root that is a NAS
+ * share and a source on local disk, is the ordinary case rather than the
+ * exception. The fallback copies then unlinks, so an interrupted move leaves
+ * the original intact rather than a half-written file and no source.
+ */
+async function moveFile(from: string, to: string): Promise<void> {
+  if (from === to) return;
+  await mkdir(dirname(to), { recursive: true });
+  try {
+    await rename(from, to);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code !== 'EXDEV') throw err;
+    await copyFile(from, to);
+    await unlink(from);
+  }
+}
+
+export type BulkOperation =
+  | 'refresh_metadata'
+  | 'lock'
+  | 'unlock'
+  | 'generate_nfo'
+  | 'remove'
+  | 'delete_files'
+  | 'move';
 
 export interface BulkResult {
   jobId: string;
@@ -184,6 +214,163 @@ export class MediaBulkService {
 
     await this.record('media.bulk.generate_nfo', targets, ctx, { requested: ids.length, jobId });
     return { jobId, accepted: targets.length, missing };
+  }
+
+  /**
+   * Forget a selection: drop the library rows, leave every byte on disk.
+   *
+   * The safe half of "delete", and deliberately a **separate action** from
+   * {@link deleteFiles} rather than a checkbox on it — an operator tidying a
+   * library and an operator erasing media are doing different things, and the
+   * destructive one should never be one mis-click from the reversible one.
+   *
+   * Reversible in the sense that matters: the files are untouched, so a rescan
+   * brings the items back. That is also the caveat worth showing in the UI —
+   * without excluding the folder, this is temporary.
+   *
+   * Synchronous: one indexed `deleteMany`, with the children removed by the
+   * schema's cascades.
+   */
+  async removeFromLibrary(itemIds: string[], ctx: AuditContext): Promise<BulkResult> {
+    const { ids, missing } = await this.resolve(itemIds);
+    // Locked means "no automated path touches this". An operator deleting an
+    // explicit selection is not an automated path, so a lock does not block it
+    // — but it IS recorded, because that is the audit question later.
+    const locked = await this.prisma.mediaItem.count({ where: { id: { in: ids }, locked: true } });
+    await this.prisma.mediaItem.deleteMany({ where: { id: { in: ids } } });
+    await this.record('media.bulk.remove', ids, ctx, { lockedIncluded: locked });
+    return { jobId: '', accepted: ids.length, missing };
+  }
+
+  /**
+   * Erase a selection's media from disk, then drop the rows.
+   *
+   * Irreversible, so it is a job rather than a request: it touches the
+   * filesystem once per file and reports progress, and a half-finished delete
+   * must leave the library describing what is actually still there.
+   *
+   * The row is dropped **only after** its files are gone. The other order —
+   * delete rows, then unlink — loses the paths on any failure and leaves
+   * orphaned media nothing points at. A file that is already missing counts as
+   * success: the desired end state is "not on disk".
+   */
+  async deleteFiles(itemIds: string[], ctx: AuditContext): Promise<BulkResult> {
+    const { ids, missing } = await this.resolve(itemIds);
+    const items = await this.prisma.mediaItem.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, path: true, files: { select: { path: true } } },
+    });
+
+    const { jobId } = await this.jobs.runDetached(
+      'media_delete_files',
+      { libraryId: null, payload: { itemIds: ids } },
+      async (report, signal) => {
+        let done = 0;
+        let failed = 0;
+        let removedFiles = 0;
+        for (const item of items) {
+          if (signal.isCancelled()) break;
+          // `path` is the item's own file for a single-file item; `files` may
+          // repeat it. De-duplicate so one unlink failure is not counted twice.
+          const paths = [...new Set([item.path, ...item.files.map((f) => f.path)].filter(Boolean))];
+          let itemFailed = false;
+          for (const p of paths) {
+            try {
+              await unlink(p);
+              removedFiles += 1;
+            } catch (err) {
+              // Already gone is the end state we wanted; anything else is a
+              // real failure and must keep the row.
+              if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+                itemFailed = true;
+                this.logger.warn(`Delete failed for ${p}: ${(err as Error).message}`);
+              }
+            }
+          }
+          if (itemFailed) failed += 1;
+          else await this.prisma.mediaItem.delete({ where: { id: item.id } }).catch(() => undefined);
+          done += 1;
+          report((done / Math.max(1, items.length)) * 100, `${done}/${items.length}`);
+        }
+        return { total: items.length, completed: done - failed, failed, removedFiles };
+      },
+    );
+
+    await this.record('media.bulk.delete_files', ids, ctx, { jobId });
+    return { jobId, accepted: items.length, missing };
+  }
+
+  /**
+   * Move a selection into another library — the rows AND the media.
+   *
+   * "Move to another library" is only half a reassignment: leaving the files
+   * under the old library's root would put them back on that library's next
+   * scan, and the item would exist twice. So each file is moved under the
+   * target root first, and the stored paths are rewritten to match.
+   *
+   * `rename` is used where it works and falls back to copy+unlink, because a
+   * library root is very often a different filesystem (a NAS share versus local
+   * disk) and `EXDEV` is the normal case there, not an error.
+   */
+  async moveToLibrary(itemIds: string[], targetLibraryId: string, ctx: AuditContext): Promise<BulkResult> {
+    const target = await this.prisma.mediaLibrary.findUnique({
+      where: { id: targetLibraryId },
+      select: { id: true, path: true, name: true },
+    });
+    if (!target) throw new BadRequestException('Target library not found.');
+
+    const { ids, missing } = await this.resolve(itemIds);
+    const items = await this.prisma.mediaItem.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, path: true, libraryId: true, files: { select: { id: true, path: true } } },
+    });
+    // Moving an item into the library it already lives in is a no-op, not an
+    // error — a mixed selection should move the rest rather than fail.
+    const movable = items.filter((i) => i.libraryId !== target.id);
+
+    const { jobId } = await this.jobs.runDetached(
+      'media_move',
+      { libraryId: target.id, payload: { itemIds: movable.map((i) => i.id) } },
+      async (report, signal) => {
+        let done = 0;
+        let failed = 0;
+        for (const item of movable) {
+          if (signal.isCancelled()) break;
+          try {
+            const moves = new Map<string, string>();
+            for (const p of [...new Set([item.path, ...item.files.map((f) => f.path)])]) {
+              moves.set(p, join(target.path, basename(p)));
+            }
+            for (const [from, to] of moves) await moveFile(from, to);
+            await this.prisma.$transaction([
+              this.prisma.mediaItem.update({
+                where: { id: item.id },
+                data: { libraryId: target.id, path: moves.get(item.path) ?? item.path },
+              }),
+              ...item.files.map((f) =>
+                this.prisma.mediaFile.update({
+                  where: { id: f.id },
+                  data: { path: moves.get(f.path) ?? f.path },
+                }),
+              ),
+            ]);
+          } catch (err) {
+            failed += 1;
+            this.logger.warn(`Move failed for ${item.id}: ${(err as Error).message}`);
+          }
+          done += 1;
+          report((done / Math.max(1, movable.length)) * 100, `${done}/${movable.length}`);
+        }
+        return { total: movable.length, completed: done - failed, failed };
+      },
+    );
+
+    await this.record('media.bulk.move', movable.map((i) => i.id), ctx, {
+      targetLibraryId: target.id,
+      alreadyThere: items.length - movable.length,
+      jobId,
+    });
+    return { jobId, accepted: movable.length, missing };
   }
 
   /**

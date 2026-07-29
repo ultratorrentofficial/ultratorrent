@@ -3991,11 +3991,17 @@ export const api = {
      * rather than assuming everything selected was acted on.
      */
     bulkItems(
-      operation: 'metadata' | 'lock' | 'unlock' | 'nfo',
+      operation: 'metadata' | 'lock' | 'unlock' | 'nfo' | 'remove' | 'delete-files',
       itemIds: string[],
     ): Promise<MediaBulkResult> {
       return request<MediaBulkResult>(`/media/items/bulk/${operation}`, {
         method: 'POST', body: { itemIds },
+      });
+    },
+    /** Reassign items to another library, moving their files under that root. */
+    bulkMoveItems(itemIds: string[], targetLibraryId: string): Promise<MediaBulkResult> {
+      return request<MediaBulkResult>('/media/items/bulk/move', {
+        method: 'POST', body: { itemIds, targetLibraryId },
       });
     },
     /** Issue counts for one library — the browser's Issues chips. */
