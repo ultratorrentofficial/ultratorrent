@@ -28,6 +28,12 @@ export interface LiveSessionView {
   id: string;
   connectionId: string;
   userName: string | null;
+  /**
+   * The viewer as a person would write it. Separate from `userName`, which stays
+   * the provider's own value because analytics group by it — see
+   * {@link MediaServerSessionService.viewerName}.
+   */
+  userDisplayName: string | null;
   title: string;
   showTitle: string | null;
   seasonNumber: number | null;
@@ -86,17 +92,22 @@ export class MediaServerSessionService {
    * boolean is all the UI needs to decide between a poster and a placeholder.
    */
   async liveActivity(): Promise<LiveSessionView[]> {
-    const rows = await this.prisma.mediaServerSession.findMany({
+    // One accounts read for the whole page, not one per row: resolving inside
+    // the map would issue a query per playing session.
+    const [rows, known] = await Promise.all([
+      this.prisma.mediaServerSession.findMany({
       orderBy: { updatedAt: 'desc' },
       select: {
-        id: true, connectionId: true, userName: true, title: true,
+        id: true, connectionId: true, userName: true, providerUserId: true, title: true,
         showTitle: true, seasonNumber: true, episodeNumber: true, year: true,
         mediaType: true, libraryName: true, device: true, client: true,
         playbackState: true, progressPercent: true, playbackMethod: true,
         videoCodec: true, audioCodec: true, resolution: true, container: true,
         bitrateKbps: true, artPath: true, startedAt: true, updatedAt: true,
       },
-    });
+      }),
+      this.knownViewers(),
+    ]);
     // Mapped field by field rather than spread. A spread would pass through
     // whatever the query happened to return, making this correct only for as
     // long as the `select` above stays correct — defence in depth is cheap here
@@ -105,6 +116,11 @@ export class MediaServerSessionService {
       id: r.id,
       connectionId: r.connectionId,
       userName: r.userName,
+      userDisplayName: resolveViewerName(known, {
+        connectionId: r.connectionId,
+        providerUserId: r.providerUserId,
+        userName: r.userName,
+      }),
       title: r.title,
       showTitle: r.showTitle,
       seasonNumber: r.seasonNumber,
@@ -336,10 +352,14 @@ export class MediaServerSessionService {
     userName: string | null,
   ): Promise<string | null> {
     if (!userName) return null;
-    const known = await this.prisma.mediaServerUser.findMany({
+    return resolveViewerName(await this.knownViewers(), { connectionId, providerUserId, userName });
+  }
+
+  /** The accounts every name is resolved against. */
+  private knownViewers() {
+    return this.prisma.mediaServerUser.findMany({
       select: { connectionId: true, providerUserId: true, userName: true, email: true },
     });
-    return resolveViewerName(known, { connectionId, providerUserId, userName });
   }
 
   /**

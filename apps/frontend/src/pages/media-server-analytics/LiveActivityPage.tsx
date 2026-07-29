@@ -54,7 +54,9 @@ export function LiveActivityPage() {
   const live = status === 'connected';
 
   // Summary metrics.
-  const watchers = new Set(sessions.map((s) => s.userName).filter(Boolean)).size;
+  // Counted on the resolved name so one person streaming under their handle on
+  // one client and their account on another is one watcher, not two.
+  const watchers = new Set(sessions.map((s) => s.userDisplayName ?? s.userName).filter(Boolean)).size;
   const totalKbps = sessions.reduce((sum, s) => sum + (s.bitrateKbps ?? 0), 0);
   const transcodes = sessions.filter((s) => methodKey(s.playbackMethod) === 'transcode').length;
 
@@ -151,7 +153,9 @@ function SessionCard({ s, t }: { s: MediaServerLiveSession; t: TFunction<'mediaS
   // Derived through the SAME helpers the notification card uses, so a live card
   // and a playback notification cannot describe the same session differently.
   const state = accentForPlaybackState(s.playbackState);
-  const avatar = avatarFor(s.userName);
+  // Initials must come from the shown name, or "Jane Smith" gets a `j` avatar.
+  const viewer = s.userDisplayName ?? s.userName;
+  const avatar = avatarFor(viewer);
   const mediaLabel = formatMediaLabel({
     title: s.title,
     showTitle: s.showTitle,
@@ -194,7 +198,7 @@ function SessionCard({ s, t }: { s: MediaServerLiveSession; t: TFunction<'mediaS
 
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               {avatar && <PlaybackAvatar avatar={avatar} accent={state.accent} size="sm" />}
-              {s.userName && <span className="font-medium text-foreground/80">{s.userName}</span>}
+              {viewer && <span className="font-medium text-foreground/80">{viewer}</span>}
               {s.device && <span>· {s.device}</span>}
               {s.libraryName && <span>· {s.libraryName}</span>}
             </div>

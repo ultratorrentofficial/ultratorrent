@@ -9,6 +9,8 @@ import { MediaServerSessionService } from './media-server-session.service';
 function build(rows: any[]) {
   const prisma: any = {
     mediaServerSession: { findMany: jest.fn(async () => rows) },
+    // The listing resolves each viewer's display name against the account list.
+    mediaServerUser: { findMany: jest.fn(async () => []) },
   };
   const svc = new MediaServerSessionService(
     prisma, {} as any, {} as any, {} as any, { publish: jest.fn(() => ({ published: true })) } as any,

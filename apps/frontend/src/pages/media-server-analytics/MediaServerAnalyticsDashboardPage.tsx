@@ -178,7 +178,9 @@ export function MediaServerAnalyticsDashboardPage() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    {sess.userName && <span>{sess.userName}</span>}
+                    {(sess.userDisplayName ?? sess.userName) && (
+                      <span>{sess.userDisplayName ?? sess.userName}</span>
+                    )}
                     {sess.device && <span>· {sess.device}</span>}
                     {sess.resolution && <span>· {sess.resolution}</span>}
                     {sess.videoCodec && <span>· {sess.videoCodec}</span>}

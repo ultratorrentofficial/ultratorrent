@@ -5096,7 +5096,10 @@ export interface MediaServerRecentlyAddedItem {
 export interface MediaServerLiveSession {
   id: string;
   connectionId: string;
+  /** The provider's own value — a login handle for the Plex server owner. */
   userName: string | null;
+  /** The name to show a person: resolved server-side against the account list. */
+  userDisplayName: string | null;
   title: string;
   mediaType: string | null;
   libraryName: string | null;

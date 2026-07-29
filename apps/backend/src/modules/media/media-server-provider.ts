@@ -305,6 +305,58 @@ function mapJellyfinType(t?: string): string {
   }
 }
 
+/**
+ * The **local server's** account id for its owner. A Plex Media Server numbers
+ * the account that owns it `1` and reports it that way in `/status/sessions`,
+ * where `User.title` is then the local login HANDLE ("j.smith"). Everywhere
+ * else — the plex.tv account list, and therefore every other user on the
+ * server — a person is identified by their global plex.tv id and friendly name
+ * ("Jane Smith").
+ *
+ * So for the owner alone, and only the owner, sessions speak a different id
+ * space than accounts do. Left untranslated it splits one person into two
+ * users: the sessions half accrues plays under the handle with no email, the
+ * accounts half keeps the friendly name — and `dedupeUsersByProviderId` cannot
+ * heal it, because the two rows have *different* ids, which is exactly the
+ * thing it keys on.
+ */
+const PLEX_LOCAL_OWNER_ID = '1';
+
+type PlexOwner = { providerUserId: string; userName: string; email?: string };
+
+/**
+ * The token's own plex.tv account, cached per token.
+ *
+ * `getSessions` is polled continuously, so this must not add a plex.tv round
+ * trip per poll. Negative results are cached too — a token that cannot reach
+ * plex.tv (offline server, revoked token) would otherwise retry on every poll.
+ */
+const ownerCache = new Map<string, { at: number; owner: PlexOwner | null }>();
+const OWNER_TTL_MS = 60 * 60 * 1000;
+
+async function plexOwner(token: string, now = Date.now()): Promise<PlexOwner | null> {
+  const hit = ownerCache.get(token);
+  if (hit && now - hit.at < OWNER_TTL_MS) return hit.owner;
+  let owner: PlexOwner | null = null;
+  try {
+    const { ok, json } = await fetchJson('https://plex.tv/api/v2/user', {
+      headers: { Accept: 'application/json', 'X-Plex-Token': token },
+    });
+    const id = json?.id != null ? String(json.id) : undefined;
+    const userName = json?.title || json?.username;
+    if (ok && id && userName) owner = { providerUserId: id, userName, email: json?.email || undefined };
+  } catch {
+    // Never fatal: the caller falls back to what the local server said.
+  }
+  ownerCache.set(token, { at: now, owner });
+  return owner;
+}
+
+/** Test seam — the cache is module-level and would leak between cases. */
+export function __resetPlexOwnerCache(): void {
+  ownerCache.clear();
+}
+
 /** Plex Media Server — token auth, XML/JSON endpoints. */
 export class PlexProvider implements MediaServerProvider {
   readonly kind = 'plex' as const;
@@ -338,14 +390,24 @@ export class PlexProvider implements MediaServerProvider {
     });
     if (!ok) throw new Error(`Plex responded with HTTP ${status}.`);
     const items: any[] = json?.MediaContainer?.Metadata ?? [];
+    // Resolve the owner only when one is actually streaming, so a server whose
+    // owner never watches makes no plex.tv call at all.
+    const owner = items.some((m) => m.User?.id != null && String(m.User.id) === PLEX_LOCAL_OWNER_ID)
+      ? await plexOwner(cfg.token)
+      : null;
     return items.map((m) => {
       const media = m.Media?.[0] ?? {};
       const part = media.Part?.[0] ?? {};
       const decision = (part.decision ?? m.Player?.state) as string | undefined;
       return {
         sessionId: String(m.Session?.id ?? m.sessionKey ?? `${m.ratingKey}`),
-        userId: m.User?.id ? String(m.User.id) : undefined,
-        userName: m.User?.title,
+        // The owner arrives as local id 1 under their login handle; everyone
+        // else already carries their global id and friendly name. See
+        // PLEX_LOCAL_OWNER_ID for why translating here — at the one boundary
+        // that knows Plex — keeps the rest of the system provider-agnostic.
+        ...(owner && m.User?.id != null && String(m.User.id) === PLEX_LOCAL_OWNER_ID
+          ? { userId: owner.providerUserId, userName: owner.userName }
+          : { userId: m.User?.id ? String(m.User.id) : undefined, userName: m.User?.title }),
         title: [m.grandparentTitle, m.title].filter(Boolean).join(' — ') || m.title || 'Unknown',
         showTitle: m.grandparentTitle ?? undefined,
         // Only when there IS a parent: for a film, `title` is already the name.
@@ -388,7 +450,6 @@ export class PlexProvider implements MediaServerProvider {
    */
   async getUsers(cfg: MediaServerConfig): Promise<ProviderUser[]> {
     if (!cfg.token) throw new Error('Plex token is required.');
-    const headers = { Accept: 'application/json', 'X-Plex-Token': cfg.token };
     const byId = new Map<string, ProviderUser>();
 
     // Shared + managed users (XML). This is the endpoint that carries emails.
@@ -399,17 +460,10 @@ export class PlexProvider implements MediaServerProvider {
       for (const u of parsePlexUsersXml(shared.text)) byId.set(u.providerUserId, u);
     }
 
-    // The account owner (the token's own account) — best-effort, JSON.
-    try {
-      const { ok, json } = await fetchJson('https://plex.tv/api/v2/user', { headers });
-      const id = json?.id != null ? String(json.id) : undefined;
-      const userName = json?.title || json?.username;
-      if (ok && id && userName) {
-        byId.set(id, { providerUserId: id, userName, email: json?.email || undefined });
-      }
-    } catch {
-      // Owner lookup is optional; shared users are the point.
-    }
+    // The account owner (the token's own account) — best-effort, and shared
+    // with the session path so both halves agree on which id the owner has.
+    const owner = await plexOwner(cfg.token);
+    if (owner) byId.set(owner.providerUserId, { ...owner });
 
     return [...byId.values()];
   }
