@@ -287,8 +287,24 @@ export class MediaBulkService {
               }
             }
           }
-          if (itemFailed) failed += 1;
-          else await this.prisma.mediaItem.delete({ where: { id: item.id } }).catch(() => undefined);
+          if (itemFailed) {
+            failed += 1;
+          } else {
+            /*
+             * Swallowing this would be the worst outcome available: the files
+             * are already gone, so a silently-kept row leaves the library
+             * advertising media that no longer exists, and the job would still
+             * report success. If the row cannot go, say so.
+             */
+            try {
+              await this.prisma.mediaItem.delete({ where: { id: item.id } });
+            } catch (err) {
+              failed += 1;
+              this.logger.error(
+                `Deleted files for ${item.id} but could not remove the row: ${(err as Error).message}`,
+              );
+            }
+          }
           done += 1;
           report((done / Math.max(1, items.length)) * 100, `${done}/${items.length}`);
         }

@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { ActionBar, type ActionHandler } from '@/actions/ActionBar';
 import { useContextActions } from '@/actions/useContextActions';
+import { useJobRefresh } from './useJobRefresh';
 import { ConfirmDeleteDialog, type DeleteMode } from './ConfirmDeleteDialog';
 import { MoveToLibraryDialog } from './MoveToLibraryDialog';
 
@@ -60,6 +61,12 @@ export function ContextActionBar({
    */
   const [confirmMode, setConfirmMode] = useState<DeleteMode | null>(null);
   const [movingOpen, setMovingOpen] = useState(false);
+  /*
+   * Detached operations finish long after their request returns, so the grid is
+   * refreshed on the job's completion event rather than on the response — see
+   * `useJobRefresh` for the measurement that made this necessary.
+   */
+  const watchJob = useJobRefresh(['library-browser']);
 
   const bulk = useMutation({
     mutationFn: ({ op, ids }: { op: BulkOp; ids: string[] }) => api.media.bulkItems(op, ids),
@@ -73,9 +80,10 @@ export function ContextActionBar({
       // Ids that resolved to nothing are surfaced, never swallowed: acting on
       // fewer items than were selected must not look like success.
       if (result.missing.length) toast.error(t('result.missing', { count: result.missing.length }));
-      // Anything that changes what the grid should show has to invalidate it —
-      // a removed item that stays on screen reads as a failed delete.
-      qc.invalidateQueries({ queryKey: ['library-browser'] });
+      // Synchronous operations are done already; detached ones have not
+      // started, so those refresh when their job settles instead.
+      if (result.jobId) watchJob(result.jobId);
+      else qc.invalidateQueries({ queryKey: ['library-browser'] });
       onClear();
     },
     onError: (e: Error) => toast.error(e?.message || t('result.failed')),
@@ -93,7 +101,8 @@ export function ContextActionBar({
     onSuccess: (result) => {
       toast.success(t('result.queued', { count: result.accepted }));
       if (result.missing.length) toast.error(t('result.missing', { count: result.missing.length }));
-      qc.invalidateQueries({ queryKey: ['library-browser'] });
+      if (result.jobId) watchJob(result.jobId);
+      else qc.invalidateQueries({ queryKey: ['library-browser'] });
       setMovingOpen(false);
       onClear();
     },
