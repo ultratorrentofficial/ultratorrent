@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.58.2] - 2026-07-29
+
+### Added
+- Right-click a library item for a context menu with Refresh metadata, Rename and Run cleanup policy
+
 ## [0.58.1] - 2026-07-29
 
 ### Fixed
