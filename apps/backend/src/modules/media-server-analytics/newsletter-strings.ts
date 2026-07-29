@@ -26,7 +26,7 @@ export const NEWSLETTER_STRINGS: Record<'en-US' | 'es-PR', NewsletterStrings> = 
     preferences: 'Preferences',
     preferencesNote: 'Manage what you receive.',
     tagline: 'Your media, beautifully organized.',
-    deliveredBy: 'Delivered by',
+    poweredBy: 'Powered by',
   },
   'es-PR': {
     brandTitle: 'BOLETÍN DE ULTRATORRENT',
@@ -48,7 +48,7 @@ export const NEWSLETTER_STRINGS: Record<'en-US' | 'es-PR', NewsletterStrings> = 
     preferences: 'Preferencias',
     preferencesNote: 'Administra lo que recibes.',
     tagline: 'Tus medios, bellamente organizados.',
-    deliveredBy: 'Entregado por',
+    poweredBy: 'Desarrollado con',
   },
 };
 

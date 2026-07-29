@@ -200,6 +200,9 @@
     "add": {
       "title": "Nuevo boletín",
       "name": "Nombre",
+      "brandTitle": "Título del boletín",
+      "brandTitlePlaceholder": "Boletín de SYNOPLEX",
+      "brandTitleHint": "Se muestra a los destinatarios en el encabezado del correo. Déjalo vacío para usar el predeterminado.",
       "frequency": "Frecuencia",
       "recipients": "Destinatarios",
       "submit": "Crear"

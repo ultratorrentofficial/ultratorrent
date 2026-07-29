@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { paginate, parsePage } from '../../common/pagination';
 import { Interval } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
 import { MODULE_IDS } from '@ultratorrent/shared';
 import type { MediaServerNewsletter } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -16,6 +17,7 @@ const ACCENT = '#f5a623';
 
 interface NewsletterInput {
   name?: string;
+  brandTitle?: string | null;
   enabled?: boolean;
   frequency?: string;
   recipientEmails?: string[];
@@ -26,7 +28,8 @@ interface NewsletterInput {
   startDate?: string | null;
 }
 
-const VERSION = '0.15.0';
+/** Where the "powered by" credit in the footer points. */
+const SOURCE_URL = 'https://github.com/damirabal/ultratorrent-core';
 const MAX_ITEMS = 60; // items rendered in the email
 const MAX_POSTERS = 30; // posters per email (keeps a CID-attached email a sane size)
 
@@ -54,6 +57,7 @@ export class MediaServerNewsletterService {
     private readonly realtime: RealtimeGateway,
     private readonly registry: ModuleRegistryService,
     private readonly images: NewsletterImageService,
+    private readonly config: ConfigService,
   ) {}
 
   list() {
@@ -70,6 +74,7 @@ export class MediaServerNewsletterService {
     const row = await this.prisma.mediaServerNewsletter.create({
       data: {
         name: input.name ?? 'Newsletter',
+        brandTitle: input.brandTitle?.trim() || null,
         enabled: input.enabled ?? true,
         frequency: input.frequency ?? 'weekly',
         recipientEmails: (input.recipientEmails ?? []) as object,
@@ -90,6 +95,8 @@ export class MediaServerNewsletterService {
     for (const k of ['name', 'enabled', 'frequency', 'subjectTemplate', 'dateRangeMode', 'lastDays'] as const) {
       if (input[k] !== undefined) data[k] = input[k];
     }
+    // Blank means "use the default title", which is NULL — not an empty header.
+    if (input.brandTitle !== undefined) data.brandTitle = input.brandTitle?.trim() || null;
     if (input.startDate !== undefined) data.startDate = input.startDate ? new Date(input.startDate) : null;
     if (input.recipientEmails !== undefined) data.recipientEmails = input.recipientEmails as object;
     if (input.contentSections !== undefined) data.contentSections = input.contentSections as object;
@@ -137,10 +144,15 @@ export class MediaServerNewsletterService {
   }
 
   /** Assemble the render options (localized strings, server, date range, style). */
-  private async renderOpts(since: Date, until: Date): Promise<RenderOptions> {
+  private async renderOpts(since: Date, until: Date, n?: MediaServerNewsletter): Promise<RenderOptions> {
     return {
       strings: newsletterStrings('en-US'),
-      version: VERSION,
+      // Read from config, never a literal. This was a hardcoded '0.15.0' that
+      // stayed put through forty releases, so every email shipped claiming a
+      // version the product had not been for a year.
+      version: this.config.get<string>('node.productVersion') ?? '0.0.0',
+      brandTitle: n?.brandTitle ?? null,
+      sourceUrl: SOURCE_URL,
       serverName: await this.serverName(),
       dateRange: this.dateRange(since, until),
       brand: 'UltraTorrent',
@@ -226,7 +238,7 @@ export class MediaServerNewsletterService {
     ];
     const showPosters = await this.fetchShowPosters(showTitles);
     const attachments = await this.assemblePosters(content, posters, showPosters);
-    return { content, attachments, opts: await this.renderOpts(since, until) };
+    return { content, attachments, opts: await this.renderOpts(since, until, n) };
   }
 
   /**

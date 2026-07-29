@@ -117,7 +117,9 @@ describe('renderHtml (dark digest template)', () => {
     expect(html).toContain('Unsubscribe');
     expect(html).toContain('Preferences');
     expect(html).toContain('https://ut.example');
-    expect(html).toContain('Delivered by');
+    // The product credit — "Powered by <brand> v<version>", linked to the repo
+    // when a source URL is supplied (see newsletter-branding.spec.ts).
+    expect(html).toContain('Powered by');
   });
 
   it('falls back to a placeholder (no cid) when a poster is missing', () => {

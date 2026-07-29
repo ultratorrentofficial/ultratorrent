@@ -1417,7 +1417,12 @@ model MediaAnalyticsImportJob {
 /// A scheduled media newsletter campaign.
 model MediaServerNewsletter {
   id                   String    @id @default(uuid())
+  /// Admin-facing label — what this newsletter is called in the list.
   name                 String
+  /// Title shown to RECIPIENTS in the email header. Distinct from `name` so an
+  /// operator can call it "Weekly films" internally and "SYNOPLEX Newsletter"
+  /// on the wire. Null falls back to the localized product title.
+  brandTitle           String?
   enabled              Boolean   @default(true)
   frequency            String    @default("weekly") // daily | weekly | monthly | manual
   recipientEmails      Json      @default("[]")

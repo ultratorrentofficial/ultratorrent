@@ -164,7 +164,7 @@ export function NewslettersPage() {
   const { t } = useTranslation('mediaServerAnalytics');
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: '', frequency: 'weekly', recipients: [] as string[], dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] as string[] });
+  const [form, setForm] = useState({ name: '', brandTitle: '', frequency: 'weekly', recipients: [] as string[], dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] as string[] });
   const [preview, setPreview] = useState<{ id: string; data: NewsletterPreview } | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -183,7 +183,7 @@ export function NewslettersPage() {
   // Per-campaign edit of the core fields (name / frequency / recipients) that
   // aren't otherwise inline-editable.
   const [editId, setEditId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', frequency: 'weekly', recipients: [] as string[] });
+  const [editForm, setEditForm] = useState({ name: '', brandTitle: '', frequency: 'weekly', recipients: [] as string[] });
 
   const q = useQuery({ queryKey: ['msa', 'newsletters'], queryFn: () => api.mediaServerAnalytics.newsletters() });
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['msa', 'newsletters'] });
@@ -201,6 +201,7 @@ export function NewslettersPage() {
   const create = useMutation({
     mutationFn: () => api.mediaServerAnalytics.createNewsletter({
       name: form.name.trim(),
+      brandTitle: form.brandTitle.trim() || null,
       frequency: form.frequency,
       recipientEmails: form.recipients,
       dateRangeMode: form.dateRangeMode,
@@ -208,7 +209,7 @@ export function NewslettersPage() {
       startDate: form.dateRangeMode === 'since_date' && form.startDate ? new Date(form.startDate).toISOString() : null,
       contentSections: form.contentSections,
     } as Partial<Newsletter>),
-    onSuccess: () => { setForm({ name: '', frequency: 'weekly', recipients: [], dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] }); toast.success(t('newsletter.created')); invalidate(); },
+    onSuccess: () => { setForm({ name: '', brandTitle: '', frequency: 'weekly', recipients: [], dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] }); toast.success(t('newsletter.created')); invalidate(); },
   });
   const update = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<Newsletter> }) => api.mediaServerAnalytics.updateNewsletter(id, patch),
@@ -264,7 +265,7 @@ export function NewslettersPage() {
                       editId === n.id
                         ? setEditId(null)
                         : (setEditId(n.id),
-                          setEditForm({ name: n.name, frequency: n.frequency, recipients: [...n.recipientEmails] }))
+                          setEditForm({ name: n.name, brandTitle: n.brandTitle ?? '', frequency: n.frequency, recipients: [...n.recipientEmails] }))
                     }
                   ><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button variant="ghost" size="sm" onClick={() => remove.mutate(n.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -272,6 +273,7 @@ export function NewslettersPage() {
                 {editId === n.id && (
                   <div className="grid gap-2 border-t border-white/5 pt-2 sm:grid-cols-3">
                     <div className="space-y-1"><Label htmlFor={`ed-name-${n.id}`}>{t('newsletter.add.name')}</Label><Input id={`ed-name-${n.id}`} value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} /></div>
+                    <div className="space-y-1"><Label htmlFor={`ed-brand-${n.id}`}>{t('newsletter.add.brandTitle')}</Label><Input id={`ed-brand-${n.id}`} value={editForm.brandTitle} placeholder={t('newsletter.add.brandTitlePlaceholder')} onChange={(e) => setEditForm((f) => ({ ...f, brandTitle: e.target.value }))} /><p className="text-xs text-muted-foreground">{t('newsletter.add.brandTitleHint')}</p></div>
                     <div className="space-y-1"><Label htmlFor={`ed-freq-${n.id}`}>{t('newsletter.add.frequency')}</Label><Select id={`ed-freq-${n.id}`} value={editForm.frequency} onChange={(e) => setEditForm((f) => ({ ...f, frequency: e.target.value }))} options={freqOptions} /></div>
                     <div className="space-y-1 sm:col-span-3"><Label htmlFor={`ed-${n.id}-rec`}>{t('newsletter.add.recipients')}</Label><RecipientPicker idPrefix={`ed-${n.id}`} value={editForm.recipients} onChange={(next) => setEditForm((f) => ({ ...f, recipients: next }))} options={recipientOpts} onSetEmail={onSetEmail} /></div>
                     <div className="flex gap-2 sm:col-span-3">
@@ -284,6 +286,7 @@ export function NewslettersPage() {
                               id: n.id,
                               patch: {
                                 name: editForm.name.trim(),
+                                brandTitle: editForm.brandTitle.trim() || null,
                                 frequency: editForm.frequency,
                                 recipientEmails: editForm.recipients,
                               },
@@ -336,6 +339,7 @@ export function NewslettersPage() {
               <h2 className="text-sm font-semibold">{t('newsletter.add.title')}</h2>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="space-y-1.5"><Label htmlFor="n-name">{t('newsletter.add.name')}</Label><Input id="n-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
+                <div className="space-y-1.5"><Label htmlFor="n-brand">{t('newsletter.add.brandTitle')}</Label><Input id="n-brand" value={form.brandTitle} placeholder={t('newsletter.add.brandTitlePlaceholder')} onChange={(e) => setForm((f) => ({ ...f, brandTitle: e.target.value }))} /><p className="text-xs text-muted-foreground">{t('newsletter.add.brandTitleHint')}</p></div>
                 <div className="space-y-1.5"><Label htmlFor="n-freq">{t('newsletter.add.frequency')}</Label><Select id="n-freq" value={form.frequency} onChange={(e) => setForm((f) => ({ ...f, frequency: e.target.value }))} options={freqOptions} /></div>
                 <div className="space-y-1.5"><Label htmlFor="n-window">{t('newsletter.window.label')}</Label><Select id="n-window" value={form.dateRangeMode} onChange={(e) => setForm((f) => ({ ...f, dateRangeMode: e.target.value }))} options={windowOptions} /></div>
                 {form.dateRangeMode === 'last_days' && (

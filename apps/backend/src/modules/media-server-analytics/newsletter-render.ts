@@ -125,7 +125,7 @@ export interface NewsletterStrings {
   preferences: string;
   preferencesNote: string;
   tagline: string;
-  deliveredBy: string;
+  poweredBy: string; // "Powered by" — precedes the product name + version
 }
 
 export interface RenderStyle {
@@ -142,6 +142,15 @@ export interface RenderStyle {
 export interface RenderOptions {
   strings: NewsletterStrings;
   version: string;
+  /**
+   * Title in the email header. Per-newsletter, so an operator can brand it for
+   * their own server ("SYNOPLEX Newsletter"); falls back to the localized
+   * product title. This is the RECIPIENT's name for the newsletter — the
+   * admin-facing `name` is a different field and is never rendered.
+   */
+  brandTitle?: string | null;
+  /** Repository the "powered by" credit links to. */
+  sourceUrl?: string;
   serverName?: string;
   dateRange?: string; // "2026-06-26 - 2026-07-03"
   brand?: string; // footer product name, default "UltraTorrent"
@@ -420,11 +429,27 @@ function header(content: NewsletterContent, opts: RenderOptions): string {
   const accent = opts.style?.accent ?? C.amber;
   return `<tr><td style="padding:32px 24px 0;text-align:center">
     <div style="display:inline-block;width:36px;height:36px;line-height:36px;border-radius:9px;background:${accent};color:#151515;font:800 16px system-ui,-apple-system,sans-serif;margin-bottom:12px">UT</div>
-    <div style="font:800 20px/1.2 system-ui,-apple-system,sans-serif;color:${C.text};letter-spacing:.08em">${escapeHtml(opts.strings.brandTitle)}</div>
+    <div style="font:800 20px/1.2 system-ui,-apple-system,sans-serif;color:${C.text};letter-spacing:.08em">${escapeHtml(opts.brandTitle?.trim() || opts.strings.brandTitle)}</div>
     ${opts.serverName ? `<div style="margin-top:10px;font:700 14px system-ui,-apple-system,sans-serif;color:${C.text};letter-spacing:.04em;text-transform:uppercase">${escapeHtml(opts.serverName)}</div>` : ''}
     ${opts.dateRange ? `<div style="margin-top:4px;font:500 13px system-ui,-apple-system,sans-serif;color:${C.muted}">${escapeHtml(opts.dateRange)}</div>` : ''}
     <div style="height:2px;background:${accent};max-width:120px;margin:16px auto 0;border-radius:2px"></div>
   </td></tr>`;
+}
+
+/**
+ * The product credit: "Powered by UltraTorrent v0.57.6", linking to the source
+ * repository.
+ *
+ * Separate from the header title on purpose. The header is now the operator's
+ * to name — a recipient sees "SYNOPLEX Newsletter" — so this line is the only
+ * place the software itself is identified, and the version has to be the real
+ * one. It was a hardcoded `'0.15.0'` in the service, frozen while the product
+ * shipped forty-odd releases past it.
+ */
+function poweredBy(opts: RenderOptions, brand: string): string {
+  const label = `${opts.strings.poweredBy} ${brand} v${opts.version}`;
+  if (!opts.sourceUrl) return escapeHtml(label);
+  return `<a href="${escapeHtml(opts.sourceUrl)}" style="color:${C.faint};text-decoration:underline">${escapeHtml(label)}</a>`;
 }
 
 function footer(opts: RenderOptions): string {
@@ -440,7 +465,7 @@ function footer(opts: RenderOptions): string {
       ${cell('center', `<div style="color:${C.text};font-weight:700">${escapeHtml(brand)}</div><div>${escapeHtml(opts.strings.tagline)}</div>${opts.instanceUrl ? `<div><a href="${escapeHtml(opts.instanceUrl)}" style="color:${opts.style?.accent ?? C.amber};text-decoration:none">${escapeHtml(opts.instanceUrl)}</a></div>` : ''}`)}
       ${cell('right', `${link(opts.preferencesUrl, opts.strings.preferences)}<div style="margin-top:2px">${escapeHtml(opts.strings.preferencesNote)}</div>`)}
     </tr></table>
-    <div style="text-align:center;margin-top:14px;color:${C.faint};font:400 10px system-ui">${escapeHtml(opts.strings.deliveredBy)} ${escapeHtml(brand)} · v${escapeHtml(opts.version)}</div>
+    <div style="text-align:center;margin-top:14px;color:${C.faint};font:400 10px system-ui">${poweredBy(opts, brand)}</div>
   </td></tr>`;
 }
 
@@ -530,7 +555,10 @@ export function renderText(content: NewsletterContent, opts: RenderOptions): str
       lines.push('');
     }
   }
-  lines.push('---', `${s.deliveredBy} ${opts.brand ?? 'UltraTorrent'} v${opts.version}`);
+  // Same credit as the HTML part — a text reader gets the URL spelled out,
+  // since there is nothing to hang a link on.
+  const credit = `${s.poweredBy} ${opts.brand ?? 'UltraTorrent'} v${opts.version}`;
+  lines.push('---', opts.sourceUrl ? `${credit} — ${opts.sourceUrl}` : credit);
   if (opts.unsubscribeUrl) lines.push(`${s.unsubscribe}: ${opts.unsubscribeUrl}`);
   return lines.join('\n');
 }

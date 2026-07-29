@@ -4982,7 +4982,10 @@ export interface InboxPageDto {
 
 export interface Newsletter {
   id: string;
+  /** Admin-facing label, shown in this list only. */
   name: string;
+  /** Title recipients see in the email header; null uses the product default. */
+  brandTitle: string | null;
   enabled: boolean;
   frequency: string;
   recipientEmails: string[];

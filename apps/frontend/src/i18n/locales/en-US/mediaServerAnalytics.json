@@ -200,6 +200,9 @@
     "add": {
       "title": "New newsletter",
       "name": "Name",
+      "brandTitle": "Newsletter title",
+      "brandTitlePlaceholder": "SYNOPLEX Newsletter",
+      "brandTitleHint": "Shown to recipients in the email header. Leave blank to use the default.",
       "frequency": "Frequency",
       "recipients": "Recipients",
       "submit": "Create"
