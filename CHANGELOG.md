@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.58.1] - 2026-07-29
+
+### Fixed
+- Library Browser refreshes when a bulk job finishes, not when its request returns, so a detached delete no longer looks like it processed one item
+
 ## [0.58.0] - 2026-07-29
 
 ### Added
