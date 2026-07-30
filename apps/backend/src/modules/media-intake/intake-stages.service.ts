@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { selectStrategy, type StorageCapabilities } from '@ultratorrent/shared';
@@ -5,6 +6,8 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { parseItemIdentity } from '../media/media-identification.service';
 import { kindFromParsed, type MediaKind } from '../media/media-renamer';
 import { MediaProbeService } from '../media/media-probe.service';
+import { MediaService } from '../media/media.service';
+import { ImportStrategyService } from './import-strategy.service';
 import { IntakePipelineService, type IntakeStage, type StageContext } from './intake-pipeline.service';
 import { StorageCapabilityDetector } from './storage-capability-detector.service';
 import { MediaIntakeService } from './media-intake.service';
@@ -30,12 +33,16 @@ export class IntakeStagesService implements OnModuleInit {
     private readonly probe: MediaProbeService,
     private readonly capabilities: StorageCapabilityDetector,
     private readonly intake: MediaIntakeService,
+    private readonly media: MediaService,
+    private readonly strategies: ImportStrategyService,
   ) {}
 
   onModuleInit(): void {
     this.pipeline.register(this.identifyStage());
     this.pipeline.register(this.qualityStage());
     this.pipeline.register(this.readyStage());
+    this.pipeline.register(this.importingStage());
+    this.pipeline.register(this.importedStage());
   }
 
   /**
@@ -167,6 +174,115 @@ export class IntakeStagesService implements OnModuleInit {
         return {
           message: `${strategy} — ${reason}`,
           data: { strategy, reason, destinationRoot: library.path, capabilities: { ...caps } },
+        };
+      },
+    };
+  }
+
+  /**
+   * Mark the import as begun.
+   *
+   * A separate state rather than part of the placement, so a process that dies
+   * mid-copy leaves `importing` behind — which reads as "this was interrupted,
+   * check it" rather than `ready_to_import`, which would read as "never
+   * started" and invite a second attempt on a half-copied file.
+   */
+  private importingStage(): IntakeStage {
+    return {
+      produces: 'importing',
+      label: 'Begin import',
+      run: async () => ({ message: 'Placement started' }),
+    };
+  }
+
+  /**
+   * Put the file in the library.
+   *
+   * The DESTINATION comes from the rename engine, not from this module. The
+   * library already owns a naming preset and template, and a second opinion
+   * about what a file should be called is how intake and a scan end up
+   * disagreeing about the same release. `buildPlan` in `preview` mode computes
+   * paths without touching anything; the placement itself is then done by the
+   * strategy chosen in the previous stage.
+   *
+   * Idempotent by destination: a retry after a partial run skips files that are
+   * already where they belong, so resuming cannot double-place or fail on an
+   * existing target.
+   */
+  private importedStage(): IntakeStage {
+    return {
+      produces: 'imported',
+      label: 'Place into library',
+      run: async (ctx: StageContext) => {
+        const job = await this.prisma.mediaIntakeJob.findUnique({ where: { id: ctx.jobId } });
+        const library = job?.libraryId
+          ? await this.prisma.mediaLibrary.findUnique({ where: { id: job.libraryId } })
+          : null;
+        if (!job || !library) return { quarantine: { reason: 'Destination library is gone' } };
+
+        // `preview` so the plan is computed and nothing is moved by the renamer
+        // itself — the strategy executor owns every byte that moves.
+        const plan = await this.media.buildPlan({
+          path: ctx.sourcePath,
+          preset: library.preset as never,
+          mode: 'preview' as never,
+          libraryPath: library.path,
+          template: library.template ?? undefined,
+        } as never);
+
+        const targets = plan.items.filter((i) => !i.skipped && !i.unchanged && i.destination);
+        if (!targets.length) {
+          return { quarantine: { reason: 'The rename engine produced nothing to place' } };
+        }
+
+        const caps = await this.capabilities.probe(
+          job.profileId, ctx.sourcePath, library.path, ctx.engineId,
+        );
+        const placed: string[] = [];
+        const skipped: string[] = [];
+        let fellBack = false;
+        for (const item of targets) {
+          /*
+           * Already there? Skip it.
+           *
+           * This is what makes a retry safe. `buildPlan` computes the
+           * destination from the SOURCE, which is still in staging after a
+           * partial run, so its `unchanged` flag stays false and cannot be
+           * relied on here — without this check a resumed import would place
+           * the same file twice and `link()` would throw EEXIST on the second.
+           */
+          const already = await stat(item.destination!).then(() => true).catch(() => false);
+          if (already) {
+            skipped.push(item.destination!);
+            placed.push(item.destination!);
+            continue;
+          }
+          const outcome = await this.strategies.execute({
+            source: item.source,
+            destination: item.destination!,
+            capabilities: caps,
+            requested: (job.strategy as never) ?? undefined,
+            torrentHash: job.torrentHash,
+            engineId: job.engineId,
+          });
+          placed.push(outcome.destination);
+          fellBack = fellBack || outcome.fellBack;
+          if (!outcome.sourcePreserved) {
+            this.logger.warn(
+              `Intake ${ctx.jobId} used ${outcome.strategy}; the source is gone and seeding has ended.`,
+            );
+          }
+        }
+
+        await this.prisma.mediaIntakeJob.update({
+          where: { id: ctx.jobId },
+          data: { importedPath: placed[0] ?? null },
+        });
+        return {
+          message: `Placed ${placed.length - skipped.length} file(s)`
+            + (skipped.length ? `, ${skipped.length} already present` : '')
+            + (fellBack ? ' (a strategy fell back)' : ''),
+          data: { placed, skipped, fellBack },
         };
       },
     };

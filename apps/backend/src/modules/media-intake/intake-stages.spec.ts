@@ -7,6 +7,14 @@
  * must be recorded before it is executed.
  */
 import { IntakeStagesService } from './intake-stages.service';
+
+let destinationExists = false;
+jest.mock('node:fs/promises', () => ({
+  stat: jest.fn(async () => {
+    if (!destinationExists) throw new Error('ENOENT');
+    return { size: 1 };
+  }),
+}));
 import type { IntakeStage, StageContext } from './intake-pipeline.service';
 
 const parsed = { value: { title: 'Some Show', season: 1, episode: 2 } as Record<string, unknown> };
@@ -29,6 +37,8 @@ function build(over: {
   library?: Record<string, unknown> | null;
   probeAvailable?: boolean;
   probeThrows?: boolean;
+  planItems?: Array<Record<string, unknown>>;
+  outcome?: Record<string, unknown>;
 } = {}) {
   const stages = new Map<string, IntakeStage>();
   const updates: Record<string, unknown>[] = [];
@@ -66,13 +76,36 @@ function build(over: {
     }),
   };
 
+  const executed: Array<Record<string, unknown>> = [];
+  const media = {
+    buildPlan: jest.fn(async () => ({
+      items: over.planItems ?? [{
+        source: '/staging/Some.Show.S01E02.mkv',
+        destination: '/media/TV/Some Show/Some Show - S01E02.mkv',
+        skipped: false, unchanged: false,
+      }],
+    })),
+  };
+  const strategies = {
+    execute: jest.fn(async (req: Record<string, unknown>) => {
+      executed.push(req);
+      return {
+        strategy: 'hardlink', reason: 'same device', fellBack: false,
+        destination: req.destination, sourcePreserved: true, ...over.outcome,
+      };
+    }),
+  };
+
   const svc = new IntakeStagesService(
-    prisma as never, pipeline as never, probe as never, capabilities as never, intake as never,
+    prisma as never, pipeline as never, probe as never, capabilities as never,
+    intake as never, media as never, strategies as never,
   );
   jest.spyOn((svc as never as { logger: { debug: (m: string) => void } }).logger, 'debug')
     .mockImplementation(() => undefined);
   svc.onModuleInit();
-  return { svc, stages, prisma, updates, recorded, capabilities, probe };
+  jest.spyOn((svc as never as { logger: { warn: (m: string) => void } }).logger, 'warn')
+    .mockImplementation(() => undefined);
+  return { svc, stages, prisma, updates, recorded, capabilities, probe, media, strategies, executed };
 }
 
 const ctx: StageContext = {
@@ -83,12 +116,15 @@ const ctx: StageContext = {
 beforeEach(() => {
   parsed.value = { title: 'Some Show', season: 1, episode: 2 };
   kind.value = 'tv';
+  destinationExists = false;
 });
 
 describe('identify', () => {
-  it('registers the three pre-import stages', () => {
+  it('registers every stage it provides', () => {
     const { stages } = build();
-    expect([...stages.keys()]).toEqual(['identified', 'quality_scored', 'ready_to_import']);
+    expect([...stages.keys()]).toEqual([
+      'identified', 'quality_scored', 'ready_to_import', 'importing', 'imported',
+    ]);
   });
 
   it('routes a parsed TV release to the TV library', async () => {
@@ -193,5 +229,87 @@ describe('import planning', () => {
   it('quarantines when the destination library has been deleted', async () => {
     const { stages } = build({ library: null });
     expect((await stages.get('ready_to_import')!.run(ctx)).quarantine).toBeDefined();
+  });
+});
+
+
+describe('placement', () => {
+  it('takes the destination from the rename engine, in preview mode', async () => {
+    /*
+     * The library already owns a naming preset and template. A second opinion
+     * about what a file should be called is how intake and a library scan end
+     * up disagreeing about the same release. `preview` so the renamer computes
+     * paths and moves nothing — every byte is moved by the strategy executor.
+     */
+    const { stages, media, executed } = build();
+    await stages.get('imported')!.run(ctx);
+    expect(media.buildPlan).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'preview', libraryPath: '/media/TV' }),
+    );
+    expect(executed[0].destination).toBe('/media/TV/Some Show/Some Show - S01E02.mkv');
+  });
+
+  it('SKIPS a file already at its destination, so a retry is safe', async () => {
+    /*
+     * buildPlan derives the destination from the SOURCE, which is still in
+     * staging after a partial run — so its `unchanged` flag stays false and
+     * cannot be relied on. Without this check a resumed import places the same
+     * file twice and link() throws EEXIST on the second.
+     */
+    destinationExists = true;
+    const { stages, executed } = build();
+    const out = await stages.get('imported')!.run(ctx);
+    expect(executed).toHaveLength(0);
+    expect(out.message).toMatch(/already present/);
+    expect(out.quarantine).toBeUndefined();
+  });
+
+  it('ignores plan entries the renamer skipped or left unchanged', async () => {
+    const { stages, executed } = build({
+      planItems: [
+        { source: '/s/a.mkv', destination: '/d/a.mkv', skipped: true, unchanged: false },
+        { source: '/s/b.nfo', destination: '/d/b.nfo', skipped: false, unchanged: true },
+        { source: '/s/c.mkv', destination: '/d/c.mkv', skipped: false, unchanged: false },
+      ],
+    });
+    await stages.get('imported')!.run(ctx);
+    expect(executed.map((e) => e.destination)).toEqual(['/d/c.mkv']);
+  });
+
+  it('quarantines when the plan yields nothing to place', async () => {
+    // Silently succeeding would mark an intake imported having moved nothing.
+    const { stages } = build({ planItems: [] });
+    expect((await stages.get('imported')!.run(ctx)).quarantine).toBeDefined();
+  });
+
+  it('records where the file landed', async () => {
+    const { stages, updates } = build();
+    await stages.get('imported')!.run(ctx);
+    expect(updates.some((u) => u.importedPath === '/media/TV/Some Show/Some Show - S01E02.mkv')).toBe(true);
+  });
+
+  it('passes the recorded strategy through to the executor', async () => {
+    // The plan stage already chose and persisted it; re-deciding here could
+    // pick something different from what the timeline says was attempted.
+    const { stages, executed } = build({ job: { id: 'j1', libraryId: 'lib-tv', strategy: 'copy' } });
+    await stages.get('imported')!.run(ctx);
+    expect(executed[0].requested).toBe('copy');
+  });
+
+  it('reports a fallback rather than hiding it', async () => {
+    const { stages } = build({ outcome: { fellBack: true, strategy: 'copy' } });
+    expect((await stages.get('imported')!.run(ctx)).message).toMatch(/fell back/);
+  });
+
+  it('marks importing as its own state before placing anything', async () => {
+    /*
+     * A process that dies mid-copy must leave `importing` behind — which reads
+     * as "interrupted, check it" rather than `ready_to_import`, which reads as
+     * "never started" and invites a second attempt on a half-copied file.
+     */
+    const { stages, executed } = build();
+    const out = await stages.get('importing')!.run(ctx);
+    expect(out.quarantine).toBeUndefined();
+    expect(executed).toHaveLength(0);
   });
 });
