@@ -96,7 +96,8 @@
     "My Notification Settings": "My Notification Settings",
     "Inbox": "Inbox",
     "Notification Events": "Notification Events",
-    "Library Browser": "Library Browser"
+    "Library Browser": "Library Browser",
+    "Media Intake": "Media Intake"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",
@@ -172,7 +173,8 @@
     "My Notification Settings": "Your quiet hours, digest schedule and global pause.",
     "Inbox": "Notifications sent to you.",
     "Notification Events": "Choose which events you want, and where they arrive.",
-    "Library Browser": "Browse every library as a poster wall, with drill-down into shows and episodes."
+    "Library Browser": "Browse every library as a poster wall, with drill-down into shows and episodes.",
+    "Media Intake": "Storage profiles and the import pipeline"
   },
   "details": {
     "Account": "Account",

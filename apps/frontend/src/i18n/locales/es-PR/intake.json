@@ -1,0 +1,53 @@
+{
+  "yes": "sí",
+  "no": "no",
+  "profile": {
+    "title": "Perfiles de almacenamiento",
+    "subtitle": "Dónde prepara las descargas la ingesta de medios, y a qué bibliotecas alimenta.",
+    "back": "Ajustes de medios",
+    "loading": "Cargando perfiles…",
+    "loadFailed": "No se pudieron cargar los perfiles.",
+    "emptyTitle": "Aún no hay perfiles",
+    "emptyBody": "Un perfil nombra una carpeta de preparación y las bibliotecas donde llegan las importaciones. La ingesta no hace nada hasta que exista uno.",
+    "addBtn": "Agregar un perfil",
+    "name": "Nombre",
+    "stagingRoot": "Raíz de preparación",
+    "stagingHelp": "Dónde se retienen las descargas mientras se verifican. No debe estar dentro de una biblioteca, o un escáner indexará archivos a medio escribir.",
+    "movieLibraryId": "Biblioteca de películas",
+    "tvLibraryId": "Biblioteca de series",
+    "musicLibraryId": "Biblioteca de música",
+    "noLibrary": "Sin definir",
+    "strategy": "Estrategia de importación",
+    "strategyHelp": "Automática elige el método más económico que el almacenamiento admita, prefiriendo un enlace duro para que el torrent siga compartiendo.",
+    "moveWarning": "Mover elimina el origen, así que el torrent deja de compartir. Nunca se elige automáticamente.",
+    "capabilities": "Capacidades medidas",
+    "saveBtn": "Guardar",
+    "createBtn": "Crear perfil",
+    "cancel": "Cancelar",
+    "probeBtn": "Probar almacenamiento",
+    "deleteBtn": "Eliminar",
+    "deleteConfirm": "¿Eliminar el perfil de almacenamiento \"{{name}}\"?",
+    "created": "Perfil creado",
+    "createFailed": "No se pudo crear el perfil",
+    "saved": "Perfil guardado",
+    "saveFailed": "No se pudo guardar el perfil",
+    "deleted": "Perfil eliminado",
+    "deleteFailed": "No se pudo eliminar el perfil",
+    "probeFailed": "No se pudo probar el almacenamiento"
+  },
+  "strategy": {
+    "auto": "Automática (recomendada)",
+    "hardlink": "Enlace duro",
+    "reflink": "Reflink (copia al escribir)",
+    "provider_relocation": "Pedir al cliente de descargas que lo mueva",
+    "copy": "Copiar",
+    "move": "Mover (termina la compartición)"
+  },
+  "capability": {
+    "sameDevice": "Mismo dispositivo",
+    "hardlink": "Enlace duro",
+    "reflink": "Reflink",
+    "symlink": "Enlace simbólico",
+    "providerRelocation": "Reubicación del cliente"
+  }
+}

@@ -49,7 +49,8 @@ import {
   FileCog,
   ClipboardCheck,
   Trash2,
-} from 'lucide-react';
+
+  HardDrive,} from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { Permission } from '@ultratorrent/shared';
 import { PERMISSIONS } from '@ultratorrent/shared';
@@ -233,6 +234,7 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
     ],
   } },
   { slot: { domain: 'media', order: 80 }, item: { id: 'media-imdb', to: '/media/settings/imdb', label: 'IMDb Settings', icon: IdCard, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'IMDb Settings' } },
+  { slot: { domain: 'media', order: 85 }, item: { id: 'media-intake', to: '/media/settings/intake', label: 'Media Intake', icon: HardDrive, permission: PERMISSIONS.MEDIA_INTAKE_VIEW, module: 'media_intake', descriptionKey: 'Media Intake' } },
   { slot: { domain: 'media', order: 90 }, item: { id: 'media-settings', to: '/media/settings', label: 'Media Settings', icon: SlidersHorizontal, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', end: true, descriptionKey: 'Media Settings' } },
   { slot: { domain: 'media', order: 100 }, item: {
     id: 'library-cleanup', to: '/media/cleanup', label: 'Cleanup Center', icon: Recycle, permission: PERMISSIONS.LIBRARY_CLEANUP_VIEW, module: 'library_cleanup', end: true, descriptionKey: 'Cleanup Center',

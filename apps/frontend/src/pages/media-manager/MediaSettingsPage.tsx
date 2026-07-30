@@ -15,6 +15,7 @@ import {
   Trash2,
   Users,
   Wand2,
+  HardDrive,
 } from 'lucide-react';
 import {
   ApiError,
@@ -65,6 +66,19 @@ export function MediaSettingsPage() {
       </div>
 
       <MetadataProvidersSection />
+      <SectionCard
+        icon={<HardDrive className="h-5 w-5" />}
+        title={t('settings.intake.title')}
+        description={t('settings.intake.description')}
+        actions={
+          <Button size="sm" variant="outline" onClick={() => navigate('/media/settings/intake')}>
+            {t('settings.intake.configureBtn')}
+          </Button>
+        }
+      >
+        <p className="text-sm text-muted-foreground">{t('settings.intake.body')}</p>
+      </SectionCard>
+
       {canViewImdb && (
         <SectionCard
           icon={<Film className="h-5 w-5" />}

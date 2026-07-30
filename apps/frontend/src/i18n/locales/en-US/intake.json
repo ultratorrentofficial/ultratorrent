@@ -1,0 +1,53 @@
+{
+  "yes": "yes",
+  "no": "no",
+  "profile": {
+    "title": "Storage Profiles",
+    "subtitle": "Where Media Intake stages downloads, and which libraries it feeds.",
+    "back": "Media settings",
+    "loading": "Loading storage profiles…",
+    "loadFailed": "Could not load storage profiles.",
+    "emptyTitle": "No storage profile yet",
+    "emptyBody": "A profile names a staging folder and the libraries imports land in. Media Intake does nothing until one exists.",
+    "addBtn": "Add a profile",
+    "name": "Name",
+    "stagingRoot": "Staging root",
+    "stagingHelp": "Where downloads are held while they are checked. Must not sit inside a library, or a scanner will index half-written files.",
+    "movieLibraryId": "Movie library",
+    "tvLibraryId": "TV library",
+    "musicLibraryId": "Music library",
+    "noLibrary": "Not set",
+    "strategy": "Import strategy",
+    "strategyHelp": "Automatic picks the cheapest method the storage supports, preferring a hardlink so the torrent keeps seeding.",
+    "moveWarning": "Move deletes the source, so the torrent stops seeding. It is never chosen automatically.",
+    "capabilities": "Measured capabilities",
+    "saveBtn": "Save",
+    "createBtn": "Create profile",
+    "cancel": "Cancel",
+    "probeBtn": "Test storage",
+    "deleteBtn": "Delete",
+    "deleteConfirm": "Delete the storage profile \"{{name}}\"?",
+    "created": "Storage profile created",
+    "createFailed": "Could not create the profile",
+    "saved": "Storage profile saved",
+    "saveFailed": "Could not save the profile",
+    "deleted": "Storage profile deleted",
+    "deleteFailed": "Could not delete the profile",
+    "probeFailed": "Could not test the storage"
+  },
+  "strategy": {
+    "auto": "Automatic (recommended)",
+    "hardlink": "Hard link",
+    "reflink": "Reflink (copy-on-write)",
+    "provider_relocation": "Ask the download client to move it",
+    "copy": "Copy",
+    "move": "Move (ends seeding)"
+  },
+  "capability": {
+    "sameDevice": "Same device",
+    "hardlink": "Hard link",
+    "reflink": "Reflink",
+    "symlink": "Symlink",
+    "providerRelocation": "Client relocation"
+  }
+}

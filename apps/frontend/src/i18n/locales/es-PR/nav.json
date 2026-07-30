@@ -96,7 +96,8 @@
     "My Notification Settings": "Mi configuración de notificaciones",
     "Inbox": "Bandeja de entrada",
     "Notification Events": "Eventos de notificación",
-    "Library Browser": "Explorador de bibliotecas"
+    "Library Browser": "Explorador de bibliotecas",
+    "Media Intake": "Ingesta de medios"
   },
   "descriptions": {
     "Acquisition Intelligence": "Adquisición y mejoras inteligentes",
@@ -172,7 +173,8 @@
     "My Notification Settings": "Tus horas de silencio, tu resumen programado y la pausa global.",
     "Inbox": "Notificaciones enviadas a ti.",
     "Notification Events": "Elige qué eventos quieres y dónde recibirlos.",
-    "Library Browser": "Explora cada biblioteca como un muro de carteles, con detalle de series y episodios."
+    "Library Browser": "Explora cada biblioteca como un muro de carteles, con detalle de series y episodios.",
+    "Media Intake": "Perfiles de almacenamiento y el canal de importación"
   },
   "details": {
     "Account": "Cuenta",

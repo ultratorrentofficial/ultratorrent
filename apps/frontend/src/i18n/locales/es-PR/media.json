@@ -729,6 +729,12 @@
         "tokenPlaceholderNew": "Ingresa {{token}}",
         "enabled": "Habilitado"
       }
+    },
+    "intake": {
+      "title": "Ingesta de medios",
+      "description": "Canal de importación con preparación y perfiles de almacenamiento.",
+      "configureBtn": "Perfiles de almacenamiento",
+      "body": "Dirige las reglas RSS nuevas por un área de preparación donde las descargas se verifican, identifican y colocan en una biblioteca por el método más económico que el almacenamiento admita, manteniendo el torrent compartiendo. Las reglas existentes no cambian hasta que las actives."
     }
   },
   "renamer": {

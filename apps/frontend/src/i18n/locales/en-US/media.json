@@ -729,6 +729,12 @@
         "tokenPlaceholderNew": "Enter {{token}}",
         "enabled": "Enabled"
       }
+    },
+    "intake": {
+      "title": "Media Intake",
+      "description": "Staging-based import pipeline and storage profiles.",
+      "configureBtn": "Storage profiles",
+      "body": "Route new RSS rules through a staging area where downloads are verified, identified and placed into a library by the cheapest method the storage supports — keeping the torrent seeding. Existing rules are unaffected until you opt them in."
     }
   },
   "renamer": {

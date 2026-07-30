@@ -12,6 +12,7 @@ import enShell from './locales/en-US/shell.json';
 import enActions from './locales/en-US/actions.json';
 import enMedia from './locales/en-US/media.json';
 import enMediaServerAnalytics from './locales/en-US/mediaServerAnalytics.json';
+import enIntake from './locales/en-US/intake.json';
 import enSubtitleIntelligence from './locales/en-US/subtitleIntelligence.json';
 import enImdb from './locales/en-US/imdb.json';
 import enRss from './locales/en-US/rss.json';
@@ -39,6 +40,7 @@ import esShell from './locales/es-PR/shell.json';
 import esActions from './locales/es-PR/actions.json';
 import esMedia from './locales/es-PR/media.json';
 import esMediaServerAnalytics from './locales/es-PR/mediaServerAnalytics.json';
+import esIntake from './locales/es-PR/intake.json';
 import esSubtitleIntelligence from './locales/es-PR/subtitleIntelligence.json';
 import esImdb from './locales/es-PR/imdb.json';
 import esRss from './locales/es-PR/rss.json';
@@ -94,6 +96,7 @@ export const NAMESPACES = [
   'shell',
   'media',
   'mediaServerAnalytics',
+  'intake',
   'subtitleIntelligence',
   'imdb',
   'rss',
@@ -126,6 +129,7 @@ export const resources = {
     actions: enActions,
     media: enMedia,
     mediaServerAnalytics: enMediaServerAnalytics,
+    intake: enIntake,
     subtitleIntelligence: enSubtitleIntelligence,
     imdb: enImdb,
     rss: enRss,
@@ -155,6 +159,7 @@ export const resources = {
     actions: esActions,
     media: esMedia,
     mediaServerAnalytics: esMediaServerAnalytics,
+    intake: esIntake,
     subtitleIntelligence: esSubtitleIntelligence,
     imdb: esImdb,
     rss: esRss,

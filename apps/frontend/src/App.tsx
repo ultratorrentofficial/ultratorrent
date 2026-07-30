@@ -58,6 +58,7 @@ import { CleanupProtectionsPage } from '@/pages/cleanup/CleanupProtectionsPage';
 import { MediaRenamePreviewPage } from '@/pages/media-manager/MediaRenamePreviewPage';
 import { MediaSettingsPage } from '@/pages/media-manager/MediaSettingsPage';
 import { MediaImdbSettingsPage } from '@/pages/media-manager/MediaImdbSettingsPage';
+import { StorageProfilesPage } from '@/pages/media-intake/StorageProfilesPage';
 import { ModulesPage } from '@/pages/ModulesPage';
 import { EnginesPage } from '@/pages/engines/EnginesPage';
 import { IndexersPage } from '@/pages/indexers/IndexersPage';
@@ -250,6 +251,14 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_manager">
                             <MediaSettingsPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/settings/intake"
+                        element={
+                          <ModuleRoute moduleId="media_intake">
+                            <StorageProfilesPage />
                           </ModuleRoute>
                         }
                       />
