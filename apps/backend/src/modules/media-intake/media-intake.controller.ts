@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import type { IntakeState } from '@ultratorrent/shared';
@@ -10,6 +10,7 @@ import { MediaIntakeService } from './media-intake.service';
 import { StorageProfileService, type StorageProfileInput } from './storage-profile.service';
 import { PathMappingRegistryService } from './path-mapping-registry.service';
 import { StorageCapabilityDetector } from './storage-capability-detector.service';
+import { IntakePipelineService } from './intake-pipeline.service';
 
 const P = PERMISSIONS;
 
@@ -34,6 +35,7 @@ export class MediaIntakeController {
     private readonly profiles: StorageProfileService,
     private readonly paths: PathMappingRegistryService,
     private readonly capabilities: StorageCapabilityDetector,
+    private readonly pipeline: IntakePipelineService,
   ) {}
 
   // --- dashboard ----------------------------------------------------------
@@ -54,6 +56,34 @@ export class MediaIntakeController {
   @RequirePermissions(P.MEDIA_INTAKE_VIEW)
   job(@Param('id') id: string) {
     return this.intake.detail(id);
+  }
+
+  /**
+   * Stage something by hand — a watched folder, a manual grab, or a test.
+   *
+   * The engine is deliberately not torrent-only: an intake needs a path and a
+   * profile, and where those came from is not its business.
+   */
+  @Post('jobs')
+  @RequirePermissions(P.MEDIA_INTAKE_OPERATE)
+  async enqueue(@Body() body: { profileId?: string; sourcePath?: string; engineId?: string | null }) {
+    if (!body?.profileId || !body?.sourcePath) {
+      throw new BadRequestException('profileId and sourcePath are required.');
+    }
+    const job = await this.intake.enqueue({
+      profileId: body.profileId,
+      sourcePath: body.sourcePath,
+      engineId: body.engineId ?? null,
+    });
+    const result = await this.pipeline.advance(job.id);
+    return { job, result };
+  }
+
+  /** Run the pipeline from wherever this intake currently sits. */
+  @Post('jobs/:id/advance')
+  @RequirePermissions(P.MEDIA_INTAKE_OPERATE)
+  advance(@Param('id') id: string) {
+    return this.pipeline.advance(id);
   }
 
   // --- operating a running intake -----------------------------------------

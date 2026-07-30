@@ -3,6 +3,7 @@ import { DOMAIN_EVENTS, LEGACY_RSS_IMPORT_MODE } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { MediaIntakeService } from './media-intake.service';
+import { IntakePipelineService } from './intake-pipeline.service';
 import { StorageProfileService } from './storage-profile.service';
 
 /**
@@ -33,6 +34,7 @@ export class IntakeTriggerService implements OnModuleInit {
     private readonly bus: DomainEventBus,
     private readonly intake: MediaIntakeService,
     private readonly profiles: StorageProfileService,
+    private readonly pipeline: IntakePipelineService,
   ) {}
 
   onModuleInit(): void {
@@ -73,13 +75,24 @@ export class IntakeTriggerService implements OnModuleInit {
       return;
     }
 
-    await this.intake.enqueue({
+    const job = await this.intake.enqueue({
       profileId: profile.id,
       sourcePath,
       torrentHash: hash,
       engineId: (event.payload?.engineId as string | undefined) ?? null,
     });
     this.logger.log(`Queued ${hash} for managed intake via profile "${profile.name}".`);
+
+    /*
+     * Enqueueing is not the same as running. Without this the engine sat
+     * complete and idle — every intake stuck at `queued` with nothing to move
+     * it, which looks exactly like a broken pipeline and was in fact a missing
+     * call. Detached, because the sync loop that published this event must not
+     * wait on a file copy.
+     */
+    void this.pipeline
+      .advance(job.id)
+      .catch((err) => this.logger.warn(`Pipeline failed for ${job.id}: ${(err as Error).message}`));
   }
 
   /**

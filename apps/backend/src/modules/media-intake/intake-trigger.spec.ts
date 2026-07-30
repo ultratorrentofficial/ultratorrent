@@ -36,17 +36,23 @@ function build(opts: {
   const intake = {
     enqueue: jest.fn(async (input: Record<string, unknown>) => { enqueued.push(input); return { id: 'j1' }; }),
   };
+  const advanced: string[] = [];
+  const pipeline = {
+    advance: jest.fn(async (id: string) => { advanced.push(id); return { state: 'verified', ran: [] }; }),
+  };
   const profiles = {
     get: jest.fn(async () => opts.profile ?? { id: 'p1', name: 'Default' }),
     defaultProfile: jest.fn(async () => (opts.profile === undefined ? { id: 'p1', name: 'Default' } : opts.profile)),
   };
 
-  const svc = new IntakeTriggerService(prisma as never, bus as never, intake as never, profiles as never);
+  const svc = new IntakeTriggerService(
+    prisma as never, bus as never, intake as never, profiles as never, pipeline as never,
+  );
   const logger = (svc as never as { logger: Record<string, (m: string) => void> }).logger;
   jest.spyOn(logger, 'warn').mockImplementation((m: string) => { warnings.push(m); });
   jest.spyOn(logger, 'log').mockImplementation(() => undefined);
   svc.onModuleInit();
-  return { svc, handlers, enqueued, warnings, prisma, intake };
+  return { svc, handlers, enqueued, warnings, prisma, intake, pipeline, advanced };
 }
 
 const completion = (over: Record<string, unknown> = {}) => ({
@@ -128,6 +134,29 @@ describe('managed intake gate', () => {
     await fire(handlers, completion({ savePath: undefined, contentPath: undefined }));
     expect(enqueued).toHaveLength(0);
     expect(warnings.join(' ')).toMatch(/no path/);
+  });
+
+  it('DRIVES the pipeline after enqueueing, not just queues it', async () => {
+    /*
+     * The gap this closes. Enqueueing is not running: without the advance call
+     * every intake sat at `queued` with nothing to move it, which looks exactly
+     * like a broken pipeline and was in fact a missing line.
+     */
+    const { handlers, advanced } = build({ rule: managed });
+    await fire(handlers, completion());
+    expect(advanced).toEqual(['j1']);
+  });
+
+  it('does not advance anything when the gate refused the torrent', async () => {
+    const { handlers, advanced } = build({ rule: legacy });
+    await fire(handlers, completion());
+    expect(advanced).toHaveLength(0);
+  });
+
+  it('never lets a pipeline failure disturb torrent bookkeeping', async () => {
+    const { handlers, pipeline } = build({ rule: managed });
+    pipeline.advance.mockRejectedValue(new Error('disk full') as never);
+    await expect(fire(handlers, completion())).resolves.toBeUndefined();
   });
 
   it('never lets an intake failure disturb torrent bookkeeping', async () => {
