@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { DomainEventsModule } from '../domain-events/domain-events.module';
 import { EngineModule } from '../engine/engine.module';
+import { MediaModule } from '../media/media.module';
 import { MediaIntakeController } from './media-intake.controller';
 import { MediaIntakeService } from './media-intake.service';
 import { StorageProfileService } from './storage-profile.service';
@@ -10,6 +11,7 @@ import { StorageCapabilityDetector } from './storage-capability-detector.service
 import { ImportStrategyService } from './import-strategy.service';
 import { IntakeTriggerService } from './intake-trigger.service';
 import { IntakePipelineService } from './intake-pipeline.service';
+import { IntakeStagesService } from './intake-stages.service';
 
 /**
  * The Media Intake Engine.
@@ -19,7 +21,7 @@ import { IntakePipelineService } from './intake-pipeline.service';
  * module needing to import all of them back and create a cycle.
  */
 @Module({
-  imports: [PrismaModule, DomainEventsModule, EngineModule],
+  imports: [PrismaModule, DomainEventsModule, EngineModule, MediaModule],
   controllers: [MediaIntakeController],
   providers: [
     MediaIntakeService,
@@ -29,6 +31,7 @@ import { IntakePipelineService } from './intake-pipeline.service';
     ImportStrategyService,
     IntakeTriggerService,
     IntakePipelineService,
+    IntakeStagesService,
   ],
   exports: [
     MediaIntakeService,

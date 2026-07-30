@@ -107,6 +107,9 @@ import { MediaController } from './media.controller';
   controllers: [MediaController, TraktController],
   exports: [
     MediaService,
+    // Exported for the Media Intake engine's quality-scoring stage, which
+    // measures a staged file before it becomes a library item.
+    MediaProbeService,
     MediaLibraryService,
     MediaScannerService,
     MediaIdentificationService,
