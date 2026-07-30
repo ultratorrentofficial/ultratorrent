@@ -1063,6 +1063,16 @@ export class MediaController {
    * Takes a run id, never a list of paths: what executes is the reverse of what
    * was recorded, so a caller cannot direct a move by supplying its own.
    */
+  /**
+   * The file-by-file detail of one undoable run — old path, new path, outcome.
+   * Declared after the literal `rename/undoable` above so it cannot shadow it.
+   */
+  @Get('rename/undoable/:runId')
+  @RequirePermissions(P.MEDIA_MANAGER_RENAME)
+  runOperations(@Param('runId') runId: string) {
+    return this.media.runOperations(runId);
+  }
+
   @Post('rename/undo')
   @RequirePermissions(P.MEDIA_MANAGER_RENAME)
   undoRename(@Body() body: { runId?: string }, @Req() req: Request) {

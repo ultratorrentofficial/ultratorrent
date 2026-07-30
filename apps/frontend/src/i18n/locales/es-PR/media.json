@@ -1748,7 +1748,11 @@
         "moved_since": "Ya no está donde lo dejó el renombrado",
         "original_path_occupied": "Otro archivo usa ahora el nombre original",
         "outside_roots": "Fuera de las rutas permitidas"
-      }
+      },
+      "detailFailed": "No se pudo cargar lo que cambió esta ejecución.",
+      "detailEmpty": "Esta ejecución no registró cambios de archivos.",
+      "alreadyUndone": "Ya revertido",
+      "detailTruncated": "Mostrando {{shown}} de {{total}} archivos."
     }
   },
   "health": {

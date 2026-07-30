@@ -1748,7 +1748,11 @@
         "moved_since": "No longer where the rename left it",
         "original_path_occupied": "Something else now uses the original name",
         "outside_roots": "Outside the allowed roots"
-      }
+      },
+      "detailFailed": "Could not load what this run changed.",
+      "detailEmpty": "This run recorded no file changes.",
+      "alreadyUndone": "Already undone",
+      "detailTruncated": "Showing {{shown}} of {{total}} files."
     }
   },
   "health": {

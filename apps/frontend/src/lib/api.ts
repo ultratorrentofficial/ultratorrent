@@ -1234,6 +1234,24 @@ export interface RenameRun {
   mode: string;
 }
 
+export interface RenameRunOperation {
+  id: string;
+  source: string;
+  destination: string | null;
+  action: string;
+  kind: string;
+  status: string;
+  message: string | null;
+  undoneAt: string | null;
+}
+
+export interface RenameRunDetail {
+  total: number;
+  /** True when `operations` is a capped slice of a larger run. */
+  truncated: boolean;
+  operations: RenameRunOperation[];
+}
+
 export interface RenameUndoResult {
   runId: string;
   undone: number;
@@ -3978,6 +3996,10 @@ export const api = {
       return request<RenameRun[]>('/media/rename/undoable');
     },
     /** Reverse one rename run by id — never by supplying paths. */
+    /** File-by-file detail of one undoable run: old path, new path, outcome. */
+    renameRunOperations(runId: string): Promise<RenameRunDetail> {
+      return request<RenameRunDetail>(`/media/rename/undoable/${encodeURIComponent(runId)}`);
+    },
     undoRename(runId: string): Promise<RenameUndoResult> {
       return request<RenameUndoResult>('/media/rename/undo', { method: 'POST', body: { runId } });
     },

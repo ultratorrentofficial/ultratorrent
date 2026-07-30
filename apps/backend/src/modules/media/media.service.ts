@@ -904,6 +904,47 @@ export class MediaService {
       .map(([runId, v]) => ({ runId, at: v.at.toISOString(), operations: v.operations, mode: v.mode }));
   }
 
+  /**
+   * What one undoable run actually did, file by file.
+   *
+   * The list endpoint returns counts — "12 files renamed, 3h ago" — which is
+   * enough to pick a run but not enough to *judge* one. An operator looking at
+   * Undo is deciding whether a rename was wrong, and that question is only
+   * answerable from the old and new paths. The rows have carried `source` and
+   * `destination` all along; nothing exposed them.
+   *
+   * Capped, because a run can cover a whole library: the caller is told the
+   * total so a truncated list never reads as the complete one.
+   */
+  async runOperations(runId: string, limit = 500): Promise<{
+    total: number;
+    truncated: boolean;
+    operations: Array<{
+      id: string; source: string; destination: string | null;
+      action: string; kind: string; status: string; message: string | null;
+      undoneAt: string | null;
+    }>;
+  }> {
+    const where = { runId };
+    const [total, rows] = await Promise.all([
+      this.prisma.mediaRenameOperation.count({ where }),
+      this.prisma.mediaRenameOperation.findMany({
+        where,
+        orderBy: { createdAt: 'asc' },
+        take: limit,
+        select: {
+          id: true, source: true, destination: true, action: true,
+          kind: true, status: true, message: true, undoneAt: true,
+        },
+      }),
+    ]);
+    return {
+      total,
+      truncated: total > rows.length,
+      operations: rows.map((r) => ({ ...r, undoneAt: r.undoneAt?.toISOString() ?? null })),
+    };
+  }
+
   private async log(
     item: { source: string; destination: string | null; action: string; kind: string },
     mode: string,
