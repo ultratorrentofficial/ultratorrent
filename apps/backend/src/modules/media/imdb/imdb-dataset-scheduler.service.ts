@@ -23,6 +23,8 @@ export class ImdbDatasetScheduler {
   private readonly logger = new Logger(ImdbDatasetScheduler.name);
   private running = false;
   private lastAttemptAt = 0;
+  /** So the "enabled but inert" warning is logged once, not hourly. */
+  private warnedInert = false;
 
   constructor(
     private readonly imdb: ImdbService,
@@ -44,6 +46,29 @@ export class ImdbDatasetScheduler {
     // A datasetPath is NOT required — runDatasetUpdate falls back to a managed
     // default location under the storage root when none is configured.
     const usesDataset = settings.mode === 'dataset' || settings.mode === 'hybrid';
+    /*
+     * Say why nothing is happening, once.
+     *
+     * `autoDownloadEnabled` with an interval reads as "this is scheduled", but
+     * the provider `mode` gates it: on a live install we found auto-download on
+     * and the interval set to 168h while `mode` was `disabled`, so this returned
+     * on every tick for weeks with nothing to show for it. The operator has no
+     * way to see a silent early return — the UI warns too, but a log line is
+     * what someone reads when the UI has already been believed.
+     */
+    if (settings.autoDownloadEnabled && !usesDataset) {
+      if (!this.warnedInert) {
+        this.warnedInert = true;
+        this.logger.warn(
+          `IMDb auto-update is enabled (every ${settings.autoUpdateIntervalHours}h) but the provider mode is `
+            + `"${settings.mode}", which does not use datasets — nothing will be imported until the mode is `
+            + `"dataset" or "hybrid".`,
+        );
+      }
+      return;
+    }
+    // A mode change should be able to un-silence the warning.
+    this.warnedInert = false;
     if (!usesDataset || !settings.autoDownloadEnabled) return;
 
     const intervalMs = Math.max(1, settings.autoUpdateIntervalHours) * HOUR_MS;

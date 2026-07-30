@@ -174,8 +174,20 @@ export class ImdbService implements OnModuleInit {
 
   // --- dataset validate / import -------------------------------------------
 
-  validateDataset(datasetPath: string, ctx: AuditContext = {}) {
-    return this.importer.validate(datasetPath, ctx);
+  /**
+   * Validate the dataset directory, resolving the same way an import does.
+   *
+   * An empty `datasetPath` means "the configured/managed location", not "no
+   * path": the Optimized Import panel has no path input of its own and posted
+   * `{}`, which reached `assertWithinHardRoots('')` and came back
+   * `400 A path is required.` — a Validate button that could never succeed,
+   * beside an identical one that worked because its panel had a text field.
+   * Sharing {@link resolveDatasetDir} with import and the scheduler means all
+   * three now agree on which directory they are talking about.
+   */
+  async validateDataset(datasetPath: string, ctx: AuditContext = {}) {
+    const dir = datasetPath?.trim() ? datasetPath.trim() : await this.resolveDatasetDir();
+    return this.importer.validate(dir, ctx);
   }
 
   importDataset(datasetPath: string, ctx: AuditContext = {}) {

@@ -101,7 +101,8 @@
     "importStartedBody": "Live progress will appear below.",
     "importStartError": "Could not start import",
     "importedToastTitle": "IMDb dataset imported",
-    "importFailedTitle": "IMDb import failed"
+    "importFailedTitle": "IMDb import failed",
+    "autoInertWarning": "Auto-update is on, but the IMDb provider mode does not use datasets, so nothing is imported on a schedule. Set the mode to Dataset or Hybrid below."
   },
   "report": {
     "valid": "Valid",

@@ -883,6 +883,18 @@ function DatasetSection({
 
       {/* Automatic download + import */}
       <div className="space-y-3 border-t border-border/60 pt-4">
+        {/*
+         * The schedule is gated by the provider MODE, not by this toggle alone.
+         * Found live with auto-download on and the interval set to 168h while the
+         * mode was `disabled`: the scheduler returned on every tick for weeks and
+         * the screen gave no hint, because a switch that is on reads as a feature
+         * that is running. Say it here, next to the control that looks in charge.
+         */}
+        {autoDownload && settings.mode !== 'dataset' && settings.mode !== 'hybrid' && (
+          <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-500">
+            {t('dataset.autoInertWarning')}
+          </p>
+        )}
         <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
           <div>
             <Label htmlFor="imdb-auto-toggle">{t('dataset.autoTitle')}</Label>

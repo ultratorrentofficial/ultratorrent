@@ -101,7 +101,8 @@
     "importStartedBody": "El progreso en vivo aparecerá abajo.",
     "importStartError": "No se pudo iniciar la importación",
     "importedToastTitle": "Conjunto de datos de IMDb importado",
-    "importFailedTitle": "Falló la importación de IMDb"
+    "importFailedTitle": "Falló la importación de IMDb",
+    "autoInertWarning": "La actualización automática está activa, pero el modo del proveedor IMDb no usa datasets, así que no se importa nada de forma programada. Cambia el modo a Dataset o Híbrido abajo."
   },
   "report": {
     "valid": "Válido",
