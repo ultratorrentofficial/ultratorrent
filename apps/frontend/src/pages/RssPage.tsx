@@ -31,6 +31,7 @@ import {
   type UpdateFeedInput,
   type UpdateRuleInput,
 } from '@/lib/api';
+import { RuleImportModeField, type RuleImportMode } from './rss/RuleImportModeField';
 import { formatRelativeTime } from '@/lib/format';
 import { cn, safeHttpUrl } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
@@ -745,6 +746,18 @@ function RuleDialog({
   const [excludeRegex, setExcludeRegex] = useState(rule?.excludeRegex ?? '');
   const [savePath, setSavePath] = useState(rule?.savePath ?? '');
   const [autoDownload, setAutoDownload] = useState(rule?.autoDownload ?? true);
+  /*
+   * A NEW rule offers Managed Intake; an existing one shows whatever it already
+   * is. The server applies the same default, so an older client that never
+   * sends the field still creates managed rules — this is the visible half of
+   * that decision, not the authority for it.
+   */
+  const [ruleImportMode, setRuleImportMode] = useState<RuleImportMode>(
+    (rule?.importMode as RuleImportMode | undefined) ?? 'managed_intake',
+  );
+  const [storageProfileId, setStorageProfileId] = useState<string | null>(
+    rule?.storageProfileId ?? null,
+  );
   const [mediaType, setMediaType] = useState(rule?.mediaType ?? '');
   const [saving, setSaving] = useState(false);
   const [confirmInactive, setConfirmInactive] = useState(false);
@@ -779,6 +792,8 @@ function RuleDialog({
           excludeRegex: excludeRegex.trim(),
           savePath: savePath.trim(),
           autoDownload,
+          importMode: ruleImportMode,
+          storageProfileId,
           ...showFields,
         };
         await api.rss.updateRule(rule.id, body);
@@ -791,6 +806,8 @@ function RuleDialog({
           excludeRegex: excludeRegex.trim() || undefined,
           savePath: savePath.trim() || undefined,
           autoDownload,
+          importMode: ruleImportMode,
+          storageProfileId,
           ...showFields,
         };
         await api.rss.createRule(body);
@@ -871,6 +888,16 @@ function RuleDialog({
         <div className="flex items-center justify-between">
           <Label htmlFor="rule-auto">{t('ruleDialog.autoDownload')}</Label>
           <Switch id="rule-auto" checked={autoDownload} onCheckedChange={setAutoDownload} />
+        </div>
+        {/* How this rule's downloads reach the library. A new rule offers
+            Managed Intake; an existing one keeps whatever it already is. */}
+        <div className="border-t border-border/60 pt-3">
+          <RuleImportModeField
+            value={ruleImportMode}
+            profileId={storageProfileId}
+            onChange={setRuleImportMode}
+            onProfileChange={setStorageProfileId}
+          />
         </div>
       </div>
       <DialogFooter>

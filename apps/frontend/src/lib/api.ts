@@ -662,6 +662,13 @@ export interface CreateRuleInput {
   excludeRegex?: string;
   savePath?: string;
   autoDownload?: boolean;
+  /**
+   * Omitted on create means the SERVER decides, and it chooses managed intake.
+   * Omitted on update means leave it alone — an edit must never migrate a
+   * working rule onto a different import pipeline as a side effect.
+   */
+  importMode?: 'legacy_direct' | 'managed_intake';
+  storageProfileId?: string | null;
   // TV show airing-status awareness (optional).
   mediaType?: string;
   showStatusProvider?: string;
