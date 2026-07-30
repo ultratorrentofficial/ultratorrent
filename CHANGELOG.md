@@ -45,6 +45,46 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.59.0] - 2026-07-30
+
+### Added
+- **Media Intake Engine — a staging-based import pipeline, opt-in and off by default.**
+  A completed download is verified, identified from its filename, quality-scored
+  with `ffprobe`, then placed into a library by the cheapest strategy the storage
+  actually supports — hardlink, reflink, provider relocation or copy — so the
+  torrent keeps seeding. Metadata, artwork and subtitles follow, then the media
+  server is refreshed once, at the end. Every step is recorded, resumable and
+  retryable from the point it stopped.
+- **Storage Profiles** hold the roots intake owns (staging, temp, failed,
+  quarantine) and *reference* your existing libraries rather than restating their
+  paths. A profile refuses a staging root that sits inside a library, or contains
+  one, because a scanner pointed at either would index half-written files.
+- **Path Mapping Registry** — translates a canonical path into whatever spelling
+  the host, container, download client or media server uses, so no module
+  hard-codes one view of the filesystem.
+- **Storage capability detection** — hardlink, reflink, symlink and same-device
+  support are *measured* against the real source and destination, never inferred
+  from a path. Provider relocation is declared per engine: qBittorrent moves the
+  payload, rTorrent only updates a pointer, so it is not offered there.
+- **Per-rule import mode** on RSS rules, with a storage profile picker.
+
+### Changed
+- The rename engine and Media Intake now share one file-placement primitive, so
+  there is a single implementation of how a file gets moved.
+
+### Note
+- **Nothing changes for an existing install.** Every RSS rule created before this
+  release reads `legacy_direct` and behaves exactly as it did; no torrent is
+  moved, no save path is rewritten, and the intake trigger returns immediately
+  for any download that does not trace back to a rule explicitly set to Managed
+  Intake. The migration adds five tables and an `importMode` column that defaults
+  to `legacy_direct`.
+- **This release is API-first.** Storage profiles and intake jobs are managed
+  through `/api/media/intake/*`; the management screens and the intake dashboard
+  are not built yet, and the RSS import-mode selector ships as a component that
+  is not yet mounted in the rule form. Setting Media Intake up end to end
+  currently requires the API.
+
 ## [0.58.3] - 2026-07-30
 
 ### Added
