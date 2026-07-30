@@ -31,6 +31,7 @@ import { LibraryCleanupModule } from './modules/media/cleanup/library-cleanup.mo
 import { TwoFactorModule } from './modules/two-factor/two-factor.module';
 import { AccountModule } from './modules/account/account.module';
 import { MediaModule } from './modules/media/media.module';
+import { MediaIntakeModule } from './modules/media-intake/media-intake.module';
 import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
 import { ContextActionsModule } from './modules/context-actions/context-actions.module';
 import { ReleaseScoringModule } from './modules/release-scoring/release-scoring.module';
@@ -61,6 +62,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     ContextActionsModule,
     EngineModule,
     MediaModule,
+    MediaIntakeModule,
     AutomationModule,
     WorkflowsModule,
     LibraryCleanupModule,

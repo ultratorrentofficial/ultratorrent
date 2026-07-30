@@ -518,6 +518,26 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
     schedulerJobs: ['library_cleanup_scheduled_runs', 'library_cleanup_retention_sweep', 'library_cleanup_protection_expiry'],
     features: ['policies', 'policy_versioning', 'condition_catalog', 'simulation', 'candidates', 'persisted_plans', 'approvals', 'protection_registry', 'legal_hold', 'quarantine', 'trash', 'restore', 'retention', 'replacement_aware', 'storage_pressure', 'ranking', 'jobs_center'],
   },
+  {
+    id: MODULE_IDS.MEDIA_INTAKE,
+    name: 'Media Intake Engine',
+    description:
+      'Staging-based import pipeline. A completed download is verified, identified, enriched and quality-scored in a staging area, then placed into a library by the cheapest strategy the storage actually supports — hardlink, reflink, provider relocation or copy — so the torrent keeps seeding. Storage Profiles hold the logical roots and reference existing libraries rather than restating their paths; a Path Mapping Registry renders every path into the space of whatever component is about to receive it. Opt-in per RSS rule and never applied to an existing one automatically: rules created before this module read legacy_direct and behave exactly as before.',
+    tier: 'core',
+    enabledByDefault: true,
+    dependencies: [MODULE_IDS.MEDIA_MANAGER, MODULE_IDS.TORRENTS],
+    permissions: [
+      PERMISSIONS.MEDIA_INTAKE_VIEW,
+      PERMISSIONS.MEDIA_INTAKE_MANAGE,
+      PERMISSIONS.MEDIA_INTAKE_OPERATE,
+      PERMISSIONS.MEDIA_INTAKE_MIGRATE,
+    ],
+    routes: ['/api/media/intake'],
+    features: [
+      'storage_profiles', 'path_mapping_registry', 'capability_detection',
+      'import_strategies', 'intake_lifecycle', 'retries', 'audit_timeline',
+    ],
+  },
 ];
 
 export const ALL_MANIFESTS: ModuleManifest[] = [

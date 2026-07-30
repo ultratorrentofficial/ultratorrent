@@ -133,6 +133,7 @@ export const MODULE_IDS = {
   SUBTITLE_INTELLIGENCE: 'subtitle_intelligence',
   // Core — policy-driven, plan-executed library storage reclamation
   LIBRARY_CLEANUP: 'library_cleanup',
+  MEDIA_INTAKE: 'media_intake',
 } as const;
 
 export type ModuleId = (typeof MODULE_IDS)[keyof typeof MODULE_IDS];

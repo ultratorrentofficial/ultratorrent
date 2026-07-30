@@ -198,6 +198,17 @@ export const PERMISSIONS = {
   WORKFLOWS_APPROVE: 'workflows.approve',
 
   // Library Cleanup Center
+  // Media Intake — staging-based import pipeline.
+  MEDIA_INTAKE_VIEW: 'media_intake.view',
+  /// Create and edit storage profiles and path mappings.
+  MEDIA_INTAKE_MANAGE: 'media_intake.manage',
+  /// Retry, cancel, release a quarantine, force a transition.
+  MEDIA_INTAKE_OPERATE: 'media_intake.operate',
+  /// Convert an existing RSS rule from legacy to managed intake. Separate
+  /// because it changes how a WORKING rule behaves, which is the one thing
+  /// this feature promises never to do by itself.
+  MEDIA_INTAKE_MIGRATE: 'media_intake.migrate',
+
   LIBRARY_CLEANUP_VIEW: 'library_cleanup.view',
   LIBRARY_CLEANUP_POLICY_CREATE: 'library_cleanup.policy.create',
   LIBRARY_CLEANUP_POLICY_EDIT: 'library_cleanup.policy.edit',
