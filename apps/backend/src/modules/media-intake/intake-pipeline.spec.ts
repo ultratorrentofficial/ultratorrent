@@ -75,17 +75,19 @@ describe('stage sequencing', () => {
   it('keeps the table in lifecycle order however stages were registered', async () => {
     // A stage contributed by another module must not land in the wrong place.
     const { svc } = build(jobAt('completed'));
-    svc.register(stage('quality_scored'));
+    svc.register(stage('metadata_ready'));
     svc.register(stage('identified'));
-    expect(svc.registered()).toEqual(['verified', 'identified', 'quality_scored']);
+    expect(svc.registered()).toEqual(['verified', 'identified', 'metadata_ready']);
   });
 
   it('runs consecutive stages in one pass', async () => {
+    // Consecutive in the LIFECYCLE order: quality scoring follows identification
+    // because it feeds the import decision, and enrichment comes after import.
     const { svc, transitions } = build(jobAt('completed'));
     svc.register(stage('identified'));
-    svc.register(stage('metadata_ready'));
+    svc.register(stage('quality_scored'));
     await svc.advance('j1');
-    expect(transitions.map((t) => t.to)).toEqual(['verified', 'identified', 'metadata_ready']);
+    expect(transitions.map((t) => t.to)).toEqual(['verified', 'identified', 'quality_scored']);
   });
 });
 

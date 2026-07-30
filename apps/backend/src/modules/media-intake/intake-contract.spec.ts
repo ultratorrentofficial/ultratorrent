@@ -23,21 +23,40 @@ import {
 } from '@ultratorrent/shared';
 
 describe('intake lifecycle', () => {
-  it('walks the documented happy path end to end', () => {
+  it('walks the happy path end to end', () => {
+    /*
+     * The order splits on WHAT EACH STAGE OPERATES ON. Everything up to
+     * `imported` works on a path in staging; everything after works on a
+     * MediaItem — which cannot exist until a library scan has found the file,
+     * because every enrichment entry point in this codebase takes an item id.
+     * Quality scoring sits before the import decision deliberately: the score is
+     * what decides upgrade versus replace, so it has to be known first.
+     */
     const path: IntakeState[] = [
-      'queued', 'downloading', 'completed', 'verified', 'identified',
-      'metadata_ready', 'artwork_ready', 'subtitle_ready', 'quality_scored',
-      'ready_to_import', 'importing', 'imported', 'seeding', 'archived',
+      'queued', 'downloading', 'completed',
+      'verified', 'identified', 'quality_scored', 'ready_to_import',
+      'importing', 'imported',
+      'metadata_ready', 'artwork_ready', 'subtitle_ready',
+      'seeding', 'archived',
     ];
     for (let i = 0; i < path.length - 1; i++) {
       expect(canTransition(path[i], path[i + 1])).toBe(true);
     }
   });
 
+  it('enriches only after the item exists', () => {
+    // The constraint behind the ordering: enrichment cannot precede the import
+    // that creates the item, so these edges must not exist.
+    expect(canTransition('identified', 'metadata_ready')).toBe(false);
+    expect(canTransition('verified', 'artwork_ready')).toBe(false);
+    expect(canTransition('imported', 'metadata_ready')).toBe(true);
+  });
+
   it('refuses to skip a stage', () => {
     // Importing something that was never identified is the failure this guards.
     expect(canTransition('completed', 'ready_to_import')).toBe(false);
     expect(canTransition('verified', 'imported')).toBe(false);
+    expect(canTransition('identified', 'importing')).toBe(false);
   });
 
   it('lets any live state fail or be cancelled', () => {

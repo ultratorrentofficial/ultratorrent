@@ -26,15 +26,17 @@ export const INTAKE_STATES = [
   'queued',
   'downloading',
   'completed',
+  // --- before import: every stage here works on a PATH in staging ----------
   'verified',
   'identified',
-  'metadata_ready',
-  'artwork_ready',
-  'subtitle_ready',
   'quality_scored',
   'ready_to_import',
   'importing',
   'imported',
+  // --- after import: every stage here works on a MediaItem ----------------
+  'metadata_ready',
+  'artwork_ready',
+  'subtitle_ready',
   'seeding',
   'archived',
   'failed',
@@ -75,14 +77,23 @@ const HAPPY_PATH: Record<IntakeState, readonly IntakeState[]> = {
   // Verification can conclude the payload is not what it claimed to be.
   completed: ['verified', 'quarantined'],
   verified: ['identified', 'quarantined'],
-  identified: ['metadata_ready'],
-  metadata_ready: ['artwork_ready'],
-  artwork_ready: ['subtitle_ready'],
-  subtitle_ready: ['quality_scored'],
+  // Identification here is a FILENAME parse that picks the destination — the
+  // same thing the rename engine already does to build a target path. It is not
+  // the creation of a MediaItem, which cannot happen until the file is in a
+  // library for a scan to find.
+  identified: ['quality_scored'],
+  // Scored from the file itself, so it is available BEFORE the import decision
+  // — which is the point, since the score is what decides upgrade over replace.
   quality_scored: ['ready_to_import'],
   ready_to_import: ['importing'],
   importing: ['imported'],
-  imported: ['seeding', 'archived'],
+  // Enrichment follows the import because every entry point it uses takes an
+  // existing item id, and an item only exists once a scan has found it inside a
+  // library. Ordering it earlier would need items that live outside libraries.
+  imported: ['metadata_ready'],
+  metadata_ready: ['artwork_ready'],
+  artwork_ready: ['subtitle_ready'],
+  subtitle_ready: ['seeding', 'archived'],
   seeding: ['archived'],
   archived: [],
   // A retry re-enters the pipeline at the point that failed; the engine records

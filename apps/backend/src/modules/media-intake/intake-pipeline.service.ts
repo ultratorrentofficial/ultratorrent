@@ -179,8 +179,8 @@ export class IntakePipelineService {
   private orderOf(state: IntakeState): number {
     const order: IntakeState[] = [
       'queued', 'downloading', 'completed', 'verified', 'identified',
-      'metadata_ready', 'artwork_ready', 'subtitle_ready', 'quality_scored',
-      'ready_to_import', 'importing', 'imported', 'seeding', 'archived',
+      'quality_scored', 'ready_to_import', 'importing', 'imported',
+      'metadata_ready', 'artwork_ready', 'subtitle_ready', 'seeding', 'archived',
     ];
     const i = order.indexOf(state);
     return i === -1 ? Number.MAX_SAFE_INTEGER : i;
