@@ -45,6 +45,18 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.58.3] - 2026-07-30
+
+### Added
+- The rename Undo list expands to show what each run actually changed: old name, new name and outcome per file
+
+### Fixed
+- IMDb: the Optimized Import panel's Validate button works, and an enabled auto-update that a disabled provider mode makes inert now says so
+- IMDb settings: the two import panels are one card, with a single Validate, Import now and Save
+
+### Note
+- This release also carries the **dormant** Media Intake Engine foundation (schema, storage profiles, path mapping registry, capability detection, import strategies). Its migration adds five tables and an `importMode` column on `rss_rules` that defaults to `legacy_direct`, so every existing rule behaves exactly as before and nothing in the pipeline can run until a storage profile is created and a rule is deliberately opted in. It is documented in the release where it becomes usable.
+
 ## [0.58.2] - 2026-07-29
 
 ### Added
