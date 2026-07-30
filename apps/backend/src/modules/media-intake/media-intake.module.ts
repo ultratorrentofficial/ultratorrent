@@ -12,6 +12,7 @@ import { ImportStrategyService } from './import-strategy.service';
 import { IntakeTriggerService } from './intake-trigger.service';
 import { IntakePipelineService } from './intake-pipeline.service';
 import { IntakeStagesService } from './intake-stages.service';
+import { IntakePostImportService } from './intake-post-import.service';
 
 /**
  * The Media Intake Engine.
@@ -32,6 +33,7 @@ import { IntakeStagesService } from './intake-stages.service';
     IntakeTriggerService,
     IntakePipelineService,
     IntakeStagesService,
+    IntakePostImportService,
   ],
   exports: [
     MediaIntakeService,
