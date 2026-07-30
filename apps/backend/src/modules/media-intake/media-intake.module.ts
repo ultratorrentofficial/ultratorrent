@@ -9,6 +9,7 @@ import { PathMappingRegistryService } from './path-mapping-registry.service';
 import { StorageCapabilityDetector } from './storage-capability-detector.service';
 import { ImportStrategyService } from './import-strategy.service';
 import { IntakeTriggerService } from './intake-trigger.service';
+import { IntakePipelineService } from './intake-pipeline.service';
 
 /**
  * The Media Intake Engine.
@@ -27,6 +28,7 @@ import { IntakeTriggerService } from './intake-trigger.service';
     StorageCapabilityDetector,
     ImportStrategyService,
     IntakeTriggerService,
+    IntakePipelineService,
   ],
   exports: [
     MediaIntakeService,
@@ -34,6 +36,7 @@ import { IntakeTriggerService } from './intake-trigger.service';
     PathMappingRegistryService,
     StorageCapabilityDetector,
     ImportStrategyService,
+    IntakePipelineService,
   ],
 })
 export class MediaIntakeModule {}
