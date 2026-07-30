@@ -54,6 +54,17 @@ export class MediaIntakeService {
       this.logger.debug(`Intake ${key} already exists (${existing.state}); ignoring duplicate.`);
       return existing;
     }
+    /*
+     * Created as `completed`, not `queued`.
+     *
+     * `completed` describes the DOWNLOAD, and every way into this method has
+     * one already finished: the trigger fires on `torrent.completed`, and a
+     * manual enqueue names a path that exists. Starting at `queued` made the
+     * engine look for a stage to produce `completed`, which is not something a
+     * stage can do — it is a fact about the world — so every intake stopped at
+     * step one. `queued` remains for a future source registered before its
+     * payload has arrived.
+     */
     const job = await this.prisma.mediaIntakeJob.create({
       data: {
         profileId: input.profileId,
@@ -61,10 +72,10 @@ export class MediaIntakeService {
         torrentHash: input.torrentHash ?? null,
         engineId: input.engineId ?? null,
         idempotencyKey: key,
-        state: 'queued',
+        state: 'completed',
       },
     });
-    await this.record(job.id, null, 'queued', 'Registered for intake');
+    await this.record(job.id, null, 'completed', 'Registered for intake; payload already present');
     return job;
   }
 

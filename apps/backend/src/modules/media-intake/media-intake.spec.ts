@@ -96,10 +96,19 @@ describe('enqueue idempotency', () => {
     expect(key).toContain('/staging/a');
   });
 
-  it('writes the opening event so the timeline starts at queued', async () => {
-    const { svc, events } = buildIntake(null);
+  it('starts at completed, because the download already finished', async () => {
+    /*
+     * `completed` describes the DOWNLOAD, and every route in has one already
+     * done — the trigger fires on `torrent.completed`, a manual enqueue names
+     * an existing path. Starting at `queued` made the engine look for a stage
+     * to produce `completed`, which no stage can: it is a fact, not work. Every
+     * intake stopped at step one, which only a live run revealed.
+     */
+    const { svc, prisma, events } = buildIntake(null);
     await svc.enqueue({ profileId: 'p1', sourcePath: '/x' });
-    expect(events[0]).toMatchObject({ toState: 'queued' });
+    const created = (prisma.mediaIntakeJob.create.mock.calls[0][0] as { data: { state: string } }).data;
+    expect(created.state).toBe('completed');
+    expect(events[0]).toMatchObject({ toState: 'completed' });
   });
 });
 
