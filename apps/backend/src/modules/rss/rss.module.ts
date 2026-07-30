@@ -20,6 +20,7 @@ import { Interval } from '@nestjs/schedule';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -28,6 +29,7 @@ import {
 import type { Request } from 'express';
 import Parser from 'rss-parser';
 import { PERMISSIONS, WS_EVENTS } from '@ultratorrent/shared';
+import { DEFAULT_RSS_IMPORT_MODE, RSS_IMPORT_MODES } from '@ultratorrent/shared';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
@@ -98,6 +100,13 @@ class CreateRuleDto {
   @IsOptional() @IsString() showStatusProvider?: string;
   @IsOptional() @IsString() showStatusProviderId?: string;
   @IsOptional() @IsBoolean() allowInactiveShowMonitoring?: boolean;
+  /**
+   * legacy_direct | managed_intake. Omitted means MANAGED for a new rule — the
+   * service applies that default, not the column, because a column default
+   * cannot tell a new row from one being backfilled.
+   */
+  @IsOptional() @IsIn([...RSS_IMPORT_MODES]) importMode?: string;
+  @IsOptional() @IsString() storageProfileId?: string;
 }
 
 class UpdateRuleDto {
@@ -110,6 +119,8 @@ class UpdateRuleDto {
   @IsOptional() @IsString() showStatusProvider?: string;
   @IsOptional() @IsString() showStatusProviderId?: string;
   @IsOptional() @IsBoolean() allowInactiveShowMonitoring?: boolean;
+  @IsOptional() @IsIn([...RSS_IMPORT_MODES]) importMode?: string;
+  @IsOptional() @IsString() storageProfileId?: string;
 }
 
 @Injectable()
@@ -270,6 +281,15 @@ export class RssService {
         excludeRegex: dto.excludeRegex ?? null,
         savePath: dto.savePath ?? null,
         autoDownload: dto.autoDownload ?? undefined,
+        /*
+         * A NEW rule defaults to managed intake; the column defaults to
+         * `legacy_direct` so that every row already in the table keeps its
+         * behaviour on upgrade. Only this line can tell the two apart — a
+         * column default is applied to backfills and new inserts alike, so the
+         * distinction has to live where "new" is actually known.
+         */
+        importMode: dto.importMode ?? DEFAULT_RSS_IMPORT_MODE,
+        storageProfileId: dto.storageProfileId ?? null,
         ...snapshot,
       },
     });
@@ -296,6 +316,15 @@ export class RssService {
         excludeRegex: dto.excludeRegex === undefined ? undefined : dto.excludeRegex || null,
         savePath: dto.savePath === undefined ? undefined : dto.savePath || null,
         autoDownload: dto.autoDownload === undefined ? undefined : dto.autoDownload,
+        /*
+         * Changed only when explicitly sent. An edit to a rule's name or regex
+         * must never migrate it onto a different import pipeline as a side
+         * effect — converting a working rule is a deliberate act, which is what
+         * the migration wizard and its own permission are for.
+         */
+        importMode: dto.importMode === undefined ? undefined : dto.importMode,
+        storageProfileId:
+          dto.storageProfileId === undefined ? undefined : dto.storageProfileId || null,
         ...snapshot,
       },
     });
