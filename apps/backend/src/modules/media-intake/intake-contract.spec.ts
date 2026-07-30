@@ -114,6 +114,19 @@ describe('intake lifecycle', () => {
     expect(nextState('verified')).toBe('identified');
     expect(nextState('archived')).toBeNull();
   });
+
+  it('starts a queued intake at completed, not downloading', () => {
+    /*
+     * Intake never downloads anything — the torrent client does, and the
+     * trigger only fires once it finished, so the payload is already on disk.
+     * When this returned `downloading` every intake stalled at step one waiting
+     * for a stage that cannot exist. Found by running a real file through it,
+     * not by a test: every test supplied the state it wanted to start from.
+     */
+    expect(nextState('queued')).toBe('completed');
+    // Still a legal edge for a future source that streams in while tracked.
+    expect(canTransition('queued', 'downloading')).toBe(true);
+  });
 });
 
 describe('strategy selection', () => {

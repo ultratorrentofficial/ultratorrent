@@ -72,7 +72,15 @@ export const TERMINAL_INTAKE_STATES: readonly IntakeState[] = [
  * look at this", and a stage that cannot form that opinion must not claim it.
  */
 const HAPPY_PATH: Record<IntakeState, readonly IntakeState[]> = {
-  queued: ['downloading', 'completed'],
+  /*
+   * `completed` FIRST, and the order matters: `nextState` takes the head of
+   * this list, and intake never downloads anything itself. The torrent client
+   * does, and the trigger only fires once it finished — so an intake begins
+   * life with its payload already on disk. Putting `downloading` first stalled
+   * every intake at the very first step, waiting for a stage that cannot exist.
+   * It stays legal for a future source that streams in while being tracked.
+   */
+  queued: ['completed', 'downloading'],
   downloading: ['completed'],
   // Verification can conclude the payload is not what it claimed to be.
   completed: ['verified', 'quarantined'],
