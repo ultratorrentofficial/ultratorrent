@@ -97,7 +97,8 @@
     "Inbox": "Bandeja de entrada",
     "Notification Events": "Eventos de notificación",
     "Library Browser": "Explorador de bibliotecas",
-    "Media Intake": "Ingesta de medios"
+    "Media Intake": "Ingesta de medios",
+    "Intake Queue": "Cola de ingesta"
   },
   "descriptions": {
     "Acquisition Intelligence": "Adquisición y mejoras inteligentes",
@@ -174,7 +175,8 @@
     "Inbox": "Notificaciones enviadas a ti.",
     "Notification Events": "Elige qué eventos quieres y dónde recibirlos.",
     "Library Browser": "Explora cada biblioteca como un muro de carteles, con detalle de series y episodios.",
-    "Media Intake": "Perfiles de almacenamiento y el canal de importación"
+    "Media Intake": "Perfiles de almacenamiento y el canal de importación",
+    "Intake Queue": "Importaciones en curso y su historial"
   },
   "details": {
     "Account": "Cuenta",

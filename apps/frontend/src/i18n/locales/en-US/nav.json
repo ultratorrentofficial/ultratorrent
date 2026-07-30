@@ -97,7 +97,8 @@
     "Inbox": "Inbox",
     "Notification Events": "Notification Events",
     "Library Browser": "Library Browser",
-    "Media Intake": "Media Intake"
+    "Media Intake": "Media Intake",
+    "Intake Queue": "Intake Queue"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",
@@ -174,7 +175,8 @@
     "Inbox": "Notifications sent to you.",
     "Notification Events": "Choose which events you want, and where they arrive.",
     "Library Browser": "Browse every library as a poster wall, with drill-down into shows and episodes.",
-    "Media Intake": "Storage profiles and the import pipeline"
+    "Media Intake": "Storage profiles and the import pipeline",
+    "Intake Queue": "Imports in progress and their history"
   },
   "details": {
     "Account": "Account",

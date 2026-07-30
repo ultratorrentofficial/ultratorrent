@@ -49,5 +49,43 @@
     "reflink": "Reflink",
     "symlink": "Symlink",
     "providerRelocation": "Client relocation"
+  },
+  "state": {
+    "active": "Active",
+    "queued": "Queued",
+    "downloading": "Downloading",
+    "completed": "Downloaded",
+    "verified": "Verified",
+    "identified": "Identified",
+    "quality_scored": "Scored",
+    "ready_to_import": "Ready",
+    "importing": "Importing",
+    "imported": "Imported",
+    "metadata_ready": "Metadata",
+    "artwork_ready": "Artwork",
+    "subtitle_ready": "Subtitles",
+    "seeding": "Seeding",
+    "archived": "Archived",
+    "failed": "Failed",
+    "quarantined": "Quarantined",
+    "cancelled": "Cancelled"
+  },
+  "dash": {
+    "title": "Media Intake",
+    "subtitle": "What the import pipeline is doing, and what it did.",
+    "loading": "Loading intakes…",
+    "loadFailed": "Could not load intakes.",
+    "emptyTitle": "Nothing here",
+    "emptyBody": "Intakes appear once a rule set to Managed Intake finishes a download.",
+    "retry": "Retry",
+    "retried": "Retrying from where it stopped",
+    "retryFailed": "Could not retry",
+    "cancelled": "Intake cancelled",
+    "cancelFailed": "Could not cancel",
+    "attempts_one": "{{count}} attempt",
+    "attempts_other": "{{count}} attempts",
+    "source": "From",
+    "imported": "To",
+    "timelineFailed": "Could not load this intake’s history."
   }
 }

@@ -49,5 +49,43 @@
     "reflink": "Reflink",
     "symlink": "Enlace simbólico",
     "providerRelocation": "Reubicación del cliente"
+  },
+  "state": {
+    "active": "Activos",
+    "queued": "En cola",
+    "downloading": "Descargando",
+    "completed": "Descargado",
+    "verified": "Verificado",
+    "identified": "Identificado",
+    "quality_scored": "Evaluado",
+    "ready_to_import": "Listo",
+    "importing": "Importando",
+    "imported": "Importado",
+    "metadata_ready": "Metadatos",
+    "artwork_ready": "Arte",
+    "subtitle_ready": "Subtítulos",
+    "seeding": "Compartiendo",
+    "archived": "Archivado",
+    "failed": "Falló",
+    "quarantined": "En cuarentena",
+    "cancelled": "Cancelado"
+  },
+  "dash": {
+    "title": "Ingesta de medios",
+    "subtitle": "Qué está haciendo el canal de importación, y qué hizo.",
+    "loading": "Cargando ingestas…",
+    "loadFailed": "No se pudieron cargar las ingestas.",
+    "emptyTitle": "No hay nada aquí",
+    "emptyBody": "Las ingestas aparecen cuando una regla en modo administrado termina una descarga.",
+    "retry": "Reintentar",
+    "retried": "Reintentando desde donde se detuvo",
+    "retryFailed": "No se pudo reintentar",
+    "cancelled": "Ingesta cancelada",
+    "cancelFailed": "No se pudo cancelar",
+    "attempts_one": "{{count}} intento",
+    "attempts_other": "{{count}} intentos",
+    "source": "Desde",
+    "imported": "Hacia",
+    "timelineFailed": "No se pudo cargar el historial de esta ingesta."
   }
 }

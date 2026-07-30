@@ -234,6 +234,7 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
     ],
   } },
   { slot: { domain: 'media', order: 80 }, item: { id: 'media-imdb', to: '/media/settings/imdb', label: 'IMDb Settings', icon: IdCard, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'IMDb Settings' } },
+  { slot: { domain: 'media', order: 45 }, item: { id: 'media-intake-queue', to: '/media/intake', label: 'Intake Queue', icon: Inbox, permission: PERMISSIONS.MEDIA_INTAKE_VIEW, module: 'media_intake', descriptionKey: 'Intake Queue' } },
   { slot: { domain: 'media', order: 85 }, item: { id: 'media-intake', to: '/media/settings/intake', label: 'Media Intake', icon: HardDrive, permission: PERMISSIONS.MEDIA_INTAKE_VIEW, module: 'media_intake', descriptionKey: 'Media Intake' } },
   { slot: { domain: 'media', order: 90 }, item: { id: 'media-settings', to: '/media/settings', label: 'Media Settings', icon: SlidersHorizontal, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', end: true, descriptionKey: 'Media Settings' } },
   { slot: { domain: 'media', order: 100 }, item: {
