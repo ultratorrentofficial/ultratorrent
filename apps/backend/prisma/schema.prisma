@@ -388,6 +388,18 @@ model RssRule {
   autoDownload Boolean  @default(true)
   isEnabled    Boolean  @default(true)
   createdAt    DateTime @default(now())
+  /// How a match reaches the library: legacy_direct | managed_intake.
+  /// The DEFAULT IS DELIBERATELY `legacy_direct` so that every rule that exists
+  /// when this column is added keeps behaving exactly as it did — the migration
+  /// changes no behaviour at all. New rules are created with `managed_intake` by
+  /// the service layer, which is the only place that distinction belongs: a
+  /// column default cannot tell an old row from a new one.
+  importMode      String        @default("legacy_direct")
+  /// Which storage profile a managed intake uses. Null for legacy rules, which
+  /// keep writing to `savePath` exactly as before.
+  storageProfileId String?
+  storageProfile   StorageProfile? @relation(fields: [storageProfileId], references: [id], onDelete: SetNull)
+
 
   // TV show airing-status snapshot, captured when the rule was created/edited so
   // the recommendation shown at save time is preserved. Null for non-TV rules.
@@ -653,6 +665,11 @@ model MediaLibrary {
   subtitleLanguageSetting SubtitleLanguageSetting?
 
   @@map("media_libraries")
+  /// Reverse sides of the storage-profile references. A profile points AT a
+  /// library rather than restating its path (see StorageProfile).
+  profileMovieOf StorageProfile[] @relation("ProfileMovieLibrary")
+  profileTvOf    StorageProfile[] @relation("ProfileTvLibrary")
+  profileMusicOf StorageProfile[] @relation("ProfileMusicLibrary")
 }
 
 /// A TV show that EXISTS in a library, as one row per show folder on disk.
@@ -3148,4 +3165,174 @@ model UserNotificationDelivery {
   @@index([status, nextAttemptAt])
   @@index([userId, createdAt])
   @@map("user_notification_deliveries")
+}
+
+// ---------------------------------------------------------------------------
+// Media Intake Engine
+// ---------------------------------------------------------------------------
+
+/// A named set of logical locations. Profiles hold the roots intake owns
+/// (staging, temp, failed, quarantine) and REFERENCE existing libraries for the
+/// destinations, rather than restating their paths — a library already knows
+/// its own path, naming template and mode, and two rows disagreeing about where
+/// a library lives is a class of bug worth designing out.
+model StorageProfile {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  isDefault   Boolean @default(false)
+  isEnabled   Boolean @default(true)
+
+  /// Canonical roots — always in canonical space; translate through the path
+  /// mapping registry before handing one to a container, provider or server.
+  stagingRoot    String
+  tempRoot       String?
+  failedRoot     String?
+  quarantineRoot String?
+
+  /// Destinations. Nullable because a profile may cover only some media types.
+  movieLibraryId String?
+  tvLibraryId    String?
+  musicLibraryId String?
+  movieLibrary   MediaLibrary? @relation("ProfileMovieLibrary", fields: [movieLibraryId], references: [id], onDelete: SetNull)
+  tvLibrary      MediaLibrary? @relation("ProfileTvLibrary", fields: [tvLibraryId], references: [id], onDelete: SetNull)
+  musicLibrary   MediaLibrary? @relation("ProfileMusicLibrary", fields: [musicLibraryId], references: [id], onDelete: SetNull)
+
+  /// auto | hardlink | reflink | provider_relocation | copy | move.
+  /// `auto` asks the capability detector; anything else is an administrator
+  /// override and is recorded as forced in the audit trail.
+  defaultStrategy String @default("auto")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rssRules     RssRule[]
+  capabilities StorageCapabilityProbe[]
+  intakeJobs   MediaIntakeJob[]
+
+  @@map("storage_profiles")
+}
+
+/// One prefix rewrite from the canonical spelling of a path into the spelling
+/// some other component uses. The same bytes are `/mnt/plexmedia/x` to the
+/// host, `/downloads/x` inside the container and possibly a third thing to the
+/// torrent client — every one of which has been a real bug.
+model PathMappingRule {
+  id         String  @id @default(uuid())
+  /// host | container | provider | media_server
+  space      String
+  fromPrefix String
+  toPrefix   String
+  /// Narrow to one engine or media server; null applies to every one of that space.
+  scopeId    String?
+  priority   Int     @default(0)
+  isEnabled  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([space, isEnabled])
+  @@map("path_mapping_rules")
+}
+
+/// What a (profile, destination) pair can actually do, as measured — never
+/// assumed. Guessing hardlink support from a path string is how an import
+/// silently becomes a 40 GB copy on a NAS.
+model StorageCapabilityProbe {
+  id        String @id @default(uuid())
+  profileId String
+
+  /// The two canonical paths the probe compared.
+  sourceRoot String
+  targetRoot String
+
+  sameDevice         Boolean
+  hardlink           Boolean
+  reflink            Boolean
+  symlink            Boolean
+  providerRelocation Boolean @default(false)
+  filesystem         String?
+
+  /// Why a probe concluded what it did, and what went wrong if it could not.
+  detail      String?
+  error       String?
+  detectedAt  DateTime @default(now())
+
+  profile StorageProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, sourceRoot, targetRoot])
+  @@map("storage_capability_probes")
+}
+
+/// One thing moving through the intake pipeline.
+model MediaIntakeJob {
+  id        String @id @default(uuid())
+  profileId String
+
+  /// Set for a torrent-sourced intake; null for a manual or watched-folder one,
+  /// so the engine is not torrent-only by construction.
+  torrentHash String?
+  engineId    String?
+
+  /// Canonical path of what arrived, and where it ended up once imported.
+  sourcePath String
+  importedPath String?
+
+  /// See INTAKE_STATES in packages/shared. Stored as text rather than a Postgres
+  /// enum so adding a stage is a code change, not a migration that locks the table.
+  state       String  @default("queued")
+  /// The state a retry resumes at — recorded when a run fails, so a retry
+  /// re-enters where it stopped instead of redoing verification and metadata.
+  resumeState String?
+
+  /// Chosen strategy and why. The reason is kept because the audit question is
+  /// "why did it copy 40GB", which a strategy name alone cannot answer.
+  strategy       String?
+  strategyReason String?
+
+  /// Guards against the same completion event producing two intakes — the
+  /// torrent completion edge can re-fire across a restart.
+  idempotencyKey String @unique
+
+  attempts   Int       @default(0)
+  lastError  String?
+  qualityScore Float?
+
+  /// Resolved during identification.
+  mediaItemId String?
+  libraryId   String?
+
+  startedAt   DateTime?
+  importedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  profile StorageProfile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  events  MediaIntakeEvent[]
+
+  @@index([state, createdAt])
+  @@index([torrentHash])
+  @@map("media_intake_jobs")
+}
+
+/// The timeline of one intake: every transition, retry and decision. This is
+/// what the dashboard shows and what an audit reads; a state column alone
+/// cannot answer "what did this do, and when".
+model MediaIntakeEvent {
+  id     String @id @default(uuid())
+  jobId  String
+
+  fromState String?
+  toState   String
+  message   String?
+  data      Json?
+  /// Null for an engine-driven transition; set when a person forced it.
+  userId    String?
+
+  createdAt DateTime @default(now())
+
+  job MediaIntakeJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, createdAt])
+  @@map("media_intake_events")
 }
