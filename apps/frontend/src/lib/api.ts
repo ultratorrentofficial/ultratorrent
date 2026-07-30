@@ -483,6 +483,62 @@ export interface AuditEntry {
   target?: AuditTarget | null;
 }
 
+export interface StorageProfile {
+  id: string;
+  name: string;
+  description: string | null;
+  isDefault: boolean;
+  isEnabled: boolean;
+  stagingRoot: string;
+  tempRoot: string | null;
+  failedRoot: string | null;
+  quarantineRoot: string | null;
+  movieLibraryId: string | null;
+  tvLibraryId: string | null;
+  musicLibraryId: string | null;
+  defaultStrategy: string;
+}
+
+export interface StorageCapabilityProbe {
+  sameDevice: boolean;
+  hardlink: boolean;
+  reflink: boolean;
+  symlink: boolean;
+  providerRelocation: boolean;
+  filesystem: string | null;
+  /** What the probe measured, in words — shown when a strategy looks surprising. */
+  detail: string;
+  error: string | null;
+}
+
+export interface IntakeJob {
+  id: string;
+  profileId: string;
+  torrentHash: string | null;
+  sourcePath: string;
+  importedPath: string | null;
+  state: string;
+  strategy: string | null;
+  strategyReason: string | null;
+  attempts: number;
+  lastError: string | null;
+  qualityScore: number | null;
+  createdAt: string;
+  importedAt: string | null;
+}
+
+export interface IntakeJobEvent {
+  id: string;
+  fromState: string | null;
+  toState: string;
+  message: string | null;
+  createdAt: string;
+}
+
+export interface IntakeJobDetail extends IntakeJob {
+  events: IntakeJobEvent[];
+}
+
 export interface RssRule {
   id: string;
   /** The feed the rule was created under (its "home" feed). */
@@ -499,6 +555,18 @@ export interface RssRule {
   categoryId: string | null;
   savePath: string | null;
   autoDownload: boolean;
+  /**
+   * `legacy_direct` — the download client writes into the library tree and the
+   * scanner picks it up, exactly as it always has.
+   * `managed_intake` — the release is staged, verified, identified and placed by
+   * the Media Intake engine.
+   *
+   * Rules created before Media Intake existed read `legacy_direct` and are never
+   * changed automatically.
+   */
+  importMode: 'legacy_direct' | 'managed_intake';
+  /** Which storage profile a managed intake uses; null falls back to the default. */
+  storageProfileId: string | null;
   isEnabled: boolean;
   createdAt: string;
   // TV show airing-status snapshot (null for non-TV rules).
@@ -4809,6 +4877,42 @@ export const api = {
   // Library Cleanup Center — /api/media/cleanup/*. Nothing here removes a file:
   // runs produce candidates, plans are approved, and only `executePlan` acts —
   // and even that lands in Trash or Quarantine, both reversible.
+  intake: {
+    summary(): Promise<{ byState: Record<string, number>; active: number }> {
+      return request('/media/intake/summary');
+    },
+    jobs(query: { state?: string; active?: boolean } = {}): Promise<IntakeJob[]> {
+      return request<IntakeJob[]>('/media/intake/jobs', {
+        query: { ...(query.state ? { state: query.state } : {}), ...(query.active ? { active: '1' } : {}) },
+      });
+    },
+    job(id: string): Promise<IntakeJobDetail> {
+      return request<IntakeJobDetail>(`/media/intake/jobs/${id}`);
+    },
+    retry(id: string): Promise<unknown> {
+      return request(`/media/intake/jobs/${id}/retry`, { method: 'POST' });
+    },
+    cancel(id: string): Promise<unknown> {
+      return request(`/media/intake/jobs/${id}/cancel`, { method: 'POST' });
+    },
+    profiles(): Promise<StorageProfile[]> {
+      return request<StorageProfile[]>('/media/intake/profiles');
+    },
+    createProfile(body: Partial<StorageProfile>): Promise<StorageProfile> {
+      return request<StorageProfile>('/media/intake/profiles', { method: 'POST', body });
+    },
+    updateProfile(id: string, body: Partial<StorageProfile>): Promise<StorageProfile> {
+      return request<StorageProfile>(`/media/intake/profiles/${id}`, { method: 'PATCH', body });
+    },
+    deleteProfile(id: string): Promise<{ ok: true }> {
+      return request(`/media/intake/profiles/${id}`, { method: 'DELETE' });
+    },
+    /** Measure what this profile's storage can actually do. A write — it uses scratch files. */
+    probeProfile(id: string, body: { targetRoot?: string; engineId?: string | null } = {}): Promise<StorageCapabilityProbe> {
+      return request<StorageCapabilityProbe>(`/media/intake/profiles/${id}/probe`, { method: 'POST', body });
+    },
+  },
+
   cleanup: {
     catalog(): Promise<CleanupCatalog> {
       return request<CleanupCatalog>('/media/cleanup/catalog');

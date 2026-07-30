@@ -158,6 +158,17 @@
       "deleteFailed": "No se pudo eliminar el candidato",
       "convertedToRegex": "Convertido a regex",
       "convertFailed": "No se pudo convertir el patrón"
+    },
+    "importMode": {
+      "label": "Modo de importación",
+      "managed": "Ingesta administrada",
+      "legacy": "Importación directa (heredada)",
+      "managedHelp": "Las descargas se preparan, verifican, identifican y colocan en la biblioteca por el motor de ingesta, que mantiene el torrent compartiendo.",
+      "legacyHelp": "El cliente de descargas escribe en la carpeta de la biblioteca y el escáner la detecta — el comportamiento original, sin cambios.",
+      "profile": "Perfil de almacenamiento",
+      "profileDefault": "Usar el perfil predeterminado",
+      "noProfiles": "Todavía no existe ningún perfil de almacenamiento, así que una regla administrada no importaría nada.",
+      "createProfile": "Crear uno"
     }
   },
   "history": {
@@ -536,46 +547,46 @@
     }
   },
   "showStatus": {
-      "checking": "Verificando el estado de la serie…",
-      "lookupError": "No se pudo verificar el estado de emisión de la serie.",
-      "refresh": "Actualizar",
-      "nextEpisode": "Próximo episodio: {{date}}",
-      "lastAired": "Última emisión: {{date}}",
-      "providerConfidence": "{{provider}} · {{pct}}% de confianza",
-      "backfillSuggestion": "Esta serie parece haber terminado. Considera una regla de relleno/mejora en lugar de monitoreo continuo.",
-      "mediaType": {
-        "label": "Tipo de medio",
-        "none": "Estándar (sin verificación de estado)",
-        "tv": "Serie de TV",
-        "anime": "Anime",
-        "movie": "Película"
-      },
-      "status": {
-        "continuing": "En emisión",
-        "returning": "Regresa",
-        "planned": "Planificada",
-        "on_hiatus": "En pausa",
-        "ended": "Finalizada",
-        "canceled": "Cancelada",
-        "unknown": "Desconocido"
-      },
-      "recommendation": {
-        "recommended": "Recomendado",
-        "caution": "Con precaución",
-        "not_recommended": "No recomendado",
-        "unknown": "Desconocido"
-      },
-      "banner": {
-        "recommended": "Segura para monitorear con RSS — se esperan nuevos episodios.",
-        "caution": "Esta serie está en pausa. El monitoreo está bien, pero los nuevos episodios pueden tardar.",
-        "not_recommended": "Esta serie parece haber finalizado o sido cancelada — monitorear episodios futuros probablemente no sea necesario.",
-        "unknown": "No se pudo confirmar si esta serie sigue activa. Puedes continuar, pero revisa la regla con cuidado."
-      },
-      "confirm": {
-        "title": "¿Monitorear una serie inactiva?",
-        "body": "\"{{title}}\" parece estar {{status}}. ¿Crear una regla de monitoreo RSS de todos modos?",
-        "confirm": "Crear regla de todos modos",
-        "cancel": "Cancelar"
-      }
+    "checking": "Verificando el estado de la serie…",
+    "lookupError": "No se pudo verificar el estado de emisión de la serie.",
+    "refresh": "Actualizar",
+    "nextEpisode": "Próximo episodio: {{date}}",
+    "lastAired": "Última emisión: {{date}}",
+    "providerConfidence": "{{provider}} · {{pct}}% de confianza",
+    "backfillSuggestion": "Esta serie parece haber terminado. Considera una regla de relleno/mejora en lugar de monitoreo continuo.",
+    "mediaType": {
+      "label": "Tipo de medio",
+      "none": "Estándar (sin verificación de estado)",
+      "tv": "Serie de TV",
+      "anime": "Anime",
+      "movie": "Película"
+    },
+    "status": {
+      "continuing": "En emisión",
+      "returning": "Regresa",
+      "planned": "Planificada",
+      "on_hiatus": "En pausa",
+      "ended": "Finalizada",
+      "canceled": "Cancelada",
+      "unknown": "Desconocido"
+    },
+    "recommendation": {
+      "recommended": "Recomendado",
+      "caution": "Con precaución",
+      "not_recommended": "No recomendado",
+      "unknown": "Desconocido"
+    },
+    "banner": {
+      "recommended": "Segura para monitorear con RSS — se esperan nuevos episodios.",
+      "caution": "Esta serie está en pausa. El monitoreo está bien, pero los nuevos episodios pueden tardar.",
+      "not_recommended": "Esta serie parece haber finalizado o sido cancelada — monitorear episodios futuros probablemente no sea necesario.",
+      "unknown": "No se pudo confirmar si esta serie sigue activa. Puedes continuar, pero revisa la regla con cuidado."
+    },
+    "confirm": {
+      "title": "¿Monitorear una serie inactiva?",
+      "body": "\"{{title}}\" parece estar {{status}}. ¿Crear una regla de monitoreo RSS de todos modos?",
+      "confirm": "Crear regla de todos modos",
+      "cancel": "Cancelar"
     }
+  }
 }

@@ -12,6 +12,9 @@ const rule = (id: string, name: string, feedId: string, feedIds?: string[]): Rss
   categoryId: null,
   savePath: null,
   autoDownload: true,
+  // Rules that predate Media Intake read legacy_direct; this fixture is one.
+  importMode: 'legacy_direct',
+  storageProfileId: null,
   isEnabled: true,
   createdAt: '2026-07-02T00:00:00.000Z',
 });
