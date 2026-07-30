@@ -552,6 +552,11 @@ export class QbittorrentProvider implements TorrentEngineProvider {
   }
 
   // --- mutation ------------------------------------------------------------
+  /** qBittorrent's `setLocation` moves the payload itself. */
+  relocationMovesData(): boolean {
+    return true;
+  }
+
   async moveStorage(hash: string, destination: string): Promise<void> {
     await this.client.postForm('/torrents/setLocation', {
       hashes: hash.toLowerCase(),

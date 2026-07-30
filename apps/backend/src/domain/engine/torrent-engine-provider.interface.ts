@@ -64,7 +64,29 @@ export interface TorrentEngineProvider {
   recheckTorrent(hash: string): Promise<void>;
 
   // Mutation
+  /**
+   * Point this torrent at `destination`.
+   *
+   * **Whether this MOVES the data is engine-specific**, which is why
+   * {@link relocationMovesData} exists. qBittorrent's `setLocation` relocates
+   * the payload; rTorrent's `d.directory.set` only updates where rTorrent
+   * *believes* the data is and moves nothing. Calling this on rTorrent without
+   * having physically moved the files first tells the client the data lives
+   * somewhere it does not — and the torrent stops seeding for a reason nothing
+   * reports.
+   */
   moveStorage(hash: string, destination: string): Promise<void>;
+
+  /**
+   * Does {@link moveStorage} physically relocate the payload on disk?
+   *
+   * Declared rather than probed: finding out empirically would mean moving a
+   * real torrent to see what happens. The Media Intake capability detector
+   * reads this to decide whether `provider_relocation` is a usable import
+   * strategy for a given engine, so the core engine stays free of any
+   * engine-specific branching.
+   */
+  relocationMovesData(): boolean;
   renameTorrent(hash: string, name: string): Promise<void>;
   renameFile(hash: string, fileIndex: number, newName: string): Promise<void>;
   setFilePriority(

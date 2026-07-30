@@ -584,6 +584,19 @@ export class RTorrentProvider implements TorrentEngineProvider {
   }
 
   // --- mutation ------------------------------------------------------------
+  /**
+   * FALSE — and this is the whole point of the flag.
+   *
+   * `d.directory.set` tells rTorrent where to look; it does not move a byte.
+   * The supported sequence is stop → move the data yourself → set the directory
+   * → start. Treating this as a relocation would leave rTorrent seeding from a
+   * path with nothing in it, which is the same "reported success and changed
+   * nothing" failure already documented on `renameTorrent` below.
+   */
+  relocationMovesData(): boolean {
+    return false;
+  }
+
   async moveStorage(hash: string, destination: string): Promise<void> {
     await this.transport.call('d.directory.set', [hash, destination]);
   }
