@@ -203,6 +203,9 @@
     "wipeBtn": "Wipe IMDb data",
     "wipeConfirm": "Permanently delete all {{count}} imported IMDb titles and related data? This cannot be undone.",
     "wiped": "IMDb data wiped ({{count}} titles cleared).",
-    "wipeFailed": "Could not wipe IMDb data"
+    "wipeFailed": "Could not wipe IMDb data",
+    "reimportLabel": "Reset and re-import",
+    "reimportHint": "Wipes the imported IMDb data, then downloads and imports it again.",
+    "reimportBtn": "Reset & re-import"
   }
 }

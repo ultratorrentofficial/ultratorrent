@@ -203,6 +203,9 @@
     "wipeBtn": "Borrar datos de IMDb",
     "wipeConfirm": "¿Eliminar permanentemente los {{count}} títulos de IMDb importados y sus datos relacionados? Esto no se puede deshacer.",
     "wiped": "Datos de IMDb borrados ({{count}} títulos eliminados).",
-    "wipeFailed": "No se pudieron borrar los datos de IMDb"
+    "wipeFailed": "No se pudieron borrar los datos de IMDb",
+    "reimportLabel": "Reiniciar y reimportar",
+    "reimportHint": "Borra los datos IMDb importados y luego los descarga e importa de nuevo.",
+    "reimportBtn": "Reiniciar y reimportar"
   }
 }

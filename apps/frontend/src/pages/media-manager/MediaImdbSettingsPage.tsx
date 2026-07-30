@@ -144,11 +144,6 @@ export function MediaImdbSettingsPage() {
 
       <ComplianceNotice />
       <ProviderStatusSection status={statusQuery.data} />
-      <OptimizedImportSection
-        settings={settingsQuery.data}
-        canImport={canImport}
-        canConfigure={canConfigure}
-      />
       <DatasetSection
         settings={settingsQuery.data}
         canImport={canImport}
@@ -190,217 +185,6 @@ function SectionCard({
         {children}
       </CardContent>
     </Card>
-  );
-}
-
-/**
- * The "Optimized Movie Import" panel: pick the import strategy, tune the movie
- * subset (min year + optional akas/crew/people), see which datasets are (and
- * aren't) imported and the latest run's scan/skip stats, and run/validate/reset.
- */
-function OptimizedImportSection({
-  settings,
-  canImport,
-  canConfigure,
-}: {
-  settings: ImdbSettings;
-  canImport: boolean;
-  canConfigure: boolean;
-}) {
-  const { t } = useTranslation('imdb');
-  const toast = useToast();
-  const queryClient = useQueryClient();
-
-  const [strategy, setStrategy] = useState<ImdbImportStrategy>(settings.importStrategy);
-  const [minYear, setMinYear] = useState(String(settings.minImportYear));
-  const [importTvShows, setImportTvShows] = useState(settings.importTvShows);
-  const [importAkas, setImportAkas] = useState(settings.importAkas);
-  const [importCrew, setImportCrew] = useState(settings.importCrew);
-  const [importPeople, setImportPeople] = useState(settings.importPeople);
-
-  useEffect(() => {
-    setStrategy(settings.importStrategy);
-    setMinYear(String(settings.minImportYear));
-    setImportTvShows(settings.importTvShows);
-    setImportAkas(settings.importAkas);
-    setImportCrew(settings.importCrew);
-    setImportPeople(settings.importPeople);
-  }, [settings]);
-
-  // Newest import row carries the latest optimized stats.
-  const importsQuery = useQuery({
-    queryKey: ['media', 'imdb', 'imports'],
-    queryFn: api.media.imdbImports,
-    enabled: canImport,
-  });
-  const stats = importsQuery.data?.find((i) => i.stats)?.stats ?? null;
-
-  const optimized = strategy === 'optimized_movies';
-
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['media', 'imdb'] });
-
-  const save = useMutation({
-    mutationFn: () =>
-      api.media.updateImdbSettings({
-        importStrategy: strategy,
-        minImportYear: Number(minYear) || settings.minImportYear,
-        importTvShows,
-        importAkas,
-        importCrew,
-        importPeople,
-      }),
-    onSuccess: () => {
-      toast.success(t('common.saved'));
-      queryClient.invalidateQueries({ queryKey: ['media', 'imdb', 'settings'] });
-    },
-    onError: (e) => toast.error(t('common.couldNotSave'), e instanceof ApiError ? e.message : undefined),
-  });
-
-  const runImport = useMutation({
-    mutationFn: () => api.media.updateImdbDatasetNow(),
-    onSuccess: (r) => {
-      if (r.started) toast.success(t('optimized.importStarted'));
-      else toast.info(t('optimized.importBusy'));
-      invalidate();
-    },
-    onError: (e) => toast.error(t('optimized.importFailed'), e instanceof ApiError ? e.message : undefined),
-  });
-
-  const validate = useMutation({
-    mutationFn: () => api.media.validateImdbDataset({}),
-    onSuccess: (r) => {
-      if (r.valid) toast.success(t('optimized.validateOk'), t('filesFound', { count: r.filesFound }));
-      else toast.error(t('optimized.validateFail'));
-    },
-    onError: (e) => toast.error(t('optimized.validateFail'), e instanceof ApiError ? e.message : undefined),
-  });
-
-  const reset = useMutation({
-    mutationFn: () => api.media.resetImdbData(true),
-    onSuccess: (r) => {
-      toast.success(t('optimized.resetDone', { count: r.clearedTitles }));
-      invalidate();
-    },
-    onError: (e) => toast.error(t('optimized.resetFailed'), e instanceof ApiError ? e.message : undefined),
-  });
-
-  const selectedDatasets = ['title.basics', 'title.ratings'];
-  if (importAkas) selectedDatasets.push('title.akas');
-  if (importCrew) selectedDatasets.push('title.crew');
-  if (importTvShows) selectedDatasets.push('title.episode');
-  if (importPeople) selectedDatasets.push('name.basics');
-  // title.principals is always skipped; title.episode only when TV is off.
-  const skippedDatasets = importTvShows ? ['title.principals'] : ['title.principals', 'title.episode'];
-
-  return (
-    <SectionCard
-      icon={<Database className="h-5 w-5" />}
-      title={t('optimized.title')}
-      description={t('optimized.description')}
-    >
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-[240px]">
-          <Label htmlFor="imdb-strategy">{t('optimized.strategyLabel')}</Label>
-          <Select
-            id="imdb-strategy"
-            value={strategy}
-            onChange={(e) => setStrategy(e.target.value as ImdbImportStrategy)}
-            disabled={!canConfigure}
-            options={[
-              { value: 'optimized_movies', label: t('optimized.strategy.optimized') },
-              { value: 'full', label: t('optimized.strategy.full') },
-            ]}
-          />
-        </div>
-        <Badge variant={optimized ? 'success' : 'secondary'}>
-          {optimized ? t('optimized.badge') : t('optimized.badgeFull')}
-        </Badge>
-      </div>
-
-      <div>
-        <p className="text-sm font-medium">{t('optimized.selectedDatasets')}</p>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {selectedDatasets.map((k) => (
-            <Badge key={k} variant="secondary">
-              {imdbDatasetFileLabel(t, k)}
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-      {optimized && (
-        <div className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
-          {t('optimized.skippedWarning', {
-            files: skippedDatasets.map((k) => imdbDatasetFileLabel(t, k)).join(', '),
-          })}
-        </div>
-      )}
-
-      {optimized && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="imdb-min-year">{t('optimized.minYear')}</Label>
-            <Input
-              id="imdb-min-year"
-              type="number"
-              value={minYear}
-              onChange={(e) => setMinYear(e.target.value)}
-              disabled={!canConfigure}
-            />
-            <p className="mt-1 text-xs text-muted-foreground">{t('optimized.minYearHint')}</p>
-          </div>
-          <div className="space-y-2 self-center">
-            <OptToggleRow label={t('optimized.importTvShows')} checked={importTvShows} onChange={setImportTvShows} disabled={!canConfigure} />
-            <OptToggleRow label={t('optimized.importAkas')} checked={importAkas} onChange={setImportAkas} disabled={!canConfigure} />
-            <OptToggleRow label={t('optimized.importCrew')} checked={importCrew} onChange={setImportCrew} disabled={!canConfigure} />
-            <OptToggleRow label={t('optimized.importPeople')} checked={importPeople} onChange={setImportPeople} disabled={!canConfigure} />
-          </div>
-        </div>
-      )}
-
-      {stats && (
-        <div>
-          <p className="text-sm font-medium">{t('optimized.latestStats')}</p>
-          <div className="mt-1.5 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-            <OptStat label={t('optimized.stat.scanned')} value={formatNumber(stats.rowsScanned)} />
-            <OptStat label={t('optimized.stat.imported')} value={formatNumber(stats.rowsImported)} />
-            <OptStat label={t('optimized.stat.skipType')} value={formatNumber(stats.skippedTitleType)} />
-            <OptStat label={t('optimized.stat.skipAdult')} value={formatNumber(stats.skippedAdult)} />
-            <OptStat label={t('optimized.stat.skipYear')} value={formatNumber(stats.skippedMinYear)} />
-            <OptStat label={t('optimized.stat.skipOrphan')} value={formatNumber(stats.skippedParentMissing)} />
-            <OptStat label={t('optimized.stat.errors')} value={formatNumber(stats.errors)} />
-            <OptStat label={t('optimized.stat.duration')} value={`${Math.round(stats.durationMs / 1000)}s`} />
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        {canConfigure && (
-          <Button onClick={() => save.mutate()} loading={save.isPending}>
-            <Save className="h-4 w-4" /> {t('optimized.saveBtn')}
-          </Button>
-        )}
-        {canImport && (
-          <>
-            <Button variant="outline" onClick={() => validate.mutate()} loading={validate.isPending}>
-              <ShieldCheck className="h-4 w-4" /> {t('optimized.validateBtn')}
-            </Button>
-            <Button variant="outline" onClick={() => runImport.mutate()} loading={runImport.isPending}>
-              <DownloadCloud className="h-4 w-4" /> {t('optimized.runBtn')}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (window.confirm(t('optimized.resetConfirm'))) reset.mutate();
-              }}
-              loading={reset.isPending}
-            >
-              <Upload className="h-4 w-4" /> {t('optimized.resetBtn')}
-            </Button>
-          </>
-        )}
-      </div>
-    </SectionCard>
   );
 }
 
@@ -452,6 +236,22 @@ function DangerZoneSection({ status }: { status: ImdbStatus }) {
     onError: (e) => toast.error(t('danger.wipeFailed'), e instanceof ApiError ? e.message : undefined),
   });
 
+  /*
+   * Wipe and immediately re-import. Lives here, beside the plain wipe, because
+   * the two differ only in what happens next and reading them together is what
+   * makes the difference obvious. It used to sit in the Optimized Import panel,
+   * a third place to reset from — which is how it survived that panel's removal
+   * only by being noticed.
+   */
+  const wipeAndReimport = useMutation({
+    mutationFn: () => api.media.resetImdbData(true),
+    onSuccess: (r) => {
+      toast.success(t('optimized.resetDone', { count: r.clearedTitles }));
+      queryClient.invalidateQueries({ queryKey: ['media', 'imdb'] });
+    },
+    onError: (e) => toast.error(t('optimized.resetFailed'), e instanceof ApiError ? e.message : undefined),
+  });
+
   return (
     <Card className="border-destructive/40">
       <CardContent className="space-y-4 p-5">
@@ -479,6 +279,21 @@ function DangerZoneSection({ status }: { status: ImdbStatus }) {
             loading={wipe.isPending}
           >
             <Trash2 className="h-4 w-4" /> {t('danger.wipeBtn')}
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+          <div>
+            <p className="text-sm font-medium">{t('danger.reimportLabel')}</p>
+            <p className="text-xs text-muted-foreground">{t('danger.reimportHint')}</p>
+          </div>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              if (window.confirm(t('optimized.resetConfirm'))) wipeAndReimport.mutate();
+            }}
+            loading={wipeAndReimport.isPending}
+          >
+            <Upload className="h-4 w-4" /> {t('danger.reimportBtn')}
           </Button>
         </div>
       </CardContent>
@@ -597,18 +412,26 @@ function DatasetSection({
   const [intervalHours, setIntervalHours] = useState(String(settings.autoUpdateIntervalHours));
   const [report, setReport] = useState<ImdbDatasetValidationReport | null>(null);
   const [live, setLive] = useState<LiveImport | null>(null);
+  // Import shape — previously a separate card with its own Save and Validate.
+  const [strategy, setStrategy] = useState<ImdbImportStrategy>(settings.importStrategy);
+  const [minYear, setMinYear] = useState(String(settings.minImportYear));
+  const [importTvShows, setImportTvShows] = useState(settings.importTvShows);
+  const [importAkas, setImportAkas] = useState(settings.importAkas);
+  const [importCrew, setImportCrew] = useState(settings.importCrew);
+  const [importPeople, setImportPeople] = useState(settings.importPeople);
 
   useEffect(() => {
     setDatasetPath(settings.datasetPath ?? '');
     setAutoDownload(settings.autoDownloadEnabled);
     setBaseUrl(settings.datasetBaseUrl);
     setIntervalHours(String(settings.autoUpdateIntervalHours));
-  }, [
-    settings.datasetPath,
-    settings.autoDownloadEnabled,
-    settings.datasetBaseUrl,
-    settings.autoUpdateIntervalHours,
-  ]);
+    setStrategy(settings.importStrategy);
+    setMinYear(String(settings.minImportYear));
+    setImportTvShows(settings.importTvShows);
+    setImportAkas(settings.importAkas);
+    setImportCrew(settings.importCrew);
+    setImportPeople(settings.importPeople);
+  }, [settings]);
 
   // Live import progress from the media_manager.view room.
   useEffect(() => {
@@ -797,6 +620,17 @@ function DatasetSection({
       toast.error(t('dataset.stopFailedTitle'), err instanceof ApiError ? err.message : undefined),
   });
 
+  const optimized = strategy === 'optimized_movies';
+  const selectedDatasets = ['title.basics', 'title.ratings'];
+  if (importAkas) selectedDatasets.push('title.akas');
+  if (importCrew) selectedDatasets.push('title.crew');
+  if (importTvShows) selectedDatasets.push('title.episode');
+  if (importPeople) selectedDatasets.push('name.basics');
+  // title.principals is always skipped; title.episode only when TV is off.
+  const skippedDatasets = importTvShows ? ['title.principals'] : ['title.principals', 'title.episode'];
+  // The newest import row carries the latest per-run stats.
+  const stats = importsQuery.data?.find((i) => i.stats)?.stats ?? null;
+
   const importInFlight =
     startImport.isPending || (live != null && !isTerminalImport(live.status));
 
@@ -829,12 +663,79 @@ function DatasetSection({
         <p className="mt-1 text-xs text-muted-foreground">{t('dataset.dirHelp')}</p>
       </div>
 
+      {/* What to import — one card, so the shape and the location are read together. */}
+      <div className="space-y-3 border-t border-border/60 pt-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[240px]">
+            <Label htmlFor="imdb-strategy">{t('optimized.strategyLabel')}</Label>
+            <Select
+              id="imdb-strategy"
+              value={strategy}
+              onChange={(e) => setStrategy(e.target.value as ImdbImportStrategy)}
+              disabled={!canConfigure}
+              options={[
+                { value: 'optimized_movies', label: t('optimized.strategy.optimized') },
+                { value: 'full', label: t('optimized.strategy.full') },
+              ]}
+            />
+          </div>
+          <Badge variant={optimized ? 'success' : 'secondary'}>
+            {optimized ? t('optimized.badge') : t('optimized.badgeFull')}
+          </Badge>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium">{t('optimized.selectedDatasets')}</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {selectedDatasets.map((k) => (
+              <Badge key={k} variant="secondary">{imdbDatasetFileLabel(t, k)}</Badge>
+            ))}
+          </div>
+        </div>
+
+        {optimized && (
+          <div className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+            {t('optimized.skippedWarning', {
+              files: skippedDatasets.map((k) => imdbDatasetFileLabel(t, k)).join(', '),
+            })}
+          </div>
+        )}
+
+        {optimized && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="imdb-min-year">{t('optimized.minYear')}</Label>
+              <Input
+                id="imdb-min-year"
+                type="number"
+                value={minYear}
+                onChange={(e) => setMinYear(e.target.value)}
+                disabled={!canConfigure}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{t('optimized.minYearHint')}</p>
+            </div>
+            <div className="space-y-2 self-center">
+              <OptToggleRow label={t('optimized.importTvShows')} checked={importTvShows} onChange={setImportTvShows} disabled={!canConfigure} />
+              <OptToggleRow label={t('optimized.importAkas')} checked={importAkas} onChange={setImportAkas} disabled={!canConfigure} />
+              <OptToggleRow label={t('optimized.importCrew')} checked={importCrew} onChange={setImportCrew} disabled={!canConfigure} />
+              <OptToggleRow label={t('optimized.importPeople')} checked={importPeople} onChange={setImportPeople} disabled={!canConfigure} />
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-wrap gap-2">
         <Button
           variant="outline"
           onClick={() => validate.mutate()}
           loading={validate.isPending}
-          disabled={!canImport || !datasetPath.trim()}
+          /*
+           * No longer requires a path: an empty one means the configured or
+           * managed directory, resolved server-side the same way import does.
+           * The duplicate button in the old Optimized panel sent no path at all
+           * and could only ever 400.
+           */
+          disabled={!canImport}
         >
           {t('dataset.validateBtn')}
         </Button>
@@ -878,6 +779,22 @@ function DatasetSection({
           </div>
           <Progress value={live.progress / 100} showLabel />
           {live.error && <p className="text-xs text-destructive">{live.error}</p>}
+        </div>
+      )}
+
+      {stats && (
+        <div>
+          <p className="text-sm font-medium">{t('optimized.latestStats')}</p>
+          <div className="mt-1.5 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+            <OptStat label={t('optimized.stat.scanned')} value={formatNumber(stats.rowsScanned)} />
+            <OptStat label={t('optimized.stat.imported')} value={formatNumber(stats.rowsImported)} />
+            <OptStat label={t('optimized.stat.skipType')} value={formatNumber(stats.skippedTitleType)} />
+            <OptStat label={t('optimized.stat.skipAdult')} value={formatNumber(stats.skippedAdult)} />
+            <OptStat label={t('optimized.stat.skipYear')} value={formatNumber(stats.skippedMinYear)} />
+            <OptStat label={t('optimized.stat.skipOrphan')} value={formatNumber(stats.skippedParentMissing)} />
+            <OptStat label={t('optimized.stat.errors')} value={formatNumber(stats.errors)} />
+            <OptStat label={t('optimized.stat.duration')} value={`${Math.round(stats.durationMs / 1000)}s`} />
+          </div>
         </div>
       )}
 
@@ -947,11 +864,23 @@ function DatasetSection({
           {canConfigure && (
             <Button
               variant="secondary"
+              /*
+               * One Save for the whole card. The import shape used to have its
+               * own Save in a separate panel, so changing a filter and the
+               * schedule together needed two clicks and looked like two
+               * features.
+               */
               onClick={() =>
                 saveAuto.mutate({
                   autoDownloadEnabled: autoDownload,
                   datasetBaseUrl: baseUrl.trim() || null,
                   autoUpdateIntervalHours: Math.max(1, Number(intervalHours) || 1),
+                  importStrategy: strategy,
+                  minImportYear: Number(minYear) || settings.minImportYear,
+                  importTvShows,
+                  importAkas,
+                  importCrew,
+                  importPeople,
                 })
               }
               loading={saveAuto.isPending}
