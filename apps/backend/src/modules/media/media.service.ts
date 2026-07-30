@@ -8,10 +8,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   mkdir,
-  rename,
-  copyFile,
-  link,
-  symlink,
   stat,
   readdir,
   realpath,
@@ -19,6 +15,7 @@ import {
   rmdir,
 } from 'node:fs/promises';
 import * as path from 'node:path';
+import { placeFile, type PlacementAction } from '../../common/file-placement';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { MediaRelocationService } from './media-relocation.service';
 import { historyScope } from './history-scope';
@@ -768,28 +765,18 @@ export class MediaService {
     return dest;
   }
 
+  /**
+   * Put a file where the plan says.
+   *
+   * Delegates to the shared {@link placeFile} primitive, which the Media Intake
+   * engine also uses — one implementation of "how a file gets moved" rather
+   * than two that drift apart. Behaviour here is unchanged, including the
+   * cross-device fallback from hardlink to copy; the richer return value the
+   * primitive offers is only of interest to intake, which has to record what
+   * actually happened rather than what was requested.
+   */
   private async execute(action: string, src: string, dest: string): Promise<void> {
-    switch (action) {
-      case 'rename':
-      case 'move':
-        await rename(src, dest);
-        break;
-      case 'copy':
-        await copyFile(src, dest);
-        break;
-      case 'hardlink':
-        await link(src, dest).catch(async (e) => {
-          // Cross-device hardlink fails (EXDEV) — fall back to copy.
-          if ((e as NodeJS.ErrnoException).code === 'EXDEV') await copyFile(src, dest);
-          else throw e;
-        });
-        break;
-      case 'symlink':
-        await symlink(src, dest);
-        break;
-      default:
-        throw new Error(`Unsupported action: ${action}`);
-    }
+    await placeFile(action as PlacementAction, src, dest);
   }
 
   /**
