@@ -388,6 +388,7 @@ model RssRule {
   autoDownload Boolean  @default(true)
   isEnabled    Boolean  @default(true)
   createdAt    DateTime @default(now())
+
   /// How a match reaches the library: legacy_direct | managed_intake.
   /// The DEFAULT IS DELIBERATELY `legacy_direct` so that every rule that exists
   /// when this column is added keeps behaving exactly as it did — the migration
@@ -399,7 +400,6 @@ model RssRule {
   /// keep writing to `savePath` exactly as before.
   storageProfileId String?
   storageProfile   StorageProfile? @relation(fields: [storageProfileId], references: [id], onDelete: SetNull)
-
 
   // TV show airing-status snapshot, captured when the rule was created/edited so
   // the recommendation shown at save time is preserved. Null for non-TV rules.
@@ -1966,11 +1966,16 @@ model IMDbTitle {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@index([primaryTitle])
-  @@index([originalTitle])
+  // NO btree index on primaryTitle/originalTitle. Every title lookup in the
+  // codebase matches case-insensitively (`{ equals: …, mode: 'insensitive' }`),
+  // which Prisma renders as ILIKE — and a btree cannot serve ILIKE. Those two
+  // indexes were superseded by the GIN trigram indexes that
+  // `ImdbTrigramIndexService` builds at runtime, and sat unused at ~295 MB each
+  // on a full catalogue. If you ever add a case-SENSITIVE `=` match on either
+  // column, it needs its own index back — the trigram one will not serve it.
   @@index([startYear])
-  @@index([titleType])
-  // Optimized movie import filters/sorts on (titleType, year) together.
+  // Covers `titleType` alone as well (leading column), so no separate
+  // single-column index. The optimized movie import filters/sorts on both.
   @@index([titleType, startYear])
   @@index([isAdult])
   // Genre filtering over the String[] column — GIN for array containment.
@@ -3166,6 +3171,7 @@ model UserNotificationDelivery {
   @@index([userId, createdAt])
   @@map("user_notification_deliveries")
 }
+
 
 // ---------------------------------------------------------------------------
 // Media Intake Engine
