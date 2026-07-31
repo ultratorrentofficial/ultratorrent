@@ -209,13 +209,39 @@ somewhere nobody expects.
 
 | Field | Notes |
 | --- | --- |
-| Staging root | Required. Must be absolute, and isolated from the libraries. |
+| Staging root | Required. A path in the **backend's** filesystem — use Browse. Must be isolated from the libraries. |
 | Movie / TV / Music library | Optional each. A kind with no library **quarantines** rather than guessing. |
 | Default strategy | `auto` unless you have a reason. |
 
 A profile that rules still reference cannot be deleted — the foreign key would
 `SET NULL` and silently strand those rules on a default naming different
 libraries.
+
+### One library per kind — and how to use several
+
+A profile holds **one library per kind** (`movieLibraryId`, `tvLibraryId`,
+`musicLibraryId`). There is no many-to-one mapping inside a profile, and that is
+deliberate: the profile answers "where does a movie go", and that has to be a
+single answer or the pipeline has nothing to decide with.
+
+So if you keep several libraries of the same kind — *Movies*, *Animated Movies*,
+*Documentaries*, *Concerts*, *Stand-Up Comedy* — **the routing happens one level
+up.** Each RSS rule carries its own `storageProfileId`, so the rule that grabs
+animated features points at a profile whose movie library is *Animated Movies*,
+and the rule that grabs standup points at a different profile. Several libraries
+of one kind means several profiles, chosen per rule.
+
+That is cheaper than it sounds. Only `name` is unique, so **every profile can
+share the same staging root** — you are not duplicating storage, only the
+answer to "where does this rule's output belong". And a profile is only ever
+consumed by an RSS rule, so you need one for each *destination an automated rule
+actually feeds* — not one per library. Libraries you fill by hand need no
+profile at all.
+
+Leave a kind empty when no rule targets it. An unset library quarantines rather
+than guessing, which is exactly what you want the first time something is parsed
+as a movie on a TV-only install: it stops and asks, instead of filing a film
+into your episode tree.
 
 ---
 
