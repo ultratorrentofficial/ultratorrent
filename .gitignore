@@ -66,3 +66,6 @@ tmp/
 # The repo is public; identities never go in it.
 ops/hosts.local.md
 ops/*.local.md
+
+# Output from the /audit plugin — review reports, regenerated on demand.
+audit/
