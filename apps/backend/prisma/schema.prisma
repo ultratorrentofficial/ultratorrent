@@ -400,6 +400,12 @@ model RssRule {
   /// keep writing to `savePath` exactly as before.
   storageProfileId String?
   storageProfile   StorageProfile? @relation(fields: [storageProfileId], references: [id], onDelete: SetNull)
+  /// The `savePath` this rule had before the migration wizard pointed it at
+  /// staging. Reverting has to put it back: a rule left on `legacy_direct` with a
+  /// staging save path downloads into staging and nothing imports from there, so
+  /// a revert that only flipped the mode would strand every future episode.
+  /// Null for a rule the wizard never converted.
+  preMigrationSavePath String?
 
   // TV show airing-status snapshot, captured when the rule was created/edited so
   // the recommendation shown at save time is preserved. Null for non-TV rules.

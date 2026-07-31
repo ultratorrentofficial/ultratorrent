@@ -11,6 +11,7 @@ import { StorageProfileService, type StorageProfileInput } from './storage-profi
 import { PathMappingRegistryService } from './path-mapping-registry.service';
 import { StorageCapabilityDetector } from './storage-capability-detector.service';
 import { IntakePipelineService } from './intake-pipeline.service';
+import { IntakeMigrationService } from './intake-migration.service';
 
 const P = PERMISSIONS;
 
@@ -36,6 +37,7 @@ export class MediaIntakeController {
     private readonly paths: PathMappingRegistryService,
     private readonly capabilities: StorageCapabilityDetector,
     private readonly pipeline: IntakePipelineService,
+    private readonly migration: IntakeMigrationService,
   ) {}
 
   // --- dashboard ----------------------------------------------------------
@@ -210,4 +212,30 @@ export class MediaIntakeController {
     return this.paths.remove(id);
   }
 
+  // --- migration wizard ------------------------------------------------------
+
+  /**
+   * What bulk conversion WOULD do. Read-only, and lists blocked rules too — a
+   * preview that hides its refusals turns "why is this one blocked" into the
+   * worse question "why is this one missing".
+   */
+  @Get('migration/preview')
+  @RequirePermissions(P.MEDIA_INTAKE_MIGRATE)
+  previewMigration(@Query('profileId') profileId?: string) {
+    return this.migration.preview(profileId || undefined);
+  }
+
+  /** Convert the named rules — save path and mode together, in one transaction. */
+  @Post('migration/apply')
+  @RequirePermissions(P.MEDIA_INTAKE_MIGRATE)
+  applyMigration(@Body() body: { ruleIds?: string[] }, @CurrentUser() u: AuthenticatedUser) {
+    return this.migration.apply(body?.ruleIds ?? [], u?.id);
+  }
+
+  /** Put converted rules back, restoring the save path they had before. */
+  @Post('migration/revert')
+  @RequirePermissions(P.MEDIA_INTAKE_MIGRATE)
+  revertMigration(@Body() body: { ruleIds?: string[] }, @CurrentUser() u: AuthenticatedUser) {
+    return this.migration.revert(body?.ruleIds ?? [], u?.id);
+  }
 }

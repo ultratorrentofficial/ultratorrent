@@ -90,5 +90,31 @@
     "source": "From",
     "imported": "To",
     "timelineFailed": "Could not load this intake’s history."
+  },
+  "migrate": {
+    "title": "Migration Wizard",
+    "subtitle": "Convert RSS rules to Managed Intake — save path and mode together, so a rule never ends up importing its own library.",
+    "back": "Back to Storage Profiles",
+    "loading": "Reading rules…",
+    "loadFailed": "Could not read the rules.",
+    "emptyTitle": "No RSS rules",
+    "emptyBody": "There is nothing to convert yet.",
+    "convertBtn": "Convert {{count}} rule(s)",
+    "selectAll": "Select all convertible ({{count}})",
+    "revertAll": "Revert {{count}} managed rule(s)",
+    "revertConfirm": "Revert {{count}} rule(s) to legacy direct import, restoring their original save paths?",
+    "applied": "Converted {{count}} rule(s).",
+    "someSkipped": "{{count}} rule(s) were skipped — re-check the list.",
+    "applyFailed": "Could not convert the rules.",
+    "reverted": "Reverted {{count}} rule(s).",
+    "revertFailed": "Could not revert the rules.",
+    "noPath": "(no save path)",
+    "selectAria": "Select {{name}}",
+    "verdict": {
+      "convertible": "Ready",
+      "already_managed": "Already managed",
+      "no_profile": "No profile",
+      "staging_conflict": "Staging conflict"
+    }
   }
 }

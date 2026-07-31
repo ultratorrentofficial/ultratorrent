@@ -511,6 +511,19 @@ export interface StorageCapabilityProbe {
   error: string | null;
 }
 
+export type MigrationVerdict = 'convertible' | 'already_managed' | 'no_profile' | 'staging_conflict';
+
+export interface RuleMigrationPreview {
+  ruleId: string;
+  name: string;
+  currentSavePath: string | null;
+  proposedSavePath: string | null;
+  profileId: string | null;
+  profileName: string | null;
+  verdict: MigrationVerdict;
+  reason: string | null;
+}
+
 export interface IntakeJob {
   id: string;
   profileId: string;
@@ -4917,6 +4930,18 @@ export const api = {
     /** Measure what this profile's storage can actually do. A write — it uses scratch files. */
     probeProfile(id: string, body: { targetRoot?: string; engineId?: string | null } = {}): Promise<StorageCapabilityProbe> {
       return request<StorageCapabilityProbe>(`/media/intake/profiles/${id}/probe`, { method: 'POST', body });
+    },
+
+    /** What bulk conversion WOULD do. Read-only; blocked rules are listed too. */
+    migrationPreview(profileId?: string): Promise<RuleMigrationPreview[]> {
+      const qs = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
+      return request<RuleMigrationPreview[]>(`/media/intake/migration/preview${qs}`);
+    },
+    applyMigration(ruleIds: string[]): Promise<{ converted: number; skipped: RuleMigrationPreview[] }> {
+      return request('/media/intake/migration/apply', { method: 'POST', body: { ruleIds } });
+    },
+    revertMigration(ruleIds: string[]): Promise<{ reverted: number; skipped: string[] }> {
+      return request('/media/intake/migration/revert', { method: 'POST', body: { ruleIds } });
     },
   },
 

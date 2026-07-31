@@ -60,6 +60,7 @@ import { MediaSettingsPage } from '@/pages/media-manager/MediaSettingsPage';
 import { MediaImdbSettingsPage } from '@/pages/media-manager/MediaImdbSettingsPage';
 import { StorageProfilesPage } from '@/pages/media-intake/StorageProfilesPage';
 import { IntakeDashboardPage } from '@/pages/media-intake/IntakeDashboardPage';
+import { MigrationWizardPage } from '@/pages/media-intake/MigrationWizardPage';
 import { ModulesPage } from '@/pages/ModulesPage';
 import { EnginesPage } from '@/pages/engines/EnginesPage';
 import { IndexersPage } from '@/pages/indexers/IndexersPage';
@@ -268,6 +269,14 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_intake">
                             <StorageProfilesPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/settings/intake/migrate"
+                        element={
+                          <ModuleRoute moduleId="media_intake">
+                            <MigrationWizardPage />
                           </ModuleRoute>
                         }
                       />

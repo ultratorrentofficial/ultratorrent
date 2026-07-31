@@ -127,9 +127,18 @@ export function StorageProfilesPage() {
           saving={create.isPending}
         />
       ) : (
-        <Button onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> {t('profile.addBtn')}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" /> {t('profile.addBtn')}
+          </Button>
+          {/* Only offered once a profile exists — the wizard has nowhere to stage
+              without one, and every rule would come back "No profile". */}
+          {!!profiles.data?.length && (
+            <Button variant="outline" onClick={() => navigate('/media/settings/intake/migrate')}>
+              {t('migrate.title')}
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

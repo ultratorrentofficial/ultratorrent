@@ -90,5 +90,31 @@
     "source": "Desde",
     "imported": "Hacia",
     "timelineFailed": "No se pudo cargar el historial de esta ingesta."
+  },
+  "migrate": {
+    "title": "Asistente de migración",
+    "subtitle": "Convierte reglas RSS a Ingesta Gestionada — ruta y modo a la vez, para que una regla nunca importe su propia biblioteca.",
+    "back": "Volver a Perfiles de almacenamiento",
+    "loading": "Leyendo reglas…",
+    "loadFailed": "No se pudieron leer las reglas.",
+    "emptyTitle": "Sin reglas RSS",
+    "emptyBody": "Todavía no hay nada que convertir.",
+    "convertBtn": "Convertir {{count}} regla(s)",
+    "selectAll": "Seleccionar todas las convertibles ({{count}})",
+    "revertAll": "Revertir {{count}} regla(s) gestionada(s)",
+    "revertConfirm": "¿Revertir {{count}} regla(s) a importación directa, restaurando sus rutas originales?",
+    "applied": "Se convirtieron {{count}} regla(s).",
+    "someSkipped": "Se omitieron {{count}} regla(s) — revisa la lista.",
+    "applyFailed": "No se pudieron convertir las reglas.",
+    "reverted": "Se revirtieron {{count}} regla(s).",
+    "revertFailed": "No se pudieron revertir las reglas.",
+    "noPath": "(sin ruta)",
+    "selectAria": "Seleccionar {{name}}",
+    "verdict": {
+      "convertible": "Lista",
+      "already_managed": "Ya gestionada",
+      "no_profile": "Sin perfil",
+      "staging_conflict": "Conflicto de preparación"
+    }
   }
 }

@@ -6,6 +6,7 @@ import { MediaModule } from '../media/media.module';
 import { MediaIntakeController } from './media-intake.controller';
 import { MediaIntakeService } from './media-intake.service';
 import { StorageProfileService } from './storage-profile.service';
+import { IntakeMigrationService } from './intake-migration.service';
 import { PathMappingRegistryService } from './path-mapping-registry.service';
 import { StorageCapabilityDetector } from './storage-capability-detector.service';
 import { ImportStrategyService } from './import-strategy.service';
@@ -27,6 +28,7 @@ import { IntakePostImportService } from './intake-post-import.service';
   providers: [
     MediaIntakeService,
     StorageProfileService,
+    IntakeMigrationService,
     PathMappingRegistryService,
     StorageCapabilityDetector,
     ImportStrategyService,
@@ -38,6 +40,7 @@ import { IntakePostImportService } from './intake-post-import.service';
   exports: [
     MediaIntakeService,
     StorageProfileService,
+    IntakeMigrationService,
     PathMappingRegistryService,
     StorageCapabilityDetector,
     ImportStrategyService,
