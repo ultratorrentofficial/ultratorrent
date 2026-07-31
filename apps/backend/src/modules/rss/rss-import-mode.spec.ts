@@ -10,7 +10,11 @@
 import { RssService } from './rss.module';
 import { DEFAULT_RSS_IMPORT_MODE, LEGACY_RSS_IMPORT_MODE } from '@ultratorrent/shared';
 
-function build(existing: Record<string, unknown> | null = { id: 'r1', name: 'Old rule' }) {
+function build(
+  existing: Record<string, unknown> | null = { id: 'r1', name: 'Old rule' },
+  /** The profile a managed rule resolves; null models "none configured". */
+  profile: Record<string, unknown> | null = null,
+) {
   const created: Record<string, unknown>[] = [];
   const updated: Record<string, unknown>[] = [];
   const prisma = {
@@ -27,9 +31,14 @@ function build(existing: Record<string, unknown> | null = { id: 'r1', name: 'Old
       findFirst: jest.fn(async () => null),
     },
   };
-  // (prisma, registry, showStatus, audit, realtime, moduleRef)
+  const storageProfiles = {
+    get: jest.fn(async () => profile),
+    defaultProfile: jest.fn(async () => profile),
+  };
+  // (prisma, registry, showStatus, audit, realtime, moduleRef, storageProfiles)
   const svc = new RssService(
     prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    storageProfiles as never,
   );
   // The show-status lookup is not what this file is about.
   jest.spyOn(svc as never as { resolveShowStatusSnapshot: () => Promise<unknown> },
@@ -90,5 +99,78 @@ describe('an existing rule', () => {
     const { svc, updated } = build();
     await svc.updateRule('r1', { storageProfileId: '' } as never);
     expect(updated[0].storageProfileId).toBeNull();
+  });
+});
+
+describe('a managed rule must not download into its own destination library', () => {
+  /*
+   * Managed intake places files INTO the library from wherever the torrent
+   * landed. If the torrent already landed there, the placement is
+   * library-to-library and the library gains the raw release filename AND the
+   * renamed hardlink, both scanned — a duplicate of everything it imports.
+   *
+   * Trivially reachable: importMode and savePath are independent fields, and
+   * EVERY rule predating Media Intake points at a library, because that is what
+   * legacy direct import means. On a live install all 163 rules did.
+   */
+  const profile = {
+    name: 'Synoplex', stagingRoot: '/downloads/Intake',
+    tvLibrary: { name: 'TV Shows', path: '/downloads/TV Shows' },
+    movieLibrary: null, musicLibrary: null,
+  };
+
+  it('REFUSES the conversion that would duplicate the library', async () => {
+    const { svc } = build({ id: 'r1', name: 'Old rule', savePath: '/downloads/TV Shows/9-1-1 (2018)', importMode: 'legacy_direct', storageProfileId: null }, profile);
+    await expect(svc.updateRule('r1', { importMode: 'managed_intake' } as never))
+      .rejects.toThrow(/would import from that library back into itself/);
+  });
+
+  it('names the staging root, so the fix is one paste away', async () => {
+    const { svc } = build({ id: 'r1', name: 'Old rule', savePath: '/downloads/TV Shows/9-1-1 (2018)', importMode: 'legacy_direct', storageProfileId: null }, profile);
+    await expect(svc.updateRule('r1', { importMode: 'managed_intake' } as never))
+      .rejects.toThrow(/\/downloads\/Intake/);
+  });
+
+  it('allows a managed rule that stages properly', async () => {
+    const { svc, updated } = build({ id: 'r1', name: 'Old rule', savePath: '/downloads/TV Shows/9-1-1 (2018)', importMode: 'legacy_direct', storageProfileId: null }, profile);
+    await svc.updateRule('r1', { importMode: 'managed_intake', savePath: '/downloads/Intake/9-1-1' } as never);
+    expect(updated[0].importMode).toBe('managed_intake');
+  });
+
+  it('judges the RESULTING rule, not the patch', async () => {
+    // Changing only the savePath of an ALREADY managed rule, to an in-library
+    // path, is the same corruption arrived at from the other direction.
+    const { svc } = build({ id: 'r1', name: 'Old rule', savePath: '/downloads/Intake/x', importMode: 'managed_intake', storageProfileId: null }, profile);
+    await expect(svc.updateRule('r1', { savePath: '/downloads/TV Shows/9-1-1 (2018)' } as never))
+      .rejects.toThrow(/back into itself/);
+  });
+
+  it('leaves LEGACY rules completely alone', async () => {
+    // The backward-compatibility promise: an in-library save path is exactly what
+    // legacy direct import is FOR, and must never be refused.
+    const { svc, updated } = build({ id: 'r1', name: 'Old rule', savePath: '/downloads/TV Shows/9-1-1 (2018)', importMode: 'legacy_direct', storageProfileId: null }, profile);
+    await svc.updateRule('r1', { name: 'Renamed' } as never);
+    expect(updated[0].name).toBe('Renamed');
+  });
+
+  it('does not block a managed rule when no profile is configured', async () => {
+    // Nothing to compare against; the dialog and the trigger both already say a
+    // managed rule without a profile imports nothing.
+    const { svc, updated } = build({ id: 'r1', name: 'Old rule', savePath: '/downloads/TV Shows/9-1-1 (2018)', importMode: 'legacy_direct', storageProfileId: null }, null);
+    await svc.updateRule('r1', { importMode: 'managed_intake' } as never);
+    expect(updated[0].importMode).toBe('managed_intake');
+  });
+
+  it('refuses a NEW managed rule pointed at a library too', async () => {
+    const { svc } = build(null, profile);
+    await expect(svc.createRule({ feedId: 'f1', name: 'New', savePath: '/downloads/TV Shows/New Show' } as never))
+      .rejects.toThrow(/back into itself/);
+  });
+
+  it('compares segment-wise, so a sibling directory is fine', async () => {
+    // "/downloads/TV Shows Staging" is not inside "/downloads/TV Shows".
+    const { svc, updated } = build({ id: 'r1', name: 'Old rule', savePath: '/downloads/TV Shows Staging/x', importMode: 'legacy_direct', storageProfileId: null }, profile);
+    await svc.updateRule('r1', { importMode: 'managed_intake' } as never);
+    expect(updated[0].importMode).toBe('managed_intake');
   });
 });

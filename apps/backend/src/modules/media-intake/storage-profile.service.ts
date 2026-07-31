@@ -193,7 +193,7 @@ export class StorageProfileService {
 }
 
 /** True when `a` is `b` or sits beneath it, compared segment-wise. */
-function nests(a: string, b: string): boolean {
+export function nests(a: string, b: string): boolean {
   const norm = (p: string) => {
     const c = p.replace(/\/+/g, '/');
     return c.length > 1 ? c.replace(/\/$/, '') : c;

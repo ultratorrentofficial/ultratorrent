@@ -30,6 +30,8 @@ import type { Request } from 'express';
 import Parser from 'rss-parser';
 import { PERMISSIONS, WS_EVENTS } from '@ultratorrent/shared';
 import { DEFAULT_RSS_IMPORT_MODE, RSS_IMPORT_MODES } from '@ultratorrent/shared';
+import { StorageProfileService, nests } from '../media-intake/storage-profile.service';
+import { MediaIntakeModule } from '../media-intake/media-intake.module';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { paginate, parsePage } from '../../common/pagination';
@@ -148,6 +150,7 @@ export class RssService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
     private readonly moduleRef: ModuleRef,
+    private readonly storageProfiles: StorageProfileService,
   ) {}
 
   /**
@@ -272,6 +275,9 @@ export class RssService {
 
   async createRule(dto: CreateRuleDto, ctx: StatusLookupContext = {}) {
     await this.assertUniqueRule({ name: dto.name, savePath: dto.savePath });
+    await this.assertManagedSavePathIsStaging(
+      dto.importMode ?? DEFAULT_RSS_IMPORT_MODE, dto.savePath, dto.storageProfileId ?? null,
+    );
     const snapshot = await this.resolveShowStatusSnapshot(dto, dto.name, ctx);
     return this.prisma.rssRule.create({
       data: {
@@ -294,9 +300,67 @@ export class RssService {
       },
     });
   }
+
+  /**
+   * A managed rule must not download into a destination library.
+   *
+   * Managed intake places files INTO the library from wherever the torrent
+   * landed. If the torrent already landed in that library, the placement is
+   * library-to-library: the raw release filename and the renamed hardlink end up
+   * side by side, both scanned, and the library gains a duplicate of everything
+   * it imports.
+   *
+   * That pair is trivially reachable — `importMode` and `savePath` are
+   * independent fields, so flipping a rule to managed while leaving its save path
+   * alone produces it, and every rule that predates Media Intake points straight
+   * at a library because that is what legacy direct import MEANS. Refusing here
+   * is the difference between converting a rule and quietly corrupting a library.
+   *
+   * Refuses rather than repointing: rewriting where downloads go is not something
+   * to do as a side effect of a checkbox, and the message names the staging root
+   * so the fix is one paste away.
+   */
+  private async assertManagedSavePathIsStaging(
+    importMode: string | null | undefined,
+    savePath: string | null | undefined,
+    storageProfileId: string | null,
+  ): Promise<void> {
+    if (importMode !== 'managed_intake') return;
+    const path = savePath?.trim();
+    if (!path) return; // no path is not a broken path; the trigger warns separately
+
+    const profile = storageProfileId
+      ? await this.storageProfiles.get(storageProfileId).catch(() => null)
+      : await this.storageProfiles.defaultProfile();
+    // No profile resolved: nothing to compare against, and the rule dialog and
+    // trigger both already say a managed rule without a profile imports nothing.
+    if (!profile) return;
+
+    const destinations = [profile.movieLibrary, profile.tvLibrary, profile.musicLibrary]
+      .filter((l) => !!l?.path)
+      .map((l) => ({ name: l!.name, path: l!.path }));
+    for (const lib of destinations) {
+      if (nests(path, lib.path)) {
+        throw new BadRequestException(
+          `This rule downloads into the "${lib.name}" library ("${path}"), so managed intake `
+            + `would import from that library back into itself and leave a duplicate of every `
+            + `episode. Point the rule at a staging directory first — profile "${profile.name}" `
+            + `stages at "${profile.stagingRoot}".`,
+        );
+      }
+    }
+  }
+
   async updateRule(id: string, dto: UpdateRuleDto, ctx: StatusLookupContext = {}) {
     const rule = await this.prisma.rssRule.findUnique({ where: { id } });
     if (!rule) throw new NotFoundException(`Unknown RSS rule: ${id}`);
+    // Both fields matter together, so judge the RESULTING rule, not the patch:
+    // switching to managed without touching savePath is exactly the broken pair.
+    await this.assertManagedSavePathIsStaging(
+      dto.importMode ?? rule.importMode,
+      dto.savePath === undefined ? rule.savePath : dto.savePath,
+      dto.storageProfileId === undefined ? rule.storageProfileId : dto.storageProfileId,
+    );
     await this.assertUniqueRule({
       name: dto.name,
       savePath: dto.savePath,
@@ -2032,7 +2096,7 @@ export class RssController {
 }
 
 @Module({
-  imports: [SettingsModule],
+  imports: [SettingsModule, MediaIntakeModule],
   providers: [
     RssService,
     TvShowStatusService,
