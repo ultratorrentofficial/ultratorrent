@@ -102,16 +102,42 @@ export class IntakeTriggerService implements OnModuleInit {
    * every grab. A torrent with no acquisition row was not produced by a rule —
    * a manual add, or one from before the feed existed — and is left alone.
    */
+  /**
+   * The rule that asked for this torrent, by either route it can have arrived by.
+   *
+   * An RSS feed grab is traced through `rss_acquisitions`. A **missing-episode**
+   * grab writes no such row — it goes out through MissingEpisodeSearchService, an
+   * entirely separate path — so it carries its own trace on the wanted episode:
+   * the hash it was handed, and the rule that decided where it was sent.
+   *
+   * `intakeRuleId` is read rather than re-derived. The resolver already answered
+   * "which rule governs this show" when it chose the download directory; asking
+   * again here could produce a different answer (a rule renamed in between, a link
+   * added since), and a file staged on one answer but refused on the other is
+   * stranded with nothing to import it. A null means the grab went straight to the
+   * library, which is the legacy path and correctly ignored.
+   */
   private async ruleFor(hash: string) {
     const acquisition = await this.prisma.rssAcquisition.findFirst({
       where: { torrentHash: hash },
       orderBy: { createdAt: 'desc' },
       select: { rssRuleId: true },
     });
-    if (!acquisition?.rssRuleId) return null;
+    const ruleId = acquisition?.rssRuleId ?? (await this.missingEpisodeRuleId(hash));
+    if (!ruleId) return null;
     return this.prisma.rssRule.findUnique({
-      where: { id: acquisition.rssRuleId },
+      where: { id: ruleId },
       select: { id: true, name: true, importMode: true, storageProfileId: true },
     });
+  }
+
+  /** The rule a missing-episode grab was staged under, if it was one. */
+  private async missingEpisodeRuleId(hash: string): Promise<string | null> {
+    const wanted = await this.prisma.wantedEpisode.findFirst({
+      where: { torrentHash: hash },
+      orderBy: { grabbedAt: 'desc' },
+      select: { intakeRuleId: true },
+    });
+    return wanted?.intakeRuleId ?? null;
   }
 }

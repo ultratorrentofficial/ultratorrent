@@ -221,6 +221,10 @@ export class AcquisitionEvaluatorService {
         trace: { steps: [{ step: 'match_preferences', status: 'success', reason: input.reason }] } as object,
       },
     });
+    // The engine's hash for the torrent it just added, surfaced to the caller so a
+    // grab can be traced back to its download. Media Intake needs it to recognise
+    // a completed missing-episode download as one of its own.
+    let torrentHash: string | null = null;
     if (input.downloadUrl) {
       const action = await this.prisma.mediaAcquisitionAction.create({
         data: {
@@ -235,7 +239,8 @@ export class AcquisitionEvaluatorService {
           createdBy: userId,
         },
       });
-      await this.executor.executeAction(action.id, userId);
+      const result = await this.executor.executeAction(action.id, userId);
+      torrentHash = result?.torrentHash ?? null;
     }
     await this.history(input.watchlistItemId, evaluation.id, 'evaluation.download', input.reason);
     await this.audit.record({
@@ -246,7 +251,7 @@ export class AcquisitionEvaluatorService {
       metadata: { decision: 'download', via: 'match_preferences' },
     });
     this.emit(evaluation.id, 'download', false);
-    return evaluation;
+    return { evaluation, torrentHash };
   }
 
   /**

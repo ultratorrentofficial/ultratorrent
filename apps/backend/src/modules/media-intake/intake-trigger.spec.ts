@@ -19,6 +19,8 @@ type Handler = (e: unknown) => void;
 function build(opts: {
   rule?: { id: string; name: string; importMode: string; storageProfileId: string | null } | null;
   acquisition?: { rssRuleId: string | null } | null;
+  /** A missing-episode grab's own trace, used when no rss_acquisition exists. */
+  wanted?: { intakeRuleId: string | null } | null;
   profile?: { id: string; name: string } | null;
 } = {}) {
   const handlers = new Map<string, Handler>();
@@ -31,6 +33,7 @@ function build(opts: {
         opts.acquisition === undefined ? { rssRuleId: 'rule-1' } : opts.acquisition),
     },
     rssRule: { findUnique: jest.fn(async () => opts.rule ?? null) },
+    wantedEpisode: { findFirst: jest.fn(async () => opts.wanted ?? null) },
   };
   const bus = { subscribe: jest.fn((key: string, fn: Handler) => handlers.set(key, fn)) };
   const intake = {
@@ -172,6 +175,53 @@ describe('managed intake gate', () => {
   it('ignores an event with no hash', async () => {
     const { handlers, enqueued } = build({ rule: managed });
     await fire(handlers, { payload: {} });
+    expect(enqueued).toHaveLength(0);
+  });
+});
+
+describe('IntakeTriggerService — missing-episode grabs', () => {
+  /*
+   * Missing-episode downloads never touch `rss_acquisitions` — they go out through
+   * MissingEpisodeSearchService, a separate path entirely. Before this they were
+   * invisible to intake, so a rule converted to managed intake staged its
+   * missing-episode grabs into a directory nothing would ever import from.
+   */
+  it('picks up a grab traced by the wanted episode when there is no acquisition', async () => {
+    const { handlers, enqueued } = build({
+      acquisition: null,
+      wanted: { intakeRuleId: 'rule-1' },
+      rule: { id: 'rule-1', name: 'Ghosts', importMode: 'managed_intake', storageProfileId: 'p1' },
+    });
+    await handlers.get(DOMAIN_EVENTS.TORRENT_COMPLETED)!(completion());
+    await new Promise((r) => setImmediate(r));
+    expect(enqueued).toHaveLength(1);
+  });
+
+  it('ignores a grab whose wanted episode recorded no rule', async () => {
+    // Null intakeRuleId means it went straight to the library — the legacy path,
+    // which intake must not touch or it would import the same file twice.
+    const { handlers, enqueued } = build({ acquisition: null, wanted: { intakeRuleId: null } });
+    await handlers.get(DOMAIN_EVENTS.TORRENT_COMPLETED)!(completion());
+    await new Promise((r) => setImmediate(r));
+    expect(enqueued).toHaveLength(0);
+  });
+
+  it('ignores a torrent with neither trace', async () => {
+    // A hand-added torrent. Nobody asked intake to place it.
+    const { handlers, enqueued } = build({ acquisition: null, wanted: null });
+    await handlers.get(DOMAIN_EVENTS.TORRENT_COMPLETED)!(completion());
+    await new Promise((r) => setImmediate(r));
+    expect(enqueued).toHaveLength(0);
+  });
+
+  it('still honours legacy_direct on a missing-episode grab', async () => {
+    const { handlers, enqueued } = build({
+      acquisition: null,
+      wanted: { intakeRuleId: 'rule-1' },
+      rule: { id: 'rule-1', name: 'Ghosts', importMode: 'legacy_direct', storageProfileId: null },
+    });
+    await handlers.get(DOMAIN_EVENTS.TORRENT_COMPLETED)!(completion());
+    await new Promise((r) => setImmediate(r));
     expect(enqueued).toHaveLength(0);
   });
 });

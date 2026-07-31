@@ -25,12 +25,16 @@ function build(over: {
   indexerRun?: { queried?: number; failed?: number; failures?: Array<{ name: string; message: string }> };
   selected?: any; // pass `null` to force no-match; omit to auto-select the first candidate
   evaluation?: any;
+  /** The hash the engine returned for the grabbed torrent. */
+  torrentHash?: string | null;
+  /** Storage profile behind a managed_intake rule; pass `null` for "none resolved". */
+  profile?: { id: string; stagingRoot: string } | null;
   settings?: Record<string, unknown>;
   enabled?: boolean;
   wanted?: Record<string, unknown>;
   item?: Record<string, unknown>;
   rssRule?: Record<string, unknown> | null;
-  rules?: Array<{ name: string; savePath: string | null }>;
+  rules?: Array<{ id?: string; name: string; savePath: string | null; importMode?: string; storageProfileId?: string | null }>;
   existingItem?: { path: string } | null;
   /** Library items, as (title, path) — what the title-match step scans. */
   libraryItems?: Array<{ title: string; path: string }>;
@@ -112,7 +116,19 @@ function build(over: {
       ...(over.indexerRun ?? {}),
     })),
   };
-  const evaluator = { grabSelected: jest.fn(async () => over.evaluation ?? { id: 'ev1' }) };
+  const evaluator = {
+    grabSelected: jest.fn(async () => ({
+      evaluation: over.evaluation ?? { id: 'ev1' },
+      torrentHash: over.torrentHash ?? 'hash-1',
+    })),
+  };
+  // Storage profiles only matter for a managed_intake rule; the default answers
+  // with a staging root so those paths can be asserted.
+  const profiles = {
+    get: jest.fn(async () => over.profile ?? { id: 'p1', stagingRoot: '/media/staging' }),
+    defaultProfile: jest.fn(async () =>
+      over.profile === undefined ? { id: 'p1', stagingRoot: '/media/staging' } : over.profile),
+  };
   const matchPrefs = {
     resolveCandidates: jest.fn(async () => []),
     select: jest.fn((candidates: IndexerCandidate[]) => {
@@ -132,9 +148,9 @@ function build(over: {
   const registry = { getStatus: jest.fn(() => ({ enabled: over.enabled ?? true })) };
   const svc = new MissingEpisodeSearchService(
     prisma as any, indexers as any, evaluator as any, matchPrefs as any, acquisition as any,
-    audit as any, realtime as any, registry as any,
+    audit as any, realtime as any, registry as any, profiles as any,
   );
-  return { svc, prisma, indexers, evaluator, matchPrefs, acquisition, audit, realtime, eventBus, updates };
+  return { svc, prisma, indexers, evaluator, matchPrefs, acquisition, audit, realtime, eventBus, updates, profiles };
 }
 
 describe('MissingEpisodeSearchService.sweep — gating', () => {
@@ -421,22 +437,117 @@ describe('MissingEpisodeSearchService — save path never invents a duplicate sh
     expect(savedTo(evaluator)).toBe('/downloads/TV Shows/Magnum P.I. (2018)');
   });
 
-  it('uses the bound library show’s stored path, matching nothing and building nothing', async () => {
-    // The show was picked from the library, so its folder is KNOWN. No rule, no
-    // IMDb lookup, no folder scan, no construction — just the path the scanner saw.
-    const { svc, evaluator, prisma } = build({
-      ...ghosts('Ghosts 2021'), // deliberately the title that used to invent a folder
+  it('the show’s RULE outranks even a bound library show', async () => {
+    /*
+     * The operator configured a rule for this show; that is a deliberate statement
+     * about where it belongs, and acquisitions follow it. Previously the library
+     * binding won and the rule was only consulted for shows the library had never
+     * seen — which meant converting a rule to managed intake silently did nothing
+     * for every show already on disk.
+     */
+    const { svc, evaluator } = build({
+      ...ghosts('Ghosts 2021'),
       item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
       libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
-      // Everything that could mislead the legacy chain is present and wrong:
-      rules: [{ name: 'Ghosts 2021', savePath: '/downloads/TV Shows/WRONG (2021)' }],
+      rules: [{ name: 'Ghosts 2021', savePath: '/downloads/TV Shows/From The Rule' }],
+    });
+    await svc.sweep();
+    expect(savedTo(evaluator)).toBe('/downloads/TV Shows/From The Rule');
+  });
+
+  it('ignores a rule whose savePath no longer exists, and uses the binding', async () => {
+    /*
+     * A savePath left behind by a rename points somewhere nothing scans. Honouring
+     * it blindly would recreate a dead folder and quietly file episodes into it, so
+     * a stale rule loses to the path the scanner actually observed.
+     */
+    const { svc, evaluator } = build({
+      ...ghosts('Ghosts 2021'),
+      item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
+      libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
+      rules: [{ name: 'Ghosts 2021', savePath: '/downloads/TV Shows/RENAMED AWAY' }],
+      missingDirs: ['/downloads/TV Shows/RENAMED AWAY'],
+    });
+    await svc.sweep();
+    expect(savedTo(evaluator)).toBe(GHOSTS_DIR);
+  });
+
+  it('still uses the binding when the show has no rule at all', async () => {
+    // The library-observed chain is unchanged for everything the rule step skips.
+    const { svc, evaluator, prisma } = build({
+      ...ghosts('Ghosts 2021'),
+      item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
+      libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
+      rules: [],
       libraryDirs: ['Ghosts 2021 (2021)'],
     });
     await svc.sweep();
     expect(savedTo(evaluator)).toBe(GHOSTS_DIR);
-    // The binding short-circuits the whole name-matching chain.
-    expect(prisma.rssRule.findMany).not.toHaveBeenCalled();
     expect(prisma.mediaExternalId.findMany).not.toHaveBeenCalled();
+  });
+
+  it('sends a MANAGED_INTAKE rule’s grab to the staging root, not the library', async () => {
+    /*
+     * The point of the whole exercise: once a rule is converted, its missing-episode
+     * grabs must stage like its RSS grabs do. If this resolved to the library the
+     * two subsystems would file the same show in two different places.
+     */
+    const { svc, evaluator } = build({
+      ...ghosts('Ghosts 2021'),
+      item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
+      libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
+      rules: [{ id: 'rule-1', name: 'Ghosts 2021', savePath: GHOSTS_DIR, importMode: 'managed_intake' }],
+    });
+    await svc.sweep();
+    // Per-show subdirectory: concurrent grabs must not collide on one staging path.
+    expect(savedTo(evaluator)).toBe('/media/staging/Ghosts 2021 (2021)');
+  });
+
+  it('falls back to the library when a managed rule has no storage profile', async () => {
+    // Staging would be a guess. Filing it into the library is the old behaviour,
+    // which is a safe place to land — and it is logged so it can be fixed.
+    const { svc, evaluator } = build({
+      ...ghosts('Ghosts 2021'),
+      item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
+      libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
+      rules: [{ id: 'rule-1', name: 'Ghosts 2021', savePath: GHOSTS_DIR, importMode: 'managed_intake' }],
+      profile: null,
+    });
+    await svc.sweep();
+    expect(savedTo(evaluator)).toBe(GHOSTS_DIR);
+  });
+
+  it('records the torrent hash and rule so Media Intake can find the download', async () => {
+    /*
+     * Without this the grab is invisible to intake: the trigger identifies a torrent
+     * through `rss_acquisitions`, and a missing-episode grab writes no such row. A
+     * file staged with nothing able to import it is worse than not staging at all.
+     */
+    const { svc, updates } = build({
+      ...ghosts('Ghosts 2021'),
+      item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
+      libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
+      rules: [{ id: 'rule-1', name: 'Ghosts 2021', savePath: GHOSTS_DIR, importMode: 'managed_intake' }],
+      torrentHash: 'abc123',
+    });
+    await svc.sweep();
+    const grabbed = updates.find((u: any) => u.searchStatus === 'grabbed');
+    expect(grabbed).toMatchObject({ torrentHash: 'abc123' });
+    expect(grabbed.intakeRuleId).toBeTruthy();
+  });
+
+  it('leaves intakeRuleId null for a legacy rule, so intake ignores the grab', async () => {
+    // The backward-compatibility guarantee, at the other end of the pipe.
+    const { svc, updates } = build({
+      ...ghosts('Ghosts 2021'),
+      item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
+      libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
+      rules: [{ id: 'rule-1', name: 'Ghosts 2021', savePath: GHOSTS_DIR }],
+      torrentHash: 'abc123',
+    });
+    await svc.sweep();
+    const grabbed = updates.find((u: any) => u.searchStatus === 'grabbed');
+    expect(grabbed).toMatchObject({ torrentHash: 'abc123', intakeRuleId: null });
   });
 
   it('falls back to resolving by name when the bound show has been deleted', async () => {

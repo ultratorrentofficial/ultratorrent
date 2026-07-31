@@ -12,6 +12,10 @@ import { MediaAcquisitionService } from './media-acquisition.service';
 import { MEDIA_ACQUISITION_MODULE_ID } from './decision.engine';
 import { showFolderRoot } from '../media/media-renamer';
 import { showCanonicalKey } from '../media/series-grouping';
+import { StorageProfileService } from '../media-intake/storage-profile.service';
+
+/** A rule in this mode stages its downloads for the intake pipeline. */
+const MANAGED_RSS_IMPORT_MODE = 'managed_intake';
 
 type WantedSearchStatus = 'idle' | 'searching' | 'grabbed' | 'pending_approval' | 'no_results' | 'failed';
 
@@ -63,6 +67,7 @@ export class MissingEpisodeSearchService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
     private readonly registry: ModuleRegistryService,
+    private readonly profiles: StorageProfileService,
   ) {}
 
   private get enabled(): boolean {
@@ -166,7 +171,7 @@ export class MissingEpisodeSearchService {
     // is mandatory — without it the engine would drop the episode in its default
     // root (loose files at /downloads instead of the show folder), so a grab we
     // cannot place is refused rather than misfiled.
-    const savePath = await this.resolveSavePath(item, wanted.seriesTconst);
+    const { path: savePath, intakeRuleId } = await this.resolveSavePath(item, wanted.seriesTconst);
     if (!savePath) {
       const reason =
         `No save path for "${item.title}": no Show Rule savePath, no existing library ` +
@@ -238,7 +243,7 @@ export class MissingEpisodeSearchService {
     }
 
     const rel = best.candidate;
-    const evaluation = await this.evaluator.grabSelected(
+    const { evaluation, torrentHash } = await this.evaluator.grabSelected(
       {
         releaseName: rel.title,
         downloadUrl: rel.downloadUrl ?? undefined,
@@ -262,6 +267,11 @@ export class MissingEpisodeSearchService {
       grabbedEvaluationId: evaluation.id,
       downloadUrl: rel.downloadUrl,
       releaseTitle: rel.title,
+      // What lets Media Intake find this download later. `intakeRuleId` is only
+      // set when the grab was actually sent to staging, so a null here means
+      // "went to the library", and the trigger correctly leaves it alone.
+      torrentHash,
+      intakeRuleId,
     });
     this.broadcastGrabbed(wanted, rel.title, evaluation.id);
     await this.audit.record({
@@ -275,40 +285,140 @@ export class MissingEpisodeSearchService {
   }
 
   /**
-   * The download directory for a grabbed episode.
+   * The download directory for a grabbed episode, and the rule that decided it.
    *
-   *   0. the **library show this item is bound to** — a path the scanner recorded
-   *      from disk. This is the answer whenever the show is in the library, and it
-   *      is not a guess: no titles are compared and nothing is constructed;
-   *   1. else the linked Show Rule's `savePath` (explicit link);
-   *   2. else an RSS rule whose **name matches the show** — many shows have a rule
-   *      that just isn't wired to the watchlist item;
-   *   3. else the library folder of the item carrying the show's **IMDb id**;
-   *   4. else the library folder of an item whose **title matches the show**;
-   *   5. else an **existing show folder** already sitting in the target library;
-   *   6. else, and only then, a constructed `<TV library>/<Title> (Year)`.
+   * The show's **own RSS rule wins** — linked by `rssRuleId`, else matched by
+   * canonical name. A rule is a deliberate statement by the operator about where
+   * that show belongs, and the whole point of configuring one is that acquisitions
+   * follow it. Two subsystems disagreeing about a show's directory is how episodes
+   * end up split across two folders.
    *
-   * Steps 1-6 are the legacy chain, kept for a show that is not in the library yet
-   * (`libraryShowId` null) — a first-ever grab has no folder to be bound to. They
-   * compare canonical keys (punctuation- and case-insensitive, trailing year
-   * stripped) against the item's title *and its aliases*: equality on that form,
-   * never substring tests, so "Ghosts US" never collides with "Ghosts UK".
+   * A rule only wins if its directory **exists on disk**. A `savePath` left behind
+   * by a rename points somewhere nothing scans, and honouring it blindly would
+   * recreate a dead folder and quietly file episodes into it; the library-observed
+   * answer below is better than a stale one.
    *
-   * Step 6 is the dangerous one — it invents a directory named after whatever the
+   * When that rule is in `managed_intake` the answer is its storage profile's
+   * **staging root**, not the library — the file is meant to land in staging and be
+   * placed by the intake pipeline. See {@link stagingPathFor}.
+   *
+   * With no usable rule it falls back to the library, in the order that was already
+   * here:
+   *
+   *   1. the **library show this item is bound to** — a path the scanner recorded
+   *      from disk. Not a guess: no titles compared, nothing constructed;
+   *   2. else the library folder of the item carrying the show's **IMDb id**;
+   *   3. else the library folder of an item whose **title matches the show**;
+   *   4. else an **existing show folder** already sitting in the target library;
+   *   5. else, and only then, a constructed `<TV library>/<Title> (Year)`.
+   *
+   * Name comparisons use canonical keys (punctuation- and case-insensitive,
+   * trailing year stripped) against the item's title *and its aliases*, by
+   * equality and never substring, so "Ghosts US" cannot collide with "Ghosts UK".
+   *
+   * Step 5 is the dangerous one — it invents a directory named after whatever the
    * watchlist entry happens to be called. Two duplicate entries for the same show,
    * titled "Ghosts 2021" and "Ghosts (US)", once minted
    * `TV Shows/Ghosts 2021 (2021)` and `TV Shows/Ghosts (US) (2021)` beside the real
-   * `TV Shows/Ghosts US (2021)`. Step 0 is what makes it unreachable for any show
-   * the library knows about; steps 3 and 5 narrow it further for the ones it doesn't.
+   * `TV Shows/Ghosts US (2021)`. Steps 1, 2 and 4 are what keep it unreachable for
+   * a show the library already knows about — promoting the rule above them does not
+   * weaken that, because a rule path is configured, never constructed.
    *
-   * Returns undefined only when none of these resolve — the caller then refuses the
-   * grab, because falling through to the engine's default would scatter episodes
-   * loose in the download root instead of the library's show folder.
+   * Returns `path: undefined` only when nothing resolves — the caller then refuses
+   * the grab, because falling through to the engine's default would scatter
+   * episodes loose in the download root instead of the show's folder.
    */
   private async resolveSavePath(
     item: {
       id?: string;
       rssRuleId: string | null;
+      libraryShowId?: string | null;
+      title: string;
+      titleAliases?: string[] | null;
+      year: number | null;
+      targetLibraryId: string | null;
+    },
+    seriesTconst?: string | null,
+  ): Promise<{ path?: string; intakeRuleId: string | null }> {
+    // 0. The show's own rule, which outranks everything below it.
+    const rule = await this.resolveRule(item);
+    if (rule) {
+      if (rule.importMode === MANAGED_RSS_IMPORT_MODE) {
+        const staging = await this.stagingPathFor(rule, item);
+        // No profile resolved: staging would be a guess, and a managed grab sent
+        // to the library instead is silently the old behaviour. Fall through to
+        // the library and say so — an operator can see it and fix the profile.
+        if (staging) return { path: staging, intakeRuleId: rule.id };
+        this.logger.warn(
+          `Rule "${rule.name}" is managed_intake but no storage profile resolved; ` +
+            `filing "${item.title}" into the library as before.`,
+        );
+      } else {
+        const sp = rule.savePath?.trim();
+        if (sp && (await this.isDirectory(sp))) return { path: sp, intakeRuleId: null };
+        if (sp) {
+          this.logger.warn(
+            `Rule "${rule.name}" savePath "${sp}" does not exist; resolving ` +
+              `"${item.title}" from the library instead.`,
+          );
+        }
+      }
+    }
+
+    const path = await this.resolveLibraryPath(item, seriesTconst);
+    return { path, intakeRuleId: null };
+  }
+
+  /**
+   * The show's rule: the explicit link first, else one whose name canonicalizes to
+   * the same key as the show's title or any of its aliases.
+   *
+   * Shared by the destination decision and (via the recorded `intakeRuleId`) the
+   * import that follows, so the two cannot reach different answers about which
+   * rule governs a grab.
+   */
+  private async resolveRule(item: {
+    rssRuleId: string | null;
+    title: string;
+    titleAliases?: string[] | null;
+  }) {
+    const select = { id: true, name: true, savePath: true, importMode: true, storageProfileId: true };
+    if (item.rssRuleId) {
+      const linked = await this.prisma.rssRule.findUnique({ where: { id: item.rssRuleId }, select });
+      if (linked) return linked;
+    }
+    const keys = showKeys(item);
+    if (!keys.size) return null;
+    const rules = await this.prisma.rssRule.findMany({ select });
+    return rules.find((r) => keys.has(showCanonicalKey(r.name))) ?? null;
+  }
+
+  /**
+   * Where a managed-intake grab is downloaded: a per-show directory under the
+   * profile's staging root.
+   *
+   * Per-show rather than a flat staging root because several episodes of different
+   * shows land concurrently, and intake identifies a job by its source path — one
+   * shared directory makes those paths collide and two intakes fight over the same
+   * folder.
+   */
+  private async stagingPathFor(
+    rule: { storageProfileId: string | null },
+    item: { title: string; year: number | null },
+  ): Promise<string | undefined> {
+    const profile = rule.storageProfileId
+      ? await this.profiles.get(rule.storageProfileId).catch(() => null)
+      : await this.profiles.defaultProfile();
+    const root = profile?.stagingRoot?.trim().replace(/\/+$/, '');
+    if (!root) return undefined;
+    const folder = item.year ? `${item.title} (${item.year})` : item.title;
+    return `${root}/${folder}`;
+  }
+
+  /** The library-observed chain, unchanged apart from losing the rule steps. */
+  private async resolveLibraryPath(
+    item: {
+      id?: string;
       libraryShowId?: string | null;
       title: string;
       titleAliases?: string[] | null;
@@ -332,29 +442,10 @@ export class MissingEpisodeSearchService {
       );
     }
 
-    // 1. Explicit Show Rule link.
-    if (item.rssRuleId) {
-      const rule = await this.prisma.rssRule.findUnique({
-        where: { id: item.rssRuleId },
-        select: { savePath: true },
-      });
-      const sp = rule?.savePath?.trim();
-      if (sp) return sp;
-    }
-
+    // Rule resolution happened in resolveSavePath, above this chain.
     const keys = showKeys(item);
 
-    // 2. An RSS rule named after the show.
-    if (keys.size) {
-      const rules = await this.prisma.rssRule.findMany({
-        where: { savePath: { not: null } },
-        select: { name: true, savePath: true },
-      });
-      const match = rules.find((r) => keys.has(showCanonicalKey(r.name)) && r.savePath?.trim());
-      if (match?.savePath) return match.savePath.trim();
-    }
-
-    // 3. The library folder holding this show's IMDb id. Titles can disagree with
+    // 2. The library folder holding this show's IMDb id. Titles can disagree with
     //    the library in any number of ways; the id cannot.
     //
     //    Unless the id itself is wrong. Real libraries carry mis-tagged items —

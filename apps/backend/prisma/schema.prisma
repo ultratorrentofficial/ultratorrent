@@ -1756,6 +1756,17 @@ model WantedEpisode {
   grabbedEvaluationId String?
   downloadUrl         String?
   releaseTitle        String?
+  /// The torrent handed to the engine for this episode. Media Intake identifies a
+  /// completed download by tracing it back to the rule that asked for it; RSS
+  /// grabs are traced through `rss_acquisitions`, but a missing-episode grab
+  /// writes no such row, so without this the intake trigger cannot see it at all.
+  torrentHash         String?
+  /// The rule whose `importMode` decided where this grab was sent, recorded at
+  /// grab time rather than re-derived later. Re-deriving would let the trigger
+  /// and `resolveSavePath` disagree — and a file staged by one and refused by the
+  /// other is stranded with nothing to import it. Null for a grab that went
+  /// straight to the library (no rule, or a legacy_direct one).
+  intakeRuleId        String?
   lastCheckedAt       DateTime  @default(now())
   createdAt           DateTime  @default(now())
 
@@ -1763,6 +1774,7 @@ model WantedEpisode {
   @@index([watchlistItemId])
   @@index([seriesTconst])
   @@index([status])
+  @@index([torrentHash])
   @@map("wanted_episodes")
 }
 
