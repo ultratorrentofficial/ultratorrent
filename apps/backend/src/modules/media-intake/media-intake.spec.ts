@@ -228,6 +228,40 @@ describe('storage profile validation', () => {
     name: 'Default', stagingRoot: '/media/staging', ...over,
   });
 
+  describe('defaultProfile', () => {
+    it('prefers the profile explicitly flagged as default', async () => {
+      const { svc, prisma } = buildProfiles();
+      prisma.storageProfile.findFirst.mockResolvedValueOnce({ id: 'flagged' });
+      await expect(svc.defaultProfile()).resolves.toMatchObject({ id: 'flagged' });
+      expect(prisma.storageProfile.findMany).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the SOLE enabled profile when none is flagged', async () => {
+      /*
+       * The trap this closes: the UI shipped with no control for `isDefault`, so
+       * every profile was created `false`. A rule switched to managed intake
+       * without naming a profile then resolved nothing and imported nothing,
+       * logging "left alone" — the enabled-but-inert failure again. With exactly
+       * one profile there is no ambiguity about which was meant.
+       */
+      const { svc, prisma } = buildProfiles();
+      prisma.storageProfile.findMany.mockResolvedValueOnce([{ id: 'only' }]);
+      await expect(svc.defaultProfile()).resolves.toMatchObject({ id: 'only' });
+    });
+
+    it('stays null when two profiles compete and neither is flagged', async () => {
+      // Genuinely ambiguous — guessing would import into someone's wrong library.
+      const { svc, prisma } = buildProfiles();
+      prisma.storageProfile.findMany.mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }]);
+      await expect(svc.defaultProfile()).resolves.toBeNull();
+    });
+
+    it('stays null when there are no profiles at all', async () => {
+      const { svc } = buildProfiles();
+      await expect(svc.defaultProfile()).resolves.toBeNull();
+    });
+  });
+
   it('refuses staging inside a destination library', async () => {
     /*
      * The operational hazard the whole staging design exists to avoid: a scanner

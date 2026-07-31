@@ -49,10 +49,29 @@ export class StorageProfileService {
 
   /** The profile a managed intake uses when a rule names none. */
   async defaultProfile() {
-    return this.prisma.storageProfile.findFirst({
+    const include = { movieLibrary: true, tvLibrary: true, musicLibrary: true };
+    const flagged = await this.prisma.storageProfile.findFirst({
       where: { isDefault: true, isEnabled: true },
-      include: { movieLibrary: true, tvLibrary: true, musicLibrary: true },
+      include,
     });
+    if (flagged) return flagged;
+
+    /*
+     * Fall back to the sole enabled profile.
+     *
+     * A rule set to managed intake with no profile resolved does not import —
+     * it logs "left alone" and the download sits there. On an install with
+     * exactly one profile that outcome is never what anyone meant; there is no
+     * ambiguity about which profile they intended, only a flag they were never
+     * asked to set. Two or more without a default IS ambiguous, so that still
+     * returns null and the caller warns.
+     */
+    const enabled = await this.prisma.storageProfile.findMany({
+      where: { isEnabled: true },
+      include,
+      take: 2,
+    });
+    return enabled.length === 1 ? enabled[0] : null;
   }
 
   async create(input: StorageProfileInput) {

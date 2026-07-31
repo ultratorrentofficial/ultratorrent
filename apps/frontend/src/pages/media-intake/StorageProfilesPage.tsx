@@ -11,6 +11,7 @@ import { Input, Label } from '@/components/ui/input';
 import { PathPicker } from '@/components/PathPicker';
 import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { Select } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 
@@ -228,6 +229,22 @@ function ProfileCard({
             <p className="text-xs text-muted-foreground">
               {form.defaultStrategy === 'move' ? t('profile.moveWarning') : t('profile.strategyHelp')}
             </p>
+          </div>
+
+          {/* This existed in the form state and was posted on save, but had no
+              control — so every profile was created non-default, and a managed
+              rule that did not name a profile explicitly resolved nothing and
+              quietly imported nothing. */}
+          <div className="space-y-1.5">
+            <Label htmlFor={`d-${profile?.id ?? 'new'}`}>{t('profile.isDefault')}</Label>
+            <div className="flex items-center gap-2 pt-1.5">
+              <Switch
+                id={`d-${profile?.id ?? 'new'}`}
+                checked={form.isDefault}
+                onCheckedChange={(v) => set('isDefault', v)}
+              />
+              <span className="text-xs text-muted-foreground">{t('profile.isDefaultHelp')}</span>
+            </div>
           </div>
         </div>
 

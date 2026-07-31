@@ -20,6 +20,8 @@
     "noLibrary": "Sin definir",
     "strategy": "Estrategia de importación",
     "strategyHelp": "Automática elige el método más económico que el almacenamiento admita, prefiriendo un enlace duro para que el torrent siga compartiendo.",
+    "isDefault": "Perfil predeterminado",
+    "isDefaultHelp": "Lo usa cualquier regla gestionada que no indique un perfil. Con un solo perfil se usa de todos modos.",
     "moveWarning": "Mover elimina el origen, así que el torrent deja de compartir. Nunca se elige automáticamente.",
     "capabilities": "Capacidades medidas",
     "saveBtn": "Guardar",

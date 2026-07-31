@@ -20,6 +20,8 @@
     "noLibrary": "Not set",
     "strategy": "Import strategy",
     "strategyHelp": "Automatic picks the cheapest method the storage supports, preferring a hardlink so the torrent keeps seeding.",
+    "isDefault": "Default profile",
+    "isDefaultHelp": "Used by any managed rule that does not name a profile. With only one profile it is used regardless.",
     "moveWarning": "Move deletes the source, so the torrent stops seeding. It is never chosen automatically.",
     "capabilities": "Measured capabilities",
     "saveBtn": "Save",
