@@ -301,6 +301,29 @@ export class MissingEpisodeSearchService {
     );
 
     const now = new Date();
+    /*
+     * The engine returns no hash when the add itself failed, and `select()` only
+     * ever picks candidates that HAVE a downloadUrl, so a null here is a genuine
+     * failure rather than an advisory evaluation.
+     *
+     * Stamping `grabbed` regardless is how 32 episodes on a live install came to
+     * sit against a download action whose status was `failed` and whose result was
+     * null — no torrent was ever added, but the sweep selects only idle/no_results/
+     * failed, so each was permanently excluded from ever being searched again.
+     * Claiming success for something that failed is worse than the failure.
+     */
+    if (!torrentHash) {
+      this.logger.warn(
+        `Grab failed for "${item.title}" S${wanted.seasonNumber}E${wanted.episodeNumber} ` +
+          `("${rel.title}"): the engine accepted no torrent. Recording as failed so it is retried.`,
+      );
+      await this.setState(wanted.id, {
+        searchStatus: 'failed',
+        lastSearchedAt: now,
+        grabbedEvaluationId: evaluation.id,
+      });
+      return { wantedEpisodeId: wanted.id, searchStatus: 'failed', evaluationId: evaluation.id };
+    }
     await this.setState(wanted.id, {
       searchStatus: 'grabbed',
       lastSearchedAt: now,

@@ -125,7 +125,9 @@ function build(over: {
   const evaluator = {
     grabSelected: jest.fn(async () => ({
       evaluation: over.evaluation ?? { id: 'ev1' },
-      torrentHash: over.torrentHash ?? 'hash-1',
+      // `in` not `??`: an explicit null means "the engine accepted no torrent",
+      // which is the case under test, and ?? would silently substitute a hash.
+      torrentHash: 'torrentHash' in over ? over.torrentHash : 'hash-1',
     })),
   };
   // Storage profiles only matter for a managed_intake rule; the default answers
@@ -761,5 +763,41 @@ describe('MissingEpisodeSearchService — query spelling', () => {
     expect(indexers.searchAllDetailed).toHaveBeenCalledTimes(1);
     expect(updates.some((u: any) => u.searchStatus === 'failed')).toBe(true);
     expect(updates.some((u: any) => u.searchStatus === 'no_results')).toBe(false);
+  });
+});
+
+describe('MissingEpisodeSearchService — a failed add is not a grab', () => {
+  it('records FAILED when the engine accepted no torrent', async () => {
+    /*
+     * Live on synoplex, 32 episodes sat at `grabbed` against a download action
+     * whose status was `failed` and whose result was null — no torrent was ever
+     * added. Because the sweep selects only idle/no_results/failed, each was
+     * permanently excluded from being searched again by a success it never had.
+     */
+    const { svc, updates } = build({
+      candidates: [cand()],
+      item: { title: 'All American', year: 2018 },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: 'All American', savePath: '/downloads/TV Shows/All American (2018)' }],
+      torrentHash: null,
+    });
+    await svc.sweep();
+
+    expect(updates.some((u: any) => u.searchStatus === 'grabbed')).toBe(false);
+    expect(updates.some((u: any) => u.searchStatus === 'failed')).toBe(true);
+  });
+
+  it('still records the evaluation, so the attempt is auditable', async () => {
+    const { svc, updates } = build({
+      candidates: [cand()],
+      item: { title: 'All American', year: 2018 },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: 'All American', savePath: '/downloads/TV Shows/All American (2018)' }],
+      torrentHash: null,
+    });
+    await svc.sweep();
+
+    const failed = updates.find((u: any) => u.searchStatus === 'failed');
+    expect(failed.grabbedEvaluationId).toBe('ev1');
   });
 });
