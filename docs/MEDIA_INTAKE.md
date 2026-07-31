@@ -14,6 +14,7 @@ Intake.
 ## Contents
 
 - [Is it doing anything on my install?](#is-it-doing-anything-on-my-install)
+- [What actually starts an import](#what-actually-starts-an-import)
 - [Setting it up](#setting-it-up)
 - [The lifecycle](#the-lifecycle)
 - [Import strategies](#import-strategies)
@@ -52,6 +53,38 @@ Zero profiles, or no `managed_intake` rows, means the engine cannot run.
 
 ---
 
+## What actually starts an import
+
+One edge, and only one: the torrent sync loop publishes `torrent.completed` when
+a torrent's progress crosses 100%, and intake subscribes to it. There is no
+second poller — two independent observers of the same condition drift, and the
+one that drifts is the one that imports twice.
+
+That event has to carry **where the torrent landed**. Intake cannot act on a
+completion it cannot locate on disk, so the payload must include `savePath` and
+`engineId` alongside the name and hash. If it does not, the trigger logs
+
+```
+Torrent <hash> completed with no path in the event; cannot stage it.
+```
+
+and returns — for every torrent, silently, with a perfectly configured profile
+and a correctly converted rule. Media Intake shipped in exactly that state and
+could not import anything on any install until v0.62.1; the trigger had been
+written against an assumed payload and never checked against the producer, and
+every one of its tests supplied a path the producer never sent.
+
+**If nothing appears in the queue, grep the backend log for that line first.**
+It distinguishes "the gate refused this torrent" (working as designed) from
+"the pipeline never received a usable event" (broken), and the two look
+identical from the queue screen.
+
+Anything that adds a new way for downloads to complete has to publish the same
+shape. A new engine, a new acquisition path, a watched folder — the contract is
+the payload, not the emitter.
+
+---
+
 ## Setting it up
 
 ### 1. Choose a staging layout
@@ -63,17 +96,34 @@ renamed and filed is very hard to unpick. The profile screen refuses either
 arrangement by name.
 
 A layout that works — libraries and staging as siblings under a parent nothing
-scans:
+scans, with **one subdirectory per show**:
 
 ```
 <media root>/
-    Staging/          ← intake stages here
-    Movies/           ← library
-    TV Shows/         ← library
+    Staging/                  ← intake stages here
+        9-1-1/                ← one rule downloads here
+        All American/         ← another rule downloads here
+    Movies/                   ← library
+    TV Shows/                 ← library
 ```
 
 **Your media server must not scan the parent.** Point it at `Movies/` and
 `TV Shows/` individually.
+
+#### Every rule needs its OWN staging directory
+
+Two rules cannot share one. The rule editor refuses a save path already used by
+another rule, and here that refusal is protecting you rather than being fussy.
+
+A completed torrent tells intake where it landed as a **directory** — the
+client's save path, not the individual file. So two shows sharing
+`Staging/` both report `Staging/` as their source, and intake would work on the
+whole directory instead of the release that just finished, sweeping up the other
+show's files with it.
+
+Give each rule `Staging/<Show>` and the ambiguity cannot arise. The
+[migration wizard](#migrating-an-existing-rule) derives exactly that shape for
+you, so converting in bulk never produces this.
 
 ### Paths are in the BACKEND's filesystem, not the host's
 
@@ -122,8 +172,23 @@ instant import and a 40 GB copy.
 
 ### 4. Point one rule at it
 
-In the RSS rule dialog, set **Import mode** to *Managed Intake* and pick the
-profile. Do one rule first and watch it before converting more.
+Converting a rule is **two changes, not one**:
+
+1. Set its **save path** to a staging directory of its own — `Staging/<Show>`.
+2. Set **Import mode** to *Managed Intake* and pick the profile.
+
+Order matters, and the server enforces it: a rule set to Managed Intake while it
+still downloads into one of its destination libraries is **refused**. Managed
+intake places files *into* the library from wherever the torrent landed, so if
+the torrent already landed there it would import that library into itself,
+leaving the raw release filename and the renamed hardlink side by side — both
+scanned, so the library gains a duplicate of every episode. The refusal names
+the profile's staging root so the fix is one paste away.
+
+Every rule that predates Media Intake points at a library, because that is what
+legacy direct import *means*. So this applies to all of them.
+
+Do one rule first and watch it before converting more.
 
 ### 5. Watch it
 
@@ -288,10 +353,23 @@ already on disk stays where it is.
 
 ## When something goes wrong
 
-**Nothing appears in the queue.** The gate refused it. Check the rule is
-`managed_intake`, that a profile exists, and that the torrent traces back to
-that rule (a hand-added torrent never will). The backend logs a warning when a
+**Nothing appears in the queue.** Two very different causes look identical here,
+so separate them before anything else:
+
+```
+docker logs <backend> 2>&1 | grep "cannot stage it"
+```
+
+Hits mean the completion event carried no path and the pipeline never had a
+chance — see [what actually starts an import](#what-actually-starts-an-import).
+No hits mean the gate refused the torrent, which is usually correct: check the
+rule is `managed_intake`, that a profile exists, and that the torrent traces back
+to that rule (a hand-added torrent never will). The backend logs a warning when a
 managed rule has no profile configured.
+
+**Two shows import into each other, or one import sweeps up another's files.**
+They share a staging directory. Give each rule its own `Staging/<Show>` — see
+[every rule needs its own staging directory](#every-rule-needs-its-own-staging-directory).
 
 **Everything imports as a copy.** Staging and the library are on different
 filesystems. Run **Test storage**; if `Same device: no`, that is the cause.
