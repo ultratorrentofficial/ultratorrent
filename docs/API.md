@@ -888,6 +888,36 @@ Settings changes, dataset validate/import, matches, and API tests are audited.
 
 ---
 
+## Media Intake — `/api/media/intake`
+
+Staging-based import pipeline. Opt-in per RSS rule; see
+[MEDIA_INTAKE.md](MEDIA_INTAKE.md). Permissions: `media_intake.view` to read,
+`.manage` for configuration, `.operate` to act on a running intake, `.migrate`
+to convert rules.
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/summary` | `view` | Counts per state plus the active total. `seeding` is not counted as active. |
+| `GET` | `/jobs` | `view` | `?state=` or `?active=1`. Capped at 200, newest first. |
+| `GET` | `/jobs/:id` | `view` | One intake with its full event timeline. |
+| `POST` | `/jobs` | `operate` | `{ profileId, sourcePath, engineId? }`. Stages something by hand and runs the pipeline. Idempotent on engine+hash+path. |
+| `POST` | `/jobs/:id/advance` | `operate` | Runs the pipeline from the job's current state. |
+| `POST` | `/jobs/:id/retry` | `operate` | Only valid on a `failed` intake; resumes at the failing stage. |
+| `POST` | `/jobs/:id/cancel` | `operate` | |
+| `POST` | `/jobs/:id/release` | `operate` | `{ resumeAt?, note? }`. Releases a quarantine; cannot jump to import. |
+| `GET` | `/profiles` | `view` | |
+| `POST` | `/profiles` | `manage` | Refuses a staging root that nests with a referenced library. |
+| `GET`/`PATCH`/`DELETE` | `/profiles/:id` | `view`/`manage`/`manage` | Delete is refused while rules reference it. |
+| `POST` | `/profiles/:id/probe` | `manage` | Measures capabilities. **Writes and deletes scratch files** under the target, hence `manage` and `POST`. |
+| `GET`/`POST` | `/path-mappings` | `view`/`manage` | |
+| `PATCH`/`DELETE` | `/path-mappings/:id` | `manage` | |
+| `GET` | `/path-mappings/resolve` | `view` | `?path=&space=&scopeId=`. Diagnostic for a mapping that looks wrong. |
+
+RSS rules gain two fields on create and update (`/api/rss/rules`):
+`importMode` (`legacy_direct` | `managed_intake`) and `storageProfileId`.
+**Omitted on create means the server chooses `managed_intake`; omitted on
+update means leave it unchanged** — an edit never migrates a working rule.
+
 ## Subtitle Intelligence — `/api/subtitle-intelligence`
 
 The definitive subtitle engine (core module `subtitle_intelligence`). Fingerprints

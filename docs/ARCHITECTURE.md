@@ -483,6 +483,52 @@ providers. **Opt-in per library:** a null/zero `scanIntervalMinutes` means
 "manual scans only" and is never auto-scanned. Runs are serialized (a long scan
 never overlaps the next tick) and each library is isolated.
 
+## Media Intake Engine
+
+A staging-based import pipeline that sits between a finished download and a
+library. Opt-in per RSS rule and inert until configured — see
+[MEDIA_INTAKE.md](MEDIA_INTAKE.md) for setup and operation.
+
+**Where it sits.** It subscribes to `torrent.completed`, which the torrent sync
+loop already edge-fires once when progress crosses 100%. Reusing that edge
+rather than adding a second poller is deliberate: two independent observers of
+the same condition drift, and the one that drifts is the one that imports
+twice.
+
+**What it reuses rather than reimplements.** The destination comes from the
+**rename engine** (`buildPlan` in `preview` mode), so intake and a library scan
+agree about what a release is called. Placement goes through `placeFile` in
+`apps/backend/src/common/file-placement.ts`, which the rename engine also uses
+— one implementation of how a file moves. Enrichment calls the existing
+metadata, artwork and subtitle services. The engine adds staging, verification,
+capability detection, strategy selection and a resumable state machine; it adds
+no second copy of anything that already worked.
+
+**The lifecycle splits on what each stage operates on.** Everything up to
+`imported` works on a path in staging; everything after works on a `MediaItem`,
+which cannot exist until a library scan has found the file. That ordering is
+forced by the data model, not chosen — every enrichment entry point takes an
+item id.
+
+**Capabilities are measured, never inferred.** Same-device, hardlink, reflink
+and symlink support are probed with scratch files against the real source and
+destination. Provider relocation is *declared* per engine instead, because
+establishing it empirically would mean relocating a real torrent: qBittorrent's
+`setLocation` moves the payload, rTorrent's `d.directory.set` moves nothing.
+`move` is never selected automatically, since it destroys the source and would
+end seeding for a reason nobody asked for.
+
+**Backward compatibility is a single condition.** A completed torrent is taken
+up only if it traces through `rss_acquisitions` to a rule whose `importMode` is
+`managed_intake`. The column defaults to `legacy_direct`, so every rule that
+predates the feature keeps its behaviour; new rules are set to managed by the
+service layer, which is the only layer that can tell a new row from a backfilled
+one. Editing a rule never changes its mode — only sending the mode does.
+
+Key files: `packages/shared/src/intake.ts` (the state machine, pure),
+`apps/backend/src/modules/media-intake/` (engine, stages, trigger, registry,
+detector), `apps/backend/src/common/file-placement.ts` (the shared primitive).
+
 ## Event-Driven Architecture
 
 Modules communicate through **domain events**, not tight coupling: a module
@@ -763,6 +809,7 @@ docs/             this documentation set
 [DEVELOPMENT.md](DEVELOPMENT.md) · [NAVIGATION.md](NAVIGATION.md) ·
 [MODULES.md](MODULES.md) · [FILE_MANAGER.md](FILE_MANAGER.md) ·
 [MEDIA_MANAGER.md](MEDIA_MANAGER.md) ·
+[MEDIA_INTAKE.md](MEDIA_INTAKE.md) ·
 [MEDIA_ACQUISITION_INTELLIGENCE.md](MEDIA_ACQUISITION_INTELLIGENCE.md) ·
 [INDEXERS.md](INDEXERS.md) · [PROWLARR.md](PROWLARR.md) ·
 [API.md](API.md) · [SECURITY.md](SECURITY.md)
@@ -775,6 +822,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-07-31 | **Media Intake documented.** [MEDIA_INTAKE.md](MEDIA_INTAKE.md) covers setup, the lifecycle, the strategy table, storage profiles, path mapping, per-rule migration, a troubleshooting section written from the failures actually hit while building it, the REST surface and how to extend the engine. An architecture section above places it in the system and records the three decisions that shaped it: it reuses the rename engine and the shared placement primitive rather than reimplementing either; the lifecycle order is forced by the data model, since a `MediaItem` cannot exist before a library scan finds the file; and backward compatibility reduces to one condition — a torrent is taken up only if it traces to a rule explicitly marked `managed_intake`, which no existing rule is. The troubleshooting entries are the useful part: "everything imports as a copy" means staging is on a different filesystem, and the capability probe says so; "nothing appears in the queue" is almost always the gate doing its job. Not yet written: the bulk migration wizard's guide, because the wizard does not exist — per-rule conversion is reversible and does the same work. |
 | 2026-07-30 | **The rename Undo list showed that something happened, never what.** Reported as: the list shows the rename events with an Undo button, "but in the event details you don't see what was the original name and the change it made so there's no way to analyze it". The data was never missing — `MediaRenameOperation` has carried `source` and `destination` since the table existed, indexed by `runId`. `undoableRuns()` simply aggregated them away, returning `{runId, at, operations, mode}`: enough to *pick* a run, not enough to *judge* one, which left Undo as the only way to discover what a run had done — the one action the operator is trying to decide about. New `GET media/rename/undoable/:runId` returns the operations file by file; the list rows expand, fetching **only when opened** so a page of runs does not pull every run's file list. Presentation is the substance here: each row is `old → new` with the **basename emphasised and the directory demoted**, because a rename usually leaves the directory identical and two long absolute paths bury the single token that changed — confirmed against a real run on the live host, `The Fix (2024) 1080p AAC.mp4` → `The Fix (2024) - 1080p.mp4`, identical directory. When the directory *does* change the move is visible on both sides. Only exceptions are labelled (a failure with its message, or an already-undone operation); tagging every successful row "success" would be noise on the common case. The response is capped at 500 with the true `total` and a `truncated` flag, since a run can cover a library and a capped list that reads as complete would misstate what a rename touched. Route depth makes shadowing impossible — `rename/undoable` is two segments, `rename/undoable/:runId` is three — and both were exercised live to confirm they resolve independently. Gates: backend tsc, frontend tsc, 2 680 backend tests (208 suites, +7), 450 frontend tests (49 files, +8), i18n parity, both endpoints called against a running backend. |
 | 2026-07-30 | **The two IMDb import panels are one card — the split was the bug's cause, not just its setting.** Asked directly: "why not consolidate both screen sections into one, it's confusing". They were never two mechanisms. One import had its settings divided by accident of history — the *shape* (strategy, minimum year, TV/AKAs/crew/people filters, per-run stats) in an "Optimized Import" card, the *location and schedule* (dataset directory, base URL, auto-update toggle and interval, validation report, history) in a "Dataset" card — and each grew its own **Validate**, **Update now** and **Save**. That is precisely how the broken button came to exist: the panel without a path field had nothing to send, so its Validate posted `{}` and could only ever 400, while its twin worked. Merged into one `Dataset configuration` card reading location → shape → schedule → **one** action row → status, with a single Save covering everything the card owns (changing a filter and the schedule together used to need two clicks and looked like two features). Verified in a browser, not from the diff: one Validate and one Update now where there were two of each. **Reset was a three-way split** — `resetImdbData(true)` in the Optimized panel and `resetImdbData(false)` in the Danger Zone — so deleting that panel would have silently removed "reset and re-import"; it now sits beside the plain wipe, where reading the two together is what makes the difference legible. The general lesson is worth keeping: **duplicated controls are not only confusing, they diverge** — two buttons for one operation drift until one of them is wrong, and the wrong one is discovered by a user rather than by a test. Gates: frontend tsc, 442 frontend tests, i18n parity, screen rendered and inspected. |
 | 2026-07-30 | **Two IMDb defects behind one report: a Validate button that could never succeed, and a schedule silently overruled by another setting.** Reported as "two different screens for the IMDb import, with two different Validate datasets buttons, one which doesn't work" and "the import process should be launched automatically according to the specified amount of hours — that process is not running on schedule". (1) There is one IMDb screen, not two, but it holds **two panels each with its own Validate button**, and both post to `POST providers/imdb/dataset/validate`. The Dataset panel has a path field and sends its contents; the **Optimized Import panel has no field and sent `{}`**, which the controller coerced to `''` and `assertWithinHardRoots('')` rejected — reproduced against the running backend as `400 A path is required.` before anything was changed. An empty path now means *the configured/managed directory*, resolved through the same `resolveDatasetDir()` that import and the scheduler already used, so all three agree on which directory they are talking about instead of two of them agreeing and one failing. Verified end to end on a spare port: the previously-broken call returns `valid: true, filesFound: 7`. (2) The scheduler was **not broken — it was inert by configuration**, which is worse to diagnose. Read from the live install: `autoDownloadEnabled: true`, `autoUpdateIntervalHours: 168`, `datasetPath` set — and `mode: "disabled"`. The tick's first gate is `mode === 'dataset' || 'hybrid'`, so it returned immediately every hour for weeks. The gate is correct (importing datasets for a disabled provider is work nobody asked for); the **silence** was the defect, because a switch that is on and an interval that is filled in read as a feature that is running. The scheduler now logs once, naming both the interval the operator set and the mode overriding it, and the settings screen shows a warning beside the auto-update toggle whenever it is on while the mode does not use datasets. Recorded because the shape recurs: a setting that is inert due to another setting, with no feedback, is indistinguishable from a bug — and this is the second time this month (the timezone rollout was the first). Gates: backend tsc, frontend tsc, 2 673 backend tests (207 suites, +12), 442 frontend tests, i18n parity, live endpoint exercised. |
