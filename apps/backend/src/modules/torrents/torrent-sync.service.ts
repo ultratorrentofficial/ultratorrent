@@ -186,7 +186,21 @@ export class TorrentSyncService {
           eventKey: DOMAIN_EVENTS.TORRENT_COMPLETED,
           resourceType: 'torrent',
           resourceId: t.hash,
-          payload: { torrentName: t.name, hash: t.hash, sizeBytes: String(t.size ?? 0) },
+          /*
+           * `savePath` and `engineId` are here for Media Intake, which cannot do
+           * anything with a completion it cannot locate on disk. Without them its
+           * trigger reached "completed with no path in the event; cannot stage it"
+           * for EVERY torrent and returned — the pipeline was unreachable from the
+           * only edge that feeds it, which is why it had never imported anything.
+           * Notification consumers read `torrentName`; the new fields are additive.
+           */
+          payload: {
+            torrentName: t.name,
+            hash: t.hash,
+            sizeBytes: String(t.size ?? 0),
+            savePath: t.savePath,
+            engineId: t.engineId,
+          },
         });
         await this.automation
           .evaluate('torrent.completed', t)

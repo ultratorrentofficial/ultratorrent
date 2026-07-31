@@ -69,11 +69,12 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
     const registry = { list: () => [provider] };
     const realtime = { broadcast: jest.fn() };
 
+    const bus = { publish: jest.fn(() => ({ published: true })) };
     const svc = new TorrentSyncService(
       prisma as any, registry as any, realtime as any, automation as any,
-      mediaProcessing as any, { publish: jest.fn(() => ({ published: true })) } as any, nameRepair as any,
+      mediaProcessing as any, bus as any, nameRepair as any,
     );
-    return { svc, calls, prisma, mediaProcessing, automation, nameRepair };
+    return { svc, calls, prisma, mediaProcessing, automation, nameRepair, bus };
   }
 
   it('records the new state BEFORE acting on the transition', async () => {
@@ -122,5 +123,38 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
     await svc.sync();
     expect(mediaProcessing.handleTorrentCompleted).toHaveBeenCalledTimes(1);
     expect(calls).toContain('automation');
+  });
+
+  describe('the completion event carries what Media Intake needs', () => {
+    /*
+     * Intake subscribes to this edge and can do nothing with a completion it
+     * cannot locate on disk. The payload used to be { torrentName, hash,
+     * sizeBytes }, so its trigger hit "completed with no path in the event;
+     * cannot stage it" for EVERY torrent and returned — the pipeline was
+     * unreachable from the only edge that feeds it, which is why it had never
+     * imported anything on any install.
+     */
+    it('publishes the save path and the engine, not just the name', async () => {
+      const { svc, bus } = build({ priorProgress: 0.5 });
+      await svc.sync();
+
+      const completed = bus.publish.mock.calls
+        .map((c: any[]) => c[0])
+        .find((e: any) => e.eventKey === 'torrent.completed');
+      expect(completed).toBeDefined();
+      expect(completed.payload).toMatchObject({ savePath: '/downloads', engineId: 'e1' });
+    });
+
+    it('still carries torrentName, which the notification consumers read', async () => {
+      // Additive: breaking the old fields would silently blank every completion
+      // notification.
+      const { svc, bus } = build({ priorProgress: 0.5 });
+      await svc.sync();
+
+      const completed = bus.publish.mock.calls
+        .map((c: any[]) => c[0])
+        .find((e: any) => e.eventKey === 'torrent.completed');
+      expect(completed.payload.torrentName).toBe('Show.S01E01.mkv');
+    });
   });
 });
