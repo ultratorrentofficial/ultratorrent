@@ -801,3 +801,72 @@ describe('MissingEpisodeSearchService — a failed add is not a grab', () => {
     expect(failed.grabbedEvaluationId).toBe('ev1');
   });
 });
+
+describe('MissingEpisodeSearchService — degraded indexers', () => {
+  /*
+   * Widening the query is a bet that the release exists under another spelling.
+   * An empty answer from a DEGRADED search is no evidence either way — it is an
+   * unanswered question — and the usual reason an indexer fails here is HTTP 429.
+   * Asking twice more is exactly wrong when the service is already refusing us.
+   *
+   * Observed live on synoplex: EZTV and TPB both throttled to 429 while ShowRSS
+   * answered emptily, so every episode looked like a clean miss and every miss
+   * triggered the full widening — tripling traffic into the service refusing it.
+   */
+  const partialRun = { queried: 3, failed: 2, failures: [{ name: 'EZTV', message: 'HTTP 429' }] };
+
+  it('does NOT widen when some indexers failed and nothing was found', async () => {
+    const { svc, indexers } = build({
+      item: { title: '9-1-1', year: 2018 },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: '9-1-1', savePath: '/downloads/TV Shows/9-1-1 (2018)' }],
+      indexerRun: partialRun,
+    });
+    await svc.sweep();
+    expect(indexers.searchAllDetailed).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the recorded status alone — a partial miss is still no_results', async () => {
+    /*
+     * Deliberately NOT changed. An earlier decision, with its own test, holds that
+     * one indexer answering emptily is a real if partial answer and must not be
+     * downgraded to `failed`. Both states retry on the same backoff, so the
+     * difference is what the operator reads, not what the sweep does — not worth
+     * reversing someone's considered call as a side effect of a traffic fix.
+     */
+    const { svc, updates } = build({
+      item: { title: '9-1-1', year: 2018 },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: '9-1-1', savePath: '/downloads/TV Shows/9-1-1 (2018)' }],
+      indexerRun: partialRun,
+    });
+    await svc.sweep();
+    expect(updates.some((u: any) => u.searchStatus === 'no_results')).toBe(true);
+  });
+
+  it('STILL widens when every indexer answered and simply found nothing', async () => {
+    // The fix must not disable the feature: a clean, complete miss is real
+    // evidence that this spelling is wrong, and that is what widening is for.
+    const { svc, indexers } = build({
+      item: { title: '9-1-1', year: 2018 },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: '9-1-1', savePath: '/downloads/TV Shows/9-1-1 (2018)' }],
+      indexerRun: { queried: 3, failed: 0, failures: [] },
+    });
+    await svc.sweep();
+    expect(indexers.searchAllDetailed).toHaveBeenCalledTimes(3);
+  });
+
+  it('a partial run that DID find something is used normally', async () => {
+    // One indexer down does not invalidate a release another one returned.
+    const { svc, evaluator } = build({
+      item: { title: '9-1-1', year: 2018 },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: '9-1-1', savePath: '/downloads/TV Shows/9-1-1 (2018)' }],
+      candidates: [cand({ title: '9-1-1 S01E01 1080p x265' })],
+      indexerRun: partialRun,
+    });
+    await svc.sweep();
+    expect(evaluator.grabSelected).toHaveBeenCalled();
+  });
+});

@@ -226,6 +226,28 @@ export class MissingEpisodeSearchService {
         }
         break;
       }
+      /*
+       * Nothing found, but not everything could look either. Do NOT widen.
+       *
+       * Widening is a bet that the release exists under a different spelling, and
+       * an empty answer from a degraded search is no evidence for or against that
+       * — it is just an unanswered question. Spending two more requests on it is
+       * worst when it is least affordable: the usual reason an indexer fails here
+       * is HTTP 429, and the fix for being rate-limited is never to ask more.
+       *
+       * Observed on a live install: EZTV and TPB both throttled to 429 while
+       * ShowRSS answered emptily, so every episode looked like a clean miss and
+       * every miss triggered the full widening — tripling traffic into the
+       * service already refusing it.
+       */
+      if (run.failed > 0) {
+        this.logger.debug(
+          `Not widening the search for "${item.title}" ` +
+            `S${wanted.seasonNumber}E${wanted.episodeNumber}: ${run.failed}/${run.queried} ` +
+            `indexer(s) failed, so an empty result is not evidence the spelling is wrong.`,
+        );
+        break;
+      }
     }
     if (!run) {
       // searchQueriesFor cannot return empty for a titled item, so this means the
