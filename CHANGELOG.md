@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.61.1] - 2026-07-31
+
+### Fixed
+- A missing-episode grab whose torrent the engine refused is now recorded as failed instead of grabbed. The engine returns no hash when the add itself fails, and the sweep selects only idle, no_results and failed — so claiming success excluded the episode from ever being searched again. Found on a live install: 32 episodes stamped grabbed against a download action whose status was failed and whose result was null, meaning no torrent was ever added.
+- The missing-episode search no longer widens its query when some indexers failed. Widening is a bet that the release exists under a different spelling, and an empty answer from a degraded search is no evidence either way — while the usual reason an indexer fails here is HTTP 429, where asking twice more is exactly wrong. Observed live: EZTV and TPB both throttled to 429 while a third indexer answered emptily, so every episode looked like a clean miss and every miss triggered the full widening, tripling traffic into the service already refusing it. A complete search that finds nothing still widens, which is what the feature is for.
+
 ## [0.61.0] - 2026-07-31
 
 ### Added
