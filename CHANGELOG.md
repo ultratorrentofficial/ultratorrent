@@ -45,6 +45,17 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.61.0] - 2026-07-31
+
+### Added
+- Missing-episode grabs now follow the show's RSS rule. The rule's savePath is the first source for a grab's directory again — it outranks the library binding, so converting a rule actually changes where its acquisitions land — but only when that directory still exists, so a savePath left behind by a rename falls through to the library instead of recreating a dead folder. When the rule is managed_intake the grab is staged under the storage profile's staging root, and the wanted episode records the torrent hash and the deciding rule so Media Intake recognises the completed download as its own. Without that trace a staged episode would have sat in staging with nothing able to import it.
+- Episodes whose grabbed release turned out to be dead are put back in the search pool. The sweep only ever selects idle, no_results and failed, so a row that reached 'grabbed' was never revisited — and when its torrent was parked with no seeders and never completed, the episode was neither owned nor searchable while the UI reported success. Measured on a live install: 369 episodes stamped grabbed but still missing, 357 over a week old, against 599 parked torrents. The reconciler now releases those rows and records the dead release title, and the selector skips titles already proven dead so each retry reaches for the next-best release instead of re-picking and re-parking the same one. Deadness is the parking system's verdict (repeated probes, still no seeders), never elapsed time, so a slow download is never mistaken for a dead one. A backfill recovers the torrent hash for grabs that predate the column, without which the repair would have been inert on exactly the installs that need it.
+
+### Fixed
+- Storage Profiles: the staging root is now chosen with the file browser instead of typed, and a missing directory is offered for creation before the profile saves. The field takes a path in the BACKEND's filesystem (/downloads/... in the stock Docker deployment), not the host's — browsing is rooted at FILE_MANAGER_ROOTS so it can only produce the correct form.
+- Storage Profiles: the Default profile toggle now exists. It was in the form payload but had no control, so every profile was created non-default — and a rule set to managed intake without explicitly naming a profile then resolved none and imported nothing, logging only a warning. Profile resolution also falls back to the sole enabled profile when none is flagged, since with one profile there is no ambiguity about which was meant; two or more without a default stays ambiguous and still refuses.
+- Missing-episode search now retries a title without its punctuation, then with the show's year, and searches aliases instead of only validating against them. Indexers tokenize a query, so a stored '9-1-1' is not the '9 1 1' their index holds — on synoplex all 113 wanted episodes of that show sat at no_results while its own folder was full of matching releases. The first query is unchanged and the loop stops at the first one with results, so a show that already worked still issues exactly one search; a total indexer outage stops the widening immediately and is still recorded as failed rather than no_results.
+
 ## [0.60.0] - 2026-07-31
 
 ### Added
