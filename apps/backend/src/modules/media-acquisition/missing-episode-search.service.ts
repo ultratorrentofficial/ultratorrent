@@ -12,6 +12,7 @@ import { MediaAcquisitionService } from './media-acquisition.service';
 import { MEDIA_ACQUISITION_MODULE_ID } from './decision.engine';
 import { showFolderRoot } from '../media/media-renamer';
 import { showCanonicalKey } from '../media/series-grouping';
+import { normalize } from '../rss/match-engine';
 import { StorageProfileService } from '../media-intake/storage-profile.service';
 
 /** A rule in this mode stages its downloads for the intake pipeline. */
@@ -189,18 +190,56 @@ export class MissingEpisodeSearchService {
       return { wantedEpisodeId: wanted.id, searchStatus: 'failed' };
     }
 
-    const run = await this.indexers.searchAllDetailed({
-      q: item.title,
-      season: wanted.seasonNumber,
-      ep: wanted.episodeNumber,
-    });
+    /*
+     * Ask more than once, in widening forms, until something answers.
+     *
+     * Indexers tokenize a query; punctuation in the stored title does not survive
+     * that. Searching "9-1-1" returns nothing on EZTV or TPB while "9 1 1" — and
+     * sometimes only "9 1 1 2018" — returns the same releases the library is full
+     * of. The show is not missing from the trackers; the question was unaskable.
+     *
+     * Aliases join in here too. They were already passed to the selector, so an
+     * alias could VALIDATE a release but never go and look for one, which is the
+     * wrong half of the job for a title nobody can spell.
+     */
+    const queries = this.searchQueriesFor(item);
+    let run: Awaited<ReturnType<typeof this.indexers.searchAllDetailed>> | null = null;
+    let outage = false;
+    for (const q of queries) {
+      run = await this.indexers.searchAllDetailed({
+        q,
+        season: wanted.seasonNumber,
+        ep: wanted.episodeNumber,
+      });
+      // Nothing could look. Stop — retrying the same dead indexers with a
+      // different spelling only multiplies the failures.
+      if (run.queried > 0 && run.failed === run.queried) {
+        outage = true;
+        break;
+      }
+      if (run.candidates.length) {
+        if (q !== queries[0]) {
+          this.logger.log(
+            `"${item.title}" S${wanted.seasonNumber}E${wanted.episodeNumber}: ` +
+              `no results for "${queries[0]}", found ${run.candidates.length} for "${q}".`,
+          );
+        }
+        break;
+      }
+    }
+    if (!run) {
+      // searchQueriesFor cannot return empty for a titled item, so this means the
+      // item has no usable title at all.
+      await this.setState(wanted.id, { searchStatus: 'no_results', lastSearchedAt: new Date() });
+      return { wantedEpisodeId: wanted.id, searchStatus: 'no_results' };
+    }
     // Every indexer failing is NOT "no results" — it is "nothing could look", and
     // recording it as the former is a lie the operator acts on. Observed live: with
     // EZTV and The Pirate Bay both in Prowlarr failure backoff, 113 missing *9-1-1*
     // episodes were each stamped `no_results`, which reads as "this release does not
     // exist" when the search never actually happened. `failed` is the honest state
     // (it retries on the same backoff, so nothing is lost by telling the truth).
-    if (run.queried > 0 && run.failed === run.queried) {
+    if (outage) {
       const detail = run.failures.map((f) => `${f.name}: ${f.message}`).join('; ');
       this.logger.warn(
         `All ${run.queried} indexer(s) failed searching "${item.title}" ` +
@@ -367,6 +406,40 @@ export class MissingEpisodeSearchService {
 
     const path = await this.resolveLibraryPath(item, seriesTconst);
     return { path, intakeRuleId: null };
+  }
+
+  /**
+   * The queries to try for one episode, widest last.
+   *
+   *   1. every title as written — the show's own, then each alias;
+   *   2. the same, punctuation stripped;
+   *   3. the same again with the year appended.
+   *
+   * Indexers tokenize; a stored "9-1-1" is not the "9 1 1" their index holds, so
+   * the exact title finds nothing while the stripped form finds everything. The
+   * year is last because it narrows: it rescues a title too generic to search on
+   * its own, and would otherwise exclude releases that simply do not carry it.
+   *
+   * `normalize` is the match engine's — the same function the SELECTOR uses to
+   * decide whether a returned release is this show. Asking and answering in one
+   * vocabulary is the point; a query form the validator would reject is wasted.
+   * It elides apostrophes rather than splitting on them, so "Happy's Place"
+   * becomes "happys place" and matches the wire, not "happy s place".
+   *
+   * Ordered widest-last and stopped at the first query with results, so a show
+   * that already works issues exactly the one query it always did.
+   */
+  private searchQueriesFor(item: { title: string; titleAliases?: string[] | null; year: number | null }): string[] {
+    const out: string[] = [];
+    const push = (q: string | null | undefined) => {
+      const v = q?.trim();
+      if (v && !out.some((x) => x.toLowerCase() === v.toLowerCase())) out.push(v);
+    };
+    const titles = [item.title, ...(item.titleAliases ?? [])].filter(Boolean);
+    for (const t of titles) push(t);
+    for (const t of titles) push(normalize(t));
+    if (item.year) for (const t of titles) push(`${normalize(t)} ${item.year}`);
+    return out;
   }
 
   /**

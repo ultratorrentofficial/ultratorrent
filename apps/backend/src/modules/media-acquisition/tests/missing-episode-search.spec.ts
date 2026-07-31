@@ -25,6 +25,8 @@ function build(over: {
   indexerRun?: { queried?: number; failed?: number; failures?: Array<{ name: string; message: string }> };
   selected?: any; // pass `null` to force no-match; omit to auto-select the first candidate
   evaluation?: any;
+  /** Candidates keyed by the exact query string an indexer would answer. */
+  candidatesByQuery?: Record<string, IndexerCandidate[]>;
   /** The hash the engine returned for the grabbed torrent. */
   torrentHash?: string | null;
   /** Storage profile behind a managed_intake rule; pass `null` for "none resolved". */
@@ -108,8 +110,12 @@ function build(over: {
   // honestly-empty catalogue. `indexerRun` overrides the health of that run; by
   // default every indexer answered successfully.
   const indexers = {
-    searchAllDetailed: jest.fn(async () => ({
-      candidates: over.candidates ?? [],
+    // `candidatesByQuery` models a real indexer: it answers only the spelling it
+    // actually holds, so a test can assert WHICH query found the release.
+    searchAllDetailed: jest.fn(async ({ q }: { q: string }) => ({
+      candidates: over.candidatesByQuery
+        ? (over.candidatesByQuery[q] ?? [])
+        : (over.candidates ?? []),
       queried: 1,
       failed: 0,
       failures: [],
@@ -660,5 +666,100 @@ describe('MissingEpisodeSearchService — manual triggers', () => {
   it('searchEpisode rejects when the module is disabled', async () => {
     const { svc } = build({ enabled: false });
     await expect(svc.searchEpisode('w1')).rejects.toThrow(/disabled/i);
+  });
+});
+
+describe('MissingEpisodeSearchService — query spelling', () => {
+  /*
+   * Indexers tokenize a query, and punctuation in the stored title does not
+   * survive that. Live on synoplex, all 113 wanted episodes of "9-1-1" sat at
+   * `no_results` while the show's own folder was full of `9-1-1.S08E10...`
+   * releases: the title was unaskable, not the release unavailable.
+   */
+  it('retries a punctuated title without its punctuation', async () => {
+    const { svc, evaluator, indexers } = build({
+      item: { title: '9-1-1', year: null },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: '9-1-1', savePath: '/downloads/TV Shows/9-1-1 (2018)' }],
+      candidatesByQuery: { '9 1 1': [cand({ title: '9-1-1 S01E01 1080p x265' })] },
+    });
+    await svc.sweep();
+
+    const asked = indexers.searchAllDetailed.mock.calls.map((c: any) => c[0].q);
+    expect(asked).toEqual(['9-1-1', '9 1 1']);
+    expect(evaluator.grabSelected).toHaveBeenCalled();
+  });
+
+  it('falls further to title + year when the bare title finds nothing', async () => {
+    // "might need the show's year" — a title too generic to search on its own.
+    const { svc, evaluator, indexers } = build({
+      item: { title: '9-1-1', year: 2018 },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: '9-1-1', savePath: '/downloads/TV Shows/9-1-1 (2018)' }],
+      candidatesByQuery: { '9 1 1 2018': [cand({ title: '9-1-1 2018 S01E01 1080p x265' })] },
+    });
+    await svc.sweep();
+
+    expect(indexers.searchAllDetailed.mock.calls.map((c: any) => c[0].q))
+      .toEqual(['9-1-1', '9 1 1', '9 1 1 2018']);
+    expect(evaluator.grabSelected).toHaveBeenCalled();
+  });
+
+  it('searches an ALIAS, not just validates against it', async () => {
+    /*
+     * Aliases were already handed to the selector, so one could confirm a release
+     * but never go looking for it — the wrong half of the job for a title nobody
+     * can spell. 9-1-1 carries the alias "911" on synoplex.
+     */
+    const { svc, indexers } = build({
+      item: { title: '9-1-1', year: null, titleAliases: ['911'] },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: '9-1-1', savePath: '/downloads/TV Shows/9-1-1 (2018)' }],
+      candidatesByQuery: {},
+    });
+    await svc.sweep();
+    expect(indexers.searchAllDetailed.mock.calls.map((c: any) => c[0].q)).toContain('911');
+  });
+
+  it('elides an apostrophe rather than splitting on it', async () => {
+    // Release names ship "Greys.Anatomy", never "Grey s Anatomy".
+    const { svc, indexers } = build({
+      item: { title: "Grey's Anatomy", year: null },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: "Grey's Anatomy", savePath: '/downloads/TV Shows/Greys' }],
+      candidatesByQuery: {},
+    });
+    await svc.sweep();
+    const asked = indexers.searchAllDetailed.mock.calls.map((c: any) => c[0].q);
+    expect(asked).toContain('greys anatomy');
+    expect(asked.some((q: string) => q.includes('grey s'))).toBe(false);
+  });
+
+  it('asks exactly ONCE for a show whose title already works', async () => {
+    // The cost guard: widening must not multiply indexer traffic for the shows
+    // that were never broken.
+    const { svc, indexers } = build({
+      item: { title: 'All American', year: 2018 },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: 'All American', savePath: '/downloads/TV Shows/All American (2018)' }],
+      candidatesByQuery: { 'All American': [cand({ title: 'All American S03E02 720p x265' })] },
+    });
+    await svc.sweep();
+    expect(indexers.searchAllDetailed).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops widening the moment every indexer is down', async () => {
+    // Retrying dead indexers with a different spelling only multiplies failures,
+    // and the honest state is still `failed`, never `no_results`.
+    const { svc, indexers, updates } = build({
+      item: { title: '9-1-1', year: 2018 },
+      wanted: { seriesTconst: null },
+      rules: [{ id: 'r1', name: '9-1-1', savePath: '/downloads/TV Shows/9-1-1 (2018)' }],
+      indexerRun: { queried: 2, failed: 2 },
+    });
+    await svc.sweep();
+    expect(indexers.searchAllDetailed).toHaveBeenCalledTimes(1);
+    expect(updates.some((u: any) => u.searchStatus === 'failed')).toBe(true);
+    expect(updates.some((u: any) => u.searchStatus === 'no_results')).toBe(false);
   });
 });
