@@ -27,9 +27,20 @@ function makePrisma(opts: {
     roles,
     grants,
     permission: {
-      findMany: async ({ where }: any) => {
+      findMany: async ({ where, select }: any) => {
         const wanted: string[] = where.key.in;
-        return wanted.filter((k) => permissions.has(k)).map((k) => permissions.get(k));
+        return wanted
+          .filter((k) => permissions.has(k))
+          .map((k) => {
+            const row: any = { ...permissions.get(k) };
+            // Mirror Prisma's relation count, which the orphan check selects.
+            if (select?._count) {
+              row._count = {
+                roles: grants.filter((g) => g.permissionId === `perm-${k}`).length,
+              };
+            }
+            return row;
+          });
       },
       createMany: async ({ data }: any) => {
         for (const row of data) {
@@ -83,17 +94,32 @@ describe('ModulePermissionSyncService', () => {
     expect(grantsFor(prisma, SystemRole.ADMINISTRATOR)).toContain(NEW);
   });
 
-  it('does NOT re-grant a permission that already existed', async () => {
+  it('does NOT re-grant an existing permission that some role still holds', async () => {
     /*
-     * The whole point of keying off "new to the database". An operator who
-     * revoked a permission in the RBAC UI must not have it silently restored on
-     * the next restart — and a revocation is indistinguishable from a
-     * never-granted permission unless we look at whether the KEY is new.
+     * A partial revocation is the realistic shape of a considered policy: an
+     * operator drops a permission from ADMINISTRATOR but leaves it on
+     * SUPER_ADMIN. Because the permission is still held by somebody it is not
+     * orphaned, and nothing here may put it back.
+     */
+    const held = { roleId: `role-${SystemRole.SUPER_ADMIN}`, permissionId: `perm-${NEW}` };
+    const prisma = makePrisma({ permissions: [NEW], grants: [held] });
+    await new ModulePermissionSyncService(prisma, registryWith([NEW])).onModuleInit();
+
+    expect(prisma.grants).toEqual([held]);
+  });
+
+  it('REPAIRS a catalogued permission that no role holds at all', async () => {
+    /*
+     * The synoplex case, and the reason "new key" alone is not enough. The
+     * previous version of this service created the Permission row and stopped,
+     * so on every install that was upgraded rather than seeded the key sits in
+     * the catalog granted to nobody. Keying only off newness would skip exactly
+     * the machines that have the problem, because the key is already there.
      */
     const prisma = makePrisma({ permissions: [NEW], grants: [] });
     await new ModulePermissionSyncService(prisma, registryWith([NEW])).onModuleInit();
 
-    expect(prisma.grants).toHaveLength(0);
+    expect(grantsFor(prisma, SystemRole.ADMINISTRATOR)).toContain(NEW);
   });
 
   it('never revokes, even when the role map no longer wants the permission', async () => {
