@@ -12,6 +12,7 @@
     "addBtn": "Agregar un perfil",
     "name": "Nombre",
     "stagingRoot": "Raíz de preparación",
+    "stagingPicker": "Selecciona la carpeta de preparación",
     "stagingHelp": "Dónde se retienen las descargas mientras se verifican. No debe estar dentro de una biblioteca, o un escáner indexará archivos a medio escribir.",
     "movieLibraryId": "Biblioteca de películas",
     "tvLibraryId": "Biblioteca de series",

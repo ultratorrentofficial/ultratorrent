@@ -253,8 +253,8 @@ describe('storage profile validation', () => {
 
   it('allows the documented layout', async () => {
     // Staging beside the libraries, both under a parent nothing scans.
-    const { svc } = buildProfiles([{ name: 'TV', path: '/mnt/plexmedia/TV Shows' }]);
-    await expect(svc.create(input({ stagingRoot: '/mnt/plexmedia/Staging', tvLibraryId: 'lib-1' })))
+    const { svc } = buildProfiles([{ name: 'TV', path: '/mnt/media/TV Shows' }]);
+    await expect(svc.create(input({ stagingRoot: '/mnt/media/Staging', tvLibraryId: 'lib-1' })))
       .resolves.toBeDefined();
   });
 

@@ -66,7 +66,7 @@ A layout that works — libraries and staging as siblings under a parent nothing
 scans:
 
 ```
-/mnt/plexmedia/
+<media root>/
     Staging/          ← intake stages here
     Movies/           ← library
     TV Shows/         ← library
@@ -74,6 +74,30 @@ scans:
 
 **Your media server must not scan the parent.** Point it at `Movies/` and
 `TV Shows/` individually.
+
+### Paths are in the BACKEND's filesystem, not the host's
+
+This is the single easiest thing to get wrong. In the stock Docker deployment
+the media tree is bind-mounted into the backend container at `/downloads`, so
+the same directory has two names:
+
+| Seen by | Path |
+| --- | --- |
+| the host, and anything running natively on it (e.g. a system Plex) | `/mnt/media/Staging` |
+| the backend container — **what this field wants** | `/downloads/Staging` |
+
+Storage profiles, and `media_libraries.path`, store the **container** form.
+Typing the host path produces a profile pointing at a directory the backend
+cannot see, and the first import fails rather than the save.
+
+**Use the Browse button and this cannot happen** — the picker is rooted at
+`FILE_MANAGER_ROOTS`, so everything it emits is already in the right space. That
+is also why the field offers to create a missing directory: staging usually does
+not exist yet.
+
+Paths only need the [path mapping registry](#path-mapping) when a *different*
+component — a download client, a media server — spells the same location its own
+third way.
 
 ### 2. Create a storage profile
 
@@ -197,7 +221,7 @@ libraries.
 
 ## Path mapping
 
-The same bytes are `/mnt/plexmedia/x` to the host, `/downloads/x` inside the
+The same bytes are `/mnt/media/x` to the host, `/downloads/x` inside the
 backend container, and possibly a third thing to the download client and a
 fourth to Plex. The registry translates a **canonical** path into whichever
 spelling a component uses, so no module hard-codes one view of the filesystem.
@@ -213,7 +237,7 @@ created.
 Diagnose one with:
 
 ```
-GET /api/media/intake/path-mappings/resolve?path=/mnt/plexmedia/x&space=container
+GET /api/media/intake/path-mappings/resolve?path=/mnt/media/x&space=container
 ```
 
 ---

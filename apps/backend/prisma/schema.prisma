@@ -3220,7 +3220,7 @@ model StorageProfile {
 }
 
 /// One prefix rewrite from the canonical spelling of a path into the spelling
-/// some other component uses. The same bytes are `/mnt/plexmedia/x` to the
+/// some other component uses. The same bytes are `/mnt/media/x` to the
 /// host, `/downloads/x` inside the container and possibly a third thing to the
 /// torrent client — every one of which has been a real bug.
 model PathMappingRule {

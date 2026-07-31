@@ -12,6 +12,7 @@
     "addBtn": "Add a profile",
     "name": "Name",
     "stagingRoot": "Staging root",
+    "stagingPicker": "Select the staging folder",
     "stagingHelp": "Where downloads are held while they are checked. Must not sit inside a library, or a scanner will index half-written files.",
     "movieLibraryId": "Movie library",
     "tvLibraryId": "TV library",

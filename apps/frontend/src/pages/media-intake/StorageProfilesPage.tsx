@@ -8,6 +8,8 @@ import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
+import { PathPicker } from '@/components/PathPicker';
+import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
@@ -147,6 +149,10 @@ function ProfileCard({
   saving?: boolean;
 }) {
   const { t } = useTranslation('intake');
+  // A staging root usually does not exist yet — it is a directory the operator
+  // is inventing for this profile. Offer to create it rather than saving a
+  // profile that points at nothing and only fails at the first import.
+  const { ensure: ensureDirectory, dialog: ensureDirectoryDialog } = useEnsureDirectory();
   const [form, setForm] = useState({
     name: profile?.name ?? '',
     stagingRoot: profile?.stagingRoot ?? '',
@@ -174,9 +180,21 @@ function ProfileCard({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`s-${profile?.id ?? 'new'}`}>{t('profile.stagingRoot')}</Label>
-            <Input id={`s-${profile?.id ?? 'new'}`} value={form.stagingRoot}
-              placeholder="/mnt/plexmedia/Staging"
-              onChange={(e) => set('stagingRoot', e.target.value)} />
+            {/* Browse rather than type. A staging root is a path on the SERVER,
+                which the person filling this in generally cannot see — and a
+                typo here is not a validation error, it is an import pipeline
+                that stages into a directory nothing else knows about. */}
+            <PathPicker
+              id={`s-${profile?.id ?? 'new'}`}
+              value={form.stagingRoot}
+              onChange={(v) => set('stagingRoot', v)}
+              // The backend runs in a container, so this is a path in ITS
+              // filesystem (`/downloads/…` by default), not the host's. Browsing
+              // is rooted at FILE_MANAGER_ROOTS and so always yields that form.
+              placeholder="/downloads/Staging"
+              aria-label={t('profile.stagingRoot')}
+              pickerTitle={t('profile.stagingPicker')}
+            />
             <p className="text-xs text-muted-foreground">{t('profile.stagingHelp')}</p>
           </div>
         </div>
@@ -232,12 +250,17 @@ function ProfileCard({
 
         <div className="flex flex-wrap gap-2">
           <Button
-            onClick={() => onSave({
-              ...form,
-              movieLibraryId: form.movieLibraryId || null,
-              tvLibraryId: form.tvLibraryId || null,
-              musicLibraryId: form.musicLibraryId || null,
-            })}
+            onClick={async () => {
+              // Aborts on a path outside the ops hard roots, or if the operator
+              // declines to create a missing one.
+              if (!(await ensureDirectory(form.stagingRoot))) return;
+              onSave({
+                ...form,
+                movieLibraryId: form.movieLibraryId || null,
+                tvLibraryId: form.tvLibraryId || null,
+                musicLibraryId: form.musicLibraryId || null,
+              });
+            }}
             disabled={!form.name.trim() || !form.stagingRoot.trim() || saving}
             loading={saving}
           >
@@ -255,6 +278,7 @@ function ProfileCard({
             </Button>
           )}
         </div>
+        {ensureDirectoryDialog}
       </CardContent>
     </Card>
   );

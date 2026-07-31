@@ -5,7 +5,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 /**
  * The one place that knows how a path is spelled outside this process.
  *
- * The same bytes are `/mnt/plexmedia/x` to the host, `/downloads/x` inside the
+ * The same bytes are `/mnt/media/x` to the host, `/downloads/x` inside the
  * backend container, something else again to a torrent client in its own
  * container, and possibly a fourth thing to Plex. Every one of those has been a
  * real bug, and the failure mode is always the same: a path that looks correct,

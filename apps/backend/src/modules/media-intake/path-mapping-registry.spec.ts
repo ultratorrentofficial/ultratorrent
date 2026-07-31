@@ -47,7 +47,7 @@ describe('rule cache', () => {
      */
     const { svc, prisma } = build();
     await svc.toSpace('/media/a', 'container');
-    await svc.create({ space: 'host', fromPrefix: '/media', toPrefix: '/mnt/plexmedia' });
+    await svc.create({ space: 'host', fromPrefix: '/media', toPrefix: '/mnt/media' });
     await svc.toSpace('/media/a', 'container');
     expect(prisma.pathMappingRule.findMany).toHaveBeenCalledTimes(2);
   });
@@ -119,6 +119,6 @@ describe('rule validation', () => {
   });
 
   it('accepts a valid rule', async () => {
-    await expect(create({ fromPrefix: '/media', toPrefix: '/mnt/plexmedia' })).resolves.toBeDefined();
+    await expect(create({ fromPrefix: '/media', toPrefix: '/mnt/media' })).resolves.toBeDefined();
   });
 });

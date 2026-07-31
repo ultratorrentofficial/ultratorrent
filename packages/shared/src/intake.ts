@@ -243,7 +243,7 @@ export function selectStrategy(
 /**
  * The spaces a path can be expressed in.
  *
- * The same bytes are `/mnt/plexmedia/x` to the host, `/downloads/x` inside the
+ * The same bytes are `/mnt/media/x` to the host, `/downloads/x` inside the
  * backend container, and possibly a third thing to the torrent client and a
  * fourth to Plex. Every one of those has been a real bug class; the registry
  * exists so no module ever hard-codes one space's spelling.
@@ -257,7 +257,7 @@ export interface PathMappingRule {
   space: PathSpace;
   /** Canonical prefix, e.g. `/media`. */
   fromPrefix: string;
-  /** How that prefix is spelled in `space`, e.g. `/mnt/plexmedia`. */
+  /** How that prefix is spelled in `space`, e.g. `/mnt/media`. */
   toPrefix: string;
   /** Narrow to one engine or media server; null applies to every one of that space. */
   scopeId?: string | null;
