@@ -1,0 +1,5 @@
+---
+"ultratorrent": minor
+---
+
+Episodes whose grabbed release turned out to be dead are put back in the search pool. The sweep only ever selects idle, no_results and failed, so a row that reached 'grabbed' was never revisited — and when its torrent was parked with no seeders and never completed, the episode was neither owned nor searchable while the UI reported success. Measured on a live install: 369 episodes stamped grabbed but still missing, 357 over a week old, against 599 parked torrents. The reconciler now releases those rows and records the dead release title, and the selector skips titles already proven dead so each retry reaches for the next-best release instead of re-picking and re-parking the same one. Deadness is the parking system's verdict (repeated probes, still no seeders), never elapsed time, so a slow download is never mistaken for a dead one. A backfill recovers the torrent hash for grabs that predate the column, without which the repair would have been inert on exactly the installs that need it.

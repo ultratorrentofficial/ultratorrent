@@ -273,6 +273,8 @@ export class MissingEpisodeSearchService {
       wanted.seasonNumber,
       wanted.episodeNumber,
       item.titleAliases ?? [],
+      // Releases this episode already proved dead — see WantedSearchReconciler.
+      wanted.deadReleases ?? [],
     );
 
     if (!best) {

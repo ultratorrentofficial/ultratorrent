@@ -10,6 +10,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { parseTorrentName } from '../rss/torrent-name-parser';
 import {
   evaluatePreferenceList,
+  normalize,
   showTitleMatch,
   type MatchCandidateInput,
   type MatchType,
@@ -312,6 +313,7 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
     season: number,
     episode: number,
     titleAliases: string[] = [],
+    deadReleases: string[] = [],
   ): SelectedRelease | null {
     if (prefs.length === 0) return null;
     // The monitored title plus any alias it is released under. Each is anchored with
@@ -323,9 +325,21 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
       .filter((t) => t.length > 0);
     if (patterns.length === 0) return null;
     const scored: SelectedRelease[] = [];
+    /*
+     * Releases this episode already grabbed and which turned out dead — parked
+     * with no seeders, never completed. Skipping them is what makes a retry
+     * progress: without it the same candidate list ranks the same corpse first
+     * every sweep, re-grabs it, and re-parks it forever.
+     *
+     * Compared on the normalized form because the same release reaches us spelled
+     * both ways ("All American S03E02 720p…" and "All.American.S03E02.720p…"),
+     * and a raw string compare would miss the dotted twin and re-grab it.
+     */
+    const dead = new Set(deadReleases.map((t) => normalize(t ?? '')).filter(Boolean));
 
     for (const c of candidates) {
       if (!c.downloadUrl) continue;
+      if (dead.has(normalize(c.title))) continue;
       const parsed = parseTorrentName(c.title);
       if (parsed.season !== season || parsed.episode !== episode) continue;
       // Anchored against the RAW release name: showTitleMatch does its own

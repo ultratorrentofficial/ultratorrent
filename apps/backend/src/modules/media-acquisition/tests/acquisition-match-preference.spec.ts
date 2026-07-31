@@ -364,3 +364,46 @@ describe('AcquisitionMatchPreferenceService — a profile can cap release size',
     expect(svc.select([huge], [toTier(base)], 'Euphoria (US)', 3, 8)).not.toBeNull();
   });
 });
+
+describe('AcquisitionMatchPreferenceService.select — dead releases', () => {
+  const passthrough = [pref({ name: 'default', qualityRules: {}, sizeRules: {} })];
+  const DEAD = 'All American S03E02 720p HEVC x265-MeGusta';
+  const ALIVE = 'All American S03E02 1080p x265-ELiTE';
+
+  it('skips a release this episode already proved dead', async () => {
+    /*
+     * Resetting a dead grab is only half the repair. The selector ranks the same
+     * candidate list every sweep, so without this it re-picks the corpse, re-parks
+     * it, and the episode never progresses — motion mistaken for retry.
+     */
+    const res = svc.select(
+      [cand({ title: DEAD }), cand({ title: ALIVE })],
+      passthrough, 'All American', 3, 2, [], [DEAD],
+    );
+    expect(res?.candidate.title).toBe(ALIVE);
+  });
+
+  it('matches a dead release across spelling, not by raw string', async () => {
+    // The same release reaches us dotted and spaced; a raw compare would miss the
+    // twin and re-grab exactly what was just abandoned.
+    const dotted = 'All.American.S03E02.720p.HEVC.x265-MeGusta';
+    const res = svc.select(
+      [cand({ title: dotted })], passthrough, 'All American', 3, 2, [], [DEAD],
+    );
+    expect(res).toBeNull();
+  });
+
+  it('still returns nothing when every candidate is dead', async () => {
+    const res = svc.select(
+      [cand({ title: DEAD })], passthrough, 'All American', 3, 2, [], [DEAD],
+    );
+    expect(res).toBeNull();
+  });
+
+  it('is inert for an episode with no dead releases', async () => {
+    const res = svc.select(
+      [cand({ title: DEAD })], passthrough, 'All American', 3, 2, [], [],
+    );
+    expect(res?.candidate.title).toBe(DEAD);
+  });
+});

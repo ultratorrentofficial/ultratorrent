@@ -1761,6 +1761,11 @@ model WantedEpisode {
   /// grabs are traced through `rss_acquisitions`, but a missing-episode grab
   /// writes no such row, so without this the intake trigger cannot see it at all.
   torrentHash         String?
+  /// Release titles this episode has already tried and which turned out dead —
+  /// grabbed, then parked with no seeders and never completed. The selector skips
+  /// them, so each retry reaches for the next-best release instead of re-picking
+  /// the same corpse and re-parking it on every sweep.
+  deadReleases        String[]  @default([])
   /// The rule whose `importMode` decided where this grab was sent, recorded at
   /// grab time rather than re-derived later. Re-deriving would let the trigger
   /// and `resolveSavePath` disagree — and a file staged by one and refused by the
