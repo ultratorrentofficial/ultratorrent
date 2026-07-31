@@ -45,6 +45,15 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.62.0] - 2026-07-31
+
+### Added
+- The Media Intake migration wizard. Converting a rule to managed intake is two coordinated edits — repoint its save path at staging and set the mode — and the server refuses half of that pair, so doing it by hand is a two-step dance per rule on an install that may carry hundreds. The wizard previews every rule with its current path, resolved profile, proposed staging path and a verdict, converts a chosen subset in one transaction, and reverts by restoring the save path each rule had before, not just the mode. Nothing is preselected and blocked rules are listed rather than hidden. This is also what media_intake.migrate now guards; it previously protected nothing.
+
+### Fixed
+- Episodes whose torrent is no longer in the client are released back into the search pool. A removed torrent sits in no parking table, so nothing would ever probe it and the episode stayed stamped grabbed forever; on a live install, 81 of 95 stuck grabs whose torrent was not parked were simply gone. It refuses to act unless the picture is trustworthy: every engine must answer, the listing must be non-empty, and torrents the database believes are parked must actually appear in it — because an unreachable or half-started engine looks exactly like every torrent having been removed, and acting on that would release the whole backlog including live downloads.
+- A rule cannot be set to managed intake while it still downloads into one of its destination libraries. Managed intake places files into the library from wherever the torrent landed, so if the torrent already landed there the placement is library-to-library and the library gains the raw release filename alongside the renamed hardlink — a duplicate of every episode it imports. The pair was trivially reachable, because importMode and savePath are independent fields and every rule predating Media Intake points at a library, which is what legacy direct import means. It refuses rather than repointing, since rewriting where downloads go should not be a side effect of a checkbox, and the message names the profile's staging root so the fix is one paste away.
+
 ## [0.61.1] - 2026-07-31
 
 ### Fixed
