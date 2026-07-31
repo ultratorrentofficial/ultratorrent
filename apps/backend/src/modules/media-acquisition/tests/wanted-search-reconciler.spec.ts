@@ -1,6 +1,11 @@
 import { WantedSearchReconciler } from '../wanted-search-reconciler.service';
 
-function build(over: { episodeFail?: boolean; stuck?: any[]; parked?: any[] } = {}) {
+function build(over: {
+  episodeFail?: boolean; stuck?: any[]; parked?: any[];
+  /** Torrents the client reports; omit to model an unreachable engine. */
+  engineTorrents?: Array<{ hash: string }>;
+  noEngines?: boolean;
+} = {}) {
   const rows = {
     wantedEpisode: [
       { id: 'e1', searchStatus: 'searching' }, // stranded by a restart
@@ -41,7 +46,29 @@ function build(over: { episodeFail?: boolean; stuck?: any[]; parked?: any[] } = 
           where.hash.in.includes(p.hash) && p.probeCount >= where.probeCount.gte && p.lastSeeders === 0)),
     },
   };
-  return { svc: new WantedSearchReconciler(prisma as any), prisma, rows, stuck, parked };
+  // Two different callers: the dead-grab check filters by probe health, the
+  // absent-grab sanity gate just samples hashes. Serve both shapes.
+  prisma.parkedTorrent.findMany = jest.fn(async ({ where, take }: any) => {
+    if (where?.hash?.in) {
+      return parked.filter((p: any) =>
+        where.hash.in.includes(p.hash)
+        && p.probeCount >= where.probeCount.gte
+        && p.lastSeeders === 0);
+    }
+    return parked.slice(0, take ?? parked.length).map((p: any) => ({ hash: p.hash }));
+  });
+  // `engines` models the torrent client: undefined means "throws" (unreachable).
+  const engineList = over.engineTorrents;
+  const engines = {
+    list: () => (over.noEngines ? [] : [{
+      engineId: 'e1',
+      listTorrents: async () => {
+        if (engineList === undefined) throw new Error('connection refused');
+        return engineList;
+      },
+    }]),
+  };
+  return { svc: new WantedSearchReconciler(prisma as any, engines as any), prisma, rows, stuck, parked };
 }
 
 describe('WantedSearchReconciler', () => {
@@ -68,7 +95,7 @@ describe('WantedSearchReconciler', () => {
     const { svc } = build();
 
     // `deadGrabs` counts episodes released because their grabbed release proved dead.
-    await expect(svc.reconcile()).resolves.toEqual({ episodes: 2, movies: 1, deadGrabs: 0 });
+    await expect(svc.reconcile()).resolves.toEqual({ episodes: 2, movies: 1, deadGrabs: 0, absentGrabs: 0 });
   });
 
   it('reconciles movies too — the same column, the same trap', async () => {
@@ -157,5 +184,93 @@ describe('WantedSearchReconciler — dead grabs', () => {
     const { svc } = build({ stuck, parked: [dead()] });
     await svc.reconcile();
     expect(stuck[0].deadReleases).toHaveLength(1);
+  });
+});
+
+describe('WantedSearchReconciler — torrents removed from the client', () => {
+  const grab = (over: Record<string, unknown> = {}): Record<string, any> => ({
+    id: 'w1', searchStatus: 'grabbed', status: 'missing', torrentHash: 'gone1',
+    releaseTitle: 'Some Show S01E01 1080p', deadReleases: [], intakeRuleId: null, ...over,
+  });
+
+  it('releases a grab whose torrent is no longer in the client', async () => {
+    /*
+     * The third shape of the leak: a torrent REMOVED by a cleanup or by hand is
+     * in no parking table to probe, so nothing would ever revisit it. Of 95 stuck
+     * grabs on a live install whose torrent was not parked, 81 were simply gone.
+     */
+    const stuck = [grab()];
+    const { svc } = build({ stuck, parked: [{ hash: 'parked1' }], engineTorrents: [{ hash: 'parked1' }] });
+    await svc.reconcile();
+    expect(stuck[0].searchStatus).toBe('failed');
+  });
+
+  it('leaves a grab whose torrent IS still there', async () => {
+    const stuck = [grab({ torrentHash: 'alive1' })];
+    const { svc } = build({
+      stuck, parked: [{ hash: 'parked1' }],
+      engineTorrents: [{ hash: 'alive1' }, { hash: 'parked1' }],
+    });
+    await svc.reconcile();
+    expect(stuck[0].searchStatus).toBe('grabbed');
+  });
+
+  it('REFUSES to act when an engine cannot be listed', async () => {
+    /*
+     * The failure this guard exists for. An unreachable engine looks exactly like
+     * "every torrent was removed", and acting on that would release the whole
+     * backlog — including live downloads — in a single pass.
+     */
+    const stuck = [grab()];
+    const { svc } = build({ stuck, parked: [{ hash: 'parked1' }] }); // engineTorrents omitted = throws
+    await svc.reconcile();
+    expect(stuck[0].searchStatus).toBe('grabbed');
+  });
+
+  it('REFUSES when the client reports no torrents at all', async () => {
+    // Far more likely a connection that has not come up than an empty client.
+    const stuck = [grab()];
+    const { svc } = build({ stuck, parked: [{ hash: 'parked1' }], engineTorrents: [] });
+    await svc.reconcile();
+    expect(stuck[0].searchStatus).toBe('grabbed');
+  });
+
+  it('REFUSES when no parked torrent appears in the listing', async () => {
+    /*
+     * Parked means paused-but-present. If the database believes torrents are
+     * parked and none are in the listing, the listing is not describing the client
+     * we think it is — a partial page, or the wrong engine.
+     */
+    const stuck = [grab()];
+    const { svc } = build({
+      stuck, parked: [{ hash: 'parked1' }, { hash: 'parked2' }],
+      engineTorrents: [{ hash: 'somethingelse' }],
+    });
+    await svc.reconcile();
+    expect(stuck[0].searchStatus).toBe('grabbed');
+  });
+
+  it('still works on an install with nothing parked', async () => {
+    // The sanity gate must not become a requirement that parking be in use.
+    const stuck = [grab()];
+    const { svc } = build({ stuck, parked: [], engineTorrents: [{ hash: 'other' }] });
+    await svc.reconcile();
+    expect(stuck[0].searchStatus).toBe('failed');
+  });
+
+  it('remembers the release, like the dead-grab path does', async () => {
+    const stuck = [grab()];
+    const { svc } = build({ stuck, parked: [], engineTorrents: [{ hash: 'other' }] });
+    await svc.reconcile();
+    expect(stuck[0].deadReleases).toContain('Some Show S01E01 1080p');
+  });
+
+  it('matches hashes case-insensitively', async () => {
+    // Engines disagree on case; a case-sensitive compare would call a present
+    // torrent absent and release a live download.
+    const stuck = [grab({ torrentHash: 'ABCDEF' })];
+    const { svc } = build({ stuck, parked: [], engineTorrents: [{ hash: 'abcdef' }] });
+    await svc.reconcile();
+    expect(stuck[0].searchStatus).toBe('grabbed');
   });
 });

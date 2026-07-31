@@ -1,6 +1,7 @@
 import { Injectable, Logger, Module } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
+import { EngineModule } from '../engine/engine.module';
 import { MediaIntakeModule } from '../media-intake/media-intake.module';
 import { IndexersModule } from '../indexers/indexers.module';
 import { MEDIA_ACQUISITION_MODULE_ID } from './decision.engine';
@@ -60,7 +61,7 @@ export class MediaAcquisitionScheduler {
  * recommendations only).
  */
 @Module({
-  imports: [IndexersModule, MediaIntakeModule],
+  imports: [IndexersModule, MediaIntakeModule, EngineModule],
   providers: [
     MediaAcquisitionService,
     ImdbSeriesResolver,

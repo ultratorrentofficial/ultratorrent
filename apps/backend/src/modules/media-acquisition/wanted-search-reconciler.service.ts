@@ -1,5 +1,6 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { EngineRegistryService } from '../engine/engine-registry.service';
 
 /**
  * Releases wanted rows stranded mid-search by a restart.
@@ -26,15 +27,18 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 export class WantedSearchReconciler implements OnModuleInit {
   private readonly logger = new Logger(WantedSearchReconciler.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly engines: EngineRegistryService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     await this.reconcile();
   }
 
   /** Returns how many rows were released. Never throws — this must not block boot. */
-  async reconcile(): Promise<{ episodes: number; movies: number; deadGrabs: number }> {
-    const result = { episodes: 0, movies: 0, deadGrabs: 0 };
+  async reconcile(): Promise<{ episodes: number; movies: number; deadGrabs: number; absentGrabs: number }> {
+    const result = { episodes: 0, movies: 0, deadGrabs: 0, absentGrabs: 0 };
     try {
       const episodes = await this.prisma.wantedEpisode.updateMany({
         where: { searchStatus: 'searching' },
@@ -51,6 +55,7 @@ export class WantedSearchReconciler implements OnModuleInit {
       result.movies = movies.count;
 
       result.deadGrabs = await this.releaseDeadGrabs();
+      result.absentGrabs = await this.releaseAbsentGrabs();
 
       const total = result.episodes + result.movies;
       if (total > 0) {
@@ -127,6 +132,99 @@ export class WantedSearchReconciler implements OnModuleInit {
         `Released ${released} episode(s) whose grabbed release is dead (parked, no seeders ` +
           `after ${MIN_PROBES}+ probes) — they were stamped "grabbed" and would never have ` +
           `been searched again`,
+      );
+    }
+    return released;
+  }
+
+  /**
+   * Releases an episode whose torrent is no longer in the client at all.
+   *
+   * The third shape of the same leak. {@link releaseDeadGrabs} asks the parking
+   * system whether a torrent is dead, but a torrent that was REMOVED — by a
+   * cleanup, by hand, by a client reset — is in no table to ask about. Measured
+   * on a live install: of 95 stuck grabs whose torrent was not parked, 81 were
+   * simply gone. Nothing will ever probe them, so without this they are stuck
+   * forever.
+   *
+   * THE DANGEROUS ONE, hence the guards. "Not in the list" is only meaningful if
+   * the list is complete, and every way of getting it wrong points the same
+   * direction: an engine that is unreachable, still starting, or returns a
+   * partial page looks exactly like "every torrent was removed" and would
+   * release the entire backlog in one pass. So this refuses to act unless the
+   * picture is demonstrably trustworthy:
+   *
+   *   - every configured engine answered (one failure means an incomplete union,
+   *     and a hash missing from it may simply live on the engine that failed);
+   *   - the union is non-empty (an empty answer is far more likely to be a
+   *     connection that has not come up yet than a genuinely empty client);
+   *   - torrents this database believes are PARKED actually appear in it. Parked
+   *     means paused-but-present, so if none of them are in the list, the list is
+   *     not describing the client we think it is.
+   *
+   * Refusing is always safe: these rows have already been stuck for weeks, and
+   * one more boot costs nothing next to mass-releasing live downloads.
+   */
+  private async releaseAbsentGrabs(): Promise<number> {
+    const stuck = await this.prisma.wantedEpisode.findMany({
+      where: { searchStatus: 'grabbed', status: 'missing', torrentHash: { not: null } },
+      select: { id: true, torrentHash: true, releaseTitle: true, deadReleases: true },
+    });
+    if (stuck.length === 0) return 0;
+
+    const providers = this.engines.list();
+    if (providers.length === 0) return 0;
+
+    const present = new Set<string>();
+    for (const p of providers) {
+      try {
+        const torrents = await p.listTorrents();
+        for (const t of torrents) if (t?.hash) present.add(t.hash.toLowerCase());
+      } catch (err) {
+        this.logger.log(
+          `Not releasing absent grabs: engine ${p.engineId} could not be listed ` +
+            `(${(err as Error).message}). Its torrents would look removed.`,
+        );
+        return 0;
+      }
+    }
+    if (present.size === 0) {
+      this.logger.log('Not releasing absent grabs: no engine reported any torrent.');
+      return 0;
+    }
+
+    // Sanity gate: parked torrents are paused, not gone, so they must be in the
+    // list. If not, the list is not the client we think it is.
+    const parkedSample = await this.prisma.parkedTorrent.findMany({
+      select: { hash: true },
+      take: 25,
+    });
+    if (parkedSample.length > 0 && !parkedSample.some((t) => present.has(t.hash.toLowerCase()))) {
+      this.logger.warn(
+        `Not releasing absent grabs: none of ${parkedSample.length} parked torrent(s) appear ` +
+          `in the engine listing, so the listing cannot be trusted.`,
+      );
+      return 0;
+    }
+
+    let released = 0;
+    for (const w of stuck) {
+      const hash = (w.torrentHash as string).toLowerCase();
+      if (present.has(hash)) continue;
+      const deadReleases = w.releaseTitle && !w.deadReleases.includes(w.releaseTitle)
+        ? [...w.deadReleases, w.releaseTitle]
+        : w.deadReleases;
+      await this.prisma.wantedEpisode.updateMany({
+        where: { id: w.id },
+        data: { searchStatus: 'failed', deadReleases, torrentHash: null, intakeRuleId: null },
+      });
+      released += 1;
+    }
+
+    if (released > 0) {
+      this.logger.warn(
+        `Released ${released} episode(s) whose torrent is no longer in the client — they were ` +
+          `stamped "grabbed" with nothing left to probe and would never have been searched again`,
       );
     }
     return released;
