@@ -45,6 +45,17 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.60.0] - 2026-07-31
+
+### Added
+- Storage profile management screen, reachable from Media settings and the Media sidebar
+- The RSS rule dialog now offers the import mode and storage profile
+- Media Intake dashboard: the queue by state, per-job timeline, retry and cancel
+
+### Fixed
+- Drop three unusable indexes on imdb_titles: the primaryTitle/originalTitle btrees, which cannot serve the case-insensitive (ILIKE) lookups the code actually issues and were superseded by the runtime GIN trigram indexes, and the titleType index, a redundant prefix of the (titleType, startYear) composite. Reclaims ~645 MB on a full catalogue with no query losing an access path.
+- New permissions declared by a module are now granted to the system roles that should hold them on boot, not only added to the catalog. The deployed container runs prisma migrate deploy and never the seed, so shipping a feature that added a permission previously left every non-SUPER_ADMIN with a permanent 403 on its routes — invisible to whoever deployed it, because SUPER_ADMIN bypasses the permission guard. Only keys that are brand new to the database are granted, so a permission an operator deliberately revoked in the RBAC UI is never silently restored.
+
 ## [0.59.0] - 2026-07-30
 
 ### Added
