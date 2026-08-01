@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.64.0] - 2026-08-01
+
+### Added
+- A library's mode no longer answers two questions. Choosing "preview" to keep the automatic organiser away also vetoed manual renames — Execute reported "0 applied, N skipped" as a success — and made the previewed destinations differ from what an execute would produce. New `autoOrganize` flag carries the automation question alone; a library's mode is now always a real filesystem verb, and `preview` is refused with a message naming the replacement. Existing libraries migrate with their behaviour preserved: only the two relocating verbs were ever auto-organised, so only those are opted in, and a `preview` library becomes `rename_in_place` (the verb that cannot fork a show) while staying opted out. The manual rename preview now uses `dryRun` with the library's real mode, matching what the organiser has done since the flag was added.
+
+### Fixed
+- release.js no longer tells you to finish a --no-git release with a blanket commit. The flag exists because the script's own finalize step stages every tracked modification and pushes it; the skip-hint then printed that same command back, reading as the sanctioned way to finish. It now prints an explicit-path `git add` of the version files and consumed changesets, preceded by a `git status --short` check. Only changesets git actually tracks are named — `git add` is atomic across pathspecs, so one never-committed changeset would abort the whole command and silently stage nothing.
+
 ## [0.63.1] - 2026-08-01
 
 ### Fixed
