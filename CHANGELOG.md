@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.62.4] - 2026-08-01
+
+### Fixed
+- Every RSS rule now has an Export button, so a single show can be moved between installs without exporting the whole configuration. Measured on a live install: one rule is 971 bytes against 142 KB for all 163, which is what exceeded the receiving server's body limit in the first place. The endpoint and API client already supported this; only the affordance was missing.
+
 ## [0.62.3] - 2026-08-01
 
 ### Fixed
