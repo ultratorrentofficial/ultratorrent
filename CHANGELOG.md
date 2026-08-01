@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.62.2] - 2026-08-01
+
+### Fixed
+- A managed rule's own save path is now the single answer to where its show stages. Missing-episode grabs previously derived a separate path under the profile's staging root, so the same show staged in two places depending on whether an RSS feed match or a missing-episode search found the release. That derivation was necessary before rules were guarded — a managed rule's save path still pointed into a library then, and staging there would have imported the library into itself — but the rule service refuses that combination now, so the premise is gone. A path is still invented for a managed rule that has none.
+- A completed torrent now reports its own file or folder, not just the directory it was saved into. qBittorrent has always returned content_path and rTorrent d.base_path; neither was mapped, so the completion event could only name the save path — which is shared. Ten episodes of one show report the same one, and on a live install a movie feed's save path held 3,305 entries, so importing from it meant importing everything in it rather than the release that just finished. The intake trigger now prefers contentPath and falls back to savePath, so an engine that cannot report the item behaves exactly as before.
+
 ## [0.62.1] - 2026-07-31
 
 ### Fixed
