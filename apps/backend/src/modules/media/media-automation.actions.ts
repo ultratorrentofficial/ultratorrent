@@ -258,11 +258,19 @@ export class MediaAutomationActions {
   /**
    * Organize a whole library: move every not-yet-placed file into the library's
    * `Show/Season NN/` structure and apply junk cleanup (delete-globs, samples,
-   * leftover .torrent, empty dirs — via the renamer's cleanup rules). Only
-   * `rename_in_place`/`rename_move` libraries are eligible; link/copy/preview
-   * libraries are left untouched. Files already correctly placed are skipped, so
-   * a re-run is a near no-op. `dryRun` previews the moves + deletes WITHOUT
-   * touching disk (each item is planned in `preview` mode).
+   * leftover .torrent, empty dirs — via the renamer's cleanup rules). Files
+   * already correctly placed are skipped, so a re-run is a near no-op. `dryRun`
+   * previews the moves + deletes WITHOUT touching disk.
+   *
+   * Eligibility is TWO independent conditions, and both are necessary:
+   *
+   *   - `autoOrganize` — the operator opted this library in. This used to be
+   *     spelled `mode: 'preview'`, which also disabled manual renames and
+   *     mis-resolved their destinations; it is now its own field.
+   *   - a relocating verb — organising means moving files WITHIN the library,
+   *     which only `rename_in_place`/`rename_move` do. A copy/hardlink/symlink
+   *     library would duplicate rather than tidy, so opting one in must not
+   *     start it organising.
    *
    * SAFETY GUARD: a move is only applied when it stays **within the file's own
    * show folder** (relocating into a `Season NN/` subdir). A plan that would
@@ -293,7 +301,8 @@ export class MediaAutomationActions {
     const library = await this.prisma.mediaLibrary.findUnique({ where: { id: libraryId } });
     if (!library) throw new BadRequestException('Library not found');
     const dryRun = !!opts.dryRun;
-    const eligible = MediaAutomationActions.ORGANIZE_MODES.includes(library.mode);
+    const eligible =
+      library.autoOrganize && MediaAutomationActions.ORGANIZE_MODES.includes(library.mode);
     const moves: { itemId: string; from: string; to: string }[] = [];
     const deletes: { itemId: string; path: string }[] = [];
     const needsReview: { itemId: string; from: string; to: string }[] = [];

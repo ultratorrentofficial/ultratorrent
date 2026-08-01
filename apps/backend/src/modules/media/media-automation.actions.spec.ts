@@ -22,8 +22,19 @@ const inSeason = (src: string) => src.replace('/Show/', '/Show/Season 01/');
 // Folder-changing: renamer re-derived a different show folder (the guard case).
 const otherShow = (src: string) => src.replace('/tv/Show/', '/tv/Show 2024/Season 01/');
 
-function make(mode: string, items: any[] = LOOSE_ITEMS, destFn: (s: string) => string = inSeason) {
-  const library = { id: 'lib1', mode, path: '/tv', preset: 'plex', template: null };
+/**
+ * Eligibility is TWO conditions now — the operator opted in (`autoOrganize`) AND
+ * the mode is a relocating verb. These fixtures opt in by default so each test
+ * still exercises the condition it was written for; `autoOrganize: false` is
+ * covered explicitly below.
+ */
+function make(
+  mode: string,
+  items: any[] = LOOSE_ITEMS,
+  destFn: (s: string) => string = inSeason,
+  autoOrganize = true,
+) {
+  const library = { id: 'lib1', mode, autoOrganize, path: '/tv', preset: 'plex', template: null };
   const prisma = {
     mediaLibrary: { findUnique: jest.fn(async () => library) },
     mediaItem: {
@@ -54,10 +65,26 @@ function make(mode: string, items: any[] = LOOSE_ITEMS, destFn: (s: string) => s
 }
 
 describe('MediaAutomationActions.organizeLibrary', () => {
-  it('is a no-op for non-organize modes (hardlink/link/preview)', async () => {
+  it('is a no-op for non-organize modes (hardlink/copy/symlink)', async () => {
+    // Organising moves files WITHIN the library; these verbs would add a second
+    // copy instead. Opted IN and still ineligible — the verb decides too.
     const { svc, apply } = make('hardlink');
     const res = await svc.organizeLibrary('lib1', {});
     expect(res).toMatchObject({ eligible: false, mode: 'hardlink', moves: [], deletes: [], needsReview: [] });
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op when the operator has not opted in, whatever the mode', async () => {
+    /*
+     * The replacement for `mode: 'preview'`. Opting out of automatic organising
+     * used to be spelled as a mode, which also vetoed manual renames and made
+     * their previews resolve destinations differently. It is its own field now,
+     * so this library stays untouched by the organiser while a hand-driven
+     * rename still works.
+     */
+    const { svc, apply } = make('rename_in_place', LOOSE_ITEMS, inSeason, false);
+    const res = await svc.organizeLibrary('lib1', {});
+    expect(res).toMatchObject({ eligible: false, mode: 'rename_in_place', moves: [], applied: 0 });
     expect(apply).not.toHaveBeenCalled();
   });
 

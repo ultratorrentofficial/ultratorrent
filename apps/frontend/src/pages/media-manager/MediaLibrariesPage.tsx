@@ -7,11 +7,11 @@ import {
   ApiError,
   api,
   type CreateLibraryInput,
+  type LibraryMode,
   type MediaKind,
   type MediaLibrary,
   type MediaPresets,
   type Preset,
-  type RenameMode,
 } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
 import { PERMISSIONS, WS_EVENTS, type MediaJobEventPayload } from '@ultratorrent/shared';
@@ -38,8 +38,8 @@ import { formatRelativeTime } from '@/lib/format';
 import {
   kindLabel,
   libraryKindOptions,
+  libraryModeOptions,
   modeLabel,
-  modeOptions,
   presetLabel,
   presetOptions,
 } from './constants';
@@ -360,7 +360,9 @@ function LibraryDialog({
   const [path, setPath] = useState(library?.path ?? '');
   const [kind, setKind] = useState<MediaKind>(library?.kind ?? 'tv');
   const [preset, setPreset] = useState<Preset>(library?.preset ?? 'plex');
-  const [mode, setMode] = useState<RenameMode>(library?.mode ?? 'hardlink');
+  // A real filesystem verb, never `preview` — see LIBRARY_MODE_VALUES.
+  const [mode, setMode] = useState<LibraryMode>(library?.mode ?? 'hardlink');
+  const [autoOrganize, setAutoOrganize] = useState(library?.autoOrganize ?? false);
   const [template, setTemplate] = useState(library?.template ?? '');
   const [scanInterval, setScanInterval] = useState(
     library?.scanIntervalMinutes != null ? String(library.scanIntervalMinutes) : '',
@@ -371,6 +373,13 @@ function LibraryDialog({
   const [saving, setSaving] = useState(false);
 
   const defaultTemplate = presetTemplate(presets, preset, kind);
+  /*
+   * Organising moves files WITHIN the library, which only the two relocating
+   * verbs do; the backend enforces the same pair. Copy/hardlink/symlink would
+   * add a second copy rather than tidy, so the toggle is shown but inert with
+   * the reason stated, instead of silently accepting a setting that does nothing.
+   */
+  const organizeVerb = mode === 'rename_in_place' || mode === 'rename_move';
 
   const submit = async () => {
     const trimmedInterval = scanInterval.trim();
@@ -389,6 +398,7 @@ function LibraryDialog({
         kind,
         preset,
         mode,
+        autoOrganize: autoOrganize && organizeVerb,
         template: template.trim() || undefined,
         isEnabled: enabled,
         scanIntervalMinutes: parsedInterval,
@@ -435,7 +445,7 @@ function LibraryDialog({
           </div>
           <div>
             <Label htmlFor="lib-mode">{t('libraries.field.mode')}</Label>
-            <Select id="lib-mode" value={mode} onChange={(e) => setMode(e.target.value as RenameMode)} options={modeOptions(t)} />
+            <Select id="lib-mode" value={mode} onChange={(e) => setMode(e.target.value as LibraryMode)} options={libraryModeOptions(t)} />
           </div>
         </div>
         <div>
@@ -473,6 +483,27 @@ function LibraryDialog({
             <Label htmlFor="lib-artwork">{t('libraries.field.artwork')}</Label>
             <Switch id="lib-artwork" checked={artworkEnabled} onCheckedChange={setArtworkEnabled} />
           </div>
+        </div>
+        {/*
+          Its own question, separate from the mode above. These used to be one
+          field: choosing "preview" to keep the organiser away also disabled
+          manual renames and mis-resolved their previewed destinations.
+        */}
+        <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+          <div className="pr-3">
+            <Label htmlFor="lib-auto-organize">{t('libraries.field.autoOrganize')}</Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {organizeVerb
+                ? t('libraries.field.autoOrganizeHint')
+                : t('libraries.field.autoOrganizeUnavailable')}
+            </p>
+          </div>
+          <Switch
+            id="lib-auto-organize"
+            checked={autoOrganize && organizeVerb}
+            disabled={!organizeVerb}
+            onCheckedChange={setAutoOrganize}
+          />
         </div>
         <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
           <Label htmlFor="lib-enabled">{t('libraries.field.enabled')}</Label>

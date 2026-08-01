@@ -179,6 +179,9 @@
       "scanIntervalPlaceholder": "Leave blank to scan manually",
       "nfo": "Generate NFO",
       "artwork": "Fetch artwork",
+      "autoOrganize": "Organise automatically",
+      "autoOrganizeHint": "Let the organiser tidy this library on its own. Manual renames work either way.",
+      "autoOrganizeUnavailable": "Only available for “Rename in place” and “Rename + move” — the other modes add a second copy rather than tidying.",
       "enabled": "Enabled"
     },
     "presetDefault": "Preset default:",
@@ -827,6 +830,9 @@
       "mode": "Mode",
       "template": "Template (optional)",
       "templatePlaceholder": "Leave empty to use the preset default",
+      "autoOrganize": "Organise automatically",
+      "autoOrganizeHint": "Let the organiser tidy this library on its own. Manual renames work either way.",
+      "autoOrganizeUnavailable": "Only available for “Rename in place” and “Rename + move” — the other modes add a second copy rather than tidying.",
       "enabled": "Enabled"
     },
     "presetDefault": "Preset default:",

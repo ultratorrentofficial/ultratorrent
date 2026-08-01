@@ -15,6 +15,7 @@ import {
   api,
   type CreateLibraryInput,
   type MediaKind,
+  type LibraryMode,
   type MediaLibrary,
   type MediaPresets,
   type Preset,
@@ -47,6 +48,7 @@ import { cn } from '@/lib/utils';
 import {
   kindLabel,
   libraryKindOptions,
+  libraryModeOptions,
   modeLabel,
   modeOptions,
   presetLabel,
@@ -272,12 +274,23 @@ function LibraryDialog({
   const [path, setPath] = useState(library?.path ?? '');
   const [kind, setKind] = useState<MediaKind>(library?.kind ?? 'tv');
   const [preset, setPreset] = useState<Preset>(library?.preset ?? 'plex');
-  const [mode, setMode] = useState<RenameMode>(library?.mode ?? 'preview');
+  // A real verb, never `preview`. `rename_in_place` is the conservative default:
+  // it keeps a file in the show folder it already lives in, so a wrong title or
+  // year cannot fork a show.
+  const [mode, setMode] = useState<LibraryMode>(library?.mode ?? 'rename_in_place');
+  const [autoOrganize, setAutoOrganize] = useState(library?.autoOrganize ?? false);
   const [template, setTemplate] = useState(library?.template ?? '');
   const [enabled, setEnabled] = useState(library?.isEnabled ?? true);
   const [saving, setSaving] = useState(false);
 
   const defaultTemplate = presetTemplate(presets, preset, kind);
+  /*
+   * Organising means moving files WITHIN the library, which only the two
+   * relocating verbs do — the backend enforces the same pair. A copy/hardlink/
+   * symlink library would duplicate rather than tidy, so the toggle is offered
+   * but inert for those, with the reason shown rather than left to be guessed.
+   */
+  const organizeVerb = mode === 'rename_in_place' || mode === 'rename_move';
 
   const submit = async () => {
     setSaving(true);
@@ -288,6 +301,9 @@ function LibraryDialog({
         kind,
         preset,
         mode,
+        // Never send `true` for a verb that cannot organise — the switch is
+        // already inert there, and persisting it would misreport the library.
+        autoOrganize: autoOrganize && organizeVerb,
         template: template.trim() || undefined,
         isEnabled: enabled,
       };
@@ -330,7 +346,7 @@ function LibraryDialog({
           </div>
           <div>
             <Label htmlFor="lib-mode">{t('renamer.field.mode')}</Label>
-            <Select id="lib-mode" value={mode} onChange={(e) => setMode(e.target.value as RenameMode)} options={modeOptions(t)} />
+            <Select id="lib-mode" value={mode} onChange={(e) => setMode(e.target.value as LibraryMode)} options={libraryModeOptions(t)} />
           </div>
         </div>
         <div>
@@ -347,6 +363,28 @@ function LibraryDialog({
               {t('renamer.presetDefault')} <code className="font-mono">{defaultTemplate}</code>
             </p>
           )}
+        </div>
+        {/*
+          Separate from the mode above, and deliberately so: "how do I place a
+          file" and "may the organiser act on its own" are different questions.
+          They used to share one field, which is how choosing "preview" to keep
+          the organiser away also silently disabled manual renames.
+        */}
+        <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+          <div>
+            <Label htmlFor="lib-auto-organize">{t('renamer.field.autoOrganize')}</Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {organizeVerb
+                ? t('renamer.field.autoOrganizeHint')
+                : t('renamer.field.autoOrganizeUnavailable')}
+            </p>
+          </div>
+          <Switch
+            id="lib-auto-organize"
+            checked={autoOrganize && organizeVerb}
+            disabled={!organizeVerb}
+            onCheckedChange={setAutoOrganize}
+          />
         </div>
         <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
           <Label htmlFor="lib-enabled">{t('renamer.field.enabled')}</Label>

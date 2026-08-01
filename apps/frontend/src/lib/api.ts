@@ -1154,6 +1154,14 @@ export type MediaPresets = Record<
   Partial<Record<MediaKind, string>>
 >;
 
+/**
+ * How a library places a file. A real filesystem verb — `preview` is a
+ * *request* mode ("plan this, touch nothing"), never a library setting: stored
+ * on a library it meant "don't organise automatically" AND silently vetoed
+ * manual renames. That question is now `autoOrganize`.
+ */
+export type LibraryMode = Exclude<RenameMode, 'preview'>;
+
 export interface MediaLibrary {
   id: string;
   name: string;
@@ -1161,7 +1169,9 @@ export interface MediaLibrary {
   path: string;
   preset: Preset;
   template: string | null;
-  mode: RenameMode;
+  mode: LibraryMode;
+  /** May the background organiser act on this library? */
+  autoOrganize: boolean;
   isEnabled: boolean;
   scanIntervalMinutes: number | null;
   lastScanAt: string | null;
@@ -1177,7 +1187,8 @@ export interface CreateLibraryInput {
   kind: MediaKind;
   preset: Preset;
   template?: string;
-  mode: RenameMode;
+  mode: LibraryMode;
+  autoOrganize?: boolean;
   isEnabled?: boolean;
   scanIntervalMinutes?: number | null;
   nfoEnabled?: boolean;
@@ -1521,6 +1532,14 @@ export interface RenameRequest {
   mode: RenameMode;
   libraryPath: string;
   template?: string;
+  /**
+   * Plan under the REAL `mode` but touch nothing — a faithful preview.
+   *
+   * Not the same as `mode: 'preview'`, which also changes how destinations are
+   * resolved (re-rooting under the library instead of reusing the file's own
+   * show folder) and so shows a plan that no execute would ever produce.
+   */
+  dryRun?: boolean;
 }
 
 export interface RenameApplyResult {

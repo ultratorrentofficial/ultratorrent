@@ -179,6 +179,9 @@
       "scanIntervalPlaceholder": "Déjalo en blanco para escanear manualmente",
       "nfo": "Generar NFO",
       "artwork": "Obtener ilustraciones",
+      "autoOrganize": "Organizar automáticamente",
+      "autoOrganizeHint": "Deja que el organizador ordene esta biblioteca por su cuenta. Los renombrados manuales funcionan de todos modos.",
+      "autoOrganizeUnavailable": "Solo disponible para «Renombrar en el sitio» y «Renombrar y mover» — los demás modos añaden una segunda copia en vez de ordenar.",
       "enabled": "Habilitado"
     },
     "presetDefault": "Valor por defecto del preset:",
@@ -827,6 +830,9 @@
       "mode": "Modo",
       "template": "Plantilla (opcional)",
       "templatePlaceholder": "Déjalo vacío para usar el valor por defecto del preset",
+      "autoOrganize": "Organizar automáticamente",
+      "autoOrganizeHint": "Deja que el organizador ordene esta biblioteca por su cuenta. Los renombrados manuales funcionan de todos modos.",
+      "autoOrganizeUnavailable": "Solo disponible para «Renombrar en el sitio» y «Renombrar y mover» — los demás modos añaden una segunda copia en vez de ordenar.",
       "enabled": "Habilitado"
     },
     "presetDefault": "Valor por defecto del preset:",

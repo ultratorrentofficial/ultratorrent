@@ -113,7 +113,12 @@ describe('the media item lock', () => {
     it('leaves locked items out of a library-wide organize', async () => {
       const prisma = {
         mediaLibrary: {
-          findUnique: jest.fn().mockResolvedValue({ id: 'lib1', mode: 'rename_move', path: '/m/TV' }),
+          // `autoOrganize` is required for eligibility now; without it the
+          // organiser returns before it ever queries items, and this test would
+          // pass for the wrong reason.
+          findUnique: jest
+            .fn()
+            .mockResolvedValue({ id: 'lib1', mode: 'rename_move', autoOrganize: true, path: '/m/TV' }),
         },
         mediaItem: { findMany: jest.fn().mockResolvedValue([]) },
       };

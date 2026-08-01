@@ -1,5 +1,6 @@
 import type { Namespace, TFunction } from 'i18next';
 import type {
+  LibraryMode,
   MediaItemType,
   MediaKind,
   MediaMatchStatus,
@@ -31,8 +32,29 @@ export const LIBRARY_KIND_VALUES: MediaKind[] = [
 
 export const PRESET_VALUES: Preset[] = ['plex', 'jellyfin', 'emby', 'kodi', 'custom'];
 
+/**
+ * Every mode a one-off REQUEST may use. `preview` belongs here — "plan this,
+ * touch nothing" is a legitimate thing to ask for on the ad-hoc Dry Run tab.
+ */
 export const MODE_VALUES: RenameMode[] = [
   'preview',
+  'rename_in_place',
+  'rename_move',
+  'copy',
+  'hardlink',
+  'symlink',
+];
+
+/**
+ * The modes a LIBRARY may be set to: real filesystem verbs only.
+ *
+ * `preview` is deliberately absent. Stored on a library it answered two
+ * questions at once — "don't organise this automatically" and, silently, "and
+ * never let anyone rename it by hand either", which made an explicitly
+ * confirmed Execute a no-op that still reported success. Automatic organising
+ * is now its own field (`autoOrganize`).
+ */
+export const LIBRARY_MODE_VALUES: LibraryMode[] = [
   'rename_in_place',
   'rename_move',
   'copy',
@@ -112,6 +134,10 @@ export function presetOptions(t: SomeT): { value: Preset; label: string }[] {
 }
 export function modeOptions(t: SomeT): { value: RenameMode; label: string }[] {
   return MODE_VALUES.map((value) => ({ value, label: modeLabel(t, value) }));
+}
+/** Mode choices for a library — no `preview`; see LIBRARY_MODE_VALUES. */
+export function libraryModeOptions(t: SomeT): { value: LibraryMode; label: string }[] {
+  return LIBRARY_MODE_VALUES.map((value) => ({ value, label: modeLabel(t, value) }));
 }
 export function mediaTypeOptions(t: SomeT): { value: MediaItemType; label: string }[] {
   return MEDIA_TYPE_VALUES.map((value) => ({ value, label: mediaTypeLabel(t, value) }));

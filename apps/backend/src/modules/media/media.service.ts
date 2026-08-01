@@ -98,10 +98,42 @@ export class MediaService {
   listLibraries() {
     return this.prisma.mediaLibrary.findMany({ orderBy: { createdAt: 'asc' } });
   }
+  /**
+   * A library's mode is a filesystem VERB — never `preview`.
+   *
+   * `preview` is a legitimate mode for a one-off request ("plan this, touch
+   * nothing"), but storing it on a library conflated two questions. It meant
+   * "don't organise this automatically", and answered a second one nobody
+   * asked: apply short-circuits on it, so a manual, explicitly-confirmed rename
+   * became a guaranteed no-op that still reported success ("0 applied, 253
+   * skipped"). It also changed destination resolution, so the plan on screen
+   * was not the plan an execute would produce. `autoOrganize` now carries the
+   * first question on its own.
+   */
+  private static readonly LIBRARY_MODES = [
+    'rename_in_place', 'rename_move', 'copy', 'hardlink', 'symlink',
+  ];
+
+  private assertLibraryMode(mode: unknown): void {
+    if (mode === undefined || mode === null) return; // not being changed
+    if (mode === 'preview') {
+      throw new BadRequestException(
+        'A library cannot be set to "preview". To stop the organiser touching it, '
+          + 'turn off automatic organising and keep a real mode (e.g. "rename_in_place").',
+      );
+    }
+    if (!MediaService.LIBRARY_MODES.includes(mode as string)) {
+      throw new BadRequestException(
+        `Unknown library mode "${String(mode)}". Expected one of: ${MediaService.LIBRARY_MODES.join(', ')}.`,
+      );
+    }
+  }
+
   createLibrary(data: any) {
     if (!data?.name || !data?.path) {
       throw new BadRequestException('name and path are required');
     }
+    this.assertLibraryMode(data.mode);
     return this.prisma.mediaLibrary.create({
       data: {
         name: data.name,
@@ -110,11 +142,13 @@ export class MediaService {
         preset: data.preset ?? 'plex',
         template: data.template ?? null,
         mode: data.mode ?? 'hardlink',
+        autoOrganize: data.autoOrganize ?? false,
         isEnabled: data.isEnabled ?? true,
       },
     });
   }
   updateLibrary(id: string, data: any) {
+    this.assertLibraryMode(data.mode);
     return this.prisma.mediaLibrary.update({
       where: { id },
       data: {
@@ -124,6 +158,7 @@ export class MediaService {
         preset: data.preset,
         template: data.template,
         mode: data.mode,
+        autoOrganize: data.autoOrganize,
         isEnabled: data.isEnabled,
       },
     });

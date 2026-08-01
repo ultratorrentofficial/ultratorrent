@@ -655,7 +655,15 @@ model MediaLibrary {
   path                String
   preset              String    @default("plex") // plex | jellyfin | emby | kodi | custom
   template            String?
-  mode                String    @default("hardlink") // preview | rename_in_place | rename_move | copy | hardlink | symlink
+  // HOW this library places a file. A real filesystem verb, always — never
+  // "preview". Whether the library is organised automatically is a separate
+  // question, answered by `autoOrganize`; folding the two into one field made
+  // "don't auto-organise" also veto a manual, explicitly-confirmed rename, and
+  // silently computed the preview's destinations under the wrong resolution.
+  mode                String    @default("hardlink") // rename_in_place | rename_move | copy | hardlink | symlink
+  // WHETHER the background organiser may act on this library. Off by default:
+  // a library starts inert and is opted in deliberately.
+  autoOrganize        Boolean   @default(false)
   isEnabled           Boolean   @default(true)
   scanIntervalMinutes Int?
   lastScanAt          DateTime?

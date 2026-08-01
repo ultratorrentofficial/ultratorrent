@@ -50,7 +50,10 @@ export function RenameItemDialog({
 
   const preview = useQuery({
     queryKey: ['rename-preview', item?.id],
-    queryFn: () => api.media.preview(body!),
+    // `dryRun`, not `mode: 'preview'` — the latter re-roots destinations under the
+    // library instead of reusing the file's own show folder, so the dialog would
+    // show a move that Apply would never make. See RenameRequest.dryRun.
+    queryFn: () => api.media.preview({ ...body!, dryRun: true }),
     enabled: open && !!body,
     retry: false,
   });

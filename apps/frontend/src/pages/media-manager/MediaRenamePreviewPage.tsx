@@ -64,7 +64,17 @@ export function MediaRenamePreviewPage() {
     [libraries, t],
   );
 
-  const buildBody = (): RenameRequest | null => {
+  /**
+   * `dryRun` previews; it is NOT a mode.
+   *
+   * Both calls send the library's REAL mode. Planning a preview under
+   * `mode: 'preview'` resolves destinations differently — it re-roots under the
+   * library path instead of reusing the file's own show folder — so the list on
+   * screen would not be the list Execute produces. `dryRun` keeps the exact
+   * destinations and simply refuses to touch disk. The background organiser has
+   * always done it this way; this screen had not.
+   */
+  const buildBody = (dryRun = false): RenameRequest | null => {
     if (!library || !sourcePath.trim()) return null;
     return {
       path: sourcePath.trim(),
@@ -72,12 +82,13 @@ export function MediaRenamePreviewPage() {
       mode: library.mode,
       libraryPath: library.path,
       template: library.template ?? undefined,
+      ...(dryRun ? { dryRun: true } : {}),
     };
   };
 
   const preview = useMutation({
     mutationFn: () => {
-      const body = buildBody();
+      const body = buildBody(true);
       if (!body) throw new ApiError(400, t('renamePreview.pickFirst'));
       return api.media.preview(body);
     },
