@@ -1,4 +1,4 @@
-import { mapRemoteIds, mapTvdbRecord } from './tvdb-metadata.provider';
+import { TvdbMetadataProvider, mapRemoteIds, mapTvdbRecord } from './tvdb-metadata.provider';
 
 /**
  * The mappers are the part that rots when TVDB renames a field, so they are pure
@@ -133,5 +133,68 @@ describe('mapTvdbRecord', () => {
     expect(d.cast).toEqual([]);
     expect(d.year).toBeUndefined();
     expect(d.externalIds).toEqual({ tvdb: '7' });
+  });
+});
+
+/**
+ * TVDB carried the SAME unguarded `data[0]` that started this whole mess.
+ *
+ * `/search?type=movie` is ranked, not filtered — `year` is a hint — so taking the
+ * first row stamps a popular film's identity onto whatever was asked for. TVDB is
+ * SECOND in the film chain, which makes it worse rather than academic: it answers
+ * precisely when TMDB has already refused, i.e. when the query is least reliable.
+ *
+ * Only the film branch is gated. Television is verified elsewhere, and TVDB is the
+ * stronger television source — a speculative gate there would trade a real bug for
+ * an invented one.
+ */
+function tvdbSearching(rows: any[], extended: any = null) {
+  const provider = new TvdbMetadataProvider('key');
+  (provider as unknown as { request: (p: string) => Promise<any> }).request = async (path: string) =>
+    path.startsWith('/search') ? { data: rows } : { data: extended };
+  return provider;
+}
+
+describe('TvdbMetadataProvider — movie search verification', () => {
+  const mazeRunner = { tvdb_id: '1', name: 'The Maze Runner', year: '2014' };
+
+  it('rejects a wrong-but-ranked film for a short query title', async () => {
+    const provider = tvdbSearching([mazeRunner]);
+    expect(await provider.fetchDetails({ kind: 'movie', title: 'Maze', year: 2017 })).toBeNull();
+  });
+
+  it('rejects a candidate outside the year gate', async () => {
+    const provider = tvdbSearching([{ tvdb_id: '2', name: 'Men in Black', year: '1997' }]);
+    expect(await provider.fetchDetails({ kind: 'movie', title: 'Men', year: 2022 })).toBeNull();
+  });
+
+  it('rejects a tie rather than taking the first of it', async () => {
+    const provider = tvdbSearching([
+      { tvdb_id: '3', name: 'Aladdin', year: '1992' },
+      { tvdb_id: '4', name: 'Aladdin', year: '1992' },
+    ]);
+    expect(await provider.fetchDetails({ kind: 'movie', title: 'Aladdin', year: 1992 })).toBeNull();
+  });
+
+  it('STILL returns a genuine match, and promotes one that is not ranked first', async () => {
+    const provider = tvdbSearching(
+      [mazeRunner, { tvdb_id: '5', name: 'Maze', year: '2017' }],
+      { id: 5, name: 'Maze', year: '2017', first_release: { date: '2017-09-22' } },
+    );
+    const d = await provider.fetchDetails({ kind: 'movie', title: 'Maze', year: 2017 });
+    expect(d).not.toBeNull();
+    expect(d!.externalIds?.tvdb).toBe('5');
+  });
+
+  it('leaves the TELEVISION path taking the first hit', async () => {
+    // Not an oversight: TV identity is gated elsewhere, and TVDB is the strongest
+    // source for it. This pins the deliberate asymmetry so it is not "tidied up".
+    const provider = tvdbSearching(
+      [{ tvdb_id: '9', name: 'Something Else Entirely', year: '1999' }],
+      { id: 9, name: 'Something Else Entirely' },
+    );
+    const d = await provider.fetchDetails({ kind: 'tv', title: 'Game of Thrones', year: 2011 });
+    expect(d).not.toBeNull();
+    expect(d!.externalIds?.tvdb).toBe('9');
   });
 });

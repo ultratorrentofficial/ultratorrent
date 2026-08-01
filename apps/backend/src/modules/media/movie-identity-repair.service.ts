@@ -91,7 +91,7 @@ export interface RepairProposal {
  */
 interface FolderIdentity {
   ids: Record<string, string>;
-  tied: string[];
+  tied: Array<Record<string, string>>;
 }
 
 export interface RepairPlan {
@@ -258,11 +258,18 @@ export class MovieIdentityRepairService {
        * stored id — two items under one folder can hold different ids, and
        * memoising the verdict instead would silently apply the first one's.
        */
+      /*
+       * Matched on ANY provider the two have in common, never on `tmdb` by
+       * assumption: the tied set comes back in whichever id space answered, so
+       * comparing a fixed provider would quietly compare a tmdb id against tvdb
+       * ones and read every candidate as a mismatch.
+       */
       const ambiguousKeep =
         !Object.keys(identity.ids).length &&
         identity.tied.length > 1 &&
-        it.ids.tmdb != null &&
-        identity.tied.includes(it.ids.tmdb);
+        identity.tied.some((cand) =>
+          Object.entries(cand).some(([provider, id]) => it.ids[provider] === id),
+        );
 
       const resolved = ambiguousKeep ? it.ids : identity.ids;
       const changed =

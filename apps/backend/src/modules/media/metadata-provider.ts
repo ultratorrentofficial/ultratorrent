@@ -25,6 +25,100 @@ import { scoreTitleMatch, titleSimilarity, titlesAreSequelVariants } from './imd
  */
 const MOVIE_MATCH_MIN_SCORE = 0.7;
 
+/**
+ * A provider's search result reduced to what the movie gate actually judges.
+ *
+ * `ref` carries the provider's own row back out, so the gate never has to know
+ * TMDB's `release_date` from TVDB's `year`.
+ */
+export interface MovieCandidate<T> {
+  ref: T;
+  /** The candidate's own title — the one it is actually called. */
+  title: string;
+  /** Its original-language or alternate title, when the provider publishes one. */
+  originalTitle?: string;
+  year: number | null;
+}
+
+/**
+ * The films that survive verification, best first — the ONE movie-acceptance rule.
+ *
+ * Shared rather than per-provider because the failure it prevents is not a TMDB
+ * quirk: any search that ranks by popularity will offer a famous long title for a
+ * short query, and any provider taking `results[0]` writes that film's id onto a
+ * different movie. TVDB had the same unguarded `data[0]`.
+ *
+ * Length is the verdict: `0` = no match, `1` = a clean win, `>1` = genuinely
+ * ambiguous. Four independent gates, in order:
+ *
+ *  1. **Year** (±1) — a movie's year is a strong identity signal, so a candidate
+ *     further off is a DIFFERENT film (Aladdin 1992 vs 2019; "Men" 2022 vs "Men
+ *     in Black" 1997) and is dropped before scoring however similar the title.
+ *     ±1 absorbs a festival-vs-wide-release drift.
+ *  2. **Sequel** — the year gate cannot separate a film from its same-year sequel
+ *     ("Ultimate Avengers" vs "Ultimate Avengers 2", both 2006, titles differing
+ *     by one character and scoring ~0.92).
+ *  3. **Threshold** — {@link MOVIE_MATCH_MIN_SCORE}. A weak best writes NO id: a
+ *     movie with no external id is correct-but-incomplete, while a movie with the
+ *     WRONG id corrupts detection, dedup and every downstream lookup.
+ *  4. **Ambiguity** — several survivors are returned rather than silently reduced
+ *     to the first, because "first" means "most popular", which is the ranking
+ *     these gates exist to distrust.
+ */
+export function verifiedMovieMatches<T>(
+  candidates: Array<MovieCandidate<T>>,
+  q: MediaLookup,
+): T[] {
+  let best: { score: number; primary: number } | null = null;
+  let tied: T[] = [];
+
+  for (const c of candidates) {
+    if (q.year != null && c.year != null && Math.abs(q.year - c.year) > 1) continue;
+    const candTitle = c.title || c.originalTitle || '';
+    if (titlesAreSequelVariants(q.title, candTitle)) continue;
+
+    const score = scoreTitleMatch(
+      { title: q.title, year: q.year ?? null, type: 'movie' },
+      {
+        tconst: '',
+        titleType: 'movie',
+        primaryTitle: c.title ?? '',
+        originalTitle: c.originalTitle ?? '',
+        startYear: c.year,
+      },
+    );
+    /*
+     * The tiebreak, applied before a tie is declared: how well the candidate's OWN
+     * title matches, ignoring the original/AKA titles `scoreTitleMatch` also
+     * considers. Those alternates are what recall needs — a folder named for a
+     * foreign film's English title has nothing else to match on — but they are
+     * weaker evidence, and a film that IS called what you asked for beats one
+     * merely known by that name somewhere. It settles "Tom" (2022) in favour of
+     * the film titled "Tom" over "Little Man Tom" (original title "Tom"), and the
+     * same for "The Wall" over Стена and "Memory" over Memoria.
+     */
+    const primary = titleSimilarity(q.title, candTitle);
+    if (!best || score > best.score || (score === best.score && primary > best.primary)) {
+      best = { score, primary };
+      tied = [c.ref];
+    } else if (score === best.score && primary === best.primary) {
+      tied.push(c.ref);
+    }
+  }
+
+  return best && best.score >= MOVIE_MATCH_MIN_SCORE ? tied : [];
+}
+
+/** A TMDB `/search/movie` row in the gate's terms. */
+function tmdbCandidate(r: any): MovieCandidate<any> {
+  return {
+    ref: r,
+    title: r?.title ?? '',
+    originalTitle: r?.original_title ?? '',
+    year: r?.release_date ? Number(String(r.release_date).slice(0, 4)) : null,
+  };
+}
+
 export interface MediaLookup {
   kind: 'tv' | 'anime' | 'movie' | 'music' | 'audiobook' | 'general';
   title: string;
@@ -76,14 +170,19 @@ export interface MediaMetadataProvider {
   /** Rich enrichment used by MediaMetadataService. Null when nothing found. */
   fetchDetails(query: MediaLookup): Promise<MediaMetadataDetails | null>;
   /**
-   * Provider ids that tied for best on a movie query — the films it cannot choose
-   * between — or `[]` when the answer was not ambiguous.
+   * The films that tied for best on a movie query — one external-id map each — or
+   * `[]` when the answer was not ambiguous.
+   *
+   * Id MAPS rather than bare ids so a candidate carries its own namespace: a
+   * caller comparing against a stored identity must not measure a `tmdb` id
+   * against `tvdb` ones, and it is the provider, not the caller, that knows which
+   * it just returned.
    *
    * Optional: a provider that cannot report its ambiguity simply never lets a
    * caller resolve one, which degrades to the safe behaviour (clear the id)
    * rather than to a wrong one.
    */
-  ambiguousMovieIds?(query: MediaLookup): Promise<string[]>;
+  ambiguousMovieIds?(query: MediaLookup): Promise<Array<Record<string, string>>>;
 }
 
 /** Offline provider — returns nothing, so the renamer uses the parsed name. */
@@ -221,17 +320,12 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
   /**
    * Choose the TMDB movie result that actually matches the query, or none.
    *
-   * Scores every result on title similarity + year agreement (reusing the same
-   * `scoreTitleMatch` the manual/IMDb path uses) and returns the best only if it
-   * clears {@link MOVIE_MATCH_MIN_SCORE} AND nothing else ties with it. Returning
-   * null — no match — is the safe outcome: a movie with no external id is
-   * correct-but-incomplete, while a movie with the WRONG id corrupts detection,
-   * dedup and every downstream lookup.
+   * A thin adapter over {@link verifiedMovieMatches}; the rule itself is shared
+   * with TVDB so the two cannot drift apart.
    */
   private pickBestMovie(results: any[], q: MediaLookup): any | null {
-    const ranked = this.rankMovies(results, q);
-    if (!ranked) return null;
-    return ranked.tied.length > 1 ? null : ranked.tied[0];
+    const tied = verifiedMovieMatches(results.map(tmdbCandidate), q);
+    return tied.length === 1 ? tied[0] : null;
   }
 
   /**
@@ -249,89 +343,20 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
    * means "no usable answer" to every existing caller, and this is the rare path
    * (live, 15 folders of 60), so the repeat costs little and the contract nothing.
    */
-  async ambiguousMovieIds(q: MediaLookup): Promise<string[]> {
+  async ambiguousMovieIds(q: MediaLookup): Promise<Array<Record<string, string>>> {
     try {
       const search = await this.get('/search/movie', {
         query: q.title,
         ...(q.year ? { year: String(q.year) } : {}),
       });
-      const ranked = this.rankMovies(search?.results ?? [], q);
-      if (!ranked || ranked.tied.length < 2) return [];
-      return ranked.tied.map((r) => String(r.id));
+      const tied = verifiedMovieMatches<any>((search?.results ?? []).map(tmdbCandidate), q);
+      // Only `tmdb` — the imdb id lives behind a per-candidate `/movie/{id}` call,
+      // and fetching one for every tied film to enrich a set the caller will
+      // mostly reject is a poor trade against a rate-limited API.
+      return tied.length > 1 ? tied.map((r) => ({ tmdb: String(r.id) })) : [];
     } catch {
       return [];
     }
-  }
-
-  /**
-   * Score every result and return the best together with everything tied to it.
-   *
-   * Null when nothing clears {@link MOVIE_MATCH_MIN_SCORE}; otherwise `tied` holds
-   * one entry for a clean win and several for an ambiguous one.
-   */
-  private rankMovies(results: any[], q: MediaLookup): { score: number; tied: any[] } | null {
-    let best: { hit: any; score: number; primary: number } | null = null;
-    /*
-     * The candidates sharing the current best score.
-     *
-     * Without this the threshold is not actually the last word: `score > best.score`
-     * keeps the FIRST of several equal scorers, and TMDB's order is popularity — so
-     * a tie is silently broken by the very ranking `pickBestMovie` exists to distrust.
-     * Live: `/search/movie?query=Tom&year=2022` returns "Little Man Tom" (whose
-     * `original_title` is literally "Tom") ahead of the 2022 film "Tom". Both score
-     * 1.00 — one on its original title, one on its primary — and the popular one won.
-     *
-     * Two films that a title and a year cannot tell apart are not a match, they are a
-     * question, so an ambiguous best is rejected like a weak one. It can cost a real
-     * match when TMDB holds the same film twice, which is the correct trade: a missing
-     * id is repairable by hand, a confidently wrong one is what put three different
-     * films under `tt1790864`.
-     */
-    let tied: any[] = [];
-    for (const r of results) {
-      const yr = r?.release_date ? Number(String(r.release_date).slice(0, 4)) : null;
-      // Hard year gate — the two independent gates the TV path uses: a movie's year
-      // is a strong identity signal, so a candidate more than a year off is a
-      // DIFFERENT film (Aladdin 1992 vs 2019; "Men" 2022 vs "Men in Black" 1997) and
-      // is dropped before scoring, no matter how similar the title. ±1 absorbs a
-      // festival-vs-wide-release drift.
-      if (q.year != null && yr != null && Math.abs(q.year - yr) > 1) continue;
-      // Sequel gate — the year gate cannot separate a film from its same-year
-      // sequel ("Ultimate Avengers" vs "Ultimate Avengers 2", both 2006), whose
-      // titles differ by only "2" and score ~0.92. If the candidate is the same
-      // base title with a different number, it is a different film — drop it.
-      const candTitle = r?.title ?? r?.original_title ?? '';
-      if (titlesAreSequelVariants(q.title, candTitle)) continue;
-      const score = scoreTitleMatch(
-        { title: q.title, year: q.year ?? null, type: 'movie' },
-        {
-          tconst: String(r?.id ?? ''),
-          titleType: 'movie',
-          primaryTitle: r?.title ?? '',
-          originalTitle: r?.original_title ?? '',
-          startYear: Number.isFinite(yr) ? (yr as number) : null,
-        },
-      );
-      /*
-       * The tiebreak, applied before a tie is declared: how well the candidate's
-       * OWN title matches, ignoring the original/AKA titles `scoreTitleMatch`
-       * also considers. Those alternates are what recall needs — a folder named
-       * for a foreign film's English title has nothing else to match on — but
-       * they are weaker evidence, and a film that IS called what you asked for
-       * beats one merely known by that name somewhere. It settles "Tom" (2022)
-       * in favour of the film titled "Tom" over "Little Man Tom" (original title
-       * "Tom"), and the same for "The Wall" over Стена and "Memory" over Memoria.
-       */
-      const primary = titleSimilarity(q.title, candTitle);
-      if (!best || score > best.score || (score === best.score && primary > best.primary)) {
-        best = { hit: r, score, primary };
-        tied = [r];
-      } else if (score === best.score && primary === best.primary) {
-        tied.push(r);
-      }
-    }
-    if (!best || best.score < MOVIE_MATCH_MIN_SCORE) return null;
-    return { score: best.score, tied };
   }
 
   private mapMovie(hit: any, full: any): MediaMetadataDetails {

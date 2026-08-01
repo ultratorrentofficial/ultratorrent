@@ -158,17 +158,19 @@ export class UniversalMetadataProvider implements MediaMetadataProvider {
   }
 
   /**
-   * Ambiguity is NOT composable — it belongs to one provider's id space.
+   * Ambiguity is NOT composable — it is one provider's answer about one query.
    *
-   * Merging two providers' tied sets would produce a list whose members are not
-   * comparable with each other or with any single stored id, so this delegates to
-   * the first provider that can answer, in chain order, rather than combining.
+   * Merging two providers' tied sets would claim more films tied than any single
+   * source actually said, so this delegates to the first provider that reports an
+   * ambiguity, in chain order, rather than combining. Composition is right for
+   * FIELDS, where each provider contributes part of one record; a tie is a verdict,
+   * and verdicts do not merge.
    */
-  async ambiguousMovieIds(query: MediaLookup): Promise<string[]> {
+  async ambiguousMovieIds(query: MediaLookup): Promise<Array<Record<string, string>>> {
     for (const p of this.providers) {
       if (!p.ambiguousMovieIds) continue;
-      const ids = await p.ambiguousMovieIds(query);
-      if (ids.length) return ids;
+      const tied = await p.ambiguousMovieIds(query);
+      if (tied.length) return tied;
     }
     return [];
   }

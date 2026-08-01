@@ -18,11 +18,12 @@
  * when TVDB changes a field name, and they are tested against captured fixtures
  * with no key and no network.
  */
-import type {
-  MediaLookup,
-  MediaMetadata,
-  MediaMetadataDetails,
-  MediaMetadataProvider,
+import {
+  verifiedMovieMatches,
+  type MediaLookup,
+  type MediaMetadata,
+  type MediaMetadataDetails,
+  type MediaMetadataProvider,
 } from './metadata-provider';
 
 /** TVDB's episode-numbering schemes. `default` is aired order. */
@@ -250,11 +251,42 @@ export class TvdbMetadataProvider implements MediaMetadataProvider {
     const params = new URLSearchParams({ query: q.title, type });
     if (q.year) params.set('year', String(q.year));
     const json = await this.request(`/search?${params.toString()}`);
-    const hit = json?.data?.[0];
+    const rows: any[] = Array.isArray(json?.data) ? json.data : [];
+    const hit = q.kind === 'movie' ? this.pickBestMovie(rows, q) : rows[0];
     if (!hit) return null;
     // TVDB search returns `tvdb_id` as a string; the record endpoints want the number.
     const id = hit.tvdb_id ?? hit.id;
     return id ? { ...hit, id: String(id).replace(/^(series|movie)-/, '') } : null;
+  }
+
+  /**
+   * Verify a movie hit instead of trusting `data[0]`.
+   *
+   * TVDB carried the same unguarded `data[0]` that stamped one film's TMDB id
+   * onto three different movies, and it is SECOND in the film chain — so it
+   * answers precisely when TMDB has already declined, which is when the query is
+   * least trustworthy. The rule is `verifiedMovieMatches`, shared with TMDB so the
+   * two gates cannot drift; a tie is no match, exactly as there.
+   *
+   * Only the film branch. Television is verified elsewhere (`ImdbSeriesResolver`
+   * scopes a series id by show + episode), and TVDB is the *stronger* television
+   * source — putting an unproven gate in front of its best answer would trade a
+   * real bug for an invented one.
+   */
+  private pickBestMovie(rows: any[], q: MediaLookup): any | null {
+    const tied = verifiedMovieMatches<any>(
+      rows.map((r) => ({
+        ref: r,
+        title: String(r?.name ?? r?.extended_title ?? ''),
+        // TVDB publishes the original-language name under `translations`, but the
+        // search row carries only a flat alternate list — the closest thing it has
+        // to TMDB's `original_title`.
+        originalTitle: Array.isArray(r?.aliases) ? String(r.aliases[0] ?? '') : undefined,
+        year: r?.year ? Number(r.year) : null,
+      })),
+      q,
+    );
+    return tied.length === 1 ? tied[0] : null;
   }
 
   private async episode(seriesId: string, season: number, episode: number): Promise<any | null> {
