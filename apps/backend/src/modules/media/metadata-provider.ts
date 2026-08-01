@@ -143,7 +143,17 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
           query: q.title,
           ...(q.year ? { year: String(q.year) } : {}),
         });
-        const hit = search?.results?.[0];
+        /*
+         * Verified, exactly as `fetchDetails` verifies — this half was missed when
+         * the Maze Runner fix landed, and `lookup` kept taking `results[0]`.
+         *
+         * It matters more here than it looks: `lookup`'s answer feeds the RENAMER,
+         * where `buildTokens` prefers `meta.year` over the parsed one, so an
+         * unverified hit does not merely mislabel a record — it renames a folder.
+         * `year` is a hint to TMDB, not a filter (it answers `year=2011` with a 1984
+         * film), so the search alone rules nothing out.
+         */
+        const hit = this.pickBestMovie(search?.results ?? [], q);
         if (!hit) return {};
         return {
           movieTitle: hit.title,

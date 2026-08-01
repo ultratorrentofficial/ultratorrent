@@ -384,17 +384,20 @@ export class MediaService {
         : parsed.contentType === 'anime_episode'
           ? 'anime'
           : 'tv';
-    const meta = await this.provider(kind)
-      .then((p) =>
-        p.lookup({
-          kind,
-          title: parsed.title ?? sourceName,
-          year: parsed.year,
-          season: parsed.season,
-          episode: parsed.episode ?? parsed.absoluteEpisode,
-        }),
-      )
-      .catch(() => ({}));
+    // A library show folder identifies itself — see `isShowFolderBatch`.
+    const meta = (await this.isShowFolderBatch(parsed, files))
+      ? {}
+      : await this.provider(kind)
+          .then((p) =>
+            p.lookup({
+              kind,
+              title: parsed.title ?? sourceName,
+              year: parsed.year,
+              season: parsed.season,
+              episode: parsed.episode ?? parsed.absoluteEpisode,
+            }),
+          )
+          .catch(() => ({}));
 
     const [episodeMetaFor, showFolderFor] = await Promise.all([
       this.episodeTitlesFor(files, sourceName),
@@ -412,6 +415,52 @@ export class MediaService {
       episodeMetaFor,
       showFolderFor,
       cleanup: await this.getCleanup(),
+    });
+  }
+
+  /**
+   * Is this batch a library SHOW FOLDER rather than a release?
+   *
+   * A release names its episode in the folder itself
+   * (`Show.S01E05.1080p-GROUP`). A show folder is named `Title (YYYY)` — a bare
+   * year, no `SxxEyy` — and holds files that each name their own episode.
+   *
+   * The distinction decides whether to ask a metadata provider about the batch at
+   * all, and for a show folder the answer is **no**. Both TMDB searches take
+   * `results[0]` with no verification of the series, and `buildTokens` prefers what
+   * they return over the folder's own name (`meta?.seriesTitle ?? parsed.title`,
+   * `meta?.year ?? parsed.year`). So one unverified hit renames a folder the
+   * operator already named, and it went wrong whichever kind was asked for:
+   *
+   *   - as a MOVIE — which is what the bare year makes the folder parse as —
+   *     `All American (2018)` drew the film *American Dreamer* (2019), and every
+   *     episode was planned into a new `All American (2019)/`. On the live library
+   *     664 of 666 show folders carry a year, and a quarter of a 60-folder sample
+   *     drew a film with a different one (`Watchmen (2019)` → the 2009 film,
+   *     `Barry (2018)` → *Barry Lyndon*, `Evil (2019)` → *Evil Dead II*).
+   *   - as a TV SERIES — the "corrected" kind, and no better. `/search/tv` answers
+   *     "Ghosts US" with *Ghosts*, which collides with the UK show's own folder, and
+   *     both `Dark Matter (2015)` and `Dark Matter (2024)` with the 2024 series,
+   *     which merges two distinct shows into one folder.
+   *
+   * Nothing is lost by not asking. The folder name is what the scanner recorded and
+   * what is on disk; episode titles come from the local IMDb dataset via
+   * `episodeTitlesFor`, not from this lookup. A folder carrying no year renders
+   * none, so `{year? ({year})}` collapses and its episodes stay where they are —
+   * the same reasoning that stops `resolveDestination` forking `Show (year)/` into
+   * a bare `Show/`.
+   */
+  private async isShowFolderBatch(
+    parsed: { season: number | null; episode: number | null; absoluteEpisode: number | null },
+    files: MediaFileInput[],
+  ): Promise<boolean> {
+    if (parsed.season != null || parsed.episode != null || parsed.absoluteEpisode != null) {
+      return false; // the batch names an episode — a release
+    }
+    const { parseTorrentName } = await import('./../rss/torrent-name-parser');
+    return files.some((f) => {
+      const p = parseTorrentName(path.basename(f.path));
+      return p.season != null || p.episode != null || p.absoluteEpisode != null;
     });
   }
 

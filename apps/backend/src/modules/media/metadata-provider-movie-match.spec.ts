@@ -123,3 +123,52 @@ describe('TmdbMetadataProvider — movie result verification', () => {
     expect(await provider.fetchDetails({ kind: 'movie', title: 'Nonexistent Film', year: 2030 })).toBeNull();
   });
 });
+
+/**
+ * `lookup` verifies too — the half of the Maze Runner fix that was missed.
+ *
+ * Every test above calls `fetchDetails`, and only `fetchDetails` was given
+ * `pickBestMovie`; `lookup` went on taking `results[0]`. It matters more, not less:
+ * `lookup` feeds the RENAMER, where `buildTokens` prefers `meta.year` over the
+ * parsed one — so an unverified hit does not mislabel a record, it renames a folder.
+ */
+describe('TmdbMetadataProvider.lookup — movie result verification', () => {
+  it('rejects the film that renamed a show folder ("All American" → "American Dreamer")', async () => {
+    // Live: `/search/movie?query=All American&year=2018` returns exactly one result,
+    // the 2019 film "American Dreamer". Its year became the show folder's year.
+    const americanDreamer = {
+      id: 550156, title: 'American Dreamer', original_title: 'American Dreamer', release_date: '2019-09-20',
+    };
+    const provider = providerReturning([americanDreamer]);
+    expect(await provider.lookup({ kind: 'movie', title: 'All American', year: 2018 })).toEqual({});
+  });
+
+  it('rejects a wrong-but-popular film, exactly as fetchDetails does', async () => {
+    const provider = providerReturning([mazeRunner]);
+    expect(await provider.lookup({ kind: 'movie', title: 'Maze', year: 2017 })).toEqual({});
+  });
+
+  it('never reports a year it could not verify', async () => {
+    // The failure mode in one line: a rejected match must yield NO year, not the
+    // wrong one — `meta.year ?? parsed.year` then falls back to the parsed year.
+    const provider = providerReturning([menInBlack]);
+    const meta = await provider.lookup({ kind: 'movie', title: 'Men', year: 2022 });
+    expect(meta.year).toBeUndefined();
+  });
+
+  it('STILL returns the correct film', async () => {
+    const provider = providerReturning([mazeRunner]);
+    expect(await provider.lookup({ kind: 'movie', title: 'The Maze Runner', year: 2014 })).toEqual({
+      movieTitle: 'The Maze Runner',
+      year: 2014,
+    });
+  });
+
+  it('STILL promotes a correct match that is not ranked first', async () => {
+    const exact = { id: 5182124, title: 'Maze', original_title: 'Maze', release_date: '2017-09-22' };
+    const provider = providerReturning([mazeRunner, exact]);
+    const meta = await provider.lookup({ kind: 'movie', title: 'Maze', year: 2017 });
+    expect(meta.movieTitle).toBe('Maze');
+    expect(meta.year).toBe(2017);
+  });
+});
