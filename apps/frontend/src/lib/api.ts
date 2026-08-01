@@ -3447,6 +3447,15 @@ export const api = {
     exportRules(): Promise<RssExportBundle> {
       return request<RssExportBundle>('/rss/rules-export');
     },
+    /**
+     * Export just the chosen rules. A whole-install bundle is large enough to be
+     * refused on import elsewhere, so exporting the handful you actually want to
+     * move is the reliable path rather than the fallback.
+     */
+    exportSelectedRules(ruleIds: string[]): Promise<RssExportBundle> {
+      const qs = `?ruleIds=${encodeURIComponent(ruleIds.join(','))}`;
+      return request<RssExportBundle>(`/rss/rules-export${qs}`);
+    },
     exportFeedRules(feedId: string): Promise<RssExportBundle> {
       return request<RssExportBundle>(`/rss/feeds/${feedId}/rules-export`);
     },

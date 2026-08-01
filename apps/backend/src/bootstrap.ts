@@ -1,6 +1,14 @@
 import 'reflect-metadata';
 import { DynamicModule, Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { json, urlencoded } from 'express';
+
+/**
+ * Ceiling for a JSON request body. Generous enough for the largest thing the UI
+ * legitimately posts (a full rules-bundle export), small enough that it is still
+ * a bound rather than an invitation.
+ */
+const BODY_LIMIT = '25mb';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { INestApplication } from '@nestjs/common';
@@ -72,6 +80,20 @@ export async function createUltraTorrentApp(
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cookieParser());
+  /*
+   * Express defaults JSON bodies to 100 KB, which is far below what this app
+   * legitimately posts. An RSS rules bundle exported from a populated install
+   * carries every rule with its match candidates and comfortably exceeds it —
+   * observed failing at 131 rules — as do cleanup policy documents and
+   * notification templates.
+   *
+   * The failure was also badly disguised: body-parser's PayloadTooLargeError is
+   * not a Nest HttpException, so it surfaced as "500 Internal server error" and
+   * gave the operator nothing to act on. See AllExceptionsFilter, which now
+   * reports it honestly as a 413.
+   */
+  app.use(json({ limit: BODY_LIMIT }));
+  app.use(urlencoded({ limit: BODY_LIMIT, extended: true }));
   app.setGlobalPrefix('api');
   // Closed allow-list only. `?? true` would, if `corsOrigin` were ever undefined,
   // reflect ANY origin with credentials — a credentialed wildcard. `configuration.ts`

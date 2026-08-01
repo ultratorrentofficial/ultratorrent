@@ -522,15 +522,27 @@ export class RssService {
    * imported into a different install. Candidate feed-scope (which references
    * feed ids) is intentionally dropped — it is meaningless across installs.
    */
-  async exportRules(feedId?: string) {
+  async exportRules(opts: { feedId?: string; ruleIds?: string[] } = {}) {
+    const { feedId, ruleIds } = opts;
     if (feedId) {
       const feed = await this.prisma.rssFeed.findUnique({ where: { id: feedId } });
       if (!feed) {
         throw new NotFoundException('Feed not found');
       }
     }
+    /*
+     * Scoping exists because a whole-install bundle is genuinely large: every
+     * rule carries its match candidates, and an export from a populated install
+     * exceeded the request body limit when imported elsewhere. Narrowing at the
+     * source beats raising a ceiling until it stops hurting.
+     */
+    const where = ruleIds?.length
+      ? { id: { in: ruleIds }, ...(feedId ? { feedId } : {}) }
+      : feedId
+        ? { feedId }
+        : undefined;
     const rules = await this.prisma.rssRule.findMany({
-      where: feedId ? { feedId } : undefined,
+      where,
       include: {
         feed: true,
         matchCandidates: { orderBy: { priorityOrder: 'asc' } },
@@ -1973,15 +1985,22 @@ export class RssController {
     return this.rss.deleteRule(id);
   }
 
+  /**
+   * Export rules, optionally scoped. `?ruleIds=a,b,c` narrows to a selection and
+   * `?feedId=` to one feed; both together mean "these rules, and only if they
+   * belong to that feed". Unscoped is still the whole install, which on a
+   * populated one is large enough to refuse on import elsewhere.
+   */
   @Get('rules-export')
   @RequirePermissions(PERMISSIONS.RSS_VIEW)
-  exportRules() {
-    return this.rss.exportRules();
+  exportRules(@Query('feedId') feedId?: string, @Query('ruleIds') ruleIds?: string) {
+    const ids = ruleIds?.split(',').map((v) => v.trim()).filter(Boolean);
+    return this.rss.exportRules({ feedId: feedId || undefined, ruleIds: ids?.length ? ids : undefined });
   }
   @Get('feeds/:id/rules-export')
   @RequirePermissions(PERMISSIONS.RSS_VIEW)
   exportFeedRules(@Param('id') id: string) {
-    return this.rss.exportRules(id);
+    return this.rss.exportRules({ feedId: id });
   }
   @Post('rules-import')
   @RequirePermissions(PERMISSIONS.RSS_MANAGE)

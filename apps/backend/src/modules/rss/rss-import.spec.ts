@@ -188,7 +188,7 @@ describe('RssService.exportRules — per-feed scoping', () => {
   };
 
   it('exports only the requested feed’s rules', async () => {
-    const bundle = await svcWith(prisma).exportRules('fa');
+    const bundle = await svcWith(prisma).exportRules({ feedId: 'fa' });
     expect(bundle.rules).toHaveLength(1);
     expect(bundle.rules[0].name).toBe('Rule A');
     expect(bundle.rules[0].feed.url).toBe('http://a/rss');
@@ -200,6 +200,6 @@ describe('RssService.exportRules — per-feed scoping', () => {
   });
 
   it('rejects an unknown feed id', async () => {
-    await expect(svcWith(prisma).exportRules('nope')).rejects.toThrow(/not found/i);
+    await expect(svcWith(prisma).exportRules({ feedId: 'nope' })).rejects.toThrow(/not found/i);
   });
 });
