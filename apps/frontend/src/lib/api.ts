@@ -1944,6 +1944,38 @@ export interface QuickCleanCandidates {
   cap: number;
 }
 
+/**
+ * One film whose external id is claimed by more than one movie folder, and what
+ * re-identifying it from the FOLDER would produce.
+ *
+ * `current` and `proposed` are provider → id. An empty `proposed` is not "no
+ * change" but a deliberate clear: a wrong id corrupts detection and dedup, and no
+ * id is merely incomplete.
+ */
+export interface MovieIdentityProposal {
+  itemId: string;
+  path: string;
+  folderTitle: string;
+  folderYear: number | null;
+  current: Record<string, string>;
+  proposed: Record<string, string>;
+  action: 'reidentify' | 'clear' | 'unchanged';
+  /** Several real films share this title and year — the row a human should read. */
+  ambiguous: boolean;
+  reason: string;
+}
+
+export interface MovieIdentityPlan {
+  contaminatedIds: number;
+  proposals: MovieIdentityProposal[];
+}
+
+export interface MovieIdentityRepairResult {
+  reidentified: number;
+  cleared: number;
+  unchanged: number;
+}
+
 /** Standardised bulk envelope: a body carrying failures is never a clean run. */
 export interface DuplicateBulkPreview {
   succeeded: number;
@@ -4277,6 +4309,24 @@ export const api = {
     },
     updateCleanup(patch: Partial<MediaCleanupRules>): Promise<MediaCleanupRules> {
       return request<MediaCleanupRules>('/media/settings/cleanup', { method: 'PATCH', body: patch });
+    },
+    // --- movie identity repair ---------------------------------------------
+    /**
+     * Network-bound: one provider call per affected folder. Triggered by the
+     * operator, never polled — hence no refetch interval anywhere it is used.
+     */
+    previewMovieIdentityRepair(): Promise<MovieIdentityPlan> {
+      return request<MovieIdentityPlan>('/media/repair/movie-identity/preview');
+    },
+    /**
+     * Takes no plan. The server re-previews and applies its own findings, so
+     * nothing here can direct which id lands on which item — the whole point of a
+     * repair for damage caused by writing a wrong id.
+     */
+    applyMovieIdentityRepair(): Promise<MovieIdentityRepairResult> {
+      return request<MovieIdentityRepairResult>('/media/repair/movie-identity/apply', {
+        method: 'POST',
+      });
     },
     // --- duplicates -------------------------------------------------------
     quickCleanCandidates(): Promise<QuickCleanCandidates> {

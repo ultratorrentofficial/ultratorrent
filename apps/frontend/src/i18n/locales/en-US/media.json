@@ -337,7 +337,8 @@
       "ignored": "Ignored",
       "resolved": "Resolved",
       "trash": "Trash & Recovery",
-      "quick": "Quick Clean"
+      "quick": "Quick Clean",
+      "identity": "Movie Identity"
     },
     "filter": {
       "search": "Search",
@@ -505,6 +506,38 @@
       "keepingCount_one": "Keeping {{count}} other copy",
       "keepingCount_other": "Keeping {{count}} other copies",
       "confirm": "Delete this copy"
+    },
+    "identity": {
+      "introTitle": "Check movie identities",
+      "introBody": "A film's external ID is what the Duplicate Center groups on. When the same ID sits on two different films, they appear here as one movie in duplicate — and deleting the “duplicate” removes a real film. This re-derives each identity from the folder name, which the renamer never rewrote. It queries your metadata provider once per affected folder, so it runs only when you ask.",
+      "scanBtn": "Scan for contaminated IDs",
+      "rescanBtn": "Scan again",
+      "loadError": "Could not check movie identities.",
+      "cleanTitle": "No contaminated IDs",
+      "cleanBody": "Every movie's external ID is held by its own folder alone. Duplicate groups in Movies can be trusted.",
+      "title": "Contaminated movie identities",
+      "summary": "{{ids}} IDs are shared across different films, affecting {{items}} items. {{changing}} would change.",
+      "applyBtn": "Repair {{count}} identities",
+      "applying": "Repairing…",
+      "confirmBtn": "Yes, repair them",
+      "confirmBody": "This rewrites the identity of {{changing}} items, {{cleared}} of which will be left with no ID at all. It never touches a file.",
+      "clearNote": "{{count}} items will have their ID removed rather than replaced. Nothing verified them, and a wrong ID is worse than none — they stay playable and can be re-identified by hand.",
+      "ambiguousNote": "{{count}} items match several real films that share a title and year. Their stored ID was kept only where it is one of those films; nothing was guessed.",
+      "ambiguousBadge": "Ambiguous",
+      "doneTitle": "Identities repaired",
+      "doneBody": "{{reidentified}} re-identified, {{cleared}} cleared, {{unchanged}} already correct.",
+      "failed": "Could not repair identities",
+      "col": {
+        "folder": "Folder (the trustworthy name)",
+        "current": "Stored now",
+        "proposed": "After repair",
+        "outcome": "Outcome"
+      },
+      "action": {
+        "reidentify": "Re-identify",
+        "clear": "Clear ID",
+        "unchanged": "No change"
+      }
     }
   },
   "renamePreview": {

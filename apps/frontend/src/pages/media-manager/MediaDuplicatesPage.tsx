@@ -35,6 +35,7 @@ import { DuplicateShowsPanel } from './DuplicateShowsPanel';
 import { DuplicateComparison, CompareToggleButton } from './DuplicateComparison';
 import { DuplicateTrashPanel } from './DuplicateTrashPanel';
 import { QuickCleanPanel } from './QuickCleanPanel';
+import { MovieIdentityRepairPanel } from './MovieIdentityRepairPanel';
 
 const DUPES_PAGE_SIZE = 25;
 
@@ -56,6 +57,9 @@ const TABS = [
   { id: 'ignored', filter: { status: 'ignored' } },
   { id: 'resolved', filter: { status: 'resolved' } },
   { id: 'trash', filter: null },
+  // Last, but not an afterthought: it repairs the INPUT the other tabs group on,
+  // so a movie group is only trustworthy once this reports nothing to do.
+  { id: 'identity', filter: null },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -259,6 +263,8 @@ export function MediaDuplicatesPage() {
           <TabsContent key={x.id} value={x.id} className="space-y-4">
             {x.id === 'quick' ? (
               <QuickCleanPanel />
+            ) : x.id === 'identity' ? (
+              <MovieIdentityRepairPanel />
             ) : x.id === 'trash' ? (
               <DuplicateTrashPanel />
             ) : x.filter == null ? (

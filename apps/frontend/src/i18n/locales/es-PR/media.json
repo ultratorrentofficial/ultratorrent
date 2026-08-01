@@ -337,7 +337,8 @@
       "ignored": "Ignorados",
       "resolved": "Resueltos",
       "trash": "Papelera y recuperación",
-      "quick": "Limpieza rápida"
+      "quick": "Limpieza rápida",
+      "identity": "Identidad de películas"
     },
     "filter": {
       "search": "Buscar",
@@ -505,6 +506,38 @@
       "keepingCount_one": "Se conserva {{count}} copia más",
       "keepingCount_other": "Se conservan {{count}} copias más",
       "confirm": "Eliminar esta copia"
+    },
+    "identity": {
+      "introTitle": "Revisar identidades de películas",
+      "introBody": "El ID externo de una película es lo que agrupa el Centro de Duplicados. Cuando el mismo ID está en dos películas distintas, aparecen aquí como una sola película duplicada, y borrar el “duplicado” elimina una película real. Esto vuelve a deducir cada identidad del nombre de la carpeta, que el renombrador nunca reescribió. Consulta tu proveedor de metadatos una vez por carpeta afectada, así que solo se ejecuta cuando tú lo pides.",
+      "scanBtn": "Buscar IDs contaminados",
+      "rescanBtn": "Buscar de nuevo",
+      "loadError": "No se pudieron revisar las identidades de las películas.",
+      "cleanTitle": "No hay IDs contaminados",
+      "cleanBody": "El ID externo de cada película pertenece solo a su propia carpeta. Se puede confiar en los grupos de duplicados en Películas.",
+      "title": "Identidades de películas contaminadas",
+      "summary": "{{ids}} IDs se comparten entre películas distintas y afectan a {{items}} elementos. {{changing}} cambiarían.",
+      "applyBtn": "Reparar {{count}} identidades",
+      "applying": "Reparando…",
+      "confirmBtn": "Sí, repararlas",
+      "confirmBody": "Esto reescribe la identidad de {{changing}} elementos, de los cuales {{cleared}} quedarán sin ningún ID. Nunca toca un archivo.",
+      "clearNote": "A {{count}} elementos se les quitará el ID en lugar de reemplazarlo. Nada los verificó, y un ID equivocado es peor que ninguno: siguen reproduciéndose y se pueden identificar a mano.",
+      "ambiguousNote": "{{count}} elementos coinciden con varias películas reales que comparten título y año. Su ID guardado se conservó solo cuando es una de esas películas; no se adivinó nada.",
+      "ambiguousBadge": "Ambiguo",
+      "doneTitle": "Identidades reparadas",
+      "doneBody": "{{reidentified}} reidentificadas, {{cleared}} borradas, {{unchanged}} ya correctas.",
+      "failed": "No se pudieron reparar las identidades",
+      "col": {
+        "folder": "Carpeta (el nombre confiable)",
+        "current": "Guardado ahora",
+        "proposed": "Tras la reparación",
+        "outcome": "Resultado"
+      },
+      "action": {
+        "reidentify": "Reidentificar",
+        "clear": "Borrar ID",
+        "unchanged": "Sin cambios"
+      }
     }
   },
   "renamePreview": {
