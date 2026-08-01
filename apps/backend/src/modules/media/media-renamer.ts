@@ -326,12 +326,39 @@ interface TemplateTokens {
 }
 
 /**
+ * Only the TEMPLATE may create directories — never a token's value.
+ *
+ * `renderTemplate` interpolates values into one string and *then* splits it on
+ * `/` to get path segments, so a separator inside a value is indistinguishable
+ * from one the template author wrote. A film whose title genuinely contains a
+ * slash — `Face/Off`, `Mother/Android`, `Frost/Nixon` — therefore rendered FOUR
+ * segments where the template asked for two:
+ *
+ *   Face/Off (1997)/Face/Off (1997) - 1080p.mp4
+ *
+ * and the file landed several directories deep. Worse, it compounds: each run
+ * re-derives the title from the now-nested path and buries it one level
+ * further. On the live library one had been re-nested four times.
+ *
+ * `sanitizeSegment` already turns `Face/Off` into `Face Off` — it lists `/`
+ * among the illegal characters — but it never got the chance, because the split
+ * happened first. Neutralising here, at substitution, is what makes that
+ * existing rule reachable. A space (not a dash) keeps it identical to what
+ * `sanitizeSegment` would have produced had the value arrived in one piece.
+ */
+function neutralizeSeparators(value: string): string {
+  return value.replace(/[\\/]/g, ' ');
+}
+
+/**
  * Render a naming template. Supports `{Token}`, numeric padding `{Token:00}`,
  * and optional segments `{cond?literal{Token:00}}` that render only when the
  * referenced token is present.
  */
 export function renderTemplate(template: string, tokens: TemplateTokens): string {
   // Optional segments: {name?...} — emitted only if `name` token is truthy.
+  // `inner` is TEMPLATE text, so any `/` in it is the author's and is left alone;
+  // the tokens it contains are substituted (and neutralised) by the pass below.
   let out = template.replace(/\{(\w+)\?([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, (_m, name, inner) => {
     const present = tokens[name] !== undefined && tokens[name] !== '' && tokens[name] !== null;
     return present ? inner : '';
@@ -343,7 +370,7 @@ export function renderTemplate(template: string, tokens: TemplateTokens): string
     const val = tokens[name];
     if (val === undefined || val === null || val === '') return '';
     if (width) return pad(val as number, String(width).length);
-    return String(val);
+    return neutralizeSeparators(String(val));
   });
 
   // Sanitize each path segment, drop empties, tidy separators left by missing tokens.
