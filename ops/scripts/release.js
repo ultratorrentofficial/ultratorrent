@@ -150,6 +150,26 @@ fs.writeFileSync(rootPkgPath, rootPkgTxt.replace(/("version"\s*:\s*")[^"]*(")/, 
 console.log('Updating CHANGELOG.md…');
 prependChangelog(next, pending);
 
+/*
+ * Which consumed changesets does git actually track?
+ *
+ * Asked BEFORE they are deleted, and it decides what the `--no-git` finish hint
+ * can name. `git add` is atomic across its pathspecs: one path git has never
+ * seen aborts the WHOLE command, so a single never-committed changeset would
+ * leave every version file unstaged — and the operator, having pasted one
+ * command, sees a release that silently staged nothing. A changeset authored and
+ * consumed without ever being committed is exactly that case.
+ */
+const trackedPending = (() => {
+  try {
+    const out = execFileSync('git', ['ls-files', '--', CHANGESET_DIR], { cwd: ROOT, encoding: 'utf8' });
+    const tracked = new Set(out.split('\n').map((l) => path.basename(l.trim())).filter(Boolean));
+    return pending.filter((c) => tracked.has(c.file));
+  } catch {
+    return []; // not a git checkout, or git unavailable — name none rather than a bad path
+  }
+})();
+
 // 3) Delete the consumed changesets.
 for (const c of pending) fs.unlinkSync(path.join(CHANGESET_DIR, c.file));
 console.log(`Consumed ${pending.length} changeset(s).`);
@@ -162,9 +182,46 @@ const tag = `v${bumped}`;
 console.log(`\n✓ Bumped ${cur} → ${bumped}.`);
 
 if (noGit) {
+  /*
+   * The finish hint must NOT use `git commit -a`.
+   *
+   * `--no-git` exists precisely because the finalize branch below runs
+   * `git commit -a`, which stages every tracked modification — including any
+   * work-in-progress in a shared tree — and pushes it. Printing `git commit -am`
+   * here handed that same footgun straight back to whoever passed the flag to
+   * avoid it, which is worse than useless: it reads as the sanctioned way to
+   *
+   * The satellite list mirrors `targets` in sync-versions.js. `git status --short`
+   * comes first so that if that list ever grows, the operator SEES the unstaged
+   * file rather than shipping a release commit that is missing it.
+   */
+  const staged = [
+    'package.json',
+    'CHANGELOG.md',
+    // satellites — keep in step with `targets` in ops/scripts/sync-versions.js
+    'apps/backend/package.json',
+    'apps/frontend/package.json',
+    'packages/shared/package.json',
+    'version.json',
+    'VERSION',
+    'packages/shared/VERSION',
+    // the changesets just consumed (deleted — `git add <path>` records the removal).
+    // Only the tracked ones: see `trackedPending`.
+    ...trackedPending.map((c) => `.changeset/${c.file}`),
+  ];
+  const untracked = pending.length - trackedPending.length;
   console.log('Skipped git finalize (--no-git). To finish:');
-  console.log(`  git commit -am "release: ${tag}" && git tag ${tag}`);
+  console.log('  git status --short        # confirm nothing unexpected is modified');
+  console.log(`  git add ${staged.join(' \\\n          ')}`);
+  console.log(`  git commit -m "release: ${tag}" && git tag ${tag}`);
   console.log(`  git push origin HEAD && git push origin ${tag}`);
+  console.log('\n  Stage by explicit path — never `-a`, which would sweep unrelated');
+  if (untracked > 0) {
+    console.log(
+      `\n  Note: ${untracked} consumed changeset(s) were never committed, so they are`,
+    );
+    console.log('  not listed above — git has no record of them to stage.');
+  }
 } else {
   const git = (args) => execFileSync('git', args, { cwd: ROOT, stdio: 'inherit' });
   const gitCap = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();
