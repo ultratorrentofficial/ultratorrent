@@ -1207,7 +1207,7 @@ export class RssService {
       // .torrent URL that points at one host and can 404.
       const magnet = rule.autoDownload ? await magnetFor(h) : h.magnet;
       const dl = magnet || h.link;
-      const infoHash = this.extractInfoHash(magnet);
+      const infoHash = this.extractInfoHash(magnet, h.link);
       if (rule.autoDownload && dl) {
         // Same dedup/upgrade decision as polling: skip info-hash duplicates,
         // hold one release per title, upgrade to a higher-priority release.
@@ -1490,10 +1490,31 @@ export class RssService {
    * `.torrent` URL's hash can't be known without fetching it). Base32 hashes are
    * left as-is — trackers that publish magnets (YTS et al.) use 40-char hex.
    */
-  private extractInfoHash(magnet: string | null): string | null {
-    if (!magnet) return null;
-    const m = /xt=urn:btih:([a-z0-9]+)/i.exec(magnet);
-    return m ? m[1].toLowerCase() : null;
+  /**
+   * The info-hash for a feed item, from the magnet if there is one and from the
+   * download link if there is not.
+   *
+   * Plenty of feeds publish only a `.torrent` URL, and several put the hash in
+   * it — YTS links are literally `/torrent/download/<40 hex>`. Reading the magnet
+   * alone left those items with a NULL hash, and a NULL hash is invisible to the
+   * duplicate check: it looks up `WHERE infoHash = <value>`, and null equals
+   * nothing. Measured on a live install, 96 of 351 downloaded rows had no hash —
+   * 27% of the dedup memory blind — and one of them re-downloaded 18 days later.
+   *
+   * A bare 40-hex token is the only thing accepted from a link. That is what a
+   * v1 info-hash is, and requiring the full length keeps it from matching an id
+   * or a tracking parameter that happens to be hexadecimal.
+   */
+  private extractInfoHash(magnet: string | null, link?: string | null): string | null {
+    if (magnet) {
+      const m = /xt=urn:btih:([a-z0-9]+)/i.exec(magnet);
+      if (m) return m[1].toLowerCase();
+    }
+    if (link) {
+      const m = /(?:^|[^a-f0-9])([a-f0-9]{40})(?:[^a-f0-9]|$)/i.exec(link);
+      if (m) return m[1].toLowerCase();
+    }
+    return null;
   }
 
   /**
@@ -1714,6 +1735,9 @@ export class RssService {
 
       let downloaded = false; // at most one download per item across all rules
       let anyMatch = false;
+      // The engine's hash for whichever rule actually grabbed this item. Lives at
+      // ITEM scope because history is written once per item, after the rule loop.
+      let grabbedHash: string | null = null;
 
       for (const rule of rules) {
         const candidates = (rule.matchCandidates ?? []).map((c) =>
@@ -1754,6 +1778,7 @@ export class RssService {
             });
             action = grab.action;
             torrentHash = grab.torrentHash;
+            if (grab.torrentHash) grabbedHash = grab.torrentHash;
             if (grab.action === 'download') downloaded = true;
           }
         }
@@ -1774,7 +1799,22 @@ export class RssService {
       }
 
       await this.prisma.rssHistory.create({
-        data: { feedId: feed.id, itemGuid: guid, title, link, magnet, infoHash, matched: anyMatch, downloaded },
+        data: {
+          feedId: feed.id,
+          itemGuid: guid,
+          title,
+          link,
+          magnet,
+          /*
+           * The engine's hash is authoritative and beats anything parsed: it is
+           * what the torrent actually IS, whatever the feed chose to publish.
+           * Recording it means the duplicate check can see this grab later even
+           * when the item carried neither a magnet nor a hash in its link.
+           */
+          infoHash: infoHash ?? grabbedHash,
+          matched: anyMatch,
+          downloaded,
+        },
       });
       newItems += 1;
       if (downloaded) grabbed += 1;
