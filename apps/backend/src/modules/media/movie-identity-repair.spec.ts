@@ -36,7 +36,12 @@ const CLEAN = [
   { provider: 'imdb', externalId: 'tt0468569', itemId: 'z', item: { path: '/m/Movies/HD Movies/The Dark Knight (2008)/The Dark Knight (2008) - 1080p.mp4' } },
 ];
 
-function build(rows: typeof MAZE, resolver: (title: string, year: number | null) => Record<string, string>) {
+function build(
+  rows: typeof MAZE,
+  resolver: (title: string, year: number | null) => Record<string, string>,
+  /** title -> the tmdb ids that tied, for the ambiguous cases. */
+  ties: (title: string) => string[] = () => [],
+) {
   const deleted: string[] = [];
   const created: Array<{ itemId: string; provider: string; externalId: string }> = [];
   const prisma = {
@@ -50,9 +55,10 @@ function build(rows: typeof MAZE, resolver: (title: string, year: number | null)
     const ids = resolver(q.title, q.year);
     return Object.keys(ids).length ? { externalIds: ids } : null;
   });
-  const providers = { chain: jest.fn(async () => [{ name: 'tmdb', fetchDetails }]) };
+  const ambiguousMovieIds = jest.fn(async (q: { title: string }) => ties(q.title));
+  const providers = { chain: jest.fn(async () => [{ name: 'tmdb', fetchDetails, ambiguousMovieIds }]) };
   const svc = new MovieIdentityRepairService(prisma as never, providers as never);
-  return { svc, deleted, created, fetchDetails };
+  return { svc, deleted, created, fetchDetails, ambiguousMovieIds };
 }
 
 /** Correct answers for the three real films. */
@@ -73,6 +79,29 @@ describe('detecting contamination', () => {
   it('leaves an id held by a single folder alone', async () => {
     const { svc } = build(CLEAN as never, truth);
     expect(await svc.contaminated()).toHaveLength(0);
+  });
+
+  it("reports an implicated item's COMPLETE identity, not just the colliding id", async () => {
+    // `apply` replaces an item's ids wholesale, so an id omitted here is an id
+    // deleted. Item 'b' collides on imdb only; its tmdb id must survive the trip.
+    const rows = MAZE.map((r) =>
+      r.itemId === 'b' && r.provider === 'tmdb' ? { ...r, externalId: 'private-to-b' } : r,
+    );
+    const { svc } = build(rows, truth);
+    const b = (await svc.contaminated()).find((i) => i.itemId === 'b')!;
+    expect(b.ids).toEqual({ imdb: 'tt1790864', tmdb: 'private-to-b' });
+    // …but only the genuinely colliding id is counted as contamination.
+    expect(b.guilty).toEqual(['imdb']);
+  });
+
+  it('counts the colliding ids only', async () => {
+    const rows = MAZE.map((r) =>
+      r.itemId === 'b' && r.provider === 'tmdb' ? { ...r, externalId: 'private-to-b' } : r,
+    );
+    const { svc } = build(rows, truth);
+    // imdb tt1790864 (3 folders) and tmdb 198663 (2 folders) — 'private-to-b' is
+    // held by one folder and must not inflate the total.
+    expect((await svc.preview()).contaminatedIds).toBe(2);
   });
 
   it('reads identity from the FOLDER, never the filename', async () => {
@@ -185,6 +214,117 @@ describe('proposing the repair', () => {
     await svc.preview();
     expect(deleted).toHaveLength(0);
     expect(created).toHaveLength(0);
+  });
+});
+
+/**
+ * A tie is several answers, not none.
+ *
+ * "Cannot verify" hides two situations that deserve opposite treatment. A blank
+ * says the stored id is unsupported. A tie — TMDB genuinely holds three different
+ * `Aladdin (1992)` and five different `Run (2020)` — says the query is not
+ * specific enough to choose, which is no evidence against the id already there.
+ * Measured live, every stored id that appeared in its own tied set was the right
+ * film and every one that did not was the contaminant.
+ */
+describe('an ambiguous folder', () => {
+  /** "Maze" ties between three films; 'b' currently holds the first of them. */
+  const TIED = ['tt5182124', 'tt9999991', 'tt9999992'];
+  const tmdbTied = ['5182124', '9999991', '9999992'];
+  const nothingVerifies = (t: string) => (t === 'Maze' ? {} : truth(t));
+
+  it('KEEPS the stored id when it is one of the tied films', async () => {
+    // 'b' holds tmdb 198663 — not in the tied set — so start it on a tied id.
+    const rows = MAZE.map((r) =>
+      r.itemId === 'b' && r.provider === 'tmdb' ? { ...r, externalId: '5182124' } : r,
+    );
+    const { svc } = build(rows, nothingVerifies, (t) => (t === 'Maze' ? tmdbTied : []));
+    const { proposals } = await svc.preview();
+    const maze = proposals.find((p) => p.folderTitle === 'Maze')!;
+    expect(maze.action).toBe('unchanged');
+    expect(maze.proposed).toEqual(maze.current);
+    expect(maze.ambiguous).toBe(true);
+    expect(maze.reason).toMatch(/stored id is one of them/);
+  });
+
+  it('CLEARS when the stored id is not among the tied films', async () => {
+    // The live shape: "The Dark (2018)" ties between two real films and holds
+    // The Dark Knight's id, which is neither of them.
+    const { svc } = build(MAZE, nothingVerifies, (t) => (t === 'Maze' ? tmdbTied : []));
+    const { proposals } = await svc.preview();
+    const maze = proposals.find((p) => p.folderTitle === 'Maze')!;
+    expect(maze.action).toBe('clear');
+    expect(maze.proposed).toEqual({});
+    expect(maze.ambiguous).toBe(true);
+    expect(maze.reason).toMatch(/none is the stored id/);
+  });
+
+  it('still clears on a genuine blank, which is not a tie', async () => {
+    const { svc } = build(MAZE, nothingVerifies);
+    const { proposals } = await svc.preview();
+    const maze = proposals.find((p) => p.folderTitle === 'Maze')!;
+    expect(maze.action).toBe('clear');
+    expect(maze.ambiguous).toBe(false);
+    expect(maze.reason).toMatch(/worse than none/);
+  });
+
+  it('does not ask about ambiguity when the folder resolved cleanly', async () => {
+    // The second question costs a second search, so it must stay on the rare path.
+    const { svc, ambiguousMovieIds } = build(MAZE, truth);
+    await svc.preview();
+    expect(ambiguousMovieIds).not.toHaveBeenCalled();
+  });
+
+  it("weighs each item's OWN id, not the first one under the folder", async () => {
+    // Two items share the "Maze" folder. Both are implicated by the shared imdb
+    // id, but their tmdb ids differ: b2's is one of the tied films, b's is not.
+    // Memoising the verdict rather than the provider answer would apply the first
+    // item's outcome to both.
+    const rows = [
+      ...MAZE,
+      { provider: 'imdb', externalId: 'tt1790864', itemId: 'b2', item: { path: MAZE[2].item.path } },
+      { provider: 'tmdb', externalId: '5182124', itemId: 'b2', item: { path: MAZE[2].item.path } },
+    ];
+    const { svc } = build(rows as never, nothingVerifies, (t) => (t === 'Maze' ? tmdbTied : []));
+    const { proposals } = await svc.preview();
+    const byItem = Object.fromEntries(proposals.map((p) => [p.itemId, p]));
+    expect(byItem['b'].action).toBe('clear');       // holds 198663 — not tied
+    expect(byItem['b2'].action).toBe('unchanged');  // holds 5182124 — tied
+  });
+
+  it('leaves a lone candidate alone — one is not a tie', async () => {
+    const { svc } = build(MAZE, nothingVerifies, (t) => (t === 'Maze' ? ['5182124'] : []));
+    const { proposals } = await svc.preview();
+    const maze = proposals.find((p) => p.folderTitle === 'Maze')!;
+    expect(maze.ambiguous).toBe(false);
+    expect(maze.action).toBe('clear');
+  });
+
+  it('survives a provider that cannot report ambiguity at all', async () => {
+    // The optional method is absent — degrade to clearing, never to guessing.
+    const prisma = {
+      mediaExternalId: {
+        findMany: jest.fn(async () => MAZE),
+        deleteMany: jest.fn(async () => ({ count: 1 })),
+        create: jest.fn(async ({ data }: any) => data),
+      },
+    };
+    const providers = {
+      chain: jest.fn(async () => [{ name: 'legacy', fetchDetails: jest.fn(async () => null) }]),
+    };
+    const svc = new MovieIdentityRepairService(prisma as never, providers as never);
+    const { proposals } = await svc.preview();
+    expect(proposals.every((p) => p.action === 'clear')).toBe(true);
+  });
+
+  it('does not resurrect a TIE as a keep when the ids disagree on provider', async () => {
+    // The tied set is TMDB's id space. An item carrying only an imdb id has
+    // nothing comparable in it, so it must not be kept on a coincidence.
+    const rows = MAZE.filter((r) => !(r.itemId === 'b' && r.provider === 'tmdb'));
+    const { svc } = build(rows, nothingVerifies, (t) => (t === 'Maze' ? TIED : []));
+    const { proposals } = await svc.preview();
+    const maze = proposals.find((p) => p.folderTitle === 'Maze')!;
+    expect(maze.action).toBe('clear');
   });
 });
 

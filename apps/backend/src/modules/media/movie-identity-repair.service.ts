@@ -33,6 +33,18 @@ import { MetadataProviderRegistry } from './metadata-provider-registry.service';
  *    does for TV, where one episode id claimed by two show folders is deleted
  *    from both.
  *
+ * With one refinement, because "cannot verify" hides two different situations. A
+ * BLANK — nothing matched — says the stored id is unsupported, so it goes. A TIE
+ * — several real films share the title and year (TMDB holds three different
+ * `Aladdin (1992)` and five different `Run (2020)`) — says the query is not
+ * specific enough to choose, which is not evidence against the id already stored.
+ * So when the stored id is one of the tied films it is KEPT, and cleared only
+ * when it is not among them. Measured over the live contaminated set the split
+ * was clean: every stored id that appeared in its tied set was the right film,
+ * and every one that did not was the contaminant. Nothing is guessed either way —
+ * the alternative, breaking the tie by popularity, is the exact reflex that
+ * caused this corruption.
+ *
  * Deliberately identity-only. Once the ids are right the ordinary rename flow
  * produces correct filenames, so this service never touches a file — which keeps
  * a repair that can be re-run and reviewed separate from one that moves bytes.
@@ -62,8 +74,24 @@ export interface RepairProposal {
   /** Provider → id after re-identification. Empty means "drop what is there". */
   proposed: Record<string, string>;
   action: 'reidentify' | 'clear' | 'unchanged';
+  /**
+   * Several real films share this folder's title and year, so the identity rests
+   * on the stored id being one of them rather than on a verified match. Surfaced
+   * because it is the one class of proposal a human should look at.
+   */
+  ambiguous: boolean;
   /** Why, in one line, for the preview table. */
   reason: string;
+}
+
+/**
+ * A folder's identity as the providers see it: what verified, or — when nothing
+ * did — the several films that tied. The two are exclusive; `tied` is only
+ * populated when `ids` is empty, because a clean win leaves no question open.
+ */
+interface FolderIdentity {
+  ids: Record<string, string>;
+  tied: string[];
 }
 
 export interface RepairPlan {
@@ -154,8 +182,17 @@ export class MovieIdentityRepairService {
    * colliding partner is not detected here — it is indistinguishable from a
    * correct one without asking a provider about every film in the library, which
    * is a far bigger and far more network-expensive sweep.
+   *
+   * A shared id SELECTS the item, but the `ids` returned are the item's COMPLETE
+   * identity, contaminated or not. Two reasons, and both are bugs if it returns
+   * only the guilty subset: `apply` replaces an item's ids wholesale, so a clean
+   * id omitted here would be deleted along with the wrong one; and the tie check
+   * compares against the stored tmdb id, which is unavailable if only the imdb
+   * row happened to collide.
    */
-  async contaminated(): Promise<Array<{ itemId: string; path: string; ids: Record<string, string> }>> {
+  async contaminated(): Promise<
+    Array<{ itemId: string; path: string; ids: Record<string, string>; guilty: string[] }>
+  > {
     const rows = await this.prisma.mediaExternalId.findMany({
       where: { item: { path: { contains: '/Movies/' } } },
       select: { provider: true, externalId: true, itemId: true, item: { select: { path: true } } },
@@ -170,13 +207,25 @@ export class MovieIdentityRepairService {
     }
     const bad = new Set([...folders.entries()].filter(([, f]) => f.size > 1).map(([k]) => k));
 
-    const byItem = new Map<string, { itemId: string; path: string; ids: Record<string, string> }>();
+    // Which items are implicated, then EVERY id each of them holds.
+    const implicated = new Set(
+      rows.filter((r) => bad.has(`${r.provider}|${r.externalId}`)).map((r) => r.itemId),
+    );
+    const byItem = new Map<
+      string,
+      { itemId: string; path: string; ids: Record<string, string>; guilty: string[] }
+    >();
     for (const r of rows) {
-      if (!bad.has(`${r.provider}|${r.externalId}`)) continue;
+      if (!implicated.has(r.itemId)) continue;
       if (!byItem.has(r.itemId)) {
-        byItem.set(r.itemId, { itemId: r.itemId, path: r.item.path, ids: {} });
+        byItem.set(r.itemId, { itemId: r.itemId, path: r.item.path, ids: {}, guilty: [] });
       }
-      byItem.get(r.itemId)!.ids[r.provider] = r.externalId;
+      const entry = byItem.get(r.itemId)!;
+      entry.ids[r.provider] = r.externalId;
+      // `guilty` names the ids that actually collide, which `ids` deliberately no
+      // longer distinguishes — the reported contamination count needs the guilty
+      // ones only, or an item's clean id would inflate it.
+      if (bad.has(`${r.provider}|${r.externalId}`)) entry.guilty.push(r.provider);
     }
     return [...byItem.values()];
   }
@@ -190,19 +239,32 @@ export class MovieIdentityRepairService {
    */
   async preview(): Promise<RepairPlan> {
     const items = await this.contaminated();
-    const seen = new Map<string, Record<string, string>>();
+    const seen = new Map<string, FolderIdentity>();
     const proposals: RepairProposal[] = [];
 
     for (const it of items) {
       const folder = this.folderOf(it.path);
       const { title, year } = this.parseFolder(folder);
 
-      let resolved = seen.get(folder);
-      if (resolved === undefined) {
-        resolved = await this.resolve(title, year);
-        seen.set(folder, resolved);
+      let identity = seen.get(folder);
+      if (identity === undefined) {
+        identity = await this.resolve(title, year);
+        seen.set(folder, identity);
       }
 
+      /*
+       * The provider's answer is a property of the FOLDER, so it is memoised. The
+       * decision below is a property of the ITEM, because it weighs that item's
+       * stored id — two items under one folder can hold different ids, and
+       * memoising the verdict instead would silently apply the first one's.
+       */
+      const ambiguousKeep =
+        !Object.keys(identity.ids).length &&
+        identity.tied.length > 1 &&
+        it.ids.tmdb != null &&
+        identity.tied.includes(it.ids.tmdb);
+
+      const resolved = ambiguousKeep ? it.ids : identity.ids;
       const changed =
         Object.keys(resolved).length !== Object.keys(it.ids).length ||
         Object.entries(resolved).some(([p, v]) => it.ids[p] !== v);
@@ -214,37 +276,55 @@ export class MovieIdentityRepairService {
         folderYear: year,
         current: it.ids,
         proposed: resolved,
+        ambiguous: identity.tied.length > 1,
         action: !changed ? 'unchanged' : Object.keys(resolved).length ? 'reidentify' : 'clear',
-        reason: !changed
-          ? 'already correct'
-          : Object.keys(resolved).length
-            ? `verified as "${title}"${year ? ` (${year})` : ''}`
-            : 'no verified match — a wrong id is worse than none',
+        reason: ambiguousKeep
+          ? `${identity.tied.length} films share this title and year; the stored id is one of them — kept`
+          : !changed
+            ? 'already correct'
+            : Object.keys(resolved).length
+              ? `verified as "${title}"${year ? ` (${year})` : ''}`
+              : identity.tied.length > 1
+                ? `${identity.tied.length} films share this title and year and none is the stored id — cleared`
+                : 'no verified match — a wrong id is worse than none',
       });
     }
 
     const contaminatedIds = new Set(
-      items.flatMap((i) => Object.entries(i.ids).map(([p, v]) => `${p}|${v}`)),
+      items.flatMap((i) => i.guilty.map((p) => `${p}|${i.ids[p]}`)),
     ).size;
     return { contaminatedIds, proposals };
   }
 
-  /** Ask the provider chain, through the verification gate, for a folder's identity. */
-  private async resolve(title: string, year: number | null): Promise<Record<string, string>> {
+  /**
+   * Ask the provider chain, through the verification gate, for a folder's identity.
+   *
+   * When nothing verifies, ask the SECOND question before giving up: was that a
+   * blank or a tie? A tie is not the absence of an answer, it is several — and a
+   * caller holding one of those candidates already has the evidence needed to
+   * choose. Only asked when the first question came back empty, so an unambiguous
+   * folder still costs exactly one lookup.
+   */
+  private async resolve(title: string, year: number | null): Promise<FolderIdentity> {
+    const query = { kind: 'movie' as const, title, year };
     try {
       const chain = await this.providers.chain('movie');
       for (const provider of chain) {
-        const details = await provider.fetchDetails({ kind: 'movie', title, year });
+        const details = await provider.fetchDetails(query);
         // `fetchDetails` returns null when nothing clears the title+year gate —
         // that null is the whole point, so it must not be papered over.
         if (details?.externalIds && Object.keys(details.externalIds).length) {
-          return details.externalIds;
+          return { ids: details.externalIds, tied: [] };
         }
+      }
+      for (const provider of chain) {
+        const tied = (await provider.ambiguousMovieIds?.(query)) ?? [];
+        if (tied.length > 1) return { ids: {}, tied };
       }
     } catch (err) {
       this.logger.warn(`Re-identify failed for "${title}": ${(err as Error).message}`);
     }
-    return {};
+    return { ids: {}, tied: [] };
   }
 
   /**

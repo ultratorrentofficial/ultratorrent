@@ -75,6 +75,15 @@ export interface MediaMetadataProvider {
   lookup(query: MediaLookup): Promise<MediaMetadata>;
   /** Rich enrichment used by MediaMetadataService. Null when nothing found. */
   fetchDetails(query: MediaLookup): Promise<MediaMetadataDetails | null>;
+  /**
+   * Provider ids that tied for best on a movie query — the films it cannot choose
+   * between — or `[]` when the answer was not ambiguous.
+   *
+   * Optional: a provider that cannot report its ambiguity simply never lets a
+   * caller resolve one, which degrades to the safe behaviour (clear the id)
+   * rather than to a wrong one.
+   */
+  ambiguousMovieIds?(query: MediaLookup): Promise<string[]>;
 }
 
 /** Offline provider — returns nothing, so the renamer uses the parsed name. */
@@ -220,9 +229,50 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
    * dedup and every downstream lookup.
    */
   private pickBestMovie(results: any[], q: MediaLookup): any | null {
+    const ranked = this.rankMovies(results, q);
+    if (!ranked) return null;
+    return ranked.tied.length > 1 ? null : ranked.tied[0];
+  }
+
+  /**
+   * The TMDB ids that tied for best — the films this query cannot choose between.
+   *
+   * Empty unless the answer was genuinely ambiguous: no candidates, a weak best,
+   * and a clean win all return `[]`, because none of them leaves a question open.
+   * Exposed so a caller holding an EXISTING id can ask whether that id is one of
+   * the candidates, which is evidence `pickBestMovie` does not have — it sees only
+   * the query. Repairing a contaminated library needs exactly that: when the
+   * stored id is among the tied films, keeping it beats clearing it, and neither
+   * is a guess.
+   *
+   * Deliberately a second search rather than a widened `fetchDetails` return: null
+   * means "no usable answer" to every existing caller, and this is the rare path
+   * (live, 15 folders of 60), so the repeat costs little and the contract nothing.
+   */
+  async ambiguousMovieIds(q: MediaLookup): Promise<string[]> {
+    try {
+      const search = await this.get('/search/movie', {
+        query: q.title,
+        ...(q.year ? { year: String(q.year) } : {}),
+      });
+      const ranked = this.rankMovies(search?.results ?? [], q);
+      if (!ranked || ranked.tied.length < 2) return [];
+      return ranked.tied.map((r) => String(r.id));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Score every result and return the best together with everything tied to it.
+   *
+   * Null when nothing clears {@link MOVIE_MATCH_MIN_SCORE}; otherwise `tied` holds
+   * one entry for a clean win and several for an ambiguous one.
+   */
+  private rankMovies(results: any[], q: MediaLookup): { score: number; tied: any[] } | null {
     let best: { hit: any; score: number; primary: number } | null = null;
     /*
-     * How many candidates share the current best score.
+     * The candidates sharing the current best score.
      *
      * Without this the threshold is not actually the last word: `score > best.score`
      * keeps the FIRST of several equal scorers, and TMDB's order is popularity — so
@@ -237,7 +287,7 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
      * id is repairable by hand, a confidently wrong one is what put three different
      * films under `tt1790864`.
      */
-    let tied = 0;
+    let tied: any[] = [];
     for (const r of results) {
       const yr = r?.release_date ? Number(String(r.release_date).slice(0, 4)) : null;
       // Hard year gate — the two independent gates the TV path uses: a movie's year
@@ -275,13 +325,13 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
       const primary = titleSimilarity(q.title, candTitle);
       if (!best || score > best.score || (score === best.score && primary > best.primary)) {
         best = { hit: r, score, primary };
-        tied = 1;
+        tied = [r];
       } else if (score === best.score && primary === best.primary) {
-        tied += 1;
+        tied.push(r);
       }
     }
     if (!best || best.score < MOVIE_MATCH_MIN_SCORE) return null;
-    return tied > 1 ? null : best.hit;
+    return { score: best.score, tied };
   }
 
   private mapMovie(hit: any, full: any): MediaMetadataDetails {
