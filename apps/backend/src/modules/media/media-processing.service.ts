@@ -351,12 +351,31 @@ export class MediaProcessingService {
       this.logger.warn(`Metadata failed for ${itemId}: ${(err as Error).message}`);
     }
 
-    // Stage 4 — rename/move into the library structure per its mode.
-    try {
-      await this.actions.execute('media_rename', { itemId });
-      this.fire('media.rename_completed', t);
-    } catch (err) {
-      this.logger.warn(`Rename failed for ${itemId}: ${(err as Error).message}`);
+    /*
+     * Stage 4 — rename/move into the library structure per its mode, but ONLY
+     * where the operator has opted the library in.
+     *
+     * `autoOrganize` means one thing: the app may rename or move files in this
+     * library without being asked. That has to cover this pipeline as well as
+     * the library-wide organiser, or the flag means different things in two
+     * places. It was gated on `organizeLibrary` alone at first, and the gap was
+     * invisible because it used to be masked: a library opted out was spelled
+     * `mode: 'preview'`, and `apply` short-circuits on that mode, so this stage
+     * was a silent no-op for exactly the libraries that had opted out. Giving
+     * those libraries a real verb removed the accident that was doing the work
+     * — the same downloads would suddenly have been renamed for real.
+     *
+     * A manual rename is deliberately NOT gated: the operator asking for one is
+     * the opposite of the app acting on its own, and conflating those is the
+     * bug this whole split exists to undo.
+     */
+    if (library.autoOrganize) {
+      try {
+        await this.actions.execute('media_rename', { itemId });
+        this.fire('media.rename_completed', t);
+      } catch (err) {
+        this.logger.warn(`Rename failed for ${itemId}: ${(err as Error).message}`);
+      }
     }
 
     // Stage 5a — artwork (when the library wants it).
