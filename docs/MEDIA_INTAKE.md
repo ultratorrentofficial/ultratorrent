@@ -125,6 +125,11 @@ Give each rule `Staging/<Show>` and the ambiguity cannot arise. The
 [migration wizard](#migrating-an-existing-rule) derives exactly that shape for
 you, so converting in bulk never produces this.
 
+A managed rule's save path is the **single** answer to "where does this show
+stage". Both things that can acquire an episode — an RSS feed match and a
+missing-episode search — use it, so a show never stages in two places depending
+on which one happened to find the release.
+
 ### Paths are in the BACKEND's filesystem, not the host's
 
 This is the single easiest thing to get wrong. In the stock Docker deployment

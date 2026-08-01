@@ -494,31 +494,48 @@ describe('MissingEpisodeSearchService — save path never invents a duplicate sh
     expect(prisma.mediaExternalId.findMany).not.toHaveBeenCalled();
   });
 
-  it('sends a MANAGED_INTAKE rule’s grab to the staging root, not the library', async () => {
+  it('stages a MANAGED rule’s grab where that rule already downloads', async () => {
     /*
-     * The point of the whole exercise: once a rule is converted, its missing-episode
-     * grabs must stage like its RSS grabs do. If this resolved to the library the
-     * two subsystems would file the same show in two different places.
+     * ONE source of truth per show. A managed rule's savePath is its staging
+     * directory — the rule service refuses one that sits in a destination library
+     * — so its missing-episode grabs go exactly where its RSS grabs go.
+     *
+     * This used to derive a separate path from the profile's staging root, which
+     * staged the same show in two places depending on which subsystem grabbed the
+     * episode. That derivation was necessary before rules were guarded, when a
+     * managed rule's savePath still pointed into a library; the guard removed the
+     * premise.
      */
     const { svc, evaluator } = build({
       ...ghosts('Ghosts 2021'),
       item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
       libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
-      rules: [{ id: 'rule-1', name: 'Ghosts 2021', savePath: GHOSTS_DIR, importMode: 'managed_intake' }],
+      rules: [{ id: 'rule-1', name: 'Ghosts 2021', savePath: '/media/staging/Ghosts', importMode: 'managed_intake' }],
     });
     await svc.sweep();
-    // Per-show subdirectory: concurrent grabs must not collide on one staging path.
-    expect(savedTo(evaluator)).toBe('/media/staging/Ghosts 2021 (2021)');
+    expect(savedTo(evaluator)).toBe('/media/staging/Ghosts');
   });
 
-  it('falls back to the library when a managed rule has no storage profile', async () => {
-    // Staging would be a guess. Filing it into the library is the old behaviour,
-    // which is a safe place to land — and it is logged so it can be fixed.
+  it('invents a staging path only when a managed rule has none', async () => {
+    // Nothing to reuse, so the profile's staging root is where it belongs.
     const { svc, evaluator } = build({
       ...ghosts('Ghosts 2021'),
       item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
       libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
-      rules: [{ id: 'rule-1', name: 'Ghosts 2021', savePath: GHOSTS_DIR, importMode: 'managed_intake' }],
+      rules: [{ id: 'rule-1', name: 'Ghosts 2021', savePath: null, importMode: 'managed_intake' }],
+    });
+    await svc.sweep();
+    expect(savedTo(evaluator)).toBe('/media/staging/Ghosts 2021 (2021)');
+  });
+
+  it('falls back to the library when a managed rule has neither path nor profile', async () => {
+    // Staging would be a guess. The library is the old behaviour and a safe place
+    // to land — and it is logged so it can be fixed.
+    const { svc, evaluator } = build({
+      ...ghosts('Ghosts 2021'),
+      item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
+      libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
+      rules: [{ id: 'rule-1', name: 'Ghosts 2021', savePath: null, importMode: 'managed_intake' }],
       profile: null,
     });
     await svc.sweep();
@@ -535,7 +552,7 @@ describe('MissingEpisodeSearchService — save path never invents a duplicate sh
       ...ghosts('Ghosts 2021'),
       item: { title: 'Ghosts 2021', year: 2021, libraryShowId: 'show-1' },
       libraryShow: { path: GHOSTS_DIR, title: 'Ghosts US' },
-      rules: [{ id: 'rule-1', name: 'Ghosts 2021', savePath: GHOSTS_DIR, importMode: 'managed_intake' }],
+      rules: [{ id: 'rule-1', name: 'Ghosts 2021', savePath: '/media/staging/Ghosts', importMode: 'managed_intake' }],
       torrentHash: 'abc123',
     });
     await svc.sweep();

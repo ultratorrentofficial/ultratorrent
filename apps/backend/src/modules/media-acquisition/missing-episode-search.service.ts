@@ -430,14 +430,28 @@ export class MissingEpisodeSearchService {
     const rule = await this.resolveRule(item);
     if (rule) {
       if (rule.importMode === MANAGED_RSS_IMPORT_MODE) {
+        /*
+         * A managed rule's own `savePath` IS its staging directory, so use it —
+         * the same path its RSS grabs use. One source of truth per show; deriving
+         * a second one here staged the same show in two places depending on which
+         * subsystem happened to grab the episode.
+         *
+         * This used to derive instead, and had to: before rules were guarded, a
+         * managed rule's savePath still pointed into a library (that is what every
+         * pre-intake rule had), and staging there would have imported the library
+         * into itself. The rule service now refuses that combination, so the
+         * premise is gone and so is the second path.
+         */
+        const sp = rule.savePath?.trim();
+        if (sp) return { path: sp, intakeRuleId: rule.id };
+
+        // Only a rule with no save path at all needs one invented, and the
+        // profile's staging root is where it belongs.
         const staging = await this.stagingPathFor(rule, item);
-        // No profile resolved: staging would be a guess, and a managed grab sent
-        // to the library instead is silently the old behaviour. Fall through to
-        // the library and say so — an operator can see it and fix the profile.
         if (staging) return { path: staging, intakeRuleId: rule.id };
         this.logger.warn(
-          `Rule "${rule.name}" is managed_intake but no storage profile resolved; ` +
-            `filing "${item.title}" into the library as before.`,
+          `Rule "${rule.name}" is managed_intake but has no save path and no storage ` +
+            `profile resolved; filing "${item.title}" into the library as before.`,
         );
       } else {
         const sp = rule.savePath?.trim();
