@@ -6,7 +6,7 @@
  * titles. Other sources (TVDB/IMDb/AniDB/MusicBrainz) can be added by
  * implementing this interface — same provider pattern as the torrent engines.
  */
-import { scoreTitleMatch, titlesAreSequelVariants } from './imdb/imdb-match';
+import { scoreTitleMatch, titleSimilarity, titlesAreSequelVariants } from './imdb/imdb-match';
 
 /**
  * Minimum title+year confidence to accept a TMDB movie search result as a match.
@@ -214,12 +214,30 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
    *
    * Scores every result on title similarity + year agreement (reusing the same
    * `scoreTitleMatch` the manual/IMDb path uses) and returns the best only if it
-   * clears {@link MOVIE_MATCH_MIN_SCORE}. Returning null — no match — is the safe
-   * outcome: a movie with no external id is correct-but-incomplete, while a movie
-   * with the WRONG id corrupts detection, dedup and every downstream lookup.
+   * clears {@link MOVIE_MATCH_MIN_SCORE} AND nothing else ties with it. Returning
+   * null — no match — is the safe outcome: a movie with no external id is
+   * correct-but-incomplete, while a movie with the WRONG id corrupts detection,
+   * dedup and every downstream lookup.
    */
   private pickBestMovie(results: any[], q: MediaLookup): any | null {
-    let best: { hit: any; score: number } | null = null;
+    let best: { hit: any; score: number; primary: number } | null = null;
+    /*
+     * How many candidates share the current best score.
+     *
+     * Without this the threshold is not actually the last word: `score > best.score`
+     * keeps the FIRST of several equal scorers, and TMDB's order is popularity — so
+     * a tie is silently broken by the very ranking `pickBestMovie` exists to distrust.
+     * Live: `/search/movie?query=Tom&year=2022` returns "Little Man Tom" (whose
+     * `original_title` is literally "Tom") ahead of the 2022 film "Tom". Both score
+     * 1.00 — one on its original title, one on its primary — and the popular one won.
+     *
+     * Two films that a title and a year cannot tell apart are not a match, they are a
+     * question, so an ambiguous best is rejected like a weak one. It can cost a real
+     * match when TMDB holds the same film twice, which is the correct trade: a missing
+     * id is repairable by hand, a confidently wrong one is what put three different
+     * films under `tt1790864`.
+     */
+    let tied = 0;
     for (const r of results) {
       const yr = r?.release_date ? Number(String(r.release_date).slice(0, 4)) : null;
       // Hard year gate — the two independent gates the TV path uses: a movie's year
@@ -244,9 +262,26 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
           startYear: Number.isFinite(yr) ? (yr as number) : null,
         },
       );
-      if (!best || score > best.score) best = { hit: r, score };
+      /*
+       * The tiebreak, applied before a tie is declared: how well the candidate's
+       * OWN title matches, ignoring the original/AKA titles `scoreTitleMatch`
+       * also considers. Those alternates are what recall needs — a folder named
+       * for a foreign film's English title has nothing else to match on — but
+       * they are weaker evidence, and a film that IS called what you asked for
+       * beats one merely known by that name somewhere. It settles "Tom" (2022)
+       * in favour of the film titled "Tom" over "Little Man Tom" (original title
+       * "Tom"), and the same for "The Wall" over Стена and "Memory" over Memoria.
+       */
+      const primary = titleSimilarity(q.title, candTitle);
+      if (!best || score > best.score || (score === best.score && primary > best.primary)) {
+        best = { hit: r, score, primary };
+        tied = 1;
+      } else if (score === best.score && primary === best.primary) {
+        tied += 1;
+      }
     }
-    return best && best.score >= MOVIE_MATCH_MIN_SCORE ? best.hit : null;
+    if (!best || best.score < MOVIE_MATCH_MIN_SCORE) return null;
+    return tied > 1 ? null : best.hit;
   }
 
   private mapMovie(hit: any, full: any): MediaMetadataDetails {

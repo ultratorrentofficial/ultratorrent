@@ -118,6 +118,61 @@ describe('TmdbMetadataProvider — movie result verification', () => {
     expect(details!.externalIds?.tmdb).toBe('1367');
   });
 
+  it('prefers the film actually TITLED the query over one that matches on its original title', async () => {
+    // Live: `/search/movie?query=Tom&year=2022`. "Little Man Tom" is a different
+    // film, but its ORIGINAL title is literally "Tom" — so `scoreTitleMatch`, which
+    // takes the best of primary/original/AKA, scores it 1.00, exactly like the 2022
+    // film actually called "Tom". TMDB ranks the wrong one first.
+    //
+    // Ranking must not be the tiebreaker; being called what you asked for is. The
+    // alternates earn their place in recall — a folder named for a foreign film's
+    // English title has nothing else to match — but they are weaker evidence.
+    const littleManTom = { id: 892511, title: 'Little Man Tom', original_title: 'Tom', release_date: '2022-05-11' };
+    const tom = { id: 1019542, title: 'Tom', original_title: 'Tom', release_date: '2022-02-02' };
+    const provider = providerReturning([littleManTom, tom], { title: 'Tom', release_date: '2022-02-02', imdb_id: 'tt15300538' });
+    const details = await provider.fetchDetails({ kind: 'movie', title: 'Tom', year: 2022 });
+    expect(details).not.toBeNull();
+    expect(details!.externalIds?.tmdb).toBe('1019542');
+  });
+
+  it('rejects a tie that the primary title cannot break either', async () => {
+    // Same query, but now BOTH candidates are titled "Tom". Nothing is left to
+    // choose with, and choosing anyway is what the popularity ranking would do.
+    const a = { id: 892511, title: 'Tom', original_title: 'Tom', release_date: '2022-05-11' };
+    const b = { id: 1019542, title: 'Tom', original_title: 'Tom', release_date: '2022-02-02' };
+    const provider = providerReturning([a, b]);
+    expect(await provider.fetchDetails({ kind: 'movie', title: 'Tom', year: 2022 })).toBeNull();
+  });
+
+  it('rejects two distinct films sharing a title and a year ("Midas" (2024) twice)', async () => {
+    // Nothing in a title and a year can choose between these, and guessing writes
+    // one film's id onto the other — the contamination, freshly made.
+    const a = { id: 1288913, title: 'Midas', original_title: 'Midas', release_date: '2024-03-01' };
+    const b = { id: 1611870, title: 'Midas', original_title: 'Midas', release_date: '2024-09-01' };
+    const provider = providerReturning([a, b]);
+    expect(await provider.fetchDetails({ kind: 'movie', title: 'Midas', year: 2024 })).toBeNull();
+  });
+
+  it('still accepts a clear winner over a lower-scoring rival', async () => {
+    // The tie check must not turn into "any competition is ambiguous": a genuine
+    // best still wins. "Midas Man" (2024) beats "Midas" (2024) outright.
+    const midasMan = { id: 819277, title: 'Midas Man', original_title: 'Midas Man', release_date: '2024-11-01' };
+    const midas = { id: 1288913, title: 'Midas', original_title: 'Midas', release_date: '2024-03-01' };
+    const provider = providerReturning([midas, midasMan], { title: 'Midas Man', release_date: '2024-11-01', imdb_id: 'tt10682876' });
+    const details = await provider.fetchDetails({ kind: 'movie', title: 'Midas Man', year: 2024 });
+    expect(details).not.toBeNull();
+    expect(details!.externalIds?.tmdb).toBe('819277');
+  });
+
+  it('does not treat two REJECTED candidates as a tie', async () => {
+    // Both score below the threshold, so there is nothing to be ambiguous about —
+    // the outcome is null either way, but for the right reason.
+    const a = { id: 1, title: 'Soft & Quiet', original_title: 'Soft & Quiet', release_date: '2022-11-04' };
+    const b = { id: 2, title: 'Soft & Loud', original_title: 'Soft & Loud', release_date: '2022-11-04' };
+    const provider = providerReturning([a, b]);
+    expect(await provider.fetchDetails({ kind: 'movie', title: 'Soft', year: 2022 })).toBeNull();
+  });
+
   it('returns null on an empty search rather than throwing', async () => {
     const provider = providerReturning([]);
     expect(await provider.fetchDetails({ kind: 'movie', title: 'Nonexistent Film', year: 2030 })).toBeNull();
