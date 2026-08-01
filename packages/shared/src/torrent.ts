@@ -57,6 +57,16 @@ export interface NormalizedTorrent {
   priority: TorrentPriority;
   label: string | null;
   savePath: string;
+  /**
+   * The torrent's OWN file or folder, as opposed to the directory it was saved
+   * into. `savePath` is shared: ten episodes of one show, or every film a movie
+   * feed grabs, all report the same one. Anything that has to act on the thing
+   * that just finished — Media Intake above all — needs this instead.
+   *
+   * Empty when the engine cannot say. rTorrent has no equivalent field, so
+   * callers must fall back to `savePath` rather than assume this is populated.
+   */
+  contentPath: string;
   isPrivate: boolean;
   message: string | null;
   addedAt: string | null; // ISO 8601

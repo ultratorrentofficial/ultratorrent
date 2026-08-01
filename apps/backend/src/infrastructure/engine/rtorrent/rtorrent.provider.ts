@@ -51,6 +51,9 @@ const TORRENT_FIELDS = [
   'd.peers_complete=',
   'd.peers_accounted=',
   'd.is_private=',
+  // Appended, never inserted: the row is read by POSITION, so adding a field
+  // anywhere above would silently shift every index after it.
+  'd.base_path=',
 ] as const;
 
 function num(v: XmlRpcValue): number {
@@ -226,6 +229,10 @@ export class RTorrentProvider implements TorrentEngineProvider {
       message: str(r[14]) || null,
       priority: this.mapPriority(num(r[15])),
       savePath: str(r[16]),
+      // rTorrent's `d.base_path` is the torrent's own file or directory — the
+      // equivalent of qBittorrent's content_path. Falls back to the directory so
+      // an older daemon that does not answer degrades to today's behaviour.
+      contentPath: str(r[24]) || str(r[16]),
       label: str(r[17]) || null,
       addedAt: startedTs ? new Date(startedTs * 1000).toISOString() : null,
       completedAt: finishedTs

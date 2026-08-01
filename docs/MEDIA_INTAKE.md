@@ -110,20 +110,22 @@ scans, with **one subdirectory per show**:
 **Your media server must not scan the parent.** Point it at `Movies/` and
 `TV Shows/` individually.
 
-#### Every rule needs its OWN staging directory
+#### Rules may share a staging directory
 
-Two rules cannot share one. The rule editor refuses a save path already used by
-another rule, and here that refusal is protecting you rather than being fussy.
+A completed torrent tells intake **its own file or folder** — the client's
+`content_path`, not the directory it was saved into. So several rules can stage
+into one place and each import still acts on exactly the release that finished.
 
-A completed torrent tells intake where it landed as a **directory** — the
-client's save path, not the individual file. So two shows sharing
-`Staging/` both report `Staging/` as their source, and intake would work on the
-whole directory instead of the release that just finished, sweeping up the other
-show's files with it.
+That matters most for a movie feed, where a single rule grabs many different
+titles and there is no per-title folder you could configure in advance. It also
+removes a trap for TV: ten episodes of one show all share a save path, so a
+consumer reading that instead would import the whole show folder every time.
 
-Give each rule `Staging/<Show>` and the ambiguity cannot arise. The
-[migration wizard](#migrating-an-existing-rule) derives exactly that shape for
-you, so converting in bulk never produces this.
+The rule editor still refuses a save path already claimed by another rule —
+distinct paths keep things legible — but correctness no longer depends on it.
+
+Per-show directories are still the tidier layout, and the
+[migration wizard](#migrating-an-existing-rule) derives that shape for you.
 
 A managed rule's save path is the **single** answer to "where does this show
 stage". Both things that can acquire an episode — an RSS feed match and a

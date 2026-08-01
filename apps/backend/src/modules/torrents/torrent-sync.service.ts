@@ -199,6 +199,10 @@ export class TorrentSyncService {
             hash: t.hash,
             sizeBytes: String(t.size ?? 0),
             savePath: t.savePath,
+            // The torrent's OWN file/folder. `savePath` is shared — ten episodes
+            // of one show report the same one — so a consumer acting on the item
+            // that just finished must use this.
+            contentPath: t.contentPath,
             engineId: t.engineId,
           },
         });

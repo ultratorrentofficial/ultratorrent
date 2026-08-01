@@ -67,6 +67,8 @@ interface QbTorrentInfo {
   num_incomplete: number;
   category?: string;
   save_path: string;
+  /** The torrent's own file/folder. Present since WebAPI 2.6.1; may be absent. */
+  content_path?: string;
   added_on: number;
   completion_on: number;
   private?: boolean;
@@ -252,6 +254,9 @@ export class QbittorrentProvider implements TorrentEngineProvider {
       priority: TorrentPriority.NORMAL,
       label: t.category || null,
       savePath: t.save_path ?? '',
+      // Falls back to the save path so an older WebAPI degrades to today's
+      // behaviour rather than reporting an empty path.
+      contentPath: t.content_path ?? t.save_path ?? '',
       isPrivate: t.private ?? false,
       message: null,
       addedAt: t.added_on ? new Date(t.added_on * 1000).toISOString() : null,

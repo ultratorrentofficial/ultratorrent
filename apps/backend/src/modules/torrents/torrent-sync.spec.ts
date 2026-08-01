@@ -28,6 +28,7 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
     downloadRate: 0,
     uploadRate: 0,
     savePath: '/downloads',
+    contentPath: '/downloads/Show.S01E01.mkv',
     label: null,
     engineId: 'e1',
   });
@@ -142,7 +143,11 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
         .map((c: any[]) => c[0])
         .find((e: any) => e.eventKey === 'torrent.completed');
       expect(completed).toBeDefined();
-      expect(completed.payload).toMatchObject({ savePath: '/downloads', engineId: 'e1' });
+      expect(completed.payload).toMatchObject({
+        savePath: '/downloads',
+        contentPath: '/downloads/Show.S01E01.mkv',
+        engineId: 'e1',
+      });
     });
 
     it('still carries torrentName, which the notification consumers read', async () => {

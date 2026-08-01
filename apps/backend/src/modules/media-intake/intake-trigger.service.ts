@@ -68,8 +68,20 @@ export class IntakeTriggerService implements OnModuleInit {
       return;
     }
 
-    const sourcePath = (event.payload?.savePath as string | undefined)
-      ?? (event.payload?.contentPath as string | undefined);
+    /*
+     * `contentPath` FIRST, and this order is the whole point.
+     *
+     * `savePath` is the directory a torrent was saved INTO, and it is shared:
+     * ten episodes of one show report the same one, and a movie feed's entire
+     * catalogue reports the directory holding 3,000 other films. Importing from
+     * it means importing everything in it, not the release that just finished.
+     * `contentPath` is the torrent's own file or folder.
+     *
+     * Falling back to `savePath` keeps an engine that cannot report the item
+     * working exactly as before rather than refusing outright.
+     */
+    const sourcePath = (event.payload?.contentPath as string | undefined)
+      || (event.payload?.savePath as string | undefined);
     if (!sourcePath) {
       this.logger.warn(`Torrent ${hash} completed with no path in the event; cannot stage it.`);
       return;
@@ -95,13 +107,6 @@ export class IntakeTriggerService implements OnModuleInit {
       .catch((err) => this.logger.warn(`Pipeline failed for ${job.id}: ${(err as Error).message}`));
   }
 
-  /**
-   * The rule that produced this torrent, if any.
-   *
-   * Traced through `rss_acquisitions`, which already records hash → rule for
-   * every grab. A torrent with no acquisition row was not produced by a rule —
-   * a manual add, or one from before the feed existed — and is left alone.
-   */
   /**
    * The rule that asked for this torrent, by either route it can have arrived by.
    *

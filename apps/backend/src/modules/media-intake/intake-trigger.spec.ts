@@ -60,7 +60,15 @@ function build(opts: {
 
 const completion = (over: Record<string, unknown> = {}) => ({
   resourceId: 'hash-1',
-  payload: { hash: 'hash-1', savePath: '/staging/Show.S01E01', engineId: 'engine-1', ...over },
+  payload: {
+    hash: 'hash-1',
+    // savePath is the DIRECTORY; contentPath is the torrent's own item. Distinct
+    // values here, so a test cannot pass by reading the wrong one.
+    savePath: '/staging',
+    contentPath: '/staging/Show.S01E01',
+    engineId: 'engine-1',
+    ...over,
+  },
 });
 
 /** Deliver the event and let the fire-and-forget handler settle. */
@@ -223,5 +231,44 @@ describe('IntakeTriggerService — missing-episode grabs', () => {
     await handlers.get(DOMAIN_EVENTS.TORRENT_COMPLETED)!(completion());
     await new Promise((r) => setImmediate(r));
     expect(enqueued).toHaveLength(0);
+  });
+});
+
+describe('IntakeTriggerService — which path it imports from', () => {
+  /*
+   * `savePath` is the directory a torrent was saved INTO and is shared: ten
+   * episodes of one show report the same one, and a movie feed's whole catalogue
+   * reports a directory that on a live install held 3,305 entries. Importing from
+   * it means importing everything in it rather than the release that finished.
+   */
+  it('prefers the torrent’s OWN path over the directory it landed in', async () => {
+    const { handlers, enqueued } = build({
+      rule: { id: 'rule-1', name: 'R', importMode: 'managed_intake', storageProfileId: 'p1' },
+    });
+    await handlers.get(DOMAIN_EVENTS.TORRENT_COMPLETED)!(completion());
+    await new Promise((r) => setImmediate(r));
+    expect(enqueued[0].sourcePath).toBe('/staging/Show.S01E01');
+  });
+
+  it('falls back to the save path when the engine cannot report the item', async () => {
+    // rTorrent may not answer d.base_path; degrading to today's behaviour beats
+    // refusing the import outright.
+    const { handlers, enqueued } = build({
+      rule: { id: 'rule-1', name: 'R', importMode: 'managed_intake', storageProfileId: 'p1' },
+    });
+    await handlers.get(DOMAIN_EVENTS.TORRENT_COMPLETED)!(completion({ contentPath: undefined }));
+    await new Promise((r) => setImmediate(r));
+    expect(enqueued[0].sourcePath).toBe('/staging');
+  });
+
+  it('ignores an empty contentPath rather than staging nothing', async () => {
+    // An empty string is what a provider reports when it has no answer; treating
+    // it as a path would enqueue a job with a blank source.
+    const { handlers, enqueued } = build({
+      rule: { id: 'rule-1', name: 'R', importMode: 'managed_intake', storageProfileId: 'p1' },
+    });
+    await handlers.get(DOMAIN_EVENTS.TORRENT_COMPLETED)!(completion({ contentPath: '' }));
+    await new Promise((r) => setImmediate(r));
+    expect(enqueued[0].sourcePath).toBe('/staging');
   });
 });
