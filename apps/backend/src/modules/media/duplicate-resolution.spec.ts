@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, link } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { DuplicateResolutionService } from './duplicate-resolution.service';
@@ -722,5 +722,102 @@ describe('trashedByCleanup — only what is genuinely recoverable', () => {
       trash: [trashRow('t1', '/TV/x.mkv')],
     });
     expect(await svc.trashedByCleanup()).toEqual([]);
+  });
+});
+
+
+/**
+ * Hardlinks.
+ *
+ * Media Intake places every managed import as a hardlink to the still-seeding
+ * torrent — one set of bytes under two names. Reasoning about paths alone then
+ * misreports reality in two ways, both observed live on ehr-qnap: a resolution
+ * predicted 2,186,284,601 bytes of savings and freed 0, because the copy chosen
+ * for deletion was the hardlinked one; and nothing in the plan said so.
+ */
+describe('DuplicateResolutionService.preview — hardlinks', () => {
+  let dir: string;
+  beforeEach(async () => { dir = await mkdtemp(path.join(tmpdir(), 'dupln-')); });
+  afterEach(async () => { await rm(dir, { recursive: true, force: true }); });
+
+  /** keep.mkv, plus `drop` either as its own file or as a link to something. */
+  async function scenario(opts: { dropLinkedTo?: 'keep' | 'other' } = {}) {
+    const keepPath = path.join(dir, 'keep.mkv');
+    const dropPath = path.join(dir, 'drop.mp4');
+    await writeFile(keepPath, 'x'.repeat(100));
+    if (opts.dropLinkedTo === 'keep') {
+      await link(keepPath, dropPath);
+    } else if (opts.dropLinkedTo === 'other') {
+      const seeding = path.join(dir, 'seeding.mp4');
+      await writeFile(seeding, 'y'.repeat(100));
+      await link(seeding, dropPath);
+    } else {
+      await writeFile(dropPath, 'y'.repeat(100));
+    }
+    return build({
+      libraries: [{ path: dir }],
+      assertWithinHardRoots: jest.fn((p: string) => { if (!p.startsWith(dir)) throw new Error('outside roots'); return p; }),
+      group: { version: 1, recommendedItemId: 'keep', items: [item('keep', keepPath, 100), item('drop', dropPath, 100)] },
+    });
+  }
+
+  it('promises ZERO savings for a hardlinked copy', async () => {
+    // Its bytes stay reachable through the torrent still seeding them, so deleting
+    // this name frees nothing — and a plan that claims otherwise is simply wrong.
+    const { svc } = await scenario({ dropLinkedTo: 'other' });
+    const p = await svc.preview('g1', 'keep');
+
+    expect(p.actions).toHaveLength(1);
+    expect(p.actions[0].linkCount).toBeGreaterThan(1);
+    expect(p.actions[0].freesBytes).toBe(0);
+    expect(p.expectedSavingsBytes).toBe(0);
+  });
+
+  it('still promises the full size for an independent copy', async () => {
+    // The ordinary case must not regress: two genuinely separate files.
+    const { svc } = await scenario();
+    const p = await svc.preview('g1', 'keep');
+
+    expect(p.actions[0].linkCount).toBe(1);
+    expect(p.actions[0].freesBytes).toBe(100);
+    expect(p.expectedSavingsBytes).toBe(100);
+  });
+
+  it('REFUSES to trash a path that is the keeper under another name', async () => {
+    /*
+     * Not a duplicate at all — one inode, two names. Trashing it deletes a name
+     * the operator never asked to lose and frees nothing, and on a Media Intake
+     * library that pairing is routine.
+     */
+    const { svc } = await scenario({ dropLinkedTo: 'keep' });
+    const p = await svc.preview('g1', 'keep');
+
+    expect(p.actions).toHaveLength(0);
+    expect(p.warnings.join(' ')).toMatch(/same file as the copy being kept/i);
+  });
+
+  it('reports the same-inode case rather than silently dropping it', async () => {
+    // A plan that quietly does nothing is indistinguishable from a broken one.
+    const { svc } = await scenario({ dropLinkedTo: 'keep' });
+    const p = await svc.preview('g1', 'keep');
+    expect(p.warnings.some((w) => w.includes('drop.mp4'))).toBe(true);
+  });
+
+  it('keeps working when a candidate cannot be stat-ed', async () => {
+    // Best effort: an unreadable file falls back to the indexed size rather than
+    // failing the whole preview. `resolve` revalidates before touching anything.
+    const keepPath = path.join(dir, 'keep.mkv');
+    await writeFile(keepPath, 'x'.repeat(100));
+    const { svc } = build({
+      libraries: [{ path: dir }],
+      assertWithinHardRoots: jest.fn((p: string) => p),
+      group: {
+        version: 1, recommendedItemId: 'keep',
+        items: [item('keep', keepPath, 100), item('drop', path.join(dir, 'gone.mp4'), 100)],
+      },
+    });
+    const p = await svc.preview('g1', 'keep');
+    expect(p.actions).toHaveLength(1);
+    expect(p.actions[0].freesBytes).toBe(100);
   });
 });

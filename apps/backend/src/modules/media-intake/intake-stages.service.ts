@@ -1,5 +1,5 @@
-import { stat } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { stat, readdir, rename } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { selectStrategy, type StorageCapabilities } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -240,6 +240,9 @@ export class IntakeStagesService implements OnModuleInit {
         );
         const placed: string[] = [];
         const skipped: string[] = [];
+        // Existing copies moved aside to free the canonical name, reported so an
+        // operator finding a `[dupN]` file later can trace where it came from.
+        const renamed: string[] = [];
         let fellBack = false;
         for (const item of targets) {
           /*
@@ -251,11 +254,35 @@ export class IntakeStagesService implements OnModuleInit {
            * relied on here — without this check a resumed import would place
            * the same file twice and `link()` would throw EEXIST on the second.
            */
-          const already = await stat(item.destination!).then(() => true).catch(() => false);
-          if (already) {
-            skipped.push(item.destination!);
-            placed.push(item.destination!);
-            continue;
+          /*
+           * Something is already at the destination. Two very different reasons,
+           * and treating them alike is how a release goes missing.
+           *
+           * SAME INODE — this job placed it on an earlier run. `buildPlan`
+           * computes the destination from the SOURCE, which is still in staging
+           * after a partial run, so its `unchanged` flag stays false and cannot
+           * be relied on; without this check a resumed import would place the
+           * same file twice and `link()` would throw EEXIST.
+           *
+           * DIFFERENT FILE — an unrelated release holds the name. Skipping was
+           * the old behaviour and it silently dropped the new one: the library
+           * kept the old copy, the new stayed in staging seeding forever, and
+           * the job still reported `imported`. Nothing could see it either —
+           * staging is in no library, so duplicate detection never looks there.
+           * So the old copy is moved aside instead, and BOTH end up in the
+           * library where the duplicate engine and the media server can show
+           * them.
+           */
+          const existing = await stat(item.destination!).catch(() => null);
+          if (existing) {
+            const source = await stat(item.source).catch(() => null);
+            if (source && source.ino === existing.ino) {
+              skipped.push(item.destination!);
+              placed.push(item.destination!);
+              continue;
+            }
+            const movedTo = await this.setAside(item.destination!);
+            renamed.push(`${basename(item.destination!)} → ${basename(movedTo)}`);
           }
           const outcome = await this.strategies.execute({
             source: item.source,
@@ -281,14 +308,63 @@ export class IntakeStagesService implements OnModuleInit {
         return {
           message: `Placed ${placed.length - skipped.length} file(s)`
             + (skipped.length ? `, ${skipped.length} already present` : '')
+            // Named, not counted: moving existing library content is a real
+            // mutation, and whoever finds a `[dupN]` file later needs to be able
+            // to trace where it came from.
+            + (renamed.length ? `; moved aside: ${renamed.join(', ')}` : '')
             + (fellBack ? ' (a strategy fell back)' : ''),
-          data: { placed, skipped, fellBack },
+          data: { placed, skipped, renamed, fellBack },
         };
       },
     };
   }
 
   /** Which library a parsed kind belongs in, or null when the profile has none. */
+
+  /**
+   * Move an existing file out of the way so the canonical name is free, taking
+   * its sidecars with it.
+   *
+   * `[dupN]` rather than `(N)`: a bare `(N)` is already how episode TITLES carry
+   * a part number — a live library holds 481 of them, `Alias - S01E12 - The Box
+   * (1)` and `S01E13 - The Box (2)` being two DIFFERENT episodes — so reusing it
+   * would make a redundant copy indistinguishable from a two-parter. Square
+   * brackets are how release metadata is already written (`[1080p]`, `[YTS.GG]`),
+   * they read as machine-generated, and `parseItemIdentity` yields the same
+   * title, season and episode with or without the suffix — which is the point,
+   * since both copies must land in the same duplicate group to be resolvable.
+   *
+   * Sidecars move too. The renamer names subtitles after the video, so leaving
+   * `Movie (2026).srt` behind would silently re-attach the OLD copy's subtitles
+   * to the NEW file.
+   */
+  private async setAside(destination: string): Promise<string> {
+    const dir = dirname(destination);
+    const stem = basename(destination).replace(/\.[^.]+$/, '');
+    const entries = await readdir(dir).catch(() => [] as string[]);
+    // Everything named after this video: the file itself plus `.srt`, `.eng.srt`,
+    // `-thumb.jpg` and friends.
+    const family = entries.filter((e) => e === basename(destination) || e.startsWith(`${stem}.`) || e.startsWith(`${stem}-`));
+
+    // Lowest N free for EVERY member, so one family keeps one suffix.
+    let n = 2;
+    for (; n < 1000; n += 1) {
+      const clash = await Promise.all(
+        family.map((e) => stat(join(dir, e.replace(stem, `${stem} [dup${n}]`))).then(() => true).catch(() => false)),
+      );
+      if (!clash.some(Boolean)) break;
+    }
+
+    let movedTo = destination;
+    for (const e of family) {
+      const to = join(dir, e.replace(stem, `${stem} [dup${n}]`));
+      await rename(join(dir, e), to);
+      if (e === basename(destination)) movedTo = to;
+    }
+    this.logger.log(`Moved an existing copy aside: ${basename(destination)} → ${basename(movedTo)}`);
+    return movedTo;
+  }
+
   private libraryFor(
     kind: MediaKind,
     profile: {

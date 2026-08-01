@@ -29,6 +29,14 @@ export interface PlannedAction {
   sourcePath: string;
   /** Size at preview time — revalidated before the file is touched. */
   fileSize: number;
+  /**
+   * Hard links to this file's inode. `>1` means the bytes are ALSO reachable by
+   * another name — a Media Intake import is a hardlink to the still-seeding
+   * torrent — so deleting this path frees nothing until the other name goes too.
+   */
+  linkCount?: number;
+  /** What removing this path actually frees. Zero when it is a hardlink. */
+  freesBytes?: number;
 }
 
 /**
@@ -207,7 +215,22 @@ export class DuplicateResolutionService {
     // to go, not its metadata. A stray `.nfo` beside a kept copy is harmless, and a
     // deleted subtitle or poster is not recoverable content the operator did not
     // ask to lose.
+    const warnings: string[] = [];
     const actions: PlannedAction[] = [];
+    /*
+     * The inode of the copy being KEPT. A candidate sharing it is not a duplicate
+     * of the keeper — it IS the keeper, reached by a second name. Trashing it
+     * would delete a name the operator did not ask to lose while freeing nothing,
+     * and on a Media Intake library that pairing is routine rather than exotic:
+     * every managed import hardlinks the library file to the seeding torrent.
+     */
+    let keepInode: number | null = null;
+    try {
+      keepInode = (await stat(keep.files[0]?.path ?? keep.path)).ino;
+    } catch {
+      // Cannot read the keeper; fall back to treating every candidate as distinct.
+    }
+
     for (const item of group.items) {
       if (item.id === keepId) continue;
       const p = item.files[0]?.path ?? item.path;
@@ -221,11 +244,45 @@ export class DuplicateResolutionService {
         blockers.push(`"${p}" is a library root, not a media file — refusing to delete it.`);
         continue;
       }
+      const size = Number(item.files[0]?.size ?? 0);
+      /*
+       * Ask the filesystem, not the index, what deleting this would free.
+       *
+       * Since Media Intake, a library file is routinely a HARDLINK to the torrent
+       * still seeding it — one set of bytes under two names. Removing one name
+       * frees nothing, and a plan that promises the file's size is simply wrong.
+       * Live on ehr-qnap: a resolution predicted 2,186,284,601 bytes and freed 0,
+       * because the copy chosen for deletion was the hardlinked one and the
+       * operator had no way to see that.
+       *
+       * Best-effort: a file we cannot stat keeps the indexed size, which is the
+       * pre-existing behaviour rather than a refusal.
+       */
+      let linkCount: number | undefined;
+      let freesBytes = size;
+      let sameFileAsKeeper = false;
+      try {
+        const st = await stat(p);
+        linkCount = st.nlink;
+        if (st.nlink > 1) freesBytes = 0;
+        sameFileAsKeeper = keepInode != null && st.ino === keepInode;
+      } catch {
+        // Unreadable at preview time; `resolve` revalidates before touching it.
+      }
+      if (sameFileAsKeeper) {
+        warnings.push(
+          `"${p}" is the same file as the copy being kept (one inode, two names) — `
+            + `left alone, since removing it would free nothing.`,
+        );
+        continue;
+      }
       actions.push({
         itemId: item.id,
         actionType: 'trash',
         sourcePath: p,
-        fileSize: Number(item.files[0]?.size ?? 0),
+        fileSize: size,
+        linkCount,
+        freesBytes,
       });
     }
 
@@ -241,11 +298,12 @@ export class DuplicateResolutionService {
     }
 
     // Retained only for the stored-plan shape; sidecars are no longer removed, so a
-    // cleanup can never orphan a subtitle.
-    const warnings: string[] = [];
+    // cleanup can never orphan a subtitle. Populated earlier for same-inode skips.
     const orphanedSubtitles: OrphanedSubtitle[] = [];
 
-    const expected = actions.reduce((a, x) => a + x.fileSize, 0);
+    // What the operator is actually promised. Summing `fileSize` counted bytes
+    // that a hardlink deletion never releases.
+    const expected = actions.reduce((a, x) => a + (x.freesBytes ?? x.fileSize), 0);
     const resolution = await this.prisma.mediaDuplicateResolution.create({
       data: {
         // Explicit rather than left to the column default: show-folder merges share
