@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.63.0] - 2026-08-01
+
+### Added
+- Media Intake no longer silently drops a release when the destination name is taken. It now distinguishes a retry from a collision by inode: the same file is skipped as before, but a DIFFERENT file is moved aside to '<name> [dupN]' and the new copy takes the canonical name, so both land in the library where the duplicate engine and the media server can show them. Previously the new release stayed in staging seeding forever while the job reported success, and nothing could see it because staging belongs to no library. The suffix is [dupN] rather than (N) because (N) is already how episode titles carry a part number — a live library holds 481 of them — and parseItemIdentity yields the same identity with or without it, so both copies group together. Duplicate resolution is also inode-aware now: a hardlinked candidate contributes zero to expected savings, and a path sharing the keeper's inode is never trashed.
+
+### Fixed
+- After a duplicate cleanup, a surviving file keeps its proper name. Media Intake moves an existing copy to '<name> [dupN]' when a new release claims the canonical name; if the operator then keeps the OLD copy and trashes the new one, the survivor was left wearing a suffix that only ever meant 'something else holds the real name' — and nothing did any more. The suffix is now stripped, sidecars included, but only when the canonical name is genuinely free, never clobbering an existing file, and never touching a real episode title like 'The Box (1)'. Best-effort: the cleanup already succeeded and a cosmetic rename must not fail it.
+
 ## [0.62.5] - 2026-08-01
 
 ### Fixed
