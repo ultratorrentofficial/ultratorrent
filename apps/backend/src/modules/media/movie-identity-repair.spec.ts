@@ -90,6 +90,66 @@ describe('detecting contamination', () => {
   });
 });
 
+/**
+ * A folder is only trustworthy if it is read correctly.
+ *
+ * The parse used to demand `Title (YYYY)` at the very END, so a scene folder gave
+ * up the whole string as a title and no year at all. That is worse than useless
+ * here: an unparseable title verifies against nothing, and this service's answer to
+ * "nothing verified" is to CLEAR the id — so a perfectly good film would have lost
+ * its identity because of its folder's suffix.
+ */
+describe('reading a movie folder', () => {
+  const parse = (name: string) => build(MAZE, truth).svc.parseFolder(name);
+
+  it('ignores the release junk trailing a canonical name', () => {
+    expect(parse('Midas Man (2024) [BLURAY] [1080p] [BluRay] [5.1] [YTS.MX]')).toEqual({
+      title: 'Midas Man',
+      year: 2024,
+    });
+  });
+
+  it('ignores a Plex/Emby id or edition tag', () => {
+    expect(parse('Aladdin (1992) {tmdb-812}')).toEqual({ title: 'Aladdin', year: 1992 });
+    expect(parse("Blade Runner (1982) {edition-Director's Cut}")).toEqual({
+      title: 'Blade Runner',
+      year: 1982,
+    });
+  });
+
+  it('keeps a parenthesised edition that is part of the title', () => {
+    // Only a 4-digit group is a year; the qualifier stays with the title it qualifies.
+    expect(parse("Alien (Director's Cut) (1979)")).toEqual({
+      title: "Alien (Director's Cut)",
+      year: 1979,
+    });
+  });
+
+  it('reads a bare release year and stops the title there', () => {
+    expect(parse('Midas Man 2024 1080p BluRay x264-GROUP')).toEqual({ title: 'Midas Man', year: 2024 });
+    expect(parse('Midas.Man.2024.1080p.WEB-DL.DDP5.1')).toEqual({ title: 'Midas Man', year: 2024 });
+  });
+
+  it('stops at the release tags even when there is no year to find', () => {
+    expect(parse('Midas Man 1080p BluRay')).toEqual({ title: 'Midas Man', year: null });
+  });
+
+  it('does not mistake a number IN the title for a year', () => {
+    // The two ways this goes wrong, and both are silent: a year-shaped token that
+    // is really the title, and a real year that also opens it.
+    expect(parse('Blade Runner 2049')).toEqual({ title: 'Blade Runner 2049', year: null });
+    expect(parse('2012 (2009)')).toEqual({ title: '2012', year: 2009 });
+    expect(parse('1917')).toEqual({ title: '1917', year: null });
+  });
+
+  it('never returns an empty title', () => {
+    // An empty title searches for everything, and the first popular answer wins —
+    // which is precisely how the ids got contaminated in the first place.
+    expect(parse('(2019)').title).not.toBe('');
+    expect(parse('[1080p]').title).not.toBe('');
+  });
+});
+
 describe('proposing the repair', () => {
   it('re-identifies each folder to its own film', async () => {
     const { svc } = build(MAZE, truth);

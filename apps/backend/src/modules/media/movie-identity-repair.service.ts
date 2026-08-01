@@ -38,6 +38,19 @@ import { MetadataProviderRegistry } from './metadata-provider-registry.service';
  * a repair that can be re-run and reviewed separate from one that moves bytes.
  */
 
+/**
+ * Tokens that end a title and begin the release noise.
+ *
+ * Kept small and unambiguous on purpose. Every entry here is a word that cannot
+ * plausibly be part of a film's name, because a false positive TRUNCATES a title
+ * ("Once Upon a Time in Hollywood" losing everything after a matched word) and a
+ * truncated title verifies against the wrong film — the exact failure being
+ * repaired. A missed tag merely leaves junk on the end, which the title+year gate
+ * then rejects safely. So when in doubt, leave it out.
+ */
+const RELEASE_TAG =
+  /^(?:\d{3,4}p|4k|uhd|bluray|blu-ray|bdrip|brrip|webrip|web-?dl|hdtv|dvdrip|remux|hdrip|x26[45]|h\.?26[45]|hevc|xvid|divx|aac\d?|ac3|eac3|dd[p+]?\d?|dts(?:-hd)?|truehd|atmos|10bit|hdr\d*|sdr|proper|repack|remastered|imax|yts(?:\.\w+)?|yify|rarbg)$/i;
+
 export interface RepairProposal {
   itemId: string;
   path: string;
@@ -74,17 +87,63 @@ export class MovieIdentityRepairService {
   }
 
   /**
-   * Split `Title (YYYY)` into its parts.
+   * Split a movie folder into title and year.
    *
-   * Deliberately NOT `parseTorrentName`: a movie folder is already canonical
-   * (`Maze (2017)`), and the release parser would try to read quality tokens and
-   * episode markers out of a name that has none — the same over-reading that made
-   * a show folder parse as a movie in the first place.
+   * Deliberately NOT `parseTorrentName`: most movie folders are already canonical
+   * (`Maze (2017)`), and the release parser would try to read episode markers out
+   * of a name that has none — the same over-reading that made a show folder parse
+   * as a movie in the first place. But "most" is not "all", so this does the one
+   * thing the release parser is genuinely needed for: ignore the trailing junk a
+   * scene folder carries.
+   *
+   * `Midas Man (2024) [BLURAY] [1080p] [BluRay] [5.1] [YTS.MX]` used to yield the
+   * whole string as the title and NO year, and a title like that verifies against
+   * nothing — so the folder the repair most needs to read correctly was the one it
+   * read worst, and a good film would have had its id cleared for want of a parse.
    */
   parseFolder(name: string): { title: string; year: number | null } {
-    const m = /^(.*?)\s*\((\d{4})\)\s*$/.exec(name);
-    if (m) return { title: m[1].trim(), year: Number(m[2]) };
-    return { title: name.trim(), year: null };
+    // Bracketed groups are metadata, never title: scene tags (`[1080p]`) and the
+    // Plex/Emby id convention (`{tvdb-396564}`, `{edition-Director's Cut}`) alike.
+    // …unless stripping is all there was, in which case the brackets WERE the name
+    // and the raw folder is the only thing left to report.
+    const stripped = name.replace(/[[{][^\]}]*[\]}]/g, ' ').replace(/\s+/g, ' ').trim() || name.trim();
+
+    // The canonical form, wherever it sits: the FIRST parenthesised year wins and
+    // everything after it is noise. Lazy prefix so `2012 (2009)` reads as the 2009
+    // film titled "2012" rather than a 2012 film, and so a parenthesised edition
+    // (`Alien (Director's Cut) (1979)`) stays part of the title it qualifies.
+    const paren = /^(.*?)\s*\((\d{4})\)/.exec(stripped);
+    if (paren && paren[1].trim()) return { title: paren[1].trim(), year: Number(paren[2]) };
+
+    // No parenthesised year: walk the tokens and stop at the first one that is
+    // demonstrably not part of the title — a bare year, or a release tag.
+    const tokens = (stripped.includes(' ') ? stripped : stripped.replace(/\./g, ' ')).split(' ');
+    const title: string[] = [];
+    let year: number | null = null;
+    for (const token of tokens) {
+      // A leading year is a TITLE ("1917", "2012"), not a release year, so a token
+      // only reads as the year once something precedes it.
+      if (title.length && this.isPlausibleYear(token)) {
+        year = Number(token);
+        break;
+      }
+      if (title.length && RELEASE_TAG.test(token)) break;
+      title.push(token);
+    }
+    return { title: title.join(' ').trim() || stripped, year };
+  }
+
+  /**
+   * A 4-digit token in the range films are actually released in.
+   *
+   * The range is what keeps `Blade Runner 2049` a title: 2049 is not a year any
+   * library holds, so the token stays where it belongs. Cinema starts in 1888
+   * (Roundhay Garden Scene); the upper bound allows the pre-release window.
+   */
+  private isPlausibleYear(token: string): boolean {
+    if (!/^\d{4}$/.test(token)) return false;
+    const n = Number(token);
+    return n >= 1888 && n <= new Date().getFullYear() + 2;
   }
 
   /**
