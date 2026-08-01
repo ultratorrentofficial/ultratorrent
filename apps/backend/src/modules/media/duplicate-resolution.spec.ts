@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { mkdtemp, writeFile, rm, link } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, link, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { DuplicateResolutionService } from './duplicate-resolution.service';
@@ -819,5 +819,77 @@ describe('DuplicateResolutionService.preview — hardlinks', () => {
     const p = await svc.preview('g1', 'keep');
     expect(p.actions).toHaveLength(1);
     expect(p.actions[0].freesBytes).toBe(100);
+  });
+});
+
+/**
+ * Giving the survivor its name back.
+ *
+ * Media Intake moves an existing copy to `<name> [dupN]` when a new release
+ * claims the canonical name. If the operator then keeps the OLD copy and trashes
+ * the new one, the survivor is left wearing a suffix that only ever meant
+ * "something else holds the real name" — and nothing does any more. A library
+ * permanently containing a file named after a conflict that no longer exists is
+ * worse than the duplicate was.
+ */
+describe('DuplicateResolutionService — restoring the canonical name', () => {
+  let dir: string;
+  beforeEach(async () => { dir = await mkdtemp(path.join(tmpdir(), 'duppromo-')); });
+  afterEach(async () => { await rm(dir, { recursive: true, force: true }); });
+
+  const restore = (svc: any, p: string) => svc.restoreCanonicalName(p);
+  const anySvc = () => build({ libraries: [{ path: dir }] }).svc as any;
+
+  it('strips [dupN] when the real name is free', async () => {
+    await writeFile(path.join(dir, 'Movie (2026) [dup2].mp4'), 'x');
+    const to = await restore(anySvc(), path.join(dir, 'Movie (2026) [dup2].mp4'));
+
+    expect(path.basename(to)).toBe('Movie (2026).mp4');
+  });
+
+  it('takes the sidecars with it', async () => {
+    for (const n of ['Movie (2026) [dup2].mp4', 'Movie (2026) [dup2].srt', 'Movie (2026) [dup2].ara.srt']) {
+      await writeFile(path.join(dir, n), 'x');
+    }
+    await restore(anySvc(), path.join(dir, 'Movie (2026) [dup2].mp4'));
+    const after = await readdir(dir);
+
+    expect(after.sort()).toEqual(['Movie (2026).ara.srt', 'Movie (2026).mp4', 'Movie (2026).srt']);
+  });
+
+  it('REFUSES when another copy still holds the canonical name', async () => {
+    // A third copy may be sitting there; renaming onto it would destroy a file
+    // nobody asked to lose.
+    await writeFile(path.join(dir, 'Movie (2026).mp4'), 'still here');
+    await writeFile(path.join(dir, 'Movie (2026) [dup2].mp4'), 'x');
+    const to = await restore(anySvc(), path.join(dir, 'Movie (2026) [dup2].mp4'));
+
+    expect(to).toBeNull();
+    expect(await readdir(dir)).toContain('Movie (2026) [dup2].mp4');
+  });
+
+  it('does nothing to a file that never carried a suffix', async () => {
+    await writeFile(path.join(dir, 'Movie (2026).mp4'), 'x');
+    expect(await restore(anySvc(), path.join(dir, 'Movie (2026).mp4'))).toBeNull();
+  });
+
+  it('leaves a genuine two-parter alone', async () => {
+    // `(1)` is an episode TITLE, not a suffix this ever wrote.
+    const p = path.join(dir, 'Alias - S01E12 - The Box (1).mp4');
+    await writeFile(p, 'x');
+    expect(await restore(anySvc(), p)).toBeNull();
+    expect(await readdir(dir)).toContain('Alias - S01E12 - The Box (1).mp4');
+  });
+
+  it('does not clobber a sidecar that already exists under the real name', async () => {
+    await writeFile(path.join(dir, 'Movie (2026) [dup2].mp4'), 'x');
+    await writeFile(path.join(dir, 'Movie (2026) [dup2].srt'), 'new');
+    await writeFile(path.join(dir, 'Movie (2026).srt'), 'pre-existing');
+    await restore(anySvc(), path.join(dir, 'Movie (2026) [dup2].mp4'));
+
+    // The video is promoted; the colliding subtitle is left where it is.
+    const after = await readdir(dir);
+    expect(after).toContain('Movie (2026).mp4');
+    expect(after).toContain('Movie (2026) [dup2].srt');
   });
 });

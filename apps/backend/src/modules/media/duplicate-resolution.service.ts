@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, stat, rename } from 'node:fs/promises';
 import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
@@ -186,6 +186,41 @@ export class DuplicateResolutionService {
    * the group requires review — the engine deliberately withholds a recommendation
    * there, and inventing one at preview time would defeat that.
    */
+
+  /**
+   * Strip a `[dupN]` suffix from a surviving file, taking its sidecars along.
+   *
+   * The inverse of what Media Intake does when a new release needs a name that is
+   * already taken. Returns the new path, or null when there was nothing to do —
+   * no suffix, or the canonical name is still occupied by another copy.
+   */
+  private async restoreCanonicalName(filePath: string): Promise<string | null> {
+    const dir = path.dirname(filePath);
+    const name = path.basename(filePath);
+    const m = /^(.*) \[dup\d+\](\..*)$/.exec(name);
+    if (!m) return null;
+
+    const stem = m[1];
+    const suffixed = `${stem} [dup${/\[dup(\d+)\]/.exec(name)![1]}]`;
+    // Another copy may still hold the canonical name; renaming onto it would
+    // destroy a file nobody asked to lose.
+    if (await stat(path.join(dir, `${stem}${m[2]}`)).then(() => true).catch(() => false)) {
+      return null;
+    }
+
+    const entries = await readdir(dir).catch(() => [] as string[]);
+    const family = entries.filter((e) => e.startsWith(suffixed));
+    let restored: string | null = null;
+    for (const e of family) {
+      const to = path.join(dir, e.replace(suffixed, stem));
+      // Never clobber: a sidecar may already exist under the canonical name.
+      if (await stat(to).then(() => true).catch(() => false)) continue;
+      await rename(path.join(dir, e), to);
+      if (e === name) restored = to;
+    }
+    return restored;
+  }
+
   async preview(groupId: string, keepItemId: string | undefined, ctx: ResolutionContext = {}): Promise<ResolutionPreview> {
     const group = await this.prisma.mediaDuplicateGroup.findUnique({
       where: { id: groupId },
@@ -665,6 +700,32 @@ export class DuplicateResolutionService {
     // Partial success is reported as partial. An HTTP 200 carrying failures that the
     // UI renders as "done" is how an operator learns to distrust the tool.
     const status = failed > 0 ? (trashed > 0 ? 'partial' : 'failed') : 'completed';
+
+    /*
+     * Give the survivor its proper name back.
+     *
+     * Media Intake moves an existing copy to `<name> [dupN]` when a new release
+     * claims the canonical name. If the operator then decides the OLD copy was
+     * the better one and trashes the new, the survivor is left wearing a suffix
+     * that only ever meant "something else holds the real name" — and nothing
+     * holds it any more. Leaving it is worse than the duplicate was: the library
+     * permanently contains a file named after a conflict that no longer exists.
+     *
+     * Only when the canonical name is genuinely free — a third copy may still be
+     * sitting there — and always best-effort: the cleanup itself succeeded, and
+     * failing it now over a cosmetic rename would be the wrong trade.
+     */
+    const promoted: string[] = [];
+    if (status !== 'failed') {
+      for (const p of survivorPaths) {
+        const restored = await this.restoreCanonicalName(p).catch(() => null);
+        if (restored) promoted.push(`${path.basename(p)} → ${path.basename(restored)}`);
+      }
+      if (promoted.length) {
+        this.logger.log(`Restored canonical name(s) after cleanup: ${promoted.join(', ')}`);
+      }
+    }
+
     await this.prisma.mediaDuplicateResolution.update({
       where: { id: resolutionId },
       data: {
