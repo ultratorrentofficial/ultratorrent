@@ -58,6 +58,7 @@ import {
 import { MediaProcessingQueueService } from './media-processing-queue.service';
 import { MediaProcessingService } from './media-processing.service';
 import { MetadataProviderRegistry } from './metadata-provider-registry.service';
+import { MovieIdentityRepairService } from './movie-identity-repair.service';
 import { COMPOSABLE_FIELDS } from './universal-metadata.provider';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -105,7 +106,34 @@ export class MediaController {
     private readonly mediaActions: MediaAutomationActions,
     private readonly providerRegistry: MetadataProviderRegistry,
     private readonly processing: MediaProcessingService,
+    private readonly identityRepair: MovieIdentityRepairService,
   ) {}
+
+  // --- movie identity repair ---------------------------------------------
+  /**
+   * Films whose external id is claimed by more than one movie folder, and what
+   * re-identifying them from the folder would produce.
+   *
+   * Read-only and network-bound (one provider call per affected folder), so it
+   * is a GET the operator triggers, never something a page polls.
+   */
+  @Get('repair/movie-identity/preview')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  previewIdentityRepair() {
+    return this.identityRepair.preview();
+  }
+
+  /**
+   * Apply the repair. Requires `manage_libraries`, not `view`: it rewrites the
+   * identity of real items, and a wrong id is what caused the damage in the
+   * first place. The service re-previews rather than accepting a plan from the
+   * caller, so nothing here can direct which id lands on which item.
+   */
+  @Post('repair/movie-identity/apply')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_LIBRARIES)
+  applyIdentityRepair() {
+    return this.identityRepair.apply();
+  }
 
   // --- overview ----------------------------------------------------------
   @Get('dashboard')

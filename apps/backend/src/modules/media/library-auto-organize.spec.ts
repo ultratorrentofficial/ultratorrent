@@ -19,7 +19,7 @@
  * always a real verb.
  */
 import { BadRequestException } from '@nestjs/common';
-import { MediaService } from './media.service';
+import { MediaLibraryService } from './media-library.service';
 
 function build() {
   const created: Record<string, unknown>[] = [];
@@ -36,9 +36,13 @@ function build() {
       }),
     },
   };
-  const svc = new MediaService(
-    prisma as never, {} as never, {} as never, {} as never,
-    {} as never, {} as never, {} as never,
+  // The LIVE path. `MediaService.createLibrary` exists but has no callers — the
+  // controller routes libraries through `MediaLibraryService`, so testing the
+  // other one proved nothing about what the API actually does.
+  const svc = new MediaLibraryService(
+    prisma as never,
+    { assertWithinHardRoots: (p: string) => p } as never,
+    {} as never,
   );
   return { svc, created, updated };
 }
@@ -54,30 +58,30 @@ const base = { name: 'TV Shows', path: '/downloads/TV Shows' };
 describe('a library mode is a filesystem verb', () => {
   it('refuses to store "preview" on a library', () => {
     const { svc } = build();
-    expect(() => svc.createLibrary({ ...base, mode: 'preview' })).toThrow(BadRequestException);
+    expect(() => svc.create({ ...base, mode: 'preview' })).toThrow(BadRequestException);
   });
 
   it('says what to do instead, rather than just refusing', () => {
     // The operator picked `preview` for a real reason — to stop the organiser.
     // An error that does not name the replacement just moves the confusion.
     const { svc } = build();
-    expect(() => svc.createLibrary({ ...base, mode: 'preview' })).toThrow(/automatic organising/i);
+    expect(() => svc.create({ ...base, mode: 'preview' })).toThrow(/automatic organising/i);
   });
 
   it('refuses an unknown mode too', () => {
     const { svc } = build();
-    expect(() => svc.createLibrary({ ...base, mode: 'teleport' })).toThrow(/Unknown library mode/);
+    expect(() => svc.create({ ...base, mode: 'teleport' })).toThrow(/Unknown library mode/);
   });
 
   it('blocks "preview" on update, not just create', () => {
     const { svc } = build();
-    expect(() => svc.updateLibrary('lib1', { mode: 'preview' })).toThrow(BadRequestException);
+    expect(() => svc.update('lib1', { mode: 'preview' })).toThrow(BadRequestException);
   });
 
   it('leaves an update that does not touch the mode alone', async () => {
     // `undefined` means "not being changed" and must not be mistaken for invalid.
     const { svc, updated } = build();
-    await svc.updateLibrary('lib1', { name: 'Renamed' });
+    await svc.update('lib1', { name: 'Renamed' });
     expect(updated[0]).toMatchObject({ name: 'Renamed' });
   });
 
@@ -85,7 +89,7 @@ describe('a library mode is a filesystem verb', () => {
     'accepts the real verb %s',
     async (mode) => {
       const { svc, created } = build();
-      await svc.createLibrary({ ...base, mode });
+      await svc.create({ ...base, mode });
       expect(created[0]).toMatchObject({ mode });
     },
   );
@@ -94,20 +98,20 @@ describe('a library mode is a filesystem verb', () => {
 describe('autoOrganize', () => {
   it('defaults to off, so a new library is inert until opted in', async () => {
     const { svc, created } = build();
-    await svc.createLibrary({ ...base, mode: 'rename_in_place' });
+    await svc.create({ ...base, mode: 'rename_in_place' });
     expect(created[0].autoOrganize).toBe(false);
   });
 
   it('is stored independently of the mode', async () => {
     const { svc, created } = build();
-    await svc.createLibrary({ ...base, mode: 'rename_in_place', autoOrganize: true });
+    await svc.create({ ...base, mode: 'rename_in_place', autoOrganize: true });
     expect(created[0]).toMatchObject({ mode: 'rename_in_place', autoOrganize: true });
   });
 
   it('lets a library keep a real verb while opting out of the organiser', async () => {
     // Precisely what `preview` used to be used for — minus the two side effects.
     const { svc, created } = build();
-    await svc.createLibrary({ ...base, mode: 'rename_in_place', autoOrganize: false });
+    await svc.create({ ...base, mode: 'rename_in_place', autoOrganize: false });
     expect(created[0]).toMatchObject({ mode: 'rename_in_place', autoOrganize: false });
   });
 });

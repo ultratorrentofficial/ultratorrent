@@ -13,6 +13,7 @@ import { MediaItemService } from './media-item.service';
 import { MediaHealthService } from './media-health.service';
 import { MediaMetadataService } from './media-metadata.service';
 import { MetadataProviderRegistry } from './metadata-provider-registry.service';
+import { MovieIdentityRepairService } from './movie-identity-repair.service';
 import { MediaArtworkService } from './media-artwork.service';
 import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaBulkService } from './media-bulk.service';
@@ -66,6 +67,7 @@ import { MediaController } from './media.controller';
     // whole media-acquisition module (which would risk a cycle).
     ImdbSeriesResolver,
     MetadataProviderRegistry,
+    MovieIdentityRepairService,
     TraktAuthService,
     TraktSyncService,
     TraktScrobbleService,
