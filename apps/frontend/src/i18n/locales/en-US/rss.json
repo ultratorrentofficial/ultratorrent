@@ -80,7 +80,8 @@
           "desc": "Keep existing rules and add only imported filters that aren't already present."
         }
       }
-    }
+    },
+    "exportRule": "Export \"{{name}}\" as a bundle"
   },
   "feedDialog": {
     "addTitle": "Add RSS feed",

@@ -85,6 +85,7 @@ export function RssPage() {
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportingFeedId, setExportingFeedId] = useState<string | null>(null);
+  const [exportingRuleId, setExportingRuleId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [pendingImport, setPendingImport] = useState<{ bundle: unknown; name: string } | null>(
     null,
@@ -124,6 +125,29 @@ export function RssPage() {
       toast.error(t('feeds.toast.exportFailed'), err instanceof ApiError ? err.message : undefined);
     } finally {
       setExporting(false);
+    }
+  };
+
+  /**
+   * Export ONE rule.
+   *
+   * The narrowest scope, and the one that actually matters when moving a single
+   * show between installs: a whole-install bundle carries every rule with its
+   * match candidates and is large enough to be refused on import elsewhere.
+   */
+  const exportRule = async (rule: { id: string; name: string }) => {
+    setExportingRuleId(rule.id);
+    try {
+      const bundle = await api.rss.exportSelectedRules([rule.id]);
+      saveBundle(bundle, `ultratorrent-rss-${slugify(rule.name)}.json`);
+      toast.success(
+        t('feeds.toast.exported'),
+        t('feeds.toast.rulesCount', { count: bundle.rules.length }),
+      );
+    } catch (err) {
+      toast.error(t('feeds.toast.exportFailed'), err instanceof ApiError ? err.message : undefined);
+    } finally {
+      setExportingRuleId(null);
     }
   };
 
@@ -468,6 +492,16 @@ export function RssPage() {
                               feed the rule is a read-only projection. */}
                           {!linked && (
                             <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={t('feeds.exportRule', { name: rule.name })}
+                                title={t('feeds.exportRule', { name: rule.name })}
+                                loading={exportingRuleId === rule.id}
+                                onClick={() => void exportRule(rule)}
+                              >
+                                <Download className="h-4 w-4 text-muted-foreground" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"

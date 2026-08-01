@@ -80,7 +80,8 @@
           "desc": "Conserva las reglas existentes y agrega solo los filtros importados que aún no están presentes."
         }
       }
-    }
+    },
+    "exportRule": "Exportar «{{name}}» como paquete"
   },
   "feedDialog": {
     "addTitle": "Agregar fuente RSS",
