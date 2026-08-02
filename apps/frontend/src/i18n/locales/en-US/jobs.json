@@ -128,8 +128,9 @@
     "createdAt": "Created",
     "startedAt": "Started",
     "completedAt": "Completed",
-    "noResult": "No result recorded.",
-    "noError": "No error."
+    "noResult": "No details were recorded.",
+    "noError": "No error.",
+    "noInput": "Nothing was passed in."
   },
   "events": {
     "sequence": "#",

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { SummaryFacts } from '@/components/ui/summary-facts';
 import { useToast } from '@/components/ui/toast';
 import { statusVariant, jobDuration } from './jobStatus';
 
@@ -129,8 +130,12 @@ export function JobDetailPage() {
           {(job.inputSummary != null || job.resultSummary != null) && (
             <Card>
               <CardContent className="space-y-3 p-4">
-                {job.inputSummary != null && <Json label={t('detail.input')} value={job.inputSummary} />}
-                {job.resultSummary != null && <Json label={t('detail.result')} value={job.resultSummary} />}
+                {job.inputSummary != null && (
+                  <SummaryFacts label={t('detail.input')} value={job.inputSummary} emptyText={t('detail.noInput')} />
+                )}
+                {job.resultSummary != null && (
+                  <SummaryFacts label={t('detail.result')} value={job.resultSummary} emptyText={t('detail.noResult')} />
+                )}
               </CardContent>
             </Card>
           )}
@@ -174,11 +179,3 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Json({ label, value }: { label: string; value: unknown }) {
-  return (
-    <div>
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</h3>
-      <pre className="overflow-x-auto rounded-lg bg-white/[0.03] p-2 text-xs">{JSON.stringify(value, null, 2)}</pre>
-    </div>
-  );
-}
