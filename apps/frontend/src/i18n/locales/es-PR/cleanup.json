@@ -1,8 +1,8 @@
 {
   "center": {
-    "title": "Centro de Limpieza",
+    "title": "Purga de Medios",
     "subtitle": "Recupera espacio eliminando MEDIOS que ya no necesitas: guiado por políticas, explicable y reversible. (Para borrar archivos basura de una descarga, usa «Eliminación de archivos basura» en Ajustes de Medios.)",
-    "howItWorks": "La limpieza propone; las personas deciden. Una ejecución convierte las coincidencias de la política en candidatos: no se elimina nada. Un candidato se convierte en acción solo dentro de un plan aprobado cuyas huellas todavía coinciden con la realidad, y toda eliminación va a la Papelera o a Cuarentena, ambas recuperables.",
+    "howItWorks": "La purga propone; las personas deciden. Una ejecución convierte las coincidencias de la política en candidatos: no se elimina nada. Un candidato se convierte en acción solo dentro de un plan aprobado cuyas huellas todavía coinciden con la realidad, y toda eliminación va a la Papelera o a Cuarentena, ambas recuperables.",
     "stat": {
       "policies": "Políticas",
       "enabled": "Habilitadas",
@@ -13,7 +13,7 @@
     },
     "tile": {
       "policies": "Políticas",
-      "policiesDesc": "Políticas de limpieza versionadas y sus condiciones",
+      "policiesDesc": "Políticas de purga versionadas y sus condiciones",
       "runs": "Ejecuciones",
       "runsDesc": "Escaneos y los candidatos que produjeron",
       "plans": "Planes y aprobaciones",
@@ -21,15 +21,15 @@
       "quarantine": "Cuarentena",
       "quarantineDesc": "Archivos retenidos, restaurar o purgar",
       "protections": "Protecciones",
-      "protectionsDesc": "Lo que la limpieza automática nunca puede tocar"
+      "protectionsDesc": "Lo que una purga automática nunca puede tocar"
     }
   },
   "policies": {
-    "title": "Políticas de Limpieza",
+    "title": "Políticas de Purga",
     "subtitle": "Una política es un borrador más versiones publicadas congeladas. Publicar no la habilita: activar una política destructiva es un acto aparte y deliberado.",
     "new": "Nueva política",
     "fromTemplate": "Desde plantilla",
-    "empty": "Aún no hay políticas de limpieza",
+    "empty": "Aún no hay políticas de purga",
     "emptyDesc": "Comienza desde una plantilla o crea una política vacía, luego publícala y habilítala cuando estés listo.",
     "col": {
       "name": "Nombre",
@@ -50,7 +50,7 @@
       "editDraft": "Editar borrador"
     },
     "create": {
-      "title": "Nueva política de limpieza",
+      "title": "Nueva política de purga",
       "name": "Nombre",
       "description": "Descripción",
       "submit": "Crear política",
@@ -71,7 +71,7 @@
     "publishFirst": "Publica la política antes de ejecutarla."
   },
   "runs": {
-    "title": "Ejecuciones de Limpieza",
+    "title": "Ejecuciones de Purga",
     "subtitle": "Una ejecución recorre el alcance de una política y registra lo que encontró. Produce candidatos, nunca eliminaciones.",
     "empty": "Aún no hay ejecuciones",
     "emptyDesc": "Ejecuta o simula una política para ver candidatos aquí.",
@@ -144,7 +144,7 @@
     "title": "Cuarentena",
     "subtitle": "Archivos retenidos, sacados de la biblioteca pero nunca eliminados. Restaurar devuelve un archivo exactamente a donde estaba; purgar es el único paso irreversible.",
     "empty": "La cuarentena está vacía",
-    "emptyDesc": "Los archivos que un plan de limpieza puso en cuarentena aparecerán aquí hasta que se restauren o purguen.",
+    "emptyDesc": "Los medios que un plan de purga puso en cuarentena aparecerán aquí hasta que se restauren o purguen.",
     "col": {
       "path": "Ruta original",
       "size": "Tamaño",
@@ -160,10 +160,10 @@
   },
   "protections": {
     "title": "Protecciones",
-    "subtitle": "Una protección le dice a la limpieza automática que nunca puede tocar algo. Las protecciones condicionales fallan cerradas; una retención legal no puede ser levantada por un operador común.",
+    "subtitle": "Una protección le dice a una purga automática que nunca puede tocar algo. Las protecciones condicionales fallan cerradas; una retención legal no puede ser levantada por un operador común.",
     "new": "Nueva protección",
     "empty": "Aún no hay protecciones",
-    "emptyDesc": "Protege un archivo, biblioteca, serie, etiqueta o ruta para que la limpieza nunca pueda eliminarlo.",
+    "emptyDesc": "Protege un archivo, biblioteca, serie, etiqueta o ruta para que una purga nunca pueda eliminarlo.",
     "expiringSoon": "{{count}} protección por expirar pronto",
     "expiringSoon_other": "{{count}} protecciones por expirar pronto",
     "col": {
@@ -174,7 +174,7 @@
       "created": "Creada"
     },
     "revoke": "Revocar",
-    "confirmRevoke": "¿Revocar esta protección? La limpieza podrá actuar sobre el objetivo de nuevo.",
+    "confirmRevoke": "¿Revocar esta protección? Una purga podrá actuar sobre el objetivo de nuevo.",
     "revokeReason": "¿Por qué revocas esta protección?",
     "create": {
       "title": "Nueva protección",
@@ -227,7 +227,7 @@
     "confirm": "Confirmar",
     "cancel": "Cancelar",
     "close": "Cerrar",
-    "loadError": "No se pudieron cargar los datos de limpieza",
+    "loadError": "No se pudieron cargar los datos de purga",
     "actionFailed": "La acción falló"
   },
   "template": {
@@ -365,7 +365,7 @@
     "isLocked": "Está bloqueado",
     "isLocked.desc": "Los elementos bloqueados quedan fuera de la automatización, diga lo que diga la política.",
     "isProtected": "Está protegido",
-    "isProtected.desc": "Coincide con una regla de protección del Centro de Limpieza.",
+    "isProtected.desc": "Coincide con una regla de protección de Purga de Medios.",
     "hasActiveJob": "Tiene un trabajo en curso",
     "hasActiveJob.desc": "Algo está operando sobre él ahora mismo.",
     "activePlayback": "Reproduciéndose ahora",

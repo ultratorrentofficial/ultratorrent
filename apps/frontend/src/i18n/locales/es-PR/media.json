@@ -704,7 +704,7 @@
     },
     "cleanup": {
       "title": "Eliminación de archivos basura",
-      "description": "Borra archivos basura (y subtítulos en idiomas no deseados) de la carpeta de descarga mientras se mueven los archivos importantes durante un renombrado. Nunca borra vídeo: para eliminar películas o episodios y recuperar espacio, usa el Centro de Limpieza.",
+      "description": "Borra archivos basura (y subtítulos en idiomas no deseados) de la carpeta de descarga mientras se mueven los archivos importantes durante un renombrado. Nunca borra vídeo: para eliminar películas o episodios y recuperar espacio, usa Purga de Medios.",
       "enabledLabel": "Activar limpieza durante renombrar/mover",
       "enabledHint": "Solo aplica a los modos Renombrar en el lugar y Mover — nunca a copiar/enlace duro/enlace simbólico, donde el origen es tu copia en siembra.",
       "globsLabel": "Patrones a eliminar",

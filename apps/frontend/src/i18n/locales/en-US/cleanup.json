@@ -1,8 +1,8 @@
 {
   "center": {
-    "title": "Cleanup Center",
+    "title": "Media Purge",
     "subtitle": "Reclaim storage by removing MEDIA you no longer need — policy-driven, explainable and reversible. (To delete junk files left by a download, use Junk file removal in Media Settings instead.)",
-    "howItWorks": "Cleanup proposes; people decide. A run turns policy matches into candidates — nothing is removed. A candidate becomes an action only inside an approved plan whose fingerprints still match the world, and every removal lands in Trash or Quarantine, both recoverable.",
+    "howItWorks": "Media Purge proposes; people decide. A run turns policy matches into candidates — nothing is removed. A candidate becomes an action only inside an approved plan whose fingerprints still match the world, and every removal lands in Trash or Quarantine, both recoverable.",
     "stat": {
       "policies": "Policies",
       "enabled": "Enabled",
@@ -13,7 +13,7 @@
     },
     "tile": {
       "policies": "Policies",
-      "policiesDesc": "Versioned cleanup policies and their conditions",
+      "policiesDesc": "Versioned purge policies and their conditions",
       "runs": "Runs",
       "runsDesc": "Scans and the candidates they produced",
       "plans": "Plans & approvals",
@@ -21,15 +21,15 @@
       "quarantine": "Quarantine",
       "quarantineDesc": "Held files, restore or purge",
       "protections": "Protections",
-      "protectionsDesc": "What automatic cleanup may never touch"
+      "protectionsDesc": "What an automatic purge may never touch"
     }
   },
   "policies": {
-    "title": "Cleanup Policies",
+    "title": "Purge Policies",
     "subtitle": "A policy is a draft plus frozen published versions. Publishing does not enable it — arming a destructive policy is a separate, deliberate act.",
     "new": "New policy",
     "fromTemplate": "From template",
-    "empty": "No cleanup policies yet",
+    "empty": "No purge policies yet",
     "emptyDesc": "Start from a template or create an empty policy, then publish and enable it when you are ready.",
     "col": {
       "name": "Name",
@@ -50,7 +50,7 @@
       "editDraft": "Edit draft"
     },
     "create": {
-      "title": "New cleanup policy",
+      "title": "New purge policy",
       "name": "Name",
       "description": "Description",
       "submit": "Create policy",
@@ -71,7 +71,7 @@
     "publishFirst": "Publish the policy before running it."
   },
   "runs": {
-    "title": "Cleanup Runs",
+    "title": "Purge Runs",
     "subtitle": "A run walks a policy's scope and records what it found. It produces candidates, never deletions.",
     "empty": "No runs yet",
     "emptyDesc": "Run or simulate a policy to see candidates here.",
@@ -144,7 +144,7 @@
     "title": "Quarantine",
     "subtitle": "Held files, moved out of the library but never deleted. Restore puts a file back exactly where it came from; purge is the one irreversible step.",
     "empty": "Quarantine is empty",
-    "emptyDesc": "Files a cleanup plan quarantined will appear here until restored or purged.",
+    "emptyDesc": "Media a purge plan quarantined will appear here until restored or purged.",
     "col": {
       "path": "Original path",
       "size": "Size",
@@ -160,10 +160,10 @@
   },
   "protections": {
     "title": "Protections",
-    "subtitle": "A protection tells automatic cleanup it may never touch something. Conditional protections fail closed; a legal hold cannot be lifted by an ordinary operator.",
+    "subtitle": "A protection tells an automatic purge it may never touch something. Conditional protections fail closed; a legal hold cannot be lifted by an ordinary operator.",
     "new": "New protection",
     "empty": "No protections yet",
-    "emptyDesc": "Protect a file, library, show, tag or path so cleanup can never remove it.",
+    "emptyDesc": "Protect a file, library, show, tag or path so a purge can never remove it.",
     "expiringSoon": "{{count}} protection expiring soon",
     "expiringSoon_other": "{{count}} protections expiring soon",
     "col": {
@@ -174,7 +174,7 @@
       "created": "Created"
     },
     "revoke": "Revoke",
-    "confirmRevoke": "Revoke this protection? Cleanup will be free to act on the target again.",
+    "confirmRevoke": "Revoke this protection? A purge will be free to act on the target again.",
     "revokeReason": "Why are you revoking this protection?",
     "create": {
       "title": "New protection",
@@ -227,7 +227,7 @@
     "confirm": "Confirm",
     "cancel": "Cancel",
     "close": "Close",
-    "loadError": "Could not load cleanup data",
+    "loadError": "Could not load purge data",
     "actionFailed": "Action failed"
   },
   "template": {
@@ -365,7 +365,7 @@
     "isLocked": "Is locked",
     "isLocked.desc": "Locked items are excluded from automation regardless of any policy.",
     "isProtected": "Is protected",
-    "isProtected.desc": "Matched by a protection rule in the Cleanup Center.",
+    "isProtected.desc": "Matched by a protection rule in Media Purge.",
     "hasActiveJob": "Has a running job",
     "hasActiveJob.desc": "Something is operating on it right now.",
     "activePlayback": "Being played now",
