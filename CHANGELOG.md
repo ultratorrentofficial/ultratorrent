@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.65.1] - 2026-08-02
+
+### Fixed
+- File placement no longer overwrites an existing destination. `rename(2)` and `copyFile` REPLACE their target — POSIX behaviour, not a bug — so any two files resolving to the same name meant one was silently deleted. That loss is unrecoverable here: undo replays recorded moves backwards, and a file destroyed by an overwrite was never a move, so it appears in no log to restore from. An occupied destination now throws `DestinationExistsError`; the renamer records a FAILED rename operation naming the destination and leaves the source exactly where it was, so both files survive and the collision is visible afterwards. A dangling symlink or a directory counts as occupied. Copies use `COPYFILE_EXCL` so the check-then-act gap is closed wherever the syscall allows it. The guard lives in the shared primitive, so Media Intake gets it too.
+- A bare "Web" in a film's title is no longer read as its source. `WEB-DL` and `WEBRip` are unambiguous, but a lone `web` matched anywhere in a name — and since the title is cut at the earliest marker, every film ending in that word silently lost it. Live: "The Girl in the Spider's Web" was stored as "The Girl in the Spider's" and "Unfriended - Dark Web" as "Unfriended Dark". It only fires when nothing else in the string is a release marker, which is exactly a bare `Title (YYYY)` folder, so it corrupted the identity path specifically. `web` is now a source only when a release token follows it (`WEB.x264-GRP`, `WEB 1080p`), never as a trailing word before a year.
+- A contaminated series id no longer merges two different shows. Duplicate detection scopes a TV episode by its show, and the strongest scope was the series id alone — but a shared id is only evidence when the id is RIGHT, and the same short-title-swallowed-by-a-longer-one failure that put three films under one imdb id happens to television too. Live: `tt10405370` sat on both "Rogue (2013)" and "SAS Rogue Heroes (2022)", `tt21088136` on both "Criminal Minds (2005)" and "Criminal Record (2024)" — their same-numbered episodes collapsed into one group, and the recommended cleanup would delete an episode of a different series. The `sid:` scope now carries the show's canonical name as well, so the id alone collapses nothing. It uses `showCanonicalKey`, which strips punctuation and a trailing year, so one show in two folder spellings ("Magnum P.I" and "Magnum P.I.") still groups — and two copies whose years disagree still match on the id, which is why that scope exists.
+
 ## [0.65.0] - 2026-08-02
 
 ### Added
