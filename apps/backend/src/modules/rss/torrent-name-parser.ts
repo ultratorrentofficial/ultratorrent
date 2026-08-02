@@ -64,7 +64,25 @@ const SOURCE: Array<[RegExp, string]> = [
   [/\bhdtv\b/i, 'HDTV'],
   [/\b(dvdrip|dvd)\b/i, 'DVD'],
   [/\bhdrip\b/i, 'HDRip'],
-  [/\bweb\b/i, 'WEB'],
+  /*
+   * Bare `web` is a source ONLY in release context.
+   *
+   * `WEB-DL` and `WEBRip` are unambiguous and matched above. A lone "Web" is
+   * not: it is also an ordinary English word, and the title is cut at the
+   * earliest marker — so matching it anywhere truncated the last word off every
+   * film named with it. Live: "The Girl in the Spider's Web" stored as "The
+   * Girl in the Spider's", "Unfriended - Dark Web" as "Unfriended Dark".
+   *
+   * It only fires when nothing else in the name is a marker, which is precisely
+   * the identity path (a bare `Title (YYYY)` folder), so the damage landed where
+   * it mattered most. Requiring a following release token keeps the real cases
+   * — `…WEB.x264-GRP`, `…WEB 1080p` — and leaves a trailing word alone, because
+   * `Web (2018)` is followed by a year, not by a codec.
+   */
+  [
+    /\bweb\b(?=[\s._-]+(?:\d{3,4}p|4k|uhd|x26[45]|h[\s.]?26[45]|hevc|avc|av1|xvid|aac\d?|ac3|eac3|ddp?\d?|dts|atmos|truehd|flac|hdr\d*|10bit|8bit|remux|repack|proper|rip|dl)\b)/i,
+    'WEB',
+  ],
 ];
 const CODEC: Array<[RegExp, string]> = [
   [/\b(x265|h[\s.]?265|hevc)\b/i, 'x265'],

@@ -281,3 +281,38 @@ describe('parseTorrentName — dotted acronyms in titles', () => {
     });
   });
 });
+
+/**
+ * A bare "Web" is a word before it is a source.
+ *
+ * `WEB-DL` and `WEBRip` are unambiguous, but a lone `web` matched anywhere — and
+ * since the title is cut at the earliest marker, every film whose name ends in
+ * that word lost it. It only bites when nothing else in the string is a marker,
+ * which is exactly a bare `Title (YYYY)` folder, so it corrupted the identity
+ * path specifically. Both examples are live: they were stored as "The Girl in
+ * the Spider's" and "Unfriended Dark".
+ */
+describe('parseTorrentName — "Web" in a film title', () => {
+  it.each([
+    ["The Girl in the Spider's Web (2018)", "The Girl in the Spider's Web"],
+    ['Unfriended - Dark Web (2018)', 'Unfriended - Dark Web'],
+  ])('keeps the trailing word in %s', (input, expected) => {
+    const p = parseTorrentName(input);
+    expect(p.title).toBe(expected);
+    // Nothing in these names is a source — the word was the whole of it.
+    expect(p.source).toBeFalsy();
+  });
+
+  it.each([
+    'Some.Movie.2019.WEB.x264-GROUP.mkv',
+    'Some Movie 2019 WEB 1080p AAC.mkv',
+    'Some.Show.S01E02.WEB.DDP5.1.H264-NTb.mkv',
+  ])('still reads WEB as the source in %s', (input) => {
+    expect(parseTorrentName(input).source).toBe('WEB');
+  });
+
+  it('leaves the unambiguous spellings exactly as they were', () => {
+    expect(parseTorrentName('Another.Movie.2020.WEB-DL.1080p.mkv').source).toBe('WEB-DL');
+    expect(parseTorrentName('Another.Movie.2020.WEBRip.x265.mkv').source).toBe('WEBRip');
+  });
+});
