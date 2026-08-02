@@ -1,5 +1,0 @@
----
-"ultratorrent": minor
----
-
-Deleting a torrent's data now asks whether to remove what it imported. Media Intake imports by HARDLINK, so the library holds its own name for the same bytes — unlinking the download's name frees nothing and leaves a complete, playable file. Live, "Time and Water" and "Maddie's Secret" both survived a delete-with-data and had to be removed a second time through Library Browser, after Plex had gone on offering them. The mapping needed to do better already existed (intake records torrentHash → mediaItemId on every import); nothing consulted it. The delete dialog now looks it up, and when a torrent imported something it asks — naming the titles and their library, because "also remove from library" means nothing without knowing what that is. Deliberately NOT pre-selected: a hardlink import exists so a library copy can outlive the torrent, and defaulting to destruction would break seeding-and-keeping. The engine runs first, so a failed torrent delete can never leave the library already emptied. Single and bulk paths both honour it.
