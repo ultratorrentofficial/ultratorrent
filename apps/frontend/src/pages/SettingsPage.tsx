@@ -7,6 +7,7 @@ import { ApiError, api, type AppSettings } from '@/lib/api';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { useAuth } from '@/auth/AuthContext';
 import { useToast } from '@/components/ui/toast';
+import { summarizeValue } from '@/components/ui/summary-facts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
@@ -267,9 +268,9 @@ function SettingRow({
             onChange={(e) => onChange(Number(e.target.value))}
           />
         ) : isObject ? (
-          <code className="block truncate rounded bg-white/5 px-2 py-1 text-xs text-muted-foreground">
-            {JSON.stringify(value)}
-          </code>
+          <span className="block truncate rounded bg-white/5 px-2 py-1 text-xs text-muted-foreground">
+            {summarizeValue(value)}
+          </span>
         ) : (
           <Input
             value={String(value ?? '')}

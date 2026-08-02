@@ -1834,5 +1834,8 @@
   "ops": {
     "toggle": "Operaciones",
     "selectEpisode": "Seleccionar episodio {{number}}"
+  },
+  "simulator": {
+    "stageDetail": "Detalles"
   }
 }

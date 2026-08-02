@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Play } from 'lucide-react';
 import { api, ApiError, type SimulationResult, type SimulationStage } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import { SummaryFacts } from '@/components/ui/summary-facts';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -127,9 +128,7 @@ export function DecisionSimulatorPage() {
                     </button>
                     {expanded && stage.detail && (
                       <div className="border-t border-white/5 px-3 py-2">
-                        <pre className="overflow-x-auto text-xs text-muted-foreground">
-                          {JSON.stringify(stage.detail, null, 2)}
-                        </pre>
+                        <SummaryFacts label={t('simulator.stageDetail')} value={stage.detail} />
                       </div>
                     )}
                   </Card>

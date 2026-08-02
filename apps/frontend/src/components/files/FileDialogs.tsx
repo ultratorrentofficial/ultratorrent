@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, FolderInput, FolderPlus, Info, Pencil, TriangleAlert } from 'lucide-react';
 import { ApiError, api, type ConflictResolution, type FileNode, type MoveConflictReport } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import { summarizeValue } from '@/components/ui/summary-facts';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -448,7 +449,7 @@ export function PropertiesDialog({
           <Row label={t('properties.modified')} value={formatDateTime(data.modifiedAt)} />
           {data.hash && <Row label={t('properties.hash')} value={data.hash} mono />}
           {data.media && (
-            <Row label={t('properties.media')} value={JSON.stringify(data.media)} mono />
+            <Row label={t('properties.media')} value={summarizeValue(data.media)} />
           )}
         </dl>
       )}

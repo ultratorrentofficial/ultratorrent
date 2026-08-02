@@ -43,6 +43,7 @@ import {
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '@/lib/format';
 import { useAuth } from '@/auth/AuthContext';
 import { useToast } from '@/components/ui/toast';
+import { summarizeValue } from '@/components/ui/summary-facts';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -169,11 +170,9 @@ function renderMeta(value: unknown, yes: string, no: string): string {
   if (value == null) return '—';
   if (typeof value === 'boolean') return value ? yes : no;
   if (typeof value === 'number' || typeof value === 'string') return String(value);
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
+  // An object here is metadata about a decision, not something to hand a user
+  // as braces and quoted keys.
+  return summarizeValue(value);
 }
 
 export function MediaAcquisitionPage() {

@@ -192,3 +192,36 @@ export function SummaryFacts({ label, value, emptyText }: SummaryFactsProps) {
     </div>
   );
 }
+
+/**
+ * One line of readable text for a value that would otherwise be stringified.
+ *
+ * `SummaryFacts` is a block; plenty of places need the same treatment inside a
+ * single table cell or property row, where a `<pre>` would wreck the layout and
+ * `JSON.stringify` produces `{"width":1920,"height":1080}` for a user to squint
+ * at. Same rules — omit what is not set, format by meaning, never show braces.
+ */
+export function summarizeValue(value: unknown, depth = 0): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'number') return formatNumber(value);
+  if (typeof value === 'string') return value;
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '—';
+    if (depth > 0) return `${formatNumber(value.length)} items`;
+    const shown = value.slice(0, 3).map((v) => summarizeValue(v, depth + 1));
+    return value.length > 3
+      ? `${shown.join(', ')} …and ${formatNumber(value.length - 3)} more`
+      : shown.join(', ');
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>).filter(([, v]) => !isEmpty(v));
+  if (!entries.length) return '—';
+  // Nested objects collapse rather than recursing forever inside one line.
+  if (depth > 0) return `${formatNumber(entries.length)} fields`;
+  return entries
+    .slice(0, 4)
+    .map(([k, v]) => `${humanizeKey(k)}: ${summarizeValue(v, depth + 1)}`)
+    .join(' · ') + (entries.length > 4 ? ` · …and ${formatNumber(entries.length - 4)} more` : '');
+}
