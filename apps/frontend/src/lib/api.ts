@@ -3066,15 +3066,26 @@ export interface ProwlarrStatusResult {
 }
 
 // ── Library Cleanup Center ──────────────────────────────────────────────────
+/**
+ * One field a cleanup policy may test.
+ *
+ * These names mirror what `/media/cleanup/catalog` actually returns. They did
+ * not: the type declared `group`, `label`, `valueType` and `description` while
+ * the server sends `category`, `labelKey`, `dataType` and `descriptionKey`, so
+ * anything reading a label got `undefined` — one of the reasons the policy
+ * editor never showed field names and stayed a JSON textarea.
+ */
 export interface CleanupConditionDef {
   id: string;
-  group: string;
-  label: string;
-  valueType: string;
+  category: 'metadata' | 'playback' | 'technical' | 'storage' | 'safety';
+  labelKey: string;
+  descriptionKey: string;
+  dataType: 'string' | 'number' | 'boolean' | 'date' | 'enum' | 'string[]';
   operators: string[];
+  factPath: string;
   requiresMeasuredData?: boolean;
+  safetyLevel?: 'informational' | 'normal' | 'elevated';
   enumValues?: string[];
-  description?: string;
 }
 export interface CleanupCatalog {
   schemaVersion: number;

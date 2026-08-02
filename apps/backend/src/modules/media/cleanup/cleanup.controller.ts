@@ -57,6 +57,7 @@ export class CleanupController {
     return this.policies.validate(dto.document);
   }
 
+
   /** Starter templates. Code, not seeded rows — nothing exists until instantiated. */
   @Get('templates')
   @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
