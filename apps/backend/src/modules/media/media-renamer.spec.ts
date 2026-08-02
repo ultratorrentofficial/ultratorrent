@@ -10,6 +10,7 @@ import {
   sanitizeSegment,
   showFolderRoot,
   RenameContext,
+  isRealEpisodeTitle,
 } from './media-renamer';
 
 const ctx = (over: Partial<RenameContext>): RenameContext => ({
@@ -1061,5 +1062,45 @@ describe('sanitizeSegment — no space is left against the extension', () => {
     expect(p.items[0]?.destination).toBe('/media/TV/Lucifer (2016)/Season 1/Lucifer - S01E08 - Et Tu, Doctor.mp4');
     // The file is already correct, so it must not appear as work.
     expect(p.items[0]?.unchanged).toBe(true);
+  });
+});
+
+/**
+ * IMDb writes `Episode #3.1` when it has no title for an episode.
+ *
+ * It is an ordinary string in an ordinary column, so a truthiness check accepts
+ * it as a title and it beats a provider that knows the real one. The dataset
+ * holds 2.8 MILLION of them, so recent episodes hit this as the common case, not
+ * an edge — the first file imported through Media Intake landed as
+ * `Lioness - S03E01 - Episode #3.1.mkv` while TMDB already had "The Spider and
+ * the Fly".
+ */
+describe('isRealEpisodeTitle', () => {
+  it.each([
+    'Episode #3.1',
+    'Episode #1.1',
+    'Episode #1',      // IMDb's form when it has no season either
+    'Episode #10',
+    'Episode #',       // and the bare placeholder
+    '  Episode #3.1  ',
+    'episode #3.1',
+    '',
+    '   ',
+    null,
+    undefined,
+  ])('rejects %p', (t) => {
+    expect(isRealEpisodeTitle(t as string | null | undefined)).toBe(false);
+  });
+
+  it.each([
+    'The Spider and the Fly',
+    'Pilot',
+    'Episode 1',            // no '#': some shows genuinely title episodes this way
+    'Episode 3.1 Revisited',
+    'The One with the #1 Fan',
+    '#1 Crush',
+    'Chapter 7: The Reckoning',
+  ])('accepts %p', (t) => {
+    expect(isRealEpisodeTitle(t)).toBe(true);
   });
 });

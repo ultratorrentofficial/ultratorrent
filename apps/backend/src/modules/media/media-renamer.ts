@@ -34,6 +34,32 @@ export interface EpisodeMeta {
 }
 
 /**
+ * IMDb's placeholder for an episode it has no title for — `Episode #3.1`.
+ *
+ * It is a real string in a real column, so every truthiness check treats it as a
+ * title and it wins over a provider that knows the actual one. The dataset holds
+ * **2.8 million** of them, so this is the common case for anything recent rather
+ * than an edge: the first episode imported through Media Intake landed as
+ * `Lioness - S03E01 - Episode #3.1.mkv` while TMDB already had "The Spider and
+ * the Fly".
+ *
+ * Also matches the shorter forms IMDb uses when it has no season either
+ * (`Episode #1`, and a bare `Episode #`). Requiring the `#` is what keeps a show
+ * that genuinely titles its episodes "Episode 1" out of this.
+ */
+const IMDB_UNTITLED_EPISODE = /^\s*Episode\s*#\s*\d*(?:\.\d+)?\s*$/i;
+
+/**
+ * Is this a usable episode title, or IMDb's way of saying it has none?
+ *
+ * Exported because the answer decides a filename, and a filename is the one thing
+ * a user cannot easily undo.
+ */
+export function isRealEpisodeTitle(title: string | null | undefined): title is string {
+  return Boolean(title && title.trim() && !IMDB_UNTITLED_EPISODE.test(title));
+}
+
+/**
  * Junk-cleanup rules applied during a rename/move: files that should be **erased**
  * from the download folder before the important files are relocated. Global by
  * design (one list for every library). Only ever consulted for the two modes that

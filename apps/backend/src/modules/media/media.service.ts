@@ -30,6 +30,7 @@ import {
   CleanupRules,
   DEFAULT_CLEANUP_RULES,
   EpisodeMeta,
+  isRealEpisodeTitle,
   MediaFileInput,
   Preset,
   PRESET_TEMPLATES,
@@ -574,11 +575,17 @@ export class MediaService {
       const byTconst = new Map(titles.map((t) => [t.tconst, t.primaryTitle]));
       for (const r of relevant) {
         const title = byTconst.get(r.episodeTitleId);
-        // Only set the key when there is a real title — an absent one must fall
+        // Only set the key when there is a REAL title — an absent one must fall
         // through to the batch meta rather than blank it. The library's own show
         // title rides along so a file from a second show in the folder is named for
         // ITS series, not the batch's.
-        if (title) {
+        //
+        // "Real" cannot mean "truthy": IMDb stores `Episode #3.1` as an ordinary
+        // string when it has no title, 2.8 million times over, and a truthiness
+        // check accepts it and beats a provider that knows the actual name. That is
+        // how the first Intake import landed as `Lioness - S03E01 - Episode #3.1`
+        // while TMDB already had "The Spider and the Fly".
+        if (isRealEpisodeTitle(title)) {
           out.set(`${show.canonicalKey}|${r.seasonNumber}-${r.episodeNumber}`, {
             episodeTitle: title,
             seriesTitle: show.title,
