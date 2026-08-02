@@ -284,3 +284,46 @@ describe('detectDuplicateGroups — group identity is stable across scans', () =
     expect(a).toEqual(b);
   });
 });
+
+/**
+ * A shared series id is only evidence when the id is RIGHT.
+ *
+ * Contaminated metadata repeats one series id across genuinely different shows —
+ * the same short-title-swallowed-by-a-longer-one failure that put three films
+ * under `tt1790864`, in television form. Live on the library: `tt10405370` sat on
+ * both "Rogue (2013)" and "SAS Rogue Heroes (2022)", and `tt21088136` on both
+ * "Criminal Minds (2005)" and "Criminal Record (2024)".
+ *
+ * Unscoped, their same-numbered episodes collapse into one group and the
+ * recommended cleanup deletes an episode of a different series. So `sid:` carries
+ * the show's canonical name too — the id alone no longer collapses anything.
+ */
+describe('duplicateKeys — a contaminated series id must not merge two shows', () => {
+  it.each([
+    ['tt10405370', 'Rogue', 'SAS Rogue Heroes'],
+    ['tt21088136', 'Criminal Minds', 'Criminal Record'],
+  ])('keeps %s apart across "%s" and "%s"', (sid, showA, showB) => {
+    const a = ep('a', showA, 1, 3, { seriesImdbId: sid });
+    const b = ep('b', showB, 1, 3, { seriesImdbId: sid });
+    const ka = duplicateKeys(a).map((k) => k.key);
+    const kb = duplicateKeys(b).map((k) => k.key);
+    expect(ka.some((k) => kb.includes(k))).toBe(false);
+    expect(detectDuplicateGroups([a, b])).toHaveLength(0);
+  });
+
+  it('STILL groups one show spelled two ways in two folders', () => {
+    // Live: "Magnum P.I" and "Magnum P.I." are one show in two folders. The scope
+    // uses the canonical key, which strips punctuation, so this must still group —
+    // otherwise the fix has traded a false positive for a false negative.
+    const a = ep('a', 'Magnum P.I', 1, 3, { year: 2018, seriesImdbId: 'tt7942796' });
+    const b = ep('b', 'Magnum P.I.', 1, 3, { year: 2018, seriesImdbId: 'tt7942796' });
+    expect(detectDuplicateGroups([a, b])).toHaveLength(1);
+  });
+
+  it('STILL groups two copies with the same id when one year is missing', () => {
+    // The reason `sid:` exists at all — scoping it must not cost this.
+    const withYear = ep('a', 'Severance', 1, 3, { year: 2022, seriesImdbId: 'tt11280740' });
+    const noYear = ep('b', 'Severance', 1, 3, { seriesImdbId: 'tt11280740' });
+    expect(detectDuplicateGroups([withYear, noYear])).toHaveLength(1);
+  });
+});

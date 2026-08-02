@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { WS_EVENTS, type DuplicateScanEventPayload } from '@ultratorrent/shared';
 import { titlesAreSequelVariants } from './imdb/imdb-match';
+import { showCanonicalKey } from './series-grouping';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { pageOf, parsePage } from '../../common/pagination';
@@ -215,8 +216,23 @@ export function duplicateKeys(item: DuplicateItemLike): Array<{
   // EITHER agrees (an identified copy still matches an unidentified-but-same-year
   // one, and a copy whose year is missing still matches on the series id), while two
   // different shows that merely share a title differ on BOTH and never collapse.
+  //
+  // The series id is SCOPED BY THE SHOW'S NAME, for the same reason the movie
+  // external-id key is scoped by year: a shared id is only evidence when the id is
+  // right, and contaminated metadata repeats one series id across genuinely
+  // different shows. Observed live: `tt10405370` on both "Rogue (2013)" and "SAS
+  // Rogue Heroes (2022)", `tt21088136` on both "Criminal Minds (2005)" and
+  // "Criminal Record (2024)" — the same short-title-swallowed-by-a-longer-one
+  // failure that put three films under one imdb id, in television form. Unscoped,
+  // their same-numbered episodes collapse into false duplicates and the recommended
+  // cleanup deletes an episode of a different series.
+  //
+  // `showCanonicalKey` and not the raw title, so the scope survives the spellings a
+  // library actually contains: "Magnum P.I" and "Magnum P.I." are one show in two
+  // folders and must still group, which they do because it strips punctuation and a
+  // trailing year.
   const showScopes: string[] = [];
-  if (item.seriesImdbId) showScopes.push(`sid:${item.seriesImdbId}`);
+  if (item.seriesImdbId) showScopes.push(`sid:${item.seriesImdbId}:${showCanonicalKey(item.title)}`);
   showScopes.push(`ty:${normTitle}:${item.year ?? 'na'}`);
 
   // (c) external id — an entity-level signal, but NOT one to trust blindly:

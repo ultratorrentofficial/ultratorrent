@@ -1,0 +1,5 @@
+---
+"ultratorrent": patch
+---
+
+A contaminated series id no longer merges two different shows. Duplicate detection scopes a TV episode by its show, and the strongest scope was the series id alone — but a shared id is only evidence when the id is RIGHT, and the same short-title-swallowed-by-a-longer-one failure that put three films under one imdb id happens to television too. Live: `tt10405370` sat on both "Rogue (2013)" and "SAS Rogue Heroes (2022)", `tt21088136` on both "Criminal Minds (2005)" and "Criminal Record (2024)" — their same-numbered episodes collapsed into one group, and the recommended cleanup would delete an episode of a different series. The `sid:` scope now carries the show's canonical name as well, so the id alone collapses nothing. It uses `showCanonicalKey`, which strips punctuation and a trailing year, so one show in two folder spellings ("Magnum P.I" and "Magnum P.I.") still groups — and two copies whose years disagree still match on the id, which is why that scope exists.
