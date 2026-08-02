@@ -1,7 +1,7 @@
 {
   "center": {
     "title": "Cleanup Center",
-    "subtitle": "Policy-driven, explainable, reversible reclamation of library storage.",
+    "subtitle": "Reclaim storage by removing MEDIA you no longer need — policy-driven, explainable and reversible. (To delete junk files left by a download, use Junk file removal in Media Settings instead.)",
     "howItWorks": "Cleanup proposes; people decide. A run turns policy matches into candidates — nothing is removed. A candidate becomes an action only inside an approved plan whose fingerprints still match the world, and every removal lands in Trash or Quarantine, both recoverable.",
     "stat": {
       "policies": "Policies",

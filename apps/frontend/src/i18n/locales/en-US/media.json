@@ -703,8 +703,8 @@
       "engineBtn": "Rename engine templates"
     },
     "cleanup": {
-      "title": "Cleanup rules",
-      "description": "Erase junk files (and unwanted-language subtitles) before moving the important files during a rename/move.",
+      "title": "Junk file removal",
+      "description": "Erase junk files (and unwanted-language subtitles) from a download folder while the important files are moved during a rename. This never deletes video — for removing actual movies or episodes to reclaim space, use the Cleanup Center.",
       "enabledLabel": "Enable cleanup during rename/move",
       "enabledHint": "Only applies to the Rename in place and Move modes — never to copy/hardlink/symlink, where the source is your seeding copy.",
       "globsLabel": "Delete patterns",

@@ -1,7 +1,7 @@
 {
   "center": {
     "title": "Centro de Limpieza",
-    "subtitle": "Recuperación de almacenamiento de la biblioteca guiada por políticas, explicable y reversible.",
+    "subtitle": "Recupera espacio eliminando MEDIOS que ya no necesitas: guiado por políticas, explicable y reversible. (Para borrar archivos basura de una descarga, usa «Eliminación de archivos basura» en Ajustes de Medios.)",
     "howItWorks": "La limpieza propone; las personas deciden. Una ejecución convierte las coincidencias de la política en candidatos: no se elimina nada. Un candidato se convierte en acción solo dentro de un plan aprobado cuyas huellas todavía coinciden con la realidad, y toda eliminación va a la Papelera o a Cuarentena, ambas recuperables.",
     "stat": {
       "policies": "Políticas",
