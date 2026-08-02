@@ -12,6 +12,8 @@ import { MediaBulkService } from './media-bulk.service';
 const fs = { unlinked: [] as string[], renamed: [] as string[][], copied: [] as string[][] };
 let unlinkErr: NodeJS.ErrnoException | null = null;
 let renameErr: NodeJS.ErrnoException | null = null;
+/** Destinations that already hold a file — `moveFile` must refuse these. */
+let occupied = new Set<string>();
 
 jest.mock('node:fs/promises', () => ({
   unlink: jest.fn(async (p: string) => {
@@ -26,6 +28,14 @@ jest.mock('node:fs/promises', () => ({
     fs.copied.push([a, b]);
   }),
   mkdir: jest.fn(async () => undefined),
+  // The move path now asks whether the destination is free before touching it.
+  // Default is ENOENT — free — which is what every pre-existing case here means.
+  lstat: jest.fn(async (p: string) => {
+    if (occupied.has(p)) return { isFile: () => true } as never;
+    const err = new Error(`ENOENT: no such file, lstat '${p}'`) as NodeJS.ErrnoException;
+    err.code = 'ENOENT';
+    throw err;
+  }),
 }));
 
 const ctx = { userId: 'u1', ipAddress: null, userAgent: null } as never;
@@ -72,6 +82,7 @@ const item = (id: string, over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   fs.unlinked = []; fs.renamed = []; fs.copied = [];
   unlinkErr = null; renameErr = null;
+  occupied = new Set();
 });
 
 describe('removeFromLibrary', () => {
@@ -178,6 +189,20 @@ describe('moveToLibrary', () => {
     const { svc, prisma } = build([item('a')], target);
     await svc.moveToLibrary(['a'], 'lib-new', ctx);
     // copyFile is not stubbed to fail, so only a non-EXDEV error reaches here.
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('refuses to move onto a file that is already there', async () => {
+    // Both branches of moveFile would destroy the occupant — `rename` replaces
+    // it, and the EXDEV fallback copies over it and THEN unlinks the source,
+    // losing one file and moving the other. Nothing may touch the disk.
+    occupied.add('/library/new/a.mkv');
+    const { svc, prisma } = build([item('a')], target);
+    await svc.moveToLibrary(['a'], 'lib-new', ctx);
+    expect(fs.renamed).toEqual([]);
+    expect(fs.copied).toEqual([]);
+    expect(fs.unlinked).toEqual([]);
+    // …and the row still points at the source, because the file never moved.
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

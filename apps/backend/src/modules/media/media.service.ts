@@ -858,6 +858,14 @@ export class MediaService {
    * cross-device fallback from hardlink to copy; the richer return value the
    * primitive offers is only of interest to intake, which has to record what
    * actually happened rather than what was requested.
+   *
+   * An occupied destination throws rather than replacing the file that is
+   * already there. The caller's catch turns that into a `failed` operation
+   * logged with the reason, and because nothing ran, the source stays put — the
+   * two files that collided both survive, and the run reports that it could not
+   * place one of them. Overwriting instead would be unrecoverable here: undo
+   * replays recorded moves backwards, and the destroyed file was never a move,
+   * so it appears in no log to restore from.
    */
   private async execute(action: string, src: string, dest: string): Promise<void> {
     await placeFile(action as PlacementAction, src, dest);

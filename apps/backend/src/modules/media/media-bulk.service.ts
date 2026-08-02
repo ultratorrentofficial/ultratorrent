@@ -1,3 +1,4 @@
+import { constants } from 'node:fs';
 import { copyFile, mkdir, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
@@ -5,6 +6,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { AuditContext } from './media-metadata.service';
 import { MediaProcessingQueueService } from './media-processing-queue.service';
+import { assertDestinationFree } from '../../common/file-placement';
 
 /**
  * How many ids one request may name.
@@ -25,15 +27,22 @@ export const MAX_BULK_IDS = 1000;
  * share and a source on local disk, is the ordinary case rather than the
  * exception. The fallback copies then unlinks, so an interrupted move leaves
  * the original intact rather than a half-written file and no source.
+ *
+ * An occupied destination is refused outright rather than replaced. Both
+ * branches would otherwise destroy it — `rename` replaces by definition, and
+ * the EXDEV path is worse still, copying over the occupant and THEN unlinking
+ * the source, so one file is lost and the other has moved. Raising here leaves
+ * both where they are and lets the caller report the failure.
  */
 async function moveFile(from: string, to: string): Promise<void> {
   if (from === to) return;
   await mkdir(dirname(to), { recursive: true });
+  await assertDestinationFree(to);
   try {
     await rename(from, to);
   } catch (err) {
     if ((err as NodeJS.ErrnoException)?.code !== 'EXDEV') throw err;
-    await copyFile(from, to);
+    await copyFile(from, to, constants.COPYFILE_EXCL);
     await unlink(from);
   }
 }
