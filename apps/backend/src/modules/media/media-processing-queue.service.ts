@@ -32,6 +32,40 @@ export interface CreateJobOptions {
   payload?: Record<string, unknown>;
 }
 
+/**
+ * What a media job says it was asked to do, for the Jobs Center.
+ *
+ * The old version read ONLY `libraryId` and `itemId` and wrote `null` for each
+ * when absent. Bulk operations from Library Browser carry their targets in the
+ * PAYLOAD — `{ libraryId: null, payload: { itemIds: [...] } }` — so a perfectly
+ * healthy single-item metadata refresh recorded `{ libraryId: null, itemId: null }`
+ * and told the operator, in as many words, that it had no idea what to work on.
+ * It knew; the summary was looking in the wrong place.
+ *
+ * Now it reads the payload too, and omits what is genuinely absent rather than
+ * asserting a null — absence and "nothing to do" are not the same claim.
+ */
+export function summarizeMediaJobInput(input: CreateJobOptions | undefined): Record<string, unknown> {
+  const payload = (input?.payload ?? {}) as Record<string, unknown>;
+  const itemIds = Array.isArray(payload.itemIds) ? (payload.itemIds as string[]) : undefined;
+  const out: Record<string, unknown> = {};
+
+  if (input?.libraryId) out.libraryId = input.libraryId;
+  // A one-item bulk is the common case from Library Browser, and naming the item
+  // is far more useful than reporting a list of one.
+  const single = input?.itemId ?? (itemIds?.length === 1 ? itemIds[0] : undefined);
+  if (single) out.itemId = single;
+  if (itemIds && itemIds.length > 1) out.itemIds = itemIds;
+
+  // Anything else the caller passed is still worth showing — a path, a profile,
+  // a flag — but ids are handled above so they are not repeated.
+  for (const [k, v] of Object.entries(payload)) {
+    if (k === 'itemIds' || v === null || v === undefined) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 /** Progress reporter handed to a job body: `report(percent, message?)`. */
 export type JobReporter = (progress: number, message?: string) => Promise<void>;
 
@@ -95,7 +129,7 @@ export class MediaProcessingQueueService implements OnModuleInit {
           requiredPermission: PERMISSIONS.MEDIA_MANAGER_VIEW,
           capabilities: { cancellable: true, retryable: false, pausable: false, resumable: false },
           validateInput: (i) => (i ?? {}) as CreateJobOptions,
-          summarizeInput: (i) => ({ libraryId: (i as CreateJobOptions)?.libraryId ?? null, itemId: (i as CreateJobOptions)?.itemId ?? null }),
+          summarizeInput: (i) => summarizeMediaJobInput(i as CreateJobOptions),
         },
         // Never invoked — run/runDetached always supply an inline executor (the caller's fn).
         { execute: async () => ({}) },
@@ -135,13 +169,20 @@ export class MediaProcessingQueueService implements OnModuleInit {
   }
 
   private enqueueInput(type: MediaJobType, opts: CreateJobOptions): EnqueueJobInput<CreateJobOptions> {
+    // A bulk operation over exactly ONE item is the ordinary case from Library
+    // Browser, and it carries its target in the payload rather than in `itemId`.
+    // Without this the row's `mediaItemId` stays null, so the Jobs Center cannot
+    // link the job to what it acted on or filter by it — which is how a healthy
+    // refresh came to look like a job that did not know what to do.
+    const ids = opts.payload?.itemIds;
+    const single = Array.isArray(ids) && ids.length === 1 ? String(ids[0]) : undefined;
     return {
       type: `media.${type}`,
       input: opts,
       name: type,
       source: 'manual',
       libraryId: opts.libraryId ?? undefined,
-      mediaItemId: opts.itemId ?? undefined,
+      mediaItemId: opts.itemId ?? single,
     };
   }
 
