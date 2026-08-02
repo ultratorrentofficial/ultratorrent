@@ -188,7 +188,9 @@ export class TorrentsController {
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: Request,
   ) {
-    return this.torrents.bulk(dto.hashes, dto.action, dto.engineId, user, reqCtx(req));
+    return this.torrents.bulk(dto.hashes, dto.action, dto.engineId, user, reqCtx(req), {
+      removeLibraryItems: dto.removeLibrary === true,
+    });
   }
 
   @Post(':hash/start')
@@ -227,10 +229,40 @@ export class TorrentsController {
     return this.torrents.remove(hash, engineId, user, reqCtx(req));
   }
 
+  /**
+   * What these torrents imported into a library, so the delete dialog can ASK
+   * before leaving a playable copy behind. Read-only.
+   *
+   * POST rather than GET because a bulk delete asks about many hashes at once,
+   * and a hash list belongs in a body rather than a query string. `torrents.view`
+   * is enough — it reports what exists, it does not act.
+   */
+  @Post('imported-items')
+  @RequirePermissions(PERMISSIONS.TORRENTS_VIEW)
+  importedItems(@Body() dto: { hashes?: string[] }) {
+    return this.torrents.importedLibraryItems(dto?.hashes ?? []);
+  }
+
+  /**
+   * `removeLibrary=1` also deletes what this torrent imported.
+   *
+   * Off by default and never inferred: a hardlink import exists so the library
+   * copy can outlive the torrent, and deleting the download's name frees nothing
+   * on its own. The operator answers the question the dialog asks; the API does
+   * not decide for them.
+   */
   @Delete(':hash/data')
   @RequirePermissions(PERMISSIONS.TORRENTS_DELETE_DATA)
-  removeData(@Param('hash') hash: string, @Query('engineId') engineId: string, @CurrentUser() user: AuthenticatedUser, @Req() req: Request) {
-    return this.torrents.removeData(hash, engineId, user, reqCtx(req));
+  removeData(
+    @Param('hash') hash: string,
+    @Query('engineId') engineId: string,
+    @Query('removeLibrary') removeLibrary: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.torrents.removeData(hash, engineId, user, reqCtx(req), {
+      removeLibraryItems: removeLibrary === '1' || removeLibrary === 'true',
+    });
   }
 
   @Post(':hash/move')

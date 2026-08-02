@@ -25,7 +25,10 @@ describe('TorrentsService.bulk — per-action authorization', () => {
   const registry = { resolve: jest.fn().mockResolvedValue(provider) } as any;
   const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
   const prisma = {} as any;
-  const svc = new TorrentsService(registry, audit, filePath, prisma);
+  // The library-removal path is opt-in and never reached by these cases, but the
+  // service now takes the collaborator that performs it.
+  const mediaBulk = { deleteFiles: jest.fn().mockResolvedValue({ jobId: 'j1' }) } as any;
+  const svc = new TorrentsService(registry, audit, filePath, prisma, mediaBulk);
 
   const user = (perms: string[], roles: string[] = []): AuthenticatedUser => ({
     id: 'u1',
@@ -76,7 +79,8 @@ describe('TorrentsService.add/move — save-path safety', () => {
   const registry = { resolve: jest.fn().mockResolvedValue(provider) } as any;
   const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
   const prisma = {} as any;
-  const svc = new TorrentsService(registry, audit, filePath, prisma);
+  const mediaBulk = { deleteFiles: jest.fn().mockResolvedValue({ jobId: 'j1' }) } as any;
+  const svc = new TorrentsService(registry, audit, filePath, prisma, mediaBulk);
   const actor = { id: 'u', username: 'u', roles: [], permissions: [] } as AuthenticatedUser;
 
   beforeEach(() => jest.clearAllMocks());

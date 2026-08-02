@@ -132,7 +132,12 @@
     "dataAria": "Eliminar datos",
     "cancel": "Cancelar",
     "confirm": "Eliminar",
-    "confirmData": "Eliminar + datos"
+    "confirmData": "Eliminar + datos",
+    "alsoLibrary": "Quitar también de la biblioteca",
+    "alsoLibraryHint_one": "Este torrent importó {{count}} elemento a tu biblioteca. Borrar los archivos de la descarga NO lo elimina: sigue reproduciéndose en Plex.",
+    "alsoLibraryHint_other": "Este torrent importó {{count}} elementos a tu biblioteca. Borrar los archivos de la descarga NO los elimina: siguen reproduciéndose en Plex.",
+    "alsoLibraryMore": "y {{count}} más",
+    "libraryAria": "Quitar también de la biblioteca"
   },
   "actions": {
     "resume": "Reanudar",

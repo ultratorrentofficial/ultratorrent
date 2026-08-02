@@ -33,10 +33,10 @@ export function BulkToolbar({ selection, onClear }: BulkToolbarProps) {
 
   const { groups, isLoading, isError } = useContextActions({ selection });
 
-  const run = async (action: BulkAction, hashes: string[]) => {
+  const run = async (action: BulkAction, hashes: string[], alsoLibrary = false) => {
     setPending(true);
     try {
-      await api.torrents.bulk(hashes, action);
+      await api.torrents.bulk(hashes, action, alsoLibrary);
       toast.success(
         t('bulk.appliedTitle', { action: t(`bulk.action.${action}` as 'bulk.action.resume') }),
         t('count', { count: hashes.length }),
@@ -88,12 +88,13 @@ export function BulkToolbar({ selection, onClear }: BulkToolbarProps) {
       <DeleteTorrentDialog
         open={confirmDelete !== null}
         count={selection.length}
+        hashes={selection.map((e) => e.id)}
         onClose={() => setConfirmDelete(null)}
-        onConfirm={(withData) => {
+        onConfirm={(withData, alsoLibrary) => {
           const action: BulkAction =
             confirmDelete === 'removeData' || withData ? 'removeData' : 'remove';
           setConfirmDelete(null);
-          void run(action, selection.map((e) => e.id));
+          void run(action, selection.map((e) => e.id), alsoLibrary);
         }}
       />
     </>

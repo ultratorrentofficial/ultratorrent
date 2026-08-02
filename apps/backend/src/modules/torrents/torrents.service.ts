@@ -17,6 +17,7 @@ import { EngineRegistryService } from '../engine/engine-registry.service';
 import { AuditService } from '../audit/audit.service';
 import { FilePathService } from '../files/file-path.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { MediaBulkService } from '../media/media-bulk.service';
 import { infoHashFromTorrent } from '../../infrastructure/rtorrent/bencode';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
@@ -56,6 +57,7 @@ export class TorrentsService {
     private readonly audit: AuditService,
     private readonly filePath: FilePathService,
     private readonly prisma: PrismaService,
+    private readonly mediaBulk: MediaBulkService,
   ) {}
 
   /**
@@ -226,8 +228,86 @@ export class TorrentsService {
   remove(hash: string, engineId: string | undefined, user: AuthenticatedUser, ctx: any) {
     return this.act(hash, engineId, 'torrents.delete', (p) => p.removeTorrent(hash), user, ctx);
   }
-  removeData(hash: string, engineId: string | undefined, user: AuthenticatedUser, ctx: any) {
-    return this.act(hash, engineId, 'torrents.delete_data', (p) => p.removeTorrentAndData(hash), user, ctx);
+  /**
+   * What a torrent put into a library, if anything.
+   *
+   * Media Intake records `torrentHash → mediaItemId` on every import, so this
+   * mapping already exists; nothing consulted it. Deleting a torrent's data
+   * therefore looked complete while leaving a playable copy behind, because a
+   * hardlink import means the library holds its OWN name for the same bytes and
+   * unlinking the download's name frees nothing. Observed live: "Time and Water"
+   * and "Maddie's Secret" both survived a delete-with-data and had to be removed
+   * a second time through Library Browser.
+   *
+   * Read-only, and used to ASK: the delete dialog can now name what else would
+   * be affected instead of the operator discovering it in Plex afterwards.
+   */
+  async importedLibraryItems(hashes: string[]): Promise<Array<{
+    torrentHash: string;
+    itemId: string;
+    title: string;
+    path: string;
+    library: string | null;
+  }>> {
+    const wanted = [...new Set((hashes ?? []).filter(Boolean))];
+    if (!wanted.length) return [];
+    const jobs = await this.prisma.mediaIntakeJob.findMany({
+      where: { torrentHash: { in: wanted }, mediaItemId: { not: null } },
+      select: { torrentHash: true, mediaItemId: true },
+    });
+    if (!jobs.length) return [];
+
+    // The item is the authority on whether it still exists — an intake job can
+    // outlive what it imported, and offering to delete a row that is already gone
+    // would put a phantom in the dialog.
+    const items = await this.prisma.mediaItem.findMany({
+      where: { id: { in: jobs.map((j) => j.mediaItemId!) } },
+      select: { id: true, title: true, path: true, library: { select: { name: true } } },
+    });
+    const byId = new Map(items.map((i) => [i.id, i]));
+    return jobs.flatMap((j) => {
+      const item = byId.get(j.mediaItemId!);
+      if (!item || !j.torrentHash) return [];
+      return [{
+        torrentHash: j.torrentHash,
+        itemId: item.id,
+        title: item.title,
+        path: item.path,
+        library: item.library?.name ?? null,
+      }];
+    });
+  }
+
+  /**
+   * Delete a torrent AND its data, optionally taking the library copy with it.
+   *
+   * `removeLibraryItems` is the operator's answer to a question the dialog asks
+   * only when there is something to ask about. It is not the default: a hardlink
+   * import exists precisely so a library copy can outlive the torrent, and
+   * silently destroying it would break seeding-and-keeping for everyone who
+   * relies on that.
+   *
+   * The engine runs FIRST. Reversed, a failure to remove the torrent would leave
+   * the library already emptied — and the library copy is the one nothing else
+   * can reproduce.
+   */
+  async removeData(
+    hash: string,
+    engineId: string | undefined,
+    user: AuthenticatedUser,
+    ctx: any,
+    opts: { removeLibraryItems?: boolean } = {},
+  ) {
+    const imported = opts.removeLibraryItems ? await this.importedLibraryItems([hash]) : [];
+    const result = await this.act(
+      hash, engineId, 'torrents.delete_data', (p) => p.removeTorrentAndData(hash), user, ctx,
+    );
+    if (!imported.length) return result;
+
+    const removed = await this.mediaBulk.deleteFiles(imported.map((i) => i.itemId), {
+      userId: user.id, ipAddress: ctx?.ipAddress, userAgent: ctx?.userAgent,
+    });
+    return { ...result, libraryItemsRemoved: imported.length, libraryJobId: removed.jobId };
   }
   move(hash: string, dest: string, engineId: string | undefined, user: AuthenticatedUser, ctx: any) {
     const safeDest = this.safeStoragePath(dest, 'destination');
@@ -258,6 +338,7 @@ export class TorrentsService {
     engineId: string | undefined,
     user: AuthenticatedUser,
     ctx: any,
+    opts: { removeLibraryItems?: boolean } = {},
   ) {
     const required = BULK_ACTION_PERMISSIONS[action];
     if (!required) throw new BadRequestException(`Unknown bulk action: ${action}`);
@@ -288,17 +369,38 @@ export class TorrentsService {
     };
     const fn = map[action];
     if (!fn) throw new BadRequestException(`Unknown bulk action: ${action}`);
+    // Resolved BEFORE the engine runs: once the torrents are gone their intake
+    // rows are the only remaining link to what they imported, and a lookup after
+    // the fact would be racing whatever cleans up next.
+    const imported =
+      action === 'removeData' && opts.removeLibraryItems
+        ? await this.importedLibraryItems(hashes)
+        : [];
+
     const results = await Promise.allSettled(hashes.map(fn));
+
+    // Only what the operator asked for, and only after the engine has run: the
+    // library copy is the one thing nothing else can reproduce, so it is never
+    // destroyed ahead of the step that might fail.
+    let libraryItemsRemoved = 0;
+    if (imported.length) {
+      await this.mediaBulk.deleteFiles(imported.map((i) => i.itemId), {
+        userId: user.id, ipAddress: ctx?.ipAddress, userAgent: ctx?.userAgent,
+      });
+      libraryItemsRemoved = imported.length;
+    }
+
     await this.audit.record({
       userId: user.id,
       action: `torrents.bulk.${action}`,
       result: 'success',
-      metadata: { count: hashes.length },
+      metadata: { count: hashes.length, libraryItemsRemoved },
       ...ctx,
     });
     return {
       succeeded: results.filter((r) => r.status === 'fulfilled').length,
       failed: results.filter((r) => r.status === 'rejected').length,
+      ...(libraryItemsRemoved ? { libraryItemsRemoved } : {}),
     };
   }
 }

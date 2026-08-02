@@ -77,6 +77,14 @@ export class BulkActionDto {
   @IsOptional()
   @IsString()
   engineId?: string;
+
+  /**
+   * With `removeData`, also delete what these torrents imported into a library.
+   * Only meaningful for that action; ignored otherwise.
+   */
+  @IsOptional()
+  @IsBoolean()
+  removeLibrary?: boolean;
 }
 
 export class SetLimitDto {

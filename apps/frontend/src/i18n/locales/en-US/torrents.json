@@ -132,7 +132,12 @@
     "dataAria": "Delete data",
     "cancel": "Cancel",
     "confirm": "Delete",
-    "confirmData": "Delete + data"
+    "confirmData": "Delete + data",
+    "alsoLibrary": "Also remove from library",
+    "alsoLibraryHint_one": "This torrent imported {{count}} item into your library. Deleting the download's files does NOT remove it — it stays playable in Plex.",
+    "alsoLibraryHint_other": "This torrent imported {{count}} items into your library. Deleting the download's files does NOT remove them — they stay playable in Plex.",
+    "alsoLibraryMore": "and {{count}} more",
+    "libraryAria": "Also remove from library"
   },
   "actions": {
     "resume": "Resume",

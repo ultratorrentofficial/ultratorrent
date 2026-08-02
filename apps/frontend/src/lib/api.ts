@@ -865,6 +865,15 @@ export interface AppSettings {
 }
 
 export type BulkAction = 'start' | 'stop' | 'pause' | 'resume' | 'recheck' | 'remove' | 'removeData';
+
+/** A library item that a torrent imported — what a delete would otherwise leave behind. */
+export interface TorrentImportedItem {
+  torrentHash: string;
+  itemId: string;
+  title: string;
+  path: string;
+  library: string | null;
+}
 export type TorrentAction = 'start' | 'stop' | 'pause' | 'resume' | 'recheck';
 
 export interface TorrentQuery {
@@ -3327,11 +3336,26 @@ export const api = {
     action(hash: string, action: TorrentAction): Promise<void> {
       return request<void>(`/torrents/${hash}/${action}`, { method: 'POST' });
     },
-    remove(hash: string, withData = false): Promise<void> {
-      return request<void>(`/torrents/${hash}${withData ? '/data' : ''}`, { method: 'DELETE' });
+    remove(hash: string, withData = false, alsoLibrary = false): Promise<void> {
+      const q = withData && alsoLibrary ? '?removeLibrary=1' : '';
+      return request<void>(`/torrents/${hash}${withData ? '/data' : ''}${q}`, { method: 'DELETE' });
     },
-    bulk(hashes: string[], action: BulkAction): Promise<void> {
-      return request<void>('/torrents/bulk', { method: 'POST', body: { hashes, action } });
+    /**
+     * What these torrents imported into a library. Read-only, and the reason the
+     * delete dialog can name what else would go rather than leaving a playable
+     * copy behind for the operator to find in Plex later.
+     */
+    importedItems(hashes: string[]): Promise<TorrentImportedItem[]> {
+      return request<TorrentImportedItem[]>('/torrents/imported-items', {
+        method: 'POST',
+        body: { hashes },
+      });
+    },
+    bulk(hashes: string[], action: BulkAction, removeLibrary = false): Promise<void> {
+      return request<void>('/torrents/bulk', {
+        method: 'POST',
+        body: { hashes, action, ...(removeLibrary ? { removeLibrary: true } : {}) },
+      });
     },
   },
 

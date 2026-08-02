@@ -86,10 +86,11 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
         open={confirmDelete}
         count={1}
         name={torrent.name}
+        hashes={[torrent.hash]}
         onClose={() => setConfirmDelete(false)}
-        onConfirm={async (withData) => {
+        onConfirm={async (withData, alsoLibrary) => {
           try {
-            await api.torrents.remove(torrent.hash, withData);
+            await api.torrents.remove(torrent.hash, withData, alsoLibrary);
             toast.success(t('actions.deletedTitle'));
             await queryClient.invalidateQueries({ queryKey: ['torrents'] });
             setConfirmDelete(false);
