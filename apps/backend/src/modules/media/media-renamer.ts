@@ -620,8 +620,20 @@ export function showFolderRoot(source: string): string {
  * In-place applies only to **absolute** sources (the media-library flow). The
  * torrent post-download flow passes base-relative paths and must re-root.
  */
-function resolveDestination(ctx: RenameContext, source: string, rel: string): string {
-  if (ctx.mode === 'rename_in_place' && path.isAbsolute(source)) {
+function resolveDestination(ctx: RenameContext, source: string, rel: string, kind?: string): string {
+  // A MOVIE owns its folder, so the folder is part of its name and the template
+  // decides it. Preserving the existing one is what left releases sitting in
+  // `A Sense Of Dread (2026) [1080p] [WEBRip] [YTS.GG - YTS.BZ]/` with a
+  // perfectly clean file inside — the folder was never a rename candidate at
+  // all, in any mode.
+  //
+  // The in-place carve-out below exists for TELEVISION, where the show folder is
+  // shared by every season and a missing year would fork `Show (year)/` into a
+  // second bare `Show/`. That reasoning does not transfer to a movie: nothing
+  // else lives in its folder, so re-rooting under the template cannot split
+  // anything.
+  const isMovie = kind === 'movie';
+  if (!isMovie && ctx.mode === 'rename_in_place' && path.isAbsolute(source)) {
     const parts = rel.split(path.sep);
     const belowShow = parts.length > 1 ? parts.slice(1).join(path.sep) : rel;
     return path.join(showFolderRoot(source), belowShow);
@@ -789,7 +801,7 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
       // Route extras into an Extras/ subfolder beside the title folder.
       const dir = path.dirname(rel);
       rel = path.join(dir, 'Extras', sanitizeSegment(path.basename(f.path)));
-      items.push({ source: f.path, destination: resolveDestination(ctx, f.path, rel), action, kind: c.kind, reason: 'extra/featurette', skipped: false, isSubtitle: false, isSample: false, isExtra: true });
+      items.push({ source: f.path, destination: resolveDestination(ctx, f.path, rel, c.kind), action, kind: c.kind, reason: 'extra/featurette', skipped: false, isSubtitle: false, isSample: false, isExtra: true });
       continue;
     }
 
@@ -798,7 +810,7 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
       rel = rel.replace(/Season 0+\b/i, 'Specials');
     }
 
-    const destination = resolveDestination(ctx, f.path, rel);
+    const destination = resolveDestination(ctx, f.path, rel, c.kind);
     if (destSeen.has(destination)) {
       warnings.push(`Duplicate destination "${destination}" from "${f.path}" and "${destSeen.get(destination)}".`);
     }

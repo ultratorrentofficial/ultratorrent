@@ -1104,3 +1104,81 @@ describe('isRealEpisodeTitle', () => {
     expect(isRealEpisodeTitle(t)).toBe(true);
   });
 });
+
+/**
+ * A movie's FOLDER is part of its name, so the template decides it.
+ *
+ * `rename_in_place` discarded the template's leading folder segment and rejoined
+ * onto whatever folder the file already sat in, so a release folder survived
+ * forever: `A Sense Of Dread (2026) [1080p] [WEBRip] [YTS.GG - YTS.BZ]/` kept its
+ * name while the file inside was renamed perfectly. On this library 34 movie
+ * folders were in that state, and the rename log shows a folder has NEVER been a
+ * rename candidate — no mode ever touched one.
+ *
+ * That carve-out is right for TELEVISION, where the show folder is shared by
+ * every season and a missing year would fork `Show (2021)/` into a second bare
+ * `Show/`. Nothing else lives in a movie's folder, so it cannot split anything.
+ */
+describe('buildRenamePlan — a movie folder follows the template', () => {
+  const movie = (mode: 'rename_in_place' | 'rename_move') =>
+    buildRenamePlan({
+      sourceName: 'A.Sense.Of.Dread.2026.1080p.WEBRip.x264.AAC-[YTS.GG - YTS.BZ]',
+      files: [{
+        path: '/lib/Movies/A Sense Of Dread (2026) [1080p] [WEBRip] [YTS.GG - YTS.BZ]/A.Sense.Of.Dread.2026.1080p.WEBRip.x264.AAC-[YTS.GG - YTS.BZ].mp4',
+        size: 1_874_316_168,
+      }],
+      preset: 'plex',
+      mode,
+      libraryPath: '/lib/Movies',
+    });
+
+  it('re-homes the film out of its release folder, in place', () => {
+    const dest = movie('rename_in_place').items.find((i) => !i.isSubtitle && i.destination)!.destination!;
+    // No metadata supplied here, so the title keeps the release's own casing —
+    // the folder is derived from the same tokens as the filename, which is the
+    // property under test.
+    expect(dest).toBe('/lib/Movies/A Sense Of Dread (2026)/A Sense Of Dread (2026) - 1080p.mp4');
+    // The point of the fix: the release folder is gone from the destination.
+    expect(dest).not.toContain('YTS');
+    expect(dest).not.toContain('[1080p]');
+  });
+
+  it("uses the PROVIDER's title for the folder when one is known", () => {
+    // Live, the item carries "A Sense of Dread" from TMDB while the release
+    // spells it "A.Sense.Of.Dread". The folder must follow the provider, or the
+    // library ends up with two spellings of one film.
+    const plan = buildRenamePlan({
+      sourceName: 'A.Sense.Of.Dread.2026.1080p.WEBRip.x264.AAC-[YTS.GG - YTS.BZ]',
+      files: [{
+        path: '/lib/Movies/A Sense Of Dread (2026) [1080p] [WEBRip] [YTS.GG - YTS.BZ]/A.Sense.Of.Dread.2026.1080p.WEBRip.x264.AAC-[YTS.GG - YTS.BZ].mp4',
+        size: 1_874_316_168,
+      }],
+      preset: 'plex',
+      mode: 'rename_in_place',
+      libraryPath: '/lib/Movies',
+      meta: { movieTitle: 'A Sense of Dread', year: 2026 },
+    });
+    const dest = plan.items.find((i) => i.destination)!.destination!;
+    expect(dest).toBe('/lib/Movies/A Sense of Dread (2026)/A Sense of Dread (2026) - 1080p.mp4');
+  });
+
+  it('agrees with rename_move, which always re-rooted', () => {
+    const a = movie('rename_in_place').items.find((i) => i.destination)!.destination;
+    const b = movie('rename_move').items.find((i) => i.destination)!.destination;
+    expect(a).toBe(b);
+  });
+
+  it('leaves a TV show folder alone, which is why the carve-out exists', () => {
+    // A show folder is shared by every season; re-rooting on a template whose
+    // year is missing would fork it into a second, bare folder.
+    const plan = buildRenamePlan({
+      sourceName: 'Some Show S01E02 1080p',
+      files: [{ path: '/lib/TV/Some Show (2019)/Season 01/Some.Show.S01E02.1080p.mkv', size: 900_000_000 }],
+      preset: 'plex',
+      mode: 'rename_in_place',
+      libraryPath: '/lib/TV',
+    });
+    const dest = plan.items.find((i) => i.destination)!.destination!;
+    expect(dest).toContain('/lib/TV/Some Show (2019)/');
+  });
+});
