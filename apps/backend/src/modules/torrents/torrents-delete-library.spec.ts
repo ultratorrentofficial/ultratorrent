@@ -32,7 +32,11 @@ function build(jobs: Array<{ torrentHash: string; mediaItemId: string }>, items:
     mediaItem: { findMany: jest.fn(async () => items) },
   } as any;
   const mediaBulk = { deleteFiles: jest.fn().mockResolvedValue({ jobId: 'job-1' }) } as any;
-  return { svc: new TorrentsService(registry, audit, filePath, prisma, mediaBulk), provider, mediaBulk };
+  // Resolved lazily through ModuleRef rather than constructor-injected: importing
+  // MediaModule into TorrentsModule closes a module cycle that kills the app at
+  // bootstrap. See the `mediaBulk` getter.
+  const moduleRef = { get: jest.fn(() => mediaBulk) } as any;
+  return { svc: new TorrentsService(registry, audit, filePath, prisma, moduleRef), provider, mediaBulk };
 }
 
 const JOBS = [{ torrentHash: 'h1', mediaItemId: 'item-1' }];

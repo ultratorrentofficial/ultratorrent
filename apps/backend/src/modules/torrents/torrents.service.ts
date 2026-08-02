@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import {
   AddTorrentOptions,
   FilePriority,
@@ -57,8 +58,27 @@ export class TorrentsService {
     private readonly audit: AuditService,
     private readonly filePath: FilePathService,
     private readonly prisma: PrismaService,
-    private readonly mediaBulk: MediaBulkService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  /**
+   * Resolve {@link MediaBulkService} at call time rather than at construction.
+   *
+   * Importing `MediaModule` into `TorrentsModule` to inject this normally closed
+   * a module cycle — `automation → rss → media-intake → media → …` — and the
+   * symptom is not a compile error or a failing test. Nest evaluates
+   * `MediaIntakeModule` while `MediaModule` is still mid-initialisation, so its
+   * import resolves to `undefined` and the app dies at BOOTSTRAP with "the module
+   * at index [3] of the MediaIntakeModule imports array is undefined". Every type
+   * check and all 3096 unit tests pass regardless; only a fresh boot catches it.
+   *
+   * The dependency is genuinely runtime-only — it is needed when someone deletes a
+   * torrent's data, never at wiring time — so a lazy, non-strict lookup removes
+   * the module edge entirely while keeping the behaviour identical.
+   */
+  private get mediaBulk(): MediaBulkService {
+    return this.moduleRef.get(MediaBulkService, { strict: false });
+  }
 
   /**
    * Constrain a caller-supplied storage path to FILE_MANAGER_ROOTS and reject
