@@ -1748,6 +1748,19 @@ export interface MediaCleanupRules {
   removeLeftoverTorrent: boolean;
 }
 
+/**
+ * What to do with a torrent whose files a rename moved out from under it.
+ *
+ * Distinct from {@link MediaCleanupRules}, which deletes junk FILES. This one is
+ * about the torrent ENTRY in the engine, and conflating the two is the naming
+ * mistake that made "cleanup" ambiguous in the first place.
+ */
+export type SeedingTorrentAction = 'remove' | 'report' | 'ignore';
+
+export interface SeedingTorrentPolicy {
+  action: SeedingTorrentAction;
+}
+
 /** One item within a detected duplicate group (already quality-scored). */
 export interface MediaDuplicateItem {
   id: string;
@@ -4344,6 +4357,13 @@ export const api = {
     },
     updateCleanup(patch: Partial<MediaCleanupRules>): Promise<MediaCleanupRules> {
       return request<MediaCleanupRules>('/media/settings/cleanup', { method: 'PATCH', body: patch });
+    },
+    // --- torrents whose files a rename moved -------------------------------
+    getSeedingTorrentPolicy(): Promise<SeedingTorrentPolicy> {
+      return request<SeedingTorrentPolicy>('/media/settings/seeding-torrent');
+    },
+    updateSeedingTorrentPolicy(patch: Partial<SeedingTorrentPolicy>): Promise<SeedingTorrentPolicy> {
+      return request<SeedingTorrentPolicy>('/media/settings/seeding-torrent', { method: 'PATCH', body: patch });
     },
     // --- movie identity repair ---------------------------------------------
     /**

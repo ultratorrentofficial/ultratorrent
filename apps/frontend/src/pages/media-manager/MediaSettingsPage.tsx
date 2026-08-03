@@ -16,6 +16,7 @@ import {
   Users,
   Wand2,
   HardDrive,
+  Magnet,
 } from 'lucide-react';
 import {
   ApiError,
@@ -25,6 +26,7 @@ import {
   type TraktDeviceCode,
   type TraktSyncSettings,
   type MediaServerIntegrationInput,
+  type SeedingTorrentAction,
 } from '@/lib/api';
 import { formatRelativeTime } from '@/lib/format';
 import { useAuth } from '@/auth/AuthContext';
@@ -100,6 +102,7 @@ export function MediaSettingsPage() {
       <SubtitlePreferencesSection />
       <RenameTemplatesSection />
       <CleanupRulesSection />
+      <SeedingTorrentSection />
       {canManageIntegrations ? (
         <IntegrationsSection />
       ) : (
@@ -952,6 +955,95 @@ function CleanupRulesSection() {
             <Label htmlFor="cleanup-torrent">{t('settings.cleanup.removeTorrentLabel')}</Label>
             <Switch id="cleanup-torrent" checked={removeTorrent} onCheckedChange={setRemoveTorrent} disabled={!canManage} />
           </div>
+
+          {canManage && (
+            <Button onClick={() => save.mutate()} loading={save.isPending}>
+              <Save className="h-4 w-4" /> {t('common.save')}
+            </Button>
+          )}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Torrents whose files a rename moved
+// ---------------------------------------------------------------------------
+
+/**
+ * Deliberately its own card, not a switch inside "Junk file removal".
+ *
+ * That section deletes junk FILES and never touches video. This one governs the
+ * torrent ENTRY in the download engine. Same word, unrelated jobs — putting them
+ * together is precisely the ambiguity that made "cleanup" mean two things.
+ *
+ * The default is Remove, because the alternative is not "nothing happens": a
+ * torrent whose files moved errors out, and on its next recheck downloads the
+ * whole release again beside the copy just organised. The choice is explained
+ * where it is made, since it is the difference between an unattended tidy-up and
+ * a list of things to do by hand.
+ */
+const SEEDING_TORRENT_ACTIONS: SeedingTorrentAction[] = ['remove', 'report', 'ignore'];
+
+function SeedingTorrentSection() {
+  const { t } = useTranslation('media');
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.MEDIA_MANAGER_MANAGE_LIBRARIES);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['media', 'seeding-torrent'],
+    queryFn: api.media.getSeedingTorrentPolicy,
+  });
+
+  const [action, setAction] = useState<SeedingTorrentAction>('remove');
+  useEffect(() => {
+    if (data) setAction(data.action);
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: () => api.media.updateSeedingTorrentPolicy({ action }),
+    onSuccess: () => {
+      toast.success(t('common.saved'));
+      queryClient.invalidateQueries({ queryKey: ['media', 'seeding-torrent'] });
+    },
+    onError: (err) => toast.error(t('common.couldNotSave'), err instanceof ApiError ? err.message : undefined),
+  });
+
+  return (
+    <SectionCard
+      icon={<Magnet className="h-5 w-5" />}
+      title={t('settings.seedingTorrent.title')}
+      description={t('settings.seedingTorrent.description')}
+    >
+      {isLoading ? (
+        <CenteredSpinner label={t('settings.metadata.loading')} />
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="seeding-torrent-action">{t('settings.seedingTorrent.actionLabel')}</Label>
+            <Select
+              id="seeding-torrent-action"
+              value={action}
+              onChange={(e) => setAction(e.target.value as SeedingTorrentAction)}
+              disabled={!canManage}
+              className="mt-1 w-auto"
+            >
+              {SEEDING_TORRENT_ACTIONS.map((a) => (
+                <option key={a} value={a}>
+                  {t(`settings.seedingTorrent.action.${a}` as 'settings.seedingTorrent.action.remove')}
+                </option>
+              ))}
+            </Select>
+            {/* The consequence of the choice, where the choice is made. */}
+            <p className="mt-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              {t(`settings.seedingTorrent.hint.${action}` as 'settings.seedingTorrent.hint.remove')}
+            </p>
+          </div>
+
+          <p className="text-xs text-muted-foreground">{t('settings.seedingTorrent.scopeNote')}</p>
 
           {canManage && (
             <Button onClick={() => save.mutate()} loading={save.isPending}>

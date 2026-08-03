@@ -20,14 +20,19 @@ import { MediaService } from './media.service';
  *   - a non-relocating mode (hardlink/copy) removes nothing. Those leave the
  *     download where it is, so the torrent goes on seeding perfectly well.
  */
-function buildService(root: string, torrents: any[], provider: any, autoOrganize = true) {
+function buildService(
+  root: string, torrents: any[], provider: any, autoOrganize = true, action?: string,
+) {
   const prisma = {
     mediaLibrary: { findMany: jest.fn(async () => [{ path: root, autoOrganize }]) },
     mediaRenameOperation: { create: jest.fn(async ({ data }: any) => data) },
     mediaItem: { findFirst: jest.fn(async () => null), findMany: jest.fn(async () => []) },
   };
   const config = { get: jest.fn(() => undefined) };
-  const settings = { get: jest.fn(async () => undefined) };
+  const settings = {
+    get: jest.fn(async (key: string) =>
+      key === 'media.seedingTorrent' && action ? { action } : undefined),
+  };
   const registry = {
     resolve: jest.fn(async () => ({
       listTorrents: jest.fn(async () => torrents),
@@ -65,7 +70,9 @@ describe('a rename that moves seeded files', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  async function run(mode: string, contentPath: (dir: string) => string, autoOrganize = true) {
+  async function run(
+    mode: string, contentPath: (dir: string) => string, autoOrganize = true, action?: string,
+  ) {
     const relDir = path.join(root, 'A Sense Of Dread (2026) [1080p] [YTS]');
     const src = path.join(relDir, 'A.Sense.Of.Dread.2026.1080p.mp4');
     const dest = path.join(root, 'A Sense of Dread (2026)', 'A Sense of Dread (2026).mp4');
@@ -76,7 +83,7 @@ describe('a rename that moves seeded files', () => {
 
     const svc = buildService(root, [torrent({ contentPath: contentPath(relDir) })], {
       removeTorrent, removeTorrentAndData,
-    }, autoOrganize);
+    }, autoOrganize, action);
     jest.spyOn(svc as never, 'buildPlan' as never).mockResolvedValue({
       mode,
       libraryPath: root,
@@ -123,6 +130,30 @@ describe('a rename that moves seeded files', () => {
     const result = await run('rename_in_place', (dir) => dir, false);
     expect(result.applied).toBe(1);
     expect(result.torrentsRemoved).toBe(0);
+    expect(removeTorrent).not.toHaveBeenCalled();
+  });
+
+  it('reports without removing when the policy says report', async () => {
+    const result = await run('rename_in_place', (dir) => dir, true, 'report');
+    expect(result.applied).toBe(1);
+    expect(result.torrentsRemoved).toBe(0);
+    expect(result.torrentsOrphaned).toBe(1);
+    expect(removeTorrent).not.toHaveBeenCalled();
+  });
+
+  it('does not even look when the policy says ignore', async () => {
+    const result = await run('rename_in_place', (dir) => dir, true, 'ignore');
+    expect(result.torrentsRemoved).toBe(0);
+    expect(result.torrentsOrphaned).toBe(0);
+    expect(removeTorrent).not.toHaveBeenCalled();
+  });
+
+  it('reports rather than silently doing nothing when the library opted out', async () => {
+    // `remove` needs the library's permission; without it the orphan is still
+    // surfaced, so it cannot accumulate unnoticed.
+    const result = await run('rename_in_place', (dir) => dir, false, 'remove');
+    expect(result.torrentsRemoved).toBe(0);
+    expect(result.torrentsOrphaned).toBe(1);
     expect(removeTorrent).not.toHaveBeenCalled();
   });
 

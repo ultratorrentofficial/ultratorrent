@@ -771,6 +771,22 @@
       "description": "Canal de importación con preparación y perfiles de almacenamiento.",
       "configureBtn": "Perfiles de almacenamiento",
       "body": "Dirige las reglas RSS nuevas por un área de preparación donde las descargas se verifican, identifican y colocan en una biblioteca por el método más económico que el almacenamiento admita, manteniendo el torrent compartiendo. Las reglas existentes no cambian hasta que las actives."
+    },
+    "seedingTorrent": {
+      "title": "Torrents cuyos archivos fueron movidos",
+      "description": "Qué hacer con un torrent después de que un renombrado mueva los archivos que estaba sembrando. Distinto de Eliminación de archivos basura, que borra archivos basura y nunca toca el motor de descargas.",
+      "actionLabel": "Cuando un renombrado mueve los archivos de un torrent en siembra",
+      "action": {
+        "remove": "Eliminar el torrent (recomendado)",
+        "report": "Informarlo, sin cambiar nada",
+        "ignore": "No hacer nada"
+      },
+      "hint": {
+        "remove": "Se elimina la entrada del torrent para que deje de intentar sembrar archivos que ya no están ahí. Sus DATOS nunca se borran: tras el renombrado esos archivos son la copia de tu biblioteca. No hacer nada no es neutral: el torrent da error y, en su próxima reverificación, vuelve a descargar todo el lanzamiento junto a la copia que acabas de organizar.",
+        "report": "Los torrents afectados se nombran en el registro del trabajo y se dejan en su sitio, para que decidas cada uno. Hasta que los elimines pueden volver a descargar sus archivos.",
+        "ignore": "Nunca se revisan los torrents tras un renombrado. Es de esperar que queden torrents huérfanos que vuelvan a descargar archivos ya organizados."
+      },
+      "scopeNote": "Solo aplica cuando un renombrado realmente reubica archivos (Renombrar en el lugar y Mover) y la biblioteca tiene la organización automática activada. Las importaciones por enlace duro o copia dejan la descarga intacta, así que sus torrents siguen sembrando y nunca se ven afectados."
     }
   },
   "renamer": {

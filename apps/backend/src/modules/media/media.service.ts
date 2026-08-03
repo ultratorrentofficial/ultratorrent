@@ -18,7 +18,13 @@ import * as path from 'node:path';
 import { placeFile, type PlacementAction } from '../../common/file-placement';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { MediaRelocationService } from './media-relocation.service';
-import { torrentsOwningPaths } from './rename-torrent-owner';
+import {
+  torrentsOwningPaths,
+  DEFAULT_SEEDING_TORRENT_POLICY,
+  SEEDING_TORRENT_ACTIONS,
+  type SeedingTorrentAction,
+  type SeedingTorrentPolicy,
+} from './rename-torrent-owner';
 import { historyScope } from './history-scope';
 import { Prisma, type MediaRenameOperation } from '@prisma/client';
 import { paginate, parsePage, type Page } from '../../common/pagination';
@@ -653,6 +659,44 @@ export class MediaService {
     return { ...DEFAULT_CLEANUP_RULES, ...(stored ?? {}) };
   }
 
+  /**
+   * What to do with a torrent whose files a rename moved.
+   *
+   * Kept apart from `media.cleanup` on purpose. That setting is junk-file
+   * removal — `YTS.txt`, unwanted-language subtitles — and folding a torrent
+   * action into it would rebuild exactly the one-word-two-features confusion
+   * that made "cleanup" ambiguous in the first place.
+   */
+  async getSeedingTorrentPolicy(): Promise<SeedingTorrentPolicy> {
+    const stored = await this.settings.get<Partial<SeedingTorrentPolicy>>('media.seedingTorrent');
+    const action = stored?.action;
+    return SEEDING_TORRENT_ACTIONS.includes(action as SeedingTorrentAction)
+      ? { action: action as SeedingTorrentAction }
+      : { ...DEFAULT_SEEDING_TORRENT_POLICY };
+  }
+
+  /** Persist it. Audited — it governs an irreversible action. */
+  async setSeedingTorrentPolicy(
+    patch: Partial<SeedingTorrentPolicy>,
+    ctx: AuditContext = {},
+  ): Promise<SeedingTorrentPolicy> {
+    if (patch.action && !SEEDING_TORRENT_ACTIONS.includes(patch.action)) {
+      throw new BadRequestException(
+        `Unknown action "${patch.action}". Expected one of: ${SEEDING_TORRENT_ACTIONS.join(', ')}.`,
+      );
+    }
+    const next: SeedingTorrentPolicy = { ...(await this.getSeedingTorrentPolicy()), ...patch };
+    await this.settings.set('media.seedingTorrent', next);
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.seedingTorrent.updated',
+      objectType: 'setting',
+      objectId: 'media.seedingTorrent',
+      metadata: { action: next.action },
+    });
+    return next;
+  }
+
   /** Persist the global junk-cleanup rules (merged over current). Audited. */
   async setCleanup(patch: Partial<CleanupRules>, ctx: AuditContext = {}): Promise<CleanupRules> {
     const next: CleanupRules = { ...(await this.getCleanup()), ...patch };
@@ -686,6 +730,8 @@ export class MediaService {
     deleted: number;
     /** Torrents dropped because this run moved the files they were seeding. */
     torrentsRemoved: number;
+    /** Torrents left in place that can no longer seed — reported, not removed. */
+    torrentsOrphaned: number;
     /** Groups this apply's operations. Pass to `undoRun` to reverse it. */
     runId: string;
     plan: RenamePlan;
@@ -703,7 +749,7 @@ export class MediaService {
     let deleted = 0;
 
     if (plan.mode === 'preview' || req.dryRun) {
-      return { applied: 0, skipped: plan.items.length, failed: 0, deleted: 0, torrentsRemoved: 0, runId, plan };
+      return { applied: 0, skipped: plan.items.length, failed: 0, deleted: 0, torrentsRemoved: 0, torrentsOrphaned: 0, runId, plan };
     }
 
     const roots = await this.allowedRoots();
@@ -787,8 +833,20 @@ export class MediaService {
     // the difference between a renamed film and two copies of it.
     const relocating = plan.mode === 'rename_in_place' || plan.mode === 'rename_move';
     let torrentsRemoved = 0;
-    if (relocating && movedSources.length && await this.organiseEnabledFor(plan.libraryPath)) {
-      torrentsRemoved = await this.dropSeedingTorrents(movedSources, torrentHash, req.engineId);
+    let torrentsOrphaned = 0;
+    if (relocating && movedSources.length) {
+      const { action } = await this.getSeedingTorrentPolicy();
+      if (action !== 'ignore') {
+        // `remove` needs the library's permission to organise; without it this
+        // degrades to reporting rather than doing nothing, so an orphan is
+        // surfaced instead of quietly accumulating.
+        const mayRemove = action === 'remove' && await this.organiseEnabledFor(plan.libraryPath);
+        const outcome = await this.handleSeedingTorrents(
+          movedSources, torrentHash, req.engineId, mayRemove,
+        );
+        torrentsRemoved = outcome.removed;
+        torrentsOrphaned = outcome.orphaned;
+      }
     }
 
     // Post-move tidy (opt-in): stray .torrent + prune now-empty source folders.
@@ -824,12 +882,13 @@ export class MediaService {
         mode: plan.mode,
         libraryPath: plan.libraryPath,
         ...(torrentsRemoved ? { torrentsRemoved } : {}),
+        ...(torrentsOrphaned ? { torrentsOrphaned } : {}),
         ...(name ? { name } : {}),
         ...(fromTo ?? {}),
       },
     });
 
-    return { applied, skipped, failed, deleted, torrentsRemoved, runId, plan };
+    return { applied, skipped, failed, deleted, torrentsRemoved, torrentsOrphaned, runId, plan };
   }
 
   /**
@@ -883,18 +942,30 @@ export class MediaService {
    * this runs, so an unreachable engine must not turn a successful rename into a
    * failed one — it is logged and the run stands.
    */
-  private async dropSeedingTorrents(
+  private async handleSeedingTorrents(
     movedPaths: string[],
     knownHash: string | undefined,
     engineId: string | undefined,
-  ): Promise<number> {
+    mayRemove: boolean,
+  ): Promise<{ removed: number; orphaned: number }> {
     let removed = 0;
+    let orphaned = 0;
     try {
       const engine = await this.registry.resolve(engineId);
       const torrents = await engine.listTorrents();
       const owners = torrentsOwningPaths(torrents, movedPaths, knownHash ? [knownHash] : []);
 
       for (const owner of owners) {
+        if (!mayRemove) {
+          // Named rather than removed: the operator asked to be told, or the
+          // library never opted into organising. Either way it is now visible.
+          orphaned++;
+          this.logger.warn(
+            `Torrent "${owner.name}" (${owner.hash.slice(0, 8)}) can no longer seed: `
+              + 'a rename moved its files. It was left in place and will re-download on its next recheck.',
+          );
+          continue;
+        }
         try {
           const provider = await this.registry.resolve(owner.engineId || engineId);
           await provider.removeTorrent(owner.hash);
@@ -922,7 +993,7 @@ export class MediaService {
     } catch (err) {
       this.logger.warn(`Could not check for seeding torrents after a rename: ${(err as Error).message}`);
     }
-    return removed;
+    return { removed, orphaned };
   }
 
   /**

@@ -24,6 +24,7 @@ import { ImdbSettingsPatch } from './imdb/imdb-settings.service';
 import type { ImdbTitleKind } from './imdb/imdb-match';
 import { MediaService, RenameRequest } from './media.service';
 import type { CleanupRules } from './media-renamer';
+import type { SeedingTorrentPolicy } from './rename-torrent-owner';
 import { MediaLibraryService, LibraryInput } from './media-library.service';
 import { MediaScannerService } from './media-scanner.service';
 import {
@@ -1136,5 +1137,21 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_MANAGE_LIBRARIES)
   updateCleanup(@Body() body: Partial<CleanupRules>, @Req() req: Request) {
     return this.media.setCleanup(body ?? {}, auditCtx(req));
+  }
+
+  // --- what to do with a torrent whose files a rename moved ---------------
+  @Get('settings/seeding-torrent')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  getSeedingTorrentPolicy() {
+    return this.media.getSeedingTorrentPolicy();
+  }
+
+  @Patch('settings/seeding-torrent')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_LIBRARIES)
+  updateSeedingTorrentPolicy(
+    @Body() body: Partial<SeedingTorrentPolicy>,
+    @Req() req: Request,
+  ) {
+    return this.media.setSeedingTorrentPolicy(body ?? {}, auditCtx(req));
   }
 }

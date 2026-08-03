@@ -24,6 +24,30 @@ import type { NormalizedTorrent } from '@ultratorrent/shared';
  *    does not claim `/downloads/Movie (2026) Extras/file.mkv`.
  */
 
+/**
+ * What to do about a torrent whose files a rename just moved.
+ *
+ *  - `remove` — drop the torrent entry. The default, because the alternative is
+ *    not "nothing happens": the torrent errors, and on its next recheck it
+ *    downloads the whole release again beside the copy just organised.
+ *  - `report` — find them and say so, change nothing. For an operator who wants
+ *    to decide each one.
+ *  - `ignore` — do not even look.
+ *
+ * `remove` still requires the library to have opted into organising. Where it
+ * has not, this degrades to `report` rather than acting: reporting is
+ * non-destructive, so the orphan is surfaced instead of accumulating silently.
+ */
+export type SeedingTorrentAction = 'remove' | 'report' | 'ignore';
+
+export interface SeedingTorrentPolicy {
+  action: SeedingTorrentAction;
+}
+
+export const SEEDING_TORRENT_ACTIONS: SeedingTorrentAction[] = ['remove', 'report', 'ignore'];
+
+export const DEFAULT_SEEDING_TORRENT_POLICY: SeedingTorrentPolicy = { action: 'remove' };
+
 /** True when `child` is `parent` or sits beneath it, comparing whole segments. */
 function isWithin(child: string, parent: string): boolean {
   const c = path.resolve(child);

@@ -771,6 +771,22 @@
       "description": "Staging-based import pipeline and storage profiles.",
       "configureBtn": "Storage profiles",
       "body": "Route new RSS rules through a staging area where downloads are verified, identified and placed into a library by the cheapest method the storage supports — keeping the torrent seeding. Existing rules are unaffected until you opt them in."
+    },
+    "seedingTorrent": {
+      "title": "Torrents whose files were moved",
+      "description": "What to do with a torrent after a rename moves the files it was seeding. Separate from Junk file removal, which deletes junk files and never touches the download engine.",
+      "actionLabel": "When a rename moves a seeding torrent's files",
+      "action": {
+        "remove": "Remove the torrent (recommended)",
+        "report": "Report it, change nothing",
+        "ignore": "Do nothing"
+      },
+      "hint": {
+        "remove": "The torrent entry is deleted so it stops trying to seed files that are no longer there. Its DATA is never deleted — after the rename those files are your library's copy. Doing nothing is not neutral: the torrent errors and, on its next recheck, downloads the whole release again next to the copy you just organised.",
+        "report": "Affected torrents are named in the job log and left in place, so you can decide each one yourself. Until you remove them they may re-download their files.",
+        "ignore": "Torrents are never checked after a rename. Expect orphaned torrents that re-download files you have already organised."
+      },
+      "scopeNote": "Only applies where a rename actually relocates files (Rename in place and Move) and the library has automatic organising turned on. Hardlink and copy imports leave the download untouched, so their torrents keep seeding and are never affected."
     }
   },
   "renamer": {
