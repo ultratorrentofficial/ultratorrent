@@ -231,6 +231,26 @@ describe('MediaProcessingService.processLibrary (periodic scan + enrich)', () =>
     expect(actions.execute).not.toHaveBeenCalled();
     expect(r).toMatchObject({ identified: 0, metadataFetched: 0, artworkFetched: 0, processed: 1 });
   });
+
+  it('tells the rename which torrent the files came from', async () => {
+    // The torrent is in scope for this whole pipeline — it is what triggered it
+    // — but the rename call used to pass only `itemId`, so every rename it drove
+    // recorded a null torrent. That is the linkage a later delete needs to know
+    // a renamed file is still being seeded, and it was thrown away one line from
+    // where it was available.
+    const { svc, actions } = make({
+      itemState: { I1: { matchStatus: 'matched', metadata: { id: 'm1' }, artwork: [{ id: 'a1' }] } },
+    });
+    const library = { id: 'L', name: 'Movies', isEnabled: true, artworkEnabled: false, autoOrganize: true };
+    const torrent = { hash: '44f0ab56d69f5eb9910dd5501b2b548c395fe813', engineId: 'e1', name: 'x' };
+
+    await (svc as any).processItem(library, 'I1', torrent);
+
+    expect(actions.execute).toHaveBeenCalledWith('media_rename', {
+      itemId: 'I1',
+      torrentHash: '44f0ab56d69f5eb9910dd5501b2b548c395fe813',
+    });
+  });
 });
 
 /**

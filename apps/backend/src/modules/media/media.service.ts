@@ -49,6 +49,26 @@ export interface RenameRequest {
   hash?: string;
   engineId?: string;
   path?: string; // ad-hoc filesystem path (file or folder) under an allowed root
+  /**
+   * The torrent this content came from, for the RECORD only — it never selects
+   * which files are gathered.
+   *
+   * `hash` does two unrelated jobs: it picks the file set (ask the engine what
+   * that torrent owns) *and* it stamps the operation log. That overload is why
+   * every rename driven by the post-download pipeline recorded a null torrent,
+   * even though the torrent was in scope one call above: passing `hash` there
+   * would also have switched gathering from the identified library item to the
+   * torrent's own file list, which for a hardlink-import library is a different
+   * set of files entirely. So the pipeline passed nothing, and the provenance
+   * was lost with it — on one live host, all 10,849 rename rows have a null
+   * hash because of this.
+   *
+   * This field carries the provenance without touching the plan, so a rename
+   * can be gathered by `path` and still say which torrent it came from. That
+   * linkage is what lets a later delete know a renamed file is still being
+   * seeded.
+   */
+  sourceTorrentHash?: string;
   preset?: Preset;
   mode?: RenameMode;
   libraryPath?: string;
@@ -669,6 +689,11 @@ export class MediaService {
   }> {
     const plan = await this.buildPlan(req);
     const runId = randomUUID();
+    // Provenance for the log and the audit row. `hash` implies it (those files
+    // came from that torrent by definition); `sourceTorrentHash` supplies it for
+    // a rename gathered by path, which is every rename the post-download
+    // pipeline performs.
+    const torrentHash = req.hash ?? req.sourceTorrentHash;
     let applied = 0;
     let skipped = 0;
     let failed = 0;
@@ -699,10 +724,10 @@ export class MediaService {
           // not a statement about the film.
           await this.relocation.recordDelete(realSrc).catch(() => undefined);
           deleted++;
-          await this.log(item, plan.mode, 'success', req.hash, null, runId);
+          await this.log(item, plan.mode, 'success', torrentHash, null, runId);
         } catch (err) {
           failed++;
-          await this.log(item, plan.mode, 'failed', req.hash, (err as Error).message, runId);
+          await this.log(item, plan.mode, 'failed', torrentHash, (err as Error).message, runId);
           this.logger.warn(`cleanup delete failed: ${(err as Error).message}`);
         }
         continue;
@@ -738,10 +763,10 @@ export class MediaService {
         await this.relocation.recordMoveSafe(realSrc, dest);
         sourceDirs.add(path.dirname(realSrc));
         applied++;
-        await this.log(item, plan.mode, 'success', req.hash, null, runId);
+        await this.log(item, plan.mode, 'success', torrentHash, null, runId);
       } catch (err) {
         failed++;
-        await this.log(item, plan.mode, 'failed', req.hash, (err as Error).message, runId);
+        await this.log(item, plan.mode, 'failed', torrentHash, (err as Error).message, runId);
         this.logger.warn(`rename failed: ${(err as Error).message}`);
       }
     }
@@ -770,7 +795,7 @@ export class MediaService {
       action: 'media.rename',
       result: failed > 0 ? 'failure' : 'success',
       objectType: 'torrent',
-      objectId: req.hash,
+      objectId: torrentHash,
       metadata: {
         applied,
         skipped,

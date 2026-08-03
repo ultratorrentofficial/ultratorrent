@@ -371,7 +371,13 @@ export class MediaProcessingService {
      */
     if (library.autoOrganize) {
       try {
-        await this.actions.execute('media_rename', { itemId });
+        // `t.hash` is the torrent these files came down on. It is recorded
+        // against the rename, not used to gather files — the item is what was
+        // just identified and enriched, and for a hardlink-import library the
+        // torrent's file list is a different set entirely. Without this the
+        // provenance was simply dropped here, and every rename this pipeline
+        // performed recorded a null torrent despite `t` being in scope.
+        await this.actions.execute('media_rename', { itemId, torrentHash: t.hash });
         this.fire('media.rename_completed', t);
       } catch (err) {
         this.logger.warn(`Rename failed for ${itemId}: ${(err as Error).message}`);

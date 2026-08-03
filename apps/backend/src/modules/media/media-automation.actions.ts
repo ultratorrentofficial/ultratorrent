@@ -47,6 +47,9 @@ export class MediaAutomationActions {
   ): Promise<unknown> {
     const libraryId = params.libraryId ? String(params.libraryId) : undefined;
     const itemId = params.itemId ? String(params.itemId) : undefined;
+    // Provenance only — which torrent this content arrived on. Recorded against
+    // the rename; it never selects the files to act on.
+    const torrentHash = params.torrentHash ? String(params.torrentHash) : undefined;
 
     switch (type) {
       case 'media_scan_library': {
@@ -87,12 +90,12 @@ export class MediaAutomationActions {
         );
       }
       case 'media_rename': {
-        return this.renameOrMove({ itemId, libraryId }, undefined, ctx);
+        return this.renameOrMove({ itemId, libraryId }, undefined, ctx, torrentHash);
       }
       case 'media_move': {
         // Force a move into the library structure regardless of the library's
         // default (preview/hardlink/etc.) mode.
-        return this.renameOrMove({ itemId, libraryId }, 'rename_move', ctx);
+        return this.renameOrMove({ itemId, libraryId }, 'rename_move', ctx, torrentHash);
       }
       case 'media_server_refresh': {
         const integrationId = params.integrationId
@@ -145,12 +148,14 @@ export class MediaAutomationActions {
     target: { itemId?: string; libraryId?: string },
     modeOverride: RenameMode | undefined,
     ctx: AuditContext,
+    /** The torrent one item arrived on — recorded, never used to pick files. */
+    sourceTorrentHash?: string,
   ): Promise<unknown> {
     if (target.itemId) {
       return this.queue.run(
         'rename_execute',
         { itemId: target.itemId },
-        () => this.renameItem(target.itemId!, modeOverride, ctx),
+        () => this.renameItem(target.itemId!, modeOverride, ctx, false, sourceTorrentHash),
       );
     }
     if (target.libraryId) {
@@ -168,6 +173,9 @@ export class MediaAutomationActions {
           let failed = 0;
           for (let i = 0; i < items.length; i++) {
             try {
+              // No provenance here on purpose: a library-wide sweep spans every
+              // torrent that ever fed it, so stamping each item with one hash
+              // would assert a link that is false for all but one of them.
               await this.renameItem(items[i].id, modeOverride, ctx);
               applied++;
             } catch (err) {
@@ -197,6 +205,12 @@ export class MediaAutomationActions {
     modeOverride: RenameMode | undefined,
     ctx: AuditContext = {},
     dryRun = false,
+    /**
+     * The torrent this item's files arrived on, when the caller knows it. Passed
+     * through to the rename RECORD only — files are still gathered from the
+     * item's own path, because the item is what was identified and enriched.
+     */
+    sourceTorrentHash?: string,
   ) {
     const item = await this.prisma.mediaItem.findUnique({
       where: { id: itemId },
@@ -209,6 +223,7 @@ export class MediaAutomationActions {
     const src = item.files[0]?.path ?? item.path;
     return this.media.apply({
       path: src,
+      sourceTorrentHash,
       preset: (item.library.preset ?? 'plex') as Preset,
       mode: (modeOverride ?? item.library.mode ?? 'hardlink') as RenameMode,
       dryRun,
