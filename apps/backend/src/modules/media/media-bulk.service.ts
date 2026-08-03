@@ -330,12 +330,32 @@ export class MediaBulkService {
    *
    * "Move to another library" is only half a reassignment: leaving the files
    * under the old library's root would put them back on that library's next
-   * scan, and the item would exist twice. So each file is moved under the
+   * scan, and the item would exist twice. So the media is moved under the
    * target root first, and the stored paths are rewritten to match.
    *
-   * `rename` is used where it works and falls back to copy+unlink, because a
-   * library root is very often a different filesystem (a NAS share versus local
-   * disk) and `EXDEV` is the normal case there, not an error.
+   * **The unit is the FOLDER, not the file.** A movie owns its directory —
+   * poster, NFO, subtitles, extras all sit beside the video — so moving the
+   * film means moving `Toy Story (1995)/` intact. The previous version joined
+   * the target root with the file's BASENAME, which dropped the folder and left
+   * the film loose in the library root, contradicting the naming template; and
+   * it moved only `MediaFile` rows, so every sidecar subtitle was left behind
+   * in the old folder, since those are `MediaSubtitle` and were never in the
+   * move set.
+   *
+   * A folder is moved only where the item genuinely owns it:
+   *
+   *  - it is strictly BELOW the source library root, never the root itself;
+   *  - and no item outside this selection lives in it. A TV season folder is
+   *    shared by every episode of that season, and moving it because one
+   *    episode was selected would drag the rest along.
+   *
+   * Anything that fails those tests falls back to moving the item's own files,
+   * which is what this always did.
+   *
+   * Hardlinks survive: `rename` moves a directory entry, so a Media Intake
+   * import keeps its download-side name and goes on seeding untouched. A
+   * cross-device move cannot rename a directory at all, so `EXDEV` also falls
+   * back to the per-file path rather than half-copying a tree.
    */
   async moveToLibrary(itemIds: string[], targetLibraryId: string, ctx: AuditContext): Promise<BulkResult> {
     const target = await this.prisma.mediaLibrary.findUnique({
@@ -347,7 +367,15 @@ export class MediaBulkService {
     const { ids, missing } = await this.resolve(itemIds);
     const items = await this.prisma.mediaItem.findMany({
       where: { id: { in: ids } },
-      select: { id: true, path: true, libraryId: true, files: { select: { id: true, path: true } } },
+      select: {
+        id: true, path: true, libraryId: true,
+        files: { select: { id: true, path: true } },
+        // Sidecars live beside the video and must travel with it. Left out of
+        // the move set before, so a moved film arrived without its subtitles.
+        subtitles: { select: { id: true, path: true } },
+        artwork: { select: { id: true, localPath: true } },
+        library: { select: { path: true } },
+      },
     });
     // Moving an item into the library it already lives in is a no-op, not an
     // error — a mixed selection should move the rest rather than fail.
@@ -362,22 +390,48 @@ export class MediaBulkService {
         for (const item of movable) {
           if (signal.isCancelled()) break;
           try {
-            const moves = new Map<string, string>();
-            for (const p of [...new Set([item.path, ...item.files.map((f) => f.path)])]) {
-              moves.set(p, join(target.path, basename(p)));
+            const folder = await this.ownedFolder(item, ids);
+            let rewrite: (p: string) => string;
+
+            if (folder) {
+              const destFolder = join(target.path, basename(folder));
+              await assertDestinationFree(destFolder);
+              await mkdir(dirname(destFolder), { recursive: true });
+              try {
+                // One atomic rename carries the video, the subtitles, the
+                // poster and anything else in the folder, and preserves every
+                // hardlink inside it.
+                await rename(folder, destFolder);
+                rewrite = (p) => (p.startsWith(`${folder}/`) ? destFolder + p.slice(folder.length) : p);
+              } catch (err) {
+                if ((err as NodeJS.ErrnoException)?.code !== 'EXDEV') throw err;
+                // A directory cannot be renamed across devices. Fall back
+                // rather than half-copy a tree.
+                rewrite = await this.moveOwnFiles(item, target.path);
+              }
+            } else {
+              rewrite = await this.moveOwnFiles(item, target.path);
             }
-            for (const [from, to] of moves) await moveFile(from, to);
+
             await this.prisma.$transaction([
               this.prisma.mediaItem.update({
                 where: { id: item.id },
-                data: { libraryId: target.id, path: moves.get(item.path) ?? item.path },
+                data: { libraryId: target.id, path: rewrite(item.path) },
               }),
               ...item.files.map((f) =>
-                this.prisma.mediaFile.update({
-                  where: { id: f.id },
-                  data: { path: moves.get(f.path) ?? f.path },
-                }),
+                this.prisma.mediaFile.update({ where: { id: f.id }, data: { path: rewrite(f.path) } }),
               ),
+              ...item.subtitles.map((s) =>
+                this.prisma.mediaSubtitle.update({ where: { id: s.id }, data: { path: rewrite(s.path) } }),
+              ),
+              ...item.artwork
+                .filter((a) => a.localPath)
+                .map((a) =>
+                  this.prisma.mediaArtwork.update({
+                    where: { id: a.id },
+                    data: { localPath: rewrite(a.localPath as string) },
+                  }),
+                ),
             ]);
           } catch (err) {
             failed += 1;
@@ -396,6 +450,60 @@ export class MediaBulkService {
       jobId,
     });
     return { jobId, accepted: movable.length, missing };
+  }
+
+  /**
+   * The folder this item owns outright, or null when it owns none.
+   *
+   * Two things disqualify a folder, and both would destroy something:
+   *
+   *  - **It is the library root.** An item sitting loose in the root has no
+   *    folder of its own; moving the root would move the entire library.
+   *  - **Someone else lives in it.** A TV season folder holds every episode of
+   *    that season, so moving it because one episode was selected would take
+   *    the others with it — silently, and into a library they do not belong to.
+   *    Items inside the same selection do not count: they are moving anyway.
+   */
+  private async ownedFolder(
+    item: { id: string; path: string; library: { path: string } | null },
+    selectedIds: string[],
+  ): Promise<string | null> {
+    const folder = dirname(item.path);
+    const root = item.library?.path;
+    if (!root) return null;
+    // Strictly below the root — never the root itself, and never outside it.
+    if (folder === root || !folder.startsWith(`${root}/`)) return null;
+
+    const stranger = await this.prisma.mediaItem.findFirst({
+      where: {
+        id: { notIn: selectedIds },
+        path: { startsWith: `${folder}/` },
+      },
+      select: { id: true },
+    });
+    return stranger ? null : folder;
+  }
+
+  /**
+   * Move just this item's own files into the target root, flat.
+   *
+   * The fallback for an item with no folder of its own, and for a cross-device
+   * move where a directory rename is impossible. Returns the path rewriter so
+   * the caller updates rows the same way in both cases.
+   */
+  private async moveOwnFiles(
+    item: { path: string; files?: { path: string }[]; subtitles?: { path: string }[] },
+    targetRoot: string,
+  ): Promise<(p: string) => string> {
+    const moves = new Map<string, string>();
+    const own = [
+      item.path,
+      ...(item.files ?? []).map((f) => f.path),
+      ...(item.subtitles ?? []).map((s) => s.path),
+    ];
+    for (const p of [...new Set(own)]) moves.set(p, join(targetRoot, basename(p)));
+    for (const [from, to] of moves) await moveFile(from, to);
+    return (p) => moves.get(p) ?? p;
   }
 
   /**

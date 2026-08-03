@@ -76,7 +76,13 @@ function build(items: Array<Record<string, unknown>>, library?: Record<string, u
 }
 
 const item = (id: string, over: Record<string, unknown> = {}) => ({
-  id, path: `/media/${id}.mkv`, libraryId: 'lib-old', files: [{ id: `f-${id}`, path: `/media/${id}.mkv` }], ...over,
+  id, path: `/media/${id}.mkv`, libraryId: 'lib-old', files: [{ id: `f-${id}`, path: `/media/${id}.mkv` }],
+  subtitles: [], artwork: [],
+  // The file sits directly in the library root, so it owns no folder of its own
+  // and moves flat — which is the case these tests were written for. Moving a
+  // folder is covered in move-to-library-folder.spec.ts.
+  library: { path: '/media' },
+  ...over,
 });
 
 beforeEach(() => {
