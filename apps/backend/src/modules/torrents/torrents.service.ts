@@ -20,6 +20,7 @@ import { FilePathService } from '../files/file-path.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { MediaBulkService } from '../media/media-bulk.service';
 import { infoHashFromTorrent } from '../../infrastructure/rtorrent/bencode';
+import { magnetRejectionReason } from '../../common/magnet';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 /** Reject quote/control chars that could break out of rTorrent command strings. */
@@ -185,6 +186,15 @@ export class TorrentsService {
       } catch {
         throw new BadRequestException('Invalid .torrent file');
       }
+    }
+
+    // The same courtesy for a magnet. Without this the provider threw a bare
+    // Error deep in `addMagnet`, which surfaced as `500 Internal server error` —
+    // an operator pasting a link they cannot add is told only that the server
+    // broke, with nothing about which part of the link was the problem.
+    if (opts.magnet) {
+      const reason = magnetRejectionReason(opts.magnet);
+      if (reason) throw new BadRequestException(reason);
     }
 
     const provider = await this.registry.resolve(engineId);

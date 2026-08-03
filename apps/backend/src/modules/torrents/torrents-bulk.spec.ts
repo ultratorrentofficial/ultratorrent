@@ -86,26 +86,26 @@ describe('TorrentsService.add/move — save-path safety', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('accepts a save path inside the allowed roots', async () => {
-    await svc.add({ magnet: 'magnet:?xt=urn:btih:x', savePath: '/downloads/movies' } as any, undefined, actor, {});
+    await svc.add({ magnet: 'magnet:?xt=urn:btih:44f0ab56d69f5eb9910dd5501b2b548c395fe813', savePath: '/downloads/movies' } as any, undefined, actor, {});
     expect(provider.addMagnet).toHaveBeenCalled();
   });
 
   it('rejects a save path outside the allowed roots', async () => {
     await expect(
-      svc.add({ magnet: 'magnet:?xt=urn:btih:x', savePath: '/etc' } as any, undefined, actor, {}),
+      svc.add({ magnet: 'magnet:?xt=urn:btih:44f0ab56d69f5eb9910dd5501b2b548c395fe813', savePath: '/etc' } as any, undefined, actor, {}),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(provider.addMagnet).not.toHaveBeenCalled();
   });
 
   it('rejects a save path containing a command-breakout quote', async () => {
     await expect(
-      svc.add({ magnet: 'magnet:?x', savePath: '/downloads/a" d.execute=x' } as any, undefined, actor, {}),
+      svc.add({ magnet: 'magnet:?xt=urn:btih:44f0ab56d69f5eb9910dd5501b2b548c395fe813', savePath: '/downloads/a" d.execute=x' } as any, undefined, actor, {}),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects a category containing illegal characters', async () => {
     await expect(
-      svc.add({ magnet: 'magnet:?x', category: 'tv" x' } as any, undefined, actor, {}),
+      svc.add({ magnet: 'magnet:?xt=urn:btih:44f0ab56d69f5eb9910dd5501b2b548c395fe813', category: 'tv" x' } as any, undefined, actor, {}),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 

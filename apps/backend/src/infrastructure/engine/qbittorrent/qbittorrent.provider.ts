@@ -23,30 +23,7 @@ import {
 } from '../../qbittorrent/qbittorrent-client';
 import { infoHashFromTorrent } from '../../rtorrent/bencode';
 import { fetchRemoteTorrent } from '../../../common/ssrf';
-
-/** Derive the lowercase info-hash from a magnet URI (40-hex or base32). */
-function magnetHash(magnet: string): string | null {
-  const m = /xt=urn:btih:([a-zA-Z0-9]+)/.exec(magnet);
-  if (!m) return null;
-  const raw = m[1];
-  if (raw.length === 32) return base32ToHex(raw).toLowerCase();
-  return raw.toLowerCase();
-}
-
-function base32ToHex(input: string): string {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  let bits = '';
-  for (const ch of input.toUpperCase()) {
-    const idx = alphabet.indexOf(ch);
-    if (idx === -1) continue;
-    bits += idx.toString(2).padStart(5, '0');
-  }
-  let hex = '';
-  for (let i = 0; i + 4 <= bits.length; i += 4) {
-    hex += parseInt(bits.slice(i, i + 4), 2).toString(16);
-  }
-  return hex;
-}
+import { infoHashFromMagnet } from '../../../common/magnet';
 
 /** qBittorrent `torrents/info` item (only the fields this provider reads). */
 interface QbTorrentInfo {
@@ -408,7 +385,7 @@ export class QbittorrentProvider implements TorrentEngineProvider {
   }
 
   async addMagnet(magnet: string, options?: AddTorrentOptions): Promise<string> {
-    const hash = magnetHash(magnet);
+    const hash = infoHashFromMagnet(magnet);
     if (!hash) throw new Error('Could not derive info-hash from magnet URI');
     await this.assertOk(
       this.client.postMultipart('/torrents/add', {

@@ -24,6 +24,7 @@ import {
 import { XmlRpcBase64, XmlRpcValue } from '../../rtorrent/xmlrpc';
 import { infoHashFromTorrent } from '../../rtorrent/bencode';
 import { fetchRemoteTorrent } from '../../../common/ssrf';
+import { infoHashFromMagnet } from '../../../common/magnet';
 
 /** Field accessors requested per torrent in d.multicall2 (order matters). */
 const TORRENT_FIELDS = [
@@ -78,30 +79,6 @@ function mapState(row: Record<number, XmlRpcValue>): TorrentState {
   if (!isActive && isOpen) return TorrentState.PAUSED;
   if (complete) return TorrentState.SEEDING;
   return TorrentState.DOWNLOADING;
-}
-
-function magnetHash(magnet: string): string | null {
-  const m = /xt=urn:btih:([a-zA-Z0-9]+)/.exec(magnet);
-  if (!m) return null;
-  const raw = m[1];
-  if (raw.length === 40) return raw.toLowerCase();
-  if (raw.length === 32) return base32ToHex(raw).toLowerCase();
-  return raw.toLowerCase();
-}
-
-function base32ToHex(input: string): string {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  let bits = '';
-  for (const ch of input.toUpperCase()) {
-    const idx = alphabet.indexOf(ch);
-    if (idx === -1) continue;
-    bits += idx.toString(2).padStart(5, '0');
-  }
-  let hex = '';
-  for (let i = 0; i + 4 <= bits.length; i += 4) {
-    hex += parseInt(bits.slice(i, i + 4), 2).toString(16);
-  }
-  return hex;
 }
 
 export class RTorrentProvider implements TorrentEngineProvider {
@@ -405,7 +382,7 @@ export class RTorrentProvider implements TorrentEngineProvider {
   }
 
   async addMagnet(magnet: string, options?: AddTorrentOptions): Promise<string> {
-    const hash = magnetHash(magnet);
+    const hash = infoHashFromMagnet(magnet);
     if (!hash) throw new Error('Could not derive info-hash from magnet URI');
     const method = options?.startPaused ? 'load.normal' : 'load.start';
     await this.transport.call(method, [
@@ -449,7 +426,7 @@ export class RTorrentProvider implements TorrentEngineProvider {
    * a flood of false `download.failed` records for magnets that downloaded fine
    * (observed: 256/257 "failures" actually loaded, median ~53s later).
    *
-   * Compares case-insensitively: `magnetHash`/`infoHashFromTorrent` yield
+   * Compares case-insensitively: `infoHashFromMagnet`/`infoHashFromTorrent` yield
    * lowercase and `listTorrents` lowercases too, but rtorrent stores hashes
    * uppercase, so normalize.
    */
