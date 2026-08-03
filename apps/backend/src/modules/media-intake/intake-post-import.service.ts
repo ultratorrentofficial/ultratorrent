@@ -1,4 +1,15 @@
 import { dirname } from 'node:path';
+
+/**
+ * `/lib/Film (2026)/Film (2026) - 1080p.mp4` → `/lib/Film (2026)/Film (2026) - 1080p`
+ *
+ * The prefix every variant of one placed file shares: the same name with a
+ * `[dupN]` suffix, or with a different extension. Deliberately NOT the bare
+ * directory, which in a season folder would match a different episode.
+ */
+export function stemPrefix(filePath: string): string {
+  return filePath.replace(/\.[^./]+$/, '');
+}
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { MediaScannerService } from '../media/media-scanner.service';
@@ -64,6 +75,26 @@ export class IntakePostImportService implements OnModuleInit {
           // Scoped to the imported folder — see the class comment.
           await this.scanner.scanLibrary(job.libraryId, undefined, dirname(job.importedPath));
           item = await this.prisma.mediaItem.findFirst({ where: { path: job.importedPath } });
+        }
+        if (!item) {
+          /*
+           * The exact path is not the only place the file can be.
+           *
+           * Intake itself renames: when a later release lands on an occupied
+           * canonical name it moves the existing copy to `<name> [dupN]`, and a
+           * duplicate resolution may then keep the suffixed one. Live, three
+           * jobs recorded `Evolution (2026) - 1080p.mp4` while the only file on
+           * disk — and the only MediaItem — was `… - 1080p [dup2].mp4`. The item
+           * existed the whole time; an equality test could not see it.
+           *
+           * Matched on directory + filename stem rather than the directory
+           * alone: a season folder holds many episodes, and the loosest match
+           * that still identifies THIS file is the one to use.
+           */
+          item = await this.prisma.mediaItem.findFirst({
+            where: { path: { startsWith: stemPrefix(job.importedPath) } },
+            orderBy: { createdAt: 'desc' },
+          });
         }
         if (!item) {
           /*

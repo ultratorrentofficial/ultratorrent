@@ -122,10 +122,27 @@ export class IntakePipelineService {
       try {
         const result = await stage.run(ctx);
         if (result.quarantine) {
-          await this.intake.transition(jobId, 'quarantined', {
-            message: result.quarantine.reason,
-          });
-          return { state: 'quarantined', ran };
+          const { reason } = result.quarantine;
+          try {
+            await this.intake.transition(jobId, 'quarantined', { message: reason });
+            return { state: 'quarantined', ran };
+          } catch (err) {
+            /*
+             * The machine refused the quarantine. Fail instead — but carry the
+             * stage's REASON, which is the only part an operator can act on.
+             *
+             * Letting this fall through to the catch below recorded the refusal
+             * itself ("Illegal intake transition imported → quarantined") and
+             * discarded the diagnosis entirely. Three live jobs failed that way
+             * and every one of them said the same uninformative thing.
+             */
+            await this.intake.transition(jobId, 'failed', {
+              message: `${stage.label}: ${reason}`,
+              data: { quarantineRefused: (err as Error).message },
+            });
+            this.logger.warn(`Intake ${jobId} could not be quarantined at ${stage.label}: ${reason}`);
+            return { state: 'failed', ran };
+          }
         }
         await this.intake.transition(jobId, want, {
           message: result.message ?? stage.label,

@@ -98,7 +98,20 @@ const HAPPY_PATH: Record<IntakeState, readonly IntakeState[]> = {
   // Enrichment follows the import because every entry point it uses takes an
   // existing item id, and an item only exists once a scan has found it inside a
   // library. Ordering it earlier would need items that live outside libraries.
-  imported: ['metadata_ready'],
+  /*
+   * `quarantined` second, so `nextState` still advances to `metadata_ready`.
+   *
+   * The metadata stage genuinely can form the opinion: it finds the file placed
+   * but no library item for it, which is a mismatch between what intake wrote
+   * and what the library accepts, and no amount of retrying fixes it. Without
+   * this edge the stage returned a quarantine reason the machine refused, the
+   * pipeline turned the refusal into `failed`, and the REASON WAS LOST — three
+   * live jobs recorded "Illegal intake transition imported → quarantined",
+   * which describes the state machine rather than anything an operator can act
+   * on. No other post-import stage quarantines, so no other edge is added: a
+   * stage that cannot form the opinion still must not claim it.
+   */
+  imported: ['metadata_ready', 'quarantined'],
   metadata_ready: ['artwork_ready'],
   artwork_ready: ['subtitle_ready'],
   subtitle_ready: ['seeding', 'archived'],
