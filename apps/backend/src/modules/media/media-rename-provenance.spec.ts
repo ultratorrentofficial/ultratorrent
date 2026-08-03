@@ -37,12 +37,16 @@ function buildService(root: string, ops: any[], onGatherTorrent: () => void) {
   };
   const config = { get: jest.fn(() => undefined) };
   const settings = { get: jest.fn(async () => undefined) };
-  // Resolving an engine at all means gathering went down the torrent path.
+  // Only asking the engine what a torrent OWNS means gathering went down the
+  // torrent path. Resolving an engine is not enough on its own: the post-rename
+  // seeding check resolves one too, for an unrelated reason.
   const registry = {
-    resolve: jest.fn(async () => {
-      onGatherTorrent();
-      return { getFiles: async () => [] };
-    }),
+    resolve: jest.fn(async () => ({
+      getTorrent: async () => { onGatherTorrent(); return null; },
+      getFiles: async () => { onGatherTorrent(); return []; },
+      listTorrents: async () => [],
+      removeTorrent: async () => undefined,
+    })),
   };
   const audit = { record: jest.fn(async () => undefined) };
   const relocation = {

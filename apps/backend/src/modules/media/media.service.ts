@@ -18,6 +18,7 @@ import * as path from 'node:path';
 import { placeFile, type PlacementAction } from '../../common/file-placement';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { MediaRelocationService } from './media-relocation.service';
+import { torrentsOwningPaths } from './rename-torrent-owner';
 import { historyScope } from './history-scope';
 import { Prisma, type MediaRenameOperation } from '@prisma/client';
 import { paginate, parsePage, type Page } from '../../common/pagination';
@@ -683,6 +684,8 @@ export class MediaService {
     skipped: number;
     failed: number;
     deleted: number;
+    /** Torrents dropped because this run moved the files they were seeding. */
+    torrentsRemoved: number;
     /** Groups this apply's operations. Pass to `undoRun` to reverse it. */
     runId: string;
     plan: RenamePlan;
@@ -700,7 +703,7 @@ export class MediaService {
     let deleted = 0;
 
     if (plan.mode === 'preview' || req.dryRun) {
-      return { applied: 0, skipped: plan.items.length, failed: 0, deleted: 0, runId, plan };
+      return { applied: 0, skipped: plan.items.length, failed: 0, deleted: 0, torrentsRemoved: 0, runId, plan };
     }
 
     const roots = await this.allowedRoots();
@@ -709,6 +712,8 @@ export class MediaService {
 
     // Source folders touched, so we can prune the leftovers after moving.
     const sourceDirs = new Set<string>();
+    // The files this run actually relocated, for the seeding-torrent check.
+    const movedSources: string[] = [];
 
     for (const item of plan.items) {
       // Cleanup deletions: erase junk before/around the moves. Scoped to the
@@ -762,6 +767,9 @@ export class MediaService {
         // because all of those cascade from MediaItem.
         await this.relocation.recordMoveSafe(realSrc, dest);
         sourceDirs.add(path.dirname(realSrc));
+        // Remembered so a torrent still seeding these exact bytes can be dropped
+        // below — the engine is not told about a move, and will re-download.
+        movedSources.push(realSrc);
         applied++;
         await this.log(item, plan.mode, 'success', torrentHash, null, runId);
       } catch (err) {
@@ -771,10 +779,21 @@ export class MediaService {
       }
     }
 
+    // A relocating rename MOVES the bytes a torrent is seeding, and the engine
+    // is never told. Left alone it finds its files gone, rechecks to 0% and
+    // downloads the whole release again beside the copy just organised. So the
+    // torrent goes — the ENTRY only, never the data, because the data is now the
+    // library's file. Not gated on the cleanup rules: this is not tidying, it is
+    // the difference between a renamed film and two copies of it.
+    const relocating = plan.mode === 'rename_in_place' || plan.mode === 'rename_move';
+    const torrentsRemoved = relocating && movedSources.length
+      ? await this.dropSeedingTorrents(movedSources, torrentHash, req.engineId)
+      : 0;
+
     // Post-move tidy (opt-in): stray .torrent + prune now-empty source folders.
     // Only for the relocating modes; never touches a root or a library folder.
     const rules = await this.getCleanup();
-    if (rules.enabled && (plan.mode === 'rename_in_place' || plan.mode === 'rename_move')) {
+    if (rules.enabled && relocating) {
       await this.postMoveCleanup([...sourceDirs], rules, roots);
     }
 
@@ -803,12 +822,68 @@ export class MediaService {
         deleted,
         mode: plan.mode,
         libraryPath: plan.libraryPath,
+        ...(torrentsRemoved ? { torrentsRemoved } : {}),
         ...(name ? { name } : {}),
         ...(fromTo ?? {}),
       },
     });
 
-    return { applied, skipped, failed, deleted, runId, plan };
+    return { applied, skipped, failed, deleted, torrentsRemoved, runId, plan };
+  }
+
+  /**
+   * Drop the torrents that were seeding files this run moved.
+   *
+   * `removeTorrent`, never `removeTorrentAndData`: the payload is no longer at
+   * the path the torrent knows — it IS the library's file now — so deleting the
+   * data would delete the film that was just organised. Removing the entry alone
+   * is also the recoverable choice; a torrent can be re-added, a deleted movie
+   * cannot.
+   *
+   * Entirely best-effort. The files are already moved and recorded by the time
+   * this runs, so an unreachable engine must not turn a successful rename into a
+   * failed one — it is logged and the run stands.
+   */
+  private async dropSeedingTorrents(
+    movedPaths: string[],
+    knownHash: string | undefined,
+    engineId: string | undefined,
+  ): Promise<number> {
+    let removed = 0;
+    try {
+      const engine = await this.registry.resolve(engineId);
+      const torrents = await engine.listTorrents();
+      const owners = torrentsOwningPaths(torrents, movedPaths, knownHash ? [knownHash] : []);
+
+      for (const owner of owners) {
+        try {
+          const provider = await this.registry.resolve(owner.engineId || engineId);
+          await provider.removeTorrent(owner.hash);
+          removed++;
+          this.logger.log(
+            `Removed torrent "${owner.name}" (${owner.hash.slice(0, 8)}): its files were moved by a rename`,
+          );
+          await this.audit.record({
+            action: 'torrents.remove',
+            objectType: 'torrent',
+            objectId: owner.hash,
+            result: 'success',
+            metadata: {
+              reason: 'files relocated by a media rename — the torrent could no longer seed them',
+              name: owner.name,
+              paths: owner.paths,
+            },
+          });
+        } catch (err) {
+          this.logger.warn(
+            `Could not remove torrent ${owner.hash.slice(0, 8)} after a rename: ${(err as Error).message}`,
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Could not check for seeding torrents after a rename: ${(err as Error).message}`);
+    }
+    return removed;
   }
 
   /**
