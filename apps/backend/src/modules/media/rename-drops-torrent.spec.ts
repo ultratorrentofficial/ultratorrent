@@ -20,9 +20,9 @@ import { MediaService } from './media.service';
  *   - a non-relocating mode (hardlink/copy) removes nothing. Those leave the
  *     download where it is, so the torrent goes on seeding perfectly well.
  */
-function buildService(root: string, torrents: any[], provider: any) {
+function buildService(root: string, torrents: any[], provider: any, autoOrganize = true) {
   const prisma = {
-    mediaLibrary: { findMany: jest.fn(async () => [{ path: root }]) },
+    mediaLibrary: { findMany: jest.fn(async () => [{ path: root, autoOrganize }]) },
     mediaRenameOperation: { create: jest.fn(async ({ data }: any) => data) },
     mediaItem: { findFirst: jest.fn(async () => null), findMany: jest.fn(async () => []) },
   };
@@ -65,7 +65,7 @@ describe('a rename that moves seeded files', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  async function run(mode: string, contentPath: (dir: string) => string) {
+  async function run(mode: string, contentPath: (dir: string) => string, autoOrganize = true) {
     const relDir = path.join(root, 'A Sense Of Dread (2026) [1080p] [YTS]');
     const src = path.join(relDir, 'A.Sense.Of.Dread.2026.1080p.mp4');
     const dest = path.join(root, 'A Sense of Dread (2026)', 'A Sense of Dread (2026).mp4');
@@ -76,7 +76,7 @@ describe('a rename that moves seeded files', () => {
 
     const svc = buildService(root, [torrent({ contentPath: contentPath(relDir) })], {
       removeTorrent, removeTorrentAndData,
-    });
+    }, autoOrganize);
     jest.spyOn(svc as never, 'buildPlan' as never).mockResolvedValue({
       mode,
       libraryPath: root,
@@ -115,6 +115,45 @@ describe('a rename that moves seeded files', () => {
     expect(removeTorrent).not.toHaveBeenCalled();
   });
 
+  it('removes nothing when the library has not opted into organising', async () => {
+    // `autoOrganize` is the permission for the app to move files here at all.
+    // Removing a torrent follows from that permission; it is not a separate one.
+    // A manual rename in a library that never opted in still renames — but it is
+    // not a licence to start deleting from the engine.
+    const result = await run('rename_in_place', (dir) => dir, false);
+    expect(result.applied).toBe(1);
+    expect(result.torrentsRemoved).toBe(0);
+    expect(removeTorrent).not.toHaveBeenCalled();
+  });
+
+  it('leaves a hardlink-imported item alone — that is not the legacy case', async () => {
+    // Media Intake imports by hardlink, so the LIBRARY copy is a second name for
+    // the same bytes, living outside the torrent's own folder. Renaming it moves
+    // only that name; the download keeps its own and goes on seeding. The
+    // contentPath rule already excludes it, and this pins that it stays that way.
+    const relDir = path.join(root, 'Some.Release.2026.1080p');   // what the torrent owns
+    const libDir = path.join(root, 'Movies', 'Some Film (2026)'); // the imported copy
+    const src = path.join(libDir, 'Some Film (2026).mkv');
+    await (await import('node:fs/promises')).mkdir(relDir, { recursive: true });
+    await (await import('node:fs/promises')).mkdir(libDir, { recursive: true });
+    await writeFile(src, 'PAYLOAD');
+
+    const svc = buildService(root, [torrent({ contentPath: relDir })], {
+      removeTorrent, removeTorrentAndData,
+    });
+    jest.spyOn(svc as never, 'buildPlan' as never).mockResolvedValue({
+      mode: 'rename_in_place', libraryPath: root, preset: 'plex', kind: 'movie',
+      parsed: { title: 'Some Film', year: 2026 },
+      items: [{ source: src, destination: path.join(libDir, 'Some Film (2026) - 1080p.mkv'),
+        action: 'rename', kind: 'movie', skipped: false, unchanged: false, isSubtitle: false, reason: 'primary' }],
+    } as never);
+
+    const result = await svc.apply({ libraryPath: root, mode: 'rename_in_place' } as never);
+    expect(result.applied).toBe(1);
+    expect(result.torrentsRemoved).toBe(0);
+    expect(removeTorrent).not.toHaveBeenCalled();
+  });
+
   it('still reports the rename as applied when the engine is unreachable', async () => {
     // The files are already moved and recorded by then; an engine that is down
     // must not turn a successful rename into a failed one.
@@ -124,7 +163,7 @@ describe('a rename that moves seeded files', () => {
     await writeFile(src, 'PAYLOAD');
 
     const prisma = {
-      mediaLibrary: { findMany: jest.fn(async () => [{ path: root }]) },
+      mediaLibrary: { findMany: jest.fn(async () => [{ path: root, autoOrganize: true }]) },
       mediaRenameOperation: { create: jest.fn(async ({ data }: any) => data) },
       mediaItem: { findFirst: jest.fn(async () => null), findMany: jest.fn(async () => []) },
     };

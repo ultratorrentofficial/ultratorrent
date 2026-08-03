@@ -786,9 +786,10 @@ export class MediaService {
     // library's file. Not gated on the cleanup rules: this is not tidying, it is
     // the difference between a renamed film and two copies of it.
     const relocating = plan.mode === 'rename_in_place' || plan.mode === 'rename_move';
-    const torrentsRemoved = relocating && movedSources.length
-      ? await this.dropSeedingTorrents(movedSources, torrentHash, req.engineId)
-      : 0;
+    let torrentsRemoved = 0;
+    if (relocating && movedSources.length && await this.organiseEnabledFor(plan.libraryPath)) {
+      torrentsRemoved = await this.dropSeedingTorrents(movedSources, torrentHash, req.engineId);
+    }
 
     // Post-move tidy (opt-in): stray .torrent + prune now-empty source folders.
     // Only for the relocating modes; never touches a root or a library folder.
@@ -829,6 +830,44 @@ export class MediaService {
     });
 
     return { applied, skipped, failed, deleted, torrentsRemoved, runId, plan };
+  }
+
+  /**
+   * Has the operator opted this library into the app organising its files?
+   *
+   * `autoOrganize` is the "the app may rename or move files here without being
+   * asked" flag, and removing a torrent is a consequence of that permission, not
+   * a separate one. A library that has not opted in keeps its torrents even when
+   * an operator renames something in it by hand — a manual rename is allowed
+   * there, but it is not a licence to start deleting from the engine.
+   *
+   * Unknown paths answer **false**. Failing closed is the only safe default for
+   * something irreversible: a library nobody configured is not one to act on.
+   */
+  private async organiseEnabledFor(libraryPath: string): Promise<boolean> {
+    try {
+      const libs = await this.prisma.mediaLibrary.findMany({
+        select: { path: true, autoOrganize: true },
+      });
+      const target = path.resolve(libraryPath);
+      let containing: { path: string; autoOrganize: boolean } | null = null;
+      for (const lib of libs) {
+        const p = path.resolve(lib.path);
+        if (p === target) return !!lib.autoOrganize;
+        // A rename may target a subfolder of a library; the closest enclosing
+        // library is the one whose setting governs it.
+        const rel = path.relative(p, target);
+        if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+          if (!containing || p.length > path.resolve(containing.path).length) {
+            containing = { path: lib.path, autoOrganize: !!lib.autoOrganize };
+          }
+        }
+      }
+      return containing?.autoOrganize ?? false;
+    } catch (err) {
+      this.logger.warn(`Could not read library organise setting: ${(err as Error).message}`);
+      return false;
+    }
   }
 
   /**
