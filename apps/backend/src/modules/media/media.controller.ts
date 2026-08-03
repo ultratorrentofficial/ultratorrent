@@ -466,7 +466,16 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_MOVE_FILES)
   bulkMove(@Body() body: { itemIds?: string[]; targetLibraryId?: string }, @Req() req: Request) {
     if (!body?.targetLibraryId) throw new BadRequestException('targetLibraryId is required.');
-    return this.bulk.moveToLibrary(body?.itemIds ?? [], body.targetLibraryId, auditCtx(req));
+    const ctx = auditCtx(req);
+    // The moved folder keeps whatever name it arrived with — a release name, for
+    // anything that came from a torrent — so the target library's naming is
+    // applied afterwards. Passed as a callback because the rename engine's
+    // action layer and the bulk service sit on opposite sides of a dependency
+    // cycle inside MediaModule; the controller already holds both.
+    return this.bulk.moveToLibrary(
+      body?.itemIds ?? [], body.targetLibraryId, ctx,
+      (itemId) => this.mediaActions.renameItem(itemId, undefined, ctx),
+    );
   }
 
   @Post('items/bulk/nfo')

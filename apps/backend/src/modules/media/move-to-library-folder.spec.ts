@@ -48,8 +48,9 @@ function build(root: string, items: any[], strangers: any[] = []) {
       return { jobId: 'job-1' };
     }),
   };
+  const renameItem = jest.fn(async () => undefined);
   const svc = new MediaBulkService(prisma as never, jobs as never, audit as never);
-  return { svc, updates, prisma };
+  return { svc, updates, prisma, renameItem };
 }
 
 describe('moving a film to another library', () => {
@@ -80,7 +81,7 @@ describe('moving a film to another library', () => {
     const video = path.join(dir, 'Toy Story (1995) - 1080p.mp4');
     const subs = path.join(dir, 'Toy Story (1995) - 1080p.srt');
 
-    const { svc, updates } = build(root, [{
+    const { svc, updates, renameItem } = build(root, [{
       id: 'i1', path: video, libraryId: 'src',
       files: [{ id: 'f1', path: video }],
       subtitles: [{ id: 's1', path: subs }],
@@ -88,7 +89,7 @@ describe('moving a film to another library', () => {
       library: { path: hdMovies },
     }]);
 
-    await svc.moveToLibrary(['i1'], 'target', {});
+    await svc.moveToLibrary(['i1'], 'target', {}, renameItem);
 
     const moved = path.join(root, 'Animated Movies', 'Toy Story (1995)');
     // The folder arrived intact — not just the video.
@@ -106,6 +107,48 @@ describe('moving a film to another library', () => {
     expect(updates.artwork[0].data.localPath).toBe(path.join(moved, 'poster.jpg'));
   });
 
+  it('applies the target library\'s naming, so a release folder does not survive the move', async () => {
+    // The folder travels intact, which for anything that came from a torrent
+    // means the RELEASE name travels with it. A library's naming template is not
+    // advisory, so re-templating is part of the move rather than a second thing
+    // to remember. Delegated to the rename engine, which owns those rules.
+    const dir = await makeFilm('A Sense Of Dread (2026) [1080p] [WEBRip] [YTS.GG]');
+    const video = path.join(dir, 'A Sense Of Dread (2026) [1080p] [WEBRip] [YTS.GG] - 1080p.mp4');
+
+    const { svc, renameItem } = build(root, [{
+      id: 'i1', path: video, libraryId: 'src',
+      files: [{ id: 'f1', path: video }], subtitles: [], artwork: [],
+      library: { path: hdMovies },
+    }]);
+
+    await svc.moveToLibrary(['i1'], 'target', {}, renameItem);
+
+    // Renamed AFTER the row points at the target, so the engine reads the
+    // target library's preset, template and mode rather than the old one's.
+    expect(renameItem).toHaveBeenCalledWith('i1');
+  });
+
+  it('still reports the move as done when the rename afterwards fails', async () => {
+    // The media is moved and recorded by then. A scruffy folder name is worth a
+    // warning, not worth failing the move and leaving the operator unsure what
+    // actually happened.
+    const dir = await makeFilm('Renamer Down (2026)');
+    const video = path.join(dir, 'Renamer Down (2026) - 1080p.mp4');
+
+    const { svc, renameItem, updates } = build(root, [{
+      id: 'i1', path: video, libraryId: 'src',
+      files: [{ id: 'f1', path: video }], subtitles: [], artwork: [],
+      library: { path: hdMovies },
+    }]);
+    renameItem.mockRejectedValueOnce(new Error('engine unavailable'));
+
+    await svc.moveToLibrary(['i1'], 'target', {}, renameItem);
+
+    const moved = path.join(root, 'Animated Movies', 'Renamer Down (2026)');
+    await expect(stat(moved)).resolves.toBeDefined();
+    expect(updates.item[0].data.libraryId).toBe('target');
+  });
+
   it('refuses to move a folder shared with an item that was not selected', async () => {
     // A season folder. Moving it because one episode was picked would drag the
     // rest of the season into a library they do not belong to.
@@ -116,13 +159,13 @@ describe('moving a film to another library', () => {
     await writeFile(ep1, 'ONE');
     await writeFile(ep2, 'TWO');
 
-    const { svc } = build(
+    const { svc, renameItem } = build(
       root,
       [{ id: 'i1', path: ep1, libraryId: 'src', files: [{ id: 'f1', path: ep1 }], subtitles: [], artwork: [], library: { path: hdMovies } }],
       [{ id: 'other', path: ep2 }],
     );
 
-    await svc.moveToLibrary(['i1'], 'target', {});
+    await svc.moveToLibrary(['i1'], 'target', {}, renameItem);
 
     // The unselected episode stayed exactly where it was.
     await expect(stat(ep2)).resolves.toBeDefined();
@@ -137,13 +180,13 @@ describe('moving a film to another library', () => {
     await mkdir(hdMovies, { recursive: true });
     await writeFile(loose, 'VIDEO');
 
-    const { svc } = build(root, [{
+    const { svc, renameItem } = build(root, [{
       id: 'i1', path: loose, libraryId: 'src',
       files: [{ id: 'f1', path: loose }], subtitles: [], artwork: [],
       library: { path: hdMovies },
     }]);
 
-    await svc.moveToLibrary(['i1'], 'target', {});
+    await svc.moveToLibrary(['i1'], 'target', {}, renameItem);
 
     // The library root survives, and only the file moved.
     await expect(stat(hdMovies)).resolves.toBeDefined();
@@ -158,13 +201,13 @@ describe('moving a film to another library', () => {
     await (await import('node:fs/promises')).link(video, download);
     expect((await stat(video)).nlink).toBe(2);
 
-    const { svc } = build(root, [{
+    const { svc, renameItem } = build(root, [{
       id: 'i1', path: video, libraryId: 'src',
       files: [{ id: 'f1', path: video }], subtitles: [], artwork: [],
       library: { path: hdMovies },
     }]);
 
-    await svc.moveToLibrary(['i1'], 'target', {});
+    await svc.moveToLibrary(['i1'], 'target', {}, renameItem);
 
     const moved = path.join(root, 'Animated Movies', 'Seeded Film (2026)', 'Seeded Film (2026) - 1080p.mp4');
     // Both names still refer to the same bytes: renaming a directory entry
@@ -180,13 +223,13 @@ describe('moving a film to another library', () => {
     await writeFile(path.join(occupied, 'existing.mp4'), 'THE ONE ALREADY THERE');
 
     const video = path.join(dir, 'Clash (2026) - 1080p.mp4');
-    const { svc } = build(root, [{
+    const { svc, renameItem } = build(root, [{
       id: 'i1', path: video, libraryId: 'src',
       files: [{ id: 'f1', path: video }], subtitles: [], artwork: [],
       library: { path: hdMovies },
     }]);
 
-    await svc.moveToLibrary(['i1'], 'target', {});
+    await svc.moveToLibrary(['i1'], 'target', {}, renameItem);
 
     // Both survive: the occupant untouched, the source still where it was.
     await expect(stat(path.join(occupied, 'existing.mp4'))).resolves.toBeDefined();

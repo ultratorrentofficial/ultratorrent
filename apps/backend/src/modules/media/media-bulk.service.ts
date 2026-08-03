@@ -88,6 +88,7 @@ export class MediaBulkService {
     private readonly audit: AuditService,
   ) {}
 
+
   /**
    * Narrow a caller-supplied id list to items that exist.
    *
@@ -357,7 +358,21 @@ export class MediaBulkService {
    * cross-device move cannot rename a directory at all, so `EXDEV` also falls
    * back to the per-file path rather than half-copying a tree.
    */
-  async moveToLibrary(itemIds: string[], targetLibraryId: string, ctx: AuditContext): Promise<BulkResult> {
+  async moveToLibrary(
+    itemIds: string[],
+    targetLibraryId: string,
+    ctx: AuditContext,
+    /**
+     * Apply the TARGET library's naming to a moved item.
+     *
+     * Passed in rather than injected, the same way `refreshMetadata` takes
+     * `fetchOne`: the rename engine's action layer sits on the other side of a
+     * dependency cycle inside `MediaModule`, and constructor-injecting it makes
+     * Nest refuse the module at bootstrap. A callback from the controller — which
+     * already holds both — has no such edge.
+     */
+    renameOne?: (itemId: string) => Promise<unknown>,
+  ): Promise<BulkResult> {
     const target = await this.prisma.mediaLibrary.findUnique({
       where: { id: targetLibraryId },
       select: { id: true, path: true, name: true },
@@ -387,6 +402,7 @@ export class MediaBulkService {
       async (report, signal) => {
         let done = 0;
         let failed = 0;
+        let renamed = 0;
         for (const item of movable) {
           if (signal.isCancelled()) break;
           try {
@@ -433,6 +449,36 @@ export class MediaBulkService {
                   }),
                 ),
             ]);
+
+            /*
+             * Name it the way the TARGET library names things.
+             *
+             * The move carries the folder across intact, which for anything
+             * that arrived from a torrent means carrying the RELEASE name with
+             * it — `A Sense Of Dread (2026) [1080p] [WEBRip] [YTS.GG]/`. A
+             * library's naming template is not advisory, so re-templating is
+             * part of the move rather than a second thing to remember.
+             *
+             * Delegated to the rename engine rather than reimplemented: it
+             * already resolves the destination from the library's own preset,
+             * template and mode, and it is where the folder-naming rules live.
+             * Because the row now points at the target library, it reads that
+             * library's settings.
+             *
+             * Best-effort. The media is moved and recorded by this point, so a
+             * rename failure leaves a correctly-placed film with a scruffy
+             * folder name — worth a warning, not worth failing the move.
+             */
+            try {
+              if (renameOne) {
+                await renameOne(item.id);
+                renamed += 1;
+              }
+            } catch (err) {
+              this.logger.warn(
+                `Moved ${item.id} but could not apply the target library's naming: ${(err as Error).message}`,
+              );
+            }
           } catch (err) {
             failed += 1;
             this.logger.warn(`Move failed for ${item.id}: ${(err as Error).message}`);
@@ -440,7 +486,7 @@ export class MediaBulkService {
           done += 1;
           report((done / Math.max(1, movable.length)) * 100, `${done}/${movable.length}`);
         }
-        return { total: movable.length, completed: done - failed, failed };
+        return { total: movable.length, completed: done - failed, failed, renamed };
       },
     );
 
