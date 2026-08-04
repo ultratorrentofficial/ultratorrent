@@ -208,5 +208,106 @@
         "error": "Error"
       }
     }
+  },
+  "scheduler": {
+    "title": "Planificador de actividad",
+    "subtitle": "Lo que UltraTorrent haría con tu cola, y por qué. Nada de esto cambia un torrent.",
+    "observeNotice": "Solo observación. El planificador está calculando y explicando; no aplica nada. La aplicación real llegará en una versión posterior.",
+    "engine": "Motor",
+    "mode": {
+      "label": "Modo de planificación",
+      "native": "Planificación nativa del motor",
+      "observe": "Solo observar",
+      "managed": "Gestionado por UltraTorrent"
+    },
+    "modeHelp": {
+      "native": "Tu motor conserva su propio comportamiento de cola. UltraTorrent no cambia nada ni calcula nada.",
+      "observe": "UltraTorrent calcula lo que haría y lo registra. Ningún torrent se pausa, reanuda ni elimina.",
+      "managed": "Aún no disponible: nada aplica estas decisiones, así que este modo no impondría nada aunque diera a entender lo contrario."
+    },
+    "health": {
+      "label": "Estado",
+      "healthy": "Correcto",
+      "degraded": "Degradado",
+      "engine_offline": "Motor sin conexión",
+      "provider_limited": "Limitado por el motor",
+      "unknown": "Aún no ejecutado"
+    },
+    "lastSweep": "Última comprobación",
+    "never": "Nunca",
+    "summary": {
+      "activeDownloads": "Descargando",
+      "activeSeeds": "Sembrando",
+      "totalActive": "Total activos",
+      "queuedDownloads": "Descargas en cola",
+      "queuedSeeds": "Siembras en cola",
+      "proposed": "Cambiaría"
+    },
+    "proposedNone": "No cambiaría nada: la cola ya coincide con tu política.",
+    "proposedSome": "Se cambiarían {{count}} torrent(s) si la aplicación estuviera activada.",
+    "enableObserve": "Empezar a observar",
+    "backToNative": "Dejar de observar",
+    "refresh": "Recalcular",
+    "noEngines": "No hay motores de torrent configurados.",
+    "loadError": "No se pudo cargar el planificador.",
+    "table": {
+      "torrent": "Torrent",
+      "current": "Ahora",
+      "desired": "Quedaría",
+      "reason": "Por qué",
+      "score": "Prioridad"
+    },
+    "desired": {
+      "active": "Activo",
+      "paused": "Pausado",
+      "unchanged": "Sin cambios"
+    },
+    "reason": {
+      "downloading_within_limit": "Descargando, dentro de tu límite",
+      "seeding_within_limit": "Sembrando, dentro de tu límite",
+      "download_limit_reached": "Se pausaría: hay más descargas activas que tu límite de {{limit}}",
+      "seed_limit_reached": "Se pausaría: hay más siembras activas que tu límite de {{limit}}",
+      "waiting_for_download_slot": "Esperando un espacio de descarga (límite {{limit}})",
+      "waiting_for_seed_slot": "Esperando un espacio de siembra (límite {{limit}})",
+      "download_slot_available": "Se iniciaría: hay un espacio de descarga libre",
+      "seed_slot_available": "Empezaría a sembrar: hay un espacio de siembra libre",
+      "protected_from_pause": "Por encima del límite, pero protegido contra pausas",
+      "too_recently_started": "Por encima del límite, pero empezó hace {{seconds}} s: se deja en paz para evitar vaivenes",
+      "action_budget_exhausted": "Aplazado a la próxima comprobación: esta ejecución ya ha hecho suficientes cambios",
+      "not_resumable_by_scheduler": "El planificador no iniciará este",
+      "paused_by_user": "Lo pausaste tú. El planificador nunca deshace eso.",
+      "paused_outside_scheduler": "Pausado por algo ajeno al planificador, así que se deja en paz",
+      "parked_dead_swarm": "Aparcado: sin semillas. Lo gestiona el aparcado de cola, no el planificador.",
+      "engine_error": "El motor informa de un error",
+      "verifying": "Verificando",
+      "state_unknown": "Estado desconocido: no se hará nada",
+      "engine_cannot_pause": "Este motor no puede pausar torrents, así que no se puede planificar nada",
+      "force_started_active": "Inicio forzado: en marcha sin importar los límites",
+      "force_started_resume": "Inicio forzado: se iniciaría sin importar los límites"
+    },
+    "limitation": {
+      "title": "Lo que este motor no puede hacer",
+      "no_pause_support": "Este motor no puede pausar un torrent, así que el planificador no puede gestionar su cola en absoluto.",
+      "no_queued_state": "Este motor no informa de qué torrents están en cola, así que los que esperan se deducen en vez de leerse.",
+      "no_seed_time_data": "Este motor no informa del tiempo que lleva sembrando un torrent, así que no se pueden aplicar objetivos por tiempo de siembra.",
+      "no_global_rate_limit": "La conexión con este motor no expone un límite de velocidad global, así que no se puede aplicar una política de ancho de banda global.",
+      "no_per_torrent_rate_limit": "Este motor no puede fijar un límite de velocidad en un torrent concreto.",
+      "force_start_approximated": "El inicio forzado es aproximado en este motor (prioridad alta en vez de una marca de forzado real), así que puede ceder ante la cola del propio motor.",
+      "native_queue_conflict": "Este motor tiene sus propios límites de cola que pueden entrar en conflicto con estas políticas.",
+      "no_availability_data": "Este motor no informa de la disponibilidad del enjambre."
+    },
+    "priority": {
+      "force_started": "Inicio forzado",
+      "user_priority_high": "Le pusiste prioridad alta",
+      "user_priority_low": "Le pusiste prioridad baja",
+      "wanted_item": "Un elemento buscado",
+      "quality_upgrade": "Una mejora de calidad",
+      "intake_waiting": "La Recepción de Medios lo está esperando",
+      "private_tracker": "Rastreador privado",
+      "progress": "{{percent}} % completado",
+      "waiting": "Esperando {{minutes}} minutos",
+      "no_seeders": "Sin semillas"
+    },
+    "modeChangeFailed": "No se pudo cambiar el modo de planificación."
   }
 }

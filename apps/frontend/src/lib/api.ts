@@ -1761,6 +1761,56 @@ export interface SeedingTorrentPolicy {
   action: SeedingTorrentAction;
 }
 
+
+/** Torrent Activity Scheduler — Observe Only. */
+export type SchedulerMode = 'native' | 'observe' | 'managed';
+export type CapabilityGrade = 'native' | 'approximated' | 'unsupported';
+
+export interface SchedulerEngine {
+  engineId: string;
+  kind: string;
+  mode: SchedulerMode;
+  healthState: string;
+  healthDetail: string | null;
+  lastSweepAt: string | null;
+  lastSuccessfulSweepAt: string | null;
+  capabilities: Record<string, CapabilityGrade | string>;
+}
+
+export interface SchedulerLimitation {
+  engineId: string;
+  code: string;
+  messageKey: string;
+  values?: Record<string, unknown>;
+}
+
+export interface SchedulerTorrentDecision {
+  hash: string;
+  engineId: string;
+  currentOccupancy: string;
+  desiredState: 'active' | 'paused' | 'unchanged';
+  action: 'pause' | 'resume' | 'none';
+  reasonCode: string;
+  messageKey: string;
+  values?: Record<string, unknown>;
+  score: number;
+  protectedFromPause: boolean;
+  policySource?: string;
+}
+
+export interface SchedulerEnginePlan {
+  engineId: string;
+  decisions: SchedulerTorrentDecision[];
+  summary: {
+    activeDownloads: number;
+    activeSeeds: number;
+    totalActive: number;
+    queuedDownloads: number;
+    queuedSeeds: number;
+  };
+  limitations: SchedulerLimitation[];
+}
+
 /** One item within a detected duplicate group (already quality-scored). */
 export interface MediaDuplicateItem {
   id: string;
@@ -5078,6 +5128,20 @@ export const api = {
     },
   },
 
+
+  torrentScheduler: {
+    engines(): Promise<SchedulerEngine[]> {
+      return request<SchedulerEngine[]>('/torrent-scheduler/engines');
+    },
+    preview(engineId: string): Promise<SchedulerEnginePlan | null> {
+      return request<SchedulerEnginePlan | null>(`/torrent-scheduler/preview/${encodeURIComponent(engineId)}`);
+    },
+    setMode(engineId: string, mode: SchedulerMode): Promise<unknown> {
+      return request(`/torrent-scheduler/engines/${encodeURIComponent(engineId)}/mode`, {
+        method: 'PUT', body: { mode },
+      });
+    },
+  },
   cleanup: {
     catalog(): Promise<CleanupCatalog> {
       return request<CleanupCatalog>('/media/cleanup/catalog');

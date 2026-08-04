@@ -29,6 +29,7 @@ const NotificationEventsPage = lazy(() => import('@/pages/account/notifications/
 const LibraryBrowserPage = lazy(() => import('@/pages/library-browser/LibraryBrowserPage').then((m) => ({ default: m.LibraryBrowserPage })));
 const WorkflowEditorPage = lazy(() => import('@/pages/workflows/WorkflowEditorPage').then((m) => ({ default: m.WorkflowEditorPage })));
 import { TorrentsPage } from '@/pages/TorrentsPage';
+import { TorrentSchedulerPage } from '@/pages/torrent-scheduler/TorrentSchedulerPage';
 import { RssPage } from '@/pages/RssPage';
 import { RssRulePage } from '@/pages/RssRulePage';
 import { RssFeedHistoryPage } from '@/pages/RssFeedHistoryPage';
@@ -122,6 +123,7 @@ export function App() {
                   <Route element={<ProtectedRoute permission={PERMISSIONS.TORRENTS_VIEW} />}>
                     <Route element={<AppShell />}>
                       <Route path="/torrents" element={<TorrentsPage />} />
+                      <Route path="/torrent-scheduler" element={<TorrentSchedulerPage />} />
                     </Route>
                   </Route>
 

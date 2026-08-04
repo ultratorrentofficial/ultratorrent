@@ -208,5 +208,106 @@
         "error": "Error"
       }
     }
+  },
+  "scheduler": {
+    "title": "Activity Scheduler",
+    "subtitle": "What UltraTorrent would do with your queue — and why. Nothing here changes a torrent.",
+    "observeNotice": "Observe Only. The scheduler is planning and explaining; it is not applying anything. Enforcement arrives in a later release.",
+    "engine": "Engine",
+    "mode": {
+      "label": "Scheduling mode",
+      "native": "Native engine scheduling",
+      "observe": "Observe only",
+      "managed": "UltraTorrent managed"
+    },
+    "modeHelp": {
+      "native": "Your engine keeps its own queue behaviour. UltraTorrent changes nothing and plans nothing.",
+      "observe": "UltraTorrent works out what it would do and records it. No torrent is paused, resumed or removed.",
+      "managed": "Not available yet — nothing applies these decisions, so this mode would enforce nothing while implying otherwise."
+    },
+    "health": {
+      "label": "Health",
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "engine_offline": "Engine offline",
+      "provider_limited": "Limited by the engine",
+      "unknown": "Not yet run"
+    },
+    "lastSweep": "Last checked",
+    "never": "Never",
+    "summary": {
+      "activeDownloads": "Downloading",
+      "activeSeeds": "Seeding",
+      "totalActive": "Total active",
+      "queuedDownloads": "Queued downloads",
+      "queuedSeeds": "Queued seeds",
+      "proposed": "Would change"
+    },
+    "proposedNone": "Nothing would change — the queue already matches your policy.",
+    "proposedSome": "{{count}} torrent(s) would be changed if enforcement were on.",
+    "enableObserve": "Start observing",
+    "backToNative": "Stop observing",
+    "refresh": "Recalculate",
+    "noEngines": "No torrent engines are configured.",
+    "loadError": "Could not load the scheduler.",
+    "table": {
+      "torrent": "Torrent",
+      "current": "Now",
+      "desired": "Would be",
+      "reason": "Why",
+      "score": "Priority"
+    },
+    "desired": {
+      "active": "Active",
+      "paused": "Paused",
+      "unchanged": "Unchanged"
+    },
+    "reason": {
+      "downloading_within_limit": "Downloading, within your limit",
+      "seeding_within_limit": "Seeding, within your limit",
+      "download_limit_reached": "Would pause — more downloads active than your limit of {{limit}}",
+      "seed_limit_reached": "Would pause — more seeds active than your limit of {{limit}}",
+      "waiting_for_download_slot": "Waiting for a download slot (limit {{limit}})",
+      "waiting_for_seed_slot": "Waiting for a seed slot (limit {{limit}})",
+      "download_slot_available": "Would start — a download slot is free",
+      "seed_slot_available": "Would start seeding — a seed slot is free",
+      "protected_from_pause": "Over the limit, but protected from pausing",
+      "too_recently_started": "Over the limit, but started {{seconds}}s ago — left alone to avoid churn",
+      "action_budget_exhausted": "Deferred to the next check — this run has changed enough already",
+      "not_resumable_by_scheduler": "The scheduler will not start this one",
+      "paused_by_user": "You paused this. The scheduler never undoes that.",
+      "paused_outside_scheduler": "Paused by something other than the scheduler, so it is left alone",
+      "parked_dead_swarm": "Parked — no seeders. Handled by junk-queue parking, not the scheduler.",
+      "engine_error": "The engine reports an error",
+      "verifying": "Verifying",
+      "state_unknown": "State unknown — nothing will be done",
+      "engine_cannot_pause": "This engine cannot pause torrents, so nothing can be scheduled",
+      "force_started_active": "Force started — running regardless of limits",
+      "force_started_resume": "Force started — would start regardless of limits"
+    },
+    "limitation": {
+      "title": "What this engine cannot do",
+      "no_pause_support": "This engine cannot pause a torrent, so the scheduler cannot manage its queue at all.",
+      "no_queued_state": "This engine does not report which torrents are queued, so waiting torrents are inferred rather than read.",
+      "no_seed_time_data": "This engine does not report how long a torrent has been seeding, so seed-time targets cannot be enforced.",
+      "no_global_rate_limit": "This engine's connection does not expose a global speed limit, so bandwidth policy cannot be applied globally.",
+      "no_per_torrent_rate_limit": "This engine cannot set a speed limit on a single torrent.",
+      "force_start_approximated": "Force start is approximated on this engine (high priority rather than a true force flag), so it may still yield to the engine's own queue.",
+      "native_queue_conflict": "This engine has its own queue limits that may conflict with these policies.",
+      "no_availability_data": "This engine does not report swarm availability."
+    },
+    "priority": {
+      "force_started": "Force started",
+      "user_priority_high": "You set high priority",
+      "user_priority_low": "You set low priority",
+      "wanted_item": "A wanted item",
+      "quality_upgrade": "A quality upgrade",
+      "intake_waiting": "Media Intake is waiting on it",
+      "private_tracker": "Private tracker",
+      "progress": "{{percent}}% complete",
+      "waiting": "Waiting {{minutes}} minutes",
+      "no_seeders": "No seeders"
+    },
+    "modeChangeFailed": "Could not change the scheduling mode."
   }
 }

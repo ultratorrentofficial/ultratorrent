@@ -203,6 +203,7 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
       { id: 'torrents-error', to: '/torrents?state=error', label: 'Errors', icon: TriangleAlert, permission: PERMISSIONS.TORRENTS_VIEW, module: 'torrents' },
     ],
   } },
+  { slot: { domain: 'downloads', order: 15 }, item: { id: 'torrent-scheduler', to: '/torrent-scheduler', label: 'Activity Scheduler', icon: Gauge, permission: PERMISSIONS.TORRENT_SCHEDULER_VIEW, module: 'torrents', descriptionKey: 'Activity Scheduler' } },
   { slot: { domain: 'downloads', order: 20 }, item: { id: 'rss', to: '/rss', label: 'RSS Feeds', icon: Rss, permission: PERMISSIONS.RSS_VIEW, module: 'rss', descriptionKey: 'RSS Feeds' } },
   { slot: { domain: 'downloads', order: 30 }, item: { id: 'release-scoring', to: '/release-scoring', label: 'Release Scoring', icon: Award, permission: PERMISSIONS.RELEASE_SCORING_VIEW, module: 'release_scoring', descriptionKey: 'Release Scoring' } },
   { slot: { domain: 'downloads', order: 40 }, item: {
