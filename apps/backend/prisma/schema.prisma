@@ -3373,3 +3373,110 @@ model MediaIntakeEvent {
   @@index([jobId, createdAt])
   @@map("media_intake_events")
 }
+
+// ---------------------------------------------------------------------------
+// Torrent Activity Scheduler
+// ---------------------------------------------------------------------------
+
+/// How UltraTorrent relates to one engine's queue.
+///
+/// `native` is the default and the upgrade-safe answer: the engine keeps its own
+/// queue behaviour and the scheduler changes nothing. `observe` plans and records
+/// what it WOULD do without touching a torrent. `managed` is enforcement, and is
+/// deliberately not reachable yet — there is no reconciliation layer to honour it,
+/// and a mode that implies enforcement while enforcing nothing is worse than no
+/// mode at all.
+model TorrentSchedulerEngineConfig {
+  engineId String @id
+
+  /// native | observe | managed
+  mode String @default("native")
+
+  /// Set when the mode last moved away from `native`, with who did it — enabling
+  /// scheduling is an operator decision and has to be attributable.
+  modeChangedAt DateTime?
+  modeChangedBy String?
+
+  /// The engine's OWN queue settings as they were before we touched anything, so
+  /// disabling managed mode can offer to put them back.
+  nativeSettingsSnapshot   Json?
+  nativeSettingsSnapshotAt DateTime?
+
+  lastSweepAt           DateTime?
+  lastSuccessfulSweepAt DateTime?
+  /// healthy | degraded | engine_offline | provider_limited | unknown
+  healthState           String    @default("unknown")
+  healthDetail          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("torrent_scheduler_engine_configs")
+}
+
+/// A scheduling policy at one scope.
+///
+/// The limits are real columns rather than a JSON blob because they are queried
+/// and validated; `seedPolicy` is JSON because it is a small closed document read
+/// as a whole. NULL means "explicitly unlimited" and a missing row means
+/// "inherit" — the distinction the resolver depends on, so a library can lift a
+/// global cap.
+model TorrentSchedulerPolicy {
+  id      String  @id @default(uuid())
+  name    String
+  enabled Boolean @default(true)
+
+  /// global | engine | library | category | rss_rule | torrent
+  scopeType String
+  /// Null only for `global`.
+  scopeId   String?
+
+  maxConcurrentDownloads Int?
+  maxConcurrentSeeds     Int?
+  maxTotalActive         Int?
+  maxDownloadRateKbps    Int?
+  maxUploadRateKbps      Int?
+
+  reserveDownloadBandwidthPercent Int?
+  reserveSeedBandwidthPercent     Int?
+
+  seedPolicy Json?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scopeType, scopeId, name])
+  @@index([enabled, scopeType])
+  @@map("torrent_scheduler_policies")
+}
+
+/// One sweep's outcome, compact.
+///
+/// A full snapshot per sweep would be the obvious thing and the wrong one: at a
+/// short cadence over thousands of torrents it writes megabytes to say nothing
+/// changed. Only the summary, the limitations and the counts are kept, so the
+/// history answers "what was the scheduler doing at 3am" without becoming the
+/// largest table in the database.
+model TorrentSchedulerDecision {
+  id          String   @id @default(uuid())
+  engineId    String
+  generatedAt DateTime @default(now())
+  /// The mode in force when this was generated — a decision read later is
+  /// meaningless without knowing whether it was ever going to be applied.
+  mode        String
+
+  summary     Json
+  limitations Json?
+
+  /// How many changes the plan WANTED. In observe mode nothing is applied, so
+  /// this is the size of the gap between the engine and the policy.
+  proposedActions Int @default(0)
+  appliedActions  Int @default(0)
+
+  durationMs Int?
+  result     String @default("ok")
+
+  @@index([engineId, generatedAt])
+  @@map("torrent_scheduler_decisions")
+}

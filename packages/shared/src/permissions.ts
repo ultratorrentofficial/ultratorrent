@@ -23,6 +23,13 @@ export const PERMISSIONS = {
   TORRENTS_MOVE: 'torrents.move',
   TORRENTS_RENAME: 'torrents.rename',
 
+  // Torrent Activity Scheduler. Only the two Phase 3 (Observe Only) grants
+  // exist: viewing plans, and choosing an engine's scheduling mode. The
+  // override/reconcile grants arrive with the phases that can act — a permission
+  // guarding nothing teaches operators that grants are decorative.
+  TORRENT_SCHEDULER_VIEW: 'torrent_scheduler.view',
+  TORRENT_SCHEDULER_MANAGE_ENGINE_MODE: 'torrent_scheduler.manage_engine_mode',
+
   // Categories & tags
   CATEGORIES_MANAGE: 'categories.manage',
   TAGS_MANAGE: 'tags.manage',
@@ -283,6 +290,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.TORRENTS_MANAGE_LIMITS,
     PERMISSIONS.TORRENTS_MOVE,
     PERMISSIONS.TORRENTS_RENAME,
+    PERMISSIONS.TORRENT_SCHEDULER_VIEW,
+    PERMISSIONS.TORRENT_SCHEDULER_MANAGE_ENGINE_MODE,
     PERMISSIONS.CATEGORIES_MANAGE,
     PERMISSIONS.TAGS_MANAGE,
     PERMISSIONS.RSS_VIEW,

@@ -16,6 +16,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { EngineModule } from './modules/engine/engine.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TorrentsModule } from './modules/torrents/torrents.module';
+import { TorrentSchedulerModule } from './modules/torrent-scheduler/torrent-scheduler.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { UsersModule } from './modules/users/users.module';
@@ -73,6 +74,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     AccountModule,
     UsersModule,
     TorrentsModule,
+    TorrentSchedulerModule,
     DashboardModule,
     SettingsModule,
     TaxonomyModule,
