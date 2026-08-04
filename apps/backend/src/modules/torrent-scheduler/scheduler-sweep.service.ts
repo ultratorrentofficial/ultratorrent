@@ -4,6 +4,8 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { SchedulerPreviewService } from './scheduler-preview.service';
 import { SchedulerReconciliationService } from './scheduler-reconciliation.service';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
 
 /** How often a plan is recalculated. Minutes, not seconds: nothing acts on it. */
 const TICK_MS = 60_000;
@@ -37,6 +39,7 @@ export class SchedulerSweepService {
     private readonly registry: EngineRegistryService,
     private readonly preview: SchedulerPreviewService,
     private readonly reconciliation: SchedulerReconciliationService,
+    private readonly bus: DomainEventBus,
   ) {}
 
   @Interval('torrent_scheduler_sweep', TICK_MS)
@@ -60,6 +63,13 @@ export class SchedulerSweepService {
 
   private async sweep(): Promise<void> {
     const modes = await this.modes();
+    // Read before writing, so a health change can be recognised as a CHANGE.
+    // Publishing from the new value alone would announce "healthy" every minute.
+    const priorHealth = new Map(
+      (await this.prisma.torrentSchedulerEngineConfig.findMany({
+        select: { engineId: true, healthState: true },
+      })).map((r) => [r.engineId, r.healthState]),
+    );
     const engines = this.registry
       .list()
       .filter((p) => (modes.get(p.engineId) ?? 'native') !== 'native');
@@ -85,6 +95,14 @@ export class SchedulerSweepService {
           for (const l of outcome.limitations) {
             if (!limitations.some((x) => x.code === l.code)) limitations.push(l);
           }
+          for (const f of outcome.failures) {
+            this.bus.publish({
+              eventKey: DOMAIN_EVENTS.TORRENT_SCHEDULER_ACTION_FAILED,
+              resourceType: 'torrent',
+              resourceId: f.hash,
+              payload: { engineId, torrentHash: f.hash, action: f.action, error: f.error },
+            });
+          }
           if (outcome.failed || outcome.unverified) {
             this.logger.warn(
               `Scheduler applied ${outcome.applied}/${outcome.attempted} on ${engineId} `
@@ -108,11 +126,26 @@ export class SchedulerSweepService {
           },
         });
 
+        const healthState = limitations.length ? 'provider_limited' : 'healthy';
         await this.markSwept(engineId, {
-          healthState: limitations.length ? 'provider_limited' : 'healthy',
+          healthState,
           healthDetail: limitations.map((l) => l.code).join(',') || null,
           success: true,
         });
+        this.announceHealth(engineId, healthState, priorHealth.get(engineId));
+
+        // A seed that met its target is worth telling automation about once,
+        // not every minute for as long as it stays complete. The catalogue's
+        // dedupe window does that; this only has to publish honestly.
+        for (const d of plan.decisions) {
+          if (d.reasonCode !== 'seed_target_reached') continue;
+          this.bus.publish({
+            eventKey: DOMAIN_EVENTS.TORRENT_SCHEDULER_SEED_TARGET_REACHED,
+            resourceType: 'torrent',
+            resourceId: d.hash,
+            payload: { engineId, torrentHash: d.hash, ratio: d.values?.ratio ?? null },
+          });
+        }
       } catch (err) {
         const message = (err as Error).message;
         this.logger.warn(`Scheduler sweep failed for ${engineId}: ${message}`);
@@ -123,12 +156,31 @@ export class SchedulerSweepService {
           healthDetail: message.slice(0, 500),
           success: false,
         }).catch(() => undefined);
+        this.announceHealth(engineId, 'degraded', priorHealth.get(engineId));
       }
     }
 
     await this.pruneHistory().catch((err) =>
       this.logger.debug(`Scheduler history prune failed: ${(err as Error).message}`),
     );
+  }
+
+  /**
+   * Publish a health change, and only a change.
+   *
+   * The sweep runs every minute and re-derives the same health each time. An
+   * event per tick would be noise an operator learns to ignore, which is worse
+   * than no event at all — so the comparison against the previously STORED state
+   * is what makes this an event rather than a heartbeat.
+   */
+  private announceHealth(engineId: string, next: string, previous: string | undefined): void {
+    if (previous === next) return;
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.TORRENT_SCHEDULER_HEALTH_CHANGED,
+      resourceType: 'torrent_engine',
+      resourceId: engineId,
+      payload: { engineId, healthState: next, previousHealthState: previous ?? null },
+    });
   }
 
   private async markSwept(

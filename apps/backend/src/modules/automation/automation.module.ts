@@ -35,6 +35,8 @@ import { ModuleRef } from '@nestjs/core';
 import { MediaService } from '../media/media.service';
 import { MediaAutomationActions } from '../media/media-automation.actions';
 import { SubtitleAutomationActions } from '../subtitle-intelligence/automation/subtitle-automation.actions';
+import { SchedulerOverrideService } from '../torrent-scheduler/scheduler-override.service';
+import { TorrentSchedulerModule } from '../torrent-scheduler/torrent-scheduler.module';
 import { RssModule } from '../rss/rss.module';
 import {
   RssAutomationActions,
@@ -57,6 +59,13 @@ type AutomationRuleRef = { id: string; name: string; actions: unknown };
 export const AUTOMATION_TRIGGERS = [
   { id: 'torrent.completed', label: 'When a download completes', category: 'torrent' },
   { id: 'ratio.reached', label: 'When the share ratio is reached', category: 'torrent' },
+  // Scheduler transitions. Each has a real producer and a dedupe window in the
+  // event catalogue, so a rule on one fires on a change rather than on the fact
+  // that a sweep ran.
+  { id: 'torrent_scheduler.seed_target_reached', label: 'When a seeding target is reached', category: 'torrent' },
+  { id: 'torrent_scheduler.action_failed', label: 'When the scheduler cannot apply an action', category: 'torrent' },
+  { id: 'torrent_scheduler.health_changed', label: 'When scheduler health changes', category: 'torrent' },
+  { id: 'torrent_scheduler.mode_changed', label: 'When an engine changes scheduling mode', category: 'torrent' },
   { id: 'media.detected', label: 'When media is detected in a download', category: 'media' },
   { id: 'media.matched', label: 'When a media item is matched', category: 'media' },
   { id: 'media.unmatched', label: 'When a media item cannot be matched', category: 'media' },
@@ -98,6 +107,15 @@ export const AUTOMATION_ACTIONS = [
   { id: 'delete', label: 'Remove torrent', category: 'torrent' },
   { id: 'delete_with_data', label: 'Remove torrent + data', category: 'torrent' },
   { id: 'webhook', label: 'Call webhook', category: 'torrent' },
+  /*
+   * Scheduler instructions, not scheduler verbs. Pause and resume already exist
+   * above and mean "do this now"; these mean "and keep meaning it", which is the
+   * only thing a rule can usefully say that the existing actions cannot.
+   */
+  { id: 'scheduler_exclude', label: 'Exclude from the scheduler', category: 'torrent' },
+  { id: 'scheduler_protect_from_pause', label: 'Protect from scheduler pausing', category: 'torrent' },
+  { id: 'scheduler_protect_from_removal', label: 'Protect from scheduler stopping', category: 'torrent' },
+  { id: 'scheduler_clear_overrides', label: 'Clear scheduler overrides', category: 'torrent' },
   { id: 'rename_for_media', label: 'Rename for media server', category: 'media' },
   { id: 'media_scan_library', label: 'Scan a media library', category: 'media' },
   { id: 'media_match', label: 'Identify a media item', category: 'media' },
@@ -125,6 +143,16 @@ export const AUTOMATION_ACTIONS = [
 
 /** Subtitle action ids delegated to SubtitleAutomationActions. */
 const SUBTITLE_ACTION_TYPES = new Set(['subtitle_scan_missing', 'subtitle_download']);
+
+/**
+ * Scheduler instruction ids. Delegated to the scheduler's own override service
+ * so the rule engine never learns what an override is beyond its name.
+ */
+const SCHEDULER_ACTION_TYPES: Record<string, string> = {
+  scheduler_exclude: 'exclude',
+  scheduler_protect_from_pause: 'protect_from_pause',
+  scheduler_protect_from_removal: 'protect_from_removal',
+};
 
 /** Media action ids delegated to MediaAutomationActions. */
 const MEDIA_ACTION_TYPES = new Set([
@@ -174,6 +202,7 @@ export class AutomationEngine {
     private readonly mediaActions: MediaAutomationActions,
     private readonly rssActions: RssAutomationActions,
     private readonly subtitleActions: SubtitleAutomationActions,
+    private readonly schedulerOverrides: SchedulerOverrideService,
     private readonly audit: AuditService,
     private readonly moduleRef: ModuleRef,
   ) {}
@@ -339,6 +368,8 @@ export class AutomationEngine {
       return;
     }
 
+    if (await this.runSchedulerAction(action.type, params, context)) return;
+
     switch (action.type) {
       case 'webhook':
         await this.postWebhook(params.url, { event: context, params });
@@ -369,6 +400,48 @@ export class AutomationEngine {
    * addresses (operator opt-in via SSRF_ALLOW_HOSTS for a legitimate LAN hook) and
    * `redirect: 'error'` stops a 3xx bouncing past it; a bounded timeout caps hangs.
    */
+  /**
+   * Apply a scheduler instruction named by a rule.
+   *
+   * Returns false when the action is not one of ours, so the caller falls
+   * through to its own switch rather than this quietly swallowing an unknown id.
+   *
+   * The torrent has to be identified from somewhere: an event trigger carries
+   * `engineId`/`torrentHash` in its payload, and the torrent-completion path
+   * passes them in explicitly. Neither is guessed — an instruction applied to
+   * the wrong torrent is worse than one that did not run.
+   */
+  private async runSchedulerAction(
+    type: string,
+    params: Record<string, unknown>,
+    context: Record<string, unknown> | null,
+  ): Promise<boolean> {
+    const kind = SCHEDULER_ACTION_TYPES[type];
+    if (!kind && type !== 'scheduler_clear_overrides') return false;
+
+    const source = { ...(context ?? {}), ...params } as Record<string, unknown>;
+    const engineId = String(source.engineId ?? '');
+    const hash = String(source.torrentHash ?? source.hash ?? '');
+    if (!engineId || !hash) {
+      throw new Error(
+        `${type} needs an engine and a torrent; this trigger supplied neither.`,
+      );
+    }
+
+    if (type === 'scheduler_clear_overrides') {
+      // Each kind is revoked explicitly — there is no bulk endpoint, so a rule
+      // cannot remove an instruction its author did not know about.
+      for (const k of Object.values(SCHEDULER_ACTION_TYPES)) {
+        await this.schedulerOverrides.clear(engineId, hash, k);
+      }
+      await this.schedulerOverrides.clear(engineId, hash, 'force_start');
+      return true;
+    }
+
+    await this.schedulerOverrides.set(engineId, hash, { kind });
+    return true;
+  }
+
   private async postWebhook(url: unknown, payload: Record<string, unknown>): Promise<void> {
     const safe = await assertSafeOutboundUrl(String(url ?? ''));
     await fetch(safe.toString(), {
@@ -549,6 +622,12 @@ export class AutomationEngine {
       case 'webhook':
         await this.postWebhook(params.url, { torrent: t, params });
         break;
+      case 'scheduler_exclude':
+      case 'scheduler_protect_from_pause':
+      case 'scheduler_protect_from_removal':
+      case 'scheduler_clear_overrides':
+        await this.runSchedulerAction(action.type, { ...params, engineId: t.engineId, torrentHash: t.hash }, null);
+        break;
       case 'rename_for_media':
         await this.media.apply({
           hash: t.hash,
@@ -685,7 +764,7 @@ export class AutomationController {
   // AutomationEngine (for ModuleRef-based trigger firing) while this module
   // imports RssModule (for the RssAutomationActions delegate). The DI graph
   // itself is acyclic (RssModule never imports AutomationModule).
-  imports: [forwardRef(() => RssModule)],
+  imports: [forwardRef(() => RssModule), TorrentSchedulerModule],
   providers: [AutomationEngine, AutomationService, AutomationEventBridge],
   controllers: [AutomationController],
   exports: [AutomationEngine],

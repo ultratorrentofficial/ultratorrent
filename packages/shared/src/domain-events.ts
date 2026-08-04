@@ -46,6 +46,16 @@ export const DOMAIN_EVENTS = {
   TORRENT_COMPLETED: 'torrent.completed',
   TORRENT_FAILED: 'torrent.failed',
 
+  // --- Torrent Activity Scheduler ------------------------------------------
+  // Only four, and each has a real producer. A sweep runs every minute and
+  // reconciles the same state each time, so these describe TRANSITIONS —
+  // something an operator would want to be told about — rather than the fact
+  // that a sweep happened.
+  TORRENT_SCHEDULER_MODE_CHANGED: 'torrent_scheduler.mode_changed',
+  TORRENT_SCHEDULER_HEALTH_CHANGED: 'torrent_scheduler.health_changed',
+  TORRENT_SCHEDULER_SEED_TARGET_REACHED: 'torrent_scheduler.seed_target_reached',
+  TORRENT_SCHEDULER_ACTION_FAILED: 'torrent_scheduler.action_failed',
+
   // --- Storage -------------------------------------------------------------
   SYSTEM_STORAGE_WARNING: 'system.storage_warning',
   SYSTEM_STORAGE_CRITICAL: 'system.storage_critical',

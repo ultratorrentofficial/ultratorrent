@@ -6,6 +6,8 @@ import { SettingsService } from '../settings/settings.module';
 import { SchedulerCapabilityService } from './scheduler-capability.service';
 import { SchedulerPreviewService } from './scheduler-preview.service';
 import { canDo } from './domain/capabilities';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
 
 /**
  * Turning enforcement on, and off again.
@@ -46,6 +48,7 @@ export class SchedulerActivationService {
     private readonly settings: SettingsService,
     private readonly capabilities: SchedulerCapabilityService,
     private readonly preview: SchedulerPreviewService,
+    private readonly bus: DomainEventBus,
   ) {}
 
   /** What enabling managed scheduling would do, right now. */
@@ -169,6 +172,13 @@ export class SchedulerActivationService {
       },
     });
 
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.TORRENT_SCHEDULER_MODE_CHANGED,
+      resourceType: 'torrent_engine',
+      resourceId: engineId,
+      payload: { engineId, mode: 'managed' },
+    });
+
     await this.audit.record({
       userId,
       action: 'torrent_scheduler.activated',
@@ -231,6 +241,13 @@ export class SchedulerActivationService {
       }
       await this.prisma.torrentSchedulerState.deleteMany({ where: { engineId } });
     }
+
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.TORRENT_SCHEDULER_MODE_CHANGED,
+      resourceType: 'torrent_engine',
+      resourceId: engineId,
+      payload: { engineId, mode: 'native' },
+    });
 
     await this.audit.record({
       userId,

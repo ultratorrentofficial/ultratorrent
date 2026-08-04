@@ -3,6 +3,7 @@ import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { EngineModule } from '../engine/engine.module';
 import { AuditModule } from '../audit/audit.module';
 import { SettingsModule } from '../settings/settings.module';
+import { DomainEventsModule } from '../domain-events/domain-events.module';
 import { SchedulerCapabilityService } from './scheduler-capability.service';
 import { SchedulerPreviewService } from './scheduler-preview.service';
 import { SchedulerSweepService } from './scheduler-sweep.service';
@@ -30,7 +31,7 @@ import { TorrentSchedulerController } from './torrent-scheduler.controller';
  * change to one guard rather than the arrival of untested behaviour.
  */
 @Module({
-  imports: [PrismaModule, EngineModule, AuditModule, SettingsModule],
+  imports: [PrismaModule, EngineModule, AuditModule, SettingsModule, DomainEventsModule],
   providers: [
     SchedulerCapabilityService,
     SchedulerPreviewService,
@@ -42,7 +43,7 @@ import { TorrentSchedulerController } from './torrent-scheduler.controller';
     SchedulerOverrideService,
   ],
   controllers: [TorrentSchedulerController],
-  exports: [SchedulerPreviewService, SchedulerCapabilityService],
+  exports: [SchedulerPreviewService, SchedulerCapabilityService, SchedulerOverrideService],
 })
 /** Contributes the scheduler's instructions to the CAMA registry at boot. */
 export class TorrentSchedulerModule implements OnModuleInit {

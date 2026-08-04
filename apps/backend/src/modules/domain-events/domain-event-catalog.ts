@@ -24,6 +24,42 @@ const DEFINITIONS: readonly DomainEventDefinition[] = [
     description: 'A file was removed from disk (trashed or permanently).',
     requiredFields: ['path'],
   },
+  // --- Torrent Activity Scheduler ------------------------------------------
+  {
+    key: DOMAIN_EVENTS.TORRENT_SCHEDULER_MODE_CHANGED,
+    description: 'An engine moved between native, observe-only and managed scheduling.',
+    // No dedupe: an operator changing the mode is a discrete act, and two
+    // changes in a minute are two facts worth hearing about.
+    requiredFields: ['engineId', 'mode'],
+  },
+  {
+    key: DOMAIN_EVENTS.TORRENT_SCHEDULER_HEALTH_CHANGED,
+    description: "An engine's scheduler health changed (healthy, degraded, limited).",
+    requiredFields: ['engineId', 'healthState'],
+    // Published only when the state DIFFERS from the stored one, so this window
+    // is a second line of defence rather than the mechanism.
+    deduplicationWindowSeconds: 600,
+  },
+  {
+    key: DOMAIN_EVENTS.TORRENT_SCHEDULER_SEED_TARGET_REACHED,
+    description: 'A torrent met its seeding target and the scheduler acted on it.',
+    requiredFields: ['engineId', 'torrentHash'],
+    /*
+     * The important one. The sweep re-derives this every minute for as long as
+     * the torrent remains complete, so without a window a finished seed would
+     * announce itself forever. An hour is long enough that a rule firing on it
+     * runs once per torrent in practice.
+     */
+    deduplicationWindowSeconds: 3600,
+  },
+  {
+    key: DOMAIN_EVENTS.TORRENT_SCHEDULER_ACTION_FAILED,
+    description: 'The scheduler could not apply a pause or resume it had planned.',
+    requiredFields: ['engineId', 'torrentHash', 'action'],
+    // A persistently failing action would otherwise alert every minute.
+    deduplicationWindowSeconds: 900,
+  },
+
   // --- Playback ------------------------------------------------------------
   {
     key: DOMAIN_EVENTS.MEDIA_SERVER_USER_STARTED_WATCHING,

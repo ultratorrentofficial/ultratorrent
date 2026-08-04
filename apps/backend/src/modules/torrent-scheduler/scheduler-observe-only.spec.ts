@@ -40,8 +40,10 @@ function sweepHarness(configs: Array<{ engineId: string; mode: string }>, engine
     engineId: 'e1', attempted: 0, applied: 0, failed: 0, unverified: 0,
     limitations: [], failures: [],
   }));
+  const bus = { publish: jest.fn(() => ({ published: true })) };
   const svc = new SchedulerSweepService(
     prisma as never, registry as never, { previewEngine } as never, { apply } as never,
+    bus as never,
   );
   return { svc, prisma, created, upserts, previewEngine, registry, apply };
 }
@@ -151,6 +153,7 @@ describe('mode changes', () => {
     const audit = { record: jest.fn(async () => undefined) };
     return new SchedulerModeService(
       prisma as never, registry as never, audit as never, new SchedulerCapabilityService(),
+      { publish: jest.fn(() => ({ published: true })) } as never,
     );
   };
 

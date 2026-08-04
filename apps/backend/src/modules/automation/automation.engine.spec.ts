@@ -46,6 +46,9 @@ describe('AutomationEngine — ratio.reached edge trigger', () => {
       mediaActions,
       rssActions,
       { execute: jest.fn().mockResolvedValue(undefined) } as any,
+      // schedulerOverrides sits BETWEEN the subtitle actions and audit; passing
+      // it last would silently shift audit into its slot.
+      { set: jest.fn(), clear: jest.fn() } as any,
       audit,
       { get: () => ({}) } as any,
     );
@@ -143,6 +146,9 @@ describe('AutomationEngine — media action dispatch', () => {
       mediaActions,
       rssActions,
       { execute: jest.fn().mockResolvedValue(undefined) } as any,
+      // schedulerOverrides sits BETWEEN the subtitle actions and audit; passing
+      // it last would silently shift audit into its slot.
+      { set: jest.fn(), clear: jest.fn() } as any,
       audit,
       { get: () => ({}) } as any,
     );
@@ -166,6 +172,7 @@ describe('AutomationEngine — duplicate actions dispatch to media, non-destruct
       mediaActions,
       { execute: jest.fn() } as any,
       { execute: jest.fn() } as any,
+      { set: jest.fn(), clear: jest.fn() } as any,
       { record: jest.fn() } as any,
       { get: () => ({}) } as any,
     );
@@ -247,6 +254,7 @@ describe('AutomationEngine — reconcileCompleted (completion backfill)', () => 
       { execute: jest.fn() } as any,
       { execute: jest.fn() } as any,
       { execute: jest.fn() } as any,
+      { set: jest.fn(), clear: jest.fn() } as any,
       audit,
       { get: () => ({}) } as any,
     );
@@ -318,7 +326,7 @@ describe('AutomationEngine — evaluateEvent (non-torrent event context)', () =>
     const mediaActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const rssActions = { execute: jest.fn().mockResolvedValue(undefined) } as any;
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const engine = new AutomationEngine(prisma, registry, media, mediaActions, rssActions, { execute: jest.fn().mockResolvedValue(undefined) } as any, audit, { get: () => ({}) } as any);
+    const engine = new AutomationEngine(prisma, registry, media, mediaActions, rssActions, { execute: jest.fn().mockResolvedValue(undefined) } as any, { set: jest.fn(), clear: jest.fn() } as any, audit, { get: () => ({}) } as any);
     return { engine, prisma, rssActions };
   }
 

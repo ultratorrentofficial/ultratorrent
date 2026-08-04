@@ -51,6 +51,7 @@ function build(opts: {
   const svc = new SchedulerActivationService(
     prisma as never, registry as never, audit as never, settings as never,
     new SchedulerCapabilityService(), preview as never,
+    { publish: jest.fn(() => ({ published: true })) } as never,
   );
   return { svc, prisma, upserts, resumed, audit, provider };
 }

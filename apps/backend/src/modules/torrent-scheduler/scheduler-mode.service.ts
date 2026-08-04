@@ -3,6 +3,8 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { SchedulerCapabilityService } from './scheduler-capability.service';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
 import type { SchedulerMode } from './scheduler-sweep.service';
 
 /**
@@ -21,6 +23,7 @@ export class SchedulerModeService {
     private readonly registry: EngineRegistryService,
     private readonly audit: AuditService,
     private readonly capabilities: SchedulerCapabilityService,
+    private readonly bus: DomainEventBus,
   ) {}
 
   private assertKnownEngine(engineId: string): void {
@@ -74,6 +77,15 @@ export class SchedulerModeService {
       where: { engineId },
       create: { engineId, mode, modeChangedAt: now, modeChangedBy: userId ?? null },
       update: { mode, modeChangedAt: now, modeChangedBy: userId ?? null },
+    });
+
+    // Discrete and operator-driven, so no dedupe window: two changes in a
+    // minute are two facts.
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.TORRENT_SCHEDULER_MODE_CHANGED,
+      resourceType: 'torrent_engine',
+      resourceId: engineId,
+      payload: { engineId, mode },
     });
 
     await this.audit.record({
