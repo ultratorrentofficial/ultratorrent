@@ -42,6 +42,12 @@ export interface ReconciliationOutcome {
 /** Verification re-reads state; this bounds how long we wait for it to settle. */
 const VERIFY_DELAY_MS = 250;
 
+/** Operators think in kbps; engines take bytes per second. `null` stays null. */
+function kbpsToBytes(kbps: number | null | undefined): number | null {
+  if (kbps == null) return null;
+  return Math.max(0, Math.round((kbps * 1000) / 8));
+}
+
 @Injectable()
 export class SchedulerReconciliationService {
   private readonly logger = new Logger(SchedulerReconciliationService.name);
@@ -101,6 +107,8 @@ export class SchedulerReconciliationService {
       failures: [],
     };
 
+    await this.applyBandwidth(plan, provider, out);
+
     const pauses = plan.decisions.filter((d) => d.action === 'pause');
     const resumes = plan.decisions.filter((d) => d.action === 'resume');
 
@@ -109,6 +117,57 @@ export class SchedulerReconciliationService {
     for (const d of resumes) await this.one(d, provider, out, verify, sleep);
 
     return out;
+  }
+
+  /**
+   * Push the policy's global rate ceiling to the engine.
+   *
+   * Applied before any pause or resume, because a torrent resumed into an
+   * uncapped engine transfers at full speed for however long the rest of the
+   * plan takes.
+   *
+   * Reserves are NOT enforced, and the limitation says so. A percentage split
+   * between download and seed traffic cannot be expressed with a single global
+   * upload ceiling — the engines offer one number, not two — so honouring the
+   * cap and reporting the split as unavailable is the truthful outcome. Faking
+   * it by lowering the global ceiling would throttle downloads to protect
+   * seeding, which is the opposite of what the operator asked for.
+   */
+  private async applyBandwidth(
+    plan: EngineActivityPlan,
+    provider: TorrentEngineProvider,
+    out: ReconciliationOutcome,
+  ): Promise<void> {
+    const policy = plan.decisions[0]?.bandwidth;
+    if (!policy) return;
+
+    if (!provider.setGlobalRateLimits) {
+      out.limitations.push({
+        engineId: out.engineId,
+        code: 'no_global_rate_limit',
+        messageKey: 'scheduler.limitation.no_global_rate_limit',
+      });
+      return;
+    }
+
+    if (policy.reserveDownloadPercent != null || policy.reserveSeedPercent != null) {
+      out.limitations.push({
+        engineId: out.engineId,
+        code: 'bandwidth_reserve_unsupported',
+        messageKey: 'scheduler.limitation.bandwidth_reserve_unsupported',
+      });
+    }
+
+    try {
+      await provider.setGlobalRateLimits({
+        downloadBytesPerSec: kbpsToBytes(policy.maxDownloadRateKbps),
+        uploadBytesPerSec: kbpsToBytes(policy.maxUploadRateKbps),
+      });
+    } catch (err) {
+      out.failed += 1;
+      out.failures.push({ hash: '-', action: 'set_rate_limits', error: (err as Error).message });
+      this.logger.warn(`Could not apply rate limits on ${out.engineId}: ${(err as Error).message}`);
+    }
   }
 
   private async one(

@@ -16,6 +16,7 @@ import {
 import {
   EngineConnectionConfig,
   TorrentEngineProvider,
+  GlobalRateLimits,
 } from '../../../domain/engine/torrent-engine-provider.interface';
 import {
   QbittorrentApi,
@@ -521,6 +522,29 @@ export class QbittorrentProvider implements TorrentEngineProvider {
     }
     return this.startStopApi;
   }
+  /**
+   * qBittorrent's transfer limits. `0` is its own word for unlimited, which is
+   * translated here rather than leaked to callers — the interface uses `null`.
+   */
+  async getGlobalRateLimits(): Promise<GlobalRateLimits> {
+    const info = await this.client.getJson<{ dl_rate_limit: number; up_rate_limit: number }>(
+      '/transfer/info',
+    );
+    return {
+      downloadBytesPerSec: info?.dl_rate_limit ? info.dl_rate_limit : null,
+      uploadBytesPerSec: info?.up_rate_limit ? info.up_rate_limit : null,
+    };
+  }
+
+  async setGlobalRateLimits(limits: GlobalRateLimits): Promise<void> {
+    await this.client.postForm('/transfer/setDownloadLimit', {
+      limit: String(limits.downloadBytesPerSec ?? 0),
+    });
+    await this.client.postForm('/transfer/setUploadLimit', {
+      limit: String(limits.uploadBytesPerSec ?? 0),
+    });
+  }
+
   async forceStart(hash: string, value = true): Promise<void> {
     await this.client.postForm('/torrents/setForceStart', {
       hashes: hash.toLowerCase(),

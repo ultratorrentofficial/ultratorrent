@@ -19,6 +19,12 @@ import {
  * A new engine (qBittorrent, Transmission, Deluge) is added by implementing
  * this contract — no existing business logic changes.
  */
+/** Bytes per second, or `null` for unlimited. */
+export interface GlobalRateLimits {
+  downloadBytesPerSec: number | null;
+  uploadBytesPerSec: number | null;
+}
+
 export interface TorrentEngineProvider {
   readonly engineId: string;
   readonly kind: EngineKind;
@@ -97,6 +103,21 @@ export interface TorrentEngineProvider {
   setTorrentPriority(hash: string, priority: TorrentPriority): Promise<void>;
   setUploadLimit(hash: string, bytesPerSec: number): Promise<void>;
   setDownloadLimit(hash: string, bytesPerSec: number): Promise<void>;
+
+  /**
+   * The engine's GLOBAL transfer ceiling, in bytes per second. `null` means
+   * unlimited — never `-1` or `0`, which are engine conventions and belong
+   * inside an adapter.
+   *
+   * Optional on purpose. Both shipped engines support it and already REPORT it
+   * (`getGlobalStats` reads `dl_rate_limit` on qBittorrent and
+   * `throttle.global_down.max_rate` on rTorrent), so only the setter was
+   * missing. Making it optional means an engine someone else wrote keeps
+   * compiling, and a caller that finds the method absent knows the capability is
+   * genuinely unavailable rather than merely unimplemented here.
+   */
+  setGlobalRateLimits?(limits: GlobalRateLimits): Promise<void>;
+  getGlobalRateLimits?(): Promise<GlobalRateLimits>;
 
   // Trackers
   addTracker(hash: string, url: string): Promise<void>;

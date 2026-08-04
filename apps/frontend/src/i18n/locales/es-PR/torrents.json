@@ -301,7 +301,8 @@
       "no_per_torrent_rate_limit": "Este motor no puede fijar un límite de velocidad en un torrent concreto.",
       "force_start_approximated": "El inicio forzado es aproximado en este motor (prioridad alta en vez de una marca de forzado real), así que puede ceder ante la cola del propio motor.",
       "native_queue_conflict": "Este motor tiene sus propios límites de cola que pueden entrar en conflicto con estas políticas.",
-      "no_availability_data": "Este motor no informa de la disponibilidad del enjambre."
+      "no_availability_data": "Este motor no informa de la disponibilidad del enjambre.",
+      "bandwidth_reserve_unsupported": "Se solicitó un reparto de ancho de banda entre descarga y siembra, pero no puede respetarse: este motor expone un único límite de subida, no dos. El límite global sí se aplica."
     },
     "priority": {
       "force_started": "Inicio forzado",
@@ -367,6 +368,13 @@
         "requireImportCompleted": "Esperar a que la Recepción de Medios lo haya importado",
         "requireLibraryCopyVerified": "Esperar a que se verifique la copia en la biblioteca",
         "safetyHelp": "Normalmente el motivo para seguir sembrando tras completar es que la copia en la biblioteca aún no está segura."
+      },
+      "bandwidth": {
+        "title": "Ancho de banda",
+        "help": "Un límite de velocidad para todo el motor. Déjalo vacío para ilimitado.",
+        "maxDownloadRateKbps": "Máx. descarga (kbps)",
+        "maxUploadRateKbps": "Máx. subida (kbps)",
+        "reserveNote": "No se ofrece un reparto porcentual entre descarga y siembra: ambos motores exponen un único límite de subida en vez de dos, así que una reserva no podría respetarse."
       }
     },
     "activation": {

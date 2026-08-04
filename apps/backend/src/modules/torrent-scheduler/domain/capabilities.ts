@@ -132,6 +132,12 @@ export interface SchedulerLimitation {
     | 'no_seed_time_data'
     | 'no_queued_state'
     | 'no_global_rate_limit'
+    /**
+     * A download/seed percentage split was asked for and cannot be honoured:
+     * the engines expose one global upload ceiling, not two, so the cap is
+     * applied and the split is not.
+     */
+    | 'bandwidth_reserve_unsupported'
     | 'no_per_torrent_rate_limit'
     | 'force_start_approximated'
     | 'native_queue_conflict'

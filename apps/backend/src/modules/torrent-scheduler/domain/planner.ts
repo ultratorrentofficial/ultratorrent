@@ -75,6 +75,19 @@ export interface TorrentDecision {
   score: number;
   protectedFromPause: boolean;
   policySource?: string;
+  /**
+   * The engine-wide rate ceiling this torrent's policy asks for.
+   *
+   * Carried on the decision rather than the plan because it is resolved through
+   * the same scope chain as every other field, and the reconciler reads it from
+   * the first decision — the engine has one ceiling, not one per torrent.
+   */
+  bandwidth?: {
+    maxDownloadRateKbps: number | null;
+    maxUploadRateKbps: number | null;
+    reserveDownloadPercent: number | null;
+    reserveSeedPercent: number | null;
+  };
 }
 
 export interface EngineActivityPlan {
@@ -135,6 +148,12 @@ function decide(
     policySource: t.policy.sources.maxConcurrentDownloads
       ?? t.policy.sources.maxTotalActive
       ?? undefined,
+    bandwidth: {
+      maxDownloadRateKbps: t.policy.maxDownloadRateKbps,
+      maxUploadRateKbps: t.policy.maxUploadRateKbps,
+      reserveDownloadPercent: t.policy.reserveDownloadBandwidthPercent,
+      reserveSeedPercent: t.policy.reserveSeedBandwidthPercent,
+    },
   };
 }
 

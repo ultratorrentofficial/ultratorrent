@@ -23,10 +23,12 @@ import {
  *    of `approximated`.
  *  - **qBittorrent** maps a real `queued` state and sets a real force flag.
  *
- * Neither exposes a global rate limit through this application's provider
- * interface — only `setUploadLimit(hash, …)` per torrent — so global bandwidth
- * policy is `unsupported` on both until the contract grows. Saying so is the
- * point: a policy that cannot be enforced must be visible as such.
+ * Global rate limits are `native` on both since phase 7. The engines always
+ * supported them and already REPORTED them through `getGlobalStats`; only the
+ * setter was missing from this application's provider interface, so extending it
+ * exposed a capability rather than inventing one. A download/seed RESERVE is
+ * still impossible — both engines expose one upload ceiling, not two — and that
+ * is reported as a limitation when a policy asks for a split.
  *
  * Seed DURATION is unsupported everywhere because nothing in this repository
  * records it. `completedAt` is not seed time — a torrent paused for a week
@@ -47,6 +49,8 @@ export class SchedulerCapabilityService {
       ratioReporting: 'native',
       perTorrentDownloadRateLimit: 'native',
       perTorrentUploadRateLimit: 'native',
+      globalDownloadRateLimit: 'native',
+      globalUploadRateLimit: 'native',
       // qBittorrent HAS native queue limits; this application's provider
       // interface simply exposes no way to read or write them yet.
       activeDownloadLimit: 'unsupported',
@@ -65,6 +69,8 @@ export class SchedulerCapabilityService {
       ratioReporting: 'native',
       perTorrentDownloadRateLimit: 'native',
       perTorrentUploadRateLimit: 'native',
+      globalDownloadRateLimit: 'native',
+      globalUploadRateLimit: 'native',
       nativeQueueModel: 'provider-specific',
     },
   };

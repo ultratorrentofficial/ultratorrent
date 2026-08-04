@@ -154,6 +154,8 @@ function PolicyDialog({
   const [targetRatio, setTargetRatio] = useState('');
   const [afterTarget, setAfterTarget] = useState<SchedulerSeedPolicy['afterTarget']>('pause');
   const [requireImport, setRequireImport] = useState(true);
+  const [downKbps, setDownKbps] = useState('');
+  const [upKbps, setUpKbps] = useState('');
 
   useEffect(() => {
     setName(policy?.name ?? '');
@@ -169,6 +171,8 @@ function PolicyDialog({
     // Defaults ON: the usual reason to seed past completion is that the library
     // copy is not safe yet, so waiting for the import is the safe default.
     setRequireImport(policy?.seedPolicy?.requireImportCompleted ?? true);
+    setDownKbps(policy?.maxDownloadRateKbps?.toString() ?? '');
+    setUpKbps(policy?.maxUploadRateKbps?.toString() ?? '');
   }, [policy]);
 
   // An empty box is an explicit `null` — unlimited — not an omission. That is
@@ -185,6 +189,8 @@ function PolicyDialog({
         maxConcurrentDownloads: num(downloads),
         maxConcurrentSeeds: num(seeds),
         maxTotalActive: num(total),
+        maxDownloadRateKbps: num(downKbps),
+        maxUploadRateKbps: num(upKbps),
         seedPolicy: {
           mode: seedMode,
           afterTarget,
@@ -271,6 +277,32 @@ function PolicyDialog({
               onChange={setTotal}
             />
           </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold">{t('scheduler.policies.bandwidth.title')}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">{t('scheduler.policies.bandwidth.help')}</p>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <LimitField
+              id="policy-down-kbps"
+              label={t('scheduler.policies.bandwidth.maxDownloadRateKbps')}
+              placeholder={t('scheduler.policies.unlimited')}
+              value={downKbps}
+              onChange={setDownKbps}
+            />
+            <LimitField
+              id="policy-up-kbps"
+              label={t('scheduler.policies.bandwidth.maxUploadRateKbps')}
+              placeholder={t('scheduler.policies.unlimited')}
+              value={upKbps}
+              onChange={setUpKbps}
+            />
+          </div>
+          {/* Said where the fields are, so nobody looks for a split that cannot
+              exist on these engines. */}
+          <p className="mt-2 text-xs text-muted-foreground">
+            {t('scheduler.policies.bandwidth.reserveNote')}
+          </p>
         </div>
 
         <div>

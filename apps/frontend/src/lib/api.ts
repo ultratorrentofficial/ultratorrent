@@ -1815,6 +1815,8 @@ export interface SchedulerPolicy {
   maxConcurrentDownloads: number | null;
   maxConcurrentSeeds: number | null;
   maxTotalActive: number | null;
+  maxDownloadRateKbps: number | null;
+  maxUploadRateKbps: number | null;
   seedPolicy: SchedulerSeedPolicy | null;
 }
 

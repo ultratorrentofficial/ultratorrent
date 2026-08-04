@@ -16,6 +16,7 @@ import {
 import {
   EngineConnectionConfig,
   TorrentEngineProvider,
+  GlobalRateLimits,
 } from '../../../domain/engine/torrent-engine-provider.interface';
 import {
   createRtorrentTransport,
@@ -557,6 +558,33 @@ export class RTorrentProvider implements TorrentEngineProvider {
   async resumeTorrent(hash: string): Promise<void> {
     await this.transport.call('d.resume', [hash]);
   }
+  /**
+   * rTorrent's global throttles. Like qBittorrent it spells unlimited `0`, and
+   * like qBittorrent that convention stops at this boundary.
+   *
+   * The setters take an empty first argument: these are global commands, and
+   * rTorrent's XML-RPC still expects the target slot even when there is none.
+   */
+  async getGlobalRateLimits(): Promise<GlobalRateLimits> {
+    const [down, up] = await Promise.all([
+      this.transport.call('throttle.global_down.max_rate'),
+      this.transport.call('throttle.global_up.max_rate'),
+    ]);
+    return {
+      downloadBytesPerSec: num(down) || null,
+      uploadBytesPerSec: num(up) || null,
+    };
+  }
+
+  async setGlobalRateLimits(limits: GlobalRateLimits): Promise<void> {
+    await this.transport.call('throttle.global_down.max_rate.set', [
+      '', limits.downloadBytesPerSec ?? 0,
+    ]);
+    await this.transport.call('throttle.global_up.max_rate.set', [
+      '', limits.uploadBytesPerSec ?? 0,
+    ]);
+  }
+
   async forceStart(hash: string, value = true): Promise<void> {
     // rTorrent has no force flag; priority 3 (high) is the closest equivalent, and
     // 2 (normal) hands the torrent back to ordinary scheduling.

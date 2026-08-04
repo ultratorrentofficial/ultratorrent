@@ -301,7 +301,8 @@
       "no_per_torrent_rate_limit": "This engine cannot set a speed limit on a single torrent.",
       "force_start_approximated": "Force start is approximated on this engine (high priority rather than a true force flag), so it may still yield to the engine's own queue.",
       "native_queue_conflict": "This engine has its own queue limits that may conflict with these policies.",
-      "no_availability_data": "This engine does not report swarm availability."
+      "no_availability_data": "This engine does not report swarm availability.",
+      "bandwidth_reserve_unsupported": "A download/seed bandwidth split was requested but cannot be honoured — this engine exposes one upload ceiling, not two. The overall limit is still applied."
     },
     "priority": {
       "force_started": "Force started",
@@ -367,6 +368,13 @@
         "requireImportCompleted": "Wait until Media Intake has imported it",
         "requireLibraryCopyVerified": "Wait until the library copy is verified",
         "safetyHelp": "Usually the reason to seed past completion is that the library copy is not safe yet."
+      },
+      "bandwidth": {
+        "title": "Bandwidth",
+        "help": "An engine-wide speed ceiling. Leave empty for unlimited.",
+        "maxDownloadRateKbps": "Max download (kbps)",
+        "maxUploadRateKbps": "Max upload (kbps)",
+        "reserveNote": "A percentage split between downloading and seeding is not offered: both engines expose a single upload ceiling rather than two, so a reserve could not be honoured."
       }
     },
     "activation": {

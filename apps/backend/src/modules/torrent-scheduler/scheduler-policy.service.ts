@@ -16,6 +16,8 @@ export interface PolicyInput {
   maxConcurrentDownloads?: number | null;
   maxConcurrentSeeds?: number | null;
   maxTotalActive?: number | null;
+  maxDownloadRateKbps?: number | null;
+  maxUploadRateKbps?: number | null;
   seedPolicy?: {
     mode?: string;
     targetRatio?: number | null;
@@ -41,11 +43,10 @@ const AFTER_TARGET = ['pause', 'stop', 'leave_active'];
 /**
  * Scheduling policies: create, edit, delete.
  *
- * Only the three concurrency limits are writable. Bandwidth and seeding fields
- * exist in the schema for the phases that will enforce them, and offering them
- * now would let an operator set a rate limit nothing applies — the same failure
- * as a permission that guards nothing, except this one silently does nothing to
- * their queue while appearing to be configured.
+ * Concurrency limits, global rate limits and the enforceable half of seeding are
+ * writable. The bandwidth RESERVE percentages are deliberately still not: both
+ * engines expose one upload ceiling rather than a download/seed split, so a
+ * reserve would sit in the database looking configured while changing nothing.
  *
  * A limit is one of three things, and the API keeps them distinct because the
  * resolver depends on it: absent means inherit from the scope above, `null`
@@ -154,6 +155,8 @@ export class SchedulerPolicyService {
         maxConcurrentDownloads: this.limit(input.maxConcurrentDownloads, 'maxConcurrentDownloads') ?? null,
         maxConcurrentSeeds: this.limit(input.maxConcurrentSeeds, 'maxConcurrentSeeds') ?? null,
         maxTotalActive: this.limit(input.maxTotalActive, 'maxTotalActive') ?? null,
+        maxDownloadRateKbps: this.limit(input.maxDownloadRateKbps, 'maxDownloadRateKbps') ?? null,
+        maxUploadRateKbps: this.limit(input.maxUploadRateKbps, 'maxUploadRateKbps') ?? null,
         seedPolicy: this.seed(input.seedPolicy) ?? undefined,
         createdBy: userId ?? null,
       },
@@ -189,6 +192,8 @@ export class SchedulerPolicyService {
         maxConcurrentDownloads: this.limit(input.maxConcurrentDownloads, 'maxConcurrentDownloads'),
         maxConcurrentSeeds: this.limit(input.maxConcurrentSeeds, 'maxConcurrentSeeds'),
         maxTotalActive: this.limit(input.maxTotalActive, 'maxTotalActive'),
+        maxDownloadRateKbps: this.limit(input.maxDownloadRateKbps, 'maxDownloadRateKbps'),
+        maxUploadRateKbps: this.limit(input.maxUploadRateKbps, 'maxUploadRateKbps'),
         // `DbNull` is how Prisma clears a nullable JSON column; a bare `null`
         // is rejected because it is ambiguous with JSON's own null literal.
         seedPolicy: (() => {
