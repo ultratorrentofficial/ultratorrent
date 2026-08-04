@@ -6,6 +6,7 @@ import { SchedulerCapabilityService } from './scheduler-capability.service';
 import { SchedulerPreviewService } from './scheduler-preview.service';
 import { SchedulerSweepService } from './scheduler-sweep.service';
 import { SchedulerModeService } from './scheduler-mode.service';
+import { SchedulerReconciliationService } from './scheduler-reconciliation.service';
 import { TorrentSchedulerController } from './torrent-scheduler.controller';
 
 /**
@@ -16,10 +17,11 @@ import { TorrentSchedulerController } from './torrent-scheduler.controller';
  * torrent snapshots, the engine registry to enumerate engines and read their
  * kind, and audit for the one mutation it has.
  *
- * Note what is absent. Nothing here can pause or resume a torrent — the module
- * never touches `TorrentsService`, and the sweep holds no provider reference at
- * all. Observe Only is a property of the wiring, not a rule someone has to
- * remember while editing.
+ * `SchedulerReconciliationService` is the one part that CAN change a torrent,
+ * and nothing reaches it: the sweep calls it only for `managed` mode, and
+ * `SchedulerModeService` refuses to set that mode. The machinery is built and
+ * tested a phase before anything can run it, so enabling enforcement later is a
+ * change to one guard rather than the arrival of untested behaviour.
  */
 @Module({
   imports: [PrismaModule, EngineModule, AuditModule],
@@ -28,6 +30,7 @@ import { TorrentSchedulerController } from './torrent-scheduler.controller';
     SchedulerPreviewService,
     SchedulerSweepService,
     SchedulerModeService,
+    SchedulerReconciliationService,
   ],
   controllers: [TorrentSchedulerController],
   exports: [SchedulerPreviewService, SchedulerCapabilityService],
