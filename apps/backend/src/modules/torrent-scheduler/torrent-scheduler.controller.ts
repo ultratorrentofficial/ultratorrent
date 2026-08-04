@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -19,6 +20,7 @@ import type { AuthenticatedUser } from '../../common/decorators/current-user.dec
 import { SchedulerModeService } from './scheduler-mode.service';
 import { SchedulerPreviewService } from './scheduler-preview.service';
 import { SchedulerActivationService } from './scheduler-activation.service';
+import { SchedulerPolicyService, type PolicyInput } from './scheduler-policy.service';
 import type { SchedulerMode } from './scheduler-sweep.service';
 
 /**
@@ -38,7 +40,33 @@ export class TorrentSchedulerController {
     private readonly modes: SchedulerModeService,
     private readonly preview: SchedulerPreviewService,
     private readonly activation: SchedulerActivationService,
+    private readonly policies: SchedulerPolicyService,
   ) {}
+
+  // --- policies ----------------------------------------------------------
+  @Get('policies')
+  @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_VIEW)
+  listPolicies() {
+    return this.policies.list();
+  }
+
+  @Post('policies')
+  @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_MANAGE_POLICIES)
+  createPolicy(@Body() body: PolicyInput, @Req() req: Request) {
+    return this.policies.create(body ?? {}, (req.user as AuthenticatedUser | undefined)?.id);
+  }
+
+  @Put('policies/:id')
+  @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_MANAGE_POLICIES)
+  updatePolicy(@Param('id') id: string, @Body() body: PolicyInput, @Req() req: Request) {
+    return this.policies.update(id, body ?? {}, (req.user as AuthenticatedUser | undefined)?.id);
+  }
+
+  @Delete('policies/:id')
+  @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_MANAGE_POLICIES)
+  deletePolicy(@Param('id') id: string, @Req() req: Request) {
+    return this.policies.remove(id, (req.user as AuthenticatedUser | undefined)?.id);
+  }
 
   /** Every engine: mode, health, and what it is actually capable of. */
   @Get('engines')

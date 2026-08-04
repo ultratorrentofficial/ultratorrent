@@ -1798,6 +1798,26 @@ export interface SchedulerTorrentDecision {
   policySource?: string;
 }
 
+export interface SchedulerPolicy {
+  id: string;
+  name: string;
+  enabled: boolean;
+  scopeType: string;
+  scopeId: string | null;
+  maxConcurrentDownloads: number | null;
+  maxConcurrentSeeds: number | null;
+  maxTotalActive: number | null;
+}
+
+export interface SchedulerActivationPreview {
+  engineId: string;
+  blockers: Array<{ code: string; messageKey: string }>;
+  warnings: Array<{ code: string; messageKey: string }>;
+  wouldPause: number;
+  wouldResume: number;
+  totalTorrents: number;
+}
+
 export interface SchedulerEnginePlan {
   engineId: string;
   decisions: SchedulerTorrentDecision[];
@@ -5140,6 +5160,36 @@ export const api = {
       return request(`/torrent-scheduler/engines/${encodeURIComponent(engineId)}/mode`, {
         method: 'PUT', body: { mode },
       });
+    },
+    // --- activation -------------------------------------------------------
+    describeActivation(engineId: string): Promise<SchedulerActivationPreview> {
+      return request<SchedulerActivationPreview>(
+        `/torrent-scheduler/engines/${encodeURIComponent(engineId)}/activation`);
+    },
+    activate(engineId: string): Promise<unknown> {
+      return request(`/torrent-scheduler/engines/${encodeURIComponent(engineId)}/activate`, {
+        method: 'POST', body: { confirm: true },
+      });
+    },
+    deactivate(engineId: string, resumePaused: boolean): Promise<{ heldPaused: number; resumed: number }> {
+      return request(`/torrent-scheduler/engines/${encodeURIComponent(engineId)}/deactivate`, {
+        method: 'POST', body: { resumePaused },
+      });
+    },
+    // --- policies ---------------------------------------------------------
+    policies(): Promise<SchedulerPolicy[]> {
+      return request<SchedulerPolicy[]>('/torrent-scheduler/policies');
+    },
+    createPolicy(body: Partial<SchedulerPolicy>): Promise<SchedulerPolicy> {
+      return request<SchedulerPolicy>('/torrent-scheduler/policies', { method: 'POST', body });
+    },
+    updatePolicy(id: string, body: Partial<SchedulerPolicy>): Promise<SchedulerPolicy> {
+      return request<SchedulerPolicy>(`/torrent-scheduler/policies/${encodeURIComponent(id)}`, {
+        method: 'PUT', body,
+      });
+    },
+    deletePolicy(id: string): Promise<unknown> {
+      return request(`/torrent-scheduler/policies/${encodeURIComponent(id)}`, { method: 'DELETE' });
     },
   },
   cleanup: {

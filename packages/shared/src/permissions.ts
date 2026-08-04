@@ -29,6 +29,7 @@ export const PERMISSIONS = {
   // guarding nothing teaches operators that grants are decorative.
   TORRENT_SCHEDULER_VIEW: 'torrent_scheduler.view',
   TORRENT_SCHEDULER_MANAGE_ENGINE_MODE: 'torrent_scheduler.manage_engine_mode',
+  TORRENT_SCHEDULER_MANAGE_POLICIES: 'torrent_scheduler.manage_policies',
 
   // Categories & tags
   CATEGORIES_MANAGE: 'categories.manage',
@@ -292,6 +293,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.TORRENTS_RENAME,
     PERMISSIONS.TORRENT_SCHEDULER_VIEW,
     PERMISSIONS.TORRENT_SCHEDULER_MANAGE_ENGINE_MODE,
+    PERMISSIONS.TORRENT_SCHEDULER_MANAGE_POLICIES,
     PERMISSIONS.CATEGORIES_MANAGE,
     PERMISSIONS.TAGS_MANAGE,
     PERMISSIONS.RSS_VIEW,

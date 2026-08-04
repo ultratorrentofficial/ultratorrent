@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { formatRelativeTime } from '@/lib/format';
+import { SchedulerPolicies } from './SchedulerPolicies';
+import { ActivationDialog, DeactivationDialog } from './ActivationDialog';
 
 /**
  * Observe Only.
@@ -39,6 +41,10 @@ export function TorrentSchedulerPage() {
   });
 
   const [selected, setSelected] = useState<string | null>(null);
+  // Enforcement is never reached by picking an option — it goes through a dialog
+  // that shows the operator the exact torrents affected first.
+  const [activating, setActivating] = useState<string | null>(null);
+  const [deactivating, setDeactivating] = useState<string | null>(null);
   const engineId = selected ?? engines.data?.[0]?.engineId ?? null;
   const engine = engines.data?.find((e) => e.engineId === engineId) ?? null;
 
@@ -77,10 +83,14 @@ export function TorrentSchedulerPage() {
 
       {/* Said plainly and always, not as a dismissible hint: the entire value of
           this page depends on the operator knowing nothing is being applied. */}
-      <div className="flex items-start gap-2 rounded-lg border border-info/40 bg-info/5 px-3 py-2 text-sm">
-        <Eye className="mt-0.5 h-4 w-4 shrink-0 text-info" />
-        <span>{t('scheduler.observeNotice')}</span>
-      </div>
+      {/* Only true while nothing is enforcing. Leaving it up under managed mode
+          would tell an operator nothing is being applied while it is. */}
+      {engines.data.every((e) => e.mode !== 'managed') && (
+        <div className="flex items-start gap-2 rounded-lg border border-info/40 bg-info/5 px-3 py-2 text-sm">
+          <Eye className="mt-0.5 h-4 w-4 shrink-0 text-info" />
+          <span>{t('scheduler.observeNotice')}</span>
+        </div>
+      )}
 
       <Card>
         <CardContent className="space-y-4 p-5">
@@ -111,14 +121,17 @@ export function TorrentSchedulerPage() {
                   className="mt-1 w-auto"
                   value={engine.mode}
                   disabled={!canManageMode || setMode.isPending}
-                  onChange={(e) =>
-                    setMode.mutate({ id: engine.engineId, mode: e.target.value as SchedulerMode })}
+                  onChange={(e) => {
+                    const next = e.target.value as SchedulerMode;
+                    // Choosing enforcement opens the consent dialog; leaving it
+                    // asks what to do with the torrents it is holding paused.
+                    if (next === 'managed') { setActivating(engine.engineId); return; }
+                    if (engine.mode === 'managed') { setDeactivating(engine.engineId); return; }
+                    setMode.mutate({ id: engine.engineId, mode: next });
+                  }}
                 >
                   <option value="native">{t('scheduler.mode.native')}</option>
                   <option value="observe">{t('scheduler.mode.observe')}</option>
-                  {/* Managed is listed but rejected by the server with an
-                      explanation, so the road map is visible without pretending
-                      the capability exists. */}
                   <option value="managed">{t('scheduler.mode.managed')}</option>
                 </Select>
               </div>
@@ -152,6 +165,29 @@ export function TorrentSchedulerPage() {
           )}
         </CardContent>
       </Card>
+
+      {canManageMode && <SchedulerPolicies />}
+
+      {activating && (
+        <ActivationDialog
+          engineId={activating}
+          onClose={() => setActivating(null)}
+          onDone={() => {
+            setActivating(null);
+            queryClient.invalidateQueries({ queryKey: ['torrent-scheduler'] });
+          }}
+        />
+      )}
+      {deactivating && (
+        <DeactivationDialog
+          engineId={deactivating}
+          onClose={() => setDeactivating(null)}
+          onDone={() => {
+            setDeactivating(null);
+            queryClient.invalidateQueries({ queryKey: ['torrent-scheduler'] });
+          }}
+        />
+      )}
 
       {engine?.mode === 'native' ? null : plan.isLoading ? (
         <CenteredSpinner />

@@ -308,6 +308,66 @@
       "waiting": "Esperando {{minutes}} minutos",
       "no_seeders": "Sin semillas"
     },
-    "modeChangeFailed": "No se pudo cambiar el modo de planificación."
+    "modeChangeFailed": "No se pudo cambiar el modo de planificación.",
+    "policies": {
+      "title": "Políticas",
+      "subtitle": "Límites que el planificador aplica. Hoy solo se aplican los límites de concurrencia; el ancho de banda y la siembra llegarán con las fases que los apliquen.",
+      "none": "Aún no hay políticas. Sin ninguna, todos los límites son ilimitados y el planificador no cambia nada.",
+      "add": "Nueva política",
+      "edit": "Editar política",
+      "name": "Nombre",
+      "namePlaceholder": "Límites nocturnos",
+      "enabled": "Activada",
+      "scope": "Se aplica a",
+      "scopeType": {
+        "global": "Todo",
+        "engine": "Un motor",
+        "library": "Una biblioteca",
+        "category": "Una categoría",
+        "rss_rule": "Una regla RSS",
+        "torrent": "Un torrent"
+      },
+      "scopeId": "Cuál",
+      "scopeIdHelp": "El id del motor, biblioteca, categoría, regla o torrent al que se aplica.",
+      "limits": "Límites",
+      "limitsHelp": "Deja un límite vacío para ilimitado. Una política más específica sobrescribe a una más amplia campo por campo, así que una política de biblioteca que solo fija las siembras hereda el límite de descargas superior.",
+      "maxConcurrentDownloads": "Máx. descargando a la vez",
+      "maxConcurrentSeeds": "Máx. sembrando a la vez",
+      "maxTotalActive": "Máx. activos en total",
+      "unlimited": "Ilimitado",
+      "save": "Guardar política",
+      "delete": "Eliminar",
+      "deleteConfirm": "¿Eliminar esta política? Los torrents que gobierna pasarán a la siguiente política superior.",
+      "saveFailed": "No se pudo guardar la política.",
+      "deleteFailed": "No se pudo eliminar la política."
+    },
+    "activation": {
+      "title": "Activar la aplicación",
+      "intro": "El planificador está a punto de empezar a pausar y reanudar torrents en este motor. Esto es exactamente lo que haría ahora mismo.",
+      "wouldPause": "Pausaría",
+      "wouldResume": "Reanudaría",
+      "totalTorrents": "Torrents considerados",
+      "blockers": "Este motor no se puede gestionar",
+      "warnings": "Antes de continuar",
+      "blocker": {
+        "engine_cannot_pause": "Este motor no puede pausar ni reanudar torrents, así que el planificador no puede gestionar su cola."
+      },
+      "warning": {
+        "queued_state_inferred": "Este motor no informa de qué torrents están en cola, así que los que esperan se deducen en vez de leerse.",
+        "force_start_approximated": "El inicio forzado es aproximado en este motor, así que un torrent forzado puede ceder ante la cola del propio motor.",
+        "parking_also_enabled": "El aparcado de cola también está activado y pausa torrents por sus propios motivos. Ambos conviven — el planificador deja en paz los torrents aparcados — pero habrá dos sistemas pausando torrents en este motor.",
+        "no_policies": "No tienes políticas de planificación, así que todos los límites son ilimitados y activar esto no cambiaría nada."
+      },
+      "confirm": "Activar la aplicación",
+      "cancel": "Todavía no",
+      "activateFailed": "No se pudo activar la aplicación.",
+      "deactivate": "Dejar de aplicar",
+      "deactivateTitle": "Dejar de aplicar",
+      "deactivateIntro": "El motor vuelve a su propio comportamiento de cola.",
+      "heldPaused": "El planificador mantiene {{count}} torrent(s) en pausa.",
+      "resumePaused": "Reanudarlos también",
+      "resumePausedHelp": "Desactivado por defecto: reanudarlo todo iniciaría descargas que no elegiste iniciar, y algunas de esas pausas pueden parecerse a las que hiciste tú.",
+      "deactivateConfirm": "Dejar de aplicar"
+    }
   }
 }

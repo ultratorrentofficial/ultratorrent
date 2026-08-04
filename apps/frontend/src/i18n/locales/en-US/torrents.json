@@ -308,6 +308,66 @@
       "waiting": "Waiting {{minutes}} minutes",
       "no_seeders": "No seeders"
     },
-    "modeChangeFailed": "Could not change the scheduling mode."
+    "modeChangeFailed": "Could not change the scheduling mode.",
+    "policies": {
+      "title": "Policies",
+      "subtitle": "Limits the scheduler enforces. Only concurrency limits are applied today — bandwidth and seeding arrive with the phases that enforce them.",
+      "none": "No policies yet. Without one, every limit is unlimited and the scheduler changes nothing.",
+      "add": "New policy",
+      "edit": "Edit policy",
+      "name": "Name",
+      "namePlaceholder": "Overnight limits",
+      "enabled": "Enabled",
+      "scope": "Applies to",
+      "scopeType": {
+        "global": "Everything",
+        "engine": "One engine",
+        "library": "One library",
+        "category": "One category",
+        "rss_rule": "One RSS rule",
+        "torrent": "One torrent"
+      },
+      "scopeId": "Which one",
+      "scopeIdHelp": "The id of the engine, library, category, rule or torrent this applies to.",
+      "limits": "Limits",
+      "limitsHelp": "Leave a limit empty for unlimited. A more specific policy overrides a broader one field by field, so a library policy that sets only seeds still inherits the download limit above it.",
+      "maxConcurrentDownloads": "Max downloading at once",
+      "maxConcurrentSeeds": "Max seeding at once",
+      "maxTotalActive": "Max active in total",
+      "unlimited": "Unlimited",
+      "save": "Save policy",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this policy? Torrents governed by it fall back to the next policy up.",
+      "saveFailed": "Could not save the policy.",
+      "deleteFailed": "Could not delete the policy."
+    },
+    "activation": {
+      "title": "Enable enforcement",
+      "intro": "The scheduler is about to start pausing and resuming torrents on this engine. Here is exactly what it would do right now.",
+      "wouldPause": "Would pause",
+      "wouldResume": "Would resume",
+      "totalTorrents": "Torrents considered",
+      "blockers": "This engine cannot be managed",
+      "warnings": "Before you continue",
+      "blocker": {
+        "engine_cannot_pause": "This engine cannot pause or resume torrents, so the scheduler cannot manage its queue."
+      },
+      "warning": {
+        "queued_state_inferred": "This engine does not report which torrents are queued, so waiting torrents are inferred rather than read.",
+        "force_start_approximated": "Force start is approximated on this engine, so a force-started torrent may still yield to the engine's own queue.",
+        "parking_also_enabled": "Junk-queue parking is also enabled and pauses torrents for its own reasons. The two coexist — the scheduler leaves parked torrents alone — but two systems will be pausing torrents on this engine.",
+        "no_policies": "You have no scheduling policies, so every limit is unlimited and enabling this would change nothing."
+      },
+      "confirm": "Enable enforcement",
+      "cancel": "Not yet",
+      "activateFailed": "Could not enable enforcement.",
+      "deactivate": "Stop enforcing",
+      "deactivateTitle": "Stop enforcing",
+      "deactivateIntro": "The engine returns to its own queue behaviour.",
+      "heldPaused": "The scheduler is currently holding {{count}} torrent(s) paused.",
+      "resumePaused": "Resume them as well",
+      "resumePausedHelp": "Off by default: resuming everything would start downloads you did not choose to start, and some of those pauses may look like ones you made yourself.",
+      "deactivateConfirm": "Stop enforcing"
+    }
   }
 }
