@@ -21,6 +21,7 @@ import { SchedulerModeService } from './scheduler-mode.service';
 import { SchedulerPreviewService } from './scheduler-preview.service';
 import { SchedulerActivationService } from './scheduler-activation.service';
 import { SchedulerPolicyService, type PolicyInput } from './scheduler-policy.service';
+import { SchedulerOverrideService, type OverrideInput } from './scheduler-override.service';
 import type { SchedulerMode } from './scheduler-sweep.service';
 
 /**
@@ -41,7 +42,41 @@ export class TorrentSchedulerController {
     private readonly preview: SchedulerPreviewService,
     private readonly activation: SchedulerActivationService,
     private readonly policies: SchedulerPolicyService,
+    private readonly overrides: SchedulerOverrideService,
   ) {}
+
+  // --- per-torrent overrides ---------------------------------------------
+  @Get('torrents/:engineId/overrides')
+  @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_VIEW)
+  listOverrides(@Param('engineId') engineId: string) {
+    return this.overrides.list(engineId);
+  }
+
+  @Post('torrents/:engineId/:hash/override')
+  @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_OVERRIDE)
+  setOverride(
+    @Param('engineId') engineId: string,
+    @Param('hash') hash: string,
+    @Body() body: OverrideInput,
+    @Req() req: Request,
+  ) {
+    return this.overrides.set(
+      engineId, hash, body ?? {}, (req.user as AuthenticatedUser | undefined)?.id,
+    );
+  }
+
+  @Delete('torrents/:engineId/:hash/override/:kind')
+  @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_OVERRIDE)
+  clearOverride(
+    @Param('engineId') engineId: string,
+    @Param('hash') hash: string,
+    @Param('kind') kind: string,
+    @Req() req: Request,
+  ) {
+    return this.overrides.clear(
+      engineId, hash, kind, (req.user as AuthenticatedUser | undefined)?.id,
+    );
+  }
 
   // --- policies ----------------------------------------------------------
   @Get('policies')

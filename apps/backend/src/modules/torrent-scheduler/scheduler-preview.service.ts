@@ -12,6 +12,7 @@ import {
   type SchedulingPolicyScopeType,
 } from './domain/policy';
 import { applySchedule, type ScheduleWindow } from './domain/schedule';
+import { SchedulerOverrideService } from './scheduler-override.service';
 
 /**
  * Build the plan for an engine, without touching anything.
@@ -33,6 +34,7 @@ export class SchedulerPreviewService {
     private readonly prisma: PrismaService,
     private readonly registry: EngineRegistryService,
     private readonly capabilities: SchedulerCapabilityService,
+    private readonly overrides: SchedulerOverrideService,
   ) {}
 
   /** Policies as the pure resolver wants them. */
@@ -78,7 +80,8 @@ export class SchedulerPreviewService {
     }
     const caps = this.capabilities.for(kind);
 
-    const [snapshots, policies, parked, states, intakeJobs, windows] = await Promise.all([
+    const [snapshots, policies, parked, states, intakeJobs, windows, overrides] =
+      await Promise.all([
       this.prisma.torrentSnapshot.findMany({ where: { engineId } }),
       this.loadPolicies(),
       this.prisma.parkedTorrent.findMany({ where: { engineId }, select: { hash: true } }),
@@ -103,6 +106,9 @@ export class SchedulerPreviewService {
       // Loaded once per engine and evaluated against `now`, rather than each
       // window owning a timer. One clock read answers every window.
       this.prisma.torrentSchedulerWindow.findMany({ where: { enabled: true } }),
+      // What an operator asked for, per torrent. Expired instructions are
+      // filtered by the clock rather than by a cleanup job.
+      this.overrides.active(engineId, now),
     ]);
     const intake = new Map(
       intakeJobs
@@ -141,6 +147,7 @@ export class SchedulerPreviewService {
         now,
       );
 
+      const ov = overrides.get(s.hash.toLowerCase()) ?? new Set<string>();
       const job = intake.get(s.hash.toLowerCase());
       // `imported` and everything after it means the file reached the library.
       const imported = !!job && ['imported', 'metadata_ready', 'artwork_ready',
@@ -149,7 +156,9 @@ export class SchedulerPreviewService {
       return {
         hash: s.hash,
         engineId,
-        occupancy: classification.occupancy,
+        // Exclusion outranks everything the engine reports: the operator has
+        // taken this torrent out of the scheduler's hands.
+        occupancy: ov.has('exclude') ? 'excluded' : classification.occupancy,
         complete,
         ratio: s.ratio,
         // Deliberately absent: nothing records seed duration, so a time-based
@@ -164,6 +173,9 @@ export class SchedulerPreviewService {
         // started is not paused again seconds later.
         lastActionAt: ourPauses.get(s.hash.toLowerCase()) ?? null,
         allowNewDownloads: policy.allowNewDownloads,
+        protectedFromPause: ov.has('protect_from_pause'),
+        protectedFromRemoval: ov.has('protect_from_removal'),
+        forceStarted: ov.has('force_start'),
         policy,
         decision: scoreTorrent({
           torrentHash: s.hash,

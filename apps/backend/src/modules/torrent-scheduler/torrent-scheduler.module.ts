@@ -10,6 +10,7 @@ import { SchedulerModeService } from './scheduler-mode.service';
 import { SchedulerReconciliationService } from './scheduler-reconciliation.service';
 import { SchedulerActivationService } from './scheduler-activation.service';
 import { SchedulerPolicyService } from './scheduler-policy.service';
+import { SchedulerOverrideService } from './scheduler-override.service';
 import { TorrentSchedulerController } from './torrent-scheduler.controller';
 
 /**
@@ -36,6 +37,7 @@ import { TorrentSchedulerController } from './torrent-scheduler.controller';
     SchedulerReconciliationService,
     SchedulerActivationService,
     SchedulerPolicyService,
+    SchedulerOverrideService,
   ],
   controllers: [TorrentSchedulerController],
   exports: [SchedulerPreviewService, SchedulerCapabilityService],

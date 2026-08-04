@@ -37,6 +37,12 @@ export type OccupancyClass =
   | 'error'
   /** Held out of the queue by the parking service because its swarm is dead. */
   | 'parked'
+  /**
+   * The operator put this torrent outside the scheduler's authority. Distinct
+   * from protection: a protected torrent still counts toward limits and may
+   * still be resumed, an excluded one is not the scheduler's business at all.
+   */
+  | 'excluded'
   /** Not enough information to say. Never acted upon. */
   | 'unknown';
 

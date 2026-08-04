@@ -228,6 +228,7 @@ export function planEngine(
     (t) => t.occupancy === 'user_paused'
       || t.occupancy === 'provider_paused'
       || t.occupancy === 'parked'
+      || t.occupancy === 'excluded'
       || t.occupancy === 'error'
       || t.occupancy === 'checking'
       || t.occupancy === 'unknown',
@@ -449,6 +450,7 @@ function reasonForUntouchable(o: OccupancyClass): string {
     case 'user_paused': return 'paused_by_user';
     case 'provider_paused': return 'paused_outside_scheduler';
     case 'parked': return 'parked_dead_swarm';
+    case 'excluded': return 'excluded_by_operator';
     case 'error': return 'engine_error';
     case 'checking': return 'verifying';
     default: return 'state_unknown';

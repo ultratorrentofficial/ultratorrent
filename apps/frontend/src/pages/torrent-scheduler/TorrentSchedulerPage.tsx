@@ -14,6 +14,7 @@ import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedbac
 import { formatRelativeTime } from '@/lib/format';
 import { SchedulerPolicies } from './SchedulerPolicies';
 import { ActivationDialog, DeactivationDialog } from './ActivationDialog';
+import { SchedulerOverrides } from './SchedulerOverrides';
 
 /**
  * Observe Only.
@@ -167,6 +168,7 @@ export function TorrentSchedulerPage() {
       </Card>
 
       {canManageMode && <SchedulerPolicies />}
+      {engineId && <SchedulerOverrides engineId={engineId} />}
 
       {activating && (
         <ActivationDialog

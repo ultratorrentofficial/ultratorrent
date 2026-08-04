@@ -291,7 +291,8 @@
       "seed_target_removal_not_supported": "Target reached — removing a torrent is not done by the scheduler; remove it yourself when ready",
       "seed_target_reached_left_active": "Target reached, and your policy says to keep seeding",
       "protected_from_removal": "Target reached, but this torrent is protected from being stopped",
-      "schedule_blocks_new_downloads": "A schedule window is open that stops new downloads starting"
+      "schedule_blocks_new_downloads": "A schedule window is open that stops new downloads starting",
+      "excluded_by_operator": "You excluded this torrent from the scheduler"
     },
     "limitation": {
       "title": "What this engine cannot do",
@@ -405,6 +406,31 @@
       "resumePaused": "Resume them as well",
       "resumePausedHelp": "Off by default: resuming everything would start downloads you did not choose to start, and some of those pauses may look like ones you made yourself.",
       "deactivateConfirm": "Stop enforcing"
+    },
+    "overrides": {
+      "title": "Per-torrent overrides",
+      "help": "Instructions about one torrent that override whatever your policies decided.",
+      "kind": {
+        "protect_from_pause": "Never pause to free a slot",
+        "protect_from_removal": "Never stop for meeting a seed target",
+        "exclude": "Ignore entirely",
+        "force_start": "Always run, regardless of limits"
+      },
+      "kindHelp": {
+        "protect_from_pause": "It still counts toward your limits and can still be started by the scheduler — it just will not be paused to make room.",
+        "protect_from_removal": "Seeding continues past its target rather than being stopped.",
+        "exclude": "The scheduler will neither pause nor start it. Different from protecting: an excluded torrent is outside its authority in both directions.",
+        "force_start": "It runs even when that exceeds your limits, so the rest of the queue has that much less room."
+      },
+      "add": "Add override",
+      "clear": "Remove",
+      "expires": "Expires",
+      "never": "Until removed",
+      "expiresInMinutes": "Expires after (minutes)",
+      "torrentHash": "Torrent info-hash",
+      "none": "No overrides. Your policies apply to every torrent equally.",
+      "saveFailed": "Could not save the override.",
+      "clearFailed": "Could not remove the override."
     }
   }
 }

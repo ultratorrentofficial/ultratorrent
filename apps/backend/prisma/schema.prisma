@@ -3545,3 +3545,37 @@ model TorrentSchedulerWindow {
   @@index([enabled])
   @@map("torrent_scheduler_windows")
 }
+
+/// An operator's instruction about ONE torrent, overriding what policy decided.
+///
+/// Separate from `TorrentSchedulerState`, which records what the scheduler DID.
+/// This records what a person WANTS, and the two must not be confused: clearing
+/// the scheduler's memory of a pause should never discard someone's instruction
+/// to protect a torrent.
+///
+/// An expired override is ignored at read time rather than deleted by a job.
+/// Expiry is then a property of the clock, like a schedule window, and no
+/// cleanup task is load-bearing — if it never runs, nothing wrongly stays in
+/// force.
+model TorrentSchedulerOverride {
+  id       String @id @default(uuid())
+  engineId String
+  hash     String
+
+  /// protect_from_pause | protect_from_removal | exclude | force_start
+  kind String
+
+  /// When set, the override stops applying at this instant.
+  expiresAt DateTime?
+  /// Set when an operator revokes it early; a cleared row is kept for the audit
+  /// trail rather than deleted.
+  clearedAt DateTime?
+
+  reason    String?
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@unique([engineId, hash, kind])
+  @@index([engineId, clearedAt])
+  @@map("torrent_scheduler_overrides")
+}

@@ -291,7 +291,8 @@
       "seed_target_removal_not_supported": "Objetivo alcanzado: el planificador no elimina torrents; elimínalo tú cuando quieras",
       "seed_target_reached_left_active": "Objetivo alcanzado, y tu política dice que siga sembrando",
       "protected_from_removal": "Objetivo alcanzado, pero este torrent está protegido para que no se detenga",
-      "schedule_blocks_new_downloads": "Hay una ventana programada abierta que impide iniciar nuevas descargas"
+      "schedule_blocks_new_downloads": "Hay una ventana programada abierta que impide iniciar nuevas descargas",
+      "excluded_by_operator": "Excluiste este torrent del planificador"
     },
     "limitation": {
       "title": "Lo que este motor no puede hacer",
@@ -405,6 +406,31 @@
       "resumePaused": "Reanudarlos también",
       "resumePausedHelp": "Desactivado por defecto: reanudarlo todo iniciaría descargas que no elegiste iniciar, y algunas de esas pausas pueden parecerse a las que hiciste tú.",
       "deactivateConfirm": "Dejar de aplicar"
+    },
+    "overrides": {
+      "title": "Excepciones por torrent",
+      "help": "Instrucciones sobre un torrent concreto que anulan lo que decidieron tus políticas.",
+      "kind": {
+        "protect_from_pause": "Nunca pausar para liberar un espacio",
+        "protect_from_removal": "Nunca detener por alcanzar el objetivo de siembra",
+        "exclude": "Ignorar por completo",
+        "force_start": "Ejecutar siempre, sin importar los límites"
+      },
+      "kindHelp": {
+        "protect_from_pause": "Sigue contando para tus límites y el planificador aún puede iniciarlo; simplemente no lo pausará para hacer sitio.",
+        "protect_from_removal": "La siembra continúa más allá de su objetivo en vez de detenerse.",
+        "exclude": "El planificador no lo pausará ni lo iniciará. Distinto de proteger: un torrent excluido queda fuera de su autoridad en ambos sentidos.",
+        "force_start": "Se ejecuta aunque eso supere tus límites, así que el resto de la cola tiene menos sitio."
+      },
+      "add": "Añadir excepción",
+      "clear": "Quitar",
+      "expires": "Caduca",
+      "never": "Hasta que se quite",
+      "expiresInMinutes": "Caduca tras (minutos)",
+      "torrentHash": "Info-hash del torrent",
+      "none": "Sin excepciones. Tus políticas se aplican por igual a todos los torrents.",
+      "saveFailed": "No se pudo guardar la excepción.",
+      "clearFailed": "No se pudo quitar la excepción."
     }
   }
 }

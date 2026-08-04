@@ -1820,6 +1820,18 @@ export interface SchedulerPolicy {
   seedPolicy: SchedulerSeedPolicy | null;
 }
 
+export type SchedulerOverrideKind =
+  | 'protect_from_pause' | 'protect_from_removal' | 'exclude' | 'force_start';
+
+export interface SchedulerOverride {
+  id: string;
+  engineId: string;
+  hash: string;
+  kind: SchedulerOverrideKind;
+  expiresAt: string | null;
+  reason: string | null;
+}
+
 export interface SchedulerActivationPreview {
   engineId: string;
   blockers: Array<{ code: string; messageKey: string }>;
@@ -5186,6 +5198,26 @@ export const api = {
       return request(`/torrent-scheduler/engines/${encodeURIComponent(engineId)}/deactivate`, {
         method: 'POST', body: { resumePaused },
       });
+    },
+    // --- per-torrent overrides --------------------------------------------
+    overrides(engineId: string): Promise<SchedulerOverride[]> {
+      return request<SchedulerOverride[]>(
+        `/torrent-scheduler/torrents/${encodeURIComponent(engineId)}/overrides`);
+    },
+    setOverride(
+      engineId: string, hash: string,
+      body: { kind: SchedulerOverrideKind; expiresInMinutes?: number | null },
+    ): Promise<SchedulerOverride> {
+      return request<SchedulerOverride>(
+        `/torrent-scheduler/torrents/${encodeURIComponent(engineId)}/${encodeURIComponent(hash)}/override`,
+        { method: 'POST', body },
+      );
+    },
+    clearOverride(engineId: string, hash: string, kind: string): Promise<unknown> {
+      return request(
+        `/torrent-scheduler/torrents/${encodeURIComponent(engineId)}/${encodeURIComponent(hash)}/override/${encodeURIComponent(kind)}`,
+        { method: 'DELETE' },
+      );
     },
     // --- policies ---------------------------------------------------------
     policies(): Promise<SchedulerPolicy[]> {
