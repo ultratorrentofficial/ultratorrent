@@ -56,10 +56,13 @@ export class SchedulerModeService {
     this.assertKnownEngine(engineId);
 
     if (mode === 'managed') {
+      // Reachable only through SchedulerActivationService, which shows the
+      // operator the exact torrents affected and requires confirmation. Allowing
+      // a plain mode change here would let a client start pausing other people's
+      // torrents with one PUT and no preview.
       throw new BadRequestException(
-        'Managed scheduling is not available yet. The scheduler can currently observe '
-          + 'and explain what it would do, but nothing applies those decisions, so this '
-          + 'mode would enforce nothing while implying otherwise. Use Observe Only.',
+        'Managed scheduling is enabled through the activation flow, not by setting the mode '
+          + 'directly — it requires a preview of what it would do and an explicit confirmation.',
       );
     }
     if (mode !== 'native' && mode !== 'observe') {

@@ -77,13 +77,21 @@ export class SchedulerPreviewService {
     }
     const caps = this.capabilities.for(kind);
 
-    const [snapshots, policies, parked] = await Promise.all([
+    const [snapshots, policies, parked, states] = await Promise.all([
       this.prisma.torrentSnapshot.findMany({ where: { engineId } }),
       this.loadPolicies(),
       this.prisma.parkedTorrent.findMany({ where: { engineId }, select: { hash: true } }),
+      // Which torrents the SCHEDULER is holding paused. Without this every pause
+      // reads as someone else's and the scheduler can never give a slot back —
+      // enforcement in one direction only.
+      this.prisma.torrentSchedulerState.findMany({
+        where: { engineId, schedulerPausedAt: { not: null } },
+        select: { hash: true, lastActionAt: true },
+      }),
     ]);
     // Parking owns these torrents; the scheduler must not contend for them.
     const parkedHashes = new Set(parked.map((p) => p.hash.toLowerCase()));
+    const ourPauses = new Map(states.map((s) => [s.hash.toLowerCase(), s.lastActionAt]));
 
     const torrents: PlannerTorrent[] = snapshots.map((s) => {
       const complete = s.progress >= 1;
@@ -94,9 +102,9 @@ export class SchedulerPreviewService {
           downloadRate: s.downloadRate,
           uploadRate: s.uploadRate,
           parked: parkedHashes.has(s.hash.toLowerCase()),
-          // Phase 3 has no scheduler-owned pause state, because nothing has ever
-          // paused anything. Every pause therefore reads as "not ours", which is
-          // the safe reading: the planner will not resume it.
+          // Only a pause WE recorded counts as ours. Anything else — a person, an
+          // automation rule, the engine — stays untouchable.
+          schedulerPaused: ourPauses.has(s.hash.toLowerCase()),
         },
         caps,
       );
@@ -113,6 +121,9 @@ export class SchedulerPreviewService {
         occupancy: classification.occupancy,
         complete,
         addedAt: s.addedAt,
+        // Feeds the hysteresis check, so a torrent the scheduler only just
+        // started is not paused again seconds later.
+        lastActionAt: ourPauses.get(s.hash.toLowerCase()) ?? null,
         policy,
         decision: scoreTorrent({
           torrentHash: s.hash,

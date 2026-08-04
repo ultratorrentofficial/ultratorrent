@@ -3,6 +3,7 @@ import { Interval } from '@nestjs/schedule';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { SchedulerPreviewService } from './scheduler-preview.service';
+import { SchedulerReconciliationService } from './scheduler-reconciliation.service';
 
 /** How often a plan is recalculated. Minutes, not seconds: nothing acts on it. */
 const TICK_MS = 60_000;
@@ -15,11 +16,11 @@ export type SchedulerMode = 'native' | 'observe' | 'managed';
 /**
  * Recalculate each engine's plan on a timer and record what it would do.
  *
- * **This sweep cannot change a torrent.** Not by policy — structurally: it holds
- * no provider reference. `EngineRegistryService` is injected only to enumerate
- * engine ids, and the sole other collaborator computes a plan from database
- * rows. There is no code path from here to `pauseTorrent`, so "Observe Only"
- * cannot be violated by a later edit that forgets the rule.
+ * **An observing engine is never changed.** Reconciliation runs only for
+ * `managed`, and reaching that mode requires the guarded activation flow — a
+ * capability check, a preview of the exact torrents affected, and an explicit
+ * confirmation. An engine in `observe` produces a plan and a record, and no
+ * provider call whatsoever.
  *
  * Engines in `native` mode are skipped entirely. An installation that never opted
  * in does no scheduler work at all — not even planning — because planning that
@@ -35,6 +36,7 @@ export class SchedulerSweepService {
     private readonly prisma: PrismaService,
     private readonly registry: EngineRegistryService,
     private readonly preview: SchedulerPreviewService,
+    private readonly reconciliation: SchedulerReconciliationService,
   ) {}
 
   @Interval('torrent_scheduler_sweep', TICK_MS)
@@ -74,27 +76,41 @@ export class SchedulerSweepService {
 
         const proposed = plan.decisions.filter((d) => d.action !== 'none').length;
 
+        // The one line that separates observing from enforcing.
+        let applied = 0;
+        const limitations = [...plan.limitations];
+        if (mode === 'managed') {
+          const outcome = await this.reconciliation.apply(plan, this.registry.get(engineId));
+          applied = outcome.applied;
+          for (const l of outcome.limitations) {
+            if (!limitations.some((x) => x.code === l.code)) limitations.push(l);
+          }
+          if (outcome.failed || outcome.unverified) {
+            this.logger.warn(
+              `Scheduler applied ${outcome.applied}/${outcome.attempted} on ${engineId} `
+                + `(${outcome.failed} failed, ${outcome.unverified} unconfirmed)`,
+            );
+          }
+        }
+
         await this.prisma.torrentSchedulerDecision.create({
           data: {
             engineId,
             mode,
             summary: plan.summary as unknown as object,
-            limitations: plan.limitations.length
-              ? (plan.limitations as unknown as object)
-              : undefined,
+            limitations: limitations.length ? (limitations as unknown as object) : undefined,
             proposedActions: proposed,
-            // Always zero here. Nothing in this service can apply an action, and
-            // recording the honest zero is what makes the gap between proposed
-            // and applied readable as "this is what enforcement would change".
-            appliedActions: 0,
+            // Zero while observing, and the gap between the two numbers is what
+            // enforcement would change. Non-zero only once enforcement is on.
+            appliedActions: applied,
             durationMs: Date.now() - started,
             result: 'ok',
           },
         });
 
         await this.markSwept(engineId, {
-          healthState: plan.limitations.length ? 'provider_limited' : 'healthy',
-          healthDetail: plan.limitations.map((l) => l.code).join(',') || null,
+          healthState: limitations.length ? 'provider_limited' : 'healthy',
+          healthDetail: limitations.map((l) => l.code).join(',') || null,
           success: true,
         });
       } catch (err) {

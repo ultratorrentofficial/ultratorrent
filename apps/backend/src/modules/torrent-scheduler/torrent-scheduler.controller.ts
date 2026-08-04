@@ -18,15 +18,16 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { SchedulerModeService } from './scheduler-mode.service';
 import { SchedulerPreviewService } from './scheduler-preview.service';
+import { SchedulerActivationService } from './scheduler-activation.service';
 import type { SchedulerMode } from './scheduler-sweep.service';
 
 /**
- * The scheduler's read surface, plus the one mutation Phase 3 has: an engine's
- * mode.
+ * The scheduler's read surface, the mode switch, and the guarded activation flow.
  *
- * There is no reconcile endpoint and no override endpoint, because nothing can
- * act yet. Publishing routes that accept a request and change nothing would make
- * the API describe a system that does not exist.
+ * Enforcement is deliberately NOT reachable through the mode endpoint. Enabling
+ * it means UltraTorrent starts pausing torrents, so it goes through activation:
+ * a capability check, a preview of exactly which torrents are affected, and an
+ * explicit confirmation. One PUT should not be able to start that.
  */
 @ApiTags('torrent-scheduler')
 @ApiBearerAuth()
@@ -36,6 +37,7 @@ export class TorrentSchedulerController {
   constructor(
     private readonly modes: SchedulerModeService,
     private readonly preview: SchedulerPreviewService,
+    private readonly activation: SchedulerActivationService,
   ) {}
 
   /** Every engine: mode, health, and what it is actually capable of. */
@@ -90,6 +92,46 @@ export class TorrentSchedulerController {
   ) {
     const user = req.user as AuthenticatedUser | undefined;
     return this.modes.setMode(engineId, body?.mode as SchedulerMode, user?.id);
+  }
+
+  /** What enabling enforcement would do to this engine, right now. */
+  @Get('engines/:engineId/activation')
+  @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_MANAGE_ENGINE_MODE)
+  describeActivation(@Param('engineId') engineId: string) {
+    return this.activation.describe(engineId);
+  }
+
+  /**
+   * Enable enforcement.
+   *
+   * `confirm: true` is mandatory; without it the request is refused with what
+   * would have happened, so enforcement can only be reached by asking twice.
+   */
+  @Post('engines/:engineId/activate')
+  @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_MANAGE_ENGINE_MODE)
+  activate(
+    @Param('engineId') engineId: string,
+    @Body() body: { confirm?: boolean },
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthenticatedUser | undefined;
+    return this.activation.activate(engineId, body?.confirm === true, user?.id);
+  }
+
+  /**
+   * Stop enforcing. Torrents the scheduler paused stay paused unless
+   * `resumePaused` is asked for — blanket-resuming would start downloads nobody
+   * chose to start.
+   */
+  @Post('engines/:engineId/deactivate')
+  @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_MANAGE_ENGINE_MODE)
+  deactivate(
+    @Param('engineId') engineId: string,
+    @Body() body: { resumePaused?: boolean },
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthenticatedUser | undefined;
+    return this.activation.deactivate(engineId, body?.resumePaused === true, user?.id);
   }
 
   /**

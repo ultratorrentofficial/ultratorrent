@@ -2,11 +2,13 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { EngineModule } from '../engine/engine.module';
 import { AuditModule } from '../audit/audit.module';
+import { SettingsModule } from '../settings/settings.module';
 import { SchedulerCapabilityService } from './scheduler-capability.service';
 import { SchedulerPreviewService } from './scheduler-preview.service';
 import { SchedulerSweepService } from './scheduler-sweep.service';
 import { SchedulerModeService } from './scheduler-mode.service';
 import { SchedulerReconciliationService } from './scheduler-reconciliation.service';
+import { SchedulerActivationService } from './scheduler-activation.service';
 import { TorrentSchedulerController } from './torrent-scheduler.controller';
 
 /**
@@ -24,13 +26,14 @@ import { TorrentSchedulerController } from './torrent-scheduler.controller';
  * change to one guard rather than the arrival of untested behaviour.
  */
 @Module({
-  imports: [PrismaModule, EngineModule, AuditModule],
+  imports: [PrismaModule, EngineModule, AuditModule, SettingsModule],
   providers: [
     SchedulerCapabilityService,
     SchedulerPreviewService,
     SchedulerSweepService,
     SchedulerModeService,
     SchedulerReconciliationService,
+    SchedulerActivationService,
   ],
   controllers: [TorrentSchedulerController],
   exports: [SchedulerPreviewService, SchedulerCapabilityService],

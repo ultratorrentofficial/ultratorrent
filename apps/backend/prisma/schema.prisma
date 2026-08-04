@@ -3480,3 +3480,29 @@ model TorrentSchedulerDecision {
   @@index([engineId, generatedAt])
   @@map("torrent_scheduler_decisions")
 }
+
+/// What the SCHEDULER did to one torrent.
+///
+/// Kept apart from the provider's own state, and required before enforcement can
+/// work at all. Every engine reports a paused torrent as simply `paused` — a
+/// person, the scheduler and the engine itself are indistinguishable — and the
+/// scheduler must never resume a pause it did not perform. Without this row it
+/// cannot tell its own work apart from anyone else's, so it would pause a torrent
+/// to free a slot and then be unable to give it back: enforcement in one
+/// direction only.
+model TorrentSchedulerState {
+  engineId String
+  hash     String
+
+  /// Set only while the SCHEDULER is the reason this torrent is paused. Cleared
+  /// on resume. A null here means "not ours", which is the safe reading.
+  schedulerPausedAt DateTime?
+  reasonCode        String?
+  lastActionAt      DateTime?
+
+  updatedAt DateTime @updatedAt
+
+  @@id([engineId, hash])
+  @@index([engineId, schedulerPausedAt])
+  @@map("torrent_scheduler_states")
+}

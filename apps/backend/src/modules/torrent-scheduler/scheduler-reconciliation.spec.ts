@@ -42,7 +42,16 @@ function providerStub(states: Record<string, TorrentState> = {}) {
 const noSleep = async () => undefined;
 
 describe('applying a plan', () => {
-  const svc = new SchedulerReconciliationService();
+  // Records which torrents the scheduler itself paused, so a later sweep can
+  // tell its own work apart from a person's and give the slot back.
+  const remembered: any[] = [];
+  const prisma = {
+    torrentSchedulerState: {
+      upsert: jest.fn(async (a: any) => { remembered.push(a); return a; }),
+    },
+  };
+  const svc = new SchedulerReconciliationService(prisma as never);
+  beforeEach(() => { remembered.length = 0; });
 
   it('pauses before it resumes', async () => {
     // Resuming first would momentarily exceed the limit being enforced, and on
@@ -152,6 +161,32 @@ describe('applying a plan', () => {
     const { provider } = providerStub({ a: TorrentState.STOPPED });
     const out = await svc.apply(plan([decision('a', 'pause')]), provider, { sleep: noSleep });
     expect(out.applied).toBe(1);
+  });
+
+  it('records its own pause so the slot can be given back later', async () => {
+    // Without this the next sweep sees an ordinary paused torrent, cannot tell
+    // it was ours, and never resumes it — enforcement in one direction only.
+    const { provider } = providerStub({ a: TorrentState.PAUSED });
+    await svc.apply(plan([decision('a', 'pause')]), provider, { sleep: noSleep });
+
+    expect(remembered).toHaveLength(1);
+    expect(remembered[0].create.schedulerPausedAt).toBeInstanceOf(Date);
+  });
+
+  it('clears the claim when it resumes the torrent again', async () => {
+    const { provider } = providerStub({ a: TorrentState.DOWNLOADING });
+    await svc.apply(plan([decision('a', 'resume')]), provider, { sleep: noSleep });
+
+    expect(remembered[0].update.schedulerPausedAt).toBeNull();
+  });
+
+  it('claims nothing when the pause could not be confirmed', async () => {
+    // A row claiming we paused something we failed to pause would let a later
+    // sweep resume a torrent a person had stopped.
+    const { provider } = providerStub({ a: TorrentState.DOWNLOADING });
+    await svc.apply(plan([decision('a', 'pause')]), provider, { sleep: noSleep });
+
+    expect(remembered).toHaveLength(0);
   });
 
   it('can skip verification when the caller does not want the round trip', async () => {

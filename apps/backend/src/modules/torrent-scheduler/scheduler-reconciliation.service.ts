@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { TorrentState } from '@ultratorrent/shared';
+import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import type { TorrentEngineProvider } from '../../domain/engine/torrent-engine-provider.interface';
 import type { EngineActivityPlan, TorrentDecision } from './domain/planner';
 import type { SchedulerLimitation } from './domain/capabilities';
@@ -44,6 +45,35 @@ const VERIFY_DELAY_MS = 250;
 @Injectable()
 export class SchedulerReconciliationService {
   private readonly logger = new Logger(SchedulerReconciliationService.name);
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Record that the SCHEDULER is the reason a torrent is paused — or that it no
+   * longer is.
+   *
+   * Written only after verification, never on the optimistic path. A row
+   * claiming we paused something we failed to pause would let a later sweep
+   * resume a torrent a person had stopped.
+   */
+  private async remember(
+    engineId: string,
+    hash: string,
+    paused: boolean,
+    reasonCode: string,
+  ): Promise<void> {
+    const now = new Date();
+    const data = {
+      schedulerPausedAt: paused ? now : null,
+      reasonCode: paused ? reasonCode : null,
+      lastActionAt: now,
+    };
+    await this.prisma.torrentSchedulerState
+      .upsert({ where: { engineId_hash: { engineId, hash } }, create: { engineId, hash, ...data }, update: data })
+      // Losing the note is bad but not a reason to fail the action that already
+      // happened; the next sweep re-derives from provider state.
+      .catch((err) => this.logger.warn(`Could not record scheduler state for ${hash.slice(0, 8)}: ${(err as Error).message}`));
+  }
 
   /**
    * Apply one engine's plan.
@@ -115,13 +145,18 @@ export class SchedulerReconciliationService {
          * for the ordinary case of someone deleting a torrent.
          */
         out.applied += 1;
+        await this.remember(out.engineId, hash, false, decision.reasonCode);
         return;
       }
 
       if (action === 'pause') {
         const paused = after.state === TorrentState.PAUSED || after.state === TorrentState.STOPPED;
-        if (paused) out.applied += 1;
-        else this.unverified(out, decision, `engine still reports ${after.state}`);
+        if (paused) {
+          out.applied += 1;
+          await this.remember(out.engineId, hash, true, decision.reasonCode);
+        } else {
+          this.unverified(out, decision, `engine still reports ${after.state}`);
+        }
         return;
       }
 
@@ -148,8 +183,12 @@ export class SchedulerReconciliationService {
         || after.state === TorrentState.SEEDING
         || after.state === TorrentState.CHECKING
         || after.state === TorrentState.ALLOCATING;
-      if (running) out.applied += 1;
-      else this.unverified(out, decision, `engine reports ${after.state}`);
+      if (running) {
+        out.applied += 1;
+        await this.remember(out.engineId, hash, false, decision.reasonCode);
+      } else {
+        this.unverified(out, decision, `engine reports ${after.state}`);
+      }
     } catch (err) {
       // One torrent, one failure. The rest of the plan still runs.
       const message = (err as Error).message;

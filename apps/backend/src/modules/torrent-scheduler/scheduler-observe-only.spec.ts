@@ -26,6 +26,7 @@ function sweepHarness(configs: Array<{ engineId: string; mode: string }>, engine
   };
   const registry = {
     list: jest.fn(() => engines.map((engineId) => ({ engineId, kind: 'qbittorrent' }))),
+    get: jest.fn((engineId: string) => ({ engineId, kind: 'qbittorrent' })),
   };
   const previewEngine = jest.fn(async (engineId: string) => ({
     engineId,
@@ -35,10 +36,14 @@ function sweepHarness(configs: Array<{ engineId: string; mode: string }>, engine
     summary: { activeDownloads: 1, activeSeeds: 1, totalActive: 2, queuedDownloads: 0, queuedSeeds: 0 },
     limitations: [],
   }));
+  const apply = jest.fn(async () => ({
+    engineId: 'e1', attempted: 0, applied: 0, failed: 0, unverified: 0,
+    limitations: [], failures: [],
+  }));
   const svc = new SchedulerSweepService(
-    prisma as never, registry as never, { previewEngine } as never,
+    prisma as never, registry as never, { previewEngine } as never, { apply } as never,
   );
-  return { svc, prisma, created, upserts, previewEngine, registry };
+  return { svc, prisma, created, upserts, previewEngine, registry, apply };
 }
 
 describe('the sweep', () => {
@@ -70,12 +75,28 @@ describe('the sweep', () => {
     expect(created[0].data.appliedActions).toBe(0);
   });
 
-  it('holds no provider reference, so it cannot act by construction', () => {
-    // The structural guarantee. `EngineRegistryService` is used to enumerate ids;
-    // if this service ever gains a way to resolve a provider, this fails and the
-    // reviewer is forced to justify it.
-    const source = SchedulerSweepService.prototype.constructor.toString();
-    expect(source).not.toMatch(/pauseTorrent|resumeTorrent|stopTorrent|startTorrent/);
+  it('never reconciles an observing engine', async () => {
+    // The guarantee that replaced "holds no provider reference" once enforcement
+    // existed: observing plans and records, and makes no provider call at all.
+    const { svc, apply, created } = sweepHarness([{ engineId: 'e1', mode: 'observe' }], ['e1']);
+    await svc.tick();
+
+    expect(apply).not.toHaveBeenCalled();
+    expect(created[0].data.appliedActions).toBe(0);
+  });
+
+  it('reconciles a managed engine, and records what was applied', async () => {
+    const { svc, apply, created } = sweepHarness([{ engineId: 'e1', mode: 'managed' }], ['e1']);
+    apply.mockResolvedValueOnce({
+      engineId: 'e1', attempted: 2, applied: 2, failed: 0, unverified: 0,
+      limitations: [], failures: [],
+    } as never);
+
+    await svc.tick();
+
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(created[0].data.proposedActions).toBe(2);
+    expect(created[0].data.appliedActions).toBe(2);
   });
 
   it('records a failure for one engine without abandoning the others', async () => {
