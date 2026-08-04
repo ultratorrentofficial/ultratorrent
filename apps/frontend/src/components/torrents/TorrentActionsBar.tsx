@@ -59,6 +59,51 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
       }
     };
 
+    /*
+     * Scheduler instructions are a different kind of request from the lifecycle
+     * actions above: those mean "do this now", these mean "and keep meaning it".
+     * They are offered here because the torrent is the only place an operator
+     * forms the intent — the overrides page can only ask for a 40-character
+     * info-hash, which nobody types.
+     */
+    const override = async (kind: string, label: string) => {
+      setPending(true);
+      try {
+        await api.torrentScheduler.setOverride(torrent.engineId, torrent.hash, { kind: kind as never });
+        toast.success(t('actions.requested', { action: label }));
+        await queryClient.invalidateQueries({ queryKey: ['torrent-scheduler'] });
+      } catch (err) {
+        toast.error(
+          t('actions.failed', { action: label.toLowerCase() }),
+          err instanceof ApiError ? err.message : undefined,
+        );
+      } finally {
+        setPending(false);
+      }
+    };
+
+    const clearAll = async () => {
+      setPending(true);
+      try {
+        // No "clear everything" endpoint on purpose: each kind is revoked
+        // explicitly, so a bulk undo cannot quietly remove an instruction the
+        // caller did not know about.
+        await Promise.all(
+          ['protect_from_pause', 'protect_from_removal', 'exclude', 'force_start'].map((k) =>
+            api.torrentScheduler.clearOverride(torrent.engineId, torrent.hash, k)),
+        );
+        toast.success(t('actions.requested', { action: t('scheduler.overrides.clear') }));
+        await queryClient.invalidateQueries({ queryKey: ['torrent-scheduler'] });
+      } catch (err) {
+        toast.error(
+          t('actions.failed', { action: t('scheduler.overrides.clear').toLowerCase() }),
+          err instanceof ApiError ? err.message : undefined,
+        );
+      } finally {
+        setPending(false);
+      }
+    };
+
     return {
       'torrents.resume': () => void run('resume', t('actions.resume')),
       'torrents.pause': () => void run('pause', t('actions.pause')),
@@ -68,6 +113,16 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
       // checkbox decides whether data goes with it.
       'torrents.remove': () => setConfirmDelete(true),
       'torrents.removeData': () => setConfirmDelete(true),
+
+      'torrent_scheduler.protectFromPause': () =>
+        void override('protect_from_pause', t('scheduler.overrides.kind.protect_from_pause')),
+      'torrent_scheduler.protectFromRemoval': () =>
+        void override('protect_from_removal', t('scheduler.overrides.kind.protect_from_removal')),
+      'torrent_scheduler.exclude': () =>
+        void override('exclude', t('scheduler.overrides.kind.exclude')),
+      'torrent_scheduler.forceStart': () =>
+        void override('force_start', t('scheduler.overrides.kind.force_start')),
+      'torrent_scheduler.clearOverrides': () => void clearAll(),
     };
   }, [torrent.hash, t, toast, queryClient]);
 

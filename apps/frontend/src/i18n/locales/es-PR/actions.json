@@ -86,6 +86,13 @@
     },
     "subtitles": {
       "search": "Buscar subtítulos"
+    },
+    "torrent_scheduler": {
+      "protectFromPause": "No pausar nunca este",
+      "protectFromRemoval": "No detener nunca la siembra de este",
+      "exclude": "Ignorar en el planificador",
+      "forceStart": "Inicio forzado",
+      "clearOverrides": "Quitar excepciones del planificador"
     }
   },
   "result": {

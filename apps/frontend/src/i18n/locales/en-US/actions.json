@@ -86,6 +86,13 @@
     },
     "subtitles": {
       "search": "Find subtitles"
+    },
+    "torrent_scheduler": {
+      "protectFromPause": "Never pause this",
+      "protectFromRemoval": "Never stop seeding this",
+      "exclude": "Ignore in scheduler",
+      "forceStart": "Force start",
+      "clearOverrides": "Clear scheduler overrides"
     }
   },
   "result": {

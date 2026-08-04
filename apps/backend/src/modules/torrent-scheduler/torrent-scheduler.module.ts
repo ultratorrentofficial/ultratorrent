@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, type OnModuleInit } from '@nestjs/common';
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { EngineModule } from '../engine/engine.module';
 import { AuditModule } from '../audit/audit.module';
@@ -11,6 +11,8 @@ import { SchedulerReconciliationService } from './scheduler-reconciliation.servi
 import { SchedulerActivationService } from './scheduler-activation.service';
 import { SchedulerPolicyService } from './scheduler-policy.service';
 import { SchedulerOverrideService } from './scheduler-override.service';
+import { CapabilityRegistry } from '../context-actions/capability-registry.service';
+import { SCHEDULER_ACTIONS } from './scheduler-actions';
 import { TorrentSchedulerController } from './torrent-scheduler.controller';
 
 /**
@@ -42,4 +44,11 @@ import { TorrentSchedulerController } from './torrent-scheduler.controller';
   controllers: [TorrentSchedulerController],
   exports: [SchedulerPreviewService, SchedulerCapabilityService],
 })
-export class TorrentSchedulerModule {}
+/** Contributes the scheduler's instructions to the CAMA registry at boot. */
+export class TorrentSchedulerModule implements OnModuleInit {
+  constructor(private readonly capabilities: CapabilityRegistry) {}
+
+  onModuleInit(): void {
+    this.capabilities.registerAll(SCHEDULER_ACTIONS);
+  }
+}
