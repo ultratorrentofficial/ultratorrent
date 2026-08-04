@@ -50,6 +50,12 @@ export interface PlannerTorrent {
   libraryCopyVerified?: boolean;
   /** The operator marked this torrent as never to be stopped automatically. */
   protectedFromRemoval?: boolean;
+  /**
+   * False while a schedule window forbids STARTING anything new. Deliberately
+   * separate from a concurrency limit of zero: this declines to begin more work,
+   * it does not stop work already in flight.
+   */
+  allowNewDownloads?: boolean;
 }
 
 export interface PlannerOptions {
@@ -333,6 +339,12 @@ export function planEngine(
     // Not active. Resume only what the scheduler is permitted to resume.
     if (!isResumable(t.occupancy)) {
       decisions.push(decide(t, 'unchanged', 'none', 'not_resumable_by_scheduler'));
+      continue;
+    }
+    // A schedule window may forbid starting new downloads without touching the
+    // ones already running.
+    if (!wantsSeed && t.allowNewDownloads === false) {
+      decisions.push(decide(t, 'paused', 'none', 'schedule_blocks_new_downloads'));
       continue;
     }
     if (!slotFree) {

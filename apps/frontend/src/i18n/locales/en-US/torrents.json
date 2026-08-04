@@ -290,7 +290,8 @@
       "seed_target_waiting_for_library_copy": "Target reached, but the library copy has not been verified",
       "seed_target_removal_not_supported": "Target reached — removing a torrent is not done by the scheduler; remove it yourself when ready",
       "seed_target_reached_left_active": "Target reached, and your policy says to keep seeding",
-      "protected_from_removal": "Target reached, but this torrent is protected from being stopped"
+      "protected_from_removal": "Target reached, but this torrent is protected from being stopped",
+      "schedule_blocks_new_downloads": "A schedule window is open that stops new downloads starting"
     },
     "limitation": {
       "title": "What this engine cannot do",

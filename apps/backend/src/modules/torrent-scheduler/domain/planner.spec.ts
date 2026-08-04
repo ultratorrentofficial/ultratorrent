@@ -206,6 +206,34 @@ describe('planEngine — churn control', () => {
   });
 });
 
+describe('a schedule window that forbids new downloads', () => {
+  it('declines to start a queued download', () => {
+    const plan = planEngine('e1', [
+      t({ hash: 'q', occupancy: 'download_queued', allowNewDownloads: false }),
+    ], CAPS, { now: NOW });
+    expect(byHash(plan, 'q').action).toBe('none');
+    expect(byHash(plan, 'q').reasonCode).toBe('schedule_blocks_new_downloads');
+  });
+
+  it('leaves a download already in flight running', () => {
+    // The distinction that matters: declining to begin more work is not the
+    // same promise as stopping work already underway.
+    const plan = planEngine('e1', [
+      t({ hash: 'a', occupancy: 'download_active', allowNewDownloads: false }),
+    ], CAPS, { now: NOW });
+    expect(byHash(plan, 'a').action).toBe('none');
+    expect(byHash(plan, 'a').reasonCode).toBe('downloading_within_limit');
+  });
+
+  it('does not block a seed from starting', () => {
+    // The window is about new DOWNLOADS; seeding obligations are unaffected.
+    const plan = planEngine('e1', [
+      t({ hash: 's', occupancy: 'seed_queued', complete: true, allowNewDownloads: false }),
+    ], CAPS, { now: NOW });
+    expect(byHash(plan, 's').action).toBe('resume');
+  });
+});
+
 describe('ordering determinism', () => {
   it('keeps an incumbent ahead of a challenger at equal score', () => {
     // The anti-churn tie-break. Without it two equal torrents swap every sweep.

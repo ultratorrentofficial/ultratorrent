@@ -3506,3 +3506,42 @@ model TorrentSchedulerState {
   @@index([engineId, schedulerPausedAt])
   @@map("torrent_scheduler_states")
 }
+
+/// A recurring window that overrides scheduling limits by time of day.
+///
+/// Stored as local wall-clock minutes plus an IANA zone rather than as UTC
+/// instants: an operator who says "throttle overnight" means THEIR night, and
+/// their night moves twice a year. Evaluation asks the clock and holds no state,
+/// so a restart or a clock moved backwards cannot corrupt a window that had
+/// already "fired" — nothing fires.
+model TorrentSchedulerWindow {
+  id      String  @id @default(uuid())
+  name    String
+  enabled Boolean @default(true)
+
+  /// 0 = Sunday … 6 = Saturday, in this window's own timezone.
+  daysOfWeek  Int[]
+  /// Minutes from local midnight, 0…1439. `end` below `start` crosses midnight,
+  /// and the day-of-week test then applies to the day it BEGAN on.
+  startMinute Int
+  endMinute   Int
+  timeZone    String @default("UTC")
+  /// Higher wins when two windows overlap; ties break on id, so an overlap
+  /// always resolves the same way rather than flapping between sweeps.
+  priority    Int    @default(0)
+
+  maxConcurrentDownloads Int?
+  maxConcurrentSeeds     Int?
+  maxTotalActive         Int?
+  maxDownloadRateKbps    Int?
+  maxUploadRateKbps      Int?
+  /// False stops anything NEW starting; downloads already running are untouched.
+  allowNewDownloads      Boolean @default(true)
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enabled])
+  @@map("torrent_scheduler_windows")
+}

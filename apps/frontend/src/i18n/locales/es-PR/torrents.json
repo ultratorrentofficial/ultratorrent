@@ -290,7 +290,8 @@
       "seed_target_waiting_for_library_copy": "Objetivo alcanzado, pero no se ha verificado la copia en la biblioteca",
       "seed_target_removal_not_supported": "Objetivo alcanzado: el planificador no elimina torrents; elimínalo tú cuando quieras",
       "seed_target_reached_left_active": "Objetivo alcanzado, y tu política dice que siga sembrando",
-      "protected_from_removal": "Objetivo alcanzado, pero este torrent está protegido para que no se detenga"
+      "protected_from_removal": "Objetivo alcanzado, pero este torrent está protegido para que no se detenga",
+      "schedule_blocks_new_downloads": "Hay una ventana programada abierta que impide iniciar nuevas descargas"
     },
     "limitation": {
       "title": "Lo que este motor no puede hacer",

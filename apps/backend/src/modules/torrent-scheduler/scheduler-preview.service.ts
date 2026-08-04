@@ -11,6 +11,7 @@ import {
   type TorrentSchedulingPolicy,
   type SchedulingPolicyScopeType,
 } from './domain/policy';
+import { applySchedule, type ScheduleWindow } from './domain/schedule';
 
 /**
  * Build the plan for an engine, without touching anything.
@@ -77,7 +78,7 @@ export class SchedulerPreviewService {
     }
     const caps = this.capabilities.for(kind);
 
-    const [snapshots, policies, parked, states, intakeJobs] = await Promise.all([
+    const [snapshots, policies, parked, states, intakeJobs, windows] = await Promise.all([
       this.prisma.torrentSnapshot.findMany({ where: { engineId } }),
       this.loadPolicies(),
       this.prisma.parkedTorrent.findMany({ where: { engineId }, select: { hash: true } }),
@@ -99,6 +100,9 @@ export class SchedulerPreviewService {
         where: { engineId },
         select: { torrentHash: true, state: true, mediaItemId: true },
       }),
+      // Loaded once per engine and evaluated against `now`, rather than each
+      // window owning a timer. One clock read answers every window.
+      this.prisma.torrentSchedulerWindow.findMany({ where: { enabled: true } }),
     ]);
     const intake = new Map(
       intakeJobs
@@ -125,11 +129,17 @@ export class SchedulerPreviewService {
         caps,
       );
 
-      const policy = resolveEffectivePolicy(policies, {
-        torrentHash: s.hash,
-        engineId,
-        categoryId: s.categoryId,
-      });
+      // Scopes decide the policy; an open window then overrides it. A schedule
+      // is a temporary override of what the scopes concluded, not another scope.
+      const policy = applySchedule(
+        resolveEffectivePolicy(policies, {
+          torrentHash: s.hash,
+          engineId,
+          categoryId: s.categoryId,
+        }),
+        windows as unknown as ScheduleWindow[],
+        now,
+      );
 
       const job = intake.get(s.hash.toLowerCase());
       // `imported` and everything after it means the file reached the library.
@@ -153,6 +163,7 @@ export class SchedulerPreviewService {
         // Feeds the hysteresis check, so a torrent the scheduler only just
         // started is not paused again seconds later.
         lastActionAt: ourPauses.get(s.hash.toLowerCase()) ?? null,
+        allowNewDownloads: policy.allowNewDownloads,
         policy,
         decision: scoreTorrent({
           torrentHash: s.hash,
