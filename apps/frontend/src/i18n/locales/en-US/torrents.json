@@ -283,7 +283,14 @@
       "state_unknown": "State unknown — nothing will be done",
       "engine_cannot_pause": "This engine cannot pause torrents, so nothing can be scheduled",
       "force_started_active": "Force started — running regardless of limits",
-      "force_started_resume": "Force started — would start regardless of limits"
+      "force_started_resume": "Force started — would start regardless of limits",
+      "seed_target_reached": "Seed target reached ({{mode}}) — would stop seeding",
+      "seed_target_unknown": "Seed target cannot be checked on this engine, so it keeps seeding",
+      "seed_target_waiting_for_import": "Target reached, but waiting for Media Intake to finish importing",
+      "seed_target_waiting_for_library_copy": "Target reached, but the library copy has not been verified",
+      "seed_target_removal_not_supported": "Target reached — removing a torrent is not done by the scheduler; remove it yourself when ready",
+      "seed_target_reached_left_active": "Target reached, and your policy says to keep seeding",
+      "protected_from_removal": "Target reached, but this torrent is protected from being stopped"
     },
     "limitation": {
       "title": "What this engine cannot do",
@@ -339,7 +346,28 @@
       "delete": "Delete",
       "deleteConfirm": "Delete this policy? Torrents governed by it fall back to the next policy up.",
       "saveFailed": "Could not save the policy.",
-      "deleteFailed": "Could not delete the policy."
+      "deleteFailed": "Could not delete the policy.",
+      "seeding": {
+        "title": "Seeding",
+        "help": "What happens once a completed torrent has seeded enough. Only ratio targets can be enforced today — neither engine reports how long a torrent has been seeding, so time-based targets would never be checkable.",
+        "mode": "Stop seeding when",
+        "modeOption": {
+          "ratio": "A share ratio is reached",
+          "manual": "Only when I say so",
+          "unlimited": "Never — keep seeding"
+        },
+        "targetRatio": "Share ratio",
+        "afterTarget": "Then",
+        "afterTargetOption": {
+          "pause": "Pause the torrent",
+          "stop": "Stop the torrent",
+          "leave_active": "Leave it running"
+        },
+        "afterTargetHelp": "Removing the torrent is not offered: taking a payload away has to pass Media Intake's safety checks, so the scheduler leaves that to you.",
+        "requireImportCompleted": "Wait until Media Intake has imported it",
+        "requireLibraryCopyVerified": "Wait until the library copy is verified",
+        "safetyHelp": "Usually the reason to seed past completion is that the library copy is not safe yet."
+      }
     },
     "activation": {
       "title": "Enable enforcement",

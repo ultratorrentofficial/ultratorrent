@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Save, Trash2 } from 'lucide-react';
-import { ApiError, api, type SchedulerPolicy } from '@/lib/api';
+import { ApiError, api, type SchedulerPolicy, type SchedulerSeedPolicy } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { useToast } from '@/components/ui/toast';
@@ -149,6 +149,11 @@ function PolicyDialog({
   const [downloads, setDownloads] = useState('');
   const [seeds, setSeeds] = useState('');
   const [total, setTotal] = useState('');
+  // Only the enforceable subset is offered — see the seeding help text.
+  const [seedMode, setSeedMode] = useState<SchedulerSeedPolicy['mode']>('unlimited');
+  const [targetRatio, setTargetRatio] = useState('');
+  const [afterTarget, setAfterTarget] = useState<SchedulerSeedPolicy['afterTarget']>('pause');
+  const [requireImport, setRequireImport] = useState(true);
 
   useEffect(() => {
     setName(policy?.name ?? '');
@@ -158,6 +163,12 @@ function PolicyDialog({
     setDownloads(policy?.maxConcurrentDownloads?.toString() ?? '');
     setSeeds(policy?.maxConcurrentSeeds?.toString() ?? '');
     setTotal(policy?.maxTotalActive?.toString() ?? '');
+    setSeedMode(policy?.seedPolicy?.mode ?? 'unlimited');
+    setTargetRatio(policy?.seedPolicy?.targetRatio?.toString() ?? '');
+    setAfterTarget(policy?.seedPolicy?.afterTarget ?? 'pause');
+    // Defaults ON: the usual reason to seed past completion is that the library
+    // copy is not safe yet, so waiting for the import is the safe default.
+    setRequireImport(policy?.seedPolicy?.requireImportCompleted ?? true);
   }, [policy]);
 
   // An empty box is an explicit `null` — unlimited — not an omission. That is
@@ -174,6 +185,12 @@ function PolicyDialog({
         maxConcurrentDownloads: num(downloads),
         maxConcurrentSeeds: num(seeds),
         maxTotalActive: num(total),
+        seedPolicy: {
+          mode: seedMode,
+          afterTarget,
+          ...(seedMode === 'ratio' ? { targetRatio: Number(targetRatio) } : {}),
+          requireImportCompleted: requireImport,
+        },
       };
       return policy
         ? api.torrentScheduler.updatePolicy(policy.id, body)
@@ -254,6 +271,80 @@ function PolicyDialog({
               onChange={setTotal}
             />
           </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold">{t('scheduler.policies.seeding.title')}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">{t('scheduler.policies.seeding.help')}</p>
+          <div className="mt-2 flex flex-wrap items-end gap-3">
+            <div>
+              <Label htmlFor="seed-mode">{t('scheduler.policies.seeding.mode')}</Label>
+              <Select
+                id="seed-mode"
+                className="mt-1 w-auto"
+                value={seedMode}
+                onChange={(e) => setSeedMode(e.target.value as SchedulerSeedPolicy['mode'])}
+              >
+                {(['ratio', 'manual', 'unlimited'] as const).map((m) => (
+                  <option key={m} value={m}>
+                    {t(`scheduler.policies.seeding.modeOption.${m}` as 'scheduler.policies.seeding.modeOption.ratio')}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            {seedMode === 'ratio' && (
+              <div className="w-32">
+                <Label htmlFor="seed-ratio">{t('scheduler.policies.seeding.targetRatio')}</Label>
+                <Input
+                  id="seed-ratio"
+                  type="number"
+                  min={0.1}
+                  step={0.1}
+                  value={targetRatio}
+                  onChange={(e) => setTargetRatio(e.target.value)}
+                />
+              </div>
+            )}
+            {seedMode === 'ratio' && (
+              <div>
+                <Label htmlFor="seed-after">{t('scheduler.policies.seeding.afterTarget')}</Label>
+                <Select
+                  id="seed-after"
+                  className="mt-1 w-auto"
+                  value={afterTarget}
+                  onChange={(e) => setAfterTarget(e.target.value as SchedulerSeedPolicy['afterTarget'])}
+                >
+                  {(['pause', 'stop', 'leave_active'] as const).map((a) => (
+                    <option key={a} value={a}>
+                      {t(`scheduler.policies.seeding.afterTargetOption.${a}` as 'scheduler.policies.seeding.afterTargetOption.pause')}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+          </div>
+          {seedMode === 'ratio' && (
+            <>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {t('scheduler.policies.seeding.afterTargetHelp')}
+              </p>
+              <div className="mt-2 flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+                <div>
+                  <Label htmlFor="seed-require-import">
+                    {t('scheduler.policies.seeding.requireImportCompleted')}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t('scheduler.policies.seeding.safetyHelp')}
+                  </p>
+                </div>
+                <Switch
+                  id="seed-require-import"
+                  checked={requireImport}
+                  onCheckedChange={setRequireImport}
+                />
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">

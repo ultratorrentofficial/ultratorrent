@@ -77,7 +77,7 @@ export class SchedulerPreviewService {
     }
     const caps = this.capabilities.for(kind);
 
-    const [snapshots, policies, parked, states] = await Promise.all([
+    const [snapshots, policies, parked, states, intakeJobs] = await Promise.all([
       this.prisma.torrentSnapshot.findMany({ where: { engineId } }),
       this.loadPolicies(),
       this.prisma.parkedTorrent.findMany({ where: { engineId }, select: { hash: true } }),
@@ -88,7 +88,23 @@ export class SchedulerPreviewService {
         where: { engineId, schedulerPausedAt: { not: null } },
         select: { hash: true, lastActionAt: true },
       }),
+      /*
+       * Media Intake's view of the same torrents. A seeding policy that removes
+       * or stops a torrent once its target is met usually exists BECAUSE the
+       * library copy is not safe yet, so the scheduler has to be able to ask
+       * whether the import actually finished — and answer "no" when it cannot
+       * tell, rather than assuming it did.
+       */
+      this.prisma.mediaIntakeJob.findMany({
+        where: { engineId },
+        select: { torrentHash: true, state: true, mediaItemId: true },
+      }),
     ]);
+    const intake = new Map(
+      intakeJobs
+        .filter((j) => j.torrentHash)
+        .map((j) => [j.torrentHash!.toLowerCase(), j]),
+    );
     // Parking owns these torrents; the scheduler must not contend for them.
     const parkedHashes = new Set(parked.map((p) => p.hash.toLowerCase()));
     const ourPauses = new Map(states.map((s) => [s.hash.toLowerCase(), s.lastActionAt]));
@@ -115,11 +131,24 @@ export class SchedulerPreviewService {
         categoryId: s.categoryId,
       });
 
+      const job = intake.get(s.hash.toLowerCase());
+      // `imported` and everything after it means the file reached the library.
+      const imported = !!job && ['imported', 'metadata_ready', 'artwork_ready',
+        'subtitle_ready', 'seeding', 'archived'].includes(job.state);
+
       return {
         hash: s.hash,
         engineId,
         occupancy: classification.occupancy,
         complete,
+        ratio: s.ratio,
+        // Deliberately absent: nothing records seed duration, so a time-based
+        // target must evaluate to unknown rather than to zero.
+        seedMinutes: undefined,
+        intakeImported: imported,
+        // The item exists in a library, which is as close to "verified" as the
+        // current data goes; a stronger check belongs with intake, not here.
+        libraryCopyVerified: imported && !!job?.mediaItemId,
         addedAt: s.addedAt,
         // Feeds the hysteresis check, so a torrent the scheduler only just
         // started is not paused again seconds later.

@@ -7,7 +7,7 @@ import {
 } from './classification';
 import { type TorrentPriorityDecision, orderByPriority } from './priority';
 import { type SchedulerLimitation, type TorrentQueueCapabilities, canDo } from './capabilities';
-import type { EffectivePolicy } from './policy';
+import { evaluateSeedTarget, type EffectivePolicy } from './policy';
 
 /**
  * The planner: decide what SHOULD be running. Pure, and side-effect free.
@@ -34,6 +34,22 @@ export interface PlannerTorrent {
   /** When the scheduler last changed this torrent — drives hysteresis. */
   lastActionAt?: Date | null;
   complete: boolean;
+
+  /** Share ratio, when the engine reports one. Never assumed. */
+  ratio?: number;
+  /**
+   * Minutes spent seeding. Undefined on both shipped engines — nothing records
+   * it — which is why a time-based target evaluates to `unknown` rather than
+   * being silently treated as zero.
+   */
+  seedMinutes?: number;
+
+  /** Media Intake finished importing this torrent's content. */
+  intakeImported?: boolean;
+  /** The library copy or hardlink was verified to exist. */
+  libraryCopyVerified?: boolean;
+  /** The operator marked this torrent as never to be stopped automatically. */
+  protectedFromRemoval?: boolean;
 }
 
 export interface PlannerOptions {
@@ -219,6 +235,24 @@ export function planEngine(
     const wantsSeed = t.complete;
     const active = holdsTotalActiveSlot(t.occupancy);
 
+    /*
+     * A seed that has met its target stops seeding, whatever the slot maths
+     * says. Evaluated first because it is a different question from "is there
+     * room": a torrent that has finished its obligation should stop even when
+     * the engine is idle.
+     */
+    if (wantsSeed && active && t.policy.seedPolicy && !t.protectedFromPause) {
+      const seedDecision = seedTargetDecision(t, limitations, engineId);
+      if (seedDecision) {
+        decisions.push(seedDecision);
+        if (seedDecision.action === 'pause') { actions++; continue; }
+        // Not actioned (waiting, unknown, or an unsupported action): it keeps
+        // its slot and is counted, but is not reconsidered below.
+        seeds++; total++;
+        continue;
+      }
+    }
+
     // Force-start bypasses the caps by design; the UI is expected to say which
     // limits it exceeds rather than the planner silently honouring them.
     if (t.forceStarted) {
@@ -310,6 +344,73 @@ export function planEngine(
     },
     limitations,
   };
+}
+
+/**
+ * What to do about a seed that may have met its target.
+ *
+ * Returns null when the policy has nothing to say yet, so the torrent falls
+ * through to ordinary slot handling.
+ *
+ * Two refusals are deliberate. A target that cannot be EVALUATED — a time-based
+ * one on an engine that does not report seed duration — never stops a torrent,
+ * because guessing would either cut seeding short or run it forever. And the two
+ * post-target actions that delete data are not performed here at all: removing a
+ * torrent's payload has to go through the ownership and path-safety checks that
+ * live in Media Intake, and a queue planner is the wrong place to acquire that
+ * authority.
+ */
+function seedTargetDecision(
+  t: PlannerTorrent,
+  limitations: SchedulerLimitation[],
+  engineId: string,
+): TorrentDecision | null {
+  const policy = t.policy.seedPolicy;
+  if (!policy) return null;
+
+  const verdict = evaluateSeedTarget(policy, { ratio: t.ratio, seedMinutes: t.seedMinutes });
+  if (verdict === 'not_met') return null;
+
+  if (verdict === 'unknown') {
+    // Say so once per engine, and leave the torrent alone.
+    if (!limitations.some((l) => l.code === 'no_seed_time_data')) {
+      limitations.push({
+        engineId,
+        code: 'no_seed_time_data',
+        messageKey: 'scheduler.limitation.no_seed_time_data',
+      });
+    }
+    return decide(t, 'active', 'none', 'seed_target_unknown');
+  }
+
+  // Met. Anything that would take the payload away waits for the import to be
+  // real first — the whole point of seeding past completion is usually that the
+  // library copy is not safe yet.
+  const destructive = policy.afterTarget === 'remove_torrent_keep_data'
+    || policy.afterTarget === 'remove_torrent_and_staging_data';
+
+  if (policy.requireImportCompleted && !t.intakeImported) {
+    return decide(t, 'active', 'none', 'seed_target_waiting_for_import');
+  }
+  if (policy.requireLibraryCopyVerified && !t.libraryCopyVerified) {
+    return decide(t, 'active', 'none', 'seed_target_waiting_for_library_copy');
+  }
+
+  if (destructive) {
+    // Not implemented here on purpose; see the note above.
+    return decide(t, 'active', 'none', 'seed_target_removal_not_supported');
+  }
+  if (policy.afterTarget === 'leave_active') {
+    return decide(t, 'active', 'none', 'seed_target_reached_left_active');
+  }
+  if (t.protectedFromRemoval) {
+    return decide(t, 'active', 'none', 'protected_from_removal');
+  }
+
+  return decide(t, 'paused', 'pause', 'seed_target_reached', {
+    mode: policy.mode,
+    ratio: t.ratio,
+  });
 }
 
 function reasonForUntouchable(o: OccupancyClass): string {

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { SchedulingPolicyScopeType } from './domain/policy';
@@ -15,7 +16,27 @@ export interface PolicyInput {
   maxConcurrentDownloads?: number | null;
   maxConcurrentSeeds?: number | null;
   maxTotalActive?: number | null;
+  seedPolicy?: {
+    mode?: string;
+    targetRatio?: number | null;
+    afterTarget?: string;
+    requireImportCompleted?: boolean;
+    requireLibraryCopyVerified?: boolean;
+  } | null;
 }
+
+/**
+ * Only what can actually be enforced today.
+ *
+ * `time`, `ratio_or_time` and `ratio_and_time` are absent because nothing
+ * records seed duration on either shipped engine, so such a policy could never
+ * be evaluated — it would sit in the database looking configured and do nothing.
+ * The two removal actions are absent for a different reason: taking a payload
+ * away has to pass Media Intake's ownership and path-safety checks, which the
+ * scheduler does not own.
+ */
+const SEED_MODES = ['ratio', 'manual', 'unlimited'];
+const AFTER_TARGET = ['pause', 'stop', 'leave_active'];
 
 /**
  * Scheduling policies: create, edit, delete.
@@ -68,6 +89,37 @@ export class SchedulerPolicyService {
     return value;
   }
 
+  private seed(input: PolicyInput['seedPolicy']): object | null | undefined {
+    if (input === undefined) return undefined;
+    if (input === null) return null;
+
+    const mode = input.mode ?? 'ratio';
+    if (!SEED_MODES.includes(mode)) {
+      throw new BadRequestException(
+        `Seeding mode "${mode}" cannot be enforced yet. Available: ${SEED_MODES.join(', ')}.`,
+      );
+    }
+    const afterTarget = input.afterTarget ?? 'pause';
+    if (!AFTER_TARGET.includes(afterTarget)) {
+      throw new BadRequestException(
+        `Post-target action "${afterTarget}" is not available. Available: ${AFTER_TARGET.join(', ')}.`,
+      );
+    }
+    if (mode === 'ratio') {
+      const r = input.targetRatio;
+      if (typeof r !== 'number' || !(r > 0)) {
+        throw new BadRequestException('A ratio target needs a share ratio greater than zero.');
+      }
+    }
+    return {
+      mode,
+      afterTarget,
+      ...(input.targetRatio != null ? { targetRatio: input.targetRatio } : {}),
+      ...(input.requireImportCompleted ? { requireImportCompleted: true } : {}),
+      ...(input.requireLibraryCopyVerified ? { requireLibraryCopyVerified: true } : {}),
+    };
+  }
+
   private validateScope(scopeType: string, scopeId: string | null | undefined): void {
     if (!SCOPE_TYPES.includes(scopeType as SchedulingPolicyScopeType)) {
       throw new BadRequestException(
@@ -102,6 +154,7 @@ export class SchedulerPolicyService {
         maxConcurrentDownloads: this.limit(input.maxConcurrentDownloads, 'maxConcurrentDownloads') ?? null,
         maxConcurrentSeeds: this.limit(input.maxConcurrentSeeds, 'maxConcurrentSeeds') ?? null,
         maxTotalActive: this.limit(input.maxTotalActive, 'maxTotalActive') ?? null,
+        seedPolicy: this.seed(input.seedPolicy) ?? undefined,
         createdBy: userId ?? null,
       },
     });
@@ -136,6 +189,13 @@ export class SchedulerPolicyService {
         maxConcurrentDownloads: this.limit(input.maxConcurrentDownloads, 'maxConcurrentDownloads'),
         maxConcurrentSeeds: this.limit(input.maxConcurrentSeeds, 'maxConcurrentSeeds'),
         maxTotalActive: this.limit(input.maxTotalActive, 'maxTotalActive'),
+        // `DbNull` is how Prisma clears a nullable JSON column; a bare `null`
+        // is rejected because it is ambiguous with JSON's own null literal.
+        seedPolicy: (() => {
+          const next = this.seed(input.seedPolicy);
+          if (next === undefined) return undefined;
+          return next === null ? Prisma.DbNull : next;
+        })(),
       },
     });
 

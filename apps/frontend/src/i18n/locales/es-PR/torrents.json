@@ -283,7 +283,14 @@
       "state_unknown": "Estado desconocido: no se hará nada",
       "engine_cannot_pause": "Este motor no puede pausar torrents, así que no se puede planificar nada",
       "force_started_active": "Inicio forzado: en marcha sin importar los límites",
-      "force_started_resume": "Inicio forzado: se iniciaría sin importar los límites"
+      "force_started_resume": "Inicio forzado: se iniciaría sin importar los límites",
+      "seed_target_reached": "Objetivo de siembra alcanzado ({{mode}}): dejaría de sembrar",
+      "seed_target_unknown": "El objetivo de siembra no se puede comprobar en este motor, así que sigue sembrando",
+      "seed_target_waiting_for_import": "Objetivo alcanzado, pero esperando a que la Recepción de Medios termine la importación",
+      "seed_target_waiting_for_library_copy": "Objetivo alcanzado, pero no se ha verificado la copia en la biblioteca",
+      "seed_target_removal_not_supported": "Objetivo alcanzado: el planificador no elimina torrents; elimínalo tú cuando quieras",
+      "seed_target_reached_left_active": "Objetivo alcanzado, y tu política dice que siga sembrando",
+      "protected_from_removal": "Objetivo alcanzado, pero este torrent está protegido para que no se detenga"
     },
     "limitation": {
       "title": "Lo que este motor no puede hacer",
@@ -339,7 +346,28 @@
       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar esta política? Los torrents que gobierna pasarán a la siguiente política superior.",
       "saveFailed": "No se pudo guardar la política.",
-      "deleteFailed": "No se pudo eliminar la política."
+      "deleteFailed": "No se pudo eliminar la política.",
+      "seeding": {
+        "title": "Siembra",
+        "help": "Qué ocurre cuando un torrent completado ha sembrado lo suficiente. Hoy solo se pueden aplicar objetivos por ratio: ningún motor informa del tiempo que lleva sembrando, así que los objetivos por tiempo nunca serían comprobables.",
+        "mode": "Dejar de sembrar cuando",
+        "modeOption": {
+          "ratio": "Se alcance un ratio de compartición",
+          "manual": "Solo cuando yo lo diga",
+          "unlimited": "Nunca: seguir sembrando"
+        },
+        "targetRatio": "Ratio de compartición",
+        "afterTarget": "Entonces",
+        "afterTargetOption": {
+          "pause": "Pausar el torrent",
+          "stop": "Detener el torrent",
+          "leave_active": "Dejarlo en marcha"
+        },
+        "afterTargetHelp": "No se ofrece eliminar el torrent: quitar los datos debe pasar las comprobaciones de seguridad de la Recepción de Medios, así que el planificador te lo deja a ti.",
+        "requireImportCompleted": "Esperar a que la Recepción de Medios lo haya importado",
+        "requireLibraryCopyVerified": "Esperar a que se verifique la copia en la biblioteca",
+        "safetyHelp": "Normalmente el motivo para seguir sembrando tras completar es que la copia en la biblioteca aún no está segura."
+      }
     },
     "activation": {
       "title": "Activar la aplicación",

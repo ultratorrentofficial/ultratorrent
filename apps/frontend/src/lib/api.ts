@@ -1798,6 +1798,14 @@ export interface SchedulerTorrentDecision {
   policySource?: string;
 }
 
+export interface SchedulerSeedPolicy {
+  mode: 'ratio' | 'manual' | 'unlimited';
+  targetRatio?: number;
+  afterTarget: 'pause' | 'stop' | 'leave_active';
+  requireImportCompleted?: boolean;
+  requireLibraryCopyVerified?: boolean;
+}
+
 export interface SchedulerPolicy {
   id: string;
   name: string;
@@ -1807,6 +1815,7 @@ export interface SchedulerPolicy {
   maxConcurrentDownloads: number | null;
   maxConcurrentSeeds: number | null;
   maxTotalActive: number | null;
+  seedPolicy: SchedulerSeedPolicy | null;
 }
 
 export interface SchedulerActivationPreview {
