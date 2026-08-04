@@ -6,6 +6,7 @@ import { SchedulerPreviewService } from './scheduler-preview.service';
 import { SchedulerReconciliationService } from './scheduler-reconciliation.service';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { redactForEvent } from './domain/redact';
 
 /** How often a plan is recalculated. Minutes, not seconds: nothing acts on it. */
 const TICK_MS = 60_000;
@@ -100,7 +101,13 @@ export class SchedulerSweepService {
               eventKey: DOMAIN_EVENTS.TORRENT_SCHEDULER_ACTION_FAILED,
               resourceType: 'torrent',
               resourceId: f.hash,
-              payload: { engineId, torrentHash: f.hash, action: f.action, error: f.error },
+              // Redacted, not raw: this payload reaches automation, and from
+              // there a webhook to a third party. The log above keeps the full
+              // message for whoever is actually debugging.
+              payload: {
+                engineId, torrentHash: f.hash, action: f.action,
+                error: redactForEvent(f.error),
+              },
             });
           }
           if (outcome.failed || outcome.unverified) {

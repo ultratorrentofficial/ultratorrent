@@ -80,9 +80,18 @@ export class SchedulerPreviewService {
     }
     const caps = this.capabilities.for(kind);
 
-    const [snapshots, policies, parked, states, intakeJobs, windows, overrides] =
+    /*
+     * Snapshots first, because the intake lookup is bounded BY them. Asking for
+     * every intake job an engine ever had would load a table that grows forever
+     * to answer a question about the couple of hundred torrents currently
+     * loaded — a query that is fine on a new install and ruinous on a two-year
+     * old one. One extra round trip buys a bound that does not decay.
+     */
+    const snapshots = await this.prisma.torrentSnapshot.findMany({ where: { engineId } });
+    const hashes = snapshots.map((s) => s.hash);
+
+    const [policies, parked, states, intakeJobs, windows, overrides] =
       await Promise.all([
-      this.prisma.torrentSnapshot.findMany({ where: { engineId } }),
       this.loadPolicies(),
       this.prisma.parkedTorrent.findMany({ where: { engineId }, select: { hash: true } }),
       // Which torrents the SCHEDULER is holding paused. Without this every pause
@@ -100,7 +109,7 @@ export class SchedulerPreviewService {
        * tell, rather than assuming it did.
        */
       this.prisma.mediaIntakeJob.findMany({
-        where: { engineId },
+        where: { engineId, torrentHash: { in: hashes } },
         select: { torrentHash: true, state: true, mediaItemId: true },
       }),
       // Loaded once per engine and evaluated against `now`, rather than each
