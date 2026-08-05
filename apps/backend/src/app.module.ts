@@ -18,6 +18,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { TorrentsModule } from './modules/torrents/torrents.module';
 import { TorrentSchedulerModule } from './modules/torrent-scheduler/torrent-scheduler.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { TransferLedgerModule } from './modules/transfer-ledger/transfer-ledger.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { UsersModule } from './modules/users/users.module';
 import { TaxonomyModule } from './modules/taxonomy/taxonomy.module';
@@ -75,6 +76,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     UsersModule,
     TorrentsModule,
     TorrentSchedulerModule,
+    TransferLedgerModule,
     DashboardModule,
     SettingsModule,
     TaxonomyModule,

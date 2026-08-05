@@ -10,6 +10,19 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AutomationEngine } from '../automation/automation.module';
 import { MediaProcessingService } from '../media/media-processing.service';
 import { TorrentNameRepairService } from './torrent-name-repair.service';
+import { TransferLedgerService } from '../transfer-ledger/transfer-ledger.service';
+
+/**
+ * What we knew about a torrent at the end of the previous tick: enough to
+ * detect a state transition and enough to measure how many bytes have moved.
+ */
+interface PriorSnapshot {
+  hash: string;
+  progress: number;
+  ratio: number;
+  downloaded: bigint;
+  uploaded: bigint;
+}
 
 /** An engine call that never settles must not be able to wedge the tick. */
 const ENGINE_TIMEOUT_MS = 15_000;
@@ -64,6 +77,7 @@ export class TorrentSyncService {
     private readonly mediaProcessing: MediaProcessingService,
     private readonly bus: DomainEventBus,
     private readonly nameRepair: TorrentNameRepairService,
+    private readonly ledger: TransferLedgerService,
   ) {}
 
   @Interval(2000)
@@ -84,9 +98,14 @@ export class TorrentSyncService {
   ): Promise<void> {
     const at = new Date().toISOString();
     try {
-      const [torrents, stats] = await Promise.all([
+      // Settle the ledger's starting point before anything can accrue against
+      // it; a no-op after the first successful tick per engine.
+      await this.ledger.ensureBaseline(provider);
+
+      const [torrents, stats, totals] = await Promise.all([
         withTimeout(provider.listTorrents(), `${provider.engineId} listTorrents`),
         withTimeout(provider.getGlobalStats(), `${provider.engineId} getGlobalStats`),
+        this.ledger.totals(provider.engineId),
       ]);
 
       this.realtime.broadcast(WS_EVENTS.TORRENTS_UPDATE, {
@@ -96,7 +115,16 @@ export class TorrentSyncService {
       });
       this.realtime.broadcast(WS_EVENTS.STATS_UPDATE, {
         engineId: provider.engineId,
-        stats,
+        // Rates and counts describe the engine right now, so they come from the
+        // engine. Lifetime totals come from the ledger — the provider can only
+        // sum the torrents it still holds, which is a census of survivors and
+        // falls every time one is removed. Totals lag by at most one tick,
+        // which for a monotonic byte counter is not a lag anyone can observe.
+        stats: {
+          ...stats,
+          totalDownloaded: Number(totals.downloaded),
+          totalUploaded: Number(totals.uploaded),
+        },
         at,
       });
 
@@ -106,7 +134,7 @@ export class TorrentSyncService {
       // Then record the new state, BEFORE acting on any transition. See the class
       // docstring: acting first and persisting after lets a slow side-effect keep
       // re-arming the same edge, forever.
-      await this.persistSnapshots(provider.engineId, torrents);
+      await this.persistSnapshots(provider.engineId, torrents, prior);
       await this.applyTransitions(prior, torrents);
       await this.nameRepair.repair(provider, torrents);
       this.realtime.broadcast(WS_EVENTS.ENGINE_STATUS, {
@@ -138,14 +166,26 @@ export class TorrentSyncService {
    * Torrents with no prior snapshot are skipped this cycle (a baseline is
    * written by persistSnapshots), so nothing fires on the very first sighting.
    */
-  /** The last snapshot of each torrent — the baseline a transition is measured from. */
+  /**
+   * The last snapshot of each torrent — the baseline a transition is measured
+   * from, and the same baseline the transfer ledger measures its byte deltas
+   * against. One read serves both: they are asking the identical question
+   * ("what did this torrent look like last time?") and a second query would
+   * only create the opportunity for the two to disagree.
+   */
   private async priorSnapshots(
     engineId: string,
     torrents: NormalizedTorrent[],
-  ): Promise<Map<string, { hash: string; progress: number; ratio: number }>> {
+  ): Promise<Map<string, PriorSnapshot>> {
     const prior = await this.prisma.torrentSnapshot.findMany({
       where: { engineId, hash: { in: torrents.map((t) => t.hash) } },
-      select: { hash: true, progress: true, ratio: true },
+      select: {
+        hash: true,
+        progress: true,
+        ratio: true,
+        downloaded: true,
+        uploaded: true,
+      },
     });
     return new Map(prior.map((p) => [p.hash, p]));
   }
@@ -252,10 +292,21 @@ export class TorrentSyncService {
   private async persistSnapshots(
     engineId: string,
     torrents: import('@ultratorrent/shared').NormalizedTorrent[],
+    prior: ReadonlyMap<string, PriorSnapshot>,
   ): Promise<void> {
+    // Bank this tick's transferred bytes in the SAME transaction as the
+    // snapshots they were measured against. The ledger's delta is
+    // `current - snapshot`, so a run that advanced the snapshots without
+    // advancing the ledger would lose those bytes for good: the next pass
+    // measures from the new snapshot and never sees them again. Either both
+    // land or neither does.
+    const accrual = this.ledger.accrualOperation(engineId, torrents, prior);
+
     // Upsert in a transaction; cheap because the set is bounded per engine.
     await this.prisma.$transaction(
-      torrents.map((t) =>
+      [
+        ...(accrual ? [accrual] : []),
+        ...torrents.map((t) =>
         this.prisma.torrentSnapshot.upsert({
           where: { engineId_hash: { engineId, hash: t.hash } },
           create: {
@@ -289,7 +340,8 @@ export class TorrentSyncService {
             completedAt: t.completedAt ? new Date(t.completedAt) : null,
           },
         }),
-      ),
+        ),
+      ],
     );
 
     // Drop snapshots for torrents this engine no longer has. Without this the
@@ -297,9 +349,21 @@ export class TorrentSyncService {
     // behind forever, and the consumers of these rows (search, and acquisition's
     // "do we already have this?" dedupe) go on matching torrents that are gone.
     //
+    // This no longer costs any statistics: the ledger banked these torrents'
+    // bytes while they were still here, and `archiveRetired` above kept a row
+    // naming each one. Deleting the snapshot forgets where a torrent *is*, not
+    // what it transferred.
+    //
     // Safe to run with an empty list: `listTorrents()` throwing is handled by the
     // caller, so reaching here with zero torrents means the engine genuinely has
     // none, and its snapshots *should* all go.
+    //
+    // Copy the departing rows into the archive first, and immediately before the
+    // delete rather than earlier in the method: if the transaction above throws,
+    // the prune never runs, and an archive written before it would have recorded
+    // torrents that are still here — then recorded them again next tick.
+    await this.ledger.archiveRetired(engineId, torrents.map((t) => t.hash));
+
     await this.prisma.torrentSnapshot.deleteMany({
       where: { engineId, hash: { notIn: torrents.map((t) => t.hash) } },
     });

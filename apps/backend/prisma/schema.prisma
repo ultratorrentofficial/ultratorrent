@@ -259,8 +259,81 @@ model TorrentEngine {
 
   snapshots TorrentSnapshot[]
   parked    ParkedTorrent[]
+  ledger    TransferLedger?
+  retired   RetiredTorrentTransfer[]
 
   @@map("torrent_engines")
+}
+
+/// The persistent answer to "how much have I transferred".
+///
+/// Totals used to be derived — a sum over the torrents an engine happened to
+/// hold at the moment you asked. That number falls whenever a torrent is
+/// removed, so a library that recycles its queue reports a fraction of its real
+/// history, and a rebuilt engine reports nothing at all.
+///
+/// This is the ledger instead: a monotonic counter that only ever moves
+/// forward, living in Postgres rather than in the engine, so it survives engine
+/// restarts, container rebuilds and torrent removal alike.
+///
+/// The total is `baseline + accrued`, kept as two fields on purpose. The
+/// baseline is what happened before UltraTorrent was counting — seeded once
+/// from the engine's own all-time counter so adopting an engine does not
+/// discard its history. Everything after that is accrued here, from deltas the
+/// sync loop observes. Keeping them apart means the seeded figure stays
+/// auditable rather than dissolving into an opaque running total.
+model TransferLedger {
+  engineId String @id
+
+  /// History that predates our counting, from the engine's own all-time figure.
+  baselineDownloaded BigInt    @default(0)
+  baselineUploaded   BigInt    @default(0)
+  /// How the baseline was established, so a surprising total can be explained:
+  /// `engine_alltime` | `current_torrents` | `zero`.
+  baselineSource     String?
+  baselineAt         DateTime?
+
+  /// Bytes observed by UltraTorrent since the baseline.
+  accruedDownloaded BigInt @default(0)
+  accruedUploaded   BigInt @default(0)
+
+  /// Times a torrent's counter was seen to move backwards — a re-add, a
+  /// recheck, or an engine that lost its state. Surfaced rather than hidden:
+  /// a climbing count means something upstream keeps resetting.
+  resetsObserved Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  engine TorrentEngine @relation(fields: [engineId], references: [id], onDelete: Cascade)
+
+  @@map("transfer_ledgers")
+}
+
+/// A torrent that has left the engine, with its final counters.
+///
+/// The ledger total does not depend on these rows — the bytes were accrued
+/// while the torrent was still present. They exist so a total can be
+/// *explained* instead of merely trusted: without them, "886 GiB" is a number
+/// with no way back to the torrents that produced it.
+model RetiredTorrentTransfer {
+  id       String @id @default(uuid())
+  engineId String
+  hash     String
+  name     String
+
+  downloaded BigInt
+  uploaded   BigInt
+  ratio      Float
+
+  firstSeenAt DateTime?
+  retiredAt   DateTime  @default(now())
+
+  engine TorrentEngine @relation(fields: [engineId], references: [id], onDelete: Cascade)
+
+  @@unique([engineId, hash, retiredAt])
+  @@index([engineId, retiredAt])
+  @@map("retired_torrent_transfers")
 }
 
 model TorrentSnapshot {

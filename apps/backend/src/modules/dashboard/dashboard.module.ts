@@ -7,28 +7,42 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { TransferLedgerService } from '../transfer-ledger/transfer-ledger.service';
 
 @Injectable()
 export class DashboardService {
   constructor(
     private readonly registry: EngineRegistryService,
     private readonly prisma: PrismaService,
+    private readonly ledger: TransferLedgerService,
   ) {}
 
   async summary(engineId?: string) {
     const provider = await this.registry.resolve(engineId).catch(() => null);
-    const [torrents, stats] = provider
+    const [torrents, stats, totals] = provider
       ? await Promise.all([
           provider.listTorrents().catch(() => []),
           provider.getGlobalStats().catch(() => null),
+          this.ledger.totals(provider.engineId),
         ])
-      : [[], null];
+      : [[], null, await this.ledger.totals(engineId)];
 
     const byState = (s: TorrentState) =>
       torrents.filter((t) => t.state === s).length;
 
-    const totalUploaded = torrents.reduce((a, t) => a + t.uploaded, 0);
-    const totalDownloaded = torrents.reduce((a, t) => a + t.downloaded, 0);
+    /*
+     * Lifetime totals come from the ledger, not from the torrents in front of
+     * us. Summing the live list — which is what this did — answers "how much
+     * have the survivors transferred", and every removal quietly shrinks the
+     * answer. On a live install that read 41 GiB against 886 GiB of real
+     * history.
+     *
+     * Note these survive an offline engine: the ledger is in Postgres, so a
+     * dashboard loaded while qBittorrent is down still reports the true totals
+     * instead of zeroing them.
+     */
+    const totalUploaded = Number(totals.uploaded);
+    const totalDownloaded = Number(totals.downloaded);
 
     return {
       engineOnline: Boolean(provider),
@@ -40,7 +54,7 @@ export class DashboardService {
       completed: torrents.filter((t) => t.progress >= 1).length,
       seeding: byState(TorrentState.SEEDING),
       errored: byState(TorrentState.ERROR),
-      ratio: totalDownloaded > 0 ? totalUploaded / totalDownloaded : 0,
+      ratio: totals.ratio,
       totalUploaded,
       totalDownloaded,
     };

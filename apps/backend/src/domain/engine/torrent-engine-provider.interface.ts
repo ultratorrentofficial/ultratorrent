@@ -119,6 +119,21 @@ export interface TorrentEngineProvider {
   setGlobalRateLimits?(limits: GlobalRateLimits): Promise<void>;
   getGlobalRateLimits?(): Promise<GlobalRateLimits>;
 
+  /**
+   * Everything this engine has ever transferred, including torrents it no
+   * longer holds — used once, to seed the transfer ledger's baseline so
+   * adopting an engine does not discard its history.
+   *
+   * Optional, and the distinction it draws is the point. qBittorrent maintains
+   * a genuine all-time counter across restarts; rTorrent's global totals reset
+   * with the daemon, which makes them a session figure and an actively
+   * misleading baseline. An engine that cannot answer truthfully must return
+   * `null` (or omit the method) rather than substitute a number that merely
+   * looks plausible — the ledger falls back to summing current torrents, which
+   * is honestly incomplete instead of quietly wrong.
+   */
+  getAllTimeStats?(): Promise<{ downloaded: bigint; uploaded: bigint } | null>;
+
   // Trackers
   addTracker(hash: string, url: string): Promise<void>;
   removeTracker(hash: string, url: string): Promise<void>;

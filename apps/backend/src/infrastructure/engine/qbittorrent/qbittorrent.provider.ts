@@ -344,6 +344,34 @@ export class QbittorrentProvider implements TorrentEngineProvider {
     };
   }
 
+  /**
+   * qBittorrent's own all-time counters, which it keeps in
+   * `qBittorrent-data.conf` and carries across restarts and container rebuilds.
+   *
+   * Read once, to seed the transfer ledger. `getGlobalStats` above deliberately
+   * does NOT use these: it reports what the engine holds right now, which is
+   * the honest answer to "what is happening", while the ledger answers "what
+   * has happened". Conflating the two is how the totals came to be a census of
+   * surviving torrents in the first place.
+   */
+  async getAllTimeStats(): Promise<{ downloaded: bigint; uploaded: bigint } | null> {
+    const main = await this.client
+      .getJson<{ server_state?: { alltime_dl?: number; alltime_ul?: number } }>(
+        '/sync/maindata',
+        { rid: 0 },
+      )
+      .catch(() => null);
+
+    const dl = main?.server_state?.alltime_dl;
+    const ul = main?.server_state?.alltime_ul;
+    // Absent rather than zero: a fresh engine legitimately reports 0, but a
+    // missing field means an older WebAPI that cannot answer, and seeding a
+    // baseline of zero from that would silently discard real history.
+    if (typeof dl !== 'number' || typeof ul !== 'number') return null;
+
+    return { downloaded: BigInt(Math.round(dl)), uploaded: BigInt(Math.round(ul)) };
+  }
+
   async getSessionStats(): Promise<SessionStats> {
     const [version, prefs, main] = await Promise.all([
       this.client.getText('/app/version'),

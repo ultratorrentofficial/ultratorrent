@@ -315,6 +315,19 @@ export class RTorrentProvider implements TorrentEngineProvider {
     });
   }
 
+  /*
+   * No `getAllTimeStats` here, and its absence is a decision rather than an
+   * omission.
+   *
+   * rTorrent exposes `throttle.global_down.total`, which reads like an all-time
+   * counter and is not one: it resets when the daemon does. Seeding the
+   * transfer ledger's baseline from it would bank a session figure as lifetime
+   * history and then lose it again on the next restart — worse than not
+   * answering, because the number looks authoritative. Leaving the method off
+   * makes the ledger fall back to summing current torrents, which understates
+   * the past exactly once and is exact from then on.
+   */
+
   async getGlobalStats(): Promise<GlobalStats> {
     const [down, up, downMax, upMax] = await Promise.all([
       this.transport.call('throttle.global_down.rate'),

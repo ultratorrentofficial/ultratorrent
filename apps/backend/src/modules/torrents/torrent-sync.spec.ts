@@ -43,10 +43,14 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
           return [{ hash: HASH, progress: opts.priorProgress, ratio: 0 }];
         }),
         upsert: jest.fn(),
-        deleteMany: jest.fn(async () => ({ count: 0 })),
+        deleteMany: jest.fn(async () => { calls.push('prune'); return { count: 0 }; }),
       },
       // persistSnapshots wraps its upserts in a transaction.
-      $transaction: jest.fn(async () => { calls.push('persistSnapshots'); return []; }),
+      $transaction: jest.fn(async (ops: unknown[]) => {
+        calls.push('persistSnapshots');
+        void ops;
+        return [];
+      }),
     };
     const mediaProcessing = {
       handleTorrentCompleted: jest.fn(() => {
@@ -71,11 +75,20 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
     const realtime = { broadcast: jest.fn() };
 
     const bus = { publish: jest.fn(() => ({ published: true })) };
+    // The transfer ledger banks bytes in the same transaction as the snapshots
+    // they were measured against, so it has to be present for the tick to run.
+    // `accrualOperation` returns a sentinel the transaction assertion looks for.
+    const ledger = {
+      ensureBaseline: jest.fn(async () => { calls.push('ensureBaseline'); }),
+      totals: jest.fn(async () => ({ downloaded: 8n, uploaded: 4n, ratio: 0.5 })),
+      accrualOperation: jest.fn((): unknown => 'accrual-op'),
+      archiveRetired: jest.fn(async () => { calls.push('archiveRetired'); }),
+    };
     const svc = new TorrentSyncService(
       prisma as any, registry as any, realtime as any, automation as any,
-      mediaProcessing as any, bus as any, nameRepair as any,
+      mediaProcessing as any, bus as any, nameRepair as any, ledger as any,
     );
-    return { svc, calls, prisma, mediaProcessing, automation, nameRepair, bus };
+    return { svc, calls, prisma, mediaProcessing, automation, nameRepair, bus, ledger, realtime };
   }
 
   it('records the new state BEFORE acting on the transition', async () => {
@@ -160,6 +173,84 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
         .map((c: any[]) => c[0])
         .find((e: any) => e.eventKey === 'torrent.completed');
       expect(completed.payload.torrentName).toBe('Show.S01E01.mkv');
+    });
+  });
+
+  /**
+   * The sync loop is where transfer statistics are banked. These are about the
+   * wiring — the arithmetic itself lives in `transfer-ledger/domain/accrual`.
+   */
+  describe('banking transfer statistics', () => {
+    it('accrues in the SAME transaction as the snapshots', async () => {
+      /*
+       * The property the whole ledger rests on. The delta is measured as
+       * `current - snapshot`, so a run that advanced the snapshots without
+       * advancing the ledger would lose those bytes permanently: the next pass
+       * measures from the new snapshot and never sees them again.
+       */
+      const { svc, prisma } = build({ priorProgress: 0.5 });
+      await svc.sync();
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      const ops = prisma.$transaction.mock.calls[0][0] as unknown[];
+      expect(ops).toContain('accrual-op');
+    });
+
+    it('archives departing torrents before the prune deletes them', async () => {
+      // Reversed, the archive would find nothing and the provenance trail would
+      // be empty on exactly the torrents it exists to explain.
+      const { svc, calls } = build({ priorProgress: 0.5 });
+      await svc.sync();
+
+      expect(calls.indexOf('archiveRetired')).toBeLessThan(
+        calls.indexOf('prune'),
+      );
+    });
+
+    it('archives only after the accrual transaction commits', async () => {
+      // A transaction that throws means the prune never runs, so anything
+      // archived before it would name torrents that are still here — and would
+      // name them again on the next tick.
+      const { svc, calls } = build({ priorProgress: 0.5 });
+      await svc.sync();
+
+      expect(calls.indexOf('persistSnapshots')).toBeLessThan(
+        calls.indexOf('archiveRetired'),
+      );
+    });
+
+    it('settles the baseline before anything can accrue against it', async () => {
+      const { svc, calls } = build({ priorProgress: 0.5 });
+      await svc.sync();
+
+      expect(calls.indexOf('ensureBaseline')).toBeLessThan(
+        calls.indexOf('persistSnapshots'),
+      );
+    });
+
+    it('broadcasts the ledger total, not the engine\'s sum of survivors', async () => {
+      // The engine's own figure covers only the torrents it still holds; the
+      // ledger is the one that survived their removal.
+      const { svc, realtime } = build({ priorProgress: 0.5 });
+      await svc.sync();
+
+      const stats = realtime.broadcast.mock.calls
+        .map((c: any[]) => c[1])
+        .find((p: any) => p?.stats);
+      expect(stats.stats).toMatchObject({ totalDownloaded: 8, totalUploaded: 4 });
+    });
+
+    it('still persists snapshots when nothing transferred', async () => {
+      // `accrualOperation` returns null on an idle tick — the transaction must
+      // still run, just without a ledger write.
+      const { svc, prisma, ledger } = build({ priorProgress: 0.5 });
+      ledger.accrualOperation.mockReturnValueOnce(null);
+      await svc.sync();
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      const ops = prisma.$transaction.mock.calls[0][0] as unknown[];
+      expect(ops).not.toContain('accrual-op');
+      expect(ops.length).toBeGreaterThan(0);
     });
   });
 });
