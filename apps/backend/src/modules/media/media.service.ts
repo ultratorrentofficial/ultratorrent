@@ -14,6 +14,7 @@ import {
   unlink,
   rmdir,
 } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
 import * as path from 'node:path';
 import { placeFile, type PlacementAction } from '../../common/file-placement';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -38,11 +39,13 @@ import {
   DEFAULT_CLEANUP_RULES,
   EpisodeMeta,
   isRealEpisodeTitle,
+  matchesAnyGlob,
   MediaFileInput,
   Preset,
   PRESET_TEMPLATES,
   RenameMode,
   RenamePlan,
+  VIDEO_EXT,
 } from './media-renamer';
 import {
   MediaLookup,
@@ -853,7 +856,10 @@ export class MediaService {
     // Only for the relocating modes; never touches a root or a library folder.
     const rules = await this.getCleanup();
     if (rules.enabled && relocating) {
-      await this.postMoveCleanup([...sourceDirs], rules, roots);
+      // Counted into `deleted` so the result and the audit row report every file
+      // the run removed. Reporting only the planned deletions would have a
+      // rename say `deleted: 0` while it had just emptied a release folder.
+      deleted += await this.postMoveCleanup([...sourceDirs], rules, roots);
     }
 
     // The representative file for the activity feed's "from → to": the first
@@ -997,12 +1003,21 @@ export class MediaService {
   }
 
   /**
-   * After a move, optionally remove a stray `.torrent` left in a source folder
-   * and prune the folder if it's now empty. Deliberately conservative: every dir
-   * is re-validated against the allowed roots, and a root or a library folder
+   * After a move, optionally remove a stray `.torrent` left in a source folder,
+   * delete leftovers matching the operator's cleanup patterns, and prune the
+   * folder if it's now empty. Deliberately conservative: every dir is
+   * re-validated against the allowed roots, and a root or a library folder
    * itself is never removed (only strictly-nested, empty folders are pruned).
+   *
+   * Returns how many leftover files it deleted, so the caller can report them
+   * rather than have a rename claim `deleted: 0` while removing files.
    */
-  private async postMoveCleanup(dirs: string[], rules: CleanupRules, roots: string[]): Promise<void> {
+  private async postMoveCleanup(
+    dirs: string[],
+    rules: CleanupRules,
+    roots: string[],
+  ): Promise<number> {
+    let deletedLeftovers = 0;
     const libraries = await this.prisma.mediaLibrary.findMany({ select: { path: true } });
     const protectedPaths = new Set(
       [...roots, ...libraries.map((l) => l.path)].map((p) => path.resolve(p)),
@@ -1028,6 +1043,20 @@ export class MediaService {
         }
       }
 
+      // Junk that was never part of the batch.
+      //
+      // The plan's cleanup pass can only mark what it was given, and a rename
+      // started from a library ITEM is given one file — the video. The release
+      // folder's `YIFYStatus.com.txt` and `YTS.GG - Official site.jpg` sit
+      // beside it and are invisible to that pass, so a rename reported
+      // `deleted: 0`, the folder stayed non-empty, and `pruneEmptyDirs` could
+      // never fire. The leftover release folder survived every rename.
+      //
+      // This is the same operation `removeLeftoverTorrent` above already
+      // performs — delete a file in the source folder that the plan never saw —
+      // widened to the operator's own delete patterns.
+      deletedLeftovers += await this.deleteMatchingLeftovers(abs, rules.deleteGlobs);
+
       if (rules.pruneEmptyDirs) {
         try {
           const remaining = await readdir(abs);
@@ -1037,6 +1066,59 @@ export class MediaService {
         }
       }
     }
+    return deletedLeftovers;
+  }
+
+  /**
+   * Delete the files in one folder that match the operator's cleanup patterns.
+   *
+   * Three refusals, and none of them is negotiable by a pattern:
+   *
+   * - **Never a video.** A non-sample video is real content, and the plan's own
+   *   cleanup pass refuses to delete one however it was matched. A careless
+   *   `*` here would otherwise eat a second film sharing the release folder.
+   * - **Never a directory.** Only the immediate folder is considered; a `Subs/`
+   *   subfolder is left alone, which also means `pruneEmptyDirs` correctly
+   *   declines to remove a folder that still contains one.
+   * - **Never outside the folder we were handed.** Entries are joined onto the
+   *   already-validated directory and re-checked, so a crafted name cannot
+   *   escape it.
+   *
+   * Best-effort per file: an unreadable folder or an undeletable entry leaves
+   * the rest of the sweep intact, because a leftover is a tidiness problem and
+   * failing the rename over one would be worse than the mess.
+   */
+  private async deleteMatchingLeftovers(dir: string, globs: string[]): Promise<number> {
+    if (!globs.length) return 0;
+
+    let entries: Dirent[];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return 0; // unreadable — skip
+    }
+
+    let deleted = 0;
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      if (VIDEO_EXT.has(path.extname(entry.name).toLowerCase())) continue;
+      if (!matchesAnyGlob(entry.name, globs)) continue;
+
+      const full = path.join(dir, entry.name);
+      // A directory entry cannot contain a separator, so this cannot escape —
+      // but the rename engine's rule is that a path is validated at the point
+      // it is used, not merely believed.
+      if (path.dirname(path.resolve(full)) !== path.resolve(dir)) continue;
+
+      try {
+        await unlink(full);
+        await this.relocation.recordDelete(full).catch(() => undefined);
+        deleted += 1;
+      } catch (err) {
+        this.logger.warn(`leftover cleanup failed for ${full}: ${(err as Error).message}`);
+      }
+    }
+    return deleted;
   }
 
   /**

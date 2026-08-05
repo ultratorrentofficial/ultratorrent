@@ -187,7 +187,7 @@ export interface RenamePlan {
   warnings: string[];
 }
 
-const VIDEO_EXT = new Set(['.mkv', '.mp4', '.avi', '.m4v', '.ts', '.m2ts', '.wmv', '.mov', '.webm']);
+export const VIDEO_EXT = new Set(['.mkv', '.mp4', '.avi', '.m4v', '.ts', '.m2ts', '.wmv', '.mov', '.webm']);
 export const SUBTITLE_EXT = new Set(['.srt', '.ass', '.ssa', '.sub', '.idx', '.vtt']);
 const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.wma']);
 const AUDIOBOOK_EXT = new Set(['.m4b', '.aa', '.aax']);
