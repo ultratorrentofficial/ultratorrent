@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.71.1] - 2026-08-06
+
+### Fixed
+- A rename now deletes the junk left beside the film and removes the emptied release folder. Cleanup patterns previously only applied to files in the rename batch, so a rename started from the Library Browser — which passes just the video — left the release folder standing with its YTS.txt and site.jpg inside, and reported deleting nothing.
+
 ## [0.71.0] - 2026-08-05
 
 ### Added
