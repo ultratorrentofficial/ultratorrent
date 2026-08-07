@@ -86,17 +86,63 @@ export function mapTmdbImages(
   ];
 }
 
+/** Artwork languages preferred when several candidates exist. */
+export const DEFAULT_ARTWORK_LANGUAGES = ['en'] as const;
+
 /**
- * Best candidate for a type: highest provider score, tie-broken by resolution.
- * Pure. Returns undefined when no candidate of that type exists.
+ * How much we want this candidate's language, lower being better.
+ *
+ * Fanart is the one type where TEXTLESS wins: a backdrop carrying a localised
+ * title is worse than a clean one whatever language it is in. Posters are the
+ * opposite — a poster is supposed to carry its title, so a language we can read
+ * comes first and textless is the fallback.
+ *
+ * Nothing is ever excluded. The worst score still sorts, which is the whole
+ * point: see {@link pickBestArtwork}.
+ */
+function languageRank(
+  lang: string | null | undefined,
+  type: ArtworkType,
+  preferred: readonly string[],
+): number {
+  const textless = lang == null;
+  const preferredIndex = lang ? preferred.indexOf(lang) : -1;
+
+  if (type === 'fanart') {
+    if (textless) return 0;
+    return preferredIndex >= 0 ? 1 + preferredIndex : 1 + preferred.length;
+  }
+  if (preferredIndex >= 0) return preferredIndex;
+  return textless ? preferred.length : preferred.length + 1;
+}
+
+/**
+ * Best candidate for a type: preferred language first, then provider score,
+ * tie-broken by resolution. Pure. Returns undefined only when no candidate of
+ * that type exists at all.
+ *
+ * **Language ranks candidates; it never removes them.** The TMDB provider used
+ * to ask for `include_image_language=en,null`, which made the restriction a
+ * filter applied before we ever saw the list — so a film whose posters happen
+ * to be in other languages came back with no poster, and the call site could
+ * not tell "TMDB has none" from "we asked for the wrong ones". Live: Evolution
+ * (2026) has eight posters — es, uk, el, ru, pl — and imported zero, while its
+ * 35 language-neutral backdrops came through fine. A poster in a language you
+ * did not ask for beats an empty poster slot.
  */
 export function pickBestArtwork(
   candidates: ArtworkCandidate[],
   type: ArtworkType,
+  preferred: readonly string[] = DEFAULT_ARTWORK_LANGUAGES,
 ): ArtworkCandidate | undefined {
   return candidates
     .filter((c) => c.type === type)
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (b.width ?? 0) - (a.width ?? 0))[0];
+    .sort(
+      (a, b) =>
+        languageRank(a.lang, type, preferred) - languageRank(b.lang, type, preferred) ||
+        (b.score ?? 0) - (a.score ?? 0) ||
+        (b.width ?? 0) - (a.width ?? 0),
+    )[0];
 }
 
 /** TMDB (themoviedb.org) v3 image lists. Activated only when a key is present. */
@@ -116,8 +162,15 @@ export class TmdbArtworkProvider implements ArtworkProvider {
   private async get(path: string): Promise<TmdbImagesResponse | null> {
     const url = new URL(this.api + path);
     url.searchParams.set('api_key', this.apiKey);
-    // include_image_language: prefer the item's language + textless art.
-    url.searchParams.set('include_image_language', 'en,null');
+    /*
+     * Every image, in every language.
+     *
+     * This used to send `include_image_language=en,null`, which reads like a
+     * preference and behaves like a filter: TMDB drops everything else before
+     * replying, so a film with no English or textless poster returned none at
+     * all and we imported no poster without anything to log. Preference belongs
+     * in `pickBestArtwork`, where a second choice is still a choice.
+     */
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
     try {

@@ -154,6 +154,77 @@ describe('pickBestArtwork', () => {
   it('returns undefined when no candidate of that type exists', () => {
     expect(pickBestArtwork(cands, 'fanart')).toBeUndefined();
   });
+
+  /**
+   * Language ranks candidates; it must never remove them.
+   *
+   * Live: Evolution (2026) has eight TMDB posters — es, uk, el, ru, pl — and
+   * imported none, because the provider asked TMDB for `en,null` only and TMDB
+   * dropped the rest before replying. Its 35 language-neutral backdrops came
+   * through fine, so the item ended up with fanart and an empty poster slot.
+   */
+  it('takes a poster in an unrequested language over no poster at all', () => {
+    const spanishOnly = mapTmdbImages(
+      { posters: [{ file_path: '/es.jpg', width: 2000, vote_average: 6, iso_639_1: 'es' }] },
+      IMG,
+    );
+    expect(pickBestArtwork(spanishOnly, 'poster')?.url).toBe(`${IMG}/es.jpg`);
+  });
+
+  it('prefers a readable poster over a higher-scored one it cannot read', () => {
+    const mixed = mapTmdbImages(
+      {
+        posters: [
+          { file_path: '/ru.jpg', width: 3000, vote_average: 9, iso_639_1: 'ru' },
+          { file_path: '/en.jpg', width: 1000, vote_average: 3, iso_639_1: 'en' },
+        ],
+      },
+      IMG,
+    );
+    // Score and resolution both favour the Russian one; language outranks both,
+    // because a poster carries its title and an unreadable title is the point.
+    expect(pickBestArtwork(mixed, 'poster')?.url).toBe(`${IMG}/en.jpg`);
+  });
+
+  it('honours the caller\'s language order', () => {
+    const mixed = mapTmdbImages(
+      {
+        posters: [
+          { file_path: '/en.jpg', width: 1000, vote_average: 5, iso_639_1: 'en' },
+          { file_path: '/es.jpg', width: 1000, vote_average: 5, iso_639_1: 'es' },
+        ],
+      },
+      IMG,
+    );
+    expect(pickBestArtwork(mixed, 'poster', ['es', 'en'])?.url).toBe(`${IMG}/es.jpg`);
+    expect(pickBestArtwork(mixed, 'poster', ['en', 'es'])?.url).toBe(`${IMG}/en.jpg`);
+  });
+
+  it('prefers a TEXTLESS backdrop for fanart, which is the opposite rule', () => {
+    /*
+     * A backdrop with a localised title burned into it is worse than a clean
+     * one whatever language it is in — the reverse of the poster case, where the
+     * title is the reason the image exists.
+     */
+    const backdrops = mapTmdbImages(
+      {
+        backdrops: [
+          { file_path: '/en-text.jpg', width: 1920, vote_average: 9, iso_639_1: 'en' },
+          { file_path: '/clean.jpg', width: 1920, vote_average: 4 },
+        ],
+      },
+      IMG,
+    );
+    expect(pickBestArtwork(backdrops, 'fanart')?.url).toBe(`${IMG}/clean.jpg`);
+  });
+
+  it('still falls back to a textless poster when no language matches', () => {
+    const textless = mapTmdbImages(
+      { posters: [{ file_path: '/none.jpg', width: 1200, vote_average: 5 }] },
+      IMG,
+    );
+    expect(pickBestArtwork(textless, 'poster')?.url).toBe(`${IMG}/none.jpg`);
+  });
 });
 
 describe('isAllowedArtworkHost', () => {
