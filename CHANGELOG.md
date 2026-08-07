@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.72.0] - 2026-08-07
+
+### Added
+- The torrent list now says when UltraTorrent parked a torrent, and why. A parked torrent reports as an ordinary PAUSED to the engine, indistinguishable from one a person paused, so on a queue that is mostly parked the state column truthfully said 'paused' hundreds of times and explained nothing. Rows and the detail drawer now carry a parked marker with the reason, seeder count at the last probe, and re-check count.
+
+### Fixed
+- The [dupN] restore preview no longer promises a rename it cannot perform. It checked only that the destination name was free, so a stale index row pointing at a file no longer on disk previewed as 'restore' and then reported 'nothing was renamed'. Both paths now verify the source exists and report it identically.
+
 ## [0.71.2] - 2026-08-07
 
 ### Fixed
