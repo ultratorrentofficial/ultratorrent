@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.73.0] - 2026-08-07
+
+### Added
+- Policy scopes are now chosen from a list instead of typed by id, and a library-scoped policy actually matches something. The scope-id box was free text, so an operator had to know a library's UUID; worse, the preview never populated libraryId at all, meaning a library policy saved successfully and then silently governed no torrent. The library is now resolved from the intake record where there is one, and otherwise from the covering library root.
+
+### Fixed
+- RSS-rule-scoped scheduler policies now match. The resolver required a rule id the preview never supplied, so a policy scoped to a rule saved successfully and governed no torrent. The rule is resolved from the download evaluations, counting only rows that actually downloaded and taking the most recent when a torrent was grabbed more than once.
+
 ## [0.72.0] - 2026-08-07
 
 ### Added
