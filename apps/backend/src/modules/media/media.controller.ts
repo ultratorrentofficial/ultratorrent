@@ -692,6 +692,27 @@ export class MediaController {
   }
 
   /**
+   * Give back the canonical name to files that are not duplicates of anything.
+   *
+   * A `[dupN]` suffix means "something else holds the real name". When an import
+   * fails partway nothing ever claims that name, no duplicate group forms, and
+   * the restoration inside a resolution never runs — so the file keeps a suffix
+   * describing a conflict that does not exist. This renames only where the
+   * canonical name is free, so it can never decide a real duplicate, and it
+   * deletes nothing. `?dryRun=true` reports what it would do.
+   */
+  // `rename`, not `delete`: the duplicate-center routes guard deletion because
+  // that is what they do. This only renames, and requiring the delete grant
+  // would make a harmless tidy-up need the most dangerous permission there is.
+  @Post('duplicates/restore-suffixes')
+  @RequirePermissions(P.MEDIA_MANAGER_RENAME)
+  restoreOrphanedSuffixes(@Req() req: Request, @Query('dryRun') dryRun?: string) {
+    return this.duplicateResolution.restoreOrphanedSuffixes(auditCtx(req), {
+      dryRun: dryRun === 'true',
+    });
+  }
+
+  /**
    * Ask a running Media Manager job to stop.
    *
    * Cooperative: the job body decides where it is safe to stop, so a job mid-write

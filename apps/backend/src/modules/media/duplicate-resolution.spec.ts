@@ -837,7 +837,9 @@ describe('DuplicateResolutionService — restoring the canonical name', () => {
   beforeEach(async () => { dir = await mkdtemp(path.join(tmpdir(), 'duppromo-')); });
   afterEach(async () => { await rm(dir, { recursive: true, force: true }); });
 
-  const restore = (svc: any, p: string) => svc.restoreCanonicalName(p);
+  // `restoreCanonicalFamily` also reports every path it moved, so the index can
+  // be repointed; these tests only care about the primary file's new name.
+  const restore = async (svc: any, p: string) => (await svc.restoreCanonicalFamily(p)).restored;
   const anySvc = () => build({ libraries: [{ path: dir }] }).svc as any;
 
   it('strips [dupN] when the real name is free', async () => {

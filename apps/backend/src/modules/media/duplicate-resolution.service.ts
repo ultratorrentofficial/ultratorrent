@@ -194,31 +194,180 @@ export class DuplicateResolutionService {
    * already taken. Returns the new path, or null when there was nothing to do —
    * no suffix, or the canonical name is still occupied by another copy.
    */
-  private async restoreCanonicalName(filePath: string): Promise<string | null> {
+  /**
+   * Rename a `[dupN]` family back to its canonical name, reporting every path
+   * it moved.
+   *
+   * The move list is the return value rather than a bare "did it work", because
+   * the index has to follow the disk: renaming the files and leaving
+   * `MediaFile.path` on the old name gives the library a row for a file that no
+   * longer exists, and the next scan adopts the new name as a second item.
+   * Callers pair this with {@link repointRenamedPaths}.
+   */
+  private async restoreCanonicalFamily(
+    filePath: string,
+  ): Promise<{ restored: string | null; renames: Array<{ from: string; to: string }> }> {
     const dir = path.dirname(filePath);
     const name = path.basename(filePath);
     const m = /^(.*) \[dup\d+\](\..*)$/.exec(name);
-    if (!m) return null;
+    if (!m) return { restored: null, renames: [] };
 
     const stem = m[1];
     const suffixed = `${stem} [dup${/\[dup(\d+)\]/.exec(name)![1]}]`;
     // Another copy may still hold the canonical name; renaming onto it would
     // destroy a file nobody asked to lose.
     if (await stat(path.join(dir, `${stem}${m[2]}`)).then(() => true).catch(() => false)) {
-      return null;
+      return { restored: null, renames: [] };
     }
 
     const entries = await readdir(dir).catch(() => [] as string[]);
     const family = entries.filter((e) => e.startsWith(suffixed));
     let restored: string | null = null;
+    const renames: Array<{ from: string; to: string }> = [];
     for (const e of family) {
+      const from = path.join(dir, e);
       const to = path.join(dir, e.replace(suffixed, stem));
       // Never clobber: a sidecar may already exist under the canonical name.
       if (await stat(to).then(() => true).catch(() => false)) continue;
-      await rename(path.join(dir, e), to);
+      await rename(from, to);
+      renames.push({ from, to });
       if (e === name) restored = to;
     }
-    return restored;
+    return { restored, renames };
+  }
+
+  /**
+   * Point the index at the files' new names.
+   *
+   * Every table that stores a path for these files, updated by exact match so a
+   * rename cannot catch a neighbour whose name merely starts the same way.
+   * Best-effort as a whole: the bytes are already where they belong, and a
+   * failed row update is a reconcilable inconsistency rather than a lost file.
+   */
+  private async repointRenamedPaths(
+    renames: ReadonlyArray<{ from: string; to: string }>,
+  ): Promise<void> {
+    for (const { from, to } of renames) {
+      try {
+        await this.prisma.$transaction([
+          this.prisma.mediaItem.updateMany({ where: { path: from }, data: { path: to } }),
+          this.prisma.mediaFile.updateMany({ where: { path: from }, data: { path: to } }),
+          this.prisma.mediaSubtitle.updateMany({ where: { path: from }, data: { path: to } }),
+          this.prisma.mediaArtwork.updateMany({
+            where: { localPath: from },
+            data: { localPath: to },
+          }),
+        ]);
+      } catch (err) {
+        this.logger.warn(
+          `Renamed "${path.basename(from)}" but could not repoint the index: ${(err as Error).message}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Strip `[dupN]` from files that are not duplicates of anything.
+   *
+   * Media Intake suffixes a file when a new release claims a name that is
+   * already taken. Normally the pair becomes a duplicate group and resolution
+   * gives the survivor its name back — but a suffix also survives an import that
+   * FAILED partway, and then nothing ever holds the canonical name. There is no
+   * second copy, so no group forms, so the restoration inside `resolve` never
+   * runs, and the library keeps a file named after a conflict that no longer
+   * exists. Live on synoplex: five films, three of them from intake jobs that
+   * died at the metadata stage, sitting as `… - 1080p [dup2].mp4` with the plain
+   * name free beside them — which Plex reads as part of the title.
+   *
+   * Deliberately narrow. It renames only when the canonical name is **free**, so
+   * it can never resolve a real duplicate — that decision stays with the
+   * operator in the Duplicate Center — and it deletes nothing at all.
+   */
+  async restoreOrphanedSuffixes(
+    ctx: ResolutionContext = {},
+    opts: { dryRun?: boolean } = {},
+  ): Promise<{
+    scanned: number;
+    restored: number;
+    skipped: number;
+    details: Array<{ itemId: string; from: string; to: string | null; reason?: string }>;
+  }> {
+    const items = await this.prisma.mediaItem.findMany({
+      where: { path: { contains: '[dup' } },
+      select: { id: true, path: true, locked: true },
+    });
+
+    const details: Array<{ itemId: string; from: string; to: string | null; reason?: string }> = [];
+    let restored = 0;
+    let skipped = 0;
+
+    for (const item of items) {
+      const from = item.path;
+      // `locked` takes an item out of every automated path; a cosmetic rename is
+      // no exception.
+      if (item.locked) {
+        skipped++;
+        details.push({ itemId: item.id, from, to: null, reason: 'item is locked' });
+        continue;
+      }
+      try {
+        this.filePath.assertWithinHardRoots(from);
+      } catch {
+        skipped++;
+        details.push({ itemId: item.id, from, to: null, reason: 'outside the allowed roots' });
+        continue;
+      }
+
+      const canonical = from.replace(/ \[dup\d+\](\.[^.]+)$/, '$1');
+      if (canonical === from) {
+        skipped++;
+        details.push({ itemId: item.id, from, to: null, reason: 'no [dupN] suffix on the file' });
+        continue;
+      }
+      if (await stat(canonical).then(() => true).catch(() => false)) {
+        // A real duplicate. Leave it to the Duplicate Center, which is where a
+        // keep/discard decision belongs.
+        skipped++;
+        details.push({ itemId: item.id, from, to: null, reason: 'canonical name is taken' });
+        continue;
+      }
+
+      if (opts.dryRun) {
+        details.push({ itemId: item.id, from, to: canonical });
+        restored++;
+        continue;
+      }
+
+      try {
+        const { restored: newPath, renames } = await this.restoreCanonicalFamily(from);
+        if (!newPath) {
+          skipped++;
+          details.push({ itemId: item.id, from, to: null, reason: 'nothing was renamed' });
+          continue;
+        }
+        await this.repointRenamedPaths(renames);
+        restored++;
+        details.push({ itemId: item.id, from, to: newPath });
+      } catch (err) {
+        skipped++;
+        details.push({ itemId: item.id, from, to: null, reason: (err as Error).message });
+        this.logger.warn(`Could not restore "${from}": ${(err as Error).message}`);
+      }
+    }
+
+    if (!opts.dryRun && restored) {
+      await this.audit.record({
+        userId: ctx.userId,
+        action: 'media.duplicates.suffix_restored',
+        objectType: 'media_library',
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        metadata: { scanned: items.length, restored, skipped },
+      });
+      this.logger.log(`Restored ${restored} orphaned [dupN] name(s)`);
+    }
+
+    return { scanned: items.length, restored, skipped, details };
   }
 
   async preview(groupId: string, keepItemId: string | undefined, ctx: ResolutionContext = {}): Promise<ResolutionPreview> {
@@ -718,7 +867,15 @@ export class DuplicateResolutionService {
     const promoted: string[] = [];
     if (status !== 'failed') {
       for (const p of survivorPaths) {
-        const restored = await this.restoreCanonicalName(p).catch(() => null);
+        // The index has to follow the disk. Renaming the survivor and leaving
+        // its row on the old name gives the library a file that does not exist,
+        // and the next scan adopts the new name as a SECOND item — recreating a
+        // duplicate out of the cleanup that just removed one.
+        const { restored, renames } = await this.restoreCanonicalFamily(p).catch(() => ({
+          restored: null,
+          renames: [] as Array<{ from: string; to: string }>,
+        }));
+        if (renames.length) await this.repointRenamedPaths(renames);
         if (restored) promoted.push(`${path.basename(p)} → ${path.basename(restored)}`);
       }
       if (promoted.length) {
