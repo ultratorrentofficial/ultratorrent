@@ -347,7 +347,10 @@
         "torrent": "One torrent"
       },
       "scopeId": "Which one",
-      "scopeIdHelp": "The id of the engine, library, category, rule or torrent this applies to.",
+      "scopeIdHelp": "Which engine, library, category, rule or torrent this applies to.",
+      "scopePick": "Select…",
+      "scopeNone": "Nothing of this kind exists yet, so a policy scoped to it would match no torrent.",
+      "scopeHashPlaceholder": "Info-hash",
       "limits": "Limits",
       "limitsHelp": "Leave a limit empty for unlimited. A more specific policy overrides a broader one field by field, so a library policy that sets only seeds still inherits the download limit above it.",
       "maxConcurrentDownloads": "Max downloading at once",

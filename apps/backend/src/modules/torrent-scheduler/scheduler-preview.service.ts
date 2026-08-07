@@ -12,6 +12,7 @@ import {
   type SchedulingPolicyScopeType,
 } from './domain/policy';
 import { applySchedule, type ScheduleWindow } from './domain/schedule';
+import { libraryForPath } from './domain/library-scope';
 import { SchedulerOverrideService } from './scheduler-override.service';
 
 /**
@@ -90,7 +91,7 @@ export class SchedulerPreviewService {
     const snapshots = await this.prisma.torrentSnapshot.findMany({ where: { engineId } });
     const hashes = snapshots.map((s) => s.hash);
 
-    const [policies, parked, states, intakeJobs, windows, overrides] =
+    const [policies, parked, states, intakeJobs, libraries, windows, overrides] =
       await Promise.all([
       this.loadPolicies(),
       this.prisma.parkedTorrent.findMany({ where: { engineId }, select: { hash: true } }),
@@ -110,7 +111,17 @@ export class SchedulerPreviewService {
        */
       this.prisma.mediaIntakeJob.findMany({
         where: { engineId, torrentHash: { in: hashes } },
-        select: { torrentHash: true, state: true, mediaItemId: true },
+        // `libraryId` is what a library-scoped policy matches on. Where intake
+        // handled the import this is the RECORDED association, which beats
+        // inferring one from a path.
+        select: { torrentHash: true, state: true, mediaItemId: true, libraryId: true },
+      }),
+      // Library roots, for the torrents intake did not import. On this platform
+      // libraries sit inside the download tree, so the covering root is how the
+      // rest of the system already decides which library a file belongs to.
+      this.prisma.mediaLibrary.findMany({
+        where: { isEnabled: true },
+        select: { id: true, path: true },
       }),
       // Loaded once per engine and evaluated against `now`, rather than each
       // window owning a timer. One clock read answers every window.
@@ -144,6 +155,12 @@ export class SchedulerPreviewService {
         caps,
       );
 
+      const ov = overrides.get(s.hash.toLowerCase()) ?? new Set<string>();
+      const job = intake.get(s.hash.toLowerCase());
+      // `imported` and everything after it means the file reached the library.
+      const imported = !!job && ['imported', 'metadata_ready', 'artwork_ready',
+        'subtitle_ready', 'seeding', 'archived'].includes(job.state);
+
       // Scopes decide the policy; an open window then overrides it. A schedule
       // is a temporary override of what the scopes concluded, not another scope.
       const policy = applySchedule(
@@ -151,16 +168,25 @@ export class SchedulerPreviewService {
           torrentHash: s.hash,
           engineId,
           categoryId: s.categoryId,
+          /*
+           * Which library this torrent belongs to.
+           *
+           * Without this a `library`-scoped policy matched nothing at all —
+           * `matches()` requires `ctx.libraryId` and it was never populated, so
+           * the scope existed in the editor, saved happily, and then silently
+           * governed no torrent. A policy that cannot apply is worse than one
+           * the UI refuses to create.
+           *
+           * Recorded association first (intake knows exactly where it put the
+           * file), then the covering library root for everything intake did not
+           * import — which on this platform is most of the queue, since the
+           * libraries live inside the download tree.
+           */
+          libraryId: job?.libraryId ?? libraryForPath(s.savePath, libraries),
         }),
         windows as unknown as ScheduleWindow[],
         now,
       );
-
-      const ov = overrides.get(s.hash.toLowerCase()) ?? new Set<string>();
-      const job = intake.get(s.hash.toLowerCase());
-      // `imported` and everything after it means the file reached the library.
-      const imported = !!job && ['imported', 'metadata_ready', 'artwork_ready',
-        'subtitle_ready', 'seeding', 'archived'].includes(job.state);
 
       return {
         hash: s.hash,

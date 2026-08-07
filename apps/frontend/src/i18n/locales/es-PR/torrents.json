@@ -347,7 +347,10 @@
         "torrent": "Un torrent"
       },
       "scopeId": "Cuál",
-      "scopeIdHelp": "El id del motor, biblioteca, categoría, regla o torrent al que se aplica.",
+      "scopeIdHelp": "A qué motor, biblioteca, categoría, regla o torrent se aplica.",
+      "scopePick": "Seleccionar…",
+      "scopeNone": "Todavía no existe nada de este tipo, así que una política con este alcance no coincidiría con ningún torrent.",
+      "scopeHashPlaceholder": "Info-hash",
       "limits": "Límites",
       "limitsHelp": "Deja un límite vacío para ilimitado. Una política más específica sobrescribe a una más amplia campo por campo, así que una política de biblioteca que solo fija las siembras hereda el límite de descargas superior.",
       "maxConcurrentDownloads": "Máx. descargando a la vez",

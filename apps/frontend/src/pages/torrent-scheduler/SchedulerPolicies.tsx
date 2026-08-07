@@ -157,6 +157,40 @@ function PolicyDialog({
   const [downKbps, setDownKbps] = useState('');
   const [upKbps, setUpKbps] = useState('');
 
+  /*
+   * What the chosen scope can point at.
+   *
+   * Fetched only for the scope in play — opening the dialog on `global` should
+   * not pull three lists nobody asked for. `torrent` deliberately has no query:
+   * an info-hash is pasted, not chosen, and listing every torrent to pick one
+   * would be a worse control than the text box.
+   */
+  const libraries = useQuery({
+    queryKey: ['media', 'libraries'],
+    queryFn: () => api.media.libraries(),
+    enabled: scopeType === 'library',
+  });
+  const engines = useQuery({
+    queryKey: ['engines'],
+    queryFn: () => api.engines.list(),
+    enabled: scopeType === 'engine',
+  });
+  const rssRules = useQuery({
+    queryKey: ['rss', 'rules'],
+    queryFn: () => api.rss.rules(),
+    enabled: scopeType === 'rss_rule',
+  });
+
+  /** `null` means "no list exists for this scope — let them type". */
+  const scopeOptions: { id: string; label: string }[] | null =
+    scopeType === 'library'
+      ? (libraries.data ?? []).map((l) => ({ id: l.id, label: l.name }))
+      : scopeType === 'engine'
+        ? (engines.data ?? []).map((e) => ({ id: e.id, label: `${e.name} (${e.kind})` }))
+        : scopeType === 'rss_rule'
+          ? (rssRules.data ?? []).map((r) => ({ id: r.id, label: r.name }))
+          : null;
+
   useEffect(() => {
     setName(policy?.name ?? '');
     setEnabled(policy?.enabled ?? true);
@@ -234,7 +268,13 @@ function PolicyDialog({
               id="policy-scope"
               className="mt-1 w-auto"
               value={scopeType}
-              onChange={(e) => setScopeType(e.target.value)}
+              onChange={(e) => {
+                setScopeType(e.target.value);
+                // An id belongs to exactly one scope. Carrying a library id over
+                // to `rss_rule` would leave the box looking filled while naming
+                // nothing that scope can match.
+                setScopeId('');
+              }}
             >
               {SCOPES.map((s) => (
                 <option key={s} value={s}>
@@ -246,8 +286,42 @@ function PolicyDialog({
           {scopeType !== 'global' && (
             <div className="min-w-[16rem] flex-1">
               <Label htmlFor="policy-scope-id">{t('scheduler.policies.scopeId')}</Label>
-              <Input id="policy-scope-id" value={scopeId} onChange={(e) => setScopeId(e.target.value)} />
-              <p className="mt-1 text-xs text-muted-foreground">{t('scheduler.policies.scopeIdHelp')}</p>
+              {scopeOptions ? (
+                /*
+                 * Pick from what exists. Every scope but `torrent` names a row
+                 * the platform already knows, and typing its id by hand could
+                 * only ever produce a policy that matches nothing — saved
+                 * happily, then silently governing no torrent. The one id an
+                 * operator legitimately types is an info-hash, which is pasted
+                 * from elsewhere and has no list to choose from.
+                 */
+                <Select
+                  id="policy-scope-id"
+                  className="mt-1"
+                  value={scopeId}
+                  onChange={(e) => setScopeId(e.target.value)}
+                >
+                  <option value="">{t('scheduler.policies.scopePick')}</option>
+                  {scopeOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <Input
+                  id="policy-scope-id"
+                  className="mt-1"
+                  value={scopeId}
+                  onChange={(e) => setScopeId(e.target.value)}
+                  placeholder={t('scheduler.policies.scopeHashPlaceholder')}
+                />
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {scopeOptions && scopeOptions.length === 0
+                  ? t('scheduler.policies.scopeNone')
+                  : t('scheduler.policies.scopeIdHelp')}
+              </p>
             </div>
           )}
         </div>
