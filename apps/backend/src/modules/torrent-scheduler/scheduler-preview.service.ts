@@ -13,6 +13,7 @@ import {
 } from './domain/policy';
 import { applySchedule, type ScheduleWindow } from './domain/schedule';
 import { libraryForPath } from './domain/library-scope';
+import { hashCaseVariants, rulesByTorrentHash } from './domain/rss-scope';
 import { SchedulerOverrideService } from './scheduler-override.service';
 
 /**
@@ -91,7 +92,7 @@ export class SchedulerPreviewService {
     const snapshots = await this.prisma.torrentSnapshot.findMany({ where: { engineId } });
     const hashes = snapshots.map((s) => s.hash);
 
-    const [policies, parked, states, intakeJobs, libraries, windows, overrides] =
+    const [policies, parked, states, intakeJobs, libraries, ruleMatches, windows, overrides] =
       await Promise.all([
       this.loadPolicies(),
       this.prisma.parkedTorrent.findMany({ where: { engineId }, select: { hash: true } }),
@@ -123,6 +124,23 @@ export class SchedulerPreviewService {
         where: { isEnabled: true },
         select: { id: true, path: true },
       }),
+      /*
+       * Which RSS rule downloaded each torrent, for `rss_rule`-scoped policies.
+       *
+       * Bounded by the loaded hashes like the intake lookup above, and for the
+       * same reason: this table records EVERY evaluation every rule ever made,
+       * so an unbounded read grows without limit to answer a question about the
+       * couple of hundred torrents currently in the queue. `actionTaken` is
+       * filtered in the query rather than after it, because declined and
+       * duplicate-skipped rows are the overwhelming majority.
+       */
+      this.prisma.rssRuleMatchEvaluation.findMany({
+        where: {
+          torrentHash: { in: hashCaseVariants(hashes) },
+          actionTaken: 'download',
+        },
+        select: { torrentHash: true, rssRuleId: true, actionTaken: true, createdAt: true },
+      }),
       // Loaded once per engine and evaluated against `now`, rather than each
       // window owning a timer. One clock read answers every window.
       this.prisma.torrentSchedulerWindow.findMany({ where: { enabled: true } }),
@@ -135,6 +153,8 @@ export class SchedulerPreviewService {
         .filter((j) => j.torrentHash)
         .map((j) => [j.torrentHash!.toLowerCase(), j]),
     );
+    // Which rule put each torrent here — most recent download wins.
+    const ruleByHash = rulesByTorrentHash(ruleMatches);
     // Parking owns these torrents; the scheduler must not contend for them.
     const parkedHashes = new Set(parked.map((p) => p.hash.toLowerCase()));
     const ourPauses = new Map(states.map((s) => [s.hash.toLowerCase(), s.lastActionAt]));
@@ -183,6 +203,7 @@ export class SchedulerPreviewService {
            * libraries live inside the download tree.
            */
           libraryId: job?.libraryId ?? libraryForPath(s.savePath, libraries),
+          rssRuleId: ruleByHash.get(s.hash.toLowerCase()) ?? null,
         }),
         windows as unknown as ScheduleWindow[],
         now,
