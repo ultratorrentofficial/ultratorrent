@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import {
   WS_EVENTS,
   type GlobalStats,
-  type NormalizedTorrent,
+  type TorrentWithPlatformState,
 } from '@ultratorrent/shared';
 import { wsClient, type WsStatus } from '@/lib/ws';
 
@@ -16,7 +16,7 @@ export interface BandwidthSample {
   up: number;
 }
 
-type TorrentsListener = (torrents: NormalizedTorrent[]) => void;
+type TorrentsListener = (torrents: TorrentWithPlatformState[]) => void;
 
 interface RealtimeContextValue {
   status: WsStatus;
@@ -167,7 +167,7 @@ export function useRealtime(): RealtimeContextValue {
 }
 
 /** Subscribe to live torrent snapshots with automatic cleanup. */
-export function useTorrentStream(listener: (torrents: NormalizedTorrent[]) => void): void {
+export function useTorrentStream(listener: (torrents: TorrentWithPlatformState[]) => void): void {
   const { subscribeTorrents } = useRealtime();
   const ref = useRef(listener);
   ref.current = listener;

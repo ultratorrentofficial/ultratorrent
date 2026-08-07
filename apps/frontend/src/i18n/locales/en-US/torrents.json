@@ -29,6 +29,15 @@
     "error": "Error",
     "unknown": "Unknown"
   },
+  "parking": {
+    "parked": "Parked",
+    "probing": "Re-checking",
+    "tooltip": "Parked by UltraTorrent — {{reason}}. {{seeders}} seeder(s) at the last check, {{probes}} re-check(s) since.",
+    "reason": {
+      "no_seeders": "no seeders",
+      "stalled": "stalled"
+    }
+  },
   "table": {
     "selectAll": "Select all on page",
     "selectRow": "Select {{name}}"

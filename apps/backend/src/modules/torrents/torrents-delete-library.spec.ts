@@ -36,7 +36,7 @@ function build(jobs: Array<{ torrentHash: string; mediaItemId: string }>, items:
   // MediaModule into TorrentsModule closes a module cycle that kills the app at
   // bootstrap. See the `mediaBulk` getter.
   const moduleRef = { get: jest.fn(() => mediaBulk) } as any;
-  return { svc: new TorrentsService(registry, audit, filePath, prisma, moduleRef), provider, mediaBulk };
+  return { svc: new TorrentsService(registry, audit, filePath, prisma, moduleRef, { annotate: async (_e: string, ts: unknown[]) => ts.map((t) => ({ ...(t as object), parked: null })) } as never), provider, mediaBulk };
 }
 
 const JOBS = [{ torrentHash: 'h1', mediaItemId: 'item-1' }];

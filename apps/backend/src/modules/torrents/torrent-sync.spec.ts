@@ -84,11 +84,19 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
       accrualOperation: jest.fn((): unknown => 'accrual-op'),
       archiveRetired: jest.fn(async () => { calls.push('archiveRetired'); }),
     };
+    // Annotates the broadcast list with parking state. The identity case: the
+    // engine's torrents come back unchanged, each carrying `parked: null`.
+    const parking = {
+      annotate: jest.fn(async (_engineId: string, ts: unknown[]) =>
+        ts.map((t) => ({ ...(t as object), parked: null })),
+      ),
+    };
     const svc = new TorrentSyncService(
       prisma as any, registry as any, realtime as any, automation as any,
       mediaProcessing as any, bus as any, nameRepair as any, ledger as any,
+      parking as any,
     );
-    return { svc, calls, prisma, mediaProcessing, automation, nameRepair, bus, ledger, realtime };
+    return { svc, calls, prisma, mediaProcessing, automation, nameRepair, bus, ledger, realtime, parking };
   }
 
   it('records the new state BEFORE acting on the transition', async () => {
@@ -251,6 +259,25 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
       const ops = prisma.$transaction.mock.calls[0][0] as unknown[];
       expect(ops).not.toContain('accrual-op');
       expect(ops.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('saying who stopped a torrent', () => {
+    it('broadcasts the list annotated with parking state', async () => {
+      /*
+       * The engine reports a parked torrent as an ordinary PAUSED, so the live
+       * update has to carry the annotation too. Without it the socket payload
+       * would overwrite the annotated list the REST call returned and every
+       * parked badge would vanish on the next tick — two seconds after load.
+       */
+      const { svc, realtime, parking } = build({ priorProgress: 0.5 });
+      await svc.sync();
+
+      expect(parking.annotate).toHaveBeenCalledWith('e1', expect.any(Array));
+      const payload = realtime.broadcast.mock.calls
+        .map((c: any[]) => c[1])
+        .find((p: any) => p?.torrents);
+      expect(payload.torrents[0]).toHaveProperty('parked');
     });
   });
 });

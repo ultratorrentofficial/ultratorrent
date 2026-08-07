@@ -1,7 +1,7 @@
 /**
  * WebSocket event contract shared by the gateway and the frontend client.
  */
-import type { GlobalStats, NormalizedTorrent } from './torrent.js';
+import type { GlobalStats, TorrentWithPlatformState } from './torrent.js';
 
 export const WS_EVENTS = {
   TORRENTS_UPDATE: 'torrents:update',
@@ -206,7 +206,13 @@ export interface StatsUpdatePayload {
 
 export interface TorrentsUpdatePayload {
   engineId: string;
-  torrents: NormalizedTorrent[];
+  /**
+   * Annotated with platform state the engine cannot report — currently whether
+   * UltraTorrent has parked the torrent. The live update replaces whatever the
+   * REST call returned, so it has to carry the same shape or every parked badge
+   * would disappear on the next tick.
+   */
+  torrents: TorrentWithPlatformState[];
   at: string;
 }
 

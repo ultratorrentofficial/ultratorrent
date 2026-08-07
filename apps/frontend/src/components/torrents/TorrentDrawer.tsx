@@ -15,7 +15,7 @@ import {
   TorrentState,
   type NormalizedFile,
   type NormalizedPeer,
-  type NormalizedTorrent,
+  type TorrentWithPlatformState,
   type NormalizedTracker,
 } from '@ultratorrent/shared';
 import { api } from '@/lib/api';
@@ -32,13 +32,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
-import { TorrentStateBadge } from './TorrentStateBadge';
+import { TorrentParkedBadge, TorrentStateBadge } from './TorrentStateBadge';
 import { TorrentActionsBar } from './TorrentActionsBar';
 import { cn } from '@/lib/utils';
 
 export interface TorrentDrawerProps {
   /** The torrent to display (live row data), or null when closed. */
-  torrent: NormalizedTorrent | null;
+  torrent: TorrentWithPlatformState | null;
   onClose: () => void;
 }
 
@@ -56,6 +56,7 @@ export function TorrentDrawer({ torrent, onClose }: TorrentDrawerProps) {
           <DrawerHeader onClose={onClose}>
             <div className="flex items-center gap-2">
               <TorrentStateBadge state={torrent.state} />
+              {torrent.parked && <TorrentParkedBadge parked={torrent.parked} />}
               {torrent.isPrivate && (
                 <Badge variant="secondary" className="gap-1">
                   <Lock className="h-3 w-3" /> {t('drawer.private')}
@@ -114,7 +115,7 @@ export function TorrentDrawer({ torrent, onClose }: TorrentDrawerProps) {
   );
 }
 
-function OverviewTab({ torrent }: { torrent: NormalizedTorrent }) {
+function OverviewTab({ torrent }: { torrent: TorrentWithPlatformState }) {
   const { t } = useTranslation('torrents');
   // The matching automation rule (if this torrent was auto-downloaded) is
   // resolved by info-hash from the RSS match evaluations — it isn't part of the

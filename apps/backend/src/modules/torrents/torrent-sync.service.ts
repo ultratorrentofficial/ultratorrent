@@ -11,6 +11,7 @@ import { AutomationEngine } from '../automation/automation.module';
 import { MediaProcessingService } from '../media/media-processing.service';
 import { TorrentNameRepairService } from './torrent-name-repair.service';
 import { TransferLedgerService } from '../transfer-ledger/transfer-ledger.service';
+import { TorrentParkingService } from './torrent-parking.service';
 
 /**
  * What we knew about a torrent at the end of the previous tick: enough to
@@ -78,6 +79,7 @@ export class TorrentSyncService {
     private readonly bus: DomainEventBus,
     private readonly nameRepair: TorrentNameRepairService,
     private readonly ledger: TransferLedgerService,
+    private readonly parking: TorrentParkingService,
   ) {}
 
   @Interval(2000)
@@ -110,7 +112,11 @@ export class TorrentSyncService {
 
       this.realtime.broadcast(WS_EVENTS.TORRENTS_UPDATE, {
         engineId: provider.engineId,
-        torrents,
+        // Annotated with parking state, which the engine cannot report: a
+        // parked torrent is an ordinary `PAUSED` to it. Without this the live
+        // update would overwrite the annotated list the REST call returned, and
+        // every parked badge would disappear on the next tick.
+        torrents: await this.parking.annotate(provider.engineId, torrents),
         at,
       });
       this.realtime.broadcast(WS_EVENTS.STATS_UPDATE, {

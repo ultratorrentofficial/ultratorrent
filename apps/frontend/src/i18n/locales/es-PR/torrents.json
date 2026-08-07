@@ -29,6 +29,15 @@
     "error": "Error",
     "unknown": "Desconocido"
   },
+  "parking": {
+    "parked": "Estacionado",
+    "probing": "Reverificando",
+    "tooltip": "Estacionado por UltraTorrent — {{reason}}. {{seeders}} semilla(s) en la última verificación, {{probes}} reverificación(es) desde entonces.",
+    "reason": {
+      "no_seeders": "sin semillas",
+      "stalled": "estancado"
+    }
+  },
   "table": {
     "selectAll": "Seleccionar todo en la página",
     "selectRow": "Seleccionar {{name}}"

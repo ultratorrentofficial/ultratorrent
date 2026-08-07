@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { NormalizedTorrent, TorrentState } from '@ultratorrent/shared';
+import {
+  NormalizedTorrent,
+  TorrentState,
+  type TorrentWithPlatformState,
+} from '@ultratorrent/shared';
+import type { ParkedTorrent } from '@prisma/client';
 import type { TorrentEngineProvider } from '../../domain/engine/torrent-engine-provider.interface';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -116,6 +121,54 @@ export class TorrentParkingService {
     return this.prisma.parkedTorrent.findMany({
       where: engineId ? { engineId } : undefined,
       orderBy: { parkedAt: 'desc' },
+    });
+  }
+
+  /**
+   * Attach "we parked this, and here is why" to a list of torrents.
+   *
+   * The engine reports a parked torrent as an ordinary `PAUSED`, identical to
+   * one a person paused, so a UI reading engine state alone can only say
+   * "paused" — which on a queue that is mostly parked tells the operator
+   * nothing about why almost nothing is running.
+   *
+   * Scoped to the hashes it was handed rather than the whole table: an engine
+   * with thousands of parked torrents must not turn a 50-row page into a
+   * thousand-row read.
+   *
+   * Best-effort. This decorates a list; failing the list because the decoration
+   * failed would trade the whole answer for part of it.
+   */
+  async annotate(
+    engineId: string,
+    torrents: readonly NormalizedTorrent[],
+  ): Promise<TorrentWithPlatformState[]> {
+    if (!torrents.length) return [];
+
+    let byHash = new Map<string, ParkedTorrent>();
+    try {
+      const rows = await this.prisma.parkedTorrent.findMany({
+        where: { engineId, hash: { in: torrents.map((t) => t.hash) } },
+      });
+      byHash = new Map(rows.map((r) => [r.hash, r]));
+    } catch (err) {
+      this.logger.warn(`Could not read parking state: ${(err as Error).message}`);
+    }
+
+    return torrents.map((t) => {
+      const p = byHash.get(t.hash);
+      return {
+        ...t,
+        parked: p
+          ? {
+              reason: p.reason,
+              parkedAt: p.parkedAt.toISOString(),
+              lastSeeders: p.lastSeeders,
+              probeCount: p.probeCount,
+              probing: p.probingSince != null,
+            }
+          : null,
+      };
     });
   }
 

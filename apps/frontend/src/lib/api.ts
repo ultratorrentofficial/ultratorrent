@@ -29,6 +29,7 @@ import type {
   NormalizedFile,
   NormalizedPeer,
   NormalizedTorrent,
+  TorrentWithPlatformState,
   NormalizedTracker,
   NotificationCategory,
   ActionCatalog,
@@ -3418,8 +3419,9 @@ export const api = {
   },
 
   torrents: {
-    list(query: TorrentQuery = {}): Promise<Paginated<NormalizedTorrent>> {
-      return request<Paginated<NormalizedTorrent>>('/torrents', {
+    list(query: TorrentQuery = {}): Promise<Paginated<TorrentWithPlatformState>> {
+      // Annotated server-side with parking state — see TorrentWithPlatformState.
+      return request<Paginated<TorrentWithPlatformState>>('/torrents', {
         query: query as QueryParams,
       });
     },

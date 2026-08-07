@@ -75,6 +75,43 @@ export interface NormalizedTorrent {
 }
 
 /**
+ * Why UltraTorrent — not the engine — is holding a torrent out of the queue.
+ *
+ * `TorrentParkingService` pauses torrents whose swarm is dead so they stop
+ * occupying active slots. The engine reports the result as an ordinary
+ * `PAUSED`, indistinguishable from a person pausing it, so without this the
+ * only honest thing a UI can say about a parked torrent is "paused" — which on
+ * a library where most of the queue is parked tells the operator nothing.
+ */
+export interface TorrentParkingInfo {
+  /** Why it was parked, e.g. `no_seeders`. */
+  reason: string;
+  /** ISO 8601. */
+  parkedAt: string;
+  /** Seeders seen at the last probe — the evidence for the decision. */
+  lastSeeders: number;
+  /** How many times we have re-checked the swarm since. */
+  probeCount: number;
+  /** Currently being re-probed to see whether the swarm came back. */
+  probing: boolean;
+}
+
+/**
+ * A torrent as the engine reports it, plus the platform state the engine cannot
+ * know about.
+ *
+ * Deliberately a separate type rather than fields on {@link NormalizedTorrent}.
+ * That interface is the provider contract — every field on it is something the
+ * engine itself said — and a provider has no idea this platform parks torrents.
+ * Putting `parked` there would oblige every adapter to populate a field none of
+ * them can answer.
+ */
+export interface TorrentWithPlatformState extends NormalizedTorrent {
+  /** Null when the platform is not holding this torrent out of the queue. */
+  parked: TorrentParkingInfo | null;
+}
+
+/**
  * The RSS automation rule that auto-downloaded a torrent, resolved by info-hash
  * from the recorded match evaluation. Null when the torrent was added manually
  * or by a legacy (non-preference-list) rule that logs no evaluation.

@@ -22,6 +22,7 @@ import { MediaBulkService } from '../media/media-bulk.service';
 import { infoHashFromTorrent } from '../../infrastructure/rtorrent/bencode';
 import { magnetRejectionReason } from '../../common/magnet';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { TorrentParkingService } from './torrent-parking.service';
 
 /** Reject quote/control chars that could break out of rTorrent command strings. */
 const UNSAFE_PATH_CHARS = /["\r\n\t\0]/;
@@ -60,6 +61,7 @@ export class TorrentsService {
     private readonly filePath: FilePathService,
     private readonly prisma: PrismaService,
     private readonly moduleRef: ModuleRef,
+    private readonly parking: TorrentParkingService,
   ) {}
 
   /**
@@ -119,7 +121,12 @@ export class TorrentsService {
     const total = torrents.length;
     const page = query.page ?? 1;
     const pageSize = Math.min(query.pageSize ?? 50, 500);
-    const items = torrents.slice((page - 1) * pageSize, page * pageSize);
+    // Annotate AFTER paging, so the parking lookup is bounded by what is
+    // actually being returned rather than by the size of the queue.
+    const items = await this.parking.annotate(
+      provider.engineId,
+      torrents.slice((page - 1) * pageSize, page * pageSize),
+    );
     return { items, total, page, pageSize };
   }
 

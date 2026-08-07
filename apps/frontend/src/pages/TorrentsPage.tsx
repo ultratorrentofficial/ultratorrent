@@ -12,7 +12,7 @@ import {
   Plus,
   Search,
 } from 'lucide-react';
-import { TorrentState, type EntityRef, type NormalizedTorrent } from '@ultratorrent/shared';
+import { TorrentState, type EntityRef, type TorrentWithPlatformState } from '@ultratorrent/shared';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { ApiError, api, type TorrentQuery } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -41,7 +41,7 @@ import {
 } from '@/components/ui/table';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
-import { TorrentStateDot } from '@/components/torrents/TorrentStateBadge';
+import { TorrentParkedDot, TorrentStateDot } from '@/components/torrents/TorrentStateBadge';
 import { TorrentDrawer } from '@/components/torrents/TorrentDrawer';
 import { BulkToolbar } from '@/components/torrents/BulkToolbar';
 import { torrentCapabilities } from '@/components/torrents/torrentCapabilities';
@@ -90,11 +90,11 @@ export function TorrentsPage() {
   const [page, setPage] = useState(1);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [activeTorrent, setActiveTorrent] = useState<NormalizedTorrent | null>(null);
+  const [activeTorrent, setActiveTorrent] = useState<TorrentWithPlatformState | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
   // Live overrides keyed by hash, applied on top of the fetched page.
-  const [liveMap, setLiveMap] = useState<Record<string, NormalizedTorrent>>({});
+  const [liveMap, setLiveMap] = useState<Record<string, TorrentWithPlatformState>>({});
 
   const query: TorrentQuery = useMemo(
     () => ({
@@ -129,7 +129,7 @@ export function TorrentsPage() {
   // Merge realtime snapshots into the live override map (only for visible rows).
   useTorrentStream(
     useCallback(
-      (incoming: NormalizedTorrent[]) => {
+      (incoming: TorrentWithPlatformState[]) => {
         const visible = new Set((data?.items ?? []).map((t) => t.hash));
         setLiveMap((prev) => {
           let changed = false;
@@ -147,7 +147,7 @@ export function TorrentsPage() {
     ),
   );
 
-  const rows: NormalizedTorrent[] = useMemo(
+  const rows: TorrentWithPlatformState[] = useMemo(
     () => (data?.items ?? []).map((t) => liveMap[t.hash] ?? t),
     [data, liveMap],
   );
@@ -448,7 +448,7 @@ function TorrentRow({
   onToggle,
   onOpen,
 }: {
-  torrent: NormalizedTorrent;
+  torrent: TorrentWithPlatformState;
   selected: boolean;
   onToggle: () => void;
   onOpen: () => void;
@@ -460,7 +460,16 @@ function TorrentRow({
         <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={t('table.selectRow', { name: torrent.name })} />
       </TableCell>
       <TableCell>
-        <TorrentStateDot state={torrent.state} />
+        {/*
+          Two markers, not one. The engine's state is a fact and stays; the
+          parked dot adds the half it cannot know — that WE stopped this, and
+          why. On a queue that is mostly parked, "paused" alone explains
+          nothing about why almost nothing is running.
+        */}
+        <span className="inline-flex items-center gap-1">
+          <TorrentStateDot state={torrent.state} />
+          {torrent.parked && <TorrentParkedDot parked={torrent.parked} />}
+        </span>
       </TableCell>
       {/*
         Name and label share ONE line. Stacking the label underneath made a labelled row
