@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.71.2] - 2026-08-07
+
+### Fixed
+- Artwork language is now a ranking rather than a filter. The TMDB provider asked for English and textless images only, so a film whose posters are all in other languages imported no poster at all — Evolution (2026) has eight (es, uk, el, ru, pl) and got none. Posters now prefer a readable language and fall back to any; fanart still prefers textless.
+- A [dupN] suffix left behind by a failed import can now be restored to its canonical name. The suffix means 'something else holds the real name'; when an import fails partway nothing ever claims it, no duplicate group forms, and the restoration inside a resolution never runs. The new sweep renames only where the canonical name is free — it never decides a real duplicate and deletes nothing — and the index now follows the rename, which the existing restoration did not do.
+
 ## [0.71.1] - 2026-08-06
 
 ### Fixed
