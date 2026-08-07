@@ -190,6 +190,27 @@ describe('what the sweep refuses to touch', () => {
     expect((await readdir(dir)).length).toBe(2);
   });
 
+  it('reports a row whose file is gone, instead of promising a rename', async () => {
+    /*
+     * The index can outlive the file. Live on ehr-qnap: a `media_items` row
+     * pointed at "Evolution (2026) - 1080p [dup2].mp4" that was not on disk, so
+     * the dry run — which only checked that the DESTINATION was free — said
+     * "restore" and the run said "nothing was renamed". A preview that
+     * disagrees with the run is how an operator learns to stop reading it.
+     */
+    const dir = path.join(root, 'Ghost');
+    await mkdir(dir, { recursive: true });
+    const missing = path.join(dir, 'Ghost (2026) - 1080p [dup2].mp4');
+
+    const { svc } = build(root, [{ id: 'i1', path: missing }]);
+
+    for (const dryRun of [true, false]) {
+      const out = await svc.restoreOrphanedSuffixes({}, { dryRun });
+      expect(out.restored).toBe(0);
+      expect(out.details[0].reason).toBe('the file no longer exists');
+    }
+  });
+
   it('reports without touching anything on a dry run', async () => {
     const dir = path.join(root, 'Dry');
     await mkdir(dir, { recursive: true });

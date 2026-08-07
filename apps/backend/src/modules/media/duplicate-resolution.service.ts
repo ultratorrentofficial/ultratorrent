@@ -324,6 +324,19 @@ export class DuplicateResolutionService {
         details.push({ itemId: item.id, from, to: null, reason: 'no [dupN] suffix on the file' });
         continue;
       }
+      /*
+       * The index can outlive the file. A row pointing at something that is no
+       * longer on disk has nothing to rename, and a dry run that checked only
+       * whether the DESTINATION was free would promise a restore it could not
+       * perform — the preview said "restore" and the run said "nothing was
+       * renamed", which is exactly how an operator learns to stop trusting a
+       * preview. Checked here so both paths reach the same verdict.
+       */
+      if (!(await stat(from).then(() => true).catch(() => false))) {
+        skipped++;
+        details.push({ itemId: item.id, from, to: null, reason: 'the file no longer exists' });
+        continue;
+      }
       if (await stat(canonical).then(() => true).catch(() => false)) {
         // A real duplicate. Leave it to the Duplicate Center, which is where a
         // keep/discard decision belongs.
