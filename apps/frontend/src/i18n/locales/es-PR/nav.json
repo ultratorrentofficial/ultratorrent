@@ -99,7 +99,8 @@
     "Users": "Usuarios",
     "Watch History": "Historial de Reproducción",
     "Workflow Approvals": "Aprobaciones de flujo",
-    "Workflows": "Flujos de trabajo"
+    "Workflows": "Flujos de trabajo",
+    "Documentation": "Documentación"
   },
   "descriptions": {
     "Acquisition Intelligence": "Adquisición y mejoras inteligentes",
@@ -178,7 +179,8 @@
     "Users": "Cuentas de usuario, roles y permisos",
     "Watch History": "Historial de reproducciones completadas",
     "Workflow Approvals": "Decide pasos de flujo que esperan aprobación",
-    "Workflows": "Diseña automatizaciones visualmente en un lienzo"
+    "Workflows": "Diseña automatizaciones visualmente en un lienzo",
+    "Documentation": "Guías, referencia de módulos y documentación del API — abre el sitio de documentación"
   },
   "details": {
     "Account": "Cuenta",

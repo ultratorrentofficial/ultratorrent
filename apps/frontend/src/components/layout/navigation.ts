@@ -5,6 +5,7 @@ import {
   Award,
   Bot,
   Workflow,
+  BookOpen,
   Boxes,
   Captions,
   CheckCircle2,
@@ -294,6 +295,18 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
   { slot: { domain: 'system', order: 5 }, item: { id: 'jobs-center', to: '/jobs', label: 'Jobs Center', icon: ListChecks, permission: PERMISSIONS.JOBS_VIEW, descriptionKey: 'Jobs Center' } },
   { slot: { domain: 'system', order: 10 }, item: { id: 'modules', to: '/modules', label: 'Modules', icon: Boxes, permission: PERMISSIONS.MODULES_VIEW, descriptionKey: 'Modules' } },
   { slot: { domain: 'system', order: 20 }, item: { id: 'settings', to: '/settings', label: 'Settings', icon: Settings, permission: PERMISSIONS.SETTINGS_VIEW, module: 'settings', descriptionKey: 'Settings' } },
+  /*
+   * The documentation, and the only route to it from inside the product.
+   *
+   * Everything else assumed the operator already knew the URL: the app linked
+   * to the docs from nowhere at all, so a user who installed via Docker and
+   * opened the UI had no discoverable path to the manual.
+   *
+   * Deliberately UNGATED — no `permission`, no `module`. Docs are the one thing
+   * every role needs, Read-Only most of all, and a permission check here would
+   * hide help from exactly the people most likely to need it.
+   */
+  { slot: { domain: 'system', order: 90 }, item: { id: 'docs', label: 'Documentation', icon: BookOpen, external: true, descriptionKey: 'Documentation' } },
 ];
 
 /**

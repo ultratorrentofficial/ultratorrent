@@ -59,6 +59,15 @@ import { usePaletteProviders } from '@/components/layout/usePaletteProviders';
 import { cn } from '@/lib/utils';
 import { CenteredSpinner } from '@/components/ui/feedback';
 
+/**
+ * The published documentation site.
+ *
+ * A constant rather than a setting: it is the project's own site, the same
+ * for every install, and making it configurable would invite a deployment to
+ * point its Help link somewhere that does not exist.
+ */
+const DOCS_URL = 'https://damirabal.github.io/ultratorrent-core/';
+
 /** A count/dot status badge on a nav item. Collapsed rail shows just a dot. */
 function NavBadgePill({ badge, collapsed }: { badge: NavBadge; collapsed?: boolean }) {
   const tone =
@@ -149,6 +158,10 @@ export function AppShell() {
   const externalHref = useCallback(
     (id: string): string | null => {
       if (id === 'prowlarr') return prowlarr?.enabled && prowlarr.publicUrl ? prowlarr.publicUrl : null;
+      // Unconditional, unlike Prowlarr: the docs are always there, so returning
+      // null would hide the item permanently — an external entry with no
+      // resolved href is dropped by the filter.
+      if (id === 'docs') return DOCS_URL;
       return null;
     },
     [prowlarr],

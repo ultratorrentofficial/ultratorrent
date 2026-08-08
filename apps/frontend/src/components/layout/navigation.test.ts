@@ -383,4 +383,40 @@ describe('personal notifications in the rail', () => {
       expect(child.permission).toBeTruthy();
     }
   });
+
+  /**
+   * The documentation link is the only route to the manual from inside the
+   * product — the app previously linked to it from nowhere, so a user who
+   * installed via Docker and opened the UI could not find it at all.
+   */
+  describe('documentation link', () => {
+    const findDocs = (groups: ReturnType<typeof visibleGroups>) =>
+      groups.flatMap((g) => g.items).find((i) => i.id === 'docs');
+
+    it('is visible to an account with NO permissions and every module disabled', () => {
+      /*
+       * The property worth protecting. Read-Only accounts are the likeliest to
+       * need help, and a permission or module gate here would hide the manual
+       * from exactly them.
+       */
+      const groups = visibleGroups({
+        hasPermission: () => false,
+        isEnabled: () => false,
+        canManageModules: false,
+        isSuperAdmin: false,
+        externalHref: (id) => (id === 'docs' ? 'https://example.test/docs/' : null),
+      });
+      expect(findDocs(groups)?.href).toBe('https://example.test/docs/');
+    });
+
+    it('carries no permission or module gate in the contribution itself', () => {
+      const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.id === 'docs')!;
+      expect(item.external).toBe(true);
+      expect(item.permission).toBeUndefined();
+      expect(item.module).toBeUndefined();
+      // No route: an external item navigates via `href`, and a `to` would make
+      // it render as an internal link to a page that does not exist.
+      expect(item.to).toBeUndefined();
+    });
+  });
 });
