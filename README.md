@@ -14,7 +14,7 @@ control, and a full audit trail.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](#license)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-43853d.svg)
-![Version](https://img.shields.io/badge/version-0.10.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.73.0-blue.svg)
 
 </div>
 
@@ -61,9 +61,13 @@ architecture.
 
 - **Engine-agnostic core** — all torrents, files, peers, and trackers are
   exposed as normalized DTOs. Adding an engine never changes the UI.
-- **rTorrent provider** — full control via XML-RPC over SCGI (TCP, Unix socket)
-  or HTTP, including add / remove / start / stop / recheck / move / file
-  priorities / trackers / rate limits.
+- **Two shipped engines** — **qBittorrent** (Web API v2, recommended for large
+  libraries) and **rTorrent** (XML-RPC over SCGI on TCP or Unix socket, or HTTP).
+  Both give full control: add / remove / start / stop / recheck / move / file
+  priorities / trackers / rate limits. Where an engine cannot do something the
+  platform says so rather than pretending — rTorrent cannot report a queued
+  torrent, so the scheduler grades that capability *inferred* instead of
+  promising what the engine cannot deliver.
 - **Add torrents many ways** — magnet links, `.torrent` file upload, or remote
   `.torrent` URL.
 - **Real-time UI** — a background sync loop polls each engine and fans live
@@ -102,6 +106,35 @@ architecture.
   multi-dimensional upgrade comparison (resolution/source/HDR/audio), holds out for
   better releases, and executes/upgrades downloads — with a decision simulator and
   dashboard. See [docs/SMART_DOWNLOAD.md](docs/SMART_DOWNLOAD.md).
+- **Media Intake** — a managed, resumable import pipeline between "the torrent
+  finished" and "the file is in the library": verify payload → import (hardlink,
+  copy or move) → identify → metadata → artwork → subtitles → seed. Each stage is
+  a recorded state, so a failure names the stage it failed at and a retry resumes
+  there instead of redoing the import. Hardlink imports leave the torrent seeding
+  its own copy untouched. See [docs/MEDIA_INTAKE.md](docs/MEDIA_INTAKE.md).
+- **Duplicate Center** — finds duplicate items across a library, recommends which
+  copy to keep, and previews exactly what a cleanup would remove **and what it
+  would actually free**: a library file is routinely a hardlink to a still-seeding
+  torrent, so deleting one name reclaims nothing, and the plan says so before you
+  approve it. See [docs/DUPLICATE_CENTER.md](docs/DUPLICATE_CENTER.md).
+- **Torrent Activity Scheduler** — makes UltraTorrent the policy authority for
+  queue occupancy while each engine executes: concurrency limits and ratio-based
+  seed targets resolved most-specific-first (torrent → RSS rule → category →
+  library → engine → global), with recurring schedule windows in local wall-clock
+  time. Off by default; enforcement is reachable only through a preview-and-confirm
+  activation flow. See [docs/TORRENT_SCHEDULER.md](docs/TORRENT_SCHEDULER.md).
+- **Unified Jobs Center** — one place for every background job on the platform,
+  whatever module started it: lifecycle, progress, phases, retries, cancellation
+  and history. See [docs/UNIFIED_JOBS_CENTER.md](docs/UNIFIED_JOBS_CENTER.md).
+- **Persistent transfer statistics** — total downloaded, uploaded and share ratio
+  live in the database, accrued from observed deltas rather than re-derived by
+  summing whatever torrents the engine still holds. They survive torrent removal,
+  engine restarts and container rebuilds, and are seeded from the engine's own
+  all-time counter when one exists.
+- **Junk-queue parking** — torrents whose swarm is dead are held out of the queue
+  so they stop occupying active slots, re-probed periodically in case the swarm
+  returns, and shown as parked (with the reason and last seeder count) rather
+  than as an unexplained "paused".
 - **RSS automation** — feeds with include/exclude rules that auto-download
   matches to the default engine.
 - **Rules engine** — condition/action automation triggered by events such as
@@ -115,8 +148,12 @@ architecture.
 - **Health & probes** — public liveness/readiness endpoints plus an authenticated
   health report (process, per-engine, and disk usage).
 - **OpenAPI / Swagger** — interactive API docs generated from the controllers.
-- **Implemented React + Vite UI** — auth flow, dashboard, real-time torrents
-  grid, detail drawer, and add-torrent dialog, styled with Tailwind.
+- **React + Vite UI** — organized into workspaces rather than one flat menu:
+  dashboard, real-time torrents grid with detail drawer, library browser, media
+  detail, duplicate center, subtitle management, RSS and automation builders,
+  jobs center, scheduler, file manager, and administration. Styled with Tailwind,
+  live over WebSocket, and fully localized — every string ships in **en-US and
+  es-PR** with key parity enforced by a test.
 
 ## Tech stack
 
@@ -329,6 +366,14 @@ ultratorrent/
 ```
 
 ## Documentation
+
+**📚 [damirabal.github.io/ultratorrent-core](https://damirabal.github.io/ultratorrent-core/)** — the
+full documentation site: searchable, cross-linked, and organized into six
+journeys (Learn, Install, Modules, Reference, Develop, Operate). Its Reference
+section is generated from the source, so it cannot drift from the code.
+
+Start there. The table below links the same material as raw Markdown for reading
+in the repository.
 
 | Document | Description |
 |----------|-------------|
