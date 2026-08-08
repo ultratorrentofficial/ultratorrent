@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.74.0] - 2026-08-08
+
+### Added
+- The application now links to the documentation. There was no route to the docs from inside the product at all — a user who installed via Docker and opened the web UI had no way to find the manual unless they already knew the URL. A Documentation entry now sits at the bottom of the System workspace, ungated by permission or module so Read-Only accounts can reach help too.
+
 ## [0.73.0] - 2026-08-07
 
 ### Added
