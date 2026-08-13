@@ -1394,6 +1394,9 @@
       "searchSeriesDone": "Searched {{count}} episodes — {{grabbed}} grabbed",
       "addFromLibrary": "Add from library",
       "remove": "Remove {{title}} from the watchlist",
+      "confirmRemoveTitle": "Remove show from watchlist",
+      "confirmRemoveSubmit": "Remove show",
+      "removing": "Removing…",
       "confirmRemove": "Remove “{{title}}” from the Missing Episodes watchlist? Tracking for this show will stop.",
       "removed": "Removed “{{title}}” from the watchlist",
       "removeFailed": "Could not remove the show from the watchlist"

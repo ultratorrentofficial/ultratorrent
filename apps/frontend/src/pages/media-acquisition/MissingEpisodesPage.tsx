@@ -17,6 +17,13 @@ import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { ShowStatusBadge } from '@/components/rss/ShowStatusPanel';
@@ -135,6 +142,7 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
   const canEvaluate = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_EVALUATE);
   const canManage = hasPermission(PERMISSIONS.MEDIA_ACQUISITION_MANAGE_WATCHLIST);
   const [open, setOpen] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   const episodes = useQuery({
     queryKey: ['mediaAcquisition', 'missingEpisodes', series.watchlistItemId],
@@ -181,14 +189,17 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
   const remove = useMutation({
     mutationFn: () => api.mediaAcquisition.deleteWatchlist(series.watchlistItemId),
     onSuccess: () => {
+      setConfirmRemove(false);
       toast.success(t('acquisition.missingEpisodes.removed', { title: series.title }));
       void queryClient.invalidateQueries({ queryKey: QK });
     },
-    onError: (err) =>
+    onError: (err) => {
+      setConfirmRemove(false);
       toast.error(
         t('acquisition.missingEpisodes.removeFailed'),
         err instanceof ApiError ? err.message : undefined,
-      ),
+      );
+    },
   });
 
   const known = series.total - series.unaired; // episodes that could be owned
@@ -245,10 +256,7 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  if (window.confirm(t('acquisition.missingEpisodes.confirmRemove', { title: series.title })))
-                    remove.mutate();
-                }}
+                onClick={() => setConfirmRemove(true)}
                 disabled={remove.isPending}
                 aria-label={t('acquisition.missingEpisodes.remove', { title: series.title })}
                 title={t('acquisition.missingEpisodes.remove', { title: series.title })}
@@ -299,6 +307,38 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
             )}
           </div>
         )}
+
+        <Dialog
+          open={confirmRemove}
+          onClose={() => !remove.isPending && setConfirmRemove(false)}
+          title={t('acquisition.missingEpisodes.confirmRemoveTitle')}
+          className="max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle>{t('acquisition.missingEpisodes.confirmRemoveTitle')}</DialogTitle>
+          </DialogHeader>
+          <DialogDescription>
+            {t('acquisition.missingEpisodes.confirmRemove', { title: series.title })}
+          </DialogDescription>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmRemove(false)}
+              disabled={remove.isPending}
+            >
+              {t('acquisition.common.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => remove.mutate()}
+              disabled={remove.isPending}
+            >
+              {remove.isPending
+                ? t('acquisition.missingEpisodes.removing')
+                : t('acquisition.missingEpisodes.confirmRemoveSubmit')}
+            </Button>
+          </DialogFooter>
+        </Dialog>
       </CardContent>
     </Card>
   );

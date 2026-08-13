@@ -1394,6 +1394,9 @@
       "searchSeriesDone": "Se buscaron {{count}} episodios — {{grabbed}} obtenidos",
       "addFromLibrary": "Agregar desde la biblioteca",
       "remove": "Quitar {{title}} de la lista",
+      "confirmRemoveTitle": "Quitar programa de la lista",
+      "confirmRemoveSubmit": "Quitar programa",
+      "removing": "Quitando…",
       "confirmRemove": "¿Quitar «{{title}}» de la lista de Episodios Faltantes? Se detendrá el seguimiento de este programa.",
       "removed": "Se quitó «{{title}}» de la lista",
       "removeFailed": "No se pudo quitar el programa de la lista"
