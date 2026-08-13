@@ -150,8 +150,12 @@ The build host runs a `registry:2` container. Push the built images to it and pu
 them down on the target — layers dedupe and an interrupted pull resumes, which
 matters on slow hardware.
 
+The build host's deploy wrapper already pushes what it builds — both
+`:<version>` and `:latest` — so in the normal flow only the constrained-host half is
+run by hand. The explicit commands:
+
 ```bash
-# On the build host
+# On the build host (the wrapper does this for you)
 docker tag ultratorrent-core-<svc>:latest <registry>/ultratorrent-core-<svc>:<version>
 docker push <registry>/ultratorrent-core-<svc>:<version>
 
@@ -208,10 +212,38 @@ Keep the current and one previous version tagged so a rollback does not need a
 rebuild. **`docker image prune -a` will remove images that are merely stopped, not
 just dangling** — prefer removing specific old tags.
 
-The registry itself accumulates too. `registry garbage-collect` only reclaims blobs
-no manifest references, so deleting old **tags** in the registry is a prerequisite —
-and the delete API is off unless the registry was started with
-`REGISTRY_STORAGE_DELETE_ENABLED=true`.
+### The registry keeps only the current and previous version
+
+`registry:2` expires nothing on its own. Left to itself it kept **every version ever
+shipped** — 30 GB across 135 tags, going back nine months — while the local image
+store held a second, independent 46 GB copy of much the same content.
+
+Retention is therefore enforced by the deploy wrapper, which prunes to the **last two
+versions** after every build: the one just shipped, and the one before it so a
+rollback still pulls without a rebuild. Three things make that work, and each is easy
+to get wrong:
+
+- **Delete by digest, never by tag — and only when no *kept* tag resolves to that
+  digest.** The API removes manifests by digest, and unrelated versions routinely
+  share one (an unchanged frontend across three releases). Deleting the digest for an
+  old tag would silently destroy the new one pointing at the same image.
+- **`latest` is re-pushed every deploy**, so it always aliases the newest version.
+  A stale `latest` is not free: it is a live reference, so it pins a whole extra
+  image's blobs against collection indefinitely.
+- **Sweep on every run, not only when a tag was deleted.** Re-pushing a tag that
+  already exists — which any rebuild of an uncut working tree does — leaves the
+  previous manifest in storage with *no tag pointing at it*. Nothing deletes it,
+  because it has no tag to drop; only `garbage-collect --delete-untagged` reclaims
+  it. A sweep skipped on a zero-deletion run lets those orphans accumulate unseen.
+
+```bash
+registry-prune.py --keep 2 [--dry-run] [--no-gc]
+```
+
+Deleting manifests needs the registry running with
+`REGISTRY_STORAGE_DELETE_ENABLED=true`; blobs are only reclaimed afterwards by the
+offline collector, which the script runs with the registry **stopped** so the sweep
+cannot race a push. Record the script's path on the host in `ops/hosts.local.md`.
 
 ### Postgres needs headroom the app never asks for
 
@@ -347,6 +379,7 @@ Each of these cost a broken deploy. They are why the rules above exist.
 | 2026-07-22 | Dev 502 on every `/api/` call | Backend stopped 4 days earlier; `Restart=on-failure` does not restart a clean stop | `Restart=always` on the unit |
 | 2026-07-22 | Backend ignored `SIGTERM` for ~8 min | `$disconnect()` waited on a `CREATE INDEX CONCURRENTLY` the service never tracked | Cancel the build in `onModuleDestroy` |
 | 2026-07-22 | IMDb aka lookups doing full scans; index never existed | Root disk at 96%; every GIN build died on `pgsql_tmp` ENOSPC and silently retried each boot | Size headroom for index builds |
+| 2026-08-13 | Build host at 90% disk with only two versions deployed | Nothing expired anything: 78 superseded image tags plus a registry holding every version since 0.34.2 | Prune the registry to the last two on every deploy |
 
 Shell gotcha behind the 2026-07-10 entry: `VAR=x cmd1 && cmd2` scopes `VAR` to
 `cmd1` only. For multi-step remote commands use
