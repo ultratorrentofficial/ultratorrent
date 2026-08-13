@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.74.1] - 2026-08-13
+
+### Fixed
+- Missing Episodes: removing a show from the watchlist now asks in an in-app modal instead of a browser confirm() dialog
+
 ## [0.74.0] - 2026-08-08
 
 ### Added
