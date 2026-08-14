@@ -187,7 +187,8 @@
       "pathPrefix": "Path prefix",
       "mediaItemId": "Media item id",
       "protectedUntil": "Protected until",
-      "submit": "Create protection"
+      "submit": "Create protection",
+      "libraryPlaceholder": "Select a library…"
     }
   },
   "mode": {
@@ -413,6 +414,8 @@
     "dest": {
       "quarantine": "to quarantine",
       "trash": "to trash"
-    }
+    },
+    "selectLibrary": "Select a library…",
+    "unknownLibrary": "Unknown library ({{id}})"
   }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { ShieldCheck, Plus, AlertTriangle } from 'lucide-react';
@@ -139,6 +139,24 @@ function CreateProtectionDialog({ onClose, onCreated }: { onClose: () => void; o
   const usesPath = targetType === 'path_prefix';
   const usesLibrary = targetType === 'library';
 
+  /*
+   * A library target is stored by ID, and the field used to be a text box — so
+   * the operator had to find a UUID and retype it by hand. A typo produced a
+   * protection that saved happily and then guarded nothing, which is the worst
+   * possible failure for a rule whose entire job is to stop media being deleted.
+   * Fetched only while the library type is selected; the other eleven target
+   * types have no list to offer.
+   */
+  const libraries = useQuery({
+    queryKey: ['media', 'libraries'],
+    queryFn: api.media.libraries,
+    enabled: usesLibrary,
+  });
+
+  // Changing the target type invalidates whatever was typed or picked for the
+  // previous one — an id belongs to exactly one kind of target.
+  useEffect(() => { setTargetValue(''); }, [targetType]);
+
   // A legal hold cannot be placed without its own permission; hide the option so the
   // form never offers what the server will refuse.
   const protectionOptions = PROTECTION_TYPES.filter((p) => p !== 'legal_hold' || canLegalHold);
@@ -169,7 +187,22 @@ function CreateProtectionDialog({ onClose, onCreated }: { onClose: () => void; o
         </label>
         <label className="block text-sm">
           <span className="text-muted-foreground">{targetLabel}</span>
-          <Input value={targetValue} onChange={(e) => setTargetValue(e.target.value)} />
+          {usesLibrary ? (
+            <Select
+              value={targetValue}
+              onChange={(e) => setTargetValue(e.target.value)}
+              disabled={libraries.isLoading}
+              options={[
+                { value: '', label: t('protections.create.libraryPlaceholder') },
+                ...(libraries.data ?? []).map((l) => ({ value: l.id, label: `${l.name} — ${l.path}` })),
+              ]}
+            />
+          ) : (
+            <Input value={targetValue} onChange={(e) => setTargetValue(e.target.value)} />
+          )}
+          {usesLibrary && libraries.isError && (
+            <span className="mt-1 block text-xs text-destructive">{t('common.loadError')}</span>
+          )}
         </label>
         <label className="block text-sm">
           <span className="text-muted-foreground">{t('protections.create.protectionType')}</span>

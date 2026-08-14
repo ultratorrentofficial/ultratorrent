@@ -187,7 +187,8 @@
       "pathPrefix": "Prefijo de ruta",
       "mediaItemId": "ID del elemento",
       "protectedUntil": "Protegido hasta",
-      "submit": "Crear protección"
+      "submit": "Crear protección",
+      "libraryPlaceholder": "Selecciona una biblioteca…"
     }
   },
   "mode": {
@@ -413,6 +414,8 @@
     "dest": {
       "quarantine": "a cuarentena",
       "trash": "a la papelera"
-    }
+    },
+    "selectLibrary": "Selecciona una biblioteca…",
+    "unknownLibrary": "Biblioteca desconocida ({{id}})"
   }
 }

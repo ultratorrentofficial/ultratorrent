@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import type { CleanupConditionDef } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { api, type CleanupConditionDef } from '@/lib/api';
 
 /**
  * Build a policy's conditions by picking, not by typing JSON.
@@ -57,10 +58,48 @@ function defaultValueFor(def: CleanupConditionDef | undefined): unknown {
   return '';
 }
 
+/**
+ * A library chosen by name, storing its id.
+ *
+ * The condition compares an id, but nobody knows their libraries by UUID — the
+ * text box this replaces asked for one and accepted anything, so a typo built a
+ * policy that validated and then matched nothing at all.
+ */
+function LibraryValueInput({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) {
+  const { t } = useTranslation('cleanup');
+  const libraries = useQuery({ queryKey: ['media', 'libraries'], queryFn: api.media.libraries });
+
+  /*
+   * A value already stored that no longer names a live library is kept as an
+   * option rather than silently reset to blank. Losing it would rewrite the
+   * operator's policy just by opening the editor, and hide the very mistake
+   * they came to fix.
+   */
+  const options = (libraries.data ?? []).map((l) => ({ value: l.id, label: `${l.name} — ${l.path}` }));
+  const current = String(value ?? '');
+  const orphaned = current && !options.some((o) => o.value === current);
+
+  return (
+    <Select
+      value={current}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={libraries.isLoading}
+      options={[
+        { value: '', label: t('builder.selectLibrary') },
+        ...options,
+        ...(orphaned ? [{ value: current, label: t('builder.unknownLibrary', { id: current }) }] : []),
+      ]}
+    />
+  );
+}
+
 function ValueInput({
   def, value, onChange,
 }: { def: CleanupConditionDef | undefined; value: unknown; onChange: (v: unknown) => void }) {
   if (!def) return null;
+
+  // Checked before dataType: the value is a string, but not one to be typed.
+  if (def.valueSource === 'library') return <LibraryValueInput value={value} onChange={onChange} />;
 
   if (def.dataType === 'boolean') {
     return (

@@ -3195,6 +3195,8 @@ export interface CleanupConditionDef {
   requiresMeasuredData?: boolean;
   safetyLevel?: 'informational' | 'normal' | 'elevated';
   enumValues?: string[];
+  /** The value is an id chosen from a fetched list, not typed. */
+  valueSource?: 'library';
 }
 export interface CleanupCatalog {
   schemaVersion: number;

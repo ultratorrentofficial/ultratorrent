@@ -35,6 +35,16 @@ export interface CleanupConditionDefinition {
   safetyLevel?: SafetyLevel;
   /** Allowed values for enum conditions. */
   enumValues?: readonly string[];
+  /**
+   * The value is an ID from a list the client can fetch, not free text.
+   *
+   * `dataType` says how a value COMPARES; this says where a valid one comes
+   * from. Without it a library condition renders as a text box asking for a
+   * UUID, and a mistyped id produces a policy that saves, validates and then
+   * matches nothing — silently, because "no library has that id" and "no media
+   * matched" are the same empty result.
+   */
+  valueSource?: 'library';
 }
 
 const EQ = ['eq', 'neq'];
@@ -107,7 +117,7 @@ export const CLEANUP_CONDITIONS: CleanupConditionDefinition[] = [
   def({ id: 'storage.torrentRatio', labelKey: 'cleanup.cond.torrentRatio', descriptionKey: 'cleanup.cond.torrentRatio.desc', category: 'storage', dataType: 'number', operators: ORD, factPath: 'storage.torrentRatio' }),
 
   // ── Safety & state ────────────────────────────────────────────────────────
-  def({ id: 'safety.libraryId', labelKey: 'cleanup.cond.libraryId', descriptionKey: 'cleanup.cond.libraryId.desc', category: 'safety', dataType: 'string', operators: EQ, factPath: 'safety.libraryId' }),
+  def({ id: 'safety.libraryId', labelKey: 'cleanup.cond.libraryId', descriptionKey: 'cleanup.cond.libraryId.desc', category: 'safety', dataType: 'string', operators: EQ, factPath: 'safety.libraryId', valueSource: 'library' }),
   def({ id: 'safety.libraryKind', labelKey: 'cleanup.cond.libraryKind', descriptionKey: 'cleanup.cond.libraryKind.desc', category: 'safety', dataType: 'enum', operators: EQ, factPath: 'safety.libraryKind', enumValues: ['tv', 'anime', 'movie', 'music', 'audiobook', 'general'] }),
   def({ id: 'safety.pathPrefix', labelKey: 'cleanup.cond.pathPrefix', descriptionKey: 'cleanup.cond.pathPrefix.desc', category: 'safety', dataType: 'string', operators: ['contains', 'matches'], factPath: 'safety.path' }),
   def({ id: 'safety.isLocked', labelKey: 'cleanup.cond.isLocked', descriptionKey: 'cleanup.cond.isLocked.desc', category: 'safety', dataType: 'boolean', operators: EQ, factPath: 'safety.isLocked' }),
