@@ -34,6 +34,11 @@ const REBUILD_INTERVAL_MS = 60 * 60 * 1000;
  * history gets NO row, which the evaluator reads as unmeasured rather than as
  * "never watched". This service's job is to make sure that absence means what it
  * says — no history — instead of meaning nobody ever built the table.
+ *
+ * A SERIES aggregates as a whole: every episode item of a show carries the show's
+ * total across all its episodes, because history names episodes the library
+ * cannot identify individually. So a show you are midway through never has any
+ * episode looking never-watched.
  */
 @Injectable()
 export class PlaybackAggregateService {
@@ -81,12 +86,16 @@ export class PlaybackAggregateService {
           },
         }),
         this.prisma.mediaItem.findMany({
-          where: { mediaType: 'movie' },
-          select: { id: true, title: true, year: true },
+          // Both kinds, indexed separately: a film resolves to one item, an
+          // episode row resolves to its whole series.
+          where: { mediaType: { in: ['movie', 'tv', 'anime'] } },
+          select: { id: true, title: true, year: true, mediaType: true },
         }),
       ]);
 
-      const resolution = resolvePlaybackRows(rows, buildTitleIndex(items));
+      const movies = items.filter((i) => i.mediaType === 'movie');
+      const episodes = items.filter((i) => i.mediaType !== 'movie');
+      const resolution = resolvePlaybackRows(rows, buildTitleIndex(movies, episodes));
       const now = new Date();
       let written = 0;
 

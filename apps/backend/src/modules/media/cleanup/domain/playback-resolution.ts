@@ -9,12 +9,21 @@
  * misattributed one silently marks the wrong film as watched — or worse, leaves
  * the one you did watch looking untouched.
  *
- * **Movies only, deliberately.** A TV row's title is the episode
- * (`"FROM — A Rock and a Farway"`), while a library item stores the SHOW title
- * with season/episode numbers and no episode name. There is no honest way to get
- * from one to the other with the data on hand, so episode rows are counted as
- * unresolved rather than guessed at — attributing a show-level play to all of its
- * episodes would mark a whole series watched on the strength of one.
+ * **Films resolve to one item; episodes resolve to their SHOW.** A TV row's title
+ * is the episode (`"FROM — A Rock and a Farway"`), while a library item stores the
+ * SHOW title with season/episode numbers and no episode name — so an individual
+ * episode cannot be identified from history. What can be identified is the series,
+ * by longest-prefix match, and a show's watch count is then the total across all
+ * its episodes, applied to each of them.
+ *
+ * That is deliberately conservative in the direction that matters. A series you
+ * have partly watched never looks never-watched, so a purge policy cannot take
+ * episodes of a show you are midway through. The cost is the opposite error —
+ * episodes you skipped inside a show you watched are not identifiable as skipped
+ * — and that error only ever keeps files.
+ *
+ * Longest prefix, not first: the library holds both `24` and `24 Legacy`, and the
+ * shorter title prefixes the longer one.
  */
 
 /** Media-server media types that describe a film. */
@@ -22,6 +31,13 @@ const MOVIE_TYPES = new Set(['movie', 'movies', 'film']);
 
 export function isMovieRow(mediaType: string | null | undefined): boolean {
   return MOVIE_TYPES.has((mediaType ?? '').trim().toLowerCase());
+}
+
+/** Media-server media types that describe one episode of a series. */
+const EPISODE_TYPES = new Set(['episode', 'episodes', 'show', 'season']);
+
+export function isEpisodeRow(mediaType: string | null | undefined): boolean {
+  return EPISODE_TYPES.has((mediaType ?? '').trim().toLowerCase());
 }
 
 /**
@@ -57,8 +73,10 @@ export interface ResolvableRow {
 }
 
 export interface TitleIndex {
-  /** Normalized title → every library item sharing it. */
+  /** Normalized film title → every library item sharing it. */
   byTitle: Map<string, string[]>;
+  /** Normalized SHOW title → every episode item of that show. */
+  byShow: Map<string, string[]>;
 }
 
 /**
@@ -69,16 +87,45 @@ export interface TitleIndex {
  * about both — dropping one would leave a watched copy looking never watched, and
  * that copy is then a deletion candidate.
  */
-export function buildTitleIndex(items: ResolvableItem[]): TitleIndex {
+export function buildTitleIndex(
+  items: ResolvableItem[],
+  shows: ResolvableItem[] = [],
+): TitleIndex {
+  const add = (map: Map<string, string[]>, title: string, id: string) => {
+    const key = normalizeTitle(title ?? '');
+    if (!key) return;
+    const bucket = map.get(key);
+    if (bucket) bucket.push(id);
+    else map.set(key, [id]);
+  };
+
   const byTitle = new Map<string, string[]>();
-  for (const item of items) {
-    const key = normalizeTitle(item.title ?? '');
-    if (!key) continue;
-    const bucket = byTitle.get(key);
-    if (bucket) bucket.push(item.id);
-    else byTitle.set(key, [item.id]);
+  for (const item of items) add(byTitle, item.title, item.id);
+
+  // A TV item's `title` IS the show title — every episode of a series carries it,
+  // so the bucket for one key is that series' whole episode list.
+  const byShow = new Map<string, string[]>();
+  for (const ep of shows) add(byShow, ep.title, ep.id);
+
+  return { byTitle, byShow };
+}
+
+/**
+ * The series an episode row belongs to, by longest-prefix match.
+ *
+ * Matching on words rather than on a separator character, because separators are
+ * not consistent (`—` and `-` both appear) and show titles contain hyphens of
+ * their own. Normalization has already collapsed both to spaces, so the question
+ * is simply which known series title the row begins with — and the longest wins,
+ * or `24` would swallow every episode of `24 Legacy`.
+ */
+export function matchShow(rowTitle: string, byShow: Map<string, string[]>): string[] | undefined {
+  const words = normalizeTitle(rowTitle ?? '').split(' ').filter(Boolean);
+  for (let take = words.length; take > 0; take -= 1) {
+    const hit = byShow.get(words.slice(0, take).join(' '));
+    if (hit) return hit;
   }
-  return { byTitle };
+  return undefined;
 }
 
 export interface ResolutionOutcome<R> {
@@ -86,7 +133,7 @@ export interface ResolutionOutcome<R> {
   byItem: Map<string, R[]>;
   /** Rows that named a film no library item matches. */
   unresolved: number;
-  /** Rows skipped because they are not films (episodes, music, unknown). */
+  /** Rows skipped because they are neither a film nor a known series. */
   skippedNonMovie: number;
 }
 
@@ -107,11 +154,18 @@ export function resolvePlaybackRows<R extends ResolvableRow>(
   let skippedNonMovie = 0;
 
   for (const row of rows) {
-    if (!isMovieRow(row.mediaType)) {
+    let ids: string[] | undefined;
+
+    if (isMovieRow(row.mediaType)) {
+      ids = index.byTitle.get(normalizeTitle(row.title ?? ''));
+    } else if (isEpisodeRow(row.mediaType)) {
+      // Every episode of the series shares the count — see the module note.
+      ids = matchShow(row.title ?? '', index.byShow);
+    } else {
       skippedNonMovie += 1;
       continue;
     }
-    const ids = index.byTitle.get(normalizeTitle(row.title ?? ''));
+
     if (!ids?.length) {
       unresolved += 1;
       continue;

@@ -78,13 +78,16 @@ describe('resolvePlaybackRows', () => {
     expect(out.unresolved).toBe(1);
   });
 
-  it('skips episodes instead of guessing at them', () => {
-    /*
-     * A TV row names the EPISODE ("FROM — A Rock and a Farway") while items store
-     * the show title and numbers. There is no honest join, so these are skipped
-     * and reported — never spread across a show's episodes.
-     */
+  it('reports an episode of an unheld series as unresolved, not as a film', () => {
+    // This index holds films only, so the series cannot be found — that is an
+    // unresolved row, not a match against some similarly-named film.
     const out = resolvePlaybackRows([play('FROM — A Rock and a Farway', 'episode')], index);
+    expect(out.byItem.size).toBe(0);
+    expect(out.unresolved).toBe(1);
+  });
+
+  it('skips media that is neither film nor episode', () => {
+    const out = resolvePlaybackRows([play('Some Song', 'track')], index);
     expect(out.byItem.size).toBe(0);
     expect(out.skippedNonMovie).toBe(1);
     expect(out.unresolved).toBe(0);
@@ -101,6 +104,66 @@ describe('resolvePlaybackRows', () => {
 
   it('ignores an empty title rather than matching everything', () => {
     const out = resolvePlaybackRows([play('')], index);
+    expect(out.byItem.size).toBe(0);
+    expect(out.unresolved).toBe(1);
+  });
+});
+
+/**
+ * Series attribution. An episode row names the episode, the library stores the
+ * show — so a play resolves to the SERIES, and its count is the total across all
+ * episodes, credited to each of them.
+ */
+const episodes = [
+  { id: 'from-s1e1', title: 'FROM' },
+  { id: 'from-s1e2', title: 'FROM' },
+  { id: 'ranch-s1e1', title: 'The Secret of Skinwalker Ranch' },
+  { id: '24-s1e1', title: '24' },
+  { id: '24l-s1e1', title: '24 Legacy' },
+];
+const showIndex = buildTitleIndex([], episodes);
+const ep = (title: string) => ({ title, mediaType: 'episode' });
+
+describe('episode rows resolve to their series', () => {
+  it('credits every episode of the show', () => {
+    const out = resolvePlaybackRows([ep('FROM — A Rock and a Farway')], showIndex);
+    expect([...out.byItem.keys()].sort()).toEqual(['from-s1e1', 'from-s1e2']);
+    expect(out.unresolved).toBe(0);
+  });
+
+  it('handles a hyphen separator as well as an em dash', () => {
+    const out = resolvePlaybackRows([ep('The Secret of Skinwalker Ranch - Breaking Ground')], showIndex);
+    expect([...out.byItem.keys()]).toEqual(['ranch-s1e1']);
+  });
+
+  it('takes the LONGEST matching series, not the first', () => {
+    // `24` prefixes `24 Legacy`; matching short would credit the wrong series.
+    const out = resolvePlaybackRows([ep('24 Legacy — Whatever')], showIndex);
+    expect([...out.byItem.keys()]).toEqual(['24l-s1e1']);
+  });
+
+  it('still matches the short series when that is the one played', () => {
+    const out = resolvePlaybackRows([ep('24 — Day 1: 12:00 A.M.')], showIndex);
+    expect([...out.byItem.keys()]).toEqual(['24-s1e1']);
+  });
+
+  it('sums the whole series onto each episode', () => {
+    /*
+     * The requested semantics: a show's watch count is the total across its
+     * episodes. Three plays of different episodes make three plays on each item,
+     * so a series being watched can never leave any of its episodes looking
+     * never-watched.
+     */
+    const out = resolvePlaybackRows(
+      [ep('FROM — One'), ep('FROM — Two'), ep('FROM — Three')],
+      showIndex,
+    );
+    expect(out.byItem.get('from-s1e1')).toHaveLength(3);
+    expect(out.byItem.get('from-s1e2')).toHaveLength(3);
+  });
+
+  it('reports an unknown series as unresolved rather than guessing', () => {
+    const out = resolvePlaybackRows([ep('Some Show We Do Not Hold — Pilot')], showIndex);
     expect(out.byItem.size).toBe(0);
     expect(out.unresolved).toBe(1);
   });
