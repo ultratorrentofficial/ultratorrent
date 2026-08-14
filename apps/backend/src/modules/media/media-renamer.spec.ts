@@ -579,6 +579,41 @@ describe('isSeasonContainer / showFolderRoot', () => {
       .toBe('/tv/Show (2020)');
   });
 
+  it('climbs past a SEASON PACK folder, which names no episode at all', () => {
+    /*
+     * The regression this file did not cover. Every release-folder fixture above
+     * names one EPISODE (`…S01E05…`), and the old predicate keyed on exactly that
+     * marker — so a folder naming a whole season passed straight through as a show
+     * folder. Live result on ehr-qnap (2026-08-09): seven Scandal season packs
+     * organised into `Scandal (2012)/<pack folder>/Season 05/…` instead of
+     * `Scandal (2012)/Season 05/…`, because the pack folder became the show root.
+     */
+    expect(showFolderRoot(
+      '/tv/Scandal (2012)/Scandal US Season 5 Complete 720p WEB-DL x264 [i_c]/ep.mkv',
+      '/tv',
+    )).toBe('/tv/Scandal (2012)');
+    // The scene spelling of the same shape, with no "Complete" and no spaces.
+    expect(showFolderRoot(
+      '/tv/From (2022)/From.S04.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir/Season 04/ep.mkv',
+      '/tv',
+    )).toBe('/tv/From (2022)');
+  });
+
+  it('stops at the release folder when there is no show folder above it', () => {
+    /*
+     * The floor. A flat release sitting directly under the library root has no
+     * show folder to climb to, and returning the root would write `Season 04/`
+     * BESIDE the show folders — scattering seasons across the whole library. The
+     * release folder is not a show folder either, but with nothing above it, it is
+     * the only answer that keeps the episode contained.
+     */
+    expect(showFolderRoot('/tv/From.S04.1080p.WEBRip.x265-NeoNoir/ep.mkv', '/tv'))
+      .toBe('/tv/From.S04.1080p.WEBRip.x265-NeoNoir');
+    // Trailing separator on the library path must not defeat the comparison.
+    expect(showFolderRoot('/tv/From.S04.1080p.WEBRip.x265-NeoNoir/ep.mkv', '/tv/'))
+      .toBe('/tv/From.S04.1080p.WEBRip.x265-NeoNoir');
+  });
+
   it('keeps a show folder that merely looks technical', () => {
     // Only an episode marker disqualifies a folder; a real show folder may carry
     // anything else, and climbing on "1080p" alone would eat legitimate names.

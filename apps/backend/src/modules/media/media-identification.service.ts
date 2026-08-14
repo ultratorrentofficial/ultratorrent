@@ -6,6 +6,7 @@ import {
   parseTorrentName,
   ParsedTorrentMeta,
 } from '../rss/torrent-name-parser';
+import { isReleaseFolder } from './media-renamer';
 
 export interface ManualMatchDto {
   mediaType?: string;
@@ -37,22 +38,15 @@ export function isGenericContainer(name: string): boolean {
 /**
  * True for a folder that names ONE release of a season rather than the show — an
  * unrenamed scene/download directory like
- * `From.S04.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir`. The tell is scene/quality
- * tokens (resolution, source, codec, release group) or a bare season marker: a real
- * show-root folder ("From (2022)", "Loki (2021)", "9-1-1 (2018)", a "Marvel"
- * collection) carries none of these — it is named for the show across all seasons,
- * never for a single release.
+ * `From.S04.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir`.
+ *
+ * Re-exported from the renamer rather than defined here. This module and
+ * `media-renamer` each grew their own copy, they disagreed — the renamer's
+ * demanded an `SxxExx` episode marker, so season packs failed it — and the
+ * disagreement was invisible precisely because both were "working" against their
+ * own tests. One definition, imported by both.
  */
-export function isReleaseFolder(name: string): boolean {
-  const p = parseTorrentName(name);
-  return (
-    p.resolution !== null ||
-    p.source !== null ||
-    p.codec !== null ||
-    p.releaseGroup !== null ||
-    p.season !== null
-  );
-}
+export { isReleaseFolder };
 
 /**
  * The name of the show folder for a file — the parent that names the SERIES,

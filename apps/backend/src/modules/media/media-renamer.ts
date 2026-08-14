@@ -575,20 +575,53 @@ function isUnder(file: string, folder: string): boolean {
  * A folder that is a **release**, not a show.
  *
  * A torrent extracts into a directory named after the release —
- * `A.Gentleman.in.Moscow.S01E05.1080p.HEVC.x265-MeGusta[TGx]` — and the episode
- * lands inside it. Such a folder names ONE episode, so it can never be a show
+ * `A.Gentleman.in.Moscow.S01E05.1080p.HEVC.x265-MeGusta[TGx]` — and the media
+ * lands inside it. Such a folder names ONE release, so it can never be a show
  * folder, and treating it as one made every un-organised episode appear in the
  * browser as its own series.
  *
- * Keyed on an episode marker rather than on release tokens like `1080p`: a real
- * show folder may legitimately carry almost anything else, but never `SxxExx`.
+ * Keyed on the **parse**, not on an `SxxExx` episode marker. Requiring an episode
+ * marker looked safe — a real show folder never carries one — but it silently
+ * excluded every folder that names a SEASON instead of an episode:
+ * `Scandal US Season 5 Complete 720p WEB-DL x264 [i_c]`,
+ * `From.S04.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir`. Those are release folders by
+ * every other measure, and calling them show folders is how seven Scandal season
+ * packs ended up organised into `Scandal (2012)/<pack folder>/Season 05/` instead
+ * of `Scandal (2012)/Season 05/` (2026-08-09, ehr-qnap).
+ *
+ * Quality/scene tokens alone are the tell, so a real show root — "From (2022)",
+ * "S.W.A.T. (2017)", "1080 (2019)", a "Marvel" collection — parses to none of
+ * them and stays a show folder. This is the SINGLE definition; media
+ * identification imports it rather than keeping its own, because two
+ * implementations of "is this a release folder" drifted apart and the renamer's
+ * half was the one that got it wrong.
  */
 export function isReleaseFolder(name: string): boolean {
-  return /\bs\d{1,2}[\s._-]*e\d{1,3}\b/i.test(name);
+  const p = parseTorrentName(name);
+  return (
+    p.resolution !== null ||
+    p.source !== null ||
+    p.codec !== null ||
+    p.releaseGroup !== null ||
+    p.season !== null
+  );
 }
 
-export function showFolderRoot(source: string): string {
+/**
+ * The show folder a source file belongs to, climbing past the containers that are
+ * not the show itself.
+ *
+ * `libraryPath` is the floor and should be passed wherever it is known. Without
+ * it, a flat release sitting directly under the library root
+ * (`/tv/From.S04.1080p…-NeoNoir/ep.mkv`) climbs to `/tv` itself, and the caller
+ * then writes `Season 04/` **beside the show folders** rather than inside one.
+ * When the climb would reach the root, the release folder is kept instead: it is
+ * not a show folder, but with nothing above it there is no better answer, and
+ * leaving the file nested beats scattering season folders across the library.
+ */
+export function showFolderRoot(source: string, libraryPath?: string): string {
   let dir = path.dirname(source);
+  const floor = libraryPath ? normFolder(libraryPath) : undefined;
   /*
    * Climb past every container that is not the show itself — a season folder, a
    * release folder, or a release folder nested inside a season folder. Bounded
@@ -600,6 +633,7 @@ export function showFolderRoot(source: string): string {
     if (!name || (!isSeasonContainer(name) && !isReleaseFolder(name))) break;
     const parent = path.dirname(dir);
     if (parent === dir) break; // hit the filesystem root
+    if (floor && normFolder(parent) === floor) break; // would land on the library root
     dir = parent;
   }
   return dir;
@@ -636,7 +670,7 @@ function resolveDestination(ctx: RenameContext, source: string, rel: string, kin
   if (!isMovie && ctx.mode === 'rename_in_place' && path.isAbsolute(source)) {
     const parts = rel.split(path.sep);
     const belowShow = parts.length > 1 ? parts.slice(1).join(path.sep) : rel;
-    return path.join(showFolderRoot(source), belowShow);
+    return path.join(showFolderRoot(source, ctx.libraryPath), belowShow);
   }
   return path.join(ctx.libraryPath, rel);
 }
@@ -745,7 +779,7 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
     if ((fileKind === 'tv' || fileKind === 'anime') && ctx.showFolderFor && path.isAbsolute(f.path)) {
       const series = fileMeta?.seriesTitle ?? parsed.title;
       const known = series ? ctx.showFolderFor(series) : undefined;
-      const current = showFolderRoot(f.path);
+      const current = showFolderRoot(f.path, ctx.libraryPath);
       // Ask whether the file lives ANYWHERE under its series' folder, not whether its
       // immediate show-folder matches. `showFolderRoot` climbs past `Season NN` but
       // not past a release directory, so a correctly-filed
