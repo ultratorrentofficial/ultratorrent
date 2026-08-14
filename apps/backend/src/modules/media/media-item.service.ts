@@ -2,6 +2,9 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import {
+  DEFAULT_ITEM_SORT, isAlphabetical, isItemSort, orderByForSort,
+} from './domain/item-sort';
+import {
   TV_TYPES,
   decodeSeriesKey,
   encodeSeriesKey,
@@ -59,6 +62,8 @@ export function issueWhere(kind: IssueKind): Prisma.MediaItemWhereInput {
 }
 
 export interface ItemFilters {
+  /** One of {@link ITEM_SORTS}; anything else falls back to the default. */
+  sort?: string;
   mediaType?: string;
   matchStatus?: string;
   libraryId?: string;
@@ -176,6 +181,7 @@ export class MediaItemService {
    * relations a row renders are eagerly loaded, artwork narrowed to one poster.
    */
   async list(filters: ItemFilters) {
+    const sort = isItemSort(filters.sort) ? filters.sort : DEFAULT_ITEM_SORT;
     const where: Prisma.MediaItemWhereInput = {};
     if (filters.mediaType) where.mediaType = filters.mediaType;
     if (filters.matchStatus) where.matchStatus = filters.matchStatus;
@@ -191,7 +197,9 @@ export class MediaItemService {
        * it needs no predicate at all.
        */
       const letter = filters.startsAt.trim().toUpperCase().slice(0, 1);
-      if (/^[A-Z]$/.test(letter)) where.title = { gte: letter };
+      // Only while the listing follows the alphabet. Under "recently added" this
+      // anchor silently removes everything before the letter for no visible reason.
+      if (/^[A-Z]$/.test(letter) && isAlphabetical(sort)) where.title = { gte: letter };
     }
 
     const page = Math.max(1, filters.page ?? 1);
@@ -226,7 +234,7 @@ export class MediaItemService {
       this.prisma.mediaItem.count({ where }),
       this.prisma.mediaItem.findMany({
         where,
-        orderBy: [{ title: 'asc' }, { createdAt: 'asc' }],
+        orderBy: orderByForSort(sort),
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: LIST_INCLUDE,

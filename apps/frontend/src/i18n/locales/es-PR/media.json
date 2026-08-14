@@ -1793,6 +1793,16 @@
       "all": "Todo",
       "jump": "{{letter}} — {{count}} título",
       "jump_other": "{{letter}} — {{count}} títulos"
+    },
+    "sortLabel": "Orden",
+    "sort": {
+      "title": "Título A–Z",
+      "title_desc": "Título Z–A",
+      "added_desc": "Añadido recientemente",
+      "added_asc": "Más antiguos primero",
+      "year_desc": "Año más reciente",
+      "year_asc": "Año más antiguo",
+      "updated_desc": "Actualizado recientemente"
     }
   },
   "rename": {

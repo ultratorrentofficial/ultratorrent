@@ -1327,9 +1327,17 @@ export interface MediaItemQuery {
   title?: string;
   /** Anchor the listing at the first title from this letter onward. */
   startsAt?: string;
+  /** One of MEDIA_ITEM_SORTS; the server ignores anything else. */
+  sort?: MediaItemSort;
   page?: number;
   pageSize?: number;
 }
+
+/** Orderings the library listing supports, mirroring the server's whitelist. */
+export const MEDIA_ITEM_SORTS = [
+  'title', 'title_desc', 'added_desc', 'added_asc', 'year_desc', 'year_asc', 'updated_desc',
+] as const;
+export type MediaItemSort = (typeof MEDIA_ITEM_SORTS)[number];
 
 /** Result of a bulk operation over an explicit id list. */
 /** Library problems decidable from the database — see LIBRARY_BROWSER.md. */

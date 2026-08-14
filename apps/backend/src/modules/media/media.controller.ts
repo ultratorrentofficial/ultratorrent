@@ -270,10 +270,12 @@ export class MediaController {
     @Query('title') title?: string,
     @Query('issue') issue?: string,
     @Query('startsAt') startsAt?: string,
+    @Query('sort') sort?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     return this.items.list({
+      sort,
       mediaType,
       matchStatus,
       libraryId,

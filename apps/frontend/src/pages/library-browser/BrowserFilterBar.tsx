@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { MEDIA_ITEM_SORTS, type MediaItemSort } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -18,14 +20,19 @@ export interface BrowserFilters {
   search: string;
   matchStatus: MatchStatusFilter | null;
   issue: IssueKind | null;
+  sort: MediaItemSort;
 }
 
-export const EMPTY_FILTERS: BrowserFilters = { search: '', matchStatus: null, issue: null };
+export const EMPTY_FILTERS: BrowserFilters = {
+  search: '', matchStatus: null, issue: null, sort: 'title',
+};
 
 /** Long enough that a typist does not fire a query per keystroke, short enough to feel instant. */
 export const SEARCH_DEBOUNCE_MS = 250;
 
 export function hasActiveFilters(f: BrowserFilters): boolean {
+  // Sort is deliberately excluded: an ordering is not a filter, and counting it
+  // as one would light up "clear filters" for a list showing everything.
   return f.search.trim() !== '' || f.matchStatus !== null || f.issue !== null;
 }
 
@@ -66,6 +73,17 @@ export function BrowserFilterBar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <Select
+        aria-label={t('browser.sortLabel')}
+        className="w-auto"
+        value={value.sort}
+        onChange={(e) => onChange({ ...value, sort: e.target.value as MediaItemSort })}
+        options={MEDIA_ITEM_SORTS.map((s) => ({
+          value: s,
+          label: t(`browser.sort.${s}` as 'browser.sort.title'),
+        }))}
+      />
+
       <div className="relative min-w-[12rem] flex-1">
         <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
         <Input

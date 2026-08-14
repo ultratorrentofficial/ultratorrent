@@ -17,12 +17,18 @@ describe('hasActiveFilters', () => {
 
   it('ignores whitespace-only search', () => {
     // Otherwise a stray space shows a "Clear filters" button that clears nothing.
-    expect(hasActiveFilters({ search: '   ', matchStatus: null, issue: null })).toBe(false);
+    expect(hasActiveFilters({ search: '   ', matchStatus: null, issue: null, sort: 'title' })).toBe(false);
+  });
+
+  it('does not treat a sort as an active filter', () => {
+    // An ordering is not a filter; counting it would light up "clear filters"
+    // on a list that is showing everything.
+    expect(hasActiveFilters({ ...EMPTY_FILTERS, sort: 'added_desc' })).toBe(false);
   });
 
   it('is true for a real search or a status', () => {
-    expect(hasActiveFilters({ search: 'dune', matchStatus: null, issue: null })).toBe(true);
-    expect(hasActiveFilters({ search: '', matchStatus: 'unmatched', issue: null })).toBe(true);
+    expect(hasActiveFilters({ search: 'dune', matchStatus: null, issue: null, sort: 'title' })).toBe(true);
+    expect(hasActiveFilters({ search: '', matchStatus: 'unmatched', issue: null, sort: 'title' })).toBe(true);
   });
 });
 
@@ -41,34 +47,34 @@ describe('BrowserFilterBar', () => {
 
     act(() => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS); });
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith({ search: 'dune', matchStatus: null, issue: null });
+    expect(onChange).toHaveBeenCalledWith({ search: 'dune', matchStatus: null, issue: null, sort: 'title' });
   });
 
   it('toggles a status on and off', () => {
     const onChange = vi.fn();
     const { rerender } = render(<BrowserFilterBar value={EMPTY_FILTERS} onChange={onChange} />);
     fireEvent.click(screen.getByText('Unmatched'));
-    expect(onChange).toHaveBeenCalledWith({ search: '', matchStatus: 'unmatched', issue: null });
+    expect(onChange).toHaveBeenCalledWith({ search: '', matchStatus: 'unmatched', issue: null, sort: 'title' });
 
     rerender(
-      <BrowserFilterBar value={{ search: '', matchStatus: 'unmatched', issue: null }} onChange={onChange} />,
+      <BrowserFilterBar value={{ search: '', matchStatus: 'unmatched', issue: null, sort: 'title' }} onChange={onChange} />,
     );
     fireEvent.click(screen.getByText('Unmatched'));
-    expect(onChange).toHaveBeenLastCalledWith({ search: '', matchStatus: null, issue: null });
+    expect(onChange).toHaveBeenLastCalledWith({ search: '', matchStatus: null, issue: null, sort: 'title' });
   });
 
   it('replaces rather than accumulates statuses', () => {
     // The server takes one matchStatus; letting two look selected would lie.
     const onChange = vi.fn();
     render(
-      <BrowserFilterBar value={{ search: '', matchStatus: 'unmatched', issue: null }} onChange={onChange} />,
+      <BrowserFilterBar value={{ search: '', matchStatus: 'unmatched', issue: null, sort: 'title' }} onChange={onChange} />,
     );
     fireEvent.click(screen.getByText('Matched'));
-    expect(onChange).toHaveBeenCalledWith({ search: '', matchStatus: 'matched', issue: null });
+    expect(onChange).toHaveBeenCalledWith({ search: '', matchStatus: 'matched', issue: null, sort: 'title' });
   });
 
   it('marks the active status for assistive tech', () => {
-    render(<BrowserFilterBar value={{ search: '', matchStatus: 'manual', issue: null }} onChange={vi.fn()} />);
+    render(<BrowserFilterBar value={{ search: '', matchStatus: 'manual', issue: null, sort: 'title' }} onChange={vi.fn()} />);
     expect(screen.getByText('Manual')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Matched')).toHaveAttribute('aria-pressed', 'false');
   });
@@ -76,14 +82,14 @@ describe('BrowserFilterBar', () => {
   it('offers a clear only when something is active', () => {
     const { rerender } = render(<BrowserFilterBar value={EMPTY_FILTERS} onChange={vi.fn()} />);
     expect(screen.queryByText('Clear filters')).not.toBeInTheDocument();
-    rerender(<BrowserFilterBar value={{ search: 'x', matchStatus: null, issue: null }} onChange={vi.fn()} />);
+    rerender(<BrowserFilterBar value={{ search: 'x', matchStatus: null, issue: null, sort: 'title' }} onChange={vi.fn()} />);
     expect(screen.getByText('Clear filters')).toBeInTheDocument();
   });
 
   it('clears everything at once', () => {
     const onChange = vi.fn();
     render(
-      <BrowserFilterBar value={{ search: 'dune', matchStatus: 'matched', issue: null }} onChange={onChange} />,
+      <BrowserFilterBar value={{ search: 'dune', matchStatus: 'matched', issue: null, sort: 'title' }} onChange={onChange} />,
     );
     fireEvent.click(screen.getByText('Clear filters'));
     expect(onChange).toHaveBeenCalledWith(EMPTY_FILTERS);
@@ -92,7 +98,7 @@ describe('BrowserFilterBar', () => {
   it('follows an external reset', () => {
     // The page clears filters on library switch; the box must not keep the text.
     const { rerender } = render(
-      <BrowserFilterBar value={{ search: 'dune', matchStatus: null, issue: null }} onChange={vi.fn()} />,
+      <BrowserFilterBar value={{ search: 'dune', matchStatus: null, issue: null, sort: 'title' }} onChange={vi.fn()} />,
     );
     expect(screen.getByLabelText('Search this library')).toHaveValue('dune');
     rerender(<BrowserFilterBar value={EMPTY_FILTERS} onChange={vi.fn()} />);
@@ -127,23 +133,23 @@ describe('BrowserFilterBar', () => {
         <BrowserFilterBar value={EMPTY_FILTERS} onChange={onChange} issueCounts={counts} />,
       );
       fireEvent.click(screen.getByText('No artwork'));
-      expect(onChange).toHaveBeenCalledWith({ search: '', matchStatus: null, issue: 'missing_artwork' });
+      expect(onChange).toHaveBeenCalledWith({ search: '', matchStatus: null, issue: 'missing_artwork', sort: 'title' });
 
       rerender(
         <BrowserFilterBar
-          value={{ search: '', matchStatus: null, issue: 'missing_artwork' }}
+          value={{ search: '', matchStatus: null, issue: 'missing_artwork', sort: 'title' }}
           onChange={onChange}
           issueCounts={counts}
         />,
       );
       fireEvent.click(screen.getByText('No artwork'));
-      expect(onChange).toHaveBeenLastCalledWith({ search: '', matchStatus: null, issue: null });
+      expect(onChange).toHaveBeenLastCalledWith({ search: '', matchStatus: null, issue: null, sort: 'title' });
     });
 
     it('counts an issue as an active filter', () => {
       render(
         <BrowserFilterBar
-          value={{ search: '', matchStatus: null, issue: 'duplicate' }}
+          value={{ search: '', matchStatus: null, issue: 'duplicate', sort: 'title' }}
           onChange={vi.fn()}
           issueCounts={counts}
         />,
@@ -156,7 +162,7 @@ describe('BrowserFilterBar', () => {
     // Without the guard the debounce fires on mount and resets paging for nothing.
     vi.useFakeTimers();
     const onChange = vi.fn();
-    render(<BrowserFilterBar value={{ search: 'dune', matchStatus: null, issue: null }} onChange={onChange} />);
+    render(<BrowserFilterBar value={{ search: 'dune', matchStatus: null, issue: null, sort: 'title' }} onChange={onChange} />);
     act(() => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS * 2); });
     expect(onChange).not.toHaveBeenCalled();
   });

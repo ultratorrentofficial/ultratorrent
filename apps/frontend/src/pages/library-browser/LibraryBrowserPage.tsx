@@ -132,7 +132,9 @@ export function LibraryBrowserPage() {
   });
 
   const items = useInfiniteQuery({
-    queryKey: ['library-browser', 'items', libraryId, filters.search, filters.matchStatus, filters.issue, startsAt],
+    // `sort` belongs in the key: changing the order changes every page, so the
+    // infinite list has to start again rather than append to the previous order.
+    queryKey: ['library-browser', 'items', libraryId, filters.search, filters.matchStatus, filters.issue, filters.sort, startsAt],
     enabled: !!libraryId && !browsesByShow,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
@@ -141,6 +143,7 @@ export function LibraryBrowserPage() {
         search: filters.search || undefined,
         matchStatus: filters.matchStatus ?? undefined,
         issue: filters.issue ?? undefined,
+        sort: filters.sort,
         startsAt: startsAt ?? undefined,
       }),
     getNextPageParam: (last, all) =>
