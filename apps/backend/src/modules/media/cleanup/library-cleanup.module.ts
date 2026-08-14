@@ -7,6 +7,7 @@ import { PlanService } from './plan.service';
 import { PlanExecutorService } from './plan-executor.service';
 import { QuarantineService } from './quarantine.service';
 import { CleanupSchedulerService } from './cleanup-scheduler.service';
+import { PlaybackAggregateService } from './playback-aggregate.service';
 import { CleanupJobBridge } from './cleanup-job.bridge';
 import { CleanupController } from './cleanup.controller';
 
@@ -23,8 +24,8 @@ import { CleanupController } from './cleanup.controller';
   // FilesModule supplies FilePathService (storage-scope confinement) and, from
   // Phase 8, FilesService/TrashService — cleanup never touches the filesystem itself.
   imports: [FilesModule],
-  providers: [ProtectionService, PolicyService, CandidateDiscoveryService, PlanService, QuarantineService, PlanExecutorService, CleanupSchedulerService, CleanupJobBridge],
+  providers: [ProtectionService, PolicyService, CandidateDiscoveryService, PlanService, QuarantineService, PlanExecutorService, CleanupSchedulerService, CleanupJobBridge, PlaybackAggregateService],
   controllers: [CleanupController],
-  exports: [ProtectionService, PolicyService, CandidateDiscoveryService, PlanService, QuarantineService, PlanExecutorService, CleanupSchedulerService, CleanupJobBridge],
+  exports: [ProtectionService, PolicyService, CandidateDiscoveryService, PlanService, QuarantineService, PlanExecutorService, CleanupSchedulerService, CleanupJobBridge, PlaybackAggregateService],
 })
 export class LibraryCleanupModule {}

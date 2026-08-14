@@ -10,6 +10,7 @@ import { PolicyService } from './policy.service';
 import { CandidateDiscoveryService } from './candidate-discovery.service';
 import { PlanService } from './plan.service';
 import { PlanExecutorService } from './plan-executor.service';
+import { PlaybackAggregateService } from './playback-aggregate.service';
 import { QuarantineService } from './quarantine.service';
 import {
   BulkCreateProtectionDto, CreateProtectionDto, ExpiringQueryDto,
@@ -41,6 +42,7 @@ export class CleanupController {
     private readonly plans: PlanService,
     private readonly executor: PlanExecutorService,
     private readonly quarantine: QuarantineService,
+    private readonly playback: PlaybackAggregateService,
   ) {}
 
   // ── Catalogue & stateless validation ───────────────────────────────────────
@@ -49,6 +51,19 @@ export class CleanupController {
   @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_VIEW)
   catalog() {
     return this.policies.catalog();
+  }
+
+  /**
+   * Rebuild playback aggregates from imported watch history.
+   *
+   * Exposed because the alternative to a manual trigger is waiting an hour to
+   * find out whether an import produced usable data — and the answer to "why
+   * does never-watched match nothing" is exactly this table.
+   */
+  @Post('playback/rebuild')
+  @RequirePermissions(PERMISSIONS.LIBRARY_CLEANUP_RUN)
+  rebuildPlayback() {
+    return this.playback.rebuild();
   }
 
   @Post('validate')
