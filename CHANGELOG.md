@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.75.1] - 2026-08-14
+
+### Fixed
+- Media Purge: a library is chosen from a list instead of typed as a UUID, both in policy conditions and in protection targets
+- Media Purge policy editor: validating a draft no longer crashes the app, date conditions use a date picker, and every condition says what value it expects
+
 ## [0.75.0] - 2026-08-14
 
 ### Added
