@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.76.1] - 2026-08-14
+
+### Fixed
+- A film with no watch history now gets a measured zero-play aggregate, so 'never watched' matches it instead of excluding it as unmeasured
+
 ## [0.76.0] - 2026-08-14
 
 ### Added
