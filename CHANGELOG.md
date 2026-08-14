@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.76.0] - 2026-08-14
+
+### Added
+- Playback aggregates are built from imported watch history, so Media Purge conditions like 'never watched' work instead of excluding every candidate as unmeasured
+
 ## [0.75.1] - 2026-08-14
 
 ### Fixed
