@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.76.2] - 2026-08-14
+
+### Fixed
+- Purge runs push selective conditions (library, media kind, year, age) into the database query, so a scan reads only items that could match instead of the whole library
+
 ## [0.76.1] - 2026-08-14
 
 ### Fixed
