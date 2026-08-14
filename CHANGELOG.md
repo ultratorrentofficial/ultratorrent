@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.74.2] - 2026-08-14
+
+### Fixed
+- Season-pack folders are recognised as releases, so an in-place rename files episodes under the show folder instead of nesting Season NN inside the pack directory
+- Watchlist adds, edits and deletions record the caller's IP and user agent in the audit log, including bulk adds from the library picker
+
 ## [0.74.1] - 2026-08-13
 
 ### Fixed
