@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import * as path from 'node:path';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import type { RequestAuditContext } from '../../common/request-audit-context';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { isSeasonContainer, showFolderRoot } from '../media/media-renamer';
 import { TvShowStatusService } from '../rss/tv-show-status/tv-show-status.service';
@@ -162,7 +163,7 @@ export class AcquisitionWatchlistService {
     return item;
   }
 
-  async create(input: WatchlistInput, userId?: string) {
+  async create(input: WatchlistInput, userId?: string, ctx: RequestAuditContext = {}) {
     // A series/season monitors a whole show — never a single episode. Collapse an
     // episode-formatted title to its series name so "90 Day Fiance - S12E09" is
     // stored (and monitored) as "90 Day Fiance".
@@ -191,7 +192,7 @@ export class AcquisitionWatchlistService {
         createdBy: userId,
       },
     });
-    await this.audit.record({ userId, action: 'media_acquisition.watchlist.created', objectType: 'media_acquisition_watchlist', objectId: item.id });
+    await this.audit.record({ userId, ...ctx, action: 'media_acquisition.watchlist.created', objectType: 'media_acquisition_watchlist', objectId: item.id });
     this.realtime.broadcast('media_acquisition.watchlist.updated', { id: item.id, action: 'created' });
     return item;
   }
@@ -472,6 +473,7 @@ export class AcquisitionWatchlistService {
   async bulkCreate(
     series: Array<{ title: string; year?: number | null; imdbId?: string | null; libraryShowId?: string | null }>,
     userId?: string,
+    ctx: RequestAuditContext = {},
   ): Promise<{ added: number; skipped: number }> {
     const existing = await this.prisma.mediaAcquisitionWatchlistItem.findMany({
       where: { type: 'series' },
@@ -500,6 +502,7 @@ export class AcquisitionWatchlistService {
           libraryShowId: s.libraryShowId ?? undefined,
         },
         userId,
+        ctx,
       );
       have.add(norm);
       added++;
@@ -507,7 +510,7 @@ export class AcquisitionWatchlistService {
     return { added, skipped };
   }
 
-  async update(id: string, input: Partial<WatchlistInput>, userId?: string) {
+  async update(id: string, input: Partial<WatchlistInput>, userId?: string, ctx: RequestAuditContext = {}) {
     const existing = await this.get(id);
     const item = await this.prisma.mediaAcquisitionWatchlistItem.update({
       where: { id },
@@ -529,18 +532,18 @@ export class AcquisitionWatchlistService {
         settings: input.settings === undefined ? undefined : (input.settings as object),
       },
     });
-    await this.audit.record({ userId, action: 'media_acquisition.watchlist.updated', objectType: 'media_acquisition_watchlist', objectId: id });
+    await this.audit.record({ userId, ...ctx, action: 'media_acquisition.watchlist.updated', objectType: 'media_acquisition_watchlist', objectId: id });
     this.realtime.broadcast('media_acquisition.watchlist.updated', { id, action: 'updated' });
     return item;
   }
 
-  async remove(id: string, userId?: string) {
+  async remove(id: string, userId?: string, ctx: RequestAuditContext = {}) {
     await this.get(id);
     await this.prisma.mediaAcquisitionWatchlistItem.delete({ where: { id } });
     // Wanted rows are loosely coupled by id (no FK), so clean them up here.
     await this.prisma.wantedEpisode.deleteMany({ where: { watchlistItemId: id } });
     await this.prisma.wantedMovie.deleteMany({ where: { watchlistItemId: id } });
-    await this.audit.record({ userId, action: 'media_acquisition.watchlist.deleted', objectType: 'media_acquisition_watchlist', objectId: id });
+    await this.audit.record({ userId, ...ctx, action: 'media_acquisition.watchlist.deleted', objectType: 'media_acquisition_watchlist', objectId: id });
     this.realtime.broadcast('media_acquisition.watchlist.updated', { id, action: 'deleted' });
     return { ok: true as const };
   }

@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import {
@@ -8,6 +9,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { reqAuditContext } from '../../common/request-audit-context';
 import { MediaAcquisitionService } from './media-acquisition.service';
 import { AcquisitionWatchlistService } from './watchlist.service';
 import { AcquisitionProfileService } from './profile.service';
@@ -85,13 +87,13 @@ export class MediaAcquisitionController {
   }
   @Post('watchlist/bulk')
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
-  bulkAddWatchlist(@Body() dto: BulkAddWatchlistDto, @CurrentUser() u: AuthenticatedUser) {
-    return this.watchlist.bulkCreate(dto.series, u?.id);
+  bulkAddWatchlist(@Body() dto: BulkAddWatchlistDto, @CurrentUser() u: AuthenticatedUser, @Req() req: Request) {
+    return this.watchlist.bulkCreate(dto.series, u?.id, reqAuditContext(req));
   }
   @Post('watchlist')
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
-  createWatchlist(@Body() dto: CreateWatchlistItemDto, @CurrentUser() u: AuthenticatedUser) {
-    return this.watchlist.create(dto, u?.id);
+  createWatchlist(@Body() dto: CreateWatchlistItemDto, @CurrentUser() u: AuthenticatedUser, @Req() req: Request) {
+    return this.watchlist.create(dto, u?.id, reqAuditContext(req));
   }
   @Get('watchlist/:id')
   @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
@@ -100,13 +102,13 @@ export class MediaAcquisitionController {
   }
   @Patch('watchlist/:id')
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
-  updateWatchlist(@Param('id') id: string, @Body() dto: UpdateWatchlistItemDto, @CurrentUser() u: AuthenticatedUser) {
-    return this.watchlist.update(id, dto, u?.id);
+  updateWatchlist(@Param('id') id: string, @Body() dto: UpdateWatchlistItemDto, @CurrentUser() u: AuthenticatedUser, @Req() req: Request) {
+    return this.watchlist.update(id, dto, u?.id, reqAuditContext(req));
   }
   @Delete('watchlist/:id')
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
-  deleteWatchlist(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser) {
-    return this.watchlist.remove(id, u?.id);
+  deleteWatchlist(@Param('id') id: string, @CurrentUser() u: AuthenticatedUser, @Req() req: Request) {
+    return this.watchlist.remove(id, u?.id, reqAuditContext(req));
   }
 
   // --- profiles -----------------------------------------------------------
