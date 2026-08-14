@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.77.0] - 2026-08-14
+
+### Added
+- Library Browser can sort by recently added, oldest, year or title in either direction, instead of title only
+
+### Fixed
+- Purge candidates: the build-a-plan action is always visible (disabled until you select), with a hint that selection unlocks it and what a plan leads to
+
 ## [0.76.2] - 2026-08-14
 
 ### Fixed
