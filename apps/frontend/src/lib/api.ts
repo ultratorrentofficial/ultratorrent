@@ -3198,6 +3198,17 @@ export interface CleanupConditionDef {
   /** The value is an id chosen from a fetched list, not typed. */
   valueSource?: 'library';
 }
+/**
+ * What `POST /media/cleanup/validate` actually returns.
+ *
+ * The validation is WRAPPED, and alongside it comes a plain-English readback of
+ * the conditions. The client used to be typed as if the bare validation came
+ * back, so `errors` was undefined and rendering the result took down the app.
+ */
+export interface CleanupValidationResponse {
+  validation: CleanupValidation;
+  summary: string | null;
+}
 export interface CleanupCatalog {
   schemaVersion: number;
   conditions: CleanupConditionDef[];
@@ -5248,8 +5259,8 @@ export const api = {
     templates(): Promise<CleanupTemplate[]> {
       return request<CleanupTemplate[]>('/media/cleanup/templates');
     },
-    validate(document: unknown): Promise<CleanupValidation> {
-      return request<CleanupValidation>('/media/cleanup/validate', { method: 'POST', body: { document } });
+    validate(document: unknown): Promise<CleanupValidationResponse> {
+      return request<CleanupValidationResponse>('/media/cleanup/validate', { method: 'POST', body: { document } });
     },
     // Policies
     listPolicies(query: CleanupPolicyQuery = {}): Promise<Paginated<CleanupPolicy>> {

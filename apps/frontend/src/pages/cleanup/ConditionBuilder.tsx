@@ -96,6 +96,7 @@ function LibraryValueInput({ value, onChange }: { value: unknown; onChange: (v: 
 function ValueInput({
   def, value, onChange,
 }: { def: CleanupConditionDef | undefined; value: unknown; onChange: (v: unknown) => void }) {
+  const { t } = useTranslation('cleanup');
   if (!def) return null;
 
   // Checked before dataType: the value is a string, but not one to be typed.
@@ -120,12 +121,45 @@ function ValueInput({
     return (
       <Input
         type="number"
+        placeholder={t('builder.hint.number')}
         value={value === null || value === undefined ? '' : String(value)}
         onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
       />
     );
   }
-  return <Input value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />;
+  if (def.dataType === 'date') {
+    /*
+     * A real date picker, not a text box. This field used to accept anything,
+     * so "added to library" invited a number of days — which the server then
+     * rejected as "expects an ISO date string", after the operator had already
+     * built the rest of the policy around it. Sliced to YYYY-MM-DD because a
+     * stored value may be a full timestamp and the control shows nothing at all
+     * if the value does not match its format exactly.
+     */
+    return (
+      <Input
+        type="date"
+        value={String(value ?? '').slice(0, 10)}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  }
+  if (def.dataType === 'string[]') {
+    return (
+      <Input
+        placeholder={t('builder.hint.list')}
+        value={Array.isArray(value) ? value.join(', ') : String(value ?? '')}
+        onChange={(e) => onChange(e.target.value.split(',').map((v) => v.trim()).filter(Boolean))}
+      />
+    );
+  }
+  return (
+    <Input
+      placeholder={t('builder.hint.text')}
+      value={String(value ?? '')}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
 }
 
 export interface ConditionBuilderProps {
@@ -253,7 +287,15 @@ export function ConditionBuilder({ node, catalog, onChange }: ConditionBuilderPr
               {def ? (
                 <p className="mt-1.5 flex items-start gap-1.5 pl-1 text-xs text-muted-foreground">
                   <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span>{t(def.descriptionKey.replace(/^cleanup\./, '') as 'cond.releaseYear.desc')}</span>
+                  <span>
+                    {t(def.descriptionKey.replace(/^cleanup\./, '') as 'cond.releaseYear.desc')}
+                    {/* The description says what the field MEANS; this says what it
+                        will accept. Missing that second half is how a date field
+                        gets a number typed into it. */}
+                    <span className="ml-1 text-muted-foreground/70">
+                      · {t(`builder.expects.${def.dataType}` as 'builder.expects.number')}
+                    </span>
+                  </span>
                 </p>
               ) : null}
 

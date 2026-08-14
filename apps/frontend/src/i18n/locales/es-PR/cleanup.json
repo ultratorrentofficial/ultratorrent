@@ -416,6 +416,19 @@
       "trash": "a la papelera"
     },
     "selectLibrary": "Selecciona una biblioteca…",
-    "unknownLibrary": "Biblioteca desconocida ({{id}})"
+    "unknownLibrary": "Biblioteca desconocida ({{id}})",
+    "hint": {
+      "number": "Número entero",
+      "text": "Texto",
+      "list": "Separado por comas"
+    },
+    "expects": {
+      "number": "espera un número",
+      "string": "espera texto",
+      "boolean": "espera sí o no",
+      "date": "espera una fecha",
+      "enum": "elige de la lista",
+      "string[]": "espera una lista separada por comas"
+    }
   }
 }

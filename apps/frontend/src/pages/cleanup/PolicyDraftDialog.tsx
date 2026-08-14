@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
-import { api, ApiError, type CleanupValidation } from '@/lib/api';
+import { api, ApiError, type CleanupValidationResponse } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -45,7 +45,7 @@ export function PolicyDraftDialog({
   const { t } = useTranslation('cleanup');
   const toast = useToast();
   const [doc, setDoc] = useState<Record<string, unknown> | null>(null);
-  const [validation, setValidation] = useState<CleanupValidation | null>(null);
+  const [validation, setValidation] = useState<CleanupValidationResponse | null>(null);
 
   const detail = useQuery({ queryKey: ['cleanup', 'policy', policyId], queryFn: () => api.cleanup.getPolicy(policyId) });
   const catalog = useQuery({ queryKey: ['cleanup', 'conditions'], queryFn: () => api.cleanup.catalog() });
@@ -141,22 +141,40 @@ export function PolicyDraftDialog({
             <p className="text-xs text-muted-foreground">{t('builder.preserved')}</p>
           ) : null}
 
-          {validation && (
-            <div className="space-y-1 text-sm">
-              {validation.valid
-                ? <div className="flex items-center gap-2 text-success"><CheckCircle2 className="h-4 w-4" /> {t('policies.draft.valid')}</div>
-                : <div className="flex items-center gap-2 text-destructive"><XCircle className="h-4 w-4" /> {t('policies.draft.invalid')}</div>}
-              {validation.errors.map((er, i) => (
-                <div key={i} className="pl-6 text-destructive">{er.path ? `${er.path}: ` : ''}{er.message}</div>
-              ))}
-              {validation.warnings.length > 0 && (
-                <div className="pl-6 text-warning">
-                  <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> {t('policies.draft.warnings')}</div>
-                  {validation.warnings.map((w, i) => <div key={i} className="pl-6">{w.path ? `${w.path}: ` : ''}{w.message}</div>)}
-                </div>
-              )}
-            </div>
-          )}
+          {validation && (() => {
+            /*
+             * Defensive on top of the corrected type. A validation result is
+             * feedback about a draft — a shape that does not match must degrade
+             * to showing less, never take down the whole application and lose
+             * the unsaved policy along with it.
+             */
+            const result = validation.validation;
+            const errors = result?.errors ?? [];
+            const warnings = result?.warnings ?? [];
+            return (
+              <div className="space-y-1 text-sm">
+                {result?.valid
+                  ? <div className="flex items-center gap-2 text-success"><CheckCircle2 className="h-4 w-4" /> {t('policies.draft.valid')}</div>
+                  : <div className="flex items-center gap-2 text-destructive"><XCircle className="h-4 w-4" /> {t('policies.draft.invalid')}</div>}
+                {errors.map((er, i) => (
+                  <div key={i} className="pl-6 text-destructive">{er.path ? `${er.path}: ` : ''}{er.message}</div>
+                ))}
+                {warnings.length > 0 && (
+                  <div className="pl-6 text-warning">
+                    <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> {t('policies.draft.warnings')}</div>
+                    {warnings.map((w, i) => <div key={i} className="pl-6">{w.path ? `${w.path}: ` : ''}{w.message}</div>)}
+                  </div>
+                )}
+                {/* The server's plain-English readback of the conditions — it was
+                    being returned and thrown away. */}
+                {validation.summary && (
+                  <p className="mt-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 font-mono text-xs text-muted-foreground">
+                    {validation.summary}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
