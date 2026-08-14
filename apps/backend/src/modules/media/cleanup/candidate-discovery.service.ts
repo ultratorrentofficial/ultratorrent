@@ -8,6 +8,7 @@ import { ProtectionService } from './protection.service';
 import { CleanupJobBridge } from './cleanup-job.bridge';
 import { evaluatePolicy } from './domain/policy-evaluator';
 import { evaluateExclusions } from './domain/exclusion-rules';
+import { buildPushdownWhere } from './domain/condition-pushdown';
 import { candidateFingerprint } from './domain/candidate-fingerprint';
 import { rankCandidate } from './domain/candidate-ranking';
 import { assembleEvaluationFacts, assembleExclusionFacts, type RawContext } from './domain/fact-assembly';
@@ -169,7 +170,21 @@ export class CandidateDiscoveryService {
       measured: usesMeasured(document.conditions),
       playback: factKeys.some((k) => k.startsWith('playback.')),
     };
-    const where = this.scopeWhere(document, run.scopeItemIds as string[] | null);
+    /*
+     * Scope decides what the policy covers; pushdown narrows what has to be READ
+     * to answer it. Intersected, never merged — the pushdown is an optimisation
+     * layered on the scope, and must not be able to widen it.
+     *
+     * Every pushed condition is still evaluated below, so this changes only the
+     * cost of the run. It changes the `scanned`/`itemsEvaluated` counters too:
+     * an item the database excluded was one the evaluator would have dismissed
+     * as `not_matched` and skipped anyway, so no candidate is affected — but the
+     * run now reports how many items it had to consider rather than how many
+     * exist.
+     */
+    const scope = this.scopeWhere(document, run.scopeItemIds as string[] | null);
+    const pushdown = buildPushdownWhere(document.conditions, new Date());
+    const where = Object.keys(pushdown).length ? { AND: [scope, pushdown] } : scope;
 
     let scanned = 0, evaluated = 0, matched = 0, excluded = 0, eligible = 0;
     let estimatedBytes = 0n;
