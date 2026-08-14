@@ -1,4 +1,12 @@
 import { useEffect, useState } from 'react';
+
+/**
+ * Mirrors `DEFAULT_MAX_AGE_DAYS` in the scheduler domain. Duplicated rather than
+ * imported because the backend constant is not part of the shared contract; it
+ * is only the value the field starts at, and the backend validates whatever is
+ * actually sent.
+ */
+const DEFAULT_MAX_AGE_DAYS = 30;
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Save, Trash2 } from 'lucide-react';
@@ -154,6 +162,8 @@ function PolicyDialog({
   const [targetRatio, setTargetRatio] = useState('');
   const [afterTarget, setAfterTarget] = useState<SchedulerSeedPolicy['afterTarget']>('pause');
   const [requireImport, setRequireImport] = useState(true);
+  const [ageLimitOn, setAgeLimitOn] = useState(false);
+  const [maxAgeDays, setMaxAgeDays] = useState(String(DEFAULT_MAX_AGE_DAYS));
   const [downKbps, setDownKbps] = useState('');
   const [upKbps, setUpKbps] = useState('');
 
@@ -205,6 +215,8 @@ function PolicyDialog({
     // Defaults ON: the usual reason to seed past completion is that the library
     // copy is not safe yet, so waiting for the import is the safe default.
     setRequireImport(policy?.seedPolicy?.requireImportCompleted ?? true);
+    setAgeLimitOn(policy?.seedPolicy?.maxAgeDays != null);
+    setMaxAgeDays(policy?.seedPolicy?.maxAgeDays?.toString() ?? String(DEFAULT_MAX_AGE_DAYS));
     setDownKbps(policy?.maxDownloadRateKbps?.toString() ?? '');
     setUpKbps(policy?.maxUploadRateKbps?.toString() ?? '');
   }, [policy]);
@@ -230,6 +242,7 @@ function PolicyDialog({
           afterTarget,
           ...(seedMode === 'ratio' ? { targetRatio: Number(targetRatio) } : {}),
           requireImportCompleted: requireImport,
+          ...(ageLimitOn && Number(maxAgeDays) > 0 ? { maxAgeDays: Number(maxAgeDays) } : {}),
         },
       };
       return policy
@@ -448,6 +461,43 @@ function PolicyDialog({
                   checked={requireImport}
                   onCheckedChange={setRequireImport}
                 />
+              </div>
+              <div className="mt-2 rounded-md border border-border/60 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="seed-age-limit">
+                      {t('scheduler.policies.seeding.ageLimit')}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {t('scheduler.policies.seeding.ageLimitHelp')}
+                    </p>
+                  </div>
+                  <Switch
+                    id="seed-age-limit"
+                    checked={ageLimitOn}
+                    onCheckedChange={setAgeLimitOn}
+                  />
+                </div>
+                {ageLimitOn && (
+                  <div className="mt-3 flex items-end gap-3">
+                    <div className="w-32">
+                      <Label htmlFor="seed-max-age">
+                        {t('scheduler.policies.seeding.maxAgeDays')}
+                      </Label>
+                      <Input
+                        id="seed-max-age"
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={maxAgeDays}
+                        onChange={(e) => setMaxAgeDays(e.target.value)}
+                      />
+                    </div>
+                    <p className="pb-2 text-xs text-warning">
+                      {t('scheduler.policies.seeding.ageLimitWarning')}
+                    </p>
+                  </div>
+                )}
               </div>
             </>
           )}

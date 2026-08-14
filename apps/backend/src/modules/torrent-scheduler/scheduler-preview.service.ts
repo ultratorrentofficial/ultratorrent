@@ -220,6 +220,9 @@ export class SchedulerPreviewService {
         // Deliberately absent: nothing records seed duration, so a time-based
         // target must evaluate to unknown rather than to zero.
         seedMinutes: undefined,
+        // Unlike seed duration, completion IS recorded — which is what makes an
+        // age deadline enforceable where a seed-time target is not.
+        completedAt: s.completedAt,
         intakeImported: imported,
         // The item exists in a library, which is as close to "verified" as the
         // current data goes; a stronger check belongs with intake, not here.

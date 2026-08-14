@@ -12,6 +12,7 @@ import { SchedulerReconciliationService } from './scheduler-reconciliation.servi
 import { SchedulerActivationService } from './scheduler-activation.service';
 import { SchedulerPolicyService } from './scheduler-policy.service';
 import { SchedulerOverrideService } from './scheduler-override.service';
+import { SchedulerCleanupService } from './scheduler-cleanup.service';
 import { CapabilityRegistry } from '../context-actions/capability-registry.service';
 import { SCHEDULER_ACTIONS } from './scheduler-actions';
 import { TorrentSchedulerController } from './torrent-scheduler.controller';
@@ -41,6 +42,7 @@ import { TorrentSchedulerController } from './torrent-scheduler.controller';
     SchedulerActivationService,
     SchedulerPolicyService,
     SchedulerOverrideService,
+    SchedulerCleanupService,
   ],
   controllers: [TorrentSchedulerController],
   exports: [SchedulerPreviewService, SchedulerCapabilityService, SchedulerOverrideService],

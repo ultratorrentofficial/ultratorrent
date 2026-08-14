@@ -381,7 +381,11 @@
         "afterTargetHelp": "Removing the torrent is not offered: taking a payload away has to pass Media Intake's safety checks, so the scheduler leaves that to you.",
         "requireImportCompleted": "Wait until Media Intake has imported it",
         "requireLibraryCopyVerified": "Wait until the library copy is verified",
-        "safetyHelp": "Usually the reason to seed past completion is that the library copy is not safe yet."
+        "safetyHelp": "Usually the reason to seed past completion is that the library copy is not safe yet.",
+        "ageLimit": "Give up after a deadline",
+        "ageLimitHelp": "When the ratio target is not going to be met, stop waiting: remove the torrent and delete its copy from the intake folders.",
+        "maxAgeDays": "Days to wait",
+        "ageLimitWarning": "Counted from when the download finished. Files already in a library are never deleted — only the intake copy."
       },
       "bandwidth": {
         "title": "Bandwidth",

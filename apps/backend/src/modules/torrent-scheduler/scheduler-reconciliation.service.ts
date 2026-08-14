@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { TorrentState } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { SchedulerCleanupService } from './scheduler-cleanup.service';
 import type { TorrentEngineProvider } from '../../domain/engine/torrent-engine-provider.interface';
 import type { EngineActivityPlan, TorrentDecision } from './domain/planner';
 import type { SchedulerLimitation } from './domain/capabilities';
@@ -52,7 +53,10 @@ function kbpsToBytes(kbps: number | null | undefined): number | null {
 export class SchedulerReconciliationService {
   private readonly logger = new Logger(SchedulerReconciliationService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cleanup: SchedulerCleanupService,
+  ) {}
 
   /**
    * Record that the SCHEDULER is the reason a torrent is paused — or that it no
@@ -109,10 +113,29 @@ export class SchedulerReconciliationService {
 
     await this.applyBandwidth(plan, provider, out);
 
+    const removals = plan.decisions.filter((d) => d.action === 'remove_and_cleanup');
     const pauses = plan.decisions.filter((d) => d.action === 'pause');
     const resumes = plan.decisions.filter((d) => d.action === 'resume');
 
-    // Order is the contract: relinquish slots, then claim them.
+    /*
+     * Order is the contract: relinquish slots, then claim them. Removals go
+     * first because they free a slot the most completely — the torrent stops
+     * existing — and because a removal that fails must not have already had its
+     * slot handed to a resume that then exceeds the cap.
+     */
+    for (const d of removals) {
+      out.attempted++;
+      const result = await this.cleanup.cleanUp(d.engineId, d.hash, d.reasonCode);
+      if (result.removed) {
+        out.applied++;
+        // Nothing to record as scheduler-paused: the torrent is gone, and the
+        // row that tracked our pause would only strand a reference to it.
+        await this.prisma.torrentSchedulerState.deleteMany({ where: { hash: d.hash } }).catch(() => undefined);
+      } else {
+        out.failed++;
+        out.failures.push({ hash: d.hash, action: 'remove_and_cleanup', error: result.error ?? 'cleanup failed' });
+      }
+    }
     for (const d of pauses) await this.one(d, provider, out, verify, sleep);
     for (const d of resumes) await this.one(d, provider, out, verify, sleep);
 

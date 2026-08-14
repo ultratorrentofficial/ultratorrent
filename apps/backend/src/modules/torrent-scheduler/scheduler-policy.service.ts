@@ -24,6 +24,7 @@ export interface PolicyInput {
     afterTarget?: string;
     requireImportCompleted?: boolean;
     requireLibraryCopyVerified?: boolean;
+    maxAgeDays?: number | null;
   } | null;
 }
 
@@ -112,12 +113,29 @@ export class SchedulerPolicyService {
         throw new BadRequestException('A ratio target needs a share ratio greater than zero.');
       }
     }
+    /*
+     * Validated rather than coerced. A zero or negative deadline is refused
+     * outright instead of being quietly dropped, because the difference between
+     * "no deadline" and "a deadline I typed wrong" is the difference between a
+     * torrent seeding forever and one deleted the moment it completes — and an
+     * operator who mistyped it deserves to be told, not silently ignored.
+     */
+    const age = input.maxAgeDays;
+    if (age !== undefined && age !== null) {
+      if (typeof age !== 'number' || !Number.isFinite(age) || !(age > 0)) {
+        throw new BadRequestException('A seeding deadline needs a whole number of days greater than zero.');
+      }
+      if (!Number.isInteger(age)) {
+        throw new BadRequestException('A seeding deadline is counted in whole days.');
+      }
+    }
     return {
       mode,
       afterTarget,
       ...(input.targetRatio != null ? { targetRatio: input.targetRatio } : {}),
       ...(input.requireImportCompleted ? { requireImportCompleted: true } : {}),
       ...(input.requireLibraryCopyVerified ? { requireLibraryCopyVerified: true } : {}),
+      ...(input.maxAgeDays != null ? { maxAgeDays: input.maxAgeDays } : {}),
     };
   }
 

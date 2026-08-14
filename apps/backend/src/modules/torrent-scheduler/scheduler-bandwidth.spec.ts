@@ -3,6 +3,19 @@ import { SchedulerCapabilityService } from './scheduler-capability.service';
 import type { EngineActivityPlan } from './domain/planner';
 
 /**
+ * Cleanup is exercised by its own specs; here it only has to exist so the
+ * reconciler can be constructed. A stub that reports success would silently
+ * pass a removal these suites never intend to make, so it counts calls instead.
+ */
+const cleanupStub = () => ({
+  calls: [] as string[],
+  cleanUp: jest.fn(async (_e: string, hash: string) => ({
+    hash, removed: true, deletedFiles: 0, keptFiles: 0,
+  })),
+});
+
+
+/**
  * Applying a bandwidth ceiling.
  *
  * Two conversions and one refusal carry the whole feature. Operators think in
@@ -32,7 +45,7 @@ function planWith(bandwidth: Record<string, number | null>): EngineActivityPlan 
 }
 
 const prisma = { torrentSchedulerState: { upsert: jest.fn(async (a: any) => a) } };
-const svc = new SchedulerReconciliationService(prisma as never);
+const svc = new SchedulerReconciliationService(prisma as never, cleanupStub() as never);
 const noSleep = async () => undefined;
 
 function provider(withGlobal = true) {

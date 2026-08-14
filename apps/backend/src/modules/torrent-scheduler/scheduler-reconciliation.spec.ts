@@ -3,6 +3,19 @@ import { SchedulerReconciliationService } from './scheduler-reconciliation.servi
 import type { EngineActivityPlan, TorrentDecision } from './domain/planner';
 
 /**
+ * Cleanup is exercised by its own specs; here it only has to exist so the
+ * reconciler can be constructed. A stub that reports success would silently
+ * pass a removal these suites never intend to make, so it counts calls instead.
+ */
+const cleanupStub = () => ({
+  calls: [] as string[],
+  cleanUp: jest.fn(async (_e: string, hash: string) => ({
+    hash, removed: true, deletedFiles: 0, keptFiles: 0,
+  })),
+});
+
+
+/**
  * Applying a plan.
  *
  * This is the first scheduler code that can change a torrent, so the tests are
@@ -50,7 +63,7 @@ describe('applying a plan', () => {
       upsert: jest.fn(async (a: any) => { remembered.push(a); return a; }),
     },
   };
-  const svc = new SchedulerReconciliationService(prisma as never);
+  const svc = new SchedulerReconciliationService(prisma as never, cleanupStub() as never);
   beforeEach(() => { remembered.length = 0; });
 
   it('pauses before it resumes', async () => {

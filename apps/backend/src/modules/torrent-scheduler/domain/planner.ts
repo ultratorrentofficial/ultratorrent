@@ -7,7 +7,7 @@ import {
 } from './classification';
 import { type TorrentPriorityDecision, orderByPriority } from './priority';
 import { type SchedulerLimitation, type TorrentQueueCapabilities, canDo } from './capabilities';
-import { evaluateSeedTarget, type EffectivePolicy } from './policy';
+import { evaluateSeedAgeDeadline, evaluateSeedTarget, type EffectivePolicy } from './policy';
 
 /**
  * The planner: decide what SHOULD be running. Pure, and side-effect free.
@@ -19,7 +19,7 @@ import { evaluateSeedTarget, type EffectivePolicy } from './policy';
  * Observe Only is exactly what enforcement will do.
  */
 
-export type DesiredState = 'active' | 'paused' | 'unchanged';
+export type DesiredState = 'active' | 'paused' | 'unchanged' | 'removed';
 
 export interface PlannerTorrent {
   hash: string;
@@ -43,6 +43,12 @@ export interface PlannerTorrent {
    * being silently treated as zero.
    */
   seedMinutes?: number;
+  /**
+   * When the download finished. The anchor for `seedPolicy.maxAgeDays`, and
+   * unlike `seedMinutes` both shipped engines report it — which is what makes an
+   * age deadline enforceable where a seed-time target is not.
+   */
+  completedAt?: Date | null;
 
   /** Media Intake finished importing this torrent's content. */
   intakeImported?: boolean;
@@ -74,7 +80,7 @@ export interface TorrentDecision {
   engineId: string;
   currentOccupancy: OccupancyClass;
   desiredState: DesiredState;
-  action: 'pause' | 'resume' | 'none';
+  action: 'pause' | 'resume' | 'none' | 'remove_and_cleanup';
   reasonCode: string;
   messageKey: string;
   values?: Record<string, unknown>;
@@ -136,7 +142,7 @@ function withinLimit(count: number, limit: number | null): boolean {
 function decide(
   t: PlannerTorrent,
   desired: DesiredState,
-  action: 'pause' | 'resume' | 'none',
+  action: 'pause' | 'resume' | 'none' | 'remove_and_cleanup',
   reasonCode: string,
   values?: Record<string, unknown>,
 ): TorrentDecision {
@@ -268,10 +274,16 @@ export function planEngine(
      * the engine is idle.
      */
     if (wantsSeed && active && t.policy.seedPolicy && !t.protectedFromPause) {
-      const seedDecision = seedTargetDecision(t, limitations, engineId);
+      const seedDecision = seedTargetDecision(t, limitations, engineId, cfg.now);
       if (seedDecision) {
         decisions.push(seedDecision);
-        if (seedDecision.action === 'pause') { actions++; continue; }
+        // A removal costs an action and frees the slot, exactly like a pause —
+        // counting it as an occupied seed would let one aged torrent hold a slot
+        // shut for the rest of the sweep.
+        if (seedDecision.action === 'pause' || seedDecision.action === 'remove_and_cleanup') {
+          actions++;
+          continue;
+        }
         // Not actioned (waiting, unknown, or an unsupported action): it keeps
         // its slot and is counted, but is not reconsidered below.
         seeds++; total++;
@@ -396,11 +408,36 @@ function seedTargetDecision(
   t: PlannerTorrent,
   limitations: SchedulerLimitation[],
   engineId: string,
+  now: Date,
 ): TorrentDecision | null {
   const policy = t.policy.seedPolicy;
   if (!policy) return null;
 
   const verdict = evaluateSeedTarget(policy, { ratio: t.ratio, seedMinutes: t.seedMinutes });
+
+  /*
+   * The deadline is checked BEFORE the target's own outcomes, on any verdict
+   * that is not an outright success.
+   *
+   * Ordering matters in both directions. It has to come after `met`, or a
+   * torrent that hit its ratio on day 31 would be cleaned up instead of running
+   * the operator's chosen `afterTarget`. And it has to come before `unknown`,
+   * because `unknown` is the single most likely state for a torrent that will
+   * never finish — an engine that reports no ratio leaves the target
+   * permanently unevaluable, and that is precisely the torrent an operator sets
+   * a deadline for. Checking age only on `not_met` would exempt it forever.
+   */
+  if (verdict !== 'met' && !t.protectedFromRemoval) {
+    const expired = evaluateSeedAgeDeadline(policy, { completedAt: t.completedAt }, now);
+    if (expired === 'met') {
+      return decide(t, 'removed', 'remove_and_cleanup', 'seed_age_deadline_reached', {
+        maxAgeDays: policy.maxAgeDays,
+        completedAt: t.completedAt?.toISOString(),
+        ratio: t.ratio,
+      });
+    }
+  }
+
   if (verdict === 'not_met') return null;
 
   if (verdict === 'unknown') {

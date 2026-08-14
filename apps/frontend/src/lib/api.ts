@@ -1805,6 +1805,8 @@ export interface SchedulerSeedPolicy {
   afterTarget: 'pause' | 'stop' | 'leave_active';
   requireImportCompleted?: boolean;
   requireLibraryCopyVerified?: boolean;
+  /** Days after completion at which an unmet target is given up on. */
+  maxAgeDays?: number;
 }
 
 export interface SchedulerPolicy {

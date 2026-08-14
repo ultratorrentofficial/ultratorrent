@@ -80,7 +80,35 @@ export interface SeedingPolicy {
   requireImportCompleted?: boolean;
   /** Block it until the library copy/hardlink was verified. */
   requireLibraryCopyVerified?: boolean;
+  /**
+   * Give up on a target that is never going to be met: days since the torrent
+   * COMPLETED, after which it is removed and its staging files deleted.
+   *
+   * A deadline, not a target — which is why it is a separate field rather than
+   * another `SeedingMode`. `ratio_or_time` already expresses "stop at 2.0 or
+   * 30 days", but both of its arms are *targets* whose success runs
+   * `afterTarget`; this arm is the failure case, and the whole point is that it
+   * ends differently from the ratio arm succeeding.
+   *
+   * It is also the only one of the two that can actually fire. `targetSeedMinutes`
+   * reads `seedMinutes`, which neither shipped engine reports, so every
+   * time-based target evaluates to `unknown` forever. Completion time is
+   * recorded by both, so this is evaluable on any completed torrent.
+   *
+   * Measured from completion, so a torrent still downloading never ages out —
+   * the clock is on the seeding obligation, not on how long ago the operator
+   * asked for the file.
+   *
+   * Deliberately overrides `minimumRatio` / `minimumSeedMinutes`. Those floors
+   * exist to keep a tracker obligation, and a floor that is unreachable would
+   * otherwise pin the torrent forever — which is exactly the situation this
+   * field is for.
+   */
+  maxAgeDays?: number;
 }
+
+/** Default deadline offered when an operator turns the age rule on. */
+export const DEFAULT_MAX_AGE_DAYS = 30;
 
 export interface TorrentSchedulingPolicy {
   id: string;
@@ -266,4 +294,36 @@ export function evaluateSeedTarget(
     default:
       return 'unknown';
   }
+}
+
+/**
+ * Has this torrent outlived its seeding deadline?
+ *
+ * Separate from {@link evaluateSeedTarget} because it answers a different
+ * question. That one asks "did it succeed"; this asks "has it run out of time
+ * trying", and the two produce opposite outcomes — success runs `afterTarget`,
+ * expiry removes the torrent and deletes its staging copy.
+ *
+ * `unknown` when the torrent has not completed: the deadline is measured from
+ * completion, so an incomplete torrent has no clock running yet. Returning
+ * `not_met` there would be a lie of the same shape as treating a missing
+ * `seedMinutes` as zero — it would read as "checked, still within the deadline"
+ * when nothing was checked at all.
+ */
+export function evaluateSeedAgeDeadline(
+  policy: SeedingPolicy,
+  facts: { completedAt?: Date | null },
+  now: Date,
+): SeedTargetVerdict {
+  if (policy.maxAgeDays === undefined) return 'not_met';
+  // A non-positive deadline would expire everything the instant it completed.
+  // Treat it as unset rather than as "delete immediately".
+  if (!(policy.maxAgeDays > 0)) return 'not_met';
+  if (!facts.completedAt) return 'unknown';
+
+  const ageMs = now.getTime() - facts.completedAt.getTime();
+  // A completion stamped in the future is a clock disagreement between host and
+  // engine, not an aged torrent. Never let it expire anything.
+  if (ageMs < 0) return 'not_met';
+  return ageMs >= policy.maxAgeDays * 24 * 60 * 60 * 1000 ? 'met' : 'not_met';
 }

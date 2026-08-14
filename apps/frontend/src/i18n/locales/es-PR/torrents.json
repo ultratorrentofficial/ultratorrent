@@ -381,7 +381,11 @@
         "afterTargetHelp": "No se ofrece eliminar el torrent: quitar los datos debe pasar las comprobaciones de seguridad de la Recepción de Medios, así que el planificador te lo deja a ti.",
         "requireImportCompleted": "Esperar a que la Recepción de Medios lo haya importado",
         "requireLibraryCopyVerified": "Esperar a que se verifique la copia en la biblioteca",
-        "safetyHelp": "Normalmente el motivo para seguir sembrando tras completar es que la copia en la biblioteca aún no está segura."
+        "safetyHelp": "Normalmente el motivo para seguir sembrando tras completar es que la copia en la biblioteca aún no está segura.",
+        "ageLimit": "Rendirse tras un plazo",
+        "ageLimitHelp": "Cuando la meta de ratio no se va a alcanzar, deja de esperar: elimina el torrent y borra su copia de las carpetas de entrada.",
+        "maxAgeDays": "Días de espera",
+        "ageLimitWarning": "Se cuenta desde que terminó la descarga. Los archivos que ya están en una biblioteca nunca se borran; solo la copia de entrada."
       },
       "bandwidth": {
         "title": "Ancho de banda",
