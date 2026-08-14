@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.75.0] - 2026-08-14
+
+### Added
+- Scheduler policies can set a seeding deadline: when a ratio target will not be met, the torrent is removed after N days from completion and its intake staging copy deleted, never library files
+
 ## [0.74.2] - 2026-08-14
 
 ### Fixed
