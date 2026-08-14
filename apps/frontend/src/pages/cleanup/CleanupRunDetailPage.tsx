@@ -79,13 +79,36 @@ export function CleanupRunDetailPage() {
       <CleanupHeader
         title={t('runs.candidates.title')}
         subtitle={t('runs.subtitle')}
-        actions={canPlan && tab === 'candidate' && selected.size > 0 ? (
-          <Button onClick={() => createPlan.mutate()} loading={createPlan.isPending}>
-            <ClipboardCheck className="h-4 w-4" />
-            {t('runs.candidates.buildPlan')} · {formatBytes(selectedBytes)}
-          </Button>
+        /*
+         * Shown whenever there is anything to act on, and DISABLED until a
+         * selection exists — not hidden. Hiding it meant a run finished with
+         * thousands of candidates and offered no visible way to do anything with
+         * them: the page read as a report, and the checkbox that unlocks it is
+         * not an affordance anyone finds by looking for a button.
+         */
+        actions={canPlan && tab === 'candidate' && rows.length > 0 ? (
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">
+              {selected.size > 0
+                ? t('runs.candidates.selectedCount', { count: selected.size, size: formatBytes(selectedBytes) })
+                : t('runs.candidates.selectHint')}
+            </span>
+            <Button
+              onClick={() => createPlan.mutate()}
+              loading={createPlan.isPending}
+              disabled={selected.size === 0}
+            >
+              <ClipboardCheck className="h-4 w-4" />
+              {t('runs.candidates.buildPlan')}
+              {selected.size > 0 ? ` · ${formatBytes(selectedBytes)}` : ''}
+            </Button>
+          </div>
         ) : undefined}
       />
+
+      {canPlan && tab === 'candidate' && rows.length > 0 && (
+        <p className="text-xs text-muted-foreground">{t('runs.candidates.planFlowHelp')}</p>
+      )}
 
       <Tabs value={tab} onValueChange={(v) => { setTab(v as 'candidate' | 'excluded'); setPage(1); setSelected(new Set()); }}>
         <TabsList>
@@ -107,7 +130,11 @@ export function CleanupRunDetailPage() {
               <TableRow>
                 {tab === 'candidate' && (
                   <TableHead className="w-8">
-                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="select all" />
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleAll}
+                      aria-label={t('runs.candidates.selectAll')}
+                    />
                   </TableHead>
                 )}
                 <TableHead>{t('runs.candidates.col.path')}</TableHead>

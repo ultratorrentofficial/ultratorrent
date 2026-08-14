@@ -100,7 +100,11 @@
         "rank": "Rank"
       },
       "buildPlan": "Build plan from selected",
-      "selected": "{{count}} selected"
+      "selected": "{{count}} selected",
+      "selectHint": "Tick candidates to act on them",
+      "selectedCount": "{{count}} selected · {{size}}",
+      "selectAll": "Select all on this page",
+      "planFlowHelp": "Select the candidates you want, then build a plan. A plan is where the removals are reviewed, approved and carried out — nothing is touched until then."
     }
   },
   "plans": {

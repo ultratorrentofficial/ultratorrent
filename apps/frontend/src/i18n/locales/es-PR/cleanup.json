@@ -100,7 +100,11 @@
         "rank": "Rango"
       },
       "buildPlan": "Crear plan con lo seleccionado",
-      "selected": "{{count}} seleccionados"
+      "selected": "{{count}} seleccionados",
+      "selectHint": "Marca candidatos para actuar sobre ellos",
+      "selectedCount": "{{count}} seleccionados · {{size}}",
+      "selectAll": "Seleccionar todo en esta página",
+      "planFlowHelp": "Selecciona los candidatos que quieras y luego crea un plan. El plan es donde las eliminaciones se revisan, se aprueban y se ejecutan; hasta entonces no se toca nada."
     }
   },
   "plans": {
