@@ -9,6 +9,7 @@ import { CleanupJobBridge } from './cleanup-job.bridge';
 import { evaluatePolicy } from './domain/policy-evaluator';
 import { evaluateExclusions } from './domain/exclusion-rules';
 import { buildPushdownWhere } from './domain/condition-pushdown';
+import { unmeasuredReasonFor } from './domain/exclusion-rules';
 import { candidateFingerprint } from './domain/candidate-fingerprint';
 import { rankCandidate } from './domain/candidate-ranking';
 import { assembleEvaluationFacts, assembleExclusionFacts, type RawContext } from './domain/fact-assembly';
@@ -28,7 +29,7 @@ const PAGE_SIZE = 500;
  * does and a changed file is deleted anyway.
  */
 export const FILE_SELECT = {
-  id: true, path: true, size: true, width: true, height: true, videoCodec: true,
+  id: true, path: true, size: true, modifiedAt: true, width: true, height: true, videoCodec: true,
   audioCodec: true, audioChannels: true, bitrateKbps: true, frameRate: true,
   container: true, durationSec: true, videoBitDepth: true, chromaSubsampling: true,
   hdrFormat: true, hdr: true, techSource: true, probedAt: true, probeError: true,
@@ -234,8 +235,15 @@ export class CandidateDiscoveryService {
           // An unmeasured evaluation is recorded as an exclusion, not a match — the
           // operator should see that we could not tell, not silence.
           const exclusionFacts = assembleExclusionFacts(file as never, item as never, ctx, policyUses);
+          /*
+           * Name the dimension that was actually missing. This branch used to
+           * hard-code `unmeasured_technical` for every unmeasured verdict, so a
+           * playback gap on a fully-probed library was reported as a technical
+           * one — pointing the operator at data that was already complete.
+           */
+          const unmeasuredReason = unmeasuredReasonFor(verdict.unmeasuredConditions);
           const exclusion = verdict.outcome === 'unmeasured'
-            ? { excluded: true, reason: 'unmeasured_technical' as const, status: 'excluded_unmeasured', allReasons: ['unmeasured_technical' as const] }
+            ? { excluded: true, reason: unmeasuredReason, status: 'excluded_unmeasured', allReasons: [unmeasuredReason] }
             : evaluateExclusions(exclusionFacts, {
                 exclusions: document.exclusions,
                 replacementRequired: document.replacement?.required === true,
@@ -255,7 +263,9 @@ export class CandidateDiscoveryService {
             mediaFileId: file.id,
             path: file.path,
             fileSizeBytes: file.size ?? 0,
-            modifiedAtMs: null,
+            // A real mtime now, so a candidate whose file changed since the scan
+            // no longer fingerprints identical to the one that was approved.
+            modifiedAtMs: file.modifiedAt ? file.modifiedAt.getTime() : null,
             identityKeys: (item.externalIds ?? []).map((e) => `${e.provider}:${e.externalId}`),
             policyVersionId: run.policyVersionId,
             facts: flattenFacts(facts),
@@ -404,7 +414,7 @@ export class CandidateDiscoveryService {
         mediaFileId: file.id,
         path: file.path,
         fileSizeBytes: file.size ?? 0,
-        modifiedAtMs: null,
+        modifiedAtMs: file.modifiedAt ? file.modifiedAt.getTime() : null,
         identityKeys: (file.item.externalIds ?? []).map((e) => `${e.provider}:${e.externalId}`),
         policyVersionId,
         facts: flat,

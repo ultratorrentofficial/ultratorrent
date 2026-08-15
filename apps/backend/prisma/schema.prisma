@@ -740,6 +740,17 @@ model MediaLibrary {
   isEnabled           Boolean   @default(true)
   scanIntervalMinutes Int?
   lastScanAt          DateTime?
+  /// Watch this library's tree and rescan a folder as soon as it changes.
+  ///
+  /// Off by default, and deliberately separate from `scanIntervalMinutes`: a
+  /// watcher costs one inotify watch per directory (~21,600 for a real media
+  /// tree) out of a budget shared with every other process running as the same
+  /// uid — on this platform, Plex. Exhausting it is not a quiet failure; it is
+  /// what starves a media server's transcoder. An operator turns this on
+  /// knowing the trade, and an interval remains the safe default.
+  watchEnabled        Boolean   @default(false)
+  /// Scan once at boot, catching anything that changed while the app was down.
+  scanOnStartup       Boolean   @default(false)
   nfoEnabled          Boolean   @default(false)
   artworkEnabled      Boolean   @default(true)
   createdAt           DateTime  @default(now())
@@ -887,6 +898,14 @@ model MediaFile {
   itemId       String
   path         String
   size         BigInt  @default(0)
+  /// The file's own mtime, read during the scan.
+  ///
+  /// The only signal for how long the media has actually existed. `createdAt` on
+  /// the row says when UltraTorrent first SAW it, which on a library that
+  /// predates the install is weeks while the media is years old — so an
+  /// "older than a year" policy could never match anything. Nullable because a
+  /// row written before this existed has none until its next scan.
+  modifiedAt   DateTime?
   container    String?
   videoCodec   String?
   audioCodec   String?
@@ -949,6 +968,7 @@ model MediaFile {
   @@index([probedAt, probeError])
   // Size is what every savings figure and quality comparison is computed from.
   @@index([size])
+  @@index([modifiedAt])
   @@map("media_files")
 }
 

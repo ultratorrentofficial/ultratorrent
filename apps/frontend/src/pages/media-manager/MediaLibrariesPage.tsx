@@ -367,6 +367,8 @@ function LibraryDialog({
   const [scanInterval, setScanInterval] = useState(
     library?.scanIntervalMinutes != null ? String(library.scanIntervalMinutes) : '',
   );
+  const [watchEnabled, setWatchEnabled] = useState(library?.watchEnabled ?? false);
+  const [scanOnStartup, setScanOnStartup] = useState(library?.scanOnStartup ?? false);
   const [nfoEnabled, setNfoEnabled] = useState(library?.nfoEnabled ?? false);
   const [artworkEnabled, setArtworkEnabled] = useState(library?.artworkEnabled ?? true);
   const [enabled, setEnabled] = useState(library?.isEnabled ?? true);
@@ -402,6 +404,8 @@ function LibraryDialog({
         template: template.trim() || undefined,
         isEnabled: enabled,
         scanIntervalMinutes: parsedInterval,
+        watchEnabled,
+        scanOnStartup,
         nfoEnabled,
         artworkEnabled,
       };
@@ -473,6 +477,26 @@ function LibraryDialog({
             onChange={(e) => setScanInterval(e.target.value)}
             placeholder={t('libraries.field.scanIntervalPlaceholder')}
           />
+          <p className="mt-1 text-xs text-muted-foreground">{t('libraries.field.scanIntervalHelp')}</p>
+        </div>
+        <div className="space-y-2 rounded-md border border-border/60 p-3">
+          <p className="text-xs font-medium text-muted-foreground">{t('libraries.field.scanTriggers')}</p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <Label htmlFor="lib-watch">{t('libraries.field.watch')}</Label>
+              {/* The cost is stated where the choice is made: this is one inotify
+                  watch per folder, from a budget shared with the media server. */}
+              <p className="text-xs text-muted-foreground">{t('libraries.field.watchHelp')}</p>
+            </div>
+            <Switch id="lib-watch" checked={watchEnabled} onCheckedChange={setWatchEnabled} />
+          </div>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <Label htmlFor="lib-startup">{t('libraries.field.scanOnStartup')}</Label>
+              <p className="text-xs text-muted-foreground">{t('libraries.field.scanOnStartupHelp')}</p>
+            </div>
+            <Switch id="lib-startup" checked={scanOnStartup} onCheckedChange={setScanOnStartup} />
+          </div>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">

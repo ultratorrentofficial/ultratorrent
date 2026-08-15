@@ -191,3 +191,57 @@ describe('ranking is explainable', () => {
     expect(ranked.map((r) => r.id)).toEqual(['c', 'a', 'b']);
   });
 });
+
+describe('how long the item has been held', () => {
+  /*
+   * `createdAt` records when UltraTorrent first SCANNED the file, not when the
+   * media arrived. On a library that predates the install every item looked days
+   * old however long it had really been held — on a live host the oldest row was
+   * 41 days against media going back years, so "added over a year ago" could not
+   * match anything and would not have until 2027.
+   */
+  const facts = (f: Partial<RawMediaFile>, i: Partial<RawMediaItem>) =>
+    assembleEvaluationFacts(file(f), item(i), ctx()).storage as {
+      addedAt?: Date; addedAgeDays?: number; fileAgeDays?: number;
+    };
+
+  it('counts from the file when the file is older than the row', () => {
+    const out = facts(
+      { modifiedAt: new Date('2023-06-01T00:00:00Z') },   // media: 3 years old
+      { createdAt: new Date('2026-05-01T00:00:00Z') },    // scanned a month ago
+    );
+    expect(out.addedAt).toEqual(new Date('2023-06-01T00:00:00Z'));
+    expect(out.addedAgeDays).toBeGreaterThan(1000);
+  });
+
+  it('counts from the ROW when the file was rewritten more recently', () => {
+    /*
+     * A repack, remux or permissions fix resets mtime to now. An item
+     * UltraTorrent has demonstrably held for two years is not new because a byte
+     * changed yesterday, so the earlier of the two wins.
+     */
+    const out = facts(
+      { modifiedAt: new Date('2026-05-31T00:00:00Z') },   // touched yesterday
+      { createdAt: new Date('2024-06-01T00:00:00Z') },    // known for 2 years
+    );
+    expect(out.addedAt).toEqual(new Date('2024-06-01T00:00:00Z'));
+    expect(out.addedAgeDays).toBeGreaterThan(700);
+  });
+
+  it('falls back to the row when the file has no mtime yet', () => {
+    // Rows written before the column existed have none until their next scan;
+    // the behaviour then is exactly what it was before.
+    const out = facts({ modifiedAt: null }, { createdAt: new Date('2026-05-01T00:00:00Z') });
+    expect(out.addedAt).toEqual(new Date('2026-05-01T00:00:00Z'));
+    expect(out.addedAgeDays).toBe(31);
+  });
+
+  it('reports file age separately from how long it has been held', () => {
+    const out = facts(
+      { modifiedAt: new Date('2026-05-01T00:00:00Z') },
+      { createdAt: new Date('2024-01-01T00:00:00Z') },
+    );
+    expect(out.fileAgeDays).toBe(31);            // the file itself
+    expect(out.addedAgeDays).toBeGreaterThan(700); // the holding
+  });
+});

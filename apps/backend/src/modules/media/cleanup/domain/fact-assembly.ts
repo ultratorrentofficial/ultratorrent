@@ -92,6 +92,13 @@ export interface RawContext {
 const daysBetween = (from: Date | null | undefined, to: Date): number | undefined =>
   from ? Math.floor((to.getTime() - from.getTime()) / 86_400_000) : undefined;
 
+/** The earlier of two optional dates, or whichever one exists. */
+const earliest = (a: Date | null | undefined, b: Date | null | undefined): Date | null => {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return a.getTime() <= b.getTime() ? a : b;
+};
+
 /** A probed row owns its technical facts; anything else is a filename guess. */
 export function isProbeMeasured(file: RawMediaFile): boolean {
   return file.techSource === 'probe' && file.probedAt != null;
@@ -168,8 +175,24 @@ export function assembleEvaluationFacts(
       fileSizeBytes: Number(file.size),
       fileModifiedAt: file.modifiedAt ?? undefined,
       fileAgeDays: daysBetween(file.modifiedAt, now),
-      addedAt: item.createdAt ?? undefined,
-      addedAgeDays: daysBetween(item.createdAt, now),
+      /*
+       * How long this has been in the collection — the EARLIER of the file's own
+       * mtime and the row's creation.
+       *
+       * The row alone was wrong in the one direction that matters. `createdAt`
+       * records when UltraTorrent first scanned the file, so on a library that
+       * predates the install every item looks days old however long you have
+       * actually had it: on a live host the oldest row was 41 days while the
+       * media went back years, and "added over a year ago" could not match a
+       * single item and would not have until 2027.
+       *
+       * The earlier of the two, not the file's mtime alone, because a rewritten
+       * file (a repack, a remux, a permissions fix) resets mtime to now — and an
+       * item UltraTorrent has demonstrably held for a year is not new because a
+       * byte changed yesterday.
+       */
+      addedAt: earliest(item.createdAt, file.modifiedAt) ?? undefined,
+      addedAgeDays: daysBetween(earliest(item.createdAt, file.modifiedAt), now),
       totalTitleSizeBytes: ctx.totalTitleSizeBytes ?? undefined,
       libraryFreePercent: ctx.libraryFreePercent ?? undefined,
       isDuplicate: item.duplicateGroupId != null,

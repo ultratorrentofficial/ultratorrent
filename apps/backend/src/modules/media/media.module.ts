@@ -35,6 +35,7 @@ import { TraktScrobbleService } from './trakt/trakt-scrobble.service';
 import { TraktController } from './trakt/trakt.controller';
 import { MediaProcessingService } from './media-processing.service';
 import { MediaLibraryScanScheduler } from './media-library-scan-scheduler.service';
+import { MediaLibraryWatcherService } from './media-library-watcher.service';
 import { MediaServerHealthScheduler } from './media-server-health-scheduler.service';
 import { MediaProbeService } from './media-probe.service';
 import { MediaProbeBackfillService } from './media-probe-backfill.service';
@@ -97,6 +98,7 @@ import { MediaController } from './media.controller';
     MediaAutomationActions,
     MediaProcessingService,
     MediaLibraryScanScheduler,
+    MediaLibraryWatcherService,
     MediaServerHealthScheduler,
     MediaProbeService,
     MediaProbeBackfillService,

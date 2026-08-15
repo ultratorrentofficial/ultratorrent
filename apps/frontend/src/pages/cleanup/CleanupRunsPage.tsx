@@ -52,7 +52,16 @@ export function CleanupRunsPage() {
 
       {rows.length === 0 ? (
         <Card><CardContent>
-          <EmptyState icon={<Gauge className="h-6 w-6" />} title={t('runs.empty')} description={t('runs.emptyDesc')} />
+          <EmptyState
+            icon={<Gauge className="h-6 w-6" />}
+            title={t('runs.empty')}
+            description={t('runs.emptyDesc')}
+            action={(
+              <Button variant="outline" onClick={() => navigate('/media/cleanup/policies')}>
+                {t('runs.emptyAction')}
+              </Button>
+            )}
+          />
         </CardContent></Card>
       ) : (
         <Card><CardContent className="p-0">

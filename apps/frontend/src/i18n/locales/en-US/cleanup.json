@@ -105,7 +105,8 @@
       "selectedCount": "{{count}} selected · {{size}}",
       "selectAll": "Select all on this page",
       "planFlowHelp": "Select the candidates you want, then build a plan. A plan is where the removals are reviewed, approved and carried out — nothing is touched until then."
-    }
+    },
+    "emptyAction": "Go to purge policies"
   },
   "plans": {
     "title": "Plans & Approvals",
@@ -142,7 +143,8 @@
         "size": "Size",
         "reason": "Reason"
       }
-    }
+    },
+    "emptyAction": "Go to purge runs"
   },
   "quarantine": {
     "title": "Quarantine",
@@ -342,11 +344,11 @@
     "fileModifiedAt": "File modified",
     "fileModifiedAt.desc": "Last modification time on disk.",
     "fileAgeDays": "File age (days)",
-    "fileAgeDays.desc": "How long the file has existed on disk.",
+    "fileAgeDays.desc": "Days since the file itself was last written. A repack or remux resets this; 'Days in library' does not.",
     "addedAt": "Added to library",
-    "addedAt.desc": "When this item first appeared in your library.",
+    "addedAt.desc": "When this entered your collection — the file's own date, or when UltraTorrent first saw it, whichever is earlier.",
     "addedAgeDays": "Days in library",
-    "addedAgeDays.desc": "How long you have had it. Useful for 'give anything new a grace period'.",
+    "addedAgeDays.desc": "How long you have had it — counted from the file's own date, or from when UltraTorrent first saw it, whichever is earlier.",
     "totalTitleSize": "Total size for the title",
     "totalTitleSize.desc": "All files for the title together — the whole season rather than one episode.",
     "libraryFreePercent": "Library free space (%)",

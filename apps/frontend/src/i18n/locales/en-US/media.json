@@ -182,7 +182,13 @@
       "autoOrganize": "Organise automatically",
       "autoOrganizeHint": "Let the organiser tidy this library on its own. Manual renames work either way.",
       "autoOrganizeUnavailable": "Only available for “Rename in place” and “Rename + move” — the other modes add a second copy rather than tidying.",
-      "enabled": "Enabled"
+      "enabled": "Enabled",
+      "scanIntervalHelp": "Minutes between automatic scans. Leave empty for manual scans only.",
+      "scanTriggers": "When to scan",
+      "watch": "Watch for changes",
+      "watchHelp": "Rescan a folder the moment its contents change, like Plex. Costs one filesystem watch per folder, from a budget shared with your media server — if it runs out, this library falls back to the interval and says so.",
+      "scanOnStartup": "Scan at startup",
+      "scanOnStartupHelp": "Catch anything that changed while UltraTorrent was not running."
     },
     "presetDefault": "Preset default:",
     "duplicateShowsFound_one": "{{count}} possible duplicate show folder found",

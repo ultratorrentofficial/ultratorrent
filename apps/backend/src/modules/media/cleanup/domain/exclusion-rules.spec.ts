@@ -1,4 +1,4 @@
-import { evaluateExclusions, type ExclusionFacts, type ExclusionOptions } from './exclusion-rules';
+import { evaluateExclusions, type ExclusionFacts, type ExclusionOptions, unmeasuredReasonFor } from './exclusion-rules';
 import { candidateFingerprint, fingerprintDiff, type FingerprintInput } from './candidate-fingerprint';
 
 const NOW = new Date('2026-06-01T00:00:00Z');
@@ -275,5 +275,37 @@ describe('a document whose exclusions block is unreadable', () => {
     const v = evaluateExclusions(bare, { replacementRequired: false } as unknown as ExclusionOptions);
     expect(v.excluded).toBe(true);
     expect(v.allReasons).toEqual(expect.arrayContaining(['ambiguous_identity', 'unmeasured_technical']));
+  });
+});
+
+describe('unmeasuredReasonFor', () => {
+  /*
+   * Every unmeasured verdict was reported as `unmeasured_technical` whatever was
+   * actually missing. On a fully-probed library that sent an operator hunting
+   * through technical data that was 100% measured, while the real gap — playback
+   * history — went unnamed through three separate runs.
+   */
+  it('names playback when only playback was missing', () => {
+    expect(unmeasuredReasonFor(['playback.neverWatched'])).toBe('unmeasured_playback');
+  });
+
+  it('names technical when only technical was missing', () => {
+    expect(unmeasuredReasonFor(['technical.resolutionClass', 'technical.videoBitDepth']))
+      .toBe('unmeasured_technical');
+  });
+
+  it('names metadata when only metadata was missing', () => {
+    expect(unmeasuredReasonFor(['metadata.releaseYear'])).toBe('unmeasured_metadata');
+  });
+
+  it('stays generic when several dimensions are missing', () => {
+    // Picking one of two is how the original defect misled; say neither.
+    expect(unmeasuredReasonFor(['playback.neverWatched', 'technical.width']))
+      .toBe('unmeasured_data');
+  });
+
+  it('stays generic for an unknown group or none at all', () => {
+    expect(unmeasuredReasonFor(['storage.somethingNew'])).toBe('unmeasured_data');
+    expect(unmeasuredReasonFor([])).toBe('unmeasured_data');
   });
 });

@@ -13,6 +13,8 @@ export interface LibraryInput {
   autoOrganize?: boolean;
   isEnabled?: boolean;
   scanIntervalMinutes?: number | null;
+  watchEnabled?: boolean;
+  scanOnStartup?: boolean;
   nfoEnabled?: boolean;
   artworkEnabled?: boolean;
 }
@@ -87,6 +89,8 @@ export class MediaLibraryService {
         autoOrganize: data.autoOrganize ?? false,
         isEnabled: data.isEnabled ?? true,
         scanIntervalMinutes: data.scanIntervalMinutes ?? null,
+        watchEnabled: data.watchEnabled ?? false,
+        scanOnStartup: data.scanOnStartup ?? false,
         nfoEnabled: data.nfoEnabled ?? false,
         artworkEnabled: data.artworkEnabled ?? true,
       },
@@ -110,6 +114,8 @@ export class MediaLibraryService {
         autoOrganize: data.autoOrganize,
         isEnabled: data.isEnabled,
         scanIntervalMinutes: data.scanIntervalMinutes,
+        watchEnabled: data.watchEnabled,
+        scanOnStartup: data.scanOnStartup,
         nfoEnabled: data.nfoEnabled,
         artworkEnabled: data.artworkEnabled,
       },

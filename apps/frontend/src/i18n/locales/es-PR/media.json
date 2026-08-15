@@ -182,7 +182,13 @@
       "autoOrganize": "Organizar automáticamente",
       "autoOrganizeHint": "Deja que el organizador ordene esta biblioteca por su cuenta. Los renombrados manuales funcionan de todos modos.",
       "autoOrganizeUnavailable": "Solo disponible para «Renombrar en el sitio» y «Renombrar y mover» — los demás modos añaden una segunda copia en vez de ordenar.",
-      "enabled": "Habilitado"
+      "enabled": "Habilitado",
+      "scanIntervalHelp": "Minutos entre escaneos automáticos. Déjalo vacío para escanear solo manualmente.",
+      "scanTriggers": "Cuándo escanear",
+      "watch": "Vigilar cambios",
+      "watchHelp": "Reescanea una carpeta en cuanto cambia su contenido, como Plex. Cuesta una vigilancia del sistema de archivos por carpeta, de un presupuesto compartido con tu servidor multimedia; si se agota, esta biblioteca vuelve al intervalo y lo indica.",
+      "scanOnStartup": "Escanear al iniciar",
+      "scanOnStartupHelp": "Detecta lo que haya cambiado mientras UltraTorrent no estaba en ejecución."
     },
     "presetDefault": "Valor por defecto del preset:",
     "duplicateShowsFound_one": "Se encontró {{count}} carpeta de serie posiblemente duplicada",

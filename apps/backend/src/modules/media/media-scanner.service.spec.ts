@@ -582,8 +582,17 @@ describe('MediaScannerService — technical provenance and measured-data surviva
   // delete on it.
   it('does not overwrite a probed row with filename guesses on rescan', () => {
     expect(src).toContain('existing.files[0]?.probedAt != null');
-    // The probed branch refreshes size only.
-    expect(src).toMatch(/probed\s*\?\s*\{\s*size: BigInt\(file\.size\)\s*\}/);
+    /*
+     * Asserted by what the branch must NOT carry, rather than by its exact
+     * text. The rule is about provenance — no filename-derived tech over a
+     * measurement — not about the branch being a single field, and pinning the
+     * literal shape failed the moment `modifiedAt` was added, which is a fact
+     * read from the file itself and not a guess parsed from its name.
+     */
+    const branch = src.slice(src.indexOf('update: probed'), src.indexOf('update: probed') + 200);
+    const probedBranch = branch.slice(0, branch.indexOf(':', branch.indexOf('?')));
+    expect(probedBranch).not.toContain('...tech');
+    expect(probedBranch).not.toContain("techSource: 'filename'");
   });
 
   it('still refreshes size on every rescan regardless of provenance', () => {

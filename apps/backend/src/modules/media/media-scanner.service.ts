@@ -243,12 +243,15 @@ export class MediaScannerService {
             itemId: existing.id,
             path: file.path,
             size: BigInt(file.size),
+            modifiedAt: file.modifiedAt,
             ...tech,
             techSource: 'filename',
           },
+          // `modifiedAt` is refreshed like size on every scan: it is a fact about
+          // the file, not a measurement a probe owns.
           update: probed
-            ? { size: BigInt(file.size) }
-            : { size: BigInt(file.size), ...tech, techSource: 'filename' },
+            ? { size: BigInt(file.size), modifiedAt: file.modifiedAt }
+            : { size: BigInt(file.size), modifiedAt: file.modifiedAt, ...tech, techSource: 'filename' },
         });
         // Self-heal a never-identified episodic item: it still carries the raw
         // filename as its title and no season/episode. Only touched when the item
@@ -314,6 +317,7 @@ export class MediaScannerService {
               create: {
                 path: file.path,
                 size: BigInt(file.size),
+                modifiedAt: file.modifiedAt,
                 ...tech,
                 // Provenance, not decoration: without it a never-probed row is
                 // indistinguishable from an unset one, and anything deciding on
@@ -719,8 +723,8 @@ export class MediaScannerService {
     }
   }
 
-  private async walk(dir: string): Promise<Array<{ path: string; size: number }>> {
-    const out: Array<{ path: string; size: number }> = [];
+  private async walk(dir: string): Promise<Array<{ path: string; size: number; modifiedAt: Date }>> {
+    const out: Array<{ path: string; size: number; modifiedAt: Date }> = [];
     let entries: import('node:fs').Dirent[];
     try {
       entries = await readdir(dir, { withFileTypes: true });
@@ -741,7 +745,8 @@ export class MediaScannerService {
         out.push(...(await this.walk(full)));
       } else if (VIDEO_EXT.has(path.extname(entry.name).toLowerCase())) {
         const info = await stat(full).catch(() => null);
-        if (info) out.push({ path: full, size: info.size });
+        // mtime comes free with the stat already being made for size.
+        if (info) out.push({ path: full, size: info.size, modifiedAt: info.mtime });
       }
     }
     return out;

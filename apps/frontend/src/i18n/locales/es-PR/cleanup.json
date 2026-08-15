@@ -105,7 +105,8 @@
       "selectedCount": "{{count}} seleccionados · {{size}}",
       "selectAll": "Seleccionar todo en esta página",
       "planFlowHelp": "Selecciona los candidatos que quieras y luego crea un plan. El plan es donde las eliminaciones se revisan, se aprueban y se ejecutan; hasta entonces no se toca nada."
-    }
+    },
+    "emptyAction": "Ir a políticas"
   },
   "plans": {
     "title": "Planes y Aprobaciones",
@@ -142,7 +143,8 @@
         "size": "Tamaño",
         "reason": "Razón"
       }
-    }
+    },
+    "emptyAction": "Ir a ejecuciones"
   },
   "quarantine": {
     "title": "Cuarentena",
@@ -341,12 +343,12 @@
     "fileSize.desc": "Tamaño en disco del archivo de medios.",
     "fileModifiedAt": "Archivo modificado",
     "fileModifiedAt.desc": "Última modificación en disco.",
-    "fileAgeDays": "Antigüedad del archivo (días)",
-    "fileAgeDays.desc": "Cuánto lleva el archivo en disco.",
+    "fileAgeDays": "Edad del archivo (días)",
+    "fileAgeDays.desc": "Días desde la última escritura del archivo. Un repack o remux lo reinicia; «Días en la biblioteca» no.",
     "addedAt": "Añadido a la biblioteca",
-    "addedAt.desc": "Cuándo apareció por primera vez en tu biblioteca.",
+    "addedAt.desc": "Cuándo entró en tu colección: la fecha del propio archivo o cuándo UltraTorrent lo vio por primera vez, lo que sea más antiguo.",
     "addedAgeDays": "Días en la biblioteca",
-    "addedAgeDays.desc": "Cuánto hace que lo tienes. Útil para dar margen a lo recién añadido.",
+    "addedAgeDays.desc": "Cuánto tiempo lo has tenido: se cuenta desde la fecha del propio archivo o desde que UltraTorrent lo vio por primera vez, lo que sea más antiguo.",
     "totalTitleSize": "Tamaño total del título",
     "totalTitleSize.desc": "Todos los archivos del título juntos: la temporada entera, no un episodio.",
     "libraryFreePercent": "Espacio libre (%)",

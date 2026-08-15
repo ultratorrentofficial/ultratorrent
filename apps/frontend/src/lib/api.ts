@@ -1184,11 +1184,24 @@ export interface MediaLibrary {
   autoOrganize: boolean;
   isEnabled: boolean;
   scanIntervalMinutes: number | null;
+  /** Watch the tree and rescan a folder as soon as it changes. */
+  watchEnabled: boolean;
+  /** Scan once at boot, catching changes made while the app was down. */
+  scanOnStartup: boolean;
   lastScanAt: string | null;
   nfoEnabled: boolean;
   artworkEnabled: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface LibraryWatchStatus {
+  libraryId: string;
+  name: string;
+  watching: boolean;
+  watchCount: number;
+  /** Why watching stopped; null while healthy. */
+  degradedReason: string | null;
 }
 
 export interface CreateLibraryInput {
@@ -1201,6 +1214,8 @@ export interface CreateLibraryInput {
   autoOrganize?: boolean;
   isEnabled?: boolean;
   scanIntervalMinutes?: number | null;
+  watchEnabled?: boolean;
+  scanOnStartup?: boolean;
   nfoEnabled?: boolean;
   artworkEnabled?: boolean;
 }
@@ -4290,6 +4305,9 @@ export const api = {
       return request<MediaLibrary[]>('/media/libraries');
     },
     /** Alias of {@link libraries} for the Media Manager surface. */
+    libraryWatchStatus(): Promise<LibraryWatchStatus[]> {
+      return request<LibraryWatchStatus[]>('/media/libraries/watch-status');
+    },
     listLibraries(): Promise<MediaLibrary[]> {
       return request<MediaLibrary[]>('/media/libraries');
     },

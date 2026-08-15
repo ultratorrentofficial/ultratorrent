@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { ClipboardCheck } from 'lucide-react';
 import { api, ApiError, type CleanupPlan } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -21,6 +22,7 @@ const ACTIVE = new Set(['executing']);
 
 export function CleanupPlansPage() {
   const { t } = useTranslation('cleanup');
+  const navigate = useNavigate();
   const toast = useToast();
   const qc = useQueryClient();
   const canApprove = usePermission(PERMISSIONS.LIBRARY_CLEANUP_APPROVE);
@@ -64,7 +66,21 @@ export function CleanupPlansPage() {
 
       {rows.length === 0 ? (
         <Card><CardContent>
-          <EmptyState icon={<ClipboardCheck className="h-6 w-6" />} title={t('plans.empty')} description={t('plans.emptyDesc')} />
+          <EmptyState
+            icon={<ClipboardCheck className="h-6 w-6" />}
+            title={t('plans.empty')}
+            description={t('plans.emptyDesc')}
+            /*
+             * The description said where plans come from and left the reader to
+             * find it. A plan is only ever built from a run's candidates, so the
+             * empty state carries the route rather than describing it.
+             */
+            action={(
+              <Button variant="outline" onClick={() => navigate('/media/cleanup/runs')}>
+                {t('plans.emptyAction')}
+              </Button>
+            )}
+          />
         </CardContent></Card>
       ) : (
         <Card><CardContent className="p-0">

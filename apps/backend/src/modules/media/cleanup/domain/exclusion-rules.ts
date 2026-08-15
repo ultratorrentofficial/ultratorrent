@@ -29,6 +29,9 @@ export type ExclusionReason =
   | 'ambiguous_identity'
   | 'unmeasured_technical'
   | 'stale_playback_data'
+  | 'unmeasured_playback'
+  | 'unmeasured_metadata'
+  | 'unmeasured_data'
   | 'substantial_progress'
   | 'last_surviving_copy'
   | 'replacement_required'
@@ -51,6 +54,9 @@ export const EXCLUSION_STATUS: Record<ExclusionReason, string> = {
   ambiguous_identity: 'excluded_ambiguous',
   unmeasured_technical: 'excluded_unmeasured',
   stale_playback_data: 'excluded_unmeasured',
+  unmeasured_playback: 'excluded_unmeasured',
+  unmeasured_metadata: 'excluded_unmeasured',
+  unmeasured_data: 'excluded_unmeasured',
   substantial_progress: 'excluded_active',
   last_surviving_copy: 'excluded_protected',
   replacement_required: 'excluded_protected',
@@ -196,4 +202,33 @@ export function evaluateExclusions(
   if (!reasons.length) return { excluded: false, allReasons: [] };
   const reason = reasons[0];
   return { excluded: true, reason, status: EXCLUSION_STATUS[reason], allReasons: reasons };
+}
+
+/**
+ * Which kind of missing data stopped a policy from deciding.
+ *
+ * Every unmeasured verdict used to be reported as `unmeasured_technical`,
+ * whatever the actual gap was. On a library whose files were fully probed, a
+ * policy asking "never watched" therefore excluded every candidate under a label
+ * blaming technical data that was in fact 100% measured — the run said the one
+ * thing guaranteed to send an operator looking in the wrong place, and it took a
+ * database session to find out that playback history was the real gap.
+ *
+ * The evaluator already records WHICH conditions could not be measured; this
+ * turns that into the reason shown. Mixed gaps report the generic reason rather
+ * than picking a winner, because naming one of two missing dimensions is how the
+ * original defect misled in the first place.
+ */
+export function unmeasuredReasonFor(fields: readonly string[]): ExclusionReason {
+  if (!fields.length) return 'unmeasured_data';
+  const groups = new Set(fields.map((f) => f.split('.')[0]));
+  if (groups.size === 1) {
+    switch ([...groups][0]) {
+      case 'technical': return 'unmeasured_technical';
+      case 'playback': return 'unmeasured_playback';
+      case 'metadata': return 'unmeasured_metadata';
+      default: return 'unmeasured_data';
+    }
+  }
+  return 'unmeasured_data';
 }

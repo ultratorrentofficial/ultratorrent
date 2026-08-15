@@ -26,6 +26,7 @@ import { MediaService, RenameRequest } from './media.service';
 import type { CleanupRules } from './media-renamer';
 import type { SeedingTorrentPolicy } from './rename-torrent-owner';
 import { MediaLibraryService, LibraryInput } from './media-library.service';
+import { MediaLibraryWatcherService } from './media-library-watcher.service';
 import { MediaScannerService } from './media-scanner.service';
 import {
   MediaIdentificationService,
@@ -86,6 +87,7 @@ export class MediaController {
   constructor(
     private readonly media: MediaService,
     private readonly libraries: MediaLibraryService,
+    private readonly watcher: MediaLibraryWatcherService,
     private readonly scanner: MediaScannerService,
     private readonly identification: MediaIdentificationService,
     private readonly items: MediaItemService,
@@ -156,10 +158,24 @@ export class MediaController {
     return this.libraries.list();
   }
 
+  /**
+   * Live watcher health per library.
+   *
+   * Separate from the library row because it is not configuration: a library can
+   * be configured to watch and not be watching, which is exactly the state an
+   * operator needs to see rather than infer.
+   */
+  @Get('libraries/watch-status')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  watchStatus() {
+    return this.watcher.status();
+  }
+
   @Post('libraries')
   @RequirePermissions(P.MEDIA_MANAGER_MANAGE_LIBRARIES)
   async createLibrary(@Body() body: LibraryInput, @Req() req: Request) {
     const library = await this.libraries.create(body ?? {});
+    await this.watcher.syncWatchers().catch(() => undefined);
     // A library that has never been scanned knows nothing about its own contents:
     // no items, and no `MediaShow` rows, so the acquisition side has no folder to
     // file a grab into. Scan it immediately rather than leave it blank until the
@@ -172,6 +188,9 @@ export class MediaController {
   @RequirePermissions(P.MEDIA_MANAGER_MANAGE_LIBRARIES)
   async updateLibrary(@Param('id') id: string, @Body() body: LibraryInput, @Req() req: Request) {
     const library = await this.libraries.update(id, body ?? {});
+    // Watching is a running process, not just a stored flag: turning it on or off
+    // has to take effect now rather than at the next restart.
+    await this.watcher.syncWatchers().catch(() => undefined);
     // Re-scan on edit too: the path, kind or naming mode may have changed, and each
     // of those changes what the library's contents *are* as far as the DB is
     // concerned. Detached, so a large library can't time the request out.
