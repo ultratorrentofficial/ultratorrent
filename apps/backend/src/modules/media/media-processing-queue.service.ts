@@ -66,8 +66,27 @@ export function summarizeMediaJobInput(input: CreateJobOptions | undefined): Rec
   return out;
 }
 
-/** Progress reporter handed to a job body: `report(percent, message?)`. */
-export type JobReporter = (progress: number, message?: string) => Promise<void>;
+/**
+ * What a job is working on right now, alongside the headline percentage.
+ *
+ * `progress` is a weighted position across phases, which is what a single bar
+ * needs but not what an operator asks. These fields answer "how much is left"
+ * with counts that only ever go up, so the UI can show real remaining work
+ * beside the phase-weighted bar.
+ */
+export interface JobProgressDetail {
+  processed?: number;
+  total?: number;
+  currentItem?: string;
+  phase?: string;
+}
+
+/** Progress reporter handed to a job body: `report(percent, message?, detail?)`. */
+export type JobReporter = (
+  progress: number,
+  message?: string,
+  detail?: JobProgressDetail,
+) => Promise<void>;
 
 /**
  * Thrown by a media job body when it observes cancellation. Kept as this module's own
@@ -194,9 +213,11 @@ export class MediaProcessingQueueService implements OnModuleInit {
     fn: (report: JobReporter, signal: JobSignal) => Promise<T>,
   ): Promise<JobResult<T>> {
     this.emitLegacy(WS_EVENTS.MEDIA_JOB_STARTED, ctx.jobId, type, opts, 'running', 0);
-    const report: JobReporter = async (p, m) => {
+    const report: JobReporter = async (p, m, detail) => {
       await ctx.progress({ percent: p, messageKey: m });
-      this.emitLegacy(WS_EVENTS.MEDIA_JOB_PROGRESS, ctx.jobId, type, opts, 'running', p, { message: m });
+      this.emitLegacy(WS_EVENTS.MEDIA_JOB_PROGRESS, ctx.jobId, type, opts, 'running', p, {
+        message: m, ...detail,
+      });
     };
     const signal: JobSignal = {
       isCancelled: () => ctx.signal.isCancelled(),

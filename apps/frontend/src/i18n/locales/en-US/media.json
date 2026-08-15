@@ -148,7 +148,17 @@
       "progressLabel": "Progress",
       "waiting": "Waiting for the scanner to start…",
       "hide": "Hide (keeps running)",
-      "close": "Close"
+      "close": "Close",
+      "preparing": "Preparing…",
+      "libraryLabel": "Library",
+      "counts": "{{processed}} / {{total}} files",
+      "phase": {
+        "scan": "indexing",
+        "prune": "removing missing",
+        "shows": "recording shows",
+        "sidecars": "artwork & metadata",
+        "organize": "organising"
+      }
     },
     "deleteConfirm": "Delete library \"{{name}}\"? Scanned items for this library are removed too.",
     "deletedTitle": "Library deleted",

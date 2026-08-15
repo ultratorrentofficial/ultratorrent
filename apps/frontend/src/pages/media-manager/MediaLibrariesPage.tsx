@@ -51,6 +51,11 @@ interface ScanLive {
   status: 'running' | 'completed' | 'failed';
   log: string[];
   error?: string | null;
+  /** Monotonic work counts, for the library-level bar. */
+  processed?: number;
+  total?: number;
+  currentItem?: string;
+  phase?: string;
 }
 
 function presetTemplate(
@@ -90,6 +95,15 @@ export function MediaLibrariesPage() {
         return {
           ...cur,
           progress: typeof p.progress === 'number' ? p.progress : cur.progress,
+          /*
+           * Counts are kept even when an event omits them — the tail stages
+           * report a phase without per-item counts, and blanking the bar there
+           * would make it vanish for the last few percent of every scan.
+           */
+          processed: typeof p.processed === 'number' ? p.processed : cur.processed,
+          total: typeof p.total === 'number' ? p.total : cur.total,
+          currentItem: p.currentItem ?? cur.currentItem,
+          phase: p.phase ?? cur.phase,
           status: status ?? cur.status,
           error: p.error ?? cur.error,
           log: p.message ? [...cur.log, p.message].slice(-300) : cur.log,
@@ -338,16 +352,52 @@ export function MediaLibrariesPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="mt-2">
-            <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-              <span>{t('libraries.scanProgress.progressLabel')}</span>
-              <span>{Math.round(scanLive.progress)}%</span>
+          {/*
+            * Two bars, because one number was answering two questions badly. The
+            * top one is the file in hand; the bottom is the library, driven by
+            * items processed rather than by the phase-weighted percentage — so it
+            * only ever advances, and "how much is left" has an honest answer.
+            */}
+          <div className="mt-2 space-y-3">
+            <div>
+              <div className="mb-1 flex justify-between gap-3 text-xs text-muted-foreground">
+                <span className="truncate">
+                  {scanLive.currentItem ?? t('libraries.scanProgress.preparing')}
+                </span>
+                <span className="shrink-0">{Math.round(scanLive.progress)}%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded bg-muted">
+                <div
+                  className={`h-full transition-all ${scanLive.status === 'failed' ? 'bg-destructive' : 'bg-primary/70'}`}
+                  style={{ width: `${Math.min(100, Math.max(0, scanLive.progress))}%` }}
+                />
+              </div>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded bg-muted">
-              <div
-                className={`h-full transition-all ${scanLive.status === 'failed' ? 'bg-destructive' : 'bg-primary'}`}
-                style={{ width: `${Math.min(100, Math.max(0, scanLive.progress))}%` }}
-              />
+
+            <div>
+              <div className="mb-1 flex justify-between gap-3 text-xs text-muted-foreground">
+                <span>
+                  {t('libraries.scanProgress.libraryLabel')}
+                  {scanLive.phase ? ` · ${t(`libraries.scanProgress.phase.${scanLive.phase}` as 'libraries.scanProgress.phase.scan', { defaultValue: scanLive.phase })}` : ''}
+                </span>
+                <span className="shrink-0 tabular-nums">
+                  {scanLive.total
+                    ? t('libraries.scanProgress.counts', {
+                        processed: scanLive.processed ?? 0, total: scanLive.total,
+                      })
+                    : '—'}
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded bg-muted">
+                <div
+                  className={`h-full transition-all ${scanLive.status === 'failed' ? 'bg-destructive' : 'bg-primary'}`}
+                  style={{
+                    width: `${scanLive.total
+                      ? Math.min(100, Math.round(((scanLive.processed ?? 0) / scanLive.total) * 100))
+                      : Math.min(100, Math.max(0, scanLive.progress))}%`,
+                  }}
+                />
+              </div>
             </div>
           </div>
 

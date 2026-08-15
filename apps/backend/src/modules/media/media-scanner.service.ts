@@ -167,7 +167,9 @@ export class MediaScannerService {
    */
   async scanLibrary(
     libraryId: string,
-    report?: (progress: number, message?: string) => void | Promise<void>,
+    report?: (progress: number, message?: string, detail?: {
+      processed?: number; total?: number; currentItem?: string; phase?: string;
+    }) => void | Promise<void>,
     subPath?: string,
   ): Promise<ScanSummary> {
     const library = await this.prisma.mediaLibrary.findUnique({
@@ -333,7 +335,18 @@ export class MediaScannerService {
 
       if (i % step === 0 || i === files.length - 1) {
         const pct = 5 + Math.round((i / (files.length || 1)) * 80); // 5..85
-        await report?.(pct, `${i + 1}/${files.length} · ${action}: ${path.basename(file.path)}`);
+        /*
+         * The counts travel beside the percentage. `pct` is this stage's slice of
+         * a weighted whole and dips whenever a later stage restarts its own
+         * 0-100; `processed`/`total` only ever climb, so a second bar can show
+         * what is actually left.
+         */
+        await report?.(pct, `${i + 1}/${files.length} · ${action}: ${path.basename(file.path)}`, {
+          processed: i + 1,
+          total: files.length,
+          currentItem: path.basename(file.path),
+          phase: 'scan',
+        });
       }
     }
 

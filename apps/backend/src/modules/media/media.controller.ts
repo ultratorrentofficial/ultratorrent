@@ -204,9 +204,16 @@ export class MediaController {
    */
   private launchLibraryScan(id: string, req: Request): Promise<{ jobId: string }> {
     return this.jobs.runDetached('library_scan', { libraryId: id }, async (report) => {
-      const scan = await this.scanner.scanLibrary(id, (p, m) => report(p * 0.8, m));
+      /*
+       * The percentage is weighted across two phases; the COUNTS are passed
+       * through untouched. A phase-weighted number is what one bar needs, but it
+       * is not an answer to "how much is left" — so the item counts travel
+       * beside it and the phase is named, and the UI can show both.
+       */
+      const scan = await this.scanner.scanLibrary(id, (p, m, d) =>
+        report(p * 0.8, m, { ...d, phase: d?.phase ?? 'scan' }));
       const organized = await this.mediaActions.organizeLibrary(id, { dryRun: false }, auditCtx(req), (p, m) =>
-        report(80 + p * 0.2, m),
+        report(80 + p * 0.2, m, { phase: 'organize' }),
       );
       return { ...scan, organized };
     });

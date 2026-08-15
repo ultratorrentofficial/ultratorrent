@@ -148,7 +148,17 @@
       "progressLabel": "Progreso",
       "waiting": "Esperando a que el escáner comience…",
       "hide": "Ocultar (sigue corriendo)",
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "preparing": "Preparando…",
+      "libraryLabel": "Biblioteca",
+      "counts": "{{processed}} / {{total}} archivos",
+      "phase": {
+        "scan": "indexando",
+        "prune": "eliminando ausentes",
+        "shows": "registrando series",
+        "sidecars": "arte y metadatos",
+        "organize": "organizando"
+      }
     },
     "deleteConfirm": "¿Eliminar la biblioteca \"{{name}}\"? También se eliminan los elementos escaneados de esta biblioteca.",
     "deletedTitle": "Biblioteca eliminada",

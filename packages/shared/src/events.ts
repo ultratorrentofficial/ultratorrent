@@ -139,6 +139,21 @@ export interface MediaJobEventPayload {
   libraryId?: string | null;
   itemId?: string | null;
   message?: string | null;
+  /**
+   * Where the job is through its WORK, as opposed to `progress`, which is a
+   * weighted position across phases.
+   *
+   * A single percentage cannot answer "how much is left" for a job whose phases
+   * each report their own 0-100: the bar dips every time a stage restarts. These
+   * counts are monotonic and concrete - 1,247 of 25,638 files - so a second bar
+   * can show real remaining work while `progress` keeps driving the first.
+   */
+  processed?: number | null;
+  total?: number | null;
+  /** What is being worked on right now, for the per-item bar. */
+  currentItem?: string | null;
+  /** Which phase is running, so the numbers have a referent. */
+  phase?: string | null;
   result?: unknown;
   error?: string | null;
   at: string;
