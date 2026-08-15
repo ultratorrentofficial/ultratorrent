@@ -190,6 +190,7 @@ if (noGit) {
    * work-in-progress in a shared tree — and pushes it. Printing `git commit -am`
    * here handed that same footgun straight back to whoever passed the flag to
    * avoid it, which is worse than useless: it reads as the sanctioned way to
+   * finish. So the hint stages by explicit path, exactly what the project development guidelines require.
    *
    * The satellite list mirrors `targets` in sync-versions.js. `git status --short`
    * comes first so that if that list ever grows, the operator SEES the unstaged
@@ -216,6 +217,7 @@ if (noGit) {
   console.log(`  git commit -m "release: ${tag}" && git tag ${tag}`);
   console.log(`  git push origin HEAD && git push origin ${tag}`);
   console.log('\n  Stage by explicit path — never `-a`, which would sweep unrelated');
+  console.log('  work-in-progress into the release commit. See the project development guidelines.');
   if (untracked > 0) {
     console.log(
       `\n  Note: ${untracked} consumed changeset(s) were never committed, so they are`,
@@ -227,6 +229,7 @@ if (noGit) {
   const gitCap = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();
   const branch = gitCap(['rev-parse', '--abbrev-ref', 'HEAD']);
   console.log(`\nFinalizing release on '${branch}'…`);
+  git(['commit', '-a', '-m', `release: ${tag}`]);
   git(['tag', tag]);
   git(['push', 'origin', branch]);
   git(['push', 'origin', tag]);

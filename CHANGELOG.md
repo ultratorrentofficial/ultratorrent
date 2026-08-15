@@ -618,6 +618,7 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 ## [0.42.1] - 2026-07-22
 
 ### Fixed
+- Document the deploy pipeline in docs/OPERATIONS.md and add local development guidance. The build/ship/deploy procedure, pre-release gates, prune discipline and a dated catalogue of the failures that shaped each rule previously existed only as assistant memory on one machine — not version-controlled, not shared, and repeatedly re-learned the hard way. OPERATIONS.md is identity-free (this repo is public); real host addresses and paths live in ops/hosts.local.md, now gitignored.
 - Restore the UltraTorrent logo in the sidebar. The Workspace-rail brand mark and the collapsed-sidebar header were left showing a 'UT' gradient placeholder after the navigation remake; both now render the actual logo mark. Adds public/logo-mark.png — a tight square crop of the brand emblem (transparent background, so it composites cleanly on the dark rail) generated from art/logo_initial.png. The user-initials avatar is unchanged.
 
 ## [0.42.0] - 2026-07-22
