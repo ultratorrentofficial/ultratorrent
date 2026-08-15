@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.79.0] - 2026-08-15
+
+### Added
+- Renames and purges skip media that a connected media server is streaming right now, instead of moving a file out from under a viewer
+
+### Fixed
+- Media Purge actions look like buttons: add-condition, simulate, edit draft and the rest are filled or outlined instead of plain text, and destructive actions are red
+
 ## [0.78.0] - 2026-08-15
 
 ### Added
