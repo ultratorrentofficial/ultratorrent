@@ -107,17 +107,17 @@ export function CleanupPlansPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap justify-end gap-1.5">
-                      <Button size="sm" variant="ghost" onClick={() => setViewing(p.id)}>{t('plans.action.viewActions')}</Button>
+                      <Button size="sm" variant="outline" onClick={() => setViewing(p.id)}>{t('plans.action.viewActions')}</Button>
                       {canApprove && p.status === 'pending_approval' && (
                         <>
                           <Button
-                            size="sm" variant="secondary" disabled={!mayActOn(p) || approve.isPending}
+                            size="sm" variant="primary" disabled={!mayActOn(p) || approve.isPending}
                             onClick={() => { if (window.confirm(t('plans.confirmApprove', { destination: t(`destination.${p.action}`, { defaultValue: p.action }) }))) approve.mutate(p.id); }}
                           >
                             {t('plans.action.approve')}
                           </Button>
                           <Button
-                            size="sm" variant="ghost"
+                            size="sm" variant="destructive"
                             onClick={() => { const reason = window.prompt(t('plans.rejectReason')); if (reason) reject.mutate({ id: p.id, reason }); }}
                           >
                             {t('plans.action.reject')}
@@ -126,14 +126,14 @@ export function CleanupPlansPage() {
                       )}
                       {p.status === 'approved' && mayActOn(p) && (
                         <Button
-                          size="sm" variant="secondary" loading={execute.isPending && execute.variables === p.id}
+                          size="sm" variant="primary" loading={execute.isPending && execute.variables === p.id}
                           onClick={() => { if (window.confirm(t('plans.confirmExecute'))) execute.mutate(p.id); }}
                         >
                           {t('plans.action.execute')}
                         </Button>
                       )}
                       {canCancel && (p.status === 'pending_approval' || p.status === 'approved') && (
-                        <Button size="sm" variant="ghost" onClick={() => cancel.mutate(p.id)}>{t('plans.action.cancel')}</Button>
+                        <Button size="sm" variant="outline" onClick={() => cancel.mutate(p.id)}>{t('plans.action.cancel')}</Button>
                       )}
                     </div>
                   </TableCell>

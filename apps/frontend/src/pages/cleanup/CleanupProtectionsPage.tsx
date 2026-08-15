@@ -105,7 +105,7 @@ export function CleanupProtectionsPage() {
                     <div className="flex justify-end">
                       {canRevoke && (
                         <Button
-                          size="sm" variant="ghost"
+                          size="sm" variant="destructive"
                           onClick={() => { const reason = window.prompt(t('protections.revokeReason')); if (reason) revoke.mutate({ id: p.id, reason }); }}
                         >
                           {t('protections.revoke')}

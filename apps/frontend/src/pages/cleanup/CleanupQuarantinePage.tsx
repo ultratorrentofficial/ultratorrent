@@ -82,9 +82,11 @@ export function CleanupQuarantinePage() {
                           {t('quarantine.restore')}
                         </Button>
                       )}
+                      {/* Permanent deletion from quarantine — the most destructive
+                          control in the module, and it was styled as plain text. */}
                       {canPurge && (
                         <Button
-                          size="sm" variant="ghost"
+                          size="sm" variant="destructive"
                           onClick={() => { if (window.confirm(t('quarantine.confirmPurge'))) purge.mutate(q.id); }}
                         >
                           {t('quarantine.purge')}

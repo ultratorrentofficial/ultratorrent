@@ -180,7 +180,7 @@ export function PolicyDraftDialog({
 
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
-        <Button variant="outline" onClick={() => validate.mutate()} loading={validate.isPending}>{t('policies.draft.validate')}</Button>
+        <Button variant="secondary" onClick={() => validate.mutate()} loading={validate.isPending}>{t('policies.draft.validate')}</Button>
         <Button onClick={() => save.mutate()} loading={save.isPending}>{t('policies.draft.save')}</Button>
       </DialogFooter>
     </Dialog>

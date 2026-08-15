@@ -279,7 +279,7 @@ export function ConditionBuilder({ node, catalog, onChange }: ConditionBuilderPr
                   <ValueInput def={def} value={leaf.value} onChange={(v) => setLeaf(i, { ...leaf, value: v })} />
                 </div>
 
-                <Button variant="ghost" size="sm" onClick={() => removeLeaf(i)} aria-label={t('builder.remove')}>
+                <Button variant="outline" size="sm" onClick={() => removeLeaf(i)} aria-label={t('builder.remove')}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -315,7 +315,12 @@ export function ConditionBuilder({ node, catalog, onChange }: ConditionBuilderPr
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={addLeaf}>
+        {/*
+          * `primary`, not `outline`: this is the only way to add a condition, and
+          * as a bordered transparent button it read as decoration — operators did
+          * not find it. The action that makes a screen usable is not a subtle one.
+          */}
+        <Button variant="primary" size="sm" onClick={addLeaf}>
           <Plus className="mr-1.5 h-4 w-4" />
           {t('builder.addCondition')}
         </Button>

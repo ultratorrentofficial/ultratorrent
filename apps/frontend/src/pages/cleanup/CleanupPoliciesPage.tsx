@@ -165,10 +165,10 @@ function PolicyRow({
       <TableCell>
         <div className="flex flex-wrap justify-end gap-1.5">
           {perms.canEdit && hasDraft && (
-            <Button size="sm" variant="ghost" onClick={onEditDraft}>{t('policies.action.editDraft')}</Button>
+            <Button size="sm" variant="secondary" onClick={onEditDraft}>{t('policies.action.editDraft')}</Button>
           )}
           {perms.canSimulate && (
-            <Button size="sm" variant="ghost" onClick={onSimulate} disabled={busy}>{t('policies.action.simulate')}</Button>
+            <Button size="sm" variant="secondary" onClick={onSimulate} disabled={busy}>{t('policies.action.simulate')}</Button>
           )}
           {perms.canPublish && hasDraft && (
             <Button size="sm" variant="secondary" onClick={onPublish} disabled={busy}>{t('policies.action.publish')}</Button>
@@ -178,14 +178,14 @@ function PolicyRow({
           )}
           {perms.canEnable && p.publishedVersionId && (
             p.enabled
-              ? <Button size="sm" variant="ghost" onClick={onDisable} disabled={busy}>{t('policies.action.disable')}</Button>
-              : <Button size="sm" variant="ghost" onClick={onEnable} disabled={busy}>{t('policies.action.enable')}</Button>
+              ? <Button size="sm" variant="outline" onClick={onDisable} disabled={busy}>{t('policies.action.disable')}</Button>
+              : <Button size="sm" variant="outline" onClick={onEnable} disabled={busy}>{t('policies.action.enable')}</Button>
           )}
           {perms.canDelete && p.status !== 'archived' && (
-            <Button size="sm" variant="ghost" onClick={onArchive}>{t('policies.action.archive')}</Button>
+            <Button size="sm" variant="outline" onClick={onArchive}>{t('policies.action.archive')}</Button>
           )}
           {perms.canDelete && (
-            <Button size="sm" variant="ghost" onClick={onDelete}>{t('policies.action.delete')}</Button>
+            <Button size="sm" variant="destructive" onClick={onDelete}>{t('policies.action.delete')}</Button>
           )}
         </div>
       </TableCell>

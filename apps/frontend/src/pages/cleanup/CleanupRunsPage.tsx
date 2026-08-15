@@ -93,12 +93,12 @@ export function CleanupRunsPage() {
                   <TableCell>
                     <div className="flex justify-end gap-1.5">
                       {r.candidatesEligible + r.candidatesExcluded > 0 && (
-                        <Button size="sm" variant="ghost" onClick={() => navigate(`/media/cleanup/runs/${r.id}`)}>
+                        <Button size="sm" variant="secondary" onClick={() => navigate(`/media/cleanup/runs/${r.id}`)}>
                           {t('runs.viewCandidates')}
                         </Button>
                       )}
                       {canCancel && ACTIVE.has(r.status) && (
-                        <Button size="sm" variant="ghost" onClick={() => cancel.mutate(r.id)}>{t('runs.cancel')}</Button>
+                        <Button size="sm" variant="outline" onClick={() => cancel.mutate(r.id)}>{t('runs.cancel')}</Button>
                       )}
                     </div>
                   </TableCell>
