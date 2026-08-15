@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.79.3] - 2026-08-15
+
+### Fixed
+- Leftover release folders are swept and pruned recursively; the sweep never deletes a subtitle
+- The leftover sweep only enters release folders, never a season, show or film folder
+
 ## [0.79.2] - 2026-08-15
 
 ### Fixed
