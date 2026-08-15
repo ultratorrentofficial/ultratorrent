@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.78.0] - 2026-08-15
+
+### Added
+- Libraries can watch the filesystem and rescan a folder as soon as it changes, plus scan at startup — with the exclusion reason now naming the data that was actually missing and item age counted from the file rather than when UltraTorrent first saw it
+
 ## [0.77.0] - 2026-08-14
 
 ### Added
