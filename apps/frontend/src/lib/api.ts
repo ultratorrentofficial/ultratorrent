@@ -1606,7 +1606,15 @@ export interface MediaFile {
   container: string | null;
   videoCodec: string | null;
   audioCodec: string | null;
+  /**
+   * The resolution token parsed from the FILENAME — null on a renamed library,
+   * because the renamer strips exactly those tokens. Prefer deriving from the
+   * measured dimensions below; on a live library `resolution` is set on 6% of
+   * files while `width` is measured on 97%.
+   */
   resolution: string | null;
+  width: number | null;
+  height: number | null;
   hdr: string | null;
   language: string | null;
   releaseGroup: string | null;

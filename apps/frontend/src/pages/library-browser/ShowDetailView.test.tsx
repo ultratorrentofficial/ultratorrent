@@ -134,7 +134,22 @@ describe('ShowDetailView', () => {
     // The renamer strips these tokens, so most files carry none until probed.
     // A row of dashes would imply the data is missing rather than unmeasured.
     const bare = await screen.findByText('Unprobed episode');
-    expect(bare.parentElement?.textContent).toBe('Unprobed episode');
+    /*
+     * Asserted as "no facts line", not "the row says only the title" — the row
+     * also carries its filename now, and pinning the whole text made an
+     * unrelated addition look like a regression. What must not appear is a
+     * placeholder implying the technical data is missing rather than unmeasured.
+     */
+    const row = bare.closest('div');
+    expect(row?.textContent).not.toMatch(/·/);
+    expect(row?.textContent).toContain('Unprobed episode');
+
+    /*
+     * And the row names the FILE. An operator deciding whether to rename,
+     * replace or delete is working on a path; the row previously named
+     * everything except the thing being handled.
+     */
+    expect(screen.getByText('Show - S01E02 - Unprobed episode.mkv')).toBeInTheDocument();
   });
 
   describe('episode rows carry their own info and art', () => {

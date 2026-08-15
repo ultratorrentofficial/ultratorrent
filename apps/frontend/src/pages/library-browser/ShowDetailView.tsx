@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, Skeleton } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
 import { VirtualPosterGrid } from './VirtualPosterGrid';
 import { episodeTitleOf } from './episode-title';
+import { resolutionLabel } from './resolution-label';
 import { HealthBadge } from './HealthBadge';
 import { ShowOverview } from './ShowOverview';
 import { ContextActionBar } from './ContextActionBar';
@@ -82,6 +83,21 @@ export function ShowDetailView({
 
   const seasons = query.data?.seasons ?? [];
 
+  /*
+   * The show's folder, derived from any episode's path rather than requested
+   * separately: the API returns episodes with paths already, and a show IS the
+   * directory its episodes sit under. Climbs past the `Season NN` container so
+   * the header names the show folder, not a season of it.
+   */
+  const showFolder = useMemo(() => {
+    const sample = seasons.flatMap((s) => s.episodes ?? [])[0]?.path;
+    if (!sample) return null;
+    const parts = sample.split('/');
+    parts.pop(); // the file
+    if (/^season\s*\d+$/i.test(parts[parts.length - 1] ?? '')) parts.pop();
+    return parts.join('/');
+  }, [seasons]);
+
   // Default to the first season once loaded, so the drill-down lands on
   // something rather than an accordion the user must open to see anything.
   const activeSeason = useMemo(() => {
@@ -106,7 +122,16 @@ export function ShowDetailView({
           <ChevronLeft className="mr-1 h-4 w-4" aria-hidden />
           {t('browser.backToLibrary')}
         </Button>
-        <h2 className="truncate text-lg font-semibold">{title}</h2>
+        <div className="min-w-0">
+          <h2 className="truncate text-lg font-semibold">{title}</h2>
+          {/* Which folder this show IS — two shows can share a title, and the
+              operator needs to know which one they are looking at. */}
+          {showFolder && (
+            <p className="truncate font-mono text-[11px] text-muted-foreground/70" title={showFolder}>
+              {showFolder}
+            </p>
+          )}
+        </div>
         {!!seasons.length && (
           <Badge variant="outline">{t('browser.seasonCount', { count: seasons.length })}</Badge>
         )}
@@ -285,7 +310,9 @@ function EpisodeRow({ episode, health, opsMode, selected, onToggle, onSelect }: 
    * unmeasured.
    */
   const facts = [
-    file?.resolution,
+    // Measured dimensions, not just the filename token — the renamer strips
+    // those, so reading only `resolution` hid the resolution of 94% of episodes.
+    resolutionLabel(file?.resolution, file?.width, file?.height),
     file?.hdr,
     file?.videoCodec,
     meta?.runtime ? t('browser.minutes', { count: meta.runtime }) : null,
@@ -333,6 +360,17 @@ function EpisodeRow({ episode, health, opsMode, selected, onToggle, onSelect }: 
             repeating the series title would be noise. */}
         <p className={cn('truncate text-sm', !episodeTitle && 'text-muted-foreground')}>
           {episodeTitle ?? t('browser.untitledEpisode', { number: episode.episode ?? 0 })}
+        </p>
+        {/*
+          * The filename, because the title alone does not identify the FILE. An
+          * operator deciding whether to rename, replace or delete an episode is
+          * working on a path, and the row named everything except the thing
+          * being handled. Basename only — the full path is the hover, since the
+          * show folder is the same for every row and repeating it would push the
+          * part that differs off the end.
+          */}
+        <p className="truncate font-mono text-[11px] text-muted-foreground/70" title={episode.path}>
+          {episode.path.split('/').pop()}
         </p>
         {facts.length > 0 && (
           <p className="truncate text-xs text-muted-foreground">{facts.join(' · ')}</p>
