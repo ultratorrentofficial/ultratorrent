@@ -11,7 +11,7 @@ jobs:
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Gitleaks secret scan
@@ -28,7 +28,7 @@ jobs:
   dependency-audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
@@ -44,7 +44,7 @@ jobs:
   license-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
@@ -54,7 +54,7 @@ jobs:
   container-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build Community image
         run: docker build -f apps/backend/Dockerfile -t ultratorrent/community:backend .
       - name: Trivy image scan — BLOCK on fixable critical
