@@ -286,3 +286,78 @@ describe('junk nested inside a release folder', () => {
     expect(await readdir(path.join(dir, 'extras'))).toEqual(['Another.Film.2019.mkv']);
   });
 });
+
+/**
+ * Which folders the sweep is allowed to touch at all.
+ *
+ * The sweep receives `dirname()` of every moved file, and a `rename_in_place`
+ * of an episode already filed under `Season 01` hands it the LIBRARY's own
+ * folder. Nothing in a glob distinguishes scene junk from Plex's artwork: in a
+ * release folder `*.nfo` and `*.jpg` are `release.nfo` and a tracker banner; in
+ * a season folder they are `tvshow.nfo` and `poster.jpg`. Patterns broad enough
+ * to clear the first would have destroyed the second, so the guard is the
+ * folder's identity rather than the file's name.
+ */
+describe('the folders the leftover sweep will not enter', () => {
+  let root: string;
+
+  beforeEach(async () => { root = await mkdtemp(path.join(tmpdir(), 'rename-leftover-scope-')); });
+  afterEach(async () => { await rm(root, { recursive: true, force: true }); });
+
+  /** Runs the real post-move cleanup against one directory. */
+  async function cleanup(dir: string) {
+    const svc = buildService(root, CLEANUP);
+    jest.spyOn(svc as never, 'allowedRoots' as never).mockResolvedValue([root] as never);
+    return (svc as never as {
+      postMoveCleanup(d: string[], r: unknown, roots: string[]): Promise<number>;
+    }).postMoveCleanup([dir], {
+      ...CLEANUP,
+      deleteGlobs: ['*.nfo', '*.jpg', '*.png', '*.txt'],
+    }, [root]);
+  }
+
+  it('never sweeps a season folder, however well the patterns match', async () => {
+    // The artwork and metadata a media server keeps beside the episodes.
+    const dir = path.join(root, 'The Rookie (2018)', 'Season 01');
+    await mkdir(dir, { recursive: true });
+    for (const f of ['tvshow.nfo', 'poster.jpg', 'season01-poster.jpg', 'S01E01.nfo']) {
+      await writeFile(path.join(dir, f), 'plex');
+    }
+
+    expect(await cleanup(dir)).toBe(0);
+    expect((await readdir(dir)).sort())
+      .toEqual(['S01E01.nfo', 'poster.jpg', 'season01-poster.jpg', 'tvshow.nfo']);
+  });
+
+  it('never sweeps a show folder', async () => {
+    const dir = path.join(root, 'The Rookie (2018)');
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, 'tvshow.nfo'), 'plex');
+    await writeFile(path.join(dir, 'fanart.jpg'), 'plex');
+
+    expect(await cleanup(dir)).toBe(0);
+    expect((await readdir(dir)).sort()).toEqual(['fanart.jpg', 'tvshow.nfo']);
+  });
+
+  it('never sweeps a film folder', async () => {
+    const dir = path.join(root, '2 37 (2006)');
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, 'movie.nfo'), 'plex');
+
+    expect(await cleanup(dir)).toBe(0);
+    expect(await readdir(dir)).toEqual(['movie.nfo']);
+  });
+
+  it('does sweep a release folder, including one nested in a season folder', async () => {
+    // The Scandal shape: a pack folder filed under the season it belongs to.
+    const dir = path.join(
+      root, 'Scandal (2012)', 'Season 05', 'Scandal.S05.1080p.WEBRip.x265-NeoNoir',
+    );
+    await mkdir(path.join(dir, 'Screens'), { recursive: true });
+    await writeFile(path.join(dir, 'release.nfo'), 'junk');
+    await writeFile(path.join(dir, 'Screens', 'shot.png'), 'junk');
+
+    expect(await cleanup(dir)).toBe(2);
+    await expect(stat(dir)).rejects.toThrow(); // swept, then pruned away
+  });
+});

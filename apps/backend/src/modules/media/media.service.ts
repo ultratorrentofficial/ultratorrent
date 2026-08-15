@@ -40,6 +40,8 @@ import {
   DEFAULT_CLEANUP_RULES,
   EpisodeMeta,
   isRealEpisodeTitle,
+  isReleaseFolder,
+  isSeasonContainer,
   matchesAnyGlob,
   MediaFileInput,
   Preset,
@@ -56,6 +58,27 @@ import {
  * `Subs/en/`); a bound keeps a mistaken glob from walking an entire library.
  */
 const LEFTOVER_SWEEP_DEPTH = 3;
+
+/**
+ * May the leftover sweep touch this folder at all?
+ *
+ * The sweep is handed `dirname()` of every file a rename moved, and for a
+ * `rename_in_place` of an episode already filed away, that directory is the
+ * LIBRARY's own `Season 01` — not a release folder. The patterns cannot tell
+ * the two apart: `*.nfo` and `*.jpg` describe scene junk in one and Plex's
+ * artwork and metadata in the other. Scoping is what makes a broad pattern
+ * safe, so the answer is the folder's identity, never the file's name.
+ *
+ * `isSeasonContainer` is checked FIRST because `isReleaseFolder` also answers
+ * true for `Season 05` — it keys on the parsed season, which a season folder
+ * naturally has. A show root ("The Rookie (2018)") or a film folder
+ * ("2 37 (2006)") parses to no scene token at all and is refused, which is the
+ * point: only a folder that positively looks like a release is swept.
+ */
+function isSweepableFolder(name: string): boolean {
+  if (!name || isSeasonContainer(name)) return false;
+  return isReleaseFolder(name);
+}
 import {
   MediaLookup,
   MediaMetadataProvider,
@@ -1103,6 +1126,7 @@ export class MediaService {
         continue; // outside the allowed roots — never touch
       }
       if (protectedPaths.has(path.resolve(abs))) continue; // never a root/library
+      if (!isSweepableFolder(path.basename(abs))) continue;
 
       if (rules.removeLeftoverTorrent) {
         try {
