@@ -9,6 +9,7 @@ import { CleanupJobBridge } from './cleanup-job.bridge';
 import { evaluatePolicy } from './domain/policy-evaluator';
 import { evaluateExclusions } from './domain/exclusion-rules';
 import { buildPushdownWhere } from './domain/condition-pushdown';
+import { itemsInPlayback } from '../domain/active-playback';
 import { unmeasuredReasonFor } from './domain/exclusion-rules';
 import { candidateFingerprint } from './domain/candidate-fingerprint';
 import { rankCandidate } from './domain/candidate-ranking';
@@ -183,6 +184,12 @@ export class CandidateDiscoveryService {
      * run now reports how many items it had to consider rather than how many
      * exist.
      */
+    /*
+     * Resolved once per run: a purge that quarantines a file mid-stream ends
+     * someone's episode, and the session list is a handful of rows.
+     */
+    const playingItemIds = await this.playingItemIds();
+
     const scope = this.scopeWhere(document, run.scopeItemIds as string[] | null);
     const pushdown = buildPushdownWhere(document.conditions, new Date());
     const where = Object.keys(pushdown).length ? { AND: [scope, pushdown] } : scope;
@@ -225,7 +232,7 @@ export class CandidateDiscoveryService {
           scanned += 1;
           if (cap && evaluated >= cap) { truncated = true; break; }
 
-          const ctx = await this.buildContext(item as never, file as never, document);
+          const ctx = await this.buildContext(item as never, file as never, document, playingItemIds);
           const facts = assembleEvaluationFacts(file as never, item as never, ctx);
           evaluated += 1;
 
@@ -435,10 +442,40 @@ export class CandidateDiscoveryService {
    * touching a file (Phase 8) — discovery never deletes, so a conservative answer
    * here costs a candidate, not data.
    */
+
+  /**
+   * Items a media server is streaming right now.
+   *
+   * Best-effort: an unreadable session table reports nothing playing rather than
+   * stopping the run, since discovery only ever proposes candidates — the
+   * exclusion it feeds is a safety net, not the only one.
+   */
+  private async playingItemIds(): Promise<Set<string>> {
+    try {
+      const sessions = await this.prisma.mediaServerSession.findMany({
+        select: {
+          title: true, showTitle: true, seasonNumber: true,
+          episodeNumber: true, year: true, playbackState: true,
+        },
+      });
+      if (!sessions.length) return new Set();
+      const items = await this.prisma.mediaItem.findMany({
+        select: { id: true, title: true, season: true, episode: true, year: true },
+      });
+      const playing = itemsInPlayback(items, sessions);
+      if (playing.size) this.logger.log(`${playing.size} item(s) are in playback and will be excluded`);
+      return playing;
+    } catch (err) {
+      this.logger.warn(`Could not check playback for this run: ${(err as Error).message}`);
+      return new Set();
+    }
+  }
+
   private async buildContext(
     item: { id: string; libraryId: string; library?: { kind?: string | null; path?: string | null } | null },
     file: { id: string; path: string },
     _document: CleanupPolicyDocument,
+    playingItemIds: ReadonlySet<string> = new Set(),
   ): Promise<RawContext & { protectionIds: string[] }> {
     const protection = await this.protections.evaluate({
       mediaItemId: item.id, mediaFileId: file.id, mediaLibraryId: item.libraryId, path: file.path,
@@ -474,7 +511,13 @@ export class CandidateDiscoveryService {
       onWatchlist: false,
       inCollection: false,
       collectionIds: [],
-      activePlayback: false,
+      /*
+       * Was hard-coded false, so the `activePlayback` exclusion every policy
+       * ships with could never fire — a purge would happily quarantine a file
+       * someone was streaming. Resolved from the live session list, which the
+       * media-server poller refreshes every 15 seconds.
+       */
+      activePlayback: playingItemIds.has(item.id),
       hasActiveJob: activeJobs > 0,
       incompleteDownload: false,
       inFlightOperation: false,

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { itemsInPlayback, type GuardedItem } from './domain/active-playback';
 import {
   BadRequestException,
   Injectable,
@@ -726,6 +727,51 @@ export class MediaService {
   }
 
   // --- execution ---------------------------------------------------------
+  /**
+   * The subset of these paths whose media is being watched right now.
+   *
+   * Empty when no media server is connected or nothing is playing, which is the
+   * ordinary case and costs one cheap query. Best-effort by design: if the
+   * session table cannot be read, the guard reports NOTHING as playing rather
+   * than blocking the run — an organiser that refuses to work because analytics
+   * is unavailable is a worse failure than the one being prevented, and the
+   * post-download path already renames files nobody has had a chance to open.
+   */
+  private async pathsInPlayback(paths: string[]): Promise<Set<string>> {
+    const out = new Set<string>();
+    if (!paths.length) return out;
+    try {
+      const sessions = await this.prisma.mediaServerSession.findMany({
+        select: {
+          title: true, showTitle: true, seasonNumber: true,
+          episodeNumber: true, year: true, playbackState: true,
+        },
+      });
+      if (!sessions.length) return out;
+
+      // Only the items these paths belong to — a library-wide rename must not
+      // load every row to answer a question about the files in front of it.
+      const files = await this.prisma.mediaFile.findMany({
+        where: { path: { in: paths } },
+        select: {
+          path: true,
+          item: { select: { id: true, title: true, season: true, episode: true, year: true } },
+        },
+      });
+      const items = files.map((f) => f.item).filter(Boolean) as GuardedItem[];
+      const playingIds = itemsInPlayback(items, sessions);
+      if (!playingIds.size) return out;
+
+      for (const f of files) if (f.item && playingIds.has(f.item.id)) out.add(f.path);
+      if (out.size) {
+        this.logger.log(`${out.size} file(s) held back: currently in playback`);
+      }
+    } catch (err) {
+      this.logger.warn(`Could not check playback before renaming: ${(err as Error).message}`);
+    }
+    return out;
+  }
+
   async apply(req: RenameRequest): Promise<{
     applied: number;
     skipped: number;
@@ -759,6 +805,18 @@ export class MediaService {
     // The chosen library must itself live under an allowed root.
     this.assertWithin(plan.libraryPath, roots, 'libraryPath');
 
+    /*
+     * Files a media server is streaming right now are left alone.
+     *
+     * Moving a file out from under a running stream ends someone's episode in an
+     * error, and it is the one failure of an organiser that a person actually
+     * notices — invisible from this side, because the move succeeds and the
+     * damage happens on a television. Resolved once per run rather than per file:
+     * a session list is a handful of rows, and re-reading it mid-run would let
+     * one file be judged against a different answer than the file beside it.
+     */
+    const playingPaths = await this.pathsInPlayback(plan.items.map((i) => i.source));
+
     // Source folders touched, so we can prune the leftovers after moving.
     const sourceDirs = new Set<string>();
     // The files this run actually relocated, for the seeding-torrent check.
@@ -784,6 +842,13 @@ export class MediaService {
           await this.log(item, plan.mode, 'failed', torrentHash, (err as Error).message, runId);
           this.logger.warn(`cleanup delete failed: ${(err as Error).message}`);
         }
+        continue;
+      }
+
+      if (playingPaths.has(item.source)) {
+        skipped++;
+        await this.log(item, plan.mode, 'skipped', torrentHash, 'in playback', runId);
+        this.logger.log(`Skipped ${path.basename(item.source)}: it is being watched right now`);
         continue;
       }
 
