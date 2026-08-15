@@ -210,3 +210,79 @@ describe('what the leftover sweep refuses to delete', () => {
     await expect(sweep(path.join(root, 'does-not-exist'), ['*.txt'])).resolves.toBe(0);
   });
 });
+
+/**
+ * The shape that actually survived on both live hosts.
+ *
+ * A scene release does not leave its junk beside the video — it ships
+ * `Screens/` full of PNGs and `Subs/` full of subtitles. The sweep considered
+ * only the immediate folder, so the junk below was never deleted, so the folder
+ * was never empty, so the prune always declined. It read as the conservative
+ * choice and it was the reason 601 folders accumulated on one host and 300 on
+ * the other, holding 8.5 GB between them.
+ *
+ * The subtitle case is the counterweight: descending must not become a way to
+ * lose the only copy of a subtitle. A live audit found 1,945 that existed
+ * nowhere else.
+ */
+describe('junk nested inside a release folder', () => {
+  let root: string;
+
+  beforeEach(async () => { root = await mkdtemp(path.join(tmpdir(), 'rename-leftover-nested-')); });
+  afterEach(async () => { await rm(root, { recursive: true, force: true }); });
+
+  function svc() {
+    const s = buildService(root, CLEANUP);
+    return s as never as {
+      deleteMatchingLeftovers(d: string, g: string[]): Promise<number>;
+      pruneEmptyTree(d: string): Promise<boolean>;
+    };
+  }
+
+  it('sweeps junk out of a Screens subfolder, then prunes the whole tree', async () => {
+    const dir = path.join(root, 'Show.S03E08.1080p.x265-ELiTE');
+    await mkdir(path.join(dir, 'Screens'), { recursive: true });
+    await writeFile(path.join(dir, 'release.nfo'), 'nfo');
+    await writeFile(path.join(dir, 'Screens', 'shot1.png'), 'png');
+    await writeFile(path.join(dir, 'Screens', 'shot2.png'), 'png');
+
+    const deleted = await svc().deleteMatchingLeftovers(dir, ['*.nfo', '*.png']);
+    expect(deleted).toBe(3);
+
+    // Bottom-up: `Screens` goes first, which is what lets the release folder go.
+    await expect(svc().pruneEmptyTree(dir)).resolves.toBe(true);
+    await expect(stat(dir)).rejects.toThrow();
+  });
+
+  it('never deletes a subtitle, however broad the pattern, at any depth', async () => {
+    const dir = path.join(root, 'Show.S01.WEBRip.x265-ION265');
+    await mkdir(path.join(dir, 'Subs', 'Show.S01E01'), { recursive: true });
+    await writeFile(path.join(dir, 'Subs', 'Show.S01E01', '2_English.srt'), 'SUB');
+    await writeFile(path.join(dir, 'Subs', 'Show.S01E01', 'notes.txt'), 'junk');
+
+    const deleted = await svc().deleteMatchingLeftovers(dir, ['*']);
+
+    expect(deleted).toBe(1); // the .txt, not the .srt
+    expect(await readdir(path.join(dir, 'Subs', 'Show.S01E01'))).toEqual(['2_English.srt']);
+  });
+
+  it('leaves a folder standing while it still holds a subtitle', async () => {
+    // The prune must not undo the refusal above by removing the folder anyway.
+    const dir = path.join(root, 'Show.S01.WEBRip.x265-ION265');
+    await mkdir(path.join(dir, 'Subs'), { recursive: true });
+    await writeFile(path.join(dir, 'Subs', 'only-copy.srt'), 'SUB');
+
+    await expect(svc().pruneEmptyTree(dir)).resolves.toBe(false);
+    expect((await stat(dir)).isDirectory()).toBe(true);
+  });
+
+  it('still refuses a video buried in a subfolder', async () => {
+    const dir = path.join(root, 'rel');
+    await mkdir(path.join(dir, 'extras'), { recursive: true });
+    await writeFile(path.join(dir, 'extras', 'Another.Film.2019.mkv'), 'FILM');
+    await writeFile(path.join(dir, 'extras', 'junk.txt'), 'junk');
+
+    expect(await svc().deleteMatchingLeftovers(dir, ['*'])).toBe(1);
+    expect(await readdir(path.join(dir, 'extras'))).toEqual(['Another.Film.2019.mkv']);
+  });
+});

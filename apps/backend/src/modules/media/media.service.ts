@@ -46,8 +46,16 @@ import {
   PRESET_TEMPLATES,
   RenameMode,
   RenamePlan,
+  SUBTITLE_EXT,
   VIDEO_EXT,
 } from './media-renamer';
+
+/**
+ * How far below a release folder the leftover sweep and the empty-folder prune
+ * descend. Scene releases nest their junk one or two levels down (`Screens/`,
+ * `Subs/en/`); a bound keeps a mistaken glob from walking an entire library.
+ */
+const LEFTOVER_SWEEP_DEPTH = 3;
 import {
   MediaLookup,
   MediaMetadataProvider,
@@ -1122,16 +1130,47 @@ export class MediaService {
       // widened to the operator's own delete patterns.
       deletedLeftovers += await this.deleteMatchingLeftovers(abs, rules.deleteGlobs);
 
-      if (rules.pruneEmptyDirs) {
-        try {
-          const remaining = await readdir(abs);
-          if (remaining.length === 0) await rmdir(abs).catch(() => undefined);
-        } catch {
-          /* unreadable dir — skip */
-        }
-      }
+      if (rules.pruneEmptyDirs) await this.pruneEmptyTree(abs);
     }
     return deletedLeftovers;
+  }
+
+  /**
+   * Remove `dir` and any empty folders beneath it, deepest first.
+   *
+   * Bottom-up because emptiness propagates upward: `Screens/` only becomes
+   * removable after its screenshots are gone, and the release folder only after
+   * `Screens/` itself has gone. The previous single `readdir` check tested the
+   * top folder alone, which could never be empty while any subfolder stood.
+   *
+   * A folder holding anything the sweep declined to delete — a subtitle, an
+   * unmatched file — is not empty and therefore stays, which is the intended
+   * outcome and not a failure.
+   */
+  private async pruneEmptyTree(dir: string, depth = LEFTOVER_SWEEP_DEPTH): Promise<boolean> {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return false; // unreadable — leave it alone
+    }
+
+    if (depth > 0) {
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const full = path.join(dir, entry.name);
+        if (path.dirname(path.resolve(full)) !== path.resolve(dir)) continue;
+        await this.pruneEmptyTree(full, depth - 1);
+      }
+    }
+
+    try {
+      if ((await readdir(dir)).length > 0) return false;
+      await rmdir(dir);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -1142,18 +1181,35 @@ export class MediaService {
    * - **Never a video.** A non-sample video is real content, and the plan's own
    *   cleanup pass refuses to delete one however it was matched. A careless
    *   `*` here would otherwise eat a second film sharing the release folder.
-   * - **Never a directory.** Only the immediate folder is considered; a `Subs/`
-   *   subfolder is left alone, which also means `pruneEmptyDirs` correctly
-   *   declines to remove a folder that still contains one.
+   * - **Never a subtitle.** Subtitles are the one thing in a release folder
+   *   that is often the ONLY copy — a live sweep of two hosts found 1,945 of
+   *   them that existed nowhere else. Language pruning belongs to
+   *   `subtitleKeepLanguages`, which knows what it is discarding; a junk glob
+   *   does not, and `*.txt`-style patterns are written casually.
+   * - **Never a directory itself.** Sub-folders are descended into (see below)
+   *   but never unlinked here; removing one is `pruneEmptyDirs`' job, and only
+   *   once it is genuinely empty.
    * - **Never outside the folder we were handed.** Entries are joined onto the
    *   already-validated directory and re-checked, so a crafted name cannot
    *   escape it.
+   *
+   * **Why it descends.** It used to consider only the immediate folder, which
+   * read as conservative and was in fact the reason cleanup never completed: a
+   * scene release ships its junk in `Screens/` and `Subs/`, so the folder was
+   * never empty, so `pruneEmptyDirs` always declined, so every release folder
+   * survived every rename. Two live libraries had accumulated 601 and 300 of
+   * them. Depth is bounded — the deepest real case is `Subs/en/` — and the
+   * refusals above apply identically at every level.
    *
    * Best-effort per file: an unreadable folder or an undeletable entry leaves
    * the rest of the sweep intact, because a leftover is a tidiness problem and
    * failing the rename over one would be worse than the mess.
    */
-  private async deleteMatchingLeftovers(dir: string, globs: string[]): Promise<number> {
+  private async deleteMatchingLeftovers(
+    dir: string,
+    globs: string[],
+    depth = LEFTOVER_SWEEP_DEPTH,
+  ): Promise<number> {
     if (!globs.length) return 0;
 
     let entries: Dirent[];
@@ -1165,15 +1221,21 @@ export class MediaService {
 
     let deleted = 0;
     for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      if (VIDEO_EXT.has(path.extname(entry.name).toLowerCase())) continue;
-      if (!matchesAnyGlob(entry.name, globs)) continue;
-
       const full = path.join(dir, entry.name);
       // A directory entry cannot contain a separator, so this cannot escape —
       // but the rename engine's rule is that a path is validated at the point
       // it is used, not merely believed.
       if (path.dirname(path.resolve(full)) !== path.resolve(dir)) continue;
+
+      if (entry.isDirectory()) {
+        if (depth > 0) deleted += await this.deleteMatchingLeftovers(full, globs, depth - 1);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const ext = path.extname(entry.name).toLowerCase();
+      if (VIDEO_EXT.has(ext)) continue;
+      if (SUBTITLE_EXT.has(ext)) continue;
+      if (!matchesAnyGlob(entry.name, globs)) continue;
 
       try {
         await unlink(full);
