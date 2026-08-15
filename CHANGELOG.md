@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.79.1] - 2026-08-15
+
+### Fixed
+- Library scan shows two progress bars: the file being processed, and the library's real position by items processed instead of a phase-weighted percentage that moved backwards
+- Library Browser episode rows show the filename, the show folder, and the resolution measured from the file instead of only a filename token that the renamer strips
+
 ## [0.79.0] - 2026-08-15
 
 ### Added
