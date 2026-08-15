@@ -139,6 +139,18 @@ export function MediaLibrariesPage() {
     queryKey: ['media', 'dashboard'],
     queryFn: api.media.dashboard,
   });
+
+  /*
+   * Live watcher health, polled rather than read once: a watcher can run out of
+   * filesystem watches minutes after it started, and a page that reported its
+   * state only at load would keep claiming a library is watched long after it
+   * stopped being.
+   */
+  const watchStatus = useQuery({
+    queryKey: ['media', 'libraries', 'watch-status'],
+    queryFn: api.media.libraryWatchStatus,
+    refetchInterval: 30_000,
+  });
   const itemCountFor = (id: string) =>
     counts.data?.libraries.find((l) => l.id === id)?.itemCount;
 
@@ -239,6 +251,31 @@ export function MediaLibrariesPage() {
                       {lib.scanIntervalMinutes != null && (
                         <span>{t('libraries.autoScanEvery', { minutes: lib.scanIntervalMinutes })}</span>
                       )}
+                      {/*
+                        * Configured-to-watch and actually-watching are different
+                        * states, and the difference is the whole point: a watcher
+                        * that ran out of filesystem watches has stopped noticing
+                        * changes while the setting still reads as on. Report what
+                        * is TRUE, not what was asked for.
+                        */}
+                      {lib.watchEnabled && (() => {
+                        const st = watchStatus.data?.find((w) => w.libraryId === lib.id);
+                        if (st?.degradedReason) {
+                          return (
+                            <span className="text-destructive" title={st.degradedReason}>
+                              {t('libraries.watchDegraded')}
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="text-success">
+                            {st?.watching
+                              ? t('libraries.watching', { count: st.watchCount })
+                              : t('libraries.watchPending')}
+                          </span>
+                        );
+                      })()}
+                      {lib.scanOnStartup && <span>{t('libraries.scanOnStartup')}</span>}
                       {lib.nfoEnabled && <span>{t('libraries.nfo')}</span>}
                       {lib.artworkEnabled && <span>{t('libraries.artwork')}</span>}
                     </div>
