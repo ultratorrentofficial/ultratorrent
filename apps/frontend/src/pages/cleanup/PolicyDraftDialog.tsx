@@ -83,6 +83,17 @@ export function PolicyDraftDialog({
       <DialogHeader>
         <DialogTitle>{t('policies.draft.title')}</DialogTitle>
         <DialogDescription>{t('policies.draft.help')}</DialogDescription>
+        {/*
+          * Editing a published policy forks a new draft rather than altering the
+          * running one. Said out loud, because the operator is looking at the
+          * document that is currently governing their library and needs to know
+          * that changing it here does not change what runs tonight.
+          */}
+        {detail.data && !detail.data.draftVersion && detail.data.publishedVersion && (
+          <DialogDescription className="text-warning">
+            {t('policies.draft.editingPublished')}
+          </DialogDescription>
+        )}
       </DialogHeader>
 
       {loading ? <CenteredSpinner /> : (

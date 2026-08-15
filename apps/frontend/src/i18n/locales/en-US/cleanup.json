@@ -47,7 +47,8 @@
       "disable": "Disable",
       "archive": "Archive",
       "delete": "Delete",
-      "editDraft": "Edit draft"
+      "editDraft": "Edit draft",
+      "edit": "Edit"
     },
     "create": {
       "title": "New purge policy",
@@ -64,7 +65,8 @@
       "validate": "Validate",
       "valid": "Document is valid",
       "invalid": "Document has errors",
-      "warnings": "Warnings"
+      "warnings": "Warnings",
+      "editingPublished": "This policy is published. Editing starts a new draft — the published version keeps running until you publish this one."
     },
     "confirmDelete": "Delete this policy and all its versions? This cannot be undone.",
     "confirmEnable": "Enable this policy? An enabled, published policy can be run by a schedule or trigger.",

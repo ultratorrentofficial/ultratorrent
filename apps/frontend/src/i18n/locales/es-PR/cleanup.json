@@ -47,7 +47,8 @@
       "disable": "Deshabilitar",
       "archive": "Archivar",
       "delete": "Eliminar",
-      "editDraft": "Editar borrador"
+      "editDraft": "Editar borrador",
+      "edit": "Editar"
     },
     "create": {
       "title": "Nueva política de purga",
@@ -64,7 +65,8 @@
       "validate": "Validar",
       "valid": "El documento es válido",
       "invalid": "El documento tiene errores",
-      "warnings": "Advertencias"
+      "warnings": "Advertencias",
+      "editingPublished": "Esta política está publicada. Al editar se crea un nuevo borrador; la versión publicada sigue en uso hasta que publiques esta."
     },
     "confirmDelete": "¿Eliminar esta política y todas sus versiones? Esto no se puede deshacer.",
     "confirmEnable": "¿Habilitar esta política? Una política habilitada y publicada puede ejecutarse por un horario o disparador.",

@@ -164,8 +164,21 @@ function PolicyRow({
       <TableCell className="text-sm text-muted-foreground">{p.lastRunAt ? formatRelativeTime(p.lastRunAt) : '—'}</TableCell>
       <TableCell>
         <div className="flex flex-wrap justify-end gap-1.5">
-          {perms.canEdit && hasDraft && (
-            <Button size="sm" variant="secondary" onClick={onEditDraft}>{t('policies.action.editDraft')}</Button>
+          {/*
+            * Editing does not require a draft to exist. `ensureDraft` forks one
+            * from the PUBLISHED version on the first save, so a published policy
+            * has always been editable — the button was simply hidden, which left
+            * an operator with a published policy and no way to change it.
+            *
+            * The published version keeps governing until the new draft is
+            * published, which is why there is no "unpublish": editing never
+            * leaves the policy governing nothing, and stopping it meanwhile is
+            * what Disable is for.
+            */}
+          {perms.canEdit && (
+            <Button size="sm" variant="secondary" onClick={onEditDraft}>
+              {hasDraft ? t('policies.action.editDraft') : t('policies.action.edit')}
+            </Button>
           )}
           {perms.canSimulate && (
             <Button size="sm" variant="secondary" onClick={onSimulate} disabled={busy}>{t('policies.action.simulate')}</Button>
