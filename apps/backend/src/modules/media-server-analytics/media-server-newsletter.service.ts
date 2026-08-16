@@ -12,6 +12,8 @@ import { MediaServerEmailService, type EmailAttachment } from './media-server-em
 import { NewsletterImageService, type PosterArt } from './newsletter-image.service';
 import { buildContent, renderHtml, renderText, sampleContent, NEWSLETTER_GROUPS, type NewsletterContent, type NewsletterItem, type RenderOptions } from './newsletter-render';
 import { newsletterStrings } from './newsletter-strings';
+import { BRAND_LOGO_CID, BRAND_LOGO_CONTENT_TYPE, BRAND_LOGO_PNG_BASE64 } from './newsletter-brand-logo';
+import { inlineCidImages } from './newsletter-inline-cid';
 
 const ACCENT = '#f5a623';
 
@@ -154,6 +156,7 @@ export class MediaServerNewsletterService {
       brandTitle: n?.brandTitle ?? null,
       sourceUrl: SOURCE_URL,
       serverName: await this.serverName(),
+      logoCid: BRAND_LOGO_CID,
       dateRange: this.dateRange(since, until),
       brand: 'UltraTorrent',
       style: { accent: ACCENT },
@@ -238,6 +241,14 @@ export class MediaServerNewsletterService {
     ];
     const showPosters = await this.fetchShowPosters(showTitles);
     const attachments = await this.assemblePosters(content, posters, showPosters);
+    // The logo rides along with the posters so preview and send share one path
+    // and it never competes with them for the MAX_POSTERS budget.
+    attachments.unshift({
+      cid: BRAND_LOGO_CID,
+      filename: `${BRAND_LOGO_CID}.png`,
+      content: Buffer.from(BRAND_LOGO_PNG_BASE64, 'base64'),
+      contentType: BRAND_LOGO_CONTENT_TYPE,
+    });
     return { content, attachments, opts: await this.renderOpts(since, until, n) };
   }
 
@@ -366,13 +377,19 @@ export class MediaServerNewsletterService {
     // still sees the full styled template (never sent — preview only).
     const isSample = built.content.totalItems === 0;
     const content = isSample ? sampleContent() : built.content;
-    const attachments = isSample ? [] : built.attachments;
-    // The in-app preview iframe can't resolve `cid:` refs, so inline the poster
-    // bytes as data URIs — a faithful, self-contained preview of the sent email.
-    let html = renderHtml(content, built.opts);
-    for (const a of attachments) {
-      html = html.split(`cid:${a.cid}`).join(`data:${a.contentType ?? 'image/jpeg'};base64,${a.content.toString('base64')}`);
-    }
+    // Sample mode drops the poster attachments (the sample content references
+    // none) but must KEEP the logo, or the header renders an unresolvable
+    // `cid:` — a broken image in the one view whose job is to show the styling.
+    const attachments = isSample
+      ? built.attachments.filter((a) => a.cid === BRAND_LOGO_CID)
+      : built.attachments;
+    /*
+     * The in-app preview iframe can't resolve `cid:` refs, so inline the bytes
+     * as data URIs — a faithful, self-contained preview of the sent email.
+     * Sent mail keeps the `cid:` refs and is unaffected; see the substitution's
+     * own notes for why it must not be done one attachment at a time.
+     */
+    const html = inlineCidImages(renderHtml(content, built.opts), attachments);
     return { subject: this.subject(n, built.content), html, text: renderText(content, built.opts), count: built.content.totalItems, since: built.content.since, sample: isSample };
   }
 

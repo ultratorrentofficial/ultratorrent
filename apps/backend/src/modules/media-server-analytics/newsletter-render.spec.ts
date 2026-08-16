@@ -187,3 +187,27 @@ describe('newsletter i18n parity (en-US / es-PR)', () => {
     }
   });
 });
+
+/**
+ * The header mark.
+ *
+ * The lettered "UT" tile was a stand-in for the product logo. It ships as an
+ * inline CID attachment rather than a `data:` URI because Gmail and Outlook
+ * strip `data:` image sources in mail, and falls back to the tile whenever no
+ * logo was attached — a text-only or attachment-less send still gets a header.
+ */
+describe('the brand mark in the header', () => {
+  it('renders the logo as a cid image when one is attached', () => {
+    const html = renderHtml(sampleContent(), { ...opts(), logoCid: 'nlbrandlogo' });
+    expect(html).toContain('src="cid:nlbrandlogo"');
+    // Sized in HTML attributes too — Outlook ignores style on images.
+    expect(html).toMatch(/<img src="cid:nlbrandlogo" width="36" height="36"/);
+    expect(html).not.toContain('>UT<');
+  });
+
+  it('falls back to the lettered tile with no logo', () => {
+    const html = renderHtml(sampleContent(), { ...opts(), logoCid: null });
+    expect(html).toContain('>UT<');
+    expect(html).not.toContain('cid:nlbrandlogo');
+  });
+});

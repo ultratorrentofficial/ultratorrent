@@ -152,6 +152,12 @@ export interface RenderOptions {
   /** Repository the "powered by" credit links to. */
   sourceUrl?: string;
   serverName?: string;
+  /**
+   * CID of the brand logo attachment. Absent (or the attachment missing) falls
+   * back to the lettered tile, so the header still renders in a text-only or
+   * attachment-less send.
+   */
+  logoCid?: string | null;
   dateRange?: string; // "2026-06-26 - 2026-07-03"
   brand?: string; // footer product name, default "UltraTorrent"
   instanceUrl?: string;
@@ -425,10 +431,25 @@ function movieList(movies: NewsletterItem[], opts: RenderOptions): string {
   return `<tr><td style="padding:0 24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows.join('')}</table></td></tr>`;
 }
 
+/**
+ * The mark at the top of the header: the UltraTorrent logo when one was
+ * attached, otherwise the lettered tile it replaced.
+ *
+ * Sized in HTML (`width`/`height`) as well as CSS, because Outlook ignores the
+ * style attribute on images and would otherwise render the 72px source at full
+ * size. `border:0` suppresses the blue link border some clients add.
+ */
+function brandMark(opts: RenderOptions, accent: string): string {
+  if (opts.logoCid) {
+    return `<img src="cid:${escapeHtml(opts.logoCid)}" width="36" height="36" alt="" style="display:block;width:36px;height:36px;margin:0 auto 12px;border:0;outline:none;text-decoration:none" />`;
+  }
+  return `<div style="display:inline-block;width:36px;height:36px;line-height:36px;border-radius:9px;background:${accent};color:#151515;font:800 16px system-ui,-apple-system,sans-serif;margin-bottom:12px">UT</div>`;
+}
+
 function header(content: NewsletterContent, opts: RenderOptions): string {
   const accent = opts.style?.accent ?? C.amber;
   return `<tr><td style="padding:32px 24px 0;text-align:center">
-    <div style="display:inline-block;width:36px;height:36px;line-height:36px;border-radius:9px;background:${accent};color:#151515;font:800 16px system-ui,-apple-system,sans-serif;margin-bottom:12px">UT</div>
+    ${brandMark(opts, accent)}
     <div style="font:800 20px/1.2 system-ui,-apple-system,sans-serif;color:${C.text};letter-spacing:.08em">${escapeHtml(opts.brandTitle?.trim() || opts.strings.brandTitle)}</div>
     ${opts.serverName ? `<div style="margin-top:10px;font:700 14px system-ui,-apple-system,sans-serif;color:${C.text};letter-spacing:.04em;text-transform:uppercase">${escapeHtml(opts.serverName)}</div>` : ''}
     ${opts.dateRange ? `<div style="margin-top:4px;font:500 13px system-ui,-apple-system,sans-serif;color:${C.muted}">${escapeHtml(opts.dateRange)}</div>` : ''}
