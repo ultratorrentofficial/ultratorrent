@@ -48,6 +48,14 @@ export interface PolicyScope {
 
 /** Mandatory exclusions. These are enforced server-side regardless of the document. */
 export interface PolicyExclusions {
+  /**
+   * Offer candidates whose payload a live torrent is still seeding.
+   *
+   * Absent or false EXCLUDES them, which is the safe default: an unattended
+   * purge must not end a seed, and a hardlinked library file frees nothing when
+   * deleted while the payload survives.
+   */
+  allowSeeding?: boolean;
   /** Always true in practice — present so the UI can show it is not optional. */
   protected: true;
   locked: true;

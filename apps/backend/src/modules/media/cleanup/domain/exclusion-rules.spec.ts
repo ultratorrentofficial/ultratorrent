@@ -7,7 +7,8 @@ const NOW = new Date('2026-06-01T00:00:00Z');
 const clean = (over: Partial<ExclusionFacts> = {}): ExclusionFacts => ({
   isProtected: false, hasLegalHold: false, isLocked: false,
   withinHardRoots: true, isSystemPath: false, isLibraryRoot: false, fileExists: true,
-  activePlayback: false, incompleteDownload: false, inFlightOperation: false,
+  activePlayback: false,
+  activelySeeding: false, incompleteDownload: false, inFlightOperation: false,
   hasActiveJob: false, pendingDuplicateResolution: false,
   addedAt: new Date('2025-01-01T00:00:00Z'),
   ambiguousIdentity: false,

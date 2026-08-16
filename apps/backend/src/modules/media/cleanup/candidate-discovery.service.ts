@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { paginate, parsePage } from '../../../common/pagination';
@@ -83,6 +84,7 @@ export class CandidateDiscoveryService {
     private readonly protections: ProtectionService,
     private readonly filePath: FilePathService,
     private readonly jobBridge: CleanupJobBridge,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /** Create a run pinned to the policy's published version (or its draft, to simulate). */
@@ -189,6 +191,13 @@ export class CandidateDiscoveryService {
      * someone's episode, and the session list is a handful of rows.
      */
     const playingItemIds = await this.playingItemIds();
+    /*
+     * Items a LIVE torrent is still seeding. Resolved once per run, from the
+     * engine rather than the intake job's `state` column — nothing performs the
+     * `seeding -> archived` transition, so that column keeps naming torrents
+     * removed weeks ago.
+     */
+    const seedingItemIds = await this.seedingItemIds();
 
     const scope = this.scopeWhere(document, run.scopeItemIds as string[] | null);
     const pushdown = buildPushdownWhere(document.conditions, new Date());
@@ -232,7 +241,7 @@ export class CandidateDiscoveryService {
           scanned += 1;
           if (cap && evaluated >= cap) { truncated = true; break; }
 
-          const ctx = await this.buildContext(item as never, file as never, document, playingItemIds);
+          const ctx = await this.buildContext(item as never, file as never, document, playingItemIds, seedingItemIds);
           const facts = assembleEvaluationFacts(file as never, item as never, ctx);
           evaluated += 1;
 
@@ -450,6 +459,28 @@ export class CandidateDiscoveryService {
    * stopping the run, since discovery only ever proposes candidates — the
    * exclusion it feeds is a safety net, not the only one.
    */
+  /**
+   * Library items whose payload a live torrent is still seeding.
+   *
+   * Best-effort: if the engine cannot be reached the set is empty, which means
+   * candidates are NOT excluded on this ground. That direction is deliberate —
+   * the executor and the plan still show the operator what they are removing,
+   * and silently excluding everything because the engine blinked would make a
+   * purge look broken.
+   */
+  private async seedingItemIds(): Promise<Set<string>> {
+    try {
+      const { MediaLinkageService } = await import('../media-linkage.service');
+      const linkage = this.moduleRef.get(MediaLinkageService, { strict: false });
+      // Driven from the intake jobs, not by re-reading the library: the scan is
+      // already paging through every item and must not read them all again.
+      return await linkage.allSeedingItemIds();
+    } catch (err) {
+      this.logger.warn(`Could not resolve seeding items: ${(err as Error).message}`);
+      return new Set();
+    }
+  }
+
   private async playingItemIds(): Promise<Set<string>> {
     try {
       const sessions = await this.prisma.mediaServerSession.findMany({
@@ -476,6 +507,7 @@ export class CandidateDiscoveryService {
     file: { id: string; path: string },
     _document: CleanupPolicyDocument,
     playingItemIds: ReadonlySet<string> = new Set(),
+    seedingItemIds: ReadonlySet<string> = new Set(),
   ): Promise<RawContext & { protectionIds: string[] }> {
     const protection = await this.protections.evaluate({
       mediaItemId: item.id, mediaFileId: file.id, mediaLibraryId: item.libraryId, path: file.path,
@@ -518,6 +550,7 @@ export class CandidateDiscoveryService {
        * media-server poller refreshes every 15 seconds.
        */
       activePlayback: playingItemIds.has(item.id),
+      seedingItemIds: seedingItemIds as Set<string>,
       hasActiveJob: activeJobs > 0,
       incompleteDownload: false,
       inFlightOperation: false,

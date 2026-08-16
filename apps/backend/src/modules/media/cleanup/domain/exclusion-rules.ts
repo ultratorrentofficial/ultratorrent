@@ -25,6 +25,7 @@ export type ExclusionReason =
   | 'in_flight_operation'
   | 'active_job'
   | 'pending_duplicate_resolution'
+  | 'actively_seeding'
   | 'within_grace_period'
   | 'ambiguous_identity'
   | 'unmeasured_technical'
@@ -42,6 +43,7 @@ export const EXCLUSION_STATUS: Record<ExclusionReason, string> = {
   protected: 'excluded_protected',
   legal_hold: 'excluded_protected',
   locked: 'excluded_locked',
+  actively_seeding: 'excluded_seeding',
   outside_roots: 'excluded_protected',
   system_path: 'excluded_protected',
   library_root: 'excluded_protected',
@@ -72,6 +74,14 @@ export interface ExclusionFacts {
   isSystemPath: boolean;
   isLibraryRoot: boolean;
   fileExists: boolean;
+  /**
+   * A live torrent is still seeding this item's payload.
+   *
+   * From the ENGINE, not the intake job's `state` column: nothing performs the
+   * `seeding -> archived` transition, so that column keeps claiming to seed
+   * torrents removed weeks ago.
+   */
+  activelySeeding: boolean;
   activePlayback: boolean;
   incompleteDownload: boolean;
   /** A move/rename/copy/scan/probe currently touching this file. */
@@ -158,6 +168,15 @@ export function evaluateExclusions(
   if (facts.inFlightOperation) reasons.push('in_flight_operation');
   if (facts.hasActiveJob) reasons.push('active_job');
   if (facts.pendingDuplicateResolution) reasons.push('pending_duplicate_resolution');
+  /*
+   * Still seeding.
+   *
+   * Excluded by default because an unattended purge must not end someone's
+   * seed, and because the file is almost certainly a hardlink of the payload —
+   * so deleting it frees nothing while breaking the torrent. A policy that
+   * genuinely wants to reclaim seeded media opts in with `allowSeeding`.
+   */
+  if (facts.activelySeeding && ex.allowSeeding !== true) reasons.push('actively_seeding');
 
   // Grace period — a file added minutes ago has not had the chance to be watched,
   // probed, or corrected.

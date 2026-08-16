@@ -66,7 +66,7 @@ function makeService(over: {
 
   const service = new CandidateDiscoveryService(
     prisma as never, audit as never, protections as never, filePath as never,
-    jobBridge as never,
+    jobBridge as never, { get: jest.fn() } as never,
   );
   return { service, prisma, audit, created, runUpdates, get runRow() { return runRow; } };
 }

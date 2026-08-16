@@ -34,7 +34,7 @@ describe('FilesService', () => {
     // The bus: file operations announce what they did so media records can
     // follow, without files depending on media (which would be a cycle).
     bus = { publish: jest.fn(() => ({ published: true })) };
-    svc = new FilesService(paths as any, audit as any, realtime as any, trash as any, bus as any);
+    svc = new FilesService(paths as any, audit as any, realtime as any, trash as any, bus as any, { get: jest.fn() } as never);
   });
 
   afterEach(async () => {

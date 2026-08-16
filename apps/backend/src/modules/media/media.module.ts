@@ -16,6 +16,7 @@ import { MetadataProviderRegistry } from './metadata-provider-registry.service';
 import { MovieIdentityRepairService } from './movie-identity-repair.service';
 import { MediaArtworkService } from './media-artwork.service';
 import { MediaSubtitleService } from './media-subtitle.service';
+import { MediaLinkageService } from './media-linkage.service';
 import { MediaBulkService } from './media-bulk.service';
 import { MediaRelocationService } from './media-relocation.service';
 import { MediaConsistencyService } from './media-consistency.service';
@@ -84,6 +85,7 @@ import { MediaController } from './media.controller';
     MediaSubtitleService,
     MediaNfoService,
     MediaBulkService,
+    MediaLinkageService,
     MediaRelocationService,
     MediaConsistencyService,
     ShowHealthService,
@@ -124,6 +126,7 @@ import { MediaController } from './media.controller';
     MediaSubtitleService,
     MediaNfoService,
     MediaBulkService,
+    MediaLinkageService,
     MediaRelocationService,
     MediaConsistencyService,
     MediaHealthService,

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   StreamableFile,
 } from '@nestjs/common';
@@ -33,6 +34,7 @@ import {
 } from './file-fs.util';
 import { DOMAIN_EVENTS } from '@ultratorrent/shared';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
+import { ModuleRef } from '@nestjs/core';
 import { TrashService } from './trash.service';
 import type {
   BulkOperationDto,
@@ -55,12 +57,15 @@ export type PathScope = 'browse' | 'storage';
 
 @Injectable()
 export class FilesService {
+  private readonly logger = new Logger(FilesService.name);
+
   constructor(
     private readonly paths: FilePathService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
     private readonly trash: TrashService,
     private readonly bus: DomainEventBus,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /**
@@ -270,6 +275,73 @@ export class FilesService {
    * `storage` pins to the ops hard roots and is for system-initiated maintenance
    * on configured storage — see {@link FilePathService.storageSafety}.
    */
+  /**
+   * What else holds the bytes under a path — torrents, and how much a delete
+   * would really free. Read-only; the dialog calls it before asking.
+   *
+   * Resolved lazily because `MediaModule` imports `FilesModule`, so importing it
+   * back would close a cycle that only fails at bootstrap.
+   */
+  async deletionPreview(path: string, scope: PathScope = 'browse') {
+    const safety = scope === 'storage' ? this.storageSafety : this.safety;
+    const target = await safety.resolveExisting(path);
+    try {
+      const { MediaLinkageService } = await import('../media/media-linkage.service');
+      const linkage = this.moduleRef.get(MediaLinkageService, { strict: false });
+      const [described, torrents, live] = await Promise.all([
+        linkage.describePaths([target]),
+        linkage.torrentsForPaths([target]),
+        linkage.liveHashes(),
+      ]);
+      return {
+        ...described[0],
+        path: target,
+        torrents: torrents.map((t) => ({ ...t, live: live.has(t.torrentHash.toLowerCase()) })),
+      };
+    } catch (err) {
+      // A preflight must never be the reason a delete cannot happen. It reports
+      // nothing rather than failing the operation.
+      this.logger.warn(`Deletion preview failed for ${target}: ${(err as Error).message}`);
+      return { path: target, exists: true, links: 1, sizeBytes: 0, freesBytes: 0, torrent: null, torrents: [] };
+    }
+  }
+
+
+  /**
+   * Stop, or stop and erase, the torrents whose payload this path belonged to.
+   *
+   * Runs AFTER the delete: the operator asked for the file to go, and a torrent
+   * step that failed must not leave the file standing while reporting failure.
+   * `keep` (the default, and the historical behaviour) does nothing at all.
+   */
+  private async applyTorrentAction(
+    target: string,
+    action: 'keep' | 'stop' | 'stop_and_delete' | undefined,
+    ctx: FileOpContext,
+  ): Promise<void> {
+    if (!action || action === 'keep') return;
+    try {
+      const { MediaLinkageService } = await import('../media/media-linkage.service');
+      const { TorrentsService } = await import('../torrents/torrents.service');
+      const linkage = this.moduleRef.get(MediaLinkageService, { strict: false });
+      const torrents = this.moduleRef.get(TorrentsService, { strict: false });
+      const linked = await linkage.torrentsForPaths([target]);
+      const user = { id: ctx.userId ?? 'system', username: 'system', roles: [], permissions: [] };
+      const auditCtx = { ipAddress: ctx.ipAddress, userAgent: ctx.userAgent };
+      for (const t of linked) {
+        if (action === 'stop_and_delete') {
+          await torrents.removeData(t.torrentHash, t.engineId ?? undefined, user as never, auditCtx, {
+            removeLibraryItems: false,
+          });
+        } else {
+          await torrents.remove(t.torrentHash, t.engineId ?? undefined, user as never, auditCtx);
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Torrent ${action} after delete failed: ${(err as Error).message}`);
+    }
+  }
+
   async remove(
     dto: DeleteFileDto,
     ctx: FileOpContext = {},
@@ -290,6 +362,7 @@ export class FilesService {
         // concerned: the file is no longer where any of them say it is. Missing
         // this branch would have left the one irreversible path unannounced.
         this.announceDelete(target);
+        await this.applyTorrentAction(target, dto.torrentAction, ctx);
         await this.audit.record({
           userId: ctx.userId,
           action: 'file.deleted',
@@ -309,6 +382,7 @@ export class FilesService {
       // Trashing is a removal from the library as far as media records are
       // concerned — the file is no longer where any of them say it is.
       this.announceDelete(target);
+      await this.applyTorrentAction(target, dto.torrentAction, ctx);
       this.emit('delete', { source: rel, bytes: item.size, result: 'success', at: new Date().toISOString() }, 'completed');
       return { operation: 'delete', ok: true, path: rel, bytes: item.size, message: 'moved to trash' };
     } catch (err) {

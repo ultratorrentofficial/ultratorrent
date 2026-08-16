@@ -241,9 +241,32 @@ export class FilesController {
     return this.files.copy(dto, opCtx(req, user));
   }
 
+  /**
+   * What deleting this path would also affect: the torrents whose payload it
+   * belongs to, and the bytes a delete would ACTUALLY free (zero while a
+   * hardlink survives). Read-only.
+   */
+  @Post('delete/preview')
+  @RequirePermissions(PERMISSIONS.FILES_DELETE)
+  previewDelete(@Body() dto: DeleteFileDto) {
+    return this.files.deletionPreview(dto.path);
+  }
+
   @Post('delete')
   @RequirePermissions(PERMISSIONS.FILES_DELETE)
   remove(@Body() dto: DeleteFileDto, @Req() req: Request, @CurrentUser() user: AuthenticatedUser) {
+    /*
+     * Acting on the torrent is a SECOND authority. `files.delete` says someone
+     * may remove a file; it must not also let them stop another user's seed or
+     * destroy the payload behind it.
+     */
+    const held = new Set(user?.permissions ?? []);
+    if (dto.torrentAction === 'stop' && !held.has(PERMISSIONS.TORRENTS_DELETE)) {
+      throw new ForbiddenException('Stopping the source torrent requires torrents.delete');
+    }
+    if (dto.torrentAction === 'stop_and_delete' && !held.has(PERMISSIONS.TORRENTS_DELETE_DATA)) {
+      throw new ForbiddenException('Deleting the source payload requires torrents.delete_data');
+    }
     return this.files.remove(dto, opCtx(req, user));
   }
 

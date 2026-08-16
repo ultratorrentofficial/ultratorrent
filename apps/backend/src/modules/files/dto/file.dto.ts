@@ -55,6 +55,12 @@ export class DeleteFileDto {
   @IsString() path!: string;
   /** When true, permanently delete; otherwise move to Trash (default). */
   @IsOptional() @IsBoolean() permanent?: boolean;
+  /**
+   * What to do with a torrent whose payload this path belongs to. Omitted means
+   * `keep` — the behaviour before the dialog offered a choice.
+   */
+  @IsOptional() @IsIn(['keep', 'stop', 'stop_and_delete'])
+  torrentAction?: 'keep' | 'stop' | 'stop_and_delete';
 }
 
 export class BulkOperationDto {

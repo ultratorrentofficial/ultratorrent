@@ -68,6 +68,11 @@ export interface RawContext {
   inCollection: boolean;
   collectionIds: string[];
   activePlayback: boolean;
+  /**
+   * Library items a LIVE torrent is still seeding, from the engine rather than
+   * the intake job's state column (which is never revised after a job ends).
+   */
+  seedingItemIds?: Set<string>;
   hasActiveJob: boolean;
   incompleteDownload: boolean;
   inFlightOperation: boolean;
@@ -209,6 +214,7 @@ export function assembleEvaluationFacts(
       isProtected: ctx.isProtected,
       hasActiveJob: ctx.hasActiveJob,
       activePlayback: ctx.activePlayback,
+    activelySeeding: ctx.seedingItemIds?.has(item.id) ?? false,
       ambiguousIdentity: isAmbiguous(item),
       pendingDuplicateResolution: ctx.pendingDuplicateResolution,
     },
@@ -243,6 +249,7 @@ export function assembleExclusionFacts(
     isLibraryRoot: ctx.isLibraryRoot,
     fileExists: ctx.fileExists,
     activePlayback: ctx.activePlayback,
+    activelySeeding: ctx.seedingItemIds?.has(item.id) ?? false,
     incompleteDownload: ctx.incompleteDownload,
     inFlightOperation: ctx.inFlightOperation,
     hasActiveJob: ctx.hasActiveJob,
