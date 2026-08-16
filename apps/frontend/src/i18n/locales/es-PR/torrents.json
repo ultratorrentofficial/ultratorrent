@@ -385,7 +385,9 @@
         "ageLimit": "Rendirse tras un plazo",
         "ageLimitHelp": "Cuando la meta de ratio no se va a alcanzar, deja de esperar: elimina el torrent y borra su copia de las carpetas de entrada.",
         "maxAgeDays": "Días de espera",
-        "ageLimitWarning": "Se cuenta desde que terminó la descarga. Los archivos que ya están en una biblioteca nunca se borran; solo la copia de entrada."
+        "ageLimitWarning": "Se cuenta desde que terminó la descarga. Los archivos que ya están en una biblioteca nunca se borran; solo la copia de entrada.",
+        "conditionsTitle": "Aplicar a cuáles torrents",
+        "conditionsHint": "Déjalo vacío para aplicar a todos los torrents del alcance. Agrega condiciones para restringirlo: un torrent debe coincidir antes de que cualquier regla de siembra actúe sobre él."
       },
       "bandwidth": {
         "title": "Ancho de banda",
@@ -447,6 +449,36 @@
       "none": "Sin excepciones. Tus políticas se aplican por igual a todos los torrents.",
       "saveFailed": "No se pudo guardar la excepción.",
       "clearFailed": "No se pudo quitar la excepción."
+    }
+  },
+  "sched": {
+    "cond": {
+      "ratio": "Proporción de compartición",
+      "ratio.desc": "Subido dividido por descargado, según lo informa el tracker.",
+      "ageDays": "Días desde que completó",
+      "ageDays.desc": "Cuánto lleva sembrando desde que terminó la descarga.",
+      "uploaded": "Subido",
+      "uploaded.desc": "Bytes totales subidos de este torrent.",
+      "seedMinutes": "Tiempo de siembra",
+      "seedMinutes.desc": "Minutos sembrando. Ningún motor incluido informa esto, así que una regla que lo use nunca coincide.",
+      "tracker": "Tracker",
+      "tracker.desc": "Host del tracker anunciado por el torrent.",
+      "isPrivate": "Tracker privado",
+      "isPrivate.desc": "Verdadero cuando el torrent es de un tracker privado, donde aplican las obligaciones de ratio.",
+      "size": "Tamaño",
+      "size.desc": "Tamaño total de los archivos del torrent.",
+      "name": "Nombre del torrent",
+      "name.desc": "El nombre del lanzamiento según el motor.",
+      "category": "Categoría",
+      "category.desc": "Categoría asignada por el motor.",
+      "label": "Etiqueta",
+      "label.desc": "Etiqueta asignada por el motor.",
+      "library": "Biblioteca",
+      "library.desc": "La biblioteca a la que se importó su contenido.",
+      "imported": "Importación completada",
+      "imported.desc": "Media Intake terminó de importar el contenido de este torrent.",
+      "copyVerified": "Copia en biblioteca verificada",
+      "copyVerified.desc": "Se comprobó que existe la copia o el enlace duro en la biblioteca."
     }
   }
 }

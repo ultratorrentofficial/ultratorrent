@@ -24,6 +24,7 @@ import {
   Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { CenteredSpinner } from '@/components/ui/feedback';
+import { ConditionBuilder, type ConditionGroup } from '@/components/conditions/ConditionBuilder';
 
 /**
  * Policies, edited by typed fields.
@@ -164,6 +165,26 @@ function PolicyDialog({
   const [requireImport, setRequireImport] = useState(true);
   const [ageLimitOn, setAgeLimitOn] = useState(false);
   const [maxAgeDays, setMaxAgeDays] = useState(String(DEFAULT_MAX_AGE_DAYS));
+  /*
+   * Which torrents this policy's seeding rules apply to.
+   *
+   * Null means "every torrent in scope", which is what a policy did before
+   * conditions existed — so an existing one opens unchanged rather than
+   * appearing to have gained an empty rule.
+   */
+  const EMPTY_CONDITIONS: ConditionGroup = { type: 'all', children: [] };
+  const [seedConditions, setSeedConditions] = useState<ConditionGroup>(EMPTY_CONDITIONS);
+  /*
+   * Served by the backend rather than duplicated here: a field the evaluator
+   * does not know produces a policy that saves, validates and then matches
+   * nothing — silently, because "unknown field" and "nothing matched" look
+   * identical from outside.
+   */
+  const seedCatalog = useQuery({
+    queryKey: ['torrent-scheduler', 'seed-conditions'],
+    queryFn: api.torrentScheduler.seedConditions,
+    staleTime: 5 * 60_000,
+  });
   const [downKbps, setDownKbps] = useState('');
   const [upKbps, setUpKbps] = useState('');
 
@@ -217,6 +238,7 @@ function PolicyDialog({
     setRequireImport(policy?.seedPolicy?.requireImportCompleted ?? true);
     setAgeLimitOn(policy?.seedPolicy?.maxAgeDays != null);
     setMaxAgeDays(policy?.seedPolicy?.maxAgeDays?.toString() ?? String(DEFAULT_MAX_AGE_DAYS));
+    setSeedConditions((policy?.seedPolicy?.conditions as ConditionGroup | null) ?? { type: 'all', children: [] });
     setDownKbps(policy?.maxDownloadRateKbps?.toString() ?? '');
     setUpKbps(policy?.maxUploadRateKbps?.toString() ?? '');
   }, [policy]);
@@ -243,6 +265,9 @@ function PolicyDialog({
           ...(seedMode === 'ratio' ? { targetRatio: Number(targetRatio) } : {}),
           requireImportCompleted: requireImport,
           ...(ageLimitOn && Number(maxAgeDays) > 0 ? { maxAgeDays: Number(maxAgeDays) } : {}),
+          // Omitted entirely when empty, so the stored document stays absent
+          // rather than becoming an empty group that reads as a real rule.
+          conditions: seedConditions.children.length ? seedConditions : null,
         },
       };
       return policy
@@ -498,6 +523,24 @@ function PolicyDialog({
                     </p>
                   </div>
                 )}
+
+                {/*
+                  * Which torrents the rules above apply to. Empty means all of
+                  * them, which is why this sits last: the common policy needs
+                  * nothing here, and the builder is for narrowing.
+                  */}
+                <div className="mt-4 border-t border-white/10 pt-4">
+                  <Label>{t('scheduler.policies.seeding.conditionsTitle')}</Label>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    {t('scheduler.policies.seeding.conditionsHint')}
+                  </p>
+                  <ConditionBuilder
+                    namespace="torrents"
+                    node={seedConditions}
+                    catalog={seedCatalog.data ?? []}
+                    onChange={setSeedConditions}
+                  />
+                </div>
               </div>
             </>
           )}

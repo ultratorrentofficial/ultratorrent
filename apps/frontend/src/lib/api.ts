@@ -1857,6 +1857,11 @@ export interface SchedulerTorrentDecision {
 }
 
 export interface SchedulerSeedPolicy {
+  /**
+   * Which torrents these rules apply to. Null/absent means every torrent in
+   * scope — the behaviour before conditions existed.
+   */
+  conditions?: unknown | null;
   mode: 'ratio' | 'manual' | 'unlimited';
   targetRatio?: number;
   afterTarget: 'pause' | 'stop' | 'leave_active';
@@ -3243,12 +3248,19 @@ export interface ProwlarrStatusResult {
  */
 export interface CleanupConditionDef {
   id: string;
-  category: 'metadata' | 'playback' | 'technical' | 'storage' | 'safety';
+  /**
+   * Grouping in the picker. A plain string because the builder is shared: the
+   * seeding catalogue groups by progress/tracker/content/import, and a union
+   * of one catalogue's categories would exclude the other's.
+   */
+  category: string;
   labelKey: string;
   descriptionKey: string;
   dataType: 'string' | 'number' | 'boolean' | 'date' | 'enum' | 'string[]';
   operators: string[];
-  factPath: string;
+  factPath?: string;
+  /** Seeding catalogue: the fact key this reads. */
+  factKey?: string;
   requiresMeasuredData?: boolean;
   safetyLevel?: 'informational' | 'normal' | 'elevated';
   enumValues?: string[];
@@ -5283,6 +5295,10 @@ export const api = {
 
 
   torrentScheduler: {
+    /** Conditions a seeding policy can be written against. */
+    seedConditions(): Promise<CleanupConditionDef[]> {
+      return request<CleanupConditionDef[]>('/torrent-scheduler/seed-conditions');
+    },
     engines(): Promise<SchedulerEngine[]> {
       return request<SchedulerEngine[]>('/torrent-scheduler/engines');
     },

@@ -11,7 +11,7 @@ import {
   Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { CenteredSpinner } from '@/components/ui/feedback';
-import { ConditionBuilder, isGroup, type ConditionGroup } from './ConditionBuilder';
+import { ConditionBuilder, isGroup, type ConditionGroup } from '@/components/conditions/ConditionBuilder';
 
 /**
  * The draft editor.

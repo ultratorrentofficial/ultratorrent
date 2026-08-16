@@ -385,7 +385,9 @@
         "ageLimit": "Give up after a deadline",
         "ageLimitHelp": "When the ratio target is not going to be met, stop waiting: remove the torrent and delete its copy from the intake folders.",
         "maxAgeDays": "Days to wait",
-        "ageLimitWarning": "Counted from when the download finished. Files already in a library are never deleted — only the intake copy."
+        "ageLimitWarning": "Counted from when the download finished. Files already in a library are never deleted — only the intake copy.",
+        "conditionsTitle": "Apply to which torrents",
+        "conditionsHint": "Leave empty to apply to every torrent in scope. Add conditions to narrow it — a torrent must match before any seeding rule above acts on it."
       },
       "bandwidth": {
         "title": "Bandwidth",
@@ -447,6 +449,36 @@
       "none": "No overrides. Your policies apply to every torrent equally.",
       "saveFailed": "Could not save the override.",
       "clearFailed": "Could not remove the override."
+    }
+  },
+  "sched": {
+    "cond": {
+      "ratio": "Share ratio",
+      "ratio.desc": "Uploaded divided by downloaded, as the tracker reports it.",
+      "ageDays": "Days since completed",
+      "ageDays.desc": "How long the torrent has been seeding since the download finished.",
+      "uploaded": "Uploaded",
+      "uploaded.desc": "Total bytes uploaded for this torrent.",
+      "seedMinutes": "Seeding time",
+      "seedMinutes.desc": "Minutes spent seeding. Neither shipped engine reports this, so a rule using it never matches.",
+      "tracker": "Tracker",
+      "tracker.desc": "Tracker host announced by the torrent.",
+      "isPrivate": "Private tracker",
+      "isPrivate.desc": "True when the torrent is from a private tracker, where ratio obligations apply.",
+      "size": "Payload size",
+      "size.desc": "Total size of the torrent's files.",
+      "name": "Torrent name",
+      "name.desc": "The release name as the engine reports it.",
+      "category": "Category",
+      "category.desc": "Engine category assigned to the torrent.",
+      "label": "Label",
+      "label.desc": "Engine label assigned to the torrent.",
+      "library": "Library",
+      "library.desc": "The library its payload was imported into.",
+      "imported": "Import completed",
+      "imported.desc": "Media Intake finished importing this torrent's content.",
+      "copyVerified": "Library copy verified",
+      "copyVerified.desc": "The library copy or hardlink was checked to exist."
     }
   }
 }

@@ -66,6 +66,8 @@ function defaultValueFor(def: CleanupConditionDef | undefined): unknown {
  * policy that validated and then matched nothing at all.
  */
 function LibraryValueInput({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) {
+  // Generic chrome ("any library", placeholders) — shared by both catalogues,
+  // so it stays in the cleanup bundle rather than being duplicated per caller.
   const { t } = useTranslation('cleanup');
   const libraries = useQuery({ queryKey: ['media', 'libraries'], queryFn: api.media.libraries });
 
@@ -96,6 +98,7 @@ function LibraryValueInput({ value, onChange }: { value: unknown; onChange: (v: 
 function ValueInput({
   def, value, onChange,
 }: { def: CleanupConditionDef | undefined; value: unknown; onChange: (v: unknown) => void }) {
+  // As above: operator names and input placeholders, not catalogue labels.
   const { t } = useTranslation('cleanup');
   if (!def) return null;
 
@@ -163,13 +166,21 @@ function ValueInput({
 }
 
 export interface ConditionBuilderProps {
+  /**
+   * i18n bundle holding this catalogue's label and description keys.
+   *
+   * The builder is shared between Media Purge and the Activity Scheduler, whose
+   * catalogues describe different facts and therefore live in different
+   * bundles. Defaulted so the original caller is unchanged.
+   */
+  namespace?: 'cleanup' | 'torrents';
   node: ConditionGroup;
   catalog: CleanupConditionDef[];
   onChange: (next: ConditionGroup) => void;
 }
 
-export function ConditionBuilder({ node, catalog, onChange }: ConditionBuilderProps) {
-  const { t } = useTranslation('cleanup');
+export function ConditionBuilder({ node, catalog, onChange, namespace = 'cleanup' }: ConditionBuilderProps) {
+  const { t } = useTranslation(namespace);
   const byId = new Map(catalog.map((c) => [c.id, c]));
 
   // Grouped so a 63-entry list is navigable: the categories are the catalogue's own.
