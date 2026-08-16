@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   mkdir,
   stat,
+  lstat,
   readdir,
   realpath,
   unlink,
@@ -17,7 +18,11 @@ import {
 } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import * as path from 'node:path';
-import { placeFile, type PlacementAction } from '../../common/file-placement';
+import {
+  freeDupDestination,
+  placeFile,
+  type PlacementAction,
+} from '../../common/file-placement';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { MediaRelocationService } from './media-relocation.service';
 import {
@@ -807,6 +812,12 @@ export class MediaService {
     applied: number;
     skipped: number;
     failed: number;
+    /**
+     * Of `applied`, how many landed under a `[dupN]` name because the canonical
+     * one was already taken — i.e. redundant copies now awaiting a decision in
+     * the Duplicate Center. A subset of `applied`, not a separate outcome.
+     */
+    duplicates: number;
     deleted: number;
     /** Torrents dropped because this run moved the files they were seeding. */
     torrentsRemoved: number;
@@ -827,9 +838,16 @@ export class MediaService {
     let skipped = 0;
     let failed = 0;
     let deleted = 0;
+    /**
+     * Placed, but under a `[dupN]` name because the canonical one was taken.
+     * Counted into `applied` as well — the file WAS placed — and reported
+     * separately so a run that quietly filled the library with redundant copies
+     * says so instead of reading as an ordinary success.
+     */
+    let duplicates = 0;
 
     if (plan.mode === 'preview' || req.dryRun) {
-      return { applied: 0, skipped: plan.items.length, failed: 0, deleted: 0, torrentsRemoved: 0, torrentsOrphaned: 0, runId, plan };
+      return { applied: 0, skipped: plan.items.length, failed: 0, duplicates: 0, deleted: 0, torrentsRemoved: 0, torrentsOrphaned: 0, runId, plan };
     }
 
     const roots = await this.allowedRoots();
@@ -905,6 +923,47 @@ export class MediaService {
         }
 
         await mkdir(path.dirname(dest), { recursive: true });
+
+        /*
+         * Something is already at the destination. Two very different reasons,
+         * and treating them alike is how a release goes missing — the same
+         * distinction Media Intake draws before it places a file.
+         *
+         * SAME FILE — a previous run already put it here. `buildPlan` derives
+         * the destination from the SOURCE, so a re-run of an applied plan still
+         * offers the move and `unchanged` cannot be relied on. Nothing to do,
+         * and it is not a duplicate of itself.
+         *
+         * DIFFERENT FILE — a redundant copy of an episode the library already
+         * has. Throwing (which is what `placeFile` does, and what this path used
+         * to report as a plain failure) leaves the newcomer in its release
+         * folder, and a release folder is in no library, so duplicate detection
+         * never looks there: the operator is never offered the keep/discard
+         * decision and the copy sits on disk forever. It lands as `[dupN]`
+         * beside the incumbent instead, where the Duplicate Center can see it.
+         *
+         * Which file gets the suffix differs from intake ON PURPOSE. Intake
+         * moves the INCUMBENT aside because the newly imported release is the
+         * reason the job ran. Here both copies are already in the library tree
+         * and the incumbent is the one Plex has indexed and the operator has
+         * watch history against — renaming it would break those associations to
+         * make room for a leftover. So the newcomer takes the suffix, which is
+         * also what `[dupN]` says: something else holds the real name.
+         */
+        const occupant = await lstat(dest).catch(() => null);
+        if (occupant) {
+          const srcStat = await lstat(realSrc).catch(() => null);
+          if (srcStat && srcStat.ino === occupant.ino && srcStat.dev === occupant.dev) {
+            skipped++;
+            await this.log(
+              item, plan.mode, 'skipped', torrentHash, 'already at the destination', runId,
+            );
+            continue;
+          }
+          dest = this.assertWithin(await freeDupDestination(dest), roots, 'destination');
+          duplicates++;
+        }
+
         await this.execute(item.action, realSrc, dest);
         // The database follows the file. Without this the row keeps the old
         // path, the next scan inserts a second row at the new one and prunes
@@ -916,7 +975,18 @@ export class MediaService {
         // below — the engine is not told about a move, and will re-download.
         movedSources.push(realSrc);
         applied++;
-        await this.log(item, plan.mode, 'success', torrentHash, null, runId);
+        // The destination AS PLACED, not as planned: `reuseExistingSeasonDir`
+        // and the `[dupN]` fallback both move it, and undo replays this row by
+        // moving `destination` back to `source`. A row naming a path the file
+        // is not at would either fail to undo or move something else.
+        await this.log(
+          { ...item, destination: dest },
+          plan.mode,
+          'success',
+          torrentHash,
+          occupant ? `placed as ${path.basename(dest)} — the canonical name was taken` : null,
+          runId,
+        );
       } catch (err) {
         failed++;
         await this.log(item, plan.mode, 'failed', torrentHash, (err as Error).message, runId);
@@ -981,6 +1051,7 @@ export class MediaService {
         skipped,
         failed,
         deleted,
+        ...(duplicates ? { duplicates } : {}),
         mode: plan.mode,
         libraryPath: plan.libraryPath,
         ...(torrentsRemoved ? { torrentsRemoved } : {}),
@@ -990,7 +1061,7 @@ export class MediaService {
       },
     });
 
-    return { applied, skipped, failed, deleted, torrentsRemoved, torrentsOrphaned, runId, plan };
+    return { applied, skipped, failed, duplicates, deleted, torrentsRemoved, torrentsOrphaned, runId, plan };
   }
 
   /**

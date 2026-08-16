@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
 import { copyFile, link, lstat, rename, symlink } from 'node:fs/promises';
+import * as path from 'node:path';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
@@ -47,6 +48,46 @@ export async function assertDestinationFree(dest: string): Promise<void> {
     throw err; // EACCES and friends are real errors, not "it is free"
   }
   throw new DestinationExistsError(dest);
+}
+
+/**
+ * The lowest `[dupN]` variant of `destination` that nothing occupies.
+ *
+ * `[dupN]` means "something else holds the real name" — the convention Media
+ * Intake writes and the Duplicate Center reads. Giving a redundant copy this
+ * name is what puts it in the library at all, and being in the library is the
+ * only way duplicate detection can see it: a file left behind in its release
+ * folder is invisible to the scan, so the operator is never offered the
+ * keep/discard decision.
+ *
+ * Numbering starts at 2, so the pair reads as "the file" and "the second copy",
+ * and matches the `\[dup(\d+)\]` that `duplicate-resolution` parses when it
+ * hands a survivor its canonical name back.
+ *
+ * `lstat`, not `stat`: a dangling symlink still occupies the name.
+ *
+ * The caller is expected to re-validate the result against its allowed roots —
+ * this only appends to a basename, but a path that has been rebuilt should be
+ * re-checked rather than assumed.
+ */
+export async function freeDupDestination(destination: string): Promise<string> {
+  const dir = path.dirname(destination);
+  const base = path.basename(destination);
+  const ext = /\.[^.]+$/.exec(base)?.[0] ?? '';
+  const stem = ext ? base.slice(0, -ext.length) : base;
+
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = path.join(dir, `${stem} [dup${n}]${ext}`);
+    try {
+      await lstat(candidate);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return candidate;
+      throw err; // EACCES and friends are real errors, not "it is free"
+    }
+  }
+  // 998 copies of one episode is not a duplicate, it is a runaway loop, and
+  // inventing a 1000th name would hide it.
+  throw new Error(`No free [dupN] name beside ${destination} (tried 2..999)`);
 }
 
 /** The ways one file can be put somewhere else. */

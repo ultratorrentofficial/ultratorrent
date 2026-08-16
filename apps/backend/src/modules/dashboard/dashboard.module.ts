@@ -293,9 +293,12 @@ function genericMessage(row: AuditRow): string {
 /** Fallback detail for a rename with no single from→to (multi-file / all skipped). */
 function renameCounts(meta: Record<string, unknown>): string | null {
   const parts: string[] = [];
-  for (const key of ['applied', 'skipped', 'failed', 'deleted'] as const) {
+  for (const key of ['applied', 'skipped', 'failed', 'duplicates', 'deleted'] as const) {
     const n = meta[key];
-    if (typeof n === 'number' && n > 0) parts.push(`${n} ${key}`);
+    if (typeof n === 'number' && n > 0) {
+      // "3 duplicates" reads as a count of things; the rest read as outcomes.
+      parts.push(key === 'duplicates' ? `${n} as duplicate${n === 1 ? '' : 's'}` : `${n} ${key}`);
+    }
   }
   return parts.length ? parts.join(' · ') : null;
 }
