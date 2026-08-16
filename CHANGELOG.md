@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.80.1] - 2026-08-16
+
+### Fixed
+- A colliding subtitle no longer renames the film beside it to [dupN]
+- A subtitle named only for its language is recognised, instead of colliding with every other one
+
 ## [0.80.0] - 2026-08-16
 
 ### Added
