@@ -45,6 +45,16 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.81.0] - 2026-08-16
+
+### Added
+- Every delete path knows what else holds the bytes: torrents, hardlinks and true reclaimable space
+
+### Fixed
+- The newsletter edit form saves the send day and time it shows
+- A rename onto an occupied name places the newcomer as [dupN] instead of failing, so the redundant copy reaches the Duplicate Center
+- The File Manager delete dialog says what is still seeding and what it would really free
+
 ## [0.80.1] - 2026-08-16
 
 ### Fixed
