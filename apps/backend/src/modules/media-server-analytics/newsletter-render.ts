@@ -113,9 +113,13 @@ export interface NewsletterStrings {
   documentariesTitle: string;
   otherTitle: string;
   shows: string; // "Shows"
+  showOne: string; // "Show" — used when the count is exactly 1
   episodes: string; // "Episodes"
+  episodeOne: string; // "Episode"
   movies: string; // "Movies"
+  movieOne: string; // "Movie"
   items: string; // "Items"
+  itemOne: string; // "Item"
   seasonsOne: string; // "Season {{n}}"
   seasonsRange: string; // "Seasons {{a}}–{{b}}"
   empty: string;
@@ -281,6 +285,26 @@ export function renderRating(rating: number | null | undefined, accent: string):
 const BADGE_NOWRAP_MAX = 24;
 
 /**
+ * The singular counterpart of each count label.
+ *
+ * Kept as data rather than a naive "strip the trailing s", which is wrong in
+ * Spanish ("Series" → "Serie", "Películas" → "Película") and would be wrong in
+ * English for any label that is not a plain plural.
+ */
+const SINGULAR_LABEL: Partial<Record<keyof NewsletterStrings, keyof NewsletterStrings>> = {
+  shows: 'showOne',
+  episodes: 'episodeOne',
+  movies: 'movieOne',
+  items: 'itemOne',
+};
+
+/** The count label agreeing with `n` — "1 Episode", "3 Episodes". */
+export function countLabel(n: number, key: keyof NewsletterStrings, s: NewsletterStrings): string {
+  const one = n === 1 ? SINGULAR_LABEL[key] : undefined;
+  return one ? s[one] : s[key];
+}
+
+/**
  * How a show's episodes are labelled on its card.
  *
  * A range is only honest when the episodes actually form one. The label was
@@ -391,7 +415,7 @@ function tvCard(show: NewsletterShow, opts: RenderOptions): string {
       <td valign="top" width="84" style="width:84px;padding-right:12px">${poster({ url: show.posterUrl, cid: show.posterCid }, show.title[0] ?? '?', 84, accent)}</td>
       <td valign="top">
         <div style="font:700 14px system-ui,-apple-system,sans-serif;color:${C.text};margin-bottom:2px">${escapeHtml(show.title)}</div>
-        <div style="font:600 12px system-ui,-apple-system,sans-serif;color:${accent};margin-bottom:6px">${show.episodeCount} ${escapeHtml(opts.strings.episodes)}</div>
+        <div style="font:600 12px system-ui,-apple-system,sans-serif;color:${accent};margin-bottom:6px">${show.episodeCount} ${escapeHtml(countLabel(show.episodeCount, 'episodes', opts.strings))}</div>
         ${overview ? `<div style="font:400 12px/1.5 system-ui,-apple-system,sans-serif;color:${C.muted};margin-bottom:8px">${escapeHtml(overview)}</div>` : ''}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
           <td valign="bottom">${renderBadges(badges)}</td>
@@ -574,7 +598,7 @@ export function renderHtml(content: NewsletterContent, opts: RenderOptions): str
   const sections: string[] = [];
 
   for (const section of content.sections) {
-    const summary = countSummary(section.count.map((c) => ({ n: c.n, label: s[c.labelKey] })), accent);
+    const summary = countSummary(section.count.map((c) => ({ n: c.n, label: countLabel(c.n, c.labelKey, s) })), accent);
     sections.push(sectionHeader(SECTION_ICON[section.key] ?? '📦', s[section.titleKey], summary));
     if (section.layout === 'shows') sections.push(tvGrid(section.shows.slice(0, cap), opts));
     else sections.push(movieList(section.movies.slice(0, cap), opts));
@@ -620,11 +644,11 @@ export function renderText(content: NewsletterContent, opts: RenderOptions): str
     lines.push(s.empty);
   } else {
     for (const section of content.sections) {
-      const summary = section.count.map((c) => `${c.n} ${s[c.labelKey]}`).join(' / ');
+      const summary = section.count.map((c) => `${c.n} ${countLabel(c.n, c.labelKey, s)}`).join(' / ');
       lines.push(`## ${s[section.titleKey]} — ${summary}`);
       if (section.layout === 'shows') {
         for (const show of section.shows) {
-          lines.push(`  - ${show.title}${show.year ? ` (${show.year})` : ''} — ${show.episodeCount} ${s.episodes} · ${show.seasonRange}${show.rating ? ` · ★${show.rating.toFixed(1)}` : ''}`);
+          lines.push(`  - ${show.title}${show.year ? ` (${show.year})` : ''} — ${show.episodeCount} ${countLabel(show.episodeCount, 'episodes', s)} · ${show.seasonRange}${show.rating ? ` · ★${show.rating.toFixed(1)}` : ''}`);
           if (opts.style?.showOverview !== false && show.overview) lines.push(`      ${truncate(show.overview, 140)}`);
         }
       } else {

@@ -6,6 +6,7 @@ import {
   renderRating,
   renderBadges,
   formatEpisodeList,
+  countLabel,
   escapeHtml,
   sampleContent,
   type NewsletterItem,
@@ -285,5 +286,43 @@ describe('poster sizing', () => {
   it('keeps a short badge on one line', () => {
     expect(renderBadges(['S04 · E02–E06'])).toContain('white-space:nowrap');
     expect(renderBadges(['45m'])).toContain('white-space:nowrap');
+  });
+});
+
+/**
+ * Counts must agree with their noun. A show with one new episode read
+ * "1 Episodes" on its card and in the section summary.
+ */
+describe('countLabel', () => {
+  const en = newsletterStrings('en-US');
+  const es = newsletterStrings('es-PR');
+
+  it('uses the singular for exactly one', () => {
+    expect(countLabel(1, 'episodes', en)).toBe('Episode');
+    expect(countLabel(1, 'shows', en)).toBe('Show');
+    expect(countLabel(1, 'movies', en)).toBe('Movie');
+    expect(countLabel(1, 'items', en)).toBe('Item');
+  });
+
+  it('uses the plural for none or many', () => {
+    expect(countLabel(0, 'episodes', en)).toBe('Episodes');
+    expect(countLabel(2, 'episodes', en)).toBe('Episodes');
+  });
+
+  it('does not just strip an "s" — Spanish singulars differ', () => {
+    expect(countLabel(1, 'shows', es)).toBe('Serie');
+    expect(countLabel(1, 'movies', es)).toBe('Película');
+    expect(countLabel(2, 'shows', es)).toBe('Series');
+  });
+
+  it('leaves a label with no singular form alone', () => {
+    expect(countLabel(1, 'brandTitle', en)).toBe(en.brandTitle);
+  });
+
+  it('reaches the rendered card and the plain-text part', () => {
+    const one = [{ id: 'x', title: 'Solo', mediaType: 'tv', year: 2024, season: 1, episode: 5, addedAt: since }];
+    const content = buildContent(one, since, until);
+    expect(renderHtml(content, opts())).toContain('1 Episode<');
+    expect(renderText(content, opts())).toContain('1 Episode ·');
   });
 });
