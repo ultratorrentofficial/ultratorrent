@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { FilesService } from '../files/files.service';
+import { ModuleRef } from '@nestjs/core';
 import { TrashService } from '../files/trash.service';
 import { AuditService } from '../audit/audit.service';
 import { WS_EVENTS, type DuplicateResolutionEventPayload } from '@ultratorrent/shared';
@@ -125,6 +126,7 @@ export class DuplicateResolutionService {
     private readonly filePath: FilePathService,
     private readonly files: FilesService,
     private readonly trash: TrashService,
+    private readonly moduleRef: ModuleRef,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
   ) {}
@@ -186,6 +188,38 @@ export class DuplicateResolutionService {
    * the group requires review — the engine deliberately withholds a recommendation
    * there, and inventing one at preview time would defeat that.
    */
+
+
+  /**
+   * Append a warning for each path a LIVE torrent is still seeding.
+   *
+   * Live engine state, not the intake job's `state` column: nothing performs
+   * the `seeding -> archived` transition that column implies, so it keeps
+   * naming torrents removed weeks ago and would warn about nothing.
+   *
+   * Best-effort — a preview that cannot reach the engine still previews.
+   */
+  private async warnAboutSeeding(paths: string[], warnings: string[]): Promise<void> {
+    if (!paths.length) return;
+    try {
+      const { MediaLinkageService } = await import('./media-linkage.service');
+      const linkage = this.moduleRef.get(MediaLinkageService, { strict: false });
+      const [torrents, live] = await Promise.all([
+        linkage.torrentsForPaths(paths),
+        linkage.liveHashes(),
+      ]);
+      for (const t of torrents) {
+        if (!live.has(t.torrentHash.toLowerCase())) continue;
+        warnings.push(
+          `"${t.name}" is still being seeded. Trashing this copy leaves the torrent `
+            + 'running with nothing in the library pointing at it — stop it from the '
+            + 'Torrents page if that is not what you want.',
+        );
+      }
+    } catch (err) {
+      this.logger.warn(`Could not check seeding state: ${(err as Error).message}`);
+    }
+  }
 
   /**
    * Strip a `[dupN]` suffix from a surviving file, taking its sidecars along.
@@ -482,6 +516,17 @@ export class DuplicateResolutionService {
         freesBytes,
       });
     }
+
+    /*
+     * Say when a copy about to be trashed is still being SEEDED.
+     *
+     * Trashing is recoverable, so this warns rather than blocks — but the
+     * operator has no other way to know they are about to strand a torrent:
+     * the payload goes on seeding with nothing pointing at it, exactly the
+     * state that left 29 imports orphaned on one live host. The link count
+     * above says the bytes are shared; this says what else is holding them.
+     */
+    await this.warnAboutSeeding(actions.map((a) => a.sourcePath), warnings);
 
     if (!actions.length && !blockers.length) {
       blockers.push('Nothing to clean up — the group has no redundant copies.');
