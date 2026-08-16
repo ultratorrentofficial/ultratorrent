@@ -116,7 +116,14 @@
     "successPermanent_one": "Se eliminó permanentemente {{count}} elemento",
     "successPermanent_other": "Se eliminaron permanentemente {{count}} elementos",
     "successTrash_one": "Se movió {{count}} elemento a la Papelera",
-    "successTrash_other": "Se movieron {{count}} elementos a la Papelera"
+    "successTrash_other": "Se movieron {{count}} elementos a la Papelera",
+    "sharedLinks": "Estos datos se comparten con {{count}} ubicación más, así que borrar este nombre no libera espacio por sí solo.",
+    "sharedLinks_other": "Estos datos se comparten con {{count}} ubicaciones más, así que borrar este nombre no libera espacio por sí solo.",
+    "seedingTitle_one": "1 torrent todavía está sembrando esto",
+    "seedingTitle_other": "{{count}} torrents todavía están sembrando esto",
+    "seedKeep": "Seguir sembrando — borrar solo esta copia",
+    "seedStop": "Detener el torrent, conservar sus archivos",
+    "seedStopDelete": "Detener el torrent y borrar sus archivos"
   },
   "properties": {
     "titleBar": "Propiedades",

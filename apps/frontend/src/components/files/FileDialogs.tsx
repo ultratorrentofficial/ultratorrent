@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, FolderInput, FolderPlus, Info, Pencil, TriangleAlert } from 'lucide-react';
-import { ApiError, api, type ConflictResolution, type FileNode, type MoveConflictReport } from '@/lib/api';
+import { ApiError, api, type ConflictResolution, type DeleteSourceAction, type FileNode, type MoveConflictReport } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { summarizeValue } from '@/components/ui/summary-facts';
 import { Button } from '@/components/ui/button';
@@ -357,13 +357,34 @@ export function DeleteFileDialog({
 }) {
   const { t } = useTranslation('files');
   const [permanent, setPermanent] = useState(false);
+  const [sourceAction, setSourceAction] = useState<DeleteSourceAction>('keep');
   const { busy, run } = useFileMutation();
-  useEffect(() => { if (open) setPermanent(false); }, [open]);
+  useEffect(() => { if (open) { setPermanent(false); setSourceAction('keep'); } }, [open]);
+
+  /*
+   * What else holds these bytes.
+   *
+   * A file imported by Media Intake is a HARDLINK of the payload a torrent is
+   * seeding, so deleting it here frees nothing and strands the torrent — and
+   * deleting an Intake path breaks a live torrent outright. Neither was
+   * visible from this dialog.
+   *
+   * Single selection only: the preview is per path, and a bulk delete would
+   * need a different, aggregated conversation.
+   */
+  const { data: preview } = useQuery({
+    queryKey: ['files', 'delete-preview', paths[0]],
+    queryFn: () => api.files.deletePreview(paths[0]),
+    enabled: open && paths.length === 1,
+    staleTime: 0,
+  });
+  const seeding = (preview?.torrents ?? []).filter((x) => x.live);
+  const sharedLinks = (preview?.links ?? 1) > 1;
 
   const submit = () =>
     run(
       async () => {
-        if (paths.length === 1) return api.files.remove(paths[0], permanent);
+        if (paths.length === 1) return api.files.remove(paths[0], permanent, sourceAction);
         return api.files.bulk({ operation: 'delete', paths, permanent });
       },
       permanent
@@ -389,6 +410,42 @@ export function DeleteFileDialog({
           {permanent ? t('delete.descPermanent', { target }) : t('delete.descTrash', { target })}
         </DialogDescription>
       </DialogHeader>
+      {(seeding.length > 0 || sharedLinks) && (
+        <div className="my-2 space-y-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
+          {sharedLinks && (
+            <p className="text-xs text-muted-foreground">
+              {t('delete.sharedLinks', { count: preview?.links ?? 2 })}
+            </p>
+          )}
+          {seeding.length > 0 && (
+            <>
+              <p className="text-sm font-medium">{t('delete.seedingTitle', { count: seeding.length })}</p>
+              <ul className="max-h-24 space-y-1 overflow-y-auto text-xs text-muted-foreground">
+                {seeding.map((x) => (
+                  <li key={x.torrentHash} className="truncate" title={x.sourcePath}>{x.name}</li>
+                ))}
+              </ul>
+              <div className="space-y-1.5 pt-1">
+                {([
+                  ['keep', 'delete.seedKeep'],
+                  ['stop', 'delete.seedStop'],
+                  ['stop_and_delete', 'delete.seedStopDelete'],
+                ] as const).map(([value, label]) => (
+                  <label key={value} className="flex cursor-pointer items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      name="file-delete-source-action"
+                      checked={sourceAction === value}
+                      onChange={() => setSourceAction(value)}
+                    />
+                    <span>{t(label)}</span>
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
       <label className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
         <div>
           <p className="text-sm font-medium">{t('delete.permanentTitle')}</p>

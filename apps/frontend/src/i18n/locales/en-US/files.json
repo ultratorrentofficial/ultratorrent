@@ -116,7 +116,14 @@
     "successPermanent_one": "Permanently deleted {{count}} item",
     "successPermanent_other": "Permanently deleted {{count}} items",
     "successTrash_one": "Moved {{count}} item to Trash",
-    "successTrash_other": "Moved {{count}} items to Trash"
+    "successTrash_other": "Moved {{count}} items to Trash",
+    "sharedLinks": "These bytes are shared with {{count}} other location, so deleting this name frees no space on its own.",
+    "sharedLinks_other": "These bytes are shared with {{count}} other locations, so deleting this name frees no space on its own.",
+    "seedingTitle_one": "1 torrent is still seeding this",
+    "seedingTitle_other": "{{count}} torrents are still seeding this",
+    "seedKeep": "Keep seeding — delete this copy only",
+    "seedStop": "Stop the torrent, keep its files",
+    "seedStopDelete": "Stop the torrent and delete its files"
   },
   "properties": {
     "titleBar": "Properties",

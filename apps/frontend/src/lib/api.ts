@@ -1392,6 +1392,18 @@ export interface RenameUndoResult {
   failed: number;
 }
 
+/** What deleting a path would also strand. */
+export interface FileDeletePreview {
+  path: string;
+  exists: boolean;
+  /** Hard link count; >1 means another name holds these same bytes. */
+  links: number;
+  sizeBytes: number;
+  /** What the disk actually gets back — 0 while another link survives. */
+  freesBytes: number;
+  torrents: Array<SourceTorrent & { live: boolean }>;
+}
+
 /** What a delete should do with the torrents its items came from. */
 export type DeleteSourceAction = 'keep' | 'stop' | 'stop_and_delete';
 
@@ -3916,8 +3928,19 @@ export const api = {
     copy(source: string, destination: string, overwrite = false): Promise<unknown> {
       return request('/files/copy', { method: 'POST', body: { source, destination, overwrite } });
     },
-    remove(path: string, permanent = false): Promise<unknown> {
-      return request('/files/delete', { method: 'POST', body: { path, permanent } });
+    remove(path: string, permanent = false, torrentAction?: DeleteSourceAction): Promise<unknown> {
+      return request('/files/delete', {
+        method: 'POST',
+        body: { path, permanent, ...(torrentAction ? { torrentAction } : {}) },
+      });
+    },
+    /**
+     * What deleting this path would also affect: the torrents whose payload it
+     * belongs to, and the bytes it would ACTUALLY free — zero while a hardlink
+     * survives, which for an imported file is the normal case. Read-only.
+     */
+    deletePreview(path: string): Promise<FileDeletePreview> {
+      return request<FileDeletePreview>('/files/delete/preview', { method: 'POST', body: { path } });
     },
     bulk(dto: {
       operation: BulkOperationType;
