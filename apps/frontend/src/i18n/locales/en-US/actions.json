@@ -130,7 +130,18 @@
     "filesBody_other": "Permanently delete {{count}} items and their media from disk. This cannot be undone.",
     "typeCount_one": "Type 1 to confirm",
     "typeCount_other": "Type {{count}} to confirm",
-    "filesSubmit": "Delete files"
+    "filesSubmit": "Delete files",
+    "sourceTitle": "These files are still seeding",
+    "sourceIntro_one": "1 of these items was imported from a torrent that is still in Intake.",
+    "sourceIntro_other": "{{count}} of these items were imported from torrents that are still in Intake.",
+    "sourceReclaim": "{{size}} in Intake",
+    "sourceKeep": "Keep seeding",
+    "sourceKeepHint": "Delete the library copy only. The torrent keeps seeding and its payload stays in Intake.",
+    "sourceStop": "Stop the torrent, keep the payload",
+    "sourceStopHint": "Seeding ends. The files stay in Intake so you can re-import or clean them up later.",
+    "sourceStopDelete": "Stop and delete the payload",
+    "sourceStopDeleteHint": "Seeding ends and the Intake files are erased. This is the last copy once the library file is gone.",
+    "sourceUnknownSize": "size unknown"
   },
   "contextMenu": {
     "label": "Item actions"

@@ -14,6 +14,7 @@ import {
   UseGuards,
   Header,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -42,7 +43,7 @@ import {
 } from './media-metadata.service';
 import { MediaArtworkService, ArtworkUpload } from './media-artwork.service';
 import { MediaSubtitleService } from './media-subtitle.service';
-import { MediaBulkService } from './media-bulk.service';
+import { MediaBulkService, type TorrentAction } from './media-bulk.service';
 import { MediaExportService } from './media-export.service';
 import { MediaConsistencyService } from './media-consistency.service';
 import { ShowHealthService } from './health/show-health.service';
@@ -483,10 +484,39 @@ export class MediaController {
    * let them destroy the media, which is exactly the escalation a single
    * `media_manager.delete` on both routes would create.
    */
+  /**
+   * The torrents behind a selection, so the delete dialog can say what else it
+   * would strand. Read-only — it touches nothing.
+   */
+  @Post('items/bulk/delete-files/preview')
+  @RequirePermissions(P.MEDIA_MANAGER_DELETE_FILES)
+  async previewDeleteFiles(@Body() body: { itemIds?: string[] }) {
+    return { torrents: await this.bulk.sourceTorrents(body?.itemIds ?? []) };
+  }
+
   @Post('items/bulk/delete-files')
   @RequirePermissions(P.MEDIA_MANAGER_DELETE_FILES)
-  bulkDeleteFiles(@Body() body: { itemIds?: string[] }, @Req() req: Request) {
-    return this.bulk.deleteFiles(body?.itemIds ?? [], auditCtx(req));
+  bulkDeleteFiles(
+    @Body() body: { itemIds?: string[]; torrentAction?: TorrentAction },
+    @Req() req: Request,
+  ) {
+    const action = body?.torrentAction ?? 'keep';
+    /*
+     * Acting on the torrent is a SECOND authority, checked here rather than
+     * folded into the route's grant. `delete_files` says someone may erase
+     * media from a library; it must not also let them stop another user's seed
+     * or destroy the payload, which is exactly the escalation the split
+     * between the two delete routes exists to prevent.
+     */
+    const user = (req as unknown as { user?: { permissions?: string[] } }).user;
+    const held = new Set(user?.permissions ?? []);
+    if (action === 'stop' && !held.has(P.TORRENTS_DELETE)) {
+      throw new ForbiddenException('Stopping the source torrent requires torrents.delete');
+    }
+    if (action === 'stop_and_delete' && !held.has(P.TORRENTS_DELETE_DATA)) {
+      throw new ForbiddenException('Deleting the source payload requires torrents.delete_data');
+    }
+    return this.bulk.deleteFiles(body?.itemIds ?? [], auditCtx(req), { torrentAction: action });
   }
 
   /** Reassign a selection to another library, moving its files under that root. */

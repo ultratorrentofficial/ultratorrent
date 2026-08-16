@@ -1,7 +1,8 @@
 import { constants } from 'node:fs';
-import { copyFile, mkdir, rename, unlink } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, rename, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { AuditContext } from './media-metadata.service';
@@ -18,6 +19,62 @@ import { assertDestinationFree } from '../../common/file-placement';
  * already take that form.
  */
 export const MAX_BULK_IDS = 1000;
+
+/** A torrent a selection was imported from, as the delete dialog shows it. */
+export interface SourceTorrent {
+  torrentHash: string;
+  engineId: string | null;
+  /** The release folder name — what the operator recognises in the client. */
+  name: string;
+  sourcePath: string;
+  /** Intake job state; `seeding` is the case that keeps a payload alive. */
+  state: string;
+  /** Bytes the payload occupies now, so the dialog can promise a real figure. */
+  sizeBytes: number;
+  itemIds: string[];
+}
+
+/**
+ * What to do with the torrents behind a delete.
+ *
+ * `keep` is the default and the historical behaviour. The two destructive
+ * options are separated because they cost different things: stopping ends the
+ * seed but the bytes stay, while deleting the payload destroys the only
+ * remaining copy once the library hardlink is gone.
+ */
+export type TorrentAction = 'keep' | 'stop' | 'stop_and_delete';
+
+/** Total bytes under a path; 0 when it is already gone. */
+async function directorySize(root: string): Promise<number> {
+  let total = 0;
+  const walk = async (dir: string): Promise<void> => {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return; // unreadable or missing — contributes nothing
+    }
+    for (const e of entries) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) await walk(p);
+      else if (e.isFile()) {
+        try {
+          total += (await stat(p)).size;
+        } catch {
+          /* raced with a delete */
+        }
+      }
+    }
+  };
+  try {
+    const info = await stat(root);
+    if (info.isFile()) return info.size;
+  } catch {
+    return 0;
+  }
+  await walk(root);
+  return total;
+}
 
 /**
  * Move one file, tolerating a cross-device destination.
@@ -86,6 +143,7 @@ export class MediaBulkService {
     private readonly prisma: PrismaService,
     private readonly jobs: MediaProcessingQueueService,
     private readonly audit: AuditService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
 
@@ -253,6 +311,84 @@ export class MediaBulkService {
   }
 
   /**
+   * Stop a torrent, optionally destroying its payload.
+   *
+   * Resolved through `ModuleRef` at call time rather than injected: importing
+   * `TorrentsModule` here would close the module cycle that `TorrentsService`
+   * documents on its own lazy lookup of this service, and the symptom is a
+   * bootstrap failure that every type check and unit test passes straight
+   * through. The dependency is genuinely runtime-only.
+   */
+  private async applyTorrentAction(
+    t: SourceTorrent,
+    action: TorrentAction,
+    ctx: AuditContext,
+  ): Promise<void> {
+    if (action === 'keep') return;
+    const { TorrentsService } = await import('../torrents/torrents.service');
+    const torrents = this.moduleRef.get(TorrentsService, { strict: false });
+    const user = { id: ctx.userId ?? 'system', username: 'system', roles: [], permissions: [] };
+    const auditCtx = { ipAddress: ctx.ipAddress, userAgent: ctx.userAgent };
+    if (action === 'stop_and_delete') {
+      // `removeLibraryItems` stays false: the rows are this job's business and
+      // are already gone, and asking for them again would recurse into here.
+      await torrents.removeData(t.torrentHash, t.engineId ?? undefined, user, auditCtx, {
+        removeLibraryItems: false,
+      });
+      return;
+    }
+    await torrents.remove(t.torrentHash, t.engineId ?? undefined, user, auditCtx);
+  }
+
+  /**
+   * The torrents a selection was imported from, for the delete confirmation.
+   *
+   * Deleting a library item used to say nothing about where the media came
+   * from, and for a hardlink import the library copy is only one of the two
+   * links: unlinking it leaves the Intake payload and a still-seeding torrent
+   * with nothing pointing at them. On one live host that had already stranded
+   * 29 imports, 6 of whose payloads were still on disk holding 10.3 GB.
+   *
+   * The mirror of `TorrentsService.importedLibraryItems`, and it takes the same
+   * care: an intake job can outlive what it imported, so the torrent is only
+   * reported when its job still names an item in this selection.
+   */
+  async sourceTorrents(itemIds: string[]): Promise<SourceTorrent[]> {
+    const ids = [...new Set((itemIds ?? []).filter(Boolean))].slice(0, MAX_BULK_IDS);
+    if (!ids.length) return [];
+
+    const jobs = await this.prisma.mediaIntakeJob.findMany({
+      where: { mediaItemId: { in: ids }, torrentHash: { not: null } },
+      select: { torrentHash: true, engineId: true, sourcePath: true, mediaItemId: true, state: true },
+    });
+    if (!jobs.length) return [];
+
+    // One torrent can back several items (a pack), so group rather than assume
+    // a pair — offering the same removal twice would double-count the bytes.
+    const byHash = new Map<string, SourceTorrent>();
+    for (const j of jobs) {
+      const hash = j.torrentHash!;
+      const entry = byHash.get(hash) ?? {
+        torrentHash: hash,
+        engineId: j.engineId ?? null,
+        name: basename(j.sourcePath),
+        sourcePath: j.sourcePath,
+        state: j.state,
+        sizeBytes: 0,
+        itemIds: [],
+      };
+      if (j.mediaItemId) entry.itemIds.push(j.mediaItemId);
+      byHash.set(hash, entry);
+    }
+
+    // Size is measured on disk, not from the torrent: the payload is what the
+    // operator would reclaim, and a partially-deleted one must not be
+    // advertised at its original size.
+    for (const t of byHash.values()) t.sizeBytes = await directorySize(t.sourcePath);
+    return [...byHash.values()];
+  }
+
+  /**
    * Erase a selection's media from disk, then drop the rows.
    *
    * Irreversible, so it is a job rather than a request: it touches the
@@ -264,7 +400,16 @@ export class MediaBulkService {
    * orphaned media nothing points at. A file that is already missing counts as
    * success: the desired end state is "not on disk".
    */
-  async deleteFiles(itemIds: string[], ctx: AuditContext): Promise<BulkResult> {
+  async deleteFiles(
+    itemIds: string[],
+    ctx: AuditContext,
+    opts: { torrentAction?: TorrentAction } = {},
+  ): Promise<BulkResult> {
+    const torrentAction = opts.torrentAction ?? 'keep';
+    // Resolved BEFORE the files go: the link from item to torrent lives in the
+    // intake job's `mediaItemId`, and deleting the row first would leave the
+    // hash unfindable.
+    const torrents = torrentAction === 'keep' ? [] : await this.sourceTorrents(itemIds);
     const { ids, missing } = await this.resolve(itemIds);
     const items = await this.prisma.mediaItem.findMany({
       where: { id: { in: ids } },
@@ -318,11 +463,48 @@ export class MediaBulkService {
           done += 1;
           report((done / Math.max(1, items.length)) * 100, `${done}/${items.length}`);
         }
-        return { total: items.length, completed: done - failed, failed, removedFiles };
+        /*
+         * The torrents go LAST, and only for the ones whose library files are
+         * actually gone. Reversed, a failed unlink would leave the library
+         * still advertising media whose payload had already been destroyed —
+         * and the payload is the copy nothing can reproduce.
+         *
+         * Each failure is reported rather than thrown: the delete the operator
+         * asked for has already happened, and failing the job now would say the
+         * files survived when they did not.
+         */
+        const torrentResults: Array<{ hash: string; ok: boolean; error?: string }> = [];
+        for (const t of torrents) {
+          if (signal.isCancelled()) break;
+          try {
+            await this.applyTorrentAction(t, torrentAction, ctx);
+            torrentResults.push({ hash: t.torrentHash, ok: true });
+          } catch (err) {
+            torrentResults.push({ hash: t.torrentHash, ok: false, error: (err as Error).message });
+            this.logger.warn(`Torrent ${torrentAction} failed for ${t.torrentHash}: ${(err as Error).message}`);
+          }
+        }
+
+        return {
+          total: items.length,
+          completed: done - failed,
+          failed,
+          removedFiles,
+          torrentAction,
+          torrentsHandled: torrentResults.filter((r) => r.ok).length,
+          torrentsFailed: torrentResults.filter((r) => !r.ok).length,
+        };
       },
     );
 
-    await this.record('media.bulk.delete_files', ids, ctx, { jobId });
+    await this.record('media.bulk.delete_files', ids, ctx, {
+      jobId,
+      // The choice belongs in the audit trail: "files deleted" and "files
+      // deleted and the torrent destroyed" are different acts.
+      torrentAction,
+      torrentHashes: torrents.map((t) => t.torrentHash),
+      reclaimableBytes: torrents.reduce((s, t) => s + t.sizeBytes, 0),
+    });
     return { jobId, accepted: items.length, missing };
   }
 

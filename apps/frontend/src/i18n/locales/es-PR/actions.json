@@ -130,7 +130,18 @@
     "filesBody_other": "Borra permanentemente {{count}} elementos y su contenido del disco. Esto no se puede deshacer.",
     "typeCount_one": "Escribe 1 para confirmar",
     "typeCount_other": "Escribe {{count}} para confirmar",
-    "filesSubmit": "Borrar archivos"
+    "filesSubmit": "Borrar archivos",
+    "sourceTitle": "Estos archivos aún se están sembrando",
+    "sourceIntro_one": "1 de estos elementos se importó de un torrent que sigue en Intake.",
+    "sourceIntro_other": "{{count}} de estos elementos se importaron de torrents que siguen en Intake.",
+    "sourceReclaim": "{{size}} en Intake",
+    "sourceKeep": "Seguir sembrando",
+    "sourceKeepHint": "Elimina solo la copia de la biblioteca. El torrent sigue sembrando y su contenido permanece en Intake.",
+    "sourceStop": "Detener el torrent, conservar los archivos",
+    "sourceStopHint": "La siembra termina. Los archivos quedan en Intake para reimportarlos o limpiarlos después.",
+    "sourceStopDelete": "Detener y eliminar los archivos",
+    "sourceStopDeleteHint": "La siembra termina y los archivos de Intake se borran. Es la última copia una vez eliminada la de la biblioteca.",
+    "sourceUnknownSize": "tamaño desconocido"
   },
   "contextMenu": {
     "label": "Acciones del elemento"

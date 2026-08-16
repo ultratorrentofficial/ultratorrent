@@ -16,6 +16,7 @@ import {
   BRAND_LOGO_CID, BRAND_LOGO_CONTENT_TYPE, BRAND_LOGO_HEIGHT, BRAND_LOGO_PNG_BASE64, BRAND_LOGO_WIDTH,
 } from './newsletter-brand-logo';
 import { inlineCidImages } from './newsletter-inline-cid';
+import { nextRunAt } from './newsletter-schedule';
 
 const ACCENT = '#f5a623';
 
@@ -30,6 +31,11 @@ interface NewsletterInput {
   dateRangeMode?: string;
   lastDays?: number;
   startDate?: string | null;
+  /** 0=Sunday … 6=Saturday; null keeps the legacy relative cadence. */
+  sendWeekday?: number | null;
+  sendHour?: number;
+  sendMinute?: number;
+  timezone?: string;
 }
 
 /** Where the "powered by" credit in the footer points. */
@@ -87,6 +93,24 @@ export class MediaServerNewsletterService {
         dateRangeMode: input.dateRangeMode ?? 'since_last_send',
         lastDays: input.lastDays ?? 7,
         startDate: input.startDate ? new Date(input.startDate) : null,
+        sendWeekday: input.sendWeekday ?? null,
+        sendHour: input.sendHour ?? 9,
+        sendMinute: input.sendMinute ?? 0,
+        timezone: input.timezone ?? 'UTC',
+        /*
+         * Scheduled from birth. Without this `nextRunAt` stayed NULL, and the
+         * dispatcher selects on `nextRunAt <= now`, which NULL never satisfies
+         * — so a newsletter created and left alone never sent at all. Both of
+         * one live host's weekly newsletters sat enabled and idle because of
+         * it; the other host's only ran because someone pressed Send once.
+         */
+        nextRunAt: nextRunAt({
+          frequency: input.frequency ?? 'weekly',
+          sendWeekday: input.sendWeekday ?? null,
+          sendHour: input.sendHour ?? 9,
+          sendMinute: input.sendMinute ?? 0,
+          timezone: input.timezone ?? 'UTC',
+        }, new Date()),
       },
     });
     await this.audit.record({ userId, action: 'media_server_analytics.newsletter.created', objectType: 'media_server_newsletter', objectId: row.id });
@@ -94,9 +118,10 @@ export class MediaServerNewsletterService {
   }
 
   async update(id: string, input: NewsletterInput, userId?: string) {
-    await this.get(id);
+    const current = await this.get(id);
     const data: Record<string, unknown> = {};
-    for (const k of ['name', 'enabled', 'frequency', 'subjectTemplate', 'dateRangeMode', 'lastDays'] as const) {
+    for (const k of ['name', 'enabled', 'frequency', 'subjectTemplate', 'dateRangeMode', 'lastDays',
+      'sendWeekday', 'sendHour', 'sendMinute', 'timezone'] as const) {
       if (input[k] !== undefined) data[k] = input[k];
     }
     // Blank means "use the default title", which is NULL — not an empty header.
@@ -104,6 +129,25 @@ export class MediaServerNewsletterService {
     if (input.startDate !== undefined) data.startDate = input.startDate ? new Date(input.startDate) : null;
     if (input.recipientEmails !== undefined) data.recipientEmails = input.recipientEmails as object;
     if (input.contentSections !== undefined) data.contentSections = input.contentSections as object;
+
+    /*
+     * Re-aim the next slot whenever the schedule itself changes. Without this,
+     * moving a newsletter from Friday to Monday would still fire on Friday —
+     * once — because `nextRunAt` is only restamped after a send, and the
+     * operator would reasonably read the change as having taken effect.
+     */
+    const SCHEDULE_KEYS = ['frequency', 'sendWeekday', 'sendHour', 'sendMinute', 'timezone'] as const;
+    if (SCHEDULE_KEYS.some((k) => input[k] !== undefined)) {
+      const merged = { ...current, ...data } as {
+        frequency: string;
+        sendWeekday?: number | null;
+        sendHour?: number | null;
+        sendMinute?: number | null;
+        timezone?: string | null;
+      };
+      data.nextRunAt = nextRunAt(merged, new Date());
+    }
+
     const row = await this.prisma.mediaServerNewsletter.update({ where: { id }, data });
     await this.audit.record({ userId, action: 'media_server_analytics.newsletter.updated', objectType: 'media_server_newsletter', objectId: id });
     return row;
@@ -432,18 +476,26 @@ export class MediaServerNewsletterService {
       }
     }
 
-    await this.prisma.mediaServerNewsletter.update({ where: { id }, data: { lastSuccessfulSendAt: new Date(), nextRunAt: this.nextRun(n.frequency) } });
+    await this.prisma.mediaServerNewsletter.update({ where: { id }, data: { lastSuccessfulSendAt: new Date(), nextRunAt: this.nextRun(n) } });
     this.realtime.broadcast(failed && !sent ? 'media_server.newsletter.failed' : 'media_server.newsletter.sent', { id, sent, failed });
     await this.audit.record({ userId, action: 'media_server_analytics.newsletter.sent', objectType: 'media_server_newsletter', objectId: id, metadata: { sent, failed } });
     return { sent, failed };
   }
 
-  private nextRun(frequency: string): Date | null {
-    const d = new Date();
-    if (frequency === 'daily') return new Date(d.getTime() + 24 * 3600 * 1000);
-    if (frequency === 'weekly') return new Date(d.getTime() + 7 * 24 * 3600 * 1000);
-    if (frequency === 'monthly') return new Date(d.getTime() + 30 * 24 * 3600 * 1000);
-    return null; // manual
+  /**
+   * The newsletter's next slot, from its own schedule.
+   *
+   * Computed against the calendar rather than "now + 7 days", so a send that
+   * runs late does not drag every future send later with it.
+   */
+  private nextRun(n: {
+    frequency: string;
+    sendWeekday?: number | null;
+    sendHour?: number | null;
+    sendMinute?: number | null;
+    timezone?: string | null;
+  }, from = new Date()): Date | null {
+    return nextRunAt(n, from);
   }
 
   private get enabled(): boolean {

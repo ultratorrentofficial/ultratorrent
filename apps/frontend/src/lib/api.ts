@@ -1392,6 +1392,20 @@ export interface RenameUndoResult {
   failed: number;
 }
 
+/** What a delete should do with the torrents its items came from. */
+export type DeleteSourceAction = 'keep' | 'stop' | 'stop_and_delete';
+
+/** A torrent behind a selection, as the delete dialog lists it. */
+export interface SourceTorrent {
+  torrentHash: string;
+  engineId: string | null;
+  name: string;
+  sourcePath: string;
+  state: string;
+  sizeBytes: number;
+  itemIds: string[];
+}
+
 export interface MediaBulkResult {
   /** Empty for synchronous operations (lock/unlock). */
   jobId: string;
@@ -4355,8 +4369,22 @@ export const api = {
     bulkItems(
       operation: 'metadata' | 'lock' | 'unlock' | 'nfo' | 'remove' | 'delete-files',
       itemIds: string[],
+      /**
+       * Only meaningful for `delete-files`: what to do with the torrents the
+       * selection was imported from. Omitted means `keep`, the behaviour before
+       * the dialog offered a choice.
+       */
+      torrentAction?: DeleteSourceAction,
     ): Promise<MediaBulkResult> {
       return request<MediaBulkResult>(`/media/items/bulk/${operation}`, {
+        method: 'POST', body: { itemIds, ...(torrentAction ? { torrentAction } : {}) },
+      });
+    },
+    /**
+     * The torrents behind a selection, for the delete confirmation. Read-only.
+     */
+    deleteFilesPreview(itemIds: string[]): Promise<{ torrents: SourceTorrent[] }> {
+      return request<{ torrents: SourceTorrent[] }>('/media/items/bulk/delete-files/preview', {
         method: 'POST', body: { itemIds },
       });
     },
@@ -5509,6 +5537,12 @@ export interface Newsletter {
   dateRangeMode: string;
   lastDays: number;
   startDate: string | null;
+  /** 0=Sunday … 6=Saturday. Null keeps the legacy "7 days after the last send". */
+  sendWeekday: number | null;
+  /** Local send time, in `timezone` — not the server's clock. */
+  sendHour: number;
+  sendMinute: number;
+  timezone: string;
   lastSuccessfulSendAt: string | null;
   nextRunAt: string | null;
 }

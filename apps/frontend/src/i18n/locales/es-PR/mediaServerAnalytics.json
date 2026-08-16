@@ -205,7 +205,11 @@
       "brandTitleHint": "Se muestra a los destinatarios en el encabezado del correo. Déjalo vacío para usar el predeterminado.",
       "frequency": "Frecuencia",
       "recipients": "Destinatarios",
-      "submit": "Crear"
+      "submit": "Crear",
+      "sendDay": "Enviar el",
+      "sendTime": "A las",
+      "sendTimeHint": "Hora local en {{zone}}",
+      "anyDay": "Sin día fijo (7 días después del último envío)"
     },
     "recipients": {
       "addPlaceholder": "Escribe un correo y presiona Enter",
@@ -263,7 +267,16 @@
     "created": "Boletín creado",
     "testSent": "Prueba enviada",
     "nextRun": "Próximo: {{date}}",
-    "previewFailed": "No se pudo generar la vista previa."
+    "previewFailed": "No se pudo generar la vista previa.",
+    "weekday": {
+      "sun": "Domingo",
+      "mon": "Lunes",
+      "tue": "Martes",
+      "wed": "Miércoles",
+      "thu": "Jueves",
+      "fri": "Viernes",
+      "sat": "Sábado"
+    }
   },
   "kpi": {
     "activeStreams": "Transmisiones activas",

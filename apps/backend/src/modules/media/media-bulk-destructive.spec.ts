@@ -71,7 +71,7 @@ function build(items: Array<Record<string, unknown>>, library?: Record<string, u
     }),
   };
   const audit = { record: jest.fn(async (_r: Record<string, unknown>) => undefined) };
-  const svc = new MediaBulkService(prisma as never, jobs as never, audit as never);
+  const svc = new MediaBulkService(prisma as never, jobs as never, audit as never, { get: jest.fn() } as never);
   return { svc, prisma, audit, jobs, order };
 }
 

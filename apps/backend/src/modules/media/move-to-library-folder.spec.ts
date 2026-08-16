@@ -49,7 +49,7 @@ function build(root: string, items: any[], strangers: any[] = []) {
     }),
   };
   const renameItem = jest.fn(async () => undefined);
-  const svc = new MediaBulkService(prisma as never, jobs as never, audit as never);
+  const svc = new MediaBulkService(prisma as never, jobs as never, audit as never, { get: jest.fn() } as never);
   return { svc, updates, prisma, renameItem };
 }
 

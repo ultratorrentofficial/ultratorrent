@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { EntityRef } from '@ultratorrent/shared';
-import { api, type MediaLibrary } from '@/lib/api';
+import { api, type DeleteSourceAction, type MediaLibrary } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { ActionBar, type ActionHandler } from '@/actions/ActionBar';
 import { useContextActions } from '@/actions/useContextActions';
@@ -86,7 +86,8 @@ export function ContextActionBar({
   const watchJob = useJobRefresh(['library-browser']);
 
   const bulk = useMutation({
-    mutationFn: ({ op, ids }: { op: BulkOp; ids: string[] }) => api.media.bulkItems(op, ids),
+    mutationFn: ({ op, ids, sourceAction }: { op: BulkOp; ids: string[]; sourceAction?: DeleteSourceAction }) =>
+      api.media.bulkItems(op, ids, sourceAction),
     onSuccess: (result) => {
       // A job id means the work is still running — saying "done" would be false.
       toast.success(
@@ -175,10 +176,16 @@ export function ContextActionBar({
         open={confirmMode !== null}
         mode={confirmMode ?? 'remove'}
         count={selectedIds.length}
+        itemIds={[...selectedIds]}
         busy={bulk.isPending}
         onClose={() => setConfirmMode(null)}
-        onConfirm={() => {
-          bulk.mutate({ op: confirmMode === 'files' ? 'delete-files' : 'remove', ids: [...selectedIds] });
+        onConfirm={(sourceAction) => {
+          bulk.mutate({
+            op: confirmMode === 'files' ? 'delete-files' : 'remove',
+            ids: [...selectedIds],
+            // Only the destructive delete can act on a torrent; `remove` never does.
+            sourceAction: confirmMode === 'files' ? sourceAction : undefined,
+          });
           setConfirmMode(null);
         }}
       />

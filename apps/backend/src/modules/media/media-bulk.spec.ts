@@ -37,7 +37,7 @@ describe('MediaBulkService', () => {
     };
     const audit: any = { record: jest.fn(async (e: any) => { audits.push(e); }) };
 
-    return { svc: new MediaBulkService(prisma, jobs, audit), store, audits, jobs, jobBodies };
+    return { svc: new MediaBulkService(prisma, jobs, audit, { get: jest.fn() } as never), store, audits, jobs, jobBodies };
   };
 
   const ctx = { userId: 'u1', ipAddress: '10.0.0.1', userAgent: 'jest' };

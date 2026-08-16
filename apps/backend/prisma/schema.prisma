@@ -1555,6 +1555,16 @@ model MediaServerNewsletter {
   dateRangeMode        String    @default("since_last_send") // since_last_send | last_days | since_date
   lastDays             Int       @default(7)
   startDate            DateTime? // fixed "included since" date for the since_date mode
+  /// Day of week for a weekly send, 0=Sunday … 6=Saturday. Null keeps the
+  /// legacy behaviour of "seven days after the last send, whenever that was".
+  sendWeekday          Int?
+  /// Local hour/minute the send is aimed at, in `timezone`.
+  sendHour             Int       @default(9)
+  sendMinute           Int       @default(0)
+  /// IANA zone the weekday and hour are interpreted in. The container runs UTC
+  /// while the hosts are AST, so an unqualified hour is four hours off from
+  /// what the operator meant.
+  timezone             String    @default("UTC")
   lastSuccessfulSendAt DateTime?
   nextRunAt            DateTime?
   createdAt            DateTime  @default(now())

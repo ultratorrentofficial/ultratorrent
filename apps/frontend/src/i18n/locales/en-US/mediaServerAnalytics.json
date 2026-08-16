@@ -205,7 +205,11 @@
       "brandTitleHint": "Shown to recipients in the email header. Leave blank to use the default.",
       "frequency": "Frequency",
       "recipients": "Recipients",
-      "submit": "Create"
+      "submit": "Create",
+      "sendDay": "Send on",
+      "sendTime": "At",
+      "sendTimeHint": "Local time in {{zone}}",
+      "anyDay": "No fixed day (7 days after the last send)"
     },
     "recipients": {
       "addPlaceholder": "Type an email and press Enter",
@@ -263,7 +267,16 @@
     "created": "Newsletter created",
     "testSent": "Test sent",
     "nextRun": "Next: {{date}}",
-    "previewFailed": "Could not build the preview."
+    "previewFailed": "Could not build the preview.",
+    "weekday": {
+      "sun": "Sunday",
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday"
+    }
   },
   "kpi": {
     "activeStreams": "Active streams",
