@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.79.6] - 2026-08-16
+
+### Fixed
+- Show posters no longer collapse when a genre pill is wide; episode labels list gaps instead of implying a range
+- Newsletter counts agree with their noun: 1 Episode, 3 Episodes
+
 ## [0.79.5] - 2026-08-16
 
 ### Fixed
