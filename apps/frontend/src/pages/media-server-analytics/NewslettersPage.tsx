@@ -168,7 +168,7 @@ function RecipientPicker({
  * That is deliberately reachable: existing newsletters migrate that way and
  * must not silently jump to a day nobody chose.
  */
-function scheduleFields(f: { sendWeekday: string; sendTime: string; timezone: string }) {
+export function scheduleFields(f: { sendWeekday: string; sendTime: string; timezone: string }) {
   const [h, m] = (f.sendTime || '09:00').split(':');
   return {
     sendWeekday: f.sendWeekday === '' ? null : Number(f.sendWeekday),
@@ -339,6 +339,11 @@ export function NewslettersPage() {
                                 brandTitle: editForm.brandTitle.trim() || null,
                                 frequency: editForm.frequency,
                                 recipientEmails: editForm.recipients,
+                                // The schedule controls are in this form too, so
+                                // they must be in what it saves — omitting them
+                                // let the day and time appear to change and then
+                                // silently revert on reload.
+                                ...scheduleFields(editForm),
                               },
                             },
                             { onSuccess: () => setEditId(null) },
