@@ -373,19 +373,25 @@ export function DeleteFileDialog({
    * need a different, aggregated conversation.
    */
   const { data: preview } = useQuery({
-    queryKey: ['files', 'delete-preview', paths[0]],
-    queryFn: () => api.files.deletePreview(paths[0]),
-    enabled: open && paths.length === 1,
+    queryKey: ['files', 'delete-preview', paths],
+    queryFn: async () => (paths.length === 1
+      ? api.files.deletePreview(paths[0])
+      : { ...(await api.files.bulkDeletePreview(paths)), links: 1 }),
+    enabled: open && paths.length > 0,
     staleTime: 0,
   });
   const seeding = (preview?.torrents ?? []).filter((x) => x.live);
-  const sharedLinks = (preview?.links ?? 1) > 1;
+  const sharedLinks = paths.length === 1
+    ? ((preview as { links?: number } | undefined)?.links ?? 1) > 1
+    // For a selection the useful fact is not the link count of any one file but
+    // that the delete frees less than it appears to.
+    : (preview?.sizeBytes ?? 0) > 0 && (preview?.freesBytes ?? 0) < (preview?.sizeBytes ?? 0);
 
   const submit = () =>
     run(
       async () => {
         if (paths.length === 1) return api.files.remove(paths[0], permanent, sourceAction);
-        return api.files.bulk({ operation: 'delete', paths, permanent });
+        return api.files.bulk({ operation: 'delete', paths, permanent, torrentAction: sourceAction });
       },
       permanent
         ? t('delete.successPermanent', { count: paths.length })
@@ -414,7 +420,12 @@ export function DeleteFileDialog({
         <div className="my-2 space-y-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
           {sharedLinks && (
             <p className="text-xs text-muted-foreground">
-              {t('delete.sharedLinks', { count: preview?.links ?? 2 })}
+              {paths.length === 1
+                ? t('delete.sharedLinks', { count: (preview as { links?: number }).links ?? 2 })
+                : t('delete.sharedBulk', {
+                    frees: formatBytes(preview?.freesBytes ?? 0),
+                    total: formatBytes(preview?.sizeBytes ?? 0),
+                  })}
             </p>
           )}
           {seeding.length > 0 && (

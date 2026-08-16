@@ -13,6 +13,7 @@ import { ImportStrategyService } from './import-strategy.service';
 import { IntakeTriggerService } from './intake-trigger.service';
 import { IntakePipelineService } from './intake-pipeline.service';
 import { IntakeStagesService } from './intake-stages.service';
+import { IntakeReconcilerService } from './intake-reconciler.service';
 import { IntakePostImportService } from './intake-post-import.service';
 
 /**
@@ -36,6 +37,7 @@ import { IntakePostImportService } from './intake-post-import.service';
     IntakePipelineService,
     IntakeStagesService,
     IntakePostImportService,
+    IntakeReconcilerService,
   ],
   exports: [
     MediaIntakeService,

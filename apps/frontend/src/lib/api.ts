@@ -3942,12 +3942,20 @@ export const api = {
     deletePreview(path: string): Promise<FileDeletePreview> {
       return request<FileDeletePreview>('/files/delete/preview', { method: 'POST', body: { path } });
     },
+    /** Aggregated deletion preflight for a multi-selection. */
+    bulkDeletePreview(paths: string[]): Promise<{
+      paths: number; sizeBytes: number; freesBytes: number;
+      torrents: Array<SourceTorrent & { live: boolean }>;
+    }> {
+      return request('/files/bulk/delete-preview', { method: 'POST', body: { paths } });
+    },
     bulk(dto: {
       operation: BulkOperationType;
       paths: string[];
       destination?: string;
       overwrite?: boolean;
       permanent?: boolean;
+      torrentAction?: DeleteSourceAction;
     }): Promise<{ operation: string; total: number; succeeded: number; failed: number; results: Array<{ path: string; ok: boolean; message?: string }> }> {
       return request('/files/bulk', { method: 'POST', body: dto });
     },

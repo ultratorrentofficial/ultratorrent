@@ -123,7 +123,8 @@
     "seedingTitle_other": "{{count}} torrents todavía están sembrando esto",
     "seedKeep": "Seguir sembrando — borrar solo esta copia",
     "seedStop": "Detener el torrent, conservar sus archivos",
-    "seedStopDelete": "Detener el torrent y borrar sus archivos"
+    "seedStopDelete": "Detener el torrent y borrar sus archivos",
+    "sharedBulk": "Solo se liberarían {{frees}} de {{total}}; el resto se comparte con otras ubicaciones."
   },
   "properties": {
     "titleBar": "Propiedades",

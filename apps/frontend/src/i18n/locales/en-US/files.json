@@ -123,7 +123,8 @@
     "seedingTitle_other": "{{count}} torrents are still seeding this",
     "seedKeep": "Keep seeding — delete this copy only",
     "seedStop": "Stop the torrent, keep its files",
-    "seedStopDelete": "Stop the torrent and delete its files"
+    "seedStopDelete": "Stop the torrent and delete its files",
+    "sharedBulk": "Only {{frees}} of {{total}} would be freed — the rest is shared with other locations."
   },
   "properties": {
     "titleBar": "Properties",

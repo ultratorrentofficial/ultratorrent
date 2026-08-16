@@ -67,6 +67,10 @@ export class BulkOperationDto {
   @IsIn(['move', 'copy', 'delete', 'cleanup'])
   operation!: BulkOperationType;
 
+  /** One decision for the whole selection; see DeleteFileDto.torrentAction. */
+  @IsOptional() @IsIn(['keep', 'stop', 'stop_and_delete'])
+  torrentAction?: 'keep' | 'stop' | 'stop_and_delete';
+
   @IsArray()
   @ArrayNotEmpty()
   @IsString({ each: true })

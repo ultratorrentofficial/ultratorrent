@@ -252,6 +252,13 @@ export class FilesController {
     return this.files.deletionPreview(dto.path);
   }
 
+  /** The same preflight, aggregated over a multi-selection. */
+  @Post('bulk/delete-preview')
+  @RequirePermissions(PERMISSIONS.FILES_DELETE)
+  previewBulkDelete(@Body() dto: { paths?: string[] }) {
+    return this.files.bulkDeletionPreview(dto?.paths ?? []);
+  }
+
   @Post('delete')
   @RequirePermissions(PERMISSIONS.FILES_DELETE)
   remove(@Body() dto: DeleteFileDto, @Req() req: Request, @CurrentUser() user: AuthenticatedUser) {
@@ -286,6 +293,15 @@ export class FilesController {
   @Post('bulk')
   @RequirePermissions(PERMISSIONS.FILES_BULK_ACTIONS)
   bulk(@Body() dto: BulkOperationDto, @Req() req: Request, @CurrentUser() user: AuthenticatedUser) {
+    // Same second authority as the single delete: `files.delete` must not carry
+    // the power to stop or destroy a torrent.
+    const held = new Set(user?.permissions ?? []);
+    if (dto.torrentAction === 'stop' && !held.has(PERMISSIONS.TORRENTS_DELETE)) {
+      throw new ForbiddenException('Stopping the source torrent requires torrents.delete');
+    }
+    if (dto.torrentAction === 'stop_and_delete' && !held.has(PERMISSIONS.TORRENTS_DELETE_DATA)) {
+      throw new ForbiddenException('Deleting the source payload requires torrents.delete_data');
+    }
     assertBulkOperationAllowed(dto.operation, user);
     return this.files.bulk(dto, opCtx(req, user));
   }

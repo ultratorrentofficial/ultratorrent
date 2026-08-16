@@ -342,6 +342,47 @@ export class FilesService {
     }
   }
 
+
+  /**
+   * The same preflight as {@link deletionPreview}, aggregated over a selection.
+   *
+   * A multi-select cannot ask the per-path question N times — the operator
+   * makes ONE decision — so the torrents are de-duplicated (a season pack backs
+   * many files) and the reclaimable figure is summed from what each path would
+   * genuinely free rather than from file sizes.
+   */
+  async bulkDeletionPreview(paths: string[], scope: PathScope = 'browse') {
+    const safety = scope === 'storage' ? this.storageSafety : this.safety;
+    const targets: string[] = [];
+    for (const p of paths ?? []) {
+      try {
+        targets.push(await safety.resolveExisting(p));
+      } catch {
+        // Unresolvable paths are the bulk operation's problem to report, not
+        // the preflight's; they simply contribute nothing here.
+      }
+    }
+    if (!targets.length) return { paths: 0, freesBytes: 0, sizeBytes: 0, torrents: [] };
+    try {
+      const { MediaLinkageService } = await import('../media/media-linkage.service');
+      const linkage = this.moduleRef.get(MediaLinkageService, { strict: false });
+      const [described, torrents, live] = await Promise.all([
+        linkage.describePaths(targets),
+        linkage.torrentsForPaths(targets),
+        linkage.liveHashes(),
+      ]);
+      return {
+        paths: targets.length,
+        sizeBytes: described.reduce((t, d) => t + d.sizeBytes, 0),
+        freesBytes: described.reduce((t, d) => t + d.freesBytes, 0),
+        torrents: torrents.map((t) => ({ ...t, live: live.has(t.torrentHash.toLowerCase()) })),
+      };
+    } catch (err) {
+      this.logger.warn(`Bulk deletion preview failed: ${(err as Error).message}`);
+      return { paths: targets.length, freesBytes: 0, sizeBytes: 0, torrents: [] };
+    }
+  }
+
   async remove(
     dto: DeleteFileDto,
     ctx: FileOpContext = {},
@@ -574,7 +615,9 @@ export class FilesService {
             break;
           case 'delete':
           case 'cleanup':
-            await this.remove({ path: p, permanent: dto.permanent }, ctx);
+            // The torrent decision is made ONCE for the whole selection and
+            // applied per path; `remove` no-ops on `keep`, the default.
+            await this.remove({ path: p, permanent: dto.permanent, torrentAction: dto.torrentAction }, ctx);
             break;
           default:
             throw new BadRequestException(`Unsupported bulk operation: ${dto.operation}`);
