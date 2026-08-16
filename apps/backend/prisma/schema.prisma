@@ -1561,10 +1561,13 @@ model MediaServerNewsletter {
   /// Local hour/minute the send is aimed at, in `timezone`.
   sendHour             Int       @default(9)
   sendMinute           Int       @default(0)
-  /// IANA zone the weekday and hour are interpreted in. The container runs UTC
-  /// while the hosts are AST, so an unqualified hour is four hours off from
-  /// what the operator meant.
-  timezone             String    @default("UTC")
+  /// IANA zone the weekday and hour are interpreted in.
+  ///
+  /// NULL means "no explicit choice" and resolves to the app-wide default
+  /// (`app.timezone`) — which is the operator's local zone, not the container's.
+  /// The container runs UTC while the hosts are AST, so defaulting to UTC here
+  /// silently scheduled a newsletter set to noon for 08:00 local.
+  timezone             String?
   lastSuccessfulSendAt DateTime?
   nextRunAt            DateTime?
   createdAt            DateTime  @default(now())

@@ -8,6 +8,7 @@ import { MediaServerNewsletterService } from './media-server-newsletter.service'
 function svc() {
   return new MediaServerNewsletterService(
     {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+    { get: jest.fn(async () => undefined) } as any,
   );
 }
 const since = (n: Record<string, unknown>) => (svc() as any).since(n) as Date;

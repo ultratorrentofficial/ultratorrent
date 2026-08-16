@@ -17,6 +17,7 @@ import {
 } from './newsletter-brand-logo';
 import { inlineCidImages } from './newsletter-inline-cid';
 import { nextRunAt } from './newsletter-schedule';
+import { SettingsService } from '../settings/settings.module';
 
 const ACCENT = '#f5a623';
 
@@ -68,6 +69,7 @@ export class MediaServerNewsletterService {
     private readonly registry: ModuleRegistryService,
     private readonly images: NewsletterImageService,
     private readonly config: ConfigService,
+    private readonly settings: SettingsService,
   ) {}
 
   list() {
@@ -96,7 +98,7 @@ export class MediaServerNewsletterService {
         sendWeekday: input.sendWeekday ?? null,
         sendHour: input.sendHour ?? 9,
         sendMinute: input.sendMinute ?? 0,
-        timezone: input.timezone ?? 'UTC',
+        timezone: input.timezone ?? null,
         /*
          * Scheduled from birth. Without this `nextRunAt` stayed NULL, and the
          * dispatcher selects on `nextRunAt <= now`, which NULL never satisfies
@@ -104,13 +106,13 @@ export class MediaServerNewsletterService {
          * one live host's weekly newsletters sat enabled and idle because of
          * it; the other host's only ran because someone pressed Send once.
          */
-        nextRunAt: nextRunAt({
+        nextRunAt: await this.nextRun({
           frequency: input.frequency ?? 'weekly',
           sendWeekday: input.sendWeekday ?? null,
           sendHour: input.sendHour ?? 9,
           sendMinute: input.sendMinute ?? 0,
-          timezone: input.timezone ?? 'UTC',
-        }, new Date()),
+          timezone: input.timezone ?? null,
+        }),
       },
     });
     await this.audit.record({ userId, action: 'media_server_analytics.newsletter.created', objectType: 'media_server_newsletter', objectId: row.id });
@@ -145,7 +147,7 @@ export class MediaServerNewsletterService {
         sendMinute?: number | null;
         timezone?: string | null;
       };
-      data.nextRunAt = nextRunAt(merged, new Date());
+      data.nextRunAt = await this.nextRun(merged);
     }
 
     const row = await this.prisma.mediaServerNewsletter.update({ where: { id }, data });
@@ -476,7 +478,7 @@ export class MediaServerNewsletterService {
       }
     }
 
-    await this.prisma.mediaServerNewsletter.update({ where: { id }, data: { lastSuccessfulSendAt: new Date(), nextRunAt: this.nextRun(n) } });
+    await this.prisma.mediaServerNewsletter.update({ where: { id }, data: { lastSuccessfulSendAt: new Date(), nextRunAt: await this.nextRun(n) } });
     this.realtime.broadcast(failed && !sent ? 'media_server.newsletter.failed' : 'media_server.newsletter.sent', { id, sent, failed });
     await this.audit.record({ userId, action: 'media_server_analytics.newsletter.sent', objectType: 'media_server_newsletter', objectId: id, metadata: { sent, failed } });
     return { sent, failed };
@@ -488,14 +490,40 @@ export class MediaServerNewsletterService {
    * Computed against the calendar rather than "now + 7 days", so a send that
    * runs late does not drag every future send later with it.
    */
-  private nextRun(n: {
+
+  /**
+   * The zone a newsletter is scheduled in when it names none.
+   *
+   * NOT the container's clock. The containers run UTC while the hosts are AST,
+   * so falling back to the process timezone scheduled a newsletter set to noon
+   * for 08:00 local — and the setting looked right. `app.timezone` holds the
+   * operator's own zone; UTC remains only as the last resort, since a schedule
+   * has to be interpreted in something.
+   */
+  private async defaultTimezone(): Promise<string> {
+    const stored = await this.settings.get<string>('app.timezone').catch(() => undefined);
+    for (const candidate of [stored, process.env.TZ]) {
+      if (!candidate) continue;
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: candidate });
+        return candidate;
+      } catch {
+        // An unusable zone must not stop a newsletter from being scheduled.
+      }
+    }
+    return 'UTC';
+  }
+
+  private async nextRun(n: {
     frequency: string;
     sendWeekday?: number | null;
     sendHour?: number | null;
     sendMinute?: number | null;
     timezone?: string | null;
-  }, from = new Date()): Date | null {
-    return nextRunAt(n, from);
+  }, from = new Date()): Promise<Date | null> {
+    // A row with no zone is scheduled in the operator's, not the container's.
+    const timezone = n.timezone ?? await this.defaultTimezone();
+    return nextRunAt({ ...n, timezone }, from);
   }
 
   private get enabled(): boolean {

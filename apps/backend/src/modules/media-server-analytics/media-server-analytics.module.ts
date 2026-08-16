@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { SettingsModule } from '../settings/settings.module';
 import { MediaModule } from '../media/media.module';
 import { SecretCipher } from '../../common/crypto/secret-cipher';
 import { MediaServerAnalyticsService } from './media-server-analytics.service';
@@ -19,7 +20,7 @@ import { NewsletterImageController } from './newsletter-image.controller';
  * and Tautulli analytics import.
  */
 @Module({
-  imports: [MediaModule],
+  imports: [MediaModule, SettingsModule],
   providers: [
     MediaServerAnalyticsService,
     MediaServerSessionService,
