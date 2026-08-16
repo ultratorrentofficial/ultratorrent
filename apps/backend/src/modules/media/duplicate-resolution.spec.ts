@@ -58,7 +58,7 @@ function build(over: any = {}) {
   const files: any = { remove: jest.fn(async () => undefined) };
   const audit: any = { record: jest.fn(async () => undefined) };
   const trash: any = { retentionDays: jest.fn(async () => 30), expiryOf: (d: Date, days: number) => (days > 0 ? new Date(d.getTime() + days * 86400000).toISOString() : null) };
-  const svc = new DuplicateResolutionService(prisma, filePath, files, trash, audit, { broadcast: jest.fn() } as any);
+  const svc = new DuplicateResolutionService(prisma, filePath, files, trash, audit, { broadcast: jest.fn() } as any, { get: jest.fn() } as never);
   return { svc, state, prisma, files, audit, filePath, trash };
 }
 
@@ -513,7 +513,7 @@ describe('bulk — a response carrying failures is never mistaken for a clean ru
     const files: any = { remove: jest.fn(async () => undefined) };
     const audit: any = { record: jest.fn(async () => undefined) };
     const trash: any = { retentionDays: jest.fn(async () => 30), expiryOf: (d: Date, days: number) => (days > 0 ? new Date(d.getTime() + days * 86400000).toISOString() : null) };
-    return { svc: new DuplicateResolutionService(prisma, filePath, files, trash, audit, { broadcast: jest.fn() } as any), state, files };
+    return { svc: new DuplicateResolutionService(prisma, filePath, files, trash, audit, { broadcast: jest.fn() } as any, { get: jest.fn() } as never), state, files };
   }
 
   /** Writes the real files, so the resolve path reaches the step under test. */
@@ -653,8 +653,7 @@ describe('trashedByCleanup — only what is genuinely recoverable', () => {
       { remove: jest.fn() } as any,
       trash,
       { record: jest.fn() } as any,
-      { broadcast: jest.fn() } as any,
-    );
+      { broadcast: jest.fn() } as any, { get: jest.fn() } as never);
     return { svc, prisma };
   }
 

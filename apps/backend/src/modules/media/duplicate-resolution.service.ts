@@ -126,9 +126,12 @@ export class DuplicateResolutionService {
     private readonly filePath: FilePathService,
     private readonly files: FilesService,
     private readonly trash: TrashService,
-    private readonly moduleRef: ModuleRef,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeGateway,
+    // Appended, not inserted: every existing positional call site keeps its
+    // meaning. Slotting it mid-list silently shifted `audit` into another
+    // parameter and only surfaced as "audit.record is not a function".
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /** One cleanup lifecycle event, scoped by the `media_manager.` name prefix. */

@@ -49,8 +49,7 @@ function build(root: string, items: Array<{ id: string; path: string; locked?: b
     {} as never,
     {} as never,
     audit as never,
-    { broadcast: jest.fn() } as never,
-  );
+    { broadcast: jest.fn() } as never, { get: jest.fn() } as never);
   return { svc, prisma, audit, updates };
 }
 
