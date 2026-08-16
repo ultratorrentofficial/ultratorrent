@@ -100,3 +100,72 @@ describe('IntakeStagesService.setAside', () => {
     expect(await readdir(dir)).toContain('seeding.mp4');
   });
 });
+
+/**
+ * A colliding SIDECAR must not drag the film with it.
+ *
+ * The family sweep exists so that moving a video aside takes its subtitles
+ * along — otherwise the old copy's subtitles silently re-attach to the new
+ * file. But it keyed on the stem, and the stem of `Movie - 1080p.srt` is
+ * `Movie - 1080p`, which `Movie - 1080p.mp4` also starts with. So every
+ * colliding subtitle renamed the film too.
+ *
+ * A YTS release ships `Subs/` named by language ("ara.srt", "fre.srt"), which
+ * the renamer cannot tag, so all 32 target one name and collide in turn. On a
+ * live library that walked one film to `[dup31]` with no canonical copy left —
+ * indistinguishable, from the outside, from "there is a duplicate somewhere".
+ * Seven films in that library carried a suffix with no twin beside them.
+ */
+describe('setAside and sidecars', () => {
+  let dir: string;
+  beforeEach(async () => { dir = await mkdtemp(path.join(tmpdir(), 'setaside-side-')); });
+  afterEach(async () => { await rm(dir, { recursive: true, force: true }); });
+
+  const seed = async () => {
+    await writeFile(path.join(dir, 'Film (2026) - 1080p.mp4'), 'FILM');
+    await writeFile(path.join(dir, 'Film (2026) - 1080p.srt'), 'SUB');
+  };
+
+  it('moves only the subtitle when a subtitle collides', async () => {
+    await seed();
+
+    const to = await setAside(svc(), path.join(dir, 'Film (2026) - 1080p.srt'));
+
+    expect(path.basename(to)).toBe('Film (2026) - 1080p [dup2].srt');
+    const after = await readdir(dir);
+    // The film keeps its name — this is the whole point.
+    expect(after).toContain('Film (2026) - 1080p.mp4');
+    expect(after).not.toContain('Film (2026) - 1080p [dup2].mp4');
+  });
+
+  it('does not walk the film to a higher suffix across repeated subtitle collisions', async () => {
+    await seed();
+    // Thirty language files landing on one name, as a YTS Subs/ folder does.
+    for (let i = 0; i < 30; i += 1) {
+      await setAside(svc(), path.join(dir, 'Film (2026) - 1080p.srt'));
+      await writeFile(path.join(dir, 'Film (2026) - 1080p.srt'), `SUB${i}`);
+    }
+
+    const after = await readdir(dir);
+    expect(after).toContain('Film (2026) - 1080p.mp4');
+    expect(after.filter((f) => /\.mp4$/.test(f))).toEqual(['Film (2026) - 1080p.mp4']);
+  });
+
+  it('still takes the subtitles along when the VIDEO is the one moved aside', async () => {
+    // The behaviour the sweep exists for, and which must survive the fix.
+    await seed();
+    await writeFile(path.join(dir, 'Film (2026) - 1080p.eng.srt'), 'ENG');
+    await writeFile(path.join(dir, 'Film (2026) - 1080p-thumb.jpg'), 'THUMB');
+
+    const to = await setAside(svc(), path.join(dir, 'Film (2026) - 1080p.mp4'));
+
+    expect(path.basename(to)).toBe('Film (2026) - 1080p [dup2].mp4');
+    const after = await readdir(dir);
+    expect(after.sort()).toEqual([
+      'Film (2026) - 1080p [dup2]-thumb.jpg',
+      'Film (2026) - 1080p [dup2].eng.srt',
+      'Film (2026) - 1080p [dup2].mp4',
+      'Film (2026) - 1080p [dup2].srt',
+    ].sort());
+  });
+});

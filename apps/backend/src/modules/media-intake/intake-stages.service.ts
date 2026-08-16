@@ -4,7 +4,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { selectStrategy, type StorageCapabilities } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { parseItemIdentity } from '../media/media-identification.service';
-import { kindFromParsed, type MediaKind } from '../media/media-renamer';
+import { kindFromParsed, VIDEO_EXT, type MediaKind } from '../media/media-renamer';
 import { MediaProbeService } from '../media/media-probe.service';
 import { MediaService } from '../media/media.service';
 import { ImportStrategyService } from './import-strategy.service';
@@ -337,14 +337,30 @@ export class IntakeStagesService implements OnModuleInit {
    * Sidecars move too. The renamer names subtitles after the video, so leaving
    * `Movie (2026).srt` behind would silently re-attach the OLD copy's subtitles
    * to the NEW file.
+   *
+   * **Only a VIDEO sweeps its family.** The stem of `Movie - 1080p.srt` is
+   * `Movie - 1080p`, which `Movie - 1080p.mp4` also starts with — so a
+   * colliding subtitle used to drag the video into its own rename. A release
+   * whose `Subs/` folder is named by language ("ara.srt", "fre.srt") collides
+   * once per file, and each collision moved the film again: one live folder
+   * ended up with the video at `[dup31]` and no canonical copy at all, which
+   * reads as "there is a duplicate of this film somewhere" when there is not.
+   * Seven films in one library carried a suffix with no twin beside them.
+   *
+   * A sidecar therefore moves alone. It has no family of its own — nothing is
+   * named after a subtitle — so there is nothing to take with it.
    */
   private async setAside(destination: string): Promise<string> {
     const dir = dirname(destination);
-    const stem = basename(destination).replace(/\.[^.]+$/, '');
+    const base = basename(destination);
+    const stem = base.replace(/\.[^.]+$/, '');
     const entries = await readdir(dir).catch(() => [] as string[]);
-    // Everything named after this video: the file itself plus `.srt`, `.eng.srt`,
-    // `-thumb.jpg` and friends.
-    const family = entries.filter((e) => e === basename(destination) || e.startsWith(`${stem}.`) || e.startsWith(`${stem}-`));
+    const ext = (destination.match(/\.[^.]+$/)?.[0] ?? '').toLowerCase();
+    const family = VIDEO_EXT.has(ext)
+      // Everything named after this video: the file itself plus `.srt`,
+      // `.eng.srt`, `-thumb.jpg` and friends.
+      ? entries.filter((e) => e === base || e.startsWith(`${stem}.`) || e.startsWith(`${stem}-`))
+      : entries.filter((e) => e === base);
 
     // Lowest N free for EVERY member, so one family keeps one suffix.
     let n = 2;
