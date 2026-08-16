@@ -45,6 +45,15 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.82.0] - 2026-08-16
+
+### Added
+- Intakes are archived when their torrent is gone, and a bulk delete asks about seeding once for the whole selection
+
+### Fixed
+- The newsletter form lets you pick the time zone, so an existing newsletter is not stuck on UTC
+- A newsletter with no chosen time zone is scheduled in the operator's local time, not the container's UTC
+
 ## [0.81.0] - 2026-08-16
 
 ### Added
