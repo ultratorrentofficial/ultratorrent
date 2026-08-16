@@ -167,3 +167,82 @@ describe('evaluateSeedScope', () => {
     expect(evaluateSeedScope(policy, {})).toBe('unknown');
   });
 });
+
+import { seedPolicyConflicts, seedConditionFieldsUsed } from './seed-conditions';
+
+/**
+ * The seeding panel can express the same fact twice — a `targetRatio` field and
+ * a `seed.ratio` condition — and the two do NOT mean the same thing. A target
+ * says "seed until"; a condition says "only these torrents". Written together
+ * they combine into a rule that fires only when BOTH hold, which is what
+ * neither of them reads like. So the pairing is refused rather than guessed at.
+ */
+const cond = (field: string) => ({ type: 'condition' as const, field, operator: 'gte', value: 2 });
+
+describe('seedPolicyConflicts', () => {
+  it('flags a ratio stated as both a target and a condition', () => {
+    const out = seedPolicyConflicts({
+      targetRatio: 2,
+      conditions: { type: 'all', children: [cond('seed.ratio')] },
+    });
+    expect(out).toEqual([{ condition: 'seed.ratio', policyField: 'targetRatio' }]);
+  });
+
+  it('flags a minimum ratio too — it is the same fact', () => {
+    const out = seedPolicyConflicts({
+      minimumRatio: 1,
+      conditions: { type: 'all', children: [cond('seed.ratio')] },
+    });
+    expect(out).toEqual([{ condition: 'seed.ratio', policyField: 'minimumRatio' }]);
+  });
+
+  it('flags an age deadline against an age condition', () => {
+    const out = seedPolicyConflicts({
+      maxAgeDays: 30,
+      conditions: { type: 'all', children: [cond('seed.ageDays')] },
+    });
+    expect(out).toEqual([{ condition: 'seed.ageDays', policyField: 'maxAgeDays' }]);
+  });
+
+  it('allows the two halves to describe different facts', () => {
+    // The case the feature exists for: seed to ratio 2, but only private TV.
+    expect(seedPolicyConflicts({
+      targetRatio: 2,
+      conditions: { type: 'all', children: [cond('seed.isPrivate'), cond('seed.sizeBytes')] },
+    })).toEqual([]);
+  });
+
+  it('does not flag a field the operator never set', () => {
+    expect(seedPolicyConflicts({
+      targetRatio: undefined,
+      maxAgeDays: null,
+      conditions: { type: 'all', children: [cond('seed.ratio'), cond('seed.ageDays')] },
+    })).toEqual([]);
+  });
+
+  it('finds a condition nested inside a group', () => {
+    const out = seedPolicyConflicts({
+      targetRatio: 2,
+      conditions: { type: 'all', children: [
+        { type: 'any', children: [cond('seed.isPrivate'), cond('seed.ratio')] },
+      ] },
+    });
+    expect(out).toEqual([{ condition: 'seed.ratio', policyField: 'targetRatio' }]);
+  });
+
+  it('reports every clash rather than the first', () => {
+    const out = seedPolicyConflicts({
+      targetRatio: 2, minimumRatio: 1, maxAgeDays: 30,
+      conditions: { type: 'all', children: [cond('seed.ratio'), cond('seed.ageDays')] },
+    });
+    expect(out).toHaveLength(3);
+  });
+
+  it('collects used fields from a nested document', () => {
+    expect([...seedConditionFieldsUsed({
+      type: 'all',
+      children: [cond('seed.ratio'), { type: 'any', children: [cond('seed.tracker')] }],
+    })].sort()).toEqual(['seed.ratio', 'seed.tracker']);
+    expect(seedConditionFieldsUsed(null).size).toBe(0);
+  });
+});

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { SchedulingPolicyScopeType } from './domain/policy';
+import { seedPolicyConflicts } from './domain/seed-conditions';
 
 const SCOPE_TYPES: SchedulingPolicyScopeType[] = [
   'global', 'engine', 'library', 'category', 'rss_rule', 'torrent',
@@ -107,6 +108,26 @@ export class SchedulerPolicyService {
         `Post-target action "${afterTarget}" is not available. Available: ${AFTER_TARGET.join(', ')}.`,
       );
     }
+    /*
+     * One fact, one place.
+     *
+     * A target says "seed until", a condition says "only these torrents", and
+     * writing the same fact in both produces a rule that fires only when BOTH
+     * hold — which is what neither of them reads like. Refused rather than
+     * guessed at, and named precisely so the operator knows which two to
+     * reconcile.
+     */
+    const clashes = seedPolicyConflicts(input as Record<string, unknown> & { conditions?: never });
+    if (clashes.length) {
+      const detail = clashes
+        .map((c) => `"${c.condition}" and the ${c.policyField} field`)
+        .join('; ');
+      throw new BadRequestException(
+        `A seeding rule may state a fact once: ${detail}. Remove one of them — `
+          + 'the target decides when seeding is finished, the condition decides which torrents the policy covers.',
+      );
+    }
+
     if (mode === 'ratio') {
       const r = input.targetRatio;
       if (typeof r !== 'number' || !(r > 0)) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 
 /**
  * Mirrors `DEFAULT_MAX_AGE_DAYS` in the scheduler domain. Duplicated rather than
@@ -185,6 +185,29 @@ function PolicyDialog({
     queryFn: api.torrentScheduler.seedConditions,
     staleTime: 5 * 60_000,
   });
+
+  /*
+   * One fact, one place.
+   *
+   * A target says "seed until"; a condition says "only these torrents". Stating
+   * the same fact in both produces a rule that fires only when BOTH hold, which
+   * is what neither reads like — so the server refuses the pairing. Withdrawing
+   * the condition from the picker while its field is in use turns that refusal
+   * into something the operator never runs into: the choice simply is not
+   * offered, and a line underneath says why.
+   */
+  const seedFieldsInUse = useMemo(() => {
+    const taken = new Set<string>();
+    if (seedMode === 'ratio' && Number(targetRatio) > 0) taken.add('seed.ratio');
+    if (ageLimitOn && Number(maxAgeDays) > 0) taken.add('seed.ageDays');
+    return taken;
+  }, [seedMode, targetRatio, ageLimitOn, maxAgeDays]);
+
+  const catalogEntries = seedCatalog.data ?? [];
+  const availableSeedConditions = catalogEntries.filter((c) => !seedFieldsInUse.has(c.id));
+  const hiddenSeedConditions = catalogEntries
+    .filter((c) => seedFieldsInUse.has(c.id))
+    .map((c) => t(c.labelKey as never));
   const [downKbps, setDownKbps] = useState('');
   const [upKbps, setUpKbps] = useState('');
 
@@ -537,9 +560,16 @@ function PolicyDialog({
                   <ConditionBuilder
                     namespace="torrents"
                     node={seedConditions}
-                    catalog={seedCatalog.data ?? []}
+                    catalog={availableSeedConditions}
                     onChange={setSeedConditions}
                   />
+                  {hiddenSeedConditions.length > 0 && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      {t('scheduler.policies.seeding.conditionsTaken', {
+                        fields: hiddenSeedConditions.join(', '),
+                      })}
+                    </p>
+                  )}
                 </div>
               </div>
             </>

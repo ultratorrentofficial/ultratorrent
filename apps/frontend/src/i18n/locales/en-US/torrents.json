@@ -387,7 +387,8 @@
         "maxAgeDays": "Days to wait",
         "ageLimitWarning": "Counted from when the download finished. Files already in a library are never deleted — only the intake copy.",
         "conditionsTitle": "Apply to which torrents",
-        "conditionsHint": "Leave empty to apply to every torrent in scope. Add conditions to narrow it — a torrent must match before any seeding rule above acts on it."
+        "conditionsHint": "Leave empty to apply to every torrent in scope. Add conditions to narrow it — a torrent must match before any seeding rule above acts on it.",
+        "conditionsTaken": "Not available here because the rules above already set it: {{fields}}."
       },
       "bandwidth": {
         "title": "Bandwidth",

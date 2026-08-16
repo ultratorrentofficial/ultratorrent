@@ -387,7 +387,8 @@
         "maxAgeDays": "Días de espera",
         "ageLimitWarning": "Se cuenta desde que terminó la descarga. Los archivos que ya están en una biblioteca nunca se borran; solo la copia de entrada.",
         "conditionsTitle": "Aplicar a cuáles torrents",
-        "conditionsHint": "Déjalo vacío para aplicar a todos los torrents del alcance. Agrega condiciones para restringirlo: un torrent debe coincidir antes de que cualquier regla de siembra actúe sobre él."
+        "conditionsHint": "Déjalo vacío para aplicar a todos los torrents del alcance. Agrega condiciones para restringirlo: un torrent debe coincidir antes de que cualquier regla de siembra actúe sobre él.",
+        "conditionsTaken": "No disponible aquí porque las reglas de arriba ya lo definen: {{fields}}."
       },
       "bandwidth": {
         "title": "Ancho de banda",
