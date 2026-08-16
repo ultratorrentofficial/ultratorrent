@@ -236,7 +236,8 @@ export class MediaServerNewsletterService {
       };
     });
 
-    const content = buildContent(items, since, until);
+    // The conjunction in "E02, E04 and E09" is localized like every other label.
+    const content = buildContent(items, since, until, newsletterStrings('en-US').and);
     // Resolve each show's poster from the whole library by its (normalized)
     // title — the newest episodes are often artwork-less, but the show's real
     // item carries the poster.

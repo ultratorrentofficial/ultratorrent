@@ -126,6 +126,7 @@ export interface NewsletterStrings {
   preferencesNote: string;
   tagline: string;
   poweredBy: string; // "Powered by" — precedes the product name + version
+  and: string; // joins the last of a list: "E02, E04 and E09"
 }
 
 export interface RenderStyle {
@@ -195,7 +196,7 @@ function truncate(s: string, n: number): string {
 }
 
 // --- content assembly (pure, testable) -----------------------------------
-export function groupShows(items: NewsletterItem[]): NewsletterShow[] {
+export function groupShows(items: NewsletterItem[], and = 'and'): NewsletterShow[] {
   const byTitle = new Map<string, NewsletterItem[]>();
   for (const it of items) {
     if (!byTitle.has(it.title)) byTitle.set(it.title, []);
@@ -217,7 +218,7 @@ export function groupShows(items: NewsletterItem[]): NewsletterShow[] {
       episodeCount: eps.length,
       seasonCount: seasons.length,
       seasonRange: seasons.length <= 1 ? `S${pad2(seasons[0] ?? 1)}` : `S${pad2(seasons[0])}–S${pad2(seasons[seasons.length - 1])}`,
-      episodeRange: episodes.length ? `E${pad2(Math.min(...episodes))}–E${pad2(Math.max(...episodes))}` : '',
+      episodeRange: formatEpisodeList(episodes, and),
       posterItemId: (eps.find((e) => e.posterCid) ?? eps[0])?.id,
     });
   }
@@ -229,13 +230,13 @@ export function groupShows(items: NewsletterItem[]): NewsletterShow[] {
  * into Show cards ("N Shows / M Episodes"); everything else lists as a poster
  * grid ("N Movies" / "N Items"). Section order follows `NEWSLETTER_GROUPS`.
  */
-export function buildContent(items: NewsletterItem[], since: Date, until: Date): NewsletterContent {
+export function buildContent(items: NewsletterItem[], since: Date, until: Date, and = 'and'): NewsletterContent {
   const sections: NewsletterSection[] = [];
   for (const group of NEWSLETTER_GROUPS) {
     const groupItems = items.filter((i) => (group.types as readonly string[]).includes(i.mediaType));
     if (groupItems.length === 0) continue;
     if (group.layout === 'shows') {
-      const shows = groupShows(groupItems);
+      const shows = groupShows(groupItems, and);
       sections.push({
         key: group.key,
         titleKey: group.titleKey,
@@ -271,8 +272,46 @@ export function renderRating(rating: number | null | undefined, accent: string):
   return `<span style="white-space:nowrap">${stars} <span style="color:${C.muted};font:600 11px system-ui,-apple-system,sans-serif">${rating.toFixed(1)}</span></span>`;
 }
 
+/**
+ * `nowrap` keeps a short badge like `S04 · E02–E06` or `45m` from breaking
+ * mid-value, which is the whole point of a pill. A long one — the genre list —
+ * must be allowed to wrap: as a single unbreakable box it sets a min-content
+ * width for the whole card and squeezes the poster cell beside it.
+ */
+const BADGE_NOWRAP_MAX = 24;
+
+/**
+ * How a show's episodes are labelled on its card.
+ *
+ * A range is only honest when the episodes actually form one. The label was
+ * always `E{min}–E{max}`, so a single new episode read `E05–E05` — a range of
+ * one — and three scattered episodes read `E02–E09`, implying eight that were
+ * never added.
+ *
+ * - one episode        → `E05`
+ * - an unbroken run    → `E02–E06`
+ * - anything else      → `E02, E04 and E09`
+ *
+ * `and` is localized; the separator stays a comma in both locales.
+ */
+export function formatEpisodeList(episodes: readonly number[], and = 'and'): string {
+  const uniq = [...new Set(episodes)].sort((a, b) => a - b);
+  if (!uniq.length) return '';
+  if (uniq.length === 1) return `E${pad2(uniq[0])}`;
+
+  const first = uniq[0];
+  const last = uniq[uniq.length - 1];
+  // Contiguous exactly when the span equals the count — no gaps to hide.
+  if (last - first === uniq.length - 1) return `E${pad2(first)}–E${pad2(last)}`;
+
+  const labels = uniq.map((e) => `E${pad2(e)}`);
+  const tail = labels.pop()!;
+  return `${labels.join(', ')} ${and} ${tail}`;
+}
+
 function badge(text: string): string {
-  return `<span style="display:inline-block;background:${C.badgeBg};color:${C.badgeText};font:600 11px system-ui,-apple-system,sans-serif;padding:2px 8px;border-radius:6px;margin:0 4px 4px 0;white-space:nowrap">${escapeHtml(text)}</span>`;
+  const wrap = text.length > BADGE_NOWRAP_MAX ? 'normal' : 'nowrap';
+  return `<span style="display:inline-block;background:${C.badgeBg};color:${C.badgeText};font:600 11px system-ui,-apple-system,sans-serif;padding:2px 8px;border-radius:6px;margin:0 4px 4px 0;white-space:${wrap}">${escapeHtml(text)}</span>`;
 }
 
 export function renderBadges(badges: string[]): string {
@@ -287,8 +326,21 @@ function poster(src: { url?: string | null; cid?: string | null }, initial: stri
   // phone: the cell gets `text-align:center`, which a `display:block` image of
   // fixed width ignores. Inside a cell of its own width — every other use — the
   // auto margins compute to zero and nothing moves.
+  /*
+   * `min-width`, NOT `max-width:100%`.
+   *
+   * These thumbnails sit in a fixed-width cell beside an auto-width text cell.
+   * With `max-width:100%` the image contributes NO minimum width to the table,
+   * so when the text cell's min-content is wide — a genres pill reading
+   * "Animation · Action & Adventure · Sci-Fi & Fantasy" is one unbreakable box
+   * — the browser takes the space from the poster cell instead. It collapsed to
+   * a few pixels and the poster rendered as a dot, which reads as a card with
+   * no artwork at all. Three of 23 shows lost their poster that way.
+   *
+   * A fixed 84px thumbnail never needs an upper bound; it needs a floor.
+   */
   if (imgSrc) {
-    return `<img src="${imgSrc}" width="${w}" alt="" style="display:block;width:${w}px;max-width:100%;height:auto;margin:0 auto;border-radius:8px;border:1px solid ${C.divider}" />`;
+    return `<img src="${imgSrc}" width="${w}" alt="" style="display:block;width:${w}px;min-width:${w}px;height:auto;margin:0 auto;border-radius:8px;border:1px solid ${C.divider}" />`;
   }
   return `<div style="width:${w}px;height:${h}px;margin:0 auto;border-radius:8px;background:${C.cardAlt};border:1px solid ${C.divider};text-align:center;line-height:${h}px;color:${accent};font:700 ${Math.round(w / 3)}px system-ui,-apple-system,sans-serif">${escapeHtml(initial.toUpperCase())}</div>`;
 }

@@ -5,6 +5,7 @@ import {
   renderText,
   renderRating,
   renderBadges,
+  formatEpisodeList,
   escapeHtml,
   sampleContent,
   type NewsletterItem,
@@ -212,5 +213,77 @@ describe('the brand mark in the header', () => {
     const html = renderHtml(sampleContent(), { ...opts(), logoCid: null });
     expect(html).toContain('>UT<');
     expect(html).not.toContain('cid:nlbrandlogo');
+  });
+});
+
+/**
+ * Episode labels must describe what actually arrived.
+ *
+ * The label was always `E{min}–E{max}`, so one new episode read "E05–E05" — a
+ * range of one — and three scattered episodes read "E02–E09", implying eight
+ * that were never added.
+ */
+describe('formatEpisodeList', () => {
+  it('shows a single episode as itself, not a range of one', () => {
+    expect(formatEpisodeList([5])).toBe('E05');
+  });
+
+  it('shows an unbroken run as a range', () => {
+    expect(formatEpisodeList([2, 3, 4, 5, 6])).toBe('E02–E06');
+  });
+
+  it('lists the episodes when there are gaps, rather than implying the ones between', () => {
+    expect(formatEpisodeList([2, 4, 9])).toBe('E02, E04 and E09');
+    expect(formatEpisodeList([1, 3])).toBe('E01 and E03');
+  });
+
+  it('sorts and de-duplicates before deciding', () => {
+    // Order of arrival is the order rows came back, not episode order.
+    expect(formatEpisodeList([9, 2, 4, 2])).toBe('E02, E04 and E09');
+    expect(formatEpisodeList([3, 2, 4])).toBe('E02–E04');
+  });
+
+  it('localizes the conjunction', () => {
+    expect(formatEpisodeList([2, 4, 9], 'y')).toBe('E02, E04 y E09');
+  });
+
+  it('is empty when no episode number is known', () => {
+    expect(formatEpisodeList([])).toBe('');
+  });
+
+  it('pads to two digits and handles three-digit episodes', () => {
+    expect(formatEpisodeList([7])).toBe('E07');
+    expect(formatEpisodeList([100, 102])).toBe('E100 and E102');
+  });
+});
+
+/**
+ * The poster cell must not be squeezed out.
+ *
+ * The thumbnail sits in a fixed cell beside an auto-width text cell. With
+ * `max-width:100%` it contributed no minimum width, so a wide unbreakable
+ * genres pill took the space and the poster collapsed to a few pixels — which
+ * reads as a card with no artwork. Three of 23 shows lost their poster.
+ */
+describe('poster sizing', () => {
+  it('gives the thumbnail a floor, not a ceiling', () => {
+    const content = buildContent(episodes, since, until);
+    // The sizing only applies to the image branch, so the card needs a poster.
+    content.sections[0].shows[0].posterCid = 'nlposter-0';
+
+    const html = renderHtml(content, opts());
+
+    expect(html).toContain('min-width:84px');
+    expect(html).not.toMatch(/width:84px;max-width:100%/);
+  });
+
+  it('lets a long badge wrap so it cannot squeeze the poster', () => {
+    const long = renderBadges(['Animation · Action & Adventure · Sci-Fi & Fantasy']);
+    expect(long).toContain('white-space:normal');
+  });
+
+  it('keeps a short badge on one line', () => {
+    expect(renderBadges(['S04 · E02–E06'])).toContain('white-space:nowrap');
+    expect(renderBadges(['45m'])).toContain('white-space:nowrap');
   });
 });
