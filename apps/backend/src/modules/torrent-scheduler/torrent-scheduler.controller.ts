@@ -23,6 +23,7 @@ import { SchedulerActivationService } from './scheduler-activation.service';
 import { SchedulerPolicyService, type PolicyInput } from './scheduler-policy.service';
 import { SchedulerOverrideService, type OverrideInput } from './scheduler-override.service';
 import type { SchedulerMode } from './scheduler-sweep.service';
+import { SEED_CONDITIONS } from './domain/seed-conditions';
 
 /**
  * The scheduler's read surface, the mode switch, and the guarded activation flow.
@@ -79,6 +80,20 @@ export class TorrentSchedulerController {
   }
 
   // --- policies ----------------------------------------------------------
+  /**
+   * The conditions a seeding policy can be written against.
+   *
+   * Served rather than duplicated in the client: an operator picking a field
+   * that the evaluator does not know produces a policy that saves, validates
+   * and then matches nothing — silently, because "unknown field" and "nothing
+   * matched" look identical from outside.
+   */
+  @Get('seed-conditions')
+  @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_VIEW)
+  seedConditions() {
+    return SEED_CONDITIONS;
+  }
+
   @Get('policies')
   @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_VIEW)
   listPolicies() {

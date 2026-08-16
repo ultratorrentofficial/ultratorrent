@@ -7,7 +7,8 @@ import {
 } from './classification';
 import { type TorrentPriorityDecision, orderByPriority } from './priority';
 import { type SchedulerLimitation, type TorrentQueueCapabilities, canDo } from './capabilities';
-import { evaluateSeedAgeDeadline, evaluateSeedTarget, type EffectivePolicy } from './policy';
+import { evaluateSeedAgeDeadline, evaluateSeedScope, evaluateSeedTarget, type EffectivePolicy } from './policy';
+import type { SeedFacts } from './seed-conditions';
 
 /**
  * The planner: decide what SHOULD be running. Pure, and side-effect free.
@@ -37,6 +38,22 @@ export interface PlannerTorrent {
 
   /** Share ratio, when the engine reports one. Never assumed. */
   ratio?: number;
+  /*
+   * Facts a seeding policy's CONDITIONS can be written against.
+   *
+   * All optional, and absent rather than defaulted when unknown: substituting a
+   * zero would turn "never measured" into a real value, and a rule reading
+   * `ratio < 1` would then match every torrent the engine had not reported on.
+   */
+  sizeBytes?: number;
+  uploadedBytes?: number;
+  tracker?: string;
+  category?: string;
+  label?: string;
+  isPrivate?: boolean;
+  name?: string;
+  /** Library the payload was imported into, when Media Intake recorded one. */
+  libraryId?: string;
   /**
    * Minutes spent seeding. Undefined on both shipped engines — nothing records
    * it — which is why a time-based target evaluates to `unknown` rather than
@@ -404,6 +421,38 @@ export function planEngine(
  * live in Media Intake, and a queue planner is the wrong place to acquire that
  * authority.
  */
+
+/**
+ * The facts a torrent presents to a policy's conditions.
+ *
+ * Deliberately lossy in one direction only: a field the planner does not have
+ * is left ABSENT rather than defaulted, so the matcher can answer `unknown`.
+ * Substituting a zero here would turn "we never measured the ratio" into "the
+ * ratio is 0", and a rule reading `ratio < 1` would then match every torrent
+ * the engine had not reported on.
+ */
+function seedFactsOf(t: PlannerTorrent): SeedFacts {
+  const ageDays = t.completedAt
+    ? (Date.now() - t.completedAt.getTime()) / 86_400_000
+    : undefined;
+  return {
+    ratio: t.ratio,
+    seedMinutes: t.seedMinutes,
+    ageDays,
+    sizeBytes: t.sizeBytes,
+    tracker: t.tracker,
+    category: t.category,
+    label: t.label,
+    isPrivate: t.isPrivate,
+    name: t.name,
+    libraryId: t.libraryId,
+    // The planner already carries both of these under its own names.
+    importCompleted: t.intakeImported,
+    libraryCopyVerified: t.libraryCopyVerified,
+    uploadedBytes: t.uploadedBytes,
+  };
+}
+
 function seedTargetDecision(
   t: PlannerTorrent,
   limitations: SchedulerLimitation[],
@@ -412,6 +461,20 @@ function seedTargetDecision(
 ): TorrentDecision | null {
   const policy = t.policy.seedPolicy;
   if (!policy) return null;
+
+  /*
+   * Does this policy even apply to this torrent?
+   *
+   * Checked FIRST, and before the deadline: a policy whose conditions do not
+   * match must not act at all, and the deadline is one of its actions. An
+   * `unknown` blocks just as `not_met` does — a rule that was never shown to
+   * cover this torrent must not be the thing that stops its seed.
+   *
+   * An absent document answers `met`, so a policy written before conditions
+   * existed behaves exactly as it did.
+   */
+  const scope = evaluateSeedScope(policy, seedFactsOf(t));
+  if (scope !== 'met') return null;
 
   const verdict = evaluateSeedTarget(policy, { ratio: t.ratio, seedMinutes: t.seedMinutes });
 

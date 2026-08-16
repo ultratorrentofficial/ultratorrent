@@ -1,0 +1,169 @@
+import {
+  evaluateSeedConditions,
+  seedConditionById,
+  SEED_CONDITIONS,
+  type SeedConditionNode,
+} from './seed-conditions';
+
+/**
+ * The seeding rules could say WHEN to act but never WHICH torrents to act on —
+ * that was scope alone, so "stop big public-tracker films at ratio 1 but keep
+ * small private TV to 5" could not be written at all.
+ *
+ * The discipline these pin down is that **unknown is not false**. A gap in what
+ * the engine reported must block the action, not quietly satisfy it: acting on
+ * a torrent the rule was never shown to cover is how a seed gets killed by a
+ * policy that did not mean it.
+ */
+const leaf = (field: string, operator: string, value: unknown): SeedConditionNode =>
+  ({ type: 'condition', field, operator, value });
+
+describe('evaluateSeedConditions', () => {
+  it('matches everything when no document is set', () => {
+    // The behaviour before conditions existed; adding the feature must not
+    // change what an existing policy does.
+    expect(evaluateSeedConditions(null, {})).toBe('met');
+    expect(evaluateSeedConditions(undefined, { ratio: 1 })).toBe('met');
+    expect(evaluateSeedConditions({ type: 'all', children: [] }, {})).toBe('met');
+  });
+
+  it('compares numbers with the ordering operators', () => {
+    expect(evaluateSeedConditions(leaf('seed.ratio', 'gte', 2), { ratio: 2 })).toBe('met');
+    expect(evaluateSeedConditions(leaf('seed.ratio', 'gte', 2), { ratio: 1.9 })).toBe('not_met');
+    expect(evaluateSeedConditions(leaf('seed.ageDays', 'gt', 30), { ageDays: 31 })).toBe('met');
+    expect(evaluateSeedConditions(leaf('seed.sizeBytes', 'lt', 1_000), { sizeBytes: 999 })).toBe('met');
+  });
+
+  it('answers unknown for a fact the engine did not report', () => {
+    // NOT not_met: we were never shown whether this torrent matches.
+    expect(evaluateSeedConditions(leaf('seed.ratio', 'gte', 2), {})).toBe('unknown');
+    expect(evaluateSeedConditions(leaf('seed.seedMinutes', 'gt', 60), {})).toBe('unknown');
+  });
+
+  it('treats a false child as decisive but an unknown one as undecided in ALL', () => {
+    const doc = (children: SeedConditionNode[]): SeedConditionNode => ({ type: 'all', children });
+
+    // One false settles it, even alongside an unmeasured sibling.
+    expect(evaluateSeedConditions(
+      doc([leaf('seed.ratio', 'gte', 2), leaf('seed.sizeBytes', 'gt', 10)]),
+      { ratio: 1 },
+    )).toBe('not_met');
+
+    // Nothing false, something unmeasured → undecided, so the action is blocked.
+    expect(evaluateSeedConditions(
+      doc([leaf('seed.ratio', 'gte', 2), leaf('seed.sizeBytes', 'gt', 10)]),
+      { ratio: 3 },
+    )).toBe('unknown');
+
+    expect(evaluateSeedConditions(
+      doc([leaf('seed.ratio', 'gte', 2), leaf('seed.sizeBytes', 'gt', 10)]),
+      { ratio: 3, sizeBytes: 20 },
+    )).toBe('met');
+  });
+
+  it('mirrors that logic in ANY', () => {
+    const doc = (children: SeedConditionNode[]): SeedConditionNode => ({ type: 'any', children });
+
+    // One true settles it regardless of an unmeasured sibling.
+    expect(evaluateSeedConditions(
+      doc([leaf('seed.ratio', 'gte', 2), leaf('seed.sizeBytes', 'gt', 10)]),
+      { ratio: 3 },
+    )).toBe('met');
+
+    // Nothing true, something unmeasured → undecided.
+    expect(evaluateSeedConditions(
+      doc([leaf('seed.ratio', 'gte', 2), leaf('seed.sizeBytes', 'gt', 10)]),
+      { ratio: 1 },
+    )).toBe('unknown');
+
+    expect(evaluateSeedConditions(
+      doc([leaf('seed.ratio', 'gte', 2), leaf('seed.sizeBytes', 'gt', 10)]),
+      { ratio: 1, sizeBytes: 5 },
+    )).toBe('not_met');
+  });
+
+  it('handles text and boolean facts', () => {
+    expect(evaluateSeedConditions(leaf('seed.tracker', 'contains', 'YTS'), { tracker: 'tracker.yts.mx' })).toBe('met');
+    expect(evaluateSeedConditions(leaf('seed.name', 'matches', '^S\\.W\\.A\\.T'), { name: 'S.W.A.T 2017 S08E20' })).toBe('met');
+    expect(evaluateSeedConditions(leaf('seed.isPrivate', 'eq', true), { isPrivate: false })).toBe('not_met');
+    expect(evaluateSeedConditions(leaf('seed.importCompleted', 'eq', true), { importCompleted: true })).toBe('met');
+  });
+
+  it('refuses an invalid regex rather than matching everything', () => {
+    expect(evaluateSeedConditions(leaf('seed.name', 'matches', '('), { name: 'anything' })).toBe('unknown');
+  });
+
+  it('refuses a field it does not know', () => {
+    // A policy naming a field that no longer exists must not start matching all.
+    expect(evaluateSeedConditions(leaf('seed.removedField', 'eq', 1), { ratio: 5 })).toBe('unknown');
+  });
+
+  it('nests groups', () => {
+    const doc: SeedConditionNode = {
+      type: 'all',
+      children: [
+        leaf('seed.importCompleted', 'eq', true),
+        { type: 'any', children: [leaf('seed.ratio', 'gte', 5), leaf('seed.ageDays', 'gte', 30)] },
+      ],
+    };
+    expect(evaluateSeedConditions(doc, { importCompleted: true, ratio: 1, ageDays: 45 })).toBe('met');
+    expect(evaluateSeedConditions(doc, { importCompleted: true, ratio: 1, ageDays: 2 })).toBe('not_met');
+    expect(evaluateSeedConditions(doc, { importCompleted: false, ratio: 9, ageDays: 99 })).toBe('not_met');
+  });
+});
+
+describe('the catalog', () => {
+  it('has unique ids and a fact for every entry', () => {
+    const ids = SEED_CONDITIONS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const c of SEED_CONDITIONS) {
+      expect(c.operators.length).toBeGreaterThan(0);
+      expect(seedConditionById(c.id)).toBe(c);
+    }
+  });
+
+  it('offers a library picker rather than a UUID box', () => {
+    // A mistyped id produces a policy that saves, validates and matches
+    // nothing — silently, because "no such library" and "nothing matched" are
+    // the same empty result.
+    expect(seedConditionById('seed.libraryId')?.valueSource).toBe('library');
+  });
+});
+
+/*
+ * The integration that matters: conditions gate the ACTION, including the age
+ * deadline. A policy whose conditions do not match must not stop, remove or
+ * clean up anything — the deadline is one of its actions, not a separate rule.
+ */
+import { evaluateSeedScope } from './policy';
+
+describe('evaluateSeedScope', () => {
+  const base = { mode: 'ratio' as const, afterTarget: 'stop' as const, targetRatio: 2 };
+
+  it('applies to everything when the policy names no conditions', () => {
+    expect(evaluateSeedScope(base, { ratio: 9 })).toBe('met');
+  });
+
+  it('excludes a torrent the conditions do not describe', () => {
+    const policy = {
+      ...base,
+      conditions: { type: 'all' as const, children: [
+        { type: 'condition' as const, field: 'seed.isPrivate', operator: 'eq', value: true },
+      ] },
+    };
+    expect(evaluateSeedScope(policy, { isPrivate: false })).toBe('not_met');
+    expect(evaluateSeedScope(policy, { isPrivate: true })).toBe('met');
+  });
+
+  it('blocks on an unmeasured fact rather than acting', () => {
+    const policy = {
+      ...base,
+      conditions: { type: 'all' as const, children: [
+        { type: 'condition' as const, field: 'seed.tracker', operator: 'contains', value: 'private' },
+      ] },
+    };
+    // The engine reported no tracker: this rule was never shown to cover the
+    // torrent, so it must not be what ends its seed.
+    expect(evaluateSeedScope(policy, {})).toBe('unknown');
+  });
+});

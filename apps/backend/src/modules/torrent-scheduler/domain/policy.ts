@@ -1,3 +1,10 @@
+import {
+  evaluateSeedConditions,
+  type SeedConditionNode,
+  type SeedConditionVerdict,
+  type SeedFacts,
+} from './seed-conditions';
+
 /**
  * Scheduling policy: what the operator wants, independent of any engine.
  *
@@ -105,6 +112,29 @@ export interface SeedingPolicy {
    * field is for.
    */
   maxAgeDays?: number;
+  /**
+   * Which torrents this policy's seeding rules apply to.
+   *
+   * Absent or empty means every torrent in scope, which is what a policy did
+   * before conditions existed — adding the feature must not change any
+   * existing one. See {@link evaluateSeedConditions}.
+   */
+  conditions?: SeedConditionNode | null;
+}
+
+/**
+ * Does this policy's condition document match, given what we know?
+ *
+ * Kept beside the target evaluation because they compose the same way: the
+ * post-target action runs only when the target is `met` AND the conditions are
+ * `met`. `unknown` on either side blocks it — a rule must not act on a torrent
+ * it was never shown to cover.
+ */
+export function evaluateSeedScope(
+  policy: SeedingPolicy,
+  facts: SeedFacts,
+): SeedConditionVerdict {
+  return evaluateSeedConditions(policy.conditions, facts);
 }
 
 /** Default deadline offered when an operator turns the age rule on. */
