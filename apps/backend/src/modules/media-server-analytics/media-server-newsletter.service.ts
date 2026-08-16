@@ -12,7 +12,9 @@ import { MediaServerEmailService, type EmailAttachment } from './media-server-em
 import { NewsletterImageService, type PosterArt } from './newsletter-image.service';
 import { buildContent, renderHtml, renderText, sampleContent, NEWSLETTER_GROUPS, type NewsletterContent, type NewsletterItem, type RenderOptions } from './newsletter-render';
 import { newsletterStrings } from './newsletter-strings';
-import { BRAND_LOGO_CID, BRAND_LOGO_CONTENT_TYPE, BRAND_LOGO_PNG_BASE64 } from './newsletter-brand-logo';
+import {
+  BRAND_LOGO_CID, BRAND_LOGO_CONTENT_TYPE, BRAND_LOGO_HEIGHT, BRAND_LOGO_PNG_BASE64, BRAND_LOGO_WIDTH,
+} from './newsletter-brand-logo';
 import { inlineCidImages } from './newsletter-inline-cid';
 
 const ACCENT = '#f5a623';
@@ -157,6 +159,8 @@ export class MediaServerNewsletterService {
       sourceUrl: SOURCE_URL,
       serverName: await this.serverName(),
       logoCid: BRAND_LOGO_CID,
+      logoWidth: BRAND_LOGO_WIDTH,
+      logoHeight: BRAND_LOGO_HEIGHT,
       dateRange: this.dateRange(since, until),
       brand: 'UltraTorrent',
       style: { accent: ACCENT },

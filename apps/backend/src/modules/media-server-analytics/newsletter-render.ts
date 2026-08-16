@@ -158,6 +158,9 @@ export interface RenderOptions {
    * attachment-less send.
    */
   logoCid?: string | null;
+  /** Display size of the logo; the attached image is twice this for retina. */
+  logoWidth?: number;
+  logoHeight?: number;
   dateRange?: string; // "2026-06-26 - 2026-07-03"
   brand?: string; // footer product name, default "UltraTorrent"
   instanceUrl?: string;
@@ -432,16 +435,20 @@ function movieList(movies: NewsletterItem[], opts: RenderOptions): string {
 }
 
 /**
- * The mark at the top of the header: the UltraTorrent logo when one was
- * attached, otherwise the lettered tile it replaced.
+ * The masthead: the full UltraTorrent logo when one was attached, otherwise the
+ * lettered tile it replaced.
  *
  * Sized in HTML (`width`/`height`) as well as CSS, because Outlook ignores the
- * style attribute on images and would otherwise render the 72px source at full
- * size. `border:0` suppresses the blue link border some clients add.
+ * style attribute on images and would otherwise render the 560px source at full
+ * size — blowing out a 600px email body. `max-width:100%` with `height:auto`
+ * lets it shrink on a narrow phone instead of forcing a horizontal scroll.
+ * `border:0` suppresses the blue link border some clients add.
  */
 function brandMark(opts: RenderOptions, accent: string): string {
   if (opts.logoCid) {
-    return `<img src="cid:${escapeHtml(opts.logoCid)}" width="36" height="36" alt="" style="display:block;width:36px;height:36px;margin:0 auto 12px;border:0;outline:none;text-decoration:none" />`;
+    const w = opts.logoWidth ?? 280;
+    const h = opts.logoHeight ?? 74;
+    return `<img src="cid:${escapeHtml(opts.logoCid)}" width="${w}" height="${h}" alt="${escapeHtml(opts.brand ?? 'UltraTorrent')}" style="display:block;width:${w}px;height:auto;max-width:100%;margin:0 auto 12px;border:0;outline:none;text-decoration:none" />`;
   }
   return `<div style="display:inline-block;width:36px;height:36px;line-height:36px;border-radius:9px;background:${accent};color:#151515;font:800 16px system-ui,-apple-system,sans-serif;margin-bottom:12px">UT</div>`;
 }

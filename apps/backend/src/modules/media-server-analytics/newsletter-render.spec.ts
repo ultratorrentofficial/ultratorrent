@@ -201,7 +201,10 @@ describe('the brand mark in the header', () => {
     const html = renderHtml(sampleContent(), { ...opts(), logoCid: 'nlbrandlogo' });
     expect(html).toContain('src="cid:nlbrandlogo"');
     // Sized in HTML attributes too — Outlook ignores style on images.
-    expect(html).toMatch(/<img src="cid:nlbrandlogo" width="36" height="36"/);
+    // Dimensions as HTML attributes, or Outlook renders the 560px source raw.
+    expect(html).toMatch(/<img src="cid:nlbrandlogo" width="280" height="74"/);
+    // Shrinks on a narrow phone rather than forcing a horizontal scroll.
+    expect(html).toContain('max-width:100%');
     expect(html).not.toContain('>UT<');
   });
 
