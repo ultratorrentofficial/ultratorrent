@@ -209,7 +209,9 @@
       "sendDay": "Enviar el",
       "sendTime": "A las",
       "sendTimeHint": "Hora local en {{zone}}",
-      "anyDay": "Sin día fijo (7 días después del último envío)"
+      "anyDay": "Sin día fijo (7 días después del último envío)",
+      "timezone": "Zona horaria",
+      "zoneLocal": "(este dispositivo)"
     },
     "recipients": {
       "addPlaceholder": "Escribe un correo y presiona Enter",

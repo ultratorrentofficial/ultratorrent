@@ -228,6 +228,16 @@ export function NewslettersPage() {
    * translation keys are typed literals — a helper taking `t` would have to
    * widen it to `(k: string) => string` and lose that checking.
    */
+  /*
+   * Zone choices. The edit form previously had none: it loaded whatever was
+   * stored (UTC for anything predating the schedule fields) and showed it as a
+   * hint, so "12:00" could not be moved off UTC through the UI at all — a live
+   * newsletter set to noon was sending at 08:00 local.
+   */
+  const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const zoneOpts = [...new Set([browserZone, 'UTC', 'America/Puerto_Rico', 'America/New_York'])]
+    .map((z) => ({ value: z, label: z === browserZone ? `${z} ${t('newsletter.add.zoneLocal')}` : z }));
+
   const weekdayOpts = [
     { value: '', label: t('newsletter.add.anyDay') },
     { value: '0', label: t('newsletter.weekday.sun') },
@@ -324,7 +334,8 @@ export function NewslettersPage() {
                     <div className="space-y-1"><Label htmlFor={`ed-brand-${n.id}`}>{t('newsletter.add.brandTitle')}</Label><Input id={`ed-brand-${n.id}`} value={editForm.brandTitle} placeholder={t('newsletter.add.brandTitlePlaceholder')} onChange={(e) => setEditForm((f) => ({ ...f, brandTitle: e.target.value }))} /><p className="text-xs text-muted-foreground">{t('newsletter.add.brandTitleHint')}</p></div>
                     <div className="space-y-1"><Label htmlFor={`ed-freq-${n.id}`}>{t('newsletter.add.frequency')}</Label><Select id={`ed-freq-${n.id}`} value={editForm.frequency} onChange={(e) => setEditForm((f) => ({ ...f, frequency: e.target.value }))} options={freqOptions} /></div>
                     <div className="space-y-1"><Label htmlFor={`ed-day-${n.id}`}>{t('newsletter.add.sendDay')}</Label><Select id={`ed-day-${n.id}`} value={editForm.sendWeekday} onChange={(e) => setEditForm((f) => ({ ...f, sendWeekday: e.target.value }))} options={weekdayOpts} /></div>
-                    <div className="space-y-1"><Label htmlFor={`ed-time-${n.id}`}>{t('newsletter.add.sendTime')}</Label><Input id={`ed-time-${n.id}`} type="time" value={editForm.sendTime} onChange={(e) => setEditForm((f) => ({ ...f, sendTime: e.target.value }))} /><p className="text-[11px] text-muted-foreground">{t('newsletter.add.sendTimeHint', { zone: editForm.timezone })}</p></div>
+                    <div className="space-y-1"><Label htmlFor={`ed-time-${n.id}`}>{t('newsletter.add.sendTime')}</Label><Input id={`ed-time-${n.id}`} type="time" value={editForm.sendTime} onChange={(e) => setEditForm((f) => ({ ...f, sendTime: e.target.value }))} /></div>
+                    <div className="space-y-1"><Label htmlFor={`ed-tz-${n.id}`}>{t('newsletter.add.timezone')}</Label><Select id={`ed-tz-${n.id}`} value={editForm.timezone} onChange={(e) => setEditForm((f) => ({ ...f, timezone: e.target.value }))} options={zoneOpts} /></div>
                     <div className="space-y-1 sm:col-span-3"><Label htmlFor={`ed-${n.id}-rec`}>{t('newsletter.add.recipients')}</Label><RecipientPicker idPrefix={`ed-${n.id}`} value={editForm.recipients} onChange={(next) => setEditForm((f) => ({ ...f, recipients: next }))} options={recipientOpts} onSetEmail={onSetEmail} /></div>
                     <div className="flex gap-2 sm:col-span-3">
                       <Button
@@ -399,7 +410,8 @@ export function NewslettersPage() {
                 {form.frequency !== 'manual' && (
                   <>
                     <div className="space-y-1.5"><Label htmlFor="n-day">{t('newsletter.add.sendDay')}</Label><Select id="n-day" value={form.sendWeekday} onChange={(e) => setForm((f) => ({ ...f, sendWeekday: e.target.value }))} options={weekdayOpts} /></div>
-                    <div className="space-y-1.5"><Label htmlFor="n-time">{t('newsletter.add.sendTime')}</Label><Input id="n-time" type="time" value={form.sendTime} onChange={(e) => setForm((f) => ({ ...f, sendTime: e.target.value }))} /><p className="text-[11px] text-muted-foreground">{t('newsletter.add.sendTimeHint', { zone: form.timezone })}</p></div>
+                    <div className="space-y-1.5"><Label htmlFor="n-time">{t('newsletter.add.sendTime')}</Label><Input id="n-time" type="time" value={form.sendTime} onChange={(e) => setForm((f) => ({ ...f, sendTime: e.target.value }))} /></div>
+                    <div className="space-y-1.5"><Label htmlFor="n-tz">{t('newsletter.add.timezone')}</Label><Select id="n-tz" value={form.timezone} onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))} options={zoneOpts} /></div>
                   </>
                 )}
                 <div className="space-y-1.5"><Label htmlFor="n-window">{t('newsletter.window.label')}</Label><Select id="n-window" value={form.dateRangeMode} onChange={(e) => setForm((f) => ({ ...f, dateRangeMode: e.target.value }))} options={windowOptions} /></div>

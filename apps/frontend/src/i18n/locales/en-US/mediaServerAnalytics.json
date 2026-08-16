@@ -209,7 +209,9 @@
       "sendDay": "Send on",
       "sendTime": "At",
       "sendTimeHint": "Local time in {{zone}}",
-      "anyDay": "No fixed day (7 days after the last send)"
+      "anyDay": "No fixed day (7 days after the last send)",
+      "timezone": "Time zone",
+      "zoneLocal": "(this device)"
     },
     "recipients": {
       "addPlaceholder": "Type an email and press Enter",
