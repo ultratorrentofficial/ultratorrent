@@ -207,6 +207,60 @@ const SHOW_LEVEL_AUDIO = /^(?:theme(?:[-_ ]?music)?|backdrop|background)\d*$/i;
 const SAMPLE_HINTS = /\bsample\b/i;
 export const LANG_TAG = /\.([a-z]{2,3})(\.(forced|sdh|cc))?$/i;
 
+/**
+ * Language names as releases actually write them, mapped to the 3-letter code
+ * the rest of the pipeline uses.
+ *
+ * A scene pack's `Subs/` folder is named by language and nothing else —
+ * `English.srt`, `ara.srt`, `fre.srt`, `2_English.srt` — with no video stem to
+ * hang a `.tag` off. {@link LANG_TAG} requires a dot before the code, so every
+ * one of those read as untagged, every one was named after the video with no
+ * tag, and 32 files targeted a single destination.
+ */
+const LANG_NAMES: Record<string, string> = {
+  arabic: 'ara', bulgarian: 'bul', chinese: 'chi', croatian: 'hrv', czech: 'cze',
+  danish: 'dan', dutch: 'dut', english: 'eng', filipino: 'fil', finnish: 'fin',
+  french: 'fre', german: 'ger', greek: 'gre', hebrew: 'heb', hindi: 'hin',
+  hungarian: 'hun', indonesian: 'ind', italian: 'ita', japanese: 'jpn',
+  korean: 'kor', malay: 'may', norwegian: 'nor', polish: 'pol', portuguese: 'por',
+  romanian: 'rum', russian: 'rus', spanish: 'spa', swedish: 'swe', thai: 'tha',
+  turkish: 'tur', ukrainian: 'ukr', vietnamese: 'vie',
+};
+
+/** Codes a bare stem may legitimately BE, so "abc.srt" is not read as a language. */
+const LANG_CODES = new Set([
+  ...Object.values(LANG_NAMES),
+  'ar', 'bg', 'cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'he', 'hi', 'hr',
+  'hu', 'id', 'it', 'ja', 'ko', 'ms', 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sv',
+  'th', 'tl', 'tr', 'uk', 'vi', 'zh', 'eng', 'spa', 'por', 'chi', 'sdh',
+]);
+
+/**
+ * The language tag for a subtitle, from a dotted suffix OR a bare name.
+ *
+ * Two shapes, in order of confidence:
+ *
+ * 1. `Movie - 1080p.eng.srt` — the tag is a suffix on the video's stem. This is
+ *    what the pipeline itself writes, and it stays authoritative.
+ * 2. `English.srt`, `ara.srt`, `2_English.srt` — the whole name IS the language,
+ *    which is how a release's `Subs/` folder is written. A leading index and
+ *    any punctuation are stripped before matching.
+ *
+ * Returns null for anything else, and that matters: an untagged subtitle is
+ * KEPT by the cleanup rules, so guessing here would put a file the operator
+ * never classified in front of a language keep-list.
+ */
+export function subtitleLangTag(stemNoExt: string): string | null {
+  const dotted = LANG_TAG.exec(stemNoExt);
+  if (dotted) return dotted[1].toLowerCase();
+
+  // "2_English" → "english"; "SDH.eng.HI" is already handled by the dotted form.
+  const word = stemNoExt.toLowerCase().replace(/^\d+[\s._-]*/, '').replace(/[^a-z]/g, '');
+  if (!word) return null;
+  if (LANG_NAMES[word]) return LANG_NAMES[word];
+  return LANG_CODES.has(word) ? word : null;
+}
+
 // --- preset templates ----------------------------------------------------
 
 export interface PresetTemplates {
@@ -866,8 +920,13 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
     const ext = path.extname(f.path).toLowerCase();
     if (!SUBTITLE_EXT.has(ext)) continue;
     const subBase = path.basename(f.path, ext).toLowerCase();
-    const langMatch = LANG_TAG.exec(path.basename(f.path, ext));
-    const lang = langMatch ? `.${langMatch[1].toLowerCase()}` : '';
+    /*
+     * A bare `ara.srt` counts as Arabic here. Without it every file in a
+     * release's language-named `Subs/` folder produced the SAME destination,
+     * and the collisions cascaded — see `subtitleLangTag`.
+     */
+    const langCode = subtitleLangTag(path.basename(f.path, ext));
+    const lang = langCode ? `.${langCode}` : '';
 
     // EPISODE IDENTITY FIRST. Shared filename characters are not identity: a library
     // holding both organised and raw-release names scores a DIFFERENT episode higher
