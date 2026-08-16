@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.80.0] - 2026-08-16
+
+### Added
+- Deleting library files can now stop or delete the source torrent, and newsletters have a real weekday and time
+
 ## [0.79.6] - 2026-08-16
 
 ### Fixed
