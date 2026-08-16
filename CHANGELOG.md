@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.79.5] - 2026-08-16
+
+### Fixed
+- The newsletter header uses the full UltraTorrent logo instead of a lettered tile
+
 ## [0.79.4] - 2026-08-16
 
 ### Fixed
