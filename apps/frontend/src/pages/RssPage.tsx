@@ -58,6 +58,7 @@ import {
   useShowStatusLookup,
 } from '@/components/rss/ShowStatusPanel';
 import { rulesForFeed } from './rssGrouping';
+import { stagingSuggestionFor } from './rss/staging-path';
 
 function minutes(seconds: number): string {
   const m = Math.round(seconds / 60);
@@ -789,9 +790,29 @@ function RuleDialog({
   const [ruleImportMode, setRuleImportMode] = useState<RuleImportMode>(
     (rule?.importMode as RuleImportMode | undefined) ?? 'managed_intake',
   );
+  /*
+   * Same query key as the import-mode field, so this is the cached response
+   * rather than a second request.
+   */
+  const intakeProfiles = useQuery({ queryKey: ['intake', 'profiles'], queryFn: () => api.intake.profiles() });
+  const mediaLibraries = useQuery({ queryKey: ['media', 'libraries'], queryFn: api.media.libraries });
   const [storageProfileId, setStorageProfileId] = useState<string | null>(
     rule?.storageProfileId ?? null,
   );
+
+  /*
+   * The staging path this rule should use, when it is set to managed intake and
+   * still points into a library. Null whenever nothing needs changing.
+   */
+  const selectedProfile = (intakeProfiles.data ?? []).find((x) => x.id === storageProfileId)
+    ?? (intakeProfiles.data ?? []).find((x) => x.isDefault)
+    ?? (intakeProfiles.data ?? [])[0];
+  const stagingSuggestion = stagingSuggestionFor({
+    importMode: ruleImportMode,
+    savePath,
+    stagingRoot: selectedProfile?.stagingRoot,
+    libraryPaths: (mediaLibraries.data ?? []).map((l) => l.path).filter(Boolean),
+  });
   const [mediaType, setMediaType] = useState(rule?.mediaType ?? '');
   const [saving, setSaving] = useState(false);
   const [confirmInactive, setConfirmInactive] = useState(false);
@@ -918,6 +939,23 @@ function RuleDialog({
             aria-label={t('ruleDialog.savePathAria')}
             pickerTitle={t('ruleDialog.savePathPicker')}
           />
+          {/*
+            * Offered before saving, not explained after failing. A managed rule
+            * may not download into a library — intake would import it back into
+            * itself — and the save path arrives holding the library folder,
+            * because that is what every rule had before intake existed.
+            */}
+          {stagingSuggestion && (
+            <div className="mt-1.5 rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2">
+              <p className="text-xs text-muted-foreground">{t('ruleDialog.stagingNeeded')}</p>
+              <div className="mt-1.5 flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate font-mono text-[11px]">{stagingSuggestion}</code>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setSavePath(stagingSuggestion)}>
+                  {t('ruleDialog.stagingUse')}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex items-center justify-between">
           <Label htmlFor="rule-auto">{t('ruleDialog.autoDownload')}</Label>

@@ -1098,6 +1098,57 @@ export class RssService {
   }
 
   /** Manually grab a single feed-history item from the history browser. */
+  /**
+   * Forget that a release was downloaded, so the feed can grab it again.
+   *
+   * Two independent gates keep a release from being taken twice, and clearing
+   * one alone looks like it worked and changes nothing:
+   *
+   *  - `rssHistory.downloaded` keyed by INFO-HASH, which stops the same content
+   *    reappearing under a rotated guid or on a second feed;
+   *  - the per-title `rssAcquisition` hold, which says this rule already owns
+   *    this title at a given preference and skips anything no better.
+   *
+   * A file deleted by mistake trips both. So both are cleared, and the caller
+   * is told what was released rather than being left to infer it.
+   *
+   * The torrent itself is not touched: if it is still in the client, removing it
+   * is a separate decision with its own consequences for the library copy.
+   */
+  async resetHistoryItem(historyId: string, ctx: { userId?: string } = {}) {
+    const item = await this.prisma.rssHistory.findUnique({ where: { id: historyId } });
+    if (!item) throw new NotFoundException('RSS history item not found');
+
+    await this.prisma.rssHistory.update({
+      where: { id: item.id },
+      data: { downloaded: false },
+    });
+
+    /*
+     * The acquisition hold is matched by the torrent hash the grab produced,
+     * which IS the info-hash — an exact link back to this release rather than a
+     * title comparison that could release a different one.
+     */
+    let holdsCleared = 0;
+    if (item.infoHash) {
+      const { count } = await this.prisma.rssAcquisition.deleteMany({
+        where: { torrentHash: item.infoHash },
+      });
+      holdsCleared = count;
+    }
+
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'rss.history.reset',
+      objectType: 'rss_history',
+      objectId: item.id,
+      result: 'success',
+      metadata: { title: item.title, infoHash: item.infoHash, holdsCleared },
+    });
+
+    return { id: item.id, downloaded: false, holdsCleared };
+  }
+
   async downloadHistoryItem(historyId: string, savePath?: string) {
     const item = await this.prisma.rssHistory.findUnique({ where: { id: historyId } });
     if (!item) throw new NotFoundException('RSS history item not found');
@@ -2109,6 +2160,18 @@ export class RssController {
   @RequirePermissions(PERMISSIONS.RSS_MANAGE)
   backfill(@Param('id') id: string) {
     return this.rss.backfillHistory(id);
+  }
+
+  /**
+   * Clear a release's downloaded status so the feed may take it again.
+   *
+   * `RSS_MANAGE`, like the manual download beside it: both change what the
+   * feed will do next, and neither removes anything from disk.
+   */
+  @Post('history/:id/reset')
+  @RequirePermissions(PERMISSIONS.RSS_MANAGE)
+  resetHistoryItem(@Param('id') id: string, @Req() req: Request) {
+    return this.rss.resetHistoryItem(id, this.ctx(req));
   }
 
   @Post('history/:id/download')

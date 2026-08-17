@@ -128,7 +128,9 @@
       "added": "Rule added",
       "updateFailed": "Could not update rule",
       "addFailed": "Could not add rule"
-    }
+    },
+    "stagingNeeded": "Managed intake cannot download into a library — it would import the library back into itself. Stage it here instead:",
+    "stagingUse": "Use this"
   },
   "rule": {
     "back": "Back to RSS",
@@ -235,8 +237,13 @@
       "downloadedSuffix": ", {{count}} downloaded",
       "fetchFailed": "Could not fetch feed",
       "downloadStarted": "Download started",
-      "downloadFailed": "Download failed"
-    }
+      "downloadFailed": "Download failed",
+      "cleared": "Status cleared — the feed can take this release again.",
+      "cleared_other": "Status cleared, and {{count}} title holds released — the feed can take this release again.",
+      "clearFailed": "Could not clear the status"
+    },
+    "clearStatus": "Clear status",
+    "clearStatusHint": "Forget that this release was downloaded, so the feed can take it again."
   },
   "quickRule": {
     "title": "Create rule from this release",

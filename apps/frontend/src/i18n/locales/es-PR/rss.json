@@ -128,7 +128,9 @@
       "added": "Regla agregada",
       "updateFailed": "No se pudo actualizar la regla",
       "addFailed": "No se pudo agregar la regla"
-    }
+    },
+    "stagingNeeded": "La importación gestionada no puede descargar dentro de una biblioteca: importaría la biblioteca sobre sí misma. Usa esta ruta de preparación:",
+    "stagingUse": "Usar esta"
   },
   "rule": {
     "back": "Volver a RSS",
@@ -235,8 +237,13 @@
       "downloadedSuffix": ", {{count}} descargados",
       "fetchFailed": "No se pudo consultar la fuente",
       "downloadStarted": "Descarga iniciada",
-      "downloadFailed": "Falló la descarga"
-    }
+      "downloadFailed": "Falló la descarga",
+      "cleared": "Estado limpiado: el feed puede tomar este lanzamiento otra vez.",
+      "cleared_other": "Estado limpiado y {{count}} reservas de título liberadas: el feed puede tomarlo otra vez.",
+      "clearFailed": "No se pudo limpiar el estado"
+    },
+    "clearStatus": "Limpiar estado",
+    "clearStatusHint": "Olvida que este lanzamiento se descargó, para que el feed pueda tomarlo otra vez."
   },
   "quickRule": {
     "title": "Crear regla a partir de este lanzamiento",

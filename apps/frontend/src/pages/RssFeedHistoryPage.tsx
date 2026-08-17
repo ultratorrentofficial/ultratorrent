@@ -13,6 +13,7 @@ import {
   Sparkles,
   Wand2,
   X,
+  RotateCcw,
 } from 'lucide-react';
 import {
   ApiError,
@@ -70,6 +71,7 @@ export function RssFeedHistoryPage() {
   const [pageSize, setPageSize] = useState(25);
   const [refreshing, setRefreshing] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
   const [downloadFor, setDownloadFor] = useState<RssHistoryItem | null>(null);
   // Remembered across grabs this session so the picker pre-fills the last choice.
   const [savePath, setSavePath] = useState('');
@@ -111,6 +113,26 @@ export function RssFeedHistoryPage() {
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
+  /**
+   * Forget that a release was taken, so the feed may take it again.
+   *
+   * Clears the per-title acquisition hold as well as the history flag; the
+   * toast reports that, because clearing only the flag would look identical
+   * and change nothing.
+   */
+  const resetItem = async (item: RssHistoryItem) => {
+    setResettingId(item.id);
+    try {
+      const res = await api.rss.resetHistoryItem(item.id);
+      toast.success(t('history.toast.cleared', { count: res.holdsCleared }));
+      await refetch();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t('history.toast.clearFailed'));
+    } finally {
+      setResettingId(null);
+    }
+  };
+
   const counts = data?.counts ?? { total: 0, downloaded: 0, matched: 0, seen: 0 };
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -334,6 +356,25 @@ export function RssFeedHistoryPage() {
                                   disabled={downloadingId !== null}
                                 >
                                   <Download className="h-4 w-4" /> {t('history.download')}
+                                </Button>
+                              )}
+                              {/*
+                                * A downloaded row had no actions at all, so a
+                                * release deleted by mistake could never be taken
+                                * again from here — the feed skips anything it
+                                * believes it already has.
+                                */}
+                              {item.downloaded && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="whitespace-nowrap"
+                                  onClick={() => void resetItem(item)}
+                                  loading={resettingId === item.id}
+                                  disabled={resettingId !== null}
+                                  title={t('history.clearStatusHint')}
+                                >
+                                  <RotateCcw className="h-4 w-4" /> {t('history.clearStatus')}
                                 </Button>
                               )}
                             </div>

@@ -3826,6 +3826,14 @@ export const api = {
         method: 'POST',
       });
     },
+    /**
+     * Forget that a release was downloaded, so the feed may take it again.
+     * Clears BOTH gates — the history flag and the per-title acquisition hold —
+     * because clearing one alone looks like it worked and changes nothing.
+     */
+    resetHistoryItem(historyId: string): Promise<{ id: string; downloaded: boolean; holdsCleared: number }> {
+      return request(`/rss/history/${historyId}/reset`, { method: 'POST' });
+    },
     downloadHistoryItem(
       historyId: string,
       savePath?: string,
