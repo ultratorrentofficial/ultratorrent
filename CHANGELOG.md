@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.83.4] - 2026-08-17
+
+### Fixed
+- Add Torrent can hand a manual download to Media Intake: a Destination choice records an intake intent at add time, stages under the profile's root, and warns when a standard save path falls inside an auto-organizing library
+
 ## [0.83.3] - 2026-08-17
 
 ### Fixed
