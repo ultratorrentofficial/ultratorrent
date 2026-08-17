@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.83.3] - 2026-08-17
+
+### Fixed
+- A seeding policy can delete the torrent and its Intake copy, keeping the library file
+
 ## [0.83.2] - 2026-08-17
 
 ### Fixed
