@@ -25,6 +25,11 @@ import {
 } from '@/components/ui/dialog';
 import { CenteredSpinner } from '@/components/ui/feedback';
 import { ConditionBuilder, type ConditionGroup } from '@/components/conditions/ConditionBuilder';
+import {
+  ageClaimedByConditions,
+  factsClaimedByTargets,
+  ratioClaimedByConditions,
+} from './seed-condition-exclusion';
 
 /**
  * Policies, edited by typed fields.
@@ -196,12 +201,29 @@ function PolicyDialog({
    * into something the operator never runs into: the choice simply is not
    * offered, and a line underneath says why.
    */
-  const seedFieldsInUse = useMemo(() => {
-    const taken = new Set<string>();
-    if (seedMode === 'ratio' && Number(targetRatio) > 0) taken.add('seed.ratio');
-    if (ageLimitOn && Number(maxAgeDays) > 0) taken.add('seed.ageDays');
-    return taken;
-  }, [seedMode, targetRatio, ageLimitOn, maxAgeDays]);
+  const seedFieldsInUse = useMemo(
+    () => factsClaimedByTargets({ seedMode, targetRatio, ageLimitOn, maxAgeDays }),
+    [seedMode, targetRatio, ageLimitOn, maxAgeDays],
+  );
+
+  /*
+   * The mirror of the above. Whichever side the operator reaches first claims
+   * the fact, and the other side withdraws it — so the exclusion holds in both
+   * directions instead of only stopping the second half of one order.
+   */
+  const ratioClaimedByCondition = ratioClaimedByConditions(seedConditions);
+  const ageClaimedByCondition = ageClaimedByConditions(seedConditions);
+
+  /*
+   * A selection that is no longer offered must not persist. Without this, a
+   * policy already on `ratio` mode would keep saving a ratio target after the
+   * operator added a ratio condition — the control would be gone from the form
+   * while the value stayed in the payload.
+   */
+  useEffect(() => {
+    if (ratioClaimedByCondition && seedMode === 'ratio') setSeedMode('unlimited');
+    if (ageClaimedByCondition && ageLimitOn) setAgeLimitOn(false);
+  }, [ratioClaimedByCondition, ageClaimedByCondition, seedMode, ageLimitOn]);
 
   const catalogEntries = seedCatalog.data ?? [];
   const availableSeedConditions = catalogEntries.filter((c) => !seedFieldsInUse.has(c.id));
@@ -452,12 +474,21 @@ function PolicyDialog({
                 value={seedMode}
                 onChange={(e) => setSeedMode(e.target.value as SchedulerSeedPolicy['mode'])}
               >
-                {(['ratio', 'manual', 'unlimited'] as const).map((m) => (
+                {(['ratio', 'manual', 'unlimited'] as const)
+                  // A ratio condition already states the fact; offering the
+                  // ratio MODE here would invite the pairing the server refuses.
+                  .filter((m) => m !== 'ratio' || !ratioClaimedByCondition)
+                  .map((m) => (
                   <option key={m} value={m}>
                     {t(`scheduler.policies.seeding.modeOption.${m}` as 'scheduler.policies.seeding.modeOption.ratio')}
                   </option>
                 ))}
               </Select>
+              {ratioClaimedByCondition && (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {t('scheduler.policies.seeding.ratioInConditions')}
+                </p>
+              )}
             </div>
             {seedMode === 'ratio' && (
               <div className="w-32">
@@ -517,12 +548,15 @@ function PolicyDialog({
                       {t('scheduler.policies.seeding.ageLimit')}
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      {t('scheduler.policies.seeding.ageLimitHelp')}
+                      {ageClaimedByCondition
+                        ? t('scheduler.policies.seeding.ageInConditions')
+                        : t('scheduler.policies.seeding.ageLimitHelp')}
                     </p>
                   </div>
                   <Switch
                     id="seed-age-limit"
-                    checked={ageLimitOn}
+                    checked={ageLimitOn && !ageClaimedByCondition}
+                    disabled={ageClaimedByCondition}
                     onCheckedChange={setAgeLimitOn}
                   />
                 </div>
