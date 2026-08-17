@@ -110,7 +110,19 @@ describe('ContextActionBar — running an action', () => {
     renderBar(['a', 'b', 'c']);
     fireEvent.click(await screen.findByText('Refresh metadata'));
     await waitFor(() => expect(apiSpy.bulkItems).toHaveBeenCalledTimes(1));
-    expect(apiSpy.bulkItems).toHaveBeenCalledWith('metadata', ['a', 'b', 'c']);
+    /*
+     * Read the call rather than matching the whole argument list. `bulkItems`
+     * takes a third `torrentAction` that only `delete-files` fills in, and the
+     * mutation passes it positionally — so every non-destructive op sends an
+     * explicit `undefined` there. Asserting two arguments made this fail for a
+     * parameter it is not about; asserting three would pin the test to an
+     * argument count that says nothing.
+     */
+    const [operation, ids, torrentAction] = apiSpy.bulkItems.mock.calls[0];
+    expect(operation).toBe('metadata');
+    expect(ids).toEqual(['a', 'b', 'c']);
+    // Refreshing metadata must never carry an instruction about source torrents.
+    expect(torrentAction).toBeUndefined();
   });
 
   it('scans the library it was given', async () => {

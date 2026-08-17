@@ -311,7 +311,12 @@ describe('ShowDetailView', () => {
       await openOps();
       fireEvent.click(await screen.findByLabelText('Select episode 1'));
       fireEvent.click(await screen.findByText('Refresh metadata'));
-      await waitFor(() => expect(apiSpy.bulkItems).toHaveBeenCalledWith('metadata', ['e1']));
+      await waitFor(() => expect(apiSpy.bulkItems).toHaveBeenCalledTimes(1));
+      // Positional third argument (`torrentAction`) is always sent and is only
+      // meaningful for delete-files — read the call instead of matching arity.
+      const [operation, ids] = apiSpy.bulkItems.mock.calls[0];
+      expect(operation).toBe('metadata');
+      expect(ids).toEqual(['e1']);
     });
 
     it('drops the selection when Operations Mode is left', async () => {
