@@ -35,6 +35,20 @@ export class AddTorrentDto {
   @IsString()
   savePath?: string;
 
+  /**
+   * Hand this download to Media Intake when it finishes, staged under this
+   * profile. Set by the "Managed intake" mode in the Add Torrent dialog.
+   *
+   * When present the profile's staging root REPLACES `savePath` — see
+   * `TorrentsService.add`. The two are not both honoured on purpose: an intake
+   * that stages into a library folder is the failure this mode exists to make
+   * impossible, and silently accepting a contradictory path is how it would
+   * come back.
+   */
+  @IsOptional()
+  @IsString()
+  intakeProfileId?: string;
+
   @IsOptional()
   @IsBoolean()
   startPaused?: boolean;

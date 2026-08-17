@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import {
@@ -55,6 +56,8 @@ export interface ListTorrentsQuery {
 
 @Injectable()
 export class TorrentsService {
+  private readonly logger = new Logger(TorrentsService.name);
+
   constructor(
     private readonly registry: EngineRegistryService,
     private readonly audit: AuditService,
@@ -173,11 +176,25 @@ export class TorrentsService {
   }
 
   async add(
-    opts: { magnet?: string; url?: string; file?: Buffer } & AddTorrentOptions,
+    opts: {
+      magnet?: string;
+      url?: string;
+      file?: Buffer;
+      /** Opt this download into Media Intake — see `resolveIntakeProfile`. */
+      intakeProfileId?: string;
+    } & AddTorrentOptions,
     engineId: string | undefined,
     user: AuthenticatedUser,
     ctx: { ipAddress?: string; userAgent?: string },
   ): Promise<{ hash: string }> {
+    /*
+     * Managed intake decides the save path, so it is resolved BEFORE the path is
+     * sanitised — the staging root goes through exactly the same root check as
+     * an operator-typed path, rather than being trusted for being ours.
+     */
+    const intakeProfile = await this.resolveIntakeProfile(opts.intakeProfileId);
+    if (intakeProfile) opts.savePath = intakeProfile.stagingRoot;
+
     // Constrain the save path to the allowed roots and strip command-breakout
     // chars before the value reaches the engine.
     if (opts.savePath) opts.savePath = this.safeStoragePath(opts.savePath, 'save path');
@@ -215,15 +232,80 @@ export class TorrentsService {
     } else {
       throw new Error('No torrent source provided');
     }
+    if (intakeProfile) {
+      await this.recordIntakeIntent(provider.engineId, hash, intakeProfile.id, user.id);
+    }
     await this.audit.record({
       userId: user.id,
       action: 'torrents.add',
       objectType: 'torrent',
       objectId: hash,
       result: 'success',
+      ...(intakeProfile
+        ? { metadata: { intakeProfileId: intakeProfile.id, savePath: opts.savePath } }
+        : {}),
       ...ctx,
     });
     return { hash };
+  }
+
+  /**
+   * Look up the storage profile a "managed intake" add named, or null for the
+   * standard path.
+   *
+   * A disabled profile is refused rather than ignored. Accepting the add and
+   * quietly staging nowhere reproduces the "enabled but inert" failure this
+   * project keeps meeting: the operator sees a successful add, the download
+   * completes, and nothing ever imports it — with no error anywhere to explain
+   * why.
+   */
+  private async resolveIntakeProfile(
+    profileId?: string,
+  ): Promise<{ id: string; name: string; stagingRoot: string } | null> {
+    if (!profileId) return null;
+    const profile = await this.prisma.storageProfile.findUnique({
+      where: { id: profileId },
+      select: { id: true, name: true, stagingRoot: true, isEnabled: true },
+    });
+    if (!profile) throw new BadRequestException('Storage profile not found');
+    if (!profile.isEnabled) {
+      throw new BadRequestException(
+        `Storage profile "${profile.name}" is disabled and cannot take new intakes`,
+      );
+    }
+    return { id: profile.id, name: profile.name, stagingRoot: profile.stagingRoot };
+  }
+
+  /**
+   * Record the decision against the hash the engine just returned.
+   *
+   * `upsert`, because adding the same torrent twice is an ordinary thing to do
+   * and the second add must not 500 on a primary-key collision. Re-adding also
+   * REOPENS a consumed intent (`consumedAt: null`): the operator is asking for
+   * this download again, and a spent row would leave the re-add unimported.
+   *
+   * Failure here is logged, never thrown. The torrent is already in the engine
+   * by this point, so raising would report a failed add for something that
+   * succeeded, and the operator would add it a second time.
+   */
+  private async recordIntakeIntent(
+    engineId: string,
+    hash: string,
+    profileId: string,
+    userId: string,
+  ): Promise<void> {
+    try {
+      await this.prisma.intakeIntent.upsert({
+        where: { engineId_hash: { engineId, hash } },
+        create: { engineId, hash, profileId, createdById: userId },
+        update: { profileId, createdById: userId, consumedAt: null },
+      });
+    } catch (err) {
+      this.logger.error(
+        `Torrent ${hash} was added but its intake intent could not be recorded: `
+          + `${(err as Error).message}. It will download to the staging root and wait there.`,
+      );
+    }
   }
 
   private async act(

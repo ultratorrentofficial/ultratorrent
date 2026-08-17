@@ -22,10 +22,17 @@ function build(opts: {
   /** A missing-episode grab's own trace, used when no rss_acquisition exists. */
   wanted?: { intakeRuleId: string | null } | null;
   profile?: { id: string; name: string } | null;
+  /** The operator's own add-time decision, when they made one. */
+  intent?: { engineId: string; profileId: string } | null;
+  /** Every intent still waiting for its download, for the sweeper. */
+  pendingIntents?: { hash: string; engineId: string; profileId: string }[];
+  /** What the engine says it holds, for the sweeper. */
+  engineTorrents?: { hash: string; progress: number; contentPath?: string; savePath?: string }[] | null;
 } = {}) {
   const handlers = new Map<string, Handler>();
   const enqueued: Record<string, unknown>[] = [];
   const warnings: string[] = [];
+  const consumed: Record<string, unknown>[] = [];
 
   const prisma = {
     rssAcquisition: {
@@ -34,6 +41,20 @@ function build(opts: {
     },
     rssRule: { findUnique: jest.fn(async () => opts.rule ?? null) },
     wantedEpisode: { findFirst: jest.fn(async () => opts.wanted ?? null) },
+    intakeIntent: {
+      findFirst: jest.fn(async () => opts.intent ?? null),
+      findMany: jest.fn(async () => opts.pendingIntents ?? []),
+      updateMany: jest.fn(async (args: Record<string, unknown>) => {
+        consumed.push(args);
+        return { count: 1 };
+      }),
+    },
+  };
+  const moduleRef = {
+    get: jest.fn(() => ({
+      list: async () =>
+        opts.engineTorrents === null ? {} : { items: opts.engineTorrents ?? [] },
+    })),
   };
   const bus = { subscribe: jest.fn((key: string, fn: Handler) => handlers.set(key, fn)) };
   const intake = {
@@ -44,18 +65,23 @@ function build(opts: {
     advance: jest.fn(async (id: string) => { advanced.push(id); return { state: 'verified', ran: [] }; }),
   };
   const profiles = {
-    get: jest.fn(async () => opts.profile ?? { id: 'p1', name: 'Default' }),
+    // An explicit `null` means "this profile is gone"; only an absent option
+    // falls back to the default. `??` would collapse the two and hide a
+    // deleted-profile test behind a profile that still exists.
+    get: jest.fn(async () => (opts.profile === undefined ? { id: 'p1', name: 'Default' } : opts.profile)),
     defaultProfile: jest.fn(async () => (opts.profile === undefined ? { id: 'p1', name: 'Default' } : opts.profile)),
   };
 
   const svc = new IntakeTriggerService(
     prisma as never, bus as never, intake as never, profiles as never, pipeline as never,
+    moduleRef as never,
   );
   const logger = (svc as never as { logger: Record<string, (m: string) => void> }).logger;
   jest.spyOn(logger, 'warn').mockImplementation((m: string) => { warnings.push(m); });
   jest.spyOn(logger, 'log').mockImplementation(() => undefined);
+  jest.spyOn(logger, 'debug').mockImplementation(() => undefined);
   svc.onModuleInit();
-  return { svc, handlers, enqueued, warnings, prisma, intake, pipeline, advanced };
+  return { svc, handlers, enqueued, warnings, prisma, intake, pipeline, advanced, consumed };
 }
 
 const completion = (over: Record<string, unknown> = {}) => ({
@@ -270,5 +296,119 @@ describe('IntakeTriggerService — which path it imports from', () => {
     await handlers.get(DOMAIN_EVENTS.TORRENT_COMPLETED)!(completion({ contentPath: '' }));
     await new Promise((r) => setImmediate(r));
     expect(enqueued[0].sourcePath).toBe('/staging');
+  });
+});
+
+/**
+ * The third provenance source: a decision the operator made in the Add Torrent
+ * dialog, recorded against the hash.
+ *
+ * The rule gate above protects installs that never opted in. An intent IS the
+ * opt-in, for exactly one torrent, so it must not be filtered by a rule setting
+ * the operator never touched — and it must not leak into the rule path, or a
+ * plain manual add starts being intercepted.
+ */
+describe('manual intake intent', () => {
+  const intent = { engineId: 'engine-1', profileId: 'p1' };
+
+  it('stages a hand-added torrent that has no rule at all', async () => {
+    const { handlers, enqueued } = build({ acquisition: null, intent });
+    await fire(handlers, completion());
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]).toMatchObject({
+      torrentHash: 'hash-1',
+      profileId: 'p1',
+      sourcePath: '/staging/Show.S01E01',
+    });
+  });
+
+  it('does not consult importMode — an explicit choice is its own opt-in', async () => {
+    // A legacy rule would refuse this torrent. The intent outranks it: the
+    // operator chose managed intake for THIS download.
+    const { handlers, enqueued } = build({ rule: legacy, intent });
+    await fire(handlers, completion());
+    expect(enqueued).toHaveLength(1);
+  });
+
+  it('spends the intent so a re-observed edge cannot import twice', async () => {
+    const { handlers, consumed } = build({ acquisition: null, intent });
+    await fire(handlers, completion());
+    expect(consumed).toHaveLength(1);
+    expect(consumed[0]).toMatchObject({
+      where: { engineId: 'engine-1', hash: 'hash-1', consumedAt: null },
+    });
+  });
+
+  it('leaves an ordinary manual add alone', async () => {
+    // No intent, no rule: the operator chose where it goes. This is the
+    // behaviour every pre-existing install depends on.
+    const { handlers, enqueued } = build({ acquisition: null, intent: null });
+    await fire(handlers, completion());
+    expect(enqueued).toHaveLength(0);
+  });
+
+  it('says so when the profile behind an intent has been deleted', async () => {
+    const { handlers, enqueued, warnings } = build({
+      acquisition: null,
+      intent,
+      profile: null,
+    });
+    await fire(handlers, completion());
+    expect(enqueued).toHaveLength(0);
+    expect(warnings.join(' ')).toContain('storage profile is gone');
+  });
+});
+
+/**
+ * The sweeper exists for one case the completion edge cannot cover: a torrent
+ * whose data is already on disk never crosses 0→100%, so `torrent.completed` is
+ * never published for it and the intent would wait forever.
+ */
+describe('intent sweep', () => {
+  const pending = [{ hash: 'hash-9', engineId: 'engine-1', profileId: 'p1' }];
+
+  it('stages an intent whose torrent is already complete', async () => {
+    const { svc, enqueued } = build({
+      pendingIntents: pending,
+      engineTorrents: [
+        { hash: 'hash-9', progress: 1, contentPath: '/staging/Old.Release', savePath: '/staging' },
+      ],
+    });
+    await expect(svc.sweepIntents()).resolves.toBe(1);
+    expect(enqueued[0]).toMatchObject({
+      torrentHash: 'hash-9',
+      profileId: 'p1',
+      sourcePath: '/staging/Old.Release',
+    });
+  });
+
+  it('leaves a download still in flight alone', async () => {
+    const { svc, enqueued } = build({
+      pendingIntents: pending,
+      engineTorrents: [{ hash: 'hash-9', progress: 0.42, savePath: '/staging' }],
+    });
+    await expect(svc.sweepIntents()).resolves.toBe(0);
+    expect(enqueued).toHaveLength(0);
+  });
+
+  it('does nothing when the engine cannot be read', async () => {
+    /*
+     * An unreachable engine looks exactly like a torrent that has not finished.
+     * Acting on the ambiguity would stage every pending intent from nothing.
+     */
+    const { svc, enqueued } = build({ pendingIntents: pending, engineTorrents: null });
+    await expect(svc.sweepIntents()).resolves.toBe(0);
+    expect(enqueued).toHaveLength(0);
+  });
+
+  it('matches the engine’s hash case-insensitively', async () => {
+    // Engines disagree on hash case; a case-sensitive miss would look exactly
+    // like "the download never finished" and strand the intake silently.
+    const { svc, enqueued } = build({
+      pendingIntents: [{ hash: 'HASH-9', engineId: 'engine-1', profileId: 'p1' }],
+      engineTorrents: [{ hash: 'hash-9', progress: 1, contentPath: '/staging/Old.Release' }],
+    });
+    await expect(svc.sweepIntents()).resolves.toBe(1);
+    expect(enqueued).toHaveLength(1);
   });
 });

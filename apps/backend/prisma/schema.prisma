@@ -257,10 +257,11 @@ model TorrentEngine {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  snapshots TorrentSnapshot[]
-  parked    ParkedTorrent[]
-  ledger    TransferLedger?
-  retired   RetiredTorrentTransfer[]
+  snapshots     TorrentSnapshot[]
+  parked        ParkedTorrent[]
+  ledger        TransferLedger?
+  retired       RetiredTorrentTransfer[]
+  intakeIntents IntakeIntent[]
 
   @@map("torrent_engines")
 }
@@ -3352,8 +3353,48 @@ model StorageProfile {
   rssRules     RssRule[]
   capabilities StorageCapabilityProbe[]
   intakeJobs   MediaIntakeJob[]
+  intents      IntakeIntent[]
 
   @@map("storage_profiles")
+}
+
+/// "This torrent, when it finishes, belongs to Media Intake."
+///
+/// Intake had exactly two ways to start, and both are *rule* provenance: an RSS
+/// grab traced through `rss_acquisitions`, or a missing-episode grab carrying
+/// `intakeRuleId`. A torrent added by hand traces to neither, so it could never
+/// be intercepted — the operator's only route was to save it somewhere sensible
+/// and then call the manual enqueue endpoint, and forgetting the second half is
+/// what strands a download inside a library folder where auto-organize moves the
+/// video, abandons its sidecars and drops the torrent.
+///
+/// This is the third provenance source: an explicit per-torrent decision,
+/// recorded at add time against the hash the engine just returned. It is not a
+/// rule and deliberately does not consult `importMode` — the legacy-direct
+/// default protects operators who never asked for intake, and someone choosing
+/// "managed intake" in the add dialog has asked.
+///
+/// `consumedAt` closes it out. The row is kept rather than deleted so the Intake
+/// timeline can answer "why was this staged" long after the fact, and so a
+/// re-added hash cannot silently re-import.
+model IntakeIntent {
+  hash     String
+  engineId String
+  /// Where it should be staged. Cascades: a deleted profile cannot stage anything.
+  profileId String
+  /// Who chose it. Null for a system-originated intent (none today).
+  createdById String?
+
+  createdAt  DateTime  @default(now())
+  consumedAt DateTime?
+
+  engine  TorrentEngine  @relation(fields: [engineId], references: [id], onDelete: Cascade)
+  profile StorageProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@id([engineId, hash])
+  /// The sweeper's query: every intent still waiting for its download.
+  @@index([consumedAt])
+  @@map("intake_intents")
 }
 
 /// One prefix rewrite from the canonical spelling of a path into the spelling

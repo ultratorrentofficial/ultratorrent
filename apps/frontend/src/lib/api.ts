@@ -894,6 +894,12 @@ export interface AddTorrentPayload {
   tags?: string[];
   savePath?: string;
   startPaused?: boolean;
+  /**
+   * Hand this download to Media Intake when it finishes, staged under this
+   * storage profile. The profile's staging root replaces `savePath` server-side,
+   * so the two are never sent together.
+   */
+  intakeProfileId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -3540,6 +3546,7 @@ export const api = {
       form.append('file', file);
       if (options.category) form.append('category', options.category);
       if (options.savePath) form.append('savePath', options.savePath);
+      if (options.intakeProfileId) form.append('intakeProfileId', options.intakeProfileId);
       if (options.startPaused != null) form.append('startPaused', String(options.startPaused));
       if (options.tags?.length) form.append('tags', options.tags.join(','));
       return request<NormalizedTorrent>('/torrents/upload', { method: 'POST', body: form, raw: true });
