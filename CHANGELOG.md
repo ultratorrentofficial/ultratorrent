@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.83.1] - 2026-08-17
+
+### Fixed
+- Stop seeding when is a condition list, replacing the single-target mode
+
 ## [0.83.0] - 2026-08-17
 
 ### Added
