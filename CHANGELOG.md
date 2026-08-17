@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.83.2] - 2026-08-17
+
+### Fixed
+- The shared condition builder shows its own labels again instead of raw keys
+
 ## [0.83.1] - 2026-08-17
 
 ### Fixed
