@@ -180,7 +180,18 @@ export interface ConditionBuilderProps {
 }
 
 export function ConditionBuilder({ node, catalog, onChange, namespace = 'cleanup' }: ConditionBuilderProps) {
-  const { t } = useTranslation(namespace);
+  /*
+   * Two translators, because two different things are being named.
+   *
+   * The builder's own chrome — "Match when", "any of these", "Add condition" —
+   * belongs to the builder and lives in one bundle however many catalogues use
+   * it. Only the CATALOGUE's labels and descriptions follow the caller. Running
+   * both through the caller's bundle rendered raw keys on screen
+   * ("builder.matchWhen", "builder.expects.number") for every catalogue except
+   * the original one.
+   */
+  const { t } = useTranslation('cleanup');
+  const { t: tLabel } = useTranslation(namespace);
   const byId = new Map(catalog.map((c) => [c.id, c]));
 
   // Grouped so a 63-entry list is navigable: the categories are the catalogue's own.
@@ -271,7 +282,7 @@ export function ConditionBuilder({ node, catalog, onChange, namespace = 'cleanup
                     <optgroup key={cat} label={t(`builder.category.${cat}` as 'builder.category.metadata')}>
                       {defs.map((d) => (
                         <option key={d.id} value={d.id}>
-                          {t(d.labelKey.replace(/^cleanup\./, '') as 'cond.releaseYear')}
+                          {tLabel(d.labelKey.replace(/^cleanup\./, '') as 'cond.releaseYear')}
                         </option>
                       ))}
                     </optgroup>
@@ -299,7 +310,7 @@ export function ConditionBuilder({ node, catalog, onChange, namespace = 'cleanup
                 <p className="mt-1.5 flex items-start gap-1.5 pl-1 text-xs text-muted-foreground">
                   <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span>
-                    {t(def.descriptionKey.replace(/^cleanup\./, '') as 'cond.releaseYear.desc')}
+                    {tLabel(def.descriptionKey.replace(/^cleanup\./, '') as 'cond.releaseYear.desc')}
                     {/* The description says what the field MEANS; this says what it
                         will accept. Missing that second half is how a date field
                         gets a number typed into it. */}
