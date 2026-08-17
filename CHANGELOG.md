@@ -45,6 +45,15 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.83.0] - 2026-08-17
+
+### Added
+- A seeding policy can match one or more conditions, like a purge policy
+
+### Fixed
+- The Activity Scheduler's seeding section uses the same condition builder as Media Purge
+- A seeding policy states each fact once: a ratio or age set as a target cannot also be a condition
+
 ## [0.82.0] - 2026-08-16
 
 ### Added
