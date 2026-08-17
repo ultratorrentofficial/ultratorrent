@@ -1,12 +1,5 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 
-/**
- * Mirrors `DEFAULT_MAX_AGE_DAYS` in the scheduler domain. Duplicated rather than
- * imported because the backend constant is not part of the shared contract; it
- * is only the value the field starts at, and the backend validates whatever is
- * actually sent.
- */
-const DEFAULT_MAX_AGE_DAYS = 30;
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Save, Trash2 } from 'lucide-react';
@@ -25,11 +18,6 @@ import {
 } from '@/components/ui/dialog';
 import { CenteredSpinner } from '@/components/ui/feedback';
 import { ConditionBuilder, type ConditionGroup } from '@/components/conditions/ConditionBuilder';
-import {
-  ageClaimedByConditions,
-  factsClaimedByTargets,
-  ratioClaimedByConditions,
-} from './seed-condition-exclusion';
 
 /**
  * Policies, edited by typed fields.
@@ -164,12 +152,8 @@ function PolicyDialog({
   const [seeds, setSeeds] = useState('');
   const [total, setTotal] = useState('');
   // Only the enforceable subset is offered — see the seeding help text.
-  const [seedMode, setSeedMode] = useState<SchedulerSeedPolicy['mode']>('unlimited');
-  const [targetRatio, setTargetRatio] = useState('');
   const [afterTarget, setAfterTarget] = useState<SchedulerSeedPolicy['afterTarget']>('pause');
   const [requireImport, setRequireImport] = useState(true);
-  const [ageLimitOn, setAgeLimitOn] = useState(false);
-  const [maxAgeDays, setMaxAgeDays] = useState(String(DEFAULT_MAX_AGE_DAYS));
   /*
    * Which torrents this policy's seeding rules apply to.
    *
@@ -191,45 +175,7 @@ function PolicyDialog({
     staleTime: 5 * 60_000,
   });
 
-  /*
-   * One fact, one place.
-   *
-   * A target says "seed until"; a condition says "only these torrents". Stating
-   * the same fact in both produces a rule that fires only when BOTH hold, which
-   * is what neither reads like — so the server refuses the pairing. Withdrawing
-   * the condition from the picker while its field is in use turns that refusal
-   * into something the operator never runs into: the choice simply is not
-   * offered, and a line underneath says why.
-   */
-  const seedFieldsInUse = useMemo(
-    () => factsClaimedByTargets({ seedMode, targetRatio, ageLimitOn, maxAgeDays }),
-    [seedMode, targetRatio, ageLimitOn, maxAgeDays],
-  );
 
-  /*
-   * The mirror of the above. Whichever side the operator reaches first claims
-   * the fact, and the other side withdraws it — so the exclusion holds in both
-   * directions instead of only stopping the second half of one order.
-   */
-  const ratioClaimedByCondition = ratioClaimedByConditions(seedConditions);
-  const ageClaimedByCondition = ageClaimedByConditions(seedConditions);
-
-  /*
-   * A selection that is no longer offered must not persist. Without this, a
-   * policy already on `ratio` mode would keep saving a ratio target after the
-   * operator added a ratio condition — the control would be gone from the form
-   * while the value stayed in the payload.
-   */
-  useEffect(() => {
-    if (ratioClaimedByCondition && seedMode === 'ratio') setSeedMode('unlimited');
-    if (ageClaimedByCondition && ageLimitOn) setAgeLimitOn(false);
-  }, [ratioClaimedByCondition, ageClaimedByCondition, seedMode, ageLimitOn]);
-
-  const catalogEntries = seedCatalog.data ?? [];
-  const availableSeedConditions = catalogEntries.filter((c) => !seedFieldsInUse.has(c.id));
-  const hiddenSeedConditions = catalogEntries
-    .filter((c) => seedFieldsInUse.has(c.id))
-    .map((c) => t(c.labelKey as never));
   const [downKbps, setDownKbps] = useState('');
   const [upKbps, setUpKbps] = useState('');
 
@@ -275,15 +221,31 @@ function PolicyDialog({
     setDownloads(policy?.maxConcurrentDownloads?.toString() ?? '');
     setSeeds(policy?.maxConcurrentSeeds?.toString() ?? '');
     setTotal(policy?.maxTotalActive?.toString() ?? '');
-    setSeedMode(policy?.seedPolicy?.mode ?? 'unlimited');
-    setTargetRatio(policy?.seedPolicy?.targetRatio?.toString() ?? '');
     setAfterTarget(policy?.seedPolicy?.afterTarget ?? 'pause');
     // Defaults ON: the usual reason to seed past completion is that the library
     // copy is not safe yet, so waiting for the import is the safe default.
     setRequireImport(policy?.seedPolicy?.requireImportCompleted ?? true);
-    setAgeLimitOn(policy?.seedPolicy?.maxAgeDays != null);
-    setMaxAgeDays(policy?.seedPolicy?.maxAgeDays?.toString() ?? String(DEFAULT_MAX_AGE_DAYS));
-    setSeedConditions((policy?.seedPolicy?.conditions as ConditionGroup | null) ?? { type: 'all', children: [] });
+    /*
+     * A policy written before this said its target in fixed fields. Rendering
+     * it as the equivalent list means opening one shows the rule it actually
+     * has — and saving migrates it — rather than showing an empty builder
+     * beside a target the form can no longer display.
+     */
+    const stored = policy?.seedPolicy?.stopWhen as ConditionGroup | null | undefined;
+    if (stored) {
+      setSeedConditions(stored);
+    } else {
+      const migrated: ConditionGroup = { type: 'any', children: [] };
+      const ratio = policy?.seedPolicy?.targetRatio;
+      if (policy?.seedPolicy?.mode === 'ratio' && typeof ratio === 'number' && ratio > 0) {
+        migrated.children.push({ type: 'condition', field: 'seed.ratio', operator: 'gte', value: ratio });
+      }
+      const age = policy?.seedPolicy?.maxAgeDays;
+      if (typeof age === 'number' && age > 0) {
+        migrated.children.push({ type: 'condition', field: 'seed.ageDays', operator: 'gte', value: age });
+      }
+      setSeedConditions(migrated);
+    }
     setDownKbps(policy?.maxDownloadRateKbps?.toString() ?? '');
     setUpKbps(policy?.maxUploadRateKbps?.toString() ?? '');
   }, [policy]);
@@ -305,14 +267,15 @@ function PolicyDialog({
         maxDownloadRateKbps: num(downKbps),
         maxUploadRateKbps: num(upKbps),
         seedPolicy: {
-          mode: seedMode,
+          /*
+           * `mode` is kept only because the API still requires one; the list is
+           * what decides. `manual` is the honest value — nothing here sets a
+           * fixed ratio target any more.
+           */
+          mode: (seedConditions.children.length ? 'manual' : 'unlimited') as SchedulerSeedPolicy['mode'],
           afterTarget,
-          ...(seedMode === 'ratio' ? { targetRatio: Number(targetRatio) } : {}),
           requireImportCompleted: requireImport,
-          ...(ageLimitOn && Number(maxAgeDays) > 0 ? { maxAgeDays: Number(maxAgeDays) } : {}),
-          // Omitted entirely when empty, so the stored document stays absent
-          // rather than becoming an empty group that reads as a real rule.
-          conditions: seedConditions.children.length ? seedConditions : null,
+          stopWhen: seedConditions.children.length ? seedConditions : null,
         },
       };
       return policy
@@ -465,149 +428,67 @@ function PolicyDialog({
         <div>
           <h3 className="text-sm font-semibold">{t('scheduler.policies.seeding.title')}</h3>
           <p className="mt-1 text-xs text-muted-foreground">{t('scheduler.policies.seeding.help')}</p>
-          <div className="mt-2 flex flex-wrap items-end gap-3">
-            <div>
-              <Label htmlFor="seed-mode">{t('scheduler.policies.seeding.mode')}</Label>
-              <Select
-                id="seed-mode"
-                className="mt-1 w-auto"
-                value={seedMode}
-                onChange={(e) => setSeedMode(e.target.value as SchedulerSeedPolicy['mode'])}
-              >
-                {(['ratio', 'manual', 'unlimited'] as const)
-                  // A ratio condition already states the fact; offering the
-                  // ratio MODE here would invite the pairing the server refuses.
-                  .filter((m) => m !== 'ratio' || !ratioClaimedByCondition)
-                  .map((m) => (
-                  <option key={m} value={m}>
-                    {t(`scheduler.policies.seeding.modeOption.${m}` as 'scheduler.policies.seeding.modeOption.ratio')}
-                  </option>
-                ))}
-              </Select>
-              {ratioClaimedByCondition && (
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {t('scheduler.policies.seeding.ratioInConditions')}
-                </p>
-              )}
-            </div>
-            {seedMode === 'ratio' && (
-              <div className="w-32">
-                <Label htmlFor="seed-ratio">{t('scheduler.policies.seeding.targetRatio')}</Label>
-                <Input
-                  id="seed-ratio"
-                  type="number"
-                  min={0.1}
-                  step={0.1}
-                  value={targetRatio}
-                  onChange={(e) => setTargetRatio(e.target.value)}
-                />
-              </div>
-            )}
-            {seedMode === 'ratio' && (
-              <div>
-                <Label htmlFor="seed-after">{t('scheduler.policies.seeding.afterTarget')}</Label>
-                <Select
-                  id="seed-after"
-                  className="mt-1 w-auto"
-                  value={afterTarget}
-                  onChange={(e) => setAfterTarget(e.target.value as SchedulerSeedPolicy['afterTarget'])}
-                >
-                  {(['pause', 'stop', 'leave_active'] as const).map((a) => (
-                    <option key={a} value={a}>
-                      {t(`scheduler.policies.seeding.afterTargetOption.${a}` as 'scheduler.policies.seeding.afterTargetOption.pause')}
-                    </option>
-                  ))}
-                </Select>
-              </div>
+
+          {/*
+            * "Stop seeding when" IS the condition list.
+            *
+            * It replaces a mode dropdown that could only ever say one thing —
+            * a ratio, or nothing — so "ratio 2 OR 30 days, but not before the
+            * import finished" could not be written at all.
+            */}
+          <div className="mt-3">
+            <Label>{t('scheduler.policies.seeding.stopWhen')}</Label>
+            <p className="mb-2 text-xs text-muted-foreground">
+              {t('scheduler.policies.seeding.stopWhenHint')}
+            </p>
+            <ConditionBuilder
+              namespace="torrents"
+              node={seedConditions}
+              catalog={seedCatalog.data ?? []}
+              onChange={setSeedConditions}
+            />
+            {seedConditions.children.length === 0 && (
+              <p className="mt-2 text-xs text-warning">
+                {t('scheduler.policies.seeding.stopWhenEmpty')}
+              </p>
             )}
           </div>
-          {seedMode === 'ratio' && (
-            <>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {t('scheduler.policies.seeding.afterTargetHelp')}
-              </p>
-              <div className="mt-2 flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-                <div>
-                  <Label htmlFor="seed-require-import">
-                    {t('scheduler.policies.seeding.requireImportCompleted')}
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    {t('scheduler.policies.seeding.safetyHelp')}
-                  </p>
-                </div>
-                <Switch
-                  id="seed-require-import"
-                  checked={requireImport}
-                  onCheckedChange={setRequireImport}
-                />
-              </div>
-              <div className="mt-2 rounded-md border border-border/60 px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="seed-age-limit">
-                      {t('scheduler.policies.seeding.ageLimit')}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      {ageClaimedByCondition
-                        ? t('scheduler.policies.seeding.ageInConditions')
-                        : t('scheduler.policies.seeding.ageLimitHelp')}
-                    </p>
-                  </div>
-                  <Switch
-                    id="seed-age-limit"
-                    checked={ageLimitOn && !ageClaimedByCondition}
-                    disabled={ageClaimedByCondition}
-                    onCheckedChange={setAgeLimitOn}
-                  />
-                </div>
-                {ageLimitOn && (
-                  <div className="mt-3 flex items-end gap-3">
-                    <div className="w-32">
-                      <Label htmlFor="seed-max-age">
-                        {t('scheduler.policies.seeding.maxAgeDays')}
-                      </Label>
-                      <Input
-                        id="seed-max-age"
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={maxAgeDays}
-                        onChange={(e) => setMaxAgeDays(e.target.value)}
-                      />
-                    </div>
-                    <p className="pb-2 text-xs text-warning">
-                      {t('scheduler.policies.seeding.ageLimitWarning')}
-                    </p>
-                  </div>
-                )}
 
-                {/*
-                  * Which torrents the rules above apply to. Empty means all of
-                  * them, which is why this sits last: the common policy needs
-                  * nothing here, and the builder is for narrowing.
-                  */}
-                <div className="mt-4 border-t border-white/10 pt-4">
-                  <Label>{t('scheduler.policies.seeding.conditionsTitle')}</Label>
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    {t('scheduler.policies.seeding.conditionsHint')}
-                  </p>
-                  <ConditionBuilder
-                    namespace="torrents"
-                    node={seedConditions}
-                    catalog={availableSeedConditions}
-                    onChange={setSeedConditions}
-                  />
-                  {hiddenSeedConditions.length > 0 && (
-                    <p className="mt-2 text-[11px] text-muted-foreground">
-                      {t('scheduler.policies.seeding.conditionsTaken', {
-                        fields: hiddenSeedConditions.join(', '),
-                      })}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
+          <div className="mt-3">
+            <Label htmlFor="seed-after">{t('scheduler.policies.seeding.afterTarget')}</Label>
+            <Select
+              id="seed-after"
+              className="mt-1 w-auto"
+              value={afterTarget}
+              onChange={(e) => setAfterTarget(e.target.value as SchedulerSeedPolicy['afterTarget'])}
+            >
+              {(['pause', 'stop', 'leave_active'] as const).map((a) => (
+                <option key={a} value={a}>
+                  {t(`scheduler.policies.seeding.afterTargetOption.${a}` as 'scheduler.policies.seeding.afterTargetOption.pause')}
+                </option>
+              ))}
+            </Select>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {t('scheduler.policies.seeding.afterTargetHelp')}
+            </p>
+          </div>
+
+          {/* A safety gate, not a target: it can only DELAY the action above. */}
+          <div className="mt-2 flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+            <div>
+              <Label htmlFor="seed-require-import">
+                {t('scheduler.policies.seeding.requireImportCompleted')}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {t('scheduler.policies.seeding.safetyHelp')}
+              </p>
+            </div>
+            <Switch
+              id="seed-require-import"
+              checked={requireImport}
+              onCheckedChange={setRequireImport}
+            />
+          </div>
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">

@@ -3,7 +3,6 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { SchedulingPolicyScopeType } from './domain/policy';
-import { seedPolicyConflicts } from './domain/seed-conditions';
 
 const SCOPE_TYPES: SchedulingPolicyScopeType[] = [
   'global', 'engine', 'library', 'category', 'rss_rule', 'torrent',
@@ -26,6 +25,8 @@ export interface PolicyInput {
     requireImportCompleted?: boolean;
     requireLibraryCopyVerified?: boolean;
     maxAgeDays?: number | null;
+    /** The condition list that decides when seeding is finished. */
+    stopWhen?: unknown | null;
   } | null;
 }
 
@@ -109,26 +110,11 @@ export class SchedulerPolicyService {
       );
     }
     /*
-     * One fact, one place.
-     *
-     * A target says "seed until", a condition says "only these torrents", and
-     * writing the same fact in both produces a rule that fires only when BOTH
-     * hold — which is what neither of them reads like. Refused rather than
-     * guessed at, and named precisely so the operator knows which two to
-     * reconcile.
+     * Only the FIXED shape needs a ratio. A policy whose target is a condition
+     * list says its ratio there — demanding one here too would be the same
+     * fact in two places, which is what the list replaced.
      */
-    const clashes = seedPolicyConflicts(input as Record<string, unknown> & { conditions?: never });
-    if (clashes.length) {
-      const detail = clashes
-        .map((c) => `"${c.condition}" and the ${c.policyField} field`)
-        .join('; ');
-      throw new BadRequestException(
-        `A seeding rule may state a fact once: ${detail}. Remove one of them — `
-          + 'the target decides when seeding is finished, the condition decides which torrents the policy covers.',
-      );
-    }
-
-    if (mode === 'ratio') {
+    if (mode === 'ratio' && !input.stopWhen) {
       const r = input.targetRatio;
       if (typeof r !== 'number' || !(r > 0)) {
         throw new BadRequestException('A ratio target needs a share ratio greater than zero.');
@@ -157,6 +143,10 @@ export class SchedulerPolicyService {
       ...(input.requireImportCompleted ? { requireImportCompleted: true } : {}),
       ...(input.requireLibraryCopyVerified ? { requireLibraryCopyVerified: true } : {}),
       ...(input.maxAgeDays != null ? { maxAgeDays: input.maxAgeDays } : {}),
+      // Persisted as sent. Validating each leaf here would duplicate the
+      // catalogue; the evaluator already answers `unknown` for a field it does
+      // not recognise, which blocks the action rather than acting on a guess.
+      ...(input.stopWhen ? { stopWhen: input.stopWhen } : {}),
     };
   }
 

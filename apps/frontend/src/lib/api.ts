@@ -1858,10 +1858,11 @@ export interface SchedulerTorrentDecision {
 
 export interface SchedulerSeedPolicy {
   /**
-   * Which torrents these rules apply to. Null/absent means every torrent in
-   * scope — the behaviour before conditions existed.
+   * When to stop seeding, as a condition list. This IS the target — it
+   * supersedes `mode`/`targetRatio`/`maxAgeDays`, which could only ever state
+   * one thing at a time. Null means those legacy fields still decide.
    */
-  conditions?: unknown | null;
+  stopWhen?: unknown | null;
   mode: 'ratio' | 'manual' | 'unlimited';
   targetRatio?: number;
   afterTarget: 'pause' | 'stop' | 'leave_active';

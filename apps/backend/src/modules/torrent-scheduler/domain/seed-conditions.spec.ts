@@ -130,119 +130,66 @@ describe('the catalog', () => {
   });
 });
 
-/*
- * The integration that matters: conditions gate the ACTION, including the age
- * deadline. A policy whose conditions do not match must not stop, remove or
- * clean up anything — the deadline is one of its actions, not a separate rule.
- */
-import { evaluateSeedScope } from './policy';
 
-describe('evaluateSeedScope', () => {
-  const base = { mode: 'ratio' as const, afterTarget: 'stop' as const, targetRatio: 2 };
 
-  it('applies to everything when the policy names no conditions', () => {
-    expect(evaluateSeedScope(base, { ratio: 9 })).toBe('met');
-  });
-
-  it('excludes a torrent the conditions do not describe', () => {
-    const policy = {
-      ...base,
-      conditions: { type: 'all' as const, children: [
-        { type: 'condition' as const, field: 'seed.isPrivate', operator: 'eq', value: true },
-      ] },
-    };
-    expect(evaluateSeedScope(policy, { isPrivate: false })).toBe('not_met');
-    expect(evaluateSeedScope(policy, { isPrivate: true })).toBe('met');
-  });
-
-  it('blocks on an unmeasured fact rather than acting', () => {
-    const policy = {
-      ...base,
-      conditions: { type: 'all' as const, children: [
-        { type: 'condition' as const, field: 'seed.tracker', operator: 'contains', value: 'private' },
-      ] },
-    };
-    // The engine reported no tracker: this rule was never shown to cover the
-    // torrent, so it must not be what ends its seed.
-    expect(evaluateSeedScope(policy, {})).toBe('unknown');
-  });
-});
-
-import { seedPolicyConflicts, seedConditionFieldsUsed } from './seed-conditions';
+import { evaluateSeedTarget } from './policy';
 
 /**
- * The seeding panel can express the same fact twice — a `targetRatio` field and
- * a `seed.ratio` condition — and the two do NOT mean the same thing. A target
- * says "seed until"; a condition says "only these torrents". Written together
- * they combine into a rule that fires only when BOTH hold, which is what
- * neither of them reads like. So the pairing is refused rather than guessed at.
+ * The condition list IS the stop target.
+ *
+ * The fixed fields could only ever say one thing — a ratio, or a time, or a
+ * deadline — so "stop at ratio 2 OR after 30 days, but never before the import
+ * finished" was not expressible. A list says it directly, and `evaluateSeedTarget`
+ * reads it in place of the fields when a policy has one.
  */
-const cond = (field: string) => ({ type: 'condition' as const, field, operator: 'gte', value: 2 });
+describe('a seeding policy whose target is a condition list', () => {
+  const stopWhen = (node: unknown) =>
+    ({ mode: 'ratio' as const, afterTarget: 'stop' as const, stopWhen: node as never });
+  const cond = (field: string, operator: string, value: unknown) =>
+    ({ type: 'condition' as const, field, operator, value });
 
-describe('seedPolicyConflicts', () => {
-  it('flags a ratio stated as both a target and a condition', () => {
-    const out = seedPolicyConflicts({
-      targetRatio: 2,
-      conditions: { type: 'all', children: [cond('seed.ratio')] },
-    });
-    expect(out).toEqual([{ condition: 'seed.ratio', policyField: 'targetRatio' }]);
+  it('stops once any listed condition is met', () => {
+    const policy = stopWhen({ type: 'any', children: [
+      cond('seed.ratio', 'gte', 2),
+      cond('seed.ageDays', 'gte', 30),
+    ] });
+
+    expect(evaluateSeedTarget(policy, { ratio: 2.1, ageDays: 3 })).toBe('met');
+    expect(evaluateSeedTarget(policy, { ratio: 0.4, ageDays: 31 })).toBe('met');
+    expect(evaluateSeedTarget(policy, { ratio: 0.4, ageDays: 3 })).toBe('not_met');
   });
 
-  it('flags a minimum ratio too — it is the same fact', () => {
-    const out = seedPolicyConflicts({
-      minimumRatio: 1,
-      conditions: { type: 'all', children: [cond('seed.ratio')] },
-    });
-    expect(out).toEqual([{ condition: 'seed.ratio', policyField: 'minimumRatio' }]);
+  it('requires every condition when the list is ALL', () => {
+    const policy = stopWhen({ type: 'all', children: [
+      cond('seed.ratio', 'gte', 1),
+      cond('seed.importCompleted', 'eq', true),
+    ] });
+
+    expect(evaluateSeedTarget(policy, { ratio: 2, importCompleted: true })).toBe('met');
+    expect(evaluateSeedTarget(policy, { ratio: 2, importCompleted: false })).toBe('not_met');
   });
 
-  it('flags an age deadline against an age condition', () => {
-    const out = seedPolicyConflicts({
-      maxAgeDays: 30,
-      conditions: { type: 'all', children: [cond('seed.ageDays')] },
-    });
-    expect(out).toEqual([{ condition: 'seed.ageDays', policyField: 'maxAgeDays' }]);
+  it('does not stop on a fact the engine never reported', () => {
+    // The discipline that keeps a policy from ending a seed it cannot judge.
+    const policy = stopWhen({ type: 'all', children: [cond('seed.ratio', 'gte', 2)] });
+    expect(evaluateSeedTarget(policy, {})).toBe('unknown');
   });
 
-  it('allows the two halves to describe different facts', () => {
-    // The case the feature exists for: seed to ratio 2, but only private TV.
-    expect(seedPolicyConflicts({
-      targetRatio: 2,
-      conditions: { type: 'all', children: [cond('seed.isPrivate'), cond('seed.sizeBytes')] },
-    })).toEqual([]);
+  it('ignores the legacy fields entirely once a list is present', () => {
+    // Otherwise the same fact could be stated twice and silently ANDed — which
+    // is exactly the shape this design replaced.
+    const policy = {
+      mode: 'ratio' as const, afterTarget: 'stop' as const,
+      targetRatio: 99, minimumRatio: 50,
+      stopWhen: { type: 'any' as const, children: [cond('seed.ratio', 'gte', 2)] } as never,
+    };
+    expect(evaluateSeedTarget(policy, { ratio: 2.5 })).toBe('met');
   });
 
-  it('does not flag a field the operator never set', () => {
-    expect(seedPolicyConflicts({
-      targetRatio: undefined,
-      maxAgeDays: null,
-      conditions: { type: 'all', children: [cond('seed.ratio'), cond('seed.ageDays')] },
-    })).toEqual([]);
-  });
-
-  it('finds a condition nested inside a group', () => {
-    const out = seedPolicyConflicts({
-      targetRatio: 2,
-      conditions: { type: 'all', children: [
-        { type: 'any', children: [cond('seed.isPrivate'), cond('seed.ratio')] },
-      ] },
-    });
-    expect(out).toEqual([{ condition: 'seed.ratio', policyField: 'targetRatio' }]);
-  });
-
-  it('reports every clash rather than the first', () => {
-    const out = seedPolicyConflicts({
-      targetRatio: 2, minimumRatio: 1, maxAgeDays: 30,
-      conditions: { type: 'all', children: [cond('seed.ratio'), cond('seed.ageDays')] },
-    });
-    expect(out).toHaveLength(3);
-  });
-
-  it('collects used fields from a nested document', () => {
-    expect([...seedConditionFieldsUsed({
-      type: 'all',
-      children: [cond('seed.ratio'), { type: 'any', children: [cond('seed.tracker')] }],
-    })].sort()).toEqual(['seed.ratio', 'seed.tracker']);
-    expect(seedConditionFieldsUsed(null).size).toBe(0);
+  it('falls back to the fixed fields when no list is set', () => {
+    // Every policy written before this keeps behaving exactly as it did.
+    const legacy = { mode: 'ratio' as const, afterTarget: 'stop' as const, targetRatio: 5 };
+    expect(evaluateSeedTarget(legacy, { ratio: 5 })).toBe('met');
+    expect(evaluateSeedTarget(legacy, { ratio: 4.9 })).toBe('not_met');
   });
 });

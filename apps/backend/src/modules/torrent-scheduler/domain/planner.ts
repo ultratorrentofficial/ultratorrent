@@ -7,7 +7,7 @@ import {
 } from './classification';
 import { type TorrentPriorityDecision, orderByPriority } from './priority';
 import { type SchedulerLimitation, type TorrentQueueCapabilities, canDo } from './capabilities';
-import { evaluateSeedAgeDeadline, evaluateSeedScope, evaluateSeedTarget, type EffectivePolicy } from './policy';
+import { evaluateSeedAgeDeadline, evaluateSeedTarget, type EffectivePolicy } from './policy';
 import type { SeedFacts } from './seed-conditions';
 
 /**
@@ -462,21 +462,7 @@ function seedTargetDecision(
   const policy = t.policy.seedPolicy;
   if (!policy) return null;
 
-  /*
-   * Does this policy even apply to this torrent?
-   *
-   * Checked FIRST, and before the deadline: a policy whose conditions do not
-   * match must not act at all, and the deadline is one of its actions. An
-   * `unknown` blocks just as `not_met` does — a rule that was never shown to
-   * cover this torrent must not be the thing that stops its seed.
-   *
-   * An absent document answers `met`, so a policy written before conditions
-   * existed behaves exactly as it did.
-   */
-  const scope = evaluateSeedScope(policy, seedFactsOf(t));
-  if (scope !== 'met') return null;
-
-  const verdict = evaluateSeedTarget(policy, { ratio: t.ratio, seedMinutes: t.seedMinutes });
+  const verdict = evaluateSeedTarget(policy, seedFactsOf(t));
 
   /*
    * The deadline is checked BEFORE the target's own outcomes, on any verdict

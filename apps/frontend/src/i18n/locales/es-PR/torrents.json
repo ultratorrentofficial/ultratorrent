@@ -386,11 +386,9 @@
         "ageLimitHelp": "Cuando la meta de ratio no se va a alcanzar, deja de esperar: elimina el torrent y borra su copia de las carpetas de entrada.",
         "maxAgeDays": "Días de espera",
         "ageLimitWarning": "Se cuenta desde que terminó la descarga. Los archivos que ya están en una biblioteca nunca se borran; solo la copia de entrada.",
-        "conditionsTitle": "Aplicar a cuáles torrents",
-        "conditionsHint": "Déjalo vacío para aplicar a todos los torrents del alcance. Agrega condiciones para restringirlo: un torrent debe coincidir antes de que cualquier regla de siembra actúe sobre él.",
-        "conditionsTaken": "No disponible aquí porque las reglas de arriba ya lo definen: {{fields}}.",
-        "ratioInConditions": "La proporción está definida en las condiciones de abajo, así que no se ofrece como objetivo aquí.",
-        "ageInConditions": "Los días desde que completó están definidos en las condiciones de abajo, así que no se ofrece como plazo aquí."
+        "stopWhen": "Dejar de sembrar cuando",
+        "stopWhenHint": "Cualquier condición aquí termina la obligación de siembra. Usa CUALQUIERA para \"lo que ocurra primero\" (ratio 2 o 30 días); usa TODAS cuando deban cumplirse todas.",
+        "stopWhenEmpty": "Aún no hay condiciones: esta política nunca detendrá un torrent por sí sola."
       },
       "bandwidth": {
         "title": "Ancho de banda",

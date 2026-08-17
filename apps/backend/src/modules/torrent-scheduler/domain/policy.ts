@@ -113,28 +113,17 @@ export interface SeedingPolicy {
    */
   maxAgeDays?: number;
   /**
-   * Which torrents this policy's seeding rules apply to.
+   * When to stop seeding, as a list of conditions.
    *
-   * Absent or empty means every torrent in scope, which is what a policy did
-   * before conditions existed — adding the feature must not change any
-   * existing one. See {@link evaluateSeedConditions}.
+   * This IS the target — "stop when ratio >= 2 OR 30 days have passed" — not a
+   * filter over which torrents the policy covers. It supersedes `mode`,
+   * `targetRatio` and `maxAgeDays`, which express the same idea in a fixed
+   * shape that could only ever say one thing at a time.
+   *
+   * Absent means the legacy fields still decide, so a policy written before
+   * this behaves exactly as it did.
    */
-  conditions?: SeedConditionNode | null;
-}
-
-/**
- * Does this policy's condition document match, given what we know?
- *
- * Kept beside the target evaluation because they compose the same way: the
- * post-target action runs only when the target is `met` AND the conditions are
- * `met`. `unknown` on either side blocks it — a rule must not act on a torrent
- * it was never shown to cover.
- */
-export function evaluateSeedScope(
-  policy: SeedingPolicy,
-  facts: SeedFacts,
-): SeedConditionVerdict {
-  return evaluateSeedConditions(policy.conditions, facts);
+  stopWhen?: SeedConditionNode | null;
 }
 
 /** Default deadline offered when an operator turns the age rule on. */
@@ -273,9 +262,20 @@ export type SeedTargetVerdict = 'met' | 'not_met' | 'unknown';
 
 export function evaluateSeedTarget(
   policy: SeedingPolicy,
-  facts: { ratio?: number; seedMinutes?: number },
+  facts: SeedFacts,
 ): SeedTargetVerdict {
   const { ratio, seedMinutes } = facts;
+
+  /*
+   * A condition list, when the policy has one, IS the target.
+   *
+   * It answers the same question the fixed fields did — has this seeded
+   * enough? — but can say more than one thing: "ratio >= 2 OR 30 days", "ratio
+   * >= 1 AND not a private tracker". The floors below are deliberately NOT
+   * applied to it: a list that already names a ratio should not also be gated
+   * by a separate minimum nobody can see from the list.
+   */
+  if (policy.stopWhen) return evaluateSeedConditions(policy.stopWhen, facts);
 
   // Obligations first: a floor that is not yet satisfied overrides any target.
   if (policy.minimumRatio !== undefined) {

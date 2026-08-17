@@ -386,11 +386,9 @@
         "ageLimitHelp": "When the ratio target is not going to be met, stop waiting: remove the torrent and delete its copy from the intake folders.",
         "maxAgeDays": "Days to wait",
         "ageLimitWarning": "Counted from when the download finished. Files already in a library are never deleted — only the intake copy.",
-        "conditionsTitle": "Apply to which torrents",
-        "conditionsHint": "Leave empty to apply to every torrent in scope. Add conditions to narrow it — a torrent must match before any seeding rule above acts on it.",
-        "conditionsTaken": "Not available here because the rules above already set it: {{fields}}.",
-        "ratioInConditions": "Ratio is set in the conditions below, so it is not offered as a target here.",
-        "ageInConditions": "Days since completed is set in the conditions below, so it is not offered as a deadline here."
+        "stopWhen": "Stop seeding when",
+        "stopWhenHint": "Any condition here ends the seeding obligation. Use ANY for \"whichever comes first\" (ratio 2 or 30 days); use ALL when every one must hold.",
+        "stopWhenEmpty": "No conditions yet — this policy will never stop a torrent on its own."
       },
       "bandwidth": {
         "title": "Bandwidth",
