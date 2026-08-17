@@ -514,15 +514,38 @@ function seedTargetDecision(
     return decide(t, 'active', 'none', 'seed_target_waiting_for_library_copy');
   }
 
+  /*
+   * "Never stop this automatically" outranks the policy, and it has to be
+   * checked BEFORE the destructive branch — below it, a protected torrent
+   * would be removed and its staging files deleted, which is the one outcome
+   * the flag exists to prevent. The age deadline already tests it for the same
+   * reason.
+   */
+  if (t.protectedFromRemoval) {
+    return decide(t, 'active', 'none', 'protected_from_removal');
+  }
+
   if (destructive) {
-    // Not implemented here on purpose; see the note above.
-    return decide(t, 'active', 'none', 'seed_target_removal_not_supported');
+    /*
+     * Hand it to the same cleanup the age deadline uses, which is the same one
+     * an operator gets when they remove an intake torrent and keep the library
+     * copy: files are judged by CONTAINMENT — under a staging root they go,
+     * under a library root they stay, unconditionally — and the engine is then
+     * told `removeTorrent`, never `removeTorrentAndData`, so it cannot undo
+     * that judgement with a rule that knows nothing about library roots.
+     *
+     * This used to answer `seed_target_removal_not_supported`. The machinery
+     * existed and was already wired for the deadline; only the seed target was
+     * refusing to reach it, which left a policy able to say "remove" and then
+     * quietly do nothing.
+     */
+    return decide(t, 'removed', 'remove_and_cleanup', 'seed_target_reached', {
+      afterTarget: policy.afterTarget,
+      ratio: t.ratio,
+    });
   }
   if (policy.afterTarget === 'leave_active') {
     return decide(t, 'active', 'none', 'seed_target_reached_left_active');
-  }
-  if (t.protectedFromRemoval) {
-    return decide(t, 'active', 'none', 'protected_from_removal');
   }
 
   return decide(t, 'paused', 'pause', 'seed_target_reached', {

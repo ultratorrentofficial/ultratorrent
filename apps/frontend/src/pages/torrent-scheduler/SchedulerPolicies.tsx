@@ -462,7 +462,7 @@ function PolicyDialog({
               value={afterTarget}
               onChange={(e) => setAfterTarget(e.target.value as SchedulerSeedPolicy['afterTarget'])}
             >
-              {(['pause', 'stop', 'leave_active'] as const).map((a) => (
+              {(['pause', 'stop', 'leave_active', 'remove_torrent_and_staging_data'] as const).map((a) => (
                 <option key={a} value={a}>
                   {t(`scheduler.policies.seeding.afterTargetOption.${a}` as 'scheduler.policies.seeding.afterTargetOption.pause')}
                 </option>
@@ -471,6 +471,11 @@ function PolicyDialog({
             <p className="mt-2 text-xs text-muted-foreground">
               {t('scheduler.policies.seeding.afterTargetHelp')}
             </p>
+            {afterTarget === 'remove_torrent_and_staging_data' && (
+              <p className="mt-1 text-xs text-warning">
+                {t('scheduler.policies.seeding.removeWarning')}
+              </p>
+            )}
           </div>
 
           {/* A safety gate, not a target: it can only DELAY the action above. */}

@@ -99,17 +99,51 @@ describe('a seed that met its target', () => {
     expect(d.reasonCode).toBe('seed_target_waiting_for_library_copy');
   });
 
-  it('refuses to remove a torrent, however the policy is written', () => {
+  it('removes through the cleanup path when the policy says to', () => {
     /*
-     * Removing a payload has to pass Media Intake's ownership and path-safety
-     * checks. A queue planner is the wrong place to acquire that authority, so
-     * the action is declined visibly rather than performed carelessly.
+     * The planner still does not delete anything itself. It emits
+     * `remove_and_cleanup`, which reconciliation hands to the scheduler cleanup
+     * service — the same one the age deadline uses, and the same containment
+     * rule an operator gets when they remove an intake torrent and keep the
+     * library copy: staging files go, library files stay, and the engine is
+     * told `removeTorrent` rather than `removeTorrentAndData`.
+     *
+     * It used to answer `seed_target_removal_not_supported`, so a policy could
+     * ask for removal and then quietly do nothing.
      */
     for (const afterTarget of ['remove_torrent_keep_data', 'remove_torrent_and_staging_data'] as const) {
       const d = only(seeder({ seedPolicy: seed({ targetRatio: 1, afterTarget }), ratio: 5 }));
-      expect(d.action).toBe('none');
-      expect(d.reasonCode).toBe('seed_target_removal_not_supported');
+      expect(d.action).toBe('remove_and_cleanup');
+      expect(d.reasonCode).toBe('seed_target_reached');
     }
+  });
+
+  it('never removes a torrent the operator protected', () => {
+    /*
+     * The dangerous ordering. This check sat AFTER the removal branch, so a
+     * torrent flagged "never stop automatically" would have been removed and
+     * its staging files deleted — the one outcome the flag exists to prevent.
+     */
+    const d = only(seeder({
+      seedPolicy: seed({ targetRatio: 1, afterTarget: 'remove_torrent_and_staging_data' }),
+      ratio: 5,
+      protectedFromRemoval: true,
+    }));
+    expect(d.action).toBe('none');
+    expect(d.reasonCode).toBe('protected_from_removal');
+  });
+
+  it('still waits for the import before removing anything', () => {
+    // Removal is the most destructive outcome, so the import gate matters most
+    // here: the staging copy is deleted on the strength of a library copy that
+    // must actually exist.
+    const d = only(seeder({
+      seedPolicy: seed({ targetRatio: 1, afterTarget: 'remove_torrent_and_staging_data', requireImportCompleted: true }),
+      ratio: 5,
+      intakeImported: false,
+    }));
+    expect(d.action).toBe('none');
+    expect(d.reasonCode).toBe('seed_target_waiting_for_import');
   });
 
   it('leaves it running when the policy says to', () => {

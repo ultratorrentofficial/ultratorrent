@@ -388,7 +388,9 @@
         "ageLimitWarning": "Counted from when the download finished. Files already in a library are never deleted — only the intake copy.",
         "stopWhen": "Stop seeding when",
         "stopWhenHint": "Any condition here ends the seeding obligation. Use ANY for \"whichever comes first\" (ratio 2 or 30 days); use ALL when every one must hold.",
-        "stopWhenEmpty": "No conditions yet — this policy will never stop a torrent on its own."
+        "stopWhenEmpty": "No conditions yet — this policy will never stop a torrent on its own.",
+        "afterTargetOption.remove_torrent_and_staging_data": "Delete the torrent and its Intake files",
+        "removeWarning": "The library copy is kept — only the Intake copy is deleted, and the torrent is removed from the client. This is the same cleanup you get when removing an intake torrent by hand and choosing to keep the library copy."
       },
       "bandwidth": {
         "title": "Bandwidth",

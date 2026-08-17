@@ -41,7 +41,13 @@ export interface PolicyInput {
  * scheduler does not own.
  */
 const SEED_MODES = ['ratio', 'manual', 'unlimited'];
-const AFTER_TARGET = ['pause', 'stop', 'leave_active'];
+const AFTER_TARGET = [
+  'pause', 'stop', 'leave_active',
+  // Both delete the STAGING copy and remove the torrent; the library copy is
+  // kept either way, because containment decides that, not the label. They are
+  // separate values so the policy still records which the operator chose.
+  'remove_torrent_keep_data', 'remove_torrent_and_staging_data',
+];
 
 /**
  * Scheduling policies: create, edit, delete.

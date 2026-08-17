@@ -1865,7 +1865,14 @@ export interface SchedulerSeedPolicy {
   stopWhen?: unknown | null;
   mode: 'ratio' | 'manual' | 'unlimited';
   targetRatio?: number;
-  afterTarget: 'pause' | 'stop' | 'leave_active';
+  /**
+   * What to do once the stop conditions are met.
+   *
+   * `remove_torrent_and_staging_data` deletes the INTAKE copy and removes the
+   * torrent; the library copy is kept, because containment decides that rather
+   * than the label.
+   */
+  afterTarget: 'pause' | 'stop' | 'leave_active' | 'remove_torrent_and_staging_data';
   requireImportCompleted?: boolean;
   requireLibraryCopyVerified?: boolean;
   /** Days after completion at which an unmet target is given up on. */
