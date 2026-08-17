@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.83.5] - 2026-08-17
+
+### Fixed
+- RSS feed history: clear the downloaded status of a release so the rule can grab it again through Intake
+- RSS rule dialog: offer the staging path when a managed rule still points into a library, instead of refusing the save
+
 ## [0.83.4] - 2026-08-17
 
 ### Fixed
