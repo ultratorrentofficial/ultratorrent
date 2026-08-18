@@ -389,7 +389,8 @@
         "afterTargetOption": {
           "pause": "Pausar el torrent",
           "stop": "Detener el torrent",
-          "leave_active": "Dejarlo en marcha"
+          "leave_active": "Dejarlo en marcha",
+          "remove_torrent_and_staging_data": "Eliminar el torrent y sus archivos de Intake"
         },
         "afterTargetHelp": "No se ofrece eliminar el torrent: quitar los datos debe pasar las comprobaciones de seguridad de la Recepción de Medios, así que el planificador te lo deja a ti.",
         "requireImportCompleted": "Esperar a que la Recepción de Medios lo haya importado",
@@ -402,7 +403,6 @@
         "stopWhen": "Dejar de sembrar cuando",
         "stopWhenHint": "Cualquier condición aquí termina la obligación de siembra. Usa CUALQUIERA para \"lo que ocurra primero\" (ratio 2 o 30 días); usa TODAS cuando deban cumplirse todas.",
         "stopWhenEmpty": "Aún no hay condiciones: esta política nunca detendrá un torrent por sí sola.",
-        "afterTargetOption.remove_torrent_and_staging_data": "Eliminar el torrent y sus archivos de Intake",
         "removeWarning": "La copia en la biblioteca se conserva: solo se elimina la copia de Intake y el torrent se quita del cliente. Es la misma limpieza que obtienes al eliminar un torrent de intake a mano y elegir conservar la copia de la biblioteca."
       },
       "bandwidth": {

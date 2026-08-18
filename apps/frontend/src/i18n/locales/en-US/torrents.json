@@ -389,7 +389,8 @@
         "afterTargetOption": {
           "pause": "Pause the torrent",
           "stop": "Stop the torrent",
-          "leave_active": "Leave it running"
+          "leave_active": "Leave it running",
+          "remove_torrent_and_staging_data": "Delete the torrent and its Intake files"
         },
         "afterTargetHelp": "Removing the torrent is not offered: taking a payload away has to pass Media Intake's safety checks, so the scheduler leaves that to you.",
         "requireImportCompleted": "Wait until Media Intake has imported it",
@@ -402,7 +403,6 @@
         "stopWhen": "Stop seeding when",
         "stopWhenHint": "Any condition here ends the seeding obligation. Use ANY for \"whichever comes first\" (ratio 2 or 30 days); use ALL when every one must hold.",
         "stopWhenEmpty": "No conditions yet — this policy will never stop a torrent on its own.",
-        "afterTargetOption.remove_torrent_and_staging_data": "Delete the torrent and its Intake files",
         "removeWarning": "The library copy is kept — only the Intake copy is deleted, and the torrent is removed from the client. This is the same cleanup you get when removing an intake torrent by hand and choosing to keep the library copy."
       },
       "bandwidth": {

@@ -36,6 +36,36 @@ describe('i18n', () => {
     expect(t('signIn')).toBe('Sign in');
   });
 
+  /**
+   * Parity proves both languages carry the same keys; it cannot prove either is
+   * REACHABLE. A string added as a flat dotted key beside a nested object of
+   * the same name — `"afterTargetOption.remove_torrent_and_staging_data"` next
+   * to an `afterTargetOption: {…}` — is shadowed: i18next walks into the object,
+   * finds no such member, and renders the raw key at the operator. It appeared
+   * in both locales, so parity was satisfied while the UI showed
+   * `scheduler.policies.seeding.afterTargetOption.remove_torrent_and_staging_data`
+   * in a dropdown.
+   */
+  it('resolves every key it ships, in both languages', () => {
+    const MISSING = '__UNRESOLVED__';
+    const unresolved: string[] = [];
+    for (const lng of ['en-US', 'es-PR']) {
+      for (const ns of NAMESPACES) {
+        for (const key of flatKeys(i18n.getResourceBundle(lng, ns) ?? {})) {
+          // Plural leaves are reached as `base` + `count`, never by their own
+          // suffixed name, so asking for them directly proves nothing.
+          if (/_(zero|one|two|few|many|other)$/.test(key)) continue;
+          // The sentinel is the only sound signal: a key may legitimately
+          // resolve to its own name (`"yes": "yes"`), so comparing output to
+          // key would fail three honest strings.
+          const out = i18n.t(key, { ns, lng, defaultValue: MISSING });
+          if (out === MISSING) unresolved.push(`${lng}/${ns}: ${key}`);
+        }
+      }
+    }
+    expect(unresolved).toEqual([]);
+  });
+
   it('has identical key sets across en-US and es-PR for every namespace (parity)', () => {
     for (const ns of NAMESPACES) {
       const en = flatKeys(i18n.getResourceBundle('en-US', ns) ?? {}).sort();
