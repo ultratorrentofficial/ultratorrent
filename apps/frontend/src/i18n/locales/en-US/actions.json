@@ -102,7 +102,8 @@
     "applied_other": "Applied to {{count}} items",
     "missing": "{{count}} item could not be found",
     "missing_other": "{{count}} items could not be found",
-    "failed": "That action could not be completed."
+    "failed": "That action could not be completed.",
+    "cancelled": "The operation was cancelled."
   },
   "menu": {
     "label": "More actions"
@@ -166,5 +167,16 @@
     "result": "{{matched}} candidate(s) from {{evaluated}} item(s) evaluated.",
     "resultNote": "Nothing was removed — candidates still go through a plan and approval.",
     "viewRuns": "View cleanup runs"
+  },
+  "progress": {
+    "delete-files": "Deleting media…",
+    "remove": "Removing from library…",
+    "move": "Moving media…"
+  },
+  "jobProgress": {
+    "body": "Working through the selection. This screen returns to the library as soon as it finishes.",
+    "unreachable": "The operation is running, but its progress could not be read just now. Still waiting for it to finish.",
+    "working": "Working…",
+    "count": "{{done}} of {{total}}"
   }
 }

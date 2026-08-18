@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import {
-  DEFAULT_ITEM_SORT, isAlphabetical, isItemSort, orderByForSort,
+  compareSeries, DEFAULT_ITEM_SORT, isAlphabetical, isItemSort, orderByForSort,
 } from './domain/item-sort';
 import {
   TV_TYPES,
@@ -318,7 +318,10 @@ export class MediaItemService {
     const [rows, libraries] = await Promise.all([
       this.prisma.mediaItem.findMany({
         where,
-        select: { id: true, title: true, year: true, path: true, season: true, seriesImdbId: true, createdAt: true },
+        select: {
+          id: true, title: true, year: true, path: true, season: true, seriesImdbId: true,
+          createdAt: true, updatedAt: true,
+        },
       }),
       this.prisma.mediaLibrary.findMany({ select: { path: true } }),
     ]);
@@ -326,7 +329,8 @@ export class MediaItemService {
 
     type Acc = {
       kind: 'dir' | 'title'; value: string; title: string; year: number | null;
-      itemIds: string[]; seasons: Set<number | null>; lastAddedAt: Date; seriesImdbId: string | null;
+      itemIds: string[]; seasons: Set<number | null>; lastAddedAt: Date; lastUpdatedAt: Date;
+      seriesImdbId: string | null;
     };
     const groups = new Map<string, Acc>();
     for (const r of rows) {
@@ -336,21 +340,30 @@ export class MediaItemService {
       if (!acc) {
         groups.set(g.dedupKey, {
           kind: g.kind, value: g.value, title: g.title, year,
-          itemIds: [r.id], seasons: new Set([r.season]), lastAddedAt: r.createdAt, seriesImdbId: r.seriesImdbId ?? null,
+          itemIds: [r.id], seasons: new Set([r.season]),
+          lastAddedAt: r.createdAt, lastUpdatedAt: r.updatedAt,
+          seriesImdbId: r.seriesImdbId ?? null,
         });
       } else {
         acc.itemIds.push(r.id);
         acc.seasons.add(r.season);
+        /*
+         * A show is as new as its NEWEST episode. Grouping keeps the maximum
+         * rather than the folder's own timestamp, which is what makes "recently
+         * added" mean "just got an episode" for television.
+         */
         if (r.createdAt > acc.lastAddedAt) acc.lastAddedAt = r.createdAt;
+        if (r.updatedAt > acc.lastUpdatedAt) acc.lastUpdatedAt = r.updatedAt;
         acc.seriesImdbId ??= r.seriesImdbId ?? null;
         if (year != null && (acc.year == null || year < acc.year)) acc.year = year;
       }
     }
 
     const q = filters.search?.trim().toLowerCase();
+    const sort = isItemSort(filters.sort) ? filters.sort : DEFAULT_ITEM_SORT;
     const all = [...groups.values()]
       .filter((g) => !q || g.title.toLowerCase().includes(q))
-      .sort((a, b) => a.title.localeCompare(b.title));
+      .sort(compareSeries(sort));
     const total = all.length;
     const pageGroups = all.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 

@@ -102,7 +102,8 @@
     "applied_other": "Aplicado a {{count}} elementos",
     "missing": "No se encontró {{count}} elemento",
     "missing_other": "No se encontraron {{count}} elementos",
-    "failed": "No se pudo completar esa acción."
+    "failed": "No se pudo completar esa acción.",
+    "cancelled": "La operación fue cancelada."
   },
   "menu": {
     "label": "Más acciones"
@@ -166,5 +167,16 @@
     "result": "{{matched}} candidato(s) de {{evaluated}} elemento(s) evaluados.",
     "resultNote": "No se eliminó nada — los candidatos aún pasan por un plan y aprobación.",
     "viewRuns": "Ver ejecuciones de limpieza"
+  },
+  "progress": {
+    "delete-files": "Eliminando medios…",
+    "remove": "Quitando de la biblioteca…",
+    "move": "Moviendo medios…"
+  },
+  "jobProgress": {
+    "body": "Procesando la selección. Esta pantalla vuelve a la biblioteca en cuanto termine.",
+    "unreachable": "La operación sigue en curso, pero no se pudo leer su progreso ahora mismo. Se sigue esperando a que termine.",
+    "working": "Procesando…",
+    "count": "{{done}} de {{total}}"
   }
 }

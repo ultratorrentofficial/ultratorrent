@@ -1,17 +1,32 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EntityRef } from '@ultratorrent/shared';
-import { api, type DeleteSourceAction, type MediaLibrary } from '@/lib/api';
+import { api, type DeleteSourceAction, type MediaLibrary, type PlatformJobDetail } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { ActionBar, type ActionHandler } from '@/actions/ActionBar';
 import { useContextActions } from '@/actions/useContextActions';
 import { useJobRefresh } from './useJobRefresh';
+import { JobProgressDialog } from './JobProgressDialog';
 import { CleanupItemDialog } from './CleanupItemDialog';
 import { ConfirmDeleteDialog, type DeleteMode } from './ConfirmDeleteDialog';
 import { ItemContextMenu, type ContextMenuAnchor } from './ItemContextMenu';
 import { RenameItemDialog } from './RenameItemDialog';
 import { MoveToLibraryDialog } from './MoveToLibraryDialog';
+
+/**
+ * The operations that change the filesystem, and so must be watched to the end
+ * rather than announced as queued. Metadata, NFO and lock work leaves the media
+ * where it is, so those still refresh in the background.
+ */
+const DESTRUCTIVE_OPS: readonly BulkOp[] = ['delete-files', 'remove'];
+
+/** How many items a finished job actually acted on, for the closing toast. */
+function doneCount(job: PlatformJobDetail): number {
+  const summary = job.resultSummary as { completed?: number; total?: number } | null;
+  return summary?.completed ?? summary?.total ?? job.progressTotal ?? 0;
+}
+
 
 type BulkOp = 'metadata' | 'lock' | 'unlock' | 'nfo' | 'remove' | 'delete-files';
 
@@ -77,6 +92,32 @@ export function ContextActionBar({
   const [confirmMode, setConfirmMode] = useState<DeleteMode | null>(null);
   const [movingOpen, setMovingOpen] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; title: string; path: string } | null>(null);
+  /*
+   * The bar's rename path: an id whose item still has to be fetched. Kept
+   * separate from `renaming` so the dialog opens only once the real path is in
+   * hand — opening it on a guess would show the operator a rename preview built
+   * from the wrong file.
+   */
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const renameTarget = useQuery({
+    queryKey: ['library-browser', 'rename-target', renamingId],
+    enabled: !!renamingId,
+    queryFn: () => api.media.getItem(renamingId!),
+  });
+
+  useEffect(() => {
+    if (!renamingId || !renameTarget.data) return;
+    const item = renameTarget.data;
+    setRenaming({ id: item.id, title: item.title, path: item.path });
+    setRenamingId(null);
+  }, [renamingId, renameTarget.data]);
+
+  useEffect(() => {
+    if (!renamingId || !renameTarget.isError) return;
+    // Say so rather than leaving the press unanswered — the silence is the bug.
+    toast.error(t('result.failed'));
+    setRenamingId(null);
+  }, [renamingId, renameTarget.isError, toast, t]);
   const [cleaningIds, setCleaningIds] = useState<string[] | null>(null);
   /*
    * Detached operations finish long after their request returns, so the grid is
@@ -84,20 +125,39 @@ export function ContextActionBar({
    * `useJobRefresh` for the measurement that made this necessary.
    */
   const watchJob = useJobRefresh(['library-browser']);
+  /*
+   * Destructive work is watched on screen instead of in the background. The
+   * grid cannot be correct until the job finishes, so the operator is held here
+   * until it does and handed back a refreshed view — rather than dropped onto a
+   * grid that still lists what they just deleted. See `JobProgressDialog`.
+   */
+  const [runningJob, setRunningJob] = useState<{ id: string; title: string } | null>(null);
 
   const bulk = useMutation({
     mutationFn: ({ op, ids, sourceAction }: { op: BulkOp; ids: string[]; sourceAction?: DeleteSourceAction }) =>
       api.media.bulkItems(op, ids, sourceAction),
-    onSuccess: (result) => {
+    onSuccess: (result, vars) => {
+      // Ids that resolved to nothing are surfaced, never swallowed: acting on
+      // fewer items than were selected must not look like success.
+      if (result.missing.length) toast.error(t('result.missing', { count: result.missing.length }));
+
+      /*
+       * A destructive job takes over the screen until it is done. Announcing
+       * "queued" and returning to the grid is what made a finished delete look
+       * unfinished: the media was gone within a second while the view still
+       * listed it, with nothing on screen to say the work was in progress.
+       */
+      if (result.jobId && DESTRUCTIVE_OPS.includes(vars.op)) {
+        setRunningJob({ id: result.jobId, title: t(`progress.${vars.op}` as 'progress.remove') });
+        return;
+      }
+
       // A job id means the work is still running — saying "done" would be false.
       toast.success(
         result.jobId
           ? t('result.queued', { count: result.accepted })
           : t('result.applied', { count: result.accepted }),
       );
-      // Ids that resolved to nothing are surfaced, never swallowed: acting on
-      // fewer items than were selected must not look like success.
-      if (result.missing.length) toast.error(t('result.missing', { count: result.missing.length }));
       // Synchronous operations are done already; detached ones have not
       // started, so those refresh when their job settles instead.
       if (result.jobId) watchJob(result.jobId);
@@ -106,6 +166,23 @@ export function ContextActionBar({
     },
     onError: (e: Error) => toast.error(e?.message || t('result.failed')),
   });
+
+  /*
+   * What finishing a watched job means: the library changed, so the view is
+   * rebuilt before the operator gets it back. Invalidation happens here rather
+   * than in the dialog because this is the surface that knows what it showed.
+   */
+  const finishJob = useCallback(
+    (job: PlatformJobDetail) => {
+      setRunningJob(null);
+      qc.invalidateQueries({ queryKey: ['library-browser'] });
+      onClear();
+      if (job.status === 'completed') toast.success(t('result.applied', { count: doneCount(job) }));
+      else if (job.status === 'cancelled') toast.error(t('result.cancelled'));
+      else toast.error(job.errorMessage || t('result.failed'));
+    },
+    [qc, onClear, t, toast],
+  );
 
   const scan = useMutation({
     mutationFn: () => api.media.scanLibrary(libraryId),
@@ -117,11 +194,15 @@ export function ContextActionBar({
     mutationFn: ({ ids, targetLibraryId }: { ids: string[]; targetLibraryId: string }) =>
       api.media.bulkMoveItems(ids, targetLibraryId),
     onSuccess: (result) => {
-      toast.success(t('result.queued', { count: result.accepted }));
       if (result.missing.length) toast.error(t('result.missing', { count: result.missing.length }));
-      if (result.jobId) watchJob(result.jobId);
-      else qc.invalidateQueries({ queryKey: ['library-browser'] });
       setMovingOpen(false);
+      // Moving relocates files on disk, so the grid is as wrong as after a
+      // delete until the job lands. Same treatment.
+      if (result.jobId) {
+        setRunningJob({ id: result.jobId, title: t('progress.move') });
+        return;
+      }
+      qc.invalidateQueries({ queryKey: ['library-browser'] });
       onClear();
     },
     onError: (e: Error) => toast.error(e?.message || t('result.failed')),
@@ -149,9 +230,23 @@ export function ContextActionBar({
        * only the right-click path carries its path, so it falls back to the
        * context target rather than guessing from an id.
        */
+      /*
+       * Rename needs the item's title and PATH, not just its id, and only the
+       * right-click path carries them. When the action is run from the bar —
+       * select a row, press Rename — there is no context target, and this used
+       * to do nothing at all: no dialog, no job, no error. A silent no-op on a
+       * button the operator deliberately pressed reads as a broken feature, so
+       * the id is now resolved into a real item before opening the dialog.
+       */
       'media.item.rename': (sel) => {
         const target = contextMenu?.item ?? null;
-        if (target && (sel.length !== 1 || sel[0].id === target.id)) setRenaming(target);
+        if (target && (sel.length !== 1 || sel[0].id === target.id)) {
+          setRenaming(target);
+          return;
+        }
+        const id = sel.length === 1 ? sel[0].id : null;
+        if (!id) return;
+        setRenamingId(id);
       },
       'media.cleanup.runItems': (sel) => setCleaningIds(idsOf(sel)),
       'media.item.remove': () => setConfirmMode('remove'),
@@ -172,6 +267,14 @@ export function ContextActionBar({
         isError={isError}
         primaryGroups={['metadata', 'maintenance']}
       />
+      {runningJob && (
+        <JobProgressDialog
+          jobId={runningJob.id}
+          title={runningJob.title}
+          onSettled={finishJob}
+        />
+      )}
+
       <ConfirmDeleteDialog
         open={confirmMode !== null}
         mode={confirmMode ?? 'remove'}

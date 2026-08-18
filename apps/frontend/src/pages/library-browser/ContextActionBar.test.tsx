@@ -28,11 +28,21 @@ const apiSpy = vi.hoisted(() => ({
   bulkItems: vi.fn(),
   scanLibrary: vi.fn(),
   catalog: vi.fn(),
+  getItem: vi.fn(),
+  jobDetail: vi.fn(),
+  renamePreview: vi.fn(),
 }));
 vi.mock('@/lib/api', () => ({
   api: {
-    media: { bulkItems: apiSpy.bulkItems, scanLibrary: apiSpy.scanLibrary },
+    media: {
+      bulkItems: apiSpy.bulkItems,
+      scanLibrary: apiSpy.scanLibrary,
+      getItem: apiSpy.getItem,
+      preview: apiSpy.renamePreview,
+      apply: vi.fn(),
+    },
     contextActions: { catalog: apiSpy.catalog },
+    jobs: { detail: apiSpy.jobDetail },
   },
 }));
 
@@ -57,6 +67,7 @@ const CATALOG: ResolvedAction[] = [
   action({ id: 'media.nfo.generate', order: 20 }),
   action({ id: 'media.item.lock', group: 'maintenance', order: 30 }),
   action({ id: 'media.item.unlock', group: 'maintenance', order: 40 }),
+  action({ id: 'media.item.rename', group: 'maintenance', arity: 'single', order: 50 }),
 ];
 
 function catalogOf(actions: ResolvedAction[]) {
@@ -68,6 +79,10 @@ beforeEach(() => {
   apiSpy.catalog.mockResolvedValue(catalogOf(CATALOG));
   apiSpy.bulkItems.mockResolvedValue({ jobId: 'j1', accepted: 2, missing: [] });
   apiSpy.scanLibrary.mockResolvedValue({ jobId: 'scan-1' });
+  apiSpy.jobDetail.mockResolvedValue({ id: 'j1', status: 'completed', progressPercent: 100, resultSummary: { completed: 2 } });
+  apiSpy.getItem.mockResolvedValue({
+    id: 'a', title: 'Beyond the Gates', path: '/tv/Beyond the Gates/S02E148.mkv',
+  });
 });
 
 function renderBar(selectedIds: string[], opts: { onClear?: () => void; operationsMode?: boolean } = {}) {
@@ -148,6 +163,33 @@ describe('ContextActionBar — running an action', () => {
 });
 
 describe('ContextActionBar — what it refuses to render', () => {
+  /**
+   * Reported from a live library: an episode was selected, Rename was pressed,
+   * and nothing happened — no dialog, no job, nothing in recent activity. The
+   * handler only ever opened the dialog for a RIGHT-CLICK target, because only
+   * that path carries the item's path; from the bar it fell through silently.
+   */
+  it('opens rename from the bar, resolving the item the selection names', async () => {
+    apiSpy.renamePreview.mockResolvedValue({ items: [], total: 0 });
+    renderBar(['a']);
+
+    fireEvent.click(await screen.findByText('Rename…'));
+
+    await waitFor(() => expect(apiSpy.getItem).toHaveBeenCalledWith('a'));
+    // The dialog is what "the rename process launched" looks like to an operator.
+    expect(await screen.findByText(/Beyond the Gates/)).toBeInTheDocument();
+  });
+
+  it('says so when the item behind the selection cannot be read', async () => {
+    // Anything except silence: the press must be answered.
+    apiSpy.getItem.mockRejectedValue(new Error('gone'));
+    renderBar(['a']);
+
+    fireEvent.click(await screen.findByText('Rename…'));
+
+    await waitFor(() => expect(toastSpy.error).toHaveBeenCalled());
+  });
+
   it('never renders an action it has no handler for', async () => {
     /*
      * The load-bearing safety rule. The registry is platform-wide and resolves

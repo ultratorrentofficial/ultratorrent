@@ -78,3 +78,59 @@ export function orderByForSort(sort: ItemSort): Prisma.MediaItemOrderByWithRelat
 export function isAlphabetical(sort: ItemSort): boolean {
   return sort === 'title';
 }
+
+/**
+ * One show, reduced to the fields an ordering needs.
+ *
+ * A show is not a row in the database — it is a grouping of its episodes — so
+ * the same sort keys have to be answered from the group. `lastAddedAt` is the
+ * newest episode's `createdAt`, which is the only reading of "recently added"
+ * that means anything for television: a series folder is created once, years
+ * ago, and never touched again, while the thing an operator is looking for is
+ * the show that just received an episode.
+ */
+export interface SortableSeries {
+  title: string;
+  year: number | null;
+  lastAddedAt: Date;
+  lastUpdatedAt: Date;
+}
+
+/**
+ * Order shows the way the same key orders items.
+ *
+ * Reported from a live library: sorting the TV browser by "recently added" left
+ * the order unchanged, because the show list was sorted by title unconditionally
+ * and the chosen key never reached it. A show that gained an episode minutes ago
+ * sorted between the same two neighbours it always had.
+ *
+ * Title is the tiebreaker everywhere, so equal timestamps (a season imported in
+ * one pass) stay in a stable, readable order rather than an arbitrary one.
+ */
+export function compareSeries(sort: ItemSort): (a: SortableSeries, b: SortableSeries) => number {
+  const byTitle = (a: SortableSeries, b: SortableSeries) => a.title.localeCompare(b.title);
+  // Unknown year belongs at the end in both directions, matching `orderByForSort`.
+  const byYear = (a: SortableSeries, b: SortableSeries, dir: 1 | -1) => {
+    if (a.year == null && b.year == null) return 0;
+    if (a.year == null) return 1;
+    if (b.year == null) return -1;
+    return (a.year - b.year) * dir;
+  };
+  switch (sort) {
+    case 'title_desc':
+      return (a, b) => -byTitle(a, b);
+    case 'added_desc':
+      return (a, b) => b.lastAddedAt.getTime() - a.lastAddedAt.getTime() || byTitle(a, b);
+    case 'added_asc':
+      return (a, b) => a.lastAddedAt.getTime() - b.lastAddedAt.getTime() || byTitle(a, b);
+    case 'year_desc':
+      return (a, b) => byYear(a, b, -1) || byTitle(a, b);
+    case 'year_asc':
+      return (a, b) => byYear(a, b, 1) || byTitle(a, b);
+    case 'updated_desc':
+      return (a, b) => b.lastUpdatedAt.getTime() - a.lastUpdatedAt.getTime() || byTitle(a, b);
+    case 'title':
+    default:
+      return byTitle;
+  }
+}

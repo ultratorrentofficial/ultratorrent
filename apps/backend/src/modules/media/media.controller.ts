@@ -323,6 +323,10 @@ export class MediaController {
     @Query('matchStatus') matchStatus?: string,
     @Query('libraryId') libraryId?: string,
     @Query('search') search?: string,
+    // Shows are ordered by the same keys as items; the service maps each one
+    // onto the group (see `compareSeries`). Omitted here, the TV browser
+    // silently ignored whatever the operator chose.
+    @Query('sort') sort?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -331,6 +335,7 @@ export class MediaController {
       matchStatus,
       libraryId,
       search,
+      sort,
       page: page ? Number.parseInt(page, 10) : undefined,
       pageSize: pageSize ? Number.parseInt(pageSize, 10) : undefined,
     });

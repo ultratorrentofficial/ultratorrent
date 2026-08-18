@@ -94,7 +94,7 @@ export function LibraryBrowserPage() {
   const browsesByShow = library ? library.kind === 'tv' || library.kind === 'anime' : false;
 
   const shows = useInfiniteQuery({
-    queryKey: ['library-browser', 'series', libraryId, filters.search, filters.matchStatus, filters.issue],
+    queryKey: ['library-browser', 'series', libraryId, filters.search, filters.matchStatus, filters.issue, filters.sort],
     enabled: !!libraryId && browsesByShow,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
@@ -103,6 +103,7 @@ export function LibraryBrowserPage() {
         search: filters.search || undefined,
         matchStatus: filters.matchStatus ?? undefined,
         issue: filters.issue ?? undefined,
+        sort: filters.sort,
       }),
     getNextPageParam: (last, all) =>
       all.flatMap((p) => p.items).length < last.total ? all.length + 1 : undefined,

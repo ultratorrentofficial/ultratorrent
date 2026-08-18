@@ -1,5 +1,6 @@
 import {
-  DEFAULT_ITEM_SORT, ITEM_SORTS, isAlphabetical, isItemSort, orderByForSort,
+  compareSeries, DEFAULT_ITEM_SORT, ITEM_SORTS, isAlphabetical, isItemSort, orderByForSort,
+  type SortableSeries,
 } from './item-sort';
 
 describe('item sort', () => {
@@ -44,5 +45,54 @@ describe('item sort', () => {
     // drops rows for no reason a reader can see.
     expect(isAlphabetical('title')).toBe(true);
     for (const s of ITEM_SORTS.filter((x) => x !== 'title')) expect(isAlphabetical(s)).toBe(false);
+  });
+});
+
+/**
+ * Reported from a live TV library: "sorted by Recently added ... there was no
+ * change", because a show's own row is as old as its folder. What the operator
+ * is looking for is the show that just received an episode.
+ */
+describe('compareSeries', () => {
+  const show = (title: string, over: Partial<SortableSeries> = {}): SortableSeries => ({
+    title,
+    year: 2020,
+    lastAddedAt: new Date('2020-01-01'),
+    lastUpdatedAt: new Date('2020-01-01'),
+    ...over,
+  });
+
+  it('puts the show with the newest episode first, not the newest folder', () => {
+    const stale = show('Alpha', { lastAddedAt: new Date('2021-01-01') });
+    const fresh = show('Zulu', { lastAddedAt: new Date('2026-08-18') });
+    expect([stale, fresh].sort(compareSeries('added_desc'))[0]).toBe(fresh);
+  });
+
+  it('reverses for added_asc', () => {
+    const old = show('Alpha', { lastAddedAt: new Date('2019-01-01') });
+    const recent = show('Zulu', { lastAddedAt: new Date('2026-08-18') });
+    expect([recent, old].sort(compareSeries('added_asc'))[0]).toBe(old);
+  });
+
+  it('breaks ties by title, so a season imported in one pass stays readable', () => {
+    const at = new Date('2026-08-18');
+    const b = show('Beyond the Gates', { lastAddedAt: at });
+    const a = show('All American', { lastAddedAt: at });
+    expect([b, a].sort(compareSeries('added_desc')).map((s) => s.title))
+      .toEqual(['All American', 'Beyond the Gates']);
+  });
+
+  it('keeps an unknown year last in both directions', () => {
+    const known = show('Known', { year: 2001 });
+    const unknown = show('Unknown', { year: null });
+    expect([unknown, known].sort(compareSeries('year_desc'))[1]).toBe(unknown);
+    expect([unknown, known].sort(compareSeries('year_asc'))[1]).toBe(unknown);
+  });
+
+  it('still orders by title when asked to', () => {
+    const z = show('Zulu', { lastAddedAt: new Date('2026-08-18') });
+    const a = show('Alpha', { lastAddedAt: new Date('2019-01-01') });
+    expect([z, a].sort(compareSeries('title')).map((s) => s.title)).toEqual(['Alpha', 'Zulu']);
+    expect([a, z].sort(compareSeries('title_desc')).map((s) => s.title)).toEqual(['Zulu', 'Alpha']);
   });
 });
