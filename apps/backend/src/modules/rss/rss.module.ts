@@ -1119,9 +1119,16 @@ export class RssService {
     const item = await this.prisma.rssHistory.findUnique({ where: { id: historyId } });
     if (!item) throw new NotFoundException('RSS history item not found');
 
+    /*
+     * The flag alone could never bring the item back: `processFeed` skips any
+     * feed item it already holds history for, whatever the flag says, so a
+     * cleared row was simply never looked at again. The marker is what the poll
+     * consults, and it is what makes "clear the status so it can be downloaded
+     * again" true rather than merely cosmetic.
+     */
     await this.prisma.rssHistory.update({
       where: { id: item.id },
-      data: { downloaded: false },
+      data: { downloaded: false, regrabRequestedAt: new Date() },
     });
 
     /*
@@ -1773,7 +1780,9 @@ export class RssService {
       const exists = await this.prisma.rssHistory.findUnique({
         where: { feedId_itemGuid: { feedId: feed.id, itemGuid: guid } },
       });
-      if (exists) continue; // each feed item is processed once
+      // Each feed item is processed once — unless an operator explicitly asked
+      // for it again, which is the only way an existing row is revisited.
+      if (exists && !exists.regrabRequestedAt) continue;
 
       const title = item.title ?? '';
       const link = (item as any).enclosure?.url ?? item.link ?? '';
@@ -1849,25 +1858,35 @@ export class RssService {
         }
       }
 
-      await this.prisma.rssHistory.create({
-        data: {
-          feedId: feed.id,
-          itemGuid: guid,
-          title,
-          link,
-          magnet,
-          /*
-           * The engine's hash is authoritative and beats anything parsed: it is
-           * what the torrent actually IS, whatever the feed chose to publish.
-           * Recording it means the duplicate check can see this grab later even
-           * when the item carried neither a magnet nor a hash in its link.
-           */
-          infoHash: infoHash ?? grabbedHash,
-          matched: anyMatch,
-          downloaded,
-        },
-      });
-      newItems += 1;
+      /*
+       * The engine's hash is authoritative and beats anything parsed: it is
+       * what the torrent actually IS, whatever the feed chose to publish.
+       * Recording it means the duplicate check can see this grab later even
+       * when the item carried neither a magnet nor a hash in its link.
+       */
+      const seen = { title, link, magnet, infoHash: infoHash ?? grabbedHash, matched: anyMatch };
+      if (exists) {
+        /*
+         * A re-grab updates the row it already has — inserting would violate
+         * the (feedId, itemGuid) key. The marker is cleared only once the item
+         * was actually taken: a request that matched no rule stays outstanding,
+         * so fixing the rule and waiting for the next poll still honours it,
+         * which is the case an operator clearing a status is usually in.
+         */
+        await this.prisma.rssHistory.update({
+          where: { id: exists.id },
+          data: {
+            ...seen,
+            downloaded: downloaded || exists.downloaded,
+            regrabRequestedAt: downloaded ? null : exists.regrabRequestedAt,
+          },
+        });
+      } else {
+        await this.prisma.rssHistory.create({
+          data: { feedId: feed.id, itemGuid: guid, ...seen, downloaded },
+        });
+        newItems += 1;
+      }
       if (downloaded) grabbed += 1;
     }
 

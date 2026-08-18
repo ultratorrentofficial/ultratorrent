@@ -42,6 +42,11 @@ function makePrisma(rules: any[]) {
         history.push(row);
         return row;
       },
+      update: async ({ where, data }: any) => {
+        const row = history.find((h) => h.id === where.id);
+        Object.assign(row, data);
+        return row;
+      },
     },
     rssAcquisition: {
       findUnique: async ({ where }: any) =>
@@ -104,6 +109,91 @@ describe('RssService info-hash dedup in processFeed', () => {
     expect(res.downloaded).toBe(1);
     expect(res.newItems).toBe(2);
     expect(prisma._history.map((h: any) => h.downloaded)).toEqual([true, false]);
+  });
+
+  /**
+   * The operator-facing promise of "clear the downloaded status so it can be
+   * downloaded again". `processFeed` skips any feed item it already holds
+   * history for, so clearing the flag alone changed nothing an automatic path
+   * could act on: the poll never looked at the row again.
+   */
+  describe('re-grab after an operator clears the status', () => {
+    const cleared = (over: any = {}) => ({
+      id: 'seed',
+      feedId: 'feed1',
+      itemGuid: 'g1',
+      title: 'Michael 2024 1080p',
+      infoHash: HASH,
+      downloaded: false,
+      regrabRequestedAt: new Date('2026-08-18T00:58:00Z'),
+      ...over,
+    });
+    const item = () => [
+      { guid: 'g1', title: 'Michael 2024 1080p', link: magnet(HASH, 'Michael 2024 1080p') },
+    ];
+
+    it('downloads it again on the next poll', async () => {
+      const prisma = makePrisma([michaelRule('feed1')]);
+      prisma._history.push(cleared());
+      const { svc, addMagnet } = makeService(prisma, item());
+
+      const res = await svc.processFeed({ id: 'feed1', url: 'http://f/rss' });
+
+      expect(addMagnet).toHaveBeenCalledTimes(1);
+      expect(res.downloaded).toBe(1);
+    });
+
+    it('updates the row it already has rather than inserting a second one', async () => {
+      // (feedId, itemGuid) is unique — an insert here is a constraint violation,
+      // and the history the operator is looking at must stay one row.
+      const prisma = makePrisma([michaelRule('feed1')]);
+      prisma._history.push(cleared());
+      const { svc } = makeService(prisma, item());
+
+      const res = await svc.processFeed({ id: 'feed1', url: 'http://f/rss' });
+
+      expect(prisma._history).toHaveLength(1);
+      expect(prisma._history[0].downloaded).toBe(true);
+      expect(res.newItems).toBe(0); // a re-grab is not a new item
+    });
+
+    it('clears the marker once the item is taken', async () => {
+      const prisma = makePrisma([michaelRule('feed1')]);
+      prisma._history.push(cleared());
+      const { svc } = makeService(prisma, item());
+
+      await svc.processFeed({ id: 'feed1', url: 'http://f/rss' });
+
+      expect(prisma._history[0].regrabRequestedAt).toBeNull();
+    });
+
+    it('keeps the request outstanding when no rule matched it', async () => {
+      // The operator's next move is usually to fix the rule; the request must
+      // survive until something can honour it.
+      const prisma = makePrisma([michaelRule('feed1')]);
+      prisma._history.push(cleared({ itemGuid: 'g9', title: 'Unrelated release' }));
+      const { svc, addMagnet } = makeService(prisma, [
+        { guid: 'g9', title: 'Unrelated release', link: magnet(HASH, 'Unrelated release') },
+      ]);
+
+      await svc.processFeed({ id: 'feed1', url: 'http://f/rss' });
+
+      expect(addMagnet).not.toHaveBeenCalled();
+      expect(prisma._history[0].regrabRequestedAt).toBeInstanceOf(Date);
+    });
+
+    it('leaves an ordinary already-seen item alone', async () => {
+      // The guard is the marker, not the flag: without it nothing changes, or
+      // every poll would re-evaluate the whole feed window.
+      const prisma = makePrisma([michaelRule('feed1')]);
+      prisma._history.push(cleared({ regrabRequestedAt: null, downloaded: true }));
+      const { svc, addMagnet } = makeService(prisma, item());
+
+      const res = await svc.processFeed({ id: 'feed1', url: 'http://f/rss' });
+
+      expect(addMagnet).not.toHaveBeenCalled();
+      expect(res.newItems).toBe(0);
+    });
   });
 
   it('does not download again when the info-hash was already grabbed on a prior poll', async () => {
