@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.83.9] - 2026-08-18
+
+### Fixed
+- Library Browser: destructive jobs show progress and hand back a refreshed view, rename works from the action bar, and TV shows sort by their newest episode
+
 ## [0.83.8] - 2026-08-18
 
 ### Fixed
