@@ -240,10 +240,20 @@
       "downloadFailed": "Download failed",
       "cleared": "Status cleared — the feed can take this release again.",
       "cleared_other": "Status cleared, and {{count}} title holds released — the feed can take this release again.",
-      "clearFailed": "Could not clear the status"
+      "clearFailed": "Could not clear the status",
+      "clearedAndRemoved_one": "Status cleared. The seeding torrent, its files and {{count}} library item were removed — the release will be downloaded and imported again.",
+      "clearedAndRemoved_other": "Status cleared. The seeding torrent, its files and {{count}} library items were removed — the release will be downloaded and imported again.",
+      "clearedAndRemoved_zero": "Status cleared. The seeding torrent and its files were removed — the release will be downloaded and imported again."
     },
     "clearStatus": "Clear status",
-    "clearStatusHint": "Forget that this release was downloaded, so the feed can take it again."
+    "clearStatusHint": "Forget that this release was downloaded, so the feed can take it again.",
+    "resetDialog": {
+      "title": "Download this release again?",
+      "body": "The downloaded status is cleared so the feed can grab the release again on its next poll.",
+      "warning": "If the release is still in the torrent client, the torrent, its files and the library copy imported from it are deleted first, so the full download, rename and import runs again from scratch.",
+      "cancel": "Cancel",
+      "confirm": "Clear and re-download"
+    }
   },
   "quickRule": {
     "title": "Create rule from this release",

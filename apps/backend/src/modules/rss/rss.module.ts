@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Injectable,
+  ForbiddenException,
   Logger,
   Module,
   NotFoundException,
@@ -1115,9 +1116,79 @@ export class RssService {
    * The torrent itself is not touched: if it is still in the client, removing it
    * is a separate decision with its own consequences for the library copy.
    */
-  async resetHistoryItem(historyId: string, ctx: { userId?: string } = {}) {
+  async resetHistoryItem(
+    historyId: string,
+    ctx: { userId?: string; ipAddress?: string; userAgent?: string } = {},
+    opts: { canDeleteData?: boolean } = {},
+  ) {
     const item = await this.prisma.rssHistory.findUnique({ where: { id: historyId } });
     if (!item) throw new NotFoundException('RSS history item not found');
+
+    /*
+     * When the torrent is still in the client, re-adding the same info-hash is
+     * a no-op the engine silently ignores — the exact way the first version of
+     * this action failed in the field. So a live torrent is torn down FIRST,
+     * completely: the payload, and the library copy imported from it. That is
+     * what makes the re-grab a real one — download, verification, rename,
+     * hardlink into the library — rather than a magnet the client shrugs at.
+     *
+     * Teardown precedes the marker updates on purpose: if it throws, nothing
+     * has been reset and the operator sees the failure instead of a cleared
+     * status that can never be honoured.
+     */
+    let torrentRemoved = false;
+    let libraryItemsRemoved = 0;
+    let intakesSuperseded = 0;
+    if (item.infoHash) {
+      const live = await this.prisma.torrentSnapshot.findFirst({
+        where: { hash: { equals: item.infoHash, mode: 'insensitive' } },
+        select: { hash: true, engineId: true },
+      });
+      if (live) {
+        /*
+         * Destroying a payload and a library copy is a bigger authority than
+         * managing RSS. The same split the bulk-delete route enforces: the
+         * grant that lets someone tidy feeds must not silently include the one
+         * that destroys media.
+         */
+        if (!opts.canDeleteData) {
+          throw new ForbiddenException(
+            'This release is still in the torrent client. Clearing it removes the torrent, its files and its library copy, which requires torrents.delete_data.',
+          );
+        }
+        const { TorrentsService } = await import('../torrents/torrents.service');
+        const torrents = this.moduleRef.get(TorrentsService, { strict: false });
+        const user = {
+          id: ctx.userId ?? 'system',
+          username: 'system',
+          roles: [],
+          permissions: [],
+        } as never;
+        const removed = await torrents.removeData(
+          live.hash,
+          live.engineId ?? undefined,
+          user,
+          { ipAddress: ctx.ipAddress, userAgent: ctx.userAgent },
+          { removeLibraryItems: true },
+        );
+        torrentRemoved = true;
+        libraryItemsRemoved = (removed as { libraryItemsRemoved?: number }).libraryItemsRemoved ?? 0;
+      }
+
+      /*
+       * The retired intake jobs must also free their idempotency keys — the key
+       * is derived from engine + hash + path, so the re-grab of the same
+       * release to the same staging path would otherwise be answered with the
+       * old, already-finished job and import nothing. Lazy via ModuleRef for
+       * the same reason as TorrentsService: a static import would cycle.
+       */
+      const { MediaIntakeService } = await import('../media-intake/media-intake.service');
+      const intake = this.moduleRef.get(MediaIntakeService, { strict: false });
+      intakesSuperseded = await intake.supersedeByHash(
+        item.infoHash,
+        'Superseded: the operator cleared the release for a fresh download',
+      );
+    }
 
     /*
      * The flag alone could never bring the item back: `processFeed` skips any
@@ -1125,11 +1196,22 @@ export class RssService {
      * cleared row was simply never looked at again. The marker is what the poll
      * consults, and it is what makes "clear the status so it can be downloaded
      * again" true rather than merely cosmetic.
+     *
+     * Cleared by info-hash, not by row: the cross-feed dedupe
+     * (`hashAlreadyDownloaded`) refuses any hash that SOME row still records as
+     * downloaded, so a twin row from another feed would silently veto the
+     * re-grab the operator just asked for. Marking every twin also lets
+     * whichever feed still carries the item be the one that honours it.
      */
-    await this.prisma.rssHistory.update({
-      where: { id: item.id },
-      data: { downloaded: false, regrabRequestedAt: new Date() },
-    });
+    const cleared = { downloaded: false, regrabRequestedAt: new Date() };
+    if (item.infoHash) {
+      await this.prisma.rssHistory.updateMany({
+        where: { infoHash: item.infoHash },
+        data: cleared,
+      });
+    } else {
+      await this.prisma.rssHistory.update({ where: { id: item.id }, data: cleared });
+    }
 
     /*
      * The acquisition hold is matched by the torrent hash the grab produced,
@@ -1150,10 +1232,17 @@ export class RssService {
       objectType: 'rss_history',
       objectId: item.id,
       result: 'success',
-      metadata: { title: item.title, infoHash: item.infoHash, holdsCleared },
+      metadata: {
+        title: item.title,
+        infoHash: item.infoHash,
+        holdsCleared,
+        torrentRemoved,
+        libraryItemsRemoved,
+        intakesSuperseded,
+      },
     });
 
-    return { id: item.id, downloaded: false, holdsCleared };
+    return { id: item.id, downloaded: false, holdsCleared, torrentRemoved, libraryItemsRemoved };
   }
 
   async downloadHistoryItem(historyId: string, savePath?: string) {
@@ -2184,13 +2273,19 @@ export class RssController {
   /**
    * Clear a release's downloaded status so the feed may take it again.
    *
-   * `RSS_MANAGE`, like the manual download beside it: both change what the
-   * feed will do next, and neither removes anything from disk.
+   * `RSS_MANAGE` covers the bookkeeping half. When the release is still in the
+   * client, clearing it also removes the torrent, its files and the library
+   * copy imported from it — a second authority, checked in the service against
+   * the caller's actual grants rather than folded into this route's decorator,
+   * exactly as the bulk-delete route splits `delete_files` from
+   * `torrents.delete_data`.
    */
   @Post('history/:id/reset')
   @RequirePermissions(PERMISSIONS.RSS_MANAGE)
   resetHistoryItem(@Param('id') id: string, @Req() req: Request) {
-    return this.rss.resetHistoryItem(id, this.ctx(req));
+    const user = (req as unknown as { user?: { permissions?: string[] } }).user;
+    const canDeleteData = (user?.permissions ?? []).includes(PERMISSIONS.TORRENTS_DELETE_DATA);
+    return this.rss.resetHistoryItem(id, this.ctx(req), { canDeleteData });
   }
 
   @Post('history/:id/download')

@@ -211,6 +211,37 @@ export class MediaIntakeService {
    * be imported into two profiles (a 4K and a 1080p library), and keying on the
    * hash would make the second one look like a duplicate of the first.
    */
+  /**
+   * Retire every intake job for a torrent whose payload is being destroyed on
+   * purpose — the operator asked for the release to be taken again from
+   * scratch, so the world these jobs describe is about to stop existing.
+   *
+   * Two things must happen, and the second is the one that is easy to miss:
+   * the jobs are archived, and their idempotency keys are **freed**. The key is
+   * `engineId:hash:sourcePath`, so a re-grab of the same torrent to the same
+   * staging path derives the SAME key, and `enqueue` would return this retired
+   * job instead of creating one — the fresh download would import nothing.
+   * Suffixing the key with the job's own id keeps it unique while making room.
+   *
+   * A direct update rather than `transition`: supersession is an administrative
+   * act valid from ANY state — the legality map governs the pipeline's own
+   * movement, not the operator destroying the payload out from under it.
+   */
+  async supersedeByHash(torrentHash: string, reason: string): Promise<number> {
+    const jobs = await this.prisma.mediaIntakeJob.findMany({
+      where: { torrentHash: { equals: torrentHash, mode: 'insensitive' }, state: { not: 'archived' } },
+      select: { id: true, state: true, idempotencyKey: true },
+    });
+    for (const job of jobs) {
+      await this.prisma.mediaIntakeJob.update({
+        where: { id: job.id },
+        data: { state: 'archived', idempotencyKey: `${job.idempotencyKey}::superseded:${job.id}` },
+      });
+      await this.record(job.id, job.state as IntakeState, 'archived', reason);
+    }
+    return jobs.length;
+  }
+
   private keyFor(input: EnqueueInput): string {
     return `${input.engineId ?? 'none'}:${input.torrentHash ?? 'manual'}:${input.sourcePath}`;
   }

@@ -3831,7 +3831,14 @@ export const api = {
      * Clears BOTH gates — the history flag and the per-title acquisition hold —
      * because clearing one alone looks like it worked and changes nothing.
      */
-    resetHistoryItem(historyId: string): Promise<{ id: string; downloaded: boolean; holdsCleared: number }> {
+    resetHistoryItem(historyId: string): Promise<{
+      id: string;
+      downloaded: boolean;
+      holdsCleared: number;
+      /** The release was still in the client; it and its library copy are gone. */
+      torrentRemoved: boolean;
+      libraryItemsRemoved: number;
+    }> {
       return request(`/rss/history/${historyId}/reset`, { method: 'POST' });
     },
     downloadHistoryItem(

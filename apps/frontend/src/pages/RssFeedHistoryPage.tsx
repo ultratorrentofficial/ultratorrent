@@ -72,6 +72,7 @@ export function RssFeedHistoryPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [resettingId, setResettingId] = useState<string | null>(null);
+  const [resetFor, setResetFor] = useState<RssHistoryItem | null>(null);
   const [downloadFor, setDownloadFor] = useState<RssHistoryItem | null>(null);
   // Remembered across grabs this session so the picker pre-fills the last choice.
   const [savePath, setSavePath] = useState('');
@@ -121,10 +122,18 @@ export function RssFeedHistoryPage() {
    * and change nothing.
    */
   const resetItem = async (item: RssHistoryItem) => {
+    setResetFor(null);
     setResettingId(item.id);
     try {
       const res = await api.rss.resetHistoryItem(item.id);
-      toast.success(t('history.toast.cleared', { count: res.holdsCleared }));
+      // Two very different outcomes share this button: bookkeeping when the
+      // torrent was already gone, a full teardown when it was still seeding.
+      // The toast must say which one happened.
+      toast.success(
+        res.torrentRemoved
+          ? t('history.toast.clearedAndRemoved', { count: res.libraryItemsRemoved })
+          : t('history.toast.cleared', { count: res.holdsCleared }),
+      );
       await refetch();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t('history.toast.clearFailed'));
@@ -369,7 +378,7 @@ export function RssFeedHistoryPage() {
                                   variant="outline"
                                   size="sm"
                                   className="whitespace-nowrap"
-                                  onClick={() => void resetItem(item)}
+                                  onClick={() => setResetFor(item)}
                                   loading={resettingId === item.id}
                                   disabled={resettingId !== null}
                                   title={t('history.clearStatusHint')}
@@ -463,6 +472,41 @@ export function RssFeedHistoryPage() {
               loading={downloadingId === downloadFor.id}
             >
               <Download className="h-4 w-4" /> {t('history.download')}
+            </Button>
+          </DialogFooter>
+        </Dialog>
+      )}
+
+      {resetFor && (
+        <Dialog open onClose={() => setResetFor(null)} className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{t('history.resetDialog.title')}</DialogTitle>
+            <DialogDescription className="break-all font-mono text-xs">
+              {resetFor.title}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/*
+            * The consequence has to be stated before the click, not discovered
+            * after: when the release is still seeding, clearing it removes the
+            * torrent, its files AND the library copy imported from it, so the
+            * whole download-and-import cycle runs again from nothing.
+            */}
+          <div className="space-y-2 py-2 text-sm text-muted-foreground">
+            <p>{t('history.resetDialog.body')}</p>
+            <p className="text-warning">{t('history.resetDialog.warning')}</p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setResetFor(null)}>
+              {t('history.resetDialog.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void resetItem(resetFor)}
+              loading={resettingId === resetFor.id}
+            >
+              <RotateCcw className="h-4 w-4" /> {t('history.resetDialog.confirm')}
             </Button>
           </DialogFooter>
         </Dialog>

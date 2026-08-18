@@ -240,10 +240,20 @@
       "downloadFailed": "Falló la descarga",
       "cleared": "Estado limpiado: el feed puede tomar este lanzamiento otra vez.",
       "cleared_other": "Estado limpiado y {{count}} reservas de título liberadas: el feed puede tomarlo otra vez.",
-      "clearFailed": "No se pudo limpiar el estado"
+      "clearFailed": "No se pudo limpiar el estado",
+      "clearedAndRemoved_one": "Estado borrado. Se eliminó el torrent en seed, sus archivos y {{count}} elemento de la biblioteca — la publicación se descargará e importará de nuevo.",
+      "clearedAndRemoved_other": "Estado borrado. Se eliminó el torrent en seed, sus archivos y {{count}} elementos de la biblioteca — la publicación se descargará e importará de nuevo.",
+      "clearedAndRemoved_zero": "Estado borrado. Se eliminó el torrent en seed y sus archivos — la publicación se descargará e importará de nuevo."
     },
     "clearStatus": "Limpiar estado",
-    "clearStatusHint": "Olvida que este lanzamiento se descargó, para que el feed pueda tomarlo otra vez."
+    "clearStatusHint": "Olvida que este lanzamiento se descargó, para que el feed pueda tomarlo otra vez.",
+    "resetDialog": {
+      "title": "¿Descargar esta publicación de nuevo?",
+      "body": "El estado de descargado se borra para que el feed pueda tomar la publicación de nuevo en su próxima consulta.",
+      "warning": "Si la publicación sigue en el cliente de torrents, primero se eliminan el torrent, sus archivos y la copia importada a la biblioteca, de modo que la descarga, el renombrado y la importación completa se repitan desde cero.",
+      "cancel": "Cancelar",
+      "confirm": "Borrar y volver a descargar"
+    }
   },
   "quickRule": {
     "title": "Crear regla a partir de este lanzamiento",
