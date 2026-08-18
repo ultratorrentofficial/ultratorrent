@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.83.6] - 2026-08-18
+
+### Fixed
+- Deleting a library item removes its subtitles, artwork and folder instead of leaving them orphaned on disk
+
 ## [0.83.5] - 2026-08-17
 
 ### Fixed
