@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.83.10] - 2026-08-18
+
+### Fixed
+- Rename works inside a show, and a deployed frontend is no longer masked by a cached index.html
+
 ## [0.83.9] - 2026-08-18
 
 ### Fixed
