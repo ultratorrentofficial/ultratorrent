@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { copyFile, mkdir, readdir, rename, stat, unlink } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, rename, rm, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
@@ -413,7 +413,18 @@ export class MediaBulkService {
     const { ids, missing } = await this.resolve(itemIds);
     const items = await this.prisma.mediaItem.findMany({
       where: { id: { in: ids } },
-      select: { id: true, path: true, files: { select: { path: true } } },
+      select: {
+        id: true,
+        path: true,
+        files: { select: { path: true } },
+        // Sidecars are part of the media, not decoration around it. Selecting
+        // only `files` deleted the video and left the subtitles, poster and
+        // NFO behind as an orphaned folder that nothing pointed at — the same
+        // omission `moveToLibrary` was fixed for.
+        subtitles: { select: { path: true } },
+        artwork: { select: { localPath: true } },
+        library: { select: { path: true } },
+      },
     });
 
     const { jobId } = await this.jobs.runDetached(
@@ -425,22 +436,61 @@ export class MediaBulkService {
         let removedFiles = 0;
         for (const item of items) {
           if (signal.isCancelled()) break;
-          // `path` is the item's own file for a single-file item; `files` may
-          // repeat it. De-duplicate so one unlink failure is not counted twice.
-          const paths = [...new Set([item.path, ...item.files.map((f) => f.path)].filter(Boolean))];
           let itemFailed = false;
-          for (const p of paths) {
+          /*
+           * The unit is the FOLDER wherever the item owns one, exactly as in
+           * `moveToLibrary`: a film owns `Toy Story (1995)/`, and its poster,
+           * NFO, subtitles and extras are part of the film, not neighbours of
+           * it. Deleting file-by-file left those behind as a folder holding
+           * orphaned sidecars — which reads as "the movie is still there" in
+           * any file view and is exactly what the operator asked to be rid of.
+           *
+           * `ownedFolder` is what makes this safe to do recursively: it
+           * refuses the library root, refuses anything outside it, and refuses
+           * a folder any unselected item lives in — so a TV season folder is
+           * never removed because one episode was selected.
+           */
+          const folder = await this.ownedFolder(item, ids);
+          if (folder) {
             try {
-              await unlink(p);
+              // Counted as one removal: the operator deleted one item, and the
+              // sidecar count is an implementation detail of that.
+              await rm(folder, { recursive: true, force: true });
               removedFiles += 1;
             } catch (err) {
-              // Already gone is the end state we wanted; anything else is a
-              // real failure and must keep the row.
-              if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
-                itemFailed = true;
-                this.logger.warn(`Delete failed for ${p}: ${(err as Error).message}`);
+              itemFailed = true;
+              this.logger.warn(`Delete failed for ${folder}: ${(err as Error).message}`);
+            }
+          } else {
+            // `path` is the item's own file for a single-file item; `files` may
+            // repeat it. De-duplicate so one unlink failure is not counted twice.
+            const paths = [
+              ...new Set(
+                [
+                  item.path,
+                  ...item.files.map((f) => f.path),
+                  ...item.subtitles.map((s) => s.path),
+                  ...item.artwork.map((a) => a.localPath),
+                ].filter((p): p is string => Boolean(p)),
+              ),
+            ];
+            for (const p of paths) {
+              try {
+                await unlink(p);
+                removedFiles += 1;
+              } catch (err) {
+                // Already gone is the end state we wanted; anything else is a
+                // real failure and must keep the row.
+                if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+                  itemFailed = true;
+                  this.logger.warn(`Delete failed for ${p}: ${(err as Error).message}`);
+                }
               }
             }
+            // A shared folder emptied by the last item in it is still litter.
+            // Pruned only when genuinely empty, so a season folder that still
+            // holds episodes is untouched.
+            if (!itemFailed) await this.pruneEmptyFolder(item);
           }
           if (itemFailed) {
             failed += 1;
@@ -692,6 +742,30 @@ export class MediaBulkService {
    *    the others with it — silently, and into a library they do not belong to.
    *    Items inside the same selection do not count: they are moving anyway.
    */
+  /**
+   * Remove the item's folder when deleting its files emptied it.
+   *
+   * The conservative half of the delete: `ownedFolder` refused this folder
+   * because something else lives in it, so the folder is only removed if the
+   * filesystem itself says nothing is left — `rmdir` fails with ENOTEMPTY
+   * rather than us deciding what "empty enough" means. Never the library root.
+   */
+  private async pruneEmptyFolder(item: {
+    path: string;
+    library: { path: string } | null;
+  }): Promise<void> {
+    const folder = dirname(item.path);
+    const root = item.library?.path;
+    if (!root || folder === root || !folder.startsWith(`${root}/`)) return;
+    try {
+      const left = await readdir(folder);
+      if (left.length === 0) await rm(folder, { recursive: false, force: true });
+    } catch {
+      // A folder that cannot be read or removed is not worth failing the
+      // delete over — the media it held is already gone.
+    }
+  }
+
   private async ownedFolder(
     item: { id: string; path: string; library: { path: string } | null },
     selectedIds: string[],

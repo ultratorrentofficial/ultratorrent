@@ -9,7 +9,14 @@
 import { BadRequestException } from '@nestjs/common';
 import { MediaBulkService } from './media-bulk.service';
 
-const fs = { unlinked: [] as string[], renamed: [] as string[][], copied: [] as string[][] };
+const fs = {
+  unlinked: [] as string[],
+  renamed: [] as string[][],
+  copied: [] as string[][],
+  removed: [] as string[],
+};
+/** What `readdir` reports is left in a folder after the unlinks. */
+let dirLeftovers: string[] = [];
 let unlinkErr: NodeJS.ErrnoException | null = null;
 let renameErr: NodeJS.ErrnoException | null = null;
 /** Destinations that already hold a file — `moveFile` must refuse these. */
@@ -28,6 +35,10 @@ jest.mock('node:fs/promises', () => ({
     fs.copied.push([a, b]);
   }),
   mkdir: jest.fn(async () => undefined),
+  rm: jest.fn(async (p: string) => {
+    fs.removed.push(p);
+  }),
+  readdir: jest.fn(async () => dirLeftovers),
   // The move path now asks whether the destination is free before touching it.
   // Default is ENOENT — free — which is what every pre-existing case here means.
   lstat: jest.fn(async (p: string) => {
@@ -50,6 +61,9 @@ function build(items: Array<Record<string, unknown>>, library?: Record<string, u
           : items,
       ),
       count: jest.fn(async () => 0),
+      // `ownedFolder` asks whether an unselected item lives in the folder.
+      // Typed loosely so a case can answer "yes, a stranger lives here".
+      findFirst: jest.fn(async (): Promise<{ id: string } | null> => null),
       deleteMany: jest.fn(async () => ({ count: items.length })),
       delete: jest.fn(async ({ where }: { where: { id: string } }) => {
         order.push(`row:${where.id}`);
@@ -86,9 +100,10 @@ const item = (id: string, over: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
-  fs.unlinked = []; fs.renamed = []; fs.copied = [];
+  fs.unlinked = []; fs.renamed = []; fs.copied = []; fs.removed = [];
   unlinkErr = null; renameErr = null;
   occupied = new Set();
+  dirLeftovers = [];
 });
 
 describe('removeFromLibrary', () => {
@@ -152,6 +167,79 @@ describe('deleteFiles', () => {
     const { svc } = build([item('a')]);
     await svc.deleteFiles(['a'], ctx);
     expect(fs.unlinked.filter((p) => p === '/media/a.mkv')).toHaveLength(1);
+  });
+
+  /**
+   * A film owns its folder, and the poster, NFO and subtitles in it are part of
+   * the film. Deleting only the video left that folder behind holding orphaned
+   * sidecars, which reads as "the movie is still there" in any file view.
+   */
+  it('removes the whole folder when the item owns it', async () => {
+    const film = item('a', {
+      path: '/media/Toy Story (1995)/Toy Story (1995).mkv',
+      files: [{ id: 'f-a', path: '/media/Toy Story (1995)/Toy Story (1995).mkv' }],
+      subtitles: [{ path: '/media/Toy Story (1995)/Toy Story (1995).eng.srt' }],
+      artwork: [{ localPath: '/media/Toy Story (1995)/poster.jpg' }],
+    });
+    const { svc, prisma } = build([film]);
+    await svc.deleteFiles(['a'], ctx);
+    expect(fs.removed).toEqual(['/media/Toy Story (1995)']);
+    expect(prisma.mediaItem.delete).toHaveBeenCalledWith({ where: { id: 'a' } });
+  });
+
+  it('keeps the row when the folder could not be removed', async () => {
+    const film = item('a', {
+      path: '/media/Toy Story (1995)/Toy Story (1995).mkv',
+      files: [{ id: 'f-a', path: '/media/Toy Story (1995)/Toy Story (1995).mkv' }],
+    });
+    const { svc, prisma } = build([film]);
+    const fsp = jest.requireMock('node:fs/promises') as { rm: jest.Mock };
+    fsp.rm.mockRejectedValueOnce(Object.assign(new Error('EACCES'), { code: 'EACCES' }));
+    await svc.deleteFiles(['a'], ctx);
+    expect(prisma.mediaItem.delete).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The guard that keeps this from being a season-wide delete: a folder shared
+   * with an unselected item is never removed, only the selected item's own
+   * files are.
+   */
+  it('deletes only its own files from a folder it shares', async () => {
+    const episode = item('a', {
+      path: '/media/Show/Season 1/Show - S01E01.mkv',
+      files: [{ id: 'f-a', path: '/media/Show/Season 1/Show - S01E01.mkv' }],
+      subtitles: [{ path: '/media/Show/Season 1/Show - S01E01.eng.srt' }],
+    });
+    const { svc, prisma } = build([episode]);
+    // A sibling episode still lives in the season folder.
+    prisma.mediaItem.findFirst.mockResolvedValueOnce({ id: 'b' });
+    dirLeftovers = ['Show - S01E02.mkv'];
+    await svc.deleteFiles(['a'], ctx);
+    expect(fs.removed).toEqual([]);
+    expect(fs.unlinked).toEqual([
+      '/media/Show/Season 1/Show - S01E01.mkv',
+      '/media/Show/Season 1/Show - S01E01.eng.srt',
+    ]);
+  });
+
+  it('prunes a shared folder once the last item in it is gone', async () => {
+    const episode = item('a', {
+      path: '/media/Show/Season 1/Show - S01E01.mkv',
+      files: [{ id: 'f-a', path: '/media/Show/Season 1/Show - S01E01.mkv' }],
+    });
+    const { svc, prisma } = build([episode]);
+    prisma.mediaItem.findFirst.mockResolvedValueOnce({ id: 'b' });
+    dirLeftovers = [];
+    await svc.deleteFiles(['a'], ctx);
+    expect(fs.removed).toEqual(['/media/Show/Season 1']);
+  });
+
+  it('never removes the library root itself', async () => {
+    // The item's file sits directly in the root, so there is no folder to take.
+    const { svc } = build([item('a')]);
+    dirLeftovers = [];
+    await svc.deleteFiles(['a'], ctx);
+    expect(fs.removed).toEqual([]);
   });
 });
 
