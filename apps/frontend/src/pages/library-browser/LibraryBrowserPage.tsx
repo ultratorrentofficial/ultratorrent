@@ -216,6 +216,7 @@ export function LibraryBrowserPage() {
         <ShowDetailView
           showKey={showKey}
           libraryId={library.id}
+          library={library}
           title={showTitle || library.name}
           onBack={() => setParams({ library: library.id })}
         />

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Captions, ChevronLeft, Lock, SlidersHorizontal } from 'lucide-react';
-import { api, type HealthStatus, type MediaItem, type MediaSeasonGroup } from '@/lib/api';
+import { api, type HealthStatus, type MediaItem, type MediaLibrary, type MediaSeasonGroup } from '@/lib/api';
 import { MediaPoster } from '@/components/media/MediaPoster';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,11 +29,18 @@ import { EMPTY_SELECTION, applyClick, clearSelection, pruneSelection, toggleChec
  * becomes the user's problem.
  */
 export function ShowDetailView({
-  showKey, libraryId, title, onBack,
+  showKey, libraryId, title, library, onBack,
 }: {
   showKey: string;
   libraryId: string;
   title: string;
+  /**
+   * The library these episodes belong to. Carried down rather than re-fetched
+   * because the action bar needs its naming template to build a rename — given
+   * only an id, Rename opened onto an empty dialog and looked like a dead
+   * button.
+   */
+  library?: MediaLibrary | null;
   onBack: () => void;
 }) {
   const { t } = useTranslation('media');
@@ -194,6 +201,7 @@ export function ShowDetailView({
           {opsMode && libraryId && (
             <ContextActionBar
               libraryId={libraryId}
+              library={library ?? undefined}
               selectedIds={[...selection.ids]}
               onClear={() => setSelection(clearSelection())}
               /* The bar only renders inside Operations Mode here, so advanced

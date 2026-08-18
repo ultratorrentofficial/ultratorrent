@@ -105,6 +105,21 @@ export function ContextActionBar({
     queryFn: () => api.media.getItem(renamingId!),
   });
 
+  /*
+   * The library is what carries the naming template, preset and root — without
+   * it the rename dialog has no request to build and opens onto nothing. Most
+   * callers pass it, but the show-detail surface has only an id, so it is
+   * resolved here rather than left to each caller to remember. Cached under the
+   * key the rest of the app already uses for the library list.
+   */
+  const libraries = useQuery({
+    queryKey: ['media', 'libraries'],
+    queryFn: api.media.listLibraries,
+    enabled: !library,
+    staleTime: 60_000,
+  });
+  const activeLibrary = library ?? (libraries.data ?? []).find((l) => l.id === libraryId) ?? null;
+
   useEffect(() => {
     if (!renamingId || !renameTarget.data) return;
     const item = renameTarget.data;
@@ -313,7 +328,7 @@ export function ContextActionBar({
       <RenameItemDialog
         open={renaming !== null}
         item={renaming}
-        library={library ?? null}
+        library={activeLibrary}
         onClose={() => setRenaming(null)}
         onApplied={() => {
           toast.success(t('result.applied', { count: 1 }));

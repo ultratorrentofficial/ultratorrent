@@ -31,6 +31,7 @@ const apiSpy = vi.hoisted(() => ({
   getItem: vi.fn(),
   jobDetail: vi.fn(),
   renamePreview: vi.fn(),
+  listLibraries: vi.fn(),
 }));
 vi.mock('@/lib/api', () => ({
   api: {
@@ -38,6 +39,7 @@ vi.mock('@/lib/api', () => ({
       bulkItems: apiSpy.bulkItems,
       scanLibrary: apiSpy.scanLibrary,
       getItem: apiSpy.getItem,
+      listLibraries: apiSpy.listLibraries,
       preview: apiSpy.renamePreview,
       apply: vi.fn(),
     },
@@ -80,6 +82,9 @@ beforeEach(() => {
   apiSpy.bulkItems.mockResolvedValue({ jobId: 'j1', accepted: 2, missing: [] });
   apiSpy.scanLibrary.mockResolvedValue({ jobId: 'scan-1' });
   apiSpy.jobDetail.mockResolvedValue({ id: 'j1', status: 'completed', progressPercent: 100, resultSummary: { completed: 2 } });
+  apiSpy.listLibraries.mockResolvedValue([
+    { id: 'lib-1', name: 'TV Shows', kind: 'tv', path: '/tv', preset: 'plex', mode: 'rename_in_place', template: null },
+  ]);
   apiSpy.getItem.mockResolvedValue({
     id: 'a', title: 'Beyond the Gates', path: '/tv/Beyond the Gates/S02E148.mkv',
   });
@@ -178,6 +183,24 @@ describe('ContextActionBar — what it refuses to render', () => {
     await waitFor(() => expect(apiSpy.getItem).toHaveBeenCalledWith('a'));
     // The dialog is what "the rename process launched" looks like to an operator.
     expect(await screen.findByText(/Beyond the Gates/)).toBeInTheDocument();
+  });
+
+  /**
+   * Inside a show — Operations → tick an episode → Rename — the bar is rendered
+   * with only a library ID. The rename request is built from the library's
+   * template, preset and root, so without the library object the dialog had
+   * nothing to ask for and the button did nothing at all. The bar now resolves
+   * the library from the id rather than depending on the caller to pass it.
+   */
+  it('resolves the library from its id when the caller passed only that', async () => {
+    apiSpy.renamePreview.mockResolvedValue({ items: [], total: 0 });
+    renderBar(['a']);
+
+    fireEvent.click(await screen.findByText('Rename…'));
+
+    await waitFor(() => expect(apiSpy.listLibraries).toHaveBeenCalled());
+    // The preview is the proof: it is only requested once a body could be built.
+    await waitFor(() => expect(apiSpy.renamePreview).toHaveBeenCalled());
   });
 
   it('says so when the item behind the selection cannot be read', async () => {
