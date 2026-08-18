@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.83.7] - 2026-08-18
+
+### Fixed
+- Activity Scheduler: the delete-after-seeding option shows its label instead of a raw translation key
+
 ## [0.83.6] - 2026-08-18
 
 ### Fixed
