@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.83.8] - 2026-08-18
+
+### Fixed
+- Clearing an RSS history item's downloaded status now actually lets the rule grab it again
+- Clearing a still-seeding release now removes the torrent, its files and its library copy so the full download and import cycle runs again
+
 ## [0.83.7] - 2026-08-18
 
 ### Fixed
