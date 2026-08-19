@@ -109,6 +109,8 @@
     },
     "intakeProfile": "Storage profile",
     "intakeProfilePlaceholder": "Choose a profile…",
+    "intakeSubfolder": "Subfolder (optional)",
+    "intakeSubfolderPlaceholder": "e.g. manual",
     "intakeStagingHint": "Choose a profile to see where the download will be staged.",
     "intakeStagingPreview": "Staged in {{path}}, then imported into that profile's library.",
     "libraryWarning": "This folder is inside the {{library}} library, which organizes automatically. The video will be renamed and moved out of here, the torrent dropped because it can no longer seed, and any subtitles or extras alongside it left behind. Use managed intake to keep them together.",

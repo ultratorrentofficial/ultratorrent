@@ -900,6 +900,12 @@ export interface AddTorrentPayload {
    * so the two are never sent together.
    */
   intakeProfileId?: string;
+  /**
+   * Folder beneath that profile's staging root to download into, relative and
+   * optional. Where the release WAITS, not where it is imported — the pipeline
+   * still picks the library from the profile.
+   */
+  intakeSubfolder?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -3597,6 +3603,7 @@ export const api = {
       if (options.category) form.append('category', options.category);
       if (options.savePath) form.append('savePath', options.savePath);
       if (options.intakeProfileId) form.append('intakeProfileId', options.intakeProfileId);
+      if (options.intakeSubfolder) form.append('intakeSubfolder', options.intakeSubfolder);
       if (options.startPaused != null) form.append('startPaused', String(options.startPaused));
       if (options.tags?.length) form.append('tags', options.tags.join(','));
       return request<NormalizedTorrent>('/torrents/upload', { method: 'POST', body: form, raw: true });

@@ -109,6 +109,8 @@
     },
     "intakeProfile": "Perfil de almacenamiento",
     "intakeProfilePlaceholder": "Elige un perfil…",
+    "intakeSubfolder": "Subcarpeta (opcional)",
+    "intakeSubfolderPlaceholder": "ej. manual",
     "intakeStagingHint": "Elige un perfil para ver dónde se preparará la descarga.",
     "intakeStagingPreview": "Se prepara en {{path}} y luego se importa a la biblioteca de ese perfil.",
     "libraryWarning": "Esta carpeta está dentro de la biblioteca {{library}}, que organiza automáticamente. El video se renombrará y se moverá de aquí, el torrent se eliminará porque ya no puede compartir, y los subtítulos o extras que estén al lado se quedarán atrás. Usa la ingesta gestionada para mantenerlos juntos.",

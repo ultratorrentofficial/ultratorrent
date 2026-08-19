@@ -1,3 +1,5 @@
+import { mkdir } from 'node:fs/promises';
+import path from 'node:path';
 import {
   BadRequestException,
   ForbiddenException,
@@ -189,6 +191,8 @@ export class TorrentsService {
       file?: Buffer;
       /** Opt this download into Media Intake — see `resolveIntakeProfile`. */
       intakeProfileId?: string;
+      /** Folder beneath the profile's staging root — see `stagingPathFor`. */
+      intakeSubfolder?: string;
     } & AddTorrentOptions,
     engineId: string | undefined,
     user: AuthenticatedUser,
@@ -200,7 +204,14 @@ export class TorrentsService {
      * an operator-typed path, rather than being trusted for being ours.
      */
     const intakeProfile = await this.resolveIntakeProfile(opts.intakeProfileId);
-    if (intakeProfile) opts.savePath = intakeProfile.stagingRoot;
+    if (!intakeProfile && opts.intakeSubfolder?.trim()) {
+      throw new BadRequestException(
+        'A staging subfolder only means something for a managed-intake add — choose a storage profile, or use the save path.',
+      );
+    }
+    if (intakeProfile) {
+      opts.savePath = this.stagingPathFor(intakeProfile.stagingRoot, opts.intakeSubfolder);
+    }
 
     // Constrain the save path to the allowed roots and strip command-breakout
     // chars before the value reaches the engine.
@@ -226,6 +237,21 @@ export class TorrentsService {
     if (opts.magnet) {
       const reason = magnetRejectionReason(opts.magnet);
       if (reason) throw new BadRequestException(reason);
+    }
+
+    // A subfolder the operator just invented does not exist yet. qBittorrent
+    // would create it, rTorrent would not — it fails the load and the download
+    // never starts — so create it here rather than depending on which engine is
+    // configured. Only for intake: the standard path is offered a "create it?"
+    // prompt in the dialog, which is the operator's decision to make.
+    if (intakeProfile && opts.savePath && opts.savePath !== intakeProfile.stagingRoot) {
+      try {
+        await mkdir(opts.savePath, { recursive: true });
+      } catch (err) {
+        throw new BadRequestException(
+          `Could not create the staging folder "${opts.savePath}": ${(err as Error).message}`,
+        );
+      }
     }
 
     const provider = await this.registry.resolve(engineId);
@@ -254,6 +280,46 @@ export class TorrentsService {
       ...ctx,
     });
     return { hash };
+  }
+
+  /**
+   * Where a managed-intake download waits: the profile's staging root, or a
+   * folder beneath it when the operator named one.
+   *
+   * RELATIVE, and enforced as such. The point of managed intake is that the
+   * staging root is the profile's decision, so an absolute path here would be
+   * the operator quietly overriding it — the exact contradiction the mode exists
+   * to prevent — and `..` would walk straight out of it. Both are refused with a
+   * message that says which rule was broken, rather than being silently
+   * normalised into something the operator did not ask for.
+   *
+   * The containment check is kept even though `..` is already rejected: it is
+   * the check that actually guarantees the property, and it costs nothing to
+   * state it directly instead of inferring it from the ones above.
+   *
+   * This decides where the release DOWNLOADS, never where it is imported — the
+   * pipeline still resolves that from the profile's library for the kind it
+   * turns out to be.
+   */
+  private stagingPathFor(stagingRoot: string, subfolder?: string): string {
+    const raw = (subfolder ?? '').trim();
+    if (!raw) return stagingRoot;
+    if (path.isAbsolute(raw)) {
+      throw new BadRequestException(
+        'The staging subfolder must be relative to the profile\'s staging root, not an absolute path.',
+      );
+    }
+    const segments = raw.split(/[/\\]+/).filter(Boolean);
+    if (segments.some((seg) => seg === '.' || seg === '..')) {
+      throw new BadRequestException('The staging subfolder cannot contain "." or ".." segments.');
+    }
+    if (!segments.length) return stagingRoot;
+    const root = path.resolve(stagingRoot);
+    const abs = path.resolve(root, ...segments);
+    if (abs !== root && !abs.startsWith(root + path.sep)) {
+      throw new BadRequestException('The staging subfolder must stay inside the profile\'s staging root.');
+    }
+    return abs;
   }
 
   /**

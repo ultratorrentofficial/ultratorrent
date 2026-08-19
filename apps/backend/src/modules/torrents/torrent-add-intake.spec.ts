@@ -10,7 +10,12 @@
  * cannot land somewhere that undoes it.
  */
 import { BadRequestException } from '@nestjs/common';
+import { mkdir } from 'node:fs/promises';
 import { TorrentsService } from './torrents.service';
+
+// A staging subfolder is created before the engine is handed the path; the test
+// asserts WHICH path, so the real filesystem must stay out of it.
+jest.mock('node:fs/promises', () => ({ mkdir: jest.fn(async () => undefined) }));
 
 function build(opts: {
   profile?: { id: string; name: string; stagingRoot: string; isEnabled: boolean } | null;
@@ -47,6 +52,9 @@ function build(opts: {
       }),
     },
   };
+
+  (mkdir as jest.Mock).mockClear();
+  (mkdir as jest.Mock).mockImplementation(async () => undefined);
 
   const svc = new TorrentsService(
     registry as never, audit as never, filePath as never, prisma as never,
@@ -146,6 +154,57 @@ describe('adding a torrent for managed intake', () => {
     expect(upserts).toHaveLength(0);
     expect(prisma.storageProfile.findUnique).not.toHaveBeenCalled();
     expect(added[0].options).toMatchObject({ savePath: '/downloads/Movies' });
+  });
+
+  it('stages into a subfolder of the profile root when the operator names one', async () => {
+    // The root stays the profile's decision; the subfolder only says where
+    // inside it this release waits for the pipeline.
+    const { add, added } = build();
+    await add({ intakeSubfolder: 'manual/4k' });
+    expect(added[0].options).toMatchObject({
+      savePath: '/downloads/Intake/Movies/manual/4k',
+    });
+  });
+
+  it('creates the subfolder, because rTorrent will not', async () => {
+    // qBittorrent creates a missing save path; rTorrent fails the load and the
+    // download never starts. Which engine is configured must not decide whether
+    // the add works.
+    const { add } = build();
+    await add({ intakeSubfolder: 'manual' });
+    expect(mkdir).toHaveBeenCalledWith('/downloads/Intake/Movies/manual', { recursive: true });
+  });
+
+  it('leaves the staging root alone when no subfolder was named', async () => {
+    const { add, added } = build();
+    await add();
+    expect(added[0].options).toMatchObject({ savePath: '/downloads/Intake/Movies' });
+    expect(mkdir).not.toHaveBeenCalled();
+  });
+
+  it('refuses an ABSOLUTE subfolder rather than letting it replace the root', async () => {
+    // That is the operator overriding the profile's staging root — the exact
+    // contradiction managed intake exists to prevent.
+    const { add, added } = build();
+    await expect(add({ intakeSubfolder: '/downloads/Movies/HD Movies' }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(added).toHaveLength(0);
+  });
+
+  it('refuses a subfolder that walks out of the staging root', async () => {
+    const { add, added } = build();
+    await expect(add({ intakeSubfolder: '../../Movies' }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(added).toHaveLength(0);
+  });
+
+  it('refuses a subfolder with no profile to hang it off', async () => {
+    // Silently dropping it would be the third "why was my path ignored" in this
+    // dialog; the standard path already has `savePath` for this.
+    const { add, added } = build();
+    await expect(add({ intakeProfileId: undefined, intakeSubfolder: 'manual' }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(added).toHaveLength(0);
   });
 
   it('records the chosen profile on the audit row', async () => {

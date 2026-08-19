@@ -10,7 +10,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { MediaLibrary } from '@/lib/api';
-import { isWithin, organizingLibraryFor } from './AddTorrentDialog';
+import {
+  isWithin,
+  normalizeSubfolder,
+  organizingLibraryFor,
+  stagingPreviewPath,
+} from './AddTorrentDialog';
 
 const library = (over: Partial<MediaLibrary>): MediaLibrary =>
   ({ id: 'l1', name: 'HD Movies', path: '/downloads/Movies/HD Movies', autoOrganize: true, ...over }) as MediaLibrary;
@@ -67,5 +72,29 @@ describe('organizingLibraryFor', () => {
 
   it('stays quiet before the libraries have loaded', () => {
     expect(organizingLibraryFor('/downloads/Movies/HD Movies', undefined)).toBeUndefined();
+  });
+});
+
+describe('the managed-intake staging subfolder', () => {
+  it('reads a folder name the same however the operator types the slashes', () => {
+    expect(normalizeSubfolder('manual')).toBe('manual');
+    expect(normalizeSubfolder('  /manual/  ')).toBe('manual');
+    expect(normalizeSubfolder('manual/4k/')).toBe('manual/4k');
+  });
+
+  it('is empty when nothing was typed, so the root is used as-is', () => {
+    expect(normalizeSubfolder('   ')).toBe('');
+    expect(stagingPreviewPath('/downloads/Intake/Movies', '')).toBe('/downloads/Intake/Movies');
+  });
+
+  it('previews the path the server will build', () => {
+    expect(stagingPreviewPath('/downloads/Intake/Movies', 'manual'))
+      .toBe('/downloads/Intake/Movies/manual');
+  });
+
+  it('does not double the separator when the root carries a trailing slash', () => {
+    // The profile root is operator-typed, so it arrives both ways.
+    expect(stagingPreviewPath('/downloads/Intake/Movies/', '/manual'))
+      .toBe('/downloads/Intake/Movies/manual');
   });
 });

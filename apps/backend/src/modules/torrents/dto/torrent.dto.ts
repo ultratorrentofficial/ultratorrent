@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  MaxLength,
   Min,
   IsIn,
 } from 'class-validator';
@@ -48,6 +49,21 @@ export class AddTorrentDto {
   @IsOptional()
   @IsString()
   intakeProfileId?: string;
+
+  /**
+   * Optional folder BENEATH the profile's staging root to download into, e.g.
+   * `manual` or `manual/4k`. Relative on purpose: the staging root is the
+   * profile's to decide, and this only says where inside it this release waits
+   * for the pipeline. Ignored — refused, actually — without `intakeProfileId`,
+   * since the standard path already has `savePath`.
+   *
+   * It does not change where the release is IMPORTED: that is still the
+   * profile's library for whatever the release turns out to be.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  intakeSubfolder?: string;
 
   @IsOptional()
   @IsBoolean()

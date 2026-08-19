@@ -46,6 +46,30 @@ export function isWithin(candidate: string, parent: string): boolean {
 }
 
 /**
+ * A staging subfolder as the server will read it: trimmed, and stripped of the
+ * slashes an operator naturally types around a folder name, so `/manual/` and
+ * `manual` mean the same thing rather than two different requests.
+ */
+export function normalizeSubfolder(input: string): string {
+  return input.trim().replace(/^\/+|\/+$/g, '').trim();
+}
+
+/**
+ * The path a managed-intake download will wait at — the profile's staging root,
+ * plus the operator's subfolder if they named one.
+ *
+ * A PREVIEW: the server builds the real path, and rejects anything that leaves
+ * the root. Showing it is what makes the division legible — the root is the
+ * profile's decision, the subfolder is the operator's — instead of leaving them
+ * to infer it from a field with no context.
+ */
+export function stagingPreviewPath(stagingRoot: string, subfolder: string): string {
+  return [stagingRoot.replace(/\/+$/, ''), normalizeSubfolder(subfolder)]
+    .filter(Boolean)
+    .join('/');
+}
+
+/**
  * The library that will reorganise anything saved at `savePath`, if there is one.
  *
  * This is the guardrail for the standard path. Saving a download inside a library
@@ -90,6 +114,7 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [destination, setDestination] = useState<Destination>('standard');
   const [intakeProfileId, setIntakeProfileId] = useState('');
+  const [intakeSubfolder, setIntakeSubfolder] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -116,6 +141,10 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
     () => (destination === 'standard' ? organizingLibraryFor(savePath, libraries) : undefined),
     [destination, savePath, libraries],
   );
+  const stagingSubfolder = normalizeSubfolder(intakeSubfolder);
+  const stagingPath = selectedProfile
+    ? stagingPreviewPath(selectedProfile.stagingRoot, stagingSubfolder)
+    : '';
 
   const reset = () => {
     setMagnet('');
@@ -128,6 +157,7 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
     setSource('magnet');
     setDestination('standard');
     setIntakeProfileId('');
+    setIntakeSubfolder('');
   };
 
   const close = () => {
@@ -153,13 +183,16 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
 
     const options: Pick<
       AddTorrentPayload,
-      'category' | 'savePath' | 'tags' | 'startPaused' | 'intakeProfileId'
+      'category' | 'savePath' | 'tags' | 'startPaused' | 'intakeProfileId' | 'intakeSubfolder'
     > = {
       category: category.trim() || undefined,
       // Never both: the server replaces the save path with the profile's staging
       // root, and sending a contradictory one invites a "why was it ignored".
       savePath: intake ? undefined : savePath.trim() || undefined,
       intakeProfileId: intake ? intakeProfileId : undefined,
+      // Sent only with a profile: on its own the server has no root to hang it
+      // off, and rejects it rather than guessing one.
+      intakeSubfolder: intake ? stagingSubfolder || undefined : undefined,
       tags: tags.trim() ? tags.split(',').map((t) => t.trim()).filter(Boolean) : undefined,
       startPaused,
     };
@@ -379,11 +412,23 @@ export function AddTorrentDialog({ open, onClose }: AddTorrentDialogProps) {
                 </option>
               ))}
             </Select>
-            {/* The save path is not editable here — showing where it will land is
-                the honest substitute for a field the server overrides anyway. */}
+            <div className="space-y-2">
+              <Label htmlFor="intakeSubfolder">{t('add.intakeSubfolder')}</Label>
+              <Input
+                id="intakeSubfolder"
+                value={intakeSubfolder}
+                onChange={(e) => setIntakeSubfolder(e.target.value)}
+                placeholder={t('add.intakeSubfolderPlaceholder')}
+                aria-label={t('add.intakeSubfolder')}
+                disabled={!selectedProfile}
+              />
+            </div>
+            {/* The staging ROOT stays the profile's to decide; the subfolder only
+                says where inside it this release waits. Showing the joined path
+                is what makes that division legible instead of implied. */}
             <p className="text-xs text-muted-foreground">
               {selectedProfile
-                ? t('add.intakeStagingPreview', { path: selectedProfile.stagingRoot })
+                ? t('add.intakeStagingPreview', { path: stagingPath })
                 : t('add.intakeStagingHint')}
             </p>
           </div>
