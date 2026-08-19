@@ -81,7 +81,8 @@
         }
       }
     },
-    "exportRule": "Export \"{{name}}\" as a bundle"
+    "exportRule": "Export \"{{name}}\" as a bundle",
+    "managedIntake": "Managed Intake"
   },
   "feedDialog": {
     "addTitle": "Add RSS feed",

@@ -496,5 +496,27 @@
       "copyVerified": "Copia en biblioteca verificada",
       "copyVerified.desc": "Se comprobó que existe la copia o el enlace duro en la biblioteca."
     }
+  },
+  "intake": {
+    "managed": "Gestionado por Media Intake",
+    "tooltip": "Media Intake está gestionando esta descarga ({{state}}). Se importará a una biblioteca y se limpiará automáticamente.",
+    "tooltipImported": "Media Intake importó esto a una biblioteca ({{state}}). La copia en seed le toca limpiarla a la plataforma.",
+    "state": {
+      "queued": "en cola",
+      "downloading": "descargando",
+      "completed": "completado",
+      "verified": "verificado",
+      "identified": "identificado",
+      "quality_scored": "evaluado",
+      "ready_to_import": "listo para importar",
+      "importing": "importando",
+      "imported": "importado",
+      "metadata_ready": "metadatos listos",
+      "seeding": "en seed",
+      "archived": "archivado",
+      "failed": "falló",
+      "quarantined": "en cuarentena",
+      "cancelled": "cancelado"
+    }
   }
 }

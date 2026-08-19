@@ -7,6 +7,7 @@ import { TorrentsService } from './torrents.service';
 import { TorrentsController } from './torrents.controller';
 import { TorrentSyncService } from './torrent-sync.service';
 import { TorrentParkingService } from './torrent-parking.service';
+import { TorrentIntakeAnnotatorService } from './torrent-intake-annotator.service';
 import { TorrentNameRepairService } from './torrent-name-repair.service';
 
 @Module({
@@ -19,10 +20,11 @@ import { TorrentNameRepairService } from './torrent-name-repair.service';
     TorrentsService,
     TorrentSyncService,
     TorrentParkingService,
+    TorrentIntakeAnnotatorService,
     TorrentNameRepairService,
   ],
   controllers: [TorrentsController],
-  exports: [TorrentsService, TorrentParkingService],
+  exports: [TorrentsService, TorrentParkingService, TorrentIntakeAnnotatorService],
 })
 /** Contributes the torrent actions to the CAMA registry at boot. */
 export class TorrentsModule implements OnModuleInit {

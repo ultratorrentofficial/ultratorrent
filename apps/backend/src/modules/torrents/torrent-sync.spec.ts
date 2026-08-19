@@ -94,7 +94,7 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
     const svc = new TorrentSyncService(
       prisma as any, registry as any, realtime as any, automation as any,
       mediaProcessing as any, bus as any, nameRepair as any, ledger as any,
-      parking as any,
+      parking as any, { annotate: async (ts: unknown[]) => ts } as any,
     );
     return { svc, calls, prisma, mediaProcessing, automation, nameRepair, bus, ledger, realtime, parking };
   }

@@ -12,6 +12,7 @@ import {
   FolderInput,
   History,
   Link2,
+  PackageCheck,
   Pencil,
   Plus,
   RefreshCw,
@@ -452,6 +453,19 @@ export function RssPage() {
                             {rule.autoDownload && (
                               <Badge variant="info" dot>
                                 <Download className="h-3 w-3" /> {t('feeds.auto')}
+                              </Badge>
+                            )}
+                            {/*
+                              * Which rules hand their grabs to Media Intake is
+                              * the difference between a release that gets
+                              * staged, renamed and hardlinked into a library
+                              * and one that lands wherever the save path
+                              * points — and it was visible only by opening the
+                              * rule. Marked on the row instead.
+                              */}
+                            {rule.importMode === 'managed_intake' && (
+                              <Badge variant="success">
+                                <PackageCheck className="h-3 w-3" /> {t('feeds.managedIntake')}
                               </Badge>
                             )}
                             {linked && (

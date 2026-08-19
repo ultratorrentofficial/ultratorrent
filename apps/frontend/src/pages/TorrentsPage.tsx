@@ -41,7 +41,7 @@ import {
 } from '@/components/ui/table';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
-import { TorrentParkedDot, TorrentStateDot } from '@/components/torrents/TorrentStateBadge';
+import { TorrentIntakeDot, TorrentParkedDot, TorrentStateDot } from '@/components/torrents/TorrentStateBadge';
 import { TorrentDrawer } from '@/components/torrents/TorrentDrawer';
 import { BulkToolbar } from '@/components/torrents/BulkToolbar';
 import { torrentCapabilities } from '@/components/torrents/torrentCapabilities';
@@ -461,14 +461,16 @@ function TorrentRow({
       </TableCell>
       <TableCell>
         {/*
-          Two markers, not one. The engine's state is a fact and stays; the
-          parked dot adds the half it cannot know — that WE stopped this, and
-          why. On a queue that is mostly parked, "paused" alone explains
-          nothing about why almost nothing is running.
+          Three markers, each answering something the others cannot. The
+          engine's state is a fact and stays; the parked dot adds that WE
+          stopped this, and why; the intake dot adds that the platform owns
+          this payload and will import and clean it up. All three were
+          otherwise only discoverable by hovering.
         */}
         <span className="inline-flex items-center gap-1">
           <TorrentStateDot state={torrent.state} />
           {torrent.parked && <TorrentParkedDot parked={torrent.parked} />}
+          {torrent.intake && <TorrentIntakeDot intake={torrent.intake} />}
         </span>
       </TableCell>
       {/*

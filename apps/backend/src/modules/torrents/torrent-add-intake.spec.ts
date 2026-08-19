@@ -50,7 +50,7 @@ function build(opts: {
 
   const svc = new TorrentsService(
     registry as never, audit as never, filePath as never, prisma as never,
-    {} as never, {} as never,
+    {} as never, {} as never, { annotate: async (ts: unknown[]) => ts } as never,
   );
   const logger = (svc as never as { logger: Record<string, (m: string) => void> }).logger;
   const errors: string[] = [];

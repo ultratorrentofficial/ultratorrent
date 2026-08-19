@@ -250,8 +250,39 @@ export class AcquisitionWatchlistService {
     });
     const statusByTitle = new Map(statusRows.map((r) => [r.normalizedTitle, r]));
 
+    /*
+     * One row per SHOW, not per folder.
+     *
+     * A show split across two folders is one show: `And Just Like That (2021)`
+     * and `And Just Like That... (2021)` differ by an ellipsis, `Magnum P.I` and
+     * `Magnum P.I.` by a full stop, and each pair carries the SAME IMDb id — so
+     * the picker listed the same series twice and invited monitoring it twice.
+     *
+     * Collapsed on the IMDb id, which is the only thing that actually says "same
+     * show": two rows that merely share a title can be genuinely different
+     * series (`Dark Matter` 2015 vs 2024, `Invasion` 2005 vs 2021 — different
+     * ids), and merging those would hide a show the operator owns. Rows with no
+     * id fall back to title+year, which is the best identity available for them.
+     *
+     * The surviving row is the folder holding the most episodes: it is the one
+     * the library actually lives in, and `libraryShowId` binds the watchlist
+     * item to it. Counts are summed so the total still describes the show.
+     */
+    const merged = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const key = row.imdbId ?? `${normalizeTitle(row.title)}|${row.year ?? ''}`;
+      const seen = merged.get(key);
+      if (!seen) {
+        merged.set(key, { ...row });
+        continue;
+      }
+      // Keep the larger folder's identity, and carry the combined count.
+      const winner = row.count > seen.count ? row : seen;
+      merged.set(key, { ...winner, count: seen.count + row.count });
+    }
+
     const q = search?.trim().toLowerCase();
-    const result = rows
+    const result = [...merged.values()]
       .filter((g) => !q || g.title.toLowerCase().includes(q))
       .map((g) => {
         const st = statusByTitle.get(normalizeTitle(g.title));

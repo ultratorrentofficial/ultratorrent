@@ -496,5 +496,27 @@
       "copyVerified": "Library copy verified",
       "copyVerified.desc": "The library copy or hardlink was checked to exist."
     }
+  },
+  "intake": {
+    "managed": "Managed by Media Intake",
+    "tooltip": "Media Intake is managing this download ({{state}}). It will be imported into a library and cleaned up automatically.",
+    "tooltipImported": "Media Intake imported this into a library ({{state}}). The seeding copy is the platform’s to clean up.",
+    "state": {
+      "queued": "queued",
+      "downloading": "downloading",
+      "completed": "completed",
+      "verified": "verified",
+      "identified": "identified",
+      "quality_scored": "scored",
+      "ready_to_import": "ready to import",
+      "importing": "importing",
+      "imported": "imported",
+      "metadata_ready": "metadata ready",
+      "seeding": "seeding",
+      "archived": "archived",
+      "failed": "failed",
+      "quarantined": "quarantined",
+      "cancelled": "cancelled"
+    }
   }
 }

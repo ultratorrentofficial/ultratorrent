@@ -255,3 +255,61 @@ describe('AcquisitionWatchlistService.librarySeries — backed by media_shows', 
     expect(rows[0].id).toBeNull();
   });
 });
+
+/**
+ * Reported live: the picker listed "And Just Like That" twice. Two folders —
+ * `And Just Like That (2021)` and `And Just Like That... (2021)` — differ by an
+ * ellipsis and carry the SAME IMDb id, so the same series was offered twice and
+ * could be monitored twice. `Magnum P.I` / `Magnum P.I.` had it too.
+ */
+describe('librarySeries — one row per show, not per folder', () => {
+  const show = (over: Record<string, unknown>) => ({
+    id: 'id-' + Math.random().toString(36).slice(2),
+    title: 'Show', year: 2021, episodeCount: 1, imdbId: null, mediaType: 'tv', ...over,
+  });
+
+  it('collapses a show split across two folders, summing its episodes', async () => {
+    const { svc, prisma } = build();
+    prisma.mediaShow.findMany.mockResolvedValue([
+      show({ id: 'small', title: 'And Just Like That', episodeCount: 1, imdbId: 'tt13819960' }),
+      show({ id: 'big', title: 'And Just Like That', episodeCount: 32, imdbId: 'tt13819960' }),
+    ]);
+
+    const rows = await svc.librarySeries();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].episodeCount).toBe(33);
+    // The surviving identity is the folder the library actually lives in, so a
+    // watchlist item binds to the 32-episode folder rather than the stray one.
+    expect(rows[0].id).toBe('big');
+  });
+
+  it('keeps different shows that merely share a title', async () => {
+    // Dark Matter 2015 and Dark Matter 2024 are different series with different
+    // ids; merging them would hide a show the operator owns.
+    const { svc, prisma } = build();
+    prisma.mediaShow.findMany.mockResolvedValue([
+      show({ title: 'Dark Matter', year: 2015, imdbId: 'tt4159076', episodeCount: 39 }),
+      show({ title: 'Dark Matter', year: 2024, imdbId: 'tt19231492', episodeCount: 9 }),
+    ]);
+
+    const rows = await svc.librarySeries();
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.year).sort()).toEqual([2015, 2024]);
+  });
+
+  it('falls back to title+year when a show has no id yet', async () => {
+    const { svc, prisma } = build();
+    prisma.mediaShow.findMany.mockResolvedValue([
+      show({ title: 'Unidentified', year: 2020, imdbId: null, episodeCount: 2 }),
+      show({ title: 'Unidentified', year: 2020, imdbId: null, episodeCount: 3 }),
+      show({ title: 'Unidentified', year: 2011, imdbId: null, episodeCount: 4 }),
+    ]);
+
+    const rows = await svc.librarySeries();
+
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.year === 2020)?.episodeCount).toBe(5);
+  });
+});

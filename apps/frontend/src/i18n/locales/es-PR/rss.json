@@ -81,7 +81,8 @@
         }
       }
     },
-    "exportRule": "Exportar «{{name}}» como paquete"
+    "exportRule": "Exportar «{{name}}» como paquete",
+    "managedIntake": "Intake gestionado"
   },
   "feedDialog": {
     "addTitle": "Agregar fuente RSS",

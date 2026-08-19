@@ -24,6 +24,7 @@ import { infoHashFromTorrent } from '../../infrastructure/rtorrent/bencode';
 import { magnetRejectionReason } from '../../common/magnet';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { TorrentParkingService } from './torrent-parking.service';
+import { TorrentIntakeAnnotatorService } from './torrent-intake-annotator.service';
 
 /** Reject quote/control chars that could break out of rTorrent command strings. */
 const UNSAFE_PATH_CHARS = /["\r\n\t\0]/;
@@ -65,6 +66,10 @@ export class TorrentsService {
     private readonly prisma: PrismaService,
     private readonly moduleRef: ModuleRef,
     private readonly parking: TorrentParkingService,
+    // Appended, never inserted: these are positional to every `new
+    // TorrentsService(...)` in the specs, and slotting a parameter in the
+    // middle silently shifts the rest.
+    private readonly intakeAnnotator: TorrentIntakeAnnotatorService,
   ) {}
 
   /**
@@ -126,9 +131,11 @@ export class TorrentsService {
     const pageSize = Math.min(query.pageSize ?? 50, 500);
     // Annotate AFTER paging, so the parking lookup is bounded by what is
     // actually being returned rather than by the size of the queue.
-    const items = await this.parking.annotate(
-      provider.engineId,
-      torrents.slice((page - 1) * pageSize, page * pageSize),
+    const items = await this.intakeAnnotator.annotate(
+      await this.parking.annotate(
+        provider.engineId,
+        torrents.slice((page - 1) * pageSize, page * pageSize),
+      ),
     );
     return { items, total, page, pageSize };
   }

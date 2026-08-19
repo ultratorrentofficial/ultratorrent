@@ -38,16 +38,27 @@ export function AddSeriesFromLibraryDialog({ open, onClose }: { open: boolean; o
   }, [query.data, search]);
 
   const addable = rows.filter((r) => !r.onWatchlist);
-  const toggle = (title: string) =>
+  /*
+   * Identity, not title.
+   *
+   * A title is not unique: `Dark Matter` is a 2015 series AND a 2024 one, and
+   * `Invasion` likewise — different shows, different IMDb ids, both in the
+   * library. Keyed by title, ticking one ticked BOTH rows and the confirm added
+   * the show the operator had not chosen. The library show id is the real
+   * identity; the id + year pair is the fallback for a row the scanner has not
+   * recorded yet.
+   */
+  const idOf = (r: LibrarySeries) => r.id ?? r.imdbId ?? `${r.title}|${r.year ?? ''}`;
+  const toggle = (key: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(title) ? next.delete(title) : next.add(title);
+      next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
 
   const add = useMutation({
     mutationFn: () => {
-      const chosen = (query.data ?? []).filter((r) => selected.has(r.title));
+      const chosen = (query.data ?? []).filter((r) => selected.has(idOf(r)));
       return api.mediaAcquisition.bulkAddWatchlist(
         chosen.map((r) => ({ title: r.title, year: r.year, imdbId: r.imdbId, libraryShowId: r.id })),
       );
@@ -84,7 +95,7 @@ export function AddSeriesFromLibraryDialog({ open, onClose }: { open: boolean; o
           variant="secondary"
           size="sm"
           disabled={addable.length === 0}
-          onClick={() => setSelected(new Set(addable.map((r) => r.title)))}
+          onClick={() => setSelected(new Set(addable.map(idOf)))}
         >
           {t('acquisition.librarySeries.selectAll')}
         </Button>
@@ -103,14 +114,14 @@ export function AddSeriesFromLibraryDialog({ open, onClose }: { open: boolean; o
         ) : (
           rows.map((r: LibrarySeries) => (
             <label
-              key={r.title}
+              key={idOf(r)}
               className="flex cursor-pointer items-center gap-3 border-b border-border/40 px-3 py-2 last:border-0 hover:bg-white/[0.02]"
             >
               <Checkbox
-                checked={r.onWatchlist || selected.has(r.title)}
+                checked={r.onWatchlist || selected.has(idOf(r))}
                 disabled={r.onWatchlist}
-                onCheckedChange={() => toggle(r.title)}
-                aria-label={r.title}
+                onCheckedChange={() => toggle(idOf(r))}
+                aria-label={r.year != null ? `${r.title} (${r.year})` : r.title}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

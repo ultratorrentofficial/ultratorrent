@@ -106,9 +106,28 @@ export interface TorrentParkingInfo {
  * Putting `parked` there would oblige every adapter to populate a field none of
  * them can answer.
  */
+/**
+ * The Media Intake job a torrent was grabbed for.
+ *
+ * Nothing the engine reports distinguishes a torrent that intake is managing
+ * from one added by hand — the payload, the save path and the state look the
+ * same — so identifying one meant hovering a row to read its provenance. That
+ * is a poor trade on a queue of several hundred, where "which of these is the
+ * platform going to import and clean up" is a question asked constantly.
+ */
+export interface TorrentIntakeInfo {
+  jobId: string;
+  /** The intake state machine's current state, e.g. `seeding`, `imported`. */
+  state: string;
+  /** It has produced a library item — the import actually landed. */
+  imported: boolean;
+}
+
 export interface TorrentWithPlatformState extends NormalizedTorrent {
   /** Null when the platform is not holding this torrent out of the queue. */
   parked: TorrentParkingInfo | null;
+  /** Null when no intake job claims this hash (a manual or legacy download). */
+  intake?: TorrentIntakeInfo | null;
 }
 
 /**

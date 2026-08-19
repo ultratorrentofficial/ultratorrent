@@ -12,6 +12,7 @@ import { MediaProcessingService } from '../media/media-processing.service';
 import { TorrentNameRepairService } from './torrent-name-repair.service';
 import { TransferLedgerService } from '../transfer-ledger/transfer-ledger.service';
 import { TorrentParkingService } from './torrent-parking.service';
+import { TorrentIntakeAnnotatorService } from './torrent-intake-annotator.service';
 
 /**
  * What we knew about a torrent at the end of the previous tick: enough to
@@ -80,6 +81,8 @@ export class TorrentSyncService {
     private readonly nameRepair: TorrentNameRepairService,
     private readonly ledger: TransferLedgerService,
     private readonly parking: TorrentParkingService,
+    // Appended, not inserted — the specs construct this positionally.
+    private readonly intakeAnnotator: TorrentIntakeAnnotatorService,
   ) {}
 
   @Interval(2000)
@@ -116,7 +119,12 @@ export class TorrentSyncService {
         // parked torrent is an ordinary `PAUSED` to it. Without this the live
         // update would overwrite the annotated list the REST call returned, and
         // every parked badge would disappear on the next tick.
-        torrents: await this.parking.annotate(provider.engineId, torrents),
+        // Intake state rides the same path for the same reason as parking: this
+        // broadcast REPLACES the annotated list the REST call returned, so an
+        // annotation applied on only one path vanishes on the next tick.
+        torrents: await this.intakeAnnotator.annotate(
+          await this.parking.annotate(provider.engineId, torrents),
+        ),
         at,
       });
       this.realtime.broadcast(WS_EVENTS.STATS_UPDATE, {

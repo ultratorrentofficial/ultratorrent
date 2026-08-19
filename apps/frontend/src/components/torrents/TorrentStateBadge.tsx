@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   CircleSlash,
   Loader2,
+  PackageCheck,
   ParkingCircle,
   Pause,
   SearchCheck,
@@ -12,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Namespace, TFunction } from 'i18next';
-import { TorrentState, type TorrentParkingInfo } from '@ultratorrent/shared';
+import { TorrentState, type TorrentIntakeInfo, type TorrentParkingInfo } from '@ultratorrent/shared';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 
 interface StateMeta {
@@ -132,6 +133,42 @@ export function TorrentParkedDot({ parked }: { parked: TorrentParkingInfo }) {
     >
       <ParkingCircle
         className={`h-4 w-4 text-muted-foreground ${parked.probing ? 'animate-pulse' : ''}`}
+      />
+    </span>
+  );
+}
+
+/**
+ * "Media Intake is managing this one."
+ *
+ * An intake grab is an ordinary torrent to the engine — same state, same save
+ * path — so telling it apart from a manual download meant hovering the row to
+ * read its provenance. On a queue of several hundred that is the question
+ * asked most and answered least conveniently, and it decides whether the
+ * platform will import and clean up this payload or leave it alone.
+ *
+ * Icon-only and the same 4×4 box as {@link TorrentStateDot}, because the table
+ * is deliberately one line high: anything that changes row height shows up as
+ * the list "breathing" on every live update.
+ *
+ * The colour carries the second half of the answer. An intake that reached the
+ * library is settled (success); one still working its way through the pipeline
+ * is not, and looks like every other in-flight job on the platform (info).
+ */
+export function TorrentIntakeDot({ intake }: { intake: TorrentIntakeInfo }) {
+  const { t } = useTranslation('torrents');
+  const tr = t as unknown as (k: string, o?: Record<string, unknown>) => string;
+  // The intake state machine is an open vocabulary; an unrecognised state
+  // renders its raw code rather than a missing-key string.
+  const state = tr(`intake.state.${intake.state}`, { defaultValue: intake.state });
+  return (
+    <span
+      className="inline-flex items-center"
+      title={tr(intake.imported ? 'intake.tooltipImported' : 'intake.tooltip', { state })}
+    >
+      <PackageCheck
+        className={`h-4 w-4 ${intake.imported ? 'text-success' : 'text-info'}`}
+        aria-label={tr('intake.managed')}
       />
     </span>
   );
