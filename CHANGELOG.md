@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.85.0] - 2026-08-19
+
+### Added
+- File Manager: preview images, play video/audio, and read NFO/subtitle files in a kind-aware preview modal
+
+### Fixed
+- Remove the dangling breadcrumb separator on a show header
+
 ## [0.84.1] - 2026-08-19
 
 ### Fixed
