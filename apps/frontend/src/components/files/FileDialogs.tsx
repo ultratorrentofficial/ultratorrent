@@ -528,62 +528,11 @@ export function PropertiesDialog({
   );
 }
 
-// --- Preview ---------------------------------------------------------------
-
-export function PreviewDialog({
-  open,
-  node,
-  canDownload,
-  onClose,
-}: {
-  open: boolean;
-  node: FileNode | null;
-  canDownload: boolean;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation('files');
-  const toast = useToast();
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['file-preview', node?.path],
-    queryFn: () => api.files.preview(node!.path),
-    enabled: open && !!node,
-    retry: false,
-  });
-
-  const download = async () => {
-    if (!node) return;
-    try {
-      await api.files.download(node.path);
-    } catch (err) {
-      toast.error(t('toast.downloadFailed'), err instanceof ApiError ? err.message : undefined);
-    }
-  };
-
-  if (!node) return null;
-  return (
-    <Dialog open={open} onClose={onClose} title={t('preview.titleBar')} className="max-w-3xl">
-      <DialogHeader>
-        <DialogTitle className="truncate">{node.name}</DialogTitle>
-        <DialogDescription>{formatBytes(node.size)}</DialogDescription>
-      </DialogHeader>
-      {isLoading ? (
-        <CenteredSpinner label={t('preview.loading')} />
-      ) : isError ? (
-        <div className="rounded-lg border border-border/60 p-4 text-sm text-muted-foreground">
-          {(error as ApiError)?.message ?? t('preview.cannotPreview')}
-        </div>
-      ) : (
-        <pre className="max-h-[60vh] overflow-auto scrollbar-thin rounded-lg border border-border/60 bg-black/30 p-3 text-xs leading-relaxed">
-          {data?.content}
-        </pre>
-      )}
-      <DialogFooter>
-        {canDownload && <Button variant="secondary" onClick={download}>{t('preview.download')}</Button>}
-        <Button variant="ghost" onClick={onClose}>{t('preview.close')}</Button>
-      </DialogFooter>
-    </Dialog>
-  );
-}
+/*
+ * The preview dialog used to live here. It read every file as UTF-8 and printed
+ * it in a `<pre>`, which is not a preview of an image, a film or a CP437 NFO —
+ * it now lives in ./preview/PreviewModal.tsx, which branches on what the file is.
+ */
 
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (

@@ -20,7 +20,10 @@ import type {
   ConflictResolution,
   ConflictResolutionInput,
   FileNode,
+  FilePreviewResponse,
   FilePropertiesResponse,
+  MediaTicket,
+  PreviewTextEncoding,
   LicenseStatus,
   LoginResponse,
   ModuleStatus,
@@ -40,7 +43,7 @@ import type {
   TrashItemDto,
 } from '@ultratorrent/shared';
 
-export type { FileNode, FilePropertiesResponse, CleanupPreview, CleanupCategory, CleanupExecuteResult, TrashItemDto, BrowseResponse, BulkOperationType, MoveConflictReport, MoveConflict, ConflictResolution, ConflictResolutionInput };
+export type { FileNode, FilePreviewResponse, MediaTicket, PreviewTextEncoding, FilePropertiesResponse, CleanupPreview, CleanupCategory, CleanupExecuteResult, TrashItemDto, BrowseResponse, BulkOperationType, MoveConflictReport, MoveConflict, ConflictResolution, ConflictResolutionInput };
 
 import type {
   WorkflowCatalog, WorkflowGraph, WorkflowValidationResult, WorkflowSummary,
@@ -3997,8 +4000,32 @@ export const api = {
     properties(path: string): Promise<FilePropertiesResponse> {
       return request<FilePropertiesResponse>('/files/properties', { query: { path } });
     },
-    preview(path: string): Promise<{ path: string; content: string }> {
-      return request<{ path: string; content: string }>('/files/preview', { query: { path } });
+    /**
+     * What to show for a file, plus its decoded text when it has any.
+     *
+     * `encoding` re-asks the server to decode the same bytes differently — the
+     * viewer offers the choice because detection cannot always be right about a
+     * pre-Unicode NFO, and the browser never sees the raw bytes to redo it.
+     */
+    preview(path: string, encoding?: PreviewTextEncoding): Promise<FilePreviewResponse> {
+      return request<FilePreviewResponse>('/files/preview', { query: { path, encoding } });
+    },
+    /**
+     * Mint a short-lived, single-path grant so an `<img>`/`<video>`/`<iframe>`
+     * can fetch bytes it cannot attach a bearer token to. See the backend's
+     * media-ticket module for why this is not simply a blob fetch.
+     */
+    mediaTicket(path: string): Promise<MediaTicket> {
+      return request<MediaTicket>('/files/media-ticket', { method: 'POST', body: { path } });
+    },
+    /**
+     * The URL an element can load for a ticketed file. Built here rather than
+     * returned by the server: this side already knows where the API is, and a
+     * server deriving its own public address from proxy headers is how a stream
+     * URL ends up pointing at a container name.
+     */
+    streamUrl(ticket: MediaTicket): string {
+      return buildUrl('/files/stream', { path: ticket.path, ticket: ticket.token });
     },
     /** Fetch the file with the bearer token and trigger a browser download. */
     async download(path: string): Promise<void> {

@@ -2,22 +2,29 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Captions,
   ChevronRight,
   Copy,
   Download,
   Eye,
   File as FileIcon,
+  FileArchive,
+  FileText,
+  Film,
   Folder,
   FolderInput,
   FolderOpen,
   FolderPlus,
   FolderTree,
   Home,
+  Image as ImageIcon,
   Info,
+  Music,
   Pencil,
+  ScrollText,
   Trash2,
 } from 'lucide-react';
-import { PERMISSIONS, WS_EVENTS } from '@ultratorrent/shared';
+import { PERMISSIONS, WS_EVENTS, filePreviewKind, type FilePreviewKind } from '@ultratorrent/shared';
 import type { EntityRef } from '@ultratorrent/shared';
 import { ApiError, api, type FileNode } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
@@ -39,10 +46,10 @@ import {
   CreateFolderDialog,
   DeleteFileDialog,
   MoveCopyDialog,
-  PreviewDialog,
   PropertiesDialog,
   RenameDialog,
 } from '@/components/files/FileDialogs';
+import { PreviewModal } from '@/components/files/preview/PreviewModal';
 
 export function FilesPage() {
   const { hasPermission } = useAuth();
@@ -310,10 +317,17 @@ export function FilesPage() {
         />
       )}
       <PropertiesDialog open={!!propsPath} path={propsPath} onClose={() => setPropsPath(null)} />
-      <PreviewDialog
+      <PreviewModal
         open={!!previewNode}
         node={previewNode}
+        /*
+         * The whole folder, not the search-filtered view: paging through
+         * previews should not be silently constrained by a filter typed in the
+         * toolbar, and the player matches sibling subtitles by name from here.
+         */
+        siblings={data?.items ?? []}
         canDownload={hasPermission(PERMISSIONS.FILES_DOWNLOAD)}
+        onNavigate={setPreviewNode}
         onClose={() => setPreviewNode(null)}
       />
       <CleanupWizard open={cleanupOpen} path={path} onClose={() => setCleanupOpen(false)} />
@@ -321,6 +335,25 @@ export function FilesPage() {
     </div>
   );
 }
+
+/**
+ * The icon for a file, from what it is rather than one generic sheet of paper.
+ *
+ * Scanning a release folder for the screenshot, the subtitle or the sample is
+ * the most common thing anyone does in here, and shape carries that faster than
+ * reading extensions off the end of forty filenames.
+ */
+const KIND_ICONS: Record<FilePreviewKind, typeof FileIcon> = {
+  image: ImageIcon,
+  video: Film,
+  audio: Music,
+  subtitle: Captions,
+  nfo: ScrollText,
+  text: FileText,
+  pdf: FileText,
+  archive: FileArchive,
+  binary: FileIcon,
+};
 
 function FileRow({
   node,
@@ -358,7 +391,10 @@ function FileRow({
         {isDir ? (
           <Folder className="h-5 w-5 shrink-0 text-primary" />
         ) : (
-          <FileIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
+          (() => {
+            const Icon = KIND_ICONS[filePreviewKind(node.name)];
+            return <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />;
+          })()
         )}
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{node.name}</span>
         {!isDir && (

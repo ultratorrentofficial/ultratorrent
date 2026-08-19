@@ -83,7 +83,10 @@ architecture.
   and recent activity.
 - **Categories & tags** — organize torrents with managed taxonomies.
 - **Built-in file manager** — browse, preview, download, rename, move, copy,
-  delete, and mkdir within a strict allow-list of roots.
+  delete, and mkdir within a strict allow-list of roots. Preview knows what a
+  file is: a lightbox for images, a seekable player for video and audio (with
+  the sibling subtitle attached automatically), a cue-by-cue subtitle reader,
+  and a fixed-width NFO viewer that decodes CP437 art correctly.
 - **Media Manager** — organize a media library: root-restricted folder scanning,
   filename identification, metadata (local NFO + optional TMDB, plus compliant
   IMDb metadata from user-provided IMDb datasets or a licensed IMDb API — never

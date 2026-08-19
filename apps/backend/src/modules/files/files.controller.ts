@@ -9,14 +9,24 @@ import {
   Query,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { PERMISSIONS, SystemRole } from '@ultratorrent/shared';
+import {
+  PERMISSIONS,
+  PREVIEW_TEXT_ENCODINGS,
+  SystemRole,
+  type MediaTicket,
+  type PreviewTextEncoding,
+} from '@ultratorrent/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -25,6 +35,7 @@ import { FilesService } from './files.service';
 import { FileCleanupService } from './file-cleanup.service';
 import { MoveConflictService } from './move-conflict.service';
 import { TrashService } from './trash.service';
+import { signMediaTicket, verifyMediaTicket } from './media-ticket';
 import { AuditService } from '../audit/audit.service';
 import {
   DEFAULT_ROOT_PATH_KEY,
@@ -73,6 +84,22 @@ export function assertBulkOperationAllowed(operation: string, user: Authenticate
   }
 }
 
+/** Narrow a caller-supplied encoding to one the decoder knows, or nothing. */
+export function parsePreviewEncoding(value: unknown): PreviewTextEncoding | null {
+  return typeof value === 'string' && (PREVIEW_TEXT_ENCODINGS as readonly string[]).includes(value)
+    ? (value as PreviewTextEncoding)
+    : null;
+}
+
+/**
+ * Compare two root-relative paths as the safety layer would see them, so a
+ * ticket for `movies/a.mkv` still authorises `/movies/a.mkv`. Only leading
+ * slashes differ here; anything else is left alone and therefore mismatches.
+ */
+export function normalizeRelative(p: unknown): string {
+  return typeof p === 'string' ? `/${p.replace(/^\/+/, '')}` : '';
+}
+
 /** Extract audit context (user + ip + UA) from the request. */
 function opCtx(req: Request, user?: AuthenticatedUser): FileOpContext {
   return {
@@ -94,7 +121,19 @@ export class FilesController {
     private readonly trash: TrashService,
     private readonly paths: FilePathService,
     private readonly audit: AuditService,
+    private readonly config: ConfigService,
   ) {}
+
+  /**
+   * Key the media tickets are signed with.
+   *
+   * Reuses the JWT access secret rather than adding an env var nobody would set:
+   * a ticket is the same trust as the token that minted it, and a deployment
+   * that rotates its JWT secret correctly invalidates outstanding tickets too.
+   */
+  private mediaSecret(): string {
+    return this.config.get<string>('jwt.accessSecret')!;
+  }
 
   // --- read ---
   @Get()
@@ -153,10 +192,96 @@ export class FilesController {
     return this.files.properties(p);
   }
 
+  /**
+   * What to show for one file, plus its text when it has any.
+   *
+   * `encoding` lets the viewer override the server's detection — an NFO the
+   * heuristic read as Latin-1 is re-requested as CP437 from the same route
+   * rather than re-decoded in the browser, which would need the raw bytes.
+   */
   @Get('preview')
   @RequirePermissions(PERMISSIONS.FILES_PREVIEW)
-  preview(@Query('path') p: string) {
-    return this.files.preview(p);
+  preview(@Query('path') p: string, @Query('encoding') encoding?: string) {
+    return this.files.preview(p, { encoding: parsePreviewEncoding(encoding) });
+  }
+
+  /**
+   * Mint a short-lived grant for the stream route below.
+   *
+   * Requires the same permission as previewing, because that is what it enables:
+   * `<img>`/`<video>` cannot send a bearer token, so the grant moves into the
+   * URL. Scoped to the one path asked for, and the path is resolved here — a
+   * ticket is never issued for something the caller could not have opened.
+   */
+  @Post('media-ticket')
+  @RequirePermissions(PERMISSIONS.FILES_PREVIEW)
+  async mediaTicket(
+    @Body('path') p: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MediaTicket> {
+    const resolved = await this.paths.safety.resolveExisting(p);
+    const relative = this.paths.safety.toRelative(resolved);
+    const { token, expiresAt } = signMediaTicket(this.mediaSecret(), { p: relative, u: user?.id });
+    /*
+     * The ticket travels without a URL around it. The client already knows where
+     * the API lives, and having the server guess its own public address from
+     * `Host`/`X-Forwarded-*` is how a stream URL ends up pointing at a container
+     * name — a whole class of proxy misconfiguration this simply does not have.
+     */
+    return { token, path: relative, expiresAt: new Date(expiresAt).toISOString() };
+  }
+
+  /**
+   * Serve a file's bytes inline, with Range support.
+   *
+   * `@Public` only in the sense that it does not read the `Authorization`
+   * header — it is not unauthenticated. The ticket IS the authorisation, and it
+   * must both verify and name this exact path: presenting a valid ticket for
+   * `/a.jpg` while asking for `/b.mkv` is a forgery attempt, not a mismatch.
+   *
+   * Players routinely probe with HEAD for the length and `Accept-Ranges` before
+   * opening a stream. There is no `@Head` decorator for that: Nest stores one
+   * method per handler, so stacking `@Head` on `@Get` would register only one of
+   * them — Express already routes a HEAD to the GET handler when no HEAD route
+   * exists, which is why the handler checks `req.method` instead.
+   */
+  @Public()
+  /*
+   * Exempt from the global rate limit (120 requests/minute). A `<video>` issues
+   * one Range request per buffer window and a burst of them on every seek, so a
+   * per-request budget sized for API calls would 429 mid-playback and read as a
+   * broken player. What stops abuse here is the ticket: it cannot be obtained
+   * without an authenticated, permission-checked call, and it names one path.
+   */
+  @SkipThrottle()
+  @Get('stream')
+  stream(
+    @Query('path') p: string,
+    @Query('ticket') ticket: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const payload = verifyMediaTicket(this.mediaSecret(), ticket);
+    if (!payload) throw new UnauthorizedException('Invalid or expired media ticket');
+    if (normalizeRelative(payload.p) !== normalizeRelative(p)) {
+      throw new ForbiddenException('Ticket does not authorise this path');
+    }
+    /*
+     * Helmet sets `X-Frame-Options: SAMEORIGIN` on every response, which would
+     * block the inline PDF frame whenever the app and the API are on different
+     * origins — the ordinary case in development, and in any deployment that
+     * does not proxy them together. Replaced with its modern equivalent, scoped
+     * to the origins CORS already trusts, so the resource stays unframeable by
+     * anyone else.
+     */
+    res.removeHeader('X-Frame-Options');
+    const origins = (this.config.get<string>('corsOrigin') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
+    res.set({ 'Content-Security-Policy': `frame-ancestors 'self' ${origins.join(' ')}`.trim() });
+
+    // A HEAD is a probe for length and range support. It gets every header the
+    // GET would carry and no body — opening a read stream Express would then
+    // discard leaks the descriptor.
+    return this.files.streamMedia(p, req.headers.range, res, { headOnly: req.method === 'HEAD' });
   }
 
   @Get('download')

@@ -8,22 +8,30 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
+import { mkdir, open, readdir, rename, rm, stat } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import * as path from 'node:path';
 import type { Response } from 'express';
 import {
   WS_EVENTS,
+  filePreviewKind,
+  filePreviewMime,
+  isStreamableKind,
   type BrowseResponse,
   type FileNode,
   type FileOperationEventPayload,
   type FileOperationResult,
   type FileOperationType,
+  type FilePreviewResponse,
   type FilePropertiesResponse,
+  type PreviewTextEncoding,
 } from '@ultratorrent/shared';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { FilePathService, type FileOpContext } from './file-path.service';
 import { TRASH_DIR_NAME, assertSafeName } from './path-safety';
+import { parseByteRange } from './byte-range';
+import { decodeText, looksBinary } from './preview-text';
 import {
   computeSize,
   copyRecursive,
@@ -48,6 +56,14 @@ import type {
 
 /** Largest file we will hash for the Properties dialog (64 MiB). */
 const HASH_LIMIT_BYTES = 64 * 1024 * 1024;
+
+/**
+ * How much of a text file the preview reads (1 MiB).
+ *
+ * Not a refusal threshold — a longer file is read up to here and reported as
+ * truncated. Sized to hold any subtitle or NFO whole, and a useful head of a log.
+ */
+const TEXT_PREVIEW_LIMIT_BYTES = 1024 * 1024;
 
 /**
  * Which path boundary an operation resolves against — the operator's narrowed
@@ -155,13 +171,155 @@ export class FilesService {
     };
   }
 
-  async preview(requested: string, maxBytes = 256 * 1024) {
+  /**
+   * What to show for one file, and — for anything text-shaped — its text.
+   *
+   * This used to be `readFile(path, 'utf8')` with a hard 256 KB ceiling, which
+   * answered "cannot preview" for every image, every video, and every NFO long
+   * enough to matter. The kind now decides the answer: streamable media reports
+   * where its bytes live and returns none of them, text is decoded through the
+   * detector (CP437 NFOs included), and a format with nothing to show says so
+   * instead of failing.
+   *
+   * Never throws for an unpreviewable file — `reason` carries that, so the
+   * dialog can still offer Download rather than showing an error.
+   */
+  async preview(
+    requested: string,
+    opts: { encoding?: PreviewTextEncoding | null; maxBytes?: number } = {},
+  ): Promise<FilePreviewResponse> {
+    const maxBytes = opts.maxBytes ?? TEXT_PREVIEW_LIMIT_BYTES;
     const target = await this.safety.resolveExisting(requested);
     const info = await stat(target);
     if (info.isDirectory()) throw new BadRequestException('Cannot preview a directory');
-    if (info.size > maxBytes) throw new BadRequestException('File too large to preview');
-    const content = await readFile(target, 'utf8');
-    return { path: this.safety.toRelative(target), content };
+
+    const name = path.basename(target);
+    const kind = filePreviewKind(name);
+    const base = {
+      path: this.safety.toRelative(target),
+      name,
+      size: info.size,
+      kind,
+      mime: filePreviewMime(name),
+      streamable: isStreamableKind(kind),
+      content: null,
+      encoding: null,
+      detectedEncoding: null,
+      truncated: false,
+      reason: null,
+    } satisfies FilePreviewResponse;
+
+    // Media and PDFs are bytes, not text: the client fetches them from the
+    // stream route with a ticket, so reading them here would be pure waste.
+    if (base.streamable) return base;
+    if (kind === 'archive') return { ...base, reason: 'Archives cannot be previewed' };
+    if (info.size === 0) return { ...base, content: '', encoding: 'utf-8', detectedEncoding: 'utf-8' };
+
+    /*
+     * Read only the window we will show. A 2 GB log is a legitimate thing to
+     * find in a download directory, and the old ceiling refused it outright;
+     * reading its head and saying so is strictly more useful. One extra byte
+     * distinguishes "exactly at the limit" from "there is more".
+     */
+    const handle = await open(target, 'r');
+    let buf: Buffer;
+    try {
+      const chunk = Buffer.alloc(Math.min(info.size, maxBytes + 1));
+      // Read until the window is full or the file ends: a single `read()` is
+      // allowed to come back short, and trusting it would silently truncate the
+      // preview at whatever boundary the filesystem chose.
+      let filled = 0;
+      while (filled < chunk.length) {
+        const { bytesRead } = await handle.read(chunk, filled, chunk.length - filled, filled);
+        if (bytesRead === 0) break;
+        filled += bytesRead;
+      }
+      buf = chunk.subarray(0, filled);
+    } finally {
+      await handle.close();
+    }
+
+    const truncated = buf.length > maxBytes;
+    if (truncated) buf = buf.subarray(0, maxBytes);
+
+    /*
+     * An unrecognised extension is not a promise of binary. `.txt`-in-all-but-name
+     * files are everywhere (READMEs without a suffix, `.sfv`-alikes), so the bytes
+     * get the deciding vote — but a file that really is binary must not be dumped
+     * into a `<pre>` as garbage.
+     */
+    if (looksBinary(buf)) {
+      return { ...base, reason: 'This file is binary and has no text preview' };
+    }
+
+    const ext = path.extname(target).replace(/^\./, '').toLowerCase();
+    const { content, encoding, detected } = decodeText(buf, ext, opts.encoding ?? null);
+    return { ...base, content, encoding, detectedEncoding: detected, truncated };
+  }
+
+  /**
+   * Stream a file's bytes with Range support, for an `<img>`/`<video>`/`<audio>`
+   * element or an inline PDF.
+   *
+   * Separate from `download` on two counts: it honours Range (so a player can
+   * seek instead of buffering a whole remux), and it serves `inline` with the
+   * file's real MIME so the browser renders rather than saves it. Everything the
+   * MIME map does not vouch for goes out as `application/octet-stream` with
+   * `nosniff`, so an unrecognised file can never be talked into executing as
+   * something else on the API's origin.
+   */
+  async streamMedia(
+    requested: string,
+    rangeHeader: string | undefined,
+    res: Response,
+    opts: { headOnly?: boolean } = {},
+  ): Promise<StreamableFile> {
+    const target = await this.safety.resolveExisting(requested);
+    const info = await stat(target);
+    if (info.isDirectory()) throw new BadRequestException('Cannot stream a directory');
+
+    const name = path.basename(target);
+    const mime = filePreviewMime(name);
+    res.set({
+      'Content-Type': mime,
+      'Content-Disposition': `inline; filename="${encodeURIComponent(name)}"`,
+      'Accept-Ranges': 'bytes',
+      'X-Content-Type-Options': 'nosniff',
+      // A ticketed URL is a capability; a shared cache must not keep the bytes.
+      'Cache-Control': 'private, max-age=0, no-store',
+    });
+    // SVG is the one image type that is also a document. Inside `<img>` its
+    // scripts are already inert; this covers a direct navigation to the URL.
+    // Appended to whatever policy the caller already set (the controller scopes
+    // `frame-ancestors` there) rather than replacing it — `res.set` overwrites,
+    // and dropping that directive would leave the resource framable by anyone.
+    if (mime === 'image/svg+xml') {
+      const existing = res.getHeader('Content-Security-Policy');
+      const directives = ["default-src 'none'", "style-src 'unsafe-inline'", 'sandbox'];
+      if (typeof existing === 'string' && existing) directives.push(existing);
+      res.set({ 'Content-Security-Policy': directives.join('; ') });
+    }
+
+    const range = parseByteRange(rangeHeader, info.size);
+    if (range === 'unsatisfiable') {
+      res.status(416);
+      res.set({ 'Content-Range': `bytes */${info.size}` });
+      return new StreamableFile(Readable.from([]));
+    }
+    if (!range) {
+      res.set({ 'Content-Length': String(info.size) });
+      return opts.headOnly
+        ? new StreamableFile(Readable.from([]))
+        : new StreamableFile(createReadStream(target));
+    }
+    res.status(206);
+    res.set({
+      'Content-Range': `bytes ${range.start}-${range.end}/${info.size}`,
+      'Content-Length': String(range.end - range.start + 1),
+    });
+    return opts.headOnly
+      ? new StreamableFile(Readable.from([]))
+      : new StreamableFile(createReadStream(target, { start: range.start, end: range.end }));
   }
 
   async download(requested: string, res: Response): Promise<StreamableFile> {
