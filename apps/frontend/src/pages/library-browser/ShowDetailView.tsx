@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { Captions, ChevronLeft, ChevronRight, Lock, SlidersHorizontal } from 'lucide-react';
+import { Captions, ChevronLeft, Lock, SlidersHorizontal } from 'lucide-react';
 import { api, type HealthStatus, type MediaItem, type MediaLibrary, type MediaSeasonGroup } from '@/lib/api';
 import { MediaPoster } from '@/components/media/MediaPoster';
 import { Button } from '@/components/ui/button';
@@ -157,11 +157,11 @@ export function ShowDetailView({
           >
             {library?.name ?? t('detail.breadcrumb.libraries')}
           </button>
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
           {/*
-            * The trail stops here on purpose: the heading immediately below IS
-            * this level, and printing the show's name twice in two lines reads
-            * as a rendering fault rather than as a location.
+            * No trailing separator. The trail stops at the library because the
+            * heading beside it already IS this level — but a chevron with
+            * nothing after it reads as a crumb that failed to render, which is
+            * exactly how it looked on the deployed page: "TV Shows ›".
             */}
         </nav>
 
