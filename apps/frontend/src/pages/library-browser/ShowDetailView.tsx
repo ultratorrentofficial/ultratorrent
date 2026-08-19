@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { Captions, ChevronLeft, Lock, SlidersHorizontal } from 'lucide-react';
+import { Captions, ChevronLeft, ChevronRight, Lock, SlidersHorizontal } from 'lucide-react';
 import { api, type HealthStatus, type MediaItem, type MediaLibrary, type MediaSeasonGroup } from '@/lib/api';
 import { MediaPoster } from '@/components/media/MediaPoster';
 import { Button } from '@/components/ui/button';
@@ -144,6 +144,27 @@ export function ShowDetailView({
   return (
     <div className="flex h-full flex-col gap-4">
       <header className="flex items-center gap-3">
+        {/*
+          * The trail reads as a position; the button acts. Both are kept: the
+          * crumbs say where this show sits and let an operator step up a level,
+          * and the button is the one-click way back to the list they arranged.
+          */}
+        <nav aria-label={t('detail.breadcrumb.label')} className="flex min-w-0 items-center gap-1 text-sm">
+          <button
+            type="button"
+            onClick={onBack}
+            className="truncate text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {library?.name ?? t('detail.breadcrumb.libraries')}
+          </button>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          {/*
+            * The trail stops here on purpose: the heading immediately below IS
+            * this level, and printing the show's name twice in two lines reads
+            * as a rendering fault rather than as a location.
+            */}
+        </nav>
+
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ChevronLeft className="mr-1 h-4 w-4" aria-hidden />
           {t('browser.backToLibrary')}

@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ChevronRight,
   Download,
   ExternalLink,
   FileText,
@@ -74,7 +75,13 @@ export function MediaDetailPage() {
   const { t } = useTranslation('media');
   const [tab, setTab] = useState('overview');
 
-  const { pathname } = useLocation();
+  const { pathname, key: historyKey } = useLocation();
+  /*
+   * `default` is the key React Router gives an entry that did not come from a
+   * navigation inside the app — a direct load, a refresh, a pasted link. Those
+   * have nothing to go back to, so they keep the old fixed destination.
+   */
+  const cameFromApp = historyKey !== 'default';
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['media', 'items', id],
     queryFn: () => api.media.getItem(id),
@@ -102,8 +109,65 @@ export function MediaDetailPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/media/items')} className="mb-2 -ml-2">
-          {t('common.backToItems')}
+        {/*
+          * Back to where the operator came FROM, not to a fixed list.
+          *
+          * This page is reached from the Media Items table, from a Library
+          * Browser show, and from a link — and it always offered "Media Items",
+          * which for someone who drilled Library → TV Shows → a show → an
+          * episode was not a way back at all: it landed them in a different
+          * part of the app with the list they had arranged gone. React Router
+          * gives a fresh entry the key `default`, which is how a direct load or
+          * a new tab is told apart from a step within the app; only the latter
+          * has somewhere to return to.
+          */}
+        {/*
+          * The trail, then the step back.
+          *
+          * Breadcrumbs answer "where am I and how do I get to any level above",
+          * which a single Back cannot: from an episode an operator may want the
+          * show, the library, or the list they arranged. Each crumb is a real
+          * URL, so it survives a reload and can be shared — and because the
+          * browser now keeps its sort in the URL, going back lands on the list
+          * as it was rather than on a rebuilt default.
+          */}
+        <nav aria-label={t('detail.breadcrumb.label')} className="mb-2 flex flex-wrap items-center gap-1 text-sm">
+          <Link to="/media/browse" className="text-muted-foreground hover:text-foreground">
+            {t('detail.breadcrumb.libraries')}
+          </Link>
+          {data.breadcrumb && (
+            <>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              <Link
+                to={`/media/browse?library=${encodeURIComponent(data.breadcrumb.libraryId)}`}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {data.breadcrumb.libraryName}
+              </Link>
+            </>
+          )}
+          {data.breadcrumb?.showKey && (
+            <>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              <Link
+                to={`/media/browse?library=${encodeURIComponent(data.breadcrumb.libraryId)}&show=${encodeURIComponent(data.breadcrumb.showKey)}&showTitle=${encodeURIComponent(data.breadcrumb.showTitle ?? '')}`}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {data.breadcrumb.showTitle}
+              </Link>
+            </>
+          )}
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+          <span className="truncate font-medium">{data.title}</span>
+        </nav>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => (cameFromApp ? navigate(-1) : navigate('/media/items'))}
+          className="mb-2 -ml-2"
+        >
+          {cameFromApp ? t('common.back') : t('common.backToItems')}
         </Button>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold tracking-tight">{data.title}</h1>

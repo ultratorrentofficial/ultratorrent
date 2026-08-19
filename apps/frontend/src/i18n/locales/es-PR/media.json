@@ -77,7 +77,8 @@
     "scannedAgo": "Escaneado {{time}}",
     "updating": "actualizando…",
     "items_one": "{{count}} elemento",
-    "items_other": "{{count}} elementos"
+    "items_other": "{{count}} elementos",
+    "back": "Atrás"
   },
   "imdbSuggest": {
     "badge": "IMDb",
@@ -1230,6 +1231,10 @@
       "error": "No se pudo cargar el historial.",
       "emptyTitle": "No hay historial",
       "emptyBody": "Aquí se registran las operaciones de renombrado de este elemento."
+    },
+    "breadcrumb": {
+      "label": "Ruta de navegación",
+      "libraries": "Bibliotecas"
     }
   },
   "acquisition": {

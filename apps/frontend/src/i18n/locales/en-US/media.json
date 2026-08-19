@@ -77,7 +77,8 @@
     "scannedAgo": "Scanned {{time}}",
     "updating": "updating…",
     "items_one": "{{count}} item",
-    "items_other": "{{count}} items"
+    "items_other": "{{count}} items",
+    "back": "Back"
   },
   "imdbSuggest": {
     "badge": "IMDb",
@@ -1230,6 +1231,10 @@
       "error": "Could not load history.",
       "emptyTitle": "No history",
       "emptyBody": "Rename operations for this item are recorded here."
+    },
+    "breadcrumb": {
+      "label": "Breadcrumb",
+      "libraries": "Libraries"
     }
   },
   "acquisition": {

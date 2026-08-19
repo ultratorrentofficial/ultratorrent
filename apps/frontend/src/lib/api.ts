@@ -1550,6 +1550,15 @@ export interface ShowDetail {
   artwork: MediaArtwork[];
 }
 
+/** Where an item sits, so its page can offer a way back up the tree. */
+export interface MediaItemBreadcrumb {
+  libraryId: string;
+  libraryName: string;
+  /** Null for a film: a library holds those directly, with no show between. */
+  showKey: string | null;
+  showTitle: string | null;
+}
+
 export interface MediaItemUpdateInput {
   title?: string;
   sortTitle?: string | null;
@@ -1786,6 +1795,7 @@ export interface MediaNfoFile {
 
 /** Full item detail returned by `getItem` (includes relations). */
 export interface MediaItemDetail extends MediaItem {
+  breadcrumb?: MediaItemBreadcrumb;
   updatedAt: string;
   duplicateGroupId: string | null;
   files: MediaFile[];

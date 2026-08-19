@@ -13,7 +13,8 @@ import { VirtualPosterGrid } from './VirtualPosterGrid';
 import { ShowDetailView } from './ShowDetailView';
 import { ContextActionBar } from './ContextActionBar';
 import { AlphabetRail } from './AlphabetRail';
-import { BrowserFilterBar, EMPTY_FILTERS, type BrowserFilters } from './BrowserFilterBar';
+import { BrowserFilterBar, type BrowserFilters } from './BrowserFilterBar';
+import { filtersFromParams, paramsWithFilters } from './filters-params';
 import { EMPTY_SELECTION, applyClick, clearSelection, pruneSelection, type SelectionState } from './selection';
 import { VIEW_MODES, readViewMode, writeViewMode, type ViewMode } from './view-mode';
 
@@ -64,7 +65,19 @@ export function LibraryBrowserPage() {
     anchor: { x: number; y: number };
     item: { id: string; title: string; path: string };
   } | null>(null);
-  const [filters, setFilters] = useState<BrowserFilters>(EMPTY_FILTERS);
+  /*
+   * The arrangement lives in the URL, not in state.
+   *
+   * An operator who sorted by "Recently added", opened a show and then an
+   * episode could not get that list back: only the position (library, show) was
+   * addressable, so returning rebuilt the default A–Z view. What someone
+   * arranged is part of where they are.
+   */
+  const filters = useMemo(() => filtersFromParams(params), [params]);
+  const setFilters = (next: BrowserFilters) =>
+    // `replace`, so dragging a sort or typing a search does not bury the page
+    // the operator came from under a dozen history entries.
+    setParams(paramsWithFilters(params, next), { replace: true });
 
   // Re-read on library change: the preference is per library, so switching
   // libraries should restore that library's own layout rather than carry one over.
@@ -176,7 +189,8 @@ export function LibraryBrowserPage() {
   // A new result set is a new list; a selection made against the old one would
   // act on rows the filter has just hidden.
   useEffect(() => setSelection(EMPTY_SELECTION), [filters.search, filters.matchStatus, filters.issue]);
-  useEffect(() => setFilters(EMPTY_FILTERS), [libraryId]);
+  // No reset effect: a library change navigates to a URL without filter
+  // parameters, so the defaults come back on their own.
 
   const loadMore = useCallback(() => {
     if (active.hasNextPage && !active.isFetchingNextPage) active.fetchNextPage();
@@ -219,7 +233,13 @@ export function LibraryBrowserPage() {
           library={library}
           onOpenItem={(itemId) => navigate(`/media/items/${itemId}`)}
           title={showTitle || library.name}
-          onBack={() => setParams({ library: library.id })}
+          /* Back to the list the operator arranged, not to a fresh one. */
+          onBack={() => {
+            const next = paramsWithFilters(params, filters);
+            delete next.show;
+            delete next.showTitle;
+            setParams({ ...next, library: library.id });
+          }}
         />
       </div>
     );
@@ -294,7 +314,12 @@ export function LibraryBrowserPage() {
                   show={row}
                   mode={mode}
                   onOpen={() =>
-                    setParams({ library: libraryId!, show: row.key, showTitle: row.title })
+                    setParams({
+                      ...paramsWithFilters(params, filters),
+                      library: libraryId!,
+                      show: row.key,
+                      showTitle: row.title,
+                    })
                   }
                 />
               ) : (

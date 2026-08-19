@@ -466,7 +466,42 @@ export class MediaItemService {
       },
     });
     if (!item) throw new NotFoundException('Item not found');
-    return item;
+
+    /*
+     * Where this item sits, so a detail page can offer a way back UP.
+     *
+     * Reported from a live session: Library Browser → TV Shows → sort by
+     * Recently added → a show → an episode, and from there the only exits were
+     * "Media Items" and the sidebar, both of which land somewhere else
+     * entirely. A trail needs the show's browser KEY, which is derived from the
+     * folder exactly as the series listing derives it — computed here rather
+     * than in the client so the two can never disagree about what identifies a
+     * show.
+     */
+    /*
+     * A trail must never break the page it decorates. The library relation is
+     * required by the schema and included above, so in practice it is always
+     * here — but reading it unguarded turned a decoration into something that
+     * could throw on the way to the item itself, which is the wrong trade for a
+     * navigation aid.
+     */
+    if (!item.library) return { ...item, breadcrumb: null };
+
+    const trail = resolveGroup(
+      { title: item.title, path: item.path },
+      new Set([normPath(item.library.path)]),
+    );
+    const isEpisode = TV_TYPES.includes(item.mediaType as never);
+    return {
+      ...item,
+      breadcrumb: {
+        libraryId: item.libraryId,
+        libraryName: item.library.name,
+        // Films have no intermediate level: a library holds them directly.
+        showKey: isEpisode ? encodeSeriesKey(trail.kind, trail.value) : null,
+        showTitle: isEpisode ? trail.title : null,
+      },
+    };
   }
 
   async update(id: string, dto: ItemUpdateDto) {
