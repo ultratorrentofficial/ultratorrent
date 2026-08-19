@@ -1934,6 +1934,18 @@
       "imported_other": "Se importaron {{count}} imágenes.",
       "nothingImported": "Nada que importar — el proveedor no devolvió arte para esta serie.",
       "importFailed": "No se pudo buscar el arte."
+    },
+    "identity": {
+      "title": "Identidad",
+      "none": "Sin id de IMDb — esta serie no está identificada",
+      "correct": "Corregir identidad",
+      "imdb": "Id de IMDb",
+      "save": "Guardar identidad",
+      "cancel": "Cancelar",
+      "hint": "Al guardar se escribe el id en la serie y en todos sus episodios. Actualiza los metadatos después para traer la serie correcta.",
+      "saved_one": "Identidad guardada — {{count}} episodio actualizado.",
+      "saved_other": "Identidad guardada — {{count}} episodios actualizados.",
+      "saveFailed": "No se pudo guardar la identidad."
     }
   }
 }

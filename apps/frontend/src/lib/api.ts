@@ -4586,6 +4586,9 @@ export const api = {
     showDetail(showId: string): Promise<ShowDetail> {
       return request<ShowDetail>(`/media/shows/${showId}`);
     },
+    setShowIdentity(showId: string, ids: { imdbId?: string | null; tmdbId?: string | null }): Promise<{ episodesUpdated: number }> {
+      return request(`/media/shows/${showId}/identity`, { method: 'PATCH', body: ids });
+    },
     refreshShowMetadata(showId: string): Promise<{ refreshed: boolean; reason?: string }> {
       return request(`/media/shows/${showId}/metadata/refresh`, { method: 'POST' });
     },

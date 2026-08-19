@@ -649,6 +649,22 @@ export class MediaController {
     return this.showMetadata.refresh(id, auditCtx(req));
   }
 
+  /**
+   * Say which series this folder actually is.
+   *
+   * `edit_metadata` rather than a view grant: this rewrites the identity every
+   * downstream feature keys off, including the episodes' own series id.
+   */
+  @Patch('shows/:id/identity')
+  @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
+  setShowIdentity(
+    @Param('id') id: string,
+    @Body() body: { imdbId?: string | null; tmdbId?: string | null },
+    @Req() req: Request,
+  ) {
+    return this.showMetadata.setIdentity(id, body ?? {}, auditCtx(req));
+  }
+
   @Patch('shows/:id/metadata')
   @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
   updateShowMetadata(

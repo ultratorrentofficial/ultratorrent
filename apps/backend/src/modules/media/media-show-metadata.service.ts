@@ -99,11 +99,30 @@ export class MediaShowMetadataService {
     const provider = await this.provider();
     if (!provider) return { showId, refreshed: false, reason: 'no_provider' as const };
 
-    const details = await provider.fetchDetails({
-      kind: show.mediaType === 'anime' ? 'anime' : 'tv',
+    const lookup = {
+      kind: (show.mediaType === 'anime' ? 'anime' : 'tv') as 'anime' | 'tv',
       title: show.title,
       year: show.year,
-    });
+    };
+
+    /*
+     * An id beats a title, always.
+     *
+     * Reported live: a refresh on `Magnum P.I. (2018)` matched the 1980 series,
+     * on a library whose identity had already been corrected to `tt7942796`.
+     * TMDB's search ranks by popularity, so asking it a question we already had
+     * the answer to threw the answer away. Order: the stored TMDB id, then the
+     * TMDB id behind a stored IMDb id (resolved once and kept), and only then a
+     * title search.
+     */
+    let tmdbKey = show.tmdbId;
+    if (!tmdbKey && show.imdbId && provider instanceof TmdbMetadataProvider) {
+      tmdbKey = await provider.tmdbIdForImdbId(show.imdbId);
+    }
+    const details =
+      tmdbKey && provider instanceof TmdbMetadataProvider
+        ? await provider.fetchDetailsById(tmdbKey, lookup)
+        : await provider.fetchDetails(lookup);
     if (!details) return { showId, refreshed: false, reason: 'not_found' as const };
 
     const tmdbId = details.externalIds?.tmdb ?? null;
@@ -162,6 +181,59 @@ export class MediaShowMetadataService {
     });
 
     return { showId, refreshed: true, provider: data.providerName, tmdbId };
+  }
+
+  /**
+   * Correct which series this folder IS.
+   *
+   * Everything downstream — the refresh, artwork import, missing-episode
+   * monitoring — keys off these ids, so an operator who can see the wrong show
+   * has to be able to say so. Without this the only remedy was editing the
+   * database, which is what the last two identity mix-ups actually needed.
+   *
+   * Setting an IMDb id clears the TMDB one unless both are given: they are two
+   * names for one identity, and keeping a stale TMDB id beside a corrected IMDb
+   * id would let the next refresh fetch the show that was just rejected.
+   */
+  async setIdentity(
+    showId: string,
+    ids: { imdbId?: string | null; tmdbId?: string | null },
+    ctx: AuditContext = {},
+  ) {
+    const show = await this.requireShow(showId);
+    const imdbId = ids.imdbId === undefined ? show.imdbId : (ids.imdbId || null);
+    const tmdbId =
+      ids.tmdbId !== undefined
+        ? ids.tmdbId || null
+        : ids.imdbId !== undefined && ids.imdbId !== show.imdbId
+          ? null
+          : show.tmdbId;
+
+    const updated = await this.prisma.mediaShow.update({
+      where: { id: showId },
+      data: { imdbId, tmdbId },
+    });
+
+    /*
+     * The episodes carry the series id too — that is the field missing-episode
+     * sweeps and subtitle fingerprinting read — so correcting the show without
+     * them would leave the library disagreeing with itself.
+     */
+    const episodes = await this.prisma.mediaItem.updateMany({
+      where: { libraryId: show.libraryId, path: { startsWith: `${show.path}/` } },
+      data: { seriesImdbId: imdbId },
+    });
+
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.show.identity_set',
+      objectType: 'media_show',
+      objectId: showId,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { imdbId, tmdbId, episodesUpdated: episodes.count, was: { imdbId: show.imdbId, tmdbId: show.tmdbId } },
+    });
+    return { show: updated, episodesUpdated: episodes.count };
   }
 
   /** Correct the record by hand. Only the named fields change. */

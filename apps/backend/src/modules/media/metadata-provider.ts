@@ -304,9 +304,23 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
         });
         return this.mapMovie(hit, full);
       }
-      // tv / anime
-      const search = await this.get('/search/tv', { query: q.title });
-      const hit = search?.results?.[0];
+      /*
+       * tv / anime — searched WITH the year.
+       *
+       * `Magnum P.I.` is a 1980 series and a 2018 one, and TMDB ranks by
+       * popularity: searching on the title alone returned the 1980 show for a
+       * folder plainly named `Magnum P.I. (2018)`, and a refresh then wrote the
+       * wrong series over the right one. The year is the caller's evidence and
+       * must be part of the question.
+       */
+      const search = await this.get('/search/tv', {
+        query: q.title,
+        ...(q.year ? { first_air_date_year: String(q.year) } : {}),
+      });
+      const hit = search?.results?.[0]
+        // A year that excludes everything is worse than no year: fall back to
+        // the unfiltered search rather than reporting the show as unknown.
+        ?? (q.year ? (await this.get('/search/tv', { query: q.title }))?.results?.[0] : null);
       if (!hit) return null;
       const full = await this.get(`/tv/${hit.id}`, {
         append_to_response: 'credits,external_ids',
@@ -359,6 +373,37 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
             .map((c) => ({ name: c.name as string, job: c.job || undefined })),
         ],
       };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The series behind a KNOWN id, skipping search entirely.
+   *
+   * A show that already carries an id has nothing to gain from a title search
+   * and everything to lose: search ranks by popularity, so the wrong `Magnum
+   * P.I.` outranked the right one on a library that had already been corrected
+   * to `tt7942796`. An id is an answer; a title is a question.
+   */
+  async fetchDetailsById(tmdbId: string, q: MediaLookup): Promise<MediaMetadataDetails | null> {
+    try {
+      const full = await this.get(`/tv/${tmdbId}`, {
+        append_to_response: 'credits,external_ids',
+      });
+      if (!full?.id) return null;
+      return this.mapTv(full, full, q);
+    } catch {
+      return null;
+    }
+  }
+
+  /** TMDB's id for an IMDb id, so a corrected identity can drive the fetch. */
+  async tmdbIdForImdbId(imdbId: string): Promise<string | null> {
+    try {
+      const found = await this.get(`/find/${imdbId}`, { external_source: 'imdb_id' });
+      const hit = (found as { tv_results?: Array<{ id?: number }> } | null)?.tv_results?.[0];
+      return hit?.id ? String(hit.id) : null;
     } catch {
       return null;
     }

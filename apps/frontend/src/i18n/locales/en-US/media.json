@@ -1934,6 +1934,18 @@
       "imported_other": "Imported {{count}} images.",
       "nothingImported": "Nothing to import — the provider returned no artwork for this show.",
       "importFailed": "Could not fetch artwork."
+    },
+    "identity": {
+      "title": "Identity",
+      "none": "No IMDb id — this show is unidentified",
+      "correct": "Correct identity",
+      "imdb": "IMDb id",
+      "save": "Save identity",
+      "cancel": "Cancel",
+      "hint": "Saving writes the id to the show and every episode in it. Refresh the metadata afterwards to pull the right series.",
+      "saved_one": "Identity saved — {{count}} episode updated.",
+      "saved_other": "Identity saved — {{count}} episodes updated.",
+      "saveFailed": "Could not save the identity."
     }
   }
 }
