@@ -114,3 +114,48 @@ describe('artwork owned by a show', () => {
     expect(updates[0].where).toMatchObject({ itemId: 'i1', type: 'poster' });
   });
 });
+
+/**
+ * Reported: "fetch artwork is not downloading the season cover artwork".
+ * `/tv/{id}/images` holds the SERIES' posters and knows nothing about season 2,
+ * so a season scope asking it received the show's art — filed under the season,
+ * while the season cover never arrived.
+ */
+describe('TmdbArtworkProvider season posters', () => {
+  const { TmdbArtworkProvider } = jest.requireActual('./artwork-provider') as {
+    TmdbArtworkProvider: new (k: string) => {
+      get: (p: string) => Promise<unknown>;
+      listSeasonPosters: (id: string, s: number) => Promise<Array<Record<string, unknown>>>;
+      list: (k: 'movie' | 'tv', id: string) => Promise<Array<Record<string, unknown>>>;
+    };
+  };
+
+  function provider(calls: string[]) {
+    const p = new TmdbArtworkProvider('key');
+    p.get = async (path: string) => {
+      calls.push(path);
+      if (path.includes('/season/')) {
+        return { posters: [{ file_path: '/s2.jpg', width: 600, height: 900, vote_average: 7 }] };
+      }
+      return { posters: [{ file_path: '/series.jpg' }], backdrops: [], logos: [] };
+    };
+    return p;
+  }
+
+  it('asks the season endpoint, not the series one', async () => {
+    const calls: string[] = [];
+    const out = await provider(calls).listSeasonPosters('82974', 2);
+
+    expect(calls).toEqual(['/tv/82974/season/2/images']);
+    expect(out[0]).toMatchObject({ type: 'season_poster', seasonNumber: 2 });
+    expect(out[0].url).toContain('/s2.jpg');
+  });
+
+  it('returns nothing rather than the series poster when a season has none', async () => {
+    // Falling back to the show's poster would file the wrong image as the
+    // season's cover, which is exactly the confusion being fixed.
+    const p = new TmdbArtworkProvider('key');
+    p.get = async () => ({ posters: [] });
+    expect(await p.listSeasonPosters('82974', 5)).toEqual([]);
+  });
+});

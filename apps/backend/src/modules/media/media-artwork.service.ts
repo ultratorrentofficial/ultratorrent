@@ -691,8 +691,50 @@ export class MediaArtworkService {
   async importForShow(showId: string, ctx: AuditContext = {}, seasonNumber?: number | null) {
     const show = await this.requireShow(showId);
     const owner: ArtworkOwner = { kind: 'show', showId, seasonNumber: seasonNumber ?? null };
+
+    /*
+     * A season's cover comes from a different endpoint.
+     *
+     * `/tv/{id}/images` holds the SERIES' posters and knows nothing about
+     * season 2, so a season scope asking it received the show's art — filed
+     * under the season, while the season cover itself never arrived. Reported
+     * as "fetch artwork is not downloading the season cover artwork".
+     */
+    if (seasonNumber != null) {
+      return this.importSeasonPosters(show.id, show.tmdbId, seasonNumber, owner, ctx);
+    }
+
     const done = await this.importFor(owner, 'tv', show.tmdbId, ctx);
     return done ?? { showId, provider: 'tmdb', imported: [], reason: 'no_provider_id' };
+  }
+
+  private async importSeasonPosters(
+    showId: string,
+    tmdbId: string | null,
+    seasonNumber: number,
+    owner: ArtworkOwner,
+    ctx: AuditContext,
+  ) {
+    const key =
+      (await this.settings.get<string>('media.tmdbApiKey')) ?? process.env.TMDB_API_KEY;
+    if (!key || !tmdbId) {
+      return { showId, provider: 'tmdb', imported: [], reason: 'no_provider_id' as const };
+    }
+    const candidates = await new TmdbArtworkProvider(key).listSeasonPosters(tmdbId, seasonNumber);
+    const best = pickBestArtwork(candidates, 'season_poster');
+    const imported: ArtworkType[] = [];
+    if (best && (await this.downloadAndStore(owner, best))) imported.push('season_poster');
+
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.artwork.import',
+      objectType: 'media_show',
+      objectId: showId,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { provider: 'tmdb', imported, seasonNumber },
+    });
+    return { showId, provider: 'tmdb', imported, seasonNumber };
   }
 
   /**

@@ -160,6 +160,28 @@ export class TmdbArtworkProvider implements ArtworkProvider {
   }
 
   /**
+   * The posters for ONE season.
+   *
+   * `/tv/{id}/images` returns the SERIES' posters and knows nothing about
+   * season 2 — so a season scope asking that endpoint got the show's art filed
+   * as if it were the season's, and the season cover never arrived.
+   */
+  async listSeasonPosters(seriesId: string, season: number): Promise<ArtworkCandidate[]> {
+    const data = await this.get(`/tv/${seriesId}/season/${season}/images`);
+    return ((data as { posters?: TmdbImage[] } | null)?.posters ?? [])
+      .filter((i): i is TmdbImage & { file_path: string } => Boolean(i.file_path))
+      .map((i) => ({
+        type: 'season_poster' as ArtworkType,
+        url: this.imgBase + i.file_path,
+        width: i.width,
+        height: i.height,
+        lang: i.iso_639_1 ?? null,
+        score: i.vote_average ?? 0,
+        seasonNumber: season,
+      }));
+  }
+
+  /**
    * The stills for ONE episode.
    *
    * A separate call because TMDB keeps them there: `/tv/{id}/images` returns the
