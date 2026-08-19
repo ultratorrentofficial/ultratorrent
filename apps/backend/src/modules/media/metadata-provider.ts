@@ -311,7 +311,54 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
       const full = await this.get(`/tv/${hit.id}`, {
         append_to_response: 'credits,external_ids',
       });
-      return this.mapTv(hit, full, q);
+      const series = this.mapTv(hit, full, q);
+      if (q.season == null || q.episode == null) return series;
+
+      /*
+       * An EPISODE is not its series.
+       *
+       * Without this the series record was stored on every episode of a show —
+       * measured on a live library, two consecutive episodes carried the same
+       * overview and the same 5.833 rating, because the only TV call made here
+       * was `/tv/{id}`. `lookup()` has always fetched the episode for its NAME,
+       * so the endpoint was known to work; the rich path simply never asked.
+       *
+       * The series answer is kept as the base — genres, networks and the
+       * regular cast belong to the show and are true of every episode — and the
+       * fields that are the episode's own are laid over it. A failed episode
+       * call degrades to the series record rather than to nothing.
+       */
+      const ep = await this.get(`/tv/${hit.id}/season/${q.season}/episode/${q.episode}`, {
+        append_to_response: 'credits',
+      });
+      if (!ep?.id) return series;
+      return {
+        ...series,
+        title: ep.name || series.title,
+        overview: ep.overview || series.overview,
+        releaseDate: ep.air_date ?? series.releaseDate ?? null,
+        year: ep.air_date ? Number(String(ep.air_date).slice(0, 4)) : series.year,
+        runtime: ep.runtime ?? series.runtime,
+        // An episode's own vote, which is the number an operator is looking at
+        // when they open that episode. Zero means "unrated", not "rated zero".
+        rating: typeof ep.vote_average === 'number' && ep.vote_average > 0
+          ? ep.vote_average
+          : series.rating,
+        // Guest stars are the difference between one episode's cast and the
+        // show's, so they are appended rather than replacing the regulars.
+        cast: [
+          ...(series.cast ?? []),
+          ...((ep.guest_stars ?? []) as Array<{ name?: string; character?: string }>)
+            .filter((g) => g.name)
+            .map((g) => ({ name: g.name as string, role: g.character || undefined })),
+        ],
+        crew: [
+          ...(series.crew ?? []),
+          ...((ep.crew ?? []) as Array<{ name?: string; job?: string }>)
+            .filter((c) => c.name)
+            .map((c) => ({ name: c.name as string, job: c.job || undefined })),
+        ],
+      };
     } catch {
       return null;
     }

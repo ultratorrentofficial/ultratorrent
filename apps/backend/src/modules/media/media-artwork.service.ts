@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { mkdir, writeFile, stat, readdir } from 'node:fs/promises';
@@ -196,6 +197,8 @@ export type ArtworkOwner =
 
 @Injectable()
 export class MediaArtworkService {
+  private readonly logger = new Logger(MediaArtworkService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly filePath: FilePathService,
@@ -648,7 +651,34 @@ export class MediaArtworkService {
     });
     const kind = item.mediaType === 'movie' ? 'movie' : 'tv'; // tv/anime → tv
     const done = await this.importFor({ kind: 'item', itemId }, kind, ext?.externalId ?? null, ctx);
+    /*
+     * An episode also gets its own still. `/tv/{id}/images` holds the SERIES'
+     * posters and backdrops and nothing about episode 4, so without this an
+     * episode's artwork could only ever be its show's.
+     */
+    if (kind === 'tv' && item.season != null && item.episode != null && ext?.externalId) {
+      await this.importEpisodeStill(itemId, ext.externalId, item.season, item.episode);
+    }
     return done ?? this.detectMissing(itemId);
+  }
+
+  /** Best-effort: a missing still must not fail the artwork import around it. */
+  private async importEpisodeStill(
+    itemId: string,
+    seriesId: string,
+    season: number,
+    episode: number,
+  ): Promise<void> {
+    const key =
+      (await this.settings.get<string>('media.tmdbApiKey')) ?? process.env.TMDB_API_KEY;
+    if (!key) return;
+    try {
+      const stills = await new TmdbArtworkProvider(key).listEpisodeStills(seriesId, season, episode);
+      const best = pickBestArtwork(stills, 'thumbnail');
+      if (best) await this.downloadAndStore({ kind: 'item', itemId }, best);
+    } catch (err) {
+      this.logger.warn(`Episode still import failed for ${itemId}: ${(err as Error).message}`);
+    }
   }
 
   /**

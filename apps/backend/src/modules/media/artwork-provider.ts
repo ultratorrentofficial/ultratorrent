@@ -159,6 +159,36 @@ export class TmdbArtworkProvider implements ArtworkProvider {
     return mapTmdbImages(data, this.imgBase);
   }
 
+  /**
+   * The stills for ONE episode.
+   *
+   * A separate call because TMDB keeps them there: `/tv/{id}/images` returns the
+   * series' posters and backdrops and knows nothing about episode 4. Without it
+   * an episode could only ever show art belonging to its show — which is what
+   * every episode of an unstilled show currently displays.
+   *
+   * Mapped to `thumbnail`, the type this platform already uses for an episode
+   * still, so it lands in the same picker as everything else.
+   */
+  async listEpisodeStills(
+    seriesId: string,
+    season: number,
+    episode: number,
+  ): Promise<ArtworkCandidate[]> {
+    const data = await this.get(`/tv/${seriesId}/season/${season}/episode/${episode}/images`);
+    const stills = (data as { stills?: TmdbImage[] } | null)?.stills ?? [];
+    return stills
+      .filter((i): i is TmdbImage & { file_path: string } => Boolean(i.file_path))
+      .map((i) => ({
+        type: 'thumbnail' as ArtworkType,
+        url: this.imgBase + i.file_path,
+        width: i.width,
+        height: i.height,
+        lang: i.iso_639_1 ?? null,
+        score: i.vote_average ?? 0,
+      }));
+  }
+
   private async get(path: string): Promise<TmdbImagesResponse | null> {
     const url = new URL(this.api + path);
     url.searchParams.set('api_key', this.apiKey);
