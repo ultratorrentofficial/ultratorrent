@@ -1946,7 +1946,11 @@
       "hint": "Al guardar se escribe el id en la serie y en todos sus episodios. Actualiza los metadatos después para traer la serie correcta.",
       "saved_one": "Identidad guardada — {{count}} episodio actualizado.",
       "saved_other": "Identidad guardada — {{count}} episodios actualizados.",
-      "saveFailed": "No se pudo guardar la identidad."
+      "saveFailed": "No se pudo guardar la identidad.",
+      "search": "Buscar la serie correcta",
+      "searchBtn": "Buscar",
+      "searching": "Buscando en IMDb…",
+      "noResults": "Ninguna serie coincide con ese título."
     }
   }
 }

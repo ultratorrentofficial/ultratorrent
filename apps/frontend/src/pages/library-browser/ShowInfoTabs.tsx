@@ -41,6 +41,13 @@ export function ShowInfoTabs({ showId }: { showId: string }) {
    */
   const [editingIds, setEditingIds] = useState(false);
   const [imdbId, setImdbId] = useState('');
+  /*
+   * Searching beats typing an id. A film's page has offered "match on IMDb"
+   * with a result list all along; a show only had a field for a raw `tt…`,
+   * which is a fine escape hatch and a poor way to correct a mistake.
+   */
+  const [searchTitle, setSearchTitle] = useState('');
+  const [searchSubmitted, setSearchSubmitted] = useState(false);
 
   const detail = useQuery({
     queryKey: ['show-detail', showId],
@@ -58,6 +65,14 @@ export function ShowInfoTabs({ showId }: { showId: string }) {
     // The browse grid draws its poster from this artwork, so it is stale too.
     void qc.invalidateQueries({ queryKey: ['library-browser'] });
   };
+
+  const candidates = useQuery({
+    queryKey: ['show-identity-search', showId, searchTitle],
+    enabled: searchSubmitted && searchTitle.trim().length > 0,
+    // Series only: this is choosing which SHOW a folder is, and a film or a
+    // single episode in the list would only invite the wrong pick.
+    queryFn: () => api.media.imdbSearch({ title: searchTitle.trim(), type: 'tv' }),
+  });
 
   const setIdentity = useMutation({
     mutationFn: () => api.media.setShowIdentity(showId, { imdbId: imdbId.trim() || null }),
@@ -148,6 +163,27 @@ export function ShowInfoTabs({ showId }: { showId: string }) {
 
         {editingIds && (
           <div className="flex flex-wrap items-end gap-2">
+            {/* Search first, because picking the right series from a list is
+                what an operator actually wants; the raw id below stays as the
+                escape hatch for a show the catalogue cannot find. */}
+            <div className="min-w-[16rem] flex-1">
+              <Label htmlFor="show-search">{t('show.identity.search')}</Label>
+              <div className="mt-1 flex gap-2">
+                <Input
+                  id="show-search"
+                  value={searchTitle}
+                  onChange={(e) => {
+                    setSearchTitle(e.target.value);
+                    setSearchSubmitted(false);
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && setSearchSubmitted(true)}
+                  placeholder={show.title}
+                />
+                <Button variant="secondary" onClick={() => setSearchSubmitted(true)}>
+                  {t('show.identity.searchBtn')}
+                </Button>
+              </div>
+            </div>
             <div className="min-w-[14rem] flex-1">
               <Label htmlFor="show-imdb">{t('show.identity.imdb')}</Label>
               <Input
@@ -167,6 +203,40 @@ export function ShowInfoTabs({ showId }: { showId: string }) {
             {/* Saying what happens next, because a corrected id changes nothing
                 visible until the metadata is fetched again. */}
             <p className="w-full text-xs text-muted-foreground">{t('show.identity.hint')}</p>
+
+            {searchSubmitted && (
+              <div className="w-full">
+                {candidates.isLoading ? (
+                  <p className="text-xs text-muted-foreground">{t('show.identity.searching')}</p>
+                ) : !candidates.data?.length ? (
+                  <p className="text-xs text-muted-foreground">{t('show.identity.noResults')}</p>
+                ) : (
+                  <ul className="max-h-56 divide-y divide-white/5 overflow-y-auto rounded-md border border-white/10">
+                    {candidates.data.slice(0, 12).map((r) => (
+                      <li key={r.tconst}>
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-white/[0.04]"
+                          onClick={() => {
+                            // Fill the field rather than saving outright: the
+                            // operator confirms with the same button either
+                            // way, so a mis-click is never a rewrite.
+                            setImdbId(r.tconst);
+                            setSearchSubmitted(false);
+                          }}
+                        >
+                          <span className="truncate">
+                            {r.primaryTitle}
+                            {r.year != null && <span className="text-muted-foreground"> ({r.year})</span>}
+                          </span>
+                          <span className="shrink-0 font-mono text-xs text-muted-foreground">{r.tconst}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>

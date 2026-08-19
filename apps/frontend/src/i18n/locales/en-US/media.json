@@ -1946,7 +1946,11 @@
       "hint": "Saving writes the id to the show and every episode in it. Refresh the metadata afterwards to pull the right series.",
       "saved_one": "Identity saved — {{count}} episode updated.",
       "saved_other": "Identity saved — {{count}} episodes updated.",
-      "saveFailed": "Could not save the identity."
+      "saveFailed": "Could not save the identity.",
+      "search": "Find the right series",
+      "searchBtn": "Search",
+      "searching": "Searching IMDb…",
+      "noResults": "No series matched that title."
     }
   }
 }

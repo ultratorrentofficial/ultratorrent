@@ -22,6 +22,9 @@ describe('MediaItemService.series (folder-based TV grouping)', () => {
     const prisma = {
       mediaItem: { findMany: jest.fn().mockResolvedValue(rows), count: jest.fn() },
       mediaLibrary: { findMany: jest.fn().mockResolvedValue([{ path: '/tv' }]) },
+      // A show's own poster now outranks any episode's; these cases predate
+      // show ownership, so no show rows exist and the episode poster stands.
+      mediaShow: { findMany: jest.fn().mockResolvedValue([]) },
       mediaArtwork: { findMany: jest.fn().mockResolvedValue(posters) },
     };
     return { svc: new MediaItemService(prisma as any), prisma };

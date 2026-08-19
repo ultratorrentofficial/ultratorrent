@@ -367,6 +367,44 @@ export class MediaItemService {
     const total = all.length;
     const pageGroups = all.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 
+    /*
+     * The SHOW's own poster wins.
+     *
+     * Reported live: "I can see the artwork but cannot select which one will
+     * display in the library." Selecting worked — the grid simply never read
+     * it, because this listing has always taken a poster from any EPISODE, and
+     * a show's chosen poster is now a row of its own. So an operator's choice
+     * changed nothing they could see.
+     *
+     * Episode artwork remains the fallback: a library that has not been
+     * rescanned since show ownership existed has no show-owned rows at all, and
+     * showing nothing would be a worse answer than showing the old poster.
+     */
+    const pageDirs = pageGroups.filter((g) => g.kind === 'dir').map((g) => g.value);
+    const showRows = pageDirs.length
+      ? await this.prisma.mediaShow.findMany({
+          where: { ...(filters.libraryId ? { libraryId: filters.libraryId } : {}), path: { in: pageDirs } },
+          select: { id: true, path: true },
+        })
+      : [];
+    const showIdByPath = new Map(showRows.map((r) => [r.path, r.id]));
+    const showPosterRows = showRows.length
+      ? await this.prisma.mediaArtwork.findMany({
+          where: {
+            showId: { in: showRows.map((r) => r.id) },
+            // The show's own poster, never a season's.
+            seasonNumber: null,
+            type: 'poster',
+          },
+          orderBy: { selected: 'desc' },
+          select: { showId: true, id: true, url: true, localPath: true, type: true, selected: true },
+        })
+      : [];
+    const posterByShow = new Map<string, (typeof showPosterRows)[number]>();
+    for (const row of showPosterRows) {
+      if (row.showId && !posterByShow.has(row.showId)) posterByShow.set(row.showId, row);
+    }
+
     // One poster per show on this page, from any of its items.
     const pageItemIds = pageGroups.flatMap((g) => g.itemIds);
     const posterRows = pageItemIds.length
@@ -386,7 +424,10 @@ export class MediaItemService {
       episodeCount: g.itemIds.length,
       seasonCount: g.seasons.size,
       lastAddedAt: g.lastAddedAt,
-      poster: g.itemIds.map((id) => posterByItem.get(id)).find(Boolean) ?? null,
+      poster:
+        posterByShow.get(showIdByPath.get(g.value) ?? '')
+        ?? g.itemIds.map((id) => posterByItem.get(id)).find(Boolean)
+        ?? null,
     }));
     return { items, total, page, pageSize };
   }
