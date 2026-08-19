@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.85.3] - 2026-08-19
+
+### Fixed
+- The show poster an operator selects is the one the library shows, and a show's identity can be corrected by searching rather than typing an id
+
 ## [0.85.2] - 2026-08-19
 
 ### Fixed
