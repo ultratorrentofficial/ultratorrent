@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.85.2] - 2026-08-19
+
+### Fixed
+- A metadata refresh can no longer overwrite a show's identity from a match that contradicts it
+
 ## [0.85.1] - 2026-08-19
 
 ### Fixed
