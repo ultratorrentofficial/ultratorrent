@@ -78,7 +78,12 @@ export function ShowInfoTabs({ showId }: { showId: string }) {
       // "Refreshed nothing" is an outcome, not a success: a show with no
       // provider match must not report the same thing as one that was updated.
       if (r.refreshed) toast.success(t('show.metadata.refreshed'));
-      else toast.error(t(`show.metadata.reason.${r.reason ?? 'not_found'}` as 'show.metadata.reason.not_found'));
+      // A mismatch names the series it found, because "wrong show" is only
+      // actionable once the operator can see WHICH show it matched.
+      else if (r.reason === 'identity_mismatch') {
+        toast.error(t('show.metadata.reason.identity_mismatch', { title: r.matched?.title ?? '' }));
+        setEditingIds(true);
+      } else toast.error(t(`show.metadata.reason.${r.reason ?? 'not_found'}` as 'show.metadata.reason.not_found'));
       invalidate();
     },
     onError: () => toast.error(t('show.metadata.refreshFailed')),

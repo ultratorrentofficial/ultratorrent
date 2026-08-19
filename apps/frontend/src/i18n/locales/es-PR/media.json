@@ -1905,7 +1905,8 @@
       "emptyHint": "Actualiza desde el proveedor para traer su sinopsis, estado, cadena y reparto.",
       "reason": {
         "not_found": "El proveedor no encontró esta serie.",
-        "no_provider": "No hay proveedor de metadatos configurado — añade una clave de TMDB en Ajustes."
+        "no_provider": "No hay proveedor de metadatos configurado — añade una clave de TMDB en Ajustes.",
+        "identity_mismatch": "El proveedor encontró una serie distinta («{{title}}»). Corrige la identidad abajo y actualiza de nuevo."
       }
     },
     "field": {

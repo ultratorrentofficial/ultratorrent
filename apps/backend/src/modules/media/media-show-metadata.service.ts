@@ -127,6 +127,30 @@ export class MediaShowMetadataService {
 
     const tmdbId = details.externalIds?.tmdb ?? null;
     const imdbId = details.externalIds?.imdb ?? null;
+
+    /*
+     * A refresh may not contradict a known identity.
+     *
+     * This is the failure it exists to stop, observed end to end on a live
+     * library: a title search matched `Magnum, P.I.` (1980) for a show whose
+     * IMDb id said tt7942796 (2018); the write-back below then stored the 1980
+     * series' TMDB id, and because the fetch now prefers a stored id, every
+     * later refresh faithfully re-fetched the wrong show. One bad match became
+     * permanent, and the record on screen said 1980 no matter how often the
+     * operator pressed Refresh.
+     *
+     * So a match that disagrees with the stored id writes NOTHING — not the
+     * metadata, not the ids — and says so, because the fix is to correct the
+     * identity rather than to keep re-fetching.
+     */
+    if (show.imdbId && imdbId && imdbId !== show.imdbId) {
+      return {
+        showId,
+        refreshed: false,
+        reason: 'identity_mismatch' as const,
+        matched: { title: details.title ?? null, imdbId },
+      };
+    }
     const data = {
       title: details.title ?? show.title,
       originalTitle: details.originalTitle ?? null,
@@ -160,14 +184,18 @@ export class MediaShowMetadataService {
      * null — losing a working id to a lookup that came back thin is worse than
      * not refreshing at all.
      */
-    if (tmdbId || imdbId) {
-      await this.prisma.mediaShow.update({
-        where: { id: showId },
-        data: {
-          ...(tmdbId ? { tmdbId } : {}),
-          ...(imdbId && !show.imdbId ? { imdbId } : {}),
-        },
-      });
+    /*
+     * Ids are only ever FILLED IN, never rewritten. A provider answer is
+     * evidence about a show we already identified; it is not permission to
+     * re-identify it. Correcting an identity is a deliberate act with its own
+     * endpoint and its own audit row.
+     */
+    const fillIds = {
+      ...(tmdbId && !show.tmdbId ? { tmdbId } : {}),
+      ...(imdbId && !show.imdbId ? { imdbId } : {}),
+    };
+    if (Object.keys(fillIds).length) {
+      await this.prisma.mediaShow.update({ where: { id: showId }, data: fillIds });
     }
 
     await this.audit.record({

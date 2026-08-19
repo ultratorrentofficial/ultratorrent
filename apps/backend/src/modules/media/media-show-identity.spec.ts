@@ -86,3 +86,67 @@ describe('correcting a show’s identity', () => {
     );
   });
 });
+
+/**
+ * The failure this whole guard exists for, observed end to end: a title search
+ * matched Magnum, P.I. (1980) for a show identified as tt7942796 (2018); the
+ * refresh stored the 1980 series' TMDB id, and because the fetch prefers a
+ * stored id, every later refresh re-fetched the wrong show. One bad match
+ * became permanent.
+ */
+describe('a refresh may not contradict a known identity', () => {
+  function withProvider(details: Record<string, unknown> | null, show = SHOW) {
+    const { svc, prisma } = build(show);
+    (svc as never as { provider: () => Promise<unknown> }).provider = async () => ({
+      name: 'tmdb',
+      fetchDetails: async () => details,
+    });
+    return { svc, prisma };
+  }
+
+  it('writes nothing when the match disagrees with the stored id', async () => {
+    const { svc, prisma } = withProvider({
+      title: 'Magnum, P.I.',
+      externalIds: { imdb: 'tt0080240', tmdb: '734' },
+    });
+
+    const res = await svc.refresh('s1');
+
+    expect(res).toMatchObject({ refreshed: false, reason: 'identity_mismatch' });
+    expect(prisma.mediaShowMetadata.upsert).not.toHaveBeenCalled();
+    expect(prisma.mediaShow.update).not.toHaveBeenCalled();
+  });
+
+  it('names the series it found, so the operator can act on it', async () => {
+    const { svc } = withProvider({ title: 'Magnum, P.I.', externalIds: { imdb: 'tt0080240' } });
+    const res = (await svc.refresh('s1')) as { matched?: { title: string } };
+    expect(res.matched?.title).toBe('Magnum, P.I.');
+  });
+
+  it('accepts a match that agrees, and fills in an id the show lacked', async () => {
+    const { svc, prisma } = withProvider({
+      title: 'Magnum P.I.',
+      externalIds: { imdb: 'tt7942796', tmdb: '82974' },
+    });
+
+    const res = await svc.refresh('s1');
+
+    expect(res).toMatchObject({ refreshed: true });
+    expect(prisma.mediaShow.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { tmdbId: '82974' } }),
+    );
+  });
+
+  it('never rewrites an id the show already has', async () => {
+    // A provider answer is evidence about a show already identified — not
+    // permission to re-identify it.
+    const { svc, prisma } = withProvider(
+      { title: 'Magnum P.I.', externalIds: { imdb: 'tt7942796', tmdb: '99999' } },
+      { ...SHOW, tmdbId: '82974' },
+    );
+
+    await svc.refresh('s1');
+
+    expect(prisma.mediaShow.update).not.toHaveBeenCalled();
+  });
+});

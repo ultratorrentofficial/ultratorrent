@@ -1905,7 +1905,8 @@
       "emptyHint": "Refresh from the provider to fetch its overview, status, network and cast.",
       "reason": {
         "not_found": "The provider had no match for this show.",
-        "no_provider": "No metadata provider is configured — add a TMDB API key in Settings."
+        "no_provider": "No metadata provider is configured — add a TMDB API key in Settings.",
+        "identity_mismatch": "The provider matched a different series (\"{{title}}\"). Correct the identity below, then refresh again."
       }
     },
     "field": {

@@ -4589,7 +4589,12 @@ export const api = {
     setShowIdentity(showId: string, ids: { imdbId?: string | null; tmdbId?: string | null }): Promise<{ episodesUpdated: number }> {
       return request(`/media/shows/${showId}/identity`, { method: 'PATCH', body: ids });
     },
-    refreshShowMetadata(showId: string): Promise<{ refreshed: boolean; reason?: string }> {
+    refreshShowMetadata(showId: string): Promise<{
+      refreshed: boolean;
+      reason?: string;
+      /** Set on `identity_mismatch`: the series the provider actually found. */
+      matched?: { title: string | null; imdbId: string | null };
+    }> {
       return request(`/media/shows/${showId}/metadata/refresh`, { method: 'POST' });
     },
     updateShowMetadata(showId: string, body: Partial<ShowMetadata>): Promise<ShowMetadata> {
