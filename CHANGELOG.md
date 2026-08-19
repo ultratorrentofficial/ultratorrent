@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.84.1] - 2026-08-19
+
+### Fixed
+- Breadcrumbs and a real Back on media pages, and the Library Browser keeps its sort and filters in the URL
+
 ## [0.84.0] - 2026-08-19
 
 ### Added
