@@ -45,6 +45,19 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.84.0] - 2026-08-19
+
+### Added
+- A TV show owns its metadata and artwork, per show and per season, the way a film always has
+
+### Fixed
+- Intake-managed torrents and Managed Intake rules are identifiable at a glance, and the library series picker lists each show once
+- Adopt a torrent qBittorrent already holds instead of failing the add, and stop the missing-episode sweep from re-offering a release the engine refused
+- An episode opens its detail page, so TV metadata, artwork and subtitles are reachable the way a film's always were
+- Stop the renamer filing numbered episodes as extras when their title contains a word like interview or deleted, and make the extras destination idempotent
+- An episode's metadata and still are the episode's own, not its series' repeated on every file
+- Add an optional staging subfolder to a managed-intake torrent add, so a manual download can wait somewhere named under the profile's staging root
+
 ## [0.83.10] - 2026-08-18
 
 ### Fixed
