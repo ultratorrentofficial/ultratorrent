@@ -84,12 +84,18 @@ const seasons = [
   { seasonNumber: 2, episodeCount: 1, poster: null, episodes: [episode(1, { id: 's2e1', path: '/tv/Show/Season 2/Show - S02E01 - Second season opener.mkv' })] },
 ];
 
-function renderIt(data: unknown = { key: 'k', seasons }) {
+function renderIt(data: unknown = { key: 'k', seasons }, opts: { onOpenItem?: (id: string) => void } = {}) {
   apiSpy.seriesEpisodes.mockResolvedValue(data);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <ShowDetailView showKey="k" libraryId="lib" title="The Last of Us" onBack={() => {}} />
+      <ShowDetailView
+        showKey="k"
+        libraryId="lib"
+        title="The Last of Us"
+        onOpenItem={opts.onOpenItem}
+        onBack={() => {}}
+      />
     </QueryClientProvider>,
   );
 }
@@ -102,6 +108,34 @@ describe('ShowDetailView', () => {
     expect(screen.getByText('Season 2')).toBeInTheDocument();
     // Lands on the first season rather than an accordion the user must open.
     expect(await screen.findByText('Episode 1')).toBeInTheDocument();
+  });
+
+  /**
+   * Reported live: "unlike Movies, in TV Shows I can't see the metadata or the
+   * downloaded art". A film's poster opens its detail page — metadata, artwork,
+   * subtitles, NFO, history — and an episode is the same kind of item carrying
+   * the same rows, but nothing on this surface opened it.
+   */
+  it('opens an episode when it is clicked outside Operations Mode', async () => {
+    const onOpenItem = vi.fn();
+    renderIt({ key: 'k', seasons }, { onOpenItem });
+
+    fireEvent.click(await screen.findByText('Episode 1'));
+
+    expect(onOpenItem).toHaveBeenCalledWith('e1');
+  });
+
+  it('does not open an episode while Operations Mode is selecting', async () => {
+    // In ops mode a click belongs to the selection, not to navigation —
+    // otherwise ticking an episode would also leave the page.
+    const onOpenItem = vi.fn();
+    renderIt({ key: 'k', seasons }, { onOpenItem });
+    await screen.findByText('Episode 1');
+    fireEvent.click(screen.getByText('Operations'));
+
+    fireEvent.click(await screen.findByText('Episode 1'));
+
+    expect(onOpenItem).not.toHaveBeenCalled();
   });
 
   it('switches the episode list when another season is chosen', async () => {

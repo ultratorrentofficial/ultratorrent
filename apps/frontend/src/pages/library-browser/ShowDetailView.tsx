@@ -29,7 +29,7 @@ import { EMPTY_SELECTION, applyClick, clearSelection, pruneSelection, toggleChec
  * becomes the user's problem.
  */
 export function ShowDetailView({
-  showKey, libraryId, title, library, onBack,
+  showKey, libraryId, title, library, onOpenItem, onBack,
 }: {
   showKey: string;
   libraryId: string;
@@ -41,6 +41,15 @@ export function ShowDetailView({
    * button.
    */
   library?: MediaLibrary | null;
+  /**
+   * Open one episode's detail page — metadata, artwork, subtitles, NFO, history.
+   *
+   * Injected rather than navigated to from here, exactly as the poster grid does
+   * it: routing belongs to the page, and this component is rendered in tests
+   * that have no router. An episode is a media item like any other, and until
+   * this existed the detail every film had was unreachable for television.
+   */
+  onOpenItem?: (itemId: string) => void;
   onBack: () => void;
 }) {
   const { t } = useTranslation('media');
@@ -226,6 +235,7 @@ export function ShowDetailView({
                     onSelect={(mods) =>
                       setSelection((sel) => applyClick(sel, ep.id, visibleIds, mods))
                     }
+                    onOpen={onOpenItem ? () => onOpenItem(ep.id) : undefined}
                   />
                 )}
                 emptyState={<EmptyState title={t('browser.noEpisodes')} />}
@@ -278,13 +288,15 @@ function SeasonCard({
   );
 }
 
-function EpisodeRow({ episode, health, opsMode, selected, onToggle, onSelect }: {
+function EpisodeRow({ episode, health, opsMode, selected, onToggle, onSelect, onOpen }: {
   episode: MediaItem;
   health: { score: number; status: HealthStatus; reasons: string[] } | null;
   opsMode: boolean;
   selected: boolean;
   onToggle: () => void;
   onSelect: (mods: { shift?: boolean; meta?: boolean }) => void;
+  /** Opens the episode's detail page. Absent = this surface cannot navigate. */
+  onOpen?: () => void;
 }) {
   const { t } = useTranslation('media');
   const file = episode.files?.[0];
@@ -330,16 +342,37 @@ function EpisodeRow({ episode, health, opsMode, selected, onToggle, onSelect }: 
     <div
       className={cn(
         'flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-white/[0.04]',
+        !opsMode && onOpen && 'cursor-pointer',
         selected && 'bg-sky-400/10 ring-1 ring-inset ring-sky-400/40',
       )}
-      // A modified click ranges or toggles, exactly as in the grid, so the two
-      // surfaces do not teach different habits.
-      onClick={opsMode ? (e) => {
-        if (e.shiftKey || e.metaKey || e.ctrlKey) {
+      /*
+       * A modified click ranges or toggles, exactly as in the grid, so the two
+       * surfaces do not teach different habits. A PLAIN click opens the episode,
+       * which is what a movie poster has always done — an episode is a media
+       * item like any other, and without this the metadata, artwork, subtitles
+       * and NFO it already carries were reachable for films and unreachable for
+       * television.
+       */
+      onClick={(e) => {
+        if (opsMode && (e.shiftKey || e.metaKey || e.ctrlKey)) {
           e.preventDefault();
           onSelect({ shift: e.shiftKey, meta: e.metaKey || e.ctrlKey });
+          return;
         }
-      } : undefined}
+        if (!opsMode) onOpen?.();
+      }}
+      role={opsMode || !onOpen ? undefined : 'button'}
+      tabIndex={opsMode || !onOpen ? undefined : 0}
+      onKeyDown={
+        opsMode || !onOpen
+          ? undefined
+          : (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpen();
+              }
+            }
+      }
     >
       {opsMode && (
         <input

@@ -217,6 +217,7 @@ export function LibraryBrowserPage() {
           showKey={showKey}
           libraryId={library.id}
           library={library}
+          onOpenItem={(itemId) => navigate(`/media/items/${itemId}`)}
           title={showTitle || library.name}
           onBack={() => setParams({ library: library.id })}
         />
