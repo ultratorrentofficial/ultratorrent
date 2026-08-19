@@ -1,6 +1,7 @@
 import { FilePriority, TorrentState } from '@ultratorrent/shared';
 import { QbittorrentProvider } from './qbittorrent.provider';
-import { QbittorrentApi } from '../../qbittorrent/qbittorrent-client';
+import { QbittorrentApi, QbittorrentHttpError } from '../../qbittorrent/qbittorrent-client';
+import { TorrentRejectedError } from '../../../domain/engine/engine-errors';
 
 /** Type a getJson stub against the generic `<T>() => Promise<T>` signature. */
 function json(value: unknown): QbittorrentApi['getJson'] {
@@ -144,12 +145,51 @@ describe('QbittorrentProvider', () => {
       );
     });
 
+    it('adopts a torrent qBittorrent already has instead of failing the add', async () => {
+      /*
+       * qBittorrent 5.x answers 409 when the info-hash is already in the session.
+       * Treating that as a failure is what produced an endless retry loop: the
+       * missing-episode sweep re-picked the same release every cycle and the
+       * client refused it every cycle because it already had it (2 423 such adds
+       * on one live install). The torrent IS there — hand back its hash.
+       */
+      const post = jest.fn(async () => {
+        throw new QbittorrentHttpError(409, 'Conflict', 'qBittorrent POST /torrents/add failed (409): Conflict');
+      });
+      const client = mockClient({ postMultipart: post, getJson: json([infoRow]) });
+      const magnet = `magnet:?xt=urn:btih:${HASH.toUpperCase()}`;
+      await expect(provider(client).addMagnet(magnet)).resolves.toBe(HASH);
+    });
+
+    it('a conflict for a hash the client does NOT hold is a refusal, not a retry', async () => {
+      // Nothing to adopt: the client will not take this release, so the caller
+      // must be able to stop offering it rather than retry it forever.
+      const post = jest.fn(async () => {
+        throw new QbittorrentHttpError(409, 'Conflict', 'qBittorrent POST /torrents/add failed (409): Conflict');
+      });
+      const client = mockClient({ postMultipart: post, getJson: json([]) });
+      const magnet = `magnet:?xt=urn:btih:${HASH.toUpperCase()}`;
+      await expect(provider(client).addMagnet(magnet)).rejects.toBeInstanceOf(TorrentRejectedError);
+    });
+
+    it('a transport failure is NOT adopted, even if the hash happens to be present', async () => {
+      // 500/timeouts say nothing about the release; only a conflict means "already here".
+      const post = jest.fn(async () => {
+        throw new QbittorrentHttpError(500, 'boom', 'qBittorrent POST /torrents/add failed (500): boom');
+      });
+      const client = mockClient({ postMultipart: post, getJson: json([infoRow]) });
+      const magnet = `magnet:?xt=urn:btih:${HASH.toUpperCase()}`;
+      await expect(provider(client).addMagnet(magnet)).rejects.toThrow(/500/);
+    });
+
     it('turns a "Fails." add response into an error', async () => {
       const client = mockClient({
         postMultipart: jest.fn(async () => 'Fails.'),
         getJson: json([infoRow]),
       });
       const magnet = `magnet:?xt=urn:btih:${HASH.toUpperCase()}`;
+      // A refusal of this release specifically — the caller may stop offering it.
+      await expect(provider(client).addMagnet(magnet)).rejects.toBeInstanceOf(TorrentRejectedError);
       await expect(provider(client).addMagnet(magnet)).rejects.toThrow(/Fails/i);
     });
   });

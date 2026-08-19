@@ -21,7 +21,9 @@ import {
 import {
   QbittorrentApi,
   QbittorrentClient,
+  QbittorrentHttpError,
 } from '../../qbittorrent/qbittorrent-client';
+import { TorrentRejectedError } from '../../../domain/engine/engine-errors';
 import { infoHashFromTorrent } from '../../rtorrent/bencode';
 import { fetchRemoteTorrent } from '../../../common/ssrf';
 import { infoHashFromMagnet } from '../../../common/magnet';
@@ -416,14 +418,17 @@ export class QbittorrentProvider implements TorrentEngineProvider {
   async addMagnet(magnet: string, options?: AddTorrentOptions): Promise<string> {
     const hash = infoHashFromMagnet(magnet);
     if (!hash) throw new Error('Could not derive info-hash from magnet URI');
-    await this.assertOk(
-      this.client.postMultipart('/torrents/add', {
-        urls: magnet,
-        ...this.addFields(options),
-      }),
+    return this.addOrAdopt(
+      hash,
+      () =>
+        this.assertOk(
+          this.client.postMultipart('/torrents/add', {
+            urls: magnet,
+            ...this.addFields(options),
+          }),
+        ),
+      { magnet: true },
     );
-    await this.confirmTorrentLoaded(hash, { magnet: true });
-    return hash;
   }
 
   async addTorrentFile(
@@ -431,15 +436,71 @@ export class QbittorrentProvider implements TorrentEngineProvider {
     options?: AddTorrentOptions,
   ): Promise<string> {
     const hash = infoHashFromTorrent(file);
-    await this.assertOk(
-      this.client.postMultipart(
-        '/torrents/add',
-        this.addFields(options),
-        { field: 'torrents', buffer: file, filename: 'file.torrent' },
+    return this.addOrAdopt(hash, () =>
+      this.assertOk(
+        this.client.postMultipart(
+          '/torrents/add',
+          this.addFields(options),
+          { field: 'torrents', buffer: file, filename: 'file.torrent' },
+        ),
       ),
     );
-    await this.confirmTorrentLoaded(hash);
+  }
+
+  /**
+   * Add a torrent, treating "the client already has it" as success.
+   *
+   * qBittorrent 5.x answers `409 Conflict` when the info-hash is already in the
+   * session. Reporting that as a failed add is what produced an endless retry
+   * loop: the missing-episode sweep re-picked the same release every cycle, the
+   * client refused it every cycle *because it already had it*, and the episode
+   * never moved off `failed`. Measured on a live install: 2 423 of 2 480 failed
+   * grabs were this one conflict, the same handful of releases re-offered for
+   * weeks.
+   *
+   * The end state the caller wanted — this torrent is in the client — already
+   * holds, so adopt the existing torrent and hand back its hash. Whether it is
+   * actually progressing is the parking system's question (and the wanted-search
+   * reconciler acts on its verdict); it was never the add's to answer, and
+   * refusing to return the hash only hid the torrent from the very machinery
+   * that would have retired it.
+   *
+   * A conflict for a hash that is NOT in the client is a genuine refusal — the
+   * client will not take this release, whatever its reason — and surfaces as
+   * {@link TorrentRejectedError} so the caller can stop re-offering it instead
+   * of retrying it forever.
+   */
+  private async addOrAdopt(
+    hash: string,
+    send: () => Promise<void>,
+    opts?: { magnet?: boolean },
+  ): Promise<string> {
+    try {
+      await send();
+    } catch (err) {
+      if (!(err instanceof QbittorrentHttpError) || err.status !== 409) throw err;
+      if (await this.isLoaded(hash)) {
+        this.logger.log(
+          `qBittorrent already has ${hash} — adopting the existing torrent instead of failing the add`,
+        );
+        return hash;
+      }
+      throw new TorrentRejectedError(
+        `qBittorrent refused ${hash} as a conflict, but no torrent with that hash is in the ` +
+          `client — it will not accept this release (${err.message})`,
+      );
+    }
+    await this.confirmTorrentLoaded(hash, opts);
     return hash;
+  }
+
+  /** Whether the client currently holds this info-hash. Never throws. */
+  private async isLoaded(hash: string): Promise<boolean> {
+    try {
+      return (await this.getTorrent(hash.toLowerCase())) != null;
+    } catch {
+      return false;
+    }
   }
 
   async addTorrentURL(
@@ -452,11 +513,17 @@ export class QbittorrentProvider implements TorrentEngineProvider {
     return this.addTorrentFile(buf, options);
   }
 
-  /** `torrents/add` answers "Ok."/"Fails." — turn "Fails." into an error. */
+  /**
+   * `torrents/add` answers "Ok."/"Fails." — turn "Fails." into an error.
+   *
+   * A {@link TorrentRejectedError}, specifically: the server answered, looked at
+   * this torrent and said no, so re-offering the same release next sweep buys
+   * nothing.
+   */
   private async assertOk(pending: Promise<string>): Promise<void> {
     const body = await pending;
     if (/^fails\.?$/i.test(body.trim())) {
-      throw new Error('qBittorrent rejected the torrent (Fails.)');
+      throw new TorrentRejectedError('qBittorrent rejected the torrent (Fails.)');
     }
   }
 

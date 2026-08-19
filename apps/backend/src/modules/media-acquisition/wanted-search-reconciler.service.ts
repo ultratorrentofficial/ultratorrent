@@ -54,8 +54,9 @@ export class WantedSearchReconciler implements OnModuleInit {
       });
       result.movies = movies.count;
 
-      result.deadGrabs = await this.releaseDeadGrabs();
-      result.absentGrabs = await this.releaseAbsentGrabs();
+      const grabs = await this.releaseStuckGrabs();
+      result.deadGrabs = grabs.deadGrabs;
+      result.absentGrabs = grabs.absentGrabs;
 
       const total = result.episodes + result.movies;
       if (total > 0) {
@@ -68,6 +69,26 @@ export class WantedSearchReconciler implements OnModuleInit {
       this.logger.warn(`Could not reconcile interrupted searches: ${(err as Error).message}`);
     }
     return result;
+  }
+
+  /**
+   * The half of {@link reconcile} that is safe to run at any time.
+   *
+   * The `searching` → `idle` reset above is boot-only on purpose: mid-sweep rows
+   * are legitimately `searching`, so running it on a timer would yank episodes
+   * out from under the sweep that is working on them. Releasing stuck *grabs*
+   * has no such hazard — it looks only at rows the sweep has finished with — and
+   * it needs to run more often than a redeploy: with duplicate adds now adopted
+   * (`QbittorrentProvider.addOrAdopt`), a torrent the client already had reaches
+   * `grabbed` immediately, and it is these two checks that later retire it if it
+   * turns out to be going nowhere. Boot-only would have traded a fast retry loop
+   * for a slow stall.
+   */
+  async releaseStuckGrabs(): Promise<{ deadGrabs: number; absentGrabs: number }> {
+    return {
+      deadGrabs: await this.releaseDeadGrabs(),
+      absentGrabs: await this.releaseAbsentGrabs(),
+    };
   }
 
   /**

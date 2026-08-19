@@ -29,6 +29,8 @@ function build(over: {
   candidatesByQuery?: Record<string, IndexerCandidate[]>;
   /** The hash the engine returned for the grabbed torrent. */
   torrentHash?: string | null;
+  /** Whether the engine refused the release itself (vs. being unreachable). */
+  refused?: boolean;
   /** Storage profile behind a managed_intake rule; pass `null` for "none resolved". */
   profile?: { id: string; stagingRoot: string } | null;
   settings?: Record<string, unknown>;
@@ -128,6 +130,7 @@ function build(over: {
       // `in` not `??`: an explicit null means "the engine accepted no torrent",
       // which is the case under test, and ?? would silently substitute a hash.
       torrentHash: 'torrentHash' in over ? over.torrentHash : 'hash-1',
+      refused: over.refused ?? false,
     })),
   };
   // Storage profiles only matter for a managed_intake rule; the default answers
@@ -802,6 +805,45 @@ describe('MissingEpisodeSearchService — a failed add is not a grab', () => {
 
     expect(updates.some((u: any) => u.searchStatus === 'grabbed')).toBe(false);
     expect(updates.some((u: any) => u.searchStatus === 'failed')).toBe(true);
+  });
+
+  it('remembers a REFUSED release so the next sweep cannot re-pick it', async () => {
+    /*
+     * The 409 loop: qBittorrent refuses a release, the row goes back to `failed`,
+     * the next sweep ranks the same candidates, picks the same winner and is
+     * refused again — 2 423 such adds on ehr-qnap, the same few releases retried
+     * every two hours for weeks. A refusal is a fact about the release, so it
+     * joins `deadReleases` and the selector reaches for the next-best candidate.
+     */
+    const { svc, updates } = build({
+      candidates: [cand()],
+      wanted: { deadReleases: ['An older corpse'] },
+      torrentHash: null,
+      refused: true,
+    });
+    await svc.sweep();
+
+    const failed = updates.find((u: any) => u.searchStatus === 'failed');
+    expect(failed.deadReleases).toEqual([
+      'An older corpse',
+      'The Wire S01E01 1080p WEB-DL x265-GRP',
+    ]);
+  });
+
+  it('does NOT blacklist the release when the engine merely failed to answer', async () => {
+    // An unreachable client says nothing about the release. Blacklisting here
+    // would burn the best candidate for every episode in the sweep whenever the
+    // engine restarts mid-tick.
+    const { svc, updates } = build({
+      candidates: [cand()],
+      wanted: { deadReleases: [] },
+      torrentHash: null,
+      refused: false,
+    });
+    await svc.sweep();
+
+    const failed = updates.find((u: any) => u.searchStatus === 'failed');
+    expect(failed.deadReleases).toEqual([]);
   });
 
   it('still records the evaluation, so the attempt is auditable', async () => {

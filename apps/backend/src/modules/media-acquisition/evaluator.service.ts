@@ -225,6 +225,10 @@ export class AcquisitionEvaluatorService {
     // grab can be traced back to its download. Media Intake needs it to recognise
     // a completed missing-episode download as one of its own.
     let torrentHash: string | null = null;
+    // Whether the engine refused this particular release (rather than being
+    // unreachable). The caller picked the release and is the only layer that can
+    // act on it — by not picking it again.
+    let refused = false;
     if (input.downloadUrl) {
       const action = await this.prisma.mediaAcquisitionAction.create({
         data: {
@@ -241,6 +245,7 @@ export class AcquisitionEvaluatorService {
       });
       const result = await this.executor.executeAction(action.id, userId);
       torrentHash = result?.torrentHash ?? null;
+      refused = result?.refused ?? false;
     }
     await this.history(input.watchlistItemId, evaluation.id, 'evaluation.download', input.reason);
     await this.audit.record({
@@ -251,7 +256,7 @@ export class AcquisitionEvaluatorService {
       metadata: { decision: 'download', via: 'match_preferences' },
     });
     this.emit(evaluation.id, 'download', false);
-    return { evaluation, torrentHash };
+    return { evaluation, torrentHash, refused };
   }
 
   /**

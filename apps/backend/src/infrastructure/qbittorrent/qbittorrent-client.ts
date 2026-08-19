@@ -50,6 +50,24 @@ export interface QbittorrentApi {
 
 const DEFAULT_TIMEOUT_MS = 15000;
 
+/**
+ * A non-2xx answer from the Web API, carrying the status so callers can tell a
+ * refusal apart from a transport failure. qBittorrent 5.x answers `409 Conflict`
+ * when the info-hash it was handed is already in the session, and that one case
+ * needs different handling from "the server is down" — see
+ * `QbittorrentProvider.addOrAdopt`.
+ */
+export class QbittorrentHttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'QbittorrentHttpError';
+  }
+}
+
 export class QbittorrentClient implements QbittorrentApi {
   private readonly base: string;
   private readonly api: string;
@@ -187,7 +205,9 @@ export class QbittorrentClient implements QbittorrentApi {
     }
     if (res.status < 200 || res.status >= 300) {
       const text = (await res.text().catch(() => '')).slice(0, 200);
-      throw new Error(
+      throw new QbittorrentHttpError(
+        res.status,
+        text,
         `qBittorrent ${method} ${path} failed (${res.status})${text ? `: ${text}` : ''}`,
       );
     }

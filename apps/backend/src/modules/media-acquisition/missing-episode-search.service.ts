@@ -306,7 +306,7 @@ export class MissingEpisodeSearchService {
     }
 
     const rel = best.candidate;
-    const { evaluation, torrentHash } = await this.evaluator.grabSelected(
+    const { evaluation, torrentHash, refused } = await this.evaluator.grabSelected(
       {
         releaseName: rel.title,
         downloadUrl: rel.downloadUrl ?? undefined,
@@ -335,14 +335,33 @@ export class MissingEpisodeSearchService {
      * Claiming success for something that failed is worse than the failure.
      */
     if (!torrentHash) {
+      /*
+       * A release the ENGINE refused must not be offered again, or the retry is
+       * an infinite loop rather than a retry: `failed` rejoins the sweep on the
+       * normal backoff, the same candidate list is ranked the same way, the same
+       * winner is handed to the same client, and it says no for the same reason.
+       * Observed live: 2 423 refused adds, a handful of releases re-offered every
+       * two hours for weeks while the episodes stayed missing.
+       *
+       * So a refusal joins `deadReleases` — the same list the reconciler uses for
+       * a release that turned out dead — and the next sweep reaches for the
+       * next-best candidate. Only a refusal: an engine that was unreachable or
+       * timed out has said nothing about the release, and blacklisting on that
+       * would burn the best candidate for every episode in the sweep the moment
+       * the client restarts.
+       */
+      const known = wanted.deadReleases ?? [];
+      const deadReleases = refused && !known.includes(rel.title) ? [...known, rel.title] : known;
       this.logger.warn(
         `Grab failed for "${item.title}" S${wanted.seasonNumber}E${wanted.episodeNumber} ` +
-          `("${rel.title}"): the engine accepted no torrent. Recording as failed so it is retried.`,
+          `("${rel.title}"): the engine accepted no torrent. Recording as failed so it is retried` +
+          (refused ? ', and skipping this release from now on — the engine refused it.' : '.'),
       );
       await this.setState(wanted.id, {
         searchStatus: 'failed',
         lastSearchedAt: now,
         grabbedEvaluationId: evaluation.id,
+        deadReleases,
       });
       return { wantedEpisodeId: wanted.id, searchStatus: 'failed', evaluationId: evaluation.id };
     }

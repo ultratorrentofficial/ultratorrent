@@ -3,6 +3,7 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { EngineRegistryService } from '../engine/engine-registry.service';
+import { TorrentRejectedError } from '../../domain/engine/engine-errors';
 
 /** What an evaluation's download action needs in order to actually acquire. */
 export interface DownloadActionPayload {
@@ -18,6 +19,12 @@ export interface ExecutionResult {
   torrentHash?: string | null;
   removedHash?: string | null;
   error?: string;
+  /**
+   * The engine refused THIS RELEASE (as opposed to being unreachable). Callers
+   * that pick releases use it to stop re-offering the same one: a refusal is a
+   * fact about the release, an outage is not. See {@link TorrentRejectedError}.
+   */
+  refused?: boolean;
 }
 
 /**
@@ -127,6 +134,7 @@ export class SmartDownloadExecutorService {
       return { status: 'completed', torrentHash: hash, removedHash };
     } catch (e) {
       const msg = (e as Error).message;
+      const refused = e instanceof TorrentRejectedError;
       await this.markFailed(actionId, msg);
       this.realtime.broadcast('media_acquisition.download.failed', {
         evaluationId: action.evaluationId,
@@ -139,10 +147,10 @@ export class SmartDownloadExecutorService {
         objectType: 'media_acquisition_action',
         objectId: actionId,
         result: 'failure',
-        metadata: { error: msg, releaseName: payload.releaseName },
+        metadata: { error: msg, refused, releaseName: payload.releaseName },
       });
       this.logger.warn(`Smart Download execution failed for action ${actionId}: ${msg}`);
-      return { status: 'failed', error: msg };
+      return { status: 'failed', error: msg, refused };
     }
   }
 

@@ -31,6 +31,7 @@ export class MediaAcquisitionScheduler {
   constructor(
     private readonly registry: ModuleRegistryService,
     private readonly missingSearch: MissingEpisodeSearchService,
+    private readonly reconciler: WantedSearchReconciler,
   ) {}
 
   private get enabled(): boolean {
@@ -53,6 +54,24 @@ export class MediaAcquisitionScheduler {
 
   @Interval('media_acquisition_quality_upgrade_sweep', 30 * 60_000)
   upgradeSweep(): void { if (this.enabled) this.logger.debug('Quality upgrade sweep tick'); }
+
+  /**
+   * Retires grabs that are going nowhere — the torrent is parked with no seeders,
+   * or is no longer in the client at all — so the episode rejoins the search pool
+   * with that release remembered as dead.
+   *
+   * The reconciler runs this at boot too; on a timer it is what keeps a `grabbed`
+   * row from being a dead end between deploys. Only the grab half is scheduled:
+   * its sibling (releasing rows stuck in `searching`) is boot-only by design,
+   * because mid-sweep rows are legitimately `searching`.
+   */
+  @Interval('media_acquisition_stuck_grab_sweep', 60 * 60_000)
+  stuckGrabSweep(): void {
+    if (!this.enabled) return;
+    this.reconciler.releaseStuckGrabs().catch((err) =>
+      this.logger.warn(`Stuck-grab reconcile failed: ${(err as Error).message}`),
+    );
+  }
 }
 
 /**
