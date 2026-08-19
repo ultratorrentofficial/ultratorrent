@@ -541,11 +541,27 @@ export class MediaScannerService {
         canonicalKey: showCanonicalKey(folder),
         episodeCount: g.count,
       };
-      await this.prisma.mediaShow.upsert({
+      const showRow = await this.prisma.mediaShow.upsert({
         where: { libraryId_path: { libraryId: library.id, path: dir } },
         create: { libraryId: library.id, path: dir, ...data },
         update: data,
       });
+
+      /*
+       * The show folder's own artwork belongs to the SHOW.
+       *
+       * `poster.jpg`, `banner.jpg`, `fanart.jpg` and `seasonNN-poster.jpg` sit
+       * beside the seasons, describing the series rather than any episode — but
+       * with only an item owner available they were previously written onto
+       * every episode, which is how one 49-episode show came to hold 49
+       * identical posters and why "the show's poster" could not be chosen.
+       * Best-effort: a folder that cannot be read must not fail the scan.
+       */
+      try {
+        await this.artwork.importShowFolder(showRow.id, dir);
+      } catch (err) {
+        this.logger.warn(`Show artwork import failed for "${dir}": ${(err as Error).message}`);
+      }
     }
 
     // Prune shows whose folder no longer holds a single item — but only when the

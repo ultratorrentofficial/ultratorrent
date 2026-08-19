@@ -7,6 +7,7 @@ import { mkdir, writeFile, stat, readdir } from 'node:fs/promises';
 import { createReadStream, type ReadStream } from 'node:fs';
 import * as path from 'node:path';
 import sharp from 'sharp';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { FilePathService } from '../files/file-path.service';
 import { AuditService } from '../audit/audit.service';
@@ -181,6 +182,18 @@ export function validateArtworkUpload(upload: ArtworkUpload): ValidatedArtwork {
  * uploads (validated + stored inside the ops hard roots) and missing-art
  * detection.
  */
+/**
+ * What a piece of artwork belongs to.
+ *
+ * Television artwork used to be written onto every episode, so a show's poster
+ * was whichever episode's row sorted first and could not be chosen at all. A
+ * season is a scope WITHIN a show rather than a third owner, because that is
+ * what it is on disk (`season02-poster.jpg` sits in the show folder).
+ */
+export type ArtworkOwner =
+  | { kind: 'item'; itemId: string }
+  | { kind: 'show'; showId: string; seasonNumber?: number | null };
+
 @Injectable()
 export class MediaArtworkService {
   constructor(
@@ -194,6 +207,50 @@ export class MediaArtworkService {
     const item = await this.prisma.mediaItem.findUnique({ where: { id: itemId } });
     if (!item) throw new NotFoundException('Item not found');
     return item;
+  }
+
+  private async requireShow(showId: string) {
+    const show = await this.prisma.mediaShow.findUnique({ where: { id: showId } });
+    if (!show) throw new NotFoundException('Show not found');
+    return show;
+  }
+
+  /**
+   * The rows an owner owns.
+   *
+   * A season is a show-owned scope, not a third kind of owner: its artwork
+   * belongs to the show and carries the season number, which is what lets
+   * "season 2's poster" and "the show's poster" coexist without either being a
+   * property of some arbitrary episode.
+   */
+  private ownerWhere(owner: ArtworkOwner): Prisma.MediaArtworkWhereInput {
+    if (owner.kind === 'item') return { itemId: owner.itemId };
+    return {
+      showId: owner.showId,
+      // `null` is a real value here — show-level artwork is exactly the rows
+      // with no season — so this must not degrade into "any season".
+      seasonNumber: owner.seasonNumber ?? null,
+    };
+  }
+
+  /** The columns that make a new row belong to this owner. */
+  private ownerData(owner: ArtworkOwner): { itemId?: string; showId?: string; seasonNumber?: number | null } {
+    return owner.kind === 'item'
+      ? { itemId: owner.itemId }
+      : { showId: owner.showId, seasonNumber: owner.seasonNumber ?? null };
+  }
+
+  /** Where an owner's uploaded files live. Distinct per owner, never shared. */
+  private ownerDirKey(owner: ArtworkOwner): string {
+    if (owner.kind === 'item') return owner.itemId;
+    return owner.seasonNumber == null
+      ? `show-${owner.showId}`
+      : `show-${owner.showId}-s${owner.seasonNumber}`;
+  }
+
+  private async requireOwner(owner: ArtworkOwner) {
+    if (owner.kind === 'item') await this.requireItem(owner.itemId);
+    else await this.requireShow(owner.showId);
   }
 
   /**
@@ -289,6 +346,54 @@ export class MediaArtworkService {
       }
     }
     return dirs;
+  }
+
+  /**
+   * Register a show folder's own artwork against the SHOW.
+   *
+   * `poster.jpg`, `banner.jpg`, `fanart.jpg`, `clearlogo.png` and
+   * `seasonNN-poster.jpg` describe the series, not any one episode — a season
+   * poster describes a season. Files are referenced where they lie, exactly as
+   * the item-level sidecar import does, so nothing is copied and a re-scan is
+   * idempotent per path.
+   *
+   * Auto-selection only fills a gap: a type already chosen for that scope is
+   * left alone, because a scan must never overrule the operator.
+   */
+  async importShowFolder(showId: string, dir: string): Promise<number> {
+    const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+    let created = 0;
+
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const ext = path.extname(entry.name).toLowerCase();
+      if (!SIDECAR_IMAGE_EXTS.has(ext)) continue;
+      const name = path.basename(entry.name, ext).toLowerCase();
+      // No video basenames here: a show folder's images belong to the show, and
+      // `<episode>-thumb.jpg` lives beside its episode inside a season folder.
+      const hit = this.classifySidecarArtwork(name, new Set());
+      if (!hit) continue;
+
+      const localPath = path.join(dir, entry.name);
+      const existing = await this.prisma.mediaArtwork.findFirst({ where: { showId, localPath } });
+      if (existing) continue;
+
+      const scope = { showId, seasonNumber: hit.seasonNumber };
+      const hasSelected = await this.prisma.mediaArtwork.findFirst({
+        where: { ...scope, type: hit.type, selected: true },
+      });
+      await this.prisma.mediaArtwork.create({
+        data: {
+          ...scope,
+          type: hit.type,
+          localPath,
+          source: 'local',
+          selected: !hasSelected,
+        },
+      });
+      created += 1;
+    }
+    return created;
   }
 
   /**
@@ -397,27 +502,45 @@ export class MediaArtworkService {
 
   /** List an item's artwork with the current selection per type. */
   async list(itemId: string) {
-    await this.requireItem(itemId);
+    const { artwork, selected } = await this.listFor({ kind: 'item', itemId });
+    return { itemId, artwork, selected };
+  }
+
+  /** Everything an owner has, and which row is the chosen one per type. */
+  async listFor(owner: ArtworkOwner) {
+    await this.requireOwner(owner);
     const artwork = await this.prisma.mediaArtwork.findMany({
-      where: { itemId },
+      where: this.ownerWhere(owner),
       orderBy: [{ type: 'asc' }, { selected: 'desc' }],
     });
     const selected: Record<string, string> = {};
     for (const a of artwork) if (a.selected) selected[a.type] = a.id;
-    return { itemId, artwork, selected };
+    return { owner, artwork, selected };
   }
 
   /** Mark one artwork as selected for its type (unselecting the others). */
   async select(itemId: string, artworkId: string, ctx: AuditContext = {}) {
-    await this.requireItem(itemId);
+    return this.selectFor({ kind: 'item', itemId }, artworkId, ctx);
+  }
+
+  /**
+   * Make one row the chosen artwork for its type, within its owner's scope.
+   *
+   * The unselect is scoped by OWNER, not by type alone: unselecting every
+   * poster of a type across the table would clear the show's choice when a
+   * season's is set, and vice versa.
+   */
+  async selectFor(owner: ArtworkOwner, artworkId: string, ctx: AuditContext = {}) {
+    await this.requireOwner(owner);
+    const scope = this.ownerWhere(owner);
     const art = await this.prisma.mediaArtwork.findFirst({
-      where: { id: artworkId, itemId },
+      where: { id: artworkId, ...scope },
     });
     if (!art) throw new NotFoundException('Artwork not found');
 
     await this.prisma.$transaction([
       this.prisma.mediaArtwork.updateMany({
-        where: { itemId, type: art.type },
+        where: { ...scope, type: art.type },
         data: { selected: false },
       }),
       this.prisma.mediaArtwork.update({
@@ -429,26 +552,39 @@ export class MediaArtworkService {
     await this.audit.record({
       userId: ctx.userId,
       action: 'media.artwork.select',
-      objectType: 'media_item',
-      objectId: itemId,
+      // The audit row names what was actually acted on: a show-scoped choice
+      // recorded against a media_item would point at nothing.
+      objectType: owner.kind === 'item' ? 'media_item' : 'media_show',
+      objectId: owner.kind === 'item' ? owner.itemId : owner.showId,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
-      metadata: { type: art.type, artworkId },
+      metadata: {
+        type: art.type,
+        artworkId,
+        ...(owner.kind === 'show' && owner.seasonNumber != null
+          ? { seasonNumber: owner.seasonNumber }
+          : {}),
+      },
     });
 
-    return this.list(itemId);
+    return this.listFor(owner);
   }
 
   /** Validate + store a custom uploaded image and record it as artwork. */
   async uploadCustom(itemId: string, upload: ArtworkUpload, ctx: AuditContext = {}) {
-    await this.requireItem(itemId);
+    return this.uploadFor({ kind: 'item', itemId }, upload, ctx);
+  }
+
+  /** Store an operator-supplied image as this owner's artwork, and select it. */
+  async uploadFor(owner: ArtworkOwner, upload: ArtworkUpload, ctx: AuditContext = {}) {
+    await this.requireOwner(owner);
     const valid = validateArtworkUpload(upload);
 
     const root = this.filePath.hardRoots[0];
     if (!root) {
       throw new BadRequestException('No storage root is configured.');
     }
-    const dir = path.join(root, '.ultratorrent', 'media-artwork', itemId);
+    const dir = path.join(root, '.ultratorrent', 'media-artwork', this.ownerDirKey(owner));
     const filename = `${valid.type}-${Date.now()}.${valid.ext}`;
     const dest = path.join(dir, filename);
     // Enforce containment even though we built the path ourselves.
@@ -457,30 +593,44 @@ export class MediaArtworkService {
     await mkdir(path.dirname(safeDest), { recursive: true });
     await writeFile(safeDest, valid.buffer);
 
-    // A custom upload becomes the selected art for its type.
+    // A custom upload becomes the selected art for its type, within this
+    // owner's scope only.
     await this.prisma.mediaArtwork.updateMany({
-      where: { itemId, type: valid.type },
+      where: { ...this.ownerWhere(owner), type: valid.type },
       data: { selected: false },
     });
     const artwork = await this.prisma.mediaArtwork.create({
       data: {
-        itemId,
+        ...this.ownerData(owner),
         type: valid.type,
         localPath: safeDest,
         source: 'custom',
         selected: true,
-        seasonNumber: upload.seasonNumber ?? null,
+        /*
+         * The OWNER's season wins. `ownerData` already scoped this row, and
+         * letting the upload body re-specify it would let a season-scoped
+         * request land its file outside that season — the one place the two
+         * could disagree.
+         */
+        ...(owner.kind === 'item' ? { seasonNumber: upload.seasonNumber ?? null } : {}),
       },
     });
 
     await this.audit.record({
       userId: ctx.userId,
       action: 'media.artwork.upload',
-      objectType: 'media_item',
-      objectId: itemId,
+      objectType: owner.kind === 'item' ? 'media_item' : 'media_show',
+      objectId: owner.kind === 'item' ? owner.itemId : owner.showId,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
-      metadata: { type: valid.type, mime: valid.mime, bytes: valid.buffer.length },
+      metadata: {
+        type: valid.type,
+        mime: valid.mime,
+        bytes: valid.buffer.length,
+        ...(owner.kind === 'show' && owner.seasonNumber != null
+          ? { seasonNumber: owner.seasonNumber }
+          : {}),
+      },
     });
 
     return artwork;
@@ -493,39 +643,67 @@ export class MediaArtworkService {
    */
   async importFromProvider(itemId: string, ctx: AuditContext = {}) {
     const item = await this.requireItem(itemId);
-
-    const key =
-      (await this.settings.get<string>('media.tmdbApiKey')) ?? process.env.TMDB_API_KEY;
-    if (!key) return this.detectMissing(itemId);
-
     const ext = await this.prisma.mediaExternalId.findUnique({
       where: { itemId_provider: { itemId, provider: 'tmdb' } },
     });
-    if (!ext) return this.detectMissing(itemId);
-
     const kind = item.mediaType === 'movie' ? 'movie' : 'tv'; // tv/anime → tv
+    const done = await this.importFor({ kind: 'item', itemId }, kind, ext?.externalId ?? null, ctx);
+    return done ?? this.detectMissing(itemId);
+  }
+
+  /**
+   * Pull artwork for a SHOW from the provider.
+   *
+   * The series' own TMDB id, not an episode's: a show has no item to borrow one
+   * from, which is why `MediaShow.tmdbId` exists. Resolved on demand when it is
+   * missing, so an operator who never ran a metadata refresh still gets art.
+   */
+  async importForShow(showId: string, ctx: AuditContext = {}, seasonNumber?: number | null) {
+    const show = await this.requireShow(showId);
+    const owner: ArtworkOwner = { kind: 'show', showId, seasonNumber: seasonNumber ?? null };
+    const done = await this.importFor(owner, 'tv', show.tmdbId, ctx);
+    return done ?? { showId, provider: 'tmdb', imported: [], reason: 'no_provider_id' };
+  }
+
+  /**
+   * The shared import. Returns null when it cannot run at all — no API key, or
+   * no provider id for this owner — so the caller decides what that means:
+   * an item reports its missing types, a show says why it could not.
+   */
+  private async importFor(
+    owner: ArtworkOwner,
+    kind: 'movie' | 'tv',
+    externalId: string | null,
+    ctx: AuditContext = {},
+  ) {
+    const key =
+      (await this.settings.get<string>('media.tmdbApiKey')) ?? process.env.TMDB_API_KEY;
+    if (!key || !externalId) return null;
+
     const provider = new TmdbArtworkProvider(key);
-    const candidates = await provider.list(kind, ext.externalId);
+    const candidates = await provider.list(kind, externalId);
 
     const imported: ArtworkType[] = [];
     for (const type of REQUIRED_TYPES) {
       const cand = pickBestArtwork(candidates, type);
       if (!cand) continue;
-      const art = await this.downloadAndStore(itemId, cand);
+      const art = await this.downloadAndStore(owner, cand);
       if (art) imported.push(type);
     }
 
     await this.audit.record({
       userId: ctx.userId,
       action: 'media.artwork.import',
-      objectType: 'media_item',
-      objectId: itemId,
+      objectType: owner.kind === 'item' ? 'media_item' : 'media_show',
+      objectId: owner.kind === 'item' ? owner.itemId : owner.showId,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
       metadata: { provider: 'tmdb', imported },
     });
 
-    return { itemId, provider: 'tmdb', imported };
+    return owner.kind === 'item'
+      ? { itemId: owner.itemId, provider: 'tmdb', imported }
+      : { showId: owner.showId, provider: 'tmdb', imported };
   }
 
   /**
@@ -533,14 +711,15 @@ export class MediaArtworkService {
    * size checks as uploads, store it under the hard root, and record the row.
    * Idempotent per url. Returns null (skips) on any fetch/validation failure.
    */
-  private async downloadAndStore(itemId: string, cand: ArtworkCandidate) {
+  private async downloadAndStore(owner: ArtworkOwner, cand: ArtworkCandidate) {
     if (!isAllowedArtworkHost(cand.url)) {
       throw new BadRequestException(`Refusing to fetch artwork from "${cand.url}".`);
     }
 
-    // Idempotency: don't re-download art we already have from this url.
+    // Idempotency: don't re-download art we already have from this url — per
+    // owner, so a show and one of its episodes may each hold the same image.
     const existing = await this.prisma.mediaArtwork.findFirst({
-      where: { itemId, url: cand.url },
+      where: { ...this.ownerWhere(owner), url: cand.url },
     });
     if (existing) return existing;
 
@@ -567,7 +746,7 @@ export class MediaArtworkService {
 
     const root = this.filePath.hardRoots[0];
     if (!root) throw new BadRequestException('No storage root is configured.');
-    const dir = path.join(root, '.ultratorrent', 'media-artwork', itemId);
+    const dir = path.join(root, '.ultratorrent', 'media-artwork', this.ownerDirKey(owner));
     const dest = this.filePath.assertWithinHardRoots(
       path.join(dir, `${cand.type}-${Date.now()}.${MIME_EXT[mime]}`),
     );
@@ -577,13 +756,13 @@ export class MediaArtworkService {
     // Auto-select only when the item has no art of this type yet, so an
     // operator's custom upload always keeps precedence.
     const hasSelected = await this.prisma.mediaArtwork.findFirst({
-      where: { itemId, type: cand.type, selected: true },
+      where: { ...this.ownerWhere(owner), type: cand.type, selected: true },
       select: { id: true },
     });
 
     return this.prisma.mediaArtwork.create({
       data: {
-        itemId,
+        ...this.ownerData(owner),
         type: cand.type,
         localPath: dest,
         url: cand.url,

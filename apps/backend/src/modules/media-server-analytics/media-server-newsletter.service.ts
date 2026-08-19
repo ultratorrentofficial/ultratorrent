@@ -324,6 +324,10 @@ export class MediaServerNewsletterService {
     const score = (type: string, selected: boolean) => SHOW_POSTER_TYPES.indexOf(type) * 2 + (selected ? 0 : 1);
     const best = new Map<string, number>();
     for (const a of arts) {
+      // Artwork can now belong to a SHOW instead of an item, and this query asks
+      // for item-owned rows only — the filter guarantees it, but the type no
+      // longer does, and a newsletter must not throw on a poster.
+      if (!a.item) continue;
       const t = a.item.title;
       const s = score(a.type, a.selected);
       if (!best.has(t) || s < best.get(t)!) {

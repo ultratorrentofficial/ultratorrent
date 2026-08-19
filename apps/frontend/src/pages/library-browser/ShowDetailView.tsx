@@ -6,9 +6,10 @@ import { api, type HealthStatus, type MediaItem, type MediaLibrary, type MediaSe
 import { MediaPoster } from '@/components/media/MediaPoster';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { EmptyState, ErrorState, Skeleton } from '@/components/ui/feedback';
+import { CenteredSpinner, EmptyState, ErrorState, Skeleton } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
 import { VirtualPosterGrid } from './VirtualPosterGrid';
+import { ShowInfoTabs } from './ShowInfoTabs';
 import { episodeTitleOf } from './episode-title';
 import { resolutionLabel } from './resolution-label';
 import { HealthBadge } from './HealthBadge';
@@ -55,12 +56,12 @@ export function ShowDetailView({
   const { t } = useTranslation('media');
   const [openSeason, setOpenSeason] = useState<number | null>(null);
   /*
-   * Two tabs, not twelve. Stubbing Artwork/Versions/Analytics panels that have
-   * no backing data would advertise capability the platform does not have —
-   * `media_playback_aggregates` is empty and there is no versions model — and
-   * an empty tab is a worse answer than an absent one.
+   * Three tabs. The rule has not changed — a tab must have something behind it,
+   * and Versions/Analytics still have no model — but Info now does: a show owns
+   * its metadata and artwork, where before both belonged to whichever episode
+   * happened to be asked.
    */
-  const [tab, setTab] = useState<'overview' | 'episodes'>('episodes');
+  const [tab, setTab] = useState<'overview' | 'episodes' | 'info'>('episodes');
   /*
    * Operations Mode turns a browser into a workspace: checkboxes, health
    * reasons on every row, and the bulk toolbar. Off by default, because most
@@ -73,6 +74,15 @@ export function ShowDetailView({
   const query = useQuery({
     queryKey: ['library-browser', 'episodes', showKey, libraryId],
     queryFn: () => api.media.seriesEpisodes(showKey, { libraryId }),
+  });
+
+  // Only when the tab is open: this is a lookup for a screen most visits never
+  // reach, and the episode list must not wait behind it.
+  const showRecord = useQuery({
+    queryKey: ['library-browser', 'show-record', showKey, libraryId],
+    enabled: tab === 'info',
+    retry: false,
+    queryFn: () => api.media.showByKey(showKey, libraryId),
   });
 
   /*
@@ -167,7 +177,7 @@ export function ShowDetailView({
       </header>
 
       <div className="flex gap-1 border-b border-white/10" role="tablist">
-        {(['overview', 'episodes'] as const).map((id) => (
+        {(['overview', 'episodes', 'info'] as const).map((id) => (
           <button
             key={id}
             role="tab"
@@ -185,7 +195,21 @@ export function ShowDetailView({
         ))}
       </div>
 
-      {tab === 'overview' ? (
+      {tab === 'info' ? (
+        /*
+         * The show record is addressed by id, but this surface only has the
+         * browser's grouping key — the thing that survives a reload. Resolved
+         * once here; a folder never scanned into `media_shows` has no
+         * show-level data yet, which is a state, not a failure.
+         */
+        showRecord.isLoading ? (
+          <CenteredSpinner label={t('show.loading')} />
+        ) : showRecord.data ? (
+          <ShowInfoTabs showId={showRecord.data.id} />
+        ) : (
+          <EmptyState title={t('show.metadata.empty')} description={t('show.metadata.emptyHint')} />
+        )
+      ) : tab === 'overview' ? (
         <ShowOverview health={health.data ?? null} loading={health.isLoading} />
       ) : query.isLoading ? (
         <SeasonSkeleton />

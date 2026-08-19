@@ -1871,7 +1871,8 @@
   "overview": {
     "tab": {
       "overview": "Resumen",
-      "episodes": "Episodios"
+      "episodes": "Episodios",
+      "info": "Información"
     },
     "seasons": "Temporadas",
     "episodes": "Episodios",
@@ -1886,5 +1887,48 @@
   },
   "simulator": {
     "stageDetail": "Detalles"
+  },
+  "show": {
+    "loading": "Cargando la serie…",
+    "loadFailed": "No se pudo cargar esta serie.",
+    "metadata": {
+      "title": "Metadatos de la serie",
+      "refresh": "Actualizar desde el proveedor",
+      "refreshed": "Metadatos de la serie actualizados.",
+      "refreshFailed": "No se pudieron actualizar los metadatos.",
+      "empty": "Esta serie aún no tiene metadatos",
+      "emptyHint": "Actualiza desde el proveedor para traer su sinopsis, estado, cadena y reparto.",
+      "reason": {
+        "not_found": "El proveedor no encontró esta serie.",
+        "no_provider": "No hay proveedor de metadatos configurado — añade una clave de TMDB en Ajustes."
+      }
+    },
+    "field": {
+      "overview": "Sinopsis",
+      "status": "Estado",
+      "year": "Año",
+      "networks": "Cadena",
+      "genres": "Géneros",
+      "rating": "Puntuación",
+      "provider": "Fuente"
+    },
+    "artwork": {
+      "title": "Arte",
+      "scope": "Alcance del arte",
+      "wholeShow": "La serie",
+      "season": "Temporada {{number}}",
+      "import": "Buscar arte",
+      "loading": "Cargando arte…",
+      "empty": "No hay arte para este alcance",
+      "emptyHint": "Búscalo en el proveedor, o coloca imágenes en la carpeta de la serie y vuelve a escanear.",
+      "choose": "Usar esta",
+      "isSelected": "Seleccionada actualmente",
+      "selected": "Arte seleccionado.",
+      "selectFailed": "No se pudo seleccionar ese arte.",
+      "imported_one": "Se importó {{count}} imagen.",
+      "imported_other": "Se importaron {{count}} imágenes.",
+      "nothingImported": "Nada que importar — el proveedor no devolvió arte para esta serie.",
+      "importFailed": "No se pudo buscar el arte."
+    }
   }
 }

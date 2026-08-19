@@ -1494,6 +1494,56 @@ export interface MediaSeriesEpisodes {
   seasons: MediaSeasonGroup[];
 }
 
+/** A series' own metadata — the record television never had. */
+export interface ShowMetadata {
+  showId: string;
+  title: string | null;
+  originalTitle: string | null;
+  sortTitle: string | null;
+  overview: string | null;
+  firstAiredAt: string | null;
+  year: number | null;
+  status: string | null;
+  networks: string[];
+  genres: string[];
+  studios: string[];
+  cast: Array<{ name: string; role?: string }>;
+  crew: Array<{ name: string; job?: string }>;
+  rating: number | null;
+  certification: string | null;
+  tags: string[];
+  providerName: string | null;
+  updatedAt: string;
+}
+
+export interface MediaSeason {
+  id: string;
+  showId: string;
+  seasonNumber: number;
+  title: string | null;
+  overview: string | null;
+  firstAiredAt: string | null;
+}
+
+export interface MediaShow {
+  id: string;
+  libraryId: string;
+  title: string;
+  year: number | null;
+  path: string;
+  imdbId: string | null;
+  tmdbId: string | null;
+  episodeCount: number;
+  mediaType: string;
+}
+
+export interface ShowDetail {
+  show: MediaShow;
+  metadata: ShowMetadata | null;
+  seasons: MediaSeason[];
+  artwork: MediaArtwork[];
+}
+
 export interface MediaItemUpdateInput {
   title?: string;
   sortTitle?: string | null;
@@ -4483,6 +4533,33 @@ export const api = {
     },
     seriesEpisodes(key: string, opts: { matchStatus?: string; libraryId?: string } = {}): Promise<MediaSeriesEpisodes> {
       return request<MediaSeriesEpisodes>('/media/series/episodes', { query: { key, ...opts } as QueryParams });
+    },
+    /** The show record behind a Library Browser show key. */
+    showByKey(key: string, libraryId?: string): Promise<MediaShow> {
+      return request<MediaShow>('/media/shows/by-key', { query: { key, libraryId } });
+    },
+    /** A show with its metadata, seasons and artwork — one read. */
+    showDetail(showId: string): Promise<ShowDetail> {
+      return request<ShowDetail>(`/media/shows/${showId}`);
+    },
+    refreshShowMetadata(showId: string): Promise<{ refreshed: boolean; reason?: string }> {
+      return request(`/media/shows/${showId}/metadata/refresh`, { method: 'POST' });
+    },
+    updateShowMetadata(showId: string, body: Partial<ShowMetadata>): Promise<ShowMetadata> {
+      return request(`/media/shows/${showId}/metadata`, { method: 'PATCH', body });
+    },
+    updateSeason(showId: string, seasonNumber: number, body: { title?: string | null; overview?: string | null }): Promise<MediaSeason> {
+      return request(`/media/shows/${showId}/seasons/${seasonNumber}`, { method: 'PATCH', body });
+    },
+    /** `season` omitted = the show's own artwork; a number = that season's. */
+    showArtwork(showId: string, season?: number | null): Promise<{ artwork: MediaArtwork[]; selected: Record<string, string> }> {
+      return request(`/media/shows/${showId}/artwork`, { query: { season: season ?? undefined } });
+    },
+    selectShowArtwork(showId: string, artworkId: string, season?: number | null): Promise<unknown> {
+      return request(`/media/shows/${showId}/artwork/select`, { method: 'POST', body: { artworkId, season: season ?? null } });
+    },
+    importShowArtwork(showId: string, season?: number | null): Promise<{ imported: string[]; reason?: string }> {
+      return request(`/media/shows/${showId}/artwork/import`, { method: 'POST', body: { season: season ?? null } });
     },
     getItem(id: string): Promise<MediaItemDetail> {
       return request<MediaItemDetail>(`/media/items/${id}`);

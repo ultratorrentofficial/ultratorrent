@@ -14,6 +14,7 @@ import {
   UseGuards,
   Header,
   BadRequestException,
+  NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -42,6 +43,7 @@ import {
   AuditContext,
 } from './media-metadata.service';
 import { MediaArtworkService, ArtworkUpload } from './media-artwork.service';
+import { MediaShowMetadataService, type ShowMetadataPatch } from './media-show-metadata.service';
 import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaBulkService, type TorrentAction } from './media-bulk.service';
 import { MediaExportService } from './media-export.service';
@@ -80,6 +82,22 @@ function auditCtx(req: Request): AuditContext {
   };
 }
 
+/**
+ * A season number from the URL. Rejected rather than coerced: `NaN` would read
+ * as "the show itself" (the null scope) and silently edit the wrong thing.
+ */
+function seasonOf(raw: string): number {
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) throw new BadRequestException('Invalid season number');
+  return n;
+}
+
+/** `?season=2` → 2; absent → null, which means the show itself. */
+function optionalSeason(raw?: string): number | null {
+  if (raw == null || raw === '') return null;
+  return seasonOf(raw);
+}
+
 @ApiTags('media')
 @ApiBearerAuth()
 @Controller('media')
@@ -95,6 +113,7 @@ export class MediaController {
     private readonly healthSvc: MediaHealthService,
     private readonly metadata: MediaMetadataService,
     private readonly artwork: MediaArtworkService,
+    private readonly showMetadata: MediaShowMetadataService,
     private readonly subtitles: MediaSubtitleService,
     private readonly nfo: MediaNfoService,
     private readonly bulk: MediaBulkService,
@@ -596,6 +615,110 @@ export class MediaController {
     @Req() req: Request,
   ) {
     return this.metadata.updateMetadata(id, body ?? {}, auditCtx(req));
+  }
+
+  // --- shows: metadata, seasons, artwork ---------------------------------
+  //
+  // A show is an owner in its own right now. Everything below mirrors the item
+  // routes above, because an operator asking "what is this and what does it
+  // look like" should not meet a different shape of answer for television.
+
+  /**
+   * Resolve a Library Browser show key to the show record. 404 when the folder
+   * has never been scanned into `media_shows`, which the UI reads as "no
+   * show-level data yet" rather than as a failure.
+   */
+  @Get('shows/by-key')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  async showByKey(@Query('key') key: string, @Query('libraryId') libraryId?: string) {
+    const show = await this.showMetadata.findByKey(key, libraryId);
+    if (!show) throw new NotFoundException('No show record for this key');
+    return show;
+  }
+
+  /** The show, its metadata, its seasons and its artwork — one read. */
+  @Get('shows/:id')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  showDetail(@Param('id') id: string) {
+    return this.showMetadata.detail(id);
+  }
+
+  @Post('shows/:id/metadata/refresh')
+  @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
+  refreshShowMetadata(@Param('id') id: string, @Req() req: Request) {
+    return this.showMetadata.refresh(id, auditCtx(req));
+  }
+
+  @Patch('shows/:id/metadata')
+  @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
+  updateShowMetadata(
+    @Param('id') id: string,
+    @Body() body: ShowMetadataPatch,
+    @Req() req: Request,
+  ) {
+    return this.showMetadata.update(id, body ?? {}, auditCtx(req));
+  }
+
+  @Patch('shows/:id/seasons/:seasonNumber')
+  @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
+  updateSeason(
+    @Param('id') id: string,
+    @Param('seasonNumber') seasonNumber: string,
+    @Body() body: { title?: string | null; overview?: string | null },
+    @Req() req: Request,
+  ) {
+    return this.showMetadata.updateSeason(id, seasonOf(seasonNumber), body ?? {}, auditCtx(req));
+  }
+
+  /**
+   * A show's artwork, or one season's.
+   *
+   * `season` is a query parameter rather than a separate route because it is a
+   * SCOPE within the show and not another owner — the same reason the artwork
+   * row carries `seasonNumber` beside `showId`.
+   */
+  @Get('shows/:id/artwork')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  listShowArtwork(@Param('id') id: string, @Query('season') season?: string) {
+    return this.artwork.listFor({ kind: 'show', showId: id, seasonNumber: optionalSeason(season) });
+  }
+
+  @Post('shows/:id/artwork/select')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_ARTWORK)
+  selectShowArtwork(
+    @Param('id') id: string,
+    @Body() body: { artworkId: string; season?: number | null },
+    @Req() req: Request,
+  ) {
+    return this.artwork.selectFor(
+      { kind: 'show', showId: id, seasonNumber: body?.season ?? null },
+      body?.artworkId,
+      auditCtx(req),
+    );
+  }
+
+  @Post('shows/:id/artwork/upload')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_ARTWORK)
+  uploadShowArtwork(
+    @Param('id') id: string,
+    @Body() body: ArtworkUpload & { season?: number | null },
+    @Req() req: Request,
+  ) {
+    return this.artwork.uploadFor(
+      { kind: 'show', showId: id, seasonNumber: body?.season ?? null },
+      body,
+      auditCtx(req),
+    );
+  }
+
+  @Post('shows/:id/artwork/import')
+  @RequirePermissions(P.MEDIA_MANAGER_MANAGE_ARTWORK)
+  importShowArtwork(
+    @Param('id') id: string,
+    @Body() body: { season?: number | null } = {},
+    @Req() req?: Request,
+  ) {
+    return this.artwork.importForShow(id, auditCtx(req as Request), body?.season ?? null);
   }
 
   // --- artwork -----------------------------------------------------------

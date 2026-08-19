@@ -15,6 +15,7 @@ import { MediaMetadataService } from './media-metadata.service';
 import { MetadataProviderRegistry } from './metadata-provider-registry.service';
 import { MovieIdentityRepairService } from './movie-identity-repair.service';
 import { MediaArtworkService } from './media-artwork.service';
+import { MediaShowMetadataService } from './media-show-metadata.service';
 import { MediaSubtitleService } from './media-subtitle.service';
 import { MediaLinkageService } from './media-linkage.service';
 import { MediaBulkService } from './media-bulk.service';
@@ -82,6 +83,7 @@ import { MediaController } from './media.controller';
     MediaHealthService,
     MediaMetadataService,
     MediaArtworkService,
+    MediaShowMetadataService,
     MediaSubtitleService,
     MediaNfoService,
     MediaBulkService,

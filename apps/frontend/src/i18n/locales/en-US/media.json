@@ -1871,7 +1871,8 @@
   "overview": {
     "tab": {
       "overview": "Overview",
-      "episodes": "Episodes"
+      "episodes": "Episodes",
+      "info": "Info"
     },
     "seasons": "Seasons",
     "episodes": "Episodes",
@@ -1886,5 +1887,48 @@
   },
   "simulator": {
     "stageDetail": "Details"
+  },
+  "show": {
+    "loading": "Loading the show…",
+    "loadFailed": "Could not load this show.",
+    "metadata": {
+      "title": "Show metadata",
+      "refresh": "Refresh from provider",
+      "refreshed": "Show metadata updated.",
+      "refreshFailed": "Could not refresh the metadata.",
+      "empty": "No metadata for this show yet",
+      "emptyHint": "Refresh from the provider to fetch its overview, status, network and cast.",
+      "reason": {
+        "not_found": "The provider had no match for this show.",
+        "no_provider": "No metadata provider is configured — add a TMDB API key in Settings."
+      }
+    },
+    "field": {
+      "overview": "Overview",
+      "status": "Status",
+      "year": "Year",
+      "networks": "Network",
+      "genres": "Genres",
+      "rating": "Rating",
+      "provider": "Source"
+    },
+    "artwork": {
+      "title": "Artwork",
+      "scope": "Artwork scope",
+      "wholeShow": "The show",
+      "season": "Season {{number}}",
+      "import": "Fetch artwork",
+      "loading": "Loading artwork…",
+      "empty": "No artwork for this scope",
+      "emptyHint": "Fetch it from the provider, or drop images in the show folder and rescan.",
+      "choose": "Use this one",
+      "isSelected": "Currently selected",
+      "selected": "Artwork selected.",
+      "selectFailed": "Could not select that artwork.",
+      "imported_one": "Imported {{count}} image.",
+      "imported_other": "Imported {{count}} images.",
+      "nothingImported": "Nothing to import — the provider returned no artwork for this show.",
+      "importFailed": "Could not fetch artwork."
+    }
   }
 }

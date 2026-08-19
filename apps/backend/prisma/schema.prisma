@@ -807,8 +807,15 @@ model MediaShow {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  /// TMDB series id. The artwork provider is keyed by it, and a show has no
+  /// item to borrow one from.
+  tmdbId String?
+
   library        MediaLibrary                    @relation(fields: [libraryId], references: [id], onDelete: Cascade)
   watchlistItems MediaAcquisitionWatchlistItem[]
+  artwork        MediaArtwork[]
+  metadata       MediaShowMetadata?
+  seasons        MediaSeason[]
 
   @@unique([libraryId, path])
   @@index([imdbId])
@@ -1009,9 +1016,78 @@ model MediaMetadata {
   @@map("media_metadata")
 }
 
+/// Artwork belongs to exactly ONE owner: an item (a film or an episode) or a
+/// SHOW. Season artwork is a show-owned row carrying `seasonNumber`.
+///
+/// A show owner had to exist. Television artwork was written onto every episode
+/// — one library here holds 49 identical posters for a 49-episode show — so
+/// "the show's poster" was whichever episode's row happened to sort first, and
+/// changing it was not an operation the model could express. A database CHECK
+/// enforces the exclusivity the two nullable columns cannot.
+/// A series' own metadata, which had nowhere to live.
+///
+/// Deliberately a separate table from `MediaMetadata` rather than a nullable
+/// `showId` on it: that record is keyed `itemId @unique` and is read on every
+/// film and episode path in the system, and widening its ownership would put a
+/// null check into all of them to gain nothing — a series and a film do not
+/// share fields either (`status`, `network` and `seasonCount` mean nothing for a
+/// film; `runtime` and `certification` belong to an episode).
+model MediaShowMetadata {
+  id            String    @id @default(uuid())
+  showId        String    @unique
+  title         String?
+  originalTitle String?
+  sortTitle     String?
+  overview      String?   @db.Text
+  firstAiredAt  DateTime?
+  year          Int?
+  /// `Continuing`, `Ended`, `Cancelled` — the answer to "will there be more?",
+  /// which is the question asked of a series and never of a film.
+  status        String?
+  networks      Json      @default("[]")
+  genres        Json      @default("[]")
+  studios       Json      @default("[]")
+  cast          Json      @default("[]")
+  crew          Json      @default("[]")
+  rating        Float?
+  certification String?
+  tags          Json      @default("[]")
+  providerName  String?
+  /// field -> provider, same diagnostic role as on `MediaMetadata`.
+  fieldSources  Json?
+  updatedAt     DateTime  @updatedAt
+
+  show MediaShow @relation(fields: [showId], references: [id], onDelete: Cascade)
+
+  @@map("media_show_metadata")
+}
+
+/// One season of a show, so a season can carry its own overview and artwork.
+///
+/// Seasons were derived on the fly from the episodes' `season` numbers, which is
+/// fine for listing them and useless for holding anything: there was no row to
+/// attach a season poster or a synopsis to.
+model MediaSeason {
+  id           String    @id @default(uuid())
+  showId       String
+  seasonNumber Int
+  title        String?
+  overview     String?   @db.Text
+  firstAiredAt DateTime?
+  providerName String?
+  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime  @default(now())
+
+  show MediaShow @relation(fields: [showId], references: [id], onDelete: Cascade)
+
+  @@unique([showId, seasonNumber])
+  @@map("media_seasons")
+}
+
 model MediaArtwork {
   id           String   @id @default(uuid())
-  itemId       String
+  itemId       String?
+  showId       String?
   type         String // poster | fanart | logo | clearart | banner | thumbnail | season_poster | episode_thumbnail
   url          String?
   localPath    String?
@@ -1019,12 +1095,16 @@ model MediaArtwork {
   selected     Boolean  @default(false)
   width        Int?
   height       Int?
+  /// Set on a show-owned row to scope it to one season.
   seasonNumber Int?
   createdAt    DateTime @default(now())
 
-  item MediaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  item MediaItem? @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  show MediaShow? @relation(fields: [showId], references: [id], onDelete: Cascade)
 
   @@index([itemId, type])
+  @@index([showId, type])
+  @@index([showId, seasonNumber])
   @@map("media_artwork")
 }
 
