@@ -56,6 +56,37 @@ describe('classifyFile', () => {
     expect(classifyFile('x.en.srt', 'tv', 0, 1).isSubtitle).toBe(true);
     expect(classifyFile('book.m4b', 'general', 0, 1).kind).toBe('audiobook');
   });
+
+  it('never calls a numbered episode an extra, whatever words its name carries', () => {
+    /*
+     * Every one of these is a real episode from the live QNAP library that the
+     * keyword search filed as a bonus feature — the show's own title in the first
+     * case, the episode's title in the rest. Plex reads `Extras/` as bonus
+     * content, so they stopped being episodes at all.
+     */
+    for (const name of [
+      'Interview with the Vampire - S01E02 - ... after the phantoms of your former self.mp4',
+      'Interview.with.the.Vampire.S03E01.Detroit.1080p.HEVC.x265-MeGusta.mkv',
+      'Watson - S02E03 - Expletive Deleted.mkv',
+      'Siren - S01E03 - Interview with a Mermaid.mkv',
+      'The Peripheral - S01E02 - Empathy Bonus.mp4',
+    ]) {
+      expect(classifyFile(name, 'tv', 0, BIG).isExtra).toBe(false);
+    }
+  });
+
+  it('still treats unnumbered bonus content as an extra', () => {
+    expect(classifyFile('Behind The Scenes.mkv', 'tv', 0, BIG).isExtra).toBe(true);
+    expect(classifyFile('The Making Of - Featurette.mkv', 'tv', 0, BIG).isExtra).toBe(true);
+  });
+
+  it('honours the Plex extra SUFFIX even on a numbered episode', () => {
+    // The suffix names the file's ROLE, unlike a word describing its subject.
+    expect(
+      classifyFile('Show - S01E01 - Title-behindthescenes.mkv', 'tv', 0, BIG).isExtra,
+    ).toBe(true);
+    expect(classifyFile('Show - S01E01 - Title-deleted.mkv', 'tv', 0, BIG).isExtra).toBe(true);
+  });
 });
 
 describe('buildRenamePlan — TV', () => {
@@ -619,6 +650,18 @@ describe('isSeasonContainer / showFolderRoot', () => {
     // anything else, and climbing on "1080p" alone would eat legitimate names.
     expect(showFolderRoot('/tv/S.W.A.T. (2017)/Season 1/ep.mkv')).toBe('/tv/S.W.A.T. (2017)');
     expect(showFolderRoot('/tv/1080 (2019)/ep.mkv')).toBe('/tv/1080 (2019)');
+  });
+
+  it('climbs past an Extras container, so an extra keeps its place on a re-run', () => {
+    /*
+     * Not cosmetic — this is what made extras burrow. An extra is planned as
+     * `<show>/Season NN/Extras/<name>`; `rename_in_place` re-roots that on
+     * `showFolderRoot(source)`, so stopping at `Extras` re-appended
+     * `Season NN/Extras` to a path that already ended in it, two levels per pass.
+     * Live on the QNAP: 12 passes, `Season 3/Extras/…` 24 levels deep.
+     */
+    expect(showFolderRoot('/tv/Show (2020)/Season 1/Extras/bonus.mkv', '/tv'))
+      .toBe('/tv/Show (2020)');
   });
 
   it('never climbs past the filesystem root', () => {

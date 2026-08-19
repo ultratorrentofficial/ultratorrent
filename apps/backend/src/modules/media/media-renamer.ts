@@ -193,6 +193,15 @@ const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.w
 const AUDIOBOOK_EXT = new Set(['.m4b', '.aa', '.aax']);
 const EXTRA_HINTS = /\b(featurette|extras?|behind[ ._-]the[ ._-]scenes|deleted|interview|trailer|bonus)\b/i;
 /**
+ * Plex's own naming for a local extra: the kind is a **suffix** on the file name
+ * (`Show - S01E01 - Title-behindthescenes.mkv`). Matched separately from
+ * {@link EXTRA_HINTS} because a suffix is a deliberate statement by whoever named
+ * the file, so it is trusted even for a numbered episode — which the keyword
+ * search deliberately is not.
+ */
+const PLEX_EXTRA_SUFFIX =
+  /-(behindthescenes|deleted(?:scenes?)?|featurettes?|interviews?|scene|short|trailer|other|bonus)$/i;
+/**
  * Audio that belongs to the FOLDER rather than to any episode — Plex, Jellyfin and
  * Emby all read `theme.mp3` as a show's theme tune, exactly as they read `poster.jpg`
  * and `fanart.jpg` as its artwork.
@@ -361,6 +370,16 @@ export function normalizeLang(code: string): string {
   return normalizeLanguageCode(code);
 }
 
+/**
+ * Does this filename identify a specific numbered episode (`S01E02`, `1x02`, an
+ * absolute anime number)? Only asked when a keyword already suggested "extra",
+ * so the parse is paid on the rare file rather than on every one.
+ */
+function namesAnEpisode(base: string): boolean {
+  const p = parseTorrentName(base);
+  return (p.season != null && p.episode != null) || p.absoluteEpisode != null;
+}
+
 /** Classify a single file by extension + name hints. */
 export function classifyFile(
   filePath: string,
@@ -376,7 +395,25 @@ export function classifyFile(
     VIDEO_EXT.has(ext) &&
     size <= sampleMaxBytes;
   const isSubtitle = SUBTITLE_EXT.has(ext);
-  const isExtra = EXTRA_HINTS.test(base) && !isSubtitle;
+  /*
+   * A NUMBERED EPISODE IS NEVER AN EXTRA, whatever words its name contains.
+   *
+   * The keyword search reads the whole filename, so it fires on any show whose
+   * own title carries one of those words — every episode of *Interview with the
+   * Vampire* is "an interview", and on the live QNAP library every one of them
+   * was filed as a bonus feature. Episode titles do it too: *Watson* "Expletive
+   * Deleted", *Siren* "Interview with a Mermaid", *The Peripheral* "Empathy
+   * Bonus". Plex reads an `Extras/` folder as bonus content, so the episodes
+   * stopped being episodes while the library still recorded them as owned.
+   *
+   * An explicit Plex extra SUFFIX still wins: it names the file's role rather
+   * than describing its subject, so `… - S01E01 - Title-behindthescenes.mkv` is
+   * an extra even though it carries an episode number.
+   */
+  const isExtra =
+    !isSubtitle &&
+    (PLEX_EXTRA_SUFFIX.test(path.basename(filePath, ext)) ||
+      (EXTRA_HINTS.test(base) && !namesAnEpisode(base)));
 
   let kind: MediaKind = parsedKind;
   if (AUDIOBOOK_EXT.has(ext)) kind = 'audiobook';
@@ -590,6 +627,22 @@ export function isSeasonContainer(name: string): boolean {
 }
 
 /**
+ * A folder holding a show's bonus content — a container INSIDE the show folder,
+ * never the show folder itself.
+ *
+ * {@link showFolderRoot} has to climb past it, and not seeing it is what made the
+ * extras destination burrow: an extra is planned as `<show>/Season NN/Extras/<name>`,
+ * `rename_in_place` re-roots that on `showFolderRoot(source)`, and stopping at
+ * `Extras` meant re-appending `Season NN/Extras` to a path that already ended in
+ * it. Every organize pass added two levels — measured on the live QNAP library as
+ * 12 passes and 24 levels of `Season 3/Extras/Season 3/Extras/…` before the files
+ * were found.
+ */
+export function isExtrasContainer(name: string): boolean {
+  return /^(extras|featurettes?|behind the scenes|bonus)$/i.test(name);
+}
+
+/**
  * The show (or movie) folder a source file already lives in — i.e. its parent
  * directory, climbing past a "Season NN"/"Specials" container if present.
  */
@@ -678,13 +731,13 @@ export function showFolderRoot(source: string, libraryPath?: string): string {
   const floor = libraryPath ? normFolder(libraryPath) : undefined;
   /*
    * Climb past every container that is not the show itself — a season folder, a
-   * release folder, or a release folder nested inside a season folder. Bounded
-   * so a pathological name cannot walk to the filesystem root; two levels covers
-   * every layout seen in practice and the third is slack.
+   * release folder, an `Extras` folder, or a release folder nested inside a
+   * season folder. Bounded so a pathological name cannot walk to the filesystem
+   * root; two levels covers every layout seen in practice and the third is slack.
    */
   for (let i = 0; i < 3; i += 1) {
     const name = path.basename(dir);
-    if (!name || (!isSeasonContainer(name) && !isReleaseFolder(name))) break;
+    if (!name || (!isSeasonContainer(name) && !isReleaseFolder(name) && !isExtrasContainer(name))) break;
     const parent = path.dirname(dir);
     if (parent === dir) break; // hit the filesystem root
     if (floor && normFolder(parent) === floor) break; // would land on the library root
