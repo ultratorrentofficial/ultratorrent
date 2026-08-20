@@ -636,13 +636,6 @@ export class MediaController {
     return show;
   }
 
-  /** The show, its metadata, its seasons and its artwork — one read. */
-  @Get('shows/:id')
-  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
-  showDetail(@Param('id') id: string) {
-    return this.showMetadata.detail(id);
-  }
-
   @Post('shows/:id/metadata/refresh')
   @RequirePermissions(P.MEDIA_MANAGER_EDIT_METADATA)
   refreshShowMetadata(@Param('id') id: string, @Req() req: Request) {
@@ -1111,6 +1104,24 @@ export class MediaController {
   }
 
   // --- media-server integrations ----------------------------------------
+
+  /*
+   * Declared AFTER every literal `shows/...` route, and it has to stay there.
+   *
+   * Nest matches in declaration order, so a `:id` parameter placed above them
+   * swallows the literal paths: this handler sat before `shows/duplicates` and
+   * answered it with 404 "Show not found", which silently disabled duplicate
+   * SHOW detection everywhere — including the scan that reports families and
+   * the Duplicate Center — until a live library turned out to hold two folders
+   * for the same series with nothing flagging it.
+   */
+  /** The show, its metadata, its seasons and its artwork — one read. */
+  @Get('shows/:id')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  showDetail(@Param('id') id: string) {
+    return this.showMetadata.detail(id);
+  }
+
   @Get('server-integrations')
   @RequirePermissions(P.MEDIA_MANAGER_MANAGE_INTEGRATIONS)
   listIntegrations() {
