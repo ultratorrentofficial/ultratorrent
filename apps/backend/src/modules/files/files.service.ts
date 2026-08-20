@@ -614,7 +614,19 @@ export class FilesService {
     failed: number;
     results: Array<{ path: string; ok: boolean; message?: string }>;
   }> {
-    const destDir = this.safety.resolveLogical(dto.destination);
+    /*
+     * `resolveExisting`, not `resolveLogical`: a destination that EXISTS must be
+     * checked against its real path.
+     *
+     * Reads and deletes were already symlink-safe, but a write destination was
+     * only checked logically — so a symlink inside a root pointing outside it
+     * passed, and files moved through it landed outside the roots entirely.
+     * That is reachable rather than theoretical: torrent payloads are supplied
+     * by strangers, can contain symlinks, and land inside these roots by
+     * design. `resolveExisting` falls back to the logical path when the
+     * destination does not exist yet, which is the create-a-new-folder case.
+     */
+    const destDir = await this.safety.resolveExisting(dto.destination);
     const results: Array<{ path: string; ok: boolean; message?: string }> = [];
 
     for (const item of dto.items) {
