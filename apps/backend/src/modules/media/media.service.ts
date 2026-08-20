@@ -487,8 +487,25 @@ export class MediaService {
         : parsed.contentType === 'anime_episode'
           ? 'anime'
           : 'tv';
+    /*
+     * The library answers first.
+     *
+     * A destination is the one decision where being wrong forks the library:
+     * an unknown year drops the `{year}` token, and the plan builds a SECOND
+     * show folder beside the real one. That happened live — a transient TMDB
+     * miss put two Reacher episodes in `TV_Shows/Reacher/` while
+     * `TV_Shows/Reacher (2022)/` held the other 28 — and the provider call is
+     * wrapped in a catch, so the failure was indistinguishable from an answer.
+     *
+     * `media_shows` already knows this show's title and year, cannot
+     * rate-limit, cannot time out, and is by definition consistent with where
+     * the files already are. Only a genuinely new show needs the network.
+     */
+    const localMeta = await this.showMetaFromLibrary(kind, parsed.title ?? undefined, req.libraryPath);
     // A library show folder identifies itself — see `isShowFolderBatch`.
-    const meta = (await this.isShowFolderBatch(parsed, files))
+    const meta = localMeta
+      ? localMeta
+      : (await this.isShowFolderBatch(parsed, files))
       ? {}
       : await this.provider(kind)
           .then((p) =>
@@ -670,6 +687,35 @@ export class MediaService {
    * it, via the same canonical key the scanner and watchlist use. Only reports a
    * mismatch (see `RenameContext.showFolderFor`); nothing moves on it.
    */
+  /**
+   * Title + year for a show this library already holds, or null.
+   *
+   * Matched on `canonicalKey`, the same key the scanner records, so a parsed
+   * `Reacher` finds the stored `Reacher (2022)`. The folder with the most
+   * episodes wins when a library is already split — that is where the show
+   * actually lives.
+   */
+  private async showMetaFromLibrary(
+    kind: MediaLookup['kind'],
+    title: string | undefined,
+    libraryPath?: string,
+  ): Promise<{ seriesTitle: string; year?: number } | null> {
+    if ((kind !== 'tv' && kind !== 'anime') || !title || !libraryPath) return null;
+    try {
+      const { showCanonicalKey } = await import('./series-grouping');
+      const key = showCanonicalKey(title);
+      const show = await this.prisma.mediaShow.findFirst({
+        where: { canonicalKey: key, path: { startsWith: `${libraryPath}/` } },
+        orderBy: { episodeCount: 'desc' },
+        select: { title: true, year: true },
+      });
+      if (!show) return null;
+      return { seriesTitle: show.title, year: show.year ?? undefined };
+    } catch {
+      return null;
+    }
+  }
+
   private async showFolderResolver(
     libraryPath: string,
   ): Promise<((seriesTitle: string) => string | undefined) | undefined> {
