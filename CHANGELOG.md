@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.85.4] - 2026-08-20
+
+### Fixed
+- Fetching artwork for a season downloads that season's cover, not the series poster
+- A TV rename asks the library for the show's title and year before the metadata provider, so a provider outage cannot fork a show into a second folder
+- Duplicate show detection works again — a :id route was swallowing shows/duplicates
+
 ## [0.85.3] - 2026-08-19
 
 ### Fixed
