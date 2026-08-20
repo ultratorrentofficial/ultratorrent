@@ -645,6 +645,29 @@ describe('isSeasonContainer / showFolderRoot', () => {
       .toBe('/tv/From.S04.1080p.WEBRip.x265-NeoNoir');
   });
 
+  it('climbs a legacy chain deeper than the old fixed bound', () => {
+    /*
+     * The doubling regression. The climb used to stop after a hard-coded THREE
+     * levels ("two covers every layout seen in practice and the third is slack").
+     * A library that had already run the pre-fix renamer holds chains far deeper
+     * than that, and stopping short does NOT leave the file alone: it returns a
+     * root that is itself inside a season folder, and `resolveDestination` then
+     * re-appends the template's `Season NN`.
+     *
+     * Live result on synoplex (2026-08-20), all three reproduced exactly by the
+     * old bound: ten episodes of Interview with the Vampire sitting in
+     * `Season 1/Season 1`, `Season 3/Season 3` and
+     * `Season 3/Extras/Season 3/Season 3`.
+     */
+    const show = '/tv/Interview with the Vampire (2022)';
+    expect(showFolderRoot(`${show}/Season 3/Extras/Season 3/Extras/Season 3/Extras/ep.mkv`, '/tv'))
+      .toBe(show);
+    expect(showFolderRoot(`${show}/Season 3/Extras/Season 3/Extras/ep.mkv`, '/tv')).toBe(show);
+    expect(showFolderRoot(`${show}/Season 1/Extras/Season 1/Extras/ep.mkv`, '/tv')).toBe(show);
+    // And it heals what the old bound already created, rather than nesting again.
+    expect(showFolderRoot(`${show}/Season 3/Season 3/ep.mkv`, '/tv')).toBe(show);
+  });
+
   it('keeps a show folder that merely looks technical', () => {
     // Only an episode marker disqualifies a folder; a real show folder may carry
     // anything else, and climbing on "1080p" alone would eat legitimate names.

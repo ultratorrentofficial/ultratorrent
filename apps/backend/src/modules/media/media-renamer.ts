@@ -731,11 +731,24 @@ export function showFolderRoot(source: string, libraryPath?: string): string {
   const floor = libraryPath ? normFolder(libraryPath) : undefined;
   /*
    * Climb past every container that is not the show itself — a season folder, a
-   * release folder, an `Extras` folder, or a release folder nested inside a
-   * season folder. Bounded so a pathological name cannot walk to the filesystem
-   * root; two levels covers every layout seen in practice and the third is slack.
+   * release folder, an `Extras` folder, or any nesting of them.
+   *
+   * The bound is the path's own segment count, NOT a fixed number of levels. A
+   * library that ran the pre-fix renamer holds chains far deeper than any
+   * "layout seen in practice": the live one had
+   * `Season 3/Extras/Season 3/Extras/Season 3/Extras/`, six containers deep.
+   * Stopping short does not leave the file alone — it returns a root that is
+   * itself *inside* a season folder, and `resolveDestination` then re-appends
+   * the template's `Season NN`, producing `Season 3/Season 3`. A fixed bound of
+   * 3 turned three such chains into three doubled season folders holding ten
+   * episodes.
+   *
+   * The two breaks below — filesystem root and library floor — are what keep the
+   * climb safe. The counter is only a guard against a pathological path, so it
+   * has to be at least as large as the path is deep.
    */
-  for (let i = 0; i < 3; i += 1) {
+  const maxClimb = source.split(path.sep).length;
+  for (let i = 0; i < maxClimb; i += 1) {
     const name = path.basename(dir);
     if (!name || (!isSeasonContainer(name) && !isReleaseFolder(name) && !isExtrasContainer(name))) break;
     const parent = path.dirname(dir);
