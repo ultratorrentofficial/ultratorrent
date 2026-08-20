@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.85.5] - 2026-08-20
+
+### Fixed
+- Every controller is checked for parameterised routes that capture literal ones declared below them
+- A file-manager write destination is checked against its real path, so a symlink inside a root cannot lead out of it
+- fix(renamer): climb the whole container chain, not three levels of it
+
 ## [0.85.4] - 2026-08-20
 
 ### Fixed
