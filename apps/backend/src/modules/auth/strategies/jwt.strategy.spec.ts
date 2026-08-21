@@ -6,10 +6,10 @@ import { JwtStrategy } from './jwt.strategy';
  * for the full TTL, so a deleted/deactivated user or revoked permission takes effect
  * within the cache window — with a fail-open on DB error so a blip can't lock everyone out.
  */
-function make(userFindUnique: jest.Mock) {
+function make(userFindUnique: jest.Mock, audit = { record: jest.fn() }) {
   const config = { get: () => 'x'.repeat(40) } as any;
   const prisma = { user: { findUnique: userFindUnique } } as any;
-  return new JwtStrategy(config, prisma);
+  return Object.assign(new JwtStrategy(config, prisma, audit as any), { __audit: audit });
 }
 const payload = (over: any = {}) => ({
   sub: 'u1', username: 'alice', roles: ['viewer'], permissions: ['a'], type: 'access', ...over,
@@ -54,5 +54,77 @@ describe('JwtStrategy.validate', () => {
     await svc.validate(payload() as any);
     await svc.validate(payload() as any);
     expect(find).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The fallback is deliberate — during a database outage the torrent list and
+ * engine pages still work, and locking the operator out then would hand anyone
+ * who can disrupt Postgres an authentication outage as a bonus. What was wrong
+ * is that it happened in complete silence, so nobody could tell it had.
+ */
+describe('degraded revalidation is reported', () => {
+  const dbDown = () => jest.fn().mockRejectedValue(new Error('db unreachable'));
+
+  it('warns ONCE per outage, not once per request', async () => {
+    // This path runs on every authenticated call; a busy instance would bury
+    // the very warning it is meant to raise.
+    const svc = make(dbDown());
+    const warn = jest.spyOn((svc as any).logger, 'warn').mockImplementation(() => undefined);
+
+    for (let i = 0; i < 5; i += 1) await svc.validate(payload() as any);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toMatch(/DEGRADED/);
+  });
+
+  it('still admits the request on its token claims', async () => {
+    const svc = make(dbDown());
+    jest.spyOn((svc as any).logger, 'warn').mockImplementation(() => undefined);
+    const res = await svc.validate(payload() as any);
+    expect(res).toMatchObject({ id: 'u1', permissions: ['a'] });
+  });
+
+  it('reports recovery, with how many requests were admitted', async () => {
+    const find = jest.fn().mockRejectedValue(new Error('db unreachable'));
+    const svc = make(find);
+    const warn = jest.spyOn((svc as any).logger, 'warn').mockImplementation(() => undefined);
+    await svc.validate(payload() as any);
+    await svc.validate(payload({ sub: 'u2' }) as any);
+
+    find.mockResolvedValue(activeUser);
+    await svc.validate(payload({ sub: 'u3' }) as any);
+
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn.mock.calls[1][0]).toMatch(/recovered — 2 request/);
+  });
+
+  it('audits the outage on recovery, when the database can finally take the row', async () => {
+    const find = jest.fn().mockRejectedValue(new Error('db unreachable'));
+    const audit = { record: jest.fn() };
+    const svc = make(find, audit);
+    jest.spyOn((svc as any).logger, 'warn').mockImplementation(() => undefined);
+    await svc.validate(payload() as any);
+
+    find.mockResolvedValue(activeUser);
+    await svc.validate(payload({ sub: 'u9' }) as any);
+
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.revalidation_degraded',
+        metadata: { admittedRequests: 1 },
+      }),
+    );
+  });
+
+  it('fails closed when AUTH_FAIL_CLOSED is set', async () => {
+    // The other threat model, available as a setting rather than a patch.
+    process.env.AUTH_FAIL_CLOSED = 'true';
+    try {
+      const svc = make(dbDown());
+      await expect(svc.validate(payload() as any)).rejects.toBeInstanceOf(UnauthorizedException);
+    } finally {
+      delete process.env.AUTH_FAIL_CLOSED;
+    }
   });
 });

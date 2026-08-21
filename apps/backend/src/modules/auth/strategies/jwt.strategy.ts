@@ -1,9 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 
 export interface JwtPayload {
   sub: string;
@@ -22,11 +23,25 @@ const REVALIDATE_TTL_MS = 15_000;
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(JwtStrategy.name);
   private cache = new Map<string, { at: number; user: AuthenticatedUser | null }>();
+  /**
+   * Whether revalidation is currently degraded, and how many requests were
+   * admitted on token claims while it has been.
+   *
+   * Kept as state so the warning fires on the TRANSITION rather than per
+   * request: this path runs on every authenticated call, and a busy instance
+   * would bury the log it is meant to draw attention to.
+   */
+  private degraded = false;
+  private admittedWhileDegraded = 0;
+  /** Fail CLOSED on a database error instead of trusting the token's claims. */
+  private readonly failClosed: boolean;
 
   constructor(
     config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -35,6 +50,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Pin the algorithm so a token can't be presented under a different alg.
       algorithms: ['HS256'],
     });
+    /*
+     * Default is fail-OPEN, which suits a self-hosted instance: during a
+     * database outage the torrent list, engine status and system pages still
+     * work — they read from the engine, not Postgres — and that is exactly when
+     * an operator needs to get in. A deployment with a different threat model
+     * (multi-user, internet-exposed) can invert it rather than patch it.
+     */
+    this.failClosed = String(process.env.AUTH_FAIL_CLOSED ?? '').toLowerCase() === 'true';
   }
 
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
@@ -46,9 +69,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // permissions / removed roles stayed in force, until the token expired.
     const current = await this.currentIdentity(payload.sub);
     if (current === undefined) {
-      // DB unreachable — fail OPEN to the (validly-signed, unexpired) token claims.
-      // Availability wins over the 15-second revocation tightening; the token is
-      // still cryptographically valid, so this is no worse than the prior behaviour.
+      /*
+       * DB unreachable — fall back to the (validly-signed, unexpired) token
+       * claims. Not a bypass: the token still had to be signed by us and be
+       * unexpired, so this is the posture the app had before revalidation
+       * existed. It widens the revocation window from ~15 seconds back to the
+       * token's remaining TTL, in BOTH directions — a permission granted during
+       * the outage does not take effect either, because the claims are frozen.
+       */
+      if (this.failClosed) {
+        throw new UnauthorizedException('Cannot verify the account right now');
+      }
+      this.enterDegraded();
       return {
         id: payload.sub,
         username: payload.username,
@@ -56,11 +88,48 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         permissions: payload.permissions ?? [],
       };
     }
+    // A definitive answer means revalidation is working again.
+    this.leaveDegraded();
     if (current === null) {
       // Definitive: the user is gone or deactivated. Fail closed.
       throw new UnauthorizedException('Account is no longer active');
     }
     return current;
+  }
+
+  /** First admission on stale claims in this outage: say so, once. */
+  private enterDegraded(): void {
+    this.admittedWhileDegraded += 1;
+    if (this.degraded) return;
+    this.degraded = true;
+    this.logger.warn(
+      'Account revalidation is DEGRADED — the database is unreachable, so requests are being ' +
+        'admitted on their token claims. A revoked account keeps access until its token expires.',
+    );
+  }
+
+  /** Back to normal: report how much was admitted, so the gap is answerable. */
+  private leaveDegraded(): void {
+    if (!this.degraded) return;
+    this.degraded = false;
+    const admitted = this.admittedWhileDegraded;
+    this.admittedWhileDegraded = 0;
+    this.logger.warn(
+      `Account revalidation recovered — ${admitted} request(s) were admitted on token claims ` +
+        'while the database was unreachable.',
+    );
+    /*
+     * Recorded on RECOVERY, not on entry: the audit log lives in the database
+     * that was unreachable, so the only moment this can be written is once it
+     * is back. That is what turns "was anyone acting on stale permissions
+     * during the outage?" from unanswerable into a query.
+     */
+    void this.audit.record({
+      action: 'auth.revalidation_degraded',
+      objectType: 'system',
+      result: 'success',
+      metadata: { admittedRequests: admitted },
+    });
   }
 
   /**
