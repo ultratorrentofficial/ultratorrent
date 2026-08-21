@@ -45,6 +45,18 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.85.6] - 2026-08-21
+
+### Fixed
+- Degraded account revalidation is now reported and auditable, and can be made fail-closed
+- A cleanup policy bounded by a library condition is no longer called unscoped, and the warning distinguishes examining from acting
+- Cleanup plan approve, reject and execute use app modals instead of browser dialogs
+- Every Media Purge confirmation is an app modal, and restore asks about overwriting with a checkbox instead of a second confirm
+- Trash retention of zero days purges immediately instead of keeping files forever
+- An expired quarantine item is purged after a grace window instead of sitting on disk forever
+- The trash listing agrees with the sweep at zero retention
+- Media Purge never removes media a live torrent is still seeding, and skips rather than guesses when the engine cannot be asked
+
 ## [0.85.5] - 2026-08-20
 
 ### Fixed
