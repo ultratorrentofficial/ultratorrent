@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { SettingsModule } from '../../settings/settings.module';
 import { FilesModule } from '../../files/files.module';
 import { ProtectionService } from './protection.service';
 import { PolicyService } from './policy.service';
@@ -23,7 +24,9 @@ import { CleanupController } from './cleanup.controller';
 @Module({
   // FilesModule supplies FilePathService (storage-scope confinement) and, from
   // Phase 8, FilesService/TrashService — cleanup never touches the filesystem itself.
-  imports: [FilesModule],
+  // SettingsModule: the quarantine sweep reads its grace window from settings,
+  // and this module is not inside the settings scope by default.
+  imports: [FilesModule, SettingsModule],
   providers: [ProtectionService, PolicyService, CandidateDiscoveryService, PlanService, QuarantineService, PlanExecutorService, CleanupSchedulerService, CleanupJobBridge, PlaybackAggregateService],
   controllers: [CleanupController],
   exports: [ProtectionService, PolicyService, CandidateDiscoveryService, PlanService, QuarantineService, PlanExecutorService, CleanupSchedulerService, CleanupJobBridge, PlaybackAggregateService],

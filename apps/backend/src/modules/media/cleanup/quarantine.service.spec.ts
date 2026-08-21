@@ -94,10 +94,13 @@ function makeService(over: {
   // Relocation bookkeeping: the records follow the file into quarantine and
   // back, so a restore rejoins the row that still holds its metadata.
   const relocation = { recordMoveSafe: jest.fn(async (_from: string, _to: string) => undefined) };
+  // Grace for auto-purge; a spec that wants a different window overrides it.
+  const settings = { get: jest.fn(async () => 7) };
   const service = new QuarantineService(
     prisma as never, audit as never, paths as never, protections as never, relocation as never,
+    settings as never,
   );
-  return { service, prisma, audit, updates, relocation, get row() { return row; } };
+  return { service, prisma, audit, updates, relocation, protections, settings, get row() { return row; } };
 }
 
 afterEach(() => jest.clearAllMocks());

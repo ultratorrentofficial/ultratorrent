@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
+import { SettingsService } from '../../settings/settings.module';
 import { paginate, parsePage } from '../../../common/pagination';
 import type { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
 import { FilePathService } from '../../files/file-path.service';
@@ -19,6 +20,10 @@ import { ProtectionService } from './protection.service';
  * "quarantine", it is an outage.
  */
 export const QUARANTINE_DIR_NAME = '.ultratorrent-quarantine';
+
+/** How long an expired item is kept before the sweep removes it. */
+export const QUARANTINE_GRACE_DAYS_KEY = 'library_cleanup.quarantineGraceDays';
+export const DEFAULT_QUARANTINE_GRACE_DAYS = 7;
 
 /** How often expired quarantine items are considered for purge. */
 const SWEEP_MS = 60 * 60 * 1000;
@@ -45,6 +50,8 @@ export class QuarantineService {
     private readonly paths: FilePathService,
     private readonly protections: ProtectionService,
     private readonly relocation: MediaRelocationService,
+    // Appended, never inserted: the specs construct this positionally.
+    private readonly settings: SettingsService,
   ) {}
 
   /**
@@ -221,13 +228,7 @@ export class QuarantineService {
       );
     }
 
-    if (!this.payloadIsRemovable(row)) {
-      throw new BadRequestException('Refusing to remove a path outside a quarantine directory');
-    }
-    await rm(row.quarantinePath, { recursive: true, force: true });
-    const updated = await this.prisma.mediaCleanupQuarantineItem.update({
-      where: { id }, data: { status: 'purged', purgedAt: new Date(), purgedById: user.id },
-    });
+    const updated = await this.removePayload(row, user.id);
 
     await this.audit.record({
       userId: user.id, action: 'library_cleanup.quarantine.purged',
@@ -251,8 +252,108 @@ export class QuarantineService {
         data: { status: 'expired' },
       });
       if (due.count) this.logger.log(`${due.count} quarantine item(s) passed their restore deadline`);
+      await this.purgeGraceElapsed(now);
     } catch (err) {
       this.logger.error(`Quarantine expiry sweep failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Remove expired items once their grace has elapsed.
+   *
+   * Expiry used to be the end of the line: an item was marked `expired` and then
+   * sat in the quarantine directory forever, renamed with an id prefix, waiting
+   * for a human who had no reason to look. That is the same unbounded growth the
+   * trash sweep exists to prevent, and there is no reading of "retention" that
+   * means "keep it indefinitely".
+   *
+   * Protection is re-evaluated per item, exactly as the manual purge does: a
+   * hold placed while the item sat here must still save it, and a sweep is
+   * precisely when nobody is watching.
+   */
+  private async purgeGraceElapsed(now: Date): Promise<void> {
+    const grace = await this.graceDays();
+    const cutoff = new Date(now.getTime() - grace * 86_400_000);
+    const rows = await this.prisma.mediaCleanupQuarantineItem.findMany({
+      where: { status: 'expired', restoreDeadline: { not: null, lte: cutoff } },
+      take: 200, // bounded: a sweep must not turn into an unbounded delete run
+    });
+    if (!rows.length) return;
+
+    let purged = 0;
+    let held = 0;
+    for (const row of rows) {
+      try {
+        const verdict = await this.protections.evaluate({
+          mediaItemId: row.mediaItemId ?? undefined,
+          mediaFileId: row.mediaFileId ?? undefined,
+          path: row.originalPath,
+        });
+        if (verdict.isProtected) {
+          held += 1;
+          continue;
+        }
+        await this.removePayload(row, null);
+        purged += 1;
+        await this.audit.record({
+          action: 'library_cleanup.quarantine.auto_purged',
+          objectType: 'media_cleanup_quarantine_item',
+          objectId: row.id,
+          result: 'success',
+          metadata: {
+            originalPath: row.originalPath,
+            bytes: Number(row.fileSizeBytes),
+            graceDays: grace,
+          },
+        });
+      } catch (err) {
+        // One undeletable payload must not strand the rest of the sweep.
+        this.logger.warn(`Auto-purge failed for ${row.id}: ${(err as Error).message}`);
+      }
+    }
+    if (purged || held) {
+      this.logger.log(
+        `Quarantine auto-purge: ${purged} removed after ${grace}d grace, ${held} kept by protection`,
+      );
+    }
+  }
+
+  /**
+   * The irreversible step, shared by the operator's purge and the sweep.
+   *
+   * `purgedById` is null for the sweep — nobody pressed anything, and recording
+   * a user who did not act would make the audit trail lie about who destroyed
+   * the file.
+   */
+  private async removePayload(
+    row: { id: string; quarantinePath: string; storageRoot: string },
+    userId: string | null,
+  ) {
+    if (!this.payloadIsRemovable(row as never)) {
+      throw new BadRequestException('Refusing to remove a path outside a quarantine directory');
+    }
+    await rm(row.quarantinePath, { recursive: true, force: true });
+    return this.prisma.mediaCleanupQuarantineItem.update({
+      where: { id: row.id },
+      data: { status: 'purged', purgedAt: new Date(), purgedById: userId },
+    });
+  }
+
+  /**
+   * How long an EXPIRED item is kept before the sweep removes it.
+   *
+   * Zero means remove as soon as the restore deadline passes — the same reading
+   * of zero the trash sweep uses, because "keep it for zero days" cannot
+   * sensibly mean "keep it forever" in one subsystem and "purge now" in another.
+   */
+  private async graceDays(): Promise<number> {
+    try {
+      const raw = await this.settings.get(QUARANTINE_GRACE_DAYS_KEY);
+      if (raw === undefined || raw === null || raw === '') return DEFAULT_QUARANTINE_GRACE_DAYS;
+      const n = typeof raw === 'number' ? raw : Number(raw);
+      return Number.isFinite(n) && n >= 0 ? n : DEFAULT_QUARANTINE_GRACE_DAYS;
+    } catch {
+      return DEFAULT_QUARANTINE_GRACE_DAYS;
     }
   }
 
