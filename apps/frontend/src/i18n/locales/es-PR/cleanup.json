@@ -237,7 +237,8 @@
     "cancel": "Cancelar",
     "close": "Cerrar",
     "loadError": "No se pudieron cargar los datos de purga",
-    "actionFailed": "La acción falló"
+    "actionFailed": "La acción falló",
+    "reason": "Motivo"
   },
   "template": {
     "oldUnwatchedLowRes": {

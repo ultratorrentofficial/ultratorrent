@@ -17,6 +17,7 @@ import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedbac
 import { formatBytes, formatRelativeTime } from '@/lib/format';
 import { CleanupHeader, StatusBadge, toNum } from './_shared';
 import { PlanActionsDialog } from './PlanActionsDialog';
+import { ConfirmDialog } from './ConfirmDialog';
 
 const ACTIVE = new Set(['executing']);
 
@@ -31,6 +32,12 @@ export function CleanupPlansPage() {
   const canCancel = usePermission(PERMISSIONS.LIBRARY_CLEANUP_CANCEL);
 
   const [page, setPage] = useState(1);
+  /*
+   * Which plan is awaiting confirmation, and for which act. One piece of state
+   * rather than three booleans: only one of these can be open at a time, and
+   * the plan being acted on has to travel with the answer.
+   */
+  const [confirming, setConfirming] = useState<{ plan: CleanupPlan; act: 'approve' | 'reject' | 'execute' } | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -112,13 +119,13 @@ export function CleanupPlansPage() {
                         <>
                           <Button
                             size="sm" variant="primary" disabled={!mayActOn(p) || approve.isPending}
-                            onClick={() => { if (window.confirm(t('plans.confirmApprove', { destination: t(`destination.${p.action}`, { defaultValue: p.action }) }))) approve.mutate(p.id); }}
+                            onClick={() => setConfirming({ plan: p, act: 'approve' })}
                           >
                             {t('plans.action.approve')}
                           </Button>
                           <Button
                             size="sm" variant="destructive"
-                            onClick={() => { const reason = window.prompt(t('plans.rejectReason')); if (reason) reject.mutate({ id: p.id, reason }); }}
+                            onClick={() => setConfirming({ plan: p, act: 'reject' })}
                           >
                             {t('plans.action.reject')}
                           </Button>
@@ -127,7 +134,7 @@ export function CleanupPlansPage() {
                       {p.status === 'approved' && mayActOn(p) && (
                         <Button
                           size="sm" variant="primary" loading={execute.isPending && execute.variables === p.id}
-                          onClick={() => { if (window.confirm(t('plans.confirmExecute'))) execute.mutate(p.id); }}
+                          onClick={() => setConfirming({ plan: p, act: 'execute' })}
                         >
                           {t('plans.action.execute')}
                         </Button>
@@ -146,6 +153,37 @@ export function CleanupPlansPage() {
 
       <Pagination page={page} pageSize={25} total={data?.total ?? 0} onPage={setPage} />
       {viewing && <PlanActionsDialog planId={viewing} onClose={() => setViewing(null)} />}
+
+      {confirming && (
+        <ConfirmDialog
+          open
+          destructive={confirming.act !== 'approve'}
+          reason={confirming.act === 'reject'}
+          reasonLabel={t('plans.rejectReason')}
+          busy={approve.isPending || reject.isPending || execute.isPending}
+          title={t(`plans.action.${confirming.act}` as 'plans.action.approve')}
+          body={
+            confirming.act === 'approve'
+              ? t('plans.confirmApprove', {
+                  destination: t(`destination.${confirming.plan.action}`, {
+                    defaultValue: confirming.plan.action,
+                  }),
+                })
+              : confirming.act === 'execute'
+                ? t('plans.confirmExecute')
+                : undefined
+          }
+          confirmLabel={t(`plans.action.${confirming.act}` as 'plans.action.approve')}
+          onClose={() => setConfirming(null)}
+          onConfirm={(reason) => {
+            const { plan, act } = confirming;
+            if (act === 'approve') approve.mutate(plan.id);
+            else if (act === 'execute') execute.mutate(plan.id);
+            else reject.mutate({ id: plan.id, reason });
+            setConfirming(null);
+          }}
+        />
+      )}
     </div>
   );
 }

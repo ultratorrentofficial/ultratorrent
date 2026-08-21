@@ -70,3 +70,6 @@ ops/*.local.md
 
 # Output from the /audit plugin — review reports, regenerated on demand.
 audit/
+
+# Private conversation logs — full memory across compaction, never published.
+ops/conversation-logs/

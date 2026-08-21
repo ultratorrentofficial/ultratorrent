@@ -237,7 +237,8 @@
     "cancel": "Cancel",
     "close": "Close",
     "loadError": "Could not load purge data",
-    "actionFailed": "Action failed"
+    "actionFailed": "Action failed",
+    "reason": "Reason"
   },
   "template": {
     "oldUnwatchedLowRes": {
