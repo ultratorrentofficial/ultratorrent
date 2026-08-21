@@ -227,3 +227,64 @@ describe('replacement and storage pressure', () => {
     expect(r.valid).toBe(true);
   });
 });
+
+/**
+ * Reported from the UI: a policy conditioned on the Movies library was told
+ * "not scoped and will evaluate every library". It was not — `condition-pushdown`
+ * turns `safety.libraryId eq …` into a query filter, so no other library is ever
+ * examined. The validator decided scope from `doc.scope` alone, so it and the
+ * executor disagreed about the same policy.
+ */
+describe('a condition can bound a policy as well as a scope', () => {
+  const pinnedToMovies = {
+    type: 'condition' as const,
+    field: 'safety.libraryId',
+    operator: 'eq' as const,
+    value: 'lib-movies',
+  };
+
+  it('does not warn when a condition pins the library', () => {
+    const r = validatePolicyDocument(reportOnly({ scope: {}, conditions: pinnedToMovies }));
+    expect(warnCodes(r)).not.toContain('scope.unbounded');
+  });
+
+  it('allows an automatic policy bounded only by that condition', () => {
+    // Previously refused outright — the same blind spot escalating from a
+    // warning to a hard error.
+    const r = validatePolicyDocument(autoTrash({ scope: {}, conditions: pinnedToMovies }));
+    expect(codes(r)).not.toContain('scope.unbounded_automatic');
+  });
+
+  it('still warns when the library condition sits under an OR', () => {
+    // An `any` branch bounds nothing: the other side can still match every
+    // library, so this must not be mistaken for a scope.
+    const r = validatePolicyDocument(reportOnly({
+      scope: {},
+      conditions: {
+        type: 'any',
+        children: [
+          pinnedToMovies,
+          { type: 'condition', field: 'metadata.releaseYear', operator: 'lt', value: 2001 },
+        ],
+      } as never,
+    }));
+    expect(warnCodes(r)).toContain('scope.unbounded');
+  });
+
+  it('accepts the pin nested inside an ALL group', () => {
+    // Nested conjunctions still bound; the walk descends them.
+    const r = validatePolicyDocument(reportOnly({
+      scope: {},
+      conditions: {
+        type: 'all',
+        children: [{ type: 'all', children: [pinnedToMovies] }],
+      } as never,
+    }));
+    expect(warnCodes(r)).not.toContain('scope.unbounded');
+  });
+
+  it('keeps warning a genuinely unbounded policy', () => {
+    const r = validatePolicyDocument(reportOnly({ scope: {} }));
+    expect(warnCodes(r)).toContain('scope.unbounded');
+  });
+});

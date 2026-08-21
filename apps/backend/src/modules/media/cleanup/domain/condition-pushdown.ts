@@ -116,6 +116,26 @@ function collect(
 }
 
 /**
+ * Does this condition tree bound the run to particular libraries?
+ *
+ * The validator warns that an unscoped policy "will evaluate every library",
+ * deciding that from `scope` alone — so a policy pinned to one library by a
+ * `safety.libraryId` CONDITION was told it was unbounded, and an automatic one
+ * was refused outright. That contradicted this file, which already narrows the
+ * query to that library before anything is examined.
+ *
+ * Answered here rather than in the validator so the two cannot drift: the same
+ * `all`-spine walk decides both, and an `any` branch bounds nothing because its
+ * other side can still match everything.
+ */
+export function boundsLibrary(conditions: PolicyConditionNode | undefined): boolean {
+  if (!conditions) return false;
+  const found: Record<string, unknown>[] = [];
+  collect(conditions, new Date(), found);
+  return found.some((fragment) => 'libraryId' in fragment);
+}
+
+/**
  * A Prisma `where` fragment narrowing the load to items that could still match.
  *
  * Empty when nothing is pushable, which simply restores the previous behaviour of

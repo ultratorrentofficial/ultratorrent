@@ -1,4 +1,5 @@
 import { getCondition } from './condition-catalog';
+import { boundsLibrary } from './condition-pushdown';
 import {
   POLICY_DOCUMENT_SCHEMA_VERSION, POLICY_LIMITS, countConditions, documentDepth, isGroup,
   type CleanupPolicyDocument, type PolicyConditionNode,
@@ -72,12 +73,26 @@ export function validatePolicyDocument(doc: CleanupPolicyDocument): PolicyValida
   // ── Scope ───────────────────────────────────────────────────────────────────
   const scope = doc.scope ?? {};
   const scoped = (scope.libraryIds?.length ?? 0) + (scope.libraryKinds?.length ?? 0) + (scope.pathPrefixes?.length ?? 0);
-  if (scoped === 0 && AUTOMATIC_MODES.has(doc.action?.mode)) {
+  /*
+   * A condition can bound the run just as a scope does. `safety.libraryId eq …`
+   * on the `all` spine is pushed into the query by `condition-pushdown`, so the
+   * policy never examines another library — but this check read `scope` alone
+   * and called such a policy unbounded, warning about it and REFUSING it
+   * outright in an automatic mode. The pushdown owns the rule; this asks it.
+   */
+  const boundedByCondition = boundsLibrary(doc.conditions);
+  if (scoped === 0 && !boundedByCondition && AUTOMATIC_MODES.has(doc.action?.mode)) {
     // An unscoped automatic policy addresses the entire library set at once.
     err('scope.unbounded_automatic',
       'An automatic policy must be scoped to at least one library, kind or path prefix.');
-  } else if (scoped === 0) {
-    warn('scope.unbounded', 'This policy is not scoped and will evaluate every library.');
+  } else if (scoped === 0 && !boundedByCondition) {
+    // "Evaluate", not "act on": an unscoped policy examines everything, but its
+    // conditions still decide what matches — and reading this as blast radius
+    // is what makes an operator scope a policy that did not need it.
+    warn(
+      'scope.unbounded',
+      'This policy is not scoped, so every library is examined — its conditions still decide what matches.',
+    );
   }
   for (const p of scope.pathPrefixes ?? []) {
     if (!p.startsWith('/')) err('scope.relative_path', `Path prefix "${p}" must be absolute.`, 'scope.pathPrefixes');
