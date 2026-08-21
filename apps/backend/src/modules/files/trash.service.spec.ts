@@ -25,7 +25,11 @@ function fakePrisma() {
       // ignoring it would let a broken sweep "pass" by deleting everything.
       findMany: jest.fn(async (args?: any) => {
         const lt = args?.where?.deletedAt?.lt as Date | undefined;
+        // The sweep queries `lte` so an item due exactly at the cutoff counts —
+        // which is every item when retention is zero.
+        const lte = args?.where?.deletedAt?.lte as Date | undefined;
         const rows = [...store.values()];
+        if (lte) return rows.filter((r) => r.deletedAt.getTime() <= lte.getTime());
         return lt ? rows.filter((r) => r.deletedAt.getTime() < lt.getTime()) : rows;
       }),
       findUnique: jest.fn(async ({ where }: any) => store.get(where.id) ?? null),
@@ -178,13 +182,30 @@ describe('TrashService — retention', () => {
     expect(item.expiresAt).toBe(expected.toISOString());
   });
 
-  it('reports no expiry and never prunes when retention is disabled', async () => {
+  /*
+   * Zero used to disable the sweep, so "retain for 0 days" meant "retain
+   * forever" — the most dangerous reading of that value, and a silent one,
+   * because the item also reported no expiry. Trash grew without bound with
+   * nothing on screen saying so. Zero now means what it says.
+   */
+  it('prunes immediately when retention is zero', async () => {
     const svc = build(0);
     await writeFile(join(root, 'c.txt'), 'data');
     const item = await svc.moveToTrash(join(root, 'c.txt'));
-    expect(item.expiresAt).toBeNull();
 
-    ageRow(item.id, 999);
+    // Due the moment it was trashed — a real instant, not "never".
+    expect(item.expiresAt).toBe(prisma.store.get(item.id).deletedAt.toISOString());
+    expect((await svc.pruneExpired()).removed).toBe(1);
+    expect(await svc.list()).toHaveLength(0);
+  });
+
+  it('still keeps an item inside a positive window', async () => {
+    // The change must not make every retention behave like zero.
+    const svc = build(7);
+    await writeFile(join(root, 'd.txt'), 'data');
+    const item = await svc.moveToTrash(join(root, 'd.txt'));
+
+    ageRow(item.id, 3);
     expect(await svc.pruneExpired()).toEqual({ removed: 0, bytes: 0 });
     expect(await svc.list()).toHaveLength(1);
   });

@@ -89,8 +89,9 @@ export class TrashService {
 
   /** Absolute expiry instant for an item, or `null` when retention is disabled. */
   expiryOf(deletedAt: Date, retentionDays: number): string | null {
-    if (retentionDays <= 0) return null;
-    return new Date(deletedAt.getTime() + retentionDays * MS_PER_DAY).toISOString();
+    // Zero retention expires the moment it is trashed; the item is due now, not
+    // never. Kept as a real instant so the UI can say "expired" rather than "—".
+    return new Date(deletedAt.getTime() + Math.max(0, retentionDays) * MS_PER_DAY).toISOString();
   }
 
   /**
@@ -106,10 +107,24 @@ export class TrashService {
    */
   async pruneExpired(): Promise<{ removed: number; bytes: number }> {
     const retentionDays = await this.retentionDays();
-    if (retentionDays <= 0) return { removed: 0, bytes: 0 };
-
-    const cutoff = new Date(Date.now() - retentionDays * MS_PER_DAY);
-    const rows = await this.prisma.trashItem.findMany({ where: { deletedAt: { lt: cutoff } } });
+    /*
+     * Zero days means keep it for zero days — prune everything now.
+     *
+     * It used to disable the sweep, which made "retain for 0 days" mean "retain
+     * forever": the most dangerous available reading of that value, and silent,
+     * because `expiryOf` also returned null so the UI showed no expiry either.
+     * Trash grew without bound and nothing said so. There is no setting for
+     * "keep indefinitely" any more — that is what NOT deleting a file is for.
+     */
+    const cutoff = new Date(Date.now() - Math.max(0, retentionDays) * MS_PER_DAY);
+    /*
+     * `lte`: an item due exactly at the cutoff IS due. With a positive window
+     * that is a millisecond's difference, but at zero retention the cutoff is
+     * "now" and a strict `lt` never matches an item trashed in the same
+     * millisecond — "purge immediately" would skip precisely the items it is
+     * meant to catch.
+     */
+    const rows = await this.prisma.trashItem.findMany({ where: { deletedAt: { lte: cutoff } } });
     if (!rows.length) return { removed: 0, bytes: 0 };
 
     let removed = 0;
