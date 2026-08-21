@@ -199,6 +199,14 @@ describe('TrashService — retention', () => {
     expect(await svc.list()).toHaveLength(0);
   });
 
+  it('does not list an item as recoverable at zero retention', async () => {
+    // The listing must not promise what the next sweep contradicts.
+    const svc = build(0);
+    await writeFile(join(root, 'e.txt'), 'data');
+    await svc.moveToTrash(join(root, 'e.txt'));
+    expect(await svc.list()).toHaveLength(0);
+  });
+
   it('still keeps an item inside a positive window', async () => {
     // The change must not make every retention behave like zero.
     const svc = build(7);

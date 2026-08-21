@@ -247,8 +247,14 @@ export class TrashService {
     const retentionDays = await this.retentionDays();
     const rows = await this.prisma.trashItem.findMany({ orderBy: { deletedAt: 'desc' } });
     const now = Date.now();
+    /*
+     * At zero retention nothing is live: every row is already due, so the
+     * listing must not advertise it as recoverable. This still read the old
+     * "zero disables retention" meaning and would have shown items the very
+     * next sweep deletes — the listing promising what the sweep contradicts.
+     */
     const live = rows.filter(
-      (r) => retentionDays <= 0 || r.deletedAt.getTime() + retentionDays * MS_PER_DAY > now,
+      (r) => retentionDays > 0 && r.deletedAt.getTime() + retentionDays * MS_PER_DAY > now,
     );
     if (live.length !== rows.length) {
       void this.pruneExpired().catch((err) =>
