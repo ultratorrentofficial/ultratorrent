@@ -96,6 +96,20 @@ const DEFINITIONS: readonly DomainEventDefinition[] = [
     deduplicationWindowSeconds: 3600,
   },
 
+  // --- Library cleanup ------------------------------------------------------
+  {
+    key: DOMAIN_EVENTS.LIBRARY_CLEANUP_SEEDING_UNVERIFIED,
+    description:
+      'A purge left media in place because the torrent engine could not be reached to confirm whether it is still seeding.',
+    requiredFields: ['planId', 'skipped'],
+    /*
+     * Six hours. An unreachable engine usually stays unreachable for a while,
+     * and every scheduled run in that window would otherwise raise the same
+     * alert — which is how a warning becomes something people filter out.
+     */
+    deduplicationWindowSeconds: 21600,
+  },
+
   // --- Storage -------------------------------------------------------------
   {
     key: DOMAIN_EVENTS.SYSTEM_STORAGE_WARNING,

@@ -160,6 +160,12 @@
         "title": "Roles de usuario cambiados",
         "description": "Los roles de una cuenta fueron cambiados."
       }
+    },
+    "library_cleanup": {
+      "seeding_unverified": {
+        "title": "La purga omitió medios que no pudo verificar",
+        "description": "Una limpieza dejó {{skipped}} elemento(s) en su sitio porque no se pudo contactar el cliente de torrents y no se pudo confirmar si siguen en seed. No se eliminó nada. Se reintentarán en la próxima ejecución."
+      }
     }
   },
   "inbox": {

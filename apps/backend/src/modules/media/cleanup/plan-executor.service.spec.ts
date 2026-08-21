@@ -120,13 +120,14 @@ function makeService(over: {
     ),
   };
   const moduleRef = { get: jest.fn(() => linkage) };
+  const bus = { publish: jest.fn() };
   const service = new PlanExecutorService(
     prisma as never, audit as never, protections as never, quarantine as never,
     discovery as never, files as never, paths as never, jobBridge as never,
-    moduleRef as never,
+    moduleRef as never, bus as never,
   );
   return {
-    service, prisma, audit, files, quarantine, protections, jobBridge, linkage, actionUpdates, planUpdates,
+    service, prisma, audit, files, quarantine, protections, jobBridge, linkage, bus, actionUpdates, planUpdates,
     get planRow() { return planRow; },
     skipReason() { return actionUpdates.find((u) => u.data.status === 'skipped')?.data.skipReason; },
   };
@@ -361,6 +362,39 @@ describe('the run excludes seeding media', () => {
 
     expect(t.skipReason()).toBe('seeding_unknown');
     expect(t.files.remove).not.toHaveBeenCalled();
+  });
+
+  it('raises an alert when it could not verify, once for the run', async () => {
+    /*
+     * The safe answer is invisible otherwise: the file stays, the plan says it
+     * should have gone, and nobody knows why. One entry for the run, because
+     * the cause is a single unreachable engine — one per action would bury the
+     * fact rather than report it.
+     */
+    const t = makeService();
+    t.linkage.liveHashesStrict = jest.fn(async () => null);
+
+    await t.service.execute('p1', user);
+
+    expect(t.bus.publish).toHaveBeenCalledTimes(1);
+    expect(t.bus.publish).toHaveBeenCalledWith(
+      expect.objectContaining({ eventKey: 'library_cleanup.seeding_unverified' }),
+    );
+  });
+
+  it('raises no alert when the engine answered', async () => {
+    // A skip for a torrent that IS seeding is a settled fact and needs no alert.
+    const t = makeService();
+    Object.assign(t.linkage, {
+      liveHashesStrict: jest.fn(async () => new Set(['abc'])),
+      torrentsForPaths: jest.fn(async () => [
+        { torrentHash: 'abc', sourcePath: ACTION.sourcePath, itemIds: ['i1'] },
+      ]),
+    });
+
+    await t.service.execute('p1', user);
+
+    expect(t.bus.publish).not.toHaveBeenCalled();
   });
 
   it('purges normally when the torrent is no longer live', async () => {

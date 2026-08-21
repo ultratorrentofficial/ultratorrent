@@ -160,6 +160,12 @@
         "title": "User roles changed",
         "description": "An account's roles were changed."
       }
+    },
+    "library_cleanup": {
+      "seeding_unverified": {
+        "title": "Purge skipped media it could not verify",
+        "description": "A cleanup run left {{skipped}} item(s) in place because the torrent engine could not be reached, so it could not confirm whether they are still being seeded. Nothing was deleted. The run will retry them next time."
+      }
     }
   },
   "inbox": {

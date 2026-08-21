@@ -56,6 +56,15 @@ export const DOMAIN_EVENTS = {
   TORRENT_SCHEDULER_SEED_TARGET_REACHED: 'torrent_scheduler.seed_target_reached',
   TORRENT_SCHEDULER_ACTION_FAILED: 'torrent_scheduler.action_failed',
 
+  // --- Library cleanup ------------------------------------------------------
+  /**
+   * A purge left media in place because it could not confirm whether a torrent
+   * was still seeding it. Not a failure of the run — the deliberate safe answer
+   * — but an operator has to be told, or the file simply never disappears and
+   * nobody knows why.
+   */
+  LIBRARY_CLEANUP_SEEDING_UNVERIFIED: 'library_cleanup.seeding_unverified',
+
   // --- Storage -------------------------------------------------------------
   SYSTEM_STORAGE_WARNING: 'system.storage_warning',
   SYSTEM_STORAGE_CRITICAL: 'system.storage_critical',

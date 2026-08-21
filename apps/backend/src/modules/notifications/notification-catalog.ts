@@ -88,6 +88,19 @@ const DEFINITIONS: readonly NotificationEventDefinition[] = [
 
   // --- Storage --------------------------------------------------------------
   {
+    key: DOMAIN_EVENTS.LIBRARY_CLEANUP_SEEDING_UNVERIFIED,
+    category: 'storage',
+    severity: 'warning',
+    titleKey: 'events.library_cleanup.seeding_unverified.title',
+    descriptionKey: 'events.library_cleanup.seeding_unverified.description',
+    // On by default: the whole point is that a silent skip leaves an operator
+    // wondering why a purge did less than its plan promised.
+    defaultInApp: true,
+    recipientStrategy: 'permission_holders',
+    requiredPermission: PERMISSIONS.LIBRARY_CLEANUP_VIEW,
+    presentationBuilder: 'storage',
+  },
+  {
     key: DOMAIN_EVENTS.SYSTEM_STORAGE_WARNING,
     category: 'storage',
     severity: 'warning',

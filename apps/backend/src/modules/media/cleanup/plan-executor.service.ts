@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DomainEventBus } from '../../domain-events/domain-event-bus.service';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import type { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
@@ -46,6 +48,7 @@ export class PlanExecutorService {
     // Appended, and resolved lazily below: importing MediaModule here would
     // close a module cycle that only fails at bootstrap.
     private readonly moduleRef: ModuleRef,
+    private readonly bus: DomainEventBus,
   ) {}
 
   /**
@@ -91,6 +94,22 @@ export class PlanExecutorService {
      * yesterday can name a file that started seeding since.
      */
     const seeding = await this.seedingGuard(actions);
+    if (seeding.unknown && actions.length) {
+      /*
+       * Raised once for the run, not per file: the cause is a single
+       * unreachable engine, and an inbox with one entry per action would bury
+       * the fact rather than report it.
+       *
+       * Told at all because the safe answer is invisible otherwise — the file
+       * simply stays, the plan says it should have gone, and nobody knows why.
+       */
+      this.bus.publish({
+        eventKey: DOMAIN_EVENTS.LIBRARY_CLEANUP_SEEDING_UNVERIFIED,
+        resourceType: 'media_cleanup_plan',
+        resourceId: planId,
+        payload: { planId, skipped: actions.length },
+      });
+    }
 
     let completed = 0, skipped = 0, failed = 0;
     let reclaimed = 0n;
