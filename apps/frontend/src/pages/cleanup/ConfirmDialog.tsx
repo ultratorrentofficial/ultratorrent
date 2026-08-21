@@ -31,6 +31,7 @@ export function ConfirmDialog({
   destructive = false,
   reason = false,
   reasonLabel,
+  checkbox,
   busy = false,
   onConfirm,
   onClose,
@@ -43,18 +44,28 @@ export function ConfirmDialog({
   /** Require a free-text justification before confirming. */
   reason?: boolean;
   reasonLabel?: string;
+  /**
+   * An extra yes/no that belongs to the SAME decision — e.g. "overwrite an
+   * existing file" on a restore. It exists because the alternative in the wild
+   * was a second `window.confirm`, where Cancel meant "no, but proceed anyway"
+   * rather than "abort" — a question whose most obvious reading was wrong.
+   */
+  checkbox?: { label: string; defaultChecked?: boolean };
   busy?: boolean;
-  onConfirm: (reason: string) => void;
+  onConfirm: (result: { reason: string; checked: boolean }) => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation('cleanup');
   const [text, setText] = useState('');
+  const [checked, setChecked] = useState(checkbox?.defaultChecked ?? false);
 
   // Reopening must not inherit the last answer — a reason typed for one plan
   // is not a reason for the next.
   useEffect(() => {
-    if (open) setText('');
-  }, [open]);
+    if (!open) return;
+    setText('');
+    setChecked(checkbox?.defaultChecked ?? false);
+  }, [open, checkbox?.defaultChecked]);
 
   if (!open) return null;
   const blocked = reason && !text.trim();
@@ -75,10 +86,22 @@ export function ConfirmDialog({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !blocked) onConfirm(text.trim());
+              if (e.key === 'Enter' && !blocked) onConfirm({ reason: text.trim(), checked });
             }}
           />
         </div>
+      )}
+
+      {checkbox && (
+        <label className="flex items-center gap-2 py-2 text-sm">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => setChecked(e.target.checked)}
+            className="h-4 w-4 accent-sky-400"
+          />
+          {checkbox.label}
+        </label>
       )}
 
       <DialogFooter>
@@ -87,7 +110,7 @@ export function ConfirmDialog({
           variant={destructive ? 'destructive' : 'primary'}
           disabled={blocked}
           loading={busy}
-          onClick={() => onConfirm(text.trim())}
+          onClick={() => onConfirm({ reason: text.trim(), checked })}
         >
           {confirmLabel}
         </Button>

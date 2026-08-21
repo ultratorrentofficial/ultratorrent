@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import { ConfirmDialog } from './ConfirmDialog';
 import { usePermission } from '@/auth/AuthContext';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,6 +24,14 @@ export function CleanupQuarantinePage() {
   const canRestore = usePermission(PERMISSIONS.LIBRARY_CLEANUP_RESTORE);
   const canPurge = usePermission(PERMISSIONS.LIBRARY_CLEANUP_PERMANENT_DELETE);
   const [page, setPage] = useState(1);
+  /*
+   * Restore and purge both ask before acting, and only one can be open at a
+   * time — so the row travels with the question rather than living in three
+   * booleans that could disagree.
+   */
+  const [confirming, setConfirming] = useState<
+    { item: { id: string; originalPath?: string | null }; act: 'restore' | 'purge' } | null
+  >(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['cleanup', 'quarantine', 'list', page],
@@ -73,11 +82,7 @@ export function CleanupQuarantinePage() {
                       {canRestore && (
                         <Button
                           size="sm" variant="secondary"
-                          onClick={() => {
-                            if (!window.confirm(t('quarantine.confirmRestore'))) return;
-                            const overwrite = window.confirm(t('quarantine.overwrite'));
-                            restore.mutate({ id: q.id, overwrite });
-                          }}
+                          onClick={() => setConfirming({ item: q, act: 'restore' })}
                         >
                           {t('quarantine.restore')}
                         </Button>
@@ -87,7 +92,7 @@ export function CleanupQuarantinePage() {
                       {canPurge && (
                         <Button
                           size="sm" variant="destructive"
-                          onClick={() => { if (window.confirm(t('quarantine.confirmPurge'))) purge.mutate(q.id); }}
+                          onClick={() => setConfirming({ item: q, act: 'purge' })}
                         >
                           {t('quarantine.purge')}
                         </Button>
@@ -99,6 +104,34 @@ export function CleanupQuarantinePage() {
             </TableBody>
           </Table>
         </CardContent></Card>
+      )}
+
+      {confirming && (
+        <ConfirmDialog
+          open
+          destructive={confirming.act === 'purge'}
+          busy={restore.isPending || purge.isPending}
+          title={t(`quarantine.${confirming.act}` as 'quarantine.restore')}
+          body={t(
+            confirming.act === 'purge' ? 'quarantine.confirmPurge' : 'quarantine.confirmRestore',
+          )}
+          /*
+           * A checkbox, not a second confirm. The old flow asked "overwrite?" in
+           * another dialog whose Cancel meant "restore without overwriting" —
+           * the most obvious reading of that button was the wrong one.
+           */
+          checkbox={
+            confirming.act === 'restore' ? { label: t('quarantine.overwrite') } : undefined
+          }
+          confirmLabel={t(`quarantine.${confirming.act}` as 'quarantine.restore')}
+          onClose={() => setConfirming(null)}
+          onConfirm={({ checked }) => {
+            const { item, act } = confirming;
+            if (act === 'purge') purge.mutate(item.id);
+            else restore.mutate({ id: item.id, overwrite: checked });
+            setConfirming(null);
+          }}
+        />
       )}
 
       <Pagination page={page} pageSize={50} total={data?.total ?? 0} onPage={setPage} />

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { FileCog, Plus, LayoutTemplate } from 'lucide-react';
 import { api, ApiError, type CleanupPolicy } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import { ConfirmDialog } from './ConfirmDialog';
 import { usePermission } from '@/auth/AuthContext';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { Card, CardContent } from '@/components/ui/card';
@@ -32,6 +33,10 @@ export function CleanupPoliciesPage() {
   const canRun = usePermission(PERMISSIONS.LIBRARY_CLEANUP_RUN);
   const canSimulate = usePermission(PERMISSIONS.LIBRARY_CLEANUP_SIMULATE);
   const canEdit = usePermission(PERMISSIONS.LIBRARY_CLEANUP_POLICY_EDIT);
+
+  /* Enabling starts acting on real media; deleting is irreversible. Both ask. */
+
+  const [confirming, setConfirming] = useState<{ id: string; act: 'enable' | 'delete' } | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -115,10 +120,10 @@ export function CleanupPoliciesPage() {
                   key={p.id} p={p}
                   perms={{ canPublish, canEnable, canDelete, canRun, canSimulate, canEdit }}
                   onPublish={() => publish.mutate(p.id)}
-                  onEnable={() => { if (window.confirm(t('policies.confirmEnable'))) enable.mutate(p.id); }}
+                  onEnable={() => setConfirming({ id: p.id, act: 'enable' })}
                   onDisable={() => disable.mutate(p.id)}
                   onArchive={() => archive.mutate(p.id)}
-                  onDelete={() => { if (window.confirm(t('policies.confirmDelete'))) remove.mutate(p.id); }}
+                  onDelete={() => setConfirming({ id: p.id, act: 'delete' })}
                   onSimulate={() => simulate.mutate(p.id)}
                   onRun={() => { if (!p.publishedVersionId) { toast.error(t('policies.publishFirst')); return; } run.mutate(p.id); }}
                   onEditDraft={() => setDraftPolicyId(p.id)}
@@ -133,6 +138,28 @@ export function CleanupPoliciesPage() {
       {createOpen && <CreatePolicyDialog onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); invalidate(); }} />}
       {templateOpen && <TemplateDialog onClose={() => setTemplateOpen(false)} onCreated={() => { setTemplateOpen(false); invalidate(); }} />}
       {draftPolicyId && <PolicyDraftDialog policyId={draftPolicyId} onClose={() => setDraftPolicyId(null)} onSaved={invalidate} />}
+      {confirming && (
+        <ConfirmDialog
+          open
+          destructive={confirming.act === 'delete'}
+          busy={enable.isPending || remove.isPending}
+          title={t(`policies.action.${confirming.act}` as 'policies.action.enable', {
+            defaultValue: t(`policies.confirm${confirming.act === 'delete' ? 'Delete' : 'Enable'}` as 'policies.confirmEnable'),
+          })}
+          body={t(
+            confirming.act === 'delete' ? 'policies.confirmDelete' : 'policies.confirmEnable',
+          )}
+          confirmLabel={t(confirming.act === 'delete' ? 'common.confirm' : 'common.confirm')}
+          onClose={() => setConfirming(null)}
+          onConfirm={() => {
+            const { id, act } = confirming;
+            if (act === 'delete') remove.mutate(id);
+            else enable.mutate(id);
+            setConfirming(null);
+          }}
+        />
+      )}
+
     </div>
   );
 }

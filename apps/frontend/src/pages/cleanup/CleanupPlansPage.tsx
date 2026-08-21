@@ -175,7 +175,7 @@ export function CleanupPlansPage() {
           }
           confirmLabel={t(`plans.action.${confirming.act}` as 'plans.action.approve')}
           onClose={() => setConfirming(null)}
-          onConfirm={(reason) => {
+          onConfirm={({ reason }) => {
             const { plan, act } = confirming;
             if (act === 'approve') approve.mutate(plan.id);
             else if (act === 'execute') execute.mutate(plan.id);

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ShieldCheck, Plus, AlertTriangle } from 'lucide-react';
 import { api, ApiError, type CleanupCreateProtection } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import { ConfirmDialog } from './ConfirmDialog';
 import { usePermission } from '@/auth/AuthContext';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,6 +32,8 @@ export function CleanupProtectionsPage() {
   const qc = useQueryClient();
   const canCreate = usePermission(PERMISSIONS.LIBRARY_CLEANUP_PROTECTION_CREATE);
   const canRevoke = usePermission(PERMISSIONS.LIBRARY_CLEANUP_PROTECTION_REVOKE);
+  /* A revocation must carry a reason — `prompt` could not require one. */
+  const [revoking, setRevoking] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -106,7 +109,7 @@ export function CleanupProtectionsPage() {
                       {canRevoke && (
                         <Button
                           size="sm" variant="destructive"
-                          onClick={() => { const reason = window.prompt(t('protections.revokeReason')); if (reason) revoke.mutate({ id: p.id, reason }); }}
+                          onClick={() => setRevoking(p.id)}
                         >
                           {t('protections.revoke')}
                         </Button>
@@ -118,6 +121,23 @@ export function CleanupProtectionsPage() {
             </TableBody>
           </Table>
         </CardContent></Card>
+      )}
+
+      {revoking && (
+        <ConfirmDialog
+          open
+          destructive
+          reason
+          reasonLabel={t('protections.revokeReason')}
+          busy={revoke.isPending}
+          title={t('protections.revoke')}
+          confirmLabel={t('protections.revoke')}
+          onClose={() => setRevoking(null)}
+          onConfirm={({ reason }) => {
+            revoke.mutate({ id: revoking, reason });
+            setRevoking(null);
+          }}
+        />
       )}
 
       <Pagination page={page} pageSize={50} total={data?.total ?? 0} onPage={setPage} />
