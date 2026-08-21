@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import type { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
@@ -42,6 +43,9 @@ export class PlanExecutorService {
     private readonly files: FilesService,
     private readonly paths: FilePathService,
     private readonly jobBridge: CleanupJobBridge,
+    // Appended, and resolved lazily below: importing MediaModule here would
+    // close a module cycle that only fails at bootstrap.
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /**
@@ -75,11 +79,38 @@ export class PlanExecutorService {
       orderBy: { sourcePath: 'asc' },
     });
 
+    /*
+     * Seeding media is never purged.
+     *
+     * Deleting the library copy of a hardlink import frees nothing — the
+     * torrent still holds the bytes — and breaks the seed, which is the worst
+     * of both outcomes. Asked once for the whole plan rather than per action,
+     * because it is one call to the engine.
+     *
+     * Checked HERE rather than at plan time on purpose: a plan approved
+     * yesterday can name a file that started seeding since.
+     */
+    const seeding = await this.seedingGuard(actions);
+
     let completed = 0, skipped = 0, failed = 0;
     let reclaimed = 0n;
 
     for (const action of actions) {
       try {
+        if (seeding.unknown || seeding.blocked.has(action.id)) {
+          await this.prisma.mediaCleanupAction.update({
+            where: { id: action.id },
+            data: {
+              status: 'skipped',
+              // Two different facts, and an operator needs to tell them apart:
+              // "this is seeding" is settled, "we could not ask" is not.
+              skipReason: seeding.unknown ? 'seeding_unknown' : 'seeding',
+              completedAt: new Date(),
+            },
+          });
+          skipped += 1;
+          continue;
+        }
         const outcome = await this.executeAction(action, plan, user);
         if (outcome.status === 'completed') {
           completed += 1;
@@ -121,6 +152,46 @@ export class PlanExecutorService {
   }
 
   // ── one file ───────────────────────────────────────────────────────────────
+  /**
+   * Which actions in this plan name media a live torrent is still seeding.
+   *
+   * `unknown` when the engine could not be asked: the run then skips
+   * everything rather than assuming nothing is seeding. Deleting something that
+   * might still be seeding is the direction that cannot be undone, and a purge
+   * that waits for the next run costs nothing.
+   */
+  private async seedingGuard(
+    actions: Array<{ id: string; sourcePath: string; mediaItemId: string | null }>,
+  ): Promise<{ blocked: Set<string>; unknown: boolean }> {
+    const blocked = new Set<string>();
+    if (!actions.length) return { blocked, unknown: false };
+
+    const { MediaLinkageService } = await import('../media-linkage.service');
+    const linkage = this.moduleRef.get(MediaLinkageService, { strict: false });
+
+    const live = await linkage.liveHashesStrict();
+    if (!live) return { blocked, unknown: true };
+    if (!live.size) return { blocked, unknown: false };
+
+    const torrents = await linkage.torrentsForPaths(actions.map((a) => a.sourcePath));
+    for (const t of torrents) {
+      if (!live.has((t.torrentHash ?? '').toLowerCase())) continue;
+      const payload = t.sourcePath ?? '';
+      for (const action of actions) {
+        const p = action.sourcePath;
+        const related =
+          (action.mediaItemId && (t.itemIds ?? []).includes(action.mediaItemId)) ||
+          p === payload ||
+          // A file inside the payload, or a folder containing it: either way the
+          // same bytes are being seeded.
+          (payload && p.startsWith(`${payload}/`)) ||
+          (p && payload.startsWith(`${p}/`));
+        if (related) blocked.add(action.id);
+      }
+    }
+    return { blocked, unknown: false };
+  }
+
   private async executeAction(
     action: {
       id: string; sourcePath: string; pinnedFingerprint: string; actionType: string;

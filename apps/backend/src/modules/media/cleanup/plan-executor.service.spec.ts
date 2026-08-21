@@ -106,12 +106,27 @@ function makeService(over: {
     finish: jest.fn(async () => undefined),
   };
 
+  /*
+   * The seeding guard resolves MediaLinkageService lazily. Default here is an
+   * engine that reports nothing seeding, so the existing cases still exercise
+   * the executor rather than the guard; the guard has its own spec.
+   */
+  const linkage = {
+    // Typed to allow `null`, which is the whole point of the strict variant:
+    // "could not ask" is a different answer from "nothing is seeding".
+    liveHashesStrict: jest.fn(async (): Promise<Set<string> | null> => new Set<string>()),
+    torrentsForPaths: jest.fn(
+      async (): Promise<Array<{ torrentHash: string; sourcePath: string; itemIds: string[] }>> => [],
+    ),
+  };
+  const moduleRef = { get: jest.fn(() => linkage) };
   const service = new PlanExecutorService(
     prisma as never, audit as never, protections as never, quarantine as never,
     discovery as never, files as never, paths as never, jobBridge as never,
+    moduleRef as never,
   );
   return {
-    service, prisma, audit, files, quarantine, protections, jobBridge, actionUpdates, planUpdates,
+    service, prisma, audit, files, quarantine, protections, jobBridge, linkage, actionUpdates, planUpdates,
     get planRow() { return planRow; },
     skipReason() { return actionUpdates.find((u) => u.data.status === 'skipped')?.data.skipReason; },
   };
@@ -293,5 +308,77 @@ describe('how the work is actually done', () => {
     const result = await h.service.execute('p1', user);
     expect(result.completed).toBe(2);
     expect(h.planRow!.actualReclaimBytes).toBe(4096n);
+  });
+});
+
+/**
+ * Seeding media is never purged.
+ *
+ * Deleting the library copy of a hardlink import frees nothing — the torrent
+ * still holds the bytes — and breaks the seed: the worst of both outcomes. The
+ * check runs at EXECUTE time rather than at plan time because a plan approved
+ * yesterday can name a file that started seeding since.
+ */
+describe('the run excludes seeding media', () => {
+  const seedingEngine = (h: { hash?: string; sourcePath?: string; itemIds?: string[] }) => ({
+    liveHashesStrict: jest.fn(async () => new Set([h.hash ?? 'abc'])),
+    torrentsForPaths: jest.fn(async () => [
+      { torrentHash: h.hash ?? 'abc', sourcePath: h.sourcePath ?? ACTION.sourcePath, itemIds: h.itemIds ?? [] },
+    ]),
+  });
+
+  it('skips an action whose file a live torrent is seeding', async () => {
+    const t = makeService();
+    Object.assign(t.linkage, seedingEngine({}));
+
+    await t.service.execute('p1', user);
+
+    expect(t.skipReason()).toBe('seeding');
+    expect(t.files.remove).not.toHaveBeenCalled();
+  });
+
+  it('matches through the item as well as the path', async () => {
+    // Intake links a torrent to the library item it produced; the paths need
+    // not be identical for the same bytes to be at stake.
+    const t = makeService();
+    Object.assign(t.linkage, seedingEngine({ sourcePath: '/downloads/Intake/Film', itemIds: ['i1'] }));
+
+    await t.service.execute('p1', user);
+
+    expect(t.skipReason()).toBe('seeding');
+  });
+
+  it('skips everything when the engine cannot be asked', async () => {
+    /*
+     * `null` means unknown, never "nothing is seeding". Deleting something that
+     * might still be seeding cannot be undone; a purge that waits for the next
+     * run costs nothing.
+     */
+    const t = makeService();
+    t.linkage.liveHashesStrict = jest.fn(async () => null);
+
+    await t.service.execute('p1', user);
+
+    expect(t.skipReason()).toBe('seeding_unknown');
+    expect(t.files.remove).not.toHaveBeenCalled();
+  });
+
+  it('purges normally when the torrent is no longer live', async () => {
+    // A stale intake row must not protect a file forever — live state decides.
+    const t = makeService();
+    t.linkage.liveHashesStrict = jest.fn(async () => new Set(['some-other-hash']));
+    t.linkage.torrentsForPaths = jest.fn(async () => [
+      { torrentHash: 'abc', sourcePath: ACTION.sourcePath, itemIds: ['i1'] },
+    ]);
+
+    await t.service.execute('p1', user);
+
+    expect(t.files.remove).toHaveBeenCalled();
+  });
+
+  it('does not ask the engine for an empty plan', async () => {
+    const t = makeService({ actions: [] });
+    await t.service.execute('p1', user);
+    expect(t.linkage.liveHashesStrict).not.toHaveBeenCalled();
   });
 });

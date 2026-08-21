@@ -154,6 +154,20 @@ export class MediaLinkageService {
    * close a module cycle that fails only at bootstrap.
    */
   async liveHashes(): Promise<Set<string>> {
+    return (await this.liveHashesStrict()) ?? new Set();
+  }
+
+  /**
+   * The same question, answered honestly when the engine cannot be reached:
+   * `null` means UNKNOWN, not "nothing is seeding".
+   *
+   * The distinction decides opposite behaviours in the two callers. A delete
+   * preflight must not be blocked by an unreachable engine, so it treats
+   * unknown as "nothing to warn about" — {@link liveHashes}. A purge must do
+   * the reverse and skip the item, because deleting something that might still
+   * be seeding is the direction that cannot be undone.
+   */
+  async liveHashesStrict(): Promise<Set<string> | null> {
     try {
       const { TorrentsService } = await import('../torrents/torrents.service');
       const torrents = this.moduleRef.get(TorrentsService, { strict: false });
@@ -166,8 +180,25 @@ export class MediaLinkageService {
       // A preflight that cannot reach the engine must not block a delete; it
       // reports what it knows and says nothing it cannot support.
       this.logger.warn(`Could not read live torrents: ${(err as Error).message}`);
-      return new Set();
+      return null;
     }
+  }
+
+  /**
+   * Item ids a live torrent is seeding, or `null` when the engine could not be
+   * asked. Callers that destroy media must treat `null` as "skip everything",
+   * never as "nothing is seeding".
+   */
+  async seedingItemIdsStrict(itemIds: readonly string[]): Promise<Set<string> | null> {
+    const live = await this.liveHashesStrict();
+    if (!live) return null;
+    const torrents = await this.torrentsForItems(itemIds);
+    const seeding = new Set<string>();
+    for (const t of torrents) {
+      if (!live.has((t.torrentHash ?? '').toLowerCase())) continue;
+      for (const id of t.itemIds ?? []) seeding.add(id);
+    }
+    return seeding;
   }
 
   /** Item ids, within the given set, that a live torrent is still seeding. */
