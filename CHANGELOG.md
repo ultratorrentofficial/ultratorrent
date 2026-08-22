@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.85.9] - 2026-08-22
+
+### Fixed
+- an operations snapshot reads the torrents the poller already fetched instead of asking the engines again
+- UltraTorrent Console: a read-only terminal client, built and shipped as a static binary
+- the console streams live events over the operations channel
+- the console renders as a pane grid instead of a stacked column
+
 ## [0.85.8] - 2026-08-22
 
 ### Fixed
