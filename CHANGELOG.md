@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.85.7] - 2026-08-22
+
+### Fixed
+- A purge that cannot verify seeding raises an alert instead of skipping silently
+
 ## [0.85.6] - 2026-08-21
 
 ### Fixed
