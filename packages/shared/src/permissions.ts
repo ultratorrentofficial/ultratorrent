@@ -218,6 +218,24 @@ export const PERMISSIONS = {
   /// this feature promises never to do by itself.
   MEDIA_INTAKE_MIGRATE: 'media_intake.migrate',
 
+  /**
+   * UltraTorrent Console — may authenticate and use the terminal observability
+   * client.
+   *
+   * This grants ACCESS TO THE CLIENT, and nothing else. Every operational
+   * domain the console shows is still gated by that domain's own view
+   * permission (`torrents.view`, `jobs.view`, `media_intake.view`, …), so a
+   * console user sees exactly what the same account sees in the web app — no
+   * more. It exists so an operator can hand out console access without it
+   * meaning "and therefore everything", and so console use is a separate,
+   * revocable, auditable fact.
+   *
+   * There is deliberately no `console.admin` and no all-monitoring shortcut:
+   * a grant that bypassed domain permissions would make the console the one
+   * client where RBAC does not apply, which is the opposite of the point.
+   */
+  CONSOLE_VIEW: 'console.view',
+
   LIBRARY_CLEANUP_VIEW: 'library_cleanup.view',
   LIBRARY_CLEANUP_POLICY_CREATE: 'library_cleanup.policy.create',
   LIBRARY_CLEANUP_POLICY_EDIT: 'library_cleanup.policy.edit',
@@ -276,6 +294,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     (p) => !NEVER_INHERITED_PERMISSIONS.includes(p),
   ),
   [SystemRole.POWER_USER]: [
+    PERMISSIONS.CONSOLE_VIEW,
     PERMISSIONS.NOTIFICATIONS_VIEW_OWN,
     PERMISSIONS.NOTIFICATIONS_MANAGE_OWN,
     PERMISSIONS.NOTIFICATIONS_CHANNELS_MANAGE_OWN,
@@ -361,6 +380,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.JOBS_VIEW_WORKERS,
   ],
   [SystemRole.USER]: [
+    PERMISSIONS.CONSOLE_VIEW,
     PERMISSIONS.NOTIFICATIONS_VIEW_OWN,
     PERMISSIONS.NOTIFICATIONS_MANAGE_OWN,
     PERMISSIONS.NOTIFICATIONS_CHANNELS_MANAGE_OWN,
@@ -386,6 +406,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     PERMISSIONS.JOBS_VIEW_EVENTS,
   ],
   [SystemRole.READ_ONLY]: [
+    PERMISSIONS.CONSOLE_VIEW,
     PERMISSIONS.NOTIFICATIONS_VIEW_OWN,
     PERMISSIONS.NOTIFICATIONS_MANAGE_OWN,
     PERMISSIONS.NOTIFICATIONS_CHANNELS_MANAGE_OWN,

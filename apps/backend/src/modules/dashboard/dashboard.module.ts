@@ -497,5 +497,8 @@ export class DashboardController {
 @Module({
   providers: [DashboardService],
   controllers: [DashboardController],
+  // Exported for the operations module, which projects the same summary and
+  // activity feed into the console snapshot rather than recomputing either.
+  exports: [DashboardService],
 })
 export class DashboardModule {}

@@ -18,7 +18,7 @@ Esta página se genera desde `los decoradores @Controller / @Get / @RequirePermi
 Cada endpoint de abajo se leyó de los controladores mismos, incluyendo el **permiso
 exacto** que exige su guard.
 
-- **368 endpoints** en **19 controladores**
+- **468 endpoints** en **24 controladores**
 - URL base: `http://<host>:<port>/api`
 
 ## Autenticación
@@ -101,6 +101,31 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/torrents" -Headers $headers
 </TabItem>
 </Tabs>
 
+## `/account/notifications`
+
+From `AccountNotificationsController`.
+
+| Método | Ruta | Permiso | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/account/notifications/events` | `NOTIFICATIONS_VIEW_OWN` | `listEvents` |
+| `GET` | `/api/account/notifications/preferences` | `NOTIFICATIONS_VIEW_OWN` | `listPreferences` |
+| `PUT` | `/api/account/notifications/preferences/:eventKey` | `NOTIFICATIONS_MANAGE_OWN` | `updatePreference` |
+| `POST` | `/api/account/notifications/preferences/bulk` | `NOTIFICATIONS_MANAGE_OWN` | `bulkUpdate` |
+| `GET` | `/api/account/notifications/channels` | `NOTIFICATIONS_VIEW_OWN` | `listChannels` |
+| `POST` | `/api/account/notifications/channels/telegram/link` | `NOTIFICATIONS_CHANNELS_MANAGE_OWN` | `linkTelegram` |
+| `POST` | `/api/account/notifications/channels/telegram/confirm` | `NOTIFICATIONS_CHANNELS_MANAGE_OWN` | `confirmTelegram` |
+| `POST` | `/api/account/notifications/channels/email` | `NOTIFICATIONS_CHANNELS_MANAGE_OWN` | `connectEmail` |
+| `POST` | `/api/account/notifications/channels/discord` | `NOTIFICATIONS_CHANNELS_MANAGE_OWN` | `connectDiscord` |
+| `POST` | `/api/account/notifications/channels/:type/test` | `NOTIFICATIONS_CHANNELS_MANAGE_OWN` | `testChannel` |
+| `DELETE` | `/api/account/notifications/channels/:type` | `NOTIFICATIONS_CHANNELS_MANAGE_OWN` | `disconnect` |
+| `POST` | `/api/account/notifications/channels/telegram/bot` | `NOTIFICATIONS_CHANNELS_MANAGE_OWN` | `setTelegramBot` |
+| `GET` | `/api/account/notifications/inbox` | `NOTIFICATIONS_VIEW_OWN` | `listInbox` |
+| `GET` | `/api/account/notifications/inbox/unread-count` | `NOTIFICATIONS_VIEW_OWN` | `unreadCount` |
+| `POST` | `/api/account/notifications/inbox/mark-all-read` | `NOTIFICATIONS_MANAGE_OWN` | `markAllRead` |
+| `POST` | `/api/account/notifications/inbox/:id/read` | `NOTIFICATIONS_MANAGE_OWN` | `markRead` |
+| `POST` | `/api/account/notifications/inbox/:id/unread` | `NOTIFICATIONS_MANAGE_OWN` | `markUnread` |
+| `POST` | `/api/account/notifications/inbox/:id/archive` | `NOTIFICATIONS_MANAGE_OWN` | `archive` |
+
 ## `/audit`
 
 From `AuditController`.
@@ -120,6 +145,14 @@ From `AuthController`.
 | `POST` | `/api/auth/logout` | — | `logout` |
 | `GET` | `/api/auth/me` | — | `me` |
 | `POST` | `/api/auth/change-password` | — | `changePassword` |
+
+## `/context-actions`
+
+From `ContextActionsController`.
+
+| Método | Ruta | Permiso | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/context-actions/catalog` | — | `catalog` |
 
 ## `/engines`
 
@@ -145,6 +178,8 @@ From `FilesController`.
 | `PUT` | `/api/files/root` | `SETTINGS_MANAGE_ROOT_PATH` | `setRoot` |
 | `GET` | `/api/files/properties` | `FILES_VIEW` | `properties` |
 | `GET` | `/api/files/preview` | `FILES_PREVIEW` | `preview` |
+| `POST` | `/api/files/media-ticket` | `FILES_PREVIEW` | `mediaTicket` |
+| `GET` | `/api/files/stream` | — | `stream` |
 | `GET` | `/api/files/download` | `FILES_DOWNLOAD` | `download` |
 | `GET` | `/api/files/inspect` | `FILES_VIEW` | `inspect` |
 | `POST` | `/api/files/folders` | `FILES_CREATE_FOLDER` | `createFolder` |
@@ -152,6 +187,8 @@ From `FilesController`.
 | `POST` | `/api/files/rename` | `FILES_RENAME` | `rename` |
 | `POST` | `/api/files/move` | `FILES_MOVE` | `move` |
 | `POST` | `/api/files/copy` | `FILES_COPY` | `copy` |
+| `POST` | `/api/files/delete/preview` | `FILES_DELETE` | `previewDelete` |
+| `POST` | `/api/files/bulk/delete-preview` | `FILES_DELETE` | `previewBulkDelete` |
 | `POST` | `/api/files/delete` | `FILES_DELETE` | `remove` |
 | `POST` | `/api/files/bulk` | `FILES_BULK_ACTIONS` | `bulk` |
 | `POST` | `/api/files/move-conflicts` | `FILES_VIEW` | `moveConflicts` |
@@ -227,32 +264,57 @@ From `MediaController`.
 
 | Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
+| `GET` | `/api/media/repair/movie-identity/preview` | `MEDIA_MANAGER_VIEW` | `previewIdentityRepair` |
+| `POST` | `/api/media/repair/movie-identity/apply` | `MEDIA_MANAGER_MANAGE_LIBRARIES` | `applyIdentityRepair` |
 | `GET` | `/api/media/dashboard` | `MEDIA_MANAGER_VIEW` | `dashboard` |
 | `GET` | `/api/media/health` | `MEDIA_MANAGER_VIEW` | `health` |
 | `GET` | `/api/media/libraries` | `MEDIA_MANAGER_VIEW` | `listLibraries` |
+| `GET` | `/api/media/libraries/watch-status` | `MEDIA_MANAGER_VIEW` | `watchStatus` |
 | `POST` | `/api/media/libraries` | `MEDIA_MANAGER_MANAGE_LIBRARIES` | `createLibrary` |
 | `PATCH` | `/api/media/libraries/:id` | `MEDIA_MANAGER_MANAGE_LIBRARIES` | `updateLibrary` |
 | `DELETE` | `/api/media/libraries/:id` | `MEDIA_MANAGER_MANAGE_LIBRARIES` | `removeLibrary` |
 | `POST` | `/api/media/libraries/:id/scan` | `MEDIA_MANAGER_SCAN` | `scanLibrary` |
 | `POST` | `/api/media/libraries/:id/organize` | `MEDIA_MANAGER_RENAME` | `organizeLibrary` |
+| `GET` | `/api/media/items/alphabet` | `MEDIA_MANAGER_VIEW` | `itemAlphabet` |
 | `GET` | `/api/media/items` | `MEDIA_MANAGER_VIEW` | `listItems` |
 | `GET` | `/api/media/series` | `MEDIA_MANAGER_VIEW` | `listSeries` |
 | `GET` | `/api/media/series/episodes` | `MEDIA_MANAGER_VIEW` | `seriesEpisodes` |
+| `GET` | `/api/media/libraries/:id/consistency` | `MEDIA_MANAGER_VIEW` | `checkConsistency` |
+| `GET` | `/api/media/series/health` | `MEDIA_MANAGER_VIEW` | `seriesHealth` |
+| `GET` | `/api/media/items/issues` | `MEDIA_MANAGER_VIEW` | `issueCounts` |
+| `GET` | `/api/media/items/export.csv` | `MEDIA_MANAGER_EXPORT` | `exportItems` |
 | `GET` | `/api/media/items/:id` | `MEDIA_MANAGER_VIEW` | `getItem` |
 | `PATCH` | `/api/media/items/:id` | `MEDIA_MANAGER_EDIT_METADATA` | `updateItem` |
 | `POST` | `/api/media/items/reidentify` | `MEDIA_MANAGER_MATCH` | `reidentifyItems` |
+| `POST` | `/api/media/items/bulk/metadata` | `MEDIA_MANAGER_EDIT_METADATA` | `bulkRefreshMetadata` |
+| `POST` | `/api/media/items/bulk/lock` | `MEDIA_MANAGER_EDIT_METADATA` | `bulkLock` |
+| `POST` | `/api/media/items/bulk/unlock` | `MEDIA_MANAGER_EDIT_METADATA` | `bulkUnlock` |
+| `POST` | `/api/media/items/bulk/remove` | `MEDIA_MANAGER_DELETE` | `bulkRemove` |
+| `POST` | `/api/media/items/bulk/delete-files/preview` | `MEDIA_MANAGER_DELETE_FILES` | `previewDeleteFiles` |
+| `POST` | `/api/media/items/bulk/delete-files` | `MEDIA_MANAGER_DELETE_FILES` | `bulkDeleteFiles` |
+| `POST` | `/api/media/items/bulk/move` | `MEDIA_MANAGER_MOVE_FILES` | `bulkMove` |
+| `POST` | `/api/media/items/bulk/nfo` | `MEDIA_MANAGER_GENERATE_NFO` | `bulkNfo` |
 | `POST` | `/api/media/items/:id/match` | `MEDIA_MANAGER_MATCH` | `matchItem` |
 | `POST` | `/api/media/items/:id/unmatch` | `MEDIA_MANAGER_MATCH` | `unmatchItem` |
 | `POST` | `/api/media/items/:id/lock` | `MEDIA_MANAGER_EDIT_METADATA` | `lockItem` |
 | `POST` | `/api/media/items/:id/unlock` | `MEDIA_MANAGER_EDIT_METADATA` | `unlockItem` |
 | `POST` | `/api/media/items/:id/metadata/fetch` | `MEDIA_MANAGER_EDIT_METADATA` | `fetchMetadata` |
 | `PATCH` | `/api/media/items/:id/metadata` | `MEDIA_MANAGER_EDIT_METADATA` | `updateMetadata` |
+| `GET` | `/api/media/shows/by-key` | `MEDIA_MANAGER_VIEW` | `showByKey` |
+| `POST` | `/api/media/shows/:id/metadata/refresh` | `MEDIA_MANAGER_EDIT_METADATA` | `refreshShowMetadata` |
+| `PATCH` | `/api/media/shows/:id/identity` | `MEDIA_MANAGER_EDIT_METADATA` | `setShowIdentity` |
+| `PATCH` | `/api/media/shows/:id/metadata` | `MEDIA_MANAGER_EDIT_METADATA` | `updateShowMetadata` |
+| `PATCH` | `/api/media/shows/:id/seasons/:seasonNumber` | `MEDIA_MANAGER_EDIT_METADATA` | `updateSeason` |
+| `GET` | `/api/media/shows/:id/artwork` | `MEDIA_MANAGER_VIEW` | `listShowArtwork` |
+| `POST` | `/api/media/shows/:id/artwork/select` | `MEDIA_MANAGER_MANAGE_ARTWORK` | `selectShowArtwork` |
+| `POST` | `/api/media/shows/:id/artwork/upload` | `MEDIA_MANAGER_MANAGE_ARTWORK` | `uploadShowArtwork` |
+| `POST` | `/api/media/shows/:id/artwork/import` | `MEDIA_MANAGER_MANAGE_ARTWORK` | `importShowArtwork` |
 | `GET` | `/api/media/items/:id/artwork` | `MEDIA_MANAGER_VIEW` | `listArtwork` |
 | `POST` | `/api/media/items/:id/artwork/select` | `MEDIA_MANAGER_MANAGE_ARTWORK` | `selectArtwork` |
 | `POST` | `/api/media/items/:id/artwork/upload` | `MEDIA_MANAGER_MANAGE_ARTWORK` | `uploadArtwork` |
 | `POST` | `/api/media/items/:id/artwork/import` | `MEDIA_MANAGER_MANAGE_ARTWORK` | `importArtwork` |
 | `GET` | `/api/media/items/:id/artwork/missing` | `MEDIA_MANAGER_VIEW` | `missingArtwork` |
-| `GET` | `/api/media/artwork/:artworkId/image` | `MEDIA_MANAGER_VIEW` | `artworkImage` |
+| `GET` | `/api/media/artwork/:artworkId/image` | `MEDIA_MANAGER_VIEW` | `` |
 | `GET` | `/api/media/items/:id/subtitles` | `MEDIA_MANAGER_VIEW` | `listSubtitles` |
 | `POST` | `/api/media/items/:id/subtitles/scan` | `MEDIA_MANAGER_MANAGE_SUBTITLES` | `scanSubtitles` |
 | `GET` | `/api/media/items/:id/subtitles/missing` | `MEDIA_MANAGER_VIEW` | `missingSubtitles` |
@@ -260,6 +322,7 @@ From `MediaController`.
 | `GET` | `/api/media/duplicates/overview` | `MEDIA_MANAGER_VIEW` | `duplicatesOverview` |
 | `GET` | `/api/media/duplicates` | `MEDIA_MANAGER_VIEW` | `listDuplicates` |
 | `POST` | `/api/media/duplicates/detect` | `MEDIA_MANAGER_SCAN` | `detectDuplicates` |
+| `POST` | `/api/media/duplicates/restore-suffixes` | `MEDIA_MANAGER_RENAME` | `restoreOrphanedSuffixes` |
 | `POST` | `/api/media/jobs/:jobId/cancel` | `MEDIA_MANAGER_SCAN` | `cancelJob` |
 | `GET` | `/api/media/duplicates/quick-clean/candidates` | `MEDIA_MANAGER_VIEW` | `quickCleanCandidates` |
 | `GET` | `/api/media/duplicates/trash/history` | `MEDIA_MANAGER_VIEW` | `duplicateTrashHistory` |
@@ -274,6 +337,7 @@ From `MediaController`.
 | `GET` | `/api/media/shows/duplicates` | `MEDIA_MANAGER_VIEW` | `detectDuplicateShows` |
 | `POST` | `/api/media/shows/duplicates/preview` | `MEDIA_MANAGER_VIEW` | `previewShowMerge` |
 | `POST` | `/api/media/shows/duplicates/merge` | `MEDIA_MANAGER_RENAME`, `MEDIA_MANAGER_DELETE` | `mergeShows` |
+| `GET` | `/api/media/shows/:id` | `MEDIA_MANAGER_VIEW` | `showDetail` |
 | `GET` | `/api/media/server-integrations` | `MEDIA_MANAGER_MANAGE_INTEGRATIONS` | `listIntegrations` |
 | `POST` | `/api/media/server-integrations` | `MEDIA_MANAGER_MANAGE_INTEGRATIONS` | `createIntegration` |
 | `PATCH` | `/api/media/server-integrations/:id` | `MEDIA_MANAGER_MANAGE_INTEGRATIONS` | `updateIntegration` |
@@ -299,9 +363,14 @@ From `MediaController`.
 | `GET` | `/api/media/presets` | `MEDIA_MANAGER_VIEW` | `presets` |
 | `POST` | `/api/media/preview` | `MEDIA_MANAGER_VIEW` | `preview` |
 | `POST` | `/api/media/apply` | `MEDIA_MANAGER_RENAME` | `apply` |
+| `GET` | `/api/media/rename/undoable` | `MEDIA_MANAGER_RENAME` | `undoableRuns` |
+| `GET` | `/api/media/rename/undoable/:runId` | `MEDIA_MANAGER_RENAME` | `runOperations` |
+| `POST` | `/api/media/rename/undo` | `MEDIA_MANAGER_RENAME` | `undoRename` |
 | `GET` | `/api/media/history` | `MEDIA_MANAGER_VIEW` | `history` |
 | `GET` | `/api/media/settings/cleanup` | `MEDIA_MANAGER_VIEW` | `getCleanup` |
 | `PATCH` | `/api/media/settings/cleanup` | `MEDIA_MANAGER_MANAGE_LIBRARIES` | `updateCleanup` |
+| `GET` | `/api/media/settings/seeding-torrent` | `MEDIA_MANAGER_VIEW` | `getSeedingTorrentPolicy` |
+| `PATCH` | `/api/media/settings/seeding-torrent` | `MEDIA_MANAGER_MANAGE_LIBRARIES` | `updateSeedingTorrentPolicy` |
 
 ## `/media-acquisition`
 
@@ -366,6 +435,7 @@ From `MediaServerAnalyticsController`.
 | `GET` | `/api/media-server-analytics/live` | `MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY` | `live` |
 | `POST` | `/api/media-server-analytics/live/poll` | `MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS` | `pollLive` |
 | `GET` | `/api/media-server-analytics/live/:id/artwork` | `MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY` | `liveArtwork` |
+| `GET` | `/api/media-server-analytics/notifications/:notificationId/artwork` | `MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY` | `notificationArtwork` |
 | `GET` | `/api/media-server-analytics/watch-history` | `MEDIA_SERVER_ANALYTICS_VIEW_HISTORY` | `watchHistory` |
 | `GET` | `/api/media-server-analytics/reports/usage` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `reportUsage` |
 | `GET` | `/api/media-server-analytics/reports/users` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `reportUsers` |
@@ -436,6 +506,7 @@ From `CleanupController`.
 | Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/media/cleanup/catalog` | `LIBRARY_CLEANUP_VIEW` | `catalog` |
+| `POST` | `/api/media/cleanup/playback/rebuild` | `LIBRARY_CLEANUP_RUN` | `rebuildPlayback` |
 | `POST` | `/api/media/cleanup/validate` | `LIBRARY_CLEANUP_VIEW` | `validate` |
 | `GET` | `/api/media/cleanup/templates` | `LIBRARY_CLEANUP_VIEW` | `templates` |
 | `GET` | `/api/media/cleanup/policies` | `LIBRARY_CLEANUP_VIEW` | `listPolicies` |
@@ -451,6 +522,7 @@ From `CleanupController`.
 | `DELETE` | `/api/media/cleanup/policies/:id` | `LIBRARY_CLEANUP_POLICY_DELETE` | `deletePolicy` |
 | `POST` | `/api/media/cleanup/policies/:id/simulate` | `LIBRARY_CLEANUP_SIMULATE` | `simulate` |
 | `POST` | `/api/media/cleanup/policies/:id/run` | `LIBRARY_CLEANUP_RUN` | `run` |
+| `POST` | `/api/media/cleanup/policies/:id/run-items` | `LIBRARY_CLEANUP_RUN` | `runItems` |
 | `GET` | `/api/media/cleanup/runs` | `LIBRARY_CLEANUP_VIEW` | `listRuns` |
 | `GET` | `/api/media/cleanup/runs/:runId` | `LIBRARY_CLEANUP_VIEW` | `getRun` |
 | `POST` | `/api/media/cleanup/runs/:runId/cancel` | `LIBRARY_CLEANUP_CANCEL` | `cancelRun` |
@@ -473,6 +545,35 @@ From `CleanupController`.
 | `POST` | `/api/media/cleanup/protections/bulk` | `LIBRARY_CLEANUP_PROTECTION_CREATE` | `bulkCreateProtections` |
 | `GET` | `/api/media/cleanup/protections/:id` | `LIBRARY_CLEANUP_PROTECTION_VIEW` | `getProtection` |
 | `POST` | `/api/media/cleanup/protections/:id/revoke` | `LIBRARY_CLEANUP_PROTECTION_REVOKE` | `revokeProtection` |
+
+## `/media/intake`
+
+From `MediaIntakeController`.
+
+| Método | Ruta | Permiso | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/media/intake/summary` | `MEDIA_INTAKE_VIEW` | `summary` |
+| `GET` | `/api/media/intake/jobs` | `MEDIA_INTAKE_VIEW` | `jobs` |
+| `GET` | `/api/media/intake/jobs/:id` | `MEDIA_INTAKE_VIEW` | `job` |
+| `POST` | `/api/media/intake/jobs` | `MEDIA_INTAKE_OPERATE` | `enqueue` |
+| `POST` | `/api/media/intake/jobs/:id/advance` | `MEDIA_INTAKE_OPERATE` | `advance` |
+| `POST` | `/api/media/intake/jobs/:id/retry` | `MEDIA_INTAKE_OPERATE` | `retry` |
+| `POST` | `/api/media/intake/jobs/:id/cancel` | `MEDIA_INTAKE_OPERATE` | `cancel` |
+| `POST` | `/api/media/intake/jobs/:id/release` | `MEDIA_INTAKE_OPERATE` | `release` |
+| `GET` | `/api/media/intake/profiles` | `MEDIA_INTAKE_VIEW` | `listProfiles` |
+| `POST` | `/api/media/intake/profiles` | `MEDIA_INTAKE_MANAGE` | `createProfile` |
+| `GET` | `/api/media/intake/profiles/:id` | `MEDIA_INTAKE_VIEW` | `profile` |
+| `PATCH` | `/api/media/intake/profiles/:id` | `MEDIA_INTAKE_MANAGE` | `updateProfile` |
+| `DELETE` | `/api/media/intake/profiles/:id` | `MEDIA_INTAKE_MANAGE` | `removeProfile` |
+| `POST` | `/api/media/intake/profiles/:id/probe` | `MEDIA_INTAKE_MANAGE` | `probe` |
+| `GET` | `/api/media/intake/path-mappings` | `MEDIA_INTAKE_VIEW` | `listMappings` |
+| `POST` | `/api/media/intake/path-mappings` | `MEDIA_INTAKE_MANAGE` | `createMapping` |
+| `GET` | `/api/media/intake/path-mappings/resolve` | `MEDIA_INTAKE_VIEW` | `resolve` |
+| `PATCH` | `/api/media/intake/path-mappings/:id` | `MEDIA_INTAKE_MANAGE` | `updateMapping` |
+| `DELETE` | `/api/media/intake/path-mappings/:id` | `MEDIA_INTAKE_MANAGE` | `removeMapping` |
+| `GET` | `/api/media/intake/migration/preview` | `MEDIA_INTAKE_MIGRATE` | `previewMigration` |
+| `POST` | `/api/media/intake/migration/apply` | `MEDIA_INTAKE_MIGRATE` | `applyMigration` |
+| `POST` | `/api/media/intake/migration/revert` | `MEDIA_INTAKE_MIGRATE` | `revertMigration` |
 
 ## `/media/trakt`
 
@@ -505,6 +606,15 @@ From `ModuleRegistryController`.
 | `GET` | `/api/modules/:id/health` | `MODULES_VIEW` | `moduleHealth` |
 | `POST` | `/api/modules/:id/enable` | `MODULES_MANAGE` | `enable` |
 | `POST` | `/api/modules/:id/disable` | `MODULES_MANAGE` | `disable` |
+
+## `/operations`
+
+From `OperationsController`.
+
+| Método | Ruta | Permiso | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/operations/capabilities` | `CONSOLE_VIEW` | `capabilities` |
+| `GET` | `/api/operations/snapshot` | `CONSOLE_VIEW` | `snapshot` |
 
 ## `/release-scoring`
 
@@ -542,6 +652,30 @@ From `SubtitleIntelligenceController`.
 | `GET` | `/api/subtitle-intelligence/downloads` | `SUBTITLE_INTELLIGENCE_VIEW` | `downloads` |
 | `GET` | `/api/subtitle-intelligence/history` | `SUBTITLE_INTELLIGENCE_VIEW` | `history` |
 
+## `/torrent-scheduler`
+
+From `TorrentSchedulerController`.
+
+| Método | Ruta | Permiso | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/torrent-scheduler/torrents/:engineId/overrides` | `TORRENT_SCHEDULER_VIEW` | `listOverrides` |
+| `POST` | `/api/torrent-scheduler/torrents/:engineId/:hash/override` | `TORRENT_SCHEDULER_OVERRIDE` | `setOverride` |
+| `DELETE` | `/api/torrent-scheduler/torrents/:engineId/:hash/override/:kind` | `TORRENT_SCHEDULER_OVERRIDE` | `clearOverride` |
+| `GET` | `/api/torrent-scheduler/seed-conditions` | `TORRENT_SCHEDULER_VIEW` | `seedConditions` |
+| `GET` | `/api/torrent-scheduler/policies` | `TORRENT_SCHEDULER_VIEW` | `listPolicies` |
+| `POST` | `/api/torrent-scheduler/policies` | `TORRENT_SCHEDULER_MANAGE_POLICIES` | `createPolicy` |
+| `PUT` | `/api/torrent-scheduler/policies/:id` | `TORRENT_SCHEDULER_MANAGE_POLICIES` | `updatePolicy` |
+| `DELETE` | `/api/torrent-scheduler/policies/:id` | `TORRENT_SCHEDULER_MANAGE_POLICIES` | `deletePolicy` |
+| `GET` | `/api/torrent-scheduler/engines` | `TORRENT_SCHEDULER_VIEW` | `engines` |
+| `GET` | `/api/torrent-scheduler/preview` | `TORRENT_SCHEDULER_VIEW` | `previewAll` |
+| `GET` | `/api/torrent-scheduler/preview/:engineId` | `TORRENT_SCHEDULER_VIEW` | `previewEngine` |
+| `GET` | `/api/torrent-scheduler/history/:engineId` | `TORRENT_SCHEDULER_VIEW` | `history` |
+| `PUT` | `/api/torrent-scheduler/engines/:engineId/mode` | `TORRENT_SCHEDULER_MANAGE_ENGINE_MODE` | `setMode` |
+| `GET` | `/api/torrent-scheduler/engines/:engineId/activation` | `TORRENT_SCHEDULER_MANAGE_ENGINE_MODE` | `describeActivation` |
+| `POST` | `/api/torrent-scheduler/engines/:engineId/activate` | `TORRENT_SCHEDULER_MANAGE_ENGINE_MODE` | `activate` |
+| `POST` | `/api/torrent-scheduler/engines/:engineId/deactivate` | `TORRENT_SCHEDULER_MANAGE_ENGINE_MODE` | `deactivate` |
+| `POST` | `/api/torrent-scheduler/preview/:engineId/refresh` | `TORRENT_SCHEDULER_VIEW` | `refresh` |
+
 ## `/torrents`
 
 From `TorrentsController`.
@@ -568,6 +702,7 @@ From `TorrentsController`.
 | `POST` | `/api/torrents/:hash/resume` | `TORRENTS_RESUME` | `resume` |
 | `POST` | `/api/torrents/:hash/recheck` | `TORRENTS_RECHECK` | `recheck` |
 | `DELETE` | `/api/torrents/:hash` | `TORRENTS_DELETE` | `remove` |
+| `POST` | `/api/torrents/imported-items` | `TORRENTS_VIEW` | `importedItems` |
 | `DELETE` | `/api/torrents/:hash/data` | `TORRENTS_DELETE_DATA` | `removeData` |
 | `POST` | `/api/torrents/:hash/move` | `TORRENTS_MOVE` | `move` |
 | `POST` | `/api/torrents/:hash/limits/upload` | `TORRENTS_MANAGE_LIMITS` | `upLimit` |

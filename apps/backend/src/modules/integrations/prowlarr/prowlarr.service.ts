@@ -217,6 +217,41 @@ export class ProwlarrIntegrationService {
     }
   }
 
+  /**
+   * The LAST RECORDED health, with no network call.
+   *
+   * Distinct from {@link status}, which probes Prowlarr and rewrites the row.
+   * An operations snapshot is requested on a human's cadence but by however
+   * many consoles are watching, and a read that reaches out to a companion
+   * container turns "someone is looking" into load on the thing being looked
+   * at. This reports what the last real check found, and says when that was, so
+   * a stale reading is visible as stale rather than manufactured on demand.
+   *
+   * Never returns the api key, ciphertext or the internal url.
+   */
+  async storedStatus(): Promise<{
+    enabled: boolean;
+    configured: boolean;
+    status: string;
+    message: string | null;
+    version: string | null;
+    indexerCount: number | null;
+    lastCheckedAt: string | null;
+  }> {
+    const stored = await this.loadRaw();
+    const enabled = !!stored.enabled;
+    const configured = this.hasSecret(stored, 'apiKey');
+    return {
+      enabled,
+      configured,
+      status: !enabled ? 'disabled' : !configured ? 'unconfigured' : ((stored.status as string) ?? 'unknown'),
+      message: (stored.statusMessage as string) ?? null,
+      version: (stored.version as string) ?? null,
+      indexerCount: (stored.indexerCount as number) ?? null,
+      lastCheckedAt: (stored.lastCheckedAt as string) ?? null,
+    };
+  }
+
   /** Live health read used by the status endpoint (no audit — polled by the UI). */
   async status() {
     const stored = await this.loadRaw();

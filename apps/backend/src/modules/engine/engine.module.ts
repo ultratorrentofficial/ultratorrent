@@ -5,6 +5,7 @@ import { SecretCipher } from '../../common/crypto/secret-cipher';
 import { EngineRegistryService } from './engine-registry.service';
 import { EngineService } from './engine.service';
 import { EngineController } from './engine.controller';
+import { EngineStatusTracker } from './engine-status.tracker';
 
 // SecretCipher is registered locally (it is not global), mirroring
 // ProwlarrModule/IndexersModule — it encrypts engine credentials at rest.
@@ -15,9 +16,10 @@ import { EngineController } from './engine.controller';
     EngineProviderFactory,
     EngineRegistryService,
     EngineService,
+    EngineStatusTracker,
     SecretCipher,
   ],
   controllers: [EngineController],
-  exports: [EngineRegistryService, EngineService],
+  exports: [EngineRegistryService, EngineService, EngineStatusTracker],
 })
 export class EngineModule {}

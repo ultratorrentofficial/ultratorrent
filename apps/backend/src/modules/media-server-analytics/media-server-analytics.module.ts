@@ -33,5 +33,10 @@ import { NewsletterImageController } from './newsletter-image.controller';
     SecretCipher,
   ],
   controllers: [MediaServerAnalyticsController, NewsletterImageController],
+  // Exported for the operations module's Live Activity projection. It reuses
+  // `liveActivity()` precisely because that method is already the redaction
+  // boundary — it withholds each viewer's IP and the provider-internal art
+  // path, and a second reader must not get a second, laxer projection.
+  exports: [MediaServerSessionService],
 })
 export class MediaServerAnalyticsModule {}

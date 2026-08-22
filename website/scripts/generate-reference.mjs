@@ -723,6 +723,22 @@ function parseController(file) {
           .map((s) => s.trim())
           .filter(Boolean),
       );
+    /*
+     * A permission declared on the CLASS guards every route on it, so a handler
+     * with no decorator of its own is not unguarded — it inherits. Nest resolves
+     * it the same way (`getAllAndOverride([handler, class])`), and reading only
+     * the method level published "no permission required" for routes that in
+     * fact require one. A `@Public()` handler opts out and inherits nothing.
+     */
+    if (!perms.length && classPerm && !/@Public\(/.test(after)) {
+      perms.push(
+        ...classPerm
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      );
+    }
+
     const handler = /\n\s*(?:async\s+)?(\w+)\s*\(/.exec(after.replace(/@[\w]+\([^)]*\)/g, ''))?.[1];
     // JSDoc directly above the decorator, if any.
     const before = src.slice(Math.max(0, m.index - 400), m.index);

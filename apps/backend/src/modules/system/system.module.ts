@@ -174,5 +174,8 @@ export class SystemController {
   imports: [SettingsModule],
   providers: [StorageWatchService, SystemService, SystemUpdateService],
   controllers: [SystemController],
+  // Exported for the operations module: one implementation of "what does this
+  // host look like", read by both the web app and the console.
+  exports: [SystemService],
 })
 export class SystemModule {}

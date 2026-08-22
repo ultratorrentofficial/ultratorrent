@@ -17,7 +17,7 @@ simplemente conjuntos con nombre de esos permisos. Tanto los guards de ruta del 
 de capacidades del frontend leen este mismo catálogo, así que lo que ves aquí es
 exactamente lo que se aplica.
 
-- **152 permisos** en **25 dominios**
+- **166 permisos** en **29 dominios**
 - **5 roles integrados**
 
 ## Cómo leer esto
@@ -31,11 +31,11 @@ exactamente lo que se aplica.
 
 | Rol | Permisos que tiene |
 | --- | --- |
-| `SUPER_ADMIN` | 152 of 152 |
-| `ADMINISTRATOR` | 149 of 152 |
-| `POWER_USER` | 74 of 152 |
-| `USER` | 20 of 152 |
-| `READ_ONLY` | 11 of 152 |
+| `SUPER_ADMIN` | 166 of 166 |
+| `ADMINISTRATOR` | 163 of 166 |
+| `POWER_USER` | 83 of 166 |
+| `USER` | 24 of 166 |
+| `READ_ONLY` | 15 of 166 |
 
 ## `apikeys`
 
@@ -61,6 +61,12 @@ exactamente lo que se aplica.
 | Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
 | --- | --- | :---: | :---: | :---: | :---: | :---: |
 | `categories.manage` | `CATEGORIES_MANAGE` | ✅ | ✅ | ✅ | ✅ | — |
+
+## `console`
+
+| Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
+| --- | --- | :---: | :---: | :---: | :---: | :---: |
+| `console.view` | `CONSOLE_VIEW` | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## `engines`
 
@@ -160,6 +166,15 @@ exactamente lo que se aplica.
 | `media_acquisition.export` | `MEDIA_ACQUISITION_EXPORT` | ✅ | ✅ | — | — | — |
 | `media_acquisition.settings` | `MEDIA_ACQUISITION_SETTINGS` | ✅ | ✅ | — | — | — |
 
+## `media_intake`
+
+| Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
+| --- | --- | :---: | :---: | :---: | :---: | :---: |
+| `media_intake.view` | `MEDIA_INTAKE_VIEW` | ✅ | ✅ | — | — | — |
+| `media_intake.manage` | `MEDIA_INTAKE_MANAGE` | ✅ | ✅ | — | — | — |
+| `media_intake.operate` | `MEDIA_INTAKE_OPERATE` | ✅ | ✅ | — | — | — |
+| `media_intake.migrate` | `MEDIA_INTAKE_MIGRATE` | ✅ | ✅ | — | — | — |
+
 ## `media_manager`
 
 | Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
@@ -176,6 +191,8 @@ exactamente lo que se aplica.
 | `media_manager.generate_nfo` | `MEDIA_MANAGER_GENERATE_NFO` | ✅ | ✅ | ✅ | — | — |
 | `media_manager.manage_integrations` | `MEDIA_MANAGER_MANAGE_INTEGRATIONS` | ✅ | ✅ | — | — | — |
 | `media_manager.delete` | `MEDIA_MANAGER_DELETE` | ✅ | ✅ | — | — | — |
+| `media_manager.delete_files` | `MEDIA_MANAGER_DELETE_FILES` | ✅ | ✅ | — | — | — |
+| `media_manager.export` | `MEDIA_MANAGER_EXPORT` | ✅ | ✅ | ✅ | — | — |
 | `media_manager.admin` | `MEDIA_MANAGER_ADMIN` | ✅ | ✅ | — | — | — |
 | `media_manager.imdb.view` | `MEDIA_MANAGER_IMDB_VIEW` | ✅ | ✅ | ✅ | ✅ | — |
 | `media_manager.imdb.configure` | `MEDIA_MANAGER_IMDB_CONFIGURE` | ✅ | ✅ | ✅ | — | — |
@@ -218,6 +235,14 @@ exactamente lo que se aplica.
 | --- | --- | :---: | :---: | :---: | :---: | :---: |
 | `modules.view` | `MODULES_VIEW` | ✅ | ✅ | — | — | — |
 | `modules.manage` | `MODULES_MANAGE` | ✅ | ✅ | — | — | — |
+
+## `notifications`
+
+| Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
+| --- | --- | :---: | :---: | :---: | :---: | :---: |
+| `notifications.view_own` | `NOTIFICATIONS_VIEW_OWN` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `notifications.manage_own` | `NOTIFICATIONS_MANAGE_OWN` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `notifications.channels_manage_own` | `NOTIFICATIONS_CHANNELS_MANAGE_OWN` | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## `release_scoring`
 
@@ -275,6 +300,15 @@ exactamente lo que se aplica.
 | Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
 | --- | --- | :---: | :---: | :---: | :---: | :---: |
 | `tags.manage` | `TAGS_MANAGE` | ✅ | ✅ | ✅ | ✅ | — |
+
+## `torrent_scheduler`
+
+| Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
+| --- | --- | :---: | :---: | :---: | :---: | :---: |
+| `torrent_scheduler.view` | `TORRENT_SCHEDULER_VIEW` | ✅ | ✅ | ✅ | — | — |
+| `torrent_scheduler.manage_engine_mode` | `TORRENT_SCHEDULER_MANAGE_ENGINE_MODE` | ✅ | ✅ | ✅ | — | — |
+| `torrent_scheduler.manage_policies` | `TORRENT_SCHEDULER_MANAGE_POLICIES` | ✅ | ✅ | ✅ | — | — |
+| `torrent_scheduler.override` | `TORRENT_SCHEDULER_OVERRIDE` | ✅ | ✅ | ✅ | — | — |
 
 ## `torrents`
 

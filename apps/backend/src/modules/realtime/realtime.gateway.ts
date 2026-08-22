@@ -24,6 +24,54 @@ const SCOPED_PERMISSIONS = [
   PERMISSIONS.RSS_VIEW,
 ];
 
+
+/**
+ * Permissions a console socket is scoped by, beyond {@link SCOPED_PERMISSIONS}.
+ *
+ * The console's merged event feed carries facts from domains the web app has no
+ * live channel for — jobs, the scheduler, storage, security, users — so those
+ * permissions need a room too. They are kept separate from `SCOPED_PERMISSIONS`
+ * deliberately: adding them there would start delivering these events to every
+ * browser socket as well, which is a behaviour change to the web app made for
+ * the console's convenience.
+ */
+const CONSOLE_SCOPED_PERMISSIONS = [
+  ...SCOPED_PERMISSIONS,
+  PERMISSIONS.TORRENT_SCHEDULER_VIEW,
+  PERMISSIONS.MEDIA_INTAKE_VIEW,
+  PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY,
+  PERMISSIONS.JOBS_VIEW,
+  PERMISSIONS.AUTOMATION_VIEW,
+  PERMISSIONS.WORKFLOWS_VIEW,
+  PERMISSIONS.LIBRARY_CLEANUP_VIEW,
+  PERMISSIONS.SYSTEM_VIEW,
+  PERMISSIONS.AUDIT_VIEW,
+  PERMISSIONS.USERS_VIEW,
+];
+
+/** Room for a console socket's permission-free events. */
+export const CONSOLE_ROOM_ALL = 'console:authenticated';
+
+/** The room one console-visible permission maps to. */
+export function consoleRoom(permission: string | null | undefined): string {
+  return permission ? `console:${permission}` : CONSOLE_ROOM_ALL;
+}
+
+/**
+ * Something watching what is emitted, without changing what is emitted.
+ *
+ * The console's event feed has to include `jobs.*`, and those are produced by
+ * `PlatformJobService` straight onto this gateway — they never reach
+ * `DomainEventBus`. An observer lets the operations bridge SEE them rather than
+ * the jobs service gaining a second call to make, which is what "no new
+ * producer anywhere" has to mean in practice.
+ */
+export type RealtimeObserver = (
+  event: string,
+  payload: unknown,
+  permission: string | null,
+) => void;
+
 /**
  * Authenticated realtime channel. Clients pass a JWT access token via the
  * socket handshake auth. Each socket joins a private room (their id), a shared
@@ -41,6 +89,8 @@ export class RealtimeGateway
 
   @WebSocketServer()
   private server!: Server;
+
+  private readonly observers = new Set<RealtimeObserver>();
 
   constructor(
     private readonly jwt: JwtService,
@@ -69,6 +119,21 @@ export class RealtimeGateway
       const isSuper = (payload.roles ?? []).includes(SystemRole.SUPER_ADMIN);
       for (const perm of SCOPED_PERMISSIONS) {
         if (isSuper || held.has(perm)) client.join(`perm:${perm}`);
+      }
+
+      /*
+       * Console rooms are the INTERSECTION of "may use the console" and "may
+       * read this domain", which a single room per permission cannot express —
+       * socket.io's `to(a).to(b)` is a union. Joining a `console:<perm>` room
+       * only when both hold makes the intersection a membership fact, computed
+       * once at connect rather than per emit, and keeps the console's feed off
+       * every browser socket that merely shares the domain permission.
+       */
+      if (isSuper || held.has(PERMISSIONS.CONSOLE_VIEW)) {
+        client.join(CONSOLE_ROOM_ALL);
+        for (const perm of CONSOLE_SCOPED_PERMISSIONS) {
+          if (isSuper || held.has(perm)) client.join(consoleRoom(perm));
+        }
       }
     } catch {
       client.disconnect(true);
@@ -118,6 +183,42 @@ export class RealtimeGateway
   emitToPermission(permission: string | null | undefined, event: string, payload: unknown): void {
     const room = permission ? `perm:${permission}` : 'authenticated';
     this.server?.to(room).emit(event, payload);
+    this.notifyObservers(event, payload, permission ?? null);
+  }
+
+  /**
+   * Emit to console sockets that hold `permission`, and only those.
+   *
+   * Separate from {@link emitToPermission} because the scoping is different in
+   * kind: this room already encodes "holds console.view AND holds this", so the
+   * caller does not have to know that the console is a second audience with a
+   * narrower membership.
+   */
+  emitToConsole(permission: string | null | undefined, event: string, payload: unknown): void {
+    this.server?.to(consoleRoom(permission)).emit(event, payload);
+  }
+
+  /**
+   * Watch what is emitted through {@link emitToPermission}.
+   *
+   * Deliberately NOT wired into `broadcast`/`toUser`: the one consumer needs
+   * `jobs.*`, and a hook on every emit would put the whole realtime firehose
+   * through a listener that wants a fraction of it. Returns an unsubscribe.
+   */
+  observe(fn: RealtimeObserver): () => void {
+    this.observers.add(fn);
+    return () => this.observers.delete(fn);
+  }
+
+  /** One failing observer must not break the emit it was watching. */
+  private notifyObservers(event: string, payload: unknown, permission: string | null): void {
+    for (const fn of this.observers) {
+      try {
+        fn(event, payload, permission);
+      } catch (err) {
+        this.logger.warn(`Realtime observer failed on "${event}": ${(err as Error).message}`);
+      }
+    }
   }
 
   emitStats(payload: unknown): void {

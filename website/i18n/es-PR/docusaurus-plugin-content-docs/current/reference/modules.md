@@ -17,7 +17,7 @@ tier, dependencias, los permisos que introduce y las rutas de API que le pertene
 registro resuelve el grafo de dependencias al arrancar y se niega a iniciar ante una
 dependencia desconocida o circular, así que un módulo roto nunca puede quedar a medio cargar.
 
-- **23 módulos** en los tiers: `core`, `community`
+- **25 módulos** en los tiers: `core`, `community`
 - Los módulos **core** siempre están activos. Los módulos **community/opcionales** se pueden activar o desactivar.
 
 ## Grafo de dependencias
@@ -41,6 +41,8 @@ graph LR
   engine["engine"] --> automation["automation"]
   auth["auth"] --> files["files"]
   auth["auth"] --> api_keys["api_keys"]
+  auth["auth"] --> notifications["notifications"]
+  rbac["rbac"] --> notifications["notifications"]
   auth["auth"] --> audit["audit"]
   auth["auth"] --> settings["settings"]
   auth["auth"] --> module_registry["module_registry"]
@@ -76,6 +78,8 @@ graph LR
   audit["audit"] --> library_cleanup["library_cleanup"]
   settings["settings"] --> library_cleanup["library_cleanup"]
   media_manager["media_manager"] --> library_cleanup["library_cleanup"]
+  media_manager["media_manager"] --> media_intake["media_intake"]
+  torrents["torrents"] --> media_intake["media_intake"]
 ```
 
 ## Todos los módulos
@@ -95,6 +99,7 @@ graph LR
 | **Automation** | `automation` | core | ✅ | `auth`, `engine` |
 | **File manager** | `files` | core | ✅ | `auth` |
 | **API keys** | `api_keys` | core | ✅ | `auth` |
+| **Notifications** | `notifications` | core | ✅ | `auth`, `rbac` |
 | **Audit log** | `audit` | core | ✅ | `auth` |
 | **System health** | `system` | core | ✅ | — |
 | **Settings** | `settings` | core | ✅ | `auth` |
@@ -105,6 +110,7 @@ graph LR
 | **Media Server Analytics** | `media_server_analytics` | core | ✅ | `auth`, `rbac`, `module_registry`, `audit`, `settings`, `media_manager`, `automation` |
 | **Subtitle Intelligence** | `subtitle_intelligence` | core | ✅ | `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager` |
 | **Library Cleanup Center** | `library_cleanup` | core | ✅ | `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager` |
+| **Media Intake Engine** | `media_intake` | core | ✅ | `media_manager`, `torrents` |
 
 ## Autenticación
 
@@ -254,6 +260,18 @@ Emisión/listado/revocación de claves API personales.
 
 **Rutas propias:** `/api/api-keys`
 
+## Notificaciones
+
+`notifications` · tier `core` · activo por defecto
+
+Personal notifications. Each user chooses which events they want and where they arrive — in-app, email, Telegram or Discord. Recipients are fixed in code per event; there is no rule builder, audience designer or template editor.
+
+**Depende de:** `auth`, `rbac`
+
+**Introduce permisos:** `notifications.view_own`, `notifications.manage_own`, `notifications.channels_manage_own`
+
+**Rutas propias:** `/api/account/notifications`
+
 ## Registro de auditoría
 
 `audit` · tier `core` · activo por defecto
@@ -371,6 +389,18 @@ Policy-driven reclamation of library storage. Users build versioned cleanup poli
 **Introduce permisos:** `library_cleanup.view`, `library_cleanup.policy.create`, `library_cleanup.policy.edit`, `library_cleanup.policy.publish`, `library_cleanup.policy.enable`, `library_cleanup.policy.delete`, `library_cleanup.run`, `library_cleanup.simulate`, `library_cleanup.approve`, `library_cleanup.cancel`, `library_cleanup.protection.view`, `library_cleanup.protection.create`, `library_cleanup.protection.revoke`, `library_cleanup.protection.legal_hold`, `library_cleanup.trash`, `library_cleanup.restore`, `library_cleanup.permanent_delete`, `library_cleanup.settings`, `library_cleanup.audit`
 
 **Rutas propias:** `/api/media/cleanup`
+
+## Media Intake Engine
+
+`media_intake` · tier `core` · activo por defecto
+
+Staging-based import pipeline. A completed download is verified, identified, enriched and quality-scored in a staging area, then placed into a library by the cheapest strategy the storage actually supports — hardlink, reflink, provider relocation or copy — so the torrent keeps seeding. Storage Profiles hold the logical roots and reference existing libraries rather than restating their paths; a Path Mapping Registry renders every path into the space of whatever component is about to receive it. Opt-in per RSS rule and never applied to an existing one automatically: rules created before this module read legacy_direct and behave exactly as before.
+
+**Depende de:** `media_manager`, `torrents`
+
+**Introduce permisos:** `media_intake.view`, `media_intake.manage`, `media_intake.operate`, `media_intake.migrate`
+
+**Rutas propias:** `/api/media/intake`
 
 ## Ver también
 

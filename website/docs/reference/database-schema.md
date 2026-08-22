@@ -13,7 +13,7 @@ This page is generated from `apps/backend/prisma/schema.prisma` at build time. *
 :::
 
 UltraTorrent stores everything in **PostgreSQL**, managed by **Prisma**. There are
-**110 models**. A single ER diagram of all of them would be unreadable, so they are
+**130 models**. A single ER diagram of all of them would be unreadable, so they are
 grouped by domain below.
 
 :::tip Never hand-edit the database
@@ -189,11 +189,15 @@ Table: `imdb_dataset_imports`
 
 ## Identity & audit
 
-_6 models._
+_10 models._
 
 ```mermaid
 erDiagram
   User ||--o{ UserRole : "roles"
+  User ||--o{ UserNotification : "notifications"
+  User ||--o{ UserNotificationPreference : "notificationPreferences"
+  User ||--o{ UserNotificationChannel : "notificationChannels"
+  User ||--o{ UserNotificationDelivery : "notificationDeliveries"
   User ||--o{ ApiKey : "apiKeys"
   User ||--o{ AuditLog : "auditLogs"
   Role ||--o{ UserRole : "users"
@@ -203,6 +207,10 @@ erDiagram
   RolePermission }o--|| Role : "role"
   ApiKey }o--|| User : "user"
   AuditLog }o--|| User : "user"
+  UserNotificationPreference }o--|| User : "user"
+  UserNotification }o--|| User : "user"
+  UserNotificationChannel }o--|| User : "user"
+  UserNotificationDelivery }o--|| User : "user"
 ```
 
 ### `User`
@@ -215,6 +223,7 @@ Table: `users`
 | `username` | `String` |
 | `email` | `String` |
 | `displayName` | `String?` |
+| `timezone` | `String?` |
 | `passwordHash` | `String` |
 | `isActive` | `Boolean` |
 | `isSystem` | `Boolean` |
@@ -292,6 +301,90 @@ Table: `audit_logs`
 | `metadata` | `Json?` |
 | `createdAt` | `DateTime` |
 
+### `UserNotificationPreference`
+
+Table: `user_notification_preferences`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `userId` | `String` |
+| `eventKey` | `String` |
+| `enabled` | `Boolean` |
+| `inAppEnabled` | `Boolean` |
+| `emailEnabled` | `Boolean` |
+| `telegramEnabled` | `Boolean` |
+| `discordEnabled` | `Boolean` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `UserNotification`
+
+Table: `user_notifications`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `userId` | `String` |
+| `eventId` | `String` |
+| `eventKey` | `String` |
+| `category` | `String` |
+| `severity` | `String` |
+| `title` | `String` |
+| `body` | `String?` |
+| `deepLink` | `String?` |
+| `presentation` | `Json?` |
+| `artConnectionId` | `String?` |
+| `artPath` | `String?` |
+| `resourceType` | `String?` |
+| `resourceId` | `String?` |
+| `readAt` | `DateTime?` |
+| `archivedAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+
+### `UserNotificationChannel`
+
+Table: `user_notification_channels`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `userId` | `String` |
+| `type` | `String` |
+| `enabled` | `Boolean` |
+| `verifiedAt` | `DateTime?` |
+| `encryptedConfig` | `Json` |
+| `maskedDestination` | `String?` |
+| `lastTestedAt` | `DateTime?` |
+| `lastSuccessAt` | `DateTime?` |
+| `lastFailureAt` | `DateTime?` |
+| `lastError` | `String?` |
+| `consecutiveFailures` | `Int` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+| `deletedAt` | `DateTime?` |
+
+### `UserNotificationDelivery`
+
+Table: `user_notification_deliveries`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `userId` | `String` |
+| `notificationId` | `String?` |
+| `eventKey` | `String` |
+| `channelType` | `String` |
+| `channelId` | `String?` |
+| `status` | `String` |
+| `attempts` | `Int` |
+| `nextAttemptAt` | `DateTime?` |
+| `lastError` | `String?` |
+| `suppressedReason` | `String?` |
+| `createdAt` | `DateTime` |
+| `sentAt` | `DateTime?` |
+| `completedAt` | `DateTime?` |
+
 ## Indexers
 
 _1 model._
@@ -326,13 +419,16 @@ Table: `indexers`
 
 ## Media Manager
 
-_35 models._
+_39 models._
 
 ```mermaid
 erDiagram
   MediaLibrary ||--o{ MediaItem : "items"
   MediaLibrary ||--o{ MediaShow : "shows"
   MediaShow }o--|| MediaLibrary : "library"
+  MediaShow ||--o{ MediaArtwork : "artwork"
+  MediaShow }o--|| MediaShowMetadata : "metadata"
+  MediaShow ||--o{ MediaSeason : "seasons"
   MediaItem }o--|| MediaLibrary : "library"
   MediaItem ||--o{ MediaFile : "files"
   MediaItem }o--|| MediaMetadata : "metadata"
@@ -346,7 +442,10 @@ erDiagram
   MediaItem }o--|| MediaPlaybackAggregate : "playbackAggregate"
   MediaFile }o--|| MediaItem : "item"
   MediaMetadata }o--|| MediaItem : "item"
+  MediaShowMetadata }o--|| MediaShow : "show"
+  MediaSeason }o--|| MediaShow : "show"
   MediaArtwork }o--|| MediaItem : "item"
+  MediaArtwork }o--|| MediaShow : "show"
   MediaSubtitle }o--|| MediaItem : "item"
   MediaExternalId }o--|| MediaItem : "item"
   MediaCollection ||--o{ MediaCollectionItem : "items"
@@ -378,6 +477,8 @@ erDiagram
   MediaCleanupPlan ||--o{ MediaCleanupAction : "actions"
   MediaCleanupAction }o--|| MediaCleanupPlan : "plan"
   MediaPlaybackAggregate }o--|| MediaItem : "item"
+  MediaIntakeJob ||--o{ MediaIntakeEvent : "events"
+  MediaIntakeEvent }o--|| MediaIntakeJob : "job"
 ```
 
 ### `MediaUserWatch`
@@ -440,9 +541,12 @@ Table: `media_libraries`
 | `preset` | `String` |
 | `template` | `String?` |
 | `mode` | `String` |
+| `autoOrganize` | `Boolean` |
 | `isEnabled` | `Boolean` |
 | `scanIntervalMinutes` | `Int?` |
 | `lastScanAt` | `DateTime?` |
+| `watchEnabled` | `Boolean` |
+| `scanOnStartup` | `Boolean` |
 | `nfoEnabled` | `Boolean` |
 | `artworkEnabled` | `Boolean` |
 | `createdAt` | `DateTime` |
@@ -465,6 +569,7 @@ Table: `media_shows`
 | `episodeCount` | `Int` |
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
+| `tmdbId` | `String?` |
 
 ### `MediaItem`
 
@@ -500,6 +605,7 @@ Table: `media_files`
 | `itemId` | `String` |
 | `path` | `String` |
 | `size` | `BigInt` |
+| `modifiedAt` | `DateTime?` |
 | `container` | `String?` |
 | `videoCodec` | `String?` |
 | `audioCodec` | `String?` |
@@ -554,6 +660,49 @@ Table: `media_metadata`
 | `fieldSources` | `Json?` |
 | `updatedAt` | `DateTime` |
 
+### `MediaShowMetadata`
+
+Table: `media_show_metadata`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `showId` | `String` |
+| `title` | `String?` |
+| `originalTitle` | `String?` |
+| `sortTitle` | `String?` |
+| `overview` | `String?` |
+| `firstAiredAt` | `DateTime?` |
+| `year` | `Int?` |
+| `status` | `String?` |
+| `networks` | `Json` |
+| `genres` | `Json` |
+| `studios` | `Json` |
+| `cast` | `Json` |
+| `crew` | `Json` |
+| `rating` | `Float?` |
+| `certification` | `String?` |
+| `tags` | `Json` |
+| `providerName` | `String?` |
+| `fieldSources` | `Json?` |
+| `updatedAt` | `DateTime` |
+
+### `MediaSeason`
+
+Table: `media_seasons`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `showId` | `String` |
+| `seasonNumber` | `Int` |
+| `title` | `String?` |
+| `overview` | `String?` |
+| `firstAiredAt` | `DateTime?` |
+| `providerName` | `String?` |
+| `updatedAt` | `DateTime` |
+| `createdAt` | `DateTime` |
+
 ### `MediaArtwork`
 
 Table: `media_artwork`
@@ -561,7 +710,8 @@ Table: `media_artwork`
 | Column | Type |
 | --- | --- |
 | `id` | `String` |
-| `itemId` | `String` |
+| `itemId` | `String?` |
+| `showId` | `String?` |
 | `type` | `String` |
 | `url` | `String?` |
 | `localPath` | `String?` |
@@ -827,6 +977,8 @@ Table: `media_rename_operations`
 | `status` | `String` |
 | `message` | `String?` |
 | `torrentHash` | `String?` |
+| `runId` | `String?` |
+| `undoneAt` | `DateTime?` |
 | `createdAt` | `DateTime` |
 
 ### `MediaRenameJob`
@@ -949,6 +1101,7 @@ Table: `media_cleanup_runs`
 | `estimatedReclaimBytes` | `BigInt` |
 | `actualReclaimBytes` | `BigInt` |
 | `exclusionBreakdown` | `Json?` |
+| `scopeItemIds` | `Json?` |
 | `errorSummary` | `String?` |
 | `createdById` | `String?` |
 | `startedAt` | `DateTime?` |
@@ -1117,6 +1270,48 @@ Table: `media_playback_aggregates`
 | `computedAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 
+### `MediaIntakeJob`
+
+Table: `media_intake_jobs`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `profileId` | `String` |
+| `torrentHash` | `String?` |
+| `engineId` | `String?` |
+| `sourcePath` | `String` |
+| `importedPath` | `String?` |
+| `state` | `String` |
+| `resumeState` | `String?` |
+| `strategy` | `String?` |
+| `strategyReason` | `String?` |
+| `idempotencyKey` | `String` |
+| `attempts` | `Int` |
+| `lastError` | `String?` |
+| `qualityScore` | `Float?` |
+| `mediaItemId` | `String?` |
+| `libraryId` | `String?` |
+| `startedAt` | `DateTime?` |
+| `importedAt` | `DateTime?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `MediaIntakeEvent`
+
+Table: `media_intake_events`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `jobId` | `String` |
+| `fromState` | `String?` |
+| `toState` | `String` |
+| `message` | `String?` |
+| `data` | `Json?` |
+| `userId` | `String?` |
+| `createdAt` | `DateTime` |
+
 ## Media acquisition (Smart Download)
 
 _7 models._
@@ -1175,6 +1370,9 @@ Table: `wanted_episodes`
 | `grabbedEvaluationId` | `String?` |
 | `downloadUrl` | `String?` |
 | `releaseTitle` | `String?` |
+| `torrentHash` | `String?` |
+| `deadReleases` | `String[]` |
+| `intakeRuleId` | `String?` |
 | `lastCheckedAt` | `DateTime` |
 | `createdAt` | `DateTime` |
 
@@ -1339,6 +1537,8 @@ Table: `media_server_sessions`
 | `userName` | `String?` |
 | `title` | `String` |
 | `showTitle` | `String?` |
+| `episodeTitle` | `String?` |
+| `missedPolls` | `Int` |
 | `seasonNumber` | `Int?` |
 | `episodeNumber` | `Int?` |
 | `year` | `Int?` |
@@ -1448,6 +1648,7 @@ Table: `media_server_newsletters`
 | --- | --- |
 | `id` | `String` |
 | `name` | `String` |
+| `brandTitle` | `String?` |
 | `enabled` | `Boolean` |
 | `frequency` | `String` |
 | `recipientEmails` | `Json` |
@@ -1456,6 +1657,10 @@ Table: `media_server_newsletters`
 | `dateRangeMode` | `String` |
 | `lastDays` | `Int` |
 | `startDate` | `DateTime?` |
+| `sendWeekday` | `Int?` |
+| `sendHour` | `Int` |
+| `sendMinute` | `Int` |
+| `timezone` | `String?` |
 | `lastSuccessfulSendAt` | `DateTime?` |
 | `nextRunAt` | `DateTime?` |
 | `createdAt` | `DateTime` |
@@ -1493,7 +1698,7 @@ Table: `media_server_configs`
 
 ## Platform
 
-_29 models._
+_35 models._
 
 ```mermaid
 erDiagram
@@ -1515,6 +1720,10 @@ erDiagram
   WorkflowExecution ||--o{ WorkflowApproval : "approvals"
   WorkflowNodeExecution }o--|| WorkflowExecution : "execution"
   WorkflowApproval }o--|| WorkflowExecution : "execution"
+  StorageProfile ||--o{ StorageCapabilityProbe : "capabilities"
+  StorageProfile ||--o{ IntakeIntent : "intents"
+  IntakeIntent }o--|| StorageProfile : "profile"
+  StorageCapabilityProbe }o--|| StorageProfile : "profile"
 ```
 
 ### `TraktAccount`
@@ -1570,6 +1779,39 @@ Table: `refresh_tokens`
 | `expiresAt` | `DateTime` |
 | `revokedAt` | `DateTime?` |
 | `createdAt` | `DateTime` |
+
+### `TransferLedger`
+
+Table: `transfer_ledgers`
+
+| Column | Type |
+| --- | --- |
+| `engineId` | `String` |
+| `baselineDownloaded` | `BigInt` |
+| `baselineUploaded` | `BigInt` |
+| `baselineSource` | `String?` |
+| `baselineAt` | `DateTime?` |
+| `accruedDownloaded` | `BigInt` |
+| `accruedUploaded` | `BigInt` |
+| `resetsObserved` | `Int` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `RetiredTorrentTransfer`
+
+Table: `retired_torrent_transfers`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `engineId` | `String` |
+| `hash` | `String` |
+| `name` | `String` |
+| `downloaded` | `BigInt` |
+| `uploaded` | `BigInt` |
+| `ratio` | `Float` |
+| `firstSeenAt` | `DateTime?` |
+| `retiredAt` | `DateTime` |
 
 ### `ParkedTorrent`
 
@@ -2115,6 +2357,77 @@ Table: `workflow_templates`
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 
+### `StorageProfile`
+
+Table: `storage_profiles`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `name` | `String` |
+| `description` | `String?` |
+| `isDefault` | `Boolean` |
+| `isEnabled` | `Boolean` |
+| `stagingRoot` | `String` |
+| `tempRoot` | `String?` |
+| `failedRoot` | `String?` |
+| `quarantineRoot` | `String?` |
+| `movieLibraryId` | `String?` |
+| `tvLibraryId` | `String?` |
+| `musicLibraryId` | `String?` |
+| `defaultStrategy` | `String` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `IntakeIntent`
+
+Table: `intake_intents`
+
+| Column | Type |
+| --- | --- |
+| `hash` | `String` |
+| `engineId` | `String` |
+| `profileId` | `String` |
+| `createdById` | `String?` |
+| `createdAt` | `DateTime` |
+| `consumedAt` | `DateTime?` |
+
+### `PathMappingRule`
+
+Table: `path_mapping_rules`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `space` | `String` |
+| `fromPrefix` | `String` |
+| `toPrefix` | `String` |
+| `scopeId` | `String?` |
+| `priority` | `Int` |
+| `isEnabled` | `Boolean` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `StorageCapabilityProbe`
+
+Table: `storage_capability_probes`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `profileId` | `String` |
+| `sourceRoot` | `String` |
+| `targetRoot` | `String` |
+| `sameDevice` | `Boolean` |
+| `hardlink` | `Boolean` |
+| `reflink` | `Boolean` |
+| `symlink` | `Boolean` |
+| `providerRelocation` | `Boolean` |
+| `filesystem` | `String?` |
+| `detail` | `String?` |
+| `error` | `String?` |
+| `detectedAt` | `DateTime` |
+
 ## RSS
 
 _8 models._
@@ -2166,6 +2479,9 @@ Table: `rss_rules`
 | `autoDownload` | `Boolean` |
 | `isEnabled` | `Boolean` |
 | `createdAt` | `DateTime` |
+| `importMode` | `String` |
+| `storageProfileId` | `String?` |
+| `preMigrationSavePath` | `String?` |
 | `mediaType` | `String?` |
 | `showStatus` | `String?` |
 | `showStatusProvider` | `String?` |
@@ -2292,11 +2608,12 @@ Table: `rss_history`
 | `infoHash` | `String?` |
 | `matched` | `Boolean` |
 | `downloaded` | `Boolean` |
+| `regrabRequestedAt` | `DateTime?` |
 | `createdAt` | `DateTime` |
 
 ## Torrents
 
-_5 models._
+_11 models._
 
 ```mermaid
 erDiagram
@@ -2381,6 +2698,118 @@ Table: `torrent_tag_links`
 | --- | --- |
 | `snapshotId` | `String` |
 | `tagId` | `String` |
+
+### `TorrentSchedulerEngineConfig`
+
+Table: `torrent_scheduler_engine_configs`
+
+| Column | Type |
+| --- | --- |
+| `engineId` | `String` |
+| `mode` | `String` |
+| `modeChangedAt` | `DateTime?` |
+| `modeChangedBy` | `String?` |
+| `nativeSettingsSnapshot` | `Json?` |
+| `nativeSettingsSnapshotAt` | `DateTime?` |
+| `lastSweepAt` | `DateTime?` |
+| `lastSuccessfulSweepAt` | `DateTime?` |
+| `healthState` | `String` |
+| `healthDetail` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `TorrentSchedulerPolicy`
+
+Table: `torrent_scheduler_policies`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `name` | `String` |
+| `enabled` | `Boolean` |
+| `scopeType` | `String` |
+| `scopeId` | `String?` |
+| `maxConcurrentDownloads` | `Int?` |
+| `maxConcurrentSeeds` | `Int?` |
+| `maxTotalActive` | `Int?` |
+| `maxDownloadRateKbps` | `Int?` |
+| `maxUploadRateKbps` | `Int?` |
+| `reserveDownloadBandwidthPercent` | `Int?` |
+| `reserveSeedBandwidthPercent` | `Int?` |
+| `seedPolicy` | `Json?` |
+| `createdBy` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `TorrentSchedulerDecision`
+
+Table: `torrent_scheduler_decisions`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `engineId` | `String` |
+| `generatedAt` | `DateTime` |
+| `mode` | `String` |
+| `summary` | `Json` |
+| `limitations` | `Json?` |
+| `proposedActions` | `Int` |
+| `appliedActions` | `Int` |
+| `durationMs` | `Int?` |
+| `result` | `String` |
+
+### `TorrentSchedulerState`
+
+Table: `torrent_scheduler_states`
+
+| Column | Type |
+| --- | --- |
+| `engineId` | `String` |
+| `hash` | `String` |
+| `schedulerPausedAt` | `DateTime?` |
+| `reasonCode` | `String?` |
+| `lastActionAt` | `DateTime?` |
+| `updatedAt` | `DateTime` |
+
+### `TorrentSchedulerWindow`
+
+Table: `torrent_scheduler_windows`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `name` | `String` |
+| `enabled` | `Boolean` |
+| `daysOfWeek` | `Int[]` |
+| `startMinute` | `Int` |
+| `endMinute` | `Int` |
+| `timeZone` | `String` |
+| `priority` | `Int` |
+| `maxConcurrentDownloads` | `Int?` |
+| `maxConcurrentSeeds` | `Int?` |
+| `maxTotalActive` | `Int?` |
+| `maxDownloadRateKbps` | `Int?` |
+| `maxUploadRateKbps` | `Int?` |
+| `allowNewDownloads` | `Boolean` |
+| `createdBy` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `TorrentSchedulerOverride`
+
+Table: `torrent_scheduler_overrides`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `engineId` | `String` |
+| `hash` | `String` |
+| `kind` | `String` |
+| `expiresAt` | `DateTime?` |
+| `clearedAt` | `DateTime?` |
+| `reason` | `String?` |
+| `createdBy` | `String?` |
+| `createdAt` | `DateTime` |
 
 ## See also
 

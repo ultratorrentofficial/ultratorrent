@@ -13,6 +13,7 @@ import { TorrentNameRepairService } from './torrent-name-repair.service';
 import { TransferLedgerService } from '../transfer-ledger/transfer-ledger.service';
 import { TorrentParkingService } from './torrent-parking.service';
 import { TorrentIntakeAnnotatorService } from './torrent-intake-annotator.service';
+import { EngineStatusTracker } from '../engine/engine-status.tracker';
 
 /**
  * What we knew about a torrent at the end of the previous tick: enough to
@@ -83,6 +84,12 @@ export class TorrentSyncService {
     private readonly parking: TorrentParkingService,
     // Appended, not inserted — the specs construct this positionally.
     private readonly intakeAnnotator: TorrentIntakeAnnotatorService,
+    /**
+     * Appended for the same reason. Optional in the constructor so the existing
+     * specs, which build this service positionally with the arguments they care
+     * about, keep working without each of them learning about engine status.
+     */
+    private readonly engineStatus?: EngineStatusTracker,
   ) {}
 
   @Interval(2000)
@@ -157,6 +164,9 @@ export class TorrentSyncService {
         error: null,
         at,
       });
+      // Remember it too. Anything asking "is this engine up?" afterwards reads
+      // this instead of opening a second connection to the engine to find out.
+      this.engineStatus?.recordOnline(provider.engineId, at, torrents.length);
     } catch (err) {
       this.logger.warn(
         `Engine ${provider.engineId} sync failed: ${(err as Error).message}`,
@@ -167,6 +177,7 @@ export class TorrentSyncService {
         error: (err as Error).message,
         at,
       });
+      this.engineStatus?.recordOffline(provider.engineId, at, (err as Error).message);
     }
   }
 
