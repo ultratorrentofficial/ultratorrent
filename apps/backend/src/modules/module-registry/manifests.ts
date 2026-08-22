@@ -220,6 +220,30 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     settingsSections: ['general', 'security', 'appearance'],
   },
   {
+    id: MODULE_IDS.OPERATIONS,
+    name: 'Operations (Console API)',
+    description: 'Read-only aggregate snapshot and event stream for UltraTorrent Console.',
+    tier: 'core',
+    enabledByDefault: true,
+    dependencies: [MODULE_IDS.AUTH],
+    /*
+     * Declaring `console.view` here is what actually creates it on a deployed
+     * install. The container runs `prisma migrate deploy` and never the seed, so
+     * `ModulePermissionSyncService` — which reads MANIFESTS, not the shared
+     * PERMISSIONS constant — is the only thing that catalogues a new key and
+     * grants it to the roles `ROLE_PERMISSIONS` says should hold it. Without a
+     * manifest the permission would exist in code and nowhere in the database,
+     * and every non-SUPER_ADMIN would get a 403 on /api/operations forever —
+     * invisible to whoever deployed it, because SUPER_ADMIN bypasses the guard.
+     *
+     * No `menu` entry: the console is a terminal client, not a page in the web
+     * app, and a nav item pointing at nothing is worse than no nav item.
+     */
+    permissions: [P.CONSOLE_VIEW],
+    routes: ['/api/operations'],
+    websocketEvents: ['operations.event'],
+  },
+  {
     id: MODULE_IDS.MODULE_REGISTRY,
     name: 'Module registry',
     description: 'Enable/disable optional modules.',

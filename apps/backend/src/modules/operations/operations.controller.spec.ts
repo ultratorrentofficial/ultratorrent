@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { BadRequestException } from '@nestjs/common';
 import { PATH_METADATA, METHOD_METADATA } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common';
-import { OPERATIONS_DOMAINS, PERMISSIONS, SystemRole } from '@ultratorrent/shared';
+import { MODULE_IDS, OPERATIONS_DOMAINS, PERMISSIONS, ROLE_PERMISSIONS, SystemRole } from '@ultratorrent/shared';
+import { ALL_MANIFESTS } from '../module-registry/manifests';
 import { PERMISSIONS_KEY } from '../../common/decorators/permissions.decorator';
 import { OperationsController } from './operations.controller';
 
@@ -132,5 +133,32 @@ describe('operations controller — query parsing', () => {
 
   it('rejects a limit that is not a number instead of silently defaulting', () => {
     expect(() => controller().snapshot(user, undefined, 'all')).toThrow(BadRequestException);
+  });
+});
+
+
+describe('operations module — console.view reaches a deployed database', () => {
+  /*
+   * The container runs `prisma migrate deploy` and never the seed, so
+   * `ModulePermissionSyncService` is the only thing that creates a NEW
+   * permission on an upgraded install — and it reads module MANIFESTS, not the
+   * shared PERMISSIONS constant. A permission that exists in code and in no
+   * manifest exists nowhere in that database: every non-SUPER_ADMIN gets a 403
+   * on these routes forever, and it is invisible to whoever deployed it because
+   * SUPER_ADMIN bypasses the guard entirely.
+   */
+  it('is declared by the operations manifest, which is what creates it on deploy', () => {
+    const manifest = ALL_MANIFESTS.find((m) => m.id === MODULE_IDS.OPERATIONS);
+    expect(manifest).toBeDefined();
+    expect(manifest!.permissions).toContain(PERMISSIONS.CONSOLE_VIEW);
+  });
+
+  it('is granted to the roles that are supposed to hold it', () => {
+    // The sync grants a fresh permission to whichever system roles
+    // ROLE_PERMISSIONS names, so an empty list here would catalogue the key and
+    // give it to nobody.
+    for (const role of [SystemRole.READ_ONLY, SystemRole.USER, SystemRole.POWER_USER]) {
+      expect(ROLE_PERMISSIONS[role]).toContain(PERMISSIONS.CONSOLE_VIEW);
+    }
   });
 });
