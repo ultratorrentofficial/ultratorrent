@@ -277,6 +277,34 @@ describe('dashboard activity — collapseActivity (bursty enrichment)', () => {
     expect(items[0].detail).toBe('2 events');
   });
 
+  it('carries the individual events behind a collapsed line', () => {
+    // The summary names two of them; opening it has to account for all four.
+    const names = new Map([
+      ['i1', 'Beyond the Gates S02E122'],
+      ['i2', 'Silo S02E01'],
+      ['i3', 'Ted Lasso S03E12'],
+      ['i4', 'Carolina Caroline (2026)'],
+    ]);
+    const rows = ['i1', 'i2', 'i3', 'i4'].map((id, i) =>
+      row({ id: `art-${i}`, action: 'media.artwork.import', objectType: 'media_item', objectId: id }),
+    );
+    const [line] = collapseActivity(rows, 15, names);
+    expect(line.detail).toBe('4 events');
+    expect(line.events).toHaveLength(4); // the count and the contents agree
+    expect(line.events!.map((e) => e.message)).toEqual([
+      'Imported artwork: Beyond the Gates S02E122',
+      'Imported artwork: Silo S02E01',
+      'Imported artwork: Ted Lasso S03E12',
+      'Imported artwork: Carolina Caroline (2026)',
+    ]);
+    expect(line.events!.every((e) => e.events === null)).toBe(true); // one level deep
+  });
+
+  it('leaves a single event with nothing to expand', () => {
+    const items = collapseActivity([row({ id: 's1', action: 'media.integration.refresh' })], 15);
+    expect(items[0].events).toBeNull();
+  });
+
   it('does not collapse a system action that occurs only once', () => {
     const items = collapseActivity(
       [row({ id: 's1', action: 'media.integration.refresh' }), ...burst(3)],

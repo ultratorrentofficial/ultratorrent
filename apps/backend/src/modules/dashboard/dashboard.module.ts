@@ -126,6 +126,12 @@ interface ActivityItem {
   detail: string | null;
   level: 'info' | 'success' | 'warning' | 'error';
   at: string;
+  /**
+   * The individual events behind a collapsed line, each rendered as it would
+   * have been on its own. A summary that cannot be opened asks the reader to
+   * take "24 events" on faith; null for a line that is already a single event.
+   */
+  events: ActivityItem[] | null;
 }
 
 export type AuditRow = {
@@ -174,6 +180,7 @@ export function toActivityItem(row: AuditRow, names: MediaNames = new Map()): Ac
     detail: described.detail,
     level: activityLevel(row.action, row.result),
     at: row.createdAt.toISOString(),
+    events: null,
   };
 }
 
@@ -252,6 +259,7 @@ function burstActivityItem(rep: AuditRow, group: AuditRow[], names: MediaNames):
     detail: `${group.length} events`,
     level: activityLevel(rep.action, rep.result),
     at: rep.createdAt.toISOString(),
+    events: group.map((r) => toActivityItem(r, names)),
   };
 }
 

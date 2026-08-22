@@ -36,6 +36,8 @@
   "activity": {
     "title": "Recent activity",
     "emptyTitle": "No recent activity",
-    "emptyDescription": "Events from your engine and automations will appear here."
+    "emptyDescription": "Events from your engine and automations will appear here.",
+    "expand": "Show the {{count}} events",
+    "collapse": "Hide the individual events"
   }
 }

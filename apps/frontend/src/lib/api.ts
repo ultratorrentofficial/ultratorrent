@@ -276,6 +276,8 @@ export interface ActivityItem {
   hash?: string | null;
   level?: 'info' | 'success' | 'warning' | 'error';
   at: string;
+  /** The individual events behind a collapsed summary line; null for a single event. */
+  events?: ActivityItem[] | null;
 }
 
 /** Humanized media an audit row acted on, resolved server-side from its target. */

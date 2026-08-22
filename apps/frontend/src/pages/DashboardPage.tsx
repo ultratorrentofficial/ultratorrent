@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -22,9 +22,10 @@ import {
   Sprout,
   TriangleAlert,
 } from 'lucide-react';
-import { api, type ActivityItem } from '@/lib/api';
+import { api } from '@/lib/api';
+import { ActivityRow } from './dashboard/ActivityRow';
 import { useRealtime } from '@/realtime/RealtimeContext';
-import { formatBytes, formatRatio, formatRelativeTime, formatSpeed } from '@/lib/format';
+import { formatBytes, formatRatio, formatSpeed } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CenteredSpinner, EmptyState, Skeleton } from '@/components/ui/feedback';
@@ -39,6 +40,10 @@ export function DashboardPage() {
     queryFn: api.dashboard.summary,
     refetchInterval: 15000,
   });
+
+  // At most one summary is open at a time: opening the next closes the last, so
+  // the feed never grows into a wall of expanded groups.
+  const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
 
   const activityQuery = useQuery({
     queryKey: ['dashboard', 'activity'],
@@ -153,7 +158,14 @@ export function DashboardPage() {
           ) : activityQuery.data && activityQuery.data.length > 0 ? (
             <ul className="divide-y divide-border/60">
               {activityQuery.data.slice(0, 12).map((item) => (
-                <ActivityRow key={item.id} item={item} />
+                <ActivityRow
+                  key={item.id}
+                  item={item}
+                  expanded={expandedActivity === item.id}
+                  onToggle={() =>
+                    setExpandedActivity((current) => (current === item.id ? null : item.id))
+                  }
+                />
               ))}
             </ul>
           ) : (
@@ -308,36 +320,6 @@ function LegendDot({ className, label }: { className: string; label: string }) {
       <span className={cn('h-2 w-2 rounded-full', className)} />
       {label}
     </span>
-  );
-}
-
-function ActivityRow({ item }: { item: ActivityItem }) {
-  const tone: Record<NonNullable<ActivityItem['level']>, string> = {
-    info: 'text-info',
-    success: 'text-success',
-    warning: 'text-warning',
-    error: 'text-destructive',
-  };
-  return (
-    <li className="flex items-start gap-3 py-2.5">
-      <span
-        className={cn(
-          'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current',
-          tone[item.level ?? 'info'],
-        )}
-      />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm text-foreground/90">{item.message}</span>
-        {item.detail && (
-          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-            {item.detail}
-          </span>
-        )}
-      </span>
-      <span className="mt-0.5 shrink-0 text-xs text-muted-foreground tabular-nums">
-        {formatRelativeTime(item.at)}
-      </span>
-    </li>
   );
 }
 

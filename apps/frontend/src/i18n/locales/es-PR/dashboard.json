@@ -36,6 +36,8 @@
   "activity": {
     "title": "Actividad reciente",
     "emptyTitle": "Sin actividad reciente",
-    "emptyDescription": "Los eventos de tu motor y automatizaciones aparecerán aquí."
+    "emptyDescription": "Los eventos de tu motor y automatizaciones aparecerán aquí.",
+    "expand": "Mostrar los {{count}} eventos",
+    "collapse": "Ocultar los eventos individuales"
   }
 }
