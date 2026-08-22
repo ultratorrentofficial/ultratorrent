@@ -166,12 +166,12 @@ func TestHealthAndSeverityAlwaysCarryAGlyph(t *testing.T) {
 func TestSectionExplainsEveryAbsence(t *testing.T) {
 	// A blank space where data should be is the one thing an observability
 	// client must never show.
-	rendered := section("Torrents", nil, func(int) string { return "data" })
+	rendered := section("Torrents", nil, 60, func(int) string { return "data" })
 	if !strings.Contains(rendered, "Not requested") {
 		t.Errorf("a nil domain must say so, got %q", rendered)
 	}
 
-	denied := section("Torrents", &api.Domain[int]{Available: false, Reason: "forbidden"},
+	denied := section("Torrents", &api.Domain[int]{Available: false, Reason: "forbidden"}, 60,
 		func(int) string { return "data" })
 	if strings.Contains(denied, "data") {
 		t.Error("a forbidden domain must not render its zero value as content")
@@ -180,7 +180,7 @@ func TestSectionExplainsEveryAbsence(t *testing.T) {
 		t.Errorf("a forbidden domain must explain itself, got %q", denied)
 	}
 
-	ok := section("Torrents", &api.Domain[int]{Available: true, Data: 42},
+	ok := section("Torrents", &api.Domain[int]{Available: true, Data: 42}, 60,
 		func(v int) string { return "value" })
 	if !strings.Contains(ok, "value") {
 		t.Error("an available domain must render its data")

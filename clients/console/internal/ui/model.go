@@ -345,17 +345,22 @@ func (m Model) statusLine() string {
 	if m.paused {
 		state = "paused"
 	}
+	// Before the first successful fetch there is no age to report. Formatting
+	// the zero time gave "106751d 23h ago" — the Unix epoch rendered as though
+	// it were a real reading, on the very first frame an operator sees.
+	freshness := "loading"
+	if !m.lastFetched.IsZero() {
+		stamp := m.lastFetched.Format(time.RFC3339)
+		freshness = "refreshed " + ago(&stamp)
+	}
 	cost := ""
 	if m.snapshot != nil {
 		cost = fmt.Sprintf(" · built in %dms", m.snapshot.DurationMs)
 	}
 	return styleMuted.Render(fmt.Sprintf(
-		"%s · refreshed %s · every %s%s",
-		state, ago(ptr(m.lastFetched.Format(time.RFC3339))), humanDuration(m.interval), cost,
+		"%s · %s · every %s%s", state, freshness, humanDuration(m.interval), cost,
 	))
 }
-
-func ptr[T any](v T) *T { return &v }
 
 // StreamMsg carries one realtime update into the Bubble Tea loop.
 //

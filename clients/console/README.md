@@ -39,6 +39,23 @@ app is served at.
 Keys: `tab` / `1`–`9` switch views, `r` refreshes now, `p` pauses polling,
 `f` cycles the stream filter, `q` quits.
 
+## The layout
+
+Panes, not a scrolling column. Each subject gets a titled frame in a fixed
+place, so the eye learns where "storage" lives and goes straight there instead
+of reading down a page. Where the terminal is wide enough the panes form a
+two-column grid — the host on the left, the work on the right, so "is the
+machine sick or is the workload sick" is answered by looking at one side.
+
+Below ~93 columns the grid collapses to a single column rather than cramping:
+two columns that truncate every value they hold are worse than one column that
+does not. The chrome is fixed — a header rail, a tab rail, a footer — so only
+the instruments move.
+
+A pane the account may not read is dimmed and marked, not coloured like a
+fault; a pane holding a critical alert is framed in its own severity, so it is
+visible before a word of it is read.
+
 ## The event stream
 
 The **Stream** view is a live narrative fed by a websocket, not by polling. The

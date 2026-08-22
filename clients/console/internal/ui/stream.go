@@ -149,56 +149,61 @@ func (s *stream) statusText() string {
 	}
 }
 
-// viewStream renders the narrative.
+// viewStream renders the narrative as its own pane.
 func (m Model) viewStream() string {
 	s := m.stream
-	var b strings.Builder
+	w := m.contentWidth()
 
-	b.WriteString(styleTitle.Render("Event stream"))
-	b.WriteString("  " + s.statusText())
+	title := "Event stream · " + s.statusText()
 	if s.filter != "" {
-		b.WriteString(styleAccent.Render("  filter: " + s.filter))
+		title += styleAccent.Render(" · " + s.filter)
 	}
-	b.WriteString("\n")
 
+	var b strings.Builder
 	/*
 	 * Said plainly, every time. The buffer holds what arrived while this console
-	 * was open — it is not a query, it does not backfill, and an operator who
-	 * reads it as history will draw wrong conclusions from a quiet screen.
+	 * was open — it does not backfill, and an operator reading it as history
+	 * will draw wrong conclusions from a quiet screen. Shortened rather than
+	 * dropped on a narrow terminal: the caveat matters more than its wording.
 	 */
-	b.WriteString(stylePanel.Render(styleMuted.Render(
-		"Live only — what arrived since this console connected. The record is the audit log.",
-	)))
-	b.WriteString("\n\n")
+	caveat := "Live only — since this console connected. The record is the audit log."
+	if w < 90 {
+		caveat = "Live only — not history."
+	}
+	b.WriteString(styleMuted.Render(caveat))
+	b.WriteString("\n")
 
 	events := s.visible()
 	if len(events) == 0 {
 		if s.status == realtime.StatusConnected {
-			b.WriteString(stylePanel.Render(styleMuted.Render("Connected. Nothing has happened yet.")))
+			b.WriteString(styleMuted.Render("Connected. Nothing has happened yet."))
 		} else {
-			b.WriteString(stylePanel.Render(styleMuted.Render("Waiting for the stream…")))
+			b.WriteString(styleMuted.Render("Waiting for the stream…"))
 		}
-		return b.String()
+		return panel(title, b.String(), w)
 	}
 
-	width := m.width
-	if width < 60 {
-		width = 60
+	// inner width, less the two rails and their padding
+	inner := w - 4
+	summaryW := inner - 9 - 1 - 1 - 1 - 13 - 1
+	if summaryW < 12 {
+		summaryW = 12
 	}
-	lines := make([]string, 0, len(events)+1)
+	lines := make([]string, 0, len(events))
 	for _, e := range events {
 		if len(lines) >= m.streamRows() {
 			break
 		}
-		mark := severityStyle(e.Severity).Render(severityMark(e.Severity))
-		when := styleMuted.Render(pad(clockOf(e.At), 9))
-		cat := styleMuted.Render(pad(truncate(e.Category, 12), 13))
-		summary := truncate(e.Summary, width-40)
-		line := fmt.Sprintf("%s %s %s %s", when, mark, cat, summary)
+		summary := e.Summary
 		if e.Actor != nil && *e.Actor != "" {
-			line += styleMuted.Render(" · " + *e.Actor)
+			summary += " · " + *e.Actor
 		}
-		lines = append(lines, line)
+		lines = append(lines, strings.Join([]string{
+			styleMuted.Render(pad(clockOf(e.At), 9)),
+			severityStyle(e.Severity).Render(severityMark(e.Severity)),
+			styleMuted.Render(pad(truncate(e.Category, 12), 13)),
+			truncate(summary, summaryW),
+		}, " "))
 	}
 	b.WriteString(strings.Join(lines, "\n"))
 
@@ -207,9 +212,9 @@ func (m Model) viewStream() string {
 			"… %d older event(s) have scrolled out of the buffer.", s.dropped)))
 	}
 	if cats := s.categories(); len(cats) > 1 {
-		b.WriteString("\n\n" + styleMuted.Render("f cycles filter: all · "+strings.Join(cats, " · ")))
+		b.WriteString("\n" + styleMuted.Render(truncate("f filters: all · "+strings.Join(cats, " · "), inner)))
 	}
-	return b.String()
+	return panel(title, b.String(), w)
 }
 
 // streamRows is how many lines fit under the chrome.

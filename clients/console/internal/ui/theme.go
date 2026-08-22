@@ -38,24 +38,32 @@ var (
 	styleTitle = lipgloss.NewStyle().Foreground(colFg).Bold(true)
 	styleKey   = lipgloss.NewStyle().Foreground(colMuted)
 
-	styleHeader = lipgloss.NewStyle().
-			Foreground(colFg).
-			Background(colSurface).
-			Bold(true).
-			Padding(0, 1)
+	// The top rail. A filled bar rather than bordered text: it is chrome, and
+	// chrome that looks like an instrument competes with the instruments.
+	styleHeaderBar = lipgloss.NewStyle().Background(colSurface)
 
-	styleTabActive = lipgloss.NewStyle().
+	styleHeaderName = lipgloss.NewStyle().
 			Foreground(colAccent).
-			Bold(true).
-			Underline(true).
-			Padding(0, 1)
+			Background(colSurface).
+			Bold(true)
 
-	styleTabIdle = lipgloss.NewStyle().Foreground(colMuted).Padding(0, 1)
+	styleHeaderMeta = lipgloss.NewStyle().
+			Foreground(colMuted).
+			Background(colSurface)
+
+	// The active tab is a filled segment, not underlined text: on a rail of
+	// nine it has to be findable at a glance, and an underline is easy to miss.
+	styleTabActive = lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "231", Dark: "233"}).
+			Background(colAccent).
+			Bold(true)
+
+	styleTabIdle = lipgloss.NewStyle().Foreground(colMuted)
 
 	// A tab the account cannot read. Shown rather than hidden, so an operator
 	// can see that a view exists and ask for access, instead of wondering
 	// whether the console is broken or the feature is missing.
-	styleTabDenied = lipgloss.NewStyle().Foreground(colMuted).Faint(true).Padding(0, 1)
+	styleTabDenied = lipgloss.NewStyle().Foreground(colMuted).Faint(true).Strikethrough(true)
 
 	styleStatusBar = lipgloss.NewStyle().Foreground(colMuted).Padding(0, 1)
 

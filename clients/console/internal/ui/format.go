@@ -156,6 +156,28 @@ func progressBar(fraction float64, width int) string {
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 
+// meterFor is a progress bar whose colour carries its own reading.
+//
+// Used for anything with a "full is bad" or "full is good" sense — disk usage,
+// download progress, playback position. The thresholds match the alert
+// projection's, so a bar that has turned red and an alert that has fired are
+// saying the same thing rather than disagreeing by a few percent.
+func meterFor(fraction float64, width int) string {
+	style := styleOK
+	switch {
+	case fraction >= 0.97:
+		style = styleErr
+	case fraction >= 0.9:
+		style = styleWarn
+	}
+	bar := progressBar(fraction, width)
+	// Only the filled run is coloured; the remainder stays muted so the bar
+	// reads as a proportion rather than as a block of colour.
+	filled := len([]rune(strings.ReplaceAll(bar, "░", "")))
+	runes := []rune(bar)
+	return style.Render(string(runes[:filled])) + styleMuted.Render(string(runes[filled:]))
+}
+
 // percent renders a fraction, or "—" when it was never measured.
 func percent(p *float64) string {
 	if p == nil {

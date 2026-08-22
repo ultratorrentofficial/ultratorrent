@@ -11,6 +11,9 @@ import (
 )
 
 // View renders the whole screen.
+//
+// Three fixed regions — a header rail, a tab rail, and a pane grid — so the
+// chrome never moves and only the instruments inside it change.
 func (m Model) View() string {
 	if m.quitting {
 		return ""
@@ -19,50 +22,76 @@ func (m Model) View() string {
 	b.WriteString(m.header())
 	b.WriteString("\n")
 	b.WriteString(m.tabs())
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 	if m.warning != "" {
-		b.WriteString(styleWarn.Render("⚠ "+m.warning) + "\n\n")
+		b.WriteString(panelSeverity("Notice", styleWarn.Render(m.warning), m.contentWidth(), api.SeverityWarning))
+		b.WriteString("\n")
 	}
 	b.WriteString(m.body())
 	b.WriteString("\n")
-	b.WriteString(m.statusLine())
-	b.WriteString("\n")
-	b.WriteString(styleMuted.Render("tab/1-9 switch · r refresh · p pause · f filter · q quit"))
+	b.WriteString(m.footer())
 	return b.String()
 }
 
-func (m Model) header() string {
-	server := m.caps.Server.Product + " " + m.caps.Server.Version
-	who := m.caps.User.Username
-	if len(m.caps.User.Roles) > 0 {
-		who += " (" + strings.Join(m.caps.User.Roles, ", ") + ")"
+// contentWidth is the drawable width, with a floor so panes never collapse.
+func (m Model) contentWidth() int {
+	w := m.width
+	if w < 60 {
+		return 60
 	}
-	left := styleTitle.Render("UltraTorrent Console")
-	right := styleMuted.Render(server + " · " + who)
-	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 2
-	if gap < 1 {
-		gap = 1
-	}
-	return styleHeader.Width(m.width).Render(left + strings.Repeat(" ", gap) + right)
+	return w
 }
 
+// header is the top rail: who, where, and whether the stream is alive.
+func (m Model) header() string {
+	w := m.contentWidth()
+	product := styleHeaderName.Render(" UltraTorrent Console ")
+
+	build := m.caps.Server.Product + " " + m.caps.Server.Version
+	who := m.caps.User.Username
+	if len(m.caps.User.Roles) > 0 {
+		who += " · " + strings.Join(m.caps.User.Roles, ",")
+	}
+	right := styleHeaderMeta.Render(build + "  " + who + "  " + m.stream.statusText() + " ")
+
+	gap := w - lipgloss.Width(product) - lipgloss.Width(right)
+	if gap < 0 {
+		// Too narrow for both: the identity matters more than the build string.
+		return styleHeaderBar.Width(w).Render(fit(product, w))
+	}
+	return styleHeaderBar.Width(w).Render(product + strings.Repeat(" ", gap) + right)
+}
+
+// tabs is the view rail, drawn as connected segments rather than words.
 func (m Model) tabs() string {
 	parts := make([]string, 0, len(views))
 	for i, v := range views {
-		label := fmt.Sprintf("%d %s", i+1, v.Title)
+		label := fmt.Sprintf(" %d %s ", i+1, v.Title)
 		switch {
 		case !m.viewPermitted(v):
-			// Rendered, not hidden: an operator should be able to see that a
-			// view exists and ask for access, rather than wonder whether the
-			// console is broken.
-			parts = append(parts, styleTabDenied.Render(label+" ⃠"))
+			// Rendered, not hidden: an operator should see that a view exists
+			// and ask for access rather than wonder whether this is broken.
+			parts = append(parts, styleTabDenied.Render(label+"⃠"))
 		case i == m.active:
 			parts = append(parts, styleTabActive.Render(label))
 		default:
 			parts = append(parts, styleTabIdle.Render(label))
 		}
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
+	rail := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
+	return fit(rail, m.contentWidth())
+}
+
+// footer is the status rail: freshness on the left, keys on the right.
+func (m Model) footer() string {
+	w := m.contentWidth()
+	left := m.statusLine()
+	right := styleMuted.Render("tab/1-9 view · r refresh · p pause · f filter · q quit")
+	gap := w - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 1 {
+		return fit(left, w)
+	}
+	return left + strings.Repeat(" ", gap) + right
 }
 
 func (m Model) body() string {
@@ -100,20 +129,27 @@ func (m Model) body() string {
 	return ""
 }
 
-// section renders a titled block, or the reason it is missing.
+// section renders one domain as a titled pane of a given width.
 //
-// Every panel goes through here so an absent one always explains itself. A
-// blank space where data should be is the one thing an observability client
-// must never show.
-func section[T any](title string, d *api.Domain[T], render func(T) string) string {
-	head := styleTitle.Render(title)
+// Every panel goes through here so an absent one always explains itself inside
+// its own frame. A blank space where data should be is the one thing an
+// observability client must never show — and an empty BOX is worse than no box,
+// so the reason goes where the data would have been.
+func section[T any](title string, d *api.Domain[T], width int, render func(T) string) string {
 	switch {
 	case d == nil:
-		return head + "\n" + stylePanel.Render(styleMuted.Render("Not requested."))
+		return panel(title, styleMuted.Render("Not requested."), width)
 	case !d.Available:
-		return head + "\n" + stylePanel.Render(styleMuted.Render(unavailableReason(d.Reason, d.Message)))
+		body := styleMuted.Render(unavailableReason(d.Reason, d.Message))
+		if d.Reason == "forbidden" {
+			// A pane the account may not read is dimmed rather than alarming:
+			// it is not a fault, and colouring it like one trains an operator
+			// to ignore the colour that means something is wrong.
+			return panelWithAccent(title+" ⃠", body, width, styleMuted, styleMuted)
+		}
+		return panelWithAccent(title, body, width, styleWarn, styleWarn)
 	default:
-		return head + "\n" + stylePanel.Render(render(d.Data))
+		return panel(title, render(d.Data), width)
 	}
 }
 
@@ -127,82 +163,136 @@ func kv(key, value string) string {
 
 func (m Model) viewOverview() string {
 	d := m.snapshot.Domains
-	blocks := []string{
-		section("System", d.System, func(s api.System) string {
-			load := "—"
-			if len(s.LoadAverage) > 0 {
-				load = fmt.Sprintf("%.2f", s.LoadAverage[0])
-				if s.CPUCount > 0 {
-					// Per-core, because a raw load average means nothing
-					// without knowing how many cores it is spread across.
-					pc := s.LoadAverage[0] / float64(s.CPUCount)
-					style := styleOK
-					if pc >= 4 {
-						style = styleErr
-					} else if pc >= 1.5 {
-						style = styleWarn
-					}
-					load += style.Render(fmt.Sprintf("  (%.2f per core, %d cores)", pc, s.CPUCount))
-				}
-			}
-			return strings.Join([]string{
-				kv("Uptime", humanDuration(time.Duration(s.UptimeSeconds)*time.Second)),
-				kv("Load", load),
-				kv("Memory (RSS)", humanBytes(s.MemoryBytes)),
-				kv("Database", healthStyle(s.Database).Render(healthMark(s.Database)+" "+string(s.Database))),
-			}, "\n")
-		}),
-		section("Storage", d.Storage, func(s api.Storage) string {
-			if len(s.Roots) == 0 {
-				return styleMuted.Render("No roots reported.")
-			}
-			lines := make([]string, 0, len(s.Roots))
-			for _, r := range s.Roots {
-				if r.UsedPercent == nil {
-					lines = append(lines, styleWarn.Render(healthMark(r.Health)+" ")+pad(r.Path, 28)+styleMuted.Render("could not be measured"))
-					continue
-				}
-				lines = append(lines, fmt.Sprintf("%s %s%s %s free of %s",
-					healthStyle(r.Health).Render(healthMark(r.Health)),
-					pad(r.Path, 28),
-					progressBar(*r.UsedPercent/100, 12),
-					padLeft(humanBytes(r.FreeBytes), 9),
-					humanBytes(r.TotalBytes),
-				))
-			}
-			return strings.Join(lines, "\n")
-		}),
-		section("Transfers", d.Torrents, func(t api.Torrents) string {
-			observed := styleMuted.Render("")
-			if t.ObservedAt != nil {
-				// The console says how old this is because it genuinely is old:
-				// the server reads its poller's last look rather than asking the
-				// engines again.
-				observed = styleMuted.Render("  observed " + ago(t.ObservedAt))
-			}
-			return strings.Join([]string{
-				kv("Rates", styleAccent.Render("↓ "+humanBytes(t.Rates.DownloadRate)+"/s")+"   "+
-					styleOK.Render("↑ "+humanBytes(t.Rates.UploadRate)+"/s")+observed),
-				kv("Torrents", fmt.Sprintf("%d total · %d downloading · %d seeding",
-					t.Counts.Total, t.Counts.Downloading, t.Counts.Seeding)),
-				kv("Needs attention", attentionSummary(t.Counts)),
-				kv("Lifetime", fmt.Sprintf("↓ %s · ↑ %s · ratio %.2f",
-					humanBytes(t.Rates.TotalDownloaded), humanBytes(t.Rates.TotalUploaded), t.Rates.Ratio)),
-			}, "\n")
-		}),
-		section("Work", d.Jobs, func(j api.Jobs) string {
-			failed := fmt.Sprintf("%d", j.Failed)
-			if j.Failed > 0 {
-				failed = styleErr.Render(failed)
-			}
-			return strings.Join([]string{
-				kv("Jobs", fmt.Sprintf("%d running · %d queued · %s failed", j.Running, j.Queued, failed)),
-				kv("Today", fmt.Sprintf("%d completed · %d failed", j.CompletedToday, j.FailedToday)),
-			}, "\n")
-		}),
-		m.alertsBlock(3),
+	w := m.contentWidth()
+
+	/*
+	 * Two columns where there is room, one where there is not. The pairing is
+	 * deliberate: the left column is the host (what it is running on), the
+	 * right is the work (what it is doing), so an operator answering "is the
+	 * machine sick or is the workload sick" reads one side, not both.
+	 */
+	cols := splitWidth(w, 2, 1)
+	if cols == nil {
+		return rows(
+			section("System", d.System, w, m.renderSystem),
+			section("Storage", d.Storage, w, m.renderStorage),
+			section("Transfers", d.Torrents, w, m.renderTransfers),
+			section("Work", d.Jobs, w, m.renderWork),
+			m.alertsPane(w, 4),
+		)
 	}
-	return strings.Join(blocks, "\n\n")
+	left, right := cols[0], cols[1]
+	return rows(
+		columns(1,
+			section("System", d.System, left, m.renderSystem),
+			section("Transfers", d.Torrents, right, m.renderTransfers),
+		),
+		columns(1,
+			section("Storage", d.Storage, left, m.renderStorage),
+			section("Work", d.Jobs, right, m.renderWork),
+		),
+		m.alertsPane(w, 4),
+	)
+}
+
+func (m Model) renderSystem(s api.System) string {
+	load := "—"
+	if len(s.LoadAverage) > 0 {
+		load = fmt.Sprintf("%.2f", s.LoadAverage[0])
+		if s.CPUCount > 0 {
+			// Per-core, because a raw load average means nothing without
+			// knowing how many cores it is spread across.
+			pc := s.LoadAverage[0] / float64(s.CPUCount)
+			style := styleOK
+			if pc >= 4 {
+				style = styleErr
+			} else if pc >= 1.5 {
+				style = styleWarn
+			}
+			load += style.Render(fmt.Sprintf("  %.2f/core", pc)) +
+				styleMuted.Render(fmt.Sprintf(" (%d cores)", s.CPUCount))
+		}
+	}
+	return strings.Join([]string{
+		kv("Uptime", humanDuration(time.Duration(s.UptimeSeconds)*time.Second)),
+		kv("Load", load),
+		kv("Memory", humanBytes(s.MemoryBytes)),
+		kv("Database", healthStyle(s.Database).Render(healthMark(s.Database)+" "+string(s.Database))),
+	}, "\n")
+}
+
+func (m Model) renderStorage(s api.Storage) string {
+	if len(s.Roots) == 0 {
+		return styleMuted.Render("No roots reported.")
+	}
+	lines := make([]string, 0, len(s.Roots))
+	for _, r := range s.Roots {
+		mark := healthStyle(r.Health).Render(healthMark(r.Health))
+		if r.UsedPercent == nil {
+			lines = append(lines, mark+" "+pad(r.Path, 20)+styleMuted.Render("could not be measured"))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s %s %s %s",
+			mark,
+			pad(truncate(r.Path, 18), 19),
+			meterFor(*r.UsedPercent/100, 10),
+			styleMuted.Render(humanBytes(r.FreeBytes)+" free"),
+		))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) renderTransfers(t api.Torrents) string {
+	observed := ""
+	if t.ObservedAt != nil {
+		// The console says how old this is because it genuinely is old: the
+		// server reads its poller's last look rather than asking the engines.
+		observed = styleMuted.Render("  observed " + ago(t.ObservedAt))
+	}
+	return strings.Join([]string{
+		kv("Rates", styleAccent.Render("↓ "+humanBytes(t.Rates.DownloadRate)+"/s")+"  "+
+			styleOK.Render("↑ "+humanBytes(t.Rates.UploadRate)+"/s")+observed),
+		kv("Torrents", fmt.Sprintf("%d total · %d down · %d seed",
+			t.Counts.Total, t.Counts.Downloading, t.Counts.Seeding)),
+		kv("Attention", attentionSummary(t.Counts)),
+		kv("Lifetime", fmt.Sprintf("↓ %s · ↑ %s · %.2f",
+			humanBytes(t.Rates.TotalDownloaded), humanBytes(t.Rates.TotalUploaded), t.Rates.Ratio)),
+	}, "\n")
+}
+
+func (m Model) renderWork(j api.Jobs) string {
+	failed := fmt.Sprintf("%d", j.Failed)
+	if j.Failed > 0 {
+		failed = styleErr.Render(failed)
+	}
+	rate := "—"
+	if j.SuccessRate != nil {
+		rate = fmt.Sprintf("%.0f%%", *j.SuccessRate)
+	}
+	return strings.Join([]string{
+		kv("Running", fmt.Sprintf("%d", j.Running)),
+		kv("Queued", fmt.Sprintf("%d", j.Queued)),
+		kv("Failed", failed),
+		kv("Today", fmt.Sprintf("%d done · %d failed · %s ok", j.CompletedToday, j.FailedToday, rate)),
+	}, "\n")
+}
+
+// warnIf and errIf render a count, coloured only when it is worth looking at.
+//
+// A zero stays plain: colouring every number trains the eye to ignore colour,
+// which is the one thing that has to keep working on a dashboard.
+func warnIf(n int) string {
+	if n > 0 {
+		return styleWarn.Render(fmt.Sprintf("%d", n))
+	}
+	return "0"
+}
+
+func errIf(n int) string {
+	if n > 0 {
+		return styleErr.Render(fmt.Sprintf("%d", n))
+	}
+	return "0"
 }
 
 func attentionSummary(c api.TorrentCounts) string {
@@ -228,26 +318,27 @@ func attentionSummary(c api.TorrentCounts) string {
 
 func (m Model) viewTorrents() string {
 	d := m.snapshot.Domains
-	return strings.Join([]string{
-		section("Needs attention", d.Torrents, func(t api.Torrents) string {
+	w := m.contentWidth()
+	return rows(
+		section("Needs attention", d.Torrents, w, func(t api.Torrents) string {
 			if len(t.Attention) == 0 {
 				return styleOK.Render("Nothing errored or stalled.")
 			}
-			return m.torrentTable(t.Attention)
+			return m.torrentTable(t.Attention, w-4)
 		}),
-		section("Active", d.Torrents, func(t api.Torrents) string {
+		section("Active", d.Torrents, w, func(t api.Torrents) string {
 			if len(t.Active) == 0 {
 				return styleMuted.Render("Nothing transferring.")
 			}
-			out := m.torrentTable(t.Active)
+			out := m.torrentTable(t.Active, w-4)
 			if t.Truncated {
 				// Never a silent cut: a list that quietly stops at 25 reads as
 				// "that is all of them".
-				out += "\n" + styleMuted.Render("… capped by the server; this is not the full list.")
+				out += "\n" + styleMuted.Render("… capped by the server; not the full list.")
 			}
 			return out
 		}),
-		section("Queue", d.Queue, func(q api.Queue) string {
+		section("Queue", d.Queue, w, func(q api.Queue) string {
 			if len(q.Entries) == 0 {
 				return styleMuted.Render("The scheduler has no pending decisions.")
 			}
@@ -257,21 +348,23 @@ func (m Model) viewTorrents() string {
 				if e.Reason != nil {
 					reason = styleMuted.Render(" — " + *e.Reason)
 				}
-				lines = append(lines, pad(e.Decision, 10)+pad(truncate(e.Name, 48), 50)+reason)
+				lines = append(lines, pad(e.Decision, 10)+pad(truncate(e.Name, w-30), w-28)+reason)
 			}
 			return strings.Join(lines, "\n")
 		}),
-	}, "\n\n")
+	)
 }
 
-func (m Model) torrentTable(list []api.Torrent) string {
-	nameW := m.width - 58
-	if nameW < 20 {
-		nameW = 20
+// torrentTable lays out rows against an inner pane width.
+func (m Model) torrentTable(list []api.Torrent, inner int) string {
+	const fixed = 12 + 12 + 11 + 11 + 8 + 5 // state, prog, down, up, eta, gaps
+	nameW := inner - fixed
+	if nameW < 16 {
+		nameW = 16
 	}
 	head := styleColHead.Render(
-		pad("NAME", nameW) + " " + pad("STATE", 12) + " " + padLeft("PROG", 10) + " " +
-			padLeft("↓", 10) + " " + padLeft("↑", 10) + " " + padLeft("ETA", 7),
+		pad("NAME", nameW) + " " + pad("STATE", 12) + " " + padLeft("PROGRESS", 11) + " " +
+			padLeft("DOWN", 11) + " " + padLeft("UP", 11) + " " + padLeft("ETA", 8),
 	)
 	lines := make([]string, 0, len(list)+1)
 	lines = append(lines, head)
@@ -286,110 +379,93 @@ func (m Model) torrentTable(list []api.Torrent) string {
 		lines = append(lines, strings.Join([]string{
 			pad(t.Name, nameW),
 			torrentStateStyle(t.State, t.Stalled).Render(pad(state, 12)),
-			padLeft(fmt.Sprintf("%s %3.0f%%", progressBar(t.Progress, 4), t.Progress*100), 10),
-			styleAccent.Render(padLeft(humanRate(t.DownloadRate), 10)),
-			styleOK.Render(padLeft(humanRate(t.UploadRate), 10)),
-			styleMuted.Render(padLeft(humanETA(t.ETA), 7)),
+			padLeft(meterFor(t.Progress, 5)+fmt.Sprintf(" %3.0f%%", t.Progress*100), 11),
+			styleAccent.Render(padLeft(humanRate(t.DownloadRate), 11)),
+			styleOK.Render(padLeft(humanRate(t.UploadRate), 11)),
+			styleMuted.Render(padLeft(humanETA(t.ETA), 8)),
 		}, " "))
 	}
 	return strings.Join(lines, "\n")
 }
 
-// ---------------------------------------------------------------------------
-// Media
-// ---------------------------------------------------------------------------
-
 func (m Model) viewMedia() string {
 	d := m.snapshot.Domains
-	return strings.Join([]string{
-		section("Library", d.Media, func(md api.Media) string {
-			types := make([]string, 0, len(md.ByType))
-			for k, v := range md.ByType {
-				types = append(types, fmt.Sprintf("%d %s", v, k))
+	w := m.contentWidth()
+	cols := splitWidth(w, 2, 1)
+
+	library := section("Library", d.Media, colOr(cols, 0, w), func(md api.Media) string {
+		types := make([]string, 0, len(md.ByType))
+		for k, v := range md.ByType {
+			types = append(types, fmt.Sprintf("%d %s", v, k))
+		}
+		sort.Strings(types)
+		return strings.Join([]string{
+			kv("Items", fmt.Sprintf("%d", md.TotalItems)),
+			kv("By type", strings.Join(types, " · ")),
+			kv("Unmatched", warnIf(md.Unmatched)),
+			kv("Low confidence", warnIf(md.LowConfidence)),
+		}, "\n")
+	})
+	playing := section("Playing now", d.Playback, colOr(cols, 1, w), func(p api.Playback) string {
+		if len(p.Sessions) == 0 {
+			return styleMuted.Render("Nobody is watching anything.")
+		}
+		lines := make([]string, 0, len(p.Sessions))
+		for _, sess := range p.Sessions {
+			mode := styleOK.Render("direct")
+			if sess.Transcode {
+				mode = styleWarn.Render("transcode")
 			}
-			sort.Strings(types)
-			return strings.Join([]string{
-				kv("Items", fmt.Sprintf("%d", md.TotalItems)),
-				kv("By type", strings.Join(types, " · ")),
-				kv("Unmatched", warnIf(md.Unmatched)),
-				kv("Low confidence", warnIf(md.LowConfidence)),
-			}, "\n")
-		}),
-		section("Intake", d.MediaIntake, func(mi api.MediaIntake) string {
-			lines := []string{
-				kv("Active", fmt.Sprintf("%d", mi.Active)),
-				kv("Failed", errIf(mi.Failed)),
-				kv("Quarantined", warnIf(mi.Quarantined)),
+			lines = append(lines, fmt.Sprintf("%s %s %s %s",
+				pad(truncate(sess.Title, 24), 26), pad(sess.User, 12), pad(mode, 11),
+				meterFor(sess.Progress, 8)))
+		}
+		return strings.Join(lines, "\n")
+	})
+
+	intake := section("Intake", d.MediaIntake, w, func(mi api.MediaIntake) string {
+		lines := []string{
+			kv("Active", fmt.Sprintf("%d", mi.Active)) + "   " +
+				kv("Failed", errIf(mi.Failed)) + "   " +
+				kv("Quarantined", warnIf(mi.Quarantined)) + "   " +
 				kv("Imported today", fmt.Sprintf("%d", mi.ImportedToday)),
-			}
-			if len(mi.Recent) > 0 {
-				lines = append(lines, "", styleColHead.Render(pad("RECENT", 44)+pad("STATE", 14)+"WHEN"))
-				for _, j := range mi.Recent {
-					line := pad(truncate(j.Title, 42), 44) + pad(j.State, 14) + styleMuted.Render(ago(&j.At))
-					if j.Error != nil {
-						line += "\n" + styleErr.Render("    "+truncate(*j.Error, m.width-8))
-					}
-					lines = append(lines, line)
+		}
+		if len(mi.Recent) > 0 {
+			lines = append(lines, "", styleColHead.Render(pad("RECENT", w-40)+pad("STATE", 16)+"WHEN"))
+			for _, j := range mi.Recent {
+				lines = append(lines, pad(truncate(j.Title, w-42), w-40)+pad(j.State, 16)+styleMuted.Render(ago(&j.At)))
+				if j.Error != nil {
+					lines = append(lines, styleErr.Render("  ↳ "+truncate(*j.Error, w-10)))
 				}
 			}
-			return strings.Join(lines, "\n")
-		}),
-		section("Playing now", d.Playback, func(p api.Playback) string {
-			if len(p.Sessions) == 0 {
-				return styleMuted.Render("Nobody is watching anything.")
-			}
-			lines := make([]string, 0, len(p.Sessions))
-			for _, s := range p.Sessions {
-				mode := "direct"
-				if s.Transcode {
-					mode = styleWarn.Render("transcode")
-				}
-				lines = append(lines, fmt.Sprintf("%s %s %s %s",
-					pad(truncate(s.Title, 40), 42),
-					pad(s.User, 16),
-					pad(mode, 12),
-					progressBar(s.Progress, 10),
-				))
-			}
-			return strings.Join(lines, "\n")
-		}),
-	}, "\n\n")
-}
+		}
+		return strings.Join(lines, "\n")
+	})
 
-func warnIf(n int) string {
-	if n > 0 {
-		return styleWarn.Render(fmt.Sprintf("%d", n))
+	if cols == nil {
+		return rows(library, playing, intake)
 	}
-	return "0"
+	return rows(columns(1, library, playing), intake)
 }
-
-func errIf(n int) string {
-	if n > 0 {
-		return styleErr.Render(fmt.Sprintf("%d", n))
-	}
-	return "0"
-}
-
-// ---------------------------------------------------------------------------
-// Jobs
-// ---------------------------------------------------------------------------
 
 func (m Model) viewJobs() string {
 	d := m.snapshot.Domains
-	return strings.Join([]string{
-		section("Jobs", d.Jobs, func(j api.Jobs) string {
+	w := m.contentWidth()
+	return rows(
+		section("Jobs", d.Jobs, w, func(j api.Jobs) string {
 			rate := "—"
 			if j.SuccessRate != nil {
 				rate = fmt.Sprintf("%.0f%%", *j.SuccessRate)
 			}
 			lines := []string{
-				kv("Running", fmt.Sprintf("%d", j.Running)),
-				kv("Queued", fmt.Sprintf("%d", j.Queued)),
-				kv("Failed", errIf(j.Failed)),
-				kv("Success today", rate),
+				kv("Running", fmt.Sprintf("%d", j.Running)) + "   " +
+					kv("Queued", fmt.Sprintf("%d", j.Queued)) + "   " +
+					kv("Failed", errIf(j.Failed)) + "   " +
+					kv("Success today", rate),
 			}
 			if len(j.Recent) > 0 {
-				lines = append(lines, "", styleColHead.Render(pad("TYPE", 34)+pad("STATUS", 14)+pad("PROG", 6)+"WHEN"))
+				lines = append(lines, "", styleColHead.Render(
+					pad("TYPE", w-46)+pad("STATUS", 18)+pad("PROG", 7)+"WHEN"))
 				for _, job := range j.Recent {
 					prog := "—"
 					if job.Progress != nil {
@@ -399,8 +475,8 @@ func (m Model) viewJobs() string {
 					if job.Status == "failed" {
 						style = styleErr
 					}
-					line := pad(truncate(job.Type, 32), 34) + style.Render(pad(job.Status, 14)) +
-						pad(prog, 6) + styleMuted.Render(ago(&job.At))
+					line := pad(truncate(job.Type, w-48), w-46) + style.Render(pad(job.Status, 18)) +
+						pad(prog, 7) + styleMuted.Render(ago(&job.At))
 					if job.Error != nil {
 						line += styleErr.Render("  " + *job.Error)
 					}
@@ -409,31 +485,31 @@ func (m Model) viewJobs() string {
 			}
 			return strings.Join(lines, "\n")
 		}),
-		section("Automation", d.Automation, func(a api.Automation) string {
+		section("Automation", d.Automation, w, func(a api.Automation) string {
 			lines := []string{
-				kv("Rules", fmt.Sprintf("%d", len(a.Rules))),
-				kv("Failures (24h)", errIf(a.Failures24h)),
+				kv("Rules", fmt.Sprintf("%d", len(a.Rules))) + "   " +
+					kv("Failures (24h)", errIf(a.Failures24h)),
 			}
 			for _, r := range a.RecentRuns {
-				style := styleBase
+				style := styleOK
 				if r.Result != "success" {
 					style = styleWarn
 				}
-				lines = append(lines, pad(truncate(r.RuleName, 30), 32)+style.Render(pad(r.Result, 12))+styleMuted.Render(ago(&r.At)))
+				lines = append(lines, pad(truncate(r.RuleName, 34), 36)+style.Render(pad(r.Result, 14))+styleMuted.Render(ago(&r.At)))
 			}
 			return strings.Join(lines, "\n")
 		}),
-	}, "\n\n")
+	)
 }
 
-// ---------------------------------------------------------------------------
-// Acquisition
-// ---------------------------------------------------------------------------
-
 func (m Model) viewAcquisition() string {
-	return section("Acquisition", m.snapshot.Domains.Acquisition, func(a api.Acquisition) string {
+	w := m.contentWidth()
+	d := m.snapshot.Domains
+	cols := splitWidth(w, 2, 1)
+
+	feeds := section("Feeds", d.Acquisition, colOr(cols, 0, w), func(a api.Acquisition) string {
 		lines := []string{kv("Grabs (24h)", fmt.Sprintf("%d", a.Grabs24h)), ""}
-		lines = append(lines, styleColHead.Render(pad("FEED", 30)+pad("RULES", 7)+pad("POLLED", 14)+"STATE"))
+		lines = append(lines, styleColHead.Render(pad("FEED", 22)+pad("RULES", 7)+pad("POLLED", 12)+"STATE"))
 		for _, f := range a.Feeds {
 			state := styleOK.Render("ok")
 			if !f.Enabled {
@@ -443,114 +519,108 @@ func (m Model) viewAcquisition() string {
 				// signal available: RSS poll failures are logged, never stored.
 				state = styleWarn.Render("overdue")
 			}
-			lines = append(lines, pad(truncate(f.Name, 28), 30)+
+			lines = append(lines, pad(truncate(f.Name, 20), 22)+
 				pad(fmt.Sprintf("%d", f.RuleCount), 7)+
-				pad(ago(f.LastPolledAt), 14)+state)
+				pad(ago(f.LastPolledAt), 12)+state)
 		}
-		if len(a.Recent) > 0 {
-			lines = append(lines, "", styleColHead.Render(pad("RELEASE", 46)+pad("RESULT", 18)+"WHEN"))
-			for _, e := range a.Recent {
-				style := styleMuted
-				switch e.Result {
-				case "downloaded":
-					style = styleOK
-				case "matched":
-					// "A rule wanted this and it was not taken" — the state
-					// worth an operator's attention, which is why the contract
-					// keeps it distinct from a plain rejection.
-					style = styleWarn
-				}
-				lines = append(lines, pad(truncate(e.ReleaseTitle, 44), 46)+
-					style.Render(pad(e.Result, 18))+styleMuted.Render(ago(&e.At)))
+		return strings.Join(lines, "\n")
+	})
+
+	recent := section("Recent releases", d.Acquisition, colOr(cols, 1, w), func(a api.Acquisition) string {
+		if len(a.Recent) == 0 {
+			return styleMuted.Render("Nothing seen yet.")
+		}
+		lines := make([]string, 0, len(a.Recent))
+		for _, e := range a.Recent {
+			style := styleMuted
+			switch e.Result {
+			case "downloaded":
+				style = styleOK
+			case "matched":
+				// "A rule wanted this and it was not taken" — the state worth
+				// attention, which is why the contract keeps it distinct from a
+				// plain rejection.
+				style = styleWarn
+			}
+			lines = append(lines, pad(truncate(e.ReleaseTitle, 34), 36)+style.Render(pad(e.Result, 18)))
+		}
+		return strings.Join(lines, "\n")
+	})
+
+	if cols == nil {
+		return rows(feeds, recent)
+	}
+	return columns(1, feeds, recent)
+}
+
+func (m Model) viewInfra() string {
+	d := m.snapshot.Domains
+	w := m.contentWidth()
+	cols := splitWidth(w, 2, 1)
+
+	engines := section("Engines", d.Engines, colOr(cols, 0, w), func(list []api.Engine) string {
+		if len(list) == 0 {
+			return styleMuted.Render("No engines configured.")
+		}
+		lines := make([]string, 0, len(list))
+		for _, e := range list {
+			count := "—"
+			if e.TorrentCount != nil {
+				count = fmt.Sprintf("%d", *e.TorrentCount)
+			}
+			lines = append(lines, healthStyle(e.Health).Render(healthMark(e.Health))+" "+
+				pad(truncate(e.EngineID, 18), 20)+pad(e.Kind, 13)+padLeft(count, 6)+
+				styleMuted.Render("  "+ago(e.LastSeenAt)))
+			if e.Error != nil {
+				lines = append(lines, styleErr.Render("  ↳ "+truncate(*e.Error, 40)))
 			}
 		}
 		return strings.Join(lines, "\n")
 	})
-}
 
-func overdue(last *string, intervalSeconds int) bool {
-	if last == nil || *last == "" || intervalSeconds <= 0 {
-		return false
+	indexers := section("Indexers", d.Indexers, colOr(cols, 1, w), func(list []api.Indexer) string {
+		if len(list) == 0 {
+			return styleMuted.Render("No indexers configured.")
+		}
+		lines := make([]string, 0, len(list))
+		for _, i := range list {
+			lines = append(lines, healthStyle(i.Health).Render(healthMark(i.Health))+" "+
+				pad(truncate(i.Name, 20), 22)+pad(i.Protocol, 10)+styleMuted.Render(ago(i.LastTestedAt)))
+			if i.Message != nil && i.Health != api.HealthHealthy {
+				lines = append(lines, styleWarn.Render("  ↳ "+truncate(*i.Message, 40)))
+			}
+		}
+		return strings.Join(lines, "\n")
+	})
+
+	providers := section("Providers", d.Providers, w, func(list []api.Provider) string {
+		if len(list) == 0 {
+			return styleMuted.Render("No providers configured.")
+		}
+		lines := make([]string, 0, len(list))
+		for _, p := range list {
+			line := healthStyle(p.Health).Render(healthMark(p.Health)) + " " +
+				pad(truncate(p.Name, 24), 26) + pad(p.Category, 16) +
+				styleMuted.Render("checked "+ago(p.LastCheckedAt))
+			if p.Message != nil && p.Health != api.HealthHealthy {
+				line += styleWarn.Render("  ↳ " + truncate(*p.Message, w-60))
+			}
+			lines = append(lines, line)
+		}
+		return strings.Join(lines, "\n")
+	})
+
+	if cols == nil {
+		return rows(engines, indexers, providers)
 	}
-	t, err := time.Parse(time.RFC3339, *last)
-	if err != nil {
-		return false
-	}
-	// Twice the interval, not once: a poll that lands a moment late is normal
-	// and flagging it would make "overdue" meaningless.
-	return time.Since(t) > 2*time.Duration(intervalSeconds)*time.Second
+	return rows(columns(1, engines, indexers), providers)
 }
-
-// ---------------------------------------------------------------------------
-// Infrastructure
-// ---------------------------------------------------------------------------
-
-func (m Model) viewInfra() string {
-	d := m.snapshot.Domains
-	return strings.Join([]string{
-		section("Engines", d.Engines, func(list []api.Engine) string {
-			if len(list) == 0 {
-				return styleMuted.Render("No engines configured.")
-			}
-			lines := make([]string, 0, len(list))
-			for _, e := range list {
-				count := "—"
-				if e.TorrentCount != nil {
-					count = fmt.Sprintf("%d", *e.TorrentCount)
-				}
-				line := healthStyle(e.Health).Render(healthMark(e.Health)) + " " +
-					pad(e.EngineID, 26) + pad(e.Kind, 14) +
-					padLeft(count, 7) + "  " + styleMuted.Render("seen "+ago(e.LastSeenAt))
-				if e.Error != nil {
-					line += "\n    " + styleErr.Render(truncate(*e.Error, m.width-6))
-				}
-				lines = append(lines, line)
-			}
-			return strings.Join(lines, "\n")
-		}),
-		section("Indexers", d.Indexers, func(list []api.Indexer) string {
-			if len(list) == 0 {
-				return styleMuted.Render("No indexers configured.")
-			}
-			lines := make([]string, 0, len(list))
-			for _, i := range list {
-				line := healthStyle(i.Health).Render(healthMark(i.Health)) + " " +
-					pad(truncate(i.Name, 28), 30) + pad(i.Protocol, 10) +
-					styleMuted.Render("tested "+ago(i.LastTestedAt))
-				if i.Message != nil && i.Health != api.HealthHealthy {
-					line += "\n    " + styleWarn.Render(truncate(*i.Message, m.width-6))
-				}
-				lines = append(lines, line)
-			}
-			return strings.Join(lines, "\n")
-		}),
-		section("Providers", d.Providers, func(list []api.Provider) string {
-			if len(list) == 0 {
-				return styleMuted.Render("No providers configured.")
-			}
-			lines := make([]string, 0, len(list))
-			for _, p := range list {
-				line := healthStyle(p.Health).Render(healthMark(p.Health)) + " " +
-					pad(truncate(p.Name, 26), 28) + pad(p.Category, 16) +
-					styleMuted.Render("checked "+ago(p.LastCheckedAt))
-				if p.Message != nil && p.Health != api.HealthHealthy {
-					line += "\n    " + styleWarn.Render(truncate(*p.Message, m.width-6))
-				}
-				lines = append(lines, line)
-			}
-			return strings.Join(lines, "\n")
-		}),
-	}, "\n\n")
-}
-
-// ---------------------------------------------------------------------------
-// Activity
-// ---------------------------------------------------------------------------
 
 func (m Model) viewActivity() string {
 	d := m.snapshot.Domains
-	return strings.Join([]string{
-		section("Recent activity", d.RecentActivity, func(list []api.ActivityItem) string {
+	w := m.contentWidth()
+	return rows(
+		section("Recent activity", d.RecentActivity, w, func(list []api.ActivityItem) string {
 			if len(list) == 0 {
 				return styleMuted.Render("Nothing recorded.")
 			}
@@ -563,32 +633,39 @@ func (m Model) viewActivity() string {
 					// constituents — and pretending otherwise would be a lie.
 					count = styleMuted.Render(fmt.Sprintf("  (%d events)", a.EventCount))
 				}
-				line := styleMuted.Render(pad(ago(&a.At), 12)) + levelStyle(a.Level).Render(truncate(a.Message, m.width-16)) + count
+				lines = append(lines, styleMuted.Render(pad(ago(&a.At), 12))+
+					levelStyle(a.Level).Render(truncate(a.Message, w-24))+count)
 				if a.Detail != nil && *a.Detail != "" {
-					line += "\n" + styleMuted.Render("            "+truncate(*a.Detail, m.width-14))
+					lines = append(lines, styleMuted.Render("             ↳ "+truncate(*a.Detail, w-20)))
 				}
-				lines = append(lines, line)
 			}
 			return strings.Join(lines, "\n")
 		}),
-		section("Notifications", d.Notifications, func(n api.Notifications) string {
-			return strings.Join([]string{
-				kv("Pending", fmt.Sprintf("%d", n.Pending)),
-				kv("Failed (24h)", errIf(n.Failed24h)),
-			}, "\n")
+		section("Notifications", d.Notifications, w, func(n api.Notifications) string {
+			return kv("Pending", fmt.Sprintf("%d", n.Pending)) + "   " +
+				kv("Failed (24h)", errIf(n.Failed24h))
 		}),
-	}, "\n\n")
+	)
 }
 
-// ---------------------------------------------------------------------------
-// Alerts
-// ---------------------------------------------------------------------------
+func (m Model) viewAlerts() string { return m.alertsPane(m.contentWidth(), 0) }
 
-func (m Model) viewAlerts() string { return m.alertsBlock(0) }
+// alertsPane renders the attention list; limit 0 means all of them.
+func (m Model) alertsPane(width, limit int) string {
+	d := m.snapshot.Domains.Alerts
 
-// alertsBlock renders the attention list; limit 0 means all of them.
-func (m Model) alertsBlock(limit int) string {
-	return section("Attention", m.snapshot.Domains.Alerts, func(list []api.Alert) string {
+	// The frame carries the worst severity present, so a critical alert is
+	// visible as a red box before a word of it has been read.
+	worst := api.SeverityInfo
+	if d != nil && d.Available {
+		for _, a := range d.Data {
+			if severityRank(a.Severity) < severityRank(worst) {
+				worst = a.Severity
+			}
+		}
+	}
+
+	body := func(list []api.Alert) string {
 		if len(list) == 0 {
 			return styleOK.Render("Nothing needs attention.")
 		}
@@ -596,27 +673,70 @@ func (m Model) alertsBlock(limit int) string {
 		if limit > 0 && len(shown) > limit {
 			shown = shown[:limit]
 		}
-		lines := make([]string, 0, len(shown)+1)
+		lines := make([]string, 0, len(shown)+2)
 		for _, a := range shown {
 			style := severityStyle(a.Severity)
-			line := style.Render(severityMark(a.Severity)+" "+a.Title) + styleMuted.Render("  ["+a.Domain+"]")
-			if a.Detail != nil && *a.Detail != "" {
-				line += "\n  " + styleMuted.Render(truncate(*a.Detail, m.width-4))
-			}
+			line := style.Render(severityMark(a.Severity)+" "+truncate(a.Title, width-24)) +
+				styleMuted.Render("  ["+a.Domain+"]")
 			if a.Since != nil {
-				line += styleMuted.Render("  since " + ago(a.Since))
+				line += styleMuted.Render(" since " + ago(a.Since))
 			}
 			lines = append(lines, line)
+			if a.Detail != nil && *a.Detail != "" {
+				lines = append(lines, styleMuted.Render("  ↳ "+truncate(*a.Detail, width-8)))
+			}
 		}
 		if limit > 0 && len(list) > limit {
 			lines = append(lines, styleMuted.Render(fmt.Sprintf("… and %d more (press 8)", len(list)-limit)))
 		}
 		/*
-		 * Said once, here: these are computed from current state each time the
-		 * snapshot is built. They cannot be acknowledged or silenced, and the
-		 * way to make one go away is to fix what it reports. A console offering
-		 * a dismiss key would be promising something the server cannot honour.
+		 * Not repeated on screen, but true and worth stating once here: these
+		 * are computed from current state each time a snapshot is built. They
+		 * cannot be acknowledged, and the way to make one go away is to fix what
+		 * it reports — which is why there is no dismiss key.
 		 */
 		return strings.Join(lines, "\n")
-	})
+	}
+
+	if d == nil || !d.Available || len(d.Data) == 0 {
+		return section("Attention", d, width, body)
+	}
+	return panelSeverity("Attention", body(d.Data), width, worst)
+}
+
+// severityRank orders severities most-severe-first.
+func severityRank(s api.Severity) int {
+	switch s {
+	case api.SeverityCritical:
+		return 0
+	case api.SeverityError:
+		return 1
+	case api.SeverityWarning:
+		return 2
+	default:
+		return 3
+	}
+}
+
+// colOr returns the nth column width, or the full width when not gridded.
+func colOr(cols []int, n, full int) int {
+	if cols == nil || n >= len(cols) {
+		return full
+	}
+	return cols[n]
+}
+
+// overdue reports a feed that has missed more than one poll window.
+//
+// Twice the interval, not once: a poll landing a moment late is normal, and
+// flagging that would make "overdue" meaningless.
+func overdue(last *string, intervalSeconds int) bool {
+	if last == nil || *last == "" || intervalSeconds <= 0 {
+		return false
+	}
+	t, err := time.Parse(time.RFC3339, *last)
+	if err != nil {
+		return false
+	}
+	return time.Since(t) > 2*time.Duration(intervalSeconds)*time.Second
 }
