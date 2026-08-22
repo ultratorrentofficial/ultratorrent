@@ -45,6 +45,17 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.85.8] - 2026-08-22
+
+### Fixed
+- Recent activity names the media it is reporting on
+- A summarized activity entry expands to show the events behind it
+- A superseded release loses its library copy, not just its torrent
+- IMDb alternate-title import honours the preferred region and language settings, so title.akas no longer re-inflates to 42M rows on every scheduled import
+- The UltraTorrent Console's operations endpoints and event bridge are wired and reachable
+- The in-app documentation link points at docs.ultratorrent.co instead of the old GitHub Pages URL
+- console.view is declared by a module manifest, so it exists on a deployed install
+
 ## [0.85.7] - 2026-08-22
 
 ### Fixed
