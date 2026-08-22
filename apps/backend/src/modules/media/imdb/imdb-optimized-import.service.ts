@@ -14,6 +14,7 @@ import {
   DatasetFileSpec,
   IMDB_DATASET_FILES,
   mapAkaRow,
+  makeAkaFilter,
   mapCrewRow,
   mapEpisodeRow,
   mapPersonRow,
@@ -38,6 +39,8 @@ export interface ImportStats {
   skippedMinYear: number;
   /** ratings/akas/crew rows skipped because their parent title wasn't imported. */
   skippedParentMissing: number;
+  /** title.akas rows skipped because they matched neither preferred region nor language. */
+  skippedAkaFiltered: number;
   /** Malformed / unparseable rows. */
   errors: number;
   /** Wall-clock duration of the run, milliseconds. */
@@ -71,6 +74,7 @@ function zeroStats(): ImportStats {
     skippedAdult: 0,
     skippedMinYear: 0,
     skippedParentMissing: 0,
+    skippedAkaFiltered: 0,
     errors: 0,
     durationMs: 0,
     datasets: [],
@@ -195,7 +199,7 @@ export class ImdbOptimizedImportService {
     }> = [
       { key: 'title.basics', enabled: true, required: true, run: (a, s) => this.importTitles(a, s, minYear, includeTv, batchSize, stats) },
       { key: 'title.ratings', enabled: true, required: false, run: (a, s) => this.importRatings(a, s, batchSize, stats) },
-      { key: 'title.akas', enabled: settings.importAkas, required: false, run: (a, s) => this.importAkas(a, s, batchSize, stats) },
+      { key: 'title.akas', enabled: settings.importAkas, required: false, run: (a, s) => this.importAkas(a, s, batchSize, stats, settings) },
       { key: 'title.crew', enabled: settings.importCrew, required: false, run: (a, s) => this.importCrew(a, s, batchSize, stats) },
       // Episode structure (season/episode → parent) — only useful with TV titles.
       { key: 'title.episode', enabled: includeTv, required: false, run: (a, s) => this.importEpisodes(a, s, batchSize, stats) },
@@ -242,7 +246,8 @@ export class ImdbOptimizedImportService {
           `IMDb optimized import ${importId}: finished "${step.key}" — ` +
             `scanned=${stats.rowsScanned} imported=${stats.rowsImported} ` +
             `skipType=${stats.skippedTitleType} skipAdult=${stats.skippedAdult} ` +
-            `skipYear=${stats.skippedMinYear} skipOrphan=${stats.skippedParentMissing}.`,
+            `skipYear=${stats.skippedMinYear} skipOrphan=${stats.skippedParentMissing} ` +
+            `skipAka=${stats.skippedAkaFiltered}.`,
         );
       } catch (err) {
         if (err instanceof ImportCancelledError) {
@@ -407,9 +412,23 @@ export class ImdbOptimizedImportService {
     );
   }
 
-  private importAkas(abs: string, spec: DatasetFileSpec, batchSize: number, stats: ImportStats) {
+  /**
+   * Alternate titles. Narrowed by the preferred region/language settings when
+   * either is set — without that this single dataset dominates the database
+   * (~42M rows / 12 GB) and re-inflates on every scheduled import.
+   */
+  private importAkas(
+    abs: string,
+    spec: DatasetFileSpec,
+    batchSize: number,
+    stats: ImportStats,
+    settings: ImdbSettings,
+  ) {
+    const keep = makeAkaFilter(settings);
     return this.importReferential(abs, spec, batchSize, stats, mapAkaRow, (r) => r.titleId, (rows) =>
       this.prisma.iMDbAka.createMany({ data: rows, skipDuplicates: true }),
+      keep,
+      () => { stats.skippedAkaFiltered += 1; },
     );
   }
 
@@ -444,6 +463,8 @@ export class ImdbOptimizedImportService {
     map: (f: string[]) => T | null,
     idOf: (row: T) => string,
     insert: (rows: T[]) => Promise<{ count: number }>,
+    keep?: ((row: T) => boolean) | null,
+    onFiltered?: () => void,
   ): Promise<void> {
     let batch: T[] = [];
     const flush = async () => {
@@ -461,6 +482,10 @@ export class ImdbOptimizedImportService {
       const row = map(fields);
       if (!row) {
         stats.errors += 1;
+        continue;
+      }
+      if (keep && !keep(row)) {
+        onFiltered?.();
         continue;
       }
       batch.push(row);

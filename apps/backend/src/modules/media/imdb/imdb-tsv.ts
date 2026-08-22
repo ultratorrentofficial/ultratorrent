@@ -216,6 +216,60 @@ export function mapAkaRow(f: string[]) {
   };
 }
 
+/** The shape `mapAkaRow` yields — kept in sync with it by construction. */
+export type AkaRow = NonNullable<ReturnType<typeof mapAkaRow>>;
+
+/** Region/language preferences that narrow which alternate titles are stored. */
+export interface AkaPreferences {
+  preferredRegion?: string | null;
+  preferredLanguage?: string | null;
+}
+
+/** Split a comma-separated setting into a lowercase lookup set. */
+function prefSet(value: string | null | undefined): Set<string> {
+  return new Set(
+    (value ?? '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+/**
+ * Build the predicate deciding which `title.akas` rows are worth keeping, or
+ * `null` when no preference is configured.
+ *
+ * `title.akas` is by far the largest IMDb dataset — a full import is ~42M rows
+ * and 12 GB once its indexes are counted — and nearly all of it is alternate
+ * titles for regions nobody searches in. The referential filter upstream only
+ * drops rows whose parent title was never imported, which barely dents it.
+ *
+ * Returning `null` rather than an always-true function is deliberate: it keeps
+ * the unfiltered path free of a per-row call across those 42M rows, and makes
+ * "no preference set" mean exactly what it did before this filter existed, so
+ * existing installs import the same rows they always have.
+ *
+ * `isOriginalTitle` rows are deliberately *not* carved out. It is tempting to
+ * keep them as "the canonical name", but `imdb_titles` already stores
+ * `originalTitle`, and the dataset search matches `primaryTitle` OR
+ * `originalTitle` directly before it ever consults this table — `imdb_akas`
+ * exists purely for *additional* alternate-name recall. Keeping them costs one
+ * row per title (9.0M of the 9.97M kept under a US filter, 90.6%) and buys no
+ * recall the title query does not already provide.
+ */
+export function makeAkaFilter(
+  prefs: AkaPreferences,
+): ((row: AkaRow) => boolean) | null {
+  const regions = prefSet(prefs.preferredRegion);
+  const languages = prefSet(prefs.preferredLanguage);
+  if (!regions.size && !languages.size) return null;
+  return (row) => {
+    if (regions.size && row.region && regions.has(row.region.toLowerCase())) return true;
+    if (languages.size && row.language && languages.has(row.language.toLowerCase())) return true;
+    return false;
+  };
+}
+
 export function mapCrewRow(f: string[]) {
   const titleId = tsvField(f[0]);
   if (!titleId) return null;

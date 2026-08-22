@@ -21,6 +21,8 @@ import {
   DEFAULT_IMDB_DATASET_BASE_URL,
   IMDB_DATASET_FILES,
   mapAkaRow,
+  makeAkaFilter,
+  type AkaRow,
   mapCrewRow,
   mapEpisodeRow,
   mapPersonRow,
@@ -470,7 +472,7 @@ export class ImdbDatasetImporterService {
       if (!stat || !stat.isFile()) continue; // optional file absent — skip cleanly.
 
       try {
-        const count = await this.importFile(spec, abs, shouldCancel);
+        const count = await this.importFile(spec, abs, shouldCancel, makeAkaFilter(settings));
         recordsImported += count;
         alreadyDone.add(spec.key);
         await this.prisma.iMDbDatasetImport.update({
@@ -575,6 +577,7 @@ export class ImdbDatasetImporterService {
     spec: DatasetFileSpec,
     absPath: string,
     shouldCancel: () => boolean = () => false,
+    akaFilter: ((row: AkaRow) => boolean) | null = null,
   ): Promise<number> {
     let batch: any[] = [];
     let imported = 0;
@@ -605,7 +608,12 @@ export class ImdbDatasetImporterService {
           continue;
         }
         const row = this.mapRow(spec.key, fields);
-        if (row) batch.push(row);
+        // Alternate titles are narrowed by the preferred region/language
+        // settings. Without it this single file dominates the database and
+        // re-inflates on every scheduled import.
+        const filteredOut =
+          row !== null && akaFilter !== null && spec.key === 'title.akas' && !akaFilter(row);
+        if (row && !filteredOut) batch.push(row);
         if (batch.length >= BATCH_SIZE) {
           await flush();
           // Cooperative stop point: bail after committing the batch so a huge
