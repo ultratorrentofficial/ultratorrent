@@ -73,3 +73,6 @@ audit/
 
 # Private conversation logs — full memory across compaction, never published.
 ops/conversation-logs/
+
+# UltraTorrent Console build output — binaries are built, never committed.
+clients/console/dist/
