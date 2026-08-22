@@ -47,6 +47,8 @@ function makeRss(resolved: ShowStatusResult | null) {
     realtime as never,
     moduleRef as never,
     { get: async () => null, defaultProfile: async () => null } as never,
+    {} as never,
+    {} as never,
   );
   return { svc, created, showStatus, audit, realtime, engine };
 }

@@ -23,6 +23,8 @@ describe('RssService.history filtering', () => {
       undefined as never,
       undefined as never,
       { get: async () => null, defaultProfile: async () => null } as never,
+      {} as never,
+      {} as never,
     );
     return { svc, rssHistory };
   }

@@ -67,8 +67,23 @@ function makePrisma(rules: any[]) {
     rssRuleMatchCandidate: { update: async () => ({}) },
     rssRuleMatchEvaluation: { create: async () => ({}) },
     rssFeed: { update: async () => ({}) },
+    // Nothing in these tests was ever imported, so a supersede has no library
+    // copy to trash and goes straight on to removing the torrent. The dedicated
+    // coverage for the library half lives in rss-supersede-library.spec.ts.
+    mediaIntakeJob: { findMany: async () => [] },
+    mediaItem: { findUnique: async () => null },
   };
 }
+
+/** Stubs for the two file-layer deps the supersede path needs. */
+const fileStubs = () =>
+  [
+    { remove: jest.fn(async () => ({})) } as any,
+    {
+      assertWithinHardRoots: (p: string) => p,
+      storageSafety: { toRelative: (p: string) => p },
+    } as any,
+  ] as const;
 
 function makeService(prisma: any, items: any[]) {
   let n = 0;
@@ -77,14 +92,14 @@ function makeService(prisma: any, items: any[]) {
   const registry = {
     getDefault: async () => ({ addMagnet, addTorrentURL: jest.fn(), removeTorrentAndData }),
   };
-  const svc = new RssService(prisma as any, registry as any, {} as any, {} as any, {} as any, {} as any, { get: async () => null, defaultProfile: async () => null } as any);
+  const svc = new RssService(prisma as any, registry as any, {} as any, {} as any, {} as any, {} as any, { get: async () => null, defaultProfile: async () => null } as any, ...fileStubs());
   (svc as any).parser = { parseURL: async () => ({ items }) };
   return { svc, addMagnet, removeTorrentAndData };
 }
 
 describe('RssService info-hash dedup in processFeed', () => {
   it('extracts a lowercased btih info-hash from a magnet, null for non-magnets', () => {
-    const svc = new RssService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, { get: async () => null, defaultProfile: async () => null } as any) as any;
+    const svc = new RssService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, { get: async () => null, defaultProfile: async () => null } as any, ...fileStubs()) as any;
     expect(svc.extractInfoHash(magnet(HASH.toUpperCase(), 'x'))).toBe(HASH);
     expect(svc.extractInfoHash('https://tracker/file.torrent')).toBeNull();
     expect(svc.extractInfoHash(null)).toBeNull();

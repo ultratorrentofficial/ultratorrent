@@ -49,6 +49,7 @@ function build(opts: { live?: boolean; rows?: any[] } = {}) {
   const svc = new RssService(
     prisma as any, {} as any, {} as any, audit as any, {} as any, moduleRef as any,
     { get: async () => null, defaultProfile: async () => null } as any,
+    {} as any, {} as any,
   );
   return { svc, prisma, removeData, supersedeByHash, audit, updates };
 }

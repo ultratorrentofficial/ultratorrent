@@ -29,6 +29,8 @@ import {
 } from 'class-validator';
 import type { Request } from 'express';
 import Parser from 'rss-parser';
+import { readdir, stat } from 'node:fs/promises';
+import { basename, dirname, extname, join } from 'node:path';
 import { PERMISSIONS, WS_EVENTS } from '@ultratorrent/shared';
 import { DEFAULT_RSS_IMPORT_MODE, RSS_IMPORT_MODES } from '@ultratorrent/shared';
 import { StorageProfileService, nests } from '../media-intake/storage-profile.service';
@@ -40,6 +42,11 @@ import { EngineRegistryService } from '../engine/engine-registry.service';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { SettingsModule } from '../settings/settings.module';
+import { FilesModule } from '../files/files.module';
+import { FilesService } from '../files/files.service';
+import { FilePathService } from '../files/file-path.service';
+// Pure, dependency-free — the renamer's own list, not the scanner service's.
+import { VIDEO_EXT } from '../media/media-renamer';
 import {
   TvShowStatusService,
   type StatusLookupContext,
@@ -152,6 +159,12 @@ export class RssService {
     private readonly realtime: RealtimeGateway,
     private readonly moduleRef: ModuleRef,
     private readonly storageProfiles: StorageProfileService,
+    // Injected rather than resolved through `moduleRef` like AutomationEngine
+    // above: these back a DESTRUCTIVE path, and a lazy lookup that quietly fails
+    // would skip trashing the superseded copy — which is the exact bug this is
+    // here to fix. A missing provider must break at boot, loudly.
+    private readonly files: FilesService,
+    private readonly filePath: FilePathService,
   ) {}
 
   /**
@@ -1679,8 +1692,37 @@ export class RssService {
     return prior !== null;
   }
 
-  /** Best-effort removal of a torrent superseded by an upgrade (+ its data). */
-  private async removeSupersededTorrent(hash: string): Promise<void> {
+  /**
+   * Retire a release an upgrade has superseded: its library copy, then its
+   * torrent and the Intake copy it was seeding.
+   *
+   * Removing the torrent was never the whole job. A release that had already
+   * been imported left a copy in the LIBRARY, and `removeTorrentAndData` cannot
+   * see it — Media Intake places by hardlink, so dropping the staging path just
+   * drops one link and the library file survives intact. The next import of the
+   * better release then found that orphan sitting on the canonical name and
+   * moved it aside as `[dupN]`, which is how a supersede ended up producing two
+   * copies of one episode instead of none.
+   *
+   * **Library first, then the torrent.** If the library copy cannot be taken,
+   * the torrent is left alone and BOTH survive — the same choice `grabWithDedup`
+   * already makes when it cannot write the acquisition record. A half-applied
+   * retirement is the one outcome worth avoiding: it is precisely the orphan
+   * this method exists to prevent, and keeping a seeding torrent is cheap next
+   * to leaving an unexplained duplicate in the library.
+   *
+   * Which copy wins is not decided here. The rule's match preferences already
+   * decided it in {@link grabWithDedup} — a candidate is only an upgrade when
+   * its `priorityOrder` beats the held one's, so a 480p can never displace a
+   * 1080p unless the operator ordered the candidates that way.
+   */
+  private async removeSupersededRelease(hash: string): Promise<void> {
+    if (!(await this.trashSupersededLibraryCopies(hash))) {
+      this.logger.warn(
+        `RSS upgrade: keeping superseded torrent ${hash} — its library copy could not be trashed`,
+      );
+      return;
+    }
     try {
       const provider = await this.registry.getDefault();
       await provider.removeTorrentAndData(hash);
@@ -1690,6 +1732,123 @@ export class RssService {
         `RSS upgrade: could not remove superseded torrent ${hash}: ${(e as Error).message}`,
       );
     }
+  }
+
+  /**
+   * Trash whatever the superseded release put in a library, with its sidecars.
+   *
+   * Returns false only when a copy is genuinely there and could not be taken —
+   * the caller reads that as "keep the torrent too". A release that was never
+   * imported has nothing to trash and is not a failure, and neither is a locked
+   * item: `MediaItem.locked` takes an item out of every automated path, so the
+   * operator's copy stays and the torrent is still retired. That leaves a
+   * deliberate duplicate the Duplicate Center can show, rather than an
+   * automated path quietly overruling a lock.
+   */
+  private async trashSupersededLibraryCopies(hash: string): Promise<boolean> {
+    let jobs: Array<{ importedPath: string | null; mediaItemId: string | null }>;
+    try {
+      jobs = await this.prisma.mediaIntakeJob.findMany({
+        where: { torrentHash: { equals: hash, mode: 'insensitive' }, importedPath: { not: null } },
+        select: { importedPath: true, mediaItemId: true },
+      });
+    } catch (e) {
+      this.logger.warn(
+        `RSS upgrade: could not look up the library copy of ${hash}: ${(e as Error).message}`,
+      );
+      return false;
+    }
+
+    let ok = true;
+    for (const job of jobs) {
+      const target = job.importedPath!;
+      try {
+        // Same boundary the duplicate cleanup uses: the HARD roots, not the
+        // admin's narrowed browse root — a library may legitimately sit outside
+        // it, and a browse preference must not decide what can be maintained.
+        this.filePath.assertWithinHardRoots(target);
+
+        if (!(await stat(target).catch(() => null))) continue; // already gone
+
+        if (job.mediaItemId) {
+          const item = await this.prisma.mediaItem.findUnique({
+            where: { id: job.mediaItemId },
+            select: { locked: true },
+          });
+          if (item?.locked) {
+            this.logger.log(
+              `RSS upgrade: leaving locked library copy "${target}" in place; retiring the torrent anyway`,
+            );
+            continue;
+          }
+        }
+
+        // The video first, then what is named after it. A sidecar outlives its
+        // video otherwise, and an orphaned `.srt` is exactly the kind of debris
+        // that makes a later duplicate scan unreadable.
+        for (const sidecar of await this.sidecarsOf(target)) {
+          await this.files
+            .remove(
+              { path: this.filePath.storageSafety.toRelative(sidecar), permanent: false },
+              {},
+              'storage',
+            )
+            .catch((e: unknown) =>
+              // A sidecar that will not move is not worth keeping the release
+              // for; the video is the decision.
+              this.logger.warn(
+                `RSS upgrade: could not trash sidecar "${sidecar}": ${(e as Error).message}`,
+              ),
+            );
+        }
+        await this.files.remove(
+          { path: this.filePath.storageSafety.toRelative(target), permanent: false },
+          {},
+          'storage',
+        );
+        this.logger.log(`RSS upgrade: trashed superseded library copy "${target}"`);
+      } catch (e) {
+        ok = false;
+        this.logger.warn(
+          `RSS upgrade: could not trash superseded library copy "${target}": ${(e as Error).message}`,
+        );
+      }
+    }
+    return ok;
+  }
+
+  /**
+   * Files named after this video: `.srt`, `.eng.srt`, `-thumb.jpg` and friends.
+   *
+   * Matched STRUCTURALLY — basename plus an optional `-`/`.` marker — which is
+   * what keeps SHOW-level files out: `poster.jpg`, `tvshow.nfo` and `theme.mp3`
+   * are named after the FOLDER, so they never match. Another video is excluded
+   * outright: on a destructive path, "Episode 2" must never sweep up a file it
+   * merely shares a prefix with.
+   *
+   * Deliberately a local copy. `DuplicateResolutionService` and
+   * `MediaShowDuplicateService` each carry one of these and they are NOT
+   * identical — only the latter excludes video extensions — so unifying them is
+   * a behaviour change to two other services, not part of this fix. This takes
+   * the stricter of the two.
+   */
+  private async sidecarsOf(videoPath: string): Promise<string[]> {
+    const dir = dirname(videoPath);
+    const base = basename(videoPath, extname(videoPath));
+    const entries = await readdir(dir).catch(() => [] as string[]);
+    return entries
+      .filter((name) => {
+        const full = join(dir, name);
+        if (full === videoPath) return false;
+        if (VIDEO_EXT.has(extname(name).toLowerCase())) return false;
+        const stem = basename(name, extname(name));
+        if (!stem.startsWith(base)) return false;
+        const suffix = stem.slice(base.length);
+        // Same name, or the video's name plus a marker. A bare extra character
+        // means a DIFFERENT file ("Episode 2" vs "Episode 20").
+        return suffix === '' || /^[-.]/.test(suffix);
+      })
+      .map((name) => join(dir, name));
   }
 
   /**
@@ -1766,7 +1925,7 @@ export class RssService {
         return { action: 'download', torrentHash };
       }
       if (supersededHash && supersededHash !== torrentHash) {
-        await this.removeSupersededTorrent(supersededHash);
+        await this.removeSupersededRelease(supersededHash);
       }
     }
     return { action: 'download', torrentHash };
@@ -2332,7 +2491,7 @@ export class RssController {
 }
 
 @Module({
-  imports: [SettingsModule, MediaIntakeModule],
+  imports: [SettingsModule, MediaIntakeModule, FilesModule],
   providers: [
     RssService,
     TvShowStatusService,

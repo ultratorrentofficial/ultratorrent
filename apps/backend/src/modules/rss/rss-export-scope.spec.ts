@@ -27,6 +27,7 @@ function build(rules: Array<Record<string, unknown>>) {
   const svc = new RssService(
     prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never,
     { get: async () => null, defaultProfile: async () => null } as never,
+    {} as never, {} as never,
   );
   return { svc, queries };
 }

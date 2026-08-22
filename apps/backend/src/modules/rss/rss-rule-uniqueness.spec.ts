@@ -27,6 +27,8 @@ function makeRss(findFirst: jest.Mock, existingRule: any = null) {
     // No profile resolves, so the managed save-path guard is a no-op here —
     // this file is about name/path uniqueness, not intake.
     { get: async () => null, defaultProfile: async () => null } as never,
+    {} as never,
+    {} as never,
   );
   return { svc, prisma, created, updated };
 }
