@@ -127,3 +127,35 @@
     color: #000 !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Navbar brand.
+   The navbar carries the full lockup (mark + wordmark + "I download more.
+   Wait less."), not just the mark, so Infima's default `.navbar__logo`
+   height of 2rem renders the tagline too small to read. Give it more room
+   and raise the bar height to match so nothing is crowded.
+   -------------------------------------------------------------------------- */
+:root {
+  --ifm-navbar-height: 4.5rem;
+}
+
+.navbar__logo {
+  height: 3rem;
+  margin-right: 0;
+}
+
+.navbar__logo img {
+  height: 100%;
+  width: auto;
+  object-fit: contain;
+}
+
+/* Narrow screens: the wordmark would otherwise eat the whole bar. */
+@media (max-width: 996px) {
+  :root {
+    --ifm-navbar-height: 3.75rem;
+  }
+  .navbar__logo {
+    height: 2.25rem;
+  }
+}

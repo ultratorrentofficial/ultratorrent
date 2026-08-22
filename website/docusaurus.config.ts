@@ -22,12 +22,18 @@ const config: Config = {
   tagline: 'Self-hosted Media Acquisition & Management Platform',
   favicon: 'img/favicon.ico',
 
-  // The same content ships to two places, which need different base paths:
-  //   • GitHub Pages  → https://damirabal.github.io/ultratorrent-core/  (default)
-  //   • the app image → served by the frontend container at /docs/, offline
-  // So both are env-driven. Set DOCS_BASE_URL=/docs/ for the in-app build.
-  url: process.env.DOCS_URL ?? 'https://damirabal.github.io',
-  baseUrl: process.env.DOCS_BASE_URL ?? '/ultratorrent-core/',
+  // The same content ships to three places, which need different base paths:
+  //   • docs.ultratorrent.co → served at the root (the canonical site, default)
+  //   • the app image        → served by the frontend container at /docs/, offline
+  //   • GitHub Pages         → https://damirabal.github.io/ultratorrent-core/
+  // All env-driven. Set DOCS_BASE_URL=/docs/ for the in-app build, or
+  // DOCS_URL=https://damirabal.github.io DOCS_BASE_URL=/ultratorrent-core/ for Pages.
+  //
+  // The default is the canonical site deliberately: a plain `npm run docs:build`
+  // previously produced a site whose every link pointed at /ultratorrent-core/,
+  // which renders but navigates nowhere — a silent failure that is easy to ship.
+  url: process.env.DOCS_URL ?? 'https://docs.ultratorrent.co',
+  baseUrl: process.env.DOCS_BASE_URL ?? '/',
   organizationName: 'damirabal',
   projectName: 'ultratorrent-core',
   trailingSlash: false,
@@ -132,8 +138,9 @@ const config: Config = {
     tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 4 },
 
     navbar: {
-      title: 'UltraTorrent',
-      logo: { alt: 'UltraTorrent', src: 'img/logo.svg' },
+      // Full lockup (mark + wordmark + tagline); no `title` so the name is not
+      // repeated next to a logo that already contains it. 640x169 source.
+      logo: { alt: 'UltraTorrent', src: 'img/logo.png', width: 182, height: 48 },
       items: [
         { type: 'docSidebar', sidebarId: 'learn', position: 'left', label: 'Learn' },
         { type: 'docSidebar', sidebarId: 'install', position: 'left', label: 'Install' },

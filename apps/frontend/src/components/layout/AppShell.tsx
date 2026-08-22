@@ -66,7 +66,7 @@ import { CenteredSpinner } from '@/components/ui/feedback';
  * for every install, and making it configurable would invite a deployment to
  * point its Help link somewhere that does not exist.
  */
-const DOCS_URL = 'https://damirabal.github.io/ultratorrent-core/';
+const DOCS_URL = 'https://docs.ultratorrent.co/';
 
 /** A count/dot status badge on a nav item. Collapsed rail shows just a dot. */
 function NavBadgePill({ badge, collapsed }: { badge: NavBadge; collapsed?: boolean }) {
