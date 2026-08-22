@@ -76,3 +76,7 @@ ops/conversation-logs/
 
 # UltraTorrent Console build output — binaries are built, never committed.
 clients/console/dist/
+
+# Transient backend build used by the fresh-build+boot gate. Never committed;
+# it otherwise shows up as untracked work for anyone sharing this tree.
+apps/backend/.bootcheck/

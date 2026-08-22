@@ -385,3 +385,27 @@ func (c *Capabilities) Permits(domain string) bool {
 	}
 	return false
 }
+
+// ---------------------------------------------------------------------------
+// The unified operational event
+// ---------------------------------------------------------------------------
+
+// Event mirrors OperationsEvent — one line of the operational narrative.
+//
+// Deliberately flat and small, as the contract says: this crosses the wire many
+// times a second on a busy install and the console keeps a bounded ring buffer
+// of them, so an envelope carrying an arbitrary payload would make both the
+// wire and the buffer unbounded.
+type Event struct {
+	ID            string         `json:"id"`
+	At            string         `json:"at"`
+	EventKey      string         `json:"eventKey"`
+	Category      string         `json:"category"`
+	Severity      Severity       `json:"severity"`
+	Summary       string         `json:"summary"`
+	ResourceType  *string        `json:"resourceType"`
+	ResourceID    *string        `json:"resourceId"`
+	Actor         *string        `json:"actor"`
+	CorrelationID *string        `json:"correlationId"`
+	Facts         map[string]any `json:"facts"`
+}

@@ -23,6 +23,7 @@ import (
 
 	"github.com/ultratorrent/utconsole/internal/api"
 	"github.com/ultratorrent/utconsole/internal/config"
+	"github.com/ultratorrent/utconsole/internal/realtime"
 	"github.com/ultratorrent/utconsole/internal/ui"
 )
 
@@ -283,6 +284,30 @@ func doConsole(client *api.Client, cfg *config.Config) error {
 	warning := cfg.Warn()
 	model := ui.New(client, caps, time.Duration(cfg.RefreshSeconds)*time.Second, warning)
 	program := tea.NewProgram(model, tea.WithAltScreen())
+
+	/*
+	 * The listener outlives any single Bubble Tea command, so it runs as a
+	 * goroutine that pushes into the program rather than as a tea.Cmd — those
+	 * are one-shot, and a stream modelled as one would have to re-subscribe on
+	 * every event.
+	 *
+	 * `caps.EventChannel` rather than a constant: the server names its own
+	 * channel in the handshake, so a rename is a server-side change the console
+	 * follows instead of a version mismatch it has to be rebuilt for.
+	 */
+	streamCtx, stopStream := context.WithCancel(context.Background())
+	defer stopStream()
+	if caps.EventChannel != "" {
+		listener := realtime.New(cfg.ServerURL, caps.EventChannel, client.AccessToken)
+		updates := make(chan realtime.Update, 64)
+		go listener.Run(streamCtx, updates)
+		go func() {
+			for u := range updates {
+				program.Send(ui.StreamMsg{Update: u})
+			}
+		}()
+	}
+
 	_, err = program.Run()
 	return err
 }

@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ultratorrent/utconsole/internal/api"
+	"github.com/ultratorrent/utconsole/internal/realtime"
 )
 
 // View is one tab.
@@ -31,6 +32,15 @@ var views = []View{
 	{Key: "infra", Title: "Infrastructure", Domains: []string{"engines", "indexers", "providers", "storage", "system"}},
 	{Key: "activity", Title: "Activity", Domains: []string{"recentActivity", "notifications"}},
 	{Key: "alerts", Title: "Alerts", Domains: []string{"alerts", "system", "storage", "engines", "torrents", "jobs", "mediaIntake", "indexers", "providers"}},
+	/*
+	 * The stream needs no snapshot domain: it is fed by the websocket, and what
+	 * an account may see on it is decided server-side by the same permissions —
+	 * the gateway only joins a console socket to the `console:<permission>`
+	 * rooms it holds. So the tab is always available to anyone with
+	 * console.view, and it stays empty rather than forbidden for an account
+	 * whose permissions admit nothing.
+	 */
+	{Key: "stream", Title: "Stream", Domains: nil},
 }
 
 // Model is the console's whole state.
@@ -57,6 +67,9 @@ type Model struct {
 	// warning is a one-off notice shown until dismissed (config permissions,
 	// a newer server minor, and similar).
 	warning string
+
+	// stream is the live narrative: a bounded, non-authoritative ring buffer.
+	stream *stream
 }
 
 // New builds the initial model.
@@ -82,6 +95,7 @@ func New(client *api.Client, caps *api.Capabilities, interval time.Duration, war
 		 */
 		width:  100,
 		height: 30,
+		stream: newStream(),
 	}
 	m.active = m.firstPermittedView()
 	return m
@@ -105,7 +119,13 @@ func tick(d time.Duration) tea.Cmd {
 
 // fetch asks for exactly the domains the current view needs.
 func (m Model) fetch() tea.Cmd {
-	domains := m.permittedDomainsFor(views[m.active])
+	view := views[m.active]
+	// The stream view is fed by the socket; polling on its behalf would be load
+	// for a panel that does not read a snapshot.
+	if len(view.Domains) == 0 {
+		return nil
+	}
+	domains := m.permittedDomainsFor(view)
 	client := m.client
 	return func() tea.Msg {
 		if len(domains) == 0 {
@@ -130,8 +150,11 @@ func (m Model) permittedDomainsFor(v View) []string {
 }
 
 // viewPermitted reports whether any of a view's domains are readable.
+//
+// A view with no domains (the stream) is always permitted: it is not fed by the
+// snapshot, and the server decides what reaches it.
 func (m Model) viewPermitted(v View) bool {
-	return len(m.permittedDomainsFor(v)) > 0
+	return len(v.Domains) == 0 || len(m.permittedDomainsFor(v)) > 0
 }
 
 func (m Model) firstPermittedView() int {
@@ -159,6 +182,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.fetching = true
 		return m, tea.Batch(m.fetch(), tick(m.interval))
+
+	case StreamMsg:
+		m.stream.status = msg.Update.Status
+		m.stream.err = msg.Update.Err
+		if msg.Update.Event != nil {
+			m.stream.add(msg.Update.Event)
+		}
+		return m, nil
 
 	case snapshotMsg:
 		m.fetching = false
@@ -201,6 +232,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.fetching = true
 		return m, m.fetch()
 
+	case "f":
+		if views[m.active].Key == "stream" {
+			m.stream.cycleFilter()
+		}
+		return m, nil
+
 	case "p":
 		// Pausing is for reading a moving list without it moving. It stops the
 		// polling entirely rather than freezing a copy, so a paused console
@@ -208,7 +245,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.paused = !m.paused
 		return m, nil
 
-	case "1", "2", "3", "4", "5", "6", "7", "8":
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		idx := int(msg.String()[0] - '1')
 		if idx >= 0 && idx < len(views) && m.viewPermitted(views[idx]) {
 			m.active = idx
@@ -319,3 +356,10 @@ func (m Model) statusLine() string {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// StreamMsg carries one realtime update into the Bubble Tea loop.
+//
+// Exported because the program feeds it from a goroutine outside this package:
+// the listener runs for the life of the console, and Bubble Tea's own commands
+// are one-shot.
+type StreamMsg struct{ Update realtime.Update }

@@ -27,7 +27,7 @@ func (m Model) View() string {
 	b.WriteString("\n")
 	b.WriteString(m.statusLine())
 	b.WriteString("\n")
-	b.WriteString(styleMuted.Render("tab/1-8 switch · r refresh · p pause · q quit"))
+	b.WriteString(styleMuted.Render("tab/1-9 switch · r refresh · p pause · f filter · q quit"))
 	return b.String()
 }
 
@@ -66,6 +66,11 @@ func (m Model) tabs() string {
 }
 
 func (m Model) body() string {
+	// The stream is fed by the socket, so it renders before any snapshot has
+	// arrived — and keeps rendering if the REST side is failing.
+	if views[m.active].Key == "stream" {
+		return m.viewStream()
+	}
 	if m.snapshot == nil {
 		if m.lastErr != nil {
 			return styleErr.Render(fmt.Sprintf("Could not reach the server: %v", m.lastErr))
@@ -89,6 +94,8 @@ func (m Model) body() string {
 		return m.viewActivity()
 	case "alerts":
 		return m.viewAlerts()
+	case "stream":
+		return m.viewStream()
 	}
 	return ""
 }

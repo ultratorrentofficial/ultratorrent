@@ -36,8 +36,25 @@ container does not publish its port on either deployed host; the frontend serves
 `http://127.0.0.1:18888`, and from anywhere else it is whatever public URL the
 app is served at.
 
-Keys: `tab` / `1`–`8` switch views, `r` refreshes now, `p` pauses polling,
-`q` quits.
+Keys: `tab` / `1`–`9` switch views, `r` refreshes now, `p` pauses polling,
+`f` cycles the stream filter, `q` quits.
+
+## The event stream
+
+The **Stream** view is a live narrative fed by a websocket, not by polling. The
+console speaks the Socket.IO subset it needs directly — framing, one handshake,
+a heartbeat — rather than taking a dependency on a full client, and after the
+handshake the only frame it ever sends is a pong. Read-only holds on the
+realtime path exactly as it does over REST.
+
+The token travels in the CONNECT payload rather than the query string, which the
+gateway also accepts: the console reaches the API through nginx, and nginx
+writes request URLs to its access log — a query-string token would be written to
+disk in plain text on every reconnect, on the host being monitored.
+
+**The buffer is not history.** It holds the last 200 events that arrived while
+this console was open, it does not backfill, and the view says so every time it
+renders. The record of what happened is the audit log.
 
 ## What it needs from an account
 
@@ -53,9 +70,10 @@ with a message saying so, rather than opening onto sixteen empty boxes.
 
 - **No writes.** No pause, no delete, no retry. Those live in the web app,
   behind their own permissions.
-- **No history.** The console shows what is true now. The record of what
-  happened is the audit log, `GET /api/audit`, and presenting a few minutes of
-  polling as history would be a lie about what it holds.
+- **No history.** The console shows what is true now, plus whatever has arrived
+  on the stream since it connected. The record of what happened is the audit
+  log, `GET /api/audit`; presenting a bounded ring buffer as history would be a
+  lie about what it holds.
 - **No alert acknowledgement.** Alerts are computed from current state each time
   a snapshot is built. They have no identity that survives a restart and cannot
   be silenced — the way to make one go away is to fix what it reports. A dismiss

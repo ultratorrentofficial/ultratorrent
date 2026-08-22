@@ -153,6 +153,16 @@ func (c *Client) authorize(ctx context.Context) (string, error) {
 	return c.accessToken, nil
 }
 
+// AccessToken returns a currently-valid access token, refreshing if needed.
+//
+// Exposed for the realtime listener, which authenticates its socket with the
+// same identity as the REST calls. It goes through authorize() rather than
+// reading the field so a socket reconnecting an hour into a session gets a
+// live token instead of the expired one the console started with.
+func (c *Client) AccessToken(ctx context.Context) (string, error) {
+	return c.authorize(ctx)
+}
+
 // Capabilities fetches the handshake and verifies the contract major.
 func (c *Client) Capabilities(ctx context.Context) (*Capabilities, error) {
 	token, err := c.authorize(ctx)
