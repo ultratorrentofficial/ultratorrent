@@ -1,4 +1,4 @@
-import { PERMISSIONS, SystemRole } from '@ultratorrent/shared';
+import { PERMISSIONS, SystemRole, type OperationsTorrents } from '@ultratorrent/shared';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import {
   DEFAULT_ITEM_CAP,
@@ -48,6 +48,7 @@ function makeService(over: Record<string, unknown> = {}): {
     prisma: forbidden('prisma'),
     registry: forbidden('registry'),
     engineStatus: forbidden('engineStatus'),
+    torrentCache: forbidden('torrentCache'),
     dashboard: forbidden('dashboard'),
     system: forbidden('system'),
     intake: forbidden('intake'),
@@ -65,6 +66,7 @@ function makeService(over: Record<string, unknown> = {}): {
     deps.prisma as never,
     deps.registry as never,
     deps.engineStatus as never,
+    deps.torrentCache as never,
     deps.dashboard as never,
     deps.system as never,
     deps.intake as never,
@@ -263,5 +265,124 @@ describe('operations snapshot — the response is bounded by the server', () => 
     expect(snapshot.contractVersion).toMatch(/^\d+\.\d+\.\d+$/);
     expect(typeof snapshot.durationMs).toBe('number');
     expect(new Date(snapshot.generatedAt).toString()).not.toBe('Invalid Date');
+  });
+});
+
+
+describe('operations snapshot — torrents are read, never re-fetched', () => {
+  const reading = (engineId: string, torrents: unknown[]) => ({
+    engineId,
+    at: '2026-08-22T22:47:00.000Z',
+    torrents,
+    stats: { downloadRate: 100, uploadRate: 50 },
+  });
+
+  const torrent = (over: Record<string, unknown> = {}) => ({
+    hash: 'abc',
+    name: 'Some.Release',
+    engineId: 'e1',
+    state: 'downloading',
+    progress: 0.5,
+    size: 100,
+    downloadRate: 10,
+    uploadRate: 0,
+    ratio: 0,
+    eta: 60,
+    seedsConnected: 2,
+    peersConnected: 3,
+    addedAt: null,
+    completedAt: null,
+    message: null,
+    ...over,
+  });
+
+  it('never asks the engine for its torrents', async () => {
+    /*
+     * The point of the cache. A provider whose listTorrents() throws proves the
+     * collector does not reach for it — this used to be 474ms of a real
+     * install's snapshot, once per console per poll.
+     */
+    const provider = {
+      engineId: 'e1',
+      kind: 'qbittorrent',
+      listTorrents: () => {
+        throw new Error('the snapshot must not call this');
+      },
+      getGlobalStats: () => {
+        throw new Error('the snapshot must not call this either');
+      },
+    };
+    const { service } = makeService({
+      registry: { list: () => [provider] },
+      torrentCache: { get: () => reading('e1', [torrent()]) },
+      dashboard: { summary: async () => ({ totalDownloaded: 5, totalUploaded: 6, ratio: 1.2 }) },
+      parking: { annotate: async (_e: string, list: unknown[]) => list },
+      prisma: { mediaIntakeJob: { findMany: async () => [] } },
+    });
+
+    const snapshot = await service.snapshot(user([PERMISSIONS.TORRENTS_VIEW]), {
+      domains: ['torrents'],
+    });
+
+    expect(snapshot.domains.torrents?.available).toBe(true);
+    const data = (snapshot.domains.torrents as { available: true; data: OperationsTorrents }).data;
+    expect(data.counts).toMatchObject({ total: 1, downloading: 1 });
+    expect(data.rates).toMatchObject({ downloadRate: 100, uploadRate: 50, totalDownloaded: 5 });
+  });
+
+  it('reports when the picture was taken, using the OLDEST engine', async () => {
+    // One figure for a merged list must show its worst staleness: an engine that
+    // stopped answering must not hide behind one polled a second ago.
+    const stale = { ...reading('e1', [torrent()]), at: '2026-08-22T21:00:00.000Z' };
+    const fresh = reading('e2', [torrent({ engineId: 'e2' })]);
+    const byId: Record<string, unknown> = { e1: stale, e2: fresh };
+
+    const { service } = makeService({
+      registry: { list: () => [{ engineId: 'e1' }, { engineId: 'e2' }] },
+      torrentCache: { get: (id: string) => byId[id] ?? null },
+      dashboard: { summary: async () => null },
+      parking: { annotate: async (_e: string, list: unknown[]) => list },
+      prisma: { mediaIntakeJob: { findMany: async () => [] } },
+    });
+
+    const snapshot = await service.snapshot(user([PERMISSIONS.TORRENTS_VIEW]), {
+      domains: ['torrents'],
+    });
+    const data = (snapshot.domains.torrents as { available: true; data: OperationsTorrents }).data;
+    expect(data.observedAt).toBe('2026-08-22T21:00:00.000Z');
+  });
+
+  it('ignores a reading for an engine the registry no longer knows', async () => {
+    // A removed engine must not keep contributing torrents to the picture.
+    const { service } = makeService({
+      registry: { list: () => [] },
+      torrentCache: {
+        get: () => {
+          throw new Error('should not be consulted for an unknown engine');
+        },
+      },
+      dashboard: { summary: async () => null },
+    });
+
+    const snapshot = await service.snapshot(user([PERMISSIONS.TORRENTS_VIEW]), {
+      domains: ['torrents'],
+    });
+    const data = (snapshot.domains.torrents as { available: true; data: OperationsTorrents }).data;
+    expect(data.counts.total).toBe(0);
+    expect(data.observedAt).toBeNull();
+  });
+
+  it('shows nothing rather than zero when no engine has been polled yet', async () => {
+    const { service } = makeService({
+      registry: { list: () => [{ engineId: 'e1' }] },
+      torrentCache: { get: () => null },
+      dashboard: { summary: async () => null },
+    });
+
+    const snapshot = await service.snapshot(user([PERMISSIONS.TORRENTS_VIEW]), {
+      domains: ['torrents'],
+    });
+    const data = (snapshot.domains.torrents as { available: true; data: OperationsTorrents }).data;
+    expect(data.observedAt).toBeNull();
   });
 });

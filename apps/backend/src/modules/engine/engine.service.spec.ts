@@ -18,7 +18,7 @@ describe('EngineService', () => {
       const prisma = {
         torrentEngine: { findMany: jest.fn().mockResolvedValue([makeEngineRow()]) },
       } as any;
-      const svc = new EngineService(prisma, {} as any, {} as any, {} as any);
+      const svc = new EngineService(prisma, {} as any, {} as any, {} as any, {} as any);
 
       const [row] = await svc.list();
 
@@ -53,7 +53,7 @@ describe('EngineService', () => {
       const factory = {
         create: jest.fn().mockReturnValue({ healthCheck: jest.fn().mockResolvedValue(health) }),
       } as any;
-      const svc = new EngineService({} as any, {} as any, factory, {} as any);
+      const svc = new EngineService({} as any, {} as any, factory, {} as any, {} as any);
 
       const res = await svc.test({
         kind: 'rtorrent',
@@ -72,7 +72,7 @@ describe('EngineService', () => {
           throw new Error('Engine "transmission" is planned but not yet implemented');
         }),
       } as any;
-      const svc = new EngineService({} as any, {} as any, factory, {} as any);
+      const svc = new EngineService({} as any, {} as any, factory, {} as any, {} as any);
 
       const res = await svc.test({
         kind: 'transmission',

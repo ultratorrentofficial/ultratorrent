@@ -24,7 +24,7 @@
  * compatible; newer minor → compatible, some fields may be unknown; different
  * major → incompatible, say so plainly rather than rendering nonsense.
  */
-export const OPERATIONS_CONTRACT_VERSION = '1.0.0';
+export const OPERATIONS_CONTRACT_VERSION = '1.1.0';
 
 /** Every domain the snapshot can carry. */
 export const OPERATIONS_DOMAINS = [
@@ -173,6 +173,17 @@ export interface OperationsTorrents {
   attention: OperationsTorrent[];
   /** True when `active`/`attention` were truncated by the cap. */
   truncated: boolean;
+  /**
+   * When this picture was taken, which is NOT when the snapshot was built.
+   *
+   * Torrents are read from what the engine poller last saw — normally under two
+   * seconds old — because a console must not make every engine answer a second
+   * time on its account. That makes staleness a real property of the data, so it
+   * travels with it: a client showing rates as "now" when the poller stopped
+   * five minutes ago is stating something false. Null when no engine has been
+   * polled yet this boot, which is the honest answer rather than a zeroed list.
+   */
+  observedAt: string | null;
 }
 
 export interface OperationsQueueEntry {

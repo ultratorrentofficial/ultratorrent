@@ -6,6 +6,7 @@ import { EngineRegistryService } from './engine-registry.service';
 import { EngineService } from './engine.service';
 import { EngineController } from './engine.controller';
 import { EngineStatusTracker } from './engine-status.tracker';
+import { EngineTorrentCache } from './engine-torrent.cache';
 
 // SecretCipher is registered locally (it is not global), mirroring
 // ProwlarrModule/IndexersModule — it encrypts engine credentials at rest.
@@ -17,9 +18,10 @@ import { EngineStatusTracker } from './engine-status.tracker';
     EngineRegistryService,
     EngineService,
     EngineStatusTracker,
+    EngineTorrentCache,
     SecretCipher,
   ],
   controllers: [EngineController],
-  exports: [EngineRegistryService, EngineService, EngineStatusTracker],
+  exports: [EngineRegistryService, EngineService, EngineStatusTracker, EngineTorrentCache],
 })
 export class EngineModule {}

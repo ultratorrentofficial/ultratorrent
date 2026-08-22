@@ -247,20 +247,33 @@ export class SchedulerPreviewService {
     return planEngine(engineId, torrents, caps, { now });
   }
 
-  /** Plan every engine the registry knows about. */
+  /**
+   * Plan every engine the registry knows about, concurrently.
+   *
+   * Each engine's plan is independent — `previewEngine` reads that engine's own
+   * snapshot rows and policies and shares nothing across engines — so the
+   * sequential loop this replaces made the cost the SUM rather than the MAX for
+   * no benefit. Measured on a real two-engine install, the queue domain took
+   * 469 ms of an 840 ms operations snapshot; nothing in it was waiting on
+   * anything but the previous engine.
+   *
+   * Order is preserved, because the caller renders these as a list and a set of
+   * panels that reshuffles between refreshes is unreadable.
+   */
   async previewAll(now = new Date()): Promise<EngineActivityPlan[]> {
-    const plans: EngineActivityPlan[] = [];
-    for (const provider of this.registry.list()) {
-      try {
-        const plan = await this.previewEngine(provider.engineId, now);
-        if (plan) plans.push(plan);
-      } catch (err) {
-        // One engine's failure must not deny the operator the others' plans.
-        this.logger.warn(
-          `Scheduler preview failed for ${provider.engineId}: ${(err as Error).message}`,
-        );
-      }
-    }
-    return plans;
+    const settled = await Promise.all(
+      this.registry.list().map(async (provider) => {
+        try {
+          return await this.previewEngine(provider.engineId, now);
+        } catch (err) {
+          // One engine's failure must not deny the operator the others' plans.
+          this.logger.warn(
+            `Scheduler preview failed for ${provider.engineId}: ${(err as Error).message}`,
+          );
+          return null;
+        }
+      }),
+    );
+    return settled.filter((plan): plan is EngineActivityPlan => plan !== null);
   }
 }

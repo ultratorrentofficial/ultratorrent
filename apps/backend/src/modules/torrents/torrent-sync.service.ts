@@ -14,6 +14,7 @@ import { TransferLedgerService } from '../transfer-ledger/transfer-ledger.servic
 import { TorrentParkingService } from './torrent-parking.service';
 import { TorrentIntakeAnnotatorService } from './torrent-intake-annotator.service';
 import { EngineStatusTracker } from '../engine/engine-status.tracker';
+import { EngineTorrentCache } from '../engine/engine-torrent.cache';
 
 /**
  * What we knew about a torrent at the end of the previous tick: enough to
@@ -90,6 +91,12 @@ export class TorrentSyncService {
      * about, keep working without each of them learning about engine status.
      */
     private readonly engineStatus?: EngineStatusTracker,
+    /**
+     * Optional for the same reason as `engineStatus`: the many existing
+     * constructions of this service in tests, and any consumer that predates
+     * the cache, keep working without knowing about it.
+     */
+    private readonly torrentCache?: EngineTorrentCache,
   ) {}
 
   @Interval(2000)
@@ -167,6 +174,14 @@ export class TorrentSyncService {
       // Remember it too. Anything asking "is this engine up?" afterwards reads
       // this instead of opening a second connection to the engine to find out.
       this.engineStatus?.recordOnline(provider.engineId, at, torrents.length);
+      /*
+       * Keep the reading itself, not just the fact that the engine answered.
+       * The operations snapshot used to re-fetch this list per request — 474 ms
+       * of a real install's 840 ms snapshot, and a second full listing per
+       * engine for every console watching. Recorded here rather than at the top
+       * of the try so a partial tick never publishes a half-built picture.
+       */
+      this.torrentCache?.record(provider.engineId, at, torrents, stats);
     } catch (err) {
       this.logger.warn(
         `Engine ${provider.engineId} sync failed: ${(err as Error).message}`,

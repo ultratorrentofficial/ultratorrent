@@ -4,6 +4,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineProviderFactory } from '../../infrastructure/engine/engine-provider.factory';
 import { SecretCipher } from '../../common/crypto/secret-cipher';
 import { EngineRegistryService } from './engine-registry.service';
+import { EngineTorrentCache } from './engine-torrent.cache';
 import {
   encryptEngineConfig,
   hasEngineSecret,
@@ -22,6 +23,7 @@ export class EngineService {
     private readonly registry: EngineRegistryService,
     private readonly factory: EngineProviderFactory,
     private readonly cipher: SecretCipher,
+    private readonly torrentCache: EngineTorrentCache,
   ) {}
 
   async list() {
@@ -158,6 +160,10 @@ export class EngineService {
   async remove(id: string) {
     await this.prisma.torrentEngine.delete({ where: { id } });
     await this.registry.reload();
+    // Drop what the sync loop last saw for it. Without this the reading
+    // outlives the engine, and anything reading the cache would keep reporting
+    // the torrents of an engine that no longer exists.
+    this.torrentCache.forget(id);
     return { id };
   }
 
