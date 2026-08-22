@@ -177,7 +177,10 @@ export class AcquisitionEvaluatorService {
     }
 
     await this.history(watchlist.item?.id, evaluation.id, `evaluation.${result.decision}`, result.reason);
-    await this.audit.record({ userId, action: 'media_acquisition.evaluation.created', objectType: 'media_acquisition_evaluation', objectId: evaluation.id, metadata: { decision: result.decision } });
+    // The release belongs in the record: an evaluation that says only
+    // "decision: download" tells an operator nothing about WHAT was decided,
+    // which is exactly how it read in the dashboard's activity feed.
+    await this.audit.record({ userId, action: 'media_acquisition.evaluation.created', objectType: 'media_acquisition_evaluation', objectId: evaluation.id, metadata: { decision: result.decision, releaseName: input.releaseName, reason: result.reason } });
     this.emit(evaluation.id, result.decision, result.requiresApproval);
     return evaluation;
   }
@@ -253,7 +256,7 @@ export class AcquisitionEvaluatorService {
       action: 'media_acquisition.evaluation.created',
       objectType: 'media_acquisition_evaluation',
       objectId: evaluation.id,
-      metadata: { decision: 'download', via: 'match_preferences' },
+      metadata: { decision: 'download', via: 'match_preferences', releaseName: input.releaseName },
     });
     this.emit(evaluation.id, 'download', false);
     return { evaluation, torrentHash, refused };

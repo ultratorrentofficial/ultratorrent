@@ -70,8 +70,48 @@ export class DashboardService {
       take: Math.max(limit * 8, 120),
       include: { user: { select: { username: true, displayName: true } } },
     });
-    return collapseActivity(rows, limit);
+    return collapseActivity(rows, limit, await this.mediaNames(rows));
   }
+
+  /**
+   * Names for the media behind the feed's rows. The enrichment sweeps record
+   * only their own particulars ({@code {provider: 'tmdb'}}) — never a title —
+   * so the subject has to come from the `media_item` each row already points
+   * at. Resolving by id rather than by metadata also names the rows already
+   * written, instead of only those recorded from here on.
+   */
+  private async mediaNames(rows: AuditRow[]): Promise<MediaNames> {
+    const ids = [
+      ...new Set(
+        rows
+          .filter((r) => r.objectType === 'media_item' && r.objectId)
+          .map((r) => r.objectId as string),
+      ),
+    ];
+    if (!ids.length) return new Map();
+    const items = await this.prisma.mediaItem.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, title: true, year: true, season: true, episode: true },
+    });
+    return new Map(items.map((i) => [i.id, mediaDisplayName(i)]));
+  }
+}
+
+/** Media titles by `media_item` id, for rows whose metadata carries no name. */
+export type MediaNames = Map<string, string>;
+
+/** How a media item is named in the feed: "Show S02E07" / "Film (2024)". */
+function mediaDisplayName(item: {
+  title: string;
+  year: number | null;
+  season: number | null;
+  episode: number | null;
+}): string {
+  if (item.season !== null && item.episode !== null) {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${item.title} S${pad(item.season)}E${pad(item.episode)}`;
+  }
+  return item.year ? `${item.title} (${item.year})` : item.title;
 }
 
 interface ActivityItem {
@@ -92,6 +132,7 @@ export type AuditRow = {
   id: string;
   action: string;
   objectType: string | null;
+  objectId?: string | null;
   result: string;
   metadata: unknown;
   createdAt: Date;
@@ -119,9 +160,9 @@ const ACRONYMS: Record<string, string> = {
   '2fa': '2FA',
 };
 
-export function toActivityItem(row: AuditRow): ActivityItem {
+export function toActivityItem(row: AuditRow, names: MediaNames = new Map()): ActivityItem {
   const meta = asMeta(row.metadata);
-  const described = describeActivity(row, meta);
+  const described = describeActivity(row, meta, resolvedName(row, names));
   let message = described.message;
   const actor = actorName(row);
   if (actor) message += ` · ${actor}`;
@@ -169,56 +210,89 @@ function burstSignature(r: AuditRow): string {
  * actions and one-off events stay individual. Rows arrive newest-first, so
  * emitting each group at its first sighting preserves the ordering.
  */
-export function collapseActivity(rows: AuditRow[], limit: number): ActivityItem[] {
-  const counts = new Map<string, number>();
+export function collapseActivity(
+  rows: AuditRow[],
+  limit: number,
+  names: MediaNames = new Map(),
+): ActivityItem[] {
+  // Whole groups, not just counts: a collapsed line names the media it covers,
+  // which needs every row in the group, not only its representative.
+  const groups = new Map<string, AuditRow[]>();
   for (const r of rows) {
     if (NEVER_COLLAPSE.has(r.action)) continue;
     const key = burstSignature(r);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    const group = groups.get(key);
+    if (group) group.push(r);
+    else groups.set(key, [r]);
   }
 
   const out: ActivityItem[] = [];
   const emitted = new Set<string>();
   for (const r of rows) {
     const key = burstSignature(r);
-    const count = NEVER_COLLAPSE.has(r.action) ? 0 : counts.get(key) ?? 0;
-    if (count >= 2) {
+    const group = NEVER_COLLAPSE.has(r.action) ? undefined : groups.get(key);
+    if (group && group.length >= 2) {
       if (emitted.has(key)) continue; // group already represented
       emitted.add(key);
-      out.push(burstActivityItem(r, count));
+      out.push(burstActivityItem(r, group, names));
     } else {
-      out.push(toActivityItem(r));
+      out.push(toActivityItem(r, names));
     }
     if (out.length >= limit) break;
   }
   return out;
 }
 
-/** A single collapsed line for a burst: a name-less label (+ actor) and a count. */
-function burstActivityItem(rep: AuditRow, count: number): ActivityItem {
+/** A single collapsed line for a burst: a label naming its media, and a count. */
+function burstActivityItem(rep: AuditRow, group: AuditRow[], names: MediaNames): ActivityItem {
   return {
     id: rep.id,
     type: rep.action,
-    message: burstLabel(rep),
-    detail: `${count} events`,
+    message: burstLabel(rep, group, names),
+    detail: `${group.length} events`,
     level: activityLevel(rep.action, rep.result),
     at: rep.createdAt.toISOString(),
   };
 }
 
-/** The collapsed-line label: no per-item name, but keep the rule + actor. */
-function burstLabel(rep: AuditRow): string {
+/**
+ * How many of a burst's subjects are named before the rest become "+N more".
+ * Two keeps the line scannable while still answering "what did it touch?".
+ */
+const BURST_NAMES_SHOWN = 2;
+
+/**
+ * The collapsed-line label: the verb, the media it covered, and the actor. A
+ * sweep that reports only its verb ("Media artwork import") tells an operator
+ * nothing they can act on — the subject is the whole point of the line.
+ */
+function burstLabel(rep: AuditRow, group: AuditRow[], names: MediaNames): string {
   let label: string;
   if (rep.action === 'automation.rule.executed') {
     const rule = str(asMeta(rep.metadata).rule);
     const base = rep.result === 'failure' ? 'Automation failed' : 'Automation';
     label = rule ? `${base}: ${rule}` : base;
   } else {
-    label = genericMessage(rep);
+    label = actionLabel(rep);
+    const subjects = burstSubjects(group, names);
+    if (subjects) label += `: ${subjects}`;
   }
   const actor = actorName(rep);
   if (actor) label += ` · ${actor}`;
   return label;
+}
+
+/** The distinct media in a burst: the first few by name, then a "+N more" tail. */
+function burstSubjects(group: AuditRow[], names: MediaNames): string | null {
+  const distinct: string[] = [];
+  for (const r of group) {
+    const name = activityName(asMeta(r.metadata), resolvedName(r, names));
+    if (name && !distinct.includes(name)) distinct.push(name);
+  }
+  if (!distinct.length) return null;
+  const shown = distinct.slice(0, BURST_NAMES_SHOWN).join(', ');
+  const rest = distinct.length - BURST_NAMES_SHOWN;
+  return rest > 0 ? `${shown} +${rest} more` : shown;
 }
 
 /**
@@ -230,8 +304,9 @@ function burstLabel(rep: AuditRow): string {
 function describeActivity(
   row: AuditRow,
   meta: Record<string, unknown>,
+  resolved: string | null = null,
 ): { message: string; detail: string | null } {
-  const name = activityName(meta);
+  const name = activityName(meta, resolved);
   const from = str(meta.from);
   const to = str(meta.to);
   const fromTo = from && to ? `${from} → ${to}` : null;
@@ -243,6 +318,20 @@ function describeActivity(
         message: `${failed ? 'Rename failed' : 'Renamed media'}${name ? ` for ${name}` : ''}`,
         detail: fromTo ?? renameCounts(meta),
       };
+    case 'media_acquisition.missing_episode.grabbed':
+      return {
+        message: `Grabbed missing episode${name ? `: ${name}` : ''}`,
+        // How it was found matters when a grab surprises someone — a rule match
+        // and a manual search are different stories.
+        detail: str(meta.via) ? `via ${str(meta.via)}` : null,
+      };
+    case 'media_acquisition.evaluation.created': {
+      const decision = str(meta.decision);
+      return {
+        message: `Evaluated ${name ?? 'release'}${decision ? ` — ${decision}` : ''}`,
+        detail: str(meta.reason),
+      };
+    }
     case 'media_acquisition.download.executed':
       return { message: `Downloaded ${name ?? 'release'}`, detail: null };
     case 'media_acquisition.upgrade.executed':
@@ -260,11 +349,36 @@ function describeActivity(
       };
     }
     default: {
-      let message = genericMessage(row);
+      let message = actionLabel(row);
       if (name) message += `: ${name}`;
       return { message, detail: fromTo };
     }
   }
+}
+
+/**
+ * Plain-language labels for the background sweeps. Each writes one audit row per
+ * media item, so they reach the feed as collapsed lines; "Media NFO generate"
+ * is the machine's name for the job, not a description of what happened.
+ */
+const ACTION_LABELS: Record<string, string> = {
+  'media.artwork.import': 'Imported artwork',
+  'media.metadata.fetch': 'Fetched metadata',
+  'media.imdb.enrichment.completed': 'Enriched from IMDb',
+  'media.nfo.generate': 'Wrote NFO',
+};
+
+/** A readable verb for an action: a curated label, else derived from its name. */
+function actionLabel(row: AuditRow): string {
+  const label = ACTION_LABELS[row.action];
+  if (label) return label;
+  if (row.action === 'media.integration.refresh') {
+    const kind = str(asMeta(row.metadata).kind);
+    // "plex" is the stored value; it is a product name to the person reading.
+    if (kind) return `Refreshed ${kind.charAt(0).toUpperCase() + kind.slice(1)}`;
+    return 'Refreshed integration';
+  }
+  return genericMessage(row);
 }
 
 /** Generic "verb from action name" rendering used for un-specialized events. */
@@ -323,12 +437,33 @@ function activityLevel(
   return 'info';
 }
 
-function activityName(meta: Record<string, unknown>): string | null {
-  for (const key of ['name', 'title', 'releaseName', 'filename', 'path']) {
+function activityName(
+  meta: Record<string, unknown>,
+  resolved: string | null = null,
+): string | null {
+  /*
+   * `releaseTitle` was missing from this list, so a missing-episode grab —
+   * which records exactly that field — rendered as a bare verb with no subject:
+   * "Media acquisition missing episode grabbed", and nothing about what.
+   */
+  for (const key of ['name', 'title', 'releaseName', 'releaseTitle']) {
+    const value = meta[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  // A resolved title beats a filename or a full path: "Beyond the Gates S02E122"
+  // is the same fact as ".../Beyond the Gates - S02E122 - Episode 122.nfo", said
+  // in the form a person reads.
+  if (resolved) return resolved;
+  for (const key of ['filename', 'path']) {
     const value = meta[key];
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return null;
+}
+
+/** The media title behind a row, when it points at a `media_item`. */
+function resolvedName(row: AuditRow, names: MediaNames): string | null {
+  return (row.objectId && names.get(row.objectId)) || null;
 }
 
 @ApiTags('dashboard')

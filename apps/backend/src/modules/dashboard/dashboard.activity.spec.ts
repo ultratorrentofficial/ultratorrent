@@ -123,6 +123,47 @@ describe('dashboard activity — toActivityItem', () => {
     );
     expect(item.message).toBe('Torrent added · Dennis Ayala');
   });
+
+  it('names the show a missing-episode grab was for', () => {
+    const item = toActivityItem(
+      row({
+        action: 'media_acquisition.missing_episode.grabbed',
+        metadata: { releaseTitle: 'Beyond the Gates S02E148 1080p', via: 'rss_rule' },
+      }),
+    );
+    expect(item.message).toBe('Grabbed missing episode: Beyond the Gates S02E148 1080p');
+    expect(item.detail).toBe('via rss_rule');
+  });
+
+  it('names the release an evaluation decided on, with the decision', () => {
+    const item = toActivityItem(
+      row({
+        action: 'media_acquisition.evaluation.created',
+        metadata: { decision: 'download', releaseName: 'Silo S02E01 2160p', reason: 'meets quality profile' },
+      }),
+    );
+    expect(item.message).toBe('Evaluated Silo S02E01 2160p — download');
+    expect(item.detail).toBe('meets quality profile');
+  });
+
+  it('prefers the resolved media title over the path in the metadata', () => {
+    // NFO writes record their output path; the title is the readable form of it.
+    const item = toActivityItem(
+      row({
+        action: 'media.nfo.generate',
+        objectType: 'media_item',
+        objectId: 'i1',
+        metadata: { path: '/downloads/TV Shows/Beyond the Gates/Season 2/x.nfo', type: 'episode' },
+      }),
+      new Map([['i1', 'Beyond the Gates S02E122']]),
+    );
+    expect(item.message).toBe('Wrote NFO: Beyond the Gates S02E122');
+  });
+
+  it('names the integration a refresh was for', () => {
+    const item = toActivityItem(row({ action: 'media.integration.refresh', metadata: { kind: 'plex' } }));
+    expect(item.message).toBe('Refreshed Plex');
+  });
 });
 
 describe('dashboard activity — collapseActivity (bursty enrichment)', () => {
@@ -143,7 +184,7 @@ describe('dashboard activity — collapseActivity (bursty enrichment)', () => {
     // 48 interleaved rows → 3 collapsed lines.
     expect(items).toHaveLength(3);
     const artwork = items.find((i) => i.type === 'media.artwork.import')!;
-    expect(artwork.message).toBe('Media artwork import');
+    expect(artwork.message).toBe('Imported artwork');
     expect(artwork.detail).toBe('16 events');
     expect(items.map((i) => i.type)).toEqual(ENRICH); // order preserved (newest first)
   });
@@ -196,6 +237,44 @@ describe('dashboard activity — collapseActivity (bursty enrichment)', () => {
     expect(items).toHaveLength(3);
     expect(items.every((i) => i.detail !== '3 events')).toBe(true);
     expect(items[0].message).toBe('Renamed media for 9-1-1 (2018)');
+  });
+
+  it('names the media a collapsed sweep covered, then "+N more"', () => {
+    const names = new Map([
+      ['i1', 'Beyond the Gates S02E122'],
+      ['i2', 'Carolina Caroline (2026)'],
+      ['i3', 'Silo S02E01'],
+      ['i4', 'Ted Lasso S03E12'],
+    ]);
+    const rows = ['i1', 'i2', 'i3', 'i4'].map((id, i) =>
+      row({ id: `art-${i}`, action: 'media.artwork.import', objectType: 'media_item', objectId: id }),
+    );
+    const items = collapseActivity(rows, 15, names);
+    expect(items).toHaveLength(1);
+    expect(items[0].message).toBe(
+      'Imported artwork: Beyond the Gates S02E122, Carolina Caroline (2026) +2 more',
+    );
+    expect(items[0].detail).toBe('4 events');
+  });
+
+  it('does not repeat a name when a sweep touches one item several times', () => {
+    const names = new Map([['i1', 'Beyond the Gates S02E122']]);
+    const rows = [0, 1, 2].map((i) =>
+      row({ id: `nfo-${i}`, action: 'media.nfo.generate', objectType: 'media_item', objectId: 'i1' }),
+    );
+    const items = collapseActivity(rows, 15, names);
+    expect(items[0].message).toBe('Wrote NFO: Beyond the Gates S02E122'); // no "+2 more"
+    expect(items[0].detail).toBe('3 events');
+  });
+
+  it('falls back to the bare verb when the media is gone', () => {
+    // A purged item resolves to nothing — the line still has to render.
+    const rows = [0, 1].map((i) =>
+      row({ id: `m-${i}`, action: 'media.metadata.fetch', objectType: 'media_item', objectId: 'gone' }),
+    );
+    const items = collapseActivity(rows, 15, new Map());
+    expect(items[0].message).toBe('Fetched metadata');
+    expect(items[0].detail).toBe('2 events');
   });
 
   it('does not collapse a system action that occurs only once', () => {
