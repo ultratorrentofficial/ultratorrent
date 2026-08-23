@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1288 388" width="1288" height="388" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,&quot;DejaVu Sans Mono&quot;,monospace" font-size="13">
+<title>UltraTorrent Console — Overview</title>
+<rect width="100%" height="100%" rx="8" fill="#12141a"/>
+<rect x="14.0" y="14.0" width="184.8" height="18.0" fill="#303030"/>
+<rect x="862.4" y="14.0" width="403.2" height="18.0" fill="#303030"/>
+<rect x="14.0" y="32.0" width="100.8" height="18.0" fill="#00afff"/>
+<text x="14.0" y="27.3" fill="#00afff" xml:space="preserve" font-weight="700"> UltraTorrent Console</text>
+<text x="862.4" y="27.3" fill="#808080" xml:space="preserve">UltraTorrent 0.85.9  admin · SUPER_ADMIN</text>
+<text x="1215.2" y="27.3" fill="#00d787" xml:space="preserve">● live</text>
+<text x="14.0" y="45.3" fill="#121212" xml:space="preserve" font-weight="700"> 1 Overview</text>
+<text x="114.8" y="45.3" fill="#808080" xml:space="preserve"> 2 Torrents  3 Media  4 Jobs  5 Acquisition  6 Infrastructure  7 Activity  8 Alerts  9 Stream</text>
+<text x="14.0" y="63.3" fill="#808080" xml:space="preserve">╭─</text>
+<text x="30.8" y="63.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> System</text>
+<text x="98.0" y="63.3" fill="#808080" xml:space="preserve">───────────────────────────────────────────────────────────────╮</text>
+<text x="644.0" y="63.3" fill="#808080" xml:space="preserve">╭─</text>
+<text x="660.8" y="63.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> Transfers</text>
+<text x="753.2" y="63.3" fill="#808080" xml:space="preserve">─────────────────────────────────────────────────────────────╮</text>
+<text x="14.0" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="81.3" fill="#808080" xml:space="preserve">Uptime</text>
+<text x="165.2" y="81.3" fill="#d0d0d0" xml:space="preserve">13m</text>
+<text x="627.2" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="660.8" y="81.3" fill="#808080" xml:space="preserve">Rates</text>
+<text x="795.2" y="81.3" fill="#00afff" xml:space="preserve">↓ 0 B/s</text>
+<text x="870.8" y="81.3" fill="#00d787" xml:space="preserve">↑ 0 B/s</text>
+<text x="929.6" y="81.3" fill="#808080" xml:space="preserve">  observed 1s ago</text>
+<text x="1265.6" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="99.3" fill="#808080" xml:space="preserve">Load</text>
+<text x="165.2" y="99.3" fill="#d0d0d0" xml:space="preserve">2.58</text>
+<text x="198.8" y="99.3" fill="#00d787" xml:space="preserve">  0.32/core</text>
+<text x="291.2" y="99.3" fill="#808080" xml:space="preserve"> (8 cores)</text>
+<text x="627.2" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="660.8" y="99.3" fill="#808080" xml:space="preserve">Torrents</text>
+<text x="795.2" y="99.3" fill="#d0d0d0" xml:space="preserve">581 total · 0 down · 84 seed</text>
+<text x="1265.6" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="117.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="117.3" fill="#808080" xml:space="preserve">Memory</text>
+<text x="165.2" y="117.3" fill="#d0d0d0" xml:space="preserve">1.0 GB</text>
+<text x="627.2" y="117.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="117.3" fill="#808080" xml:space="preserve">│</text>
+<text x="660.8" y="117.3" fill="#808080" xml:space="preserve">Attention</text>
+<text x="795.2" y="117.3" fill="#00d787" xml:space="preserve">nothing</text>
+<text x="1265.6" y="117.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="135.3" fill="#808080" xml:space="preserve">Database</text>
+<text x="165.2" y="135.3" fill="#00d787" xml:space="preserve">● healthy</text>
+<text x="627.2" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="660.8" y="135.3" fill="#808080" xml:space="preserve">Lifetime</text>
+<text x="795.2" y="135.3" fill="#d0d0d0" xml:space="preserve">↓ 1.0 TB · ↑ 668 GB · 0.63</text>
+<text x="1265.6" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="153.3" fill="#808080" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────╯</text>
+<text x="644.0" y="153.3" fill="#808080" xml:space="preserve">╰─────────────────────────────────────────────────────────────────────────╯</text>
+<text x="14.0" y="171.3" fill="#808080" xml:space="preserve">╭─</text>
+<text x="30.8" y="171.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> Storage</text>
+<text x="106.4" y="171.3" fill="#808080" xml:space="preserve">──────────────────────────────────────────────────────────────╮</text>
+<text x="644.0" y="171.3" fill="#808080" xml:space="preserve">╭─</text>
+<text x="660.8" y="171.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> Work</text>
+<text x="711.2" y="171.3" fill="#808080" xml:space="preserve">──────────────────────────────────────────────────────────────────╮</text>
+<text x="14.0" y="189.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="189.3" fill="#00d787" xml:space="preserve">●</text>
+<text x="39.2" y="189.3" fill="#d0d0d0" xml:space="preserve"> /downloads</text>
+<text x="215.6" y="189.3" fill="#00d787" xml:space="preserve">███████</text>
+<text x="274.4" y="189.3" fill="#808080" xml:space="preserve">░░░</text>
+<text x="308.0" y="189.3" fill="#808080" xml:space="preserve">6.4 TB free</text>
+<text x="627.2" y="189.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="189.3" fill="#808080" xml:space="preserve">│</text>
+<text x="660.8" y="189.3" fill="#808080" xml:space="preserve">Running</text>
+<text x="795.2" y="189.3" fill="#d0d0d0" xml:space="preserve">0</text>
+<text x="1265.6" y="189.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="207.3" fill="#808080" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────╯</text>
+<text x="644.0" y="207.3" fill="#808080" xml:space="preserve">│</text>
+<text x="660.8" y="207.3" fill="#808080" xml:space="preserve">Queued</text>
+<text x="795.2" y="207.3" fill="#d0d0d0" xml:space="preserve">0</text>
+<text x="1265.6" y="207.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="225.3" fill="#808080" xml:space="preserve">│</text>
+<text x="660.8" y="225.3" fill="#808080" xml:space="preserve">Failed</text>
+<text x="795.2" y="225.3" fill="#ff5f5f" xml:space="preserve">13</text>
+<text x="1265.6" y="225.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="243.3" fill="#808080" xml:space="preserve">│</text>
+<text x="660.8" y="243.3" fill="#808080" xml:space="preserve">Today</text>
+<text x="795.2" y="243.3" fill="#d0d0d0" xml:space="preserve">0 done · 0 failed · — ok</text>
+<text x="1265.6" y="243.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="261.3" fill="#808080" xml:space="preserve">╰─────────────────────────────────────────────────────────────────────────╯</text>
+<text x="14.0" y="279.3" fill="#ff5f5f" xml:space="preserve">╭─ Attention ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<text x="14.0" y="297.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="30.8" y="297.3" fill="#ff5f5f" xml:space="preserve">! 13 background job(s) are in a failed state</text>
+<text x="400.4" y="297.3" fill="#808080" xml:space="preserve">  [jobs]</text>
+<text x="1265.6" y="297.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="14.0" y="315.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="30.8" y="315.3" fill="#ff5f5f" xml:space="preserve">! 3 media intake job(s) failed</text>
+<text x="282.8" y="315.3" fill="#808080" xml:space="preserve">  [mediaIntake]</text>
+<text x="1265.6" y="315.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="14.0" y="333.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="30.8" y="333.3" fill="#808080" xml:space="preserve">  ↳ Imports are not completing.</text>
+<text x="1265.6" y="333.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="14.0" y="351.3" fill="#ff5f5f" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="14.0" y="369.3" fill="#808080" xml:space="preserve">live · refreshed 0s ago · every 5s · built in 304ms</text>
+<text x="820.4" y="369.3" fill="#808080" xml:space="preserve">tab/1-9 view · r refresh · p pause · f filter · q quit</text>
+</svg>

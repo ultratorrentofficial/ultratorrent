@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1288 568" width="1288" height="568" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,&quot;DejaVu Sans Mono&quot;,monospace" font-size="13">
+<title>UltraTorrent Console — Acquisition</title>
+<rect width="100%" height="100%" rx="8" fill="#12141a"/>
+<rect x="14.0" y="14.0" width="184.8" height="18.0" fill="#303030"/>
+<rect x="862.4" y="14.0" width="403.2" height="18.0" fill="#303030"/>
+<rect x="358.4" y="32.0" width="126.0" height="18.0" fill="#00afff"/>
+<text x="14.0" y="27.3" fill="#00afff" xml:space="preserve" font-weight="700"> UltraTorrent Console</text>
+<text x="862.4" y="27.3" fill="#808080" xml:space="preserve">UltraTorrent 0.85.9  admin · SUPER_ADMIN</text>
+<text x="1215.2" y="27.3" fill="#00d787" xml:space="preserve">● live</text>
+<text x="14.0" y="45.3" fill="#808080" xml:space="preserve"> 1 Overview  2 Torrents  3 Media  4 Jobs</text>
+<text x="358.4" y="45.3" fill="#121212" xml:space="preserve" font-weight="700"> 5 Acquisition</text>
+<text x="484.4" y="45.3" fill="#808080" xml:space="preserve"> 6 Infrastructure  7 Activity  8 Alerts  9 Stream</text>
+<text x="14.0" y="63.3" fill="#808080" xml:space="preserve">╭─</text>
+<text x="30.8" y="63.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> Feeds</text>
+<text x="89.6" y="63.3" fill="#808080" xml:space="preserve">────────────────────────────────────────────────────────────────╮</text>
+<text x="644.0" y="63.3" fill="#808080" xml:space="preserve">╭─</text>
+<text x="660.8" y="63.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> Recent releases</text>
+<text x="803.6" y="63.3" fill="#808080" xml:space="preserve">───────────────────────────────────────────────────────╮</text>
+<text x="14.0" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="81.3" fill="#808080" xml:space="preserve">Grabs (24h)</text>
+<text x="165.2" y="81.3" fill="#d0d0d0" xml:space="preserve">15</text>
+<text x="627.2" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="81.3" fill="#d0d0d0" xml:space="preserve"> Sussex Jewel Of The South Coast S…</text>
+<text x="963.2" y="81.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="627.2" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="99.3" fill="#d0d0d0" xml:space="preserve"> Conan and the Young Warriors (Car…</text>
+<text x="963.2" y="99.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="117.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="117.3" fill="#808080" xml:space="preserve" font-weight="700">FEED                  RULES  POLLED      STATE</text>
+<text x="627.2" y="117.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="117.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="117.3" fill="#d0d0d0" xml:space="preserve"> The Hit List S09E05 720p WEB H264…</text>
+<text x="963.2" y="117.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="117.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="135.3" fill="#d0d0d0" xml:space="preserve"> EZTV                  167    43s ago</text>
+<text x="375.2" y="135.3" fill="#00d787" xml:space="preserve">ok</text>
+<text x="627.2" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="135.3" fill="#d0d0d0" xml:space="preserve"> The Voice UK S14E01 1080p HDTV H2…</text>
+<text x="963.2" y="135.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="153.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="153.3" fill="#d0d0d0" xml:space="preserve"> TPB - Newest TV Sho…  0      43s ago</text>
+<text x="375.2" y="153.3" fill="#00d787" xml:space="preserve">ok</text>
+<text x="627.2" y="153.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="153.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="153.3" fill="#d0d0d0" xml:space="preserve"> Unknown Serial Killers of America…</text>
+<text x="963.2" y="153.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="153.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="171.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="171.3" fill="#d0d0d0" xml:space="preserve"> YTS                   1      3m ago</text>
+<text x="375.2" y="171.3" fill="#00d787" xml:space="preserve">ok</text>
+<text x="627.2" y="171.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="171.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="171.3" fill="#d0d0d0" xml:space="preserve"> Unknown Serial Killers of America…</text>
+<text x="963.2" y="171.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="171.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="189.3" fill="#808080" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────╯</text>
+<text x="644.0" y="189.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="189.3" fill="#d0d0d0" xml:space="preserve"> Unknown Serial Killers of America…</text>
+<text x="963.2" y="189.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="189.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="207.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="207.3" fill="#d0d0d0" xml:space="preserve"> Saturday Kitchen S2026E32 720p WE…</text>
+<text x="963.2" y="207.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="207.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="225.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="225.3" fill="#d0d0d0" xml:space="preserve"> MAN IN A SUITCASE - Man from the …</text>
+<text x="963.2" y="225.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="225.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="243.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="243.3" fill="#d0d0d0" xml:space="preserve"> MAO S01E21 1080p WEB H264-SUGOI</text>
+<text x="963.2" y="243.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="243.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="261.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="261.3" fill="#d0d0d0" xml:space="preserve"> Dr Pimple Popper Breaking Out S02…</text>
+<text x="963.2" y="261.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="261.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="279.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="279.3" fill="#d0d0d0" xml:space="preserve"> Dr Pimple Popper Breaking Out S02…</text>
+<text x="963.2" y="279.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="279.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="297.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="297.3" fill="#d0d0d0" xml:space="preserve"> Deadliest Catch S22E14 Curse of t…</text>
+<text x="963.2" y="297.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="297.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="315.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="315.3" fill="#d0d0d0" xml:space="preserve"> Daemons of the Shadow Realm S01E2…</text>
+<text x="963.2" y="315.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="315.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="333.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="333.3" fill="#d0d0d0" xml:space="preserve"> 9 11 Reunited S01E03 1080p WEB h2…</text>
+<text x="963.2" y="333.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="333.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="351.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="351.3" fill="#d0d0d0" xml:space="preserve"> Daemons of the Shadow Realm S01E2…</text>
+<text x="963.2" y="351.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="351.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="369.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="369.3" fill="#d0d0d0" xml:space="preserve"> Daemons of the Shadow Realm S01E2…</text>
+<text x="963.2" y="369.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="369.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="387.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="387.3" fill="#d0d0d0" xml:space="preserve"> Daemons of the Shadow Realm S01E2…</text>
+<text x="963.2" y="387.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="387.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="405.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="405.3" fill="#d0d0d0" xml:space="preserve"> Tom Scott England S01E22 720p WEB…</text>
+<text x="963.2" y="405.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="405.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="423.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="423.3" fill="#d0d0d0" xml:space="preserve"> Big City Greens S05E09 Remy Regat…</text>
+<text x="963.2" y="423.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="423.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="441.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="441.3" fill="#d0d0d0" xml:space="preserve"> The Villager Of Level 999 S01E07 …</text>
+<text x="963.2" y="441.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="441.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="459.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="459.3" fill="#d0d0d0" xml:space="preserve"> The Villager Of Level 999 S01E08 …</text>
+<text x="963.2" y="459.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="459.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="477.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="477.3" fill="#d0d0d0" xml:space="preserve"> Dr Pimple Popper Breaking Out S02…</text>
+<text x="963.2" y="477.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="477.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="495.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="495.3" fill="#d0d0d0" xml:space="preserve"> Dr Pimple Popper Breaking Out S02…</text>
+<text x="963.2" y="495.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="495.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="513.3" fill="#808080" xml:space="preserve">│</text>
+<text x="652.4" y="513.3" fill="#d0d0d0" xml:space="preserve"> The Villager Of Level 999 S01E07 …</text>
+<text x="963.2" y="513.3" fill="#808080" xml:space="preserve">no_match</text>
+<text x="1265.6" y="513.3" fill="#808080" xml:space="preserve">│</text>
+<text x="644.0" y="531.3" fill="#808080" xml:space="preserve">╰─────────────────────────────────────────────────────────────────────────╯</text>
+<text x="14.0" y="549.3" fill="#808080" xml:space="preserve">live · refreshed 0s ago · every 5s · built in 125ms</text>
+<text x="820.4" y="549.3" fill="#808080" xml:space="preserve">tab/1-9 view · r refresh · p pause · f filter · q quit</text>
+</svg>

@@ -17,7 +17,7 @@ tier, dependencies, the permissions it introduces and the API routes it owns. Th
 resolves the dependency graph at boot and refuses to start on an unknown or circular
 dependency, so a broken module can never half-load.
 
-- **25 modules** across tiers: `core`, `community`
+- **26 modules** across tiers: `core`, `community`
 - **Core** modules are always on. **Community/optional** modules can be toggled.
 
 ## Dependency graph
@@ -45,6 +45,7 @@ graph LR
   rbac["rbac"] --> notifications["notifications"]
   auth["auth"] --> audit["audit"]
   auth["auth"] --> settings["settings"]
+  auth["auth"] --> operations["operations"]
   auth["auth"] --> module_registry["module_registry"]
   rbac["rbac"] --> module_registry["module_registry"]
   auth["auth"] --> media_manager["media_manager"]
@@ -103,6 +104,7 @@ graph LR
 | **Audit log** | `audit` | core | ✅ | `auth` |
 | **System health** | `system` | core | ✅ | — |
 | **Settings** | `settings` | core | ✅ | `auth` |
+| **Operations (Console API)** | `operations` | core | ✅ | `auth` |
 | **Module registry** | `module_registry` | core | ✅ | `auth`, `rbac` |
 | **Media Manager** | `media_manager` | community | ✅ | `auth`, `files` |
 | **Release Scoring** | `release_scoring` | community | ✅ | `auth`, `rss` |
@@ -305,6 +307,18 @@ Key/value application settings.
 **Introduces permissions:** `settings.view`, `settings.manage`
 
 **Owns routes:** `/api/settings`
+
+## Operations (Console API)
+
+`operations` · tier `core` · enabled by default
+
+Read-only aggregate snapshot and event stream for UltraTorrent Console.
+
+**Depends on:** `auth`
+
+**Introduces permissions:** `console.view`
+
+**Owns routes:** `/api/operations`
 
 ## Module registry
 

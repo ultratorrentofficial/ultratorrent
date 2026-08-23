@@ -52,6 +52,7 @@ observed, it is marked as such.
 | It works, but it is *slow* | [Performance](/operate/performance) |
 | You want a routine so nothing rots | [Maintenance](/operate/maintenance) |
 | You want known-good settings for your size of deployment | [Configuration Profiles](/operate/configuration-profiles) |
+| You want to watch a running install from a terminal | [Terminal Console](/operate/console) |
 
 ## Prerequisites
 

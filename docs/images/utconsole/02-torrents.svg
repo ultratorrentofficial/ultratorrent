@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1288 730" width="1288" height="730" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,&quot;DejaVu Sans Mono&quot;,monospace" font-size="13">
+<title>UltraTorrent Console — Torrents</title>
+<rect width="100%" height="100%" rx="8" fill="#12141a"/>
+<rect x="14.0" y="14.0" width="184.8" height="18.0" fill="#303030"/>
+<rect x="862.4" y="14.0" width="403.2" height="18.0" fill="#303030"/>
+<rect x="114.8" y="32.0" width="100.8" height="18.0" fill="#00afff"/>
+<text x="14.0" y="27.3" fill="#00afff" xml:space="preserve" font-weight="700"> UltraTorrent Console</text>
+<text x="862.4" y="27.3" fill="#808080" xml:space="preserve">UltraTorrent 0.85.9  admin · SUPER_ADMIN</text>
+<text x="1215.2" y="27.3" fill="#00d787" xml:space="preserve">● live</text>
+<text x="14.0" y="45.3" fill="#808080" xml:space="preserve"> 1 Overview</text>
+<text x="114.8" y="45.3" fill="#121212" xml:space="preserve" font-weight="700"> 2 Torrents</text>
+<text x="215.6" y="45.3" fill="#808080" xml:space="preserve"> 3 Media  4 Jobs  5 Acquisition  6 Infrastructure  7 Activity  8 Alerts  9 Stream</text>
+<text x="14.0" y="63.3" fill="#808080" xml:space="preserve">╭─</text>
+<text x="30.8" y="63.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> Needs attention</text>
+<text x="173.6" y="63.3" fill="#808080" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<text x="14.0" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="81.3" fill="#00d787" xml:space="preserve">Nothing errored or stalled.</text>
+<text x="1265.6" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="99.3" fill="#808080" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="14.0" y="117.3" fill="#808080" xml:space="preserve">╭─</text>
+<text x="30.8" y="117.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> Active</text>
+<text x="98.0" y="117.3" fill="#808080" xml:space="preserve">───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<text x="14.0" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="135.3" fill="#808080" xml:space="preserve" font-weight="700">NAME                                                                                    STATE           PROGRESS        DOWN          UP      ETA</text>
+<text x="1265.6" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="153.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="153.3" fill="#d0d0d0" xml:space="preserve"> The.Ark.S03E04.720p.HEVC.x265-MeGusta[EZTVx.to].mkv</text>
+<text x="770.0" y="153.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="980.0" y="153.3" fill="#00d787" xml:space="preserve">      2 B/s</text>
+<text x="1248.8" y="153.3" fill="#808080" xml:space="preserve">│─╯</text>
+<text x="14.0" y="171.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="171.3" fill="#d0d0d0" xml:space="preserve"> Chicago.Fire.S13E17.A.Beast.Like.This.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv[eztvx.to]</text>
+<text x="770.0" y="171.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="171.3" fill="#808080" xml:space="preserve">│─╮</text>
+<text x="14.0" y="189.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="189.3" fill="#d0d0d0" xml:space="preserve"> Ancient Aliens S21E15 1080p HEVC x265-MeGusta</text>
+<text x="770.0" y="189.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="189.3" fill="#808080" xml:space="preserve">│</text>
+<text x="1265.6" y="189.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="207.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="207.3" fill="#d0d0d0" xml:space="preserve"> Ancient Aliens S20E20 1080p HEVC x265-MeGusta</text>
+<text x="770.0" y="207.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="207.3" fill="#808080" xml:space="preserve">│</text>
+<text x="1265.6" y="207.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="225.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="225.3" fill="#d0d0d0" xml:space="preserve"> Landship (2026) [1080p] [BluRay] [5.1] [YTS.GG - YTS.BZ]</text>
+<text x="770.0" y="225.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="225.3" fill="#808080" xml:space="preserve">│</text>
+<text x="1265.6" y="225.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="243.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="243.3" fill="#d0d0d0" xml:space="preserve"> Star.Wars.Maul.Shadow.Lord.S01E03.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv[eztvx.to]</text>
+<text x="770.0" y="243.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="243.3" fill="#808080" xml:space="preserve">│</text>
+<text x="1265.6" y="243.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="261.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="261.3" fill="#d0d0d0" xml:space="preserve"> Lioness.2023.S03E02.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv</text>
+<text x="770.0" y="261.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="261.3" fill="#808080" xml:space="preserve">│─╯</text>
+<text x="14.0" y="279.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="279.3" fill="#d0d0d0" xml:space="preserve"> The Mandalorian And Grogu (2026) [IMAX BLURAY] [1080p] [BluRay] [5.1] [YTS.GG - YTS.BZ]</text>
+<text x="770.0" y="279.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="279.3" fill="#808080" xml:space="preserve">│</text>
+<text x="1257.2" y="279.3" fill="#ff5f5f" xml:space="preserve">─╮</text>
+<text x="14.0" y="297.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="297.3" fill="#d0d0d0" xml:space="preserve"> Ancient.Aliens.S20E19.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv[eztvx.to]</text>
+<text x="770.0" y="297.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="297.3" fill="#808080" xml:space="preserve">│</text>
+<text x="1265.6" y="297.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="14.0" y="315.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="315.3" fill="#d0d0d0" xml:space="preserve"> Silo.S03E07.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv</text>
+<text x="770.0" y="315.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="315.3" fill="#808080" xml:space="preserve">│</text>
+<text x="1265.6" y="315.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="14.0" y="333.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="333.3" fill="#d0d0d0" xml:space="preserve"> The.Walking.Dead.Dead.City.S03E04.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv</text>
+<text x="770.0" y="333.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="333.3" fill="#808080" xml:space="preserve">│</text>
+<text x="1265.6" y="333.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="14.0" y="351.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="351.3" fill="#d0d0d0" xml:space="preserve"> The Dink (2026) [1080p] [BluRay] [5.1] [YTS.GG - YTS.BZ]</text>
+<text x="770.0" y="351.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="351.3" fill="#808080" xml:space="preserve">│</text>
+<text x="1257.2" y="351.3" fill="#ff5f5f" xml:space="preserve">─╯</text>
+<text x="14.0" y="369.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="369.3" fill="#d0d0d0" xml:space="preserve"> Ancient Aliens S21E13 1080p HEVC x265-MeGusta</text>
+<text x="770.0" y="369.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="369.3" fill="#808080" xml:space="preserve">│it</text>
+<text x="14.0" y="387.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="387.3" fill="#d0d0d0" xml:space="preserve"> Evil Dead Burn (2026) [1080p] [WEBRip] [5.1] [YTS.GG - YTS.BZ]</text>
+<text x="770.0" y="387.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="387.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="405.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="405.3" fill="#d0d0d0" xml:space="preserve"> Breach (2026) [1080p] [WEBRip] [YTS.GG - YTS.BZ]</text>
+<text x="770.0" y="405.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="405.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="423.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="423.3" fill="#d0d0d0" xml:space="preserve"> Chicago Fire S13E20 1080p HEVC x265-MeGusta</text>
+<text x="770.0" y="423.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="423.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="441.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="441.3" fill="#d0d0d0" xml:space="preserve"> Trying.S05E07.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv</text>
+<text x="770.0" y="441.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="441.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="459.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="459.3" fill="#d0d0d0" xml:space="preserve"> The Invite (2026) [1080p] [WEBRip] [5.1] [YTS.GG - YTS.BZ]</text>
+<text x="770.0" y="459.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="459.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="477.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="477.3" fill="#d0d0d0" xml:space="preserve"> When Calls the Heart S13E04 1080p HEVC x265-MeGusta</text>
+<text x="770.0" y="477.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="477.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="495.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="495.3" fill="#d0d0d0" xml:space="preserve"> Star.Wars.Maul.Shadow.Lord.S01E06.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv[eztvx.to]</text>
+<text x="770.0" y="495.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="495.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="513.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="513.3" fill="#d0d0d0" xml:space="preserve"> Ancient Aliens S21E16 1080p HEVC x265-MeGusta</text>
+<text x="770.0" y="513.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="513.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="531.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="531.3" fill="#d0d0d0" xml:space="preserve"> Reacher.S04E04.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv</text>
+<text x="770.0" y="531.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="531.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="549.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="549.3" fill="#d0d0d0" xml:space="preserve"> Furious.S01E06.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv</text>
+<text x="770.0" y="549.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="549.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="567.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="567.3" fill="#d0d0d0" xml:space="preserve"> Star.Wars.Maul.Shadow.Lord.S01E08.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv[eztvx.to]</text>
+<text x="770.0" y="567.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="567.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="585.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="585.3" fill="#d0d0d0" xml:space="preserve"> The.Proof.Is.Out.There.S04E18.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv[eztvx.to]</text>
+<text x="770.0" y="585.3" fill="#00d787" xml:space="preserve">seeding</text>
+<text x="1248.8" y="585.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="603.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="603.3" fill="#808080" xml:space="preserve">… capped by the server; not the full list.</text>
+<text x="1265.6" y="603.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="621.3" fill="#808080" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="14.0" y="639.3" fill="#808080" xml:space="preserve">╭─</text>
+<text x="30.8" y="639.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> Queue</text>
+<text x="89.6" y="639.3" fill="#808080" xml:space="preserve">────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<text x="14.0" y="657.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="657.3" fill="#d0d0d0" xml:space="preserve">           ebcb3f715a676a7acda6f0b455bf25428ee71047</text>
+<text x="1139.6" y="657.3" fill="#808080" xml:space="preserve"> — scheduler.r</text>
+<text x="1265.6" y="657.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="675.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="675.3" fill="#d0d0d0" xml:space="preserve">           98cd517b0f132b351e2caa3ae0214e27043418a2</text>
+<text x="1139.6" y="675.3" fill="#808080" xml:space="preserve"> — scheduler.r</text>
+<text x="1265.6" y="675.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="693.3" fill="#808080" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="14.0" y="711.3" fill="#808080" xml:space="preserve">live · refreshed 0s ago · every 5s · built in 540ms</text>
+<text x="820.4" y="711.3" fill="#808080" xml:space="preserve">tab/1-9 view · r refresh · p pause · f filter · q quit</text>
+</svg>

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1288 154" width="1288" height="154" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,&quot;DejaVu Sans Mono&quot;,monospace" font-size="13">
+<title>UltraTorrent Console — Stream</title>
+<rect width="100%" height="100%" rx="8" fill="#12141a"/>
+<rect x="14.0" y="14.0" width="184.8" height="18.0" fill="#303030"/>
+<rect x="862.4" y="14.0" width="403.2" height="18.0" fill="#303030"/>
+<rect x="820.4" y="32.0" width="84.0" height="18.0" fill="#00afff"/>
+<text x="14.0" y="27.3" fill="#00afff" xml:space="preserve" font-weight="700"> UltraTorrent Console</text>
+<text x="862.4" y="27.3" fill="#808080" xml:space="preserve">UltraTorrent 0.85.9  admin · SUPER_ADMIN</text>
+<text x="1215.2" y="27.3" fill="#00d787" xml:space="preserve">● live</text>
+<text x="14.0" y="45.3" fill="#808080" xml:space="preserve"> 1 Overview  2 Torrents  3 Media  4 Jobs  5 Acquisition  6 Infrastructure  7 Activity  8 Alerts</text>
+<text x="820.4" y="45.3" fill="#121212" xml:space="preserve" font-weight="700"> 9 Stream</text>
+<text x="14.0" y="63.3" fill="#808080" xml:space="preserve">╭─</text>
+<text x="30.8" y="63.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> Event stream ·</text>
+<text x="165.2" y="63.3" fill="#00d787" xml:space="preserve" font-weight="700">● live</text>
+<text x="224.0" y="63.3" fill="#808080" xml:space="preserve">────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<text x="14.0" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="81.3" fill="#808080" xml:space="preserve">Live only — since this console connected. The record is the audit log.</text>
+<text x="1265.6" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="99.3" fill="#808080" xml:space="preserve">Connected. Nothing has happened yet.</text>
+<text x="1265.6" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="117.3" fill="#808080" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="14.0" y="135.3" fill="#808080" xml:space="preserve">live · refreshed 0s ago · every 5s · built in 290ms</text>
+<text x="820.4" y="135.3" fill="#808080" xml:space="preserve">tab/1-9 view · r refresh · p pause · f filter · q quit</text>
+</svg>

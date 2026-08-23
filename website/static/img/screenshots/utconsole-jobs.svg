@@ -1,0 +1,201 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1288 820" width="1288" height="820" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,&quot;DejaVu Sans Mono&quot;,monospace" font-size="13">
+<title>UltraTorrent Console — Jobs</title>
+<rect width="100%" height="100%" rx="8" fill="#12141a"/>
+<text x="14.0" y="27.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="27.3" fill="#d0d0d0" xml:space="preserve"> media.metadata_fetch</text>
+<text x="904.4" y="27.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="27.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="27.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="27.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="45.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="45.3" fill="#d0d0d0" xml:space="preserve"> media.media_identification</text>
+<text x="904.4" y="45.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="45.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="45.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="45.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="63.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="63.3" fill="#d0d0d0" xml:space="preserve"> media.nfo_generate</text>
+<text x="904.4" y="63.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="63.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="63.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="63.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="81.3" fill="#d0d0d0" xml:space="preserve"> media.subtitle_scan</text>
+<text x="904.4" y="81.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="81.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="81.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="81.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="99.3" fill="#d0d0d0" xml:space="preserve"> media.artwork_fetch</text>
+<text x="904.4" y="99.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="99.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="99.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="99.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="117.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="117.3" fill="#d0d0d0" xml:space="preserve"> media.rename_execute</text>
+<text x="904.4" y="117.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="117.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="117.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="117.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="135.3" fill="#d0d0d0" xml:space="preserve"> media.metadata_fetch</text>
+<text x="904.4" y="135.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="135.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="135.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="135.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="153.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="153.3" fill="#d0d0d0" xml:space="preserve"> media.media_identification</text>
+<text x="904.4" y="153.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="153.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="153.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="153.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="171.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="171.3" fill="#d0d0d0" xml:space="preserve"> media.nfo_generate</text>
+<text x="904.4" y="171.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="171.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="171.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="171.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="189.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="189.3" fill="#d0d0d0" xml:space="preserve"> media.subtitle_scan</text>
+<text x="904.4" y="189.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="189.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="189.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="189.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="207.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="207.3" fill="#d0d0d0" xml:space="preserve"> media.artwork_fetch</text>
+<text x="904.4" y="207.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="207.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="207.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="207.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="225.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="225.3" fill="#d0d0d0" xml:space="preserve"> media.rename_execute</text>
+<text x="904.4" y="225.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="225.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="225.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="225.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="243.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="243.3" fill="#d0d0d0" xml:space="preserve"> media.metadata_fetch</text>
+<text x="904.4" y="243.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="243.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="243.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="243.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="261.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="261.3" fill="#d0d0d0" xml:space="preserve"> media.media_identification</text>
+<text x="904.4" y="261.3" fill="#d0d0d0" xml:space="preserve">completed</text>
+<text x="1055.6" y="261.3" fill="#d0d0d0" xml:space="preserve">—</text>
+<text x="1114.4" y="261.3" fill="#808080" xml:space="preserve">never</text>
+<text x="1265.6" y="261.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="279.3" fill="#808080" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="14.0" y="297.3" fill="#808080" xml:space="preserve">╭─</text>
+<text x="30.8" y="297.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> Automation</text>
+<text x="131.6" y="297.3" fill="#808080" xml:space="preserve">───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<text x="14.0" y="315.3" fill="#808080" xml:space="preserve">│</text>
+<text x="30.8" y="315.3" fill="#808080" xml:space="preserve">Rules</text>
+<text x="165.2" y="315.3" fill="#d0d0d0" xml:space="preserve">1</text>
+<text x="198.8" y="315.3" fill="#808080" xml:space="preserve">Failures (24h)</text>
+<text x="333.2" y="315.3" fill="#d0d0d0" xml:space="preserve">0</text>
+<text x="1265.6" y="315.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="333.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="333.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="333.3" fill="#808080" xml:space="preserve">41d 1h ago</text>
+<text x="1265.6" y="333.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="351.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="351.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="351.3" fill="#808080" xml:space="preserve">41d 2h ago</text>
+<text x="1265.6" y="351.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="369.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="369.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="369.3" fill="#808080" xml:space="preserve">41d 2h ago</text>
+<text x="1265.6" y="369.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="387.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="387.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="387.3" fill="#808080" xml:space="preserve">41d 3h ago</text>
+<text x="1265.6" y="387.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="405.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="405.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="405.3" fill="#808080" xml:space="preserve">41d 4h ago</text>
+<text x="1265.6" y="405.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="423.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="423.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="423.3" fill="#808080" xml:space="preserve">41d 4h ago</text>
+<text x="1265.6" y="423.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="441.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="441.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="441.3" fill="#808080" xml:space="preserve">41d 4h ago</text>
+<text x="1265.6" y="441.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="459.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="459.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="459.3" fill="#808080" xml:space="preserve">41d 5h ago</text>
+<text x="1265.6" y="459.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="477.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="477.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="477.3" fill="#808080" xml:space="preserve">41d 5h ago</text>
+<text x="1265.6" y="477.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="495.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="495.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="495.3" fill="#808080" xml:space="preserve">41d 5h ago</text>
+<text x="1265.6" y="495.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="513.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="513.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="513.3" fill="#808080" xml:space="preserve">41d 5h ago</text>
+<text x="1265.6" y="513.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="531.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="531.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="531.3" fill="#808080" xml:space="preserve">41d 6h ago</text>
+<text x="1265.6" y="531.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="549.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="549.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="549.3" fill="#808080" xml:space="preserve">41d 6h ago</text>
+<text x="1265.6" y="549.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="567.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="567.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="567.3" fill="#808080" xml:space="preserve">41d 6h ago</text>
+<text x="1265.6" y="567.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="585.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="585.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="585.3" fill="#808080" xml:space="preserve">41d 6h ago</text>
+<text x="1265.6" y="585.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="603.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="603.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="603.3" fill="#808080" xml:space="preserve">41d 6h ago</text>
+<text x="1265.6" y="603.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="621.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="621.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="621.3" fill="#808080" xml:space="preserve">41d 6h ago</text>
+<text x="1265.6" y="621.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="639.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="639.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="639.3" fill="#808080" xml:space="preserve">41d 6h ago</text>
+<text x="1265.6" y="639.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="657.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="657.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="657.3" fill="#808080" xml:space="preserve">41d 7h ago</text>
+<text x="1265.6" y="657.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="675.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="675.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="675.3" fill="#808080" xml:space="preserve">41d 7h ago</text>
+<text x="1265.6" y="675.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="693.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="693.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="693.3" fill="#808080" xml:space="preserve">41d 7h ago</text>
+<text x="1265.6" y="693.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="711.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="711.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="711.3" fill="#808080" xml:space="preserve">41d 7h ago</text>
+<text x="1265.6" y="711.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="729.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="729.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="729.3" fill="#808080" xml:space="preserve">41d 7h ago</text>
+<text x="1265.6" y="729.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="747.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="747.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="747.3" fill="#808080" xml:space="preserve">41d 7h ago</text>
+<text x="1265.6" y="747.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="765.3" fill="#808080" xml:space="preserve">│</text>
+<text x="22.4" y="765.3" fill="#d0d0d0" xml:space="preserve"> Remove torrent after download</text>
+<text x="450.8" y="765.3" fill="#808080" xml:space="preserve">41d 7h ago</text>
+<text x="1265.6" y="765.3" fill="#808080" xml:space="preserve">│</text>
+<text x="14.0" y="783.3" fill="#808080" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="14.0" y="801.3" fill="#808080" xml:space="preserve">live · refreshed 0s ago · every 5s · built in 202ms</text>
+<text x="820.4" y="801.3" fill="#808080" xml:space="preserve">tab/1-9 view · r refresh · p pause · f filter · q quit</text>
+</svg>

@@ -17,7 +17,7 @@ tier, dependencias, los permisos que introduce y las rutas de API que le pertene
 registro resuelve el grafo de dependencias al arrancar y se niega a iniciar ante una
 dependencia desconocida o circular, así que un módulo roto nunca puede quedar a medio cargar.
 
-- **25 módulos** en los tiers: `core`, `community`
+- **26 módulos** en los tiers: `core`, `community`
 - Los módulos **core** siempre están activos. Los módulos **community/opcionales** se pueden activar o desactivar.
 
 ## Grafo de dependencias
@@ -45,6 +45,7 @@ graph LR
   rbac["rbac"] --> notifications["notifications"]
   auth["auth"] --> audit["audit"]
   auth["auth"] --> settings["settings"]
+  auth["auth"] --> operations["operations"]
   auth["auth"] --> module_registry["module_registry"]
   rbac["rbac"] --> module_registry["module_registry"]
   auth["auth"] --> media_manager["media_manager"]
@@ -103,6 +104,7 @@ graph LR
 | **Audit log** | `audit` | core | ✅ | `auth` |
 | **System health** | `system` | core | ✅ | — |
 | **Settings** | `settings` | core | ✅ | `auth` |
+| **Operations (Console API)** | `operations` | core | ✅ | `auth` |
 | **Module registry** | `module_registry` | core | ✅ | `auth`, `rbac` |
 | **Media Manager** | `media_manager` | community | ✅ | `auth`, `files` |
 | **Release Scoring** | `release_scoring` | community | ✅ | `auth`, `rss` |
@@ -305,6 +307,18 @@ Configuración de la aplicación en pares clave/valor.
 **Introduce permisos:** `settings.view`, `settings.manage`
 
 **Rutas propias:** `/api/settings`
+
+## Operations (Console API)
+
+`operations` · tier `core` · activo por defecto
+
+Read-only aggregate snapshot and event stream for UltraTorrent Console.
+
+**Depende de:** `auth`
+
+**Introduce permisos:** `console.view`
+
+**Rutas propias:** `/api/operations`
 
 ## Registro de módulos
 

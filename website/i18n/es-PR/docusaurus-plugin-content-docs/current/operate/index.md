@@ -53,6 +53,7 @@ se ha observado de verdad, está marcado como tal.
 | Funciona, pero está *lento* | [Rendimiento](/operate/performance) |
 | Quieres una rutina para que nada se pudra | [Mantenimiento](/operate/maintenance) |
 | Quieres ajustes probados para el tamaño de tu despliegue | [Perfiles de configuración](/operate/configuration-profiles) |
+| Quieres vigilar una instalación desde una terminal | [Consola de terminal](/operate/console) |
 
 ## Requisitos previos {#prerequisites}
 

@@ -2,6 +2,11 @@
 
 A read-only terminal view of a running UltraTorrent install.
 
+> **Full documentation, with screenshots of every view:**
+> [`docs/UTCONSOLE.md`](../../docs/UTCONSOLE.md) — or the same material on the
+> documentation site under **Operate → Terminal Console**. This README stays
+> focused on building and hacking on the client itself.
+
 It **observes and never manages**. Every request it makes is a `GET` against
 `/api/operations`, authenticated as an ordinary account. That is not a promise
 this program makes about itself — the server refuses anything else regardless of
