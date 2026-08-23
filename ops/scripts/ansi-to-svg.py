@@ -11,6 +11,7 @@ actually emits is handled — 256-colour fg/bg, the 16 basics, bold, faint,
 underline, strikethrough and reset. Anything else is ignored rather than guessed
 at, so an unhandled code loses styling instead of corrupting the output.
 """
+import hashlib
 import html
 import re
 import sys
@@ -134,6 +135,157 @@ def parse(text: str):
     return lines
 
 
+# Invented names used to stand in for real ones in published screenshots.
+#
+# Substitution rather than blurring, because a blur is only a display filter:
+# the real characters would remain in the SVG source, selectable and searchable.
+# Replacing them means the file simply does not contain the original — and a
+# screenshot full of plausible titles still shows what the console looks like,
+# which a wall of grey bars does not.
+#
+# Every name below is invented. They are deliberately generic and unlike real
+# releases, sites or shows.
+FAKE_TITLES = [
+    "Northwind Hollow S02E04 1080p x265-LUMEN",
+    "Paper Lanterns (2024) [1080p] [WEBRip] [5.1]",
+    "The Quiet Meridian S01E07 1080p x265-ASHEN",
+    "Copper Harbour (2023) [1080p] [BluRay] [5.1]",
+    "Lantern Bay S03E11 720p x265-VERDANT",
+    "Glasshouse Winter (2025) [1080p] [WEBRip]",
+    "Salt Flats S01E02 1080p x265-MERIDIAN",
+    "The Long Orchard (2022) [1080p] [BluRay]",
+    "Cinder Lake S04E09 1080p x265-HALCYON",
+    "Weathervane County S02E01 720p x265-ROWAN",
+    "Driftwood Sound (2024) [1080p] [WEBRip] [5.1]",
+    "Tin Roof Alley S01E05 1080p x265-CASTLE",
+    "The Amber Circuit S05E03 1080p x265-PELICAN",
+    "Marble Arch Nights (2021) [1080p] [BluRay]",
+    "Quarry Road S02E08 720p x265-THISTLE",
+    "The Paper Kingdom (2026) [1080p] [WEBRip]",
+]
+# Site stand-ins are all three characters, and that is the point.
+#
+# The same site appears in a wide table column AND inside a narrow quoted string
+# in an error message. If the pool held names of mixed length, the wide column
+# would take a long one and the quoted span a short one, so a row would read
+# "NovaIndex" while its own error said "Arc" — a document contradicting itself,
+# which reads as a bug rather than as redaction. Sizing every stand-in to the
+# narrowest span any of them has to fit keeps one real name mapping to one
+# invented name everywhere it appears.
+FAKE_SITES = ["Arc", "Hub", "Orb", "Vex", "Lum", "Nex", "Ako", "Ryn"]
+FAKE_RULES = ["Weekly drama rule", "Documentary rule", "Film upgrade rule", "Season pack rule"]
+FAKE_PATHS = [
+    "Season 2/Northwind Hollow - S02E04 - The Long Way.mkv",
+    "Season 1/Lantern Bay - S01E03 - Low Tide.mkv",
+    "Copper Harbour (2023)/Copper Harbour (2023).mkv",
+    "Season 4/Cinder Lake - S04E09 - Ashfall.mkv",
+]
+POOLS = {"title": FAKE_TITLES, "site": FAKE_SITES, "rule": FAKE_RULES, "path": FAKE_PATHS}
+
+
+def invent(original: str, width: int, kind: str) -> str:
+    """A stand-in of exactly `width` characters, stable for the same input.
+
+    Stable so one release rendered on two pages gets the same invented name, and
+    exactly `width` so every column, rail and box below it stays where it was —
+    a substitution that changed a line's length would tear the frame.
+    """
+    name = _pick(original, width, kind)
+    return name.ljust(width)
+
+
+def _pick(original: str, width: int, kind: str) -> str:
+    """The longest stand-in that FITS, chosen deterministically.
+
+    Preferring a name that fits avoids truncating a stand-in — "ArchiveOne" cut
+    to "Ar…" in a three-character column reads as a broken renderer, not as a
+    redaction.
+    """
+    pool = POOLS.get(kind, FAKE_TITLES)
+    seed = int(hashlib.sha256(original.strip().encode("utf-8")).hexdigest()[:8], 16)
+    fitting = [n for n in pool if len(n) <= width]
+    if fitting:
+        return fitting[seed % len(fitting)]
+    name = pool[seed % len(pool)]
+    return name[: max(width - 1, 0)] + ("…" if width > 0 else "")
+
+
+def _apply(cells, start, end, kind):
+    """Substitute one span, keeping each cell's original styling."""
+    end = min(end, len(cells))
+    if end <= start:
+        return
+    original = "".join(c for c, _ in cells[start:end])
+    if not original.strip():
+        return
+    replacement = invent(original, end - start, kind)
+    for offset, col in enumerate(range(start, end)):
+        _, st = cells[col]
+        cells[col] = (replacement[offset], st)
+
+
+def redact(lines, specs):
+    """Substitute column ranges on rows matching a pattern.
+
+    Anchored by column, not by substring: an early version matched
+    "seeding|stalled|error" anywhere on a line and rewrote the pane that says
+    "Nothing errored or stalled." A title column lives at a fixed offset, so the
+    offset is what identifies it.
+    """
+    for cells in lines:
+        plain = "".join(c for c, _ in cells)
+        for pattern, start, end, kind in specs:
+            if re.search(pattern, plain):
+                _apply(cells, max(start, 0), len(cells) if end is None else end, kind)
+    return lines
+
+
+def _apply_shifted(cells, start, end, kind):
+    """Substitute a span inside prose, shifting the tail rather than padding it.
+
+    A column substitution pads to width, which is right in a table and wrong in a
+    sentence: `Indexer "NovaIndex        " request failed` reads as a bug. Here
+    the replacement keeps its natural length and the rest of the line moves left,
+    with the reclaimed space inserted just before the pane's right rail so the
+    frame still closes at the same column.
+    """
+    original = "".join(c for c, _ in cells[start:end])
+    if not original.strip():
+        return cells
+    width = end - start
+    name = _pick(original, width, kind)
+
+    style = cells[start][1]
+    head, tail = cells[:start], cells[end:]
+    body = [(ch, style) for ch in name]
+    delta = width - len(name)
+    if delta > 0:
+        rail = next((i for i in range(len(tail) - 1, -1, -1) if tail[i][0] == "│"), None)
+        blank = (" ", style)
+        tail = (tail[:rail] + [blank] * delta + tail[rail:]) if rail is not None else tail + [blank] * delta
+    return head + body + tail
+
+
+def redact_matches(lines, patterns):
+    """Substitute the span of each regex match, wherever it falls on a line.
+
+    Column ranges handle a table; this handles a name embedded in a sentence —
+    "Indexer X last tested as failing" — where the sensitive part is a substring
+    whose offset moves with the surrounding text. Group 1 is substituted when the
+    pattern defines one, otherwise the whole match.
+    """
+    for pattern, kind in patterns:
+        rx = re.compile(pattern)
+        for idx, cells in enumerate(lines):
+            plain = "".join(c for c, _ in cells)
+            m = rx.search(plain)
+            if not m:
+                continue
+            start, end = (m.span(1) if rx.groups else m.span(0))
+            lines[idx] = _apply_shifted(lines[idx], start, end, kind)
+    return lines
+
+
 CELL_W = 8.4
 CELL_H = 18.0
 PAD = 14.0
@@ -200,13 +352,36 @@ def to_svg(lines, title="") -> str:
 
 def main() -> int:
     if len(sys.argv) < 3:
-        print("usage: ansi-to-svg.py <input> <output.svg> [title]", file=sys.stderr)
+        print("usage: ansi-to-svg.py <in> <out.svg> [title] [--redact ROW_RE:START:END ...]",
+              file=sys.stderr)
         return 2
-    with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
+
+    args = sys.argv[1:]
+    specs = []
+    matches = []
+    while "--redact-match" in args:
+        i = args.index("--redact-match")
+        pattern, kind = args[i + 1].rsplit("@", 1)
+        matches.append((pattern, kind))
+        del args[i:i + 2]
+    while "--redact" in args:
+        i = args.index("--redact")
+        spec, kind = args[i + 1].rsplit("@", 1)
+        pattern, start, end = spec.rsplit(":", 2)
+        specs.append((pattern, int(start), None if end == "" else int(end), kind))
+        del args[i:i + 2]
+
+    with open(args[0], encoding="utf-8", errors="replace") as fh:
         text = fh.read()
-    title = sys.argv[3] if len(sys.argv) > 3 else ""
-    with open(sys.argv[2], "w", encoding="utf-8") as fh:
-        fh.write(to_svg(parse(text.rstrip("\n")), title))
+    title = args[2] if len(args) > 2 else ""
+
+    lines = parse(text.rstrip("\n"))
+    if specs:
+        lines = redact(lines, specs)
+    if matches:
+        lines = redact_matches(lines, matches)
+    with open(args[1], "w", encoding="utf-8") as fh:
+        fh.write(to_svg(lines, title))
     return 0
 
 

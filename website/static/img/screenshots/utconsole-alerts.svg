@@ -1,14 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1288 244" width="1288" height="244" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,&quot;DejaVu Sans Mono&quot;,monospace" font-size="13">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1288 280" width="1288" height="280" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,&quot;DejaVu Sans Mono&quot;,monospace" font-size="13">
 <title>UltraTorrent Console — Alerts</title>
 <rect width="100%" height="100%" rx="8" fill="#12141a"/>
 <rect x="14.0" y="14.0" width="184.8" height="18.0" fill="#303030"/>
 <rect x="862.4" y="14.0" width="403.2" height="18.0" fill="#303030"/>
-<rect x="736.4" y="32.0" width="84.0" height="18.0" fill="#00afff"/>
+<rect x="736.4" y="32.0" width="84.0" height="18.0" fill="#00d787"/>
 <text x="14.0" y="27.3" fill="#00afff" xml:space="preserve" font-weight="700"> UltraTorrent Console</text>
 <text x="862.4" y="27.3" fill="#808080" xml:space="preserve">UltraTorrent 0.85.9  admin · SUPER_ADMIN</text>
 <text x="1215.2" y="27.3" fill="#00d787" xml:space="preserve">● live</text>
 <text x="14.0" y="45.3" fill="#808080" xml:space="preserve"> 1 Overview  2 Torrents  3 Media  4 Jobs  5 Acquisition  6 Infrastructure  7 Activity</text>
-<text x="736.4" y="45.3" fill="#121212" xml:space="preserve" font-weight="700"> 8 Alerts</text>
+<text x="736.4" y="45.3" fill="#000000" xml:space="preserve" font-weight="700"> 8 Alerts</text>
 <text x="820.4" y="45.3" fill="#808080" xml:space="preserve"> 9 Stream</text>
 <text x="14.0" y="63.3" fill="#ff5f5f" xml:space="preserve">╭─ Attention ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
 <text x="14.0" y="81.3" fill="#ff5f5f" xml:space="preserve">│</text>
@@ -23,20 +23,27 @@
 <text x="30.8" y="117.3" fill="#808080" xml:space="preserve">  ↳ Imports are not completing.</text>
 <text x="1265.6" y="117.3" fill="#ff5f5f" xml:space="preserve">│</text>
 <text x="14.0" y="135.3" fill="#ff5f5f" xml:space="preserve">│</text>
-<text x="30.8" y="135.3" fill="#ffaf00" xml:space="preserve">▲ Indexer TPB last tested as failing</text>
-<text x="333.2" y="135.3" fill="#808080" xml:space="preserve">  [indexers] since 29d 3h ago</text>
+<text x="30.8" y="135.3" fill="#ffaf00" xml:space="preserve">▲ Indexer Ako last tested as failing</text>
+<text x="333.2" y="135.3" fill="#808080" xml:space="preserve">  [indexers] since 29d 6h ago</text>
 <text x="1265.6" y="135.3" fill="#ff5f5f" xml:space="preserve">│</text>
 <text x="14.0" y="153.3" fill="#ff5f5f" xml:space="preserve">│</text>
-<text x="30.8" y="153.3" fill="#808080" xml:space="preserve">  ↳ Indexer &quot;TPB&quot; request failed: HTTP 429</text>
+<text x="30.8" y="153.3" fill="#808080" xml:space="preserve">  ↳ Indexer &quot;Ako&quot; request failed: HTTP 429</text>
 <text x="1265.6" y="153.3" fill="#ff5f5f" xml:space="preserve">│</text>
 <text x="14.0" y="171.3" fill="#ff5f5f" xml:space="preserve">│</text>
-<text x="30.8" y="171.3" fill="#ffaf00" xml:space="preserve">▲ Indexer EZTV (Prowlarr) last tested as failing</text>
-<text x="434.0" y="171.3" fill="#808080" xml:space="preserve">  [indexers] since 29d 3h ago</text>
+<text x="30.8" y="171.3" fill="#ffaf00" xml:space="preserve">▲ Indexer Hub last tested as failing</text>
+<text x="333.2" y="171.3" fill="#808080" xml:space="preserve">  [indexers] since 29d 6h ago</text>
 <text x="1265.6" y="171.3" fill="#ff5f5f" xml:space="preserve">│</text>
 <text x="14.0" y="189.3" fill="#ff5f5f" xml:space="preserve">│</text>
-<text x="30.8" y="189.3" fill="#808080" xml:space="preserve">  ↳ Indexer &quot;EZTV (Prowlarr)&quot; request failed: HTTP 429</text>
+<text x="30.8" y="189.3" fill="#808080" xml:space="preserve">  ↳ Indexer &quot;Hub&quot; request failed: HTTP 429</text>
 <text x="1265.6" y="189.3" fill="#ff5f5f" xml:space="preserve">│</text>
-<text x="14.0" y="207.3" fill="#ff5f5f" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
-<text x="14.0" y="225.3" fill="#808080" xml:space="preserve">live · refreshed 3s ago · every 5s · built in 294ms</text>
-<text x="820.4" y="225.3" fill="#808080" xml:space="preserve">tab/1-9 view · r refresh · p pause · f filter · q quit</text>
+<text x="14.0" y="207.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="30.8" y="207.3" fill="#ffaf00" xml:space="preserve">▲ 5 download(s) are stalled</text>
+<text x="257.6" y="207.3" fill="#808080" xml:space="preserve">  [torrents]</text>
+<text x="1265.6" y="207.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="14.0" y="225.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="30.8" y="225.3" fill="#808080" xml:space="preserve">  ↳ Downloading with no peers and no throughput.</text>
+<text x="1265.6" y="225.3" fill="#ff5f5f" xml:space="preserve">│</text>
+<text x="14.0" y="243.3" fill="#ff5f5f" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="14.0" y="261.3" fill="#808080" xml:space="preserve">live · refreshed 0s ago · every 5s · built in 299ms</text>
+<text x="820.4" y="261.3" fill="#808080" xml:space="preserve">tab/1-9 view · r refresh · p pause · f filter · q quit</text>
 </svg>

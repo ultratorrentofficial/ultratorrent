@@ -3,11 +3,11 @@
 <rect width="100%" height="100%" rx="8" fill="#12141a"/>
 <rect x="14.0" y="14.0" width="184.8" height="18.0" fill="#303030"/>
 <rect x="862.4" y="14.0" width="403.2" height="18.0" fill="#303030"/>
-<rect x="14.0" y="32.0" width="100.8" height="18.0" fill="#00afff"/>
+<rect x="14.0" y="32.0" width="100.8" height="18.0" fill="#00d787"/>
 <text x="14.0" y="27.3" fill="#00afff" xml:space="preserve" font-weight="700"> UltraTorrent Console</text>
 <text x="862.4" y="27.3" fill="#808080" xml:space="preserve">UltraTorrent 0.85.9  admin · SUPER_ADMIN</text>
 <text x="1215.2" y="27.3" fill="#00d787" xml:space="preserve">● live</text>
-<text x="14.0" y="45.3" fill="#121212" xml:space="preserve" font-weight="700"> 1 Overview</text>
+<text x="14.0" y="45.3" fill="#000000" xml:space="preserve" font-weight="700"> 1 Overview</text>
 <text x="114.8" y="45.3" fill="#808080" xml:space="preserve"> 2 Torrents  3 Media  4 Jobs  5 Acquisition  6 Infrastructure  7 Activity  8 Alerts  9 Stream</text>
 <text x="14.0" y="63.3" fill="#808080" xml:space="preserve">╭─</text>
 <text x="30.8" y="63.3" fill="#d0d0d0" xml:space="preserve" font-weight="700"> System</text>
@@ -17,18 +17,18 @@
 <text x="753.2" y="63.3" fill="#808080" xml:space="preserve">─────────────────────────────────────────────────────────────╮</text>
 <text x="14.0" y="81.3" fill="#808080" xml:space="preserve">│</text>
 <text x="30.8" y="81.3" fill="#808080" xml:space="preserve">Uptime</text>
-<text x="165.2" y="81.3" fill="#d0d0d0" xml:space="preserve">13m</text>
+<text x="165.2" y="81.3" fill="#d0d0d0" xml:space="preserve">2h 54m</text>
 <text x="627.2" y="81.3" fill="#808080" xml:space="preserve">│</text>
 <text x="644.0" y="81.3" fill="#808080" xml:space="preserve">│</text>
 <text x="660.8" y="81.3" fill="#808080" xml:space="preserve">Rates</text>
 <text x="795.2" y="81.3" fill="#00afff" xml:space="preserve">↓ 0 B/s</text>
-<text x="870.8" y="81.3" fill="#00d787" xml:space="preserve">↑ 0 B/s</text>
-<text x="929.6" y="81.3" fill="#808080" xml:space="preserve">  observed 1s ago</text>
+<text x="870.8" y="81.3" fill="#00d787" xml:space="preserve">↑ 86 KB/s</text>
+<text x="946.4" y="81.3" fill="#808080" xml:space="preserve">  observed 3s ago</text>
 <text x="1265.6" y="81.3" fill="#808080" xml:space="preserve">│</text>
 <text x="14.0" y="99.3" fill="#808080" xml:space="preserve">│</text>
 <text x="30.8" y="99.3" fill="#808080" xml:space="preserve">Load</text>
-<text x="165.2" y="99.3" fill="#d0d0d0" xml:space="preserve">2.58</text>
-<text x="198.8" y="99.3" fill="#00d787" xml:space="preserve">  0.32/core</text>
+<text x="165.2" y="99.3" fill="#d0d0d0" xml:space="preserve">1.19</text>
+<text x="198.8" y="99.3" fill="#00d787" xml:space="preserve">  0.15/core</text>
 <text x="291.2" y="99.3" fill="#808080" xml:space="preserve"> (8 cores)</text>
 <text x="627.2" y="99.3" fill="#808080" xml:space="preserve">│</text>
 <text x="644.0" y="99.3" fill="#808080" xml:space="preserve">│</text>
@@ -37,7 +37,7 @@
 <text x="1265.6" y="99.3" fill="#808080" xml:space="preserve">│</text>
 <text x="14.0" y="117.3" fill="#808080" xml:space="preserve">│</text>
 <text x="30.8" y="117.3" fill="#808080" xml:space="preserve">Memory</text>
-<text x="165.2" y="117.3" fill="#d0d0d0" xml:space="preserve">1.0 GB</text>
+<text x="165.2" y="117.3" fill="#d0d0d0" xml:space="preserve">927 MB</text>
 <text x="627.2" y="117.3" fill="#808080" xml:space="preserve">│</text>
 <text x="644.0" y="117.3" fill="#808080" xml:space="preserve">│</text>
 <text x="660.8" y="117.3" fill="#808080" xml:space="preserve">Attention</text>
@@ -49,7 +49,7 @@
 <text x="627.2" y="135.3" fill="#808080" xml:space="preserve">│</text>
 <text x="644.0" y="135.3" fill="#808080" xml:space="preserve">│</text>
 <text x="660.8" y="135.3" fill="#808080" xml:space="preserve">Lifetime</text>
-<text x="795.2" y="135.3" fill="#d0d0d0" xml:space="preserve">↓ 1.0 TB · ↑ 668 GB · 0.63</text>
+<text x="795.2" y="135.3" fill="#d0d0d0" xml:space="preserve">↓ 1.0 TB · ↑ 669 GB · 0.63</text>
 <text x="1265.6" y="135.3" fill="#808080" xml:space="preserve">│</text>
 <text x="14.0" y="153.3" fill="#808080" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────╯</text>
 <text x="644.0" y="153.3" fill="#808080" xml:space="preserve">╰─────────────────────────────────────────────────────────────────────────╯</text>
@@ -97,6 +97,6 @@
 <text x="30.8" y="333.3" fill="#808080" xml:space="preserve">  ↳ Imports are not completing.</text>
 <text x="1265.6" y="333.3" fill="#ff5f5f" xml:space="preserve">│</text>
 <text x="14.0" y="351.3" fill="#ff5f5f" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
-<text x="14.0" y="369.3" fill="#808080" xml:space="preserve">live · refreshed 0s ago · every 5s · built in 304ms</text>
+<text x="14.0" y="369.3" fill="#808080" xml:space="preserve">live · refreshed 0s ago · every 5s · built in 272ms</text>
 <text x="820.4" y="369.3" fill="#808080" xml:space="preserve">tab/1-9 view · r refresh · p pause · f filter · q quit</text>
 </svg>
