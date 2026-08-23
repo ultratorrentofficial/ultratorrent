@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ultratorrent/utconsole/internal/api"
+	"github.com/ultratorrent/utconsole/internal/i18n"
 )
 
 // View renders the whole screen.
@@ -24,7 +25,7 @@ func (m Model) View() string {
 	b.WriteString(m.tabs())
 	b.WriteString("\n")
 	if m.warning != "" {
-		b.WriteString(panelSeverity("Notice", styleWarn.Render(m.warning), m.contentWidth(), api.SeverityWarning))
+		b.WriteString(panelSeverity(i18n.T("chrome.notice"), styleWarn.Render(m.warning), m.contentWidth(), api.SeverityWarning))
 		b.WriteString("\n")
 	}
 	b.WriteString(m.body())
@@ -87,7 +88,7 @@ func (m Model) header() string {
 func (m Model) tabs() string {
 	parts := make([]string, 0, len(views))
 	for i, v := range views {
-		label := fmt.Sprintf(" %d %s ", i+1, v.Title)
+		label := fmt.Sprintf(" %d %s ", i+1, i18n.T("view."+v.Key))
 		switch {
 		case !m.viewPermitted(v):
 			// Rendered, not hidden: an operator should see that a view exists
@@ -104,15 +105,24 @@ func (m Model) tabs() string {
 }
 
 // footer is the status rail: freshness on the left, keys on the right.
+//
+// Two hints, tried longest first, because one length cannot serve every
+// terminal in every language: the Spanish rail runs several columns longer than
+// the English one, and dropping the hints wholesale — which is what a single
+// hint does when it no longer fits — made every binding undiscoverable in one
+// language at a width where the other still showed them all.
 func (m Model) footer() string {
 	w := m.contentWidth()
 	left := m.statusLine()
-	right := styleMuted.Render("tab/1-9 view · r refresh · p pause · f filter · q quit")
-	gap := w - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap < 1 {
-		return fit(left, w)
+	for _, key := range []string{"chrome.keys", "chrome.keysShort"} {
+		right := styleMuted.Render(i18n.T(key))
+		if gap := w - lipgloss.Width(left) - lipgloss.Width(right); gap >= 1 {
+			return left + strings.Repeat(" ", gap) + right
+		}
 	}
-	return left + strings.Repeat(" ", gap) + right
+	// Narrower than even the short hint: the freshness of what is on screen
+	// matters more than a reminder of which keys exist.
+	return fit(left, w)
 }
 
 func (m Model) body() string {
@@ -123,9 +133,9 @@ func (m Model) body() string {
 	}
 	if m.snapshot == nil {
 		if m.lastErr != nil {
-			return styleErr.Render(fmt.Sprintf("Could not reach the server: %v", m.lastErr))
+			return styleErr.Render(i18n.T("chrome.unreachable", m.lastErr))
 		}
-		return styleMuted.Render("Loading…")
+		return styleMuted.Render(i18n.T("chrome.loading"))
 	}
 	switch views[m.active].Key {
 	case "overview":
@@ -156,10 +166,15 @@ func (m Model) body() string {
 // its own frame. A blank space where data should be is the one thing an
 // observability client must never show — and an empty BOX is worse than no box,
 // so the reason goes where the data would have been.
-func section[T any](title string, d *api.Domain[T], width int, render func(T) string) string {
+//
+// titleKey is a catalog key, translated here rather than by every caller: a
+// panel title that reached this function already rendered would be a panel
+// title that stayed in whatever language it was written in.
+func section[T any](titleKey string, d *api.Domain[T], width int, render func(T) string) string {
+	title := i18n.T(titleKey)
 	switch {
 	case d == nil:
-		return panel(title, styleMuted.Render("Not requested."), width)
+		return panel(title, styleMuted.Render(i18n.T("panel.notRequested")), width)
 	case !d.Available:
 		body := styleMuted.Render(unavailableReason(d.Reason, d.Message))
 		if d.Reason == "forbidden" {
@@ -174,8 +189,10 @@ func section[T any](title string, d *api.Domain[T], width int, render func(T) st
 	}
 }
 
+// kv renders one labelled value, the label translated and padded so a column of
+// them aligns. Sixteen columns fits the longest label in either language.
 func kv(key, value string) string {
-	return styleKey.Render(pad(key, 16)) + value
+	return styleKey.Render(pad(i18n.T(key), 16)) + value
 }
 
 // ---------------------------------------------------------------------------
@@ -195,29 +212,29 @@ func (m Model) viewOverview() string {
 	cols := splitWidth(w, 2, 1)
 	if cols == nil {
 		return rows(
-			section("System", d.System, w, m.renderSystem),
-			section("Storage", d.Storage, w, m.renderStorage),
-			section("Transfers", d.Torrents, w, m.renderTransfers),
-			section("Work", d.Jobs, w, m.renderWork),
+			section("panel.system", d.System, w, m.renderSystem),
+			section("panel.storage", d.Storage, w, m.renderStorage),
+			section("panel.transfers", d.Torrents, w, m.renderTransfers),
+			section("panel.work", d.Jobs, w, m.renderWork),
 			m.alertsPane(w, 4),
 		)
 	}
 	left, right := cols[0], cols[1]
 	return rows(
 		columns(1,
-			section("System", d.System, left, m.renderSystem),
-			section("Transfers", d.Torrents, right, m.renderTransfers),
+			section("panel.system", d.System, left, m.renderSystem),
+			section("panel.transfers", d.Torrents, right, m.renderTransfers),
 		),
 		columns(1,
-			section("Storage", d.Storage, left, m.renderStorage),
-			section("Work", d.Jobs, right, m.renderWork),
+			section("panel.storage", d.Storage, left, m.renderStorage),
+			section("panel.work", d.Jobs, right, m.renderWork),
 		),
 		m.alertsPane(w, 4),
 	)
 }
 
 func (m Model) renderSystem(s api.System) string {
-	load := "—"
+	load := i18n.T("format.none")
 	if len(s.LoadAverage) > 0 {
 		load = fmt.Sprintf("%.2f", s.LoadAverage[0])
 		if s.CPUCount > 0 {
@@ -230,34 +247,35 @@ func (m Model) renderSystem(s api.System) string {
 			} else if pc >= 1.5 {
 				style = styleWarn
 			}
-			load += style.Render(fmt.Sprintf("  %.2f/core", pc)) +
-				styleMuted.Render(fmt.Sprintf(" (%d cores)", s.CPUCount))
+			load += style.Render(i18n.T("system.perCore", pc)) +
+				styleMuted.Render(i18n.T("system.cores", s.CPUCount))
 		}
 	}
 	return strings.Join([]string{
-		kv("Uptime", humanDuration(time.Duration(s.UptimeSeconds)*time.Second)),
-		kv("Load", load),
-		kv("Memory", humanBytes(s.MemoryBytes)),
-		kv("Database", healthStyle(s.Database).Render(healthMark(s.Database)+" "+string(s.Database))),
+		kv("field.uptime", humanDuration(time.Duration(s.UptimeSeconds)*time.Second)),
+		kv("field.load", load),
+		kv("field.memory", humanBytes(s.MemoryBytes)),
+		kv("field.database", healthStyle(s.Database).Render(
+			healthMark(s.Database)+" "+i18n.Enum("health", string(s.Database)))),
 	}, "\n")
 }
 
 func (m Model) renderStorage(s api.Storage) string {
 	if len(s.Roots) == 0 {
-		return styleMuted.Render("No roots reported.")
+		return styleMuted.Render(i18n.T("storage.empty"))
 	}
 	lines := make([]string, 0, len(s.Roots))
 	for _, r := range s.Roots {
 		mark := healthStyle(r.Health).Render(healthMark(r.Health))
 		if r.UsedPercent == nil {
-			lines = append(lines, mark+" "+pad(r.Path, 20)+styleMuted.Render("could not be measured"))
+			lines = append(lines, mark+" "+pad(r.Path, 20)+styleMuted.Render(i18n.T("storage.unmeasured")))
 			continue
 		}
 		lines = append(lines, fmt.Sprintf("%s %s %s %s",
 			mark,
 			pad(truncate(r.Path, 18), 19),
 			meterFor(*r.UsedPercent/100, 10),
-			styleMuted.Render(humanBytes(r.FreeBytes)+" free"),
+			styleMuted.Render(i18n.T("storage.free", humanBytes(r.FreeBytes))),
 		))
 	}
 	return strings.Join(lines, "\n")
@@ -268,15 +286,15 @@ func (m Model) renderTransfers(t api.Torrents) string {
 	if t.ObservedAt != nil {
 		// The console says how old this is because it genuinely is old: the
 		// server reads its poller's last look rather than asking the engines.
-		observed = styleMuted.Render("  observed " + ago(t.ObservedAt))
+		observed = styleMuted.Render(i18n.T("transfers.observed", ago(t.ObservedAt)))
 	}
 	return strings.Join([]string{
-		kv("Rates", styleAccent.Render("↓ "+humanBytes(t.Rates.DownloadRate)+"/s")+"  "+
+		kv("field.rates", styleAccent.Render("↓ "+humanBytes(t.Rates.DownloadRate)+"/s")+"  "+
 			styleOK.Render("↑ "+humanBytes(t.Rates.UploadRate)+"/s")+observed),
-		kv("Torrents", fmt.Sprintf("%d total · %d down · %d seed",
+		kv("field.torrents", i18n.T("transfers.counts",
 			t.Counts.Total, t.Counts.Downloading, t.Counts.Seeding)),
-		kv("Attention", attentionSummary(t.Counts)),
-		kv("Lifetime", fmt.Sprintf("↓ %s · ↑ %s · %.2f",
+		kv("field.attention", attentionSummary(t.Counts)),
+		kv("field.lifetime", i18n.T("transfers.lifetime",
 			humanBytes(t.Rates.TotalDownloaded), humanBytes(t.Rates.TotalUploaded), t.Rates.Ratio)),
 	}, "\n")
 }
@@ -286,15 +304,12 @@ func (m Model) renderWork(j api.Jobs) string {
 	if j.Failed > 0 {
 		failed = styleErr.Render(failed)
 	}
-	rate := "—"
-	if j.SuccessRate != nil {
-		rate = fmt.Sprintf("%.0f%%", *j.SuccessRate)
-	}
+	rate := percent(j.SuccessRate)
 	return strings.Join([]string{
-		kv("Running", fmt.Sprintf("%d", j.Running)),
-		kv("Queued", fmt.Sprintf("%d", j.Queued)),
-		kv("Failed", failed),
-		kv("Today", fmt.Sprintf("%d done · %d failed · %s ok", j.CompletedToday, j.FailedToday, rate)),
+		kv("field.running", fmt.Sprintf("%d", j.Running)),
+		kv("field.queued", fmt.Sprintf("%d", j.Queued)),
+		kv("field.failed", failed),
+		kv("field.today", i18n.T("jobs.today", j.CompletedToday, j.FailedToday, rate)),
 	}, "\n")
 }
 
@@ -319,16 +334,16 @@ func errIf(n int) string {
 func attentionSummary(c api.TorrentCounts) string {
 	parts := make([]string, 0, 3)
 	if c.Errored > 0 {
-		parts = append(parts, styleErr.Render(fmt.Sprintf("%d errored", c.Errored)))
+		parts = append(parts, styleErr.Render(i18n.T("transfers.errored", c.Errored)))
 	}
 	if c.Stalled > 0 {
-		parts = append(parts, styleWarn.Render(fmt.Sprintf("%d stalled", c.Stalled)))
+		parts = append(parts, styleWarn.Render(i18n.T("transfers.stalled", c.Stalled)))
 	}
 	if c.Parked > 0 {
-		parts = append(parts, styleMuted.Render(fmt.Sprintf("%d parked", c.Parked)))
+		parts = append(parts, styleMuted.Render(i18n.T("transfers.parked", c.Parked)))
 	}
 	if len(parts) == 0 {
-		return styleOK.Render("nothing")
+		return styleOK.Render(i18n.T("transfers.calm"))
 	}
 	return strings.Join(parts, " · ")
 }
@@ -350,38 +365,39 @@ func (m Model) viewTorrents() string {
 	attnRows, queueRows := budget/4, budget/5
 	activeRows := budget - attnRows - queueRows
 	return rows(
-		section("Needs attention", d.Torrents, w, func(t api.Torrents) string {
+		section("panel.needsAttention", d.Torrents, w, func(t api.Torrents) string {
 			if len(t.Attention) == 0 {
-				return styleOK.Render("Nothing errored or stalled.")
+				return styleOK.Render(i18n.T("torrents.calm"))
 			}
 			return capBody(m.torrentTable(t.Attention, w-4), attnRows)
 		}),
-		section("Active", d.Torrents, w, func(t api.Torrents) string {
+		section("panel.active", d.Torrents, w, func(t api.Torrents) string {
 			if len(t.Active) == 0 {
-				return styleMuted.Render("Nothing transferring.")
+				return styleMuted.Render(i18n.T("torrents.idle"))
 			}
 			out := capBody(m.torrentTable(t.Active, w-4), activeRows)
 			if t.Truncated {
 				// Never a silent cut: a list that quietly stops at 25 reads as
 				// "that is all of them".
-				out += "\n" + styleMuted.Render("… capped by the server; not the full list.")
+				out += "\n" + styleMuted.Render(i18n.T("torrents.truncated"))
 			}
 			return out
 		}),
-		section("Queue", d.Queue, w, func(q api.Queue) string {
+		section("panel.queue", d.Queue, w, func(q api.Queue) string {
 			if len(q.Entries) == 0 {
-				return styleMuted.Render("The scheduler has no pending decisions.")
+				return styleMuted.Render(i18n.T("queue.empty"))
 			}
 			lines := make([]string, 0, len(q.Entries)+1)
 			lines = append(lines, styleColHead.Render(
-				pad("TORRENT", w-46)+pad("NOW", 13)+pad("WANTED", 13)+"WHY"))
+				pad(i18n.T("col.torrent"), w-46)+pad(i18n.T("col.now"), 13)+
+					pad(i18n.T("col.wanted"), 13)+i18n.T("col.why")))
 			for _, e := range q.Entries {
-				want := styleMuted.Render(pad("—", 13))
+				want := styleMuted.Render(pad(i18n.T("format.none"), 13))
 				if e.DesiredState != nil {
 					// A desired state that differs from the current one is the
 					// whole point of the row: it is what the scheduler is about
 					// to do, and the reason it has not yet.
-					want = styleAccent.Render(pad(*e.DesiredState, 13))
+					want = styleAccent.Render(pad(i18n.Enum("state.torrent", *e.DesiredState), 13))
 				}
 				reason := ""
 				if e.Reason != nil {
@@ -392,7 +408,7 @@ func (m Model) viewTorrents() string {
 					name = "🔒 " + name
 				}
 				lines = append(lines, pad(truncate(name, w-48), w-46)+
-					pad(e.CurrentState, 13)+want+reason)
+					pad(i18n.Enum("state.torrent", e.CurrentState), 13)+want+reason)
 			}
 			return capBody(strings.Join(lines, "\n"), queueRows)
 		}),
@@ -407,18 +423,19 @@ func (m Model) torrentTable(list []api.Torrent, inner int) string {
 		nameW = 16
 	}
 	head := styleColHead.Render(
-		pad("NAME", nameW) + " " + pad("STATE", 12) + " " + padLeft("PROGRESS", 11) + " " +
-			padLeft("DOWN", 11) + " " + padLeft("UP", 11) + " " + padLeft("ETA", 8),
+		pad(i18n.T("col.name"), nameW) + " " + pad(i18n.T("col.state"), 12) + " " +
+			padLeft(i18n.T("col.progress"), 11) + " " + padLeft(i18n.T("col.down"), 11) + " " +
+			padLeft(i18n.T("col.up"), 11) + " " + padLeft(i18n.T("col.eta"), 8),
 	)
 	lines := make([]string, 0, len(list)+1)
 	lines = append(lines, head)
 	for _, t := range list {
-		state := t.State
+		state := i18n.Enum("state.torrent", t.State)
 		if t.Stalled {
-			state = "stalled"
+			state = i18n.T("state.torrent.stalled")
 		}
 		if t.Parked {
-			state += "·parked"
+			state += i18n.T("state.torrent.parked")
 		}
 		lines = append(lines, strings.Join([]string{
 			pad(t.Name, nameW),
@@ -437,26 +454,26 @@ func (m Model) viewMedia() string {
 	w := m.contentWidth()
 	cols := splitWidth(w, 2, 1)
 
-	library := section("Library", d.Media, colOr(cols, 0, w), func(md api.Media) string {
+	library := section("panel.library", d.Media, colOr(cols, 0, w), func(md api.Media) string {
 		types := make([]string, 0, len(md.ByType))
 		for k, v := range md.ByType {
 			types = append(types, fmt.Sprintf("%d %s", v, k))
 		}
 		sort.Strings(types)
 		return strings.Join([]string{
-			kv("Items", fmt.Sprintf("%d", md.TotalItems)),
-			kv("By type", strings.Join(types, " · ")),
-			kv("Unmatched", warnIf(md.Unmatched)),
-			kv("Low confidence", warnIf(md.LowConfidence)),
+			kv("field.items", fmt.Sprintf("%d", md.TotalItems)),
+			kv("field.byType", strings.Join(types, " · ")),
+			kv("field.unmatched", warnIf(md.Unmatched)),
+			kv("field.lowConfidence", warnIf(md.LowConfidence)),
 		}, "\n")
 	})
-	playing := section("Playing now", d.Playback, colOr(cols, 1, w), func(p api.Playback) string {
+	playing := section("panel.playing", d.Playback, colOr(cols, 1, w), func(p api.Playback) string {
 		if len(p.Sessions) == 0 {
-			return styleMuted.Render("Nobody is watching anything.")
+			return styleMuted.Render(i18n.T("playback.empty"))
 		}
 		lines := make([]string, 0, len(p.Sessions))
 		for _, sess := range p.Sessions {
-			method := "direct"
+			method := i18n.T("playback.direct")
 			style := styleOK
 			if sess.PlaybackMethod != nil {
 				method = *sess.PlaybackMethod
@@ -482,17 +499,18 @@ func (m Model) viewMedia() string {
 	})
 
 	intakeRows := m.bodyHeight() - 12 // the library/playback row plus frames
-	intake := section("Intake", d.MediaIntake, w, func(mi api.MediaIntake) string {
+	intake := section("panel.intake", d.MediaIntake, w, func(mi api.MediaIntake) string {
 		lines := []string{
-			kv("Active", fmt.Sprintf("%d", mi.Active)) + "   " +
-				kv("Failed", errIf(mi.Failed)) + "   " +
-				kv("Quarantined", warnIf(mi.Quarantined)) + "   " +
-				kv("Imported today", fmt.Sprintf("%d", mi.ImportedToday)),
+			kv("field.active", fmt.Sprintf("%d", mi.Active)) + "   " +
+				kv("field.failed", errIf(mi.Failed)) + "   " +
+				kv("field.quarantined", warnIf(mi.Quarantined)) + "   " +
+				kv("field.importedToday", fmt.Sprintf("%d", mi.ImportedToday)),
 		}
 		if len(mi.Recent) > 0 {
-			lines = append(lines, "", styleColHead.Render(pad("RELEASE", w-42)+pad("STATE", 16)+"UPDATED"))
+			lines = append(lines, "", styleColHead.Render(
+				pad(i18n.T("col.release"), w-42)+pad(i18n.T("col.state"), 16)+i18n.T("col.updated")))
 			for _, j := range mi.Recent {
-				state := j.State
+				state := i18n.Enum("state.intake", j.State)
 				style := styleBase
 				switch j.State {
 				case "failed":
@@ -523,22 +541,19 @@ func (m Model) viewJobs() string {
 	jobRows := budget * 2 / 3
 	autoRows := budget - jobRows
 	return rows(
-		section("Jobs", d.Jobs, w, func(j api.Jobs) string {
-			rate := "—"
-			if j.SuccessRate != nil {
-				rate = fmt.Sprintf("%.0f%%", *j.SuccessRate)
-			}
+		section("panel.jobs", d.Jobs, w, func(j api.Jobs) string {
 			lines := []string{
-				kv("Running", fmt.Sprintf("%d", j.Running)) + "   " +
-					kv("Queued", fmt.Sprintf("%d", j.Queued)) + "   " +
-					kv("Failed", errIf(j.Failed)) + "   " +
-					kv("Success today", rate),
+				kv("field.running", fmt.Sprintf("%d", j.Running)) + "   " +
+					kv("field.queued", fmt.Sprintf("%d", j.Queued)) + "   " +
+					kv("field.failed", errIf(j.Failed)) + "   " +
+					kv("field.successToday", percent(j.SuccessRate)),
 			}
 			if len(j.Recent) > 0 {
 				lines = append(lines, "", styleColHead.Render(
-					pad("TYPE", w-46)+pad("STATUS", 18)+pad("PROG", 7)+"WHEN"))
+					pad(i18n.T("col.type"), w-46)+pad(i18n.T("col.status"), 18)+
+						pad(i18n.T("col.prog"), 7)+i18n.T("col.when")))
 				for _, job := range j.Recent {
-					prog := "—"
+					prog := i18n.T("format.none")
 					if job.Progress != nil {
 						prog = fmt.Sprintf("%d%%", *job.Progress)
 					}
@@ -558,7 +573,8 @@ func (m Model) viewJobs() string {
 					if job.CompletedAt != nil {
 						when = *job.CompletedAt
 					}
-					line := pad(truncate(job.Type, w-48), w-46) + style.Render(pad(job.Status, 18)) +
+					line := pad(truncate(job.Type, w-48), w-46) +
+						style.Render(pad(i18n.Enum("state.job", job.Status), 18)) +
 						pad(prog, 7) + styleMuted.Render(ago(&when))
 					if job.ErrorCode != nil {
 						line += styleErr.Render("  " + *job.ErrorCode)
@@ -568,17 +584,18 @@ func (m Model) viewJobs() string {
 			}
 			return capBody(strings.Join(lines, "\n"), jobRows)
 		}),
-		section("Automation", d.Automation, w, func(a api.Automation) string {
+		section("panel.automation", d.Automation, w, func(a api.Automation) string {
 			lines := []string{
-				kv("Rules", fmt.Sprintf("%d", len(a.Rules))) + "   " +
-					kv("Failures (24h)", errIf(a.Failures24h)),
+				kv("field.rules", fmt.Sprintf("%d", len(a.Rules))) + "   " +
+					kv("field.failures24h", errIf(a.Failures24h)),
 			}
 			for _, r := range a.RecentRuns {
 				style := styleOK
 				if r.Status != "success" {
 					style = styleWarn
 				}
-				line := pad(truncate(r.RuleName, 34), 36) + style.Render(pad(r.Status, 14)) +
+				line := pad(truncate(r.RuleName, 34), 36) +
+					style.Render(pad(i18n.Enum("state.job", r.Status), 14)) +
 					styleMuted.Render(ago(&r.At))
 				if r.Message != nil && *r.Message != "" && r.Status != "success" {
 					line += styleMuted.Render("  " + truncate(*r.Message, 30))
@@ -600,17 +617,19 @@ func (m Model) viewAcquisition() string {
 		paneRows = (m.bodyHeight() - 6) / 2
 	}
 
-	feeds := section("Feeds", d.Acquisition, colOr(cols, 0, w), func(a api.Acquisition) string {
-		lines := []string{kv("Grabs (24h)", fmt.Sprintf("%d", a.Grabs24h)), ""}
-		lines = append(lines, styleColHead.Render(pad("FEED", 22)+pad("RULES", 7)+pad("POLLED", 12)+"STATE"))
+	feeds := section("panel.feeds", d.Acquisition, colOr(cols, 0, w), func(a api.Acquisition) string {
+		lines := []string{kv("field.grabs24h", fmt.Sprintf("%d", a.Grabs24h)), ""}
+		lines = append(lines, styleColHead.Render(
+			pad(i18n.T("col.feed"), 22)+pad(i18n.T("col.rules"), 7)+
+				pad(i18n.T("col.polled"), 12)+i18n.T("col.state")))
 		for _, f := range a.Feeds {
-			state := styleOK.Render("ok")
+			state := styleOK.Render(i18n.T("feed.ok"))
 			if !f.Enabled {
-				state = styleMuted.Render("disabled")
+				state = styleMuted.Render(i18n.T("feed.disabled"))
 			} else if overdue(f.LastPolledAt, f.RefreshIntervalSeconds) {
 				// Staleness against the feed's own interval is the only health
 				// signal available: RSS poll failures are logged, never stored.
-				state = styleWarn.Render("overdue")
+				state = styleWarn.Render(i18n.T("feed.overdue"))
 			}
 			lines = append(lines, pad(truncate(f.Name, 20), 22)+
 				pad(fmt.Sprintf("%d", f.RuleCount), 7)+
@@ -619,9 +638,9 @@ func (m Model) viewAcquisition() string {
 		return capBody(strings.Join(lines, "\n"), paneRows)
 	})
 
-	recent := section("Recent releases", d.Acquisition, colOr(cols, 1, w), func(a api.Acquisition) string {
+	recent := section("panel.releases", d.Acquisition, colOr(cols, 1, w), func(a api.Acquisition) string {
 		if len(a.Recent) == 0 {
-			return styleMuted.Render("Nothing seen yet.")
+			return styleMuted.Render(i18n.T("acquisition.empty"))
 		}
 		lines := make([]string, 0, len(a.Recent))
 		for _, e := range a.Recent {
@@ -635,7 +654,8 @@ func (m Model) viewAcquisition() string {
 				// plain rejection.
 				style = styleWarn
 			}
-			lines = append(lines, pad(truncate(e.ReleaseTitle, 34), 36)+style.Render(pad(e.Result, 18)))
+			lines = append(lines, pad(truncate(e.ReleaseTitle, 34), 36)+
+				style.Render(pad(i18n.Enum("result", e.Result), 18)))
 		}
 		return capBody(strings.Join(lines, "\n"), paneRows)
 	})
@@ -652,13 +672,13 @@ func (m Model) viewInfra() string {
 	cols := splitWidth(w, 2, 1)
 
 	infraRows := (m.bodyHeight() - 9) / 2
-	engines := section("Engines", d.Engines, colOr(cols, 0, w), func(list []api.Engine) string {
+	engines := section("panel.engines", d.Engines, colOr(cols, 0, w), func(list []api.Engine) string {
 		if len(list) == 0 {
-			return styleMuted.Render("No engines configured.")
+			return styleMuted.Render(i18n.T("engines.empty"))
 		}
 		lines := make([]string, 0, len(list))
 		for _, e := range list {
-			count := "—"
+			count := i18n.T("format.none")
 			if e.TorrentCount != nil {
 				count = fmt.Sprintf("%d", *e.TorrentCount)
 			}
@@ -672,9 +692,9 @@ func (m Model) viewInfra() string {
 		return capBody(strings.Join(lines, "\n"), infraRows)
 	})
 
-	indexers := section("Indexers", d.Indexers, colOr(cols, 1, w), func(list []api.Indexer) string {
+	indexers := section("panel.indexers", d.Indexers, colOr(cols, 1, w), func(list []api.Indexer) string {
 		if len(list) == 0 {
-			return styleMuted.Render("No indexers configured.")
+			return styleMuted.Render(i18n.T("indexers.empty"))
 		}
 		lines := make([]string, 0, len(list))
 		for _, i := range list {
@@ -687,15 +707,15 @@ func (m Model) viewInfra() string {
 		return capBody(strings.Join(lines, "\n"), infraRows)
 	})
 
-	providers := section("Providers", d.Providers, w, func(list []api.Provider) string {
+	providers := section("panel.providers", d.Providers, w, func(list []api.Provider) string {
 		if len(list) == 0 {
-			return styleMuted.Render("No providers configured.")
+			return styleMuted.Render(i18n.T("providers.empty"))
 		}
 		lines := make([]string, 0, len(list))
 		for _, p := range list {
 			line := healthStyle(p.Health).Render(healthMark(p.Health)) + " " +
 				pad(truncate(p.Name, 24), 26) + pad(p.Category, 16) +
-				styleMuted.Render("checked "+ago(p.LastCheckedAt))
+				styleMuted.Render(i18n.T("providers.checked", ago(p.LastCheckedAt)))
 			if p.Message != nil && p.Health != api.HealthHealthy {
 				line += styleWarn.Render("  ↳ " + truncate(*p.Message, w-60))
 			}
@@ -715,9 +735,9 @@ func (m Model) viewActivity() string {
 	w := m.contentWidth()
 	activityRows := m.bodyHeight() - 8
 	return rows(
-		section("Recent activity", d.RecentActivity, w, func(list []api.ActivityItem) string {
+		section("panel.activity", d.RecentActivity, w, func(list []api.ActivityItem) string {
 			if len(list) == 0 {
-				return styleMuted.Render("Nothing recorded.")
+				return styleMuted.Render(i18n.T("activity.empty"))
 			}
 			lines := make([]string, 0, len(list))
 			for _, a := range list {
@@ -726,19 +746,33 @@ func (m Model) viewActivity() string {
 					// The collapsed line says what it stands for. The console
 					// cannot expand it — the snapshot carries a count, not the
 					// constituents — and pretending otherwise would be a lie.
-					count = styleMuted.Render(fmt.Sprintf("  (%d events)", a.EventCount))
+					count = i18n.N("activity.events", a.EventCount)
 				}
-				lines = append(lines, styleMuted.Render(pad(ago(&a.At), 12))+
-					levelStyle(a.Level).Render(truncate(a.Message, w-24))+count)
+				/*
+				 * The message is budgeted against what the age column and the
+				 * count actually take, not against a fixed guess. The guess was
+				 * two columns out in English — enough to clip "(3 events)" in
+				 * half against the right rail — and Spanish is wider in both
+				 * ("hace 15h 25m", "(3 eventos)"), which is how it was noticed.
+				 */
+				const ageWidth = 13
+				messageWidth := w - 4 - ageWidth - lipgloss.Width(count)
+				if messageWidth < 16 {
+					messageWidth = 16
+				}
+				lines = append(lines, styleMuted.Render(pad(ago(&a.At), ageWidth))+
+					levelStyle(a.Level).Render(truncate(a.Message, messageWidth))+
+					styleMuted.Render(count))
 				if a.Detail != nil && *a.Detail != "" {
-					lines = append(lines, styleMuted.Render("             ↳ "+truncate(*a.Detail, w-20)))
+					lines = append(lines, styleMuted.Render(
+						strings.Repeat(" ", ageWidth)+"↳ "+truncate(*a.Detail, w-ageWidth-8)))
 				}
 			}
 			return capBody(strings.Join(lines, "\n"), activityRows)
 		}),
-		section("Notifications", d.Notifications, w, func(n api.Notifications) string {
-			return kv("Pending", fmt.Sprintf("%d", n.Pending)) + "   " +
-				kv("Failed (24h)", errIf(n.Failed24h))
+		section("panel.notifications", d.Notifications, w, func(n api.Notifications) string {
+			return kv("field.pending", fmt.Sprintf("%d", n.Pending)) + "   " +
+				kv("field.failed24h", errIf(n.Failed24h))
 		}),
 	)
 }
@@ -762,7 +796,7 @@ func (m Model) alertsPane(width, limit int) string {
 
 	body := func(list []api.Alert) string {
 		if len(list) == 0 {
-			return styleOK.Render("Nothing needs attention.")
+			return styleOK.Render(i18n.T("alerts.calm"))
 		}
 		shown := list
 		if limit > 0 && len(shown) > limit {
@@ -774,7 +808,7 @@ func (m Model) alertsPane(width, limit int) string {
 			line := style.Render(severityMark(a.Severity)+" "+truncate(a.Title, width-24)) +
 				styleMuted.Render("  ["+a.Domain+"]")
 			if a.Since != nil {
-				line += styleMuted.Render(" since " + ago(a.Since))
+				line += styleMuted.Render(i18n.T("alerts.since", ago(a.Since)))
 			}
 			lines = append(lines, line)
 			if a.Detail != nil && *a.Detail != "" {
@@ -782,7 +816,7 @@ func (m Model) alertsPane(width, limit int) string {
 			}
 		}
 		if limit > 0 && len(list) > limit {
-			lines = append(lines, styleMuted.Render(fmt.Sprintf("… and %d more (press 8)", len(list)-limit)))
+			lines = append(lines, styleMuted.Render(i18n.N("alerts.more", len(list)-limit)))
 		}
 		/*
 		 * Not repeated on screen, but true and worth stating once here: these
@@ -794,9 +828,9 @@ func (m Model) alertsPane(width, limit int) string {
 	}
 
 	if d == nil || !d.Available || len(d.Data) == 0 {
-		return section("Attention", d, width, body)
+		return section("panel.attention", d, width, body)
 	}
-	return panelSeverity("Attention", body(d.Data), width, worst)
+	return panelSeverity(i18n.T("panel.attention"), body(d.Data), width, worst)
 }
 
 // severityRank orders severities most-severe-first.
@@ -839,7 +873,7 @@ func overdue(last *string, intervalSeconds int) bool {
 // orDash renders an optional string, or an em dash when the server had none.
 func orDash(v *string) string {
 	if v == nil || *v == "" {
-		return "—"
+		return i18n.T("format.none")
 	}
 	return *v
 }

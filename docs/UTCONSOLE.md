@@ -80,7 +80,46 @@ works end to end.
 | `r` | Refresh now |
 | `p` | Pause polling entirely |
 | `f` | Cycle the stream's category filter |
+| `L` | Switch language (English ⇄ Spanish), and remember it |
 | `q` | Quit |
+
+### Language
+
+The console speaks **English (`en-US`)** and **Spanish (`es-PR`)** — the same two
+languages as the web app — and carries both **inside the binary**. There is no
+locale directory to copy alongside it, which matters for a program whose normal
+installation is `scp` onto a headless box.
+
+It picks one at startup, first match winning:
+
+1. `--locale es-PR`
+2. `UTCONSOLE_LOCALE=es-PR`
+3. `"locale"` in the config file
+4. `LC_ALL`, then `LC_MESSAGES`, then `LANG`
+5. English
+
+Any spelling of a tag is accepted — `es_PR.UTF-8`, `ES-pr`, plain `es` — and a
+Spanish locale with no catalog of its own (`es-MX`, `es-ES`) resolves to `es-PR`
+rather than dropping to English; matching only the exact tag would leave every
+other Spanish-speaking install in a language nobody asked for. `C` and `POSIX`
+mean "no preference", not "English", so the next source is consulted. An unknown
+tag is reported rather than silently ignored: a typo that quietly renders English
+looks exactly like a missing translation.
+
+**`L` switches language while the console is running**, and writes the choice to
+the config so the next launch keeps it. Nothing is refetched — the snapshot is
+data, and only its labels were ever in English. Shift-`L` rather than `l`, which
+is already the vim-style "next view".
+
+Words the **server** owns — torrent states, job statuses, intake states, health —
+are translated where the console recognises them and passed through **verbatim**
+where it does not. A state added on the server tomorrow shows up as it came
+rather than vanishing or rendering as a key, because a monitoring client that
+hides what it does not understand is worse than one that shows you something odd.
+
+Two things stay in English on purpose: **error text from the Go runtime or the
+server** (it has to be searchable and quotable in a bug report), and the
+`snapshot` JSON, which is a machine contract rather than a screen.
 
 ---
 
@@ -230,9 +269,14 @@ Override the location with `UTCONSOLE_CONFIG`.
   "serverUrl": "http://127.0.0.1:8888",
   "refreshToken": "…",
   "username": "operator",
-  "refreshSeconds": 5
+  "refreshSeconds": 5,
+  "locale": "es-PR"
 }
 ```
+
+`locale` is absent until a language is chosen with `L` or written by hand; absent
+means "follow the environment", which is the right default on a machine whose
+operator has already said what language they read.
 
 The token lives in a file rather than an OS keyring because these run on headless
 servers where no keyring daemon exists, and a keyring that silently falls back to a
@@ -297,6 +341,12 @@ python3 ops/scripts/ansi-to-svg.py page.ansi docs/images/utconsole/02-torrents.s
 silently monochrome. SVG rather than PNG so the colours are real, the text stays
 selectable and searchable, and the file is a few KB of diffable source instead of a
 binary blob in git history.
+
+**One set, in English, in both locales** — deliberately. These are captures of a
+real install, so a Spanish set would be a second set to re-capture every time a
+pane changes, and a screenshot that has drifted from the console is worse than one
+in the other language. The layout is what the images are there to show, and it is
+identical either way.
 
 ---
 

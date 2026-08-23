@@ -3,11 +3,11 @@ package ui
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ultratorrent/utconsole/internal/api"
+	"github.com/ultratorrent/utconsole/internal/i18n"
 	"github.com/ultratorrent/utconsole/internal/realtime"
 )
 
@@ -17,21 +17,24 @@ import (
 // a tab the account cannot read and — more importantly — ask the server for
 // only the domains currently on screen. A console showing one panel must not
 // make the backend build sixteen.
+//
+// A view carries no title of its own: the rail reads `view.<Key>` out of the
+// string catalog at render time, so a language switch retitles the tabs without
+// rebuilding this table — and there is exactly one place a title can be wrong.
 type View struct {
 	Key     string
-	Title   string
 	Domains []string
 }
 
 var views = []View{
-	{Key: "overview", Title: "Overview", Domains: []string{"system", "storage", "engines", "torrents", "jobs", "mediaIntake", "alerts"}},
-	{Key: "torrents", Title: "Torrents", Domains: []string{"torrents", "queue"}},
-	{Key: "media", Title: "Media", Domains: []string{"mediaIntake", "media", "playback"}},
-	{Key: "jobs", Title: "Jobs", Domains: []string{"jobs", "automation"}},
-	{Key: "acquisition", Title: "Acquisition", Domains: []string{"acquisition"}},
-	{Key: "infra", Title: "Infrastructure", Domains: []string{"engines", "indexers", "providers", "storage", "system"}},
-	{Key: "activity", Title: "Activity", Domains: []string{"recentActivity", "notifications"}},
-	{Key: "alerts", Title: "Alerts", Domains: []string{"alerts", "system", "storage", "engines", "torrents", "jobs", "mediaIntake", "indexers", "providers"}},
+	{Key: "overview", Domains: []string{"system", "storage", "engines", "torrents", "jobs", "mediaIntake", "alerts"}},
+	{Key: "torrents", Domains: []string{"torrents", "queue"}},
+	{Key: "media", Domains: []string{"mediaIntake", "media", "playback"}},
+	{Key: "jobs", Domains: []string{"jobs", "automation"}},
+	{Key: "acquisition", Domains: []string{"acquisition"}},
+	{Key: "infra", Domains: []string{"engines", "indexers", "providers", "storage", "system"}},
+	{Key: "activity", Domains: []string{"recentActivity", "notifications"}},
+	{Key: "alerts", Domains: []string{"alerts", "system", "storage", "engines", "torrents", "jobs", "mediaIntake", "indexers", "providers"}},
 	/*
 	 * The stream needs no snapshot domain: it is fed by the websocket, and what
 	 * an account may see on it is decided server-side by the same permissions —
@@ -40,7 +43,7 @@ var views = []View{
 	 * console.view, and it stays empty rather than forbidden for an account
 	 * whose permissions admit nothing.
 	 */
-	{Key: "stream", Title: "Stream", Domains: nil},
+	{Key: "stream", Domains: nil},
 }
 
 // Model is the console's whole state.
@@ -70,6 +73,22 @@ type Model struct {
 
 	// stream is the live narrative: a bounded, non-authoritative ring buffer.
 	stream *stream
+
+	// onLocale persists a language chosen with the L key. Optional: the
+	// console renders in the new language either way, and a console that could
+	// not write its config would still be worth using.
+	onLocale func(code string)
+}
+
+// OnLocaleChange registers the callback that persists a language switch.
+//
+// Registered rather than reached for: the model has no business knowing where
+// the config file is, and a TUI that wrote to disk on a keystroke without the
+// caller asking would be a surprise in a program whose whole claim is that it
+// only reads.
+func (m Model) OnLocaleChange(fn func(code string)) Model {
+	m.onLocale = fn
+	return m
 }
 
 // New builds the initial model.
@@ -129,7 +148,7 @@ func (m Model) fetch() tea.Cmd {
 	client := m.client
 	return func() tea.Msg {
 		if len(domains) == 0 {
-			return snapshotMsg{err: errors.New("no readable panels in this view")}
+			return snapshotMsg{err: errors.New(i18n.T("chrome.noPanels"))}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
@@ -253,6 +272,23 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.paused = !m.paused
 		return m, nil
 
+	case "L":
+		/*
+		 * Switch language. Shift-L rather than "l", which is already the vim
+		 * "next view" binding, and a key rather than a flag because the person
+		 * who needs the other language is often not the person who launched it
+		 * — this gets read over someone's shoulder mid-incident.
+		 *
+		 * Nothing is refetched: the snapshot is data, and only its labels were
+		 * ever in English. The next frame renders from the new catalog.
+		 */
+		code := i18n.Use(i18n.Next())
+		if m.onLocale != nil {
+			m.onLocale(code)
+		}
+		m.warning = ""
+		return m, nil
+
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		idx := int(msg.String()[0] - '1')
 		if idx >= 0 && idx < len(views) && m.viewPermitted(views[idx]) {
@@ -343,30 +379,30 @@ func mergeSnapshot(prev, next *api.Snapshot) *api.Snapshot {
 // statusLine is the bottom bar: what is true, and how old it is.
 func (m Model) statusLine() string {
 	if m.lastErr != nil {
-		age := "never"
+		age := i18n.T("status.ageNever")
 		if !m.lastFetched.IsZero() {
-			age = humanDuration(time.Since(m.lastFetched)) + " old"
+			age = i18n.T("status.ageOld", humanDuration(time.Since(m.lastFetched)))
 		}
-		return styleErr.Render(fmt.Sprintf("⚠ %v — showing data %s", m.lastErr, age))
+		return styleErr.Render(i18n.T("status.stale", m.lastErr, age))
 	}
-	state := "live"
+	state := i18n.T("status.live")
 	if m.paused {
-		state = "paused"
+		state = i18n.T("status.paused")
 	}
 	// Before the first successful fetch there is no age to report. Formatting
 	// the zero time gave "106751d 23h ago" — the Unix epoch rendered as though
 	// it were a real reading, on the very first frame an operator sees.
-	freshness := "loading"
+	freshness := i18n.T("status.loading")
 	if !m.lastFetched.IsZero() {
 		stamp := m.lastFetched.Format(time.RFC3339)
-		freshness = "refreshed " + ago(&stamp)
+		freshness = i18n.T("status.refreshed", ago(&stamp))
 	}
 	cost := ""
 	if m.snapshot != nil {
-		cost = fmt.Sprintf(" · built in %dms", m.snapshot.DurationMs)
+		cost = i18n.T("status.built", m.snapshot.DurationMs)
 	}
-	return styleMuted.Render(fmt.Sprintf(
-		"%s · %s · every %s%s", state, freshness, humanDuration(m.interval), cost,
+	return styleMuted.Render(i18n.T(
+		"status.line", state, freshness, humanDuration(m.interval), cost,
 	))
 }
 

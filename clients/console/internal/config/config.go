@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/ultratorrent/utconsole/internal/i18n"
 )
 
 // Config is the on-disk shape.
@@ -34,7 +36,9 @@ type Config struct {
 	// RefreshSeconds is how often the TUI re-polls. Clamped against the
 	// server's own advertised minimum at runtime, never below it.
 	RefreshSeconds int `json:"refreshSeconds,omitempty"`
-	// Locale selects the embedded catalog: en-US or es-PR.
+	// Locale selects the embedded catalog: en-US or es-PR. Empty means "follow
+	// the environment", which is the right default on a machine whose operator
+	// has already told it what language they read.
 	Locale string `json:"locale,omitempty"`
 
 	path string
@@ -56,7 +60,7 @@ func Path() (string, error) {
 	if err != nil {
 		home, herr := os.UserHomeDir()
 		if herr != nil {
-			return "", fmt.Errorf("cannot locate a config directory: %w", err)
+			return "", fmt.Errorf("%s: %w", i18n.T("config.noConfigDir"), err)
 		}
 		dir = filepath.Join(home, ".config")
 	}
@@ -80,10 +84,10 @@ func Load() (*Config, error) {
 		return cfg, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", path, err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("config.reading", path), err)
 	}
 	if err := json.Unmarshal(raw, cfg); err != nil {
-		return nil, fmt.Errorf("%s is not valid JSON: %w", path, err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("config.invalidJSON", path), err)
 	}
 	cfg.path = path
 	if cfg.RefreshSeconds <= 0 {
@@ -152,9 +156,7 @@ func (c *Config) Warn() string {
 		return ""
 	}
 	if mode := info.Mode().Perm(); mode&0o077 != 0 {
-		return fmt.Sprintf(
-			"%s is mode %#o — it holds a refresh token and should be 0600", c.path, mode,
-		)
+		return i18n.T("config.permissive", c.path, mode)
 	}
 	return ""
 }

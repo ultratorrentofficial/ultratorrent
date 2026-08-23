@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ultratorrent/utconsole/internal/api"
+	"github.com/ultratorrent/utconsole/internal/i18n"
 )
 
 // Formatting rules, in one place so every panel agrees.
@@ -18,7 +19,7 @@ import (
 // humanBytes renders a byte count in the largest unit that keeps it under 1024.
 func humanBytes(n int64) string {
 	if n < 0 {
-		return "-"
+		return i18n.T("format.negative")
 	}
 	const unit = 1024
 	if n < unit {
@@ -51,17 +52,17 @@ func humanRate(n int64) string {
 // humanDuration renders a span coarsely: an operator wants "3d" not "3d 4h 12m".
 func humanDuration(d time.Duration) string {
 	if d < 0 {
-		return "-"
+		return i18n.T("format.negative")
 	}
 	switch {
 	case d < time.Minute:
-		return fmt.Sprintf("%ds", int(d.Seconds()))
+		return i18n.T("format.seconds", int(d.Seconds()))
 	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
+		return i18n.T("format.minutes", int(d.Minutes()))
 	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh %dm", int(d.Hours()), int(d.Minutes())%60)
+		return i18n.T("format.hours", int(d.Hours()), int(d.Minutes())%60)
 	default:
-		return fmt.Sprintf("%dd %dh", int(d.Hours())/24, int(d.Hours())%24)
+		return i18n.T("format.days", int(d.Hours())/24, int(d.Hours())%24)
 	}
 }
 
@@ -75,11 +76,11 @@ func humanETA(eta *int64) string {
 	}
 	switch v := *eta; {
 	case v < 0:
-		return "∞"
+		return i18n.T("format.forever")
 	case v == 0:
 		return ""
 	case v > 365*24*3600:
-		return "∞"
+		return i18n.T("format.forever")
 	default:
 		return humanDuration(time.Duration(v) * time.Second)
 	}
@@ -88,20 +89,22 @@ func humanETA(eta *int64) string {
 // ago renders an ISO timestamp as an age, which is what an operator reads it as.
 func ago(iso *string) string {
 	if iso == nil || *iso == "" {
-		return "never"
+		return i18n.T("format.never")
 	}
 	t, err := time.Parse(time.RFC3339, *iso)
 	if err != nil {
-		return "?"
+		return i18n.T("format.unparseable")
 	}
 	d := time.Since(t)
 	if d < 0 {
 		// Clock skew between the console's host and the server's. Reporting a
 		// negative age would look like a bug in the platform rather than a
 		// disagreement about the time.
-		return "just now"
+		return i18n.T("format.justNow")
 	}
-	return humanDuration(d) + " ago"
+	// A format string rather than a suffix: Spanish puts the age AFTER the
+	// preposition ("hace 3m"), and a hardcoded " ago" cannot be moved.
+	return i18n.T("format.ago", humanDuration(d))
 }
 
 /*
@@ -210,7 +213,7 @@ func paintMeter(fraction float64, width int, style lipgloss.Style) string {
 // percent renders a fraction, or "—" when it was never measured.
 func percent(p *float64) string {
 	if p == nil {
-		return "—"
+		return i18n.T("format.none")
 	}
 	return fmt.Sprintf("%.0f%%", *p)
 }
@@ -254,15 +257,17 @@ func severityMark(s api.Severity) string {
 func unavailableReason(reason, message string) string {
 	switch reason {
 	case "forbidden":
-		return "Your account may not read this."
+		return i18n.T("unavailable.forbidden")
 	case "timeout":
-		return "The server took too long to answer for this panel."
+		return i18n.T("unavailable.timeout")
 	case "disabled":
-		return "Not enabled on this server."
+		return i18n.T("unavailable.disabled")
 	default:
 		if message != "" {
-			return "Unavailable: " + message
+			// The server's own words, in whatever language it produced them —
+			// a message this console cannot translate is still worth showing.
+			return i18n.T("unavailable.reason", message)
 		}
-		return "Unavailable."
+		return i18n.T("unavailable.unknown")
 	}
 }

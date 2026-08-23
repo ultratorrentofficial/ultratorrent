@@ -87,7 +87,49 @@ de punta a punta.
 | `r` | Refrescar ahora |
 | `p` | Pausar el sondeo por completo |
 | `f` | Rotar el filtro de categoría del stream |
+| `L` | Cambiar de idioma (inglés ⇄ español) y recordarlo |
 | `q` | Salir |
+
+### Idioma {#language}
+
+La consola habla **inglés (`en-US`)** y **español (`es-PR`)** — los mismos dos idiomas
+que la app web — y carga los dos **dentro del binario**. No hay ningún directorio de
+traducciones que copiar al lado, lo cual importa en un programa cuya instalación normal
+es un `scp` a una máquina sin monitor.
+
+Escoge uno al arrancar; gana la primera fuente que diga algo:
+
+1. `--locale es-PR`
+2. `UTCONSOLE_LOCALE=es-PR`
+3. `"locale"` en el archivo de configuración
+4. `LC_ALL`, luego `LC_MESSAGES`, luego `LANG`
+5. Inglés
+
+Se acepta cualquier forma de escribir la etiqueta — `es_PR.UTF-8`, `ES-pr`, `es` a
+secas — y un locale en español sin catálogo propio (`es-MX`, `es-ES`) resuelve a
+`es-PR` en vez de caer a inglés; exigir la etiqueta exacta dejaría en inglés a toda
+instalación hispanohablante que no sea de Puerto Rico. `C` y `POSIX` significan "sin
+preferencia", no "inglés". Una etiqueta desconocida se avisa en vez de ignorarse en
+silencio: un error de tipeo que rinde inglés calladito se ve idéntico a una traducción
+que falta.
+
+:::tip Cámbialo en vivo
+**`L`** cambia el idioma con la consola corriendo y recuerda la decisión. No se vuelve
+a pedir nada al servidor — la lectura es data, y lo único que estaba en inglés eran sus
+etiquetas.
+:::
+
+El vocabulario que le pertenece al **servidor** — estados de torrent, estados de
+tarea, estados de ingesta, salud — se traduce donde la consola lo reconoce y se pasa
+**tal cual** donde no: un estado que el servidor añada mañana aparece como llegó, en
+vez de desaparecer. El texto de error del runtime de Go o del servidor se queda en
+inglés a propósito: tiene que poder buscarse y citarse en un reporte de bug.
+
+Las capturas de esta página están en inglés a propósito — la consola sí habla
+español. Son capturas de una instalación real, así que un segundo juego en español
+sería un segundo juego que mantener al día cada vez que cambie un panel, y una
+captura desfasada es peor que una en el otro idioma. Lo que enseñan es la
+distribución, que es idéntica en ambos idiomas.
 
 ## Qué necesita una cuenta {#what-an-account-needs}
 
@@ -229,9 +271,13 @@ Cambia la ubicación con `UTCONSOLE_CONFIG`.
   "serverUrl": "https://tu-instalacion",
   "refreshToken": "…",
   "username": "operador",
-  "refreshSeconds": 5
+  "refreshSeconds": 5,
+  "locale": "es-PR"
 }
 ```
+
+`locale` no aparece hasta que se escoge un idioma con `L` o se escribe a mano; que no
+esté significa "seguir el entorno".
 
 El token vive en un archivo y no en un llavero del sistema porque esto corre en
 servidores sin monitor, donde no existe ningún demonio de llavero, y un llavero que
@@ -272,15 +318,17 @@ adivinando.
 
 ## Resolución de problemas {#troubleshooting}
 
+Los mensajes salen en el idioma de la consola; aquí van en español.
+
 | Síntoma | Causa |
 |---|---|
-| `Not signed in, or the stored session expired` | No hay token guardado, o fue rotado en otro lado. Corre `utconsole login` otra vez. |
-| `This account may not use the console` | A la cuenta le falta `console.view`. |
-| Los paneles dicen *"Your account may not read this"* | Esperado: a la cuenta le falta el permiso de vista de ese dominio. |
+| `No hay sesión iniciada, o la guardada expiró` | No hay token guardado, o fue rotado en otro lado. Corre `utconsole login` otra vez. |
+| `Esta cuenta no puede usar la consola` | A la cuenta le falta `console.view`. |
+| Los paneles dicen *"Tu cuenta no puede leer esto"* | Esperado: a la cuenta le falta el permiso de vista de ese dominio. |
 | Todo se ve en monocromo | `TERM` no está definido — ver arriba. |
 | `incompatible operations contract` | El servidor habla otro major del contrato; actualiza la mitad más vieja. |
-| El stream muestra `✕ refused` | Se rechazó la identidad, no la red. Revisa que la cuenta exista y conserve sus permisos. |
-| El stream muestra `✕ disconnected` | El socket se cayó. Se reconecta solo, con backoff. |
+| El stream muestra `✕ rechazado` | Se rechazó la identidad, no la red. Revisa que la cuenta exista y conserve sus permisos. |
+| El stream muestra `✕ desconectado` | El socket se cayó. Se reconecta solo, con backoff. |
 | Falta `console.view` tras una actualización | El permiso se crea al arrancar con la sincronización de permisos de módulos; busca en el log del backend `Added 1 permission(s): console.view`. |
 
 ## Para seguir leyendo {#further-reading}

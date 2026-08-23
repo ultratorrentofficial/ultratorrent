@@ -2,11 +2,12 @@ package ui
 
 import (
 	"encoding/json"
-	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/ultratorrent/utconsole/internal/api"
+	"github.com/ultratorrent/utconsole/internal/i18n"
 	"github.com/ultratorrent/utconsole/internal/realtime"
 )
 
@@ -130,23 +131,27 @@ func (s *stream) cycleFilter() {
 func (s *stream) statusText() string {
 	switch s.status {
 	case realtime.StatusConnected:
-		return styleOK.Render("● live")
+		return styleOK.Render(i18n.T("stream.live"))
 	case realtime.StatusConnecting:
-		return styleMuted.Render("○ connecting")
+		return styleMuted.Render(i18n.T("stream.connecting"))
 	case realtime.StatusRefused:
 		// Not the same as a dropped connection, and a different fix.
-		msg := "✕ refused"
-		if s.err != nil {
-			msg += ": " + s.err.Error()
-		}
-		return styleErr.Render(msg)
+		return styleErr.Render(s.statusDetail(i18n.T("stream.refused")))
 	default:
-		msg := "✕ disconnected"
-		if s.err != nil {
-			msg += ": " + s.err.Error()
-		}
-		return styleWarn.Render(msg)
+		return styleWarn.Render(s.statusDetail(i18n.T("stream.disconnected")))
 	}
+}
+
+// statusDetail appends the underlying failure, when there is one to append.
+//
+// The error itself comes from the Go runtime or the server and is not
+// translated: it is diagnostic text that has to be searchable and reportable
+// verbatim, and a localised "connection refused" is a worse bug report.
+func (s *stream) statusDetail(state string) string {
+	if s.err == nil {
+		return state
+	}
+	return i18n.T("stream.statusDetail", state, s.err.Error())
 }
 
 // viewStream renders the narrative as its own pane.
@@ -154,7 +159,7 @@ func (m Model) viewStream() string {
 	s := m.stream
 	w := m.contentWidth()
 
-	title := "Event stream · " + s.statusText()
+	title := i18n.T("panel.stream") + " · " + s.statusText()
 	if s.filter != "" {
 		title += styleAccent.Render(" · " + s.filter)
 	}
@@ -166,9 +171,12 @@ func (m Model) viewStream() string {
 	 * will draw wrong conclusions from a quiet screen. Shortened rather than
 	 * dropped on a narrow terminal: the caveat matters more than its wording.
 	 */
-	caveat := "Live only — since this console connected. The record is the audit log."
-	if w < 90 {
-		caveat = "Live only — not history."
+	caveat := i18n.T("stream.caveat")
+	if lipgloss.Width(caveat) > w-6 {
+		// Shortened against the terminal actually in use rather than a fixed
+		// column count: the two languages do not run out of room at the same
+		// width, and a caveat that wraps is a caveat that tears the pane.
+		caveat = i18n.T("stream.caveatShort")
 	}
 	b.WriteString(styleMuted.Render(caveat))
 	b.WriteString("\n")
@@ -176,9 +184,9 @@ func (m Model) viewStream() string {
 	events := s.visible()
 	if len(events) == 0 {
 		if s.status == realtime.StatusConnected {
-			b.WriteString(styleMuted.Render("Connected. Nothing has happened yet."))
+			b.WriteString(styleMuted.Render(i18n.T("stream.quiet")))
 		} else {
-			b.WriteString(styleMuted.Render("Waiting for the stream…"))
+			b.WriteString(styleMuted.Render(i18n.T("stream.waiting")))
 		}
 		return panel(title, b.String(), w)
 	}
@@ -208,11 +216,11 @@ func (m Model) viewStream() string {
 	b.WriteString(strings.Join(lines, "\n"))
 
 	if s.dropped > 0 {
-		b.WriteString("\n" + styleMuted.Render(fmt.Sprintf(
-			"… %d older event(s) have scrolled out of the buffer.", s.dropped)))
+		b.WriteString("\n" + styleMuted.Render(i18n.N("stream.dropped", s.dropped)))
 	}
 	if cats := s.categories(); len(cats) > 1 {
-		b.WriteString("\n" + styleMuted.Render(truncate("f filters: all · "+strings.Join(cats, " · "), inner)))
+		b.WriteString("\n" + styleMuted.Render(
+			truncate(i18n.T("stream.filters", strings.Join(cats, " · ")), inner)))
 	}
 	return panel(title, b.String(), w)
 }

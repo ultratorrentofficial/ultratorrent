@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ultratorrent/utconsole/internal/i18n"
 )
 
 // Errors a caller is expected to handle differently from a generic failure.
@@ -175,13 +177,14 @@ func (c *Client) Capabilities(ctx context.Context) (*Capabilities, error) {
 	}
 	major, err := majorOf(caps.ContractVersion)
 	if err != nil {
-		return nil, fmt.Errorf("%w: server reported version %q", ErrIncompatible, caps.ContractVersion)
+		return nil, fmt.Errorf("%w: %s", ErrIncompatible, i18n.T("api.serverVersion", caps.ContractVersion))
 	}
 	if major != ContractMajor {
-		return &caps, fmt.Errorf(
-			"%w: this console speaks %d.x, the server speaks %s",
-			ErrIncompatible, ContractMajor, caps.ContractVersion,
-		)
+		// The sentinel keeps its English identity — errors.Is matches on the
+		// value, and a translated wrapper would still compare equal — while the
+		// sentence a person reads is in their language.
+		return &caps, fmt.Errorf("%w: %s", ErrIncompatible,
+			i18n.T("api.contractMismatch", ContractMajor, caps.ContractVersion))
 	}
 	return &caps, nil
 }

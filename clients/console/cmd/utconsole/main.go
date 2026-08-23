@@ -23,6 +23,7 @@ import (
 
 	"github.com/ultratorrent/utconsole/internal/api"
 	"github.com/ultratorrent/utconsole/internal/config"
+	"github.com/ultratorrent/utconsole/internal/i18n"
 	"github.com/ultratorrent/utconsole/internal/realtime"
 	"github.com/ultratorrent/utconsole/internal/ui"
 )
@@ -34,35 +35,14 @@ var (
 	built   = "unknown"
 )
 
-const usage = `UltraTorrent Console — a read-only terminal view of a running install.
-
-Usage:
-  utconsole [flags]              Run the console
-  utconsole login [flags]        Authenticate and store the session
-  utconsole logout               Forget the stored session
-  utconsole snapshot [flags]     Print one snapshot as JSON and exit
-  utconsole version              Print build information
-
-Flags:
-  --server URL     Server root, e.g. https://ut.example.com
-  --user NAME      Username (login only; prompted when omitted)
-  --totp CODE      Two-factor code, when the account requires one
-  --interval SECS  Refresh interval for the console (default 5)
-  --domains LIST   Comma-separated domains (snapshot only)
-  --timeout SECS   HTTP timeout (default 30)
-  --insecure-echo  Read the password from stdin without a TTY (scripts only)
-
-Configuration lives in %s and holds a rotating refresh token; keep it 0600.
-`
-
 func main() {
 	if err := run(); err != nil {
 		if errors.Is(err, api.ErrUnauthorized) {
-			fmt.Fprintln(os.Stderr, "Not signed in, or the stored session expired. Run: utconsole login --server <url>")
+			fmt.Fprintln(os.Stderr, i18n.T("cli.notSignedIn"))
 			os.Exit(2)
 		}
 		if errors.Is(err, api.ErrForbidden) {
-			fmt.Fprintln(os.Stderr, "This account may not use the console. It needs the console.view permission.")
+			fmt.Fprintln(os.Stderr, i18n.T("cli.forbidden"))
 			os.Exit(3)
 		}
 		fmt.Fprintln(os.Stderr, "utconsole: "+err.Error())
@@ -86,6 +66,7 @@ func run() error {
 		interval = fs.Int("interval", 0, "refresh interval, seconds")
 		domains  = fs.String("domains", "", "comma-separated domains")
 		timeout  = fs.Int("timeout", 30, "HTTP timeout, seconds")
+		locale   = fs.String("locale", "", "language tag, e.g. es-PR")
 		insecure = fs.Bool("insecure-echo", false, "read password from stdin without a TTY")
 		help     = fs.Bool("help", false, "show usage")
 	)
@@ -93,12 +74,26 @@ func run() error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+
+	/*
+	 * Language is settled before anything is printed, and settled twice: once
+	 * from the flag and the environment, so `--help` and any early failure are
+	 * already in the right language, and again once the config is loaded, since
+	 * the stored preference cannot be read before that.
+	 */
+	i18n.Use(i18n.Detect(*locale, ""))
+	if *locale != "" && i18n.Match(*locale) == "" {
+		// Said rather than silently ignored: a typo in a language tag that
+		// quietly renders English looks like the translation is missing.
+		warn(i18n.T("cli.unknownLocale", *locale, i18n.Current()))
+	}
+
 	if *help || cmd == "help" {
 		printUsage()
 		return nil
 	}
 	if cmd == "version" {
-		fmt.Printf("utconsole %s (%s, built %s), operations contract %d.x\n", version, commit, built, api.ContractMajor)
+		fmt.Println(i18n.T("cli.version", version, commit, built, api.ContractMajor))
 		return nil
 	}
 
@@ -106,6 +101,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	i18n.Use(i18n.Detect(*locale, cfg.Locale))
 	if *server != "" {
 		cfg.ServerURL = strings.TrimRight(*server, "/")
 	}
@@ -113,7 +109,7 @@ func run() error {
 		cfg.RefreshSeconds = *interval
 	}
 	if cfg.ServerURL == "" {
-		return errors.New("no server configured — pass --server https://your-install")
+		return errors.New(i18n.T("cli.noServer"))
 	}
 
 	client := api.New(cfg.ServerURL, time.Duration(*timeout)*time.Second)
@@ -122,7 +118,7 @@ func run() error {
 	client.OnRefresh(func(token string) {
 		cfg.RefreshToken = token
 		if err := cfg.Save(); err != nil {
-			fmt.Fprintln(os.Stderr, "warning: could not save the rotated session: "+err.Error())
+			warn(i18n.T("cli.rotateFailed", err.Error()))
 		}
 	})
 
@@ -133,7 +129,7 @@ func run() error {
 		if err := cfg.Clear(); err != nil {
 			return err
 		}
-		fmt.Println("Signed out. The server-side token was not revoked; it expires on its own.")
+		fmt.Println(i18n.T("cli.signedOut"))
 		return nil
 	case "snapshot":
 		client.SetRefreshToken(cfg.RefreshToken)
@@ -143,16 +139,27 @@ func run() error {
 		return doConsole(client, cfg)
 	default:
 		printUsage()
-		return fmt.Errorf("unknown command %q", cmd)
+		return errors.New(i18n.T("cli.unknownCommand", cmd))
 	}
 }
 
 func printUsage() {
 	path, err := config.Path()
 	if err != nil {
-		path = "the user config directory"
+		path = i18n.T("cli.configDir")
 	}
-	fmt.Fprintf(os.Stderr, usage, path)
+	codes := make([]string, 0, len(i18n.Locales))
+	for _, loc := range i18n.Locales {
+		codes = append(codes, loc.Code)
+	}
+	fmt.Fprint(os.Stderr, i18n.T("cli.usage", path, strings.Join(codes, ", ")))
+}
+
+// warn prints an advisory to stderr, where it cannot be mistaken for output.
+//
+// stderr precisely so `utconsole snapshot | jq` keeps working when one fires.
+func warn(message string) {
+	fmt.Fprintln(os.Stderr, i18n.T("cli.warning", message))
 }
 
 // doLogin authenticates and stores the rotating refresh token.
@@ -162,7 +169,7 @@ func doLogin(client *api.Client, cfg *config.Config, user, totp string, insecure
 		user = cfg.Username
 	}
 	if user == "" {
-		fmt.Print("Username: ")
+		fmt.Print(i18n.T("cli.promptUsername"))
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			return err
@@ -193,13 +200,13 @@ func doLogin(client *api.Client, cfg *config.Config, user, totp string, insecure
 	if err := cfg.Save(); err != nil {
 		return err
 	}
-	fmt.Printf("Signed in to %s as %s.\n", cfg.ServerURL, user)
-	fmt.Printf("Readable panels: %d of %d.\n", len(caps.PermittedDomains), len(caps.AvailableDomains))
+	fmt.Println(i18n.T("cli.signedIn", cfg.ServerURL, user))
+	fmt.Println(i18n.T("cli.readablePanels", len(caps.PermittedDomains), len(caps.AvailableDomains)))
 	if len(caps.PermittedDomains) < len(caps.AvailableDomains) {
-		fmt.Println("Domains this account cannot read: " + strings.Join(missing(caps), ", "))
+		fmt.Println(i18n.T("cli.deniedDomains", strings.Join(missing(caps), ", ")))
 	}
 	if w := cfg.Warn(); w != "" {
-		fmt.Fprintln(os.Stderr, "warning: "+w)
+		warn(w)
 	}
 	return nil
 }
@@ -222,13 +229,13 @@ func missing(caps *api.Capabilities) []string {
 func readPassword(reader *bufio.Reader, insecure bool) (string, error) {
 	fd := int(syscall.Stdin)
 	if term.IsTerminal(fd) {
-		fmt.Print("Password: ")
+		fmt.Print(i18n.T("cli.promptPassword"))
 		raw, err := term.ReadPassword(fd)
 		fmt.Println()
 		return string(raw), err
 	}
 	if !insecure {
-		return "", errors.New("no terminal for a password prompt; pass --insecure-echo to read it from stdin")
+		return "", errors.New(i18n.T("cli.noTerminal"))
 	}
 	line, err := reader.ReadString('\n')
 	return strings.TrimSpace(line), err
@@ -278,11 +285,22 @@ func doConsole(client *api.Client, cfg *config.Config) error {
 		return err
 	}
 	if len(caps.PermittedDomains) == 0 {
-		return errors.New("this account holds console.view but no domain permissions — there is nothing it may display")
+		return errors.New(i18n.T("cli.noDomains"))
 	}
 
 	warning := cfg.Warn()
-	model := ui.New(client, caps, time.Duration(cfg.RefreshSeconds)*time.Second, warning)
+	/*
+	 * A language chosen with the L key is remembered, because the alternative
+	 * is choosing it again on every launch — and this is a program someone
+	 * opens repeatedly during an incident. The write is best-effort: it is a
+	 * display preference, and failing to record one is not worth interrupting
+	 * a console someone is watching a machine through.
+	 */
+	model := ui.New(client, caps, time.Duration(cfg.RefreshSeconds)*time.Second, warning).
+		OnLocaleChange(func(code string) {
+			cfg.Locale = code
+			_ = cfg.Save()
+		})
 	program := tea.NewProgram(model, tea.WithAltScreen())
 
 	/*

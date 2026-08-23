@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/ultratorrent/utconsole/internal/i18n"
 )
 
 // Status is what the console shows about the stream itself.
@@ -194,9 +195,9 @@ func (c *Client) session(ctx context.Context, out chan<- Update) error {
 			return &refusedError{msg: frame.Message}
 		case KindDisconnect, KindClose:
 			if !handshaken {
-				return &refusedError{msg: "the server closed the connection during the handshake"}
+				return &refusedError{msg: i18n.T("realtime.handshakeClosed")}
 			}
-			return errors.New("the server closed the stream")
+			return errors.New(i18n.T("realtime.closed"))
 		case KindEvent:
 			if frame.Name == c.channel {
 				send(ctx, out, Update{Status: StatusConnected, Event: frame.Payload})
@@ -214,7 +215,7 @@ func (c *Client) session(ctx context.Context, out chan<- Update) error {
 func (c *Client) wsURL() (string, error) {
 	u, err := url.Parse(c.baseURL)
 	if err != nil {
-		return "", fmt.Errorf("invalid server url: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("realtime.badServerURL"), err)
 	}
 	switch u.Scheme {
 	case "https":
@@ -222,7 +223,7 @@ func (c *Client) wsURL() (string, error) {
 	case "http":
 		u.Scheme = "ws"
 	default:
-		return "", fmt.Errorf("server url must be http or https, got %q", u.Scheme)
+		return "", errors.New(i18n.T("realtime.badScheme", u.Scheme))
 	}
 	u.Path = strings.TrimRight(u.Path, "/") + "/ws/"
 	u.RawQuery = url.Values{

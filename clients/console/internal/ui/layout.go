@@ -1,11 +1,11 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ultratorrent/utconsole/internal/api"
+	"github.com/ultratorrent/utconsole/internal/i18n"
 )
 
 // Pane composition.
@@ -207,7 +207,7 @@ func capBody(body string, maxRows int) string {
 	// list, which is the one thing a monitoring client must never imply.
 	kept := lines[:maxRows-1]
 	hidden := len(lines) - len(kept)
-	kept = append(kept, styleMuted.Render(fmt.Sprintf("… %d more line(s) — widen or enlarge the terminal", hidden)))
+	kept = append(kept, styleMuted.Render(i18n.N("layout.more", hidden)))
 	return strings.Join(kept, "\n")
 }
 

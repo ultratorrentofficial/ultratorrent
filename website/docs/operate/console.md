@@ -84,7 +84,44 @@ works end to end.
 | `r` | Refresh now |
 | `p` | Pause polling entirely |
 | `f` | Cycle the stream's category filter |
+| `L` | Switch language (English ⇄ Spanish), and remember it |
 | `q` | Quit |
+
+### Language
+
+The console speaks **English (`en-US`)** and **Spanish (`es-PR`)** — the same two
+languages as the web app — and carries both **inside the binary**. There is no locale
+directory to copy alongside it, which matters for a program whose normal installation
+is `scp` onto a headless box.
+
+It picks one at startup, first match winning:
+
+1. `--locale es-PR`
+2. `UTCONSOLE_LOCALE=es-PR`
+3. `"locale"` in the config file
+4. `LC_ALL`, then `LC_MESSAGES`, then `LANG`
+5. English
+
+Any spelling of a tag is accepted — `es_PR.UTF-8`, `ES-pr`, plain `es` — and a Spanish
+locale with no catalog of its own (`es-MX`, `es-ES`) resolves to `es-PR` rather than
+dropping to English. `C` and `POSIX` mean "no preference", not "English". An unknown
+tag is reported rather than silently ignored: a typo that quietly renders English looks
+exactly like a missing translation.
+
+:::tip Switch it live
+**`L`** changes language while the console is running and remembers the choice.
+Nothing is refetched — the snapshot is data, and only its labels were ever in English.
+:::
+
+Words the **server** owns — torrent states, job statuses, intake states, health — are
+translated where the console recognises them and passed through **verbatim** where it
+does not, so a state added on the server tomorrow shows up as it came rather than
+vanishing. Error text from the Go runtime or the server stays in English on purpose:
+it has to be searchable and quotable in a bug report.
+
+The screenshots on this page are in English in both locales, deliberately: they are
+captures of a real install, and a second set would be a second set to keep true every
+time a pane changes. The layout they exist to show is identical either way.
 
 ## What an account needs
 
@@ -221,9 +258,13 @@ Override the location with `UTCONSOLE_CONFIG`.
   "serverUrl": "https://your-install",
   "refreshToken": "…",
   "username": "operator",
-  "refreshSeconds": 5
+  "refreshSeconds": 5,
+  "locale": "es-PR"
 }
 ```
+
+`locale` is absent until a language is chosen with `L` or written by hand; absent
+means "follow the environment".
 
 The token lives in a file rather than an OS keyring because these run on headless
 servers where no keyring daemon exists, and a keyring that silently falls back to a

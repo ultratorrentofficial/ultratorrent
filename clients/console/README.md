@@ -32,6 +32,7 @@ with a link error that says nothing about the real cause.
 utconsole login --server https://your-install    # once; stores a rotating token
 utconsole                                        # the console
 utconsole snapshot --domains system,torrents     # one reading, as JSON
+utconsole --locale es-PR                         # …in Spanish
 utconsole logout
 ```
 
@@ -42,7 +43,24 @@ container does not publish its port on either deployed host; the frontend serves
 app is served at.
 
 Keys: `tab` / `1`–`9` switch views, `r` refreshes now, `p` pauses polling,
-`f` cycles the stream filter, `q` quits.
+`f` cycles the stream filter, `L` switches language, `q` quits.
+
+## Languages
+
+English (`en-US`) and Spanish (`es-PR`), both **embedded in the binary** — one
+static file still installs by `scp`, with no locale directory to remember. The
+language comes from `--locale`, then `UTCONSOLE_LOCALE`, then the config file,
+then `LC_ALL` / `LC_MESSAGES` / `LANG`, then English; `L` switches it live and
+records the choice.
+
+`internal/i18n` holds two flat JSON catalogs of format strings — format strings
+rather than sentences because Spanish moves what it interpolates ("hace 3m"
+against "3m ago"), and a hardcoded suffix cannot move. Two tests keep them
+honest: the key sets must match exactly, and each key's `%` verbs must match, so
+a translation cannot drop a `%d` and print `%!d(MISSING)` into a pane months
+later. Values the *server* owns pass through `i18n.Enum`, which translates what
+it recognises and leaves anything else verbatim — a monitoring client must not
+hide a state it has not been taught.
 
 ## The layout
 
@@ -144,6 +162,7 @@ nonsense from a shape it is guessing at.
 cmd/utconsole/      CLI entry point and subcommands
 internal/api/       contract types + the read-only HTTP client
 internal/config/    the two things worth persisting
+internal/i18n/      embedded en-US / es-PR catalogs and the lookup
 internal/ui/        Bubble Tea model, views, formatting, theme
 ```
 
