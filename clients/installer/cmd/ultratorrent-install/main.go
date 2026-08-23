@@ -1,10 +1,9 @@
 // Command ultratorrent-install deploys and maintains an UltraTorrent stack.
 //
-// Phase 2 scope: the plan model and the commands that only read it. `plan` and
-// `install --dry-run` produce and print an InstallationPlan and stop. Nothing
-// here writes a file, contacts a network, or runs Docker — and that is enforced
-// by construction rather than by care, because the packages that could do those
-// things do not exist yet.
+// This build can inspect a host, plan an installation, and generate the
+// configuration files that installation needs. It cannot yet deploy: nothing
+// here runs Docker. That boundary is enforced by construction rather than by
+// care — no package linked into this binary can start a container.
 package main
 
 import (
@@ -12,10 +11,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"text/tabwriter"
 
+	"github.com/ultratorrent/installer/internal/config"
 	"github.com/ultratorrent/installer/internal/host"
 	"github.com/ultratorrent/installer/internal/plan"
 )
@@ -34,6 +35,7 @@ const usage = `UltraTorrent Installer — deploy and maintain an UltraTorrent st
 
 Usage:
   ultratorrent-install plan [flags]        Build a plan and print it; changes nothing
+  ultratorrent-install generate [flags]    Write the configuration files; deploys nothing
   ultratorrent-install install [flags]     Install (use --dry-run to preview)
   ultratorrent-install version             Installer, plan schema and build
 
@@ -45,12 +47,18 @@ Flags:
   --port N            Host port for the web UI (default %d)
   --engine NAME       qbittorrent | rtorrent | external | none (default qbittorrent)
   --media-root PATH   Host path for media; omit to use a Docker volume
+  --puid N            Own downloaded files as this user id (see below)
+  --pgid N            Own downloaded files as this group id
   --prowlarr          Deploy the Prowlarr indexer manager
   --flaresolverr      Deploy FlareSolverr (requires --prowlarr)
   --skip-checks       Skip the system check (planning only; never for install)
 
-Not yet implemented in this build: the interactive wizard and every command that
-changes the system. This build can inspect and plan.
+--puid/--pgid should be the owner of your media directory. They apply to the
+bundled engine AND the backend, which writes into the same tree — setting only
+one side leaves files the other cannot manage.
+
+Not yet implemented in this build: the interactive wizard and deployment. This
+build can inspect, plan, and write configuration.
 `
 
 func main() {
@@ -78,6 +86,8 @@ func run(args []string) error {
 		mediaRoot    = fs.String("media-root", "", "host path for media")
 		withProwlarr = fs.Bool("prowlarr", false, "deploy Prowlarr")
 		withFlare    = fs.Bool("flaresolverr", false, "deploy FlareSolverr")
+		puid         = fs.Int("puid", 0, "own downloaded files as this user id")
+		pgid         = fs.Int("pgid", 0, "own downloaded files as this group id")
 		skipChecks   = fs.Bool("skip-checks", false, "skip the system check")
 	)
 	fs.Usage = func() {
@@ -94,7 +104,7 @@ func run(args []string) error {
 		return nil
 
 	case "plan":
-		p, err := build(*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare)
+		p, err := build(*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid)
 		if err != nil {
 			return err
 		}
@@ -103,8 +113,23 @@ func run(args []string) error {
 		}
 		return emit(p, *asJSON, *output)
 
+	case "generate":
+		p, err := build(*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid)
+		if err != nil {
+			return err
+		}
+		if !*skipChecks {
+			report := inspect(p)
+			fmt.Print(report.String())
+			if report.Blocked() {
+				return fmt.Errorf("this host cannot run UltraTorrent yet — " +
+					"resolve the failures above and re-run. Nothing has been changed")
+			}
+		}
+		return generate(p, *dryRun)
+
 	case "install":
-		p, err := build(*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare)
+		p, err := build(*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid)
 		if err != nil {
 			return err
 		}
@@ -126,9 +151,12 @@ func run(args []string) error {
 		}
 		// Deliberate: rather than a stub that pretends, say plainly what this
 		// build can and cannot do. An installer that half-installs is worse than
-		// one that refuses.
-		return fmt.Errorf(
-			"this build can plan but not deploy — run with --dry-run to preview the plan")
+		// one that refuses — and it refuses BEFORE writing anything, so a failed
+		// `install` never leaves configuration behind for a stack that does not
+		// exist. `generate` is the supported way to get the files today.
+		return fmt.Errorf("this build can plan and generate configuration, but not " +
+			"deploy — run `generate` to write the configuration files, then bring the " +
+			"stack up with docker compose")
 
 	case "", "help":
 		fs.Usage()
@@ -144,7 +172,7 @@ func run(args []string) error {
 //
 // Flags stand in for the wizard for now; the wizard will populate the same
 // struct, so everything downstream is already exercised.
-func build(installDir string, port int, engine, mediaRoot string, prowlarr, flare bool) (*plan.Plan, error) {
+func build(installDir string, port int, engine, mediaRoot string, prowlarr, flare bool, puid, pgid int) (*plan.Plan, error) {
 	p := plan.Recommended(version)
 	p.InstallDirectory = installDir
 	p.Networking.FrontendPort = port
@@ -154,6 +182,17 @@ func build(installDir string, port int, engine, mediaRoot string, prowlarr, flar
 		p.Storage.Mode = plan.StorageBind
 		p.Storage.MediaRoot = mediaRoot
 	}
+	// One given without the other is almost always a typo rather than an
+	// intent — mirroring it is what the operator meant, and a half-set pair
+	// produces files the other side cannot manage.
+	if puid > 0 && pgid == 0 {
+		pgid = puid
+	}
+	if pgid > 0 && puid == 0 {
+		puid = pgid
+	}
+	p.Torrent.PUID, p.Torrent.PGID = puid, pgid
+
 	p.Companions.Prowlarr = prowlarr
 	p.Companions.FlareSolverr = flare
 	p.Finalize()
@@ -288,4 +327,199 @@ func inspect(p *plan.Plan) *host.Report {
 		wanted = append(wanted, host.PortStatus{Port: binding.Port, Label: binding.Label})
 	}
 	return host.NewDetector().Detect(context.Background(), p.InstallDirectory, wanted)
+}
+
+// generate writes the configuration an installation needs, and nothing else.
+//
+// It deploys nothing. That separation is useful in its own right — an operator
+// who prefers to run `docker compose` themselves gets correct, complete
+// configuration without handing the installer control of their stack.
+func generate(p *plan.Plan, dryRun bool) error {
+	writer := &config.Writer{Dir: p.InstallDirectory, DryRun: dryRun}
+
+	secrets, reused, err := resolveSecrets(p.InstallDirectory)
+	if err != nil {
+		return err
+	}
+	if problems := secrets.Validate(); len(problems) > 0 {
+		// Reached only for secrets read back from an existing .env — generated
+		// ones cannot fail this. Refusing beats deploying a stack the backend
+		// will reject at boot with a message about a variable the operator never
+		// set by hand.
+		return fmt.Errorf("the secrets in %s/%s are not usable: %s\n"+
+			"UltraTorrent's backend refuses to start with these. Fix them in place, "+
+			"or move the file aside to have a fresh set generated",
+			p.InstallDirectory, config.EnvFileName, strings.Join(problems, "; "))
+	}
+
+	fmt.Println()
+	if reused {
+		// Worth saying out loud. The alternative — silently minting new secrets —
+		// would break a live deployment in a way that looks like data loss.
+		fmt.Printf("Existing secrets found in %s and kept unchanged.\n", config.EnvFileName)
+	} else {
+		fmt.Println("New secrets generated.")
+	}
+
+	actions, err := writer.EnsureDir()
+	if err != nil {
+		return err
+	}
+	all := []config.Action{actions}
+
+	files := config.Render(p, secrets)
+	written := make([]string, 0, len(files))
+	for _, f := range files {
+		acts, err := writer.Write(f)
+		if err != nil {
+			return err
+		}
+		all = append(all, acts...)
+		written = append(written, f.Name)
+	}
+	// A plan that no longer needs an override must not leave the previous one
+	// behind: Compose would keep merging settings the operator has removed.
+	if !containsName(files, config.OverrideFileName) {
+		acts, err := writer.Remove(config.OverrideFileName)
+		if err != nil {
+			return err
+		}
+		all = append(all, acts...)
+	}
+	if acts, err := writeState(writer, p, written); err != nil {
+		return err
+	} else {
+		all = append(all, acts...)
+	}
+
+	fmt.Println()
+	for _, a := range all {
+		fmt.Println("  " + a.String())
+	}
+
+	if dryRun {
+		fmt.Println("\nDry run — nothing has been changed.")
+		return nil
+	}
+	printNextSteps(p, reused)
+	return nil
+}
+
+// resolveSecrets keeps an existing installation's secrets, or mints a fresh set.
+//
+// This is the whole of re-run safety. Regenerating against a live deployment is
+// catastrophic and quiet: the database password stops matching the volume that
+// already holds the data, every session is invalidated, and a changed
+// ENCRYPTION_KEY makes every stored two-factor secret undecryptable. So an
+// existing .env is read and its secrets reused — never replaced, and never
+// without saying so.
+func resolveSecrets(dir string) (*plan.Secrets, bool, error) {
+	existing, err := os.ReadFile(filepath.Join(dir, config.EnvFileName))
+	switch {
+	case err == nil:
+		if s := config.ExistingSecrets(string(existing)); s != nil {
+			return s, true, nil
+		}
+		// The file exists but holds no usable secrets — it was never a working
+		// installation, so there is nothing to preserve.
+	case !os.IsNotExist(err):
+		return nil, false, fmt.Errorf("reading the existing %s: %w", config.EnvFileName, err)
+	}
+
+	s, err := plan.GenerateSecrets()
+	if err != nil {
+		return nil, false, fmt.Errorf("generating secrets: %w", err)
+	}
+	return s, false, nil
+}
+
+// writeState records the non-secret shape of the deployment.
+//
+// Any previous state is read first so facts a fresh one cannot know are carried
+// forward — when the installation actually happened, above all.
+func writeState(w *config.Writer, p *plan.Plan, generated []string) ([]config.Action, error) {
+	state := config.StateFrom(p, generated)
+	state.CarryForward(previousState(w.Dir))
+
+	var buf strings.Builder
+	if err := config.WriteState(&buf, state); err != nil {
+		return nil, err
+	}
+	return w.Write(config.File{
+		Name:    config.StateFileName,
+		Mode:    config.ModePublic,
+		Content: buf.String(),
+	})
+}
+
+// previousState reads the state already in the installation directory.
+//
+// A missing or unreadable state file is not an error worth stopping for: it is a
+// record of a deployment, not a prerequisite for one, and refusing to proceed
+// because a metadata file is corrupt would be a worse outcome than losing the
+// metadata. Warnings from a newer schema are surfaced rather than swallowed.
+func previousState(dir string) *config.State {
+	f, err := os.Open(filepath.Join(dir, config.StateFileName))
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	state, warnings, err := config.ReadState(f)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not read the existing %s (%v); "+
+			"it will be rewritten\n", config.StateFileName, err)
+		return nil
+	}
+	for _, w := range warnings {
+		fmt.Fprintln(os.Stderr, "warning: "+w)
+	}
+	return state
+}
+
+func containsName(files []config.File, name string) bool {
+	for _, f := range files {
+		if f.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// printNextSteps says what to do with the files that were just written.
+//
+// The initial administrator password is deliberately NOT printed. It is in
+// `.env` at 0600; echoing it would put it in scrollback, in a terminal
+// recording, and in whatever the operator pastes into an issue.
+func printNextSteps(p *plan.Plan, reused bool) {
+	env := filepath.Join(p.InstallDirectory, config.EnvFileName)
+	fmt.Printf(`
+Configuration written. Nothing has been deployed.
+
+To bring the stack up, from the repository root:
+
+    docker compose --env-file %s up -d
+
+Then, once the backend is healthy, seed the first administrator:
+
+    docker compose exec backend npx prisma db seed
+
+The web UI will be at %s
+`, env, publicAddress(p))
+
+	if !reused {
+		fmt.Printf(`
+The initial administrator is %q. Its password was generated into %s
+and is not printed here — read it from that file, and change it after the first
+sign-in.
+`, p.Admin.Username, env)
+	}
+}
+
+// publicAddress is what to type into a browser.
+func publicAddress(p *plan.Plan) string {
+	if p.Networking.PublicURL != "" {
+		return p.Networking.PublicURL
+	}
+	return fmt.Sprintf("http://localhost:%d", p.Networking.FrontendPort)
 }
