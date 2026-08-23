@@ -204,11 +204,19 @@ malformed line with no equals
 func TestNoOverrideWhenNothingNeedsSpecialising(t *testing.T) {
 	/*
 	 * Compose merges any override it finds, so an empty-but-present file is not
-	 * the same as no file. A default install should leave `docker compose config`
-	 * showing exactly the canonical stack.
+	 * the same as no file. An installation that specialises nothing should leave
+	 * `docker compose config` showing exactly the canonical stack.
+	 *
+	 * A bundled qBittorrent always needs one now — its config volume is bound so
+	 * the installer can seed a password into it — so the case to check is an
+	 * engine the installer does not configure.
 	 */
-	if got := RenderOverride(testPlan()); got != "" {
-		t.Errorf("a default plan should need no override, got:\n%s", got)
+	p := testPlan()
+	p.Torrent.Engine = plan.EngineExternal
+	p.Torrent.ExternalURL = "http://engine.lan:8080"
+	p.Finalize()
+	if got := RenderOverride(p); got != "" {
+		t.Errorf("this plan should need no override, got:\n%s", got)
 	}
 }
 
@@ -748,5 +756,198 @@ func TestRemovingWhatIsNotThereIsNotAnError(t *testing.T) {
 	}
 	if len(actions) != 0 {
 		t.Errorf("nothing to remove should report nothing, got %v", actions)
+	}
+}
+
+// --- the bundled engine ----------------------------------------------------
+
+func qbPlan() (*plan.Plan, *plan.Secrets) {
+	p := testPlan()
+	s := testSecrets()
+	s.EnginePassword = "ENGINESENTINELffffffffff"
+	return p, s
+}
+
+func TestEngineIsSeededSoNoTemporaryPasswordIsEverIssued(t *testing.T) {
+	/*
+	 * The step this replaces is documented in docker-compose.yml: read a
+	 * temporary password out of the container log. That is racy (the line
+	 * scrolls away), it puts a live credential into `docker logs` and into
+	 * whatever gets pasted into an issue, and it cannot be automated.
+	 */
+	p, s := qbPlan()
+	var config *File
+	for i, f := range Render(p, s) {
+		if f.Name == EngineConfigFileName {
+			config = &Render(p, s)[i]
+		}
+	}
+	if config == nil {
+		t.Fatal("no engine config was generated for a bundled qBittorrent")
+	}
+	if !strings.Contains(config.Content, "Password_PBKDF2") {
+		t.Error("the seeded config must set a password")
+	}
+	if strings.Contains(config.Content, s.EnginePassword) {
+		t.Error("the plaintext password must not reach the engine's config")
+	}
+	if config.Mode != ModeSecret {
+		t.Errorf("the engine config holds a verifier; mode = %#o", config.Mode)
+	}
+	if !config.Once {
+		t.Error("qBittorrent rewrites this file itself — the installer must never replace it")
+	}
+}
+
+func TestNoEngineConfigWithoutABundledEngine(t *testing.T) {
+	for _, e := range []plan.Engine{plan.EngineRtorrent, plan.EngineExternal, plan.EngineNone} {
+		p, s := qbPlan()
+		p.Torrent.Engine = e
+		p.Finalize()
+		for _, f := range Render(p, s) {
+			if f.Name == EngineConfigFileName || f.Name == EngineCredentialsFileName {
+				t.Errorf("engine %s should not get a qBittorrent config", e)
+			}
+		}
+	}
+}
+
+func TestHostHeaderValidationTracksThePublishedPort(t *testing.T) {
+	/*
+	 * qBittorrent rejects any request whose Host header names a port other than
+	 * its own WebUI port. The Compose file maps ${QBITTORRENT_PORT:-8081}:8080,
+	 * so a browser sends `Host: host:8081`, the ports disagree, and every request
+	 * — including the login page — comes back 401. Confirmed against qBittorrent
+	 * 5.2.3 and against the live deployment, where port 8081 answers 401 while a
+	 * Host header naming 8080 answers 200.
+	 */
+	find := func(p *plan.Plan, s *plan.Secrets) string {
+		for _, f := range Render(p, s) {
+			if f.Name == EngineConfigFileName {
+				return f.Content
+			}
+		}
+		return ""
+	}
+
+	p, s := qbPlan()
+	p.Torrent.PublishWebUI = true
+	p.Torrent.WebUIPort = 8081 // the shipped default: differs from the container port
+	p.Finalize()
+	if !strings.Contains(find(p, s), "HostHeaderValidation=false") {
+		t.Error("a mismatched published port must relax the check, or the UI is unreachable")
+	}
+
+	// Not published: nothing outside the Docker network reaches it, and the
+	// backend's own Host header already names the matching port.
+	p.Torrent.PublishWebUI = false
+	p.Finalize()
+	if strings.Contains(find(p, s), "HostHeaderValidation") {
+		t.Error("with no published UI the check must stay on")
+	}
+
+	// Published on the matching port: aligned, so nothing to relax.
+	p.Torrent.PublishWebUI = true
+	p.Torrent.WebUIPort = QbittorrentContainerPort
+	p.Finalize()
+	if strings.Contains(find(p, s), "HostHeaderValidation") {
+		t.Error("aligned ports need no relaxation")
+	}
+}
+
+func TestEnginePasswordIsRecoverable(t *testing.T) {
+	// The config stores a one-way verifier, so without this the password would
+	// exist only in the memory of the process that made it — and the operator
+	// could neither sign in nor give UltraTorrent the credentials it needs.
+	p, s := qbPlan()
+	var creds *File
+	files := Render(p, s)
+	for i := range files {
+		if files[i].Name == EngineCredentialsFileName {
+			creds = &files[i]
+		}
+	}
+	if creds == nil {
+		t.Fatal("the engine password was not recorded anywhere")
+	}
+	if !strings.Contains(creds.Content, s.EnginePassword) {
+		t.Error("the credentials file should hold the actual password")
+	}
+	if creds.Mode != ModeSecret {
+		t.Errorf("credentials mode = %#o, want 0600", creds.Mode)
+	}
+	if !creds.Once {
+		t.Error("it must never drift from the verifier that was actually seeded")
+	}
+}
+
+func TestAWriteOnceFileIsNeverReplaced(t *testing.T) {
+	/*
+	 * qBittorrent rewrites its settings file as the operator changes things in
+	 * the UI. Regenerating it on a later run would silently discard all of that —
+	 * and the operator would have no reason to suspect the installer.
+	 */
+	dir := t.TempDir()
+	w := &Writer{Dir: dir}
+	f := File{Name: EngineConfigFileName, Mode: ModeSecret, Content: "seeded\n", Once: true}
+	if _, err := w.Write(f); err != nil {
+		t.Fatal(err)
+	}
+	// Stand in for the engine having rewritten its own settings.
+	path := filepath.Join(dir, EngineConfigFileName)
+	if err := os.WriteFile(path, []byte("the operator's settings\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	f.Content = "freshly generated\n"
+	actions, err := w.Write(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "the operator's settings\n" {
+		t.Errorf("a write-once file was replaced: %q", content)
+	}
+	if len(actions) != 1 || actions[0].Kind != "unchanged" {
+		t.Errorf("expected it to be left alone, got %v", actions)
+	}
+}
+
+func TestNestedFilesGetTheirDirectory(t *testing.T) {
+	// The engine's config sits two levels down and neither level exists on a
+	// first run.
+	dir := t.TempDir()
+	w := &Writer{Dir: dir}
+	if _, err := w.Write(File{Name: EngineConfigFileName, Mode: ModeSecret, Content: "x\n"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, EngineConfigFileName)); err != nil {
+		t.Errorf("nested file was not created: %v", err)
+	}
+}
+
+func TestEngineConfigVolumeIsBoundSoItCanBeSeeded(t *testing.T) {
+	/*
+	 * A named volume cannot be written to until something mounts it, so with the
+	 * Compose default the only way to set a password is the one the file
+	 * documents: read the temporary one out of the log. Binding it is what makes
+	 * seeding possible at all.
+	 */
+	p, _ := qbPlan()
+	override := RenderOverride(p)
+	if !strings.Contains(override, "qbittorrent_config:") {
+		t.Fatalf("the engine's config volume should be bound:\n%s", override)
+	}
+	if !strings.Contains(override, filepath.Join(p.InstallDirectory, EngineConfigDirName)) {
+		t.Errorf("it should bind to the installation directory:\n%s", override)
+	}
+
+	p.Torrent.Engine = plan.EngineRtorrent
+	p.Finalize()
+	if strings.Contains(RenderOverride(p), "qbittorrent_config") {
+		t.Error("no qBittorrent, no qBittorrent config volume")
 	}
 }

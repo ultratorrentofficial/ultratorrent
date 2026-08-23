@@ -507,6 +507,15 @@ Then, once the backend is healthy, seed the first administrator:
 The web UI will be at %s
 `, env, publicAddress(p))
 
+	if p.Torrent.Engine == plan.EngineQbittorrent {
+		fmt.Printf(`
+The bundled qBittorrent was seeded with its own password, so it will not print a
+temporary one to its log. Both the Web UI sign-in and the credentials to give
+UltraTorrent under Settings -> Integrations are in
+%s
+`, filepath.Join(p.InstallDirectory, config.EngineCredentialsFileName))
+	}
+
 	if !reused {
 		fmt.Printf(`
 The initial administrator is %q. Its password was generated into %s

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ultratorrent/installer/internal/engine"
 	"github.com/ultratorrent/installer/internal/plan"
 )
 
@@ -22,6 +23,13 @@ type File struct {
 	// Secret marks a file whose contents must never be echoed, logged or
 	// included in diagnostics.
 	Secret bool
+	// Once marks a file the installer creates but never replaces.
+	//
+	// For configuration the APPLICATION owns after first start: qBittorrent
+	// rewrites its own settings file as the operator changes things in the UI, so
+	// regenerating it on a later run would silently discard all of that. The
+	// installer seeds it and then keeps its hands off.
+	Once bool
 }
 
 // Modes for what the installer writes.
@@ -42,7 +50,24 @@ const (
 const (
 	EnvFileName      = ".env"
 	OverrideFileName = "docker-compose.override.yml"
+	// EngineConfigDirName is bound into the bundled engine as its config volume,
+	// so the installer can seed settings before the engine's first start and the
+	// operator can read them afterwards.
+	EngineConfigDirName = "qbittorrent"
+	// EngineConfigFileName is relative to the installation directory.
+	EngineConfigFileName = EngineConfigDirName + "/" + engine.ConfigPath
+	// EngineCredentialsFileName records the engine's Web UI password in plain
+	// text, because the config file stores only a one-way verifier: without this
+	// the operator could never sign in, and could never give UltraTorrent's
+	// backend the credentials it needs to drive the engine.
+	EngineCredentialsFileName = "engine-credentials.txt"
 )
+
+// QbittorrentContainerPort is the port the Compose file maps the bundled engine's
+// Web UI to inside the container. It is fixed there (`${QBITTORRENT_PORT}:8080`),
+// which is why a published port other than this one needs qBittorrent's Host
+// header check relaxed — see engine.Settings.RelaxHostHeaderValidation.
+const QbittorrentContainerPort = 8080
 
 // Render produces every file an installation needs.
 //
@@ -67,7 +92,74 @@ func Render(p *plan.Plan, s *plan.Secrets) []File {
 			Content: override,
 		})
 	}
+	if f, ok := renderEngineConfig(p, s); ok {
+		files = append(files, f, renderEngineCredentials(p, s))
+	}
 	return files
+}
+
+// renderEngineCredentials records the engine's password where the operator can
+// find it.
+//
+// The config file holds a PBKDF2 verifier, which is one-way by design, so the
+// password would otherwise exist only in the memory of the process that
+// generated it. Written 0600 alongside `.env`, which already holds every other
+// secret this deployment has — and write-once, so it can never drift from the
+// verifier that was actually seeded.
+func renderEngineCredentials(p *plan.Plan, s *plan.Secrets) File {
+	return File{
+		Name:   EngineCredentialsFileName,
+		Mode:   ModeSecret,
+		Secret: true,
+		Once:   true,
+		Content: fmt.Sprintf(`%s#
+# Sign-in for the bundled qBittorrent Web UI, and the credentials to give
+# UltraTorrent under Settings -> Integrations so it can drive the engine.
+#
+# The engine stores only a one-way hash of this password, so this file is the
+# only copy. Change the password in qBittorrent's own UI once you are in, and
+# delete this file afterwards.
+
+username=%s
+password=%s
+`, Header(p.InstallerVersion, p.CreatedAt.Format("2006-01-02 15:04:05 MST")),
+			p.Admin.Username, s.EnginePassword),
+	}
+}
+
+// renderEngineConfig seeds the bundled engine so it never issues the temporary
+// password it otherwise prints to its log.
+//
+// Write-once: qBittorrent rewrites this file itself as the operator changes
+// settings, so the installer creates it and never touches it again.
+func renderEngineConfig(p *plan.Plan, s *plan.Secrets) (File, bool) {
+	if p.Torrent.Engine != plan.EngineQbittorrent || s == nil || s.EnginePassword == "" {
+		return File{}, false
+	}
+	verifier, err := engine.NewVerifier(s.EnginePassword)
+	if err != nil {
+		// Only a failure of crypto/rand, which is not a condition to paper over.
+		panic("config: generating the engine verifier: " + err.Error())
+	}
+	return File{
+		Name: EngineConfigFileName,
+		// It holds a password verifier: readable by its owner only.
+		Mode: ModeSecret,
+		Content: engine.RenderConfigWithPassword(engine.Settings{
+			Username: p.Admin.Username,
+			Port:     QbittorrentContainerPort,
+			SavePath: "/downloads/",
+			TempPath: "/downloads/incomplete/",
+			// qBittorrent rejects any request whose Host header names a port
+			// other than its own, so publishing on a host port that differs from
+			// the container port makes the UI answer 401 to a browser — the
+			// shipped 8081:8080 default does exactly this.
+			RelaxHostHeaderValidation: p.Torrent.PublishWebUI &&
+				p.Torrent.WebUIPort != QbittorrentContainerPort,
+		}, verifier),
+		Secret: true,
+		Once:   true,
+	}, true
 }
 
 // Writer writes rendered files safely.
@@ -125,6 +217,10 @@ func (w *Writer) Write(f File) ([]Action, error) {
 	var actions []Action
 
 	existing, err := os.ReadFile(path)
+	if f.Once && err == nil {
+		// Present already: this belongs to the application now.
+		return []Action{{Path: path, Kind: "unchanged", Detail: "kept; the engine owns this file"}}, nil
+	}
 	switch {
 	case err == nil && SameGeneratedContent(string(existing), f.Content):
 		// Identical content is not a change. Saying "unchanged" rather than
@@ -154,6 +250,14 @@ func (w *Writer) Write(f File) ([]Action, error) {
 
 	if w.DryRun {
 		return actions, nil
+	}
+
+	// A file may sit in a subdirectory of the installation directory (an engine's
+	// config volume, for instance), which will not exist on a first run.
+	if parent := filepath.Dir(path); parent != w.Dir {
+		if err := os.MkdirAll(parent, ModeDir); err != nil {
+			return nil, fmt.Errorf("creating %s: %w", parent, err)
+		}
 	}
 
 	tmp := path + ".tmp"

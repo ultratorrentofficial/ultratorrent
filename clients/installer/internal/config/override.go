@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/ultratorrent/installer/internal/plan"
@@ -68,6 +69,39 @@ func renderServiceOverrides(p *plan.Plan) string {
 
 // renderVolumeOverride points the shared `downloads` volume at a host path.
 func renderVolumeOverride(p *plan.Plan) string {
+	var b strings.Builder
+	b.WriteString(renderEngineConfigVolume(p))
+	b.WriteString(renderDownloadsVolume(p))
+	return b.String()
+}
+
+// renderEngineConfigVolume binds the bundled engine's config volume to a host
+// directory inside the installation.
+//
+// Not cosmetic: it is what lets the installer SEED the engine's settings before
+// its first start. A named volume cannot be written to until something mounts
+// it, so with the default the only way to set a password is the one the Compose
+// file documents today — read a temporary one out of the container's log.
+// Binding it also leaves the file where an operator can read and edit it.
+func renderEngineConfigVolume(p *plan.Plan) string {
+	if p.Torrent.Engine != plan.EngineQbittorrent {
+		return ""
+	}
+	return fmt.Sprintf(`  # Binds the engine's config volume into the installation directory, which is
+  # what lets the installer seed a password before the engine first starts —
+  # otherwise the only way to get one is to read the temporary password out of
+  # the container log. It also leaves the settings where you can read them.
+  qbittorrent_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: %s
+
+`, yamlPath(filepath.Join(p.InstallDirectory, EngineConfigDirName)))
+}
+
+func renderDownloadsVolume(p *plan.Plan) string {
 	if p.Storage.Mode != plan.StorageBind || p.Storage.MediaRoot == "" {
 		return ""
 	}

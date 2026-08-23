@@ -22,6 +22,12 @@ type Secrets struct {
 	JWTRefreshSecret string `json:"-"`
 	EncryptionKey    string `json:"-"`
 	AdminPassword    string `json:"-"`
+	// EnginePassword is the bundled torrent engine's Web UI password.
+	//
+	// Generated so the engine never issues the temporary password it otherwise
+	// prints to its log — a credential that is racy to catch, ends up in
+	// `docker logs`, and cannot be automated around.
+	EnginePassword string `json:"-"`
 }
 
 // Character sets for generation.
@@ -70,6 +76,7 @@ func GenerateSecrets() (*Secrets, error) {
 		{"JWT_REFRESH_SECRET", &s.JWTRefreshSecret, SecretLength},
 		{"ENCRYPTION_KEY", &s.EncryptionKey, SecretLength},
 		{"ADMIN_PASSWORD", &s.AdminPassword, AdminPasswordLength},
+		{"ENGINE_PASSWORD", &s.EnginePassword, AdminPasswordLength},
 	} {
 		value, err := randomToken(field.length)
 		if err != nil {

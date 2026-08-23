@@ -183,6 +183,54 @@ Option 1 is the only one that is fully unattended; option 2 is log-scraping by
 another name and the brief forbids it. **Not yet verified** — must be tested
 against the pinned image before being promised.
 
+#### RESOLVED in Phase 5, by experiment against `lscr.io/linuxserver/qbittorrent:latest` (qBittorrent 5.2.3)
+
+**Option 1 works.** Writing `/config/qBittorrent/qBittorrent.conf` before first
+start suppresses the temporary password entirely and the seeded credential is
+accepted at login. The verifier is PBKDF2-HMAC-SHA512, a 16-byte random salt,
+100 000 iterations and a 64-byte key, stored as
+`WebUI\Password_PBKDF2="@ByteArray(<base64 salt>:<base64 key>)"`. Verified twice:
+against an independent implementation, and by starting the real engine on a
+config the installer generated and signing in.
+
+Three things cost an experiment each and none is discoverable from a failure:
+
+- **Keys take a single backslash.** A doubled one is silently ignored —
+  qBittorrent reads the file, recognises nothing, and issues a temporary password
+  as though it had not been configured.
+- **`[LegalNotice] Accepted=true` is required.** Without it the engine refuses to
+  start unattended, which in a container is a boot loop with no stated cause.
+- **The config volume must be a bind, not the named volume Compose declares.**
+  Nothing can write into a named volume before a container mounts it, so with the
+  default there is no way to seed anything — which is precisely why the file
+  documents log-scraping today.
+
+**A live defect found on the way, unrelated to the installer.** qBittorrent
+rejects any request whose `Host` header names a port other than its own WebUI
+port, answering `401` to *everything*, the login page included. `docker-compose.yml`
+maps `${QBITTORRENT_PORT:-8081}:8080`, so a browser sends `Host: host:8081`, the
+ports disagree, and the Web UI is unreachable. Measured on the live deployment:
+
+| Request | Result |
+|---|---|
+| `GET /` on published port 8081 | **401** |
+| `GET /` with `Host: 127.0.0.1:8080` | 200 |
+
+This makes the workflow the Compose file itself documents — "grab the first-run
+temporary password from the container logs" and sign in — impossible to complete.
+Two fixes exist. **Aligning the ports** (`WEBUI_PORT` = container port = published
+port) is better, keeps the check on, and was verified working; it needs a change
+to `docker-compose.yml`, and changes the internal port the backend connects to,
+so it carries a migration cost for existing deployments. **Relaxing the check**
+(`WebUI\HostHeaderValidation=false`) is a single line in a file the installer
+already generates and needs no platform change. The installer takes the second
+for now, and only when the UI is actually published on a mismatched port — the
+decision is recorded in `engine.Settings` so it can be revisited if the ports are
+aligned upstream. Compose's merge semantics rule out a third option: a `ports:`
+list in an override **appends** rather than replaces (verified — two mappings,
+both publishing the same host port), and `!override` replaces but requires
+Compose ≥ 2.24, above the ≥ 2.0 the installer currently demands.
+
 Also required either way: **host-header validation**, which 401s a connection by
 service name. The installer must set `WebUI\HostHeaderValidation=false` (or
 `Server domains=*`) rather than leaving the user to find it in the docs.
@@ -297,9 +345,10 @@ i18n approach (en-US/es-PR embedded via `go:embed`), and the
 
 Unchanged from the brief, with two adjustments the audit justifies:
 
-- **G5 (qBittorrent credentials) must be resolved by experiment before Phase 5
-  promises unattended engine setup.** If pre-seeding the config file is not
-  reliable against the pinned image, the wizard guides instead — and says so.
+- **G5 (qBittorrent credentials) — RESOLVED in Phase 5.** Pre-seeding works;
+  see the addendum under G5. Unattended engine setup is delivered, no log
+  scraping, and the experiment also turned up a live defect that makes the
+  engine's Web UI unreachable on its published port.
 - **G4 (bind-mount storage) is a design decision, not a wiring task**, and
   should be settled in Phase 2 alongside the plan model, because the plan's
   storage shape determines the override generator.
