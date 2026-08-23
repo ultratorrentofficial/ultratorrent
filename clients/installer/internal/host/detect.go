@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -23,6 +24,13 @@ type Detector struct {
 	LookupPort func(port int) bool
 	// DialRegistry reports whether the Docker registry is reachable.
 	DialRegistry func(ctx context.Context) bool
+	// PortHolder names the Compose project publishing a port, or "" when
+	// nothing does, Docker cannot say, or Docker is not there at all.
+	PortHolder func(ctx context.Context, port int) string
+	// ProjectName is the Compose project this installation deploys as. Compared
+	// against PortHolder to tell "my own stack is running" from "something else
+	// owns this port".
+	ProjectName string
 	// Statfs reports free/total bytes for a path.
 	Statfs func(path string) (free, total int64, err error)
 	// Platform supplies the per-OS half of detection. Injected like everything
@@ -46,6 +54,7 @@ func NewDetector() *Detector {
 		ReadFile:     os.ReadFile,
 		LookupPort:   PortIsFree,
 		DialRegistry: registryReachable,
+		PortHolder:   dockerPortHolder(ExecRunner{Timeout: 10 * time.Second}),
 		Statfs:       diskFree,
 		Platform:     DefaultPlatform(runtime.GOOS),
 	}
@@ -88,6 +97,9 @@ func (d *Detector) Detect(ctx context.Context, installDir string, wantPorts []Po
 	// --- Ports --------------------------------------------------------------
 	for _, want := range wantPorts {
 		want.Free = d.LookupPort(want.Port)
+		if !want.Free && d.PortHolder != nil && d.ProjectName != "" {
+			want.HeldByUs = d.PortHolder(ctx, want.Port) == d.ProjectName
+		}
 		r.Ports = append(r.Ports, want)
 	}
 
@@ -281,6 +293,15 @@ func (d *Detector) evaluate(r *Report) {
 			r.Add(Finding{Label: fmt.Sprintf("Port %d", p.Port), Value: p.Label, Level: LevelOK})
 			continue
 		}
+		if p.HeldByUs {
+			// Busy, but by this installation. Re-running over a stack that is
+			// already up — or one left half-up by a failure — is the ordinary
+			// way to fix it, and refusing here blocked exactly that.
+			r.Add(Finding{Label: fmt.Sprintf("Port %d", p.Port),
+				Value: "in use by this installation", Level: LevelOK,
+				Detail: p.Label + " — the running containers publish it; deploying replaces them"})
+			continue
+		}
 		r.Add(Finding{Label: fmt.Sprintf("Port %d", p.Port), Value: "already in use", Level: LevelFail,
 			Detail: "wanted for " + p.Label,
 			Remedy: "choose a different port, or stop whatever is using this one"})
@@ -318,6 +339,39 @@ func existingAncestor(path string) string {
 			return p
 		}
 		p = parent
+	}
+}
+
+// dockerPortHolder asks Docker which Compose project publishes a port.
+//
+// Parsed from `docker ps` rather than inferred: the alternative is to assume
+// that a busy port belongs to us whenever our project exists, which would wave
+// through a genuine conflict with an unrelated service.
+//
+// Every failure answers "" — no Docker, a wedged daemon, an unreadable line.
+// Unknown must read as "not ours", because the cost of being wrong that way is
+// a clear error message, while the other way is a port stolen from something
+// already running on it.
+func dockerPortHolder(run Runner) func(context.Context, int) string {
+	return func(ctx context.Context, port int) string {
+		out, err := run.Run(ctx, "docker", "ps", "--format",
+			`{{.Label "com.docker.compose.project"}}\t{{.Ports}}`)
+		if err != nil {
+			return ""
+		}
+		// Matches the published side of "0.0.0.0:8080->8080/tcp", and not the
+		// container side, which is why the arrow is part of the needle.
+		needle := ":" + strconv.Itoa(port) + "->"
+		for _, line := range strings.Split(out, "\n") {
+			project, ports, ok := strings.Cut(strings.TrimSpace(line), "\t")
+			if !ok || project == "" {
+				continue
+			}
+			if strings.Contains(ports, needle) {
+				return project
+			}
+		}
+		return ""
 	}
 }
 

@@ -178,6 +178,12 @@ type PortStatus struct {
 	Port  int
 	Label string
 	Free  bool
+	// HeldByUs marks a port that is busy because THIS installation's own
+	// containers are publishing it. That is not an obstacle: the deployment
+	// replaces those containers, and Compose releases the port as it does.
+	// Treating it as a conflict is what made a failed deployment unrecoverable
+	// by the command that fixes it.
+	HeldByUs bool
 }
 
 // MinDockerVersion is the oldest Docker Engine this stack is known to work on.

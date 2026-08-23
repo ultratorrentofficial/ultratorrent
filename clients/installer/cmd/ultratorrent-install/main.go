@@ -422,7 +422,11 @@ func inspect(p *plan.Plan) *host.Report {
 	for _, binding := range p.PublishedPorts() {
 		wanted = append(wanted, host.PortStatus{Port: binding.Port, Label: binding.Label})
 	}
-	report := host.NewDetector().Detect(context.Background(), p.InstallDirectory, wanted)
+	detector := host.NewDetector()
+	// Named so the port check can tell this installation's own running stack
+	// from an unrelated service holding the same port.
+	detector.ProjectName = p.ProjectName
+	report := detector.Detect(context.Background(), p.InstallDirectory, wanted)
 	if needsResetTag(p) {
 		report.RequireResetTag()
 	}
