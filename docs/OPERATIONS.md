@@ -387,6 +387,158 @@ Shell gotcha behind the 2026-07-10 entry: `VAR=x cmd1 && cmd2` scopes `VAR` to
 
 ---
 
+## Provisioning a dev host
+
+Dev is the one role that is **not** Docker: the backend runs from systemd and the
+frontend from Vite dev, so UI changes can be verified with HMR without committing.
+Reproduce that, not the container stack, when standing up a new dev box.
+
+### Size it for the index builds, not the app
+
+The app idles small. What actually sets the floor is PostgreSQL: a GIN trigram build
+on the IMDb tables spills gigabytes, and `maintenance_work_mem` is claimed *per
+parallel maintenance worker*, so the leader plus two workers each take their own
+allocation. A dev host that runs backend + Vite + rtorrent + Postgres together wants
+**4 vCPU / 8 GB / NVMe** as a practical minimum. Below that the failure is not
+slowness, it is a build that dies and leaves the index `INVALID`, which the next boot
+drops and retries — silently, forever.
+
+NVMe matters as much as RAM here. The stock `random_page_cost = 4.0` describes a
+spinning disk and discourages the very index scans these tables exist to serve.
+
+### Install
+
+1. **Latest LTS**, not an interim release. An interim gets nine months of support and
+   then vanishes from the provider's image list — which is how you discover it.
+2. Take **Node and rtorrent from the distro** if the versions match what dev already
+   runs; check before adding a third-party repo. Distro `npm` is often several majors
+   behind the Node it ships with — install the matching npm globally, and note that a
+   `npm -v` immediately afterwards can report the old version from the shell's command
+   hash rather than from disk.
+3. **Pin PostgreSQL to the version the ORM supports**, from PGDG, with an apt pin so a
+   later upgrade cannot pull a newer major in underneath. The distro's default is
+   whatever is current, which may be ahead of what Prisma handles.
+4. Create the app user with the **same uid/gid as the old host**, so a straight rsync
+   of the media tree preserves ownership without a chown pass.
+5. Create the database **owned by the app role** (`createdb -O`). A database or table
+   left owned by `postgres` locks the app role out and makes Prisma diff invent missing
+   columns.
+6. Tune Postgres in a `conf.d` drop-in rather than editing `postgresql.conf`, so package
+   upgrades do not fight the changes.
+
+### Secrets
+
+Generate the JWT and encryption secrets **fresh on the new host**; do not copy them.
+Two hosts sharing secrets means a leak on either compromises both.
+
+The exception is `ENCRYPTION_KEY`, and it is worth stopping on. It is the AES-256-GCM
+key for secrets at rest — provider API keys, TOTP seeds, engine credentials — so
+rotating it makes every existing encrypted value unreadable. Before rotating, count
+what is actually encrypted. If the answer is "one integration pointing at a host that
+will not exist on the new box", rotate freely. If real credentials are stored, either
+carry the key across or accept re-entering every one of them.
+
+### Move the code with a bundle, not a clone
+
+`git clone` from the remote silently gives you whatever the remote has. If the working
+tree is ahead of it — and on a dev box it usually is — the new host quietly gets stale
+code. Use `git bundle create <file> main`, transfer it, and clone from the bundle.
+
+This also gets the *committed* state only, which is the point: a dev working tree
+routinely holds work in progress that does not compile, and rsyncing the tree would
+carry that over and break the build on the new host.
+
+Gitignored files the repo cannot supply must be copied separately, and this is the
+step most likely to be missed — they are invisible to `git status`, to the build, and
+to every check you would otherwise run. Enumerate them deliberately:
+
+```
+git ls-files --others --ignored --exclude-standard \
+  | grep -vE '(^|/)(node_modules|dist|build|coverage)/'
+```
+
+Most of the output is build and tooling noise; what matters is **runtime config**. In
+particular a frontend `.env.local` is easy to overlook and fails in a uniquely
+misleading way: the dev server falls back to a `localhost:<port>` default, which the
+*browser* resolves against the **viewer's own machine**, not the server. The request
+never reaches the host, so there is no log line, no audit row and no failed-login
+counter — only a generic "unable to connect" in the UI. If the server looks healthy and
+the client cannot talk to it, check the client's baked-in base URL before anything else.
+
+Vite reads env files **at startup**, so restart the dev server after adding one.
+
+### Move the data without the reference data
+
+Distinguish **app state** from **re-importable reference data** before dumping. The
+IMDb datasets can be an enormous majority of the database while the rows the app
+actually owns are a few hundred kilobytes. Dump the app state, re-import the reference
+data on the new host.
+
+```
+pg_dump -d <db> --data-only --no-owner --no-privileges --disable-triggers \
+  -T <each large reference table> -T _prisma_migrations -f appdata.sql
+```
+
+- `--disable-triggers` is **required** when any table has a circular foreign key, and
+  it needs superuser on restore. Without it the restore fails partway.
+- Exclude `_prisma_migrations`: `prisma migrate deploy` on the new host has already
+  populated it, and restoring it again duplicates the history.
+- **Verify no foreign key points into the excluded tables** before assuming this is
+  safe. If one does, the restore fails or the data is wrong.
+- Confirm both hosts are at the **same migration count and head** before dumping.
+
+Verify by comparing row counts for every table across both hosts. The only tables that
+may differ are the ones deliberately excluded.
+
+### Systemd units do not transfer verbatim
+
+Unit files carry dependency names that are host-specific. A PGDG cluster is
+`postgresql@<major>-main.service`, not `postgresql.service`. A wrong `After=`/`Wants=`
+does not error — it points at nothing, and the app races its database on boot.
+
+### There are two firewalls, and only one of them is obvious
+
+A cloud host typically has a **provider-level firewall** (configured through the
+provider's API or console) *and* a **host firewall** in the image. Getting the first one
+right proves nothing about the second.
+
+Ubuntu cloud images can arrive with `ufw` **already active and allowing only SSH**. The
+failure mode is quiet and misleading: the provider rules list 80/443 as open, the service
+is listening, `curl` from the host itself returns 200 — and every external request times
+out with no log line anywhere, because packets are dropped before nginx sees them.
+
+Check `ufw status` (or `nft list ruleset`) on the host before concluding that a
+provider-side rule did not take effect. Open the same ports at both layers.
+
+Note `ufw --force` applies to `enable`/`reset`/`delete`, **not** to `allow`; passing it to
+`allow` fails with `ERROR: Invalid syntax`, which under `set -e` aborts the script and can
+look like the rule was rejected.
+
+### Verify
+
+Beyond the four pre-release gates, a new host needs:
+
+- **A real boot.** NestJS DI and module-wiring errors throw only at bootstrap. Look for
+  `Nest application successfully started`, not merely an `active` unit.
+- The API **from outside the host**, over the public name — not merely on the loopback
+  port, which succeeds even when a host firewall is dropping every external packet.
+- The API through **nginx**, not just on the app's port. Give the reload a moment —
+  probing instantly after `systemctl reload` can 404 while the old workers drain.
+- Row counts matching the old host, table by table.
+- Any endpoint you assume exists — health paths in particular are frequently *not*
+  what a runbook remembers.
+
+### Couplings that break on a move
+
+Anything the old host reached over **loopback** is a coupling that dies silently: it
+will not fail at boot, only at first use. Enumerate every `127.0.0.1` and `localhost`
+in the environment file and decide, one at a time, whether that dependency moves too or
+gets repointed at a public endpoint. Repointing means the new host now depends on the
+old one staying up — which may be fine, but should be a decision rather than a
+discovery.
+
+---
+
 ## Host inventory
 
 Actual hosts are **not** recorded in this repository. Create `ops/hosts.local.md`
