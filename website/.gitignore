@@ -18,3 +18,9 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Atomic publishing: nginx serves ./current -> ./releases/<timestamp>, and ./build
+# is unserved staging. current/releases are generated output for the same reason
+# build is, but /build does not match them.
+/releases/
+/current
