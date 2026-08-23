@@ -59,15 +59,29 @@ type Report struct {
 	Findings  []Finding
 }
 
-// OSInfo identifies the distribution.
+// OSInfo identifies the operating system.
 type OSInfo struct {
-	// ID and VersionID come from /etc/os-release: "ubuntu", "24.04".
+	// ID and VersionID come from /etc/os-release on Linux ("ubuntu", "24.04").
+	// On Windows, ID is "windows" and VersionID is the display version ("23H2").
 	ID        string
 	VersionID string
 	// Name is the pretty name, for display.
 	Name string
-	// Supported is whether the first release targets this distribution.
+	// Supported is whether the first release targets this system.
 	Supported bool
+	// Build is the OS build number, where the platform has one that decides
+	// support. Windows support is a build question — the version string on a
+	// Windows 11 host still reads "Windows 10" — and zero on Linux.
+	Build int
+	// Edition is the Windows edition ("Pro", "Server Standard"). Empty on Linux.
+	Edition string
+	// UnsupportedReason explains a false Supported in the operator's terms.
+	//
+	// Carried rather than derived at display time because the reasons are not
+	// interchangeable: "Windows Server is recognised but untested" and "Windows
+	// 10 is out of scope" lead to different decisions, and a single "not
+	// supported" would hide which one applies.
+	UnsupportedReason string
 }
 
 // Arch is the CPU architecture, in Go/Docker naming.
@@ -83,10 +97,18 @@ const (
 )
 
 // UserInfo is who is running the installer and what they can do.
+//
+// The Linux-shaped fields stay Linux-shaped rather than being flattened into
+// one privilege level: "root", "passwordless sudo" and "docker group" lead to
+// three different remedies, and a boolean would erase that. Elevated is the
+// neutral summary for shared code that only needs to know whether privileged
+// changes are possible at all.
 type UserInfo struct {
 	Username string
-	UID      int
-	IsRoot   bool
+	// UID is the effective uid on Unix, and -1 on Windows, which has no
+	// equivalent — a zero there would read as root.
+	UID    int
+	IsRoot bool
 	// CanSudo means passwordless sudo answered. A password-prompting sudo is
 	// deliberately NOT probed — doing so would hang an unattended run on a
 	// prompt nobody is there to answer.
@@ -95,6 +117,13 @@ type UserInfo struct {
 	// which is root-equivalent. Recorded so the installer can say so rather
 	// than quietly relying on it.
 	InDockerGroup bool
+	// Elevated means privileged changes are possible right now: root or
+	// passwordless sudo on Linux, an elevated token on Windows.
+	//
+	// On Windows this is deliberately NOT "is a member of Administrators".
+	// With UAC on, an administrator's ordinary process holds a filtered token
+	// and cannot write to ProgramData, set an ACL or add a firewall rule.
+	Elevated bool
 }
 
 // DockerInfo is the engine's state.

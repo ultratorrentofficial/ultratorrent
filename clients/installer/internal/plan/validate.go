@@ -2,7 +2,6 @@ package plan
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 )
 
@@ -51,16 +50,31 @@ func (p *Plan) Validate() []Problem {
 			SchemaVersion, p.SchemaVersion), true)
 	}
 
+	// --- Target ------------------------------------------------------------
+	//
+	// Checked first, because every host-path rule below is asked of it. An
+	// empty target is a plan written before this field existed or by hand;
+	// defaulting it silently would validate Windows paths against Linux rules.
+	target := p.TargetOS
+	if !target.Valid() {
+		if target == "" {
+			add("targetOs", "a target operating system is required (linux or windows)", true)
+		} else {
+			add("targetOs", fmt.Sprintf("unknown target operating system %q", target), true)
+		}
+		// Continue with the running platform's rules so the operator sees the
+		// rest of the plan's problems in the same pass rather than one at a time.
+		target = DefaultTargetOS()
+	}
+
 	// --- Install directory -------------------------------------------------
-	switch {
-	case p.InstallDirectory == "":
+	if p.InstallDirectory == "" {
 		add("installDirectory", "an installation directory is required", true)
-	case !filepath.IsAbs(p.InstallDirectory):
-		// A relative path would resolve against whatever directory the installer
-		// happened to be run from, which is not something the operator chose.
-		add("installDirectory", "must be an absolute path", true)
-	case strings.Contains(p.InstallDirectory, ".."):
-		add("installDirectory", "must not contain '..'", true)
+	} else if problem := target.HostPathProblem(p.InstallDirectory); problem != "" {
+		// "Absolute" is asked of the TARGET, not of the build: a relative path
+		// would resolve against whatever directory the installer happened to be
+		// run from, which is not something the operator chose.
+		add("installDirectory", problem, true)
 	}
 
 	// --- Networking --------------------------------------------------------
@@ -149,16 +163,15 @@ func (p *Plan) Validate() []Problem {
 					"the path would be ignored", true)
 		}
 	case StorageBind:
-		switch {
-		case p.Storage.MediaRoot == "":
+		if p.Storage.MediaRoot == "" {
 			add("storage.mediaRoot", "a host path is required for bind storage", true)
-		case !filepath.IsAbs(p.Storage.MediaRoot):
-			add("storage.mediaRoot", "must be an absolute path", true)
-		case strings.Contains(p.Storage.MediaRoot, ".."):
-			add("storage.mediaRoot", "must not contain '..'", true)
+		} else if problem := target.HostPathProblem(p.Storage.MediaRoot); problem != "" {
+			add("storage.mediaRoot", problem, true)
+		} else if advisory := target.HostPathAdvisory(p.Storage.MediaRoot); advisory != "" {
+			add("storage.mediaRoot", advisory, false)
 		}
 		if p.Storage.MediaRoot != "" && p.InstallDirectory != "" &&
-			withinPath(p.InstallDirectory, p.Storage.MediaRoot) {
+			target.WithinHostPath(p.InstallDirectory, p.Storage.MediaRoot) {
 			// Application configuration and media on the same tree means a
 			// reinstall, a permissions change or a cleanup reaches both.
 			add("storage.mediaRoot", "sits inside the installation directory — keep "+
@@ -292,16 +305,6 @@ func isSafeIdentifier(s string) bool {
 		}
 	}
 	return true
-}
-
-// withinPath reports whether child is inside parent.
-//
-// Compares cleaned paths with a separator appended, so `/opt/ultratorrent-data`
-// is not treated as living inside `/opt/ultratorrent`.
-func withinPath(parent, child string) bool {
-	p := filepath.Clean(parent) + string(filepath.Separator)
-	c := filepath.Clean(child) + string(filepath.Separator)
-	return strings.HasPrefix(c, p)
 }
 
 func isLoopbackURL(u string) bool {

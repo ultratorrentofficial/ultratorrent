@@ -87,6 +87,13 @@ type Plan struct {
 	CreatedAt time.Time `json:"createdAt"`
 
 	Mode Mode `json:"mode"`
+	// TargetOS is the operating system this plan will be applied to.
+	//
+	// Recorded rather than inferred at apply time, because every host path in
+	// the plan is only meaningful against one of them — and because `filepath`
+	// answers for the machine the BINARY was built for, which is not
+	// necessarily the machine the plan describes. See target.go.
+	TargetOS TargetOS `json:"targetOs"`
 	// InstallDirectory holds the Compose file, .env, generated overrides and
 	// installer state. Deliberately not where media lives.
 	InstallDirectory string `json:"installDirectory"`

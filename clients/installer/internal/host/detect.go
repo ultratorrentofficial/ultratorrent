@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/user"
+	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
 // Detector gathers a Report. Its dependencies are injected so the logic can be
@@ -28,6 +25,18 @@ type Detector struct {
 	DialRegistry func(ctx context.Context) bool
 	// Statfs reports free/total bytes for a path.
 	Statfs func(path string) (free, total int64, err error)
+	// Platform supplies the per-OS half of detection. Injected like everything
+	// else here, so a Linux build can exercise the Windows rules: nil means
+	// "the platform this binary is running on".
+	Platform Platform
+}
+
+// plat returns the platform to detect with, defaulting to this binary's own.
+func (d *Detector) plat() Platform {
+	if d.Platform != nil {
+		return d.Platform
+	}
+	return DefaultPlatform(runtime.GOOS)
 }
 
 // NewDetector builds a Detector wired to the real system.
@@ -38,6 +47,7 @@ func NewDetector() *Detector {
 		LookupPort:   PortIsFree,
 		DialRegistry: registryReachable,
 		Statfs:       diskFree,
+		Platform:     DefaultPlatform(runtime.GOOS),
 	}
 }
 
@@ -53,17 +63,21 @@ func NewDetector() *Detector {
 func (d *Detector) Detect(ctx context.Context, installDir string, wantPorts []PortStatus) *Report {
 	r := &Report{}
 
+	plat := d.plat()
+
 	// --- OS -----------------------------------------------------------------
-	osRelease, _ := d.ReadFile("/etc/os-release")
-	r.OS = DetectOS(string(osRelease))
+	r.OS = plat.DetectOS(d.ReadFile)
 	r.Arch = DetectArch()
 
-	// --- Privileges ---------------------------------------------------------
-	r.User = d.detectUser(ctx)
-
 	// --- Docker -------------------------------------------------------------
+	//
+	// Before privileges, because on Linux "in the docker group with a running
+	// daemon" is itself a privilege level and the platform needs to know.
 	r.Docker = DetectDocker(ctx, d.Runner)
 	r.Compose = DetectCompose(ctx, d.Runner)
+
+	// --- Privileges ---------------------------------------------------------
+	r.User = plat.DetectPrivileges(ctx, d.Runner, r.Docker)
 
 	// --- Resources ----------------------------------------------------------
 	r.Resources = d.detectResources(installDir)
@@ -81,37 +95,9 @@ func (d *Detector) Detect(ctx context.Context, installDir string, wantPorts []Po
 	return r
 }
 
-func (d *Detector) detectUser(ctx context.Context) UserInfo {
-	info := UserInfo{UID: os.Geteuid()}
-	info.IsRoot = info.UID == 0
-	if u, err := user.Current(); err == nil {
-		info.Username = u.Username
-		if groups, err := u.GroupIds(); err == nil {
-			for _, gid := range groups {
-				if g, err := user.LookupGroupId(gid); err == nil && g.Name == "docker" {
-					info.InDockerGroup = true
-				}
-			}
-		}
-	}
-	if !info.IsRoot {
-		// `-n` is essential: without it sudo prompts for a password and an
-		// unattended run hangs on a prompt nobody will answer.
-		if _, err := d.Runner.Run(ctx, "sudo", "-n", "true"); err == nil {
-			info.CanSudo = true
-		}
-	}
-	return info
-}
-
 func (d *Detector) detectResources(installDir string) Resources {
 	res := Resources{CPUCount: runtime.NumCPU()}
-
-	if meminfo, err := d.ReadFile("/proc/meminfo"); err == nil {
-		if total, err := ParseMemTotal(string(meminfo)); err == nil {
-			res.MemoryBytes = total
-		}
-	}
+	res.MemoryBytes = d.plat().MemoryBytes(d.ReadFile)
 
 	// Measure the nearest existing ancestor: the install directory usually does
 	// not exist yet, and statfs on a missing path fails. Its parent is on the
@@ -153,22 +139,27 @@ func (d *Detector) detectNetwork(ctx context.Context) NetworkInfo {
 
 // evaluate turns raw detection into findings an operator can act on.
 func (d *Detector) evaluate(r *Report) {
+	plat := d.plat()
+
 	// --- Operating system ---------------------------------------------------
 	switch {
 	case r.OS.ID == "":
 		r.Add(Finding{Label: "Operating system", Value: "unknown", Level: LevelWarn,
-			Detail: "/etc/os-release could not be read, so the distribution is unknown",
+			Detail: "the operating system could not be identified",
 			Remedy: "Docker must already be installed and running on this host"})
 	case r.OS.Supported:
 		r.Add(Finding{Label: "Operating system", Value: r.OS.Name, Level: LevelOK})
 	default:
 		// Not fatal on its own. The real requirement is Docker; an unsupported
-		// distribution with Docker already running deploys this stack fine.
-		// What it cannot do is have the installer install Docker for it, which
-		// the Docker finding below says separately.
+		// system with Docker already running deploys this stack fine. What it
+		// cannot do is have the installer install Docker for it, which the
+		// Docker finding below says separately.
+		detail := "not a system this installer can install Docker on"
+		if r.OS.UnsupportedReason != "" {
+			detail = r.OS.UnsupportedReason
+		}
 		r.Add(Finding{Label: "Operating system", Value: r.OS.Name, Level: LevelWarn,
-			Detail: "not a distribution this installer can install Docker on",
-			Remedy: "supported: Ubuntu and Debian. Install Docker yourself and re-run"})
+			Detail: detail, Remedy: plat.Remedy(RemedySupportedOS)})
 	}
 
 	// --- Architecture -------------------------------------------------------
@@ -181,46 +172,33 @@ func (d *Detector) evaluate(r *Report) {
 	}
 
 	// --- Privileges ---------------------------------------------------------
-	switch {
-	case r.User.IsRoot:
-		r.Add(Finding{Label: "Privileges", Value: "root", Level: LevelOK})
-	case r.User.CanSudo:
-		r.Add(Finding{Label: "Privileges", Value: r.User.Username + " (sudo)", Level: LevelOK})
-	case r.User.InDockerGroup && r.Docker.DaemonRunning:
-		// Enough to deploy, not enough to install Docker. Said plainly, with the
-		// implication stated: docker group membership is root-equivalent, and an
-		// operator should know that rather than have the installer rely on it
-		// silently.
-		r.Add(Finding{Label: "Privileges", Value: r.User.Username + " (docker group)", Level: LevelWarn,
-			Detail: "can deploy but cannot install packages; docker group access is " +
-				"equivalent to root on this host",
-			Remedy: "run with sudo if Docker or directories need to be created"})
-	default:
-		r.Add(Finding{Label: "Privileges", Value: r.User.Username, Level: LevelFail,
-			Detail: "installing Docker, creating directories and managing containers need root",
-			Remedy: "re-run with sudo"})
-	}
+	//
+	// The only finding the platform renders whole: root / sudo / docker-group
+	// and an elevation token are different enough that one shared switch would
+	// be a switch on the platform anyway.
+	r.Add(plat.PrivilegeFinding(r.User, r.Docker))
 
 	// --- Docker -------------------------------------------------------------
+	canInstall := plat.CanInstallDocker(r.OS)
 	switch {
 	case !r.Docker.Installed:
-		if r.OS.Supported {
+		if canInstall {
 			r.Add(Finding{Label: "Docker", Value: "not installed", Level: LevelAction})
 		} else {
 			r.Add(Finding{Label: "Docker", Value: "not installed", Level: LevelFail,
 				Detail: "and this installer cannot install it on " + displayOS(r.OS),
-				Remedy: "install Docker Engine and the Compose plugin, then re-run"})
+				Remedy: plat.Remedy(RemedyInstallDocker)})
 		}
 	case !r.Docker.DaemonRunning:
 		// A different problem from "not installed", with a different fix.
 		r.Add(Finding{Label: "Docker", Value: "installed, daemon not responding", Level: LevelFail,
 			Detail: "the CLI is present but the daemon did not answer",
-			Remedy: "sudo systemctl start docker — then re-run"})
+			Remedy: plat.Remedy(RemedyStartDocker)})
 	case !r.Docker.MeetsMinimum:
 		r.Add(Finding{Label: "Docker", Value: r.Docker.Version, Level: LevelFail,
 			Detail: fmt.Sprintf("this stack needs Docker %s or newer for health-gated "+
 				"startup and Compose profiles", MinDockerVersion),
-			Remedy: "upgrade Docker Engine, then re-run"})
+			Remedy: plat.Remedy(RemedyUpgradeDocker)})
 	default:
 		r.Add(Finding{Label: "Docker", Value: r.Docker.Version, Level: LevelOK})
 	}
@@ -231,13 +209,13 @@ func (d *Detector) evaluate(r *Report) {
 		r.Add(Finding{Label: "Docker Compose", Value: "v1 (" + r.Compose.Version + ")", Level: LevelFail,
 			Detail: "the standalone docker-compose predates the Compose Specification and " +
 				"ignores profiles — the stack would start without the engine you selected",
-			Remedy: "install the Compose v2 plugin (docker-compose-plugin)"})
+			Remedy: plat.Remedy(RemedyInstallCompose)})
 	case !r.Compose.Installed:
-		if r.OS.Supported {
+		if canInstall {
 			r.Add(Finding{Label: "Docker Compose", Value: "not installed", Level: LevelAction})
 		} else {
 			r.Add(Finding{Label: "Docker Compose", Value: "not installed", Level: LevelFail,
-				Remedy: "install the Docker Compose plugin, then re-run"})
+				Remedy: plat.Remedy(RemedyInstallCompose)})
 		}
 	case !r.Compose.MeetsMinimum:
 		r.Add(Finding{Label: "Docker Compose", Value: r.Compose.Version, Level: LevelFail,
@@ -323,20 +301,23 @@ func displayOS(o OSInfo) string {
 // created on, which is the free space that actually matters.
 func existingAncestor(path string) string {
 	if path == "" {
-		return "/"
+		path = "."
 	}
-	for p := path; ; {
+	// filepath, not a hand-rolled walk on '/': this measures the filesystem of
+	// the machine the installer is running on, so the build target's own path
+	// rules are the correct ones — and `C:\ProgramData\UltraTorrent` has no
+	// slash to find, so the previous version returned "/" and measured the
+	// wrong volume on every Windows host.
+	for p := filepath.Clean(path); ; {
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}
-		parent := p[:strings.LastIndexByte(p, '/')+1]
-		if parent == "" || parent == "/" || parent == p {
-			return "/"
+		parent := filepath.Dir(p)
+		if parent == p {
+			// The volume root: "/" on Unix, "C:\" on Windows. Nothing above it.
+			return p
 		}
-		p = strings.TrimSuffix(parent, "/")
-		if p == "" {
-			return "/"
-		}
+		p = parent
 	}
 }
 
@@ -365,14 +346,4 @@ func registryReachable(ctx context.Context) bool {
 	}
 	conn.Close()
 	return true
-}
-
-func diskFree(path string) (free, total int64, err error) {
-	var stat unix.Statfs_t
-	if err := unix.Statfs(path, &stat); err != nil {
-		return 0, 0, err
-	}
-	// Bavail, not Bfree: Bfree counts blocks reserved for root, which an
-	// installation running as a normal user cannot actually use.
-	return int64(stat.Bavail) * int64(stat.Bsize), int64(stat.Blocks) * int64(stat.Bsize), nil
 }

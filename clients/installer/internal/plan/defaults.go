@@ -17,6 +17,12 @@ import (
 const (
 	// DefaultInstallDirectory follows the FHS convention for add-on software.
 	DefaultInstallDirectory = "/opt/ultratorrent"
+	// DefaultInstallDirectoryWindows is ProgramData rather than Program Files:
+	// this directory holds configuration, generated overrides, state and logs
+	// that change constantly, which is what ProgramData is for. Program Files
+	// is for executables and is protected in a way that fights daily writes.
+	// Not a user profile either — the deployment outlives any one login.
+	DefaultInstallDirectoryWindows = `C:\ProgramData\UltraTorrent`
 
 	// DefaultFrontendPort matches FRONTEND_PORT in docker-compose.yml.
 	DefaultFrontendPort = 8080
@@ -38,6 +44,11 @@ const (
 	// served by this machine, and nothing here assumes a NAS layout, a mount
 	// point, or any particular media server.
 	DefaultMediaRoot = "/srv/ultratorrent/media"
+	// DefaultMediaRootWindows stays on the system drive deliberately. A default
+	// of D:\Media would be a guess about hardware — and a wrong guess creates a
+	// directory on whatever D: happens to be, or fails on a machine that has no
+	// D: at all. The wizard asks; this is only what it starts from.
+	DefaultMediaRootWindows = `C:\UltraTorrent\Media`
 
 	// DefaultStagingPath is inside the shared tree, because intake must be able
 	// to move a finished download into a library — and a move across
@@ -46,17 +57,44 @@ const (
 	DefaultProfileName = "Default"
 )
 
+// DefaultInstallDirectoryFor is the install directory for a target.
+func DefaultInstallDirectoryFor(t TargetOS) string {
+	if t == TargetWindows {
+		return DefaultInstallDirectoryWindows
+	}
+	return DefaultInstallDirectory
+}
+
+// DefaultMediaRootFor is the media root for a target.
+func DefaultMediaRootFor(t TargetOS) string {
+	if t == TargetWindows {
+		return DefaultMediaRootWindows
+	}
+	return DefaultMediaRoot
+}
+
 // Recommended returns a plan pre-filled with safe defaults.
 //
 // The wizard starts here and overwrites what the user chooses, so an unanswered
 // question always lands on the documented default rather than a zero value.
+//
+// Defaults follow the plan's target, not the running binary: every host path
+// below is meaningless on the other platform, and a plan that started with
+// /opt/ultratorrent for a Windows install would have to be corrected field by
+// field before it validated.
 func Recommended(installerVersion string) *Plan {
+	return RecommendedFor(installerVersion, DefaultTargetOS())
+}
+
+// RecommendedFor is Recommended for an explicit target.
+func RecommendedFor(installerVersion string, target TargetOS) *Plan {
 	return &Plan{
 		SchemaVersion:    SchemaVersion,
 		InstallerVersion: installerVersion,
 		CreatedAt:        time.Now().UTC(),
 		Mode:             ModeRecommended,
-		InstallDirectory: DefaultInstallDirectory,
+		TargetOS:         target,
+		InstallDirectory: DefaultInstallDirectoryFor(target),
 		Networking: Networking{
 			FrontendPort: DefaultFrontendPort,
 		},

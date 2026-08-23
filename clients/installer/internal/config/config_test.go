@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1058,5 +1059,37 @@ func TestNoCaddyfileWithoutTheBundledProxy(t *testing.T) {
 	p.Finalize()
 	if fileNamed(Render(p, s), proxy.CaddyfileName) != nil {
 		t.Error("a Caddyfile was generated for an installation that deploys no proxy")
+	}
+}
+
+// TestGenerationRefusesAWindowsTargetForNow pins an honest limitation.
+//
+// A Windows plan is a valid document and validates fine — but every volume this
+// generator writes binds a host path through Docker's local driver, which is a
+// Linux mount performed inside the Docker VM. Writing that YAML for a Windows
+// host would produce a stack that starts and silently stores everything
+// somewhere the operator never named, which is worse than any error.
+func TestGenerationRefusesAWindowsTargetForNow(t *testing.T) {
+	p := plan.RecommendedFor("test", plan.TargetWindows)
+	p.Finalize()
+
+	err := CheckTarget(p)
+	if err == nil {
+		t.Fatal("generating for a Windows target must refuse until the volume form is settled")
+	}
+	if !errors.Is(err, ErrTargetNotImplemented) {
+		t.Errorf("callers need to recognise this: %v", err)
+	}
+	// The message has to name the reason and where it is tracked, or the next
+	// person reads it as "Windows is not supported" and stops.
+	for _, want := range []string{"plan a Windows installation", "Docker Desktop", "W3"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("message should mention %q: %v", want, err)
+		}
+	}
+
+	// A Linux plan is unaffected.
+	if err := CheckTarget(plan.Recommended("test")); err != nil {
+		t.Errorf("a Linux target must still generate: %v", err)
 	}
 }

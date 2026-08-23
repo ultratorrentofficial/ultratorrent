@@ -3,6 +3,8 @@ package host
 import (
 	"context"
 	"errors"
+	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -411,8 +413,38 @@ func TestExistingAncestorWalksUp(t *testing.T) {
 	if got := existingAncestor("/"); got != "/" {
 		t.Errorf("root should resolve to itself, got %q", got)
 	}
-	if got := existingAncestor(""); got != "/" {
-		t.Errorf("empty should resolve to /, got %q", got)
+	// An empty path resolves to something that exists rather than to "/", which
+	// is not a path on every supported platform. The contract is "a directory
+	// whose filesystem can be measured", not "the Unix root".
+	got := existingAncestor("")
+	if got == "" {
+		t.Fatal("empty must still resolve to something")
+	}
+	if _, err := os.Stat(got); err != nil {
+		t.Errorf("existingAncestor(%q) = %q, which does not exist: %v", "", got, err)
+	}
+}
+
+// TestExistingAncestorWalksAWindowsPath is the regression the platform seam
+// exposed.
+//
+// The previous implementation searched for the last '/' in the path. A Windows
+// install directory contains none, so it fell straight through to "/" and
+// measured free space on the wrong volume — on every Windows host, silently,
+// reporting a plausible number. Asserting it no longer returns a Unix root for
+// a drive-letter path catches that on any build.
+func TestExistingAncestorWalksAWindowsPath(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		// filepath is the build target's, so a Windows path is opaque here —
+		// what must hold is that it is not silently rewritten to the Unix root.
+		if got := existingAncestor(`C:\ProgramData\UltraTorrent`); got == "/" {
+			t.Error("a drive-letter path must not resolve to the Unix root")
+		}
+		return
+	}
+	got := existingAncestor(`C:\ProgramData\UltraTorrent\definitely\not\here`)
+	if _, err := os.Stat(got); err != nil {
+		t.Errorf("existingAncestor = %q, which does not exist: %v", got, err)
 	}
 }
 

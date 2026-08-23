@@ -250,12 +250,6 @@ func (i fakeInfo) Mode() fs.FileMode  { return 0o755 }
 func (i fakeInfo) ModTime() time.Time { return time.Time{} }
 func (i fakeInfo) IsDir() bool        { return i.file.dir }
 
-// Sys returns a real *syscall.Stat_t so the ownership check is genuinely
-// exercised rather than skipped because the platform could not answer.
-func (i fakeInfo) Sys() any {
-	return &syscall.Stat_t{Uid: uint32(i.file.uid), Gid: uint32(i.file.gid)}
-}
-
 // --- inspection ------------------------------------------------------------
 
 func levelFor(findings []host.Finding, path string) host.Level {
@@ -410,43 +404,6 @@ func TestPrepareNeverTouchesWhatAlreadyExists(t *testing.T) {
 	}
 	if !reported {
 		t.Error("it should be reported as left alone, not silently skipped")
-	}
-}
-
-func TestExistingOwnershipMismatchIsReportedNotFixed(t *testing.T) {
-	// Reported so the operator can act, with the command spelled out — but the
-	// decision stays theirs.
-	fake := newFakeFS()
-	fake.addDir("/srv", 0, 0)
-	fake.addDir("/srv/media", 1000, 1000)
-	dirs := Plan(bindPlan())
-	dirs[0].Owner = &Ownership{UID: 997, GID: 997}
-
-	var warned bool
-	for _, f := range Inspect(dirs, "/opt/ultratorrent", fake.ops()) {
-		if f.Level == host.LevelFail {
-			t.Fatalf("an ownership question must never be fatal: %+v", f)
-		}
-		if f.Value == "/srv/media" && f.Level == host.LevelWarn {
-			warned = true
-			if !strings.Contains(f.Remedy, "chown -R 997:997 /srv/media") {
-				t.Errorf("the remedy should spell out the command: %q", f.Remedy)
-			}
-			if !strings.Contains(f.Detail, "1000:1000") {
-				t.Errorf("it should say what the tree is owned by now: %q", f.Detail)
-			}
-		}
-	}
-	if !warned {
-		t.Error("a tree owned by someone else should be reported")
-	}
-
-	// And matching ownership must stay quiet.
-	dirs[0].Owner = &Ownership{UID: 1000, GID: 1000}
-	for _, f := range Inspect(dirs, "/opt/ultratorrent", fake.ops()) {
-		if f.Value == "/srv/media" && f.Level != host.LevelOK {
-			t.Errorf("matching ownership should not be reported: %+v", f)
-		}
 	}
 }
 

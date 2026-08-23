@@ -44,6 +44,7 @@ Flags:
   --dry-run           Produce and show the plan, then stop without changing anything
   --output FILE       Write the plan as JSON (never contains secrets)
   --json              Print the plan as JSON instead of the review screen
+  --target OS         Target operating system: linux | windows (default: this host)
   --install-dir PATH  Installation directory (default %s)
   --port N            Host port for the web UI (default %d)
   --engine NAME       qbittorrent | rtorrent | external | none (default qbittorrent)
@@ -85,6 +86,7 @@ func run(args []string) error {
 		dryRun       = fs.Bool("dry-run", false, "produce the plan and stop")
 		output       = fs.String("output", "", "write the plan as JSON to this file")
 		asJSON       = fs.Bool("json", false, "print the plan as JSON")
+		target       = fs.String("target", "", "target operating system: linux | windows")
 		installDir   = fs.String("install-dir", plan.DefaultInstallDirectory, "installation directory")
 		port         = fs.Int("port", plan.DefaultFrontendPort, "host port for the web UI")
 		engine       = fs.String("engine", string(plan.EngineQbittorrent), "torrent engine")
@@ -113,7 +115,7 @@ func run(args []string) error {
 		return nil
 
 	case "plan":
-		p, err := build(buildOpts{*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
+		p, err := build(buildOpts{*target, *installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
 		if err != nil {
 			return err
 		}
@@ -123,7 +125,7 @@ func run(args []string) error {
 		return emit(p, *asJSON, *output)
 
 	case "generate":
-		p, err := build(buildOpts{*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
+		p, err := build(buildOpts{*target, *installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
 		if err != nil {
 			return err
 		}
@@ -138,7 +140,7 @@ func run(args []string) error {
 		return generate(p, *dryRun)
 
 	case "install":
-		p, err := build(buildOpts{*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
+		p, err := build(buildOpts{*target, *installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
 		if err != nil {
 			return err
 		}
@@ -183,6 +185,7 @@ func run(args []string) error {
 // struct, so everything downstream is already exercised.
 // buildOpts are the wizard's answers, standing in for the wizard for now.
 type buildOpts struct {
+	target       string
 	installDir   string
 	port         int
 	engine       string
@@ -200,7 +203,26 @@ func build(o buildOpts) (*plan.Plan, error) {
 	installDir, port, engine, mediaRoot := o.installDir, o.port, o.engine, o.mediaRoot
 	prowlarr, flare, puid, pgid := o.prowlarr, o.flare, o.puid, o.pgid
 
-	p := plan.Recommended(version)
+	/*
+	 * The target decides every default below it, so it is resolved first.
+	 * `--target windows` from a Linux box is a supported thing to do: a plan is
+	 * a document, and authoring one for the machine you are about to walk over
+	 * to is exactly what saving and reviewing a plan is for.
+	 */
+	target := plan.DefaultTargetOS()
+	if o.target != "" {
+		target = plan.TargetOS(strings.ToLower(o.target))
+		if !target.Valid() {
+			return nil, fmt.Errorf("unknown target %q — expected linux or windows", o.target)
+		}
+	}
+
+	p := plan.RecommendedFor(version, target)
+	// An install directory left at the flag's own default belongs to the
+	// platform the binary was built for, not to the target that was asked for.
+	if installDir == "" || installDir == plan.DefaultInstallDirectory {
+		installDir = plan.DefaultInstallDirectoryFor(target)
+	}
 	p.InstallDirectory = installDir
 	p.Networking.FrontendPort = port
 	p.Networking.PublicURL = o.publicURL
@@ -272,6 +294,10 @@ func review(p *plan.Plan) string {
 
 	fmt.Fprintf(w, "\nInstallation Plan\n\n")
 	fmt.Fprintf(w, "UltraTorrent\n")
+	// Shown on every plan, not only a cross-platform one: the host paths below
+	// only mean anything against a target, and a review screen that omitted it
+	// would be ambiguous exactly when it mattered.
+	fmt.Fprintf(w, "  Target\t%s\n", p.TargetOS)
 	fmt.Fprintf(w, "  Install path\t%s\n", p.InstallDirectory)
 	fmt.Fprintf(w, "  Web port\t%d\n", p.Networking.FrontendPort)
 	if p.Networking.PublicURL != "" {
@@ -382,6 +408,12 @@ func inspect(p *plan.Plan) *host.Report {
 // who prefers to run `docker compose` themselves gets correct, complete
 // configuration without handing the installer control of their stack.
 func generate(p *plan.Plan, dryRun bool) error {
+	// Refused before a single file is touched, and before secrets are even
+	// resolved: a half-written installation directory for a target this build
+	// cannot finish is worse than a clear refusal.
+	if err := config.CheckTarget(p); err != nil {
+		return err
+	}
 	writer := &config.Writer{Dir: p.InstallDirectory, DryRun: dryRun}
 
 	secrets, reused, err := resolveSecrets(p.InstallDirectory)
