@@ -83,3 +83,7 @@ apps/backend/.bootcheck/
 
 # Installer build output — binaries are built, never committed.
 clients/installer/dist/
+
+# Python bytecode cache (ops/scripts has .py helpers; running one leaves this behind)
+__pycache__/
+*.py[cod]
