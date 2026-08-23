@@ -37,9 +37,9 @@ const (
 
 // Finding is one line of the system check.
 type Finding struct {
-	Label  string
-	Value  string
-	Level  Level
+	Label string
+	Value string
+	Level Level
 	// Detail explains a warning or failure in the operator's terms.
 	Detail string
 	// Remedy is what to do about it, when there is something to do.

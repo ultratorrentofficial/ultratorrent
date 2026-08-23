@@ -80,7 +80,7 @@ const (
 
 // Plan is the complete, validated description of an installation.
 type Plan struct {
-	SchemaVersion int    `json:"schemaVersion"`
+	SchemaVersion    int    `json:"schemaVersion"`
 	InstallerVersion string `json:"installerVersion"`
 	// CreatedAt is stamped when the wizard finishes, for the review screen and
 	// for the header of every generated file.
@@ -124,10 +124,10 @@ type Plan struct {
 // plan carries it so the review screen and a saved plan record the machine the
 // decisions were made against.
 type Host struct {
-	OS           string `json:"os,omitempty"`
-	OSVersion    string `json:"osVersion,omitempty"`
-	Architecture string `json:"architecture,omitempty"`
-	Hostname     string `json:"hostname,omitempty"`
+	OS             string `json:"os,omitempty"`
+	OSVersion      string `json:"osVersion,omitempty"`
+	Architecture   string `json:"architecture,omitempty"`
+	Hostname       string `json:"hostname,omitempty"`
 	DockerVersion  string `json:"dockerVersion,omitempty"`
 	ComposeVersion string `json:"composeVersion,omitempty"`
 	// WillInstallDocker records that the executor is expected to install it, so
@@ -225,9 +225,9 @@ type Intake struct {
 
 // Companions are the optional side containers.
 type Companions struct {
-	Prowlarr           bool `json:"prowlarr"`
-	ProwlarrPort       int  `json:"prowlarrPort,omitempty"`
-	PublishProwlarrUI  bool `json:"publishProwlarrUi,omitempty"`
+	Prowlarr          bool `json:"prowlarr"`
+	ProwlarrPort      int  `json:"prowlarrPort,omitempty"`
+	PublishProwlarrUI bool `json:"publishProwlarrUi,omitempty"`
 	// FlareSolverr is only meaningful alongside Prowlarr, and is never
 	// published: Prowlarr reaches it over the internal network.
 	FlareSolverr bool `json:"flaresolverr"`
