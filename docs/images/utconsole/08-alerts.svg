@@ -23,18 +23,18 @@
 <text x="30.8" y="117.3" fill="#808080" xml:space="preserve">  ↳ Imports are not completing.</text>
 <text x="1265.6" y="117.3" fill="#ff5f5f" xml:space="preserve">│</text>
 <text x="14.0" y="135.3" fill="#ff5f5f" xml:space="preserve">│</text>
-<text x="30.8" y="135.3" fill="#ffaf00" xml:space="preserve">▲ Indexer Ako last tested as failing</text>
+<text x="30.8" y="135.3" fill="#ffaf00" xml:space="preserve">▲ Indexer Vex last tested as failing</text>
 <text x="333.2" y="135.3" fill="#808080" xml:space="preserve">  [indexers] since 29d 6h ago</text>
 <text x="1265.6" y="135.3" fill="#ff5f5f" xml:space="preserve">│</text>
 <text x="14.0" y="153.3" fill="#ff5f5f" xml:space="preserve">│</text>
-<text x="30.8" y="153.3" fill="#808080" xml:space="preserve">  ↳ Indexer &quot;Ako&quot; request failed: HTTP 429</text>
+<text x="30.8" y="153.3" fill="#808080" xml:space="preserve">  ↳ Indexer &quot;Vex&quot; request failed: HTTP 429</text>
 <text x="1265.6" y="153.3" fill="#ff5f5f" xml:space="preserve">│</text>
 <text x="14.0" y="171.3" fill="#ff5f5f" xml:space="preserve">│</text>
-<text x="30.8" y="171.3" fill="#ffaf00" xml:space="preserve">▲ Indexer Hub last tested as failing</text>
+<text x="30.8" y="171.3" fill="#ffaf00" xml:space="preserve">▲ Indexer Lum last tested as failing</text>
 <text x="333.2" y="171.3" fill="#808080" xml:space="preserve">  [indexers] since 29d 6h ago</text>
 <text x="1265.6" y="171.3" fill="#ff5f5f" xml:space="preserve">│</text>
 <text x="14.0" y="189.3" fill="#ff5f5f" xml:space="preserve">│</text>
-<text x="30.8" y="189.3" fill="#808080" xml:space="preserve">  ↳ Indexer &quot;Hub&quot; request failed: HTTP 429</text>
+<text x="30.8" y="189.3" fill="#808080" xml:space="preserve">  ↳ Indexer &quot;Lum&quot; request failed: HTTP 429</text>
 <text x="1265.6" y="189.3" fill="#ff5f5f" xml:space="preserve">│</text>
 <text x="14.0" y="207.3" fill="#ff5f5f" xml:space="preserve">│</text>
 <text x="30.8" y="207.3" fill="#ffaf00" xml:space="preserve">▲ 5 download(s) are stalled</text>

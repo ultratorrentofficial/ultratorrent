@@ -143,26 +143,22 @@ def parse(text: str):
 # screenshot full of plausible titles still shows what the console looks like,
 # which a wall of grey bars does not.
 #
-# Every name below is invented. They are deliberately generic and unlike real
-# releases, sites or shows.
-FAKE_TITLES = [
-    "Northwind Hollow S02E04 1080p x265-LUMEN",
-    "Paper Lanterns (2024) [1080p] [WEBRip] [5.1]",
-    "The Quiet Meridian S01E07 1080p x265-ASHEN",
-    "Copper Harbour (2023) [1080p] [BluRay] [5.1]",
-    "Lantern Bay S03E11 720p x265-VERDANT",
-    "Glasshouse Winter (2025) [1080p] [WEBRip]",
-    "Salt Flats S01E02 1080p x265-MERIDIAN",
-    "The Long Orchard (2022) [1080p] [BluRay]",
-    "Cinder Lake S04E09 1080p x265-HALCYON",
-    "Weathervane County S02E01 720p x265-ROWAN",
-    "Driftwood Sound (2024) [1080p] [WEBRip] [5.1]",
-    "Tin Roof Alley S01E05 1080p x265-CASTLE",
-    "The Amber Circuit S05E03 1080p x265-PELICAN",
-    "Marble Arch Nights (2021) [1080p] [BluRay]",
-    "Quarry Road S02E08 720p x265-THISTLE",
-    "The Paper Kingdom (2026) [1080p] [WEBRip]",
-]
+# Names are generated combinatorially rather than drawn from a short list, and
+# each distinct original gets a DISTINCT stand-in. A fixed pool with a hash pick
+# collides, and a torrent list showing the same release twice is not something a
+# real client can produce — the repetition is what gives the substitution away.
+FIRST = ["Northwind", "Copper", "Lantern", "Glasshouse", "Salt", "Amber", "Cinder",
+         "Quarry", "Driftwood", "Marble", "Paper", "Quiet", "Tin", "Weathervane",
+         "Harrow", "Ember", "Foxglove", "Halcyon", "Juniper", "Kestrel", "Larkspur",
+         "Mistral", "Norwood", "Oakhaven", "Pellow", "Redmoor", "Sable", "Thistle"]
+SECOND = ["Hollow", "Harbour", "Bay", "Winter", "Flats", "Circuit", "Lake", "Road",
+          "Sound", "Alley", "Kingdom", "Meridian", "County", "Orchard", "Nights",
+          "Reach", "Crossing", "Station", "Gate", "Field", "Watch", "Landing"]
+GROUPS = ["LUMEN", "ASHEN", "VERDANT", "MERIDIAN", "HALCYON", "ROWAN", "CASTLE",
+          "PELICAN", "THISTLE", "ORCHID", "SABLE", "KESTREL"]
+QUALITY = ["1080p", "720p", "2160p"]
+SOURCE = ["WEBRip", "BluRay", "WEB-DL", "HDTV"]
+
 # Site stand-ins are all three characters, and that is the point.
 #
 # The same site appears in a wide table column AND inside a narrow quoted string
@@ -172,42 +168,132 @@ FAKE_TITLES = [
 # which reads as a bug rather than as redaction. Sizing every stand-in to the
 # narrowest span any of them has to fit keeps one real name mapping to one
 # invented name everywhere it appears.
-FAKE_SITES = ["Arc", "Hub", "Orb", "Vex", "Lum", "Nex", "Ako", "Ryn"]
-FAKE_RULES = ["Weekly drama rule", "Documentary rule", "Film upgrade rule", "Season pack rule"]
-FAKE_PATHS = [
-    "Season 2/Northwind Hollow - S02E04 - The Long Way.mkv",
-    "Season 1/Lantern Bay - S01E03 - Low Tide.mkv",
-    "Copper Harbour (2023)/Copper Harbour (2023).mkv",
-    "Season 4/Cinder Lake - S04E09 - Ashfall.mkv",
-]
-POOLS = {"title": FAKE_TITLES, "site": FAKE_SITES, "rule": FAKE_RULES, "path": FAKE_PATHS}
+FAKE_SITES = ["Arc", "Hub", "Orb", "Vex", "Lum", "Nex", "Ako", "Ryn", "Ipa", "Qel",
+              "Tov", "Zar", "Bex", "Dyn", "Eos", "Fen"]
+FAKE_RULES = ["Weekly drama rule", "Documentary rule", "Film upgrade rule",
+              "Season pack rule", "Archive rule", "Catch-up rule"]
+
+
+def _title_space():
+    """Every invented title, in a fixed order. Deterministic, and large enough
+    that a screenshot never has to reuse one."""
+    out = []
+    for i, a in enumerate(FIRST):
+        for j, b in enumerate(SECOND):
+            out.append((a + " " + b, i * len(SECOND) + j))
+    return out
+
+
+TITLE_SPACE = _title_space()
+
+
+def _tv_like(original: str) -> bool:
+    """Whether the original looked like an episode rather than a film.
+
+    Preserved because it costs nothing and a list where every TV row became a
+    film reads wrong at a glance — the shape of the library should survive the
+    substitution even though none of its contents do.
+    """
+    return bool(re.search(r"[sS]\d{1,2}[eE]\d{1,2}|\bS\d{2}E\d{2}\b", original))
+
+
+class _Registry:
+    """One invented name per distinct original, assigned once and reused.
+
+    Process-wide so a release rendered on the torrents page and again in the
+    activity feed gets the same stand-in, and so no two distinct releases ever
+    get the same one.
+    """
+
+    def __init__(self):
+        self.by_original = {}
+        self.used = set()
+        self.cursor = 0
+
+    def _next_title(self, original):
+        while self.cursor < len(TITLE_SPACE):
+            base, idx = TITLE_SPACE[self.cursor]
+            self.cursor += 1
+            if base in self.used:
+                continue
+            self.used.add(base)
+            if _tv_like(original):
+                season, episode = (idx % 6) + 1, (idx % 12) + 1
+                return (f"{base} S{season:02d}E{episode:02d} "
+                        f"{QUALITY[idx % len(QUALITY)]} x265-{GROUPS[idx % len(GROUPS)]}")
+            year = 2019 + (idx % 8)
+            return (f"{base} ({year}) [{QUALITY[idx % len(QUALITY)]}] "
+                    f"[{SOURCE[idx % len(SOURCE)]}] [5.1]")
+        # Exhausting 600+ combinations would mean a screenshot with 600 rows.
+        return f"Untitled Release {self.cursor}"
+
+    def _next_from(self, pool, key):
+        for name in pool:
+            if (key, name) not in self.used:
+                self.used.add((key, name))
+                return name
+        return pool[len(self.used) % len(pool)]
+
+    def name_for(self, original: str, kind: str) -> str:
+        """A stand-in for one occurrence.
+
+        Titles and paths get a FRESH name every time, even for an identical
+        original. The real data repeats — nine rename lines for one show, one
+        release listed in three qualities — and reproducing that repetition is
+        what gives the substitution away: a torrent list cannot hold the same
+        release twice, so a reader sees a duplicate and knows the names are
+        fabricated. Uniqueness per row costs only cross-page identity, which no
+        reader can check anyway.
+
+        Sites are the opposite and stay stable per original: an indexer's row and
+        its own error message must name the same thing, or the page contradicts
+        itself.
+        """
+        if kind in ("site", "rule"):
+            key = (kind, original.strip())
+            if key in self.by_original:
+                return self.by_original[key]
+            pool = FAKE_SITES if kind == "site" else FAKE_RULES
+            name = self._next_from(pool, kind)
+            self.by_original[key] = name
+            return name
+
+        if kind == "path":
+            title = self._next_title(original)
+            stem = title.split(" S")[0].split(" (")[0]
+            season = (len(self.by_original) % 5) + 1
+            episode = (len(self.by_original) % 11) + 1
+            name = f"Season {season}/{stem} - S{season:02d}E{episode:02d}.mkv"
+        else:
+            name = self._next_title(original)
+        # Recorded for the count only; titles are never looked up by original.
+        self.by_original[(kind, original.strip(), len(self.by_original))] = name
+        return name
+
+
+REGISTRY = _Registry()
+
+
+def _pick(original: str, width: int, kind: str) -> str:
+    """The stand-in for this original, fitted to the space available.
+
+    Truncation here is honest and realistic: the console itself truncates a long
+    release name to its column with an ellipsis, so a stand-in that does the same
+    looks exactly like what it replaced.
+    """
+    name = REGISTRY.name_for(original, kind)
+    if len(name) > width:
+        return name[: max(width - 1, 0)] + ("…" if width > 0 else "")
+    return name
 
 
 def invent(original: str, width: int, kind: str) -> str:
     """A stand-in of exactly `width` characters, stable for the same input.
 
-    Stable so one release rendered on two pages gets the same invented name, and
-    exactly `width` so every column, rail and box below it stays where it was —
-    a substitution that changed a line's length would tear the frame.
+    Exactly `width` so every column, rail and box below it stays where it was — a
+    substitution that changed a line's length would tear the frame.
     """
-    name = _pick(original, width, kind)
-    return name.ljust(width)
-
-
-def _pick(original: str, width: int, kind: str) -> str:
-    """The longest stand-in that FITS, chosen deterministically.
-
-    Preferring a name that fits avoids truncating a stand-in — "ArchiveOne" cut
-    to "Ar…" in a three-character column reads as a broken renderer, not as a
-    redaction.
-    """
-    pool = POOLS.get(kind, FAKE_TITLES)
-    seed = int(hashlib.sha256(original.strip().encode("utf-8")).hexdigest()[:8], 16)
-    fitting = [n for n in pool if len(n) <= width]
-    if fitting:
-        return fitting[seed % len(fitting)]
-    name = pool[seed % len(pool)]
-    return name[: max(width - 1, 0)] + ("…" if width > 0 else "")
+    return _pick(original, width, kind).ljust(width)
 
 
 def _apply(cells, start, end, kind):
