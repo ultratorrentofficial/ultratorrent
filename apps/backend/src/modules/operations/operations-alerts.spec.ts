@@ -215,11 +215,36 @@ describe('operations alerts — only what the caller could read', () => {
   });
 });
 
+describe('operations alerts — failed jobs', () => {
+  /*
+   * The bug this covers: the alert read the all-time `failed`, which never
+   * decreases, so once anything had ever failed it was permanently red and
+   * stopped carrying information. Live it read 13 against jobs three weeks old,
+   * eleven of which were only "Interrupted by a service restart".
+   */
+  it('stays silent when the only failures are historical', () => {
+    const alerts = projectAlerts({ jobs: jobs({ failed: 13, failedToday: 0 }) });
+    expect(alerts.filter((a) => a.domain === 'jobs')).toEqual([]);
+  });
+
+  it('fires on failures that happened today', () => {
+    const alerts = projectAlerts({ jobs: jobs({ failed: 13, failedToday: 3 }) });
+    const a = alerts.find((x) => x.domain === 'jobs');
+    expect(a?.severity).toBe('error');
+    expect(a?.title).toContain('3 background job(s) failed today');
+  });
+
+  it('reports the all-time total as detail, not as the alarm', () => {
+    const alerts = projectAlerts({ jobs: jobs({ failed: 13, failedToday: 1 }) });
+    expect(alerts.find((x) => x.domain === 'jobs')?.detail).toContain('13');
+  });
+});
+
 describe('operations alerts — ordering', () => {
   it('sorts most severe first, with a stable tiebreak', () => {
     const alerts = projectAlerts({
       system: system({ database: 'down' }),
-      jobs: jobs({ failed: 2 }),
+      jobs: jobs({ failed: 2, failedToday: 2 }),
       storage: storage(STORAGE_WARNING_AT * 100),
     });
     expect(alerts.map((a) => a.severity)).toEqual(['critical', 'error', 'warning']);

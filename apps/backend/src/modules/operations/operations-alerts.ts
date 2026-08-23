@@ -160,8 +160,24 @@ export function projectAlerts(input: AlertInputs): OperationsAlert[] {
     }
   }
 
-  if (input.jobs && input.jobs.failed > 0) {
-    out.push(alert('jobs', 'failed', 'error', `${input.jobs.failed} background job(s) are in a failed state`, null, null));
+  /*
+   * Alert on TODAY's failures, not the all-time count.
+   *
+   * `failed` is every failed job ever and never decreases, so an alert on it
+   * can never clear: red from the first failure onwards, which teaches an
+   * operator to skip it — worse than not raising it at all. Live this read 13
+   * while every one of those jobs was three weeks old and eleven were only
+   * "Interrupted by a service restart": jobs killed mid-flight by a deploy,
+   * which every deploy manufactures more of.
+   *
+   * The all-time figure stays in the jobs domain for the pane to show, and is
+   * carried as the alert's detail. It is a statistic, not an event, and only
+   * events deserve an alert.
+   */
+  if (input.jobs && input.jobs.failedToday > 0) {
+    out.push(
+      alert('jobs', 'failed', 'error', `${input.jobs.failedToday} background job(s) failed today`, `${input.jobs.failed} have failed in total.`, null),
+    );
   }
 
   if (input.torrents) {
