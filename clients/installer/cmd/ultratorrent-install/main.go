@@ -837,5 +837,31 @@ func deployStack(p *plan.Plan, g generated) error {
 	}
 
 	fmt.Println("  all services healthy")
+
+	// Healthy is not the same as usable. The backend's CMD applies migrations
+	// and stops there, so without this the stack comes up with a complete schema
+	// and no users at all, and every sign-in fails.
+	seedOut, err := c.Seed(ctx)
+	if err != nil {
+		// Only on failure, and redacted: the seed prints the administrator's
+		// password on success, and it is already in a root-only file.
+		fmt.Fprintln(os.Stderr, "\n"+redact(strings.TrimSpace(seedOut)))
+		return err
+	}
+	fmt.Println("  database seeded")
+
+	switch ok, detail, known := c.SignInWorks(ctx); {
+	case ok:
+		fmt.Println("  sign-in verified")
+	case known:
+		// Reaching here means the containers are healthy and the product is not
+		// usable — precisely the outcome this whole step exists to stop being
+		// reported as success.
+		return fmt.Errorf("the stack is running but the administrator cannot sign in (%s) — "+
+			"the credentials in %s/%s will not work until this is resolved",
+			detail, p.InstallDirectory, config.EnvFileName)
+	default:
+		fmt.Println("  sign-in not verified (the check could not be run)")
+	}
 	return nil
 }
