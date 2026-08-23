@@ -8,6 +8,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/ultratorrent/installer/internal/host"
 	"github.com/ultratorrent/installer/internal/plan"
 )
 
@@ -45,9 +47,10 @@ Flags:
   --media-root PATH   Host path for media; omit to use a Docker volume
   --prowlarr          Deploy the Prowlarr indexer manager
   --flaresolverr      Deploy FlareSolverr (requires --prowlarr)
+  --skip-checks       Skip the system check (planning only; never for install)
 
-Not yet implemented in this build: the interactive wizard, host detection, and
-every command that changes the system. This build can only plan.
+Not yet implemented in this build: the interactive wizard and every command that
+changes the system. This build can inspect and plan.
 `
 
 func main() {
@@ -75,6 +78,7 @@ func run(args []string) error {
 		mediaRoot    = fs.String("media-root", "", "host path for media")
 		withProwlarr = fs.Bool("prowlarr", false, "deploy Prowlarr")
 		withFlare    = fs.Bool("flaresolverr", false, "deploy FlareSolverr")
+		skipChecks   = fs.Bool("skip-checks", false, "skip the system check")
 	)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, usage, plan.DefaultInstallDirectory, plan.DefaultFrontendPort)
@@ -94,12 +98,24 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
+		if !*skipChecks && !*asJSON {
+			fmt.Print(inspect(p).String())
+		}
 		return emit(p, *asJSON, *output)
 
 	case "install":
 		p, err := build(*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare)
 		if err != nil {
 			return err
+		}
+		// The system check runs BEFORE the plan is shown, and its failures are
+		// reported before anything else: a plan is not worth reviewing on a host
+		// that cannot run it.
+		report := inspect(p)
+		fmt.Print(report.String())
+		if report.Blocked() {
+			return fmt.Errorf("this host cannot run UltraTorrent yet — " +
+				"resolve the failures above and re-run. Nothing has been changed")
 		}
 		if err := emit(p, *asJSON, *output); err != nil {
 			return err
@@ -260,4 +276,16 @@ func yesNo(b bool) string {
 		return "yes"
 	}
 	return "no"
+}
+
+// inspect runs the read-only system check for a plan.
+//
+// The plan supplies the ports, so the check tests what THIS installation will
+// bind rather than a hard-coded list that drifts from what is deployed.
+func inspect(p *plan.Plan) *host.Report {
+	wanted := make([]host.PortStatus, 0, 4)
+	for _, binding := range p.PublishedPorts() {
+		wanted = append(wanted, host.PortStatus{Port: binding.Port, Label: binding.Label})
+	}
+	return host.NewDetector().Detect(context.Background(), p.InstallDirectory, wanted)
 }
