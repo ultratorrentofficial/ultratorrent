@@ -178,8 +178,15 @@ func run(args []string) error {
 			return err
 		}
 		if *dryRun {
-			fmt.Println("\nDry run — nothing has been changed.")
-			return nil
+			// Run generate in dry-run rather than stopping here. The storage
+			// inspection lives inside it, and it is the half of the preview an
+			// operator most needs: ownership that will not let the engine write,
+			// a media root that is really the unmounted mountpoint, a path whose
+			// parent does not exist. Returning early showed the system check and
+			// the plan and silently skipped all of it — so `install --dry-run`
+			// promised a preview and gave a partial one.
+			_, err := generate(p, true, true)
+			return err
 		}
 		g, err := generate(p, false, true)
 		if err != nil {
