@@ -214,12 +214,20 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.quitting = true
 		return m, tea.Quit
 
-	case "tab", "right", "l":
+	/*
+	 * Every reasonable "next page" gesture, including up/down.
+	 *
+	 * Reported as not working: they were bound all along, but the screen was
+	 * taller than the terminal, so the tab rail had scrolled off the top and a
+	 * switch produced no visible change. Fixing the height fixed the symptom;
+	 * up/down and page-up/down are added because they are what people reach for.
+	 */
+	case "tab", "right", "l", "down", "pgdown", "n":
 		m.active = m.nextPermitted(1)
 		m.warning = ""
 		return m, m.fetch()
 
-	case "shift+tab", "left", "h":
+	case "shift+tab", "left", "h", "up", "pgup":
 		m.active = m.nextPermitted(-1)
 		m.warning = ""
 		return m, m.fetch()

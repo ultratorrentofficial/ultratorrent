@@ -30,7 +30,28 @@ func (m Model) View() string {
 	b.WriteString(m.body())
 	b.WriteString("\n")
 	b.WriteString(m.footer())
-	return b.String()
+	/*
+	 * The console must never scroll. A terminal that scrolls loses the header
+	 * and the tab rail off the top — the two things that tell an operator where
+	 * they are — and no amount of correct content makes up for that.
+	 */
+	return clipHeight(b.String(), m.height)
+}
+
+// bodyHeight is how many rows the panes may use, after the fixed chrome.
+//
+// Chrome is the header rail, the tab rail, the footer and its key hints, plus a
+// blank line. Budgeted rather than measured so a view can plan its lists before
+// rendering them, instead of being cut afterwards.
+func (m Model) bodyHeight() int {
+	n := m.height - 4
+	if m.warning != "" {
+		n -= 3
+	}
+	if n < 6 {
+		return 6
+	}
+	return n
 }
 
 // contentWidth is the drawable width, with a floor so panes never collapse.
@@ -319,18 +340,27 @@ func attentionSummary(c api.TorrentCounts) string {
 func (m Model) viewTorrents() string {
 	d := m.snapshot.Domains
 	w := m.contentWidth()
+	/*
+	 * Three panes share the height. Attention is given its own share first
+	 * because it is the reason to open this view at all; Active takes what is
+	 * left, and the Queue a fixed slice. Each pane caps its own content, so all
+	 * three keep their frames instead of the last one being cut in half.
+	 */
+	budget := m.bodyHeight() - 9 // three frames + titles
+	attnRows, queueRows := budget/4, budget/5
+	activeRows := budget - attnRows - queueRows
 	return rows(
 		section("Needs attention", d.Torrents, w, func(t api.Torrents) string {
 			if len(t.Attention) == 0 {
 				return styleOK.Render("Nothing errored or stalled.")
 			}
-			return m.torrentTable(t.Attention, w-4)
+			return capBody(m.torrentTable(t.Attention, w-4), attnRows)
 		}),
 		section("Active", d.Torrents, w, func(t api.Torrents) string {
 			if len(t.Active) == 0 {
 				return styleMuted.Render("Nothing transferring.")
 			}
-			out := m.torrentTable(t.Active, w-4)
+			out := capBody(m.torrentTable(t.Active, w-4), activeRows)
 			if t.Truncated {
 				// Never a silent cut: a list that quietly stops at 25 reads as
 				// "that is all of them".
@@ -342,15 +372,29 @@ func (m Model) viewTorrents() string {
 			if len(q.Entries) == 0 {
 				return styleMuted.Render("The scheduler has no pending decisions.")
 			}
-			lines := make([]string, 0, len(q.Entries))
+			lines := make([]string, 0, len(q.Entries)+1)
+			lines = append(lines, styleColHead.Render(
+				pad("TORRENT", w-46)+pad("NOW", 13)+pad("WANTED", 13)+"WHY"))
 			for _, e := range q.Entries {
+				want := styleMuted.Render(pad("—", 13))
+				if e.DesiredState != nil {
+					// A desired state that differs from the current one is the
+					// whole point of the row: it is what the scheduler is about
+					// to do, and the reason it has not yet.
+					want = styleAccent.Render(pad(*e.DesiredState, 13))
+				}
 				reason := ""
 				if e.Reason != nil {
-					reason = styleMuted.Render(" — " + *e.Reason)
+					reason = styleMuted.Render(truncate(*e.Reason, 24))
 				}
-				lines = append(lines, pad(e.Decision, 10)+pad(truncate(e.Name, w-30), w-28)+reason)
+				name := e.Name
+				if e.ProtectedFromRemoval {
+					name = "🔒 " + name
+				}
+				lines = append(lines, pad(truncate(name, w-48), w-46)+
+					pad(e.CurrentState, 13)+want+reason)
 			}
-			return strings.Join(lines, "\n")
+			return capBody(strings.Join(lines, "\n"), queueRows)
 		}),
 	)
 }
@@ -379,7 +423,7 @@ func (m Model) torrentTable(list []api.Torrent, inner int) string {
 		lines = append(lines, strings.Join([]string{
 			pad(t.Name, nameW),
 			torrentStateStyle(t.State, t.Stalled).Render(pad(state, 12)),
-			padLeft(meterFor(t.Progress, 5)+fmt.Sprintf(" %3.0f%%", t.Progress*100), 11),
+			padLeft(progressMeter(t.Progress, 5)+fmt.Sprintf(" %3.0f%%", t.Progress*100), 11),
 			styleAccent.Render(padLeft(humanRate(t.DownloadRate), 11)),
 			styleOK.Render(padLeft(humanRate(t.UploadRate), 11)),
 			styleMuted.Render(padLeft(humanETA(t.ETA), 8)),
@@ -412,17 +456,32 @@ func (m Model) viewMedia() string {
 		}
 		lines := make([]string, 0, len(p.Sessions))
 		for _, sess := range p.Sessions {
-			mode := styleOK.Render("direct")
-			if sess.Transcode {
-				mode = styleWarn.Render("transcode")
+			method := "direct"
+			style := styleOK
+			if sess.PlaybackMethod != nil {
+				method = *sess.PlaybackMethod
+				if strings.Contains(strings.ToLower(method), "transcode") {
+					style = styleWarn
+				}
+			}
+			title := sess.Title
+			if sess.ShowTitle != nil && *sess.ShowTitle != "" {
+				title = *sess.ShowTitle + " · " + title
+			}
+			progress := 0.0
+			if sess.ProgressPercent != nil {
+				progress = *sess.ProgressPercent / 100
 			}
 			lines = append(lines, fmt.Sprintf("%s %s %s %s",
-				pad(truncate(sess.Title, 24), 26), pad(sess.User, 12), pad(mode, 11),
-				meterFor(sess.Progress, 8)))
+				pad(truncate(title, 24), 26),
+				pad(orDash(sess.Viewer), 12),
+				style.Render(pad(truncate(method, 10), 11)),
+				progressMeter(progress, 8)))
 		}
 		return strings.Join(lines, "\n")
 	})
 
+	intakeRows := m.bodyHeight() - 12 // the library/playback row plus frames
 	intake := section("Intake", d.MediaIntake, w, func(mi api.MediaIntake) string {
 		lines := []string{
 			kv("Active", fmt.Sprintf("%d", mi.Active)) + "   " +
@@ -431,15 +490,24 @@ func (m Model) viewMedia() string {
 				kv("Imported today", fmt.Sprintf("%d", mi.ImportedToday)),
 		}
 		if len(mi.Recent) > 0 {
-			lines = append(lines, "", styleColHead.Render(pad("RECENT", w-40)+pad("STATE", 16)+"WHEN"))
+			lines = append(lines, "", styleColHead.Render(pad("RELEASE", w-42)+pad("STATE", 16)+"UPDATED"))
 			for _, j := range mi.Recent {
-				lines = append(lines, pad(truncate(j.Title, w-42), w-40)+pad(j.State, 16)+styleMuted.Render(ago(&j.At)))
-				if j.Error != nil {
-					lines = append(lines, styleErr.Render("  ↳ "+truncate(*j.Error, w-10)))
+				state := j.State
+				style := styleBase
+				switch j.State {
+				case "failed":
+					style = styleErr
+				case "quarantined":
+					style = styleWarn
+				}
+				lines = append(lines, pad(truncate(j.SourceName, w-44), w-42)+
+					style.Render(pad(state, 16))+styleMuted.Render(ago(&j.UpdatedAt)))
+				if j.LastError != nil && *j.LastError != "" {
+					lines = append(lines, styleErr.Render("  ↳ "+truncate(*j.LastError, w-10)))
 				}
 			}
 		}
-		return strings.Join(lines, "\n")
+		return capBody(strings.Join(lines, "\n"), intakeRows)
 	})
 
 	if cols == nil {
@@ -451,6 +519,9 @@ func (m Model) viewMedia() string {
 func (m Model) viewJobs() string {
 	d := m.snapshot.Domains
 	w := m.contentWidth()
+	budget := m.bodyHeight() - 6
+	jobRows := budget * 2 / 3
+	autoRows := budget - jobRows
 	return rows(
 		section("Jobs", d.Jobs, w, func(j api.Jobs) string {
 			rate := "—"
@@ -472,18 +543,30 @@ func (m Model) viewJobs() string {
 						prog = fmt.Sprintf("%d%%", *job.Progress)
 					}
 					style := styleBase
-					if job.Status == "failed" {
+					switch job.Status {
+					case "failed":
 						style = styleErr
+					case "stalled":
+						style = styleWarn
+					}
+					// The most recent thing that happened to it: finished, else
+					// started, else created. "When" on a job means its last move.
+					when := job.CreatedAt
+					if job.StartedAt != nil {
+						when = *job.StartedAt
+					}
+					if job.CompletedAt != nil {
+						when = *job.CompletedAt
 					}
 					line := pad(truncate(job.Type, w-48), w-46) + style.Render(pad(job.Status, 18)) +
-						pad(prog, 7) + styleMuted.Render(ago(&job.At))
-					if job.Error != nil {
-						line += styleErr.Render("  " + *job.Error)
+						pad(prog, 7) + styleMuted.Render(ago(&when))
+					if job.ErrorCode != nil {
+						line += styleErr.Render("  " + *job.ErrorCode)
 					}
 					lines = append(lines, line)
 				}
 			}
-			return strings.Join(lines, "\n")
+			return capBody(strings.Join(lines, "\n"), jobRows)
 		}),
 		section("Automation", d.Automation, w, func(a api.Automation) string {
 			lines := []string{
@@ -492,12 +575,17 @@ func (m Model) viewJobs() string {
 			}
 			for _, r := range a.RecentRuns {
 				style := styleOK
-				if r.Result != "success" {
+				if r.Status != "success" {
 					style = styleWarn
 				}
-				lines = append(lines, pad(truncate(r.RuleName, 34), 36)+style.Render(pad(r.Result, 14))+styleMuted.Render(ago(&r.At)))
+				line := pad(truncate(r.RuleName, 34), 36) + style.Render(pad(r.Status, 14)) +
+					styleMuted.Render(ago(&r.At))
+				if r.Message != nil && *r.Message != "" && r.Status != "success" {
+					line += styleMuted.Render("  " + truncate(*r.Message, 30))
+				}
+				lines = append(lines, line)
 			}
-			return strings.Join(lines, "\n")
+			return capBody(strings.Join(lines, "\n"), autoRows)
 		}),
 	)
 }
@@ -506,6 +594,11 @@ func (m Model) viewAcquisition() string {
 	w := m.contentWidth()
 	d := m.snapshot.Domains
 	cols := splitWidth(w, 2, 1)
+	paneRows := m.bodyHeight() - 3
+	if cols == nil {
+		// Stacked, so they share rather than each taking the full height.
+		paneRows = (m.bodyHeight() - 6) / 2
+	}
 
 	feeds := section("Feeds", d.Acquisition, colOr(cols, 0, w), func(a api.Acquisition) string {
 		lines := []string{kv("Grabs (24h)", fmt.Sprintf("%d", a.Grabs24h)), ""}
@@ -523,7 +616,7 @@ func (m Model) viewAcquisition() string {
 				pad(fmt.Sprintf("%d", f.RuleCount), 7)+
 				pad(ago(f.LastPolledAt), 12)+state)
 		}
-		return strings.Join(lines, "\n")
+		return capBody(strings.Join(lines, "\n"), paneRows)
 	})
 
 	recent := section("Recent releases", d.Acquisition, colOr(cols, 1, w), func(a api.Acquisition) string {
@@ -544,7 +637,7 @@ func (m Model) viewAcquisition() string {
 			}
 			lines = append(lines, pad(truncate(e.ReleaseTitle, 34), 36)+style.Render(pad(e.Result, 18)))
 		}
-		return strings.Join(lines, "\n")
+		return capBody(strings.Join(lines, "\n"), paneRows)
 	})
 
 	if cols == nil {
@@ -558,6 +651,7 @@ func (m Model) viewInfra() string {
 	w := m.contentWidth()
 	cols := splitWidth(w, 2, 1)
 
+	infraRows := (m.bodyHeight() - 9) / 2
 	engines := section("Engines", d.Engines, colOr(cols, 0, w), func(list []api.Engine) string {
 		if len(list) == 0 {
 			return styleMuted.Render("No engines configured.")
@@ -575,7 +669,7 @@ func (m Model) viewInfra() string {
 				lines = append(lines, styleErr.Render("  ↳ "+truncate(*e.Error, 40)))
 			}
 		}
-		return strings.Join(lines, "\n")
+		return capBody(strings.Join(lines, "\n"), infraRows)
 	})
 
 	indexers := section("Indexers", d.Indexers, colOr(cols, 1, w), func(list []api.Indexer) string {
@@ -590,7 +684,7 @@ func (m Model) viewInfra() string {
 				lines = append(lines, styleWarn.Render("  ↳ "+truncate(*i.Message, 40)))
 			}
 		}
-		return strings.Join(lines, "\n")
+		return capBody(strings.Join(lines, "\n"), infraRows)
 	})
 
 	providers := section("Providers", d.Providers, w, func(list []api.Provider) string {
@@ -607,7 +701,7 @@ func (m Model) viewInfra() string {
 			}
 			lines = append(lines, line)
 		}
-		return strings.Join(lines, "\n")
+		return capBody(strings.Join(lines, "\n"), infraRows)
 	})
 
 	if cols == nil {
@@ -619,6 +713,7 @@ func (m Model) viewInfra() string {
 func (m Model) viewActivity() string {
 	d := m.snapshot.Domains
 	w := m.contentWidth()
+	activityRows := m.bodyHeight() - 8
 	return rows(
 		section("Recent activity", d.RecentActivity, w, func(list []api.ActivityItem) string {
 			if len(list) == 0 {
@@ -639,7 +734,7 @@ func (m Model) viewActivity() string {
 					lines = append(lines, styleMuted.Render("             ↳ "+truncate(*a.Detail, w-20)))
 				}
 			}
-			return strings.Join(lines, "\n")
+			return capBody(strings.Join(lines, "\n"), activityRows)
 		}),
 		section("Notifications", d.Notifications, w, func(n api.Notifications) string {
 			return kv("Pending", fmt.Sprintf("%d", n.Pending)) + "   " +
@@ -739,4 +834,12 @@ func overdue(last *string, intervalSeconds int) bool {
 		return false
 	}
 	return time.Since(t) > 2*time.Duration(intervalSeconds)*time.Second
+}
+
+// orDash renders an optional string, or an em dash when the server had none.
+func orDash(v *string) string {
+	if v == nil || *v == "" {
+		return "—"
+	}
+	return *v
 }

@@ -134,11 +134,16 @@ type Torrents struct {
 }
 
 type QueueEntry struct {
-	EngineID    string  `json:"engineId"`
-	TorrentHash string  `json:"torrentHash"`
-	Name        string  `json:"name"`
-	Decision    string  `json:"decision"`
-	Reason      *string `json:"reason"`
+	Hash                 string  `json:"hash"`
+	Name                 string  `json:"name"`
+	EngineID             string  `json:"engineId"`
+	CurrentState         string  `json:"currentState"`
+	DesiredState         *string `json:"desiredState"`
+	Reason               *string `json:"reason"`
+	PolicyName           *string `json:"policyName"`
+	Priority             *int    `json:"priority"`
+	Override             *string `json:"override"`
+	ProtectedFromRemoval bool    `json:"protectedFromRemoval"`
 }
 
 type Queue struct {
@@ -152,11 +157,21 @@ type Queue struct {
 }
 
 type IntakeJob struct {
-	ID    string  `json:"id"`
-	Title string  `json:"title"`
-	State string  `json:"state"`
-	Error *string `json:"error"`
-	At    string  `json:"at"`
+	ID          string  `json:"id"`
+	State       string  `json:"state"`
+	TorrentHash *string `json:"torrentHash"`
+	EngineID    *string `json:"engineId"`
+	// SourceName is the basename of the staged release, never the full path —
+	// the operator needs to know WHICH release, not where this install stages.
+	SourceName string  `json:"sourceName"`
+	Strategy   *string `json:"strategy"`
+	Attempts   int     `json:"attempts"`
+	LastError  *string `json:"lastError"`
+	LibraryID  *string `json:"libraryId"`
+	CreatedAt  string  `json:"createdAt"`
+	UpdatedAt  string  `json:"updatedAt"`
+	StartedAt  *string `json:"startedAt"`
+	ImportedAt *string `json:"importedAt"`
 }
 
 type MediaIntake struct {
@@ -169,20 +184,51 @@ type MediaIntake struct {
 	Truncated      bool           `json:"truncated"`
 }
 
+type MediaLibrary struct {
+	ID                  string  `json:"id"`
+	Name                string  `json:"name"`
+	Kind                string  `json:"kind"`
+	Enabled             bool    `json:"enabled"`
+	ItemCount           *int    `json:"itemCount"`
+	LastScanAt          *string `json:"lastScanAt"`
+	ScanIntervalMinutes *int    `json:"scanIntervalMinutes"`
+}
+
 type Media struct {
-	TotalItems    int            `json:"totalItems"`
-	ByType        map[string]int `json:"byType"`
-	Unmatched     int            `json:"unmatched"`
-	LowConfidence int            `json:"lowConfidence"`
+	TotalItems       int            `json:"totalItems"`
+	ByType           map[string]int `json:"byType"`
+	Unmatched        int            `json:"unmatched"`
+	LowConfidence    int            `json:"lowConfidence"`
+	MissingArtwork   int            `json:"missingArtwork"`
+	MissingSubtitles int            `json:"missingSubtitles"`
+	DuplicateGroups  int            `json:"duplicateGroups"`
+	FailedJobs       int            `json:"failedJobs"`
+	RecentlyAdded    int            `json:"recentlyAdded"`
+	Libraries        []MediaLibrary `json:"libraries"`
 }
 
 type PlaybackSession struct {
-	User      string  `json:"user"`
-	Title     string  `json:"title"`
-	Player    string  `json:"player"`
-	State     string  `json:"state"`
-	Progress  float64 `json:"progress"`
-	Transcode bool    `json:"transcode"`
+	ID              string   `json:"id"`
+	Viewer          *string  `json:"viewer"`
+	Title           string   `json:"title"`
+	ShowTitle       *string  `json:"showTitle"`
+	SeasonNumber    *int     `json:"seasonNumber"`
+	EpisodeNumber   *int     `json:"episodeNumber"`
+	Year            *int     `json:"year"`
+	MediaType       *string  `json:"mediaType"`
+	LibraryName     *string  `json:"libraryName"`
+	Device          *string  `json:"device"`
+	Client          *string  `json:"client"`
+	PlaybackState   *string  `json:"playbackState"`
+	ProgressPercent *float64 `json:"progressPercent"`
+	PlaybackMethod  *string  `json:"playbackMethod"`
+	VideoCodec      *string  `json:"videoCodec"`
+	AudioCodec      *string  `json:"audioCodec"`
+	Resolution      *string  `json:"resolution"`
+	Container       *string  `json:"container"`
+	BitrateKbps     *int     `json:"bitrateKbps"`
+	StartedAt       string   `json:"startedAt"`
+	UpdatedAt       string   `json:"updatedAt"`
 }
 
 type Playback struct {
@@ -193,12 +239,17 @@ type Playback struct {
 }
 
 type Job struct {
-	ID       string  `json:"id"`
-	Type     string  `json:"type"`
-	Status   string  `json:"status"`
-	Progress *int    `json:"progress"`
-	Error    *string `json:"errorCode"`
-	At       string  `json:"at"`
+	ID          string  `json:"id"`
+	Type        string  `json:"type"`
+	ModuleKey   string  `json:"moduleKey"`
+	Status      string  `json:"status"`
+	Phase       *string `json:"phase"`
+	Progress    *int    `json:"progress"`
+	Message     *string `json:"message"`
+	ErrorCode   *string `json:"errorCode"`
+	CreatedAt   string  `json:"createdAt"`
+	StartedAt   *string `json:"startedAt"`
+	CompletedAt *string `json:"completedAt"`
 }
 
 type Jobs struct {
@@ -215,17 +266,23 @@ type Jobs struct {
 }
 
 type AutomationRun struct {
+	ID       string  `json:"id"`
+	RuleID   string  `json:"ruleId"`
 	RuleName string  `json:"ruleName"`
-	Result   string  `json:"result"`
+	Status   string  `json:"status"`
+	Message  *string `json:"message"`
+	Trigger  *string `json:"trigger"`
 	At       string  `json:"at"`
-	Detail   *string `json:"detail"`
 }
 
 type Automation struct {
 	Rules []struct {
-		ID      string `json:"id"`
-		Name    string `json:"name"`
-		Enabled bool   `json:"enabled"`
+		ID         string  `json:"id"`
+		Name       string  `json:"name"`
+		Enabled    bool    `json:"enabled"`
+		Trigger    *string `json:"trigger"`
+		LastRunAt  *string `json:"lastRunAt"`
+		LastStatus *string `json:"lastStatus"`
 	} `json:"rules"`
 	RecentRuns  []AutomationRun `json:"recentRuns"`
 	Failures24h int             `json:"failures24h"`
@@ -234,7 +291,10 @@ type Automation struct {
 
 type AcquisitionEvent struct {
 	ID           string  `json:"id"`
+	FeedID       *string `json:"feedId"`
 	FeedName     *string `json:"feedName"`
+	RuleID       *string `json:"ruleId"`
+	TorrentHash  *string `json:"torrentHash"`
 	RuleName     *string `json:"ruleName"`
 	ReleaseTitle string  `json:"releaseTitle"`
 	Result       string  `json:"result"`
@@ -266,9 +326,10 @@ type Engine struct {
 }
 
 type Indexer struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	Protocol     string  `json:"protocol"`
+	ID             string  `json:"id"`
+	Name           string  `json:"name"`
+	Implementation string  `json:"implementation"`
+	Protocol       string  `json:"protocol"`
 	Enabled      bool    `json:"enabled"`
 	Priority     int     `json:"priority"`
 	Health       Health  `json:"health"`
@@ -292,10 +353,13 @@ type Notifications struct {
 	Last24h    map[string]int `json:"last24h"`
 	Pending    int            `json:"pending"`
 	Failed24h  int            `json:"failed24h"`
-	Recent     []struct {
+	Recent []struct {
+		ID          string  `json:"id"`
 		EventKey    string  `json:"eventKey"`
 		ChannelType string  `json:"channelType"`
 		Status      string  `json:"status"`
+		Attempts    int     `json:"attempts"`
+		Recipient   *string `json:"recipient"`
 		Error       *string `json:"error"`
 		At          string  `json:"at"`
 	} `json:"recent"`

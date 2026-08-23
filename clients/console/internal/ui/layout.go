@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -187,4 +188,42 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// capBody trims a pane's content to a row budget, saying what it hid.
+//
+// The pane keeps its frame either way: clipping the RENDERED pane would cut off
+// its bottom rail and tear every box below it, so the budget is applied to the
+// content before it is framed.
+func capBody(body string, maxRows int) string {
+	if maxRows < 1 {
+		maxRows = 1
+	}
+	lines := strings.Split(body, "\n")
+	if len(lines) <= maxRows {
+		return body
+	}
+	// One row is spent saying so. A list that silently stops reads as the whole
+	// list, which is the one thing a monitoring client must never imply.
+	kept := lines[:maxRows-1]
+	hidden := len(lines) - len(kept)
+	kept = append(kept, styleMuted.Render(fmt.Sprintf("… %d more line(s) — widen or enlarge the terminal", hidden)))
+	return strings.Join(kept, "\n")
+}
+
+// clipHeight is the last line of defence against a scrolling screen.
+//
+// Every view budgets its own panes, but a miscalculation anywhere would push the
+// header and tab rail off the top of the terminal — and a dashboard whose
+// navigation has scrolled away is worse than one that shows less. This trims the
+// finished frame so that can never happen, whatever the views did.
+func clipHeight(view string, maxLines int) string {
+	if maxLines < 1 {
+		return view
+	}
+	lines := strings.Split(view, "\n")
+	if len(lines) <= maxLines {
+		return view
+	}
+	return strings.Join(lines[:maxLines], "\n")
 }

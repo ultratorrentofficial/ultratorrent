@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/ultratorrent/utconsole/internal/api"
 )
 
@@ -103,25 +104,36 @@ func ago(iso *string) string {
 	return humanDuration(d) + " ago"
 }
 
-// truncate shortens to width, with an ellipsis, counting runes not bytes.
+/*
+ * Width helpers measure with lipgloss.Width, never len().
+ *
+ * A styled string carries escape bytes that a terminal does not draw. Measuring
+ * with len() counts them, so a coloured cell is padded as though it were far
+ * wider than it looks — every column after it shifts left, the pane's right rail
+ * lands in the middle of the text, and the box appears "displaced". Worse,
+ * slicing runes can cut an escape sequence in half and bleed its colour across
+ * the rest of the screen. Both were visible on real data before this changed.
+ */
+
+// truncate shortens to a visible width, with an ellipsis.
 func truncate(s string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	r := []rune(s)
-	if len(r) <= width {
+	if lipgloss.Width(s) <= width {
 		return s
 	}
 	if width == 1 {
 		return "…"
 	}
-	return string(r[:width-1]) + "…"
+	// MaxWidth is escape-aware: it will not slice a sequence in half.
+	return lipgloss.NewStyle().MaxWidth(width-1).Render(s) + "…"
 }
 
-// pad right-pads to width so columns line up, truncating when too long.
+// pad right-pads to a visible width so columns line up, truncating when too long.
 func pad(s string, width int) string {
 	s = truncate(s, width)
-	if n := width - len([]rune(s)); n > 0 {
+	if n := width - lipgloss.Width(s); n > 0 {
 		return s + strings.Repeat(" ", n)
 	}
 	return s
@@ -130,7 +142,7 @@ func pad(s string, width int) string {
 // padLeft right-aligns, for numeric columns.
 func padLeft(s string, width int) string {
 	s = truncate(s, width)
-	if n := width - len([]rune(s)); n > 0 {
+	if n := width - lipgloss.Width(s); n > 0 {
 		return strings.Repeat(" ", n) + s
 	}
 	return s
@@ -156,12 +168,11 @@ func progressBar(fraction float64, width int) string {
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 
-// meterFor is a progress bar whose colour carries its own reading.
+// meterFor is a FULL-IS-BAD bar: disk usage, quota, pressure.
 //
-// Used for anything with a "full is bad" or "full is good" sense — disk usage,
-// download progress, playback position. The thresholds match the alert
-// projection's, so a bar that has turned red and an alert that has fired are
-// saying the same thing rather than disagreeing by a few percent.
+// The thresholds match the server's alert projection, so a bar that has turned
+// red and an alert that has fired are saying the same thing rather than
+// disagreeing by a few percent.
 func meterFor(fraction float64, width int) string {
 	style := styleOK
 	switch {
@@ -170,9 +181,27 @@ func meterFor(fraction float64, width int) string {
 	case fraction >= 0.9:
 		style = styleWarn
 	}
+	return paintMeter(fraction, width, style)
+}
+
+// progressMeter is a FULL-IS-GOOD bar: download progress, playback position.
+//
+// Separate from meterFor because the two have opposite senses and sharing one
+// function got it exactly backwards in practice — every completed torrent
+// rendered its progress bar in alarm red, because 100% tripped the
+// disk-is-nearly-full threshold. A finished download is the good case.
+func progressMeter(fraction float64, width int) string {
+	style := styleAccent
+	if fraction >= 1 {
+		style = styleOK
+	}
+	return paintMeter(fraction, width, style)
+}
+
+// paintMeter colours only the filled run, so the bar reads as a proportion
+// rather than as a block of colour.
+func paintMeter(fraction float64, width int, style lipgloss.Style) string {
 	bar := progressBar(fraction, width)
-	// Only the filled run is coloured; the remainder stays muted so the bar
-	// reads as a proportion rather than as a block of colour.
 	filled := len([]rune(strings.ReplaceAll(bar, "░", "")))
 	runes := []rune(bar)
 	return style.Render(string(runes[:filled])) + styleMuted.Render(string(runes[filled:]))

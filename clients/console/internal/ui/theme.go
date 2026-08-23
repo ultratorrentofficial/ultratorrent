@@ -51,11 +51,19 @@ var (
 			Foreground(colMuted).
 			Background(colSurface)
 
-	// The active tab is a filled segment, not underlined text: on a rail of
-	// nine it has to be findable at a glance, and an underline is easy to miss.
+	/*
+	 * The active tab.
+	 *
+	 * A filled segment rather than underlined text — on a rail of nine it has to
+	 * be findable at a glance, and an underline is easy to miss. The fill is the
+	 * OK green rather than the accent blue: reported as hard to read, and it is —
+	 * dark blue behind dark text is the lowest-contrast pairing in this palette,
+	 * where the same text on green clears it comfortably. Black text is pinned
+	 * rather than adaptive, because the fill is the same in both themes.
+	 */
 	styleTabActive = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "231", Dark: "233"}).
-			Background(colAccent).
+			Foreground(lipgloss.Color("16")).
+			Background(colOK).
 			Bold(true)
 
 	styleTabIdle = lipgloss.NewStyle().Foreground(colMuted)
