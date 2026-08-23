@@ -59,14 +59,16 @@ Flags:
   --no-publish-webui  Keep the engine's Web UI off the host network
   --prowlarr          Deploy the Prowlarr indexer manager
   --flaresolverr      Deploy FlareSolverr (requires --prowlarr)
+  --repo PATH         Checkout that holds docker-compose.yml (default: this directory)
   --skip-checks       Skip the system check (planning only; never for install)
 
 --puid/--pgid should be the owner of your media directory. They apply to the
 bundled engine AND the backend, which writes into the same tree — setting only
 one side leaves files the other cannot manage.
 
-Not yet implemented in this build: the interactive wizard and deployment. This
-build can inspect, plan, and write configuration.
+install deploys the stack: it writes the configuration, then builds and starts
+the containers and waits for them to become healthy. Not yet implemented in
+this build: the interactive wizard.
 `
 
 func main() {
