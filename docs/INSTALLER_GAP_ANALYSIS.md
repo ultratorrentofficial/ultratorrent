@@ -167,6 +167,31 @@ So G4 is *documenting and generating* a proven pattern, not designing a new one.
 It should be written into `docs/DOCKER.md` regardless of the installer, since
 operators hit it today with no guidance.
 
+#### Addendum, Phase 6: the bind device must exist BEFORE `up`
+
+Confirmed by experiment. Docker does not create a bind volume's `device` on
+demand and does not complain at `docker compose config`. The container fails to
+**start**, with:
+
+    failed to mount local volume: mount /srv/media:/var/lib/docker/volumes/<proj>_downloads/_data: no such file or directory
+
+which names an internal Docker path and gives no hint that the missing thing is a
+directory on the host. Creating the directory first makes that error unreachable,
+which is why storage preparation runs before anything else is written.
+
+Two further facts, both observed on a real host rather than reasoned about:
+
+- **`MkdirAll`'s mode is masked by the process umask.** With the usual 022 a
+  directory requested as 0775 lands 0755, silently dropping the group-writable
+  bit that the PUID/PGID arrangement depends on — an engine and a backend running
+  as different users in a shared group can then no longer both write. The mode has
+  to be re-asserted with an explicit `Chmod` after creation.
+- **Ownership must be reported, never corrected.** A recursive `chown` of an
+  existing media tree is slow, hard to undo, and on a NAS routinely wrong, since
+  the tree is usually shared with other applications that expect their own
+  ownership. The installer owns what it creates and states what it found about
+  the rest, with the command spelled out for the operator to run themselves.
+
 ### G5. qBittorrent first-run credentials are manual
 
 The LinuxServer image mints a temporary password into its logs on first start.

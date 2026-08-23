@@ -19,6 +19,7 @@ import (
 	"github.com/ultratorrent/installer/internal/config"
 	"github.com/ultratorrent/installer/internal/host"
 	"github.com/ultratorrent/installer/internal/plan"
+	"github.com/ultratorrent/installer/internal/storage"
 )
 
 // Set by the linker: -ldflags "-X main.version=…".
@@ -361,6 +362,15 @@ func generate(p *plan.Plan, dryRun bool) error {
 		fmt.Println("New secrets generated.")
 	}
 
+	// Storage first: a bind-backed volume whose device does not exist does not
+	// fail at `compose config` and is not created on demand — the container fails
+	// to START, with an error naming an internal Docker path and no hint that a
+	// host directory is missing. Preparing it before anything else means that
+	// error cannot happen.
+	if err := prepareStorage(p, dryRun); err != nil {
+		return err
+	}
+
 	actions, err := writer.EnsureDir()
 	if err != nil {
 		return err
@@ -403,6 +413,57 @@ func generate(p *plan.Plan, dryRun bool) error {
 	}
 	printNextSteps(p, reused)
 	return nil
+}
+
+// prepareStorage inspects and creates the host directories the stack needs.
+//
+// Inspection runs first and in full: an operator who has three problems should
+// see three, not discover them one failed run at a time.
+func prepareStorage(p *plan.Plan, dryRun bool) error {
+	dirs := storage.Plan(p)
+	if len(dirs) == 0 {
+		return nil
+	}
+	ops := storage.DefaultOps()
+
+	fmt.Println("\nStorage")
+	fmt.Print(storage.Summary(dirs))
+
+	findings := storage.Inspect(dirs, p.InstallDirectory, ops)
+	for _, f := range findings {
+		if f.Level == host.LevelOK {
+			continue
+		}
+		fmt.Printf("  %-11s %s: %s\n", storageLevel(f.Level), f.Value, f.Detail)
+		if f.Remedy != "" {
+			fmt.Printf("           %s\n", f.Remedy)
+		}
+	}
+	if storage.Blocked(findings) {
+		return fmt.Errorf("the storage layout cannot be prepared — " +
+			"resolve the failures above and re-run. Nothing has been changed")
+	}
+
+	actions, err := storage.Prepare(dirs, ops, dryRun)
+	for _, a := range actions {
+		fmt.Println("  " + a.String())
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// storageLevel words a finding for a directory.
+//
+// The shared LevelAction renders as "WILL INSTALL", which is right for a missing
+// Docker and wrong for a missing directory — the operator should read what will
+// actually happen to the thing named on the line.
+func storageLevel(l host.Level) string {
+	if l == host.LevelAction {
+		return "WILL CREATE"
+	}
+	return string(l)
 }
 
 // resolveSecrets keeps an existing installation's secrets, or mints a fresh set.
