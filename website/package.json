@@ -5,7 +5,8 @@
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "npm run gen && docusaurus start",
-    "build": "npm run gen && npm run build:en && npm run build:es-PR",
+    "build": "npm run gen && npm run build:all",
+    "build:all": "NODE_OPTIONS=--max-old-space-size=3072 docusaurus build",
     "build:en": "NODE_OPTIONS=--max-old-space-size=3072 docusaurus build --locale en",
     "build:es-PR": "NODE_OPTIONS=--max-old-space-size=3072 docusaurus build --locale es-PR --out-dir build/es-PR",
     "swizzle": "docusaurus swizzle",

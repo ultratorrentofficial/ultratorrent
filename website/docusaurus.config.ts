@@ -54,6 +54,17 @@ const config: Config = {
       'es-PR': { label: 'Español (Puerto Rico)', direction: 'ltr', htmlLang: 'es-PR' },
     },
   },
+  // Build ALL locales in one `docusaurus build` (npm run build:all), never one
+  // `--locale` pass per locale. A single-locale build treats that locale as the
+  // only one and emits the language switcher without a locale prefix: the English
+  // page linked "Español (Puerto Rico)" to `/` instead of `/es-PR/`, so switching
+  // language silently did nothing. --out-dir puts the files in the right place;
+  // it does not tell the other build they exist.
+  //
+  // The split existed because two locales at once OOM'd the old 1.6 GB dev box.
+  // Measured on the current host: 5.0 GB peak of 7.4 GB. build:en / build:es-PR
+  // are kept for genuinely memory-constrained or single-locale builds — accepting
+  // that the switcher is broken in that output.
 
   // --- Build performance --------------------------------------------------
   // Rspack + SWC + Lightning CSS instead of webpack/Babel/PostCSS. This is not a
