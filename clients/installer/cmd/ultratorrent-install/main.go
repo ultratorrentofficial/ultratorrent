@@ -809,7 +809,12 @@ func deployStack(p *plan.Plan, g generated) error {
 		fmt.Fprintln(os.Stderr, "\nThe stack did not become healthy.")
 		for _, svc := range d.Unhealthy {
 			fmt.Fprintf(os.Stderr, "\n  %s: %s\n", svc.Name, svc.State)
-			if tail := d.Logs[svc.Name]; tail != "" {
+			// Keyed by Service, not Name: Diagnose indexes by the Compose service
+			// ("backend") while Name is the container ("ultratorrent-backend-1").
+			// Looking up by Name silently found nothing, so a failed deploy showed
+			// the service and its state and none of the reason — which is the only
+			// part worth printing.
+			if tail := d.Logs[svc.Service]; tail != "" {
 				for _, line := range strings.Split(strings.TrimRight(tail, "\n"), "\n") {
 					fmt.Fprintln(os.Stderr, "    "+line)
 				}

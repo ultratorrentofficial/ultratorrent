@@ -210,13 +210,69 @@ func (s ServiceStatus) Healthy() bool {
 	return s.Health == "" || s.Health == "healthy"
 }
 
+// progressVerbs are the words Compose ends a progress line with. It writes all
+// of them to stderr, which is why the first stderr line is almost never the
+// reason a command failed.
+var progressVerbs = map[string]bool{
+	"Running": true, "Created": true, "Creating": true, "Healthy": true,
+	"Started": true, "Starting": true, "Waiting": true, "Recreate": true,
+	"Recreated": true, "Pulling": true, "Pulled": true, "Built": true,
+	"Building": true, "Stopping": true, "Stopped": true, "Removing": true,
+	"Removed": true, "Skipped": true, "Warning": true, "Error": true,
+}
+
+// isProgress reports whether a line is Compose narrating rather than complaining.
+//
+// Shape: "<Kind> <name> <Verb>" — " Container ultratorrent-redis-1 Running".
+// "Error" is a progress verb too ("Container x Error"), but such a line names no
+// cause, so it is still not the line worth reporting.
+func isProgress(line string) bool {
+	f := strings.Fields(line)
+	if len(f) < 3 {
+		return false
+	}
+	switch f[0] {
+	case "Container", "Volume", "Network", "Image", "Service":
+	default:
+		return false
+	}
+	return progressVerbs[f[len(f)-1]]
+}
+
+// firstLine extracts the line an operator can act on.
+//
+// Named for what it used to do. It took the literal first line, which for
+// Compose is progress noise: a successful `up --wait` opens with "Container
+// ultratorrent-redis-1 Running". Live, that made a failed build report
+// "node: command not found" — a harmless `|| true` line five lines above the
+// real error — and made a failed `up` report "Volume ultratorrent_downloads
+// Creating". Both sent the reader after the wrong thing.
+//
+// So: skip progress, prefer a line that actually mentions an error, and
+// otherwise take the LAST substantive line, since a tool that narrates as it
+// works puts its conclusion at the end rather than the start.
 func firstLine(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return "no output"
 	}
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i]
+	var kept []string
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || isProgress(line) {
+			continue
+		}
+		kept = append(kept, line)
 	}
-	return s
+	if len(kept) == 0 {
+		// Only progress: the last one at least says which resource it stopped on.
+		lines := strings.Split(s, "\n")
+		return strings.TrimSpace(lines[len(lines)-1])
+	}
+	for _, line := range kept {
+		if strings.Contains(strings.ToLower(line), "error") {
+			return line
+		}
+	}
+	return kept[len(kept)-1]
 }
