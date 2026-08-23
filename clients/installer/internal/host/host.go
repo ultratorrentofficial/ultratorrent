@@ -164,6 +164,17 @@ const MinDockerVersion = "20.10"
 // MinComposeVersion is the plugin's floor, for the same reason.
 const MinComposeVersion = "2.0"
 
+// MinComposeVersionForReset is the floor for the `!reset` tag, which the
+// generated override uses to UNPUBLISH a port the base Compose file publishes.
+//
+// It needs its own constant because getting it wrong is not a degraded install
+// but a broken one: on an older Compose the tag is a parse error, so the whole
+// stack fails to come up rather than merely publishing a port that should have
+// stayed internal. Only checked when a plan actually needs it — most do not, and
+// refusing every old-Compose host over a feature it will not use would be the
+// installer protecting itself rather than the operator.
+const MinComposeVersionForReset = "2.24"
+
 // Add appends a finding.
 func (r *Report) Add(f Finding) { r.Findings = append(r.Findings, f) }
 
@@ -230,4 +241,33 @@ func HumanBytes(n int64) string {
 		return fmt.Sprintf("%.1f %s", value, suffix)
 	}
 	return fmt.Sprintf("%.0f %s", value, suffix)
+}
+
+// RequireResetTag records whether this installation's generated override will
+// use Compose's `!reset` tag, and fails the check if the plugin is too old.
+//
+// Driven by the caller rather than detected here, because this package knows
+// about hosts and not about plans — and because the requirement is conditional:
+// most installations never use the tag, and refusing every old-Compose host over
+// a feature it will not touch would be the installer protecting itself rather
+// than the operator.
+//
+// A FAILURE, not a warning. On an older Compose the tag is a YAML parse error,
+// so the whole stack fails to start — worse than the port simply being
+// published, and it would look like a fault in the installer's generated file
+// rather than in the Compose version.
+func (r *Report) RequireResetTag() {
+	if !r.Compose.Installed || r.Compose.Legacy {
+		return // already reported, and by a more useful finding than this one
+	}
+	if AtLeast(r.Compose.Version, MinComposeVersionForReset) {
+		return
+	}
+	r.Add(Finding{
+		Label: "Docker Compose", Value: r.Compose.Version, Level: LevelFail,
+		Detail: "keeping a service off the host network needs Compose " +
+			MinComposeVersionForReset + " or newer for the `!reset` tag; on this " +
+			"version the generated override would fail to parse and nothing would start",
+		Remedy: "upgrade the Compose plugin, or allow the Web UI to be published",
+	})
 }

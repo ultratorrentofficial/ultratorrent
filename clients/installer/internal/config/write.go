@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ultratorrent/installer/internal/companion"
 	"github.com/ultratorrent/installer/internal/engine"
 	"github.com/ultratorrent/installer/internal/plan"
+	"github.com/ultratorrent/installer/internal/proxy"
 )
 
 // File is one rendered file, with the mode it must be created with.
@@ -61,6 +63,11 @@ const (
 	// the operator could never sign in, and could never give UltraTorrent's
 	// backend the credentials it needs to drive the engine.
 	EngineCredentialsFileName = "engine-credentials.txt"
+	// ProwlarrConfigDirName is bound in as Prowlarr's config volume, so its API
+	// key can be seeded before first start.
+	ProwlarrConfigDirName = "prowlarr"
+	// ProwlarrConfigFileName is relative to the installation directory.
+	ProwlarrConfigFileName = ProwlarrConfigDirName + "/" + companion.ProwlarrConfigPath
 )
 
 // QbittorrentContainerPort is the port the Compose file maps the bundled engine's
@@ -68,6 +75,9 @@ const (
 // which is why a published port other than this one needs qBittorrent's Host
 // header check relaxed — see engine.Settings.RelaxHostHeaderValidation.
 const QbittorrentContainerPort = 8080
+
+// ProwlarrContainerPort is the port Prowlarr listens on inside its container.
+const ProwlarrContainerPort = 9696
 
 // Render produces every file an installation needs.
 //
@@ -95,7 +105,45 @@ func Render(p *plan.Plan, s *plan.Secrets) []File {
 	if f, ok := renderEngineConfig(p, s); ok {
 		files = append(files, f, renderEngineCredentials(p, s))
 	}
+	if f, ok := renderProwlarrConfig(p, s); ok {
+		files = append(files, f)
+	}
+	if p.Networking.UseBundledProxy {
+		files = append(files, File{
+			Name: proxy.CaddyfileName,
+			Mode: ModePublic,
+			Content: proxy.RenderCaddyfile(proxy.Settings{
+				PublicURL: p.Networking.PublicURL,
+			}),
+		})
+	}
 	return files
+}
+
+// renderProwlarrConfig seeds Prowlarr's API key before its first start.
+//
+// Without it the key is generated inside the container and the integration can
+// only be wired by asking the operator to copy it out of a web UI. With it, the
+// Prowlarr link and the FlareSolverr indexer proxy are both reachable through
+// Prowlarr's own API.
+//
+// Write-once: Prowlarr rewrites this file itself.
+func renderProwlarrConfig(p *plan.Plan, s *plan.Secrets) (File, bool) {
+	if !p.Companions.Prowlarr || s == nil || s.ProwlarrAPIKey == "" {
+		return File{}, false
+	}
+	return File{
+		Name: ProwlarrConfigFileName,
+		// It holds an API key that grants full control of the indexer manager.
+		Mode:   ModeSecret,
+		Secret: true,
+		Once:   true,
+		Content: companion.RenderProwlarrConfig(companion.ProwlarrSettings{
+			APIKey:    s.ProwlarrAPIKey,
+			Port:      ProwlarrContainerPort,
+			PublishUI: p.Companions.PublishProwlarrUI,
+		}),
+	}, true
 }
 
 // renderEngineCredentials records the engine's password where the operator can

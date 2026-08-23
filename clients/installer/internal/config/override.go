@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ultratorrent/installer/internal/plan"
+	"github.com/ultratorrent/installer/internal/proxy"
 )
 
 // RenderOverride produces docker-compose.override.yml, or "" when the plan needs
@@ -45,6 +46,54 @@ func RenderOverride(p *plan.Plan) string {
 func renderServiceOverrides(p *plan.Plan) string {
 	var b strings.Builder
 
+	if p.Networking.UseBundledProxy {
+		/*
+		 * The repository's deploy/Caddyfile is tracked and mounted read-only, and
+		 * is hardcoded to :80 — so configuring the proxy at all means either
+		 * editing a file that belongs to the project, or pointing the mount
+		 * somewhere else. Editing it would fork the installation from upstream
+		 * the first time that file changed, which is the same reason
+		 * docker-compose.yml is never generated.
+		 */
+		fmt.Fprintf(&b, `  # Points the bundled proxy at the generated Caddyfile. The repository's
+  # deploy/Caddyfile is tracked and read-only, and hardcoded to :80; editing it
+  # would fork this installation from the project.
+  proxy:
+    volumes:
+      - %s:/etc/caddy/Caddyfile:ro
+
+`, yamlPath(filepath.Join(p.InstallDirectory, proxy.CaddyfileName)))
+	}
+
+	if !p.Companions.PublishProwlarrUI && p.Companions.Prowlarr {
+		/*
+		 * Prowlarr starts with NO authentication and there is no setting that is
+		 * both safe and usable for a published UI — measured, not assumed. So the
+		 * UI stays on the internal network unless the operator asks otherwise,
+		 * where the API key is the only credential that matters.
+		 *
+		 * `!reset` rather than an empty list: a `ports:` list in an override is
+		 * APPENDED to the base one, so writing `ports: []` would leave the
+		 * original mapping in place and quietly do nothing.
+		 */
+		b.WriteString(`  # Keeps Prowlarr off the host network. It starts with no authentication,
+  # and no Prowlarr setting both enforces auth and lets you create the first
+  # account, so publishing it would expose an unauthenticated admin UI.
+  prowlarr:
+    ports: !reset []
+
+`)
+	}
+
+	if p.Torrent.Engine == plan.EngineQbittorrent && !p.Torrent.PublishWebUI {
+		b.WriteString(`  # Keeps the engine's Web UI off the host network. UltraTorrent drives the
+  # engine over the internal network; the UI is only for direct inspection.
+  qbittorrent:
+    ports: !reset []
+
+`)
+	}
+
 	if p.Torrent.PUID > 0 || p.Torrent.PGID > 0 {
 		/*
 		 * Ownership is a two-sided problem and setting only one side is the
@@ -71,8 +120,29 @@ func renderServiceOverrides(p *plan.Plan) string {
 func renderVolumeOverride(p *plan.Plan) string {
 	var b strings.Builder
 	b.WriteString(renderEngineConfigVolume(p))
+	b.WriteString(renderProwlarrConfigVolume(p))
 	b.WriteString(renderDownloadsVolume(p))
 	return b.String()
+}
+
+// renderProwlarrConfigVolume binds Prowlarr's config volume, for the same reason
+// the engine's is bound: a named volume cannot be written to before a container
+// mounts it, so the API key could not be seeded.
+func renderProwlarrConfigVolume(p *plan.Plan) string {
+	if !p.Companions.Prowlarr {
+		return ""
+	}
+	return fmt.Sprintf(`  # Binds Prowlarr's config volume so its API key can be seeded before first
+  # start. Without that the key is generated inside the container and the only
+  # way to wire the integration is to copy it out of Prowlarr's web UI.
+  prowlarr_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: %s
+
+`, yamlPath(filepath.Join(p.InstallDirectory, ProwlarrConfigDirName)))
 }
 
 // renderEngineConfigVolume binds the bundled engine's config volume to a host

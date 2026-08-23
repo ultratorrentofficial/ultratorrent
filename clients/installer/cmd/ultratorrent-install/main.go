@@ -50,6 +50,10 @@ Flags:
   --media-root PATH   Host path for media; omit to use a Docker volume
   --puid N            Own downloaded files as this user id (see below)
   --pgid N            Own downloaded files as this group id
+  --public-url URL    The address users will type; becomes CORS_ORIGIN
+  --bundled-proxy     Deploy the bundled Caddy reverse proxy (takes ports 80/443)
+  --publish-prowlarr  Publish Prowlarr's Web UI (starts with NO authentication)
+  --no-publish-webui  Keep the engine's Web UI off the host network
   --prowlarr          Deploy the Prowlarr indexer manager
   --flaresolverr      Deploy FlareSolverr (requires --prowlarr)
   --skip-checks       Skip the system check (planning only; never for install)
@@ -85,6 +89,10 @@ func run(args []string) error {
 		port         = fs.Int("port", plan.DefaultFrontendPort, "host port for the web UI")
 		engine       = fs.String("engine", string(plan.EngineQbittorrent), "torrent engine")
 		mediaRoot    = fs.String("media-root", "", "host path for media")
+		publicURL    = fs.String("public-url", "", "the address users will type")
+		bundledProxy = fs.Bool("bundled-proxy", false, "deploy the bundled reverse proxy")
+		pubProwlarr  = fs.Bool("publish-prowlarr", false, "publish Prowlarr's Web UI")
+		noWebUI      = fs.Bool("no-publish-webui", false, "keep the engine's Web UI internal")
 		withProwlarr = fs.Bool("prowlarr", false, "deploy Prowlarr")
 		withFlare    = fs.Bool("flaresolverr", false, "deploy FlareSolverr")
 		puid         = fs.Int("puid", 0, "own downloaded files as this user id")
@@ -105,7 +113,7 @@ func run(args []string) error {
 		return nil
 
 	case "plan":
-		p, err := build(*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid)
+		p, err := build(buildOpts{*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
 		if err != nil {
 			return err
 		}
@@ -115,7 +123,7 @@ func run(args []string) error {
 		return emit(p, *asJSON, *output)
 
 	case "generate":
-		p, err := build(*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid)
+		p, err := build(buildOpts{*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
 		if err != nil {
 			return err
 		}
@@ -130,7 +138,7 @@ func run(args []string) error {
 		return generate(p, *dryRun)
 
 	case "install":
-		p, err := build(*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid)
+		p, err := build(buildOpts{*installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
 		if err != nil {
 			return err
 		}
@@ -173,10 +181,32 @@ func run(args []string) error {
 //
 // Flags stand in for the wizard for now; the wizard will populate the same
 // struct, so everything downstream is already exercised.
-func build(installDir string, port int, engine, mediaRoot string, prowlarr, flare bool, puid, pgid int) (*plan.Plan, error) {
+// buildOpts are the wizard's answers, standing in for the wizard for now.
+type buildOpts struct {
+	installDir   string
+	port         int
+	engine       string
+	mediaRoot    string
+	prowlarr     bool
+	flare        bool
+	puid, pgid   int
+	publicURL    string
+	bundledProxy bool
+	pubProwlarr  bool
+	publishWebUI bool
+}
+
+func build(o buildOpts) (*plan.Plan, error) {
+	installDir, port, engine, mediaRoot := o.installDir, o.port, o.engine, o.mediaRoot
+	prowlarr, flare, puid, pgid := o.prowlarr, o.flare, o.puid, o.pgid
+
 	p := plan.Recommended(version)
 	p.InstallDirectory = installDir
 	p.Networking.FrontendPort = port
+	p.Networking.PublicURL = o.publicURL
+	p.Networking.UseBundledProxy = o.bundledProxy
+	p.Companions.PublishProwlarrUI = o.pubProwlarr
+	p.Torrent.PublishWebUI = o.publishWebUI
 	p.Torrent.Engine = plan.Engine(engine)
 
 	if mediaRoot != "" {
@@ -322,12 +352,28 @@ func yesNo(b bool) string {
 //
 // The plan supplies the ports, so the check tests what THIS installation will
 // bind rather than a hard-coded list that drifts from what is deployed.
+// needsResetTag reports whether the generated override will use `!reset`.
+//
+// Only a plan that keeps a normally-published service off the host network does,
+// which keeps the Compose version requirement proportional to what this
+// installation actually generates.
+func needsResetTag(p *plan.Plan) bool {
+	if p.Companions.Prowlarr && !p.Companions.PublishProwlarrUI {
+		return true
+	}
+	return p.Torrent.Engine == plan.EngineQbittorrent && !p.Torrent.PublishWebUI
+}
+
 func inspect(p *plan.Plan) *host.Report {
 	wanted := make([]host.PortStatus, 0, 4)
 	for _, binding := range p.PublishedPorts() {
 		wanted = append(wanted, host.PortStatus{Port: binding.Port, Label: binding.Label})
 	}
-	return host.NewDetector().Detect(context.Background(), p.InstallDirectory, wanted)
+	report := host.NewDetector().Detect(context.Background(), p.InstallDirectory, wanted)
+	if needsResetTag(p) {
+		report.RequireResetTag()
+	}
+	return report
 }
 
 // generate writes the configuration an installation needs, and nothing else.

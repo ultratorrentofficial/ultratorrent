@@ -428,3 +428,31 @@ func TestPortIsFreeDetectsABoundPort(t *testing.T) {
 		t.Errorf("port %d is bound but reported free", l.port)
 	}
 }
+
+func TestResetTagRequiresANewerCompose(t *testing.T) {
+	/*
+	 * A FAILURE rather than a warning, deliberately. On an older Compose the
+	 * `!reset` tag is a YAML parse error, so the whole stack fails to start —
+	 * worse than the port simply being published, and it would look like a fault
+	 * in the installer's generated file rather than in the Compose version.
+	 */
+	old := &Report{Compose: ComposeInfo{Installed: true, Version: "2.20.0"}}
+	old.RequireResetTag()
+	if !old.Blocked() {
+		t.Error("Compose 2.20 cannot parse !reset and must block")
+	}
+
+	current := &Report{Compose: ComposeInfo{Installed: true, Version: "2.24.0"}}
+	current.RequireResetTag()
+	if current.Blocked() {
+		t.Error("Compose 2.24 supports !reset")
+	}
+
+	// A missing or v1 Compose is already reported by a more useful finding; this
+	// check must not pile a second, more confusing one on top.
+	absent := &Report{Compose: ComposeInfo{Installed: false}}
+	absent.RequireResetTag()
+	if len(absent.Findings) != 0 {
+		t.Errorf("nothing to add when Compose is absent, got %v", absent.Findings)
+	}
+}

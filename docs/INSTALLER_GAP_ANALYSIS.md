@@ -366,6 +366,53 @@ i18n approach (en-US/es-PR embedded via `go:embed`), and the
 
 ---
 
+### G8 (Phase 7). Optional services: Prowlarr, FlareSolverr, the bundled proxy
+
+**Prowlarr's API key can be pre-seeded, and it unlocks the rest.** Verified
+against Prowlarr 2.4.0: a key written into `config.xml` before first start is
+kept, accepted on `X-Api-Key` immediately, and a wrong key is rejected with 401.
+That matters beyond convenience — `/api/v1/indexerproxy` is reachable with it, so
+the FlareSolverr wiring Prowlarr's own documentation describes as a click path
+becomes automatable in Phase 9, instead of the installer asking the operator to
+copy a key out of a web UI.
+
+**Prowlarr's Web UI must not be published by default.** There is no
+authentication setting that is both safe and usable, measured rather than
+assumed:
+
+| `AuthenticationRequired` | Unauthenticated `GET /` through a published port |
+|---|---|
+| `DisabledForLocalAddresses` | **200 — the application** |
+| `Enabled` | 302 to a login page |
+| (unset) | **200 — the application** |
+
+`DisabledForLocalAddresses` fails because every request arriving through a
+published port comes from the Docker gateway, which is a private address, so
+"local" means anyone who can reach the host. `Enabled` is secure but the login
+page offers no way to create the first account, and Prowlarr keeps its users in
+its own SQLite database — seeding one would mean writing directly into another
+application's tables, which the brief forbids. Leaving it unset does not trigger
+a setup wizard; the UI is simply open. So the default is `PublishProwlarrUI:
+false`, changed from `true`, and publishing stays available with the consequence
+stated in the generated config file.
+
+**The bundled proxy's config is repository-tracked.** `deploy/Caddyfile` is
+mounted read-only and hardcoded to `:80`, so configuring the proxy means either
+editing a file that belongs to the project — forking the installation from
+upstream the first time it changes, the same reason `docker-compose.yml` is never
+generated — or redirecting the mount. The installer generates its own Caddyfile
+and redirects the mount. Site address selection matters: a bare `:80` for an IP
+or `localhost`, because no certificate authority will issue for either and Caddy
+retrying a hopeless ACME challenge is a startup that never settles.
+
+**Unpublishing a port needs Compose ≥ 2.24.** A `ports:` list in an override is
+APPENDED to the base one — verified, two mappings for the same host port — so
+`ports: []` does nothing. `!reset` works, but on an older Compose the tag is a
+parse error and the whole stack fails to start, which is worse than the port
+being published and would look like a fault in the generated file. The
+requirement is therefore conditional: checked only when a plan actually keeps a
+service off the host network.
+
 ## 7. Proposed delivery order
 
 Unchanged from the brief, with two adjustments the audit justifies:

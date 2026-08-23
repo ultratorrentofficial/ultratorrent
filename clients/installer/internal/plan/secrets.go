@@ -3,6 +3,7 @@ package plan
 import (
 	"crypto/rand"
 	"fmt"
+	"github.com/ultratorrent/installer/internal/companion"
 	"math/big"
 	"strings"
 )
@@ -28,6 +29,13 @@ type Secrets struct {
 	// prints to its log — a credential that is racy to catch, ends up in
 	// `docker logs`, and cannot be automated around.
 	EnginePassword string `json:"-"`
+	// ProwlarrAPIKey is the bundled indexer manager's API key.
+	//
+	// Generated rather than read back later, because it is what lets the
+	// installer wire Prowlarr into UltraTorrent — and add FlareSolverr as an
+	// indexer proxy — through Prowlarr's own API, instead of asking the operator
+	// to copy a key out of a web UI.
+	ProwlarrAPIKey string `json:"-"`
 }
 
 // Character sets for generation.
@@ -84,6 +92,11 @@ func GenerateSecrets() (*Secrets, error) {
 		}
 		*field.target = value
 	}
+	key, err := companion.NewAPIKey()
+	if err != nil {
+		return nil, err
+	}
+	s.ProwlarrAPIKey = key
 	return s, nil
 }
 

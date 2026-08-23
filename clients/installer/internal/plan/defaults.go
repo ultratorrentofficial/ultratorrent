@@ -81,8 +81,22 @@ func Recommended(installerVersion string) *Plan {
 			// later — in the wizard or in reconfigure — cannot leave it on port
 			// zero. Validation would catch that, but a default the user never
 			// has to think about is better than an error they have to fix.
-			ProwlarrPort:      DefaultProwlarrPort,
-			PublishProwlarrUI: true,
+			ProwlarrPort: DefaultProwlarrPort,
+			// Not published, on evidence rather than caution.
+			//
+			// Measured against Prowlarr 2.4.0: there is no authentication setting
+			// that is both safe and usable for a published UI. Disabling auth for
+			// local addresses serves the application unauthenticated through a
+			// published port, because every request that way arrives from the
+			// Docker gateway — a private address. Enabling it redirects to a login
+			// page with no way to create an account, and Prowlarr keeps its users
+			// in its own database, so seeding one would mean writing into another
+			// application's tables. Writing nothing leaves it open.
+			//
+			// On the internal network the API key is the only credential that
+			// matters, and UltraTorrent has it. Publishing stays a deliberate
+			// choice, made with the consequence stated.
+			PublishProwlarrUI: false,
 		},
 		Storage: Storage{
 			// A Docker volume by default: it always works, needs no host path,

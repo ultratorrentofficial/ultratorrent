@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ultratorrent/installer/internal/plan"
+	"github.com/ultratorrent/installer/internal/proxy"
 )
 
 func testPlan() *plan.Plan {
@@ -949,5 +950,113 @@ func TestEngineConfigVolumeIsBoundSoItCanBeSeeded(t *testing.T) {
 	p.Finalize()
 	if strings.Contains(RenderOverride(p), "qbittorrent_config") {
 		t.Error("no qBittorrent, no qBittorrent config volume")
+	}
+}
+
+// --- optional services -----------------------------------------------------
+
+func fileNamed(files []File, name string) *File {
+	for i := range files {
+		if files[i].Name == name {
+			return &files[i]
+		}
+	}
+	return nil
+}
+
+func TestProwlarrsKeyIsSeededSoTheIntegrationCanBeWired(t *testing.T) {
+	/*
+	 * Without seeding, the key is generated inside the container and the only way
+	 * to wire Prowlarr into UltraTorrent is to ask the operator to copy it out of
+	 * a web UI. With it, both that link and the FlareSolverr indexer proxy are
+	 * reachable through Prowlarr's own API — verified against Prowlarr 2.4.0,
+	 * where a seeded key is preserved and accepted immediately.
+	 */
+	p, s := qbPlan()
+	p.Companions.Prowlarr = true
+	p.Finalize()
+	s.ProwlarrAPIKey = "0123456789abcdef0123456789abcdef"
+
+	config := fileNamed(Render(p, s), ProwlarrConfigFileName)
+	if config == nil {
+		t.Fatal("no Prowlarr config was generated")
+	}
+	if !strings.Contains(config.Content, s.ProwlarrAPIKey) {
+		t.Error("the seeded key is missing")
+	}
+	if config.Mode != ModeSecret {
+		t.Errorf("mode = %#o — the key grants full control of the indexer manager", config.Mode)
+	}
+	if !config.Once {
+		t.Error("Prowlarr rewrites this file itself")
+	}
+}
+
+func TestNoProwlarrConfigWithoutProwlarr(t *testing.T) {
+	p, s := qbPlan()
+	p.Companions.Prowlarr = false
+	p.Finalize()
+	if fileNamed(Render(p, s), ProwlarrConfigFileName) != nil {
+		t.Error("a config was generated for a companion that is not deployed")
+	}
+}
+
+func TestProwlarrsUIIsUnpublishedByDefault(t *testing.T) {
+	/*
+	 * `!reset` rather than an empty list: a `ports:` entry in an override is
+	 * APPENDED to the base one, so `ports: []` would leave the original mapping
+	 * in place and quietly do nothing — verified against Compose, where a plain
+	 * override produced two mappings for the same host port.
+	 */
+	p, _ := qbPlan()
+	p.Companions.Prowlarr = true
+	p.Companions.PublishProwlarrUI = false
+	p.Finalize()
+
+	override := RenderOverride(p)
+	if !strings.Contains(override, "ports: !reset []") {
+		t.Errorf("the published port should be reset, not appended to:\n%s", override)
+	}
+
+	p.Companions.PublishProwlarrUI = true
+	p.Finalize()
+	if strings.Contains(RenderOverride(p), "prowlarr:\n    ports: !reset") {
+		t.Error("an explicitly published UI must stay published")
+	}
+}
+
+func TestTheBundledProxyUsesAGeneratedCaddyfile(t *testing.T) {
+	/*
+	 * deploy/Caddyfile is tracked in the repository and mounted read-only, and is
+	 * hardcoded to :80. Editing it would fork the installation from the project
+	 * the first time upstream changed it — the same reason docker-compose.yml is
+	 * never generated — so the mount is redirected instead.
+	 */
+	p, s := qbPlan()
+	p.Networking.UseBundledProxy = true
+	p.Networking.PublicURL = "https://media.example.com"
+	p.Finalize()
+
+	if fileNamed(Render(p, s), proxy.CaddyfileName) == nil {
+		t.Fatal("no Caddyfile was generated")
+	}
+	override := RenderOverride(p)
+	if !strings.Contains(override, "/etc/caddy/Caddyfile:ro") {
+		t.Errorf("the proxy should mount the generated file:\n%s", override)
+	}
+	if !strings.Contains(override, filepath.Join(p.InstallDirectory, proxy.CaddyfileName)) {
+		t.Error("it should mount the file from the installation directory")
+	}
+}
+
+func TestNoCaddyfileWithoutTheBundledProxy(t *testing.T) {
+	// An operator already behind their own proxy must not get a second one, nor
+	// a stray config file suggesting they have.
+	p, s := qbPlan()
+	p.Networking.UseBundledProxy = false
+	p.Networking.BehindReverseProxy = true
+	p.Finalize()
+	if fileNamed(Render(p, s), proxy.CaddyfileName) != nil {
+		t.Error("a Caddyfile was generated for an installation that deploys no proxy")
 	}
 }
