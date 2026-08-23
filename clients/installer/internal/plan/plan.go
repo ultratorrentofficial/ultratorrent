@@ -97,8 +97,20 @@ type Plan struct {
 	// InstallDirectory holds the Compose file, .env, generated overrides and
 	// installer state. Deliberately not where media lives.
 	InstallDirectory string `json:"installDirectory"`
-	// ProjectName is the Compose project. Empty means "let Compose derive it
-	// from the directory", which is what a hand-run stack already does.
+	// RepoDirectory holds docker-compose.yml — the project directory Compose is
+	// run from, so build contexts and relative paths resolve as they do when an
+	// operator runs Compose by hand.
+	//
+	// Part of the plan rather than a flag alone because a plan is meant to be
+	// saved and replayed: one that cannot say where its Compose file lives is
+	// not a complete description of the installation. Empty means it was not
+	// supplied — deploy refuses rather than searching for one, since guessing a
+	// directory is what ProjectName used to do.
+	RepoDirectory string `json:"repoDirectory,omitempty"`
+	// ProjectName is the Compose project, and is always set — see
+	// DefaultProjectName. Empty would mean "let Compose derive it from the
+	// directory", which is how an installer adopts a stack it did not create:
+	// deploy refuses an empty name rather than guessing.
 	ProjectName string `json:"projectName,omitempty"`
 
 	Host       Host       `json:"host"`

@@ -26,7 +26,7 @@ import (
 
 // Runner executes a command. Injected so the argv this package builds — the part
 // that matters — is testable without a Docker daemon.
-type Runner func(ctx context.Context, name string, args ...string) (stdout string, stderr string, err error)
+type Runner func(ctx context.Context, name string, env []string, args ...string) (stdout string, stderr string, err error)
 
 // Compose invokes Docker Compose against one installation.
 type Compose struct {
@@ -47,6 +47,31 @@ type Compose struct {
 	HasOverride bool
 
 	Run Runner
+}
+
+// composeEnv expresses what baseArgs passes as flags, as environment variables.
+//
+// docker-build.sh ends in `exec docker compose build "$@"`, and Compose's
+// global flags must precede the subcommand — so they cannot be threaded through
+// the script's arguments. The documented COMPOSE_* variables carry the same
+// meaning, which keeps the stamped build script canonical (CLAUDE.md requires
+// building through it; a bare `docker compose build` leaves gitSha null) while
+// still pointing it at the generated .env rather than a repo .env that does not
+// exist. Without this the build fails on every required variable at once.
+func (c *Compose) composeEnv() []string {
+	files := c.RepoDir + "/" + BaseFile
+	if c.HasOverride {
+		files += ":" + c.InstallDir + "/" + OverrideFile
+	}
+	env := []string{
+		"COMPOSE_PROJECT_NAME=" + c.ProjectName,
+		"COMPOSE_FILE=" + files,
+		"COMPOSE_ENV_FILES=" + c.InstallDir + "/" + EnvFile,
+	}
+	if len(c.Profiles) > 0 {
+		env = append(env, "COMPOSE_PROFILES="+strings.Join(c.Profiles, ","))
+	}
+	return env
 }
 
 // Files the executor references inside the installation directory.
@@ -98,7 +123,7 @@ func (c *Compose) Config(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, stderr, err := c.Run(ctx, "docker", append(args, "config", "--quiet")...)
+	_, stderr, err := c.Run(ctx, "docker", nil, append(args, "config", "--quiet")...)
 	if err != nil {
 		return fmt.Errorf("the generated configuration is not valid: %s", firstLine(stderr))
 	}
@@ -118,7 +143,7 @@ func (c *Compose) Pull(ctx context.Context) (string, error) {
 	}
 	// --ignore-buildable: the backend and frontend have no published image, only
 	// a build context. Asking a registry for them would fail every time.
-	_, stderr, err := c.Run(ctx, "docker", append(args, "pull", "--ignore-buildable")...)
+	_, stderr, err := c.Run(ctx, "docker", nil, append(args, "pull", "--ignore-buildable")...)
 	if err != nil {
 		return firstLine(stderr), err
 	}
@@ -142,7 +167,7 @@ func (c *Compose) Up(ctx context.Context, wait time.Duration) error {
 	}
 	args = append(args, "up", "--detach", "--wait",
 		"--wait-timeout", fmt.Sprintf("%d", int(wait.Seconds())))
-	_, stderr, err := c.Run(ctx, "docker", args...)
+	_, stderr, err := c.Run(ctx, "docker", nil, args...)
 	if err != nil {
 		return fmt.Errorf("the stack did not come up: %s", firstLine(stderr))
 	}
@@ -159,7 +184,7 @@ func (c *Compose) Stop(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, stderr, err := c.Run(ctx, "docker", append(args, "stop")...)
+	_, stderr, err := c.Run(ctx, "docker", nil, append(args, "stop")...)
 	if err != nil {
 		return fmt.Errorf("stopping the stack: %s", firstLine(stderr))
 	}

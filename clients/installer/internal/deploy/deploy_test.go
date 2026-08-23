@@ -15,7 +15,7 @@ type recorder struct {
 }
 
 func (r *recorder) run() Runner {
-	return func(_ context.Context, name string, args ...string) (string, string, error) {
+	return func(_ context.Context, name string, _ []string, args ...string) (string, string, error) {
 		r.calls = append(r.calls, append([]string{name}, args...))
 		return r.stdout, "", r.err
 	}
@@ -254,7 +254,7 @@ func TestDiagnosisRedactsSecretsFromLogs(t *testing.T) {
 	 */
 	const password = "SUPERSECRETPASSWORD"
 	c := testCompose(&recorder{})
-	c.Run = func(_ context.Context, name string, args ...string) (string, string, error) {
+	c.Run = func(_ context.Context, name string, _ []string, args ...string) (string, string, error) {
 		if contains(args, "ps") {
 			return `{"Service":"backend","State":"exited","ExitCode":1}`, "", nil
 		}
@@ -276,7 +276,7 @@ func TestDiagnosisRedactsSecretsFromLogs(t *testing.T) {
 
 func TestHealthyStackProducesNoDiagnosis(t *testing.T) {
 	c := testCompose(&recorder{})
-	c.Run = func(_ context.Context, _ string, args ...string) (string, string, error) {
+	c.Run = func(_ context.Context, _ string, _ []string, args ...string) (string, string, error) {
 		return `{"Service":"backend","State":"running","Health":"healthy"}`, "", nil
 	}
 	if !c.Diagnose(context.Background(), 20, nil).Empty() {

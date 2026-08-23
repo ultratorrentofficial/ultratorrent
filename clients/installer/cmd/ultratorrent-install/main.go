@@ -15,8 +15,10 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/ultratorrent/installer/internal/config"
+	"github.com/ultratorrent/installer/internal/deploy"
 	"github.com/ultratorrent/installer/internal/host"
 	"github.com/ultratorrent/installer/internal/plan"
 	"github.com/ultratorrent/installer/internal/storage"
@@ -88,6 +90,7 @@ func run(args []string) error {
 		asJSON       = fs.Bool("json", false, "print the plan as JSON")
 		target       = fs.String("target", "", "target operating system: linux | windows")
 		installDir   = fs.String("install-dir", plan.DefaultInstallDirectory, "installation directory")
+		repoDir      = fs.String("repo", ".", "directory holding docker-compose.yml")
 		port         = fs.Int("port", plan.DefaultFrontendPort, "host port for the web UI")
 		engine       = fs.String("engine", string(plan.EngineQbittorrent), "torrent engine")
 		mediaRoot    = fs.String("media-root", "", "host path for media")
@@ -115,7 +118,12 @@ func run(args []string) error {
 		return nil
 
 	case "plan":
-		p, err := build(buildOpts{*target, *installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
+		p, err := build(buildOpts{
+			target: *target, installDir: *installDir, repoDir: *repoDir, port: *port,
+			engine: *engine, mediaRoot: *mediaRoot, prowlarr: *withProwlarr, flare: *withFlare,
+			puid: *puid, pgid: *pgid, publicURL: *publicURL, bundledProxy: *bundledProxy,
+			pubProwlarr: *pubProwlarr, publishWebUI: !*noWebUI,
+		})
 		if err != nil {
 			return err
 		}
@@ -125,7 +133,12 @@ func run(args []string) error {
 		return emit(p, *asJSON, *output)
 
 	case "generate":
-		p, err := build(buildOpts{*target, *installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
+		p, err := build(buildOpts{
+			target: *target, installDir: *installDir, repoDir: *repoDir, port: *port,
+			engine: *engine, mediaRoot: *mediaRoot, prowlarr: *withProwlarr, flare: *withFlare,
+			puid: *puid, pgid: *pgid, publicURL: *publicURL, bundledProxy: *bundledProxy,
+			pubProwlarr: *pubProwlarr, publishWebUI: !*noWebUI,
+		})
 		if err != nil {
 			return err
 		}
@@ -137,10 +150,16 @@ func run(args []string) error {
 					"resolve the failures above and re-run. Nothing has been changed")
 			}
 		}
-		return generate(p, *dryRun)
+		_, err = generate(p, *dryRun, false)
+		return err
 
 	case "install":
-		p, err := build(buildOpts{*target, *installDir, *port, *engine, *mediaRoot, *withProwlarr, *withFlare, *puid, *pgid, *publicURL, *bundledProxy, *pubProwlarr, !*noWebUI})
+		p, err := build(buildOpts{
+			target: *target, installDir: *installDir, repoDir: *repoDir, port: *port,
+			engine: *engine, mediaRoot: *mediaRoot, prowlarr: *withProwlarr, flare: *withFlare,
+			puid: *puid, pgid: *pgid, publicURL: *publicURL, bundledProxy: *bundledProxy,
+			pubProwlarr: *pubProwlarr, publishWebUI: !*noWebUI,
+		})
 		if err != nil {
 			return err
 		}
@@ -160,14 +179,11 @@ func run(args []string) error {
 			fmt.Println("\nDry run — nothing has been changed.")
 			return nil
 		}
-		// Deliberate: rather than a stub that pretends, say plainly what this
-		// build can and cannot do. An installer that half-installs is worse than
-		// one that refuses — and it refuses BEFORE writing anything, so a failed
-		// `install` never leaves configuration behind for a stack that does not
-		// exist. `generate` is the supported way to get the files today.
-		return fmt.Errorf("this build can plan and generate configuration, but not " +
-			"deploy — run `generate` to write the configuration files, then bring the " +
-			"stack up with docker compose")
+		g, err := generate(p, false, true)
+		if err != nil {
+			return err
+		}
+		return deployStack(p, g)
 
 	case "", "help":
 		fs.Usage()
@@ -187,6 +203,7 @@ func run(args []string) error {
 type buildOpts struct {
 	target       string
 	installDir   string
+	repoDir      string
 	port         int
 	engine       string
 	mediaRoot    string
@@ -224,6 +241,7 @@ func build(o buildOpts) (*plan.Plan, error) {
 		installDir = plan.DefaultInstallDirectoryFor(target)
 	}
 	p.InstallDirectory = installDir
+	p.RepoDirectory = o.repoDir
 	p.Networking.FrontendPort = port
 	p.Networking.PublicURL = o.publicURL
 	p.Networking.UseBundledProxy = o.bundledProxy
@@ -399,7 +417,36 @@ func inspect(p *plan.Plan) *host.Report {
 	if needsResetTag(p) {
 		report.RequireResetTag()
 	}
+	report.Add(composeFileFinding(p.RepoDirectory))
 	return report
+}
+
+// composeFileFinding reports whether the repo directory actually holds the
+// Compose file the deployment will be built from.
+//
+// Checked here rather than in Plan.Validate, which is deliberately pure — "is
+// this true of the plan" and "is this true of this machine" are separate
+// questions, and mixing them would make the plan model untestable without a
+// host. Checked at all because the alternative is discovering it half way
+// through a deploy, after configuration has been written.
+func composeFileFinding(repoDir string) host.Finding {
+	const label = "Compose file"
+	if repoDir == "" {
+		return host.Finding{
+			Label: label, Value: "no repository directory", Level: host.LevelFail,
+			Detail: "Pass --repo with the directory holding " + deploy.BaseFile +
+				". It is not guessed: deriving a directory is how an installation " +
+				"attaches itself to a stack it did not create.",
+		}
+	}
+	full := filepath.Join(repoDir, deploy.BaseFile)
+	if _, err := os.Stat(full); err != nil {
+		return host.Finding{
+			Label: label, Value: "not found in " + repoDir, Level: host.LevelFail,
+			Detail: "Expected " + full + ". Pass --repo with the checkout that holds it.",
+		}
+	}
+	return host.Finding{Label: label, Value: full, Level: host.LevelOK}
 }
 
 // generate writes the configuration an installation needs, and nothing else.
@@ -407,25 +454,34 @@ func inspect(p *plan.Plan) *host.Report {
 // It deploys nothing. That separation is useful in its own right — an operator
 // who prefers to run `docker compose` themselves gets correct, complete
 // configuration without handing the installer control of their stack.
-func generate(p *plan.Plan, dryRun bool) error {
+// generated is what a deploy needs to know about the configuration that was
+// just written: whether an override exists (Compose must be told, and passing
+// -f for a file that is not there is a hard error) and the secrets, so failure
+// output can be redacted with the real values rather than a guess at their shape.
+type generated struct {
+	hasOverride bool
+	secrets     *plan.Secrets
+}
+
+func generate(p *plan.Plan, dryRun bool, willDeploy bool) (generated, error) {
 	// Refused before a single file is touched, and before secrets are even
 	// resolved: a half-written installation directory for a target this build
 	// cannot finish is worse than a clear refusal.
 	if err := config.CheckTarget(p); err != nil {
-		return err
+		return generated{}, err
 	}
 	writer := &config.Writer{Dir: p.InstallDirectory, DryRun: dryRun}
 
 	secrets, reused, err := resolveSecrets(p.InstallDirectory)
 	if err != nil {
-		return err
+		return generated{}, err
 	}
 	if problems := secrets.Validate(); len(problems) > 0 {
 		// Reached only for secrets read back from an existing .env — generated
 		// ones cannot fail this. Refusing beats deploying a stack the backend
 		// will reject at boot with a message about a variable the operator never
 		// set by hand.
-		return fmt.Errorf("the secrets in %s/%s are not usable: %s\n"+
+		return generated{}, fmt.Errorf("the secrets in %s/%s are not usable: %s\n"+
 			"UltraTorrent's backend refuses to start with these. Fix them in place, "+
 			"or move the file aside to have a fresh set generated",
 			p.InstallDirectory, config.EnvFileName, strings.Join(problems, "; "))
@@ -446,12 +502,12 @@ func generate(p *plan.Plan, dryRun bool) error {
 	// host directory is missing. Preparing it before anything else means that
 	// error cannot happen.
 	if err := prepareStorage(p, dryRun); err != nil {
-		return err
+		return generated{}, err
 	}
 
 	actions, err := writer.EnsureDir()
 	if err != nil {
-		return err
+		return generated{}, err
 	}
 	all := []config.Action{actions}
 
@@ -460,7 +516,7 @@ func generate(p *plan.Plan, dryRun bool) error {
 	for _, f := range files {
 		acts, err := writer.Write(f)
 		if err != nil {
-			return err
+			return generated{}, err
 		}
 		all = append(all, acts...)
 		written = append(written, f.Name)
@@ -470,12 +526,12 @@ func generate(p *plan.Plan, dryRun bool) error {
 	if !containsName(files, config.OverrideFileName) {
 		acts, err := writer.Remove(config.OverrideFileName)
 		if err != nil {
-			return err
+			return generated{}, err
 		}
 		all = append(all, acts...)
 	}
 	if acts, err := writeState(writer, p, written); err != nil {
-		return err
+		return generated{}, err
 	} else {
 		all = append(all, acts...)
 	}
@@ -487,10 +543,10 @@ func generate(p *plan.Plan, dryRun bool) error {
 
 	if dryRun {
 		fmt.Println("\nDry run — nothing has been changed.")
-		return nil
+		return generated{hasOverride: containsName(files, config.OverrideFileName), secrets: secrets}, nil
 	}
-	printNextSteps(p, reused)
-	return nil
+	printNextSteps(p, reused, willDeploy)
+	return generated{hasOverride: containsName(files, config.OverrideFileName), secrets: secrets}, nil
 }
 
 // prepareStorage inspects and creates the host directories the stack needs.
@@ -630,8 +686,15 @@ func containsName(files []config.File, name string) bool {
 // The initial administrator password is deliberately NOT printed. It is in
 // `.env` at 0600; echoing it would put it in scrollback, in a terminal
 // recording, and in whatever the operator pastes into an issue.
-func printNextSteps(p *plan.Plan, reused bool) {
+func printNextSteps(p *plan.Plan, reused bool, willDeploy bool) {
 	env := filepath.Join(p.InstallDirectory, config.EnvFileName)
+	if willDeploy {
+		// install continues into deployStack; telling the operator to bring the
+		// stack up themselves here would contradict what happens next.
+		fmt.Printf("\nConfiguration written to %s.\n", p.InstallDirectory)
+		printCredentialsNote(p, reused)
+		return
+	}
 	fmt.Printf(`
 Configuration written. Nothing has been deployed.
 
@@ -645,6 +708,16 @@ Then, once the backend is healthy, seed the first administrator:
 
 The web UI will be at %s
 `, env, publicAddress(p))
+
+	printCredentialsNote(p, reused)
+}
+
+// printCredentialsNote says where the generated credentials live.
+//
+// Shared by both paths: it is as true after a deployment as after generating
+// configuration, and duplicating it is how the two drift apart.
+func printCredentialsNote(p *plan.Plan, reused bool) {
+	env := filepath.Join(p.InstallDirectory, config.EnvFileName)
 
 	if p.Torrent.Engine == plan.EngineQbittorrent {
 		fmt.Printf(`
@@ -670,4 +743,81 @@ func publicAddress(p *plan.Plan) string {
 		return p.Networking.PublicURL
 	}
 	return fmt.Sprintf("http://localhost:%d", p.Networking.FrontendPort)
+}
+
+// deployStack brings the configuration that generate just wrote to life.
+//
+// Ordering is not arbitrary. Config validates the merged file set before any
+// image is fetched, so a malformed override costs a second rather than a pull.
+// Build runs only when the stack actually needs a local image — backend and
+// frontend have a build: and no published image, so there is no registry to
+// pull them from. Pull uses --ignore-buildable for the same reason. Up waits,
+// because "started" is not "healthy" and the backend applies its database
+// migrations during startup.
+//
+// On failure it diagnoses rather than returning the exit status: `up --wait`
+// failing tells an operator only that something did not become healthy, and the
+// real cause — usually a failed migration — is visible only in the logs.
+func deployStack(p *plan.Plan, g generated) error {
+	c := &deploy.Compose{
+		RepoDir:     p.RepoDirectory,
+		InstallDir:  p.InstallDirectory,
+		ProjectName: p.ProjectName,
+		Profiles:    p.ComposeProfiles(),
+		HasOverride: g.hasOverride,
+		Run:         deploy.DefaultRunner(),
+	}
+
+	// Redact with the real secret values, not a pattern that guesses their
+	// shape. A failed database connection prints DATABASE_URL, and a terminal
+	// someone screenshots is a poor place to learn the password.
+	redact := func(text string) string {
+		s := g.secrets
+		if s == nil {
+			return text
+		}
+		return config.Redact(text,
+			s.PostgresPassword, s.JWTAccessSecret, s.JWTRefreshSecret,
+			s.EncryptionKey, s.AdminPassword, s.EnginePassword)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	fmt.Println("\nDeploying")
+
+	if err := c.Config(ctx); err != nil {
+		return err
+	}
+	fmt.Println("  configuration valid")
+
+	if script, ok := c.NeedsBuild(); ok {
+		fmt.Printf("  building images (%s) — this takes a while on first run\n", script)
+		if err := c.Build(ctx); err != nil {
+			return err
+		}
+	}
+
+	if msg, err := c.Pull(ctx); err != nil {
+		return fmt.Errorf("pulling images: %s", msg)
+	}
+	fmt.Println("  images ready")
+
+	fmt.Println("  starting services")
+	if upErr := c.Up(ctx, 5*time.Minute); upErr != nil {
+		d := c.Diagnose(ctx, 40, redact)
+		fmt.Fprintln(os.Stderr, "\nThe stack did not become healthy.")
+		for _, svc := range d.Unhealthy {
+			fmt.Fprintf(os.Stderr, "\n  %s: %s\n", svc.Name, svc.State)
+			if tail := d.Logs[svc.Name]; tail != "" {
+				for _, line := range strings.Split(strings.TrimRight(tail, "\n"), "\n") {
+					fmt.Fprintln(os.Stderr, "    "+line)
+				}
+			}
+		}
+		return upErr
+	}
+
+	fmt.Println("  all services healthy")
+	return nil
 }

@@ -55,6 +55,17 @@ const (
 	// filesystems is a copy, which defeats the point.
 	DefaultStagingPath = "/downloads/Staging"
 	DefaultProfileName = "Default"
+
+	// DefaultProjectName isolates this installation's Compose project.
+	//
+	// Set explicitly and never left empty. An empty name means "let Compose
+	// derive it from the directory", and a derived name is how an installer
+	// adopts a stack it did not create: run from a checkout beside an existing
+	// deployment and Compose silently reconfigures THAT stack instead. deploy
+	// refuses an empty name for the same reason; this makes the refusal
+	// unreachable in the default path rather than something the operator has to
+	// avoid tripping.
+	DefaultProjectName = "ultratorrent"
 )
 
 // DefaultInstallDirectoryFor is the install directory for a target.
@@ -95,6 +106,7 @@ func RecommendedFor(installerVersion string, target TargetOS) *Plan {
 		Mode:             ModeRecommended,
 		TargetOS:         target,
 		InstallDirectory: DefaultInstallDirectoryFor(target),
+		ProjectName:      DefaultProjectName,
 		Networking: Networking{
 			FrontendPort: DefaultFrontendPort,
 		},

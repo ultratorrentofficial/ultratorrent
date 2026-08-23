@@ -48,7 +48,7 @@ func (c *Compose) Build(ctx context.Context) error {
 			script, BuildableServices)
 	}
 	args := append([]string{}, BuildableServices...)
-	_, stderr, err := c.Run(ctx, script, args...)
+	_, stderr, err := c.Run(ctx, script, c.composeEnv(), args...)
 	if err != nil {
 		return fmt.Errorf("building the application images failed: %s", firstLine(stderr))
 	}

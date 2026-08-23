@@ -16,7 +16,8 @@ func (c *Compose) Status(ctx context.Context) ([]ServiceStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	stdout, stderr, err := c.Run(ctx, "docker", append(args, "ps", "--all", "--format", "json")...)
+	stdout, stderr, err := c.Run(ctx, "docker", nil,
+		append(args, "ps", "--all", "--format", "json")...)
 	if err != nil {
 		return nil, fmt.Errorf("listing containers: %s", firstLine(stderr))
 	}
@@ -62,7 +63,7 @@ func (c *Compose) Logs(ctx context.Context, service string, lines int) (string, 
 	if err != nil {
 		return "", err
 	}
-	stdout, stderr, err := c.Run(ctx, "docker",
+	stdout, stderr, err := c.Run(ctx, "docker", nil,
 		append(args, "logs", "--no-color", "--tail", fmt.Sprintf("%d", lines), service)...)
 	if err != nil {
 		return "", fmt.Errorf("reading %s logs: %s", service, firstLine(stderr))
