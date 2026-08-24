@@ -114,3 +114,30 @@ func TestInstallIsAttemptedOnlyWhenTheCheckPromisedIt(t *testing.T) {
 		t.Error("would reinstall over a working Docker")
 	}
 }
+
+// Publishing Prowlarr puts an application with no authentication on every
+// address the host answers on. The installer seeds a config file that says so,
+// but only when it has a new API key to seed — so on an installation whose
+// secrets are reused, nothing said anything at all and Prowlarr generated its
+// own config. The warning therefore belongs to the plan, not to the file.
+func TestPublishingProwlarrIsWarnedAboutAndDoesNotBlock(t *testing.T) {
+	r := &Report{}
+	r.WarnPublishedProwlarr(9696)
+
+	if r.Blocked() {
+		t.Error("an explicit choice by the operator was turned into a failure")
+	}
+	warnings := r.Warnings()
+	if len(warnings) != 1 {
+		t.Fatalf("expected one warning, got %d", len(warnings))
+	}
+	w := warnings[0]
+	for _, want := range []string{"NO authentication", "9696"} {
+		if !strings.Contains(w.Detail+w.Value, want) {
+			t.Errorf("warning never mentioned %q: %+v", want, w)
+		}
+	}
+	if w.Remedy == "" {
+		t.Error("said what was wrong and nothing about what to do")
+	}
+}

@@ -470,6 +470,9 @@ func inspect(p *plan.Plan) *host.Report {
 	// from an unrelated service holding the same port.
 	detector.ProjectName = p.ProjectName
 	report := detector.Detect(context.Background(), p.InstallDirectory, wanted)
+	if p.Companions.Prowlarr && p.Companions.PublishProwlarrUI {
+		report.WarnPublishedProwlarr(p.Companions.ProwlarrPort)
+	}
 	if needsResetTag(p) {
 		report.RequireResetTag()
 	}

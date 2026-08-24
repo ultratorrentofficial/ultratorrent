@@ -310,6 +310,33 @@ func HumanBytes(n int64) string {
 // so the whole stack fails to start — worse than the port simply being
 // published, and it would look like a fault in the installer's generated file
 // rather than in the Compose version.
+// WarnPublishedProwlarr says what publishing Prowlarr's Web UI means.
+//
+// Prowlarr has no authentication that is both safe and usable for a published
+// port — measured against 2.4.0 and reasoned through in internal/companion —
+// so publishing it puts an unauthenticated application on every address this
+// host answers on, and its indexers and API key with it.
+//
+// Said HERE rather than only in the config file the installer seeds, because
+// that file is written once, from a freshly generated API key, and an
+// installation whose secrets are reused writes no file at all. Publishing an
+// unauthenticated service is not something to mention only on the runs where a
+// file happened to be generated.
+//
+// A warning and not a failure: the operator asked for this explicitly, and the
+// flag says so. It is their decision, made in the open.
+func (r *Report) WarnPublishedProwlarr(port int) {
+	r.Add(Finding{
+		Label: "Prowlarr Web UI",
+		Value: fmt.Sprintf("published on %d", port),
+		Level: LevelWarn,
+		Detail: "Prowlarr starts with NO authentication, so anyone who can reach " +
+			"this host can use it, read your indexers and take its API key",
+		Remedy: "put it behind the reverse proxy or a firewall, or drop " +
+			"--publish-prowlarr and reach it through UltraTorrent",
+	})
+}
+
 func (r *Report) RequireResetTag() {
 	if !r.Compose.Installed || r.Compose.Legacy {
 		return // already reported, and by a more useful finding than this one
