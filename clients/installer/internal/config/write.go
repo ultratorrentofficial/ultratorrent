@@ -253,6 +253,61 @@ func (w *Writer) EnsureDir() (Action, error) {
 	return Action{Path: w.Dir, Kind: "create", Detail: "directory"}, nil
 }
 
+// BoundConfigDirs names the directories the generated override binds as
+// container config volumes.
+//
+// They must exist before `compose up`, and existing is ALL that is required:
+// a bind-backed volume whose device is missing does not fail at `compose
+// config` and is not created on demand — the container fails to start with an
+// error naming an internal Docker path and no hint that a host directory is
+// missing.
+//
+// Listing them separately from the files written into them is the point. The
+// installer seeds each of these directories with a config file, but only when
+// it has something new to seed: qBittorrent's is written once, from a freshly
+// generated password, and Prowlarr's once from a freshly generated API key.
+// Neither is regenerated for an installation whose secrets are being reused,
+// which is correct — rewriting them would discard settings the application has
+// since changed. The consequence was that turning a companion ON for an
+// existing installation wrote no file, so nothing created its directory, and
+// the deployment failed on a mount rather than on anything to do with the
+// companion. Directories are cheap and idempotent; tie them to whether the
+// service is deployed, never to whether a file happens to be written.
+func BoundConfigDirs(p *plan.Plan) []string {
+	var dirs []string
+	if p.Torrent.Engine == plan.EngineQbittorrent {
+		dirs = append(dirs, EngineConfigDirName)
+	}
+	if p.Companions.Prowlarr {
+		dirs = append(dirs, ProwlarrConfigDirName)
+	}
+	return dirs
+}
+
+// EnsureBoundConfigDirs creates them, reporting what it did.
+func (w *Writer) EnsureBoundConfigDirs(p *plan.Plan) ([]Action, error) {
+	var actions []Action
+	for _, name := range BoundConfigDirs(p) {
+		path := filepath.Join(w.Dir, name)
+		if _, err := os.Stat(path); err == nil {
+			continue // Already there; its contents are not this function's business.
+		}
+		if w.DryRun {
+			actions = append(actions, Action{Path: path, Kind: "create",
+				Detail: "config directory bound into the container"})
+			continue
+		}
+		// ModeDir, like every other directory the installer owns: these hold
+		// API keys and password verifiers.
+		if err := os.MkdirAll(path, ModeDir); err != nil {
+			return actions, fmt.Errorf("creating %s: %w", path, err)
+		}
+		actions = append(actions, Action{Path: path, Kind: "create",
+			Detail: "config directory bound into the container"})
+	}
+	return actions, nil
+}
+
 // Write writes one file, backing up any existing version first.
 //
 // The order is deliberate: back up, write to a temporary file with the final

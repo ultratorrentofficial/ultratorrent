@@ -170,6 +170,26 @@ func run(args []string) error {
 		// that cannot run it.
 		report := inspect(p)
 		fmt.Print(report.String())
+
+		// The report says "Docker: not installed  WILL INSTALL" when it can be
+		// installed here. Doing it is what makes that line true — until now
+		// nothing implemented it, so the promise was followed by every docker
+		// command failing for want of docker.
+		if report.NeedsDockerInstalled() {
+			if *dryRun {
+				fmt.Println("\nDocker would be installed before deploying.")
+			} else if err := installDocker(p); err != nil {
+				return err
+			} else {
+				// Re-check rather than assume: the report is what the rest of
+				// this command reasons about, and it currently says Docker is
+				// missing. A stale report would fail the port and registry
+				// checks that the new daemon has just made answerable.
+				report = inspect(p)
+				fmt.Print(report.String())
+			}
+		}
+
 		if report.Blocked() {
 			return fmt.Errorf("this host cannot run UltraTorrent yet — " +
 				"resolve the failures above and re-run. Nothing has been changed")
@@ -417,6 +437,25 @@ func needsResetTag(p *plan.Plan) bool {
 	return p.Torrent.Engine == plan.EngineQbittorrent && !p.Torrent.PublishWebUI
 }
 
+// installDocker carries out the installation the system check promised.
+//
+// Given its own runner with a generous timeout: the detection runner allows ten
+// seconds, which is right for asking `docker version` and nowhere near enough
+// for apt fetching several hundred megabytes.
+func installDocker(p *plan.Plan) error {
+	fmt.Println("\nInstalling Docker")
+	run := host.ExecRunner{Timeout: 20 * time.Minute}
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
+	defer cancel()
+	if err := host.InstallDocker(ctx, run, func(step string) {
+		fmt.Println("  " + step)
+	}); err != nil {
+		return err
+	}
+	fmt.Println("  Docker installed")
+	return nil
+}
+
 func inspect(p *plan.Plan) *host.Report {
 	wanted := make([]host.PortStatus, 0, 4)
 	for _, binding := range p.PublishedPorts() {
@@ -523,6 +562,18 @@ func generate(p *plan.Plan, dryRun bool, willDeploy bool) (generated, error) {
 		return generated{}, err
 	}
 	all := []config.Action{actions}
+
+	// Before any file is written: the override binds these into containers, and
+	// a bind whose device is missing fails the container's START, with an error
+	// that names an internal Docker path and never mentions the directory. They
+	// cannot be left to the files written into them — those are seeded only when
+	// there is a new secret to seed, so turning a companion on for an existing
+	// installation wrote nothing and created nothing.
+	dirActions, err := writer.EnsureBoundConfigDirs(p)
+	all = append(all, dirActions...)
+	if err != nil {
+		return generated{}, err
+	}
 
 	files := config.Render(p, secrets)
 	written := make([]string, 0, len(files))
