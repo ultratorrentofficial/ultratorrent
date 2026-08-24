@@ -17,6 +17,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/ultratorrent/installer/internal/companion"
 	"github.com/ultratorrent/installer/internal/config"
 	"github.com/ultratorrent/installer/internal/deploy"
 	"github.com/ultratorrent/installer/internal/host"
@@ -559,6 +560,22 @@ func generate(p *plan.Plan, dryRun bool, willDeploy bool) (generated, error) {
 		fmt.Println("New secrets generated.")
 	}
 
+	// Recover Prowlarr's API key when this run did not generate one.
+	//
+	// The key is not persisted anywhere the installer can read back: it is
+	// excluded from the plan JSON and never written to .env, because nothing
+	// consumes it there. Prowlarr's own config.xml holds the working key, and
+	// the installer never rewrites that file once it exists, so reading it back
+	// is both safe and the only way a later run can finish the wiring. It also
+	// recovers a key PROWLARR generated itself, which is what happens when the
+	// companion is enabled on an installation whose secrets are reused.
+	if p.Companions.Prowlarr && secrets != nil && secrets.ProwlarrAPIKey == "" {
+		path := filepath.Join(p.InstallDirectory, config.ProwlarrConfigFileName)
+		if existing, err := os.ReadFile(path); err == nil {
+			secrets.ProwlarrAPIKey = companion.ParseAPIKey(string(existing))
+		}
+	}
+
 	// Storage first: a bind-backed volume whose device does not exist does not
 	// fail at `compose config` and is not created on demand — the container fails
 	// to START, with an error naming an internal Docker path and no hint that a
@@ -974,5 +991,48 @@ func deployStack(p *plan.Plan, g generated) error {
 	default:
 		return fmt.Errorf("the deployment is running but not usable: %s", result.Explain())
 	}
+
+	wireCompanions(ctx, c, p, g)
 	return nil
+}
+
+// wireCompanions finishes the setup the operator would otherwise do by hand.
+//
+// This installer exists so that someone who does not want to read documentation
+// ends up with a working system, and "now open Settings, paste this key, then
+// add FlareSolverr as an indexer proxy" is the step that loses people.
+//
+// Nothing here fails the deployment. The stack is running and someone can sign
+// in to it; an indexer manager that still needs connecting by hand is a smaller
+// problem than tearing down a working installation, so a failure is reported
+// with enough detail to finish the job manually.
+func wireCompanions(ctx context.Context, c *deploy.Compose, p *plan.Plan, g generated) {
+	if !p.Companions.Prowlarr {
+		return
+	}
+	key := ""
+	if g.secrets != nil {
+		key = g.secrets.ProwlarrAPIKey
+	}
+	if key == "" {
+		fmt.Println("  Prowlarr is deployed but its API key is unknown — connect it under Settings -> Integrations")
+		return
+	}
+
+	flare := ""
+	if p.Companions.FlareSolverr {
+		flare = deploy.FlareSolverrInternalURL
+	}
+	outcome, err := c.WireProwlarr(ctx, deploy.WireOptions{
+		ProwlarrAPIKey:  key,
+		ProwlarrURL:     fmt.Sprintf("http://prowlarr:%d", deploy.ProwlarrContainerPort),
+		FlareSolverrURL: flare,
+	})
+	if err != nil {
+		fmt.Printf("  could not finish connecting Prowlarr (%v) — do it under Settings -> Integrations\n", err)
+		return
+	}
+	for _, part := range strings.Fields(outcome) {
+		fmt.Println("  " + deploy.ExplainWiring(part))
+	}
 }

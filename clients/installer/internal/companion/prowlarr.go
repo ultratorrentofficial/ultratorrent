@@ -108,3 +108,26 @@ func RenderProwlarrConfig(s ProwlarrSettings) string {
 	b.WriteString("</Config>\n")
 	return b.String()
 }
+
+// ParseAPIKey reads the API key out of a Prowlarr config.xml.
+//
+// Prowlarr owns this file after first start, and the installer's Once rule
+// means an existing one is never rewritten. So on any run after the first the
+// installer holds NO key of its own — the generated one is not persisted
+// anywhere — while Prowlarr holds the one that actually works. Reading it back
+// is what lets a later run finish wiring the integration, and it is correct by
+// construction: the key that Prowlarr is using is the key that Prowlarr will
+// accept, whether the installer seeded it or Prowlarr generated its own.
+func ParseAPIKey(xml string) string {
+	const open, close = "<ApiKey>", "</ApiKey>"
+	start := strings.Index(xml, open)
+	if start < 0 {
+		return ""
+	}
+	rest := xml[start+len(open):]
+	end := strings.Index(rest, close)
+	if end < 0 {
+		return ""
+	}
+	return strings.TrimSpace(rest[:end])
+}
