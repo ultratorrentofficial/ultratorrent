@@ -107,6 +107,9 @@ type Plan struct {
 	// supplied — deploy refuses rather than searching for one, since guessing a
 	// directory is what ProjectName used to do.
 	RepoDirectory string `json:"repoDirectory,omitempty"`
+	// ForceRebuild builds the images even when they already match the
+	// checkout. Not persisted: it describes one run, not the installation.
+	ForceRebuild bool `json:"-"`
 	// ProjectName is the Compose project, and is always set — see
 	// DefaultProjectName. Empty would mean "let Compose derive it from the
 	// directory", which is how an installer adopts a stack it did not create:

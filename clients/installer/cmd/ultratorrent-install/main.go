@@ -51,6 +51,7 @@ Flags:
   --port N            Host port for the web UI (default %d)
   --engine NAME       qbittorrent | rtorrent | external | none (default qbittorrent)
   --external-url URL  Where your existing engine is, for --engine external
+  --rebuild           Build the images even when they already match this checkout
   --media-root PATH   Host path for media; omit to use a Docker volume
   --puid N            Own downloaded files as this user id (see below)
   --pgid N            Own downloaded files as this group id
@@ -99,6 +100,7 @@ func run(args []string) error {
 		mediaRoot    = fs.String("media-root", "", "host path for media")
 		publicURL    = fs.String("public-url", "", "the address users will type")
 		externalURL  = fs.String("external-url", "", "where an already-running engine lives")
+		rebuild      = fs.Bool("rebuild", false, "build the images even if they are up to date")
 		bundledProxy = fs.Bool("bundled-proxy", false, "deploy the bundled reverse proxy")
 		pubProwlarr  = fs.Bool("publish-prowlarr", false, "publish Prowlarr's Web UI")
 		noWebUI      = fs.Bool("no-publish-webui", false, "keep the engine's Web UI internal")
@@ -125,7 +127,7 @@ func run(args []string) error {
 		p, err := build(buildOpts{
 			target: *target, installDir: *installDir, repoDir: *repoDir, port: *port,
 			engine: *engine, mediaRoot: *mediaRoot, prowlarr: *withProwlarr, flare: *withFlare,
-			puid: *puid, pgid: *pgid, publicURL: *publicURL, externalURL: *externalURL, bundledProxy: *bundledProxy,
+			puid: *puid, pgid: *pgid, publicURL: *publicURL, externalURL: *externalURL, forceRebuild: *rebuild, bundledProxy: *bundledProxy,
 			pubProwlarr: *pubProwlarr, publishWebUI: !*noWebUI,
 		})
 		if err != nil {
@@ -140,7 +142,7 @@ func run(args []string) error {
 		p, err := build(buildOpts{
 			target: *target, installDir: *installDir, repoDir: *repoDir, port: *port,
 			engine: *engine, mediaRoot: *mediaRoot, prowlarr: *withProwlarr, flare: *withFlare,
-			puid: *puid, pgid: *pgid, publicURL: *publicURL, externalURL: *externalURL, bundledProxy: *bundledProxy,
+			puid: *puid, pgid: *pgid, publicURL: *publicURL, externalURL: *externalURL, forceRebuild: *rebuild, bundledProxy: *bundledProxy,
 			pubProwlarr: *pubProwlarr, publishWebUI: !*noWebUI,
 		})
 		if err != nil {
@@ -161,7 +163,7 @@ func run(args []string) error {
 		p, err := build(buildOpts{
 			target: *target, installDir: *installDir, repoDir: *repoDir, port: *port,
 			engine: *engine, mediaRoot: *mediaRoot, prowlarr: *withProwlarr, flare: *withFlare,
-			puid: *puid, pgid: *pgid, publicURL: *publicURL, externalURL: *externalURL, bundledProxy: *bundledProxy,
+			puid: *puid, pgid: *pgid, publicURL: *publicURL, externalURL: *externalURL, forceRebuild: *rebuild, bundledProxy: *bundledProxy,
 			pubProwlarr: *pubProwlarr, publishWebUI: !*noWebUI,
 		})
 		if err != nil {
@@ -243,6 +245,7 @@ type buildOpts struct {
 	puid, pgid   int
 	publicURL    string
 	externalURL  string
+	forceRebuild bool
 	bundledProxy bool
 	pubProwlarr  bool
 	publishWebUI bool
@@ -281,6 +284,7 @@ func build(o buildOpts) (*plan.Plan, error) {
 	p.Torrent.PublishWebUI = o.publishWebUI
 	p.Torrent.Engine = plan.Engine(engine)
 	p.Torrent.ExternalURL = o.externalURL
+	p.ForceRebuild = o.forceRebuild
 
 	if mediaRoot != "" {
 		p.Storage.Mode = plan.StorageBind
@@ -878,9 +882,19 @@ func deployStack(p *plan.Plan, g generated) error {
 	fmt.Println("  configuration valid")
 
 	if script, ok := c.NeedsBuild(); ok {
-		fmt.Printf("  building images (%s) — this takes a while on first run\n", script)
-		if err := c.Build(ctx); err != nil {
-			return err
+		current, reason := c.ImagesAreCurrent(ctx)
+		switch {
+		case current && !p.ForceRebuild:
+			fmt.Printf("  images are up to date (%s) — skipping the build\n", reason)
+		default:
+			if p.ForceRebuild {
+				reason = "asked for with --rebuild"
+			}
+			fmt.Printf("  building images — %s\n", reason)
+			fmt.Printf("    (%s)\n", script)
+			if err := c.Build(ctx); err != nil {
+				return err
+			}
 		}
 	}
 
