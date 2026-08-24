@@ -211,6 +211,25 @@ const MinComposeVersion = "2.0"
 const MinComposeVersionForReset = "2.24"
 
 // Add appends a finding.
+// NeedsDockerInstalled reports whether Docker is absent AND this host is one
+// the installer can install it on.
+//
+// Read from the findings rather than recomputed, so the answer is exactly what
+// the operator was shown. A LevelAction on Docker is the check saying it will
+// be installed; anything else — already present, or a distribution this
+// installer will not touch — is not this function's business.
+func (r *Report) NeedsDockerInstalled() bool {
+	if r.Docker.Installed {
+		return false
+	}
+	for _, f := range r.Findings {
+		if f.Label == "Docker" && f.Level == LevelAction {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *Report) Add(f Finding) { r.Findings = append(r.Findings, f) }
 
 // Blocked reports whether any hard requirement failed.
