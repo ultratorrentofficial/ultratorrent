@@ -50,6 +50,7 @@ Flags:
   --install-dir PATH  Installation directory (default %s)
   --port N            Host port for the web UI (default %d)
   --engine NAME       qbittorrent | rtorrent | external | none (default qbittorrent)
+  --external-url URL  Where your existing engine is, for --engine external
   --media-root PATH   Host path for media; omit to use a Docker volume
   --puid N            Own downloaded files as this user id (see below)
   --pgid N            Own downloaded files as this group id
@@ -97,6 +98,7 @@ func run(args []string) error {
 		engine       = fs.String("engine", string(plan.EngineQbittorrent), "torrent engine")
 		mediaRoot    = fs.String("media-root", "", "host path for media")
 		publicURL    = fs.String("public-url", "", "the address users will type")
+		externalURL  = fs.String("external-url", "", "where an already-running engine lives")
 		bundledProxy = fs.Bool("bundled-proxy", false, "deploy the bundled reverse proxy")
 		pubProwlarr  = fs.Bool("publish-prowlarr", false, "publish Prowlarr's Web UI")
 		noWebUI      = fs.Bool("no-publish-webui", false, "keep the engine's Web UI internal")
@@ -123,7 +125,7 @@ func run(args []string) error {
 		p, err := build(buildOpts{
 			target: *target, installDir: *installDir, repoDir: *repoDir, port: *port,
 			engine: *engine, mediaRoot: *mediaRoot, prowlarr: *withProwlarr, flare: *withFlare,
-			puid: *puid, pgid: *pgid, publicURL: *publicURL, bundledProxy: *bundledProxy,
+			puid: *puid, pgid: *pgid, publicURL: *publicURL, externalURL: *externalURL, bundledProxy: *bundledProxy,
 			pubProwlarr: *pubProwlarr, publishWebUI: !*noWebUI,
 		})
 		if err != nil {
@@ -138,7 +140,7 @@ func run(args []string) error {
 		p, err := build(buildOpts{
 			target: *target, installDir: *installDir, repoDir: *repoDir, port: *port,
 			engine: *engine, mediaRoot: *mediaRoot, prowlarr: *withProwlarr, flare: *withFlare,
-			puid: *puid, pgid: *pgid, publicURL: *publicURL, bundledProxy: *bundledProxy,
+			puid: *puid, pgid: *pgid, publicURL: *publicURL, externalURL: *externalURL, bundledProxy: *bundledProxy,
 			pubProwlarr: *pubProwlarr, publishWebUI: !*noWebUI,
 		})
 		if err != nil {
@@ -159,7 +161,7 @@ func run(args []string) error {
 		p, err := build(buildOpts{
 			target: *target, installDir: *installDir, repoDir: *repoDir, port: *port,
 			engine: *engine, mediaRoot: *mediaRoot, prowlarr: *withProwlarr, flare: *withFlare,
-			puid: *puid, pgid: *pgid, publicURL: *publicURL, bundledProxy: *bundledProxy,
+			puid: *puid, pgid: *pgid, publicURL: *publicURL, externalURL: *externalURL, bundledProxy: *bundledProxy,
 			pubProwlarr: *pubProwlarr, publishWebUI: !*noWebUI,
 		})
 		if err != nil {
@@ -240,6 +242,7 @@ type buildOpts struct {
 	flare        bool
 	puid, pgid   int
 	publicURL    string
+	externalURL  string
 	bundledProxy bool
 	pubProwlarr  bool
 	publishWebUI bool
@@ -277,6 +280,7 @@ func build(o buildOpts) (*plan.Plan, error) {
 	p.Companions.PublishProwlarrUI = o.pubProwlarr
 	p.Torrent.PublishWebUI = o.publishWebUI
 	p.Torrent.Engine = plan.Engine(engine)
+	p.Torrent.ExternalURL = o.externalURL
 
 	if mediaRoot != "" {
 		p.Storage.Mode = plan.StorageBind
@@ -790,6 +794,21 @@ temporary one to its log. Both the Web UI sign-in and the credentials to give
 UltraTorrent under Settings -> Integrations are in
 %s
 `, filepath.Join(p.InstallDirectory, config.EngineCredentialsFileName))
+	}
+
+	// An external engine is the one case where the installer deploys NOTHING for
+	// the engine, so nothing it writes can wire it up: UltraTorrent stores engine
+	// connections in its database, configured through the UI, not in the
+	// environment. The address is asked for, recorded in the plan, and then has
+	// nowhere to go but here — saying so is what stops --engine external from
+	// producing a stack with no engine and no explanation.
+	if p.Torrent.Engine == plan.EngineExternal {
+		fmt.Printf(`
+No engine was deployed: this installation uses the one already running at
+%s
+Add it under Settings -> Integrations, with that address and its own
+credentials. Nothing else in this installation knows about it yet.
+`, p.Torrent.ExternalURL)
 	}
 
 	if !reused {
