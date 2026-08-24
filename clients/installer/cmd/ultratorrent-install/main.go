@@ -867,6 +867,24 @@ func deployStack(p *plan.Plan, g generated) error {
 	}
 	fmt.Println("  images ready")
 
+	// Before starting: a service the plan no longer deploys is still running
+	// from a previous one, because Compose only acts on the services its active
+	// profiles select. Left alone, the old engine keeps writing to the same
+	// /downloads volume as the new one, and it holds the Web UI port the new one
+	// is about to ask for — so this runs before `up`, not after it.
+	if stale, err := c.StaleContainers(ctx); err != nil {
+		// Not fatal. Failing a deployment because the tidying-up could not be
+		// worked out would be a worse outcome than the untidiness.
+		fmt.Printf("  could not check for services this plan drops (%v)\n", err)
+	} else if len(stale) > 0 {
+		for _, sc := range stale {
+			fmt.Printf("  removing %s — not in this plan (its data is kept)\n", sc.Service)
+		}
+		if err := c.RemoveStale(ctx, stale); err != nil {
+			return err
+		}
+	}
+
 	fmt.Println("  starting services")
 	if upErr := c.Up(ctx, 5*time.Minute); upErr != nil {
 		d := c.Diagnose(ctx, 40, redact)
