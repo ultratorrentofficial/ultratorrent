@@ -955,18 +955,24 @@ func deployStack(p *plan.Plan, g generated) error {
 	}
 	fmt.Println("  database seeded")
 
-	switch ok, detail, known := c.SignInWorks(ctx); {
-	case ok:
-		fmt.Println("  sign-in verified")
-	case known:
-		// Reaching here means the containers are healthy and the product is not
-		// usable — precisely the outcome this whole step exists to stop being
-		// reported as success.
-		return fmt.Errorf("the stack is running but the administrator cannot sign in (%s) — "+
-			"the credentials in %s/%s will not work until this is resolved",
-			detail, p.InstallDirectory, config.EnvFileName)
+	// Through the PUBLISHED web UI, not the backend's own loopback. The earlier
+	// check ran inside the backend container against 127.0.0.1:4000, which
+	// proves the API can talk to itself and nothing about whether anyone can
+	// reach it — and it certified a deployment whose UI was returning 502 to
+	// every request. A deployment is usable when its front door opens.
+	adminPass := ""
+	if g.secrets != nil {
+		adminPass = g.secrets.AdminPassword
+	}
+	result := deploy.VerifySignIn(ctx, p.Networking.FrontendPort, p.Admin.Username, adminPass)
+	switch {
+	case result.OK:
+		fmt.Println("  " + result.Explain())
+	case adminPass == "":
+		// Nothing to try with. Not a fault in the deployment.
+		fmt.Println("  sign-in not verified (no administrator password to test with)")
 	default:
-		fmt.Println("  sign-in not verified (the check could not be run)")
+		return fmt.Errorf("the deployment is running but not usable: %s", result.Explain())
 	}
 	return nil
 }
