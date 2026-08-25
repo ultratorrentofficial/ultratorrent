@@ -164,13 +164,13 @@ Compose Manager pastes a `docker-compose.yml`, but UltraTorrent **builds from so
 ```bash
 mkdir -p /mnt/user/appdata/ultratorrent
 cd /mnt/user/appdata/ultratorrent
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 ```
 
 ### 3. Add the project
 
-**Docker tab → Compose → Add New Stack → `ultratorrent`**, then set its **directory** to `/mnt/user/appdata/ultratorrent/ultratorrent-core` so it picks up the real `docker-compose.yml` and `.env`.
+**Docker tab → Compose → Add New Stack → `ultratorrent`**, then set its **directory** to `/mnt/user/appdata/ultratorrent/ultratorrent` so it picks up the real `docker-compose.yml` and `.env`.
 
 ### 4. Configure and build
 
@@ -196,8 +196,8 @@ ssh root@tower.local
 ```bash
 mkdir -p /mnt/user/appdata/ultratorrent
 cd /mnt/user/appdata/ultratorrent
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 ```
 
 ### 3. Configure
@@ -292,7 +292,7 @@ Whatever proxy you already use (NPM, SWAG) already does certificates. See [TLS](
 ## Updates
 
 ```bash
-cd /mnt/user/appdata/ultratorrent/ultratorrent-core
+cd /mnt/user/appdata/ultratorrent/ultratorrent
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql
 git pull
 docker compose --profile rtorrent up -d --build

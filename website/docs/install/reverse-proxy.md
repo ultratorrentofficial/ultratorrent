@@ -1,7 +1,7 @@
 ---
 id: reverse-proxy
 title: Reverse proxy
-sidebar_position: 4
+sidebar_position: 6
 description: Working reverse-proxy configs for UltraTorrent — Traefik, NGINX, Nginx Proxy Manager, Caddy, HAProxy and Cloudflare Tunnel. WebSocket upgrade headers are mandatory.
 keywords:
   - reverse proxy

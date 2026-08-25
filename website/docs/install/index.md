@@ -33,12 +33,16 @@ That single fact simplifies the whole install story. **Almost every "platform" i
 
 So this section is deliberately shaped like that:
 
+- **[Get UltraTorrent](/install/download)** comes first: where the software actually comes from, and what is deliberately not published.
 - **[Docker Compose](/install/docker-compose)** is the authoritative guide. Every other page defers to it.
+- **[Guided installer](/install/installer)** does that same install from one binary — plan, generate, deploy, seed, verify — for people who would rather not do it by hand.
 - **[Platform pages](/install/platforms/linux)** are thin deltas: shell access, paths, port clashes, gotchas.
 - **[Reverse proxy](/install/reverse-proxy)** and **[TLS](/install/tls)** are cross-cutting and apply to all of them.
 
 :::info There are no prebuilt images yet
 The Compose stack **builds the images from source** — there is no published registry image to `docker pull`. Your host therefore needs Docker, the source tree, and roughly **2 GB of free RAM** for the first build (about 10–15 minutes; later starts are seconds). Base images are multi-arch, so x86-64 and ARM64 hosts both work.
+
+The same is true of the software itself: there is nothing to download but the source. See **[Get UltraTorrent](/install/download)**.
 :::
 
 :::tip Watch this tutorial
@@ -147,21 +151,40 @@ You will need, on the host:
 
 - **Docker Engine** with the **Compose v2 plugin** (`docker compose`, space — not the legacy `docker-compose`).
 - **~2 GB free RAM** for the build, **2+ GB disk** for the images, plus whatever your downloads need.
-- The **source tree** (`git clone`, or a downloaded ZIP).
+- The **source tree** (`git clone`, or a downloaded ZIP) — see [Get UltraTorrent](/install/download).
 - Five secrets you generate yourself: `POSTGRES_PASSWORD`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENCRYPTION_KEY`, `ADMIN_PASSWORD`. There are **no insecure defaults** — the stack refuses to start without them.
 
 ![Docker Compose bringing the UltraTorrent stack up](/img/screenshots/install-compose-up.png)
 
+## By hand, or by installer?
+
+Both produce the same stack. The difference is who runs the steps.
+
+| | **[Docker Compose](/install/docker-compose)** | **[Guided installer](/install/installer)** |
+|---|---|---|
+| What you run | `cp .env.example .env`, edit, bring the stack up, seed | `ultratorrent-install install --repo <checkout>` |
+| Secrets | You generate five and paste them in | Generated for you, preserved on every re-run |
+| Engine credentials | Fetch qBittorrent's first-run password from its log | Pre-seeded; written to `engine-credentials.txt` |
+| Prowlarr + FlareSolverr | You paste the API key into Settings and add the proxy | Wired automatically |
+| Database seed | A second command you must remember | Part of the run |
+| "Did it work?" | You open the UI and find out | Sign-in verified through the published UI before it claims success |
+| Getting it | Already in your checkout | **Built** from `clients/installer` — nothing to download |
+| Interactive | n/a | Not yet — answers are flags, not questions |
+
+Read the Compose guide either way: the installer automates it, it does not replace understanding it.
+
 ## Next steps
 
-1. **[Follow the Docker Compose guide](/install/docker-compose)** — the authoritative install.
-2. Skim your **[platform page](/install/platforms/linux)** for the deltas that apply to your host.
-3. Exposing it beyond your LAN? **[Reverse proxy](/install/reverse-proxy)** → **[TLS](/install/tls)**.
-4. Then **[Quick start](/learn/quick-start)** and **[your first download](/learn/first-download)**.
+1. **[Get the source](/install/download)** onto the host.
+2. **[Follow the Docker Compose guide](/install/docker-compose)** — the authoritative install — or hand it to the **[guided installer](/install/installer)**.
+3. Skim your **[platform page](/install/platforms/linux)** for the deltas that apply to your host.
+4. Exposing it beyond your LAN? **[Reverse proxy](/install/reverse-proxy)** → **[TLS](/install/tls)**.
+5. Then **[Quick start](/learn/quick-start)** and **[your first download](/learn/first-download)**.
 
 ## Checklist
 
 - [ ] I know which host I am installing on
+- [ ] I have the source on it ([Get UltraTorrent](/install/download))
 - [ ] Docker Engine + Compose v2 are installed on it
 - [ ] I have ~2 GB free RAM and a couple of GB of disk
 - [ ] I have decided rTorrent (small library) vs qBittorrent (large library)
@@ -171,7 +194,10 @@ You will need, on the host:
 ## FAQ
 
 **Is there a one-click app / Docker Hub image?**
-Not yet. Every install builds from source with `docker compose up -d --build`.
+Not yet. Every install builds from source with `docker compose up -d --build`. The closest thing is the [guided installer](/install/installer), which is one command — but you build that from source too.
+
+**Is there an install script I can download and run?**
+There is an installer, `ultratorrent-install`, but it is not published as a downloadable file: you build it from the checkout. See [Guided installer](/install/installer).
 
 **Can I run it without Docker?**
 Yes — Node 20, PostgreSQL 14+ and Redis 6+, from source. It is a development path, not a supported production one. See [Linux](/install/platforms/linux#manual-install-from-source).
@@ -184,7 +210,9 @@ Yes — skip both profiles and register your own engine under **Infrastructure �
 
 ## See also
 
+- [Get UltraTorrent](/install/download) — where the software comes from
 - [Docker Compose install](/install/docker-compose) — the authoritative guide
+- [Guided installer](/install/installer) — `ultratorrent-install`, end to end
 - [Upgrading](/install/upgrading) — updates, rollback, migration safety
 - [Environment variables](/reference/environment) — every variable, generated from `.env.example`
 - [Concepts](/learn/concepts) — what the pieces are

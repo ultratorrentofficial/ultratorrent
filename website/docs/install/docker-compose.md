@@ -1,7 +1,7 @@
 ---
 id: docker-compose
 title: Install with Docker Compose
-sidebar_position: 2
+sidebar_position: 4
 description: The authoritative UltraTorrent install — requirements, secrets, the full .env, every Compose service, ports, volumes, permissions, first login and verification.
 keywords:
   - docker
@@ -162,8 +162,8 @@ Skip this and downloading still works fully; only the File Manager's write actio
 ### 1. Get the source
 
 ```bash
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 ```
 
 No `git`? Download the repository ZIP from GitHub, extract it on the host, and `cd` into it.
@@ -533,7 +533,7 @@ Details, custom certificates, internal CAs and DNS-01 for split-horizon setups: 
 ## Updates
 
 ```bash
-cd ultratorrent-core
+cd ultratorrent
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql
 git pull
 docker compose --profile rtorrent up -d --build

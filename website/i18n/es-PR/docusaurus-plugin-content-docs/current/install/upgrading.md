@@ -1,7 +1,7 @@
 ---
 id: upgrading
 title: Actualización y reversión
-sidebar_position: 6
+sidebar_position: 8
 description: Cómo actualizar UltraTorrent de forma segura — respaldar, hacer pull, recompilar, volver a sembrar — además de la reversión, la seguridad de las migraciones de solo avance y qué hacer cuando una actualización sale mal.
 keywords:
   - actualización
@@ -103,7 +103,7 @@ curl -s http://localhost:8080/api/system/version
 ### 2. Respalda
 
 ```bash
-cd ultratorrent-core
+cd ultratorrent
 
 # La base de datos — todo excepto los medios en sí
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql

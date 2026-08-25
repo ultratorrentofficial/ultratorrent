@@ -29,7 +29,8 @@ control, and a full audit trail.
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Quick start](#quick-start)
   - [Option A — Docker Compose](#option-a--docker-compose)
-  - [Option B — Manual / local dev](#option-b--manual--local-dev)
+  - [Option B — The guided installer](#option-b--the-guided-installer)
+  - [Option C — Manual / local dev](#option-c--manual--local-dev)
 - [Admin account](#admin-account)
 - [Project structure](#project-structure)
 - [Documentation](#documentation)
@@ -264,8 +265,8 @@ The fastest path. Compose brings up the database, cache, backend, and frontend
 together. See [`docs/DOCKER.md`](docs/DOCKER.md) for the full service reference.
 
 ```bash
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 
 # Configure secrets and connection details
 cp .env.example .env        # then set the REQUIRED values (see below)
@@ -294,7 +295,22 @@ rTorrent engine (`--profile rtorrent`), a **Prowlarr indexer manager**
 (`--profile flaresolverr` — see [`docs/PROWLARR.md`](docs/PROWLARR.md)), and a
 Caddy edge proxy (`--profile proxy`).
 
-### Option B — Manual / local dev
+### Option B — The guided installer
+
+One static binary that does Option A end to end — host check, secrets, storage,
+build, start, **seed**, sign-in verification, and Prowlarr/FlareSolverr wiring.
+Binaries are built, never committed, so build it from this checkout:
+
+```bash
+cd clients/console && ./build.sh      # build the console first — the installer embeds it
+cd ../installer    && ./build.sh
+./dist/ultratorrent-install-linux-amd64 install --repo ../.. --dry-run   # preview
+./dist/ultratorrent-install-linux-amd64 install --repo ../..
+```
+
+Every flag, what it writes, and how re-runs stay safe: [`docs/INSTALLER.md`](docs/INSTALLER.md).
+
+### Option C — Manual / local dev
 
 Prerequisites: **Node.js ≥ 20**, **PostgreSQL**, and **Redis** running locally.
 Full details in [`docs/INSTALL.md`](docs/INSTALL.md).
@@ -370,7 +386,7 @@ ultratorrent/
 
 ## Documentation
 
-**📚 [damirabal.github.io/ultratorrent-core](https://damirabal.github.io/ultratorrent-core/)** — the
+**📚 [ultratorrentofficial.github.io/ultratorrent](https://ultratorrentofficial.github.io/ultratorrent/)** — the
 full documentation site: searchable, cross-linked, and organized into six
 journeys (Learn, Install, Modules, Reference, Develop, Operate). Its Reference
 section is generated from the source, so it cannot drift from the code.
@@ -385,6 +401,7 @@ in the repository.
 | [DUPLICATE_CENTER.md](docs/DUPLICATE_CENTER.md) | Finding and safely removing duplicate media — workflow, Quick Clean, show-folder merge, Trash & recovery, RBAC, automation ([detection](docs/DUPLICATE_DETECTION.md), [cleanup safety](docs/DUPLICATE_CLEANUP_SAFETY.md)) |
 | [RSS.md](docs/RSS.md)                   | Feeds, rules, match candidates, and TV show airing-status awareness (providers, save validation, background refresh, automation) |
 | [INSTALL.md](docs/INSTALL.md)           | Prerequisites, env setup, Prisma, running dev, connecting rTorrent |
+| [INSTALLER.md](docs/INSTALLER.md)       | **The guided installer** (`ultratorrent-install`) — the three commands, every flag, the system check, what it writes, what `install` does, re-run safety, Windows |
 | [DOCKER.md](docs/DOCKER.md)             | Docker Compose services, volumes, env, health checks, commands |
 | [PROWLARR.md](docs/PROWLARR.md)         | Optional Prowlarr companion container: profile, ports/volumes, UI integration, security |
 | [WORKSPACE_ARCHITECTURE.md](docs/WORKSPACE_ARCHITECTURE.md) | The Workspace model — the nine Workspaces, the global rail + contextual sidebar, Workspace Overviews, switching (Ctrl+1–9), the jobs aggregator, RBAC, scaling ([guidelines](docs/NAVIGATION_GUIDELINES.md), [standards](docs/MENU_STANDARDS.md)) |

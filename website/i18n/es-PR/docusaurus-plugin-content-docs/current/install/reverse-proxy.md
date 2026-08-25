@@ -1,7 +1,7 @@
 ---
 id: reverse-proxy
 title: Proxy inverso
-sidebar_position: 4
+sidebar_position: 6
 description: Configuraciones de proxy inverso que funcionan para UltraTorrent — Traefik, NGINX, Nginx Proxy Manager, Caddy, HAProxy y Cloudflare Tunnel. Los encabezados de upgrade de WebSocket son obligatorios.
 keywords:
   - proxy inverso

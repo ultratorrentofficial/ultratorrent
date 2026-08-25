@@ -41,7 +41,8 @@ docs click into place.
 | I want to… | Go here |
 | --- | --- |
 | **Understand what this is** and how the pieces fit | [Core Concepts](/learn/concepts) · [Architecture Overview](/learn/architecture-overview) |
-| **Install it** — Docker, NAS, Proxmox, cloud | [Install](/install/docker-compose) |
+| **Get the software** | [Get UltraTorrent](/install/download) |
+| **Install it** — Docker, NAS, Proxmox, cloud | [Install](/install/docker-compose) · [Guided installer](/install/installer) |
 | **Get my first download working** | [Quick Start](/learn/quick-start) · [My First Download](/learn/first-download) |
 | **Automate a TV show** end-to-end | [Automating TV Shows](/learn/tutorials/automating-tv-shows) |
 | **Configure a feature** in depth | [Modules](/modules/) |
@@ -102,6 +103,8 @@ Each stage is a module you can configure, automate, or turn off entirely. See th
   Start here if you are new.
 - **[Install](/install/docker-compose)** — Docker Compose is the authoritative install; every
   other platform (Synology, QNAP, Unraid, TrueNAS, Proxmox, cloud…) is a thin layer on top of it.
+  [Get UltraTorrent](/install/download) covers where the software comes from, and the
+  [guided installer](/install/installer) does the whole Compose install from one binary.
 - **[Modules](/modules/)** — one deep page per feature: what it is, why, when, how to configure
   it, what goes wrong, and how to fix it.
 - **[Reference](/reference/api)** — **generated from the source code at build time**, so it
@@ -155,5 +158,5 @@ expect — so you always know whether the thing you just did actually worked.
 2. Check the [FAQ](/help/faq) and the [Glossary](/help/glossary).
 3. Work through [Troubleshooting](/operate/troubleshooting) — it is organised by *symptom*, and
    every entry gives you the exact diagnostic commands.
-4. Still stuck? [Open a GitHub issue](https://github.com/damirabal/ultratorrent-core/issues) —
+4. Still stuck? [Open a GitHub issue](https://github.com/ultratorrentofficial/ultratorrent/issues) —
    and include the diagnostics the troubleshooting page asked you to gather.

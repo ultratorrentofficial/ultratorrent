@@ -49,7 +49,7 @@
   },
   "link.item.label.GitHub Issues": {
     "message": "Issues en GitHub",
-    "description": "The label of footer link with label=GitHub Issues linking to https://github.com/damirabal/ultratorrent-core/issues"
+    "description": "The label of footer link with label=GitHub Issues linking to https://github.com/ultratorrentofficial/ultratorrent/issues"
   },
   "copyright": {
     "message": "Copyright © 2026 UltraTorrent.",

@@ -333,7 +333,7 @@ Los mensajes salen en el idioma de la consola; aquí van en español.
 
 ## Para seguir leyendo {#further-reading}
 
-- [`docs/UTCONSOLE.md`](https://github.com/damirabal/ultratorrent-core/blob/main/docs/UTCONSOLE.md) — lo mismo, con el detalle de compilación y pruebas
+- [`docs/UTCONSOLE.md`](https://github.com/ultratorrentofficial/ultratorrent/blob/main/docs/UTCONSOLE.md) — lo mismo, con el detalle de compilación y pruebas
 - [Referencia de la API REST](/reference/api) — los endpoints `/operations`
 - [Referencia de permisos](/reference/permissions) — `console.view` y los permisos de dominio
 - [Resolución de problemas](/operate/troubleshooting) — el manual de toda la plataforma

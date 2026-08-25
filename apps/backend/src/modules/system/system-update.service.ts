@@ -7,7 +7,7 @@ import { SettingsService } from '../settings/settings.module';
 /** Settings key for the update-check toggle. */
 const UPDATE_SETTINGS_KEY = 'system.updateCheck';
 /** GitHub repo releases are tagged on (owner/name). Overridable for forks/mirrors. */
-const DEFAULT_UPDATE_REPO = 'damirabal/ultratorrent-core';
+const DEFAULT_UPDATE_REPO = 'ultratorrentofficial/ultratorrent';
 /** Background check cadence — daily is plenty; GitHub allows 60 req/hr unauth. */
 const CHECK_INTERVAL_MS = 24 * 60 * 60_000;
 

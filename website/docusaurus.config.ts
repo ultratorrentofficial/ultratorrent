@@ -25,17 +25,17 @@ const config: Config = {
   // The same content ships to three places, which need different base paths:
   //   • docs.ultratorrent.co → served at the root (the canonical site, default)
   //   • the app image        → served by the frontend container at /docs/, offline
-  //   • GitHub Pages         → https://damirabal.github.io/ultratorrent-core/
+  //   • GitHub Pages         → https://ultratorrentofficial.github.io/ultratorrent/
   // All env-driven. Set DOCS_BASE_URL=/docs/ for the in-app build, or
-  // DOCS_URL=https://damirabal.github.io DOCS_BASE_URL=/ultratorrent-core/ for Pages.
+  // DOCS_URL=https://ultratorrentofficial.github.io DOCS_BASE_URL=/ultratorrent/ for Pages.
   //
   // The default is the canonical site deliberately: a plain `npm run docs:build`
-  // previously produced a site whose every link pointed at /ultratorrent-core/,
+  // previously produced a site whose every link pointed at /ultratorrent/,
   // which renders but navigates nowhere — a silent failure that is easy to ship.
   url: process.env.DOCS_URL ?? 'https://docs.ultratorrent.co',
   baseUrl: process.env.DOCS_BASE_URL ?? '/',
-  organizationName: 'damirabal',
-  projectName: 'ultratorrent-core',
+  organizationName: 'ultratorrentofficial',
+  projectName: 'ultratorrent',
   trailingSlash: false,
 
   // The docs are heavily cross-linked, so a dangling internal link — or a link to
@@ -112,7 +112,7 @@ const config: Config = {
         docs: {
           routeBasePath: '/', // the docs *are* the site
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/damirabal/ultratorrent-core/tree/main/website/',
+          editUrl: 'https://github.com/ultratorrentofficial/ultratorrent/tree/main/website/',
           // Derived from git history, so it needs a worktree. The copy baked into
           // the application image is built inside Docker, where `.dockerignore`
           // excludes `.git` — Docusaurus hard-fails there rather than degrading.
@@ -162,7 +162,7 @@ const config: Config = {
         { type: 'docsVersionDropdown', position: 'right' },
         { type: 'localeDropdown', position: 'right' },
         {
-          href: 'https://github.com/damirabal/ultratorrent-core',
+          href: 'https://github.com/ultratorrentofficial/ultratorrent',
           label: 'GitHub',
           position: 'right',
         },
@@ -196,7 +196,7 @@ const config: Config = {
             { label: 'FAQ', to: '/help/faq' },
             {
               label: 'GitHub Issues',
-              href: 'https://github.com/damirabal/ultratorrent-core/issues',
+              href: 'https://github.com/ultratorrentofficial/ultratorrent/issues',
             },
           ],
         },

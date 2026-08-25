@@ -199,8 +199,8 @@ On Kubernetes-era SCALE, pasting `docker-compose.yml` into the Custom App form d
 
 ```bash
 cd /mnt/tank/apps/ultratorrent
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 
 cp .env.example .env
 for k in JWT_ACCESS_SECRET JWT_REFRESH_SECRET ENCRYPTION_KEY; do
@@ -278,7 +278,7 @@ Handled by whatever proxy you put in front. See [TLS](/install/tls).
 ## Updates
 
 ```bash
-cd /mnt/tank/apps/ultratorrent/ultratorrent-core
+cd /mnt/tank/apps/ultratorrent/ultratorrent
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql
 git pull
 docker compose --profile rtorrent up -d --build

@@ -40,7 +40,7 @@ interface NewsletterInput {
 }
 
 /** Where the "powered by" credit in the footer points. */
-const SOURCE_URL = 'https://github.com/damirabal/ultratorrent-core';
+const SOURCE_URL = 'https://github.com/ultratorrentofficial/ultratorrent';
 const MAX_ITEMS = 60; // items rendered in the email
 const MAX_POSTERS = 30; // posters per email (keeps a CID-attached email a sane size)
 

@@ -113,8 +113,8 @@ You only need four ideas to finish this page. Every term is defined properly in
 ### Step 1 — Get the code and pick a folder
 
 ```bash
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 ```
 
 **Expected result:** a folder containing `docker-compose.yml`, `.env.example`,

@@ -1,7 +1,7 @@
 ---
 id: docker-compose
 title: Instalar con Docker Compose
-sidebar_position: 2
+sidebar_position: 4
 description: La instalación autoritativa de UltraTorrent — requisitos, secretos, el .env completo, cada servicio de Compose, puertos, volúmenes, permisos, primer inicio de sesión y verificación.
 keywords:
   - docker
@@ -162,8 +162,8 @@ Si te saltas esto, la descarga sigue funcionando por completo; solo se restringe
 ### 1. Consigue el código fuente
 
 ```bash
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 ```
 
 ¿No tienes `git`? Descarga el ZIP del repositorio desde GitHub, extráelo en el host y entra con `cd`.
@@ -533,7 +533,7 @@ Detalles, certificados personalizados, CA internas y DNS-01 para configuraciones
 ## Actualizaciones
 
 ```bash
-cd ultratorrent-core
+cd ultratorrent
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql
 git pull
 docker compose --profile rtorrent up -d --build

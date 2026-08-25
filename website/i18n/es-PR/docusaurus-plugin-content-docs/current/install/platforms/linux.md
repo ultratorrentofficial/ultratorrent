@@ -187,8 +187,8 @@ docker run --rm hello-world
 De aquí en adelante, sigue la **[guía de Docker Compose](/install/docker-compose)** exactamente — nada en Linux se desvía de ella.
 
 ```bash
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 cp .env.example .env
 
 for k in JWT_ACCESS_SECRET JWT_REFRESH_SECRET ENCRYPTION_KEY; do
@@ -264,7 +264,7 @@ Ver [TLS](/install/tls). En una máquina Linux solo en LAN, HTTP plano es una de
 ## Actualizaciones
 
 ```bash
-cd ultratorrent-core
+cd ultratorrent
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql
 git pull
 docker compose --profile rtorrent up -d --build
@@ -303,8 +303,8 @@ Para desarrollo, o para un host donde Docker no es opción. **Este no es el cami
 
 ```bash
 # 1. Clona e instala (workspaces de npm — instala siempre desde la raíz del repo)
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 npm install
 
 # 2. Entorno del backend

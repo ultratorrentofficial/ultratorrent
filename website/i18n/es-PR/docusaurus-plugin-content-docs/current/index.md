@@ -43,7 +43,8 @@ resto de la documentación te haga sentido.
 | Quiero… | Ve aquí |
 | --- | --- |
 | **Entender qué es esto** y cómo encajan las piezas | [Conceptos Básicos](/learn/concepts) · [Resumen de la Arquitectura](/learn/architecture-overview) |
-| **Instalarlo** — Docker, NAS, Proxmox, la nube | [Instalación](/install/docker-compose) |
+| **Conseguir el software** | [Obtener UltraTorrent](/install/download) |
+| **Instalarlo** — Docker, NAS, Proxmox, la nube | [Instalación](/install/docker-compose) · [Instalador guiado](/install/installer) |
 | **Lograr que mi primera descarga funcione** | [Inicio Rápido](/learn/quick-start) · [Mi Primera Descarga](/learn/first-download) |
 | **Automatizar una serie de TV** de principio a fin | [Automatizar Series de TV](/learn/tutorials/automating-tv-shows) |
 | **Configurar una función** a fondo | [Módulos](/modules/) |
@@ -104,6 +105,8 @@ Cada etapa es un módulo que puedes configurar, automatizar o apagar por complet
   principio a fin. Empieza aquí si eres nuevo.
 - **[Instalación](/install/docker-compose)** — Docker Compose es la instalación de referencia; toda
   otra plataforma (Synology, QNAP, Unraid, TrueNAS, Proxmox, la nube…) es una capa fina encima de ella.
+  [Obtener UltraTorrent](/install/download) cubre de dónde sale el software, y el
+  [instalador guiado](/install/installer) hace toda la instalación de Compose desde un solo binario.
 - **[Módulos](/modules/)** — una página a fondo por función: qué es, por qué, cuándo, cómo configurarla,
   qué sale mal y cómo arreglarlo.
 - **[Referencia](/reference/api)** — **generada desde el código fuente al compilar**, así que no puede
@@ -157,5 +160,5 @@ que deberías esperar — para que siempre sepas si lo que acabas de hacer de ve
 2. Revisa las [Preguntas Frecuentes](/help/faq) y el [Glosario](/help/glossary).
 3. Trabaja con [Resolución de Problemas](/operate/troubleshooting) — está organizada por *síntoma*, y
    cada entrada te da los comandos de diagnóstico exactos.
-4. ¿Todavía atascado? [Abre un issue en GitHub](https://github.com/damirabal/ultratorrent-core/issues) —
+4. ¿Todavía atascado? [Abre un issue en GitHub](https://github.com/ultratorrentofficial/ultratorrent/issues) —
    e incluye los diagnósticos que la página de resolución de problemas te pidió recopilar.

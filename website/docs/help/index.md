@@ -28,6 +28,6 @@ same shape: **Symptom → Diagnose (exact commands) → Root cause → Fix → V
 2. **Check the reference** — [REST API](/reference/api), [Permissions](/reference/permissions),
    and [Environment Variables](/reference/environment) are generated from the source at build
    time, so they cannot be out of date.
-3. **Open an issue** — [GitHub Issues](https://github.com/damirabal/ultratorrent-core/issues).
+3. **Open an issue** — [GitHub Issues](https://github.com/ultratorrentofficial/ultratorrent/issues).
    Include the diagnostics the troubleshooting page told you to gather; it is the difference
    between a one-reply answer and a week of back-and-forth.

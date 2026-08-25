@@ -113,8 +113,8 @@ Solo necesitas cuatro ideas para terminar esta página. Cada término está defi
 ### Paso 1 — Consigue el código y escoge una carpeta
 
 ```bash
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 ```
 
 **Resultado esperado:** una carpeta que contiene `docker-compose.yml`, `.env.example`,

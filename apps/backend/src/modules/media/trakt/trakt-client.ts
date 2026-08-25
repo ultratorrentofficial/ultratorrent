@@ -23,7 +23,7 @@ const TIMEOUT_MS = 10_000;
  * gets through, so we send one; without this, every call fails 403 and looks
  * exactly like a rejected client ID.
  */
-const USER_AGENT = 'UltraTorrent (+https://github.com/damirabal/ultratorrent-core)';
+const USER_AGENT = 'UltraTorrent (+https://github.com/ultratorrentofficial/ultratorrent)';
 
 export interface TraktCredentials {
   clientId: string;

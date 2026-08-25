@@ -316,7 +316,7 @@ Refusing beats rendering nonsense from a shape the client is guessing at.
 
 ## Further reading
 
-- [`docs/UTCONSOLE.md`](https://github.com/damirabal/ultratorrent-core/blob/main/docs/UTCONSOLE.md) — the same material, with the build and test detail
+- [`docs/UTCONSOLE.md`](https://github.com/ultratorrentofficial/ultratorrent/blob/main/docs/UTCONSOLE.md) — the same material, with the build and test detail
 - [REST API Reference](/reference/api) — the `/operations` endpoints
 - [Permissions Reference](/reference/permissions) — `console.view` and the domain permissions
 - [Troubleshooting](/operate/troubleshooting) — the platform-wide playbook

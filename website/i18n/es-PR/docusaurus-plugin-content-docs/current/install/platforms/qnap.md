@@ -219,11 +219,11 @@ docker-compose version      # recurre a esto si falla
 
 ```bash
 cd /share/Container
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 ```
 
-**¿No hay `git`?** En tu propia computadora, abre la página del proyecto en GitHub → **Code → Download ZIP** → descomprime → copia la carpeta `ultratorrent-core` a la carpeta compartida `Container` usando **File Station** o por SMB. Luego `cd /share/Container/ultratorrent-core`.
+**¿No hay `git`?** En tu propia computadora, abre la página del proyecto en GitHub → **Code → Download ZIP** → descomprime → copia la carpeta `ultratorrent` a la carpeta compartida `Container` usando **File Station** o por SMB. Luego `cd /share/Container/ultratorrent`.
 
 ### 7. Configura `.env`
 
@@ -312,7 +312,7 @@ La interfaz gráfica batalla con el `--build` inicial y no puede correr el seed 
 ![Vista de Applications de Container Station con el stack de UltraTorrent corriendo](/img/screenshots/qnap-container-station-app.png)
 
 :::note Falta captura de pantalla
-Container Station → **Applications**, mostrando la aplicación `ultratorrent-core` con sus containers corriendo.
+Container Station → **Applications**, mostrando la aplicación `ultratorrent` con sus containers corriendo.
 :::
 
 ## Verificación
@@ -356,7 +356,7 @@ Lo más sencillo: pon el terminador de TLS en otra máquina, o usa el perfil de 
 Por SSH (acuérdate del export del `PATH` si no lo dejaste fijo):
 
 ```bash
-cd /share/Container/ultratorrent-core
+cd /share/Container/ultratorrent
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql
 git pull
 docker compose --profile rtorrent up -d --build
@@ -424,7 +424,7 @@ Sí — las imágenes base son multiarquitectura. La compilación es más lenta 
 - [ ] SSH habilitado temporalmente
 - [ ] `docker --version` funciona (export del PATH aplicado, y fijado en `~/.profile`)
 - [ ] Establecido si en este NAS es `docker compose` o `docker-compose`
-- [ ] Código fuente en `/share/Container/ultratorrent-core`
+- [ ] Código fuente en `/share/Container/ultratorrent`
 - [ ] `.env`: `POSTGRES_PASSWORD` alfanumérica, `ADMIN_PASSWORD`, tres secretos distintos, **`FRONTEND_PORT=18080`**
 - [ ] `/share/Download` enlazado vía `docker-compose.override.yml`
 - [ ] Compilación terminada; seed corrido una sola vez

@@ -168,8 +168,8 @@ sudo chown -R 1000:1000 /srv/downloads
 Sigue **[Linux](/install/platforms/linux)** / **[Docker Compose](/install/docker-compose)** al pie de la letra. Ya nada de aquí en adelante es específico de Proxmox:
 
 ```bash
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 cp .env.example .env
 for k in JWT_ACCESS_SECRET JWT_REFRESH_SECRET ENCRYPTION_KEY; do
   sed -i "s|^$k=.*|$k=$(openssl rand -base64 48 | tr -d '\n')|" .env
@@ -286,7 +286,7 @@ Let's Encrypt estándar en el proxy. Para un homelab que solo vive en la LAN, **
 Dentro del invitado, el flujo normal:
 
 ```bash
-cd ultratorrent-core
+cd ultratorrent
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql
 git pull
 docker compose --profile rtorrent up -d --build

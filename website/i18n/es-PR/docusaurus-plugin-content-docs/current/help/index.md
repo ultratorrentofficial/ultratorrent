@@ -28,6 +28,6 @@ misma forma: **Síntoma → Diagnosticar (comandos exactos) → Causa raíz → 
 2. **Revisa la referencia** — [API REST](/reference/api), [Permisos](/reference/permissions)
    y [Variables de entorno](/reference/environment) se generan desde el código fuente al
    construir el sitio, así que no pueden estar desactualizadas.
-3. **Abre un issue** — [GitHub Issues](https://github.com/damirabal/ultratorrent-core/issues).
+3. **Abre un issue** — [GitHub Issues](https://github.com/ultratorrentofficial/ultratorrent/issues).
    Incluye los diagnósticos que la página de resolución de problemas te dijo que recogieras; esa es la diferencia
    entre una respuesta de un solo mensaje y una semana de ida y vuelta.

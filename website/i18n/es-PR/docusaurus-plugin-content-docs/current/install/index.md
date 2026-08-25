@@ -33,12 +33,16 @@ Ese solo hecho simplifica toda la historia de la instalación. **Casi toda "plat
 
 Por eso esta sección está armada así a propósito:
 
+- **[Obtener UltraTorrent](/install/download)** va primero: de dónde sale realmente el software, y qué no se publica a propósito.
 - **[Docker Compose](/install/docker-compose)** es la guía autoritativa. Todas las demás páginas remiten a ella.
+- **[El instalador guiado](/install/installer)** hace esa misma instalación desde un solo binario — planificar, generar, desplegar, sembrar, verificar — para quien prefiera no hacerla a mano.
 - **[Las páginas de plataforma](/install/platforms/linux)** son diferencias mínimas: acceso al shell, rutas, choques de puertos, detalles a cuidar.
 - **[Proxy inverso](/install/reverse-proxy)** y **[TLS](/install/tls)** son transversales y aplican a todas.
 
 :::info Todavía no hay imágenes precompiladas
 El stack de Compose **compila las imágenes desde el código fuente** — no hay una imagen publicada en un registry que puedas bajar con `docker pull`. Por eso tu host necesita Docker, el árbol de código fuente y aproximadamente **2 GB de RAM libre** para el primer build (unos 10–15 minutos; los arranques posteriores toman segundos). Las imágenes base son multiarquitectura, así que funcionan tanto hosts x86-64 como ARM64.
+
+Lo mismo aplica al software en sí: no hay nada que bajar salvo el código. Ve **[Obtener UltraTorrent](/install/download)**.
 :::
 
 :::tip Mira este tutorial
@@ -147,21 +151,40 @@ Vas a necesitar, en el host:
 
 - **Docker Engine** con el **plugin Compose v2** (`docker compose`, con espacio — no el antiguo `docker-compose`).
 - **~2 GB de RAM libre** para el build, **2+ GB de disco** para las imágenes, más lo que necesiten tus descargas.
-- El **árbol de código fuente** (`git clone`, o un ZIP descargado).
+- El **árbol de código fuente** (`git clone`, o un ZIP descargado) — ve [Obtener UltraTorrent](/install/download).
 - Cinco secretos que generas tú mismo: `POSTGRES_PASSWORD`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENCRYPTION_KEY`, `ADMIN_PASSWORD`. **No hay valores predeterminados inseguros** — el stack se niega a arrancar sin ellos.
 
 ![Docker Compose levantando el stack de UltraTorrent](/img/screenshots/install-compose-up.png)
 
+## ¿A mano, o con el instalador?
+
+Ambos producen el mismo stack. La diferencia es quién corre los pasos.
+
+| | **[Docker Compose](/install/docker-compose)** | **[Instalador guiado](/install/installer)** |
+|---|---|---|
+| Qué corres | `cp .env.example .env`, editar, levantar el stack, sembrar | `ultratorrent-install install --repo <checkout>` |
+| Secretos | Generas cinco y los pegas | Se generan por ti, y se conservan en cada nueva corrida |
+| Credenciales del engine | Sacas la contraseña de primer arranque de qBittorrent de su log | Ya sembradas; escritas en `engine-credentials.txt` |
+| Prowlarr + FlareSolverr | Pegas el API key en Ajustes y añades el proxy | Se conectan automáticamente |
+| Siembra de la base de datos | Un segundo comando que hay que recordar | Parte de la corrida |
+| "¿Funcionó?" | Abres la interfaz y averiguas | El inicio de sesión se verifica por la interfaz publicada antes de declarar éxito |
+| Cómo lo consigues | Ya está en tu checkout | Se **compila** desde `clients/installer` — no hay nada que bajar |
+| Interactivo | n/a | Todavía no — las respuestas son banderas, no preguntas |
+
+Lee la guía de Compose de todos modos: el instalador la automatiza, no reemplaza entenderla.
+
 ## Próximos pasos
 
-1. **[Sigue la guía de Docker Compose](/install/docker-compose)** — la instalación autoritativa.
-2. Repasa la **[página de tu plataforma](/install/platforms/linux)** para ver las diferencias que aplican a tu host.
-3. ¿Lo vas a exponer más allá de tu LAN? **[Proxy inverso](/install/reverse-proxy)** → **[TLS](/install/tls)**.
-4. Luego **[Inicio rápido](/learn/quick-start)** y **[tu primera descarga](/learn/first-download)**.
+1. **[Baja el código](/install/download)** al host.
+2. **[Sigue la guía de Docker Compose](/install/docker-compose)** — la instalación autoritativa — o entrégasela al **[instalador guiado](/install/installer)**.
+3. Repasa la **[página de tu plataforma](/install/platforms/linux)** para ver las diferencias que aplican a tu host.
+4. ¿Lo vas a exponer más allá de tu LAN? **[Proxy inverso](/install/reverse-proxy)** → **[TLS](/install/tls)**.
+5. Luego **[Inicio rápido](/learn/quick-start)** y **[tu primera descarga](/learn/first-download)**.
 
 ## Lista de verificación
 
 - [ ] Sé en cuál host voy a instalar
+- [ ] Ya tengo el código en él ([Obtener UltraTorrent](/install/download))
 - [ ] Docker Engine + Compose v2 están instalados en él
 - [ ] Tengo ~2 GB de RAM libre y un par de GB de disco
 - [ ] Ya decidí entre rTorrent (biblioteca pequeña) y qBittorrent (biblioteca grande)
@@ -171,7 +194,10 @@ Vas a necesitar, en el host:
 ## Preguntas frecuentes
 
 **¿Hay una app de un solo clic o una imagen en Docker Hub?**
-Todavía no. Cada instalación se compila desde el código fuente con `docker compose up -d --build`.
+Todavía no. Cada instalación se compila desde el código fuente con `docker compose up -d --build`. Lo más parecido es el [instalador guiado](/install/installer), que es un solo comando — pero también lo compilas tú desde el código.
+
+**¿Hay un script de instalación que pueda bajar y correr?**
+Existe un instalador, `ultratorrent-install`, pero no se publica como archivo descargable: lo compilas desde el checkout. Ve [Instalador guiado](/install/installer).
 
 **¿Puedo correrlo sin Docker?**
 Sí — Node 20, PostgreSQL 14+ y Redis 6+, desde el código fuente. Es una ruta de desarrollo, no una ruta de producción soportada. Ver [Linux](/install/platforms/linux#manual-install-from-source).
@@ -184,7 +210,9 @@ Sí — omite ambos perfiles y registra tu propio motor bajo **Infraestructura �
 
 ## Ver también
 
+- [Obtener UltraTorrent](/install/download) — de dónde sale el software
 - [Instalación con Docker Compose](/install/docker-compose) — la guía autoritativa
+- [Instalador guiado](/install/installer) — `ultratorrent-install`, de principio a fin
 - [Actualizaciones](/install/upgrading) — actualizaciones, reversión, seguridad en las migraciones
 - [Variables de entorno](/reference/environment) — cada variable, generada desde `.env.example`
 - [Conceptos](/learn/concepts) — qué son las piezas

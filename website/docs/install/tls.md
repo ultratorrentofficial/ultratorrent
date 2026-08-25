@@ -1,7 +1,7 @@
 ---
 id: tls
 title: TLS & HTTPS
-sidebar_position: 5
+sidebar_position: 7
 description: Give UltraTorrent HTTPS — Let's Encrypt via HTTP-01 or DNS-01, custom and internal-CA certificates, and how to verify and renew them.
 keywords:
   - tls

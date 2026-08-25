@@ -38,7 +38,7 @@ const TIMEOUT_MS = 8000;
  * at all — which is precisely how Trakt failed, with an error that blamed the
  * credentials. Cheap insurance against the same class of failure here.
  */
-const USER_AGENT = 'UltraTorrent (+https://github.com/damirabal/ultratorrent-core)';
+const USER_AGENT = 'UltraTorrent (+https://github.com/ultratorrentofficial/ultratorrent)';
 
 // ---------------------------------------------------------------------------
 // Pure mapping. Exported for unit tests — no key, no network.

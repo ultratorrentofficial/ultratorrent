@@ -39,8 +39,8 @@ It is not a desktop BitTorrent app. It controls one or more torrent engines you
 already run, then identifies, enriches, renames, files, and publishes the result
 to your media servers.
 
-- **Docs:** https://damirabal.github.io/ultratorrent-core/
-- **Source:** https://github.com/damirabal/ultratorrent-core
+- **Docs:** https://ultratorrentofficial.github.io/ultratorrent/
+- **Source:** https://github.com/ultratorrentofficial/ultratorrent
 - **License:** AGPL-3.0
 - **Install:** Docker Compose — see the Install section of the docs
 
@@ -223,8 +223,8 @@ It manages media you already acquire.
 **Stack.** NestJS + PostgreSQL + Redis, React + Vite, Docker-native.
 
 **Getting started.** Full documentation — Learn, Install, Modules, Reference,
-Develop, Operate — is at https://damirabal.github.io/ultratorrent-core/ and the
-source is at https://github.com/damirabal/ultratorrent-core
+Develop, Operate — is at https://ultratorrentofficial.github.io/ultratorrent/ and the
+source is at https://github.com/ultratorrentofficial/ultratorrent
 
 **A note on scope.** Rules 1 and 2 are strict and will stay strict: no content
 requests, no tracker invites. That is what keeps a community like this alive, and

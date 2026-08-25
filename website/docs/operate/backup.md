@@ -252,7 +252,7 @@ The drill, on a throwaway host or a second Compose project:
 
 ```bash
 # 1. Fresh directory, same repo, SAME .env (this is the point).
-git clone https://github.com/damirabal/ultratorrent-core.git drill
+git clone https://github.com/ultratorrentofficial/ultratorrent.git drill
 cd drill
 cp /path/to/backup/env-backup-2026-07-11 .env
 
@@ -313,7 +313,7 @@ Full sequence:
 
 ```bash
 # 1. New host, Docker installed.
-git clone https://github.com/damirabal/ultratorrent-core.git ultratorrent
+git clone https://github.com/ultratorrentofficial/ultratorrent.git ultratorrent
 cd ultratorrent
 
 # 2. Restore .env — the ORIGINAL one, with the ORIGINAL ENCRYPTION_KEY.

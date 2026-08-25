@@ -262,8 +262,8 @@ Docker escribe sus propias reglas de iptables y **un puerto publicado se salta u
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker "$USER"     # cierra sesión y vuelve a entrar
 
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 cp .env.example .env
 for k in JWT_ACCESS_SECRET JWT_REFRESH_SECRET ENCRYPTION_KEY; do
   sed -i "s|^$k=.*|$k=$(openssl rand -base64 48 | tr -d '\n')|" .env
@@ -391,7 +391,7 @@ Obligatorio. Let's Encrypt vía Caddy es el camino más corto; certbot + NGINX e
 ## Actualizaciones
 
 ```bash
-cd ultratorrent-core
+cd ultratorrent
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql
 # copia el dump FUERA de la instancia:
 scp backup-$(date +%F).sql you@home:/backups/

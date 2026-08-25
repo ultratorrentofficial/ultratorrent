@@ -262,8 +262,8 @@ Docker writes its own iptables rules and **a published port bypasses ufw**. `ufw
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker "$USER"     # log out and back in
 
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 cp .env.example .env
 for k in JWT_ACCESS_SECRET JWT_REFRESH_SECRET ENCRYPTION_KEY; do
   sed -i "s|^$k=.*|$k=$(openssl rand -base64 48 | tr -d '\n')|" .env
@@ -391,7 +391,7 @@ Mandatory. Let's Encrypt via Caddy is the shortest path; certbot + NGINX is the 
 ## Updates
 
 ```bash
-cd ultratorrent-core
+cd ultratorrent
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql
 # copy the dump OFF the instance:
 scp backup-$(date +%F).sql you@home:/backups/

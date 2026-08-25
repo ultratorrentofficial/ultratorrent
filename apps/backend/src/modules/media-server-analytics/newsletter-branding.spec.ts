@@ -55,7 +55,7 @@ describe('newsletter header title', () => {
 });
 
 describe('footer product credit', () => {
-  const SRC = 'https://github.com/damirabal/ultratorrent-core';
+  const SRC = 'https://github.com/ultratorrentofficial/ultratorrent';
 
   it('reads "Powered by <brand> v<version>"', () => {
     expect(html({ sourceUrl: SRC })).toContain('Powered by UltraTorrent v0.57.6');

@@ -96,7 +96,7 @@ Portainer se sienta *al lado* del stack, no delante de él. Quita Portainer mañ
 
 | Campo | Valor |
 |-------|-------|
-| Repository URL | `https://github.com/damirabal/ultratorrent-core` |
+| Repository URL | `https://github.com/ultratorrentofficial/ultratorrent` |
 | Repository reference | `refs/heads/main` |
 | Compose path | `docker-compose.yml` |
 | Authentication | apagado (repo público) |

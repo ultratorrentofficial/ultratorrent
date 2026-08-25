@@ -1,7 +1,7 @@
 ---
 id: upgrading
 title: Upgrading & rollback
-sidebar_position: 6
+sidebar_position: 8
 description: How to update UltraTorrent safely — back up, pull, rebuild, re-seed — plus rollback, forward-only migration safety, and what to do when an upgrade goes wrong.
 keywords:
   - upgrade
@@ -103,7 +103,7 @@ curl -s http://localhost:8080/api/system/version
 ### 2. Back up
 
 ```bash
-cd ultratorrent-core
+cd ultratorrent
 
 # The database — everything except the media itself
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql

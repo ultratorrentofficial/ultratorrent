@@ -198,11 +198,11 @@ Escribe la contraseña otra vez. Tu prompt ahora termina en `#`. **Todo lo de ab
 
 ```bash
 cd /volume1/docker
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 ```
 
-**¿No hay `git` en tu DSM?** En tu propia computadora, abre la página del proyecto en GitHub → **Code → Download ZIP** → descomprime → copia la carpeta `ultratorrent-core` a la carpeta compartida `docker` con **File Station** o por SMB. Luego `cd /volume1/docker/ultratorrent-core`.
+**¿No hay `git` en tu DSM?** En tu propia computadora, abre la página del proyecto en GitHub → **Code → Download ZIP** → descomprime → copia la carpeta `ultratorrent` a la carpeta compartida `docker` con **File Station** o por SMB. Luego `cd /volume1/docker/ultratorrent`.
 
 ### 5. Configura `.env`
 
@@ -286,14 +286,14 @@ Por último, **Configuración → Ruta raíz predeterminada** → `/downloads`.
 
 ## La ruta gráfica (Container Manager Project)
 
-¿Prefieres hacer clic en vez de escribir? **Container Manager → Project → Create** → apúntalo a la carpeta `ultratorrent-core`; él lee el `docker-compose.yml` por ti.
+¿Prefieres hacer clic en vez de escribir? **Container Manager → Project → Create** → apúntalo a la carpeta `ultratorrent`; él lee el `docker-compose.yml` por ti.
 
 Todavía necesitas el seed que se corre una sola vez. O por SSH, o así: abre el container **backend** en Container Manager, ve a su pestaña **Terminal** y corre `npx prisma db seed` ahí.
 
 ![Creando un proyecto de UltraTorrent en Container Manager](/img/screenshots/synology-container-manager-project.png)
 
 :::note Falta captura de pantalla
-Container Manager → **Project → Create**, con la ruta puesta en `/volume1/docker/ultratorrent-core` y el `docker-compose.yml` detectado.
+Container Manager → **Project → Create**, con la ruta puesta en `/volume1/docker/ultratorrent` y el `docker-compose.yml` detectado.
 :::
 
 :::caution La ruta por SSH es más confiable para la primera instalación
@@ -367,7 +367,7 @@ Alternativas (Caddy, Traefik, DNS-01 para un NAS que solo vive en la LAN): [TLS]
 Por SSH (como root):
 
 ```bash
-cd /volume1/docker/ultratorrent-core
+cd /volume1/docker/ultratorrent
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql
 git pull
 docker compose --profile rtorrent up -d --build
@@ -435,7 +435,7 @@ Cualquiera que pueda instalar Container Manager y darte ~2 GB de RAM libre para 
 - [ ] Container Manager instalado
 - [ ] SSH habilitado temporalmente
 - [ ] Conectado **y corriste `sudo -i`**
-- [ ] Código fuente en `/volume1/docker/ultratorrent-core`
+- [ ] Código fuente en `/volume1/docker/ultratorrent`
 - [ ] `.env`: `POSTGRES_PASSWORD` alfanumérica, `ADMIN_PASSWORD`, tres secretos distintos, `FRONTEND_PORT=18080`
 - [ ] Carpeta compartida `/volume1/downloads` creada y enlazada vía `docker-compose.override.yml`
 - [ ] `docker compose --profile rtorrent up -d --build` terminó

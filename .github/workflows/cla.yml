@@ -34,7 +34,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           path-to-signatures: 'signatures/version1/cla.json'
-          path-to-document: 'https://github.com/damirabal/ultratorrent-core/blob/main/CLA.md'
+          path-to-document: 'https://github.com/ultratorrentofficial/ultratorrent/blob/main/CLA.md'
           # Store signatures on the repository's default branch.
           branch: ${{ github.event.repository.default_branch }}
           # Maintainer + bots never need to sign.

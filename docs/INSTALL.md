@@ -9,6 +9,7 @@ manual from-source route is also documented for Linux.
 > overlay. It runs standalone; every feature is included and gated only by RBAC.
 
 - [Choosing an install method](#choosing-an-install-method)
+- [The guided installer](#the-guided-installer)
 - [Docker install (recommended)](#docker-install-recommended)
   - [Linux PC](#linux-pc-docker)
   - [NAS installs — read this first (plain-English guide)](#nas-installs--read-this-first-plain-english-guide)
@@ -29,11 +30,34 @@ manual from-source route is also documented for Linux.
 |-----------|-----|
 | A NAS (QNAP / Synology) | **Docker** — via the NAS's container app. No Node/npm needed. |
 | A Linux PC, want it simple | **Docker** — one command brings up the whole stack. |
+| A Linux PC, want it done *for* you | **[The guided installer](#the-guided-installer)** — it does the Docker route end to end, including the steps this page leaves you to do by hand. |
 | A Linux PC, want to develop / run from source | **Manual install** (Node 20 + PostgreSQL + Redis). |
 
 The Docker stack builds the images from source (no prebuilt images are published
 yet), so the host needs Docker + a couple of GB of free RAM to build. The base
 images are multi-arch (x86-64 and ARM).
+
+---
+
+## The guided installer
+
+`ultratorrent-install` is a single static binary that performs everything below
+and the steps this page leaves to you: it inspects the host, prints the plan it
+intends to apply, generates `.env` with strong secrets, prepares the host
+directories, brings the stack up, **seeds the database**, verifies a sign-in
+through the published web UI, and wires Prowlarr and FlareSolverr in.
+
+```bash
+cd clients/console   && ./build.sh     # build the console first — the installer embeds it
+cd ../installer      && ./build.sh     # binaries are built, never committed
+
+./dist/ultratorrent-install-linux-amd64 install --repo /path/to/this/checkout --dry-run
+./dist/ultratorrent-install-linux-amd64 install --repo /path/to/this/checkout
+```
+
+It is optional — the manual route below is the authoritative one, and the
+installer automates it rather than replacing it. Full reference, every flag, and
+what it writes: **[INSTALLER.md](INSTALLER.md)**.
 
 ---
 
@@ -43,8 +67,8 @@ These common steps apply to every platform; platform-specific deltas follow.
 
 **1. Get the code.**
 ```bash
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 ```
 No `git`? Download the repo ZIP from GitHub and extract it onto the machine.
 
@@ -160,13 +184,13 @@ Move into a folder on one of your shares, then download the files into it:
 ```bash
 cd /share/Container      # QNAP  (Synology: cd /volume1/docker)
 
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 ```
 
 > **If `git` isn't available:** on your own computer open the project's GitHub page,
 > click **Code → Download ZIP**, unzip it, and copy the resulting
-> `ultratorrent-core` folder onto the NAS share using the NAS's file app (QNAP
+> `ultratorrent` folder onto the NAS share using the NAS's file app (QNAP
 > **File Station** / Synology **File Station**) or Windows/Mac file sharing. Then
 > `cd` into that folder as shown above.
 
@@ -286,7 +310,7 @@ Now follow the short platform-specific steps below.
    [After it's running](#after-its-running-both-nas).
 
 > **Prefer clicking to typing?** Container Manager → **Project** → **Create** →
-> point it at the `ultratorrent-core` folder (it reads `docker-compose.yml` for
+> point it at the `ultratorrent` folder (it reads `docker-compose.yml` for
 > you). You still need SSH once for step 4 — or, in Container Manager, open the
 > **backend** container, go to its **Terminal** tab, and run `npx prisma db seed`
 > there.
@@ -453,8 +477,8 @@ For development or running without Docker.
 
 ```bash
 # 1. Clone & install (npm workspaces — always install from the repo root)
-git clone https://github.com/damirabal/ultratorrent-core.git
-cd ultratorrent-core
+git clone https://github.com/ultratorrentofficial/ultratorrent.git
+cd ultratorrent
 npm install
 
 # 2. Configure the backend env (see "Required environment variables" above)
@@ -542,7 +566,7 @@ your database first**; migrations are forward-only.
 ### Docker installs (Linux PC / QNAP / Synology)
 
 ```bash
-cd ultratorrent-core
+cd ultratorrent
 
 # 1. Back up the database first (safety net):
 docker compose exec -T postgres pg_dump -U ultratorrent ultratorrent > backup-$(date +%F).sql
@@ -574,7 +598,7 @@ curl -s http://localhost:8080/api/system/version    # NAS: use your remapped por
 ### Manual install (Linux PC)
 
 ```bash
-cd ultratorrent-core
+cd ultratorrent
 git pull
 
 # If the required Node changed, match it (the repo pins Node 20 via .nvmrc):
