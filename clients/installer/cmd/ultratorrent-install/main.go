@@ -19,6 +19,7 @@ import (
 
 	"github.com/ultratorrent/installer/internal/companion"
 	"github.com/ultratorrent/installer/internal/config"
+	"github.com/ultratorrent/installer/internal/console"
 	"github.com/ultratorrent/installer/internal/deploy"
 	"github.com/ultratorrent/installer/internal/host"
 	"github.com/ultratorrent/installer/internal/plan"
@@ -122,6 +123,14 @@ func run(args []string) error {
 	case "version":
 		fmt.Printf("ultratorrent-install %s (%s), plan schema v%d\n",
 			version, commit, plan.SchemaVersion)
+		// Say whether a console is aboard: the first question in any support
+		// conversation about utconsole is which binary the user actually has.
+		if console.Available() {
+			fmt.Printf("console %s included (%.1f MB)\n",
+				console.Name, float64(console.Size())/(1<<20))
+		} else {
+			fmt.Println("no console included in this build")
+		}
 		return nil
 
 	case "plan":
@@ -622,6 +631,27 @@ func generate(p *plan.Plan, dryRun bool, willDeploy bool) (generated, error) {
 		}
 		all = append(all, acts...)
 	}
+	// The console goes in beside the installation, not into /usr/local/bin.
+	//
+	// That directory is not durable everywhere — QTS runs its root filesystem
+	// from RAM, so a binary placed there and the session in $HOME are both gone
+	// after a reboot — while the installation directory is persistent by
+	// definition; it is where .env lives. The launcher written alongside points
+	// the console's configuration here for the same reason.
+	if console.Available() {
+		binPath, launcher, cerr := console.Install(p.InstallDirectory, dryRun)
+		switch {
+		case cerr != nil:
+			// Never fatal: an installation without a console is still a working
+			// installation, and the web UI is unaffected.
+			all = append(all, config.Action{Path: binPath, Kind: "skipped",
+				Detail: "could not install the console: " + cerr.Error()})
+		default:
+			all = append(all, config.Action{Path: launcher, Kind: "create",
+				Detail: "terminal console (" + console.Name + ")"})
+		}
+	}
+
 	if acts, err := writeState(writer, p, written); err != nil {
 		return generated{}, err
 	} else {
@@ -785,6 +815,7 @@ func printNextSteps(p *plan.Plan, reused bool, willDeploy bool) {
 		// stack up themselves here would contradict what happens next.
 		fmt.Printf("\nConfiguration written to %s.\n", p.InstallDirectory)
 		printCredentialsNote(p, reused)
+		printConsoleNote(p)
 		return
 	}
 	fmt.Printf(`
@@ -802,6 +833,27 @@ The web UI will be at %s
 `, env, publicAddress(p))
 
 	printCredentialsNote(p, reused)
+	printConsoleNote(p)
+}
+
+// printConsoleNote says how to run the console that was just installed.
+//
+// By its full path, deliberately. Putting it on PATH is not something the
+// installer can do durably everywhere — the obvious directory for it, and the
+// user's home, are both on a RAM filesystem under QTS — so the address that is
+// always correct is the one beside the installation.
+func printConsoleNote(p *plan.Plan) {
+	if !console.Available() {
+		return
+	}
+	fmt.Printf(`
+A terminal console was installed with this stack. Run it with:
+
+    %s
+
+It signs in separately and keeps its session beside this installation, so a
+reboot does not lose it.
+`, filepath.Join(p.InstallDirectory, console.Name))
 }
 
 // printCredentialsNote says where the generated credentials live.

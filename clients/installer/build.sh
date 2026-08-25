@@ -36,6 +36,32 @@ LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.built
 # `go vet` is GOOS-sensitive: it only ever checks the files that build for the
 # target it is run against, so vetting Linux alone leaves every Windows-tagged
 # file unchecked. Running both is what makes the platform split honest.
+# The console is embedded, so an installation ends with a working console and no
+# second download. See internal/console/payload/README.md.
+#
+# PAYLOAD is committed EMPTY and filled in per platform below. The trap restores
+# it however this script exits — an interrupted build must not leave an 8 MB
+# binary sitting in a tracked file, where it would be committed by accident and
+# would make every later `git status` dirty.
+PAYLOAD="internal/console/payload/utconsole.bin"
+CONSOLE_DIST="$(cd ../console 2>/dev/null && pwd)/dist"
+restore_payload() { : > "$PAYLOAD"; }
+trap restore_payload EXIT INT TERM
+restore_payload
+
+# Fill it for THIS machine before testing. The tests that matter — that the
+# installed console is the embedded one, that the launcher moves the session off
+# the home directory — skip when no console is aboard, so testing against the
+# empty placeholder would quietly prove nothing.
+HOST_CONSOLE="${CONSOLE_DIST}/utconsole-$(go env GOOS)-$(go env GOARCH)"
+if [ -f "$HOST_CONSOLE" ]; then
+  cp "$HOST_CONSOLE" "$PAYLOAD"
+  echo "console: $(basename "$HOST_CONSOLE") embedded for the test run"
+else
+  echo "console: none built for this machine — embedded-console tests will skip"
+fi
+echo
+
 echo "vet"
 for goos in linux windows; do
   echo "  ${goos}"
@@ -47,11 +73,25 @@ echo "test"
 go test ./... >/dev/null
 
 mkdir -p dist
+
 build() {
   local os="$1" arch="$2" ext="${3:-}"
   local out="dist/ultratorrent-install-${os}-${arch}${ext}"
-  echo "  ${out}"
+
+  # Embed the console for the SAME platform. Getting this wrong would ship an
+  # installer that writes a binary the host cannot execute, which is worse than
+  # shipping none: a missing console is reported, a foreign one just fails.
+  local console="${CONSOLE_DIST}/utconsole-${os}-${arch}${ext}"
+  if [ -f "$console" ]; then
+    cp "$console" "$PAYLOAD"
+    echo "  ${out}  (console ${os}/${arch} embedded)"
+  else
+    restore_payload
+    echo "  ${out}  (no console for ${os}/${arch} — build clients/console first)"
+  fi
+
   GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "$LDFLAGS" -o "$out" ./cmd/ultratorrent-install
+  restore_payload
 }
 
 echo
