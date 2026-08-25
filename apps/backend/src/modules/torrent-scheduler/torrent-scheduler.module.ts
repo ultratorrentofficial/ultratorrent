@@ -6,6 +6,7 @@ import { SettingsModule } from '../settings/settings.module';
 import { DomainEventsModule } from '../domain-events/domain-events.module';
 import { SchedulerCapabilityService } from './scheduler-capability.service';
 import { SchedulerPreviewService } from './scheduler-preview.service';
+import { GlobalBandwidthService } from './global-bandwidth.service';
 import { SchedulerSweepService } from './scheduler-sweep.service';
 import { SchedulerModeService } from './scheduler-mode.service';
 import { SchedulerReconciliationService } from './scheduler-reconciliation.service';
@@ -40,12 +41,13 @@ import { TorrentSchedulerController } from './torrent-scheduler.controller';
     SchedulerModeService,
     SchedulerReconciliationService,
     SchedulerActivationService,
+    GlobalBandwidthService,
     SchedulerPolicyService,
     SchedulerOverrideService,
     SchedulerCleanupService,
   ],
   controllers: [TorrentSchedulerController],
-  exports: [SchedulerPreviewService, SchedulerCapabilityService, SchedulerOverrideService],
+  exports: [GlobalBandwidthService, SchedulerPreviewService, SchedulerCapabilityService, SchedulerOverrideService],
 })
 /** Contributes the scheduler's instructions to the CAMA registry at boot. */
 export class TorrentSchedulerModule implements OnModuleInit {

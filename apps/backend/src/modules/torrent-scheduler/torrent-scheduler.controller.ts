@@ -18,6 +18,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { SchedulerModeService } from './scheduler-mode.service';
+import { GlobalBandwidthService } from './global-bandwidth.service';
 import { SchedulerPreviewService } from './scheduler-preview.service';
 import { SchedulerActivationService } from './scheduler-activation.service';
 import { SchedulerPolicyService, type PolicyInput } from './scheduler-policy.service';
@@ -44,6 +45,7 @@ export class TorrentSchedulerController {
     private readonly activation: SchedulerActivationService,
     private readonly policies: SchedulerPolicyService,
     private readonly overrides: SchedulerOverrideService,
+    private readonly bandwidthService: GlobalBandwidthService,
   ) {}
 
   // --- per-torrent overrides ---------------------------------------------
@@ -88,6 +90,36 @@ export class TorrentSchedulerController {
    * and then matches nothing — silently, because "unknown field" and "nothing
    * matched" look identical from outside.
    */
+  /**
+   * The global bandwidth ceiling.
+   *
+   * Deliberately served from the scheduler's own controller even though it is
+   * presented under Settings: the rule for when it applies is the scheduler's
+   * activation state, and putting the read next to that rule is what stops the
+   * two drifting apart.
+   */
+  @Get('bandwidth')
+  @RequirePermissions(PERMISSIONS.SETTINGS_VIEW)
+  async bandwidth() {
+    return {
+      settings: await this.bandwidthService.get(),
+      engines: await this.bandwidthService.plan(),
+    };
+  }
+
+  @Put('bandwidth')
+  @RequirePermissions(PERMISSIONS.SETTINGS_MANAGE)
+  async updateBandwidth(
+    @Body() dto: { maxDownloadRateKbps?: number | null; maxUploadRateKbps?: number | null },
+    @Req() req: Request,
+  ) {
+    const settings = await this.bandwidthService.update(
+      dto ?? {},
+      (req.user as AuthenticatedUser | undefined)?.id,
+    );
+    return { settings, engines: await this.bandwidthService.plan() };
+  }
+
   @Get('seed-conditions')
   @RequirePermissions(PERMISSIONS.TORRENT_SCHEDULER_VIEW)
   seedConditions() {
