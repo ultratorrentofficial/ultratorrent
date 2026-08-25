@@ -3,7 +3,7 @@
   "cli.version": "utconsole %s (%s, compilado %s), contrato de operaciones %d.x",
   "cli.notSignedIn": "No hay sesión iniciada, o la guardada expiró. Ejecuta: utconsole login --server <url>",
   "cli.forbidden": "Esta cuenta no puede usar la consola. Necesita el permiso console.view.",
-  "cli.noServer": "no hay servidor configurado — pasa --server https://tu-instalacion",
+  "cli.noServer": "no hay servidor configurado — ejecuta: utconsole login --server https://tu-instalacion",
   "cli.noDomains": "esta cuenta tiene console.view pero ningún permiso de dominio — no hay nada que pueda mostrar",
   "cli.unknownCommand": "comando desconocido %q",
   "cli.unknownLocale": "idioma desconocido %q — usando %s",

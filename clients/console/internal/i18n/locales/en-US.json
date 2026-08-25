@@ -3,7 +3,7 @@
   "cli.version": "utconsole %s (%s, built %s), operations contract %d.x",
   "cli.notSignedIn": "Not signed in, or the stored session expired. Run: utconsole login --server <url>",
   "cli.forbidden": "This account may not use the console. It needs the console.view permission.",
-  "cli.noServer": "no server configured — pass --server https://your-install",
+  "cli.noServer": "no server configured — run: utconsole login --server https://your-install",
   "cli.noDomains": "this account holds console.view but no domain permissions — there is nothing it may display",
   "cli.unknownCommand": "unknown command %q",
   "cli.unknownLocale": "unknown language %q — using %s",
