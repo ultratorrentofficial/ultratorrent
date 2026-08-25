@@ -45,6 +45,46 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.85.10] - 2026-08-25
+
+### Fixed
+- Installer Phase 4: generate .env, an override only when needed, and installer state — preserving existing secrets on re-run
+- Installer Phase 5: pre-seed the bundled qBittorrent's credentials so no temporary password is ever issued
+- Installer Phase 6: prepare the host media directories before deploying, since a missing bind device fails the container at start with an unhelpful error
+- Installer Phase 7: seed Prowlarr's API key, generate the bundled proxy's Caddyfile, and keep Prowlarr's unauthenticated Web UI off the host network by default
+- Installer Phase 8 (partial): the Compose deployment executor, unit-tested and wired into nothing pending an integration test against a real daemon
+- full UltraTorrent Console documentation, in en-US and es-PR, with captured screenshots
+- console: realign the contract mirror, fix ANSI column maths, meter colour, and fit the screen
+- console screenshots use invented names — no real title, site or path in published docs
+- console: utconsole is translated — embedded en-US and es-PR catalogs, locale detection, and an L key that switches language live
+- installer Phase 1: deployment audit and gap analysis
+- installer Phase 2: typed InstallationPlan, validation and dry-run
+- installer Phase 3: read-only host detection and the system check
+- Windows installer Phase 1: audit the port before writing Windows code
+- The failed-jobs alert reports today's failures instead of an all-time count that could never clear
+- Windows installer Phase 2: shared installer core separated from the Linux executor, with a platform seam, a target-aware plan and Windows path rules
+- utconsole is translated — embedded en-US and es-PR catalogs with locale detection, so the console speaks the same two languages as the documentation
+- Installer Phase 8: install now deploys — a default command runner, a plan that records its repository, an always-explicit Compose project, and diagnosis with secrets redacted
+- A failed deployment reports the reason rather than Compose's progress chatter, and shows the failing service's logs
+- The installer's help documents --repo and no longer says deployment is unimplemented
+- A container killed with SIGKILL is explained rather than reported as a bare exit code
+- install --dry-run previews the storage layout instead of silently skipping it
+- Re-running the installer over its own running stack is no longer refused as a port conflict
+- Deploying seeds the first administrator and verifies that signing in actually works
+- Turning on Prowlarr for an existing installation no longer fails on a missing config directory
+- Deploying removes services the plan no longer includes, so a changed engine does not leave the old one running
+- An external torrent engine can now be configured, and the installer says how to connect it
+- The installer installs Docker when it says it will, instead of promising and failing later
+- Publishing Prowlarr's Web UI now warns that it has no authentication
+- Deploying skips the image build when the images already match the checkout
+- The web UI keeps working after a redeployment, and the installer checks the door users actually use
+- The installer connects Prowlarr and FlareSolverr automatically instead of leaving it to the operator
+- The console's first-run message names the command that actually signs you in
+- The installer ships the terminal console and installs it where a reboot cannot remove it
+- Point the update channel, newsletter credit and HTTP user agents at the renamed repository (ultratorrentofficial/ultratorrent), and document the installer and where the software actually comes from
+- On QNAP the console stays on PATH after a reboot, without disturbing an existing autorun.sh
+- Scheduler activation counts the torrents it would REMOVE, not only the ones it would pause — a removal-based seed policy previously showed 0/0 on the consent screen and then deleted torrents on the first sweep
+
 ## [0.85.9] - 2026-08-22
 
 ### Fixed
