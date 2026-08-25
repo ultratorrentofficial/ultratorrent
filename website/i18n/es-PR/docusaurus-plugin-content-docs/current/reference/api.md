@@ -18,7 +18,7 @@ Esta página se genera desde `los decoradores @Controller / @Get / @RequirePermi
 Cada endpoint de abajo se leyó de los controladores mismos, incluyendo el **permiso
 exacto** que exige su guard.
 
-- **468 endpoints** en **24 controladores**
+- **470 endpoints** en **24 controladores**
 - URL base: `http://<host>:<port>/api`
 
 ## Autenticación
@@ -661,6 +661,8 @@ From `TorrentSchedulerController`.
 | `GET` | `/api/torrent-scheduler/torrents/:engineId/overrides` | `TORRENT_SCHEDULER_VIEW` | `listOverrides` |
 | `POST` | `/api/torrent-scheduler/torrents/:engineId/:hash/override` | `TORRENT_SCHEDULER_OVERRIDE` | `setOverride` |
 | `DELETE` | `/api/torrent-scheduler/torrents/:engineId/:hash/override/:kind` | `TORRENT_SCHEDULER_OVERRIDE` | `clearOverride` |
+| `GET` | `/api/torrent-scheduler/bandwidth` | `SETTINGS_VIEW` | `bandwidth` |
+| `PUT` | `/api/torrent-scheduler/bandwidth` | `SETTINGS_MANAGE` | `updateBandwidth` |
 | `GET` | `/api/torrent-scheduler/seed-conditions` | `TORRENT_SCHEDULER_VIEW` | `seedConditions` |
 | `GET` | `/api/torrent-scheduler/policies` | `TORRENT_SCHEDULER_VIEW` | `listPolicies` |
 | `POST` | `/api/torrent-scheduler/policies` | `TORRENT_SCHEDULER_MANAGE_POLICIES` | `createPolicy` |
