@@ -284,6 +284,49 @@ Monitor it:
 docker inspect --format '{{.RestartCount}}' $(docker compose ps -q rtorrent)
 ```
 
+## Global bandwidth limits
+
+**Settings → Global bandwidth** sets one ceiling for every torrent engine: a
+maximum download rate and a maximum upload rate, both in kbps. This is the place
+to answer "never use more than this", and for most installations it is the only
+bandwidth setting you need.
+
+### Empty is not the same as unset
+
+A field left empty means **unlimited**. Saving nothing at all means **no ceiling
+has been configured**, and in that state UltraTorrent does not touch any engine's
+rate limits — anything you set in qBittorrent's own interface stays exactly as
+you left it. The moment you save a ceiling, UltraTorrent takes over and pushes it
+to every engine it is allowed to.
+
+Zero is refused. qBittorrent reads a limit of `0` as *unlimited*, which is the
+opposite of what typing zero into a speed limit means, so the field asks you to
+leave it empty instead.
+
+### When the Activity Scheduler wins
+
+The Activity Scheduler (**Downloads → Activity Scheduler**) can also set rate
+limits, through its policies. The two are resolved **per engine**:
+
+| Engine state | What governs its bandwidth |
+| --- | --- |
+| Never enrolled in scheduling (`native`) | The global ceiling |
+| Managed, and a policy covers it | The scheduler's policy |
+| Managed, but no policy covers it | The global ceiling |
+| Observing | Neither — the engine is never written to |
+| Cannot apply global limits | Neither — reported on the settings page |
+
+The third row is the one worth knowing. An engine switched into managed mode and
+then left without a policy would otherwise run with no cap at all; the global
+ceiling catches that case rather than letting it through.
+
+Observing engines are deliberately excluded. Observe mode's promise is that the
+scheduler changes nothing on that engine, and a bandwidth limit is a change.
+
+The settings page lists every engine and which of these applies, so you never
+have to work it out from the table above — if a limit is not reaching an engine,
+the page says so and why.
+
 ## Download queue throughput
 
 ### Dead torrents can consume every queue slot

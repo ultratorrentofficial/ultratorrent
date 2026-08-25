@@ -90,6 +90,51 @@ flowchart TD
     style large fill:#c62828,color:#fff
 ```
 
+## Límites globales de ancho de banda
+
+**Ajustes → Ancho de banda global** establece un límite para todos los motores de
+torrents: una velocidad máxima de descarga y una de subida, ambas en kbps. Aquí
+es donde se responde "nunca uses más de esto", y para la mayoría de las
+instalaciones es el único ajuste de ancho de banda que hace falta.
+
+### Vacío no es lo mismo que sin configurar
+
+Un campo vacío significa **sin límite**. No guardar nada significa que **no hay
+ningún límite configurado**, y en ese estado UltraTorrent no toca los límites de
+ningún motor: lo que hayas puesto en la interfaz de qBittorrent se queda tal
+cual. En cuanto guardas un límite, UltraTorrent toma el control y lo aplica a
+todos los motores donde puede.
+
+El cero se rechaza. qBittorrent interpreta un límite de `0` como *sin límite*, lo
+contrario de lo que uno quiere decir al escribir cero en un límite de velocidad,
+así que el campo te pide que lo dejes vacío.
+
+### Cuándo manda el Programador de Actividad
+
+El Programador de Actividad (**Descargas → Programador de Actividad**) también
+puede fijar límites mediante sus políticas.
+Los dos se resuelven **por motor**:
+
+| Estado del motor | Qué gobierna su ancho de banda |
+| --- | --- |
+| Nunca inscrito en la programación (`native`) | El límite global |
+| Administrado, y una política lo cubre | La política del programador |
+| Administrado, pero ninguna política lo cubre | El límite global |
+| En observación | Ninguno — nunca se le escribe |
+| No admite límites globales | Ninguno — se informa en la página de ajustes |
+
+La tercera fila es la que conviene conocer. Un motor puesto en modo administrado
+y luego dejado sin política funcionaría sin ningún tope; el límite global cubre
+ese caso en vez de dejarlo pasar.
+
+Los motores en observación quedan excluidos a propósito. La promesa del modo
+observación es que el programador no cambia nada en ese motor, y un límite de
+ancho de banda es un cambio.
+
+La página de ajustes lista cada motor y cuál de estos casos aplica, así que no
+hace falta deducirlo de la tabla: si un límite no está llegando a un motor, la
+página lo dice y explica por qué.
+
 ## El catálogo IMDb {#the-imdb-catalogue}
 
 Este es el tema de rendimiento más importante de UltraTorrent, porque el modo de fallo no es

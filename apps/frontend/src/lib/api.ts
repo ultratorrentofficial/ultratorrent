@@ -3290,6 +3290,35 @@ export interface IndexerCandidate {
 
 export type ProwlarrStatus = 'unknown' | 'disabled' | 'unconfigured' | 'ok' | 'error';
 
+/** Why an engine has, or has not, been given the global bandwidth ceiling. */
+export type BandwidthSource =
+  | 'settings'
+  | 'scheduler'
+  | 'unconfigured'
+  | 'observing'
+  | 'unsupported';
+
+export interface EngineBandwidthStatus {
+  engineId: string;
+  mode: 'native' | 'observe' | 'managed';
+  source: BandwidthSource;
+  maxDownloadRateKbps: number | null;
+  maxUploadRateKbps: number | null;
+}
+
+export interface GlobalBandwidthSettings {
+  /** kbps. `null` means unlimited, which is different from not configured. */
+  maxDownloadRateKbps: number | null;
+  maxUploadRateKbps: number | null;
+}
+
+export interface GlobalBandwidthResponse {
+  /** `null` until somebody saves a ceiling; nothing is applied before then. */
+  settings: GlobalBandwidthSettings | null;
+  /** Per-engine outcome, produced by the same code that applies it. */
+  engines: EngineBandwidthStatus[];
+}
+
 export interface ProwlarrSettings {
   enabled: boolean;
   internalUrl: string;
@@ -4407,6 +4436,15 @@ export const api = {
     },
     search(id: string, q: string, season?: number, ep?: number): Promise<IndexerCandidate[]> {
       return request<IndexerCandidate[]>(`/indexers/${id}/search`, { query: { q, season, ep } });
+    },
+  },
+
+  bandwidth: {
+    get(): Promise<GlobalBandwidthResponse> {
+      return request<GlobalBandwidthResponse>('/torrent-scheduler/bandwidth');
+    },
+    update(body: GlobalBandwidthSettings): Promise<GlobalBandwidthResponse> {
+      return request<GlobalBandwidthResponse>('/torrent-scheduler/bandwidth', { method: 'PUT', body });
     },
   },
 

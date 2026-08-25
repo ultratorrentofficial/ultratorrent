@@ -41,5 +41,26 @@
     },
     "savedToast": "Default root path saved",
     "saveFailedToast": "Could not save root path"
+  },
+  "bandwidth": {
+    "title": "Global bandwidth",
+    "description": "One ceiling for every torrent engine. The Activity Scheduler overrides it only on engines it is actually managing.",
+    "download": "Maximum download (kbps)",
+    "upload": "Maximum upload (kbps)",
+    "unlimited": "Unlimited",
+    "emptyMeansUnlimited": "Leave a field empty for unlimited. Nothing is applied to any engine until you save a ceiling here.",
+    "perEngine": "What each engine is using",
+    "inForce": "{{down}} down · {{up}} up",
+    "unreachable": "These engines cannot apply a global rate limit, so these values do not reach them: {{engines}}",
+    "save": "Save bandwidth limits",
+    "saved": "Bandwidth limits saved and applied",
+    "saveFailed": "Could not save the bandwidth limits",
+    "source": {
+      "settings": "From settings",
+      "scheduler": "Activity Scheduler",
+      "unconfigured": "No ceiling set",
+      "observing": "Observing — not changed",
+      "unsupported": "Not supported"
+    }
   }
 }

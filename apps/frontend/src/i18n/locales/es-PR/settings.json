@@ -41,5 +41,26 @@
     },
     "savedToast": "Ruta raíz predeterminada guardada",
     "saveFailedToast": "No se pudo guardar la ruta raíz"
+  },
+  "bandwidth": {
+    "title": "Ancho de banda global",
+    "description": "Un límite para todos los motores de torrents. El Programador de Actividad lo sustituye solo en los motores que realmente administra.",
+    "download": "Descarga máxima (kbps)",
+    "upload": "Subida máxima (kbps)",
+    "unlimited": "Sin límite",
+    "emptyMeansUnlimited": "Deja un campo vacío para no poner límite. No se aplica nada a ningún motor hasta que guardes un límite aquí.",
+    "perEngine": "Lo que usa cada motor",
+    "inForce": "{{down}} bajada · {{up}} subida",
+    "unreachable": "Estos motores no pueden aplicar un límite global, así que estos valores no les llegan: {{engines}}",
+    "save": "Guardar límites de ancho de banda",
+    "saved": "Límites de ancho de banda guardados y aplicados",
+    "saveFailed": "No se pudieron guardar los límites de ancho de banda",
+    "source": {
+      "settings": "Desde ajustes",
+      "scheduler": "Programador de Actividad",
+      "unconfigured": "Sin límite configurado",
+      "observing": "Observando — no se modifica",
+      "unsupported": "No compatible"
+    }
   }
 }
