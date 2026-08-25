@@ -388,6 +388,61 @@ describe('buildRenamePlan — reports a file sitting in the wrong show folder', 
   });
 });
 
+describe('buildRenamePlan — a video is never a sidecar of itself', () => {
+  /*
+   * Live on ehr-qnap 2026-08-25: renaming the `Season 3` folder of *Interview
+   * with the Vampire* applied 3 renames and reported 3 FAILURES. Each video was
+   * planned TWICE — once as `primary media file`, once as `metadata sidecar
+   * (follows its video)` — and the duplicate ran after the primary had already
+   * moved the file, so it failed ENOENT against a uniquified `… [dup2].mkv`
+   * that was never created. The renames had all succeeded; the failure count
+   * was pure noise, and noise like that hides a real failure.
+   *
+   * The trigger is a source that parses to NO content type — a bare season
+   * folder rather than a release name. The sidecar pass classified against the
+   * BATCH kind ('general' here) while the first pass classifies per file, and
+   * `classifyFile` only ever downgrades: given a video extension it hands back
+   * `parsedKind` unchanged, so `c.kind !== 'general'` failed to exclude videos.
+   */
+  const plan = buildRenamePlan(ctx({
+    sourceName: 'Season 3',
+    files: [
+      { path: 'Interview.with.the.Vampire.S03E01.Detroit.1080p.HEVC.x265-MeGusta[EZTVx.to].mkv', size: BIG },
+      { path: 'Interview with the Vampire S03E02 1080p x265-ELiTE[EZTVx.to].mkv', size: BIG },
+      { path: 'Interview with the Vampire - S03E03 - Toronto.mkv', size: BIG },
+    ],
+    preset: 'plex',
+    mode: 'rename_in_place',
+    libraryPath: '/media/TV',
+  }));
+
+  it('plans each video exactly once', () => {
+    for (const f of plan.items.map((i) => i.source)) {
+      expect(plan.items.filter((i) => i.source === f)).toHaveLength(1);
+    }
+  });
+
+  it('never labels a video as a sidecar', () => {
+    const asSidecar = plan.items.filter(
+      (i) => i.reason === 'metadata sidecar (follows its video)' && i.source.endsWith('.mkv'),
+    );
+    expect(asSidecar).toEqual([]);
+  });
+
+  // The uniquifier is what turned the duplicate into a plausible-looking
+  // destination; no plan should ever produce one for a file that is simply
+  // being renamed once.
+  it('produces no [dup] destination', () => {
+    for (const i of plan.items) expect(i.destination ?? '').not.toMatch(/\[dup\d*\]/);
+  });
+
+  it('still renames the videos it was asked to', () => {
+    const dest = (s: string) => plan.items.find((i) => i.source.startsWith(s))?.destination;
+    expect(dest('Interview.with.the.Vampire.S03E01')).toMatch(/S03E01/);
+    expect(dest('Interview with the Vampire S03E02')).toMatch(/S03E02/);
+  });
+});
+
 describe('buildRenamePlan — metadata sidecars follow their video', () => {
   // A .nfo / -thumb.jpg is named after its video. Renaming the video and leaving the
   // sidecar behind orphans it — the .nfo keeps the old basename and describes nothing,

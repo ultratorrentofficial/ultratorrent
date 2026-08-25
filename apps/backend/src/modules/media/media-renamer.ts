@@ -1051,8 +1051,26 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
   // `poster.jpg`, `fanart.jpg`, `tvshow.nfo`, `season01-poster.jpg`, `theme.mp3` belong to
   // the FOLDER, not to any one episode. Moving them with an episode would be wrong, and is
   // why this matches on the video's basename rather than on "is it an image/xml".
+  /*
+   * A file an earlier pass already planned is not a sidecar — it has a
+   * destination of its own.
+   *
+   * The `c.kind !== 'general'` test below cannot carry this on its own, because
+   * it classifies against the BATCH kind while the first pass classifies per
+   * file, and `classifyFile` only ever DOWNGRADES to 'general': for a video
+   * extension it returns `parsedKind` untouched. So whenever the batch source
+   * parses to no content type — previewing a bare `Season 3` folder rather than
+   * a release — every video came back 'general' and was re-planned as a sidecar
+   * of ITSELF. The duplicate ran after the primary had already renamed the file,
+   * so it failed ENOENT against a destination it then uniquified to `… [dup2]`,
+   * and the run reported failures that never happened while the rename had in
+   * fact succeeded. Matching on what is already planned is exact, and does not
+   * depend on re-deriving a kind.
+   */
+  const alreadyPlanned = new Set(items.map((i) => i.source));
   for (const f of ctx.files) {
     if (toDelete.has(f.path)) continue; // slated for cleanup
+    if (alreadyPlanned.has(f.path)) continue; // planned as a primary/subtitle above
     const c = classifyFile(f.path, kind, sampleMax, f.size);
     if (c.kind !== 'general') continue; // videos/audio/subtitles already planned
 
