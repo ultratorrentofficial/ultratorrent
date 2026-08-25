@@ -23,6 +23,15 @@ import {
 export class EngineRegistryService implements OnModuleInit {
   private readonly logger = new Logger(EngineRegistryService.name);
   private readonly providers = new Map<string, TorrentEngineProvider>();
+  /**
+   * Called after every successful reload.
+   *
+   * A plain in-process hook rather than a domain event: the event catalogue is
+   * a vocabulary of facts an OPERATOR would want to hear about, and "the
+   * registry rebuilt its providers" is plumbing. Publishing it there would work
+   * and would quietly cheapen what an event means.
+   */
+  private readonly reloadListeners: Array<() => void | Promise<void>> = [];
 
   constructor(
     private readonly prisma: PrismaService,
@@ -69,6 +78,33 @@ export class EngineRegistryService implements OnModuleInit {
       }
     }
     this.logger.log(`Loaded ${this.providers.size} engine provider(s)`);
+    await this.notifyReloaded();
+  }
+
+  /**
+   * Run `listener` after each reload, for work that must follow a change to the
+   * set of engines — applying the global bandwidth ceiling to one that has just
+   * appeared, for instance.
+   */
+  onReload(listener: () => void | Promise<void>): void {
+    this.reloadListeners.push(listener);
+  }
+
+  /**
+   * Listeners are isolated and never block the reload.
+   *
+   * A registry that failed to load engines because something downstream threw
+   * would be a far worse failure than the downstream work being missed, and the
+   * engines themselves are already in place by this point.
+   */
+  private async notifyReloaded(): Promise<void> {
+    for (const listener of this.reloadListeners) {
+      try {
+        await listener();
+      } catch (err) {
+        this.logger.warn(`A reload listener failed: ${(err as Error).message}`);
+      }
+    }
   }
 
   list(): TorrentEngineProvider[] {

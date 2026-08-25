@@ -19,6 +19,7 @@ function build(opts: {
 }) {
   const applied: Record<string, unknown> = {};
   const stored: { value?: unknown } = {};
+  const reloadHooks: Array<() => unknown> = [];
   const providers: Provider[] = opts.providers ?? [
     { engineId: 'qb', setGlobalRateLimits: async (l) => { applied.qb = l; } },
   ];
@@ -28,11 +29,11 @@ function build(opts: {
       get: async () => (opts.ceiling === undefined ? null : opts.ceiling),
       set: async (_k: string, v: unknown) => { stored.value = v; },
     } as never,
-    { list: () => providers } as never,
+    { list: () => providers, onReload: (cb: () => unknown) => { reloadHooks.push(cb); } } as never,
     { modes: async () => new Map(Object.entries(opts.modes ?? {})) } as never,
     { record: async () => undefined } as never,
   );
-  return { service, applied, stored };
+  return { service, applied, stored, reloadHooks };
 }
 
 describe('the global bandwidth ceiling', () => {
@@ -150,6 +151,53 @@ describe('the global bandwidth ceiling', () => {
         maxDownloadRateKbps: null,
         maxUploadRateKbps: null,
       });
+    });
+  });
+
+  /*
+   * An engine added after the ceiling was saved must not run uncapped until
+   * somebody presses Save again. A limit that is configured, shown on the
+   * screen, and not in force is the worst state this feature has.
+   */
+  describe('engines that appear later', () => {
+    it('applies the ceiling when the engine set changes', async () => {
+      const { service, applied, reloadHooks } = build({
+        ceiling: { maxDownloadRateKbps: 5000, maxUploadRateKbps: 1000 },
+      });
+      service.onModuleInit();
+      expect(reloadHooks).toHaveLength(1);
+
+      // A reload happens: the registry calls back.
+      await reloadHooks[0]();
+      expect(applied.qb).toEqual({ downloadBytesPerSec: 625000, uploadBytesPerSec: 125000 });
+    });
+
+    it('applies it once at boot as well, since the first reload precedes us', async () => {
+      const { service, applied } = build({
+        ceiling: { maxDownloadRateKbps: 2000, maxUploadRateKbps: null },
+      });
+      service.onModuleInit();
+      await new Promise((r) => setTimeout(r, 0)); // the boot apply is fire-and-forget
+      expect(applied.qb).toEqual({ downloadBytesPerSec: 250000, uploadBytesPerSec: null });
+    });
+
+    /*
+     * An unreachable engine at boot must not stop the application starting.
+     */
+    it('never lets a failing engine escape as a startup error', async () => {
+      const { service, reloadHooks } = build({
+        ceiling: { maxDownloadRateKbps: 5000, maxUploadRateKbps: 1000 },
+        providers: [
+          {
+            engineId: 'broken',
+            setGlobalRateLimits: async () => {
+              throw new Error('connection refused');
+            },
+          },
+        ],
+      });
+      service.onModuleInit();
+      await expect(reloadHooks[0]()).resolves.not.toThrow();
     });
   });
 

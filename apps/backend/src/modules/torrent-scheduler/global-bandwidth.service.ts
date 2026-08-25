@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, type OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineRegistryService } from '../engine/engine-registry.service';
@@ -70,7 +70,7 @@ function kbpsToBytes(kbps: number | null): number | null {
  *     is reported instead, so the reason is visible rather than mysterious.
  */
 @Injectable()
-export class GlobalBandwidthService {
+export class GlobalBandwidthService implements OnModuleInit {
   private readonly logger = new Logger(GlobalBandwidthService.name);
 
   constructor(
@@ -80,6 +80,31 @@ export class GlobalBandwidthService {
     private readonly sweep: SchedulerSweepService,
     private readonly audit: AuditService,
   ) {}
+
+  /**
+   * Put the ceiling into force at boot, and again whenever the set of engines
+   * changes.
+   *
+   * Without the second half, an engine added after the ceiling was saved would
+   * run uncapped until somebody happened to press Save again — a limit that is
+   * configured, displayed, and not in effect, which is the worst of the three
+   * states this feature can be in.
+   *
+   * Neither call is allowed to fail startup: an unreachable engine is a reason
+   * to log and carry on, not a reason for the application not to boot.
+   */
+  onModuleInit(): void {
+    this.registry.onReload(() => this.applyQuietly());
+    void this.applyQuietly();
+  }
+
+  private async applyQuietly(): Promise<void> {
+    try {
+      await this.apply();
+    } catch (err) {
+      this.logger.warn(`Could not apply the global bandwidth ceiling: ${(err as Error).message}`);
+    }
+  }
 
   /** The configured ceiling, or null when nobody has set one. */
   async get(): Promise<GlobalBandwidthSettings | null> {
