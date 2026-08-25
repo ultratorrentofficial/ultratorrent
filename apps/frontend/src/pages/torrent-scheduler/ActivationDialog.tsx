@@ -50,11 +50,26 @@ export function ActivationDialog({
 
       {preview.isLoading ? <CenteredSpinner /> : preview.data ? (
         <div className="space-y-4 py-2">
-          <div className="grid grid-cols-3 gap-4">
-            <Count label={t('scheduler.activation.wouldPause')} value={preview.data.wouldPause} emphasis />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Count label={t('scheduler.activation.wouldRemove')} value={preview.data.wouldRemove} tone="destructive" />
+            <Count label={t('scheduler.activation.wouldPause')} value={preview.data.wouldPause} tone="warning" />
             <Count label={t('scheduler.activation.wouldResume')} value={preview.data.wouldResume} />
             <Count label={t('scheduler.activation.totalTorrents')} value={preview.data.totalTorrents} />
           </div>
+
+          {/* Spelled out in words, not left to a number under a two-word label.
+              A removal deletes the staging payload, which is the one outcome on
+              this screen that cannot be undone by switching the mode back. */}
+          {preview.data.wouldRemove > 0 && (
+            <div className="space-y-1 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-destructive">
+                <ShieldAlert className="h-4 w-4" /> {t('scheduler.activation.removalTitle')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('scheduler.activation.removalNotice', { count: preview.data.wouldRemove })}
+              </p>
+            </div>
+          )}
 
           {preview.data.blockers.length > 0 && (
             <div className="space-y-1 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2">
@@ -159,10 +174,22 @@ export function DeactivationDialog({
   );
 }
 
-function Count({ label, value, emphasis }: { label: string; value: number; emphasis?: boolean }) {
+/**
+ * A tone only ever applies to a NON-ZERO count.
+ *
+ * Colouring a zero would make "nothing will be removed" look like a hazard, and
+ * the operator would learn to read past the colour on the one line where it
+ * matters most.
+ */
+function Count({ label, value, tone }: {
+  label: string; value: number; tone?: 'warning' | 'destructive';
+}) {
+  const toneClass = value > 0 && tone === 'destructive' ? 'text-destructive'
+    : value > 0 && tone === 'warning' ? 'text-warning'
+      : '';
   return (
     <div>
-      <div className={`text-2xl font-semibold tabular-nums ${emphasis && value > 0 ? 'text-warning' : ''}`}>
+      <div className={`text-2xl font-semibold tabular-nums ${toneClass}`}>
         {value}
       </div>
       <div className="text-xs text-muted-foreground">{label}</div>

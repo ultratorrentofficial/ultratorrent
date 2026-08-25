@@ -65,6 +65,37 @@ describe('describing what activation would do', () => {
     expect(d.blockers).toHaveLength(0);
   });
 
+  /*
+   * The regression this whole count exists for.
+   *
+   * A met seed target decides `remove_and_cleanup`, not `pause`. The preview
+   * originally filtered for `pause` and `resume` only, so an install whose
+   * policies end in removal read `0 / 0` on the consent screen and then deleted
+   * torrents on the first sweep. Measured on a live install: 43 removals shown
+   * as zero.
+   */
+  it('counts removals separately, and never as pauses', async () => {
+    const { svc } = build({
+      decisions: [
+        { action: 'remove_and_cleanup' },
+        { action: 'remove_and_cleanup' },
+        { action: 'pause' },
+        { action: 'none' },
+      ],
+    });
+    const d = await svc.describe('e1');
+    expect(d.wouldRemove).toBe(2);
+    expect(d.wouldPause).toBe(1);
+    expect(d.totalTorrents).toBe(4);
+  });
+
+  it('reports no removals when nothing would be removed', async () => {
+    // A zero here must be a real zero: the dialog tones the number only when it
+    // is non-zero, so a stray count would paint a hazard on a safe activation.
+    const { svc } = build();
+    expect((await svc.describe('e1')).wouldRemove).toBe(0);
+  });
+
   it('blocks an engine that cannot pause', async () => {
     // Nothing else matters if the engine cannot relinquish a slot.
     const { svc } = build({ kind: 'transmission' });
@@ -107,6 +138,22 @@ describe('activating', () => {
     expect(upserts).toHaveLength(0);
   });
 
+  it('names the removals in the refusal, ahead of the pauses', async () => {
+    // The unconfirmed refusal is the API's half of consent. Leading with
+    // "would pause 0" on a removal-only plan reads as "this does nothing".
+    const { svc } = build({
+      decisions: [{ action: 'remove_and_cleanup' }, { action: 'remove_and_cleanup' }],
+    });
+    await expect(svc.activate('e1', false)).rejects.toThrow(
+      /remove 2 torrent\(s\) and their staging data.*pause 0/,
+    );
+  });
+
+  it('leaves removals out of the refusal when there are none', async () => {
+    const { svc } = build();
+    await expect(svc.activate('e1', false)).rejects.toThrow(/would pause 2 and resume 0/);
+  });
+
   it('refuses on a blocked engine even when confirmed', async () => {
     // Confirmation is consent, not an override of capability.
     const { svc } = build({ kind: 'transmission' });
@@ -135,6 +182,16 @@ describe('activating', () => {
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
       action: 'torrent_scheduler.activated',
       metadata: expect.objectContaining({ wouldPause: 2 }),
+    }));
+  });
+
+  it('audits the removals too, so the record matches what was consented to', async () => {
+    const { svc, audit } = build({
+      decisions: [{ action: 'remove_and_cleanup' }, { action: 'pause' }],
+    });
+    await svc.activate('e1', true, 'user-1');
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({ wouldRemove: 1, wouldPause: 1 }),
     }));
   });
 });

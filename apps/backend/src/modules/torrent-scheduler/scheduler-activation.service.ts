@@ -25,6 +25,11 @@ import { DOMAIN_EVENTS } from '@ultratorrent/shared';
  * Step 4 exists because a count is not a decision. "This will pause 34 torrents"
  * is information an operator must be shown before it happens, not discovered
  * afterwards in an audit log.
+ *
+ * The preview must therefore describe every outcome the plan can produce, not
+ * only the ones this workflow was first written for. A policy whose seed target
+ * ends in removal is enforced here like any other, so removals are counted and
+ * shown alongside the pauses — see `wouldRemove`.
  */
 export interface ActivationPreview {
   engineId: string;
@@ -34,6 +39,17 @@ export interface ActivationPreview {
   warnings: Array<{ code: string; messageKey: string; values?: Record<string, unknown> }>;
   wouldPause: number;
   wouldResume: number;
+  /**
+   * Torrents a seed target would REMOVE, with their staging data.
+   *
+   * Counted separately and never folded into `wouldPause`, because it is the
+   * one outcome here that destroys something. It was originally missing
+   * altogether: the two filters below asked for `pause` and `resume`, while a
+   * met seed target decides `remove_and_cleanup` — so an install whose policies
+   * end in removal read `0 / 0` on the one screen whose entire purpose is
+   * informed consent, and then deleted torrents on the first sweep.
+   */
+  wouldRemove: number;
   totalTorrents: number;
 }
 
@@ -122,6 +138,7 @@ export class SchedulerActivationService {
       warnings,
       wouldPause: decisions.filter((d) => d.action === 'pause').length,
       wouldResume: decisions.filter((d) => d.action === 'resume').length,
+      wouldRemove: decisions.filter((d) => d.action === 'remove_and_cleanup').length,
       totalTorrents: decisions.length,
     };
   }
@@ -142,8 +159,14 @@ export class SchedulerActivationService {
       );
     }
     if (!confirm) {
+      // Removals lead, when there are any. A refusal that opened with "would
+      // pause 0" and mentioned the deletions second — or not at all — would be
+      // technically true and read as "this does nothing".
+      const removal = description.wouldRemove > 0
+        ? `remove ${description.wouldRemove} torrent(s) and their staging data, `
+        : '';
       throw new BadRequestException(
-        `Managed scheduling would pause ${description.wouldPause} and resume `
+        `Managed scheduling would ${removal}pause ${description.wouldPause} and resume `
           + `${description.wouldResume} torrent(s) on this engine. Confirm to proceed.`,
       );
     }
@@ -188,13 +211,14 @@ export class SchedulerActivationService {
       metadata: {
         wouldPause: description.wouldPause,
         wouldResume: description.wouldResume,
+        wouldRemove: description.wouldRemove,
         warnings: description.warnings.map((w) => w.code),
       },
     });
 
     this.logger.log(
       `Managed scheduling enabled for ${engineId} — expects to pause ${description.wouldPause}, `
-        + `resume ${description.wouldResume}.`,
+        + `resume ${description.wouldResume}, remove ${description.wouldRemove}.`,
     );
     return saved;
   }

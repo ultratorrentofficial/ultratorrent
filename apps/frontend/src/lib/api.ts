@@ -1988,6 +1988,8 @@ export interface SchedulerActivationPreview {
   warnings: Array<{ code: string; messageKey: string }>;
   wouldPause: number;
   wouldResume: number;
+  /** Seed targets ending in removal. Destroys data, so it is never folded into wouldPause. */
+  wouldRemove: number;
   totalTorrents: number;
 }
 
