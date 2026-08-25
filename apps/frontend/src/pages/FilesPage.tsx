@@ -30,6 +30,7 @@ import { ApiError, api, type FileNode } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { useAuth } from '@/auth/AuthContext';
 import { formatBytes, formatRelativeTime } from '@/lib/format';
+import { BROWSE_ROOT, crumbsFor, usesAbsolutePaths } from '@/lib/file-path';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
@@ -96,8 +97,12 @@ export function FilesPage() {
   // Reset selection when navigating.
   useEffect(() => setSelected(new Set()), [path]);
 
-  const segments = path.split('/').filter(Boolean);
-  const goTo = (index: number) => setPath(index < 0 ? '/' : '/' + segments.slice(0, index + 1).join('/'));
+  /*
+   * Breadcrumbs come from the server's root list rather than from splitting the
+   * path: under several roots the path is absolute, and splitting it blindly
+   * would offer crumbs above the root (`/mnt`) that only 403 when clicked.
+   */
+  const crumbs = crumbsFor(data?.roots, path);
 
   const items = useMemo(() => {
     const list = [...(data?.items ?? [])].sort((a, b) =>
@@ -215,29 +220,30 @@ export function FilesPage() {
         onTrash={() => setTrashOpen(true)}
         onSelectAll={selectAll}
         onInvert={invert}
+        atVirtualRoot={usesAbsolutePaths(data?.roots) && path === BROWSE_ROOT}
       />
 
       {/* Breadcrumbs */}
       <nav className="flex flex-wrap items-center gap-1 text-sm" aria-label={t('breadcrumb.ariaLabel')}>
         <button
           type="button"
-          onClick={() => goTo(-1)}
+          onClick={() => setPath(BROWSE_ROOT)}
           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
         >
           <Home className="h-3.5 w-3.5" /> {t('breadcrumb.root')}
         </button>
-        {segments.map((seg, i) => (
-          <Fragment key={i}>
+        {crumbs.map((crumb, i) => (
+          <Fragment key={crumb.path}>
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
             <button
               type="button"
-              onClick={() => goTo(i)}
+              onClick={() => setPath(crumb.path)}
               className={cn(
                 'rounded-md px-2 py-1 transition-colors hover:bg-white/5',
-                i === segments.length - 1 ? 'font-medium text-foreground' : 'text-muted-foreground',
+                i === crumbs.length - 1 ? 'font-medium text-foreground' : 'text-muted-foreground',
               )}
             >
-              {seg}
+              {crumb.label}
             </button>
           </Fragment>
         ))}

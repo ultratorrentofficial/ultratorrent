@@ -6,8 +6,8 @@ import { FilesService } from './files.service';
 import { FilePathService } from './file-path.service';
 import { pathExists } from './file-fs.util';
 
-function configFor(root: string): any {
-  return { get: (k: string) => (k === 'fileManager.roots' ? [root] : undefined) };
+function configFor(...roots: string[]): any {
+  return { get: (k: string) => (k === 'fileManager.roots' ? roots : undefined) };
 }
 
 describe('FilesService', () => {
@@ -39,6 +39,64 @@ describe('FilesService', () => {
 
   afterEach(async () => {
     await rm(root, { recursive: true, force: true });
+  });
+
+  /*
+   * A second root was unreachable before this: browse rebased every request
+   * onto roots[0], so a folder that lived only in the second root resolved to a
+   * non-existent path under the first and surfaced as a 500 (ENOENT scandir) —
+   * and a name present in BOTH silently served the first root's copy.
+   */
+  describe('with several roots', () => {
+    let second: string;
+    let multi: FilesService;
+
+    beforeEach(async () => {
+      second = await mkdtemp(join(tmpdir(), 'ut-files-2nd-'));
+      const paths = new FilePathService(
+        configFor(root, second),
+        { get: async () => undefined, set: async () => {} } as any,
+      );
+      multi = new FilesService(paths as any, audit as any, realtime as any, trash as any, bus as any, { get: jest.fn() } as never);
+    });
+
+    afterEach(async () => {
+      await rm(second, { recursive: true, force: true });
+    });
+
+    it('lists the roots themselves at the virtual root', async () => {
+      const res = await multi.browse('/');
+      expect(res.path).toBe('/');
+      expect(res.roots).toEqual([root, second]);
+      expect(res.items.map((i) => i.path).sort()).toEqual([root, second].sort());
+      expect(res.items.every((i) => i.isDirectory)).toBe(true);
+    });
+
+    it('browses a directory in the SECOND root', async () => {
+      await mkdir(join(second, 'TV Retro'));
+      await writeFile(join(second, 'TV Retro', 'a.mkv'), 'x');
+      const res = await multi.browse(join(second, 'TV Retro'));
+      expect(res.path).toBe(join(second, 'TV Retro'));
+      expect(res.items.map((i) => i.name)).toEqual(['a.mkv']);
+      expect(res.items[0].path).toBe(join(second, 'TV Retro', 'a.mkv'));
+    });
+
+    it('keeps same-named folders in different roots distinct', async () => {
+      await mkdir(join(root, 'Shared'));
+      await writeFile(join(root, 'Shared', 'first.txt'), 'x');
+      await mkdir(join(second, 'Shared'));
+      await writeFile(join(second, 'Shared', 'second.txt'), 'x');
+      expect((await multi.browse(join(root, 'Shared'))).items.map((i) => i.name)).toEqual(['first.txt']);
+      expect((await multi.browse(join(second, 'Shared'))).items.map((i) => i.name)).toEqual(['second.txt']);
+    });
+
+    it('still refuses a path outside every root', async () => {
+      await expect(multi.browse('/etc')).rejects.toThrow(ForbiddenException);
+    });
+
+    it('refuses to create a folder at the virtual root', async () => {
+      await expect(multi.createFolder({ path: '/', name: 'nope' })).rejects.toThrow(ForbiddenException);
+    });
   });
 
   it('creates a folder and audits it', async () => {

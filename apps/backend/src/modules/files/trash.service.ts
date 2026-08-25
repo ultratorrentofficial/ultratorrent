@@ -195,10 +195,15 @@ export class TrashService {
     if (!info) throw new NotFoundException('Item not found');
 
     const name = path.basename(absPath);
-    // Same boundary as the containment check above: restore resolves this string
-    // again later, so rebasing it against a different root would record a path
-    // that no longer round-trips.
-    const originalPath = safety.toRelative(absPath);
+    /*
+     * Relative to the root this item is being trashed FROM — the same root the
+     * row records and `resolveOriginal` rebases onto, so the pair round-trips
+     * whatever the boundary asking later looks like. Deliberately not
+     * `toRelative`: that is the client-facing form, and it becomes absolute
+     * once the deployment has several roots, which would restore the file to
+     * `<storageRoot>/<storageRoot>/…`.
+     */
+    const originalPath = safety.relativeToRoot(storageRoot, absPath);
     const trashDir = path.join(storageRoot, TRASH_DIR_NAME);
     await mkdir(trashDir, { recursive: true });
 

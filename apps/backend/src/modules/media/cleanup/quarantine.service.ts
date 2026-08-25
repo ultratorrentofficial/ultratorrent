@@ -87,7 +87,9 @@ export class QuarantineService {
     // from different shows cannot collide and silently overwrite one another.
     const id = randomUUID();
     const quarantinePath = path.join(dir, `${id}__${path.basename(abs)}`);
-    const originalPath = safety.toRelative(abs);
+    // Relative to the recorded root, not the client-facing form — see
+    // PathSafety.relativeToRoot; `resolveOriginal` rebases onto `storageRoot`.
+    const originalPath = safety.relativeToRoot(storageRoot, abs);
 
     // Journal BEFORE the move, mirroring duplicate resolution: a crash between the
     // write and the move leaves a row pointing at a file that is still in place,

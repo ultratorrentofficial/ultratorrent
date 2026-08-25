@@ -119,7 +119,19 @@ export class FilesService {
 
   // --- read ----------------------------------------------------------------
 
+  /**
+   * List a directory.
+   *
+   * With several roots, `/` is a VIRTUAL level that lists the roots themselves.
+   * There is no real directory above them — their common ancestor would be a
+   * system directory outside the boundary — so without it the browser opens on
+   * whichever root happens to be first and has no way to reach the others.
+   * It is answered before `resolveExisting`, which refuses `/` correctly.
+   */
   async browse(requested: string): Promise<BrowseResponse> {
+    if (this.safety.usesAbsolutePaths && (!requested || requested === '/')) {
+      return this.browseRoots();
+    }
     const dir = await this.safety.resolveExisting(requested || '/');
     const info = await statSafe(dir);
     if (info && !info.isDirectory()) {
@@ -150,6 +162,39 @@ export class FilesService {
           : 1,
     );
     return { path: this.safety.toRelative(dir), roots: this.safety.listRoots(), items };
+  }
+
+  /**
+   * The virtual top level of a multi-root deployment: one entry per root.
+   *
+   * Labelled by basename, which is short and reads naturally
+   * (`downloads`, `orico`) — but basenames can collide across roots, so a
+   * repeated one falls back to the full path rather than showing the operator
+   * two identical folders. `path` is the absolute root either way, which is
+   * what a multi-root client addresses files by.
+   */
+  private async browseRoots(): Promise<BrowseResponse> {
+    const roots = this.safety.listRoots();
+    const seen = new Map<string, number>();
+    for (const root of roots) {
+      const base = path.basename(root) || root;
+      seen.set(base, (seen.get(base) ?? 0) + 1);
+    }
+    const items: FileNode[] = await Promise.all(
+      roots.map(async (root) => {
+        const base = path.basename(root) || root;
+        const s = await statSafe(root);
+        return {
+          name: (seen.get(base) ?? 0) > 1 ? root : base,
+          path: root,
+          isDirectory: true,
+          size: 0,
+          modifiedAt: s?.mtime.toISOString() ?? null,
+        };
+      }),
+    );
+    items.sort((a, b) => a.name.localeCompare(b.name));
+    return { path: '/', roots, items };
   }
 
   async properties(requested: string): Promise<FilePropertiesResponse> {

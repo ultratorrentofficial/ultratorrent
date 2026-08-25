@@ -3,10 +3,19 @@
  * File Browser. Engine-agnostic; no Node or DOM types leak in here.
  */
 
-/** A single entry returned by the browse endpoint. Paths are root-relative. */
+/**
+ * A single entry returned by the browse endpoint.
+ *
+ * `path` is the form the file API addresses this entry by, and it depends on
+ * how many roots the server exposes: root-relative (`/Movies/a.mkv`) under a
+ * single root, absolute (`/mnt/orico/TV Retro`) when there are several, where
+ * the relative form would not say which root was meant. Clients should hand it
+ * back verbatim rather than deriving it — `BrowseResponse.roots` tells them
+ * which case they are in.
+ */
 export interface FileNode {
   name: string;
-  /** Root-relative path (always starts with `/`). */
+  /** Root-relative under one root, absolute under several. Always `/`-prefixed. */
   path: string;
   isDirectory: boolean;
   size: number;
@@ -15,7 +24,10 @@ export interface FileNode {
 
 export interface BrowseResponse {
   path: string;
-  /** Absolute allowed roots (display only). */
+  /**
+   * The effective absolute roots. More than one means paths on the wire are
+   * absolute and `/` is a virtual level listing the roots themselves.
+   */
   roots: string[];
   items: FileNode[];
 }

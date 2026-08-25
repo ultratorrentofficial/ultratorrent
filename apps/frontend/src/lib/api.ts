@@ -808,6 +808,11 @@ export interface SystemHealth {
 export interface FileBrowserRoot {
   /** Effective absolute root the browser is confined to. */
   root: string;
+  /**
+   * Every effective root. More than one means the file API's paths are
+   * absolute rather than root-relative — see `lib/file-path.ts`.
+   */
+  roots: string[];
   /** Admin-configured value (null = using the env default). */
   configured: string | null;
   /** Ops-controlled hard boundary (FILE_MANAGER_ROOTS). */

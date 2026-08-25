@@ -81,6 +81,9 @@ function makeService(over: {
       assertDeletable: jest.fn(),
       rootFor: jest.fn(() => ROOT),
       toRelative: jest.fn(() => '/Movies/Film/film.mkv'),
+      // What quarantine actually stores: relative to the root it recorded, so a
+      // restore rebasing onto that root round-trips regardless of root count.
+      relativeToRoot: jest.fn(() => '/Movies/Film/film.mkv'),
     },
   };
   const protections = {

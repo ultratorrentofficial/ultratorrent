@@ -47,6 +47,32 @@ All operations resolve to a path **inside** one of these roots. Keep the list as
 narrow as possible. The file manager is confined strictly to `FILE_MANAGER_ROOTS`;
 Media Manager library scanning is likewise constrained to these hard roots.
 
+### More than one root
+
+The number of roots changes the path format the API speaks, because the
+root-relative form is only unambiguous under a single root:
+
+| Roots | Paths on the wire | `/` means |
+| --- | --- | --- |
+| one | root-relative — `/Movies/a.mkv` | the root |
+| several | absolute — `/media/orico/TV Retro` | a **virtual level listing the roots** |
+
+With several roots, `/TV Shows` would name a directory under *each* of them and
+nothing in the string says which was meant, so entries are addressed by their
+absolute path instead. Browse responses carry `roots`, and `GET /api/files/root`
+carries the same list, so a client can tell which convention is in play without
+guessing. Paths returned by the API should be handed back verbatim rather than
+reconstructed.
+
+The virtual root exists because several roots have no real common parent inside
+the boundary — without it the browser would open on whichever root sorted first
+and offer no way to reach the others. It is a listing, not a directory: creating
+a folder in it, or running cleanup on it, is refused (the UI disables both).
+
+A **Default Root Path** narrows browsing to one subtree, which makes the
+deployment single-root again for every purpose above — paths go back to
+root-relative and `/` is that subtree.
+
 ### Default Root Path (admin-configurable)
 
 `FILE_MANAGER_ROOTS` is the deployment's **hard boundary**. Inside it, an admin

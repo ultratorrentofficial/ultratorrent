@@ -14,6 +14,12 @@ export interface FilesToolbarProps {
   onTrash: () => void;
   onSelectAll: () => void;
   onInvert: () => void;
+  /**
+   * True at the virtual root of a multi-root deployment, which lists the roots
+   * and is not itself a directory: nothing can be created in it and there is
+   * nothing there to clean up. Both actions would 403 server-side.
+   */
+  atVirtualRoot?: boolean;
 }
 
 export function FilesToolbar({
@@ -25,6 +31,7 @@ export function FilesToolbar({
   onTrash,
   onSelectAll,
   onInvert,
+  atVirtualRoot = false,
 }: FilesToolbarProps) {
   const { hasPermission } = useAuth();
   const { t } = useTranslation('files');
@@ -43,12 +50,12 @@ export function FilesToolbar({
         <RefreshCw className="h-4 w-4" /> {t('toolbar.refresh')}
       </Button>
       {hasPermission(PERMISSIONS.FILES_CREATE_FOLDER) && (
-        <Button variant="secondary" size="sm" onClick={onNewFolder}>
+        <Button variant="secondary" size="sm" onClick={onNewFolder} disabled={atVirtualRoot}>
           <FolderPlus className="h-4 w-4" /> {t('toolbar.newFolder')}
         </Button>
       )}
       {hasPermission(PERMISSIONS.FILES_CLEANUP) && (
-        <Button variant="secondary" size="sm" onClick={onCleanup}>
+        <Button variant="secondary" size="sm" onClick={onCleanup} disabled={atVirtualRoot}>
           <Sparkles className="h-4 w-4" /> {t('toolbar.cleanup')}
         </Button>
       )}

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { ApiError, api, type FileNode } from '@/lib/api';
+import { BROWSE_ROOT, absoluteToWire, crumbsFor, usesAbsolutePaths, wireToAbsolute } from '@/lib/file-path';
 import { useAuth } from '@/auth/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -27,37 +28,22 @@ type PickerMode = 'directory' | 'file';
  * Which units the picker reads and emits.
  *
  * - `absolute` (default) — `/downloads/movies`. What settings fields store.
- * - `relative` — `/movies`, relative to the file-manager root. What the file
- *   API's `path`/`destination` fields take: the backend re-bases a leading
- *   slash onto the root, so handing it an absolute path would double the root
- *   (`/downloads` + `/downloads/movies` → `/downloads/downloads/movies`).
+ * - `relative` — what the file API's `path`/`destination` fields take, i.e. the
+ *   same "wire path" the browse endpoint returns. Under a single root that is
+ *   root-relative (`/movies`); under several it is the absolute path, because
+ *   the relative form cannot say which root was meant. See `lib/file-path.ts`.
  *
  * The browser always *displays* the absolute path either way — only the value
  * handed to `onSelect` (and read from `initialPath`) changes.
  */
 type ValueMode = 'absolute' | 'relative';
 
-/** Join the effective absolute root with a "/"-prefixed root-relative path. */
-function toAbsolute(root: string, rel: string): string {
-  if (!rel || rel === '/') return root;
-  return root.replace(/\/+$/, '') + rel;
-}
-
-/** If `abs` is inside `root`, return its "/"-prefixed relative form, else '/'. */
-function toRelative(root: string, abs: string | undefined): string {
-  if (!abs || !root) return '/';
-  const r = root.replace(/\/+$/, '');
-  if (abs === r) return '/';
-  if (abs.startsWith(r + '/')) return abs.slice(r.length) || '/';
-  return '/';
-}
-
-/** Coerce an already-root-relative path into the "/"-prefixed form `rel` uses. */
+/** Coerce an already-wire-form path into the "/"-prefixed form the picker uses. */
 function normalizeRel(rel: string | undefined): string {
-  if (!rel) return '/';
+  if (!rel) return BROWSE_ROOT;
   const trimmed = rel.trim();
-  if (!trimmed || trimmed === '/') return '/';
-  return ('/' + trimmed.replace(/^\/+/, '')).replace(/\/+$/, '') || '/';
+  if (!trimmed || trimmed === BROWSE_ROOT) return BROWSE_ROOT;
+  return ('/' + trimmed.replace(/^\/+/, '')).replace(/\/+$/, '') || BROWSE_ROOT;
 }
 
 /**
@@ -95,8 +81,14 @@ export function DirectoryPicker({
 
   const rootQuery = useQuery({ queryKey: ['files', 'root'], queryFn: api.files.root, enabled: open });
   const root = rootQuery.data?.root ?? '';
+  /*
+   * Every effective root, not just the first. It decides the path format the
+   * server speaks, so absolute↔wire conversion and the breadcrumbs both depend
+   * on it — with several roots the picker's native unit is the absolute path.
+   */
+  const roots = useMemo(() => rootQuery.data?.roots ?? (root ? [root] : []), [rootQuery.data, root]);
 
-  const [rel, setRel] = useState('/');
+  const [rel, setRel] = useState(BROWSE_ROOT);
   const [filter, setFilter] = useState('');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [newFolder, setNewFolder] = useState('');
@@ -105,7 +97,7 @@ export function DirectoryPicker({
   // Seed the starting directory from initialPath once the root is known.
   useEffect(() => {
     if (open && root) {
-      setRel(valueMode === 'relative' ? normalizeRel(initialPath) : toRelative(root, initialPath));
+      setRel(valueMode === 'relative' ? normalizeRel(initialPath) : absoluteToWire(roots, initialPath));
       setSelectedFile(null);
       setFilter('');
       setCreatingOpen(false);
@@ -139,13 +131,17 @@ export function DirectoryPicker({
     return q ? visible.filter((i) => i.name.toLowerCase().includes(q)) : visible;
   }, [browseQuery.data, mode, filter]);
 
-  const segments = rel.split('/').filter(Boolean);
-  const crumbAt = (i: number) => '/' + segments.slice(0, i + 1).join('/');
+  const crumbs = crumbsFor(roots, rel);
+  const atVirtualRoot = usesAbsolutePaths(roots) && rel === BROWSE_ROOT;
 
-  // The picker's native unit is root-relative; absolute is derived for display.
+  // The picker's native unit is the server's wire path; absolute is derived.
   const selectedRel = mode === 'file' && selectedFile ? selectedFile : rel;
-  const selectedAbsolute = toAbsolute(root, selectedRel);
-  const canConfirm = mode === 'directory' || !!selectedFile;
+  const selectedAbsolute = wireToAbsolute(roots, selectedRel);
+  /*
+   * The virtual root is a list of roots, not a directory — confirming it would
+   * emit an empty path. Pick a root first.
+   */
+  const canConfirm = mode === 'directory' ? !atVirtualRoot : !!selectedFile;
 
   const confirm = () => {
     onSelect(valueMode === 'relative' ? selectedRel : selectedAbsolute);
@@ -175,32 +171,32 @@ export function DirectoryPicker({
         <button
           type="button"
           onClick={() => {
-            setRel('/');
+            setRel(BROWSE_ROOT);
             setSelectedFile(null);
           }}
           className={cn(
             'inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-white/5',
-            rel === '/' ? 'font-medium text-foreground' : 'text-muted-foreground',
+            rel === BROWSE_ROOT ? 'font-medium text-foreground' : 'text-muted-foreground',
           )}
           title={t('picker.rootTitle')}
         >
           <Home className="h-3.5 w-3.5" /> {t('picker.root')}
         </button>
-        {segments.map((seg, i) => (
-          <span key={i} className="flex items-center">
+        {crumbs.map((crumb, i) => (
+          <span key={crumb.path} className="flex items-center">
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
             <button
               type="button"
               onClick={() => {
-                setRel(crumbAt(i));
+                setRel(crumb.path);
                 setSelectedFile(null);
               }}
               className={cn(
                 'rounded px-1.5 py-0.5 hover:bg-white/5',
-                i === segments.length - 1 ? 'font-medium text-foreground' : 'text-muted-foreground',
+                i === crumbs.length - 1 ? 'font-medium text-foreground' : 'text-muted-foreground',
               )}
             >
-              {seg}
+              {crumb.label}
             </button>
           </span>
         ))}
@@ -219,7 +215,7 @@ export function DirectoryPicker({
           />
         </div>
         {canCreate && (
-          <Button variant="outline" size="sm" onClick={() => setCreatingOpen((v) => !v)}>
+          <Button variant="outline" size="sm" onClick={() => setCreatingOpen((v) => !v)} disabled={atVirtualRoot}>
             <FolderPlus className="h-4 w-4" /> {t('picker.newFolder')}
           </Button>
         )}

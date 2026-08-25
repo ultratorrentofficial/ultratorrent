@@ -24,6 +24,13 @@ export const DEFAULT_ROOT_PATH_KEY = 'fileManager.defaultRootPath';
 export interface RootInfo {
   /** Effective absolute root the browser is confined to right now. */
   root: string;
+  /**
+   * Every effective root — `[root]` unless the deployment has several hard
+   * roots and no narrowing setting. The client needs the count, not just the
+   * first entry, because it decides the path format: several roots means paths
+   * on the wire are absolute (see `PathSafety.usesAbsolutePaths`).
+   */
+  roots: string[];
   /** The admin-configured value (null = using the env default). */
   configured: string | null;
   /** The ops-controlled hard boundary (FILE_MANAGER_ROOTS). */
@@ -258,7 +265,8 @@ export class FilePathService implements OnModuleInit {
 
   /** Metadata about the current effective root (for the Settings UI). */
   async rootInfo(): Promise<RootInfo> {
-    const root = this._safety.listRoots()[0] ?? this.envRoots[0] ?? '';
+    const roots = this._safety.listRoots();
+    const root = roots[0] ?? this.envRoots[0] ?? '';
     const configuredRaw = await this.settings
       .get<string>(DEFAULT_ROOT_PATH_KEY)
       .catch(() => undefined);
@@ -283,7 +291,7 @@ export class FilePathService implements OnModuleInit {
         .then(() => true)
         .catch(() => false);
     }
-    return { root, configured, hardRoots: this.envRoots, exists, readable, writable };
+    return { root, roots, configured, hardRoots: this.envRoots, exists, readable, writable };
   }
 
   /**
