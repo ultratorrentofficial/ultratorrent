@@ -144,6 +144,75 @@ describe('a seed that met its target', () => {
     expect(d.name).toBeUndefined();
   });
 
+  /*
+   * The facts that were declared, offered in the builder, and never fed.
+   *
+   * Failure was fail-safe but silent: an unmeasured fact can never be shown to
+   * match, so nothing was deleted for the wrong reason — the policy simply sat
+   * there looking configured while governing nothing.
+   */
+  it('decides a size rule now that sizeBytes is fed', () => {
+    const d = only(seeder({
+      seedPolicy: seed({
+        stopWhen: {
+          type: 'all',
+          children: [{ type: 'condition', field: 'seed.sizeBytes', operator: 'gte', value: 1000 }],
+        },
+      }),
+      sizeBytes: 5000,
+    }));
+    expect(d.action).toBe('pause');
+    expect(d.reasonCode).toBe('seed_target_reached');
+  });
+
+  it('decides a label rule, and answers not_met rather than unknown', () => {
+    const d = only(seeder({
+      seedPolicy: seed({
+        stopWhen: {
+          type: 'all',
+          children: [{ type: 'condition', field: 'seed.label', operator: 'eq', value: 'archive' }],
+        },
+      }),
+      label: 'keep',
+    }));
+    // not_met means the rule was READ and answered no — the state that was
+    // unreachable while the fact was never populated.
+    expect(d.action).toBe('none');
+    expect(d.reasonCode).not.toBe('seed_target_unknown');
+  });
+
+  it('names the unmeasurable field instead of blaming seed duration', () => {
+    /*
+     * `no_seed_time_data` was reported for EVERY undecidable target. An operator
+     * whose rule asked about the tracker was told the engine does not report
+     * seeding time — true, irrelevant, and no help finding the inert rule.
+     */
+    const plan = planEngine('e1', [seeder({
+      seedPolicy: seed({
+        stopWhen: {
+          type: 'all',
+          children: [{ type: 'condition', field: 'seed.tracker', operator: 'contains', value: 'x' }],
+        },
+      }),
+    })], CAPS, { now: NOW });
+    const limitation = plan.limitations.find((l) => l.code === 'unmeasurable_seed_condition');
+    expect(limitation).toBeDefined();
+    expect(limitation?.values?.fields).toBe('seed.tracker');
+    expect(plan.decisions[0].reasonCode).toBe('seed_target_unknown');
+  });
+
+  it('still blames seed duration when seed duration is what the rule asks for', () => {
+    const plan = planEngine('e1', [seeder({
+      seedPolicy: seed({
+        stopWhen: {
+          type: 'all',
+          children: [{ type: 'condition', field: 'seed.seedMinutes', operator: 'gte', value: 60 }],
+        },
+      }),
+    })], CAPS, { now: NOW });
+    expect(plan.limitations.map((l) => l.code)).toContain('no_seed_time_data');
+  });
+
   it('never removes a torrent the operator protected', () => {
     /*
      * The dangerous ordering. This check sat AFTER the removal branch, so a

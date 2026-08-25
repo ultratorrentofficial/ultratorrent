@@ -438,6 +438,7 @@
       "date": "espera una fecha",
       "enum": "elige de la lista",
       "string[]": "espera una lista separada por comas"
-    }
+    },
+    "unavailable": "no se mide"
   }
 }

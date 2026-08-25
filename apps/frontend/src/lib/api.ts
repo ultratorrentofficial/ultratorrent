@@ -3353,6 +3353,8 @@ export interface CleanupConditionDef {
   factPath?: string;
   /** Seeding catalogue: the fact key this reads. */
   factKey?: string;
+  /** Nothing measures this fact, so a rule using it can only ever be undecided. */
+  unavailable?: boolean;
   requiresMeasuredData?: boolean;
   safetyLevel?: 'informational' | 'normal' | 'elevated';
   enumValues?: string[];

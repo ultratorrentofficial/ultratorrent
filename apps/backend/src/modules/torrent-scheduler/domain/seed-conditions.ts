@@ -78,6 +78,18 @@ export interface SeedConditionDefinition {
   factKey: keyof SeedFacts;
   /** Where a valid value comes from, so the UI offers a picker not a UUID box. */
   valueSource?: 'library';
+  /**
+   * Nothing on this platform measures this fact, so a rule using it can only
+   * ever evaluate to `unknown`.
+   *
+   * Machine-readable rather than a sentence buried in a description, because
+   * the description is prose nobody parses: the builder can mark it, and the
+   * planner can name the field when a target it cannot decide comes back
+   * unknown. Kept in the catalogue rather than deleted so an existing policy
+   * that references one keeps its meaning instead of silently becoming a rule
+   * about a field that does not exist.
+   */
+  unavailable?: true;
 }
 
 const EQ = ['eq', 'neq'];
@@ -100,11 +112,11 @@ export const SEED_CONDITIONS: SeedConditionDefinition[] = [
   def({ id: 'seed.ratio', labelKey: 'sched.cond.ratio', descriptionKey: 'sched.cond.ratio.desc', category: 'progress', dataType: 'number', operators: ORD, factKey: 'ratio' }),
   def({ id: 'seed.ageDays', labelKey: 'sched.cond.ageDays', descriptionKey: 'sched.cond.ageDays.desc', category: 'progress', dataType: 'number', operators: ORD, factKey: 'ageDays' }),
   def({ id: 'seed.uploadedBytes', labelKey: 'sched.cond.uploaded', descriptionKey: 'sched.cond.uploaded.desc', category: 'progress', dataType: 'bytes', operators: ORD, factKey: 'uploadedBytes' }),
-  def({ id: 'seed.seedMinutes', labelKey: 'sched.cond.seedMinutes', descriptionKey: 'sched.cond.seedMinutes.desc', category: 'progress', dataType: 'number', operators: ORD, factKey: 'seedMinutes' }),
+  def({ id: 'seed.seedMinutes', labelKey: 'sched.cond.seedMinutes', descriptionKey: 'sched.cond.seedMinutes.desc', category: 'progress', dataType: 'number', operators: ORD, factKey: 'seedMinutes', unavailable: true }),
 
   // ── Tracker ──────────────────────────────────────────────────────────────
-  def({ id: 'seed.tracker', labelKey: 'sched.cond.tracker', descriptionKey: 'sched.cond.tracker.desc', category: 'tracker', dataType: 'string', operators: TEXT, factKey: 'tracker' }),
-  def({ id: 'seed.isPrivate', labelKey: 'sched.cond.isPrivate', descriptionKey: 'sched.cond.isPrivate.desc', category: 'tracker', dataType: 'boolean', operators: EQ, factKey: 'isPrivate' }),
+  def({ id: 'seed.tracker', labelKey: 'sched.cond.tracker', descriptionKey: 'sched.cond.tracker.desc', category: 'tracker', dataType: 'string', operators: TEXT, factKey: 'tracker', unavailable: true }),
+  def({ id: 'seed.isPrivate', labelKey: 'sched.cond.isPrivate', descriptionKey: 'sched.cond.isPrivate.desc', category: 'tracker', dataType: 'boolean', operators: EQ, factKey: 'isPrivate', unavailable: true }),
 
   // ── Content ──────────────────────────────────────────────────────────────
   def({ id: 'seed.sizeBytes', labelKey: 'sched.cond.size', descriptionKey: 'sched.cond.size.desc', category: 'content', dataType: 'bytes', operators: ORD, factKey: 'sizeBytes' }),
@@ -173,6 +185,30 @@ function compare(operator: string, actual: unknown, expected: unknown): SeedCond
  * false child settles the group, but an unmeasured one leaves it genuinely
  * undecided rather than quietly true. `any` mirrors it.
  */
+/**
+ * Which fields a condition tree reads that this platform cannot measure.
+ *
+ * Returned so an undecidable target can say WHY. The planner used to answer
+ * every `unknown` with "this engine does not report seed duration", which is
+ * the right sentence for exactly one of these fields and a wrong one for the
+ * rest — an operator whose rule asked about the tracker was told about seeding
+ * time.
+ */
+export function unmeasurableFields(node: SeedConditionNode | null | undefined): string[] {
+  const found = new Set<string>();
+  const walk = (n: SeedConditionNode | null | undefined): void => {
+    if (!n) return;
+    if (n.type === 'all' || n.type === 'any') {
+      for (const child of n.children ?? []) walk(child);
+      return;
+    }
+    if (n.type !== 'condition') return;
+    if (BY_ID.get(n.field)?.unavailable) found.add(n.field);
+  };
+  walk(node);
+  return [...found];
+}
+
 export function evaluateSeedConditions(
   node: SeedConditionNode | null | undefined,
   facts: SeedFacts,

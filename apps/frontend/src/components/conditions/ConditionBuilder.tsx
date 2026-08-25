@@ -282,7 +282,12 @@ export function ConditionBuilder({ node, catalog, onChange, namespace = 'cleanup
                     <optgroup key={cat} label={t(`builder.category.${cat}` as 'builder.category.metadata')}>
                       {defs.map((d) => (
                         <option key={d.id} value={d.id}>
+                          {/* Marked, not hidden. A field nothing measures still has
+                              to appear, or an existing rule that uses one would show
+                              an empty picker; what it must not do is look like a
+                              working choice. */}
                           {tLabel(d.labelKey.replace(/^cleanup\./, '') as 'cond.releaseYear')}
+                          {d.unavailable ? ` — ${t('builder.unavailable')}` : ''}
                         </option>
                       ))}
                     </optgroup>

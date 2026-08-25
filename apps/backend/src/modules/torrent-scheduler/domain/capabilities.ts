@@ -141,6 +141,14 @@ export interface SchedulerLimitation {
     | 'no_per_torrent_rate_limit'
     | 'force_start_approximated'
     | 'native_queue_conflict'
+    /**
+     * A seeding rule reads a fact nothing on this platform measures, so the
+     * target can never be decided. Distinct from `no_seed_time_data`, which is
+     * the same problem for one specific field and was being reported for all of
+     * them — telling an operator whose rule asked about the tracker that the
+     * engine does not report seeding time.
+     */
+    | 'unmeasurable_seed_condition'
     | 'no_availability_data';
   messageKey: string;
   values?: Record<string, unknown>;

@@ -438,6 +438,7 @@
       "date": "expects a date",
       "enum": "choose from the list",
       "string[]": "expects a comma-separated list"
-    }
+    },
+    "unavailable": "not measured"
   }
 }

@@ -331,7 +331,8 @@
       "force_start_approximated": "El inicio forzado es aproximado en este motor (prioridad alta en vez de una marca de forzado real), así que puede ceder ante la cola del propio motor.",
       "native_queue_conflict": "Este motor tiene sus propios límites de cola que pueden entrar en conflicto con estas políticas.",
       "no_availability_data": "Este motor no informa de la disponibilidad del enjambre.",
-      "bandwidth_reserve_unsupported": "Se solicitó un reparto de ancho de banda entre descarga y siembra, pero no puede respetarse: este motor expone un único límite de subida, no dos. El límite global sí se aplica."
+      "bandwidth_reserve_unsupported": "Se solicitó un reparto de ancho de banda entre descarga y siembra, pero no puede respetarse: este motor expone un único límite de subida, no dos. El límite global sí se aplica.",
+      "unmeasurable_seed_condition": "Esta política pregunta por {{fields}}, que nada en esta plataforma mide — esos torrents siguen sembrando en vez de que se adivine una respuesta."
     },
     "priority": {
       "force_started": "Inicio forzado",

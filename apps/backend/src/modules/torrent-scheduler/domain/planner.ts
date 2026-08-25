@@ -8,7 +8,7 @@ import {
 import { type TorrentPriorityDecision, orderByPriority } from './priority';
 import { type SchedulerLimitation, type TorrentQueueCapabilities, canDo } from './capabilities';
 import { evaluateSeedAgeDeadline, evaluateSeedTarget, type EffectivePolicy } from './policy';
-import type { SeedFacts } from './seed-conditions';
+import { unmeasurableFields, type SeedFacts } from './seed-conditions';
 
 /**
  * The planner: decide what SHOULD be running. Pure, and side-effect free.
@@ -499,12 +499,22 @@ function seedTargetDecision(
   if (verdict === 'not_met') return null;
 
   if (verdict === 'unknown') {
-    // Say so once per engine, and leave the torrent alone.
-    if (!limitations.some((l) => l.code === 'no_seed_time_data')) {
+    /*
+     * Say so once per engine, and leave the torrent alone — but say the RIGHT
+     * thing. This reported `no_seed_time_data` for every undecidable target,
+     * which is correct only when the rule actually asks about seeding time. A
+     * rule asking about the tracker got a sentence about seed duration, so the
+     * operator could not tell which part of their policy was inert.
+     */
+    const unmeasurable = unmeasurableFields(policy.stopWhen)
+      .filter((field) => field !== 'seed.seedMinutes');
+    const code = unmeasurable.length ? 'unmeasurable_seed_condition' : 'no_seed_time_data';
+    if (!limitations.some((l) => l.code === code)) {
       limitations.push({
         engineId,
-        code: 'no_seed_time_data',
-        messageKey: 'scheduler.limitation.no_seed_time_data',
+        code,
+        messageKey: `scheduler.limitation.${code}`,
+        ...(unmeasurable.length ? { values: { fields: unmeasurable.join(', ') } } : {}),
       });
     }
     return decide(t, 'active', 'none', 'seed_target_unknown');

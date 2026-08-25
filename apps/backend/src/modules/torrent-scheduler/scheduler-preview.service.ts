@@ -92,8 +92,8 @@ export class SchedulerPreviewService {
     const snapshots = await this.prisma.torrentSnapshot.findMany({ where: { engineId } });
     const hashes = snapshots.map((s) => s.hash);
 
-    const [policies, parked, states, intakeJobs, libraries, ruleMatches, windows, overrides] =
-      await Promise.all([
+    const [policies, parked, states, intakeJobs, libraries, ruleMatches, windows, overrides,
+      categories] = await Promise.all([
       this.loadPolicies(),
       this.prisma.parkedTorrent.findMany({ where: { engineId }, select: { hash: true } }),
       // Which torrents the SCHEDULER is holding paused. Without this every pause
@@ -147,6 +147,15 @@ export class SchedulerPreviewService {
       // What an operator asked for, per torrent. Expired instructions are
       // filtered by the clock rather than by a cleanup job.
       this.overrides.active(engineId, now),
+      /*
+       * Category NAMES, not the ids the snapshot stores.
+       *
+       * `seed.category` is a text condition an operator writes as
+       * `contains "TV"`. Feeding it `categoryId` would compare that against a
+       * UUID — populated, type-correct, and matching nothing — which is the
+       * same failure as leaving it undefined, only harder to see.
+       */
+      this.prisma.torrentCategory.findMany({ select: { id: true, name: true } }),
     ]);
     const intake = new Map(
       intakeJobs
@@ -158,6 +167,7 @@ export class SchedulerPreviewService {
     // Parking owns these torrents; the scheduler must not contend for them.
     const parkedHashes = new Set(parked.map((p) => p.hash.toLowerCase()));
     const ourPauses = new Map(states.map((s) => [s.hash.toLowerCase(), s.lastActionAt]));
+    const categoryNames = new Map(categories.map((c) => [c.id, c.name]));
 
     const torrents: PlannerTorrent[] = snapshots.map((s) => {
       const complete = s.progress >= 1;
@@ -224,6 +234,25 @@ export class SchedulerPreviewService {
         // Deliberately absent: nothing records seed duration, so a time-based
         // target must evaluate to unknown rather than to zero.
         seedMinutes: undefined,
+        /*
+         * The rest of the facts a seeding condition can be written against.
+         *
+         * Every one of these was declared on PlannerTorrent, offered in the
+         * condition builder, and never populated here — so a rule naming any of
+         * them evaluated to `unknown` forever. That is fail-safe (an unmeasured
+         * fact can never be shown to match, so nothing was ever deleted for the
+         * wrong reason) but it is silent, which is the actual defect: the policy
+         * sat in the database looking configured while governing nothing.
+         *
+         * BigInt is converted at this boundary, not left to the comparator. The
+         * ordinal operators coerce with Number() and would survive, but `eq`
+         * compares with === , where `5n === 5` is false — a rule that looks
+         * exact and is never true.
+         */
+        sizeBytes: Number(s.size),
+        uploadedBytes: Number(s.uploaded),
+        label: s.label ?? undefined,
+        category: (s.categoryId ? categoryNames.get(s.categoryId) : undefined) ?? undefined,
         // Unlike seed duration, completion IS recorded — which is what makes an
         // age deadline enforceable where a seed-time target is not.
         completedAt: s.completedAt,
