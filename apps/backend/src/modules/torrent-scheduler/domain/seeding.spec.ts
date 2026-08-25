@@ -114,8 +114,34 @@ describe('a seed that met its target', () => {
     for (const afterTarget of ['remove_torrent_keep_data', 'remove_torrent_and_staging_data'] as const) {
       const d = only(seeder({ seedPolicy: seed({ targetRatio: 1, afterTarget }), ratio: 5 }));
       expect(d.action).toBe('remove_and_cleanup');
-      expect(d.reasonCode).toBe('seed_target_reached');
+      // Distinct from the pause branch's `seed_target_reached`: the rendered
+      // sentence for that one says "would stop seeding", which described a
+      // deletion as a pause on the review screen.
+      expect(d.reasonCode).toBe('seed_target_reached_removed');
     }
+  });
+
+  it('carries the torrent name onto the decision, for the operator reviewing it', () => {
+    /*
+     * Display only — nothing branches on it. It matters because this decision is
+     * read by a person deciding whether to enable enforcement, and the review
+     * table identified a torrent by a 12-character hash prefix, which is not
+     * something anyone can judge "should this be deleted?" against.
+     */
+    const d = only(seeder({
+      seedPolicy: seed({ targetRatio: 1, afterTarget: 'remove_torrent_and_staging_data' }),
+      ratio: 5,
+      name: 'Some.Release.2019.1080p',
+    }));
+    expect(d.name).toBe('Some.Release.2019.1080p');
+    expect(d.action).toBe('remove_and_cleanup');
+  });
+
+  it('leaves the name undefined when the engine reported none', () => {
+    // Absent, never an empty string standing in for a name — the UI falls back
+    // to the hash, and "" would render as a blank cell.
+    const d = only(seeder({ seedPolicy: seed({ targetRatio: 1 }), ratio: 5 }));
+    expect(d.name).toBeUndefined();
   });
 
   it('never removes a torrent the operator protected', () => {

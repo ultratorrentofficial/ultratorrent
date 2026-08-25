@@ -94,6 +94,14 @@ export interface PlannerOptions {
 
 export interface TorrentDecision {
   hash: string;
+  /**
+   * The torrent's name, for display only — nothing branches on it.
+   *
+   * Carried because a decision is READ by a person deciding whether to enable
+   * enforcement, and a 12-character hash prefix is not something anyone can
+   * judge "should this be deleted?" against.
+   */
+  name?: string;
   engineId: string;
   currentOccupancy: OccupancyClass;
   desiredState: DesiredState;
@@ -165,6 +173,7 @@ function decide(
 ): TorrentDecision {
   return {
     hash: t.hash,
+    name: t.name,
     engineId: t.engineId,
     currentOccupancy: t.occupancy,
     desiredState: desired,
@@ -539,7 +548,15 @@ function seedTargetDecision(
      * refusing to reach it, which left a policy able to say "remove" and then
      * quietly do nothing.
      */
-    return decide(t, 'removed', 'remove_and_cleanup', 'seed_target_reached', {
+    /*
+     * Its own reason code, not the one the pause branch uses.
+     *
+     * Both outcomes mean "the target was met", but one stops seeding and the
+     * other deletes the payload, and they were sharing a code whose rendered
+     * sentence read "would stop seeding" — so the operator reviewing a plan saw
+     * the deletions described as pauses.
+     */
+    return decide(t, 'removed', 'remove_and_cleanup', 'seed_target_reached_removed', {
       afterTarget: policy.afterTarget,
       ratio: t.ratio,
     });

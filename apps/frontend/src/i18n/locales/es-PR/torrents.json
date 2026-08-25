@@ -284,7 +284,8 @@
     "desired": {
       "active": "Activo",
       "paused": "Pausado",
-      "unchanged": "Sin cambios"
+      "unchanged": "Sin cambios",
+      "removed": "Eliminar"
     },
     "reason": {
       "downloading_within_limit": "Descargando, dentro de tu límite",
@@ -316,7 +317,9 @@
       "seed_target_reached_left_active": "Objetivo alcanzado, y tu política dice que siga sembrando",
       "protected_from_removal": "Objetivo alcanzado, pero este torrent está protegido para que no se detenga",
       "schedule_blocks_new_downloads": "Hay una ventana programada abierta que impide iniciar nuevas descargas",
-      "excluded_by_operator": "Excluiste este torrent del planificador"
+      "excluded_by_operator": "Excluiste este torrent del planificador",
+      "seed_target_reached_removed": "Objetivo de siembra alcanzado (ratio {{ratio}}): eliminaría este torrent y borraría sus archivos de intake",
+      "seed_age_deadline_reached": "Pasó el plazo de siembra de {{maxAgeDays}} días: eliminaría este torrent y borraría sus archivos de intake"
     },
     "limitation": {
       "title": "Lo que este motor no puede hacer",

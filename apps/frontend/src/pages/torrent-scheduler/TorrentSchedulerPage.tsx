@@ -250,9 +250,26 @@ export function TorrentSchedulerPage() {
                       .slice(0, 200)
                       .map((d) => (
                         <tr key={d.hash} className="border-b border-border/40 last:border-0">
-                          <td className="px-4 py-2 font-mono text-xs">{d.hash.slice(0, 12)}</td>
+                          {/* Name over hash, not hash alone. This table is how an
+                              operator decides whether a proposed change is right,
+                              and "5f2a91c0e4b3" is not something anyone can judge.
+                              The hash stays, smaller, because it is what every
+                              other tool and log line identifies a torrent by. */}
+                          <td className="max-w-md px-4 py-2">
+                            <div className="truncate" title={d.name ?? d.hash}>
+                              {d.name ?? <span className="font-mono text-xs">{d.hash.slice(0, 12)}</span>}
+                            </div>
+                            {d.name && (
+                              <div className="font-mono text-[11px] text-muted-foreground">
+                                {d.hash.slice(0, 12)}
+                              </div>
+                            )}
+                          </td>
                           <td className="px-4 py-2">
-                            <Badge variant={d.action === 'none' ? 'secondary' : 'warning'}>
+                            <Badge variant={
+                              d.action === 'remove_and_cleanup' ? 'destructive'
+                                : d.action === 'none' ? 'secondary' : 'warning'
+                            }>
                               {t(`scheduler.desired.${d.desiredState}` as 'scheduler.desired.active')}
                             </Badge>
                           </td>

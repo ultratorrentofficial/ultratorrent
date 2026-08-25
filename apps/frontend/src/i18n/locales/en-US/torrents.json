@@ -284,7 +284,8 @@
     "desired": {
       "active": "Active",
       "paused": "Paused",
-      "unchanged": "Unchanged"
+      "unchanged": "Unchanged",
+      "removed": "Remove"
     },
     "reason": {
       "downloading_within_limit": "Downloading, within your limit",
@@ -316,7 +317,9 @@
       "seed_target_reached_left_active": "Target reached, and your policy says to keep seeding",
       "protected_from_removal": "Target reached, but this torrent is protected from being stopped",
       "schedule_blocks_new_downloads": "A schedule window is open that stops new downloads starting",
-      "excluded_by_operator": "You excluded this torrent from the scheduler"
+      "excluded_by_operator": "You excluded this torrent from the scheduler",
+      "seed_target_reached_removed": "Seed target reached (ratio {{ratio}}) — would remove this torrent and delete its staging files",
+      "seed_age_deadline_reached": "Seeding deadline of {{maxAgeDays}} days passed — would remove this torrent and delete its staging files"
     },
     "limitation": {
       "title": "What this engine cannot do",

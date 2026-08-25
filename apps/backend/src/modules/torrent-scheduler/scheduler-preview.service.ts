@@ -211,6 +211,10 @@ export class SchedulerPreviewService {
 
       return {
         hash: s.hash,
+        // Populated at last: the field existed on PlannerTorrent and nothing
+        // ever filled it, so `seed.name` conditions matched nothing and every
+        // decision reached the UI identified only by a hash.
+        name: s.name,
         engineId,
         // Exclusion outranks everything the engine reports: the operator has
         // taken this torrent out of the scheduler's hands.

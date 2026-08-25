@@ -1921,10 +1921,15 @@ export interface SchedulerLimitation {
 
 export interface SchedulerTorrentDecision {
   hash: string;
+  /** Display only. Absent on a decision from a build older than v0.85.11. */
+  name?: string;
   engineId: string;
   currentOccupancy: string;
-  desiredState: 'active' | 'paused' | 'unchanged';
-  action: 'pause' | 'resume' | 'none';
+  // `removed` / `remove_and_cleanup` were missing from this mirror while the
+  // planner had emitted them since seeding shipped, so the one outcome that
+  // deletes data was the one the client did not know existed.
+  desiredState: 'active' | 'paused' | 'unchanged' | 'removed';
+  action: 'pause' | 'resume' | 'none' | 'remove_and_cleanup';
   reasonCode: string;
   messageKey: string;
   values?: Record<string, unknown>;
