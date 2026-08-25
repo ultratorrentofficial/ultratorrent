@@ -23,6 +23,7 @@ import (
 	"github.com/ultratorrent/installer/internal/deploy"
 	"github.com/ultratorrent/installer/internal/host"
 	"github.com/ultratorrent/installer/internal/plan"
+	"github.com/ultratorrent/installer/internal/qnap"
 	"github.com/ultratorrent/installer/internal/storage"
 )
 
@@ -649,6 +650,7 @@ func generate(p *plan.Plan, dryRun bool, willDeploy bool) (generated, error) {
 		default:
 			all = append(all, config.Action{Path: launcher, Kind: "create",
 				Detail: "terminal console (" + console.Name + ")"})
+			all = append(all, ensureConsoleOnPath(launcher, dryRun)...)
 		}
 	}
 
@@ -834,6 +836,41 @@ The web UI will be at %s
 
 	printCredentialsNote(p, reused)
 	printConsoleNote(p)
+}
+
+// ensureConsoleOnPath keeps the console reachable by name after a reboot.
+//
+// Only on QTS, and only when QTS is actually configured to run boot scripts.
+// Everywhere else the installation directory is durable and the printed path is
+// enough; QNAP is the case where /usr/local/bin is emptied on every restart, so
+// a name that worked yesterday is gone today.
+//
+// Never fatal, and never silent: this writes into a file that runs as root at
+// boot and may already hold someone else's work, so what it did — and how to
+// undo it — is always reported.
+func ensureConsoleOnPath(launcher string, dryRun bool) []config.Action {
+	ok, why := qnap.Detected()
+	if !ok {
+		return nil
+	}
+	res, err := qnap.EnsureAutorun(launcher, dryRun)
+	switch {
+	case err != nil:
+		return []config.Action{{Path: res.Path, Kind: "skipped",
+			Detail: "could not put the console on PATH at boot: " + err.Error()}}
+	case res.Skipped:
+		return []config.Action{{Path: res.Path, Kind: "unchanged",
+			Detail: "already re-links the console at boot"}}
+	case res.Created:
+		return []config.Action{{Path: res.Path, Kind: "create",
+			Detail: why + " — re-links the console onto PATH at boot; " + qnap.RemovalHint()}}
+	case res.Updated:
+		return []config.Action{{Path: res.Path, Kind: "replace",
+			Detail: "updated the console's boot link to this installation"}}
+	default:
+		return []config.Action{{Path: res.Path, Kind: "append",
+			Detail: why + " — added a marked block re-linking the console at boot; " + qnap.RemovalHint()}}
+	}
 }
 
 // printConsoleNote says how to run the console that was just installed.
