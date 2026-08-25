@@ -1,10 +1,10 @@
 import { Injectable, Logger, BadRequestException, type OnModuleInit } from '@nestjs/common';
 
-import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EngineRegistryService } from '../engine/engine-registry.service';
 import { SettingsService } from '../settings/settings.module';
 import { AuditService } from '../audit/audit.service';
 import { SchedulerSweepService, type SchedulerMode } from './scheduler-sweep.service';
+import { SchedulerPreviewService } from './scheduler-preview.service';
 
 /** Where the global ceiling lives. One key, one document, read as a whole. */
 export const BANDWIDTH_SETTINGS_KEY = 'torrents.bandwidth';
@@ -83,10 +83,10 @@ export class GlobalBandwidthService implements OnModuleInit {
   private readonly logger = new Logger(GlobalBandwidthService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
     private readonly registry: EngineRegistryService,
     private readonly sweep: SchedulerSweepService,
+    private readonly preview: SchedulerPreviewService,
     private readonly audit: AuditService,
   ) {}
 
@@ -160,7 +160,7 @@ export class GlobalBandwidthService implements OnModuleInit {
   async plan(): Promise<EngineBandwidthStatus[]> {
     const ceiling = await this.get();
     const modes = await this.sweep.modes();
-    const governed = await this.enginesGovernedByScheduler();
+    const governed = await this.enginesGovernedByScheduler(modes);
 
     return this.registry.list().map((provider) => {
       const engineId = provider.engineId;
@@ -213,26 +213,49 @@ export class GlobalBandwidthService implements OnModuleInit {
   }
 
   /**
-   * Engines an enabled policy covers at global or engine scope.
+   * Engines whose bandwidth the scheduler is actually setting.
    *
-   * A policy row IS the configuration: within a row a NULL limit means
-   * "explicitly unlimited", so a covering row means the scheduler has an
-   * opinion about bandwidth even when that opinion is "no cap".
+   * Asked of the SAME plan the reconciler acts on, rather than re-derived from
+   * policy rows. The row-based version queried `scopeType in (global, engine)`
+   * and compared each row's `scopeId` against engine ids — so a LIBRARY-scoped
+   * policy added a library id to the set, which can never match an engine, and
+   * an install governed entirely by library policies reported every engine as
+   * ungoverned. The ceiling would then be written to an engine the scheduler
+   * was also writing to, once a minute, each undoing the other.
+   *
+   * Scope resolution needs a torrent to resolve against — a library policy
+   * applies to an engine only through the torrents in that library — so there
+   * is no correct row-only answer. The plan already resolves it, and the
+   * reconciler takes the engine's rate limits from the first decision, so this
+   * asks exactly that question of exactly that decision.
    */
-  private async enginesGovernedByScheduler(): Promise<Set<string>> {
-    const policies = await this.prisma.torrentSchedulerPolicy.findMany({
-      where: { enabled: true, scopeType: { in: ['global', 'engine'] } },
-      select: { scopeType: true, scopeId: true },
-    });
-    const all = this.registry.list().map((p) => p.engineId);
+  private async enginesGovernedByScheduler(modes: Map<string, SchedulerMode>): Promise<Set<string>> {
     const governed = new Set<string>();
-    for (const policy of policies) {
-      if (policy.scopeType === 'global') {
-        all.forEach((id) => governed.add(id));
-      } else if (policy.scopeId) {
-        governed.add(policy.scopeId);
+
+    await Promise.all(this.registry.list().map(async (provider) => {
+      const engineId = provider.engineId;
+      if (modes.get(engineId) !== 'managed') return;
+      try {
+        const plan = await this.preview.previewEngine(engineId);
+        const sources = plan?.decisions[0]?.bandwidth?.sources;
+        // Present means a policy stated a rate — including stating `null`,
+        // which is "explicitly unlimited" and still the scheduler's call.
+        if (sources?.maxDownloadRateKbps ?? sources?.maxUploadRateKbps) {
+          governed.add(engineId);
+        }
+      } catch (err) {
+        /*
+         * Fail towards the scheduler. If the plan cannot be read we do not know
+         * whether it is setting this engine's limits, and writing the ceiling
+         * on a maybe is how two writers start fighting over one value.
+         */
+        governed.add(engineId);
+        this.logger.warn(
+          `Could not determine scheduler bandwidth control for ${engineId}: ${(err as Error).message}`,
+        );
       }
-    }
+    }));
+
     return governed;
   }
 }

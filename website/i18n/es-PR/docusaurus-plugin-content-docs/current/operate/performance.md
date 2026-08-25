@@ -139,9 +139,17 @@ Los dos se resuelven **por motor**:
 | En observación | Ninguno — nunca se le escribe |
 | No admite límites globales | Ninguno — se informa en la página de ajustes |
 
+**"Una política lo cubre" significa que una política fija una velocidad para los
+torrents de ese motor — en cualquier ámbito.** Una política con ámbito de
+biblioteca cuenta, porque llega al motor a través de los torrents de esa
+biblioteca. UltraTorrent lo deduce del mismo plan sobre el que actúa el
+programador, y no de las filas de políticas, porque una fila por sí sola no
+puede decir a qué motor termina gobernando una política de biblioteca.
+
 La tercera fila es la que conviene conocer. Un motor puesto en modo administrado
 y luego dejado sin política funcionaría sin ningún tope; el límite por motor
-cubre ese caso en vez de dejarlo pasar.
+cubre ese caso en vez de dejarlo pasar. Una política que dice *sin límite* es
+otra cosa: eso es una instrucción, y el programador la aplica.
 
 Los motores en observación quedan excluidos a propósito. La promesa del modo
 observación es que el programador no cambia nada en ese motor, y un límite de

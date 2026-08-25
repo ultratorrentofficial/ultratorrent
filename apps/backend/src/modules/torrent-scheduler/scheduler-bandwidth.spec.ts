@@ -26,7 +26,17 @@ const cleanupStub = () => ({
  * the obvious approximation (lowering the global ceiling) would throttle
  * downloads in order to protect seeding, which is the opposite of the ask.
  */
-function planWith(bandwidth: Record<string, number | null>): EngineActivityPlan {
+/**
+ * `sources` defaults to "a policy stated both rates", because that is the case
+ * every test below is about. The one test that is about the ABSENCE of a policy
+ * passes `null` for it explicitly, since that distinction is now what decides
+ * whether the engine is written to at all.
+ */
+function planWith(
+  bandwidth: Record<string, number | null>,
+  sources: { maxDownloadRateKbps?: string; maxUploadRateKbps?: string } | null =
+  { maxDownloadRateKbps: 'p1', maxUploadRateKbps: 'p1' },
+): EngineActivityPlan {
   return {
     engineId: 'e1',
     decisions: [{
@@ -34,6 +44,7 @@ function planWith(bandwidth: Record<string, number | null>): EngineActivityPlan 
       desiredState: 'active', action: 'none', reasonCode: 'x', messageKey: 'x',
       score: 0, protectedFromPause: false,
       bandwidth: {
+        ...(sources ? { sources } : {}),
         maxDownloadRateKbps: null, maxUploadRateKbps: null,
         reserveDownloadPercent: null, reserveSeedPercent: null,
         ...bandwidth,
@@ -121,11 +132,23 @@ describe('bandwidth', () => {
     expect(out.failures[0].action).toBe('set_rate_limits');
   });
 
-  it('does nothing at all when no policy sets a rate', async () => {
+  it('applies an explicit unlimited, because a policy saying so is an instruction', async () => {
     const { provider: p, applied } = provider();
     await svc.apply(planWith({}), p, { sleep: noSleep });
-    // Both null: still a legitimate instruction (unlimited), so it IS applied.
     expect(applied[0]).toEqual({ downloadBytesPerSec: null, uploadBytesPerSec: null });
+  });
+
+  it('does nothing at all when no policy sets a rate', async () => {
+    /*
+     * The defect this guards. Every decision carries a `bandwidth` object
+     * whether or not a policy filled it, so an engine no policy mentions was
+     * having "unlimited" written to it once a minute — reverting whatever was
+     * set in the engine's own UI, and undoing the per-engine ceiling from
+     * Settings a minute after it was applied.
+     */
+    const { provider: p, applied } = provider();
+    await svc.apply(planWith({}, null), p, { sleep: noSleep });
+    expect(applied).toHaveLength(0);
   });
 });
 

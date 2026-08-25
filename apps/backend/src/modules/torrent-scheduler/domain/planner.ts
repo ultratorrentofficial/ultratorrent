@@ -120,6 +120,17 @@ export interface TorrentDecision {
    * the first decision — the engine has one ceiling, not one per torrent.
    */
   bandwidth?: {
+    /**
+     * Which policy set each rate, if any.
+     *
+     * The values alone cannot answer the question that matters: `null` is both
+     * "a policy says unlimited" and "no policy mentioned bandwidth", and those
+     * demand opposite behaviour — the first is an instruction to write, the
+     * second is an instruction to leave the engine alone. `sources` carries the
+     * winning policy id per field and is absent when nothing set it, which is
+     * the same distinction `EffectivePolicy.sources` already draws.
+     */
+    sources?: { maxDownloadRateKbps?: string; maxUploadRateKbps?: string };
     maxDownloadRateKbps: number | null;
     maxUploadRateKbps: number | null;
     reserveDownloadPercent: number | null;
@@ -187,6 +198,10 @@ function decide(
       ?? t.policy.sources.maxTotalActive
       ?? undefined,
     bandwidth: {
+      sources: {
+        maxDownloadRateKbps: t.policy.sources.maxDownloadRateKbps,
+        maxUploadRateKbps: t.policy.sources.maxUploadRateKbps,
+      },
       maxDownloadRateKbps: t.policy.maxDownloadRateKbps,
       maxUploadRateKbps: t.policy.maxUploadRateKbps,
       reserveDownloadPercent: t.policy.reserveDownloadBandwidthPercent,

@@ -331,9 +331,17 @@ limits, through its policies. The two are resolved **per engine**:
 | Observing | Neither — the engine is never written to |
 | Cannot apply global limits | Neither — reported on the settings page |
 
+**"A policy covers it" means a policy states a rate for that engine's torrents —
+at any scope.** A library-scoped policy counts, because it reaches the engine
+through the torrents in that library. UltraTorrent works this out from the same
+plan the scheduler acts on rather than from the policy rows, since a row alone
+cannot say which engine a library policy ends up governing.
+
 The third row is the one worth knowing. An engine switched into managed mode and
 then left without a policy would otherwise run with no cap at all; the
-per-engine ceiling catches that case rather than letting it through.
+per-engine ceiling catches that case rather than letting it through. A policy
+that says *unlimited* is different again — that is an instruction, and the
+scheduler applies it.
 
 Observing engines are deliberately excluded. Observe mode's promise is that the
 scheduler changes nothing on that engine, and a bandwidth limit is a change.

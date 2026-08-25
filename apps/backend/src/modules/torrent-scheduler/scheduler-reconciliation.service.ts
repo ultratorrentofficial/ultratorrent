@@ -164,6 +164,22 @@ export class SchedulerReconciliationService {
     const policy = plan.decisions[0]?.bandwidth;
     if (!policy) return;
 
+    /*
+     * Nothing said anything about bandwidth, so do not touch the engine.
+     *
+     * Every decision carries a `bandwidth` object whether or not a policy set
+     * one, so the guard above never fired: a managed engine with no policy
+     * mentioning rates had `null / null` written to it — "unlimited" — once a
+     * minute, forever. That silently reverted anything set in the engine's own
+     * UI, and it fought the per-engine ceiling from Settings, which writes the
+     * limit and then watched the next sweep undo it.
+     *
+     * `sources` is what separates "a policy says unlimited", which IS an
+     * instruction to write, from "no policy mentioned this", which is not.
+     */
+    const stated = policy.sources?.maxDownloadRateKbps ?? policy.sources?.maxUploadRateKbps;
+    if (!stated) return;
+
     if (!provider.setGlobalRateLimits) {
       out.limitations.push({
         engineId: out.engineId,

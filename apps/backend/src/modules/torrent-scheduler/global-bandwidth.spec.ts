@@ -11,10 +11,20 @@ import { GlobalBandwidthService, BANDWIDTH_SETTINGS_KEY } from './global-bandwid
 
 type Provider = { engineId: string; setGlobalRateLimits?: (l: unknown) => Promise<void> };
 
+/**
+ * `rated` names the engines whose resolved policy states a rate.
+ *
+ * It replaces a list of policy ROWS, because a row cannot answer the question:
+ * a library-scoped policy governs an engine only through the torrents in that
+ * library, and the old scope comparison put library ids into a set of engine
+ * ids where they could never match. The service now asks the plan — the same
+ * object the reconciler acts on — so the harness supplies that instead.
+ */
 function build(opts: {
   ceiling?: { maxDownloadRateKbps: number | null; maxUploadRateKbps: number | null } | null;
   modes?: Record<string, string>;
-  policies?: Array<{ scopeType: string; scopeId: string | null }>;
+  rated?: string[];
+  previewThrows?: boolean;
   providers?: Provider[];
 }) {
   const applied: Record<string, unknown> = {};
@@ -24,19 +34,65 @@ function build(opts: {
     { engineId: 'qb', setGlobalRateLimits: async (l) => { applied.qb = l; } },
   ];
   const service = new GlobalBandwidthService(
-    { torrentSchedulerPolicy: { findMany: async () => opts.policies ?? [] } } as never,
     {
       get: async () => (opts.ceiling === undefined ? null : opts.ceiling),
       set: async (_k: string, v: unknown) => { stored.value = v; },
     } as never,
     { list: () => providers, onReload: (cb: () => unknown) => { reloadHooks.push(cb); } } as never,
     { modes: async () => new Map(Object.entries(opts.modes ?? {})) } as never,
+    {
+      previewEngine: async (engineId: string) => {
+        if (opts.previewThrows) throw new Error('engine offline');
+        return {
+          engineId,
+          decisions: [{
+            bandwidth: (opts.rated ?? []).includes(engineId)
+              ? { sources: { maxUploadRateKbps: 'p1' }, maxDownloadRateKbps: null, maxUploadRateKbps: 25000 }
+              : { sources: {}, maxDownloadRateKbps: null, maxUploadRateKbps: null },
+          }],
+        };
+      },
+    } as never,
     { record: async () => undefined } as never,
   );
   return { service, applied, stored, reloadHooks };
 }
 
 describe('the global bandwidth ceiling', () => {
+  it('gives way to a LIBRARY-scoped policy, which the old scope check could not see', async () => {
+    /*
+     * The defect. Governance was derived from policy rows filtered to
+     * `scopeType in (global, engine)`, comparing each row's `scopeId` against
+     * engine ids — so a library-scoped policy contributed a LIBRARY id to a set
+     * of engine ids, matched nothing, and the engine was reported ungoverned.
+     * The ceiling was then written to an engine the scheduler was also writing
+     * to, each undoing the other every sweep.
+     */
+    const { service, applied } = build({
+      ceiling: { maxDownloadRateKbps: 5000, maxUploadRateKbps: 1000 },
+      modes: { qb: 'managed' },
+      rated: ['qb'],
+    });
+    const plan = await service.apply();
+
+    expect(plan[0].source).toBe('scheduler');
+    expect(applied.qb).toBeUndefined();
+  });
+
+  it('defers to the scheduler when the plan cannot be read', async () => {
+    // Fail towards the scheduler: writing the ceiling on a maybe is how two
+    // writers start fighting over one value.
+    const { service, applied } = build({
+      ceiling: { maxDownloadRateKbps: 5000, maxUploadRateKbps: 1000 },
+      modes: { qb: 'managed' },
+      previewThrows: true,
+    });
+    const plan = await service.apply();
+
+    expect(plan[0].source).toBe('scheduler');
+    expect(applied.qb).toBeUndefined();
+  });
+
   it('applies to an engine that never opted into scheduling', async () => {
     const { service, applied } = build({ ceiling: { maxDownloadRateKbps: 5000, maxUploadRateKbps: 1000 } });
     const plan = await service.apply();
@@ -50,7 +106,7 @@ describe('the global bandwidth ceiling', () => {
     const { service, applied } = build({
       ceiling: { maxDownloadRateKbps: 5000, maxUploadRateKbps: 1000 },
       modes: { qb: 'managed' },
-      policies: [{ scopeType: 'global', scopeId: null }],
+      rated: ['qb'],
     });
     const plan = await service.apply();
 
@@ -68,7 +124,9 @@ describe('the global bandwidth ceiling', () => {
     const { service, applied } = build({
       ceiling: { maxDownloadRateKbps: 5000, maxUploadRateKbps: null },
       modes: { qb: 'managed' },
-      policies: [],
+      // Managed, but nothing states a rate — so the scheduler is not writing
+      // this engine's limits and the ceiling is free to.
+      rated: [],
     });
     const plan = await service.apply();
 
@@ -80,7 +138,7 @@ describe('the global bandwidth ceiling', () => {
     const { service } = build({
       ceiling: { maxDownloadRateKbps: 5000, maxUploadRateKbps: 1000 },
       modes: { qb: 'managed', rt: 'managed' },
-      policies: [{ scopeType: 'engine', scopeId: 'qb' }],
+      rated: ['qb'],
       providers: [
         { engineId: 'qb', setGlobalRateLimits: async () => undefined },
         { engineId: 'rt', setGlobalRateLimits: async () => undefined },
