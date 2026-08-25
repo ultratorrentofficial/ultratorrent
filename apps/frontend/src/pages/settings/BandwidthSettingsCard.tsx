@@ -80,6 +80,21 @@ export function BandwidthSettingsCard() {
   // Worth surfacing on its own: a limit that reaches nothing looks configured.
   const unreachable = engines.filter((e) => e.source === 'unsupported');
 
+  /*
+   * How many engines this ceiling actually reaches, and therefore what the
+   * installation can use in total.
+   *
+   * Each engine receives the FULL figure — every shipped engine sets its own
+   * limit and cannot see the others, so there is no shared total to enforce.
+   * Two engines at 25 000 kbps is 50 000 kbps of real capacity, and a screen
+   * that showed only the per-engine number would let an operator read it as a
+   * cap on the installation. Stated here, where the multiplication is, rather
+   * than left for someone to work out.
+   */
+  const receiving = engines.filter((e) => e.source === 'settings');
+  const aggregate = (value: number | null): string =>
+    (value == null ? t('bandwidth.unlimited') : `${value * receiving.length} kbps`);
+
   return (
     <Card>
       <CardContent className="space-y-4 pt-6">
@@ -117,6 +132,16 @@ export function BandwidthSettingsCard() {
         </div>
 
         <p className="text-xs text-muted-foreground">{t('bandwidth.emptyMeansUnlimited')}</p>
+
+        {receiving.length > 0 && (
+          <p className={`text-xs ${receiving.length > 1 ? 'text-warning' : 'text-muted-foreground'}`}>
+            {t('bandwidth.aggregate', {
+              count: receiving.length,
+              down: aggregate(receiving[0].maxDownloadRateKbps),
+              up: aggregate(receiving[0].maxUploadRateKbps),
+            })}
+          </p>
+        )}
 
         {unreachable.length > 0 && (
           <p className="text-xs text-destructive">

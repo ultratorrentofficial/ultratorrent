@@ -43,10 +43,10 @@
     "saveFailedToast": "Could not save root path"
   },
   "bandwidth": {
-    "title": "Global bandwidth",
-    "description": "One ceiling for every torrent engine. The Activity Scheduler overrides it only on engines it is actually managing.",
-    "download": "Maximum download (kbps)",
-    "upload": "Maximum upload (kbps)",
+    "title": "Per-engine bandwidth",
+    "description": "A ceiling applied to each torrent engine separately. The Activity Scheduler overrides it only on engines it is actually managing.",
+    "download": "Maximum download, per engine (kbps)",
+    "upload": "Maximum upload, per engine (kbps)",
     "unlimited": "Unlimited",
     "emptyMeansUnlimited": "Leave a field empty for unlimited. Nothing is applied to any engine until you save a ceiling here.",
     "perEngine": "What each engine is using",
@@ -61,6 +61,8 @@
       "unconfigured": "No ceiling set",
       "observing": "Observing — not changed",
       "unsupported": "Not supported"
-    }
+    },
+    "aggregate_one": "This ceiling is in force on {{count}} engine, so it is also your installation total.",
+    "aggregate_other": "This ceiling is in force on {{count}} engines, and each gets the full amount — so the most UltraTorrent can use altogether is {{down}} down and {{up}} up. Every shipped engine sets its own limit and cannot see the others, so there is no shared total to enforce."
   }
 }

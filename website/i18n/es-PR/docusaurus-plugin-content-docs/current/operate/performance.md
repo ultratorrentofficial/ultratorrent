@@ -90,12 +90,28 @@ flowchart TD
     style large fill:#c62828,color:#fff
 ```
 
-## Límites globales de ancho de banda
+## Límites de ancho de banda por motor
 
-**Ajustes → Ancho de banda global** establece un límite para todos los motores de
-torrents: una velocidad máxima de descarga y una de subida, ambas en kbps. Aquí
-es donde se responde "nunca uses más de esto", y para la mayoría de las
-instalaciones es el único ajuste de ancho de banda que hace falta.
+**Ajustes → Ancho de banda por motor** establece un límite que se aplica a **cada
+motor de torrents por separado**: una velocidad máxima de descarga y una de
+subida, ambas en kbps. En una instalación con un solo motor — que es la mayoría —
+ese límite también es el total de la instalación, y es el único ajuste de ancho
+de banda que hace falta.
+
+:::warning Es por motor, no por instalación
+Cada motor recibe la cifra **completa**. Dos motores a 25 000 kbps de subida son
+**50 000 kbps** de capacidad real, no 25 000.
+
+Es un límite de lo que los motores pueden hacer, no un olvido. qBittorrent y
+rTorrent fijan cada uno su propio límite global y ninguno ve al otro, así que no
+hay un total compartido que UltraTorrent pueda imponer: tendría que dividir el
+límite y darle una fracción a cada motor, lo que sí topa tu línea pero deja
+capacidad sin usar cada vez que un motor está inactivo. En vez de hacer eso en
+silencio, la página de ajustes multiplica la cifra y te dice el total real.
+
+Si necesitas un tope duro sobre la *línea*, ponlo donde está la línea: el QoS de
+tu router, o un solo motor.
+:::
 
 ### Vacío no es lo mismo que sin configurar
 
@@ -103,7 +119,7 @@ Un campo vacío significa **sin límite**. No guardar nada significa que **no ha
 ningún límite configurado**, y en ese estado UltraTorrent no toca los límites de
 ningún motor: lo que hayas puesto en la interfaz de qBittorrent se queda tal
 cual. En cuanto guardas un límite, UltraTorrent toma el control y lo aplica a
-todos los motores donde puede.
+todos los motores donde puede, y cada uno recibe la cifra completa.
 
 El cero se rechaza. qBittorrent interpreta un límite de `0` como *sin límite*, lo
 contrario de lo que uno quiere decir al escribir cero en un límite de velocidad,
@@ -117,15 +133,15 @@ Los dos se resuelven **por motor**:
 
 | Estado del motor | Qué gobierna su ancho de banda |
 | --- | --- |
-| Nunca inscrito en la programación (`native`) | El límite global |
+| Nunca inscrito en la programación (`native`) | El límite por motor |
 | Administrado, y una política lo cubre | La política del programador |
-| Administrado, pero ninguna política lo cubre | El límite global |
+| Administrado, pero ninguna política lo cubre | El límite por motor |
 | En observación | Ninguno — nunca se le escribe |
 | No admite límites globales | Ninguno — se informa en la página de ajustes |
 
 La tercera fila es la que conviene conocer. Un motor puesto en modo administrado
-y luego dejado sin política funcionaría sin ningún tope; el límite global cubre
-ese caso en vez de dejarlo pasar.
+y luego dejado sin política funcionaría sin ningún tope; el límite por motor
+cubre ese caso en vez de dejarlo pasar.
 
 Los motores en observación quedan excluidos a propósito. La promesa del modo
 observación es que el programador no cambia nada en ese motor, y un límite de

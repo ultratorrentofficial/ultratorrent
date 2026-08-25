@@ -284,12 +284,27 @@ Monitor it:
 docker inspect --format '{{.RestartCount}}' $(docker compose ps -q rtorrent)
 ```
 
-## Global bandwidth limits
+## Per-engine bandwidth limits
 
-**Settings → Global bandwidth** sets one ceiling for every torrent engine: a
-maximum download rate and a maximum upload rate, both in kbps. This is the place
-to answer "never use more than this", and for most installations it is the only
-bandwidth setting you need.
+**Settings → Per-engine bandwidth** sets a ceiling applied to **each torrent
+engine separately**: a maximum download rate and a maximum upload rate, both in
+kbps. For an installation running a single engine — which is most of them — that
+is also the installation total, and it is the only bandwidth setting you need.
+
+:::warning It is per engine, not per installation
+Every engine receives the **full** figure. Two engines at 25 000 kbps upload is
+**50 000 kbps** of real capacity, not 25 000.
+
+This is a limit of what the engines can do, not an omission. qBittorrent and
+rTorrent each set their own global rate limit and neither can see the other, so
+there is no shared total for UltraTorrent to enforce — it would have to divide
+the ceiling and hand each engine a fraction, which caps your line at the cost of
+leaving capacity unused whenever one engine is idle. Rather than do that
+silently, the settings page multiplies it out and tells you the real total.
+
+If you need a hard cap on the *line*, set it where the line is: your router's QoS,
+or a single engine.
+:::
 
 ### Empty is not the same as unset
 
@@ -297,7 +312,7 @@ A field left empty means **unlimited**. Saving nothing at all means **no ceiling
 has been configured**, and in that state UltraTorrent does not touch any engine's
 rate limits — anything you set in qBittorrent's own interface stays exactly as
 you left it. The moment you save a ceiling, UltraTorrent takes over and pushes it
-to every engine it is allowed to.
+to every engine it is allowed to — each one getting the full figure.
 
 Zero is refused. qBittorrent reads a limit of `0` as *unlimited*, which is the
 opposite of what typing zero into a speed limit means, so the field asks you to
@@ -310,15 +325,15 @@ limits, through its policies. The two are resolved **per engine**:
 
 | Engine state | What governs its bandwidth |
 | --- | --- |
-| Never enrolled in scheduling (`native`) | The global ceiling |
+| Never enrolled in scheduling (`native`) | The per-engine ceiling |
 | Managed, and a policy covers it | The scheduler's policy |
-| Managed, but no policy covers it | The global ceiling |
+| Managed, but no policy covers it | The per-engine ceiling |
 | Observing | Neither — the engine is never written to |
 | Cannot apply global limits | Neither — reported on the settings page |
 
 The third row is the one worth knowing. An engine switched into managed mode and
-then left without a policy would otherwise run with no cap at all; the global
-ceiling catches that case rather than letting it through.
+then left without a policy would otherwise run with no cap at all; the
+per-engine ceiling catches that case rather than letting it through.
 
 Observing engines are deliberately excluded. Observe mode's promise is that the
 scheduler changes nothing on that engine, and a bandwidth limit is a change.

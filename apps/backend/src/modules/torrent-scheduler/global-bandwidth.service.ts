@@ -12,6 +12,15 @@ export const BANDWIDTH_SETTINGS_KEY = 'torrents.bandwidth';
 /**
  * A ceiling every engine gets unless the Activity Scheduler is governing it.
  *
+ * PER ENGINE, and the full figure to each: two engines at 25 000 kbps is 50 000
+ * kbps of real capacity. Every shipped engine sets its own global limit and
+ * cannot see the others, so there is no shared total to enforce — the only way
+ * to cap the installation would be to divide the ceiling and hand each engine a
+ * fraction, which caps the line at the cost of leaving capacity unused whenever
+ * one engine is idle. That trade is the operator's to make, not this service's,
+ * so the ceiling is applied whole and the settings page multiplies it out and
+ * says what the total actually is.
+ *
  * `null` means UNLIMITED, deliberately, and matches what the engines do with it:
  * qBittorrent takes 0 for "no limit". A missing settings row is a different
  * thing again — it means nobody has configured this, and nothing is pushed to
