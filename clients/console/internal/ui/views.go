@@ -550,8 +550,9 @@ func (m Model) viewJobs() string {
 			}
 			if len(j.Recent) > 0 {
 				lines = append(lines, "", styleColHead.Render(
-					pad(i18n.T("col.type"), w-46)+pad(i18n.T("col.status"), 18)+
-						pad(i18n.T("col.prog"), 7)+i18n.T("col.when")))
+					pad(i18n.T("col.type"), w-52)+pad(i18n.T("col.status"), 16)+
+						pad(i18n.T("col.prog"), 6)+pad(i18n.T("col.started"), 15)+
+						i18n.T("col.finished")))
 				for _, job := range j.Recent {
 					prog := i18n.T("format.none")
 					if job.Progress != nil {
@@ -564,18 +565,20 @@ func (m Model) viewJobs() string {
 					case "stalled":
 						style = styleWarn
 					}
-					// The most recent thing that happened to it: finished, else
-					// started, else created. "When" on a job means its last move.
-					when := job.CreatedAt
-					if job.StartedAt != nil {
-						when = *job.StartedAt
+					// Both ends, separately. One "last move" column cannot answer
+					// "when did it run and how long ago did it stop", which is the
+					// question somebody has when they are lining a job up against
+					// something else that happened.
+					started := job.StartedAt
+					if started == nil {
+						// Never started: the queue time is the only fact there is.
+						started = &job.CreatedAt
 					}
-					if job.CompletedAt != nil {
-						when = *job.CompletedAt
-					}
-					line := pad(truncate(job.Type, w-48), w-46) +
-						style.Render(pad(i18n.Enum("state.job", job.Status), 18)) +
-						pad(prog, 7) + styleMuted.Render(ago(&when))
+					line := pad(truncate(job.Type, w-54), w-52) +
+						style.Render(pad(i18n.Enum("state.job", job.Status), 16)) +
+						pad(prog, 6) +
+						styleMuted.Render(pad(clock(started), 15)) +
+						styleMuted.Render(clock(job.FinishedAt))
 					if job.ErrorCode != nil {
 						line += styleErr.Render("  " + *job.ErrorCode)
 					}

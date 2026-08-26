@@ -17,19 +17,16 @@
   "cli.readablePanels": "Paneles legibles: %d de %d.",
   "cli.deniedDomains": "Dominios que esta cuenta no puede leer: %s",
   "cli.signedOut": "Sesión cerrada. El token del servidor no fue revocado; expira por su cuenta.",
-
   "config.noConfigDir": "no se encuentra un directorio de configuración",
   "config.reading": "leyendo %s",
   "config.invalidJSON": "%s no es JSON válido",
   "config.permissive": "%s tiene modo %#o — guarda un token de refresco y debería estar en 0600",
-
   "api.serverVersion": "el servidor reportó la versión %q",
   "api.contractMismatch": "esta consola habla %d.x, el servidor habla %s",
   "realtime.closed": "el servidor cerró el flujo",
   "realtime.handshakeClosed": "el servidor cerró la conexión durante el saludo inicial",
   "realtime.badServerURL": "url de servidor inválida",
   "realtime.badScheme": "la url del servidor debe ser http o https, llegó %q",
-
   "view.overview": "Resumen",
   "view.torrents": "Torrents",
   "view.media": "Medios",
@@ -39,7 +36,6 @@
   "view.activity": "Actividad",
   "view.alerts": "Alertas",
   "view.stream": "Flujo",
-
   "chrome.notice": "Aviso",
   "chrome.noPanels": "no hay paneles legibles en esta vista",
   "chrome.loading": "Cargando…",
@@ -55,7 +51,6 @@
   "status.stale": "⚠ %v — mostrando datos de %s",
   "status.ageNever": "nunca",
   "status.ageOld": "hace %s",
-
   "panel.system": "Sistema",
   "panel.storage": "Almacenamiento",
   "panel.transfers": "Transferencias",
@@ -78,7 +73,6 @@
   "panel.notifications": "Notificaciones",
   "panel.stream": "Flujo de eventos",
   "panel.notRequested": "No solicitado.",
-
   "field.uptime": "Encendido",
   "field.load": "Carga",
   "field.memory": "Memoria",
@@ -104,7 +98,6 @@
   "field.grabs24h": "Capturas (24h)",
   "field.pending": "Pendientes",
   "field.failed24h": "Fallidas (24h)",
-
   "col.name": "NOMBRE",
   "col.state": "ESTADO",
   "col.progress": "PROGRESO",
@@ -121,10 +114,11 @@
   "col.status": "ESTADO",
   "col.prog": "PROG",
   "col.when": "CUÁNDO",
+  "col.started": "INICIADO",
+  "col.finished": "FINALIZADO",
   "col.feed": "FUENTE",
   "col.rules": "REGLAS",
   "col.polled": "SONDEO",
-
   "system.perCore": "  %.2f/núcleo",
   "system.cores": " (%d núcleos)",
   "storage.empty": "No se reportaron rutas.",
@@ -138,7 +132,6 @@
   "transfers.parked": "%d aparcados",
   "transfers.calm": "nada",
   "jobs.today": "%d hechas · %d fallidas · %s ok",
-
   "torrents.calm": "Nada con error ni estancado.",
   "torrents.idle": "Nada transfiriendo.",
   "torrents.truncated": "… recortado por el servidor; no es la lista completa.",
@@ -160,7 +153,6 @@
   "alerts.since": " desde hace %s",
   "alerts.more.one": "… y %d más (pulsa 8)",
   "alerts.more.other": "… y %d más (pulsa 8)",
-
   "stream.caveat": "Solo en vivo — desde que esta consola se conectó. El registro es la bitácora.",
   "stream.caveatShort": "Solo en vivo — no es historial.",
   "stream.quiet": "Conectado. Todavía no ha pasado nada.",
@@ -173,16 +165,13 @@
   "stream.refused": "✕ rechazado",
   "stream.disconnected": "✕ desconectado",
   "stream.statusDetail": "%s: %s",
-
   "layout.more.one": "… %d línea más — amplía o agranda la terminal",
   "layout.more.other": "… %d líneas más — amplía o agranda la terminal",
-
   "unavailable.forbidden": "Tu cuenta no puede leer esto.",
   "unavailable.timeout": "El servidor tardó demasiado en responder para este panel.",
   "unavailable.disabled": "No está habilitado en este servidor.",
   "unavailable.reason": "No disponible: %s",
   "unavailable.unknown": "No disponible.",
-
   "format.ago": "hace %s",
   "format.never": "nunca",
   "format.justNow": "ahora mismo",
@@ -194,12 +183,10 @@
   "format.days": "%dd %dh",
   "format.forever": "∞",
   "format.none": "—",
-
   "health.healthy": "saludable",
   "health.degraded": "degradada",
   "health.down": "caída",
   "health.unknown": "desconocida",
-
   "state.torrent.downloading": "descargando",
   "state.torrent.seeding": "compartiendo",
   "state.torrent.paused": "en pausa",
@@ -212,7 +199,6 @@
   "state.torrent.unknown": "desconocido",
   "state.torrent.stalled": "estancado",
   "state.torrent.parked": "·aparcado",
-
   "state.job.queued": "en cola",
   "state.job.running": "ejecutando",
   "state.job.completed": "completada",
@@ -222,7 +208,6 @@
   "state.job.paused": "en pausa",
   "state.job.success": "éxito",
   "state.job.skipped": "omitida",
-
   "state.intake.queued": "en cola",
   "state.intake.downloading": "descargando",
   "state.intake.completed": "completada",
@@ -240,7 +225,6 @@
   "state.intake.failed": "fallida",
   "state.intake.quarantined": "en cuarentena",
   "state.intake.cancelled": "cancelada",
-
   "result.downloaded": "descargado",
   "result.skipped_duplicate": "duplicado",
   "result.matched": "coincide",

@@ -24,7 +24,7 @@
  * compatible; newer minor → compatible, some fields may be unknown; different
  * major → incompatible, say so plainly rather than rendering nonsense.
  */
-export const OPERATIONS_CONTRACT_VERSION = '1.1.0';
+export const OPERATIONS_CONTRACT_VERSION = '1.2.0';
 
 /** Every domain the snapshot can carry. */
 export const OPERATIONS_DOMAINS = [
@@ -302,6 +302,14 @@ export interface OperationsJob {
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
+  /**
+   * When it stopped running, however it stopped.
+   *
+   * `completedAt` is set only on success — a failure records failedAt and a
+   * cancellation cancelledAt — so a client reading completedAt alone shows
+   * nothing for exactly the jobs somebody is investigating.
+   */
+  finishedAt: string | null;
 }
 
 export interface OperationsJobs {

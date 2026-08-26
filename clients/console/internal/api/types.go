@@ -250,6 +250,11 @@ type Job struct {
 	CreatedAt   string  `json:"createdAt"`
 	StartedAt   *string `json:"startedAt"`
 	CompletedAt *string `json:"completedAt"`
+	// FinishedAt is when it stopped running, however it stopped. CompletedAt is
+	// set only on success, so a failed job has none — and a failed job is the
+	// one somebody is usually looking at. Absent from a server older than
+	// operations contract 1.2.0, which is why it stays a pointer.
+	FinishedAt *string `json:"finishedAt"`
 }
 
 type Jobs struct {

@@ -202,3 +202,37 @@ func TestOverdueAllowsOneMissedPoll(t *testing.T) {
 		t.Error("a feed never polled is not 'overdue' — it has no baseline")
 	}
 }
+
+// A job row answers "when did this run", which a relative age cannot: somebody
+// correlating a job with a log line or a support message needs the time on the
+// clock, not "3h ago".
+func TestClockShowsAWallClockTime(t *testing.T) {
+	today := time.Now().Add(-90 * time.Minute).Format(time.RFC3339)
+	got := clock(&today)
+	if !strings.Contains(got, ":") {
+		t.Errorf("today's timestamp did not render as a time: %q", got)
+	}
+	if strings.Contains(got, "ago") {
+		t.Errorf("rendered an age instead of a clock time: %q", got)
+	}
+
+	// Older than today earns its date, since the day is no longer obvious.
+	old := time.Now().AddDate(0, 0, -3).Format(time.RFC3339)
+	if dated := clock(&old); len(dated) <= len(got) {
+		t.Errorf("an older timestamp should carry its date: %q vs today's %q", dated, got)
+	}
+}
+
+func TestClockHandlesTheAbsentAndTheBroken(t *testing.T) {
+	if clock(nil) == "" {
+		t.Error("a missing timestamp rendered as nothing at all")
+	}
+	empty := ""
+	if clock(&empty) == "" {
+		t.Error("an empty timestamp rendered as nothing at all")
+	}
+	junk := "not a timestamp"
+	if got := clock(&junk); got == "" {
+		t.Error("an unparseable timestamp rendered as nothing at all")
+	}
+}

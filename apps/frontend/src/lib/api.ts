@@ -340,6 +340,8 @@ export interface PlatformJobItem {
   queuedAt: string;
   startedAt: string | null;
   completedAt: string | null;
+  /** When it stopped running, however it stopped — success, failure or cancel. */
+  finishedAt: string | null;
   capabilities: JobCapabilities;
 }
 

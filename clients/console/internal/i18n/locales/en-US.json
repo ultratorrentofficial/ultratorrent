@@ -17,19 +17,16 @@
   "cli.readablePanels": "Readable panels: %d of %d.",
   "cli.deniedDomains": "Domains this account cannot read: %s",
   "cli.signedOut": "Signed out. The server-side token was not revoked; it expires on its own.",
-
   "config.noConfigDir": "cannot locate a config directory",
   "config.reading": "reading %s",
   "config.invalidJSON": "%s is not valid JSON",
   "config.permissive": "%s is mode %#o — it holds a refresh token and should be 0600",
-
   "api.serverVersion": "server reported version %q",
   "api.contractMismatch": "this console speaks %d.x, the server speaks %s",
   "realtime.closed": "the server closed the stream",
   "realtime.handshakeClosed": "the server closed the connection during the handshake",
   "realtime.badServerURL": "invalid server url",
   "realtime.badScheme": "server url must be http or https, got %q",
-
   "view.overview": "Overview",
   "view.torrents": "Torrents",
   "view.media": "Media",
@@ -39,7 +36,6 @@
   "view.activity": "Activity",
   "view.alerts": "Alerts",
   "view.stream": "Stream",
-
   "chrome.notice": "Notice",
   "chrome.noPanels": "no readable panels in this view",
   "chrome.loading": "Loading…",
@@ -55,7 +51,6 @@
   "status.stale": "⚠ %v — showing data %s",
   "status.ageNever": "never",
   "status.ageOld": "%s old",
-
   "panel.system": "System",
   "panel.storage": "Storage",
   "panel.transfers": "Transfers",
@@ -78,7 +73,6 @@
   "panel.notifications": "Notifications",
   "panel.stream": "Event stream",
   "panel.notRequested": "Not requested.",
-
   "field.uptime": "Uptime",
   "field.load": "Load",
   "field.memory": "Memory",
@@ -104,7 +98,6 @@
   "field.grabs24h": "Grabs (24h)",
   "field.pending": "Pending",
   "field.failed24h": "Failed (24h)",
-
   "col.name": "NAME",
   "col.state": "STATE",
   "col.progress": "PROGRESS",
@@ -121,10 +114,11 @@
   "col.status": "STATUS",
   "col.prog": "PROG",
   "col.when": "WHEN",
+  "col.started": "STARTED",
+  "col.finished": "FINISHED",
   "col.feed": "FEED",
   "col.rules": "RULES",
   "col.polled": "POLLED",
-
   "system.perCore": "  %.2f/core",
   "system.cores": " (%d cores)",
   "storage.empty": "No roots reported.",
@@ -138,7 +132,6 @@
   "transfers.parked": "%d parked",
   "transfers.calm": "nothing",
   "jobs.today": "%d done · %d failed · %s ok",
-
   "torrents.calm": "Nothing errored or stalled.",
   "torrents.idle": "Nothing transferring.",
   "torrents.truncated": "… capped by the server; not the full list.",
@@ -160,7 +153,6 @@
   "alerts.since": " since %s",
   "alerts.more.one": "… and %d more (press 8)",
   "alerts.more.other": "… and %d more (press 8)",
-
   "stream.caveat": "Live only — since this console connected. The record is the audit log.",
   "stream.caveatShort": "Live only — not history.",
   "stream.quiet": "Connected. Nothing has happened yet.",
@@ -173,16 +165,13 @@
   "stream.refused": "✕ refused",
   "stream.disconnected": "✕ disconnected",
   "stream.statusDetail": "%s: %s",
-
   "layout.more.one": "… %d more line — widen or enlarge the terminal",
   "layout.more.other": "… %d more lines — widen or enlarge the terminal",
-
   "unavailable.forbidden": "Your account may not read this.",
   "unavailable.timeout": "The server took too long to answer for this panel.",
   "unavailable.disabled": "Not enabled on this server.",
   "unavailable.reason": "Unavailable: %s",
   "unavailable.unknown": "Unavailable.",
-
   "format.ago": "%s ago",
   "format.never": "never",
   "format.justNow": "just now",
@@ -194,12 +183,10 @@
   "format.days": "%dd %dh",
   "format.forever": "∞",
   "format.none": "—",
-
   "health.healthy": "healthy",
   "health.degraded": "degraded",
   "health.down": "down",
   "health.unknown": "unknown",
-
   "state.torrent.downloading": "downloading",
   "state.torrent.seeding": "seeding",
   "state.torrent.paused": "paused",
@@ -212,7 +199,6 @@
   "state.torrent.unknown": "unknown",
   "state.torrent.stalled": "stalled",
   "state.torrent.parked": "·parked",
-
   "state.job.queued": "queued",
   "state.job.running": "running",
   "state.job.completed": "completed",
@@ -222,7 +208,6 @@
   "state.job.paused": "paused",
   "state.job.success": "success",
   "state.job.skipped": "skipped",
-
   "state.intake.queued": "queued",
   "state.intake.downloading": "downloading",
   "state.intake.completed": "completed",
@@ -240,7 +225,6 @@
   "state.intake.failed": "failed",
   "state.intake.quarantined": "quarantined",
   "state.intake.cancelled": "cancelled",
-
   "result.downloaded": "downloaded",
   "result.skipped_duplicate": "duplicate",
   "result.matched": "matched",

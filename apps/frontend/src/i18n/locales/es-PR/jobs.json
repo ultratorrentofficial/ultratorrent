@@ -78,7 +78,8 @@
     "attempt": "Intento",
     "priority": "Prioridad",
     "worker": "Trabajador",
-    "actions": "Acciones"
+    "actions": "Acciones",
+    "finished": "Finalizado"
   },
   "filter": {
     "status": "Estado",

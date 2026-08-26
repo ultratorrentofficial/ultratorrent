@@ -28,6 +28,16 @@ export interface JobListItem {
   queuedAt: Date;
   startedAt: Date | null;
   completedAt: Date | null;
+  /**
+   * When the job stopped running, however it stopped.
+   *
+   * `completedAt` is set only on success: a failure records `failedAt` and a
+   * cancellation `cancelledAt`, so a caller reading `completedAt` alone finds
+   * nothing for precisely the jobs somebody is most likely to be investigating.
+   * Resolved here rather than in each client, so the web UI, the console and
+   * anything written later all agree on when a job ended.
+   */
+  finishedAt: Date | null;
   capabilities: { cancellable: boolean; pausable: boolean; resumable: boolean; retryable: boolean };
 }
 
@@ -199,7 +209,8 @@ export class PlatformJobsQueryService {
     return { AND: and };
   }
 
-  private toListItem(r: PlatformJob): JobListItem {
+  /** Exposed for tests, like `visibilityWhere`. */
+  toListItem(r: PlatformJob): JobListItem {
     return {
       id: r.id,
       type: r.type,
@@ -220,6 +231,7 @@ export class PlatformJobsQueryService {
       queuedAt: r.queuedAt,
       startedAt: r.startedAt,
       completedAt: r.completedAt,
+      finishedAt: r.completedAt ?? r.failedAt ?? r.cancelledAt ?? null,
       capabilities: { cancellable: r.cancellable, pausable: r.pausable, resumable: r.resumable, retryable: r.retryable },
     };
   }

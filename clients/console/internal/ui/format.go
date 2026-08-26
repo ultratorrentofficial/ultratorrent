@@ -271,3 +271,26 @@ func unavailableReason(reason, message string) string {
 		return i18n.T("unavailable.unknown")
 	}
 }
+
+// clock renders a timestamp as a wall-clock time an operator can compare with
+// something else.
+//
+// `ago` answers "how long since", which is the right question for a heartbeat
+// and the wrong one for "when did this run". Correlating a job with a log line,
+// a support message or another system's record needs the time on the clock, so
+// this shows HH:MM for today and adds the date once it is older than that —
+// a date on every row would spend width on a fact that is usually the same.
+func clock(iso *string) string {
+	if iso == nil || *iso == "" {
+		return i18n.T("format.none")
+	}
+	t, err := time.Parse(time.RFC3339, *iso)
+	if err != nil {
+		return i18n.T("format.unparseable")
+	}
+	local := t.Local()
+	if local.YearDay() == time.Now().YearDay() && local.Year() == time.Now().Year() {
+		return local.Format("15:04:05")
+	}
+	return local.Format("Jan 02 15:04")
+}

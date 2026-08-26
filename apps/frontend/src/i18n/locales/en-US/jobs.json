@@ -78,7 +78,8 @@
     "attempt": "Attempt",
     "priority": "Priority",
     "worker": "Worker",
-    "actions": "Actions"
+    "actions": "Actions",
+    "finished": "Finished"
   },
   "filter": {
     "status": "Status",

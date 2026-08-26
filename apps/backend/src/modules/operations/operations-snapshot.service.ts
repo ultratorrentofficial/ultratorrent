@@ -714,6 +714,7 @@ export class OperationsSnapshotService {
         createdAt: isoOf(j.createdAt),
         startedAt: isoOrNull(j.startedAt),
         completedAt: isoOrNull(j.completedAt),
+        finishedAt: isoOrNull(j.finishedAt),
       })),
       truncated: total > items.length,
     };

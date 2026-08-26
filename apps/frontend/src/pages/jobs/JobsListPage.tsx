@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Pagination } from '@/components/ui/pagination';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { formatDateTime } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { statusVariant, jobDuration } from './jobStatus';
 import { jobCapabilities } from './jobCapabilities';
@@ -235,6 +236,8 @@ export function JobsListPage() {
                     <TableHead className="hidden md:table-cell">{t('column.module')}</TableHead>
                     <TableHead className="w-32">{t('column.progress')}</TableHead>
                     <TableHead className="hidden lg:table-cell">{t('column.source')}</TableHead>
+                    <TableHead className="hidden xl:table-cell">{t('column.started')}</TableHead>
+                    <TableHead className="hidden xl:table-cell">{t('column.finished')}</TableHead>
                     <TableHead className="hidden lg:table-cell">{t('column.duration')}</TableHead>
                     <TableHead className="text-right">{t('column.actions')}</TableHead>
                   </TableRow>
@@ -265,7 +268,11 @@ export function JobsListPage() {
                         )}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{td(`source.${job.source}`, { defaultValue: job.source })}</TableCell>
-                      <TableCell className="hidden lg:table-cell text-sm tabular-nums text-muted-foreground">{jobDuration(job.startedAt, job.completedAt)}</TableCell>
+                      {/* Absolute times rather than "3h ago": somebody asking when a job ran is
+                          usually lining it up against something else that carries a clock time. */}
+                      <TableCell className="hidden xl:table-cell text-sm tabular-nums text-muted-foreground whitespace-nowrap">{formatDateTime(job.startedAt)}</TableCell>
+                      <TableCell className="hidden xl:table-cell text-sm tabular-nums text-muted-foreground whitespace-nowrap">{formatDateTime(job.finishedAt)}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm tabular-nums text-muted-foreground">{jobDuration(job.startedAt, job.finishedAt)}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end">
                           <JobRowActions
