@@ -18,10 +18,10 @@ export function EmailSettingsCard() {
   const { t } = useTranslation('mediaServerAnalytics');
   const toast = useToast();
   const q = useQuery({ queryKey: ['msa', 'email'], queryFn: () => api.mediaServerAnalytics.emailSettings() });
-  const [form, setForm] = useState({ host: '', port: 587, secure: false, auth: true, user: '', password: '', fromName: '', fromAddress: '' });
+  const [form, setForm] = useState({ host: '', port: 587, secure: false, auth: true, tlsServername: '', user: '', password: '', fromName: '', fromAddress: '' });
   const [testTo, setTestTo] = useState('');
   useEffect(() => {
-    if (q.data) setForm((f) => ({ ...f, host: q.data.host, port: q.data.port, secure: q.data.secure, auth: q.data.auth, user: q.data.user, fromName: q.data.fromName, fromAddress: q.data.fromAddress }));
+    if (q.data) setForm((f) => ({ ...f, host: q.data.host, port: q.data.port, secure: q.data.secure, auth: q.data.auth, tlsServername: q.data.tlsServername ?? '', user: q.data.user, fromName: q.data.fromName, fromAddress: q.data.fromAddress }));
   }, [q.data]);
 
   const save = useMutation({
@@ -52,11 +52,23 @@ export function EmailSettingsCard() {
           )}
           <div className="space-y-1.5"><Label htmlFor="e-fn">{t('newsletter.email.fromName')}</Label><Input id="e-fn" value={form.fromName} onChange={(e) => setForm((f) => ({ ...f, fromName: e.target.value }))} /></div>
           <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="e-fa">{t('newsletter.email.fromAddress')}</Label><Input id="e-fa" value={form.fromAddress} onChange={(e) => setForm((f) => ({ ...f, fromAddress: e.target.value }))} placeholder="ultratorrent@example.com" /></div>
+          <div className="space-y-1.5 sm:col-span-3">
+            <Label htmlFor="e-tls">{t('newsletter.email.tlsServername')}</Label>
+            <Input id="e-tls" value={form.tlsServername} onChange={(e) => setForm((f) => ({ ...f, tlsServername: e.target.value }))} placeholder={form.host || 'mail.example.com'} />
+            <p className="text-xs text-muted-foreground">{t('newsletter.email.tlsServernameHint')}</p>
+          </div>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <Button onClick={() => save.mutate()} disabled={save.isPending}>{t('newsletter.email.save')}</Button>
           <Input className="w-56" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder={t('newsletter.email.testRecipient')} />
-          <Button variant="secondary" onClick={() => test.mutate()} disabled={!testTo.trim() || test.isPending}>{t('newsletter.email.test')}</Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              if (!testTo.trim()) { toast.error(t('newsletter.email.testRecipientRequired')); return; }
+              test.mutate();
+            }}
+            disabled={test.isPending}
+          >{t('newsletter.email.test')}</Button>
         </div>
       </CardContent>
     </Card>

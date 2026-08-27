@@ -170,7 +170,10 @@
       "saved": "Email settings saved",
       "tested": "Test email sent",
       "testFailed": "Could not send test",
-      "notConfigured": "Configure SMTP to enable sending."
+      "notConfigured": "Configure SMTP to enable sending.",
+      "tlsServername": "TLS certificate name",
+      "tlsServernameHint": "Only needed when the server's certificate does not carry the SMTP host above — reaching a relay by IP, for example. Verification stays on; this just names the identity to check. Leave empty to verify against the host.",
+      "testRecipientRequired": "Enter a recipient address to send the test to."
     },
     "images": {
       "title": "Newsletter poster images",
@@ -399,7 +402,9 @@
       "recipientSent": "Delivered to {{recipient}}",
       "recipientFailed": "Could not deliver to {{recipient}}",
       "sendCompleted": "{{sent}} delivered, {{failed}} failed",
-      "scheduledFailed": "Scheduled send failed"
+      "scheduledFailed": "Scheduled send failed",
+      "testSent": "Test sent to {{recipient}}",
+      "testFailed": "Test to {{recipient}} failed"
     },
     "event": {
       "generated": "Generated",

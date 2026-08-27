@@ -5854,6 +5854,8 @@ export interface MediaServerEmailSettings {
   port: number;
   secure: boolean;
   auth: boolean;
+  /** Certificate name to verify against when it differs from `host`. */
+  tlsServername: string;
   user: string;
   fromName: string;
   fromAddress: string;

@@ -454,7 +454,35 @@ export class MediaServerNewsletterService {
     if (!recipient) throw new BadRequestException('A recipient email is required.');
     const n = await this.get(id);
     const { content, attachments, opts } = await this.build(n);
-    await this.email.send({ to: recipient, subject: `[TEST] ${this.subject(n, content)}`, html: renderHtml(content, opts), text: renderText(content, opts), attachments });
+    const subject = `[TEST] ${this.subject(n, content)}`;
+    try {
+      await this.email.send({ to: recipient, subject, html: renderHtml(content, opts), text: renderText(content, opts), attachments });
+    } catch (err) {
+      const reason = (err as Error).message;
+      // A test that failed is the single most interesting thing the activity
+      // view can show, and it was the one outcome that reached nothing at all:
+      // no event, and no audit row either, since the audit call sat AFTER the
+      // send and never ran. Somebody testing an SMTP change saw a red toast and
+      // then found an empty feed.
+      await this.events.record({
+        newsletterId: id, level: 'error', eventType: 'test_sent',
+        messageKey: 'newsletter.event.testFailed',
+        messageParams: { recipient },
+        sanitizedMessage: reason,
+        metadata: { recipient, subject, error: reason, outcome: 'failed' },
+      });
+      // Rethrown as a client error carrying the REASON. It used to escape raw,
+      // so Nest mapped it to a 500 "Internal server error" and the one fact
+      // worth having — "certificate does not match", "connection timeout" —
+      // stayed in the container log.
+      throw new BadRequestException(reason);
+    }
+    await this.events.record({
+      newsletterId: id, level: 'success', eventType: 'test_sent',
+      messageKey: 'newsletter.event.testSent',
+      messageParams: { recipient },
+      metadata: { recipient, subject, outcome: 'sent' },
+    });
     await this.audit.record({ userId, action: 'media_server_analytics.newsletter.test_sent', objectType: 'media_server_newsletter', objectId: id, metadata: { recipient } });
     return { ok: true as const };
   }

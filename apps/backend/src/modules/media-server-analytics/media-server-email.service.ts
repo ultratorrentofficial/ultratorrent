@@ -28,7 +28,7 @@ export class MediaServerEmailService {
 
   updateSettings(input: {
     host?: string; port?: number; secure?: boolean; auth?: boolean; user?: string;
-    password?: string; fromName?: string; fromAddress?: string;
+    password?: string; fromName?: string; fromAddress?: string; tlsServername?: string;
   }) {
     return this.mail.updateSettings(input);
   }

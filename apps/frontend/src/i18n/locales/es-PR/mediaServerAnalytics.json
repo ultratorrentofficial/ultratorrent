@@ -170,7 +170,10 @@
       "saved": "Ajustes guardados",
       "tested": "Correo de prueba enviado",
       "testFailed": "No se pudo enviar la prueba",
-      "notConfigured": "Configura SMTP para poder enviar."
+      "notConfigured": "Configura SMTP para poder enviar.",
+      "tlsServername": "Nombre del certificado TLS",
+      "tlsServernameHint": "Solo hace falta cuando el certificado del servidor no incluye el host SMTP de arriba — por ejemplo, al conectar a un relay por IP. La verificación sigue activa; esto solo indica qué identidad comprobar. Déjalo vacío para verificar contra el host.",
+      "testRecipientRequired": "Escribe una dirección de destino para enviar la prueba."
     },
     "images": {
       "title": "Imágenes (pósters) del boletín",
@@ -399,7 +402,9 @@
       "recipientSent": "Entregado a {{recipient}}",
       "recipientFailed": "No se pudo entregar a {{recipient}}",
       "sendCompleted": "{{sent}} entregados, {{failed}} fallidos",
-      "scheduledFailed": "Falló el envío programado"
+      "scheduledFailed": "Falló el envío programado",
+      "testSent": "Prueba enviada a {{recipient}}",
+      "testFailed": "Falló la prueba a {{recipient}}"
     },
     "event": {
       "generated": "Generado",

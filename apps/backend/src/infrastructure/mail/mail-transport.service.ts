@@ -19,6 +19,22 @@ interface EmailConfig {
   secure?: boolean;
   /** Whether to send SMTP AUTH at all — some relays reject it outright. */
   auth?: boolean;
+  /**
+   * The name to verify the server's certificate against, when it is not `host`.
+   *
+   * `secure: false` does NOT mean "no TLS": it only means the connection does
+   * not START in implicit TLS. If the server advertises STARTTLS, nodemailer
+   * upgrades anyway and Node then verifies the certificate against `host` —
+   * so a relay reached by IP, or by any name its certificate does not carry,
+   * fails the handshake with ERR_TLS_CERT_ALTNAME_INVALID no matter how the
+   * TLS/SSL toggle is set.
+   *
+   * This names the certificate's identity WITHOUT weakening anything:
+   * verification stays on, it is simply told which name to check. That is the
+   * fix for a mismatch — turning verification off would be a different and much
+   * larger concession, and is deliberately not offered.
+   */
+  tlsServername?: string;
   user?: string;
   encryptedPass?: string;
   fromName?: string;
@@ -46,6 +62,7 @@ export interface MailSettings {
   port: number;
   secure: boolean;
   auth: boolean;
+  tlsServername: string;
   user: string;
   fromName: string;
   fromAddress: string;
@@ -83,6 +100,7 @@ export class MailTransportService {
       secure: cfg.secure ?? false,
       // Back-compat: older configs enabled auth implicitly via a username.
       auth: cfg.auth ?? Boolean(cfg.user),
+      tlsServername: cfg.tlsServername ?? '',
       user: cfg.user ?? '',
       fromName: cfg.fromName ?? 'UltraTorrent',
       fromAddress: cfg.fromAddress ?? '',
@@ -92,7 +110,7 @@ export class MailTransportService {
 
   async updateSettings(input: {
     host?: string; port?: number; secure?: boolean; auth?: boolean; user?: string;
-    password?: string; fromName?: string; fromAddress?: string;
+    password?: string; fromName?: string; fromAddress?: string; tlsServername?: string;
   }): Promise<MailSettings> {
     const cur = await this.raw();
     const next: EmailConfig = {
@@ -101,6 +119,10 @@ export class MailTransportService {
       port: input.port ?? cur.port,
       secure: input.secure ?? cur.secure,
       auth: input.auth ?? cur.auth,
+      // Empty string is a real value here — it means "go back to verifying
+      // against the host" — so it must not fall through to the current value
+      // the way an omitted field does.
+      tlsServername: input.tlsServername === undefined ? cur.tlsServername : (input.tlsServername.trim() || undefined),
       user: input.user ?? cur.user,
       fromName: input.fromName ?? cur.fromName,
       fromAddress: input.fromAddress ?? cur.fromAddress,
@@ -135,6 +157,9 @@ export class MailTransportService {
       auth: useAuth
         ? { user: cfg.user ?? '', pass: cfg.encryptedPass ? this.cipher.decrypt(cfg.encryptedPass) : '' }
         : undefined,
+      // Only set when configured: nodemailer defaults `servername` to the host,
+      // which is what should happen whenever the two agree.
+      ...(cfg.tlsServername ? { tls: { servername: cfg.tlsServername } } : {}),
     });
     await transport.sendMail({
       from: `"${cfg.fromName ?? 'UltraTorrent'}" <${cfg.fromAddress}>`,

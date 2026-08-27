@@ -308,7 +308,23 @@ export function NewslettersPage() {
                   <span className="flex-1" />
                   <Button variant="secondary" size="sm" onClick={() => doPreview.mutate(n.id, { onSuccess: (data) => setPreview({ id: n.id, data }) })}><Eye className="h-3.5 w-3.5" />{t('newsletter.preview')}</Button>
                   <Input className="w-40" value={testTo[n.id] ?? ''} onChange={(e) => setTestTo((s) => ({ ...s, [n.id]: e.target.value }))} placeholder={t('newsletter.email.testRecipient')} />
-                  <Button variant="secondary" size="sm" onClick={() => testSend.mutate({ id: n.id, to: testTo[n.id] ?? '' })} disabled={!testTo[n.id]?.trim()}><Send className="h-3.5 w-3.5" />{t('newsletter.testSend')}</Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    /*
+                     * Enabled even with no recipient, and validated on click.
+                     * Disabling it meant a click did nothing and SAID nothing —
+                     * indistinguishable from a broken send, which is exactly how
+                     * it was read. Telling the operator what is missing costs one
+                     * toast; leaving them to guess cost a support round-trip.
+                     */
+                    onClick={() => {
+                      const to = (testTo[n.id] ?? '').trim();
+                      if (!to) { toast.error(t('newsletter.email.testRecipientRequired')); return; }
+                      testSend.mutate({ id: n.id, to });
+                    }}
+                    disabled={testSend.isPending}
+                  ><Send className="h-3.5 w-3.5" />{t('newsletter.testSend')}</Button>
                   <Button size="sm" onClick={() => send.mutate(n.id)} disabled={send.isPending}><Play className="h-3.5 w-3.5" />{t('newsletter.sendNow')}</Button>
                   <Button
                     variant="ghost"
