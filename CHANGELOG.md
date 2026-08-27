@@ -45,6 +45,24 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.86.0] - 2026-08-27
+
+### Added
+- A global bandwidth ceiling in settings, which the Activity Scheduler overrides only on engines it governs
+- Settings gains a global bandwidth ceiling with per-engine status, in both locales
+- Job lists show when a job started and finished, including jobs that failed
+- Newsletters record generation and delivery events, reviewable in the newsletter area
+
+### Fixed
+- The scheduler review table identifies torrents by name, and a removal no longer renders as a raw key labelled "would stop seeding"
+- Seed conditions on size, uploaded, label and category are actually evaluated — the facts were declared and offered but never fed — and a rule reading something nothing measures now names that field instead of blaming seed duration
+- The global bandwidth ceiling reaches engines added after it was saved
+- The bandwidth ceiling is named and documented as per-engine, and the settings page multiplies it out — two engines at 25000 kbps is 50000 kbps, not 25000
+- File manager: a second FILE_MANAGER_ROOTS entry is reachable again. Browse paths were rebased onto the first root, so a folder living only in another root 500'd with ENOENT and a name present in both silently served the first root's copy. With several roots paths are now absolute (single-root deployments are unchanged), and / lists the roots themselves. Trash and quarantine now store a path relative to the root they recorded rather than the client-facing one, so restores round-trip whatever the root count.
+- Bandwidth precedence is decided from the plan, so a library-scoped policy is recognised — and the scheduler stops writing unlimited to engines no policy mentions
+- Renamer: a video is no longer planned as a sidecar of itself. When the source parsed to no content type (a bare season folder rather than a release name), the sidecar pass classified against the batch kind and re-planned every video, producing a duplicate rename that failed ENOENT after the primary had already moved the file — reporting failures on a run that had actually succeeded.
+- A newsletter send that reached nobody no longer records itself as successfully sent, and the newsletter activity feed is reachable instead of answering 404
+
 ## [0.85.10] - 2026-08-25
 
 ### Fixed
