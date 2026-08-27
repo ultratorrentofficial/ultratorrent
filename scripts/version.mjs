@@ -4,7 +4,12 @@
 //   node scripts/version.mjs show
 //   node scripts/version.mjs check                 # exit 1 if anything is out of sync
 //   node scripts/version.mjs sync                  # write VERSION files + package.json
-//   node scripts/version.mjs bump <patch|minor|major> [--edition <sdk>]
+//   node scripts/version.mjs bump <patch|minor|major> --edition <sdk>
+//
+// `bump` moves an EDITION track only. The product version is moved solely by
+// cutting a release (`ops/scripts/release.js`), which is also what consumes the
+// changesets describing the move — so the canonical number never advances
+// without a record of what is in it.
 //
 // Mapping:
 //   product version  → root VERSION + every workspace package.json (one monorepo version)
@@ -98,21 +103,37 @@ function doShow() {
 function doBump(kind, edition) {
   const vj = readVjson();
   vj.editions = vj.editions || {};
-  if (edition && edition !== 'community') {
-    // Bump only one edition track (enterprise or sdk).
-    const cur = vj.editions[edition] ?? vj.version;
-    vj.editions[edition] = bump(cur, kind);
-    writeFileSync(VJSON, JSON.stringify(vj, null, 2) + '\n');
-    console.log(`Bumped ${edition} → ${vj.editions[edition]}`);
-  } else {
-    // Bump the product line; community + any edition tracking it follow on sync.
-    const next = bump(vj.version, kind);
-    const followed = ['community', 'sdk'].filter((e) => (vj.editions[e] ?? vj.version) === vj.version);
-    vj.version = next;
-    for (const e of followed) vj.editions[e] = next;
-    writeFileSync(VJSON, JSON.stringify(vj, null, 2) + '\n');
-    console.log(`Bumped product → ${next}`);
+  /*
+   * The PRODUCT version moves only when a release is cut.
+   *
+   * This path bumped `version.json`, `VERSION` and every workspace package.json
+   * directly — no changeset consumed, no CHANGELOG section, no tag — so the
+   * canonical number could advance without any record of what changed in it.
+   * `release.js` is the one thing that may move it, because it is the one thing
+   * that also consumes the changesets describing the move. Nothing called this:
+   * it is in no npm script and no CI job, and the only reference is the EDITION
+   * track below, which is a separate number and stays available.
+   */
+  if (!edition || edition === 'community') {
+    console.error(
+      'version: refusing to bump the product version.\n' +
+      '\n' +
+      'The product version moves only when a release is cut, which also consumes\n' +
+      'the changesets that say what changed:\n' +
+      '\n' +
+      '  npm run changeset:add -- --level <patch|minor|major> --summary "…"\n' +
+      '  npm run release:plan\n' +
+      '  npm run release:apply -- --yes --no-git\n' +
+      '\n' +
+      'To move a separate edition track instead, pass --edition <sdk|enterprise>.',
+    );
+    process.exit(2);
   }
+  // Only an edition track reaches here — the product line is refused above.
+  const cur = vj.editions[edition] ?? vj.version;
+  vj.editions[edition] = bump(cur, kind);
+  writeFileSync(VJSON, JSON.stringify(vj, null, 2) + '\n');
+  console.log(`Bumped ${edition} → ${vj.editions[edition]}`);
   doSync();
 }
 

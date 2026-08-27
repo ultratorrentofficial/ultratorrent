@@ -62,6 +62,14 @@ The same number is read at runtime/build from several places, all kept in sync:
 **one-way**, root is the source of truth. `npm run version:check` validates there
 is no drift.
 
+> **Only cutting a release moves the product version.** `ops/scripts/release.js`
+> is the one thing that may advance it, because it is the one thing that also
+> consumes the changesets saying what is in it. Deploying never touches a version
+> — a build stamps `gitSha`/`gitTag` into the image and leaves `package.json`
+> alone — and `scripts/version.mjs bump` **refuses** the product line, serving
+> only the separate edition tracks. So a number cannot advance without a
+> changelog entry and a tag to explain it.
+
 ---
 
 ## 4. Workflow — how a version gets bumped
