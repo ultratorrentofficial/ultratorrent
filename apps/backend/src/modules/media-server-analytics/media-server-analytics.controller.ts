@@ -14,6 +14,7 @@ import { parsePage } from '../../common/pagination';
 import { MediaServerSyncService } from './media-server-sync.service';
 import { AnalyticsImportService } from './analytics-import.service';
 import { MediaServerEmailService } from './media-server-email.service';
+import { NewsletterEventsService } from './newsletter-events.service';
 import { MediaServerNewsletterService } from './media-server-newsletter.service';
 import { NewsletterImageService } from './newsletter-image.service';
 
@@ -51,6 +52,7 @@ export class MediaServerAnalyticsController {
     private readonly imports: AnalyticsImportService,
     private readonly email: MediaServerEmailService,
     private readonly newsletters: MediaServerNewsletterService,
+    private readonly newsletterEvents: NewsletterEventsService,
     private readonly images: NewsletterImageService,
   ) {}
 
@@ -318,6 +320,26 @@ export class MediaServerAnalyticsController {
   createNewsletter(@Body() body: Record<string, unknown>, @CurrentUser() u: AuthenticatedUser) {
     return this.newsletters.create(body ?? {}, u?.id);
   }
+  /**
+   * What has happened to newsletters, newest first.
+   *
+   * Without `:id` it spans every newsletter, because "did tonight's send go
+   * out" is asked about the schedule as a whole at least as often as about one
+   * newsletter.
+   *
+   * Declared BEFORE `newsletters/:id`, which is not a style choice: Nest matches
+   * routes in declaration order, so below it this literal segment is swallowed
+   * by the parameter and answers 404 `Newsletter not found` for `id`
+   * `"activity"`. `newsletters/recipient-options` sits above `:id` for the same
+   * reason.
+   */
+  @Get('newsletters/activity')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
+  newsletterActivity(@Query('newsletterId') newsletterId?: string, @Query('limit') limit?: string) {
+    const n = Number(limit);
+    return this.newsletterEvents.activity(newsletterId, Number.isFinite(n) && n > 0 ? Math.min(n, 200) : 50);
+  }
+
   @Get('newsletters/:id')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
   getNewsletter(@Param('id') id: string) {

@@ -3326,6 +3326,27 @@ export interface GlobalBandwidthResponse {
   engines: EngineBandwidthStatus[];
 }
 
+/** One thing that happened to a newsletter. */
+export interface NewsletterActivityEvent {
+  id: string;
+  newsletterId: string | null;
+  runId: string | null;
+  level: 'info' | 'success' | 'warning' | 'error';
+  eventType: string;
+  messageKey: string | null;
+  messageParams: Record<string, unknown> | null;
+  /** A readable fallback, already stripped of anything secret. */
+  sanitizedMessage: string | null;
+  /** Everything worth showing when the entry is expanded. */
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+/** A run, led by its outcome, with the rest of its events beneath it. */
+export interface NewsletterActivityEntry extends NewsletterActivityEvent {
+  events: NewsletterActivityEvent[];
+}
+
 export interface ProwlarrSettings {
   enabled: boolean;
   internalUrl: string;
@@ -5411,6 +5432,15 @@ export const api = {
     },
     importJobs(query: PageQuery = {}): Promise<Paginated<AnalyticsImportJob>> {
       return request<Paginated<AnalyticsImportJob>>('/media-server-analytics/import-jobs', { query: query as QueryParams });
+    },
+    newsletterActivity(params: { newsletterId?: string; limit?: number } = {}): Promise<NewsletterActivityEntry[]> {
+      const q = new URLSearchParams();
+      if (params.newsletterId) q.set('newsletterId', params.newsletterId);
+      if (params.limit) q.set('limit', String(params.limit));
+      const qs = q.toString();
+      return request<NewsletterActivityEntry[]>(
+        `/media-server-analytics/newsletters/activity${qs ? `?${qs}` : ''}`,
+      );
     },
     newsletters(): Promise<Newsletter[]> {
       return request<Newsletter[]>('/media-server-analytics/newsletters');

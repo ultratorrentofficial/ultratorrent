@@ -6,8 +6,11 @@ import { MediaServerNewsletterService } from './media-server-newsletter.service'
  * so we exercise it directly with stubbed constructor args.
  */
 function svc() {
+  // Positional stubs: the settings mock must land in the settings slot, so this
+  // list has to be as long as the constructor — prisma, email, audit, events,
+  // realtime, registry, images, config, settings.
   return new MediaServerNewsletterService(
-    {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+    {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
     { get: jest.fn(async () => undefined) } as any,
   );
 }

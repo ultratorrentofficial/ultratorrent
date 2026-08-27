@@ -6,6 +6,7 @@ import { api, ApiError, type Newsletter, type NewsletterPreview, type MediaServe
 import { formatDateTime } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
+import { NewsletterActivityCard } from './NewsletterActivityCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
@@ -399,6 +400,10 @@ export function NewslettersPage() {
             </Card>
           ))}
           {(q.data ?? []).length === 0 && <EmptyState title={t('newsletter.empty')} />}
+
+          {/* Across every newsletter: "did tonight's send go out" is asked of the
+              schedule as a whole at least as often as of one newsletter. */}
+          <NewsletterActivityCard />
 
           <Card>
             <CardContent className="space-y-3 p-4">

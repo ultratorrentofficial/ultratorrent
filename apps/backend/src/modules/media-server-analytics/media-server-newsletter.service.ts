@@ -6,6 +6,7 @@ import { MODULE_IDS } from '@ultratorrent/shared';
 import type { MediaServerNewsletter } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { NewsletterEventsService } from './newsletter-events.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerEmailService, type EmailAttachment } from './media-server-email.service';
@@ -65,6 +66,7 @@ export class MediaServerNewsletterService {
     private readonly prisma: PrismaService,
     private readonly email: MediaServerEmailService,
     private readonly audit: AuditService,
+    private readonly events: NewsletterEventsService,
     private readonly realtime: RealtimeGateway,
     private readonly registry: ModuleRegistryService,
     private readonly images: NewsletterImageService,
@@ -463,11 +465,36 @@ export class MediaServerNewsletterService {
     const recipients = (n.recipientEmails as string[]) ?? [];
     if (recipients.length === 0) throw new BadRequestException('This newsletter has no recipients.');
 
+    // One run id ties the generation, every recipient and the outcome together,
+    // so the activity view can show a send as one entry that opens to what
+    // actually happened inside it.
+    const runId = this.events.newRun();
+    const startedAt = Date.now();
+
     const { content, attachments, opts } = await this.build(n);
     const subject = this.subject(n, content);
     const html = renderHtml(content, opts);
     const text = renderText(content, opts);
     this.realtime.broadcast('media_server.newsletter.generated', { id, count: content.totalItems });
+
+    await this.events.record({
+      newsletterId: id, runId, level: 'info', eventType: 'generated',
+      messageKey: 'newsletter.event.generated',
+      messageParams: { items: content.totalItems },
+      metadata: {
+        subject,
+        totalItems: content.totalItems,
+        recipients: recipients.length,
+        attachments: attachments?.length ?? 0,
+        trigger: userId ? 'manual' : 'scheduled',
+      },
+    });
+    await this.events.record({
+      newsletterId: id, runId, level: 'info', eventType: 'send_started',
+      messageKey: 'newsletter.event.sendStarted',
+      messageParams: { recipients: recipients.length },
+      metadata: { recipients: recipients.length, subject },
+    });
 
     let sent = 0;
     let failed = 0;
@@ -476,15 +503,70 @@ export class MediaServerNewsletterService {
         await this.email.send({ to, subject, html, text, attachments });
         await this.prisma.mediaServerNewsletterDelivery.create({ data: { newsletterId: id, recipientEmail: to, status: 'sent', subject, sentAt: new Date() } });
         sent += 1;
+        await this.events.record({
+          newsletterId: id, runId, level: 'success', eventType: 'recipient_sent',
+          messageKey: 'newsletter.event.recipientSent',
+          messageParams: { recipient: to },
+          metadata: { recipient: to, subject },
+        });
       } catch (err) {
-        await this.prisma.mediaServerNewsletterDelivery.create({ data: { newsletterId: id, recipientEmail: to, status: 'failed', subject, errorMessage: (err as Error).message } });
+        const reason = (err as Error).message;
+        await this.prisma.mediaServerNewsletterDelivery.create({ data: { newsletterId: id, recipientEmail: to, status: 'failed', subject, errorMessage: reason } });
         failed += 1;
+        // The reason belongs on the event: somebody asking why one address never
+        // received it should not have to read a container log to find out.
+        await this.events.record({
+          newsletterId: id, runId, level: 'error', eventType: 'recipient_failed',
+          messageKey: 'newsletter.event.recipientFailed',
+          messageParams: { recipient: to },
+          sanitizedMessage: reason,
+          metadata: { recipient: to, subject, error: reason },
+        });
       }
     }
 
-    await this.prisma.mediaServerNewsletter.update({ where: { id }, data: { lastSuccessfulSendAt: new Date(), nextRunAt: await this.nextRun(n) } });
+    // `nextRunAt` advances whatever happened, but `lastSuccessfulSendAt` is
+    // stamped only when somebody actually received it.
+    //
+    // The two were written together, so a send that reached NOBODY still dated
+    // itself as successful: the list read "last sent <today>" for a dispatch
+    // where every recipient had been refused. Worse for a `since_last_send`
+    // newsletter, where this field is the content window's start — advancing it
+    // on a failed send silently drops everything the failed edition covered,
+    // permanently, because the next one begins after it.
+    //
+    // The cadence is deliberately NOT held back on failure. The dispatch sweep
+    // selects on `nextRunAt <= now` every 15 minutes, so leaving it in the past
+    // would re-send to every recipient four times an hour for as long as the
+    // fault lasted — a retry storm against the very mail server that is already
+    // refusing us.
+    await this.prisma.mediaServerNewsletter.update({
+      where: { id },
+      data: {
+        ...(sent > 0 ? { lastSuccessfulSendAt: new Date() } : {}),
+        nextRunAt: await this.nextRun(n),
+      },
+    });
     this.realtime.broadcast(failed && !sent ? 'media_server.newsletter.failed' : 'media_server.newsletter.sent', { id, sent, failed });
     await this.audit.record({ userId, action: 'media_server_analytics.newsletter.sent', objectType: 'media_server_newsletter', objectId: id, metadata: { sent, failed } });
+
+    await this.events.record({
+      newsletterId: id, runId,
+      level: failed === 0 ? 'success' : sent === 0 ? 'error' : 'warning',
+      eventType: sent === 0 && failed > 0 ? 'send_failed' : 'send_completed',
+      messageKey: 'newsletter.event.sendCompleted',
+      messageParams: { sent, failed },
+      metadata: {
+        sent, failed,
+        recipients: recipients.length,
+        subject,
+        totalItems: content.totalItems,
+        durationMs: Date.now() - startedAt,
+        trigger: userId ? 'manual' : 'scheduled',
+      },
+    });
+    this.events.endRun(runId);
+    await this.events.prune(id);
     return { sent, failed };
   }
 
@@ -548,7 +630,16 @@ export class MediaServerNewsletterService {
         try {
           await this.sendNow(n.id);
         } catch (err) {
-          this.logger.warn(`Scheduled newsletter ${n.id} failed: ${(err as Error).message}`);
+          const reason = (err as Error).message;
+          this.logger.warn(`Scheduled newsletter ${n.id} failed: ${reason}`);
+          // Previously the whole record was this log line: invisible from inside
+          // the product, for a send nobody asked for and nobody was watching.
+          await this.events.record({
+            newsletterId: n.id, level: 'error', eventType: 'send_failed',
+            messageKey: 'newsletter.event.scheduledFailed',
+            sanitizedMessage: reason,
+            metadata: { error: reason, trigger: 'scheduled', name: n.name },
+          });
         }
       }
     } finally {

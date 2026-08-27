@@ -385,5 +385,44 @@
     "loading": "Cargando reproducciones…",
     "loadError": "No se pudieron cargar estas reproducciones.",
     "empty": "No hay reproducciones detrás de esta sección."
+  },
+  "newsletterActivity": {
+    "title": "Actividad del boletín",
+    "description": "Lo que ocurrió durante la generación y la distribución. Abre una entrada para ver el envío completo.",
+    "loading": "Cargando actividad…",
+    "error": "No se pudo cargar la actividad del boletín",
+    "emptyTitle": "Todavía no hay nada registrado",
+    "emptyDescription": "Los eventos de generación y entrega aparecerán aquí después del próximo envío.",
+    "message": {
+      "generated": "Boletín generado con {{items}} elemento(s)",
+      "sendStarted": "Enviando a {{recipients}} destinatario(s)",
+      "recipientSent": "Entregado a {{recipient}}",
+      "recipientFailed": "No se pudo entregar a {{recipient}}",
+      "sendCompleted": "{{sent}} entregados, {{failed}} fallidos",
+      "scheduledFailed": "Falló el envío programado"
+    },
+    "event": {
+      "generated": "Generado",
+      "send_started": "Envío iniciado",
+      "recipient_sent": "Entregado",
+      "recipient_failed": "Entrega fallida",
+      "send_completed": "Envío terminado",
+      "send_failed": "Envío fallido",
+      "schedule_skipped": "Envío programado omitido",
+      "test_sent": "Mensaje de prueba enviado"
+    },
+    "field": {
+      "subject": "Asunto",
+      "totalItems": "Elementos incluidos",
+      "recipients": "Destinatarios",
+      "attachments": "Adjuntos",
+      "trigger": "Origen",
+      "sent": "Entregados",
+      "failed": "Fallidos",
+      "durationMs": "Duración (ms)",
+      "recipient": "Destinatario",
+      "error": "Error",
+      "name": "Boletín"
+    }
   }
 }

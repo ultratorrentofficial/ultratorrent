@@ -1661,6 +1661,7 @@ model MediaServerNewsletter {
   deliveries MediaServerNewsletterDelivery[]
 
   @@map("media_server_newsletters")
+  events     MediaServerNewsletterEvent[]
 }
 
 /// One newsletter email delivery attempt.
@@ -1678,6 +1679,47 @@ model MediaServerNewsletterDelivery {
 
   @@index([newsletterId])
   @@map("media_server_newsletter_deliveries")
+}
+
+/// One thing that happened during a newsletter's generation or distribution.
+///
+/// Separate from the audit log, which answers "who did what" for accountability
+/// and is written per user action. This answers "what happened to this
+/// newsletter" — including everything with no user behind it at all: a
+/// scheduled dispatch, a per-recipient SMTP refusal, a generation that found
+/// nothing to send. Those are the events an operator is looking for when a
+/// newsletter did not arrive, and none of them are user actions.
+///
+/// Shaped after PlatformJobEvent deliberately: a run groups its events, a
+/// sequence orders them within the run, and the message is stored as an i18n
+/// key plus parameters so the record is not frozen into one language.
+model MediaServerNewsletterEvent {
+  id           String  @id @default(uuid())
+  /// Null when the event is not about one newsletter (a dispatch sweep).
+  newsletterId String?
+  /// Groups every event of one generation-and-send together.
+  runId        String?
+  /// Monotonic within a run, so events order correctly when timestamps collide.
+  sequence     Int     @default(0)
+
+  level     String // info | success | warning | error
+  eventType String // generated | send_started | recipient_sent | recipient_failed | send_completed | send_failed | schedule_skipped | test_sent
+
+  messageKey       String?
+  messageParams    Json?
+  /// A human-readable fallback, already stripped of anything secret.
+  sanitizedMessage String?
+  /// Everything worth seeing when the entry is expanded.
+  metadata         Json?
+
+  createdAt DateTime @default(now())
+
+  newsletter MediaServerNewsletter? @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
+
+  @@index([newsletterId, createdAt])
+  @@index([runId])
+  @@index([eventType])
+  @@map("media_server_newsletter_events")
 }
 
 model MediaNfoFile {

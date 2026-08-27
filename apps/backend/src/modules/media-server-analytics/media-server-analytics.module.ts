@@ -8,6 +8,7 @@ import { MediaServerSyncService } from './media-server-sync.service';
 import { MediaServerReportService } from './media-server-report.service';
 import { AnalyticsImportService } from './analytics-import.service';
 import { MediaServerEmailService } from './media-server-email.service';
+import { NewsletterEventsService } from './newsletter-events.service';
 import { MediaServerNewsletterService } from './media-server-newsletter.service';
 import { NewsletterImageService } from './newsletter-image.service';
 import { MediaServerAnalyticsController } from './media-server-analytics.controller';
@@ -28,6 +29,7 @@ import { NewsletterImageController } from './newsletter-image.controller';
     MediaServerReportService,
     AnalyticsImportService,
     MediaServerEmailService,
+    NewsletterEventsService,
     MediaServerNewsletterService,
     NewsletterImageService,
     SecretCipher,

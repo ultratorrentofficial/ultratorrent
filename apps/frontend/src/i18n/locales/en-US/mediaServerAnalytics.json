@@ -385,5 +385,44 @@
     "loading": "Loading plays…",
     "loadError": "Could not load these plays.",
     "empty": "No plays behind this slice."
+  },
+  "newsletterActivity": {
+    "title": "Newsletter activity",
+    "description": "What happened during generation and distribution. Open an entry to see the run in full.",
+    "loading": "Loading activity…",
+    "error": "Could not load newsletter activity",
+    "emptyTitle": "Nothing recorded yet",
+    "emptyDescription": "Generation and delivery events appear here after the next send.",
+    "message": {
+      "generated": "Newsletter generated with {{items}} item(s)",
+      "sendStarted": "Sending to {{recipients}} recipient(s)",
+      "recipientSent": "Delivered to {{recipient}}",
+      "recipientFailed": "Could not deliver to {{recipient}}",
+      "sendCompleted": "{{sent}} delivered, {{failed}} failed",
+      "scheduledFailed": "Scheduled send failed"
+    },
+    "event": {
+      "generated": "Generated",
+      "send_started": "Send started",
+      "recipient_sent": "Delivered",
+      "recipient_failed": "Delivery failed",
+      "send_completed": "Send finished",
+      "send_failed": "Send failed",
+      "schedule_skipped": "Scheduled send skipped",
+      "test_sent": "Test message sent"
+    },
+    "field": {
+      "subject": "Subject",
+      "totalItems": "Items included",
+      "recipients": "Recipients",
+      "attachments": "Attachments",
+      "trigger": "Triggered by",
+      "sent": "Delivered",
+      "failed": "Failed",
+      "durationMs": "Duration (ms)",
+      "recipient": "Recipient",
+      "error": "Error",
+      "name": "Newsletter"
+    }
   }
 }
