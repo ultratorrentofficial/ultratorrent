@@ -404,7 +404,9 @@
       "sendCompleted": "{{sent}} entregados, {{failed}} fallidos",
       "scheduledFailed": "Falló el envío programado",
       "testSent": "Prueba enviada a {{recipient}}",
-      "testFailed": "Falló la prueba a {{recipient}}"
+      "testFailed": "Falló la prueba a {{recipient}}",
+      "smtpTestSent": "Prueba SMTP entregada a {{recipient}}",
+      "smtpTestFailed": "Falló la prueba SMTP a {{recipient}}"
     },
     "event": {
       "generated": "Generado",

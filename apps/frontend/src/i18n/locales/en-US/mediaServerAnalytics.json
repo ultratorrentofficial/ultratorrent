@@ -404,7 +404,9 @@
       "sendCompleted": "{{sent}} delivered, {{failed}} failed",
       "scheduledFailed": "Scheduled send failed",
       "testSent": "Test sent to {{recipient}}",
-      "testFailed": "Test to {{recipient}} failed"
+      "testFailed": "Test to {{recipient}} failed",
+      "smtpTestSent": "SMTP test delivered to {{recipient}}",
+      "smtpTestFailed": "SMTP test to {{recipient}} failed"
     },
     "event": {
       "generated": "Generated",
