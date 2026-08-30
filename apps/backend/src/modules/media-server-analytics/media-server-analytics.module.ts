@@ -9,6 +9,8 @@ import { MediaServerReportService } from './media-server-report.service';
 import { AnalyticsImportService } from './analytics-import.service';
 import { MediaServerEmailService } from './media-server-email.service';
 import { NewsletterEventsService } from './newsletter-events.service';
+import { NewsletterUnsubscribeService } from './newsletter-unsubscribe.service';
+import { NewsletterUnsubscribeController } from './newsletter-unsubscribe.controller';
 import { MediaServerNewsletterService } from './media-server-newsletter.service';
 import { NewsletterImageService } from './newsletter-image.service';
 import { MediaServerAnalyticsController } from './media-server-analytics.controller';
@@ -30,11 +32,13 @@ import { NewsletterImageController } from './newsletter-image.controller';
     AnalyticsImportService,
     MediaServerEmailService,
     NewsletterEventsService,
+    NewsletterUnsubscribeService,
     MediaServerNewsletterService,
     NewsletterImageService,
     SecretCipher,
   ],
-  controllers: [MediaServerAnalyticsController, NewsletterImageController],
+  controllers: [
+    NewsletterUnsubscribeController,MediaServerAnalyticsController, NewsletterImageController],
   // Exported for the operations module's Live Activity projection. It reuses
   // `liveActivity()` precisely because that method is already the redaction
   // boundary — it withholds each viewer's IP and the provider-internal art

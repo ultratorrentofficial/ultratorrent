@@ -126,6 +126,7 @@ export interface NewsletterStrings {
   unrated: string;
   docs: string;
   docsNote: string;
+  unsubscribe: string;
   sourceCode: string;
   sourceCodeNote: string;
   tagline: string;
@@ -181,6 +182,14 @@ export interface RenderOptions {
    * The space is better spent on where the project actually lives.
    */
   docsUrl?: string;
+  /**
+   * Per-recipient, and therefore a PLACEHOLDER at render time.
+   *
+   * One email is rendered and sent to everybody, so the token that identifies a
+   * single address cannot be baked in here. The send loop substitutes it per
+   * recipient — see UNSUB_PLACEHOLDER.
+   */
+  unsubscribeUrl?: string;
   style?: RenderStyle;
 }
 
@@ -579,7 +588,11 @@ function footer(opts: RenderOptions): string {
       ${cell('center', `<div style="color:${C.text};font-weight:700">${escapeHtml(brand)}</div><div>${escapeHtml(opts.strings.tagline)}</div>${opts.instanceUrl ? `<div><a href="${escapeHtml(opts.instanceUrl)}" style="color:${opts.style?.accent ?? C.amber};text-decoration:none">${escapeHtml(opts.instanceUrl)}</a></div>` : ''}`)}
       ${cell('right', `${link(opts.sourceUrl, opts.strings.sourceCode)}<div style="margin-top:2px">${escapeHtml(opts.strings.sourceCodeNote)}</div>`)}
     </tr></table>
-    <div style="text-align:center;margin-top:14px;color:${C.faint};font:400 10px system-ui">${poweredBy(opts, brand)}</div>
+    <div style="text-align:center;margin-top:14px;color:${C.faint};font:400 10px system-ui">${poweredBy(opts, brand)}</div>${
+      opts.unsubscribeUrl
+        ? `<div style="text-align:center;margin-top:6px;font:400 10px system-ui"><a href="${escapeHtml(opts.unsubscribeUrl)}" style="color:${C.faint};text-decoration:underline">${escapeHtml(opts.strings.unsubscribe)}</a></div>`
+        : ''
+    }
   </td></tr>`;
 }
 
@@ -674,5 +687,6 @@ export function renderText(content: NewsletterContent, opts: RenderOptions): str
   const credit = `${s.poweredBy} ${opts.brand ?? 'UltraTorrent'} v${opts.version}`;
   lines.push('---', opts.sourceUrl ? `${credit} — ${opts.sourceUrl}` : credit);
   if (opts.docsUrl) lines.push(`${s.docs}: ${opts.docsUrl}`);
+  if (opts.unsubscribeUrl) lines.push(`${s.unsubscribe}: ${opts.unsubscribeUrl}`);
   return lines.join('\n');
 }

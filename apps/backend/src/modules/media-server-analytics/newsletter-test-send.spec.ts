@@ -26,7 +26,8 @@ function harness(failWith?: string) {
     { record, newRun: () => 'run', endRun: jest.fn(), prune: jest.fn(async () => undefined) } as any,
     { broadcast: jest.fn() } as any,
     {} as any, {} as any, {} as any,
-    { get: jest.fn(async () => undefined) } as any,
+    { effectiveMode: jest.fn(async () => ({ mode: 'proxy', publicBaseUrl: '' })) } as any,
+    { token: jest.fn(() => 'tok'), url: jest.fn(() => 'https://x/unsub') } as any,
   );
   (svc as any).build = jest.fn(async () => ({
     content: { sections: [], totalItems: 1, since: new Date(), until: new Date() },

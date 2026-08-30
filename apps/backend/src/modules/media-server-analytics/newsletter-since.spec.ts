@@ -12,6 +12,7 @@ function svc() {
   return new MediaServerNewsletterService(
     {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
     { get: jest.fn(async () => undefined) } as any,
+    {} as any,
   );
 }
 const since = (n: Record<string, unknown>) => (svc() as any).since(n) as Date;

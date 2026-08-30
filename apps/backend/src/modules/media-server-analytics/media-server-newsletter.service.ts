@@ -7,6 +7,7 @@ import type { MediaServerNewsletter } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NewsletterEventsService } from './newsletter-events.service';
+import { NewsletterUnsubscribeService, UNSUB_PLACEHOLDER } from './newsletter-unsubscribe.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerEmailService, type EmailAttachment } from './media-server-email.service';
@@ -82,6 +83,9 @@ export class MediaServerNewsletterService {
     private readonly images: NewsletterImageService,
     private readonly config: ConfigService,
     private readonly settings: SettingsService,
+    // Appended deliberately: a dependency inserted mid-list shifts every
+    // positional argument after it, and the tests construct this by position.
+    private readonly unsub: NewsletterUnsubscribeService,
   ) {}
 
   list() {
@@ -512,8 +516,16 @@ export class MediaServerNewsletterService {
 
     const { content, attachments, opts } = await this.build(n);
     const subject = this.subject(n, content);
-    const html = renderHtml(content, opts);
-    const text = renderText(content, opts);
+    // One render for everyone, with the per-recipient token left as a
+    // placeholder — see UNSUB_PLACEHOLDER. Rendering the whole newsletter once
+    // per address would multiply the work by the size of the list for the sake
+    // of one URL.
+    const { publicBaseUrl } = await this.images.effectiveMode();
+    const unsubscribeUrl = publicBaseUrl
+      ? this.unsub.url(publicBaseUrl, id, UNSUB_PLACEHOLDER)
+      : undefined;
+    const html = renderHtml(content, { ...opts, unsubscribeUrl });
+    const text = renderText(content, { ...opts, unsubscribeUrl });
     this.realtime.broadcast('media_server.newsletter.generated', { id, count: content.totalItems });
 
     await this.events.record({
@@ -539,7 +551,15 @@ export class MediaServerNewsletterService {
     let failed = 0;
     for (const to of recipients) {
       try {
-        await this.email.send({ to, subject, html, text, attachments });
+        // The only per-recipient part of the message.
+        const token = this.unsub.token(id, to);
+        await this.email.send({
+          to,
+          subject,
+          html: html.split(UNSUB_PLACEHOLDER).join(token),
+          text: text.split(UNSUB_PLACEHOLDER).join(token),
+          attachments,
+        });
         await this.prisma.mediaServerNewsletterDelivery.create({ data: { newsletterId: id, recipientEmail: to, status: 'sent', subject, sentAt: new Date() } });
         sent += 1;
         await this.events.record({

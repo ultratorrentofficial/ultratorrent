@@ -11,7 +11,8 @@ export type NewsletterEventType =
   | 'send_completed'
   | 'send_failed'
   | 'schedule_skipped'
-  | 'test_sent';
+  | 'test_sent'
+  | 'unsubscribed';
 
 export type NewsletterEventLevel = 'info' | 'success' | 'warning' | 'error';
 

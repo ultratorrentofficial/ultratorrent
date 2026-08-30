@@ -59,9 +59,10 @@ function harness(refuse: string[]) {
     events as any,
     { broadcast: jest.fn() } as any,
     {} as any,
-    {} as any,
+    { effectiveMode: jest.fn(async () => ({ mode: 'proxy', publicBaseUrl: '' })) } as any,
     {} as any,
     { get: jest.fn(async () => undefined) } as any,
+    { token: jest.fn(() => 'tok'), url: jest.fn(() => 'https://x/unsub') } as any,
   );
   // The generation is exercised elsewhere; this suite is about the outcome.
   (svc as any).build = jest.fn(async () => ({
