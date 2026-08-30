@@ -22,8 +22,10 @@ import { NewsletterImageController } from './newsletter-image.controller';
  * monitoring, analytics, and (later) live activity, watch history, newsletters,
  * and Tautulli analytics import.
  */
+import { SystemModule } from '../system/system.module';
+
 @Module({
-  imports: [MediaModule, SettingsModule],
+  imports: [SystemModule, MediaModule, SettingsModule],
   providers: [
     MediaServerAnalyticsService,
     MediaServerSessionService,

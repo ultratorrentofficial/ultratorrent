@@ -18,6 +18,7 @@ import { useEnsureDirectory } from '@/components/path/EnsureDirectory';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { EmailSettingsCard } from '@/pages/media-server-analytics/EmailSettingsCard';
 import { NewsletterImagesCard } from '@/pages/media-server-analytics/NewsletterImagesCard';
+import { PublicUrlCard } from '@/pages/settings/PublicUrlCard';
 import { BandwidthSettingsCard } from '@/pages/settings/BandwidthSettingsCard';
 import { ProwlarrSettingsCard } from '@/pages/settings/ProwlarrSettingsCard';
 
@@ -79,6 +80,9 @@ export function SettingsPage() {
 
       <SettingsDirectory />
 
+      {/* First: other cards build links from this address, so it is the setting
+          they depend on rather than one more entry in the list. */}
+      {hasPermission(PERMISSIONS.SETTINGS_VIEW) && <PublicUrlCard />}
       {hasPermission(PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS) && <EmailSettingsCard />}
       {hasPermission(PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS) && <NewsletterImagesCard />}
       {hasPermission(PERMISSIONS.SETTINGS_VIEW) && <BandwidthSettingsCard />}

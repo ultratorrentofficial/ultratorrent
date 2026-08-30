@@ -22,6 +22,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { Public } from '../../common/decorators/public.decorator';
 import { SettingsModule } from '../settings/settings.module';
 import { SystemUpdateService } from './system-update.service';
+import { PublicUrlService } from './public-url.service';
 import { resolveBuildInfo } from '../../config/build-info';
 
 @Injectable()
@@ -114,6 +115,7 @@ export class SystemController {
   constructor(
     private readonly system: SystemService,
     private readonly update: SystemUpdateService,
+    private readonly publicUrl: PublicUrlService,
   ) {}
 
   @Public()
@@ -168,14 +170,44 @@ export class SystemController {
   setUpdateCheck(@Body() dto: { enabled?: boolean }) {
     return this.update.setEnabled(Boolean(dto?.enabled));
   }
+
+  /** The address this instance is reachable at from outside the network. */
+  @Get('public-url')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.SETTINGS_VIEW)
+  getPublicUrl() {
+    return this.publicUrl.get();
+  }
+
+  @Patch('public-url')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.SETTINGS_MANAGE)
+  setPublicUrl(@Body() dto: { url?: string }) {
+    return this.publicUrl.set(dto?.url ?? '');
+  }
+
+  /**
+   * Live probe rather than a cached field: DNS, a port forward and a certificate
+   * all change outside this application, so a stored answer would be confidently
+   * wrong exactly when the operator opened the page to find out what broke.
+   */
+  @Post('public-url/check')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.SETTINGS_VIEW)
+  checkPublicUrl() {
+    return this.publicUrl.status();
+  }
 }
 
 @Module({
   imports: [SettingsModule],
-  providers: [StorageWatchService, SystemService, SystemUpdateService],
+  providers: [StorageWatchService, SystemService, SystemUpdateService, PublicUrlService],
   controllers: [SystemController],
   // Exported for the operations module: one implementation of "what does this
   // host look like", read by both the web app and the console.
-  exports: [SystemService],
+  exports: [SystemService, PublicUrlService],
 })
 export class SystemModule {}

@@ -3611,6 +3611,43 @@ export interface CleanupCreateProtection {
   protectedUntil?: string;
 }
 
+
+/** A certificate as it actually appears on the wire, not as it was configured. */
+export interface PublicUrlCertificate {
+  subject: string | null;
+  issuer: string | null;
+  validFrom: string | null;
+  validTo: string | null;
+  daysRemaining: number | null;
+  trusted: boolean;
+  selfSigned: boolean;
+  hostnameMatches: boolean;
+  trustError: string | null;
+}
+
+export type PublicUrlVerdict =
+  | 'unset'
+  | 'ok'
+  | 'expiring'
+  | 'untrusted'
+  | 'insecure'
+  | 'unreachable';
+
+export interface PublicUrlStatus {
+  url: string | null;
+  host: string | null;
+  port: number | null;
+  scheme: 'http' | 'https' | null;
+  dns: { resolved: boolean; addresses: string[]; error: string | null };
+  reachable: boolean;
+  httpStatus: number | null;
+  reachError: string | null;
+  certificate: PublicUrlCertificate | null;
+  acme: { port80Reachable: boolean; error: string | null };
+  verdict: PublicUrlVerdict;
+  checkedAt: string;
+}
+
 export const api = {
   auth: {
     async login(
@@ -4366,6 +4403,17 @@ export const api = {
         method: 'PATCH',
         body: { enabled },
       });
+    },
+    /** The address this instance is reachable at from outside the network. */
+    publicUrl(): Promise<{ url: string }> {
+      return request<{ url: string }>('/system/public-url');
+    },
+    setPublicUrl(url: string): Promise<{ url: string }> {
+      return request<{ url: string }>('/system/public-url', { method: 'PATCH', body: { url } });
+    },
+    /** Live probe — DNS, reachability, the certificate on the wire, port 80. */
+    checkPublicUrl(): Promise<PublicUrlStatus> {
+      return request<PublicUrlStatus>('/system/public-url/check', { method: 'POST' });
     },
   },
 

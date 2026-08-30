@@ -63,6 +63,7 @@ function harness(refuse: string[]) {
     {} as any,
     { get: jest.fn(async () => undefined) } as any,
     { token: jest.fn(() => 'tok'), url: jest.fn(() => 'https://x/unsub') } as any,
+    { baseUrl: async () => null } as any, // publicUrl
   );
   // The generation is exercised elsewhere; this suite is about the outcome.
   (svc as any).build = jest.fn(async () => ({

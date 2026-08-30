@@ -64,5 +64,50 @@
     },
     "aggregate_one": "Este límite está en vigor en {{count}} motor, así que también es el total de tu instalación.",
     "aggregate_other": "Este límite está en vigor en {{count}} motores, y cada uno recibe la cantidad completa — así que lo máximo que UltraTorrent puede usar en total es {{down}} de bajada y {{up}} de subida. Cada motor fija su propio límite y no ve a los demás, así que no hay un total compartido que imponer."
+  },
+  "publicUrl": {
+    "title": "URL pública",
+    "description": "La dirección por la que se llega a esta instancia desde fuera de su red. Los enlaces que salen — boletines, páginas de baja, informes compartidos — se construyen a partir de ella.",
+    "field": "URL pública",
+    "hint": "Solo esquema y host, con puerto si no es el predeterminado. Sin ruta, sin consulta, sin credenciales.",
+    "save": "Guardar",
+    "saved": "URL pública guardada",
+    "saveFailed": "No se pudo guardar la URL pública",
+    "checkFailed": "No se pudo verificar la URL pública",
+    "checksTitle": "Lo que es cierto ahora mismo",
+    "certNote": "Los certificados se informan aquí, no se emiten. Esta aplicación corre en un contenedor que no ocupa los puertos 80 ni 443, así que obtener y renovar un certificado le corresponde a lo que termine TLS delante de ella.",
+    "verdict": {
+      "ok": "Accesible y segura",
+      "expiring": "Certificado por vencer",
+      "untrusted": "Certificado no confiable",
+      "insecure": "Sin cifrado",
+      "unreachable": "Inaccesible",
+      "unset": "Sin configurar"
+    },
+    "check": {
+      "run": "Verificar ahora",
+      "dns": "El nombre de host resuelve",
+      "reachable": "Algo responde en esa dirección",
+      "https": "La dirección usa HTTPS",
+      "httpsPlaintext": "los enlaces enviados irán sin cifrar",
+      "trusted": "El certificado es confiable",
+      "issuedBy": "emitido por {{issuer}}",
+      "selfSigned": "autofirmado — los navegadores advertirán",
+      "noCert": "no se presentó ningún certificado",
+      "expiry": "Al certificado le queda vigencia",
+      "daysRemaining": "quedan {{days}} días, hasta {{date}}",
+      "acmePort": "El puerto 80 está abierto para renovar el certificado",
+      "acmeOpen": "abierto",
+      "acmeClosed": "cerrado — Let's Encrypt valida en el puerto 80 y en ningún otro"
+    },
+    "guide": {
+      "unreachable": "Nada respondió. Verifique que el nombre de host apunte a esta red y que el puerto esté redirigido a este equipo.",
+      "httpCanIssue": "El puerto 80 es accesible, así que se puede emitir un certificado de Let's Encrypt para este nombre. Configúrelo en lo que termine TLS delante de esta instancia y luego cambie esta URL a https.",
+      "httpNoPort80": "El tráfico a esta dirección no está cifrado, y el puerto 80 está cerrado, así que no se puede emitir un certificado por HTTP-01. Redirija el puerto 80 a este equipo o use un desafío DNS-01.",
+      "selfSignedCanIssue": "Este certificado es autofirmado, así que todo visitante ve una advertencia. El puerto 80 es accesible, así que un certificado real de Let's Encrypt puede reemplazarlo.",
+      "untrusted": "Los navegadores rechazarán este certificado. Reemplácelo por uno de una autoridad certificadora pública.",
+      "expiring": "El certificado vence en {{days}} días. Si la renovación es automática, confirme que sigue funcionando — quitar la redirección del puerto 80 tras la emisión rompe la renovación en silencio.",
+      "ok": "Esta dirección es accesible y su certificado es confiable."
+    }
   }
 }

@@ -64,5 +64,50 @@
     },
     "aggregate_one": "This ceiling is in force on {{count}} engine, so it is also your installation total.",
     "aggregate_other": "This ceiling is in force on {{count}} engines, and each gets the full amount — so the most UltraTorrent can use altogether is {{down}} down and {{up}} up. Every shipped engine sets its own limit and cannot see the others, so there is no shared total to enforce."
+  },
+  "publicUrl": {
+    "title": "Public URL",
+    "description": "The address this instance is reachable at from outside your network. Links that leave the building — newsletters, unsubscribe pages, shared reports — are built from it.",
+    "field": "Public URL",
+    "hint": "Scheme and host only, with a port if it is not the default. No path, no query, no credentials.",
+    "save": "Save",
+    "saved": "Public URL saved",
+    "saveFailed": "Could not save the public URL",
+    "checkFailed": "Could not check the public URL",
+    "checksTitle": "What is true right now",
+    "certNote": "Certificates are reported here, not issued. This application runs in a container that does not hold ports 80 or 443, so obtaining and renewing a certificate belongs to whatever terminates TLS in front of it.",
+    "verdict": {
+      "ok": "Reachable and secure",
+      "expiring": "Certificate expiring",
+      "untrusted": "Certificate not trusted",
+      "insecure": "Not encrypted",
+      "unreachable": "Unreachable",
+      "unset": "Not set"
+    },
+    "check": {
+      "run": "Check now",
+      "dns": "The hostname resolves",
+      "reachable": "Something answers at that address",
+      "https": "The address uses HTTPS",
+      "httpsPlaintext": "links sent out will be plaintext",
+      "trusted": "The certificate is trusted",
+      "issuedBy": "issued by {{issuer}}",
+      "selfSigned": "self-signed — browsers will warn",
+      "noCert": "no certificate was presented",
+      "expiry": "The certificate has life left",
+      "daysRemaining": "{{days}} days remaining, until {{date}}",
+      "acmePort": "Port 80 is open for certificate renewal",
+      "acmeOpen": "open",
+      "acmeClosed": "closed — Let's Encrypt validates on port 80 and nowhere else"
+    },
+    "guide": {
+      "unreachable": "Nothing answered. Check that the hostname points at this network and that the port is forwarded to this host.",
+      "httpCanIssue": "Port 80 is reachable, so a Let's Encrypt certificate can be issued for this hostname. Set it up on whatever terminates TLS in front of this instance, then change this URL to https.",
+      "httpNoPort80": "Traffic to this address is unencrypted, and port 80 is closed so a certificate cannot be issued over HTTP-01. Forward port 80 to this host, or use a DNS-01 challenge instead.",
+      "selfSignedCanIssue": "This is a self-signed certificate, so every visitor sees a warning. Port 80 is reachable, so a real Let's Encrypt certificate can replace it.",
+      "untrusted": "Browsers will reject this certificate. Replace it with one from a public certificate authority.",
+      "expiring": "The certificate expires in {{days}} days. If renewal is automatic, confirm it still works — a port 80 forward removed after issuance breaks renewal silently.",
+      "ok": "This address is reachable and its certificate is trusted."
+    }
   }
 }

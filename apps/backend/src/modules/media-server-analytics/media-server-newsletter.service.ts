@@ -8,6 +8,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NewsletterEventsService } from './newsletter-events.service';
 import { NewsletterUnsubscribeService, UNSUB_PLACEHOLDER } from './newsletter-unsubscribe.service';
+import { PublicUrlService } from '../system/public-url.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerEmailService, type EmailAttachment } from './media-server-email.service';
@@ -86,6 +87,7 @@ export class MediaServerNewsletterService {
     // Appended deliberately: a dependency inserted mid-list shifts every
     // positional argument after it, and the tests construct this by position.
     private readonly unsub: NewsletterUnsubscribeService,
+    private readonly publicUrl: PublicUrlService,
   ) {}
 
   list() {
@@ -519,11 +521,16 @@ export class MediaServerNewsletterService {
     // One render for everyone, with the per-recipient token left as a
     // placeholder — see UNSUB_PLACEHOLDER. Rendering the whole newsletter once
     // per address would multiply the work by the size of the list for the sake
-    // of one URL.
-    const { publicBaseUrl } = await this.images.effectiveMode();
-    const unsubscribeUrl = publicBaseUrl
-      ? this.unsub.url(publicBaseUrl, id, UNSUB_PLACEHOLDER)
-      : undefined;
+    // of one URL      // Settings -> Public URL is the instance's one true external address, so it
+      // wins. The newsletter-image base stays as a fallback only because it
+      // predates the setting and existing installations still have it filled in.
+      // With neither, the link is omitted rather than guessed: a broken
+      // unsubscribe in a stranger's inbox is worse than none, because it looks
+      // like it works.
+      const base =
+        (await this.publicUrl.baseUrl()) ?? (await this.images.effectiveMode()).publicBaseUrl;
+      const unsubscribeUrl = base ? this.unsub.url(base, id, UNSUB_PLACEHOLDER) : undefined;
+;
     const html = renderHtml(content, { ...opts, unsubscribeUrl });
     const text = renderText(content, { ...opts, unsubscribeUrl });
     this.realtime.broadcast('media_server.newsletter.generated', { id, count: content.totalItems });
