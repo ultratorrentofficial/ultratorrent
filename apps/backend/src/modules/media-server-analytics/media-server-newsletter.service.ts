@@ -42,6 +42,16 @@ interface NewsletterInput {
 
 /** Where the "powered by" credit in the footer points. */
 const SOURCE_URL = 'https://github.com/ultratorrentofficial/ultratorrent';
+/**
+ * The footer's other half.
+ *
+ * The two slots beside the brand used to say "Unsubscribe" and "Preferences"
+ * with no URL behind either, so they were plain text dressed as links. This
+ * newsletter has no mailing list to leave — its recipients are the media
+ * server's own users, and who gets it is decided in UltraTorrent — so the
+ * space now points at the project instead.
+ */
+const DOCS_URL = 'https://docs.ultratorrent.co';
 const MAX_ITEMS = 60; // items rendered in the email
 const MAX_POSTERS = 30; // posters per email (keeps a CID-attached email a sane size)
 
@@ -205,6 +215,7 @@ export class MediaServerNewsletterService {
       version: this.config.get<string>('node.productVersion') ?? '0.0.0',
       brandTitle: n?.brandTitle ?? null,
       sourceUrl: SOURCE_URL,
+      docsUrl: DOCS_URL,
       serverName: await this.serverName(),
       logoCid: BRAND_LOGO_CID,
       logoWidth: BRAND_LOGO_WIDTH,

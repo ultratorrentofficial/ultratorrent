@@ -70,7 +70,19 @@
       "method": "Method",
       "watched": "Watched",
       "when": "When",
-      "source": "Source"
+      "source": "Source",
+      "completion": "Completion"
+    },
+    "summary": {
+      "plays": "Plays",
+      "viewers": "Viewers",
+      "hours": "Hours watched",
+      "transcoded": "Transcoded"
+    },
+    "completion": {
+      "finished": "Watched to the end",
+      "partial": "Stopped partway",
+      "abandoned": "Barely started"
     }
   },
   "reports": {

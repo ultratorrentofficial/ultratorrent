@@ -124,10 +124,10 @@ export interface NewsletterStrings {
   seasonsRange: string; // "Seasons {{a}}–{{b}}"
   empty: string;
   unrated: string;
-  unsubscribe: string;
-  unsubscribeNote: string;
-  preferences: string;
-  preferencesNote: string;
+  docs: string;
+  docsNote: string;
+  sourceCode: string;
+  sourceCodeNote: string;
   tagline: string;
   poweredBy: string; // "Powered by" — precedes the product name + version
   and: string; // joins the last of a list: "E02, E04 and E09"
@@ -169,8 +169,18 @@ export interface RenderOptions {
   dateRange?: string; // "2026-06-26 - 2026-07-03"
   brand?: string; // footer product name, default "UltraTorrent"
   instanceUrl?: string;
-  unsubscribeUrl?: string;
-  preferencesUrl?: string;
+  /**
+   * Where the footer points people.
+   *
+   * The footer used to offer "Unsubscribe" and "Preferences", and nothing ever
+   * supplied a URL for either — so both rendered as plain text that looked like
+   * a link and did nothing when clicked. They were mailing-list furniture on a
+   * newsletter that has no mailing list: recipients are the media server's own
+   * users, and who receives it is decided in UltraTorrent, not by them.
+   *
+   * The space is better spent on where the project actually lives.
+   */
+  docsUrl?: string;
   style?: RenderStyle;
 }
 
@@ -565,9 +575,9 @@ function footer(opts: RenderOptions): string {
   return `<tr><td style="padding:8px 24px 28px">
     <div style="height:1px;background:${C.divider};margin-bottom:16px"></div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      ${cell('left', `${link(opts.unsubscribeUrl, opts.strings.unsubscribe)}<div style="margin-top:2px">${escapeHtml(opts.strings.unsubscribeNote)}</div>`)}
+      ${cell('left', `${link(opts.docsUrl, opts.strings.docs)}<div style="margin-top:2px">${escapeHtml(opts.strings.docsNote)}</div>`)}
       ${cell('center', `<div style="color:${C.text};font-weight:700">${escapeHtml(brand)}</div><div>${escapeHtml(opts.strings.tagline)}</div>${opts.instanceUrl ? `<div><a href="${escapeHtml(opts.instanceUrl)}" style="color:${opts.style?.accent ?? C.amber};text-decoration:none">${escapeHtml(opts.instanceUrl)}</a></div>` : ''}`)}
-      ${cell('right', `${link(opts.preferencesUrl, opts.strings.preferences)}<div style="margin-top:2px">${escapeHtml(opts.strings.preferencesNote)}</div>`)}
+      ${cell('right', `${link(opts.sourceUrl, opts.strings.sourceCode)}<div style="margin-top:2px">${escapeHtml(opts.strings.sourceCodeNote)}</div>`)}
     </tr></table>
     <div style="text-align:center;margin-top:14px;color:${C.faint};font:400 10px system-ui">${poweredBy(opts, brand)}</div>
   </td></tr>`;
@@ -663,6 +673,6 @@ export function renderText(content: NewsletterContent, opts: RenderOptions): str
   // since there is nothing to hang a link on.
   const credit = `${s.poweredBy} ${opts.brand ?? 'UltraTorrent'} v${opts.version}`;
   lines.push('---', opts.sourceUrl ? `${credit} — ${opts.sourceUrl}` : credit);
-  if (opts.unsubscribeUrl) lines.push(`${s.unsubscribe}: ${opts.unsubscribeUrl}`);
+  if (opts.docsUrl) lines.push(`${s.docs}: ${opts.docsUrl}`);
   return lines.join('\n');
 }

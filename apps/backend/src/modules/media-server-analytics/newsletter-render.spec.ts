@@ -24,8 +24,7 @@ function opts(over: Partial<RenderOptions> = {}): RenderOptions {
     serverName: 'EHPLEX',
     dateRange: '2026-06-26 - 2026-07-03',
     brand: 'UltraTorrent',
-    unsubscribeUrl: 'https://x/unsub?t=abc',
-    preferencesUrl: 'https://x/prefs',
+    docsUrl: 'https://docs.example',
     instanceUrl: 'https://ut.example',
     ...over,
   };
@@ -113,12 +112,20 @@ describe('renderHtml (dark digest template)', () => {
     expect(html).toContain('class="col"'); // two-column grid cells
   });
 
-  it('renders a three-area footer with unsubscribe + preferences + brand', () => {
+  /*
+   * The footer used to offer "Unsubscribe" and "Preferences" with no URL behind
+   * either — plain text dressed as a link, on a newsletter with no mailing list
+   * to leave. Both slots now carry somewhere real to go.
+   */
+  it('renders a three-area footer pointing at the docs, the repo and the instance', () => {
     const html = renderHtml(buildContent(episodes, since, until), opts());
-    expect(html).toContain('https://x/unsub?t=abc');
-    expect(html).toContain('Unsubscribe');
-    expect(html).toContain('Preferences');
+    expect(html).toContain('https://docs.example');
+    expect(html).toContain('Documentation');
+    expect(html).toContain('Source code');
     expect(html).toContain('https://ut.example');
+    // Nothing left that promises an action it cannot perform.
+    expect(html).not.toContain('Unsubscribe');
+    expect(html).not.toContain('Preferences');
     // The product credit — "Powered by <brand> v<version>", linked to the repo
     // when a source URL is supplied (see newsletter-branding.spec.ts).
     expect(html).toContain('Powered by');

@@ -70,7 +70,19 @@
       "method": "Método",
       "watched": "Visto",
       "when": "Cuándo",
-      "source": "Origen"
+      "source": "Origen",
+      "completion": "Progreso"
+    },
+    "summary": {
+      "plays": "Reproducciones",
+      "viewers": "Espectadores",
+      "hours": "Horas vistas",
+      "transcoded": "Transcodificado"
+    },
+    "completion": {
+      "finished": "Visto hasta el final",
+      "partial": "Detenido a medias",
+      "abandoned": "Apenas comenzado"
     }
   },
   "reports": {
