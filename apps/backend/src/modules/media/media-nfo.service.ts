@@ -235,11 +235,82 @@ export class MediaNfoService {
     return record;
   }
 
+  /**
+   * A show's own NFO, built from MediaShow rather than a MediaItem.
+   *
+   * A series has no file of its own, so it has no media item either — every row
+   * is an episode. Generation used to run only over items, which meant a show
+   * folder never received a `tvshow.nfo` unless some other tool had written one.
+   * A scraper reading local data then has nothing to identify the SERIES by, and
+   * falls back to the folder name: the year is lost and the match is a guess.
+   *
+   * This is also the one place a series id belongs. Episodes deliberately carry
+   * no `uniqueid` (see buildNfoXml) precisely so that the id lives here, once,
+   * on the thing it actually identifies.
+   */
+  private async generateForShow(showId: string, ctx: AuditContext) {
+    const show = await this.prisma.mediaShow.findUnique({
+      where: { id: showId },
+      include: { metadata: true },
+    });
+    if (!show) throw new NotFoundException('Show not found');
+
+    const md = show.metadata;
+    const arr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
+    const castArr = (v: unknown): Array<{ name: string; role?: string }> =>
+      Array.isArray(v) ? (v as Array<{ name: string; role?: string }>) : [];
+
+    const externalIds: Record<string, string> = {};
+    if (show.imdbId) externalIds.imdb = show.imdbId;
+    if (show.tmdbId) externalIds.tmdb = show.tmdbId;
+
+    const data: NfoData = {
+      title: md?.title ?? show.title,
+      originalTitle: md?.originalTitle ?? null,
+      sortTitle: md?.sortTitle ?? null,
+      overview: md?.overview ?? null,
+      year: md?.year ?? show.year ?? null,
+      rating: md?.rating ?? null,
+      certification: md?.certification ?? null,
+      genres: arr(md?.genres),
+      studios: arr(md?.studios),
+      cast: castArr(md?.cast),
+      // <premiered> on a series is the date it first aired.
+      releaseDate: md?.firstAiredAt ? md.firstAiredAt.toISOString().slice(0, 10) : null,
+      externalIds,
+    };
+
+    const xml = buildNfoXml('tvshow', data);
+    // The stored path IS the show directory, so join rather than going through
+    // nfoFilenameFor(), which expects a file and would take its parent.
+    const safePath = this.filePath.assertWithinHardRoots(path.join(show.path, 'tvshow.nfo'));
+    await writeFile(safePath, xml, 'utf8');
+
+    // No MediaNfoFile row: that table's itemId is a required FK to MediaItem and
+    // a show has no item. The audit entry below is the durable record.
+    await this.audit.record({
+      userId: ctx.userId,
+      action: 'media.nfo.generate',
+      objectType: 'media_show',
+      objectId: showId,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      metadata: { type: 'tvshow', path: safePath },
+    });
+
+    return { type: 'tvshow' as const, path: safePath, showId };
+  }
+
   /** Generate NFO for a single item or every item in a library. */
   async generate(
-    args: { itemId?: string; libraryId?: string },
+    args: { itemId?: string; libraryId?: string; showId?: string },
     ctx: AuditContext = {},
   ) {
+    if (args.showId) {
+      const record = await this.generateForShow(args.showId, ctx);
+      return { generated: 1, files: [record] };
+    }
+
     if (args.itemId) {
       const item = await this.prisma.mediaItem.findUnique({
         where: { id: args.itemId },
@@ -279,9 +350,28 @@ export class MediaNfoService {
           // Skip items that cannot be written (e.g. path outside roots).
         }
       }
+
+      /*
+       * Shows as well as items. A library sweep that wrote only episode sidecars
+       * left every series without a `tvshow.nfo`, which is the file a scraper
+       * needs to identify the SERIES — without it the year is lost and the match
+       * is made on the folder name.
+       */
+      const shows = await this.prisma.mediaShow.findMany({
+        where: { libraryId: args.libraryId },
+        select: { id: true },
+      });
+      for (const sh of shows) {
+        try {
+          files.push(await this.generateForShow(sh.id, ctx));
+        } catch {
+          // Same tolerance as items: one unwritable show must not stop the sweep.
+        }
+      }
+
       return { generated: files.length, files };
     }
 
-    throw new BadRequestException('Provide either itemId or libraryId.');
+    throw new BadRequestException('Provide itemId, showId or libraryId.');
   }
 }

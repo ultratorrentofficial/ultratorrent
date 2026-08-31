@@ -162,6 +162,9 @@ describe('the media item lock', () => {
       const prisma = {
         mediaLibrary: { findUnique: jest.fn().mockResolvedValue({ id: 'lib1', nfoEnabled: true }) },
         mediaItem: { findMany: jest.fn().mockResolvedValue([]) },
+        // A library sweep now writes each show's tvshow.nfo as well as the
+        // episode sidecars, so the stub has to answer for shows too.
+        mediaShow: { findMany: jest.fn().mockResolvedValue([]) },
       };
       const svc = new MediaNfoService(prisma as any, {} as any, {} as any);
 

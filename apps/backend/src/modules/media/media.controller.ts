@@ -843,7 +843,7 @@ export class MediaController {
   @Post('nfo/generate')
   @RequirePermissions(P.MEDIA_MANAGER_GENERATE_NFO)
   generateNfo(
-    @Body() body: { itemId?: string; libraryId?: string },
+    @Body() body: { itemId?: string; libraryId?: string; showId?: string },
     @Req() req: Request,
   ) {
     return this.nfo.generate(body ?? {}, auditCtx(req));

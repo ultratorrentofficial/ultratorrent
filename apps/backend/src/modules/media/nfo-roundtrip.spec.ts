@@ -1,4 +1,4 @@
-import { buildNfoXml } from './media-nfo.service';
+import { buildNfoXml, nfoFilenameFor } from './media-nfo.service';
 import { parseNfoXml } from './media-metadata.service';
 
 /**
@@ -209,5 +209,44 @@ describe('episode NFOs and series-level ids', () => {
     expect(a).not.toEqual(b);
     expect(a).not.toContain('tt0078607');
     expect(b).not.toContain('tt0078607');
+  });
+});
+
+/**
+ * A series id belongs on the series, and nowhere else. These lock both halves of
+ * that rule together, because they only make sense as a pair: episodes carry no
+ * id, so the tvshow NFO is the single place identity is recorded.
+ */
+describe('tvshow NFO carries the series identity', () => {
+  it('writes the series ids that episodes deliberately omit', () => {
+    const xml = buildNfoXml('tvshow', {
+      title: 'The Dukes of Hazzard',
+      year: 1979,
+      overview: 'Two cousins and an orange car.',
+      externalIds: { imdb: 'tt0078607', tmdb: '397' },
+    });
+    expect(xml).toContain('<uniqueid type="imdb" default="true">tt0078607</uniqueid>');
+    expect(xml).toContain('<uniqueid type="tmdb" default="true">397</uniqueid>');
+    expect(xml).toContain('<year>1979</year>');
+    expect(xml).toMatch(/^<\?xml[\s\S]*<tvshow>/);
+  });
+
+  it('keeps the year, which is what a scraper loses when the file is absent', () => {
+    const xml = buildNfoXml('tvshow', { title: 'Batman', year: 1966 });
+    expect(xml).toContain('<title>Batman</title>');
+    expect(xml).toContain('<year>1966</year>');
+  });
+});
+
+describe('nfoFilenameFor', () => {
+  it('puts a tvshow NFO in the show directory', () => {
+    expect(nfoFilenameFor('tvshow', '/media/TV/Show (1979)/Season 1/ep.mkv')).toBe(
+      '/media/TV/Show (1979)/Season 1/tvshow.nfo',
+    );
+  });
+  it('puts an episode NFO beside its video file', () => {
+    expect(nfoFilenameFor('episode', '/media/TV/Show/Season 1/ep.mkv')).toBe(
+      '/media/TV/Show/Season 1/ep.nfo',
+    );
   });
 });
