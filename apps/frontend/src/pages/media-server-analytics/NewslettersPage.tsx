@@ -59,18 +59,23 @@ function RecipientPicker({
   onChange,
   options,
   onSetEmail,
+  onSetDisplayName,
   idPrefix,
 }: {
   value: string[];
   onChange: (next: string[]) => void;
   options: MediaServerUserMeta[];
   onSetEmail: (userId: string, email: string) => Promise<unknown>;
+  onSetDisplayName: (userId: string, displayName: string) => Promise<unknown>;
   idPrefix: string;
 }) {
   const { t } = useTranslation('mediaServerAnalytics');
   const [text, setText] = useState('');
   const [manual, setManual] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  // Which row is being renamed, and the draft. Null = nobody is editing.
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState('');
   const selected = new Set(value.map((e) => e.toLowerCase()));
 
   const add = (email: string) => {
@@ -115,7 +120,53 @@ function RecipientPicker({
               return (
                 <div key={u.id} className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-white/5">
                   <span className="min-w-0 flex-1 truncate">
-                    <span className="font-medium">{u.userName}</span>
+                    {renamingId === u.id ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Input
+                          className="h-7 w-48"
+                          autoFocus
+                          placeholder={t('newsletter.recipients.namePlaceholder')}
+                          value={nameDraft}
+                          onChange={(e) => setNameDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') setRenamingId(null);
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={savingId === u.id}
+                          onClick={async () => {
+                            setSavingId(u.id);
+                            try {
+                              await onSetDisplayName(u.id, nameDraft);
+                              setRenamingId(null);
+                            } finally {
+                              setSavingId(null);
+                            }
+                          }}
+                        >{t('newsletter.recipients.save')}</Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => setRenamingId(null)}>
+                          {t('newsletter.recipients.cancelRename')}
+                        </Button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="font-medium hover:underline"
+                        title={t('newsletter.recipients.renameHint')}
+                        onClick={() => { setRenamingId(u.id); setNameDraft(u.displayName ?? ''); }}
+                      >
+                        {u.displayName || u.userName}
+                      </button>
+                    )}
+                    {/* The server's own name, kept visible once it has been overridden —
+                        otherwise an operator cannot tell which account a friendly name
+                        belongs to. */}
+                    {u.displayName && renamingId !== u.id && (
+                      <span className="ml-2 text-xs text-muted-foreground/70">{u.userName}</span>
+                    )}
                     {u.email ? <span className="ml-2 text-xs text-muted-foreground">{u.email}</span> : <span className="ml-2 text-xs italic text-muted-foreground">{t('newsletter.recipients.noEmail')}</span>}
                   </span>
                   {has ? (
@@ -222,6 +273,22 @@ export function NewslettersPage() {
     onError: (e) => toast.error(t('newsletter.recipients.saveFailed'), e instanceof ApiError ? e.message : undefined),
   });
   const onSetEmail = (userId: string, email: string) => setEmail.mutateAsync({ userId, email });
+
+  /*
+   * A friendly name, saved in UltraTorrent rather than pushed to the media
+   * server. A shared Plex user's name is their own plex.tv profile: there is no
+   * owner-facing API to change it, and it would follow them onto every other
+   * server they use.
+   */
+  const setDisplayName = useMutation({
+    mutationFn: (v: { userId: string; displayName: string }) =>
+      api.mediaServerAnalytics.setRecipientDisplayName(v.userId, v.displayName),
+    onSuccess: () => void recipientOptions.refetch(),
+    onError: (e) =>
+      toast.error(t('newsletter.recipients.renameFailed'), e instanceof ApiError ? e.message : undefined),
+  });
+  const onSetDisplayName = (userId: string, displayName: string) =>
+    setDisplayName.mutateAsync({ userId, displayName });
   const recipientOpts = recipientOptions.data ?? [];
 
   /*
@@ -353,7 +420,7 @@ export function NewslettersPage() {
                     <div className="space-y-1"><Label htmlFor={`ed-day-${n.id}`}>{t('newsletter.add.sendDay')}</Label><Select id={`ed-day-${n.id}`} value={editForm.sendWeekday} onChange={(e) => setEditForm((f) => ({ ...f, sendWeekday: e.target.value }))} options={weekdayOpts} /></div>
                     <div className="space-y-1"><Label htmlFor={`ed-time-${n.id}`}>{t('newsletter.add.sendTime')}</Label><Input id={`ed-time-${n.id}`} type="time" value={editForm.sendTime} onChange={(e) => setEditForm((f) => ({ ...f, sendTime: e.target.value }))} /></div>
                     <div className="space-y-1"><Label htmlFor={`ed-tz-${n.id}`}>{t('newsletter.add.timezone')}</Label><Select id={`ed-tz-${n.id}`} value={editForm.timezone} onChange={(e) => setEditForm((f) => ({ ...f, timezone: e.target.value }))} options={zoneOpts} /></div>
-                    <div className="space-y-1 sm:col-span-3"><Label htmlFor={`ed-${n.id}-rec`}>{t('newsletter.add.recipients')}</Label><RecipientPicker idPrefix={`ed-${n.id}`} value={editForm.recipients} onChange={(next) => setEditForm((f) => ({ ...f, recipients: next }))} options={recipientOpts} onSetEmail={onSetEmail} /></div>
+                    <div className="space-y-1 sm:col-span-3"><Label htmlFor={`ed-${n.id}-rec`}>{t('newsletter.add.recipients')}</Label><RecipientPicker idPrefix={`ed-${n.id}`} value={editForm.recipients} onChange={(next) => setEditForm((f) => ({ ...f, recipients: next }))} options={recipientOpts} onSetEmail={onSetEmail} onSetDisplayName={onSetDisplayName} /></div>
                     <div className="flex gap-2 sm:col-span-3">
                       <Button
                         size="sm"
@@ -445,7 +512,7 @@ export function NewslettersPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="n-rec">{t('newsletter.add.recipients')}</Label>
-                <RecipientPicker idPrefix="n" value={form.recipients} onChange={(next) => setForm((f) => ({ ...f, recipients: next }))} options={recipientOpts} onSetEmail={onSetEmail} />
+                <RecipientPicker idPrefix="n" value={form.recipients} onChange={(next) => setForm((f) => ({ ...f, recipients: next }))} options={recipientOpts} onSetEmail={onSetEmail} onSetDisplayName={onSetDisplayName} />
               </div>
               <div className="space-y-1.5">
                 <Label>{t('newsletter.content.label')}</Label>

@@ -1540,7 +1540,16 @@ model MediaServerUser {
   id             String    @id @default(uuid())
   connectionId   String?
   providerUserId String?
+  /// The name the media server reports. Plex sends its `title`, which for an
+  /// account whose owner never set a friendly name is just the login handle.
   userName       String
+  /// A friendly name set HERE, which wins over `userName` everywhere a person is
+  /// shown. It is local on purpose: a shared Plex user's name is their own
+  /// plex.tv profile, which the server owner has no API to change and no business
+  /// changing — it would follow them onto every other server they use. Only
+  /// home/managed users can be renamed in Plex at all, and most installations
+  /// have none. Null = fall back to `userName`.
+  displayName    String?
   /// Email address fetched from the media server (Plex accounts carry one;
   /// Jellyfin/Emby user models have no email, so it stays null for them). Used to
   /// offer the user as a newsletter recipient. Null = not addressable by email.
@@ -1659,9 +1668,9 @@ model MediaServerNewsletter {
   updatedAt            DateTime  @updatedAt
 
   deliveries MediaServerNewsletterDelivery[]
+  events     MediaServerNewsletterEvent[]
 
   @@map("media_server_newsletters")
-  events     MediaServerNewsletterEvent[]
 }
 
 /// One newsletter email delivery attempt.

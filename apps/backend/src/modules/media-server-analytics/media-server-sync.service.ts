@@ -253,6 +253,26 @@ export class MediaServerSyncService {
    * no email (Jellyfin/Emby). Clearing it (empty string) lets a later provider sync
    * repopulate it. Returns the updated row.
    */
+  /**
+   * A friendly name set by an operator, replacing the handle the server reports.
+   *
+   * Deliberately local. A shared Plex user's name is their own plex.tv profile:
+   * there is no owner-facing API to change it, and doing so would rename them on
+   * every server they use, not just this one. Only home/managed users can be
+   * renamed in Plex, and an installation may well have none — writing to Plex
+   * would therefore fix nothing on most servers. Stored here, it works for every
+   * user and every provider.
+   *
+   * Blank clears the override and falls back to the synced name.
+   */
+  async setUserDisplayName(userId: string, displayName: string | null) {
+    const trimmed = (displayName ?? '').trim();
+    return this.prisma.mediaServerUser.update({
+      where: { id: userId },
+      data: { displayName: trimmed === '' ? null : trimmed },
+    });
+  }
+
   async setUserEmail(userId: string, email: string | null) {
     const trimmed = (email ?? '').trim();
     return this.prisma.mediaServerUser.update({

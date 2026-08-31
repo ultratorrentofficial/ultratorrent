@@ -315,6 +315,19 @@ export class MediaServerAnalyticsController {
   setRecipientEmail(@Param('userId') userId: string, @Body() body: { email?: string | null }) {
     return this.sync.setUserEmail(userId, body?.email ?? null);
   }
+
+  /**
+   * A friendly name for a synced user, stored here rather than pushed to the
+   * media server — see setUserDisplayName for why that is not merely a shortcut.
+   */
+  @Patch('newsletters/recipient-options/:userId/display-name')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
+  setRecipientDisplayName(
+    @Param('userId') userId: string,
+    @Body() body: { displayName?: string | null },
+  ) {
+    return this.sync.setUserDisplayName(userId, body?.displayName ?? null);
+  }
   @Post('newsletters')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
   createNewsletter(@Body() body: Record<string, unknown>, @CurrentUser() u: AuthenticatedUser) {

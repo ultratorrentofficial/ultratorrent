@@ -5499,6 +5499,10 @@ export const api = {
     setRecipientEmail(userId: string, email: string | null): Promise<MediaServerUserMeta> {
       return request<MediaServerUserMeta>(`/media-server-analytics/newsletters/recipient-options/${userId}`, { method: 'PATCH', body: { email } });
     },
+    /** A friendly name stored in UltraTorrent, never pushed to the media server. */
+    setRecipientDisplayName(userId: string, displayName: string | null): Promise<MediaServerUserMeta> {
+      return request<MediaServerUserMeta>(`/media-server-analytics/newsletters/recipient-options/${userId}/display-name`, { method: 'PATCH', body: { displayName } });
+    },
     createNewsletter(body: Partial<Newsletter>): Promise<Newsletter> {
       return request<Newsletter>('/media-server-analytics/newsletters', { method: 'POST', body });
     },
@@ -6150,7 +6154,10 @@ export interface MediaServerUserMeta {
   id: string;
   connectionId: string | null;
   providerUserId: string | null;
+  /** The name the media server reports — Plex sends its `title`, often a handle. */
   userName: string;
+  /** A friendly name set in UltraTorrent; wins over userName. Null = not set. */
+  displayName: string | null;
   /** Email from the media server, or one an admin entered by hand; null = none. */
   email: string | null;
   plays: number;

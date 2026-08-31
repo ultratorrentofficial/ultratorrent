@@ -237,7 +237,11 @@
       "noEmail": "no email on server",
       "enterEmail": "email address",
       "save": "Save",
-      "saveFailed": "Could not save email"
+      "saveFailed": "Could not save email",
+      "namePlaceholder": "Friendly name",
+      "cancelRename": "Cancel",
+      "renameHint": "Click to set a friendly name. Saved in UltraTorrent — the media server account is not changed.",
+      "renameFailed": "Could not save the friendly name"
     },
     "freq": {
       "daily": "Daily",

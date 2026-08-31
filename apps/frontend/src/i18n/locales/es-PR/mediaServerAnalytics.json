@@ -237,7 +237,11 @@
       "noEmail": "sin correo en el servidor",
       "enterEmail": "correo electrónico",
       "save": "Guardar",
-      "saveFailed": "No se pudo guardar el correo"
+      "saveFailed": "No se pudo guardar el correo",
+      "namePlaceholder": "Nombre amigable",
+      "cancelRename": "Cancelar",
+      "renameHint": "Haga clic para poner un nombre amigable. Se guarda en UltraTorrent — la cuenta del servidor de medios no se modifica.",
+      "renameFailed": "No se pudo guardar el nombre amigable"
     },
     "freq": {
       "daily": "Diario",
