@@ -45,6 +45,18 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.86.2] - 2026-08-31
+
+### Fixed
+- The SMTP settings test is recorded in the newsletter activity view, and a failed one reports the SMTP reason instead of a generic error
+- Watch History shows completion, playback cost and device; the newsletter footer links the docs and repo
+- Newsletter recipients can unsubscribe themselves through a signed link
+- Settings gains a public URL, with live DNS, reachability and certificate checks
+- Episode NFOs no longer carry the series id, which made scrapers merge every episode into one
+- UltraTorrent writes tvshow.nfo for series, which previously had no NFO of their own
+- Set a friendly name for media-server users, so account handles become readable names
+- Server Users page: set a friendly name and email for users from any connected media server
+
 ## [0.86.1] - 2026-08-27
 
 ### Fixed
