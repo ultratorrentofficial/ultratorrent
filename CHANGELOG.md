@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.87.0] - 2026-08-31
+
+### Added
+- Public URL settings, series NFO generation, and friendly names for media-server users — released as a minor for the new capability in v0.86.2
+
 ## [0.86.2] - 2026-08-31
 
 ### Fixed
