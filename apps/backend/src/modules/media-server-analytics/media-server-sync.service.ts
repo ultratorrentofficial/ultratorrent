@@ -273,6 +273,25 @@ export class MediaServerSyncService {
     });
   }
 
+  /**
+   * Admin edit of a synced media-server user. Both fields are optional and only
+   * what is supplied is written, so setting a name never disturbs an address and
+   * vice versa. Blank clears a field back to the synced value.
+   */
+  async updateUser(userId: string, input: { displayName?: string | null; email?: string | null }) {
+    const data: { displayName?: string | null; email?: string | null } = {};
+    const clean = (v: string | null | undefined) => {
+      const t = (v ?? '').trim();
+      return t === '' ? null : t;
+    };
+    if (input.displayName !== undefined) data.displayName = clean(input.displayName);
+    if (input.email !== undefined) data.email = clean(input.email);
+    if (Object.keys(data).length === 0) {
+      return this.prisma.mediaServerUser.findUniqueOrThrow({ where: { id: userId } });
+    }
+    return this.prisma.mediaServerUser.update({ where: { id: userId }, data });
+  }
+
   async setUserEmail(userId: string, email: string | null) {
     const trimmed = (email ?? '').trim();
     return this.prisma.mediaServerUser.update({

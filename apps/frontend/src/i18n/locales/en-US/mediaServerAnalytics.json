@@ -447,5 +447,28 @@
       "error": "Error",
       "name": "Newsletter"
     }
+  },
+  "users": {
+    "title": "Server Users",
+    "subtitle": "Everyone synced from your connected media servers. Set a friendly name so people are recognisable in newsletters and reports.",
+    "searchPlaceholder": "Search by name, account or email",
+    "count": "{{shown}} of {{total}} shown · {{named}} with a friendly name",
+    "loading": "Loading users…",
+    "error": "Could not load users",
+    "emptyTitle": "No users",
+    "emptyDescription": "Nothing has synced from a media server yet. Run a sync from Server Connections.",
+    "colName": "Name",
+    "colAccount": "Account on server",
+    "colServer": "Server",
+    "colEmail": "Email",
+    "colPlays": "Plays",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "saved": "User updated",
+    "saveFailed": "Could not update the user",
+    "noEmail": "no email",
+    "noServer": "no longer connected",
+    "localNote": "Friendly names are stored in UltraTorrent and are never written back to the media server. Plex reports a display name only when the account holder set one; Jellyfin and Emby have no friendly-name field at all, so a name set here is the only one those users will ever show."
   }
 }

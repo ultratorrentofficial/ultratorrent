@@ -221,6 +221,21 @@ export class MediaServerAnalyticsController {
   metaUsers() {
     return this.sync.listUsers();
   }
+
+  /**
+   * Admin edit of any synced media-server user: a friendly name, an address, or
+   * both. The friendly name is stored here and never pushed to the media server
+   * — a shared Plex user's name is their own plex.tv profile, which the server
+   * owner has no API to change and no business changing.
+   */
+  @Patch('meta/users/:userId')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS)
+  updateMetaUser(
+    @Param('userId') userId: string,
+    @Body() body: { displayName?: string | null; email?: string | null },
+  ) {
+    return this.sync.updateUser(userId, body ?? {});
+  }
   /** Recent provider sync runs. */
   @Get('meta/sync-runs')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
@@ -316,18 +331,6 @@ export class MediaServerAnalyticsController {
     return this.sync.setUserEmail(userId, body?.email ?? null);
   }
 
-  /**
-   * A friendly name for a synced user, stored here rather than pushed to the
-   * media server — see setUserDisplayName for why that is not merely a shortcut.
-   */
-  @Patch('newsletters/recipient-options/:userId/display-name')
-  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
-  setRecipientDisplayName(
-    @Param('userId') userId: string,
-    @Body() body: { displayName?: string | null },
-  ) {
-    return this.sync.setUserDisplayName(userId, body?.displayName ?? null);
-  }
   @Post('newsletters')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS)
   createNewsletter(@Body() body: Record<string, unknown>, @CurrentUser() u: AuthenticatedUser) {

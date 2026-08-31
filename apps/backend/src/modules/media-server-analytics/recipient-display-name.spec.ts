@@ -43,3 +43,53 @@ describe('a media-server user friendly name', () => {
     expect(Object.keys(arg.data)).toEqual(['displayName']);
   });
 });
+
+/**
+ * The admin edit is provider-agnostic on purpose. Plex at least reports a
+ * `title`; Jellyfin and Emby expose only a login `Name` and have no
+ * friendly-name field at all, so an override stored here is the ONLY readable
+ * name those users will ever have. Kodi has no accounts. Nothing in this path
+ * is Plex-specific.
+ */
+describe('updateUser (admin edit, any media server)', () => {
+  const svcWith = (update: jest.Mock, findUniqueOrThrow = jest.fn()) =>
+    new MediaServerSyncService(
+      { mediaServerUser: { update, findUniqueOrThrow } } as never,
+      {} as never, {} as never, {} as never,
+    );
+
+  it('writes only the fields supplied, so a name never disturbs an address', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    await svcWith(update).updateUser('u1', { displayName: 'Coralys Rosado' });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'u1' },
+      data: { displayName: 'Coralys Rosado' },
+    });
+  });
+
+  it('updates both when both are given', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    await svcWith(update).updateUser('u1', { displayName: 'Rubi Ayala', email: ' a@b.co ' });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'u1' },
+      data: { displayName: 'Rubi Ayala', email: 'a@b.co' },
+    });
+  });
+
+  it('clears a field given blank, rather than storing an empty string', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    await svcWith(update).updateUser('u1', { displayName: '  ', email: '' });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'u1' },
+      data: { displayName: null, email: null },
+    });
+  });
+
+  it('does not write at all when nothing was supplied', async () => {
+    const update = jest.fn();
+    const findUniqueOrThrow = jest.fn().mockResolvedValue({ id: 'u1' });
+    await svcWith(update, findUniqueOrThrow).updateUser('u1', {});
+    expect(update).not.toHaveBeenCalled();
+    expect(findUniqueOrThrow).toHaveBeenCalledWith({ where: { id: 'u1' } });
+  });
+});

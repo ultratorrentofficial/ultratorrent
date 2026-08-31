@@ -5499,9 +5499,12 @@ export const api = {
     setRecipientEmail(userId: string, email: string | null): Promise<MediaServerUserMeta> {
       return request<MediaServerUserMeta>(`/media-server-analytics/newsletters/recipient-options/${userId}`, { method: 'PATCH', body: { email } });
     },
-    /** A friendly name stored in UltraTorrent, never pushed to the media server. */
-    setRecipientDisplayName(userId: string, displayName: string | null): Promise<MediaServerUserMeta> {
-      return request<MediaServerUserMeta>(`/media-server-analytics/newsletters/recipient-options/${userId}/display-name`, { method: 'PATCH', body: { displayName } });
+    /**
+     * Admin edit of a synced user. The friendly name is stored in UltraTorrent and
+     * never pushed to the media server.
+     */
+    updateMetaUser(userId: string, body: { displayName?: string | null; email?: string | null }): Promise<MediaServerUserMeta> {
+      return request<MediaServerUserMeta>(`/media-server-analytics/meta/users/${userId}`, { method: 'PATCH', body });
     },
     createNewsletter(body: Partial<Newsletter>): Promise<Newsletter> {
       return request<Newsletter>('/media-server-analytics/newsletters', { method: 'POST', body });

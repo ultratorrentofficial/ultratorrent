@@ -282,7 +282,7 @@ export function NewslettersPage() {
    */
   const setDisplayName = useMutation({
     mutationFn: (v: { userId: string; displayName: string }) =>
-      api.mediaServerAnalytics.setRecipientDisplayName(v.userId, v.displayName),
+      api.mediaServerAnalytics.updateMetaUser(v.userId, { displayName: v.displayName }),
     onSuccess: () => void recipientOptions.refetch(),
     onError: (e) =>
       toast.error(t('newsletter.recipients.renameFailed'), e instanceof ApiError ? e.message : undefined),

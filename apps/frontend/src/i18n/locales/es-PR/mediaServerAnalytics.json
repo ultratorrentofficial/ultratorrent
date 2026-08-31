@@ -447,5 +447,28 @@
       "error": "Error",
       "name": "Boletín"
     }
+  },
+  "users": {
+    "title": "Usuarios del servidor",
+    "subtitle": "Todas las personas sincronizadas desde sus servidores de medios. Ponga un nombre amigable para que sean reconocibles en boletines e informes.",
+    "searchPlaceholder": "Buscar por nombre, cuenta o correo",
+    "count": "{{shown}} de {{total}} mostrados · {{named}} con nombre amigable",
+    "loading": "Cargando usuarios…",
+    "error": "No se pudieron cargar los usuarios",
+    "emptyTitle": "Sin usuarios",
+    "emptyDescription": "Todavía no se ha sincronizado nada desde un servidor de medios. Ejecute una sincronización desde Conexiones de servidor.",
+    "colName": "Nombre",
+    "colAccount": "Cuenta en el servidor",
+    "colServer": "Servidor",
+    "colEmail": "Correo",
+    "colPlays": "Reproducciones",
+    "edit": "Editar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "saved": "Usuario actualizado",
+    "saveFailed": "No se pudo actualizar el usuario",
+    "noEmail": "sin correo",
+    "noServer": "ya no está conectado",
+    "localNote": "Los nombres amigables se guardan en UltraTorrent y nunca se escriben en el servidor de medios. Plex informa un nombre visible solo si el titular de la cuenta lo configuró; Jellyfin y Emby no tienen campo de nombre amigable, así que el nombre puesto aquí es el único que esos usuarios mostrarán."
   }
 }
