@@ -155,3 +155,59 @@ describe('NFO write → read', () => {
     expect(facts).toEqual({});
   });
 });
+
+/**
+ * Regression: a series-level id written onto an episode is worse than no id.
+ *
+ * Every episode of a show resolves to the same tmdb/imdb/tvdb id, so stamping it
+ * into each episode NFO made Plex collapse them onto one identity and drop the
+ * per-episode metadata — 166 episodes across two shows rendered as "Episode 12"
+ * while their NFOs held the correct title.
+ */
+describe('episode NFOs and series-level ids', () => {
+  const ids = { tmdb: '397', imdb: 'tt0078607', tvdb: '77748' };
+
+  it('omits uniqueid on an episode, because the id identifies the series', () => {
+    const xml = buildNfoXml('episode', {
+      title: 'Hazzard Connection',
+      season: 2,
+      episode: 8,
+      externalIds: ids,
+    });
+    expect(xml).not.toContain('<uniqueid');
+    expect(xml).toContain('<title>Hazzard Connection</title>');
+    expect(xml).toContain('<season>2</season>');
+    expect(xml).toContain('<episode>8</episode>');
+  });
+
+  it('still writes uniqueid for a tvshow, where the id is correct', () => {
+    const xml = buildNfoXml('tvshow', { title: 'The Dukes of Hazzard', externalIds: ids });
+    expect(xml).toContain('<uniqueid type="tmdb" default="true">397</uniqueid>');
+    expect(xml).toContain('<uniqueid type="tvdb">77748</uniqueid>');
+  });
+
+  it('still writes uniqueid for a movie', () => {
+    const xml = buildNfoXml('movie', { title: 'Blade Runner', externalIds: { imdb: 'tt0083658' } });
+    expect(xml).toContain('<uniqueid type="imdb" default="true">tt0083658</uniqueid>');
+  });
+
+  it('writes <showtitle> so an episode still anchors to its series without an id', () => {
+    const xml = buildNfoXml('episode', {
+      title: 'Road Pirates',
+      showTitle: 'The Dukes of Hazzard',
+      season: 2,
+      episode: 5,
+      externalIds: ids,
+    });
+    expect(xml).toContain('<showtitle>The Dukes of Hazzard</showtitle>');
+    expect(xml).not.toContain('<uniqueid');
+  });
+
+  it('gives two episodes of one show distinct content rather than one identity', () => {
+    const a = buildNfoXml('episode', { title: 'A', season: 1, episode: 1, externalIds: ids });
+    const b = buildNfoXml('episode', { title: 'B', season: 1, episode: 2, externalIds: ids });
+    expect(a).not.toEqual(b);
+    expect(a).not.toContain('tt0078607');
+    expect(b).not.toContain('tt0078607');
+  });
+});

@@ -24,6 +24,8 @@ export interface NfoData {
   certification?: string | null;
   season?: number | null;
   episode?: number | null;
+  /** The series an episode belongs to - written as <showtitle>. */
+  showTitle?: string | null;
   genres?: string[];
   studios?: string[];
   directors?: string[];
@@ -81,6 +83,9 @@ export function buildNfoXml(type: NfoType, data: NfoData): string {
     body += tag('seasonnumber', data.season);
   }
   if (type === 'episode') {
+    // <showtitle> is how Kodi and Plex anchor a loose episode file to its
+    // series when the episode carries no id of its own.
+    if (data.showTitle) body += tag('showtitle', data.showTitle);
     if (data.season != null) body += tag('season', data.season);
     if (data.episode != null) body += tag('episode', data.episode);
   }
@@ -88,7 +93,22 @@ export function buildNfoXml(type: NfoType, data: NfoData): string {
   for (const s of data.studios ?? []) body += tag('studio', s);
   for (const d of data.directors ?? []) body += tag('director', d);
   for (const w of data.writers ?? []) body += tag('credits', w);
-  for (const [provider, id] of Object.entries(data.externalIds ?? {})) {
+  /*
+   * Episodes get NO <uniqueid>, and that is the fix for a real corruption.
+   *
+   * The ids held here are resolved for the SERIES, not the episode - there is
+   * no episode-level id anywhere in the model. Writing them into an episode
+   * NFO stamps the identical tmdb/imdb/tvdb id onto every episode of a show;
+   * a scraper that keys episodes by uniqueid then collapses them all onto one
+   * identity and discards the per-episode metadata. Observed in Plex: 166
+   * episodes across two shows displayed as "Episode 12" despite every NFO
+   * carrying the correct <title>.
+   *
+   * With no id the scraper falls back to <showtitle> + season/episode, which
+   * is correct. A series id on an episode is worse than no id at all.
+   */
+  const idsFor = type === 'episode' ? {} : (data.externalIds ?? {});
+  for (const [provider, id] of Object.entries(idsFor)) {
     if (!id) continue;
     const isDefault = provider === 'tmdb' || provider === 'imdb';
     body += `  <uniqueid type="${esc(provider)}"${isDefault ? ' default="true"' : ''}>${esc(id)}</uniqueid>\n`;
