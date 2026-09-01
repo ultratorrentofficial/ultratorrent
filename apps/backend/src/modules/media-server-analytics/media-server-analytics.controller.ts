@@ -427,6 +427,16 @@ export class MediaServerAnalyticsController {
   listConnections() {
     return this.integrations.list();
   }
+  /**
+   * Probe a connection before it exists. Declared ABOVE `connections/:id/test`
+   * so "test-config" is never captured as an id.
+   */
+  @Post('connections/test-config')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS)
+  testConnectionConfig(@Body() body: { kind?: string; config?: Record<string, unknown> }) {
+    return this.integrations.testConfig(body ?? {});
+  }
+
   @Post('connections')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS)
   createConnection(@Body() body: Record<string, unknown>, @CurrentUser() u: AuthenticatedUser) {

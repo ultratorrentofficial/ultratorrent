@@ -5343,6 +5343,19 @@ export const api = {
     testConnection(id: string): Promise<MediaServerInfo> {
       return request<MediaServerInfo>(`/media-server-analytics/connections/${id}/test`, { method: 'POST' });
     },
+    /** Probe a connection BEFORE saving it, so a bad URL or key never persists. */
+    testConnectionConfig(body: { kind: string; config: Record<string, unknown> }): Promise<MediaServerInfo> {
+      return request<MediaServerInfo>('/media-server-analytics/connections/test-config', { method: 'POST', body });
+    },
+    createConnection(body: { name: string; kind: string; isEnabled?: boolean; config: Record<string, unknown> }): Promise<MediaServerConnectionSummary> {
+      return request<MediaServerConnectionSummary>('/media-server-analytics/connections', { method: 'POST', body });
+    },
+    updateConnection(id: string, body: Record<string, unknown>): Promise<MediaServerConnectionSummary> {
+      return request<MediaServerConnectionSummary>(`/media-server-analytics/connections/${id}`, { method: 'PATCH', body });
+    },
+    deleteConnection(id: string): Promise<void> {
+      return request<void>(`/media-server-analytics/connections/${id}`, { method: 'DELETE' });
+    },
     libraries(id: string): Promise<MediaServerLibrariesResult> {
       return request<MediaServerLibrariesResult>(`/media-server-analytics/connections/${id}/libraries`);
     },

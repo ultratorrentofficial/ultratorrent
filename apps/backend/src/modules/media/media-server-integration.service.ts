@@ -264,6 +264,24 @@ export class MediaServerIntegrationService {
     return row;
   }
 
+  /**
+   * Probe a connection that has not been saved yet.
+   *
+   * Testing only saved rows forces the operator to persist a bad URL or key
+   * before finding out it is wrong, then clean up the wreckage. This takes the
+   * config straight from the form. Nothing is written and nothing is audited —
+   * there is no object yet to attach an audit entry to, and the caller is
+   * already permission-gated.
+   */
+  async testConfig(input: { kind?: string; config?: Record<string, unknown> }) {
+    if (!input?.kind) throw new BadRequestException('kind is required.');
+    if (!VALID_KINDS.includes(input.kind as MediaServerKind)) {
+      throw new BadRequestException(`Unsupported kind "${input.kind}".`);
+    }
+    const provider = getMediaServerProvider(input.kind as MediaServerKind);
+    return provider.testConnection((input.config ?? {}) as MediaServerConfig);
+  }
+
   /** Probe a saved integration's connection. */
   async test(id: string, ctx: AuditContext = {}) {
     const row = await this.load(id);

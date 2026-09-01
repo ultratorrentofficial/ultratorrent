@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Library } from 'lucide-react';
-import { api, ApiError, type MediaServerLibrariesResult } from '@/lib/api';
+import { RefreshCw, Library, Plus, Pencil, Trash2 } from 'lucide-react';
+import { api, ApiError, type MediaServerLibrariesResult, type MediaServerConnectionSummary } from '@/lib/api';
+import { ConnectionFormDialog } from './ConnectionFormDialog';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -20,6 +21,8 @@ export function MediaServerConnectionsPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [libraries, setLibraries] = useState<{ name: string; result: MediaServerLibrariesResult } | null>(null);
+  // null = closed; { existing: null } = adding; { existing: row } = editing.
+  const [form, setForm] = useState<{ existing: MediaServerConnectionSummary | null } | null>(null);
 
   const q = useQuery({ queryKey: ['mediaServerAnalytics', 'dashboard'], queryFn: () => api.mediaServerAnalytics.dashboard() });
 
@@ -30,6 +33,15 @@ export function MediaServerConnectionsPage() {
       void queryClient.invalidateQueries({ queryKey: ['mediaServerAnalytics', 'dashboard'] });
     },
     onError: (err) => toast.error(t('connections.testFailed'), err instanceof ApiError ? err.message : undefined),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api.mediaServerAnalytics.deleteConnection(id),
+    onSuccess: () => {
+      toast.success(t('connections.form.deleted'));
+      void queryClient.invalidateQueries({ queryKey: ['mediaServerAnalytics', 'dashboard'] });
+    },
+    onError: (err) => toast.error(t('connections.form.deleteFailed'), err instanceof ApiError ? err.message : undefined),
   });
 
   const showLibraries = useMutation({
@@ -44,13 +56,18 @@ export function MediaServerConnectionsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('connections.title')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t('connections.subtitle')}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{t('connections.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('connections.subtitle')}</p>
+        </div>
+        <Button onClick={() => setForm({ existing: null })}>
+          <Plus className="h-4 w-4" aria-hidden /> {t('connections.form.addTitle')}
+        </Button>
       </div>
 
       {connections.length === 0 ? (
-        <EmptyState title={t('connections.empty')} />
+        <EmptyState title={t('connections.empty')} description={t('connections.emptyHint')} />
       ) : (
         <div className="space-y-2">
           {connections.map((c) => (
@@ -85,6 +102,25 @@ export function MediaServerConnectionsPage() {
                   <Library className="h-3.5 w-3.5" />
                   {t('connections.viewLibraries')}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setForm({ existing: c })}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden /> {t('connections.form.edit')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={remove.isPending}
+                  onClick={() => {
+                    // Deleting a connection strands its synced users and libraries --
+                    // connectionId carries no foreign key -- so confirm explicitly.
+                    if (window.confirm(t('connections.form.confirmDelete', { name: c.name }))) remove.mutate(c.id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden /> {t('connections.form.delete')}
+                </Button>
               </CardContent>
             </Card>
           ))}
@@ -111,6 +147,14 @@ export function MediaServerConnectionsPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {form && (
+        <ConnectionFormDialog
+          existing={form.existing}
+          onClose={() => setForm(null)}
+          onSaved={() => void queryClient.invalidateQueries({ queryKey: ['mediaServerAnalytics', 'dashboard'] })}
+        />
       )}
     </div>
   );
