@@ -279,7 +279,26 @@ export class MediaServerIntegrationService {
       throw new BadRequestException(`Unsupported kind "${input.kind}".`);
     }
     const provider = getMediaServerProvider(input.kind as MediaServerKind);
-    return provider.testConnection((input.config ?? {}) as MediaServerConfig);
+    const cfg = (input.config ?? {}) as MediaServerConfig;
+    /*
+     * Returns the SAME shape as healthCheck(), deliberately. Two endpoints in one
+     * family that disagree on the field name for "did it work" is a bug waiting to
+     * happen — and it happened: this first returned the provider's `ok`, the UI
+     * checked `reachable`, and a successful probe rendered as a red failure with
+     * the message "Connected to Jellyfin." underneath it.
+     */
+    try {
+      return await provider.getServerInfo(cfg);
+    } catch (err) {
+      // A config-level fault (garbage baseUrl, missing key) throws rather than
+      // reporting unreachable. It is still "we cannot reach this server".
+      return {
+        kind: input.kind as MediaServerKind,
+        reachable: false,
+        capabilities: provider.capabilities(),
+        message: (err as Error).message,
+      };
+    }
   }
 
   /** Probe a saved integration's connection. */
