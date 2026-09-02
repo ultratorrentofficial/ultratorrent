@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { api, type MediaServerRecentlyAddedItem } from '@/lib/api';
+import { Clapperboard, Tv } from 'lucide-react';
 import { MediaPoster } from '@/components/media/MediaPoster';
 import { EmptyState } from '@/components/ui/feedback';
 import { mediaTypeColor } from './analytics-colors';
@@ -54,10 +55,18 @@ export function RecentlyAddedStrip() {
                 iconClassName="h-6 w-6"
               />
               <div className="mt-2 flex items-start gap-1.5">
-                <span
-                  className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ background: mediaTypeColor(item.mediaType) }}
-                />
+                {/* A coloured icon, not a dot: shape says film-or-episode, colour
+                    matches the same media-type hue used across the analytics. */}
+                {(() => {
+                  const Icon = (item.season != null || (item.mediaType ?? "").toLowerCase() === "tv") ? Tv : Clapperboard;
+                  return (
+                    <Icon
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                      style={{ color: mediaTypeColor(item.mediaType) }}
+                      aria-hidden
+                    />
+                  );
+                })()}
                 <div className="min-w-0">
                   <div className="truncate text-xs font-medium leading-tight" title={item.title}>
                     {item.title}

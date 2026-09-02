@@ -148,10 +148,10 @@
     "loadError": "Could not load recently added.",
     "empty": "Nothing added recently.",
     "col": {
-      "title": "Title",
-      "type": "Type",
-      "added": "Added"
-    }
+      "library": "Library"
+    },
+    "allLibraries": "All libraries",
+    "noLibrary": "no library"
   },
   "import": {
     "title": "Import Analytics",

@@ -6021,6 +6021,8 @@ export interface MediaServerRecentlyAddedItem {
   season: number | null;
   episode: number | null;
   addedAt: string;
+  /** The library it landed in; null if the item has none. */
+  libraryName: string | null;
   poster: MediaArtworkRef | null;
 }
 

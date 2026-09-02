@@ -148,10 +148,10 @@
     "loadError": "No se pudo cargar.",
     "empty": "No se agregó nada recientemente.",
     "col": {
-      "title": "Título",
-      "type": "Tipo",
-      "added": "Agregado"
-    }
+      "library": "Biblioteca"
+    },
+    "allLibraries": "Todas las bibliotecas",
+    "noLibrary": "sin biblioteca"
   },
   "import": {
     "title": "Importar analíticas",
