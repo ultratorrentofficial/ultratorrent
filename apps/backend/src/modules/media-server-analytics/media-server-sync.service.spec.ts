@@ -75,7 +75,10 @@ function makeService(opts: {
   existingLibraries?: any[];
 }) {
   const integrationTable = new Table();
-  integrationTable.rows = opts.connections ?? [{ id: 'srv-a', isEnabled: true }];
+  // `kind` is a required column in production, and the dedupe needs it to keep
+  // one product's id space separate from another's — a fixture without it does
+  // not describe a real row.
+  integrationTable.rows = opts.connections ?? [{ id: 'srv-a', isEnabled: true, kind: 'plex' }];
   const libraryTable = new Table();
   libraryTable.rows = opts.existingLibraries ?? [];
   const userTable = new Table();

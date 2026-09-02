@@ -229,6 +229,23 @@ export class MediaServerSyncService {
    */
   private async dedupeUsersByProviderId(): Promise<void> {
     const rows = await this.prisma.mediaServerUser.findMany({ where: { providerUserId: { not: null } } });
+
+    /*
+     * A provider id is only unique WITHIN one product's id space.
+     *
+     * Plex numbers its accounts (the server owner is literally `1`); Jellyfin and
+     * Emby use GUIDs. Grouping on the bare id treats those as one namespace, so
+     * two unrelated people on two different products could collide and one of
+     * them would be DELETED below. Today's ids happen not to collide, which is
+     * luck rather than a guarantee.
+     *
+     * Accounts on different servers are different accounts. Even a shared email
+     * is not proof of one person — it can be a household device — so they are
+     * never merged across products.
+     */
+    const conns = await this.prisma.mediaServerIntegration.findMany({ select: { id: true, kind: true } });
+    const kindOf = new Map(conns.map((c) => [c.id, c.kind]));
+
     const byId = new Map<string, typeof rows>();
     for (const r of rows) {
       if (!r.providerUserId) continue; // defensive — the query already excludes nulls
@@ -236,16 +253,45 @@ export class MediaServerSyncService {
       arr.push(r);
       byId.set(r.providerUserId, arr);
     }
-    for (const group of byId.values()) {
-      if (group.length < 2) continue;
-      group.sort((a, b) => b.plays - a.plays);
-      const [keep, ...dupes] = group;
-      const email = keep.email ?? dupes.find((d) => d.email)?.email ?? null;
-      if (email !== keep.email) {
-        await this.prisma.mediaServerUser.update({ where: { id: keep.id }, data: { email } });
+
+    for (const sameId of byId.values()) {
+      if (sameId.length < 2) continue;
+
+      /*
+       * Split by product. Rows with no connection are imported history (a retired
+       * Tautulli database, say) and carry no kind of their own — they join the
+       * group only when exactly ONE product is present, which is the case the
+       * dedupe was written for. With two products in play their origin is
+       * ambiguous, and a guess that deletes a row is not worth making.
+       */
+      const byKind = new Map<string, typeof rows>();
+      const orphans: typeof rows = [];
+      for (const r of sameId) {
+        const kind = r.connectionId ? kindOf.get(r.connectionId) : undefined;
+        if (!kind) { orphans.push(r); continue; }
+        byKind.set(kind, [...(byKind.get(kind) ?? []), r]);
       }
-      await this.prisma.mediaServerUser.deleteMany({ where: { id: { in: dupes.map((d) => d.id) } } });
+      if (byKind.size === 1 && orphans.length) {
+        const [only] = [...byKind.keys()];
+        byKind.set(only, [...(byKind.get(only) ?? []), ...orphans]);
+      }
+
+      for (const group of byKind.values()) {
+        await this.mergeDuplicateUsers(group);
+      }
     }
+  }
+
+  /** Keep the row with the most plays; carry an email across; drop the rest. */
+  private async mergeDuplicateUsers(group: Array<{ id: string; plays: number; email: string | null }>): Promise<void> {
+    if (group.length < 2) return;
+    group.sort((a, b) => b.plays - a.plays);
+    const [keep, ...dupes] = group;
+    const email = keep.email ?? dupes.find((d) => d.email)?.email ?? null;
+    if (email !== keep.email) {
+      await this.prisma.mediaServerUser.update({ where: { id: keep.id }, data: { email } });
+    }
+    await this.prisma.mediaServerUser.deleteMany({ where: { id: { in: dupes.map((d) => d.id) } } });
   }
 
   /**
