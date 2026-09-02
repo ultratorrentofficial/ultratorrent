@@ -85,7 +85,8 @@
     "state": {
       "playing": "Playing",
       "paused": "Paused"
-    }
+    },
+    "onServer": "Playing on {{name}} ({{kind}})"
   },
   "watchHistory": {
     "title": "Watch History",

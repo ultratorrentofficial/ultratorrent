@@ -85,7 +85,8 @@
     "state": {
       "playing": "Reproduciendo",
       "paused": "Pausado"
-    }
+    },
+    "onServer": "Reproduciendo en {{name}} ({{kind}})"
   },
   "watchHistory": {
     "title": "Historial de reproducción",

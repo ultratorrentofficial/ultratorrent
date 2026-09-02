@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Radio, Users, Activity, Cpu, MonitorPlay } from 'lucide-react';
+import { RefreshCw, Radio, Users, Activity, Cpu, MonitorPlay, Server } from 'lucide-react';
 import { api, type MediaServerLiveSession } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { useRealtime } from '@/realtime/RealtimeContext';
@@ -49,6 +49,19 @@ export function LiveActivityPage() {
     ];
     return () => offs.forEach((off) => off());
   }, [qc]);
+
+  /*
+   * Which server each session is on. Only worth showing when more than one is
+   * attached — with a single server the label is on every card and tells nobody
+   * anything. Plex and Jellyfin side by side is exactly when it matters.
+   */
+  const dash = useQuery({
+    queryKey: ['mediaServerAnalytics', 'dashboard'],
+    queryFn: () => api.mediaServerAnalytics.dashboard(),
+    staleTime: 60_000,
+  });
+  const servers = new Map((dash.data?.connections ?? []).map((c) => [c.id, { name: c.name, kind: c.kind }]));
+  const showServer = servers.size > 1;
 
   const sessions = q.data ?? [];
   const live = status === 'connected';
@@ -138,7 +151,7 @@ export function LiveActivityPage() {
           {/* Session cards */}
           <div className="grid gap-3 lg:grid-cols-2">
             {sessions.map((s) => (
-              <SessionCard key={s.id} s={s} t={t} />
+              <SessionCard key={s.id} s={s} t={t} server={showServer ? servers.get(s.connectionId) : undefined} />
             ))}
           </div>
         </>
@@ -147,7 +160,16 @@ export function LiveActivityPage() {
   );
 }
 
-function SessionCard({ s, t }: { s: MediaServerLiveSession; t: TFunction<'mediaServerAnalytics'> }) {
+function SessionCard({
+  s,
+  t,
+  server,
+}: {
+  s: MediaServerLiveSession;
+  t: TFunction<'mediaServerAnalytics'>;
+  /** Undefined when only one server is attached, or the connection is gone. */
+  server?: { name: string; kind: string };
+}) {
   const color = methodColor(s.playbackMethod);
   const paused = s.playbackState === 'paused';
   // Derived through the SAME helpers the notification card uses, so a live card
@@ -201,6 +223,15 @@ function SessionCard({ s, t }: { s: MediaServerLiveSession; t: TFunction<'mediaS
               {viewer && <span className="font-medium text-foreground/80">{viewer}</span>}
               {s.device && <span>· {s.device}</span>}
               {s.libraryName && <span>· {s.libraryName}</span>}
+              {server && (
+                <span
+                  className="inline-flex items-center gap-1 rounded bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-medium text-foreground/70"
+                  title={t('liveActivity.onServer', { name: server.name, kind: server.kind })}
+                >
+                  <Server className="h-3 w-3" aria-hidden />
+                  {server.name}
+                </span>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
