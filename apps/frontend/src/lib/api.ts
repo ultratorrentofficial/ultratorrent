@@ -6046,6 +6046,8 @@ export interface MediaServerWatchHistoryRow {
   userName: string | null;
   title: string;
   mediaType: string | null;
+  /** The server this play came from; null for imported history. */
+  connectionId: string | null;
   libraryName: string | null;
   device: string | null;
   client: string | null;

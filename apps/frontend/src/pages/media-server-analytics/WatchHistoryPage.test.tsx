@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@/i18n';
 
 vi.mock('@/lib/api', () => ({
-  api: { mediaServerAnalytics: { watchHistory: vi.fn() } },
+  api: { mediaServerAnalytics: { watchHistory: vi.fn(), dashboard: vi.fn() } },
 }));
 
 import { api } from '@/lib/api';
@@ -18,7 +18,8 @@ const row = (over: Record<string, unknown> = {}) => ({
   importSource: 'live', ...over,
 });
 
-function renderPage(items: Record<string, unknown>[]) {
+function renderPage(items: Record<string, unknown>[], connections: unknown[] = []) {
+  vi.mocked(api.mediaServerAnalytics.dashboard).mockResolvedValue({ connections } as never);
   vi.mocked(api.mediaServerAnalytics.watchHistory).mockResolvedValue(
     { items, total: items.length, page: 1, pageSize: 50 } as never,
   );
@@ -75,5 +76,40 @@ describe('WatchHistoryPage', () => {
     await waitFor(() => expect(screen.getByText('The Wolf Boy')).toBeTruthy());
     // Absent values read as absent, never as zero or as a broken bar.
     expect(screen.getAllByText('—').length).toBeGreaterThan(2);
+  });
+});
+
+const conn = (id: string, name: string, kind = 'plex') => ({
+  id, name, kind, enabled: true, isDefault: false, status: 'online',
+  serverVersion: null, platform: null, capabilities: {},
+  lastHealthCheckAt: null, lastRefreshAt: null, notes: null,
+});
+
+/**
+ * With two servers attached, a play with no attribution is ambiguous. With one,
+ * the label is on every row and says nothing — so it appears only above one.
+ */
+describe('watch history server attribution', () => {
+  it('names the server when two are connected', async () => {
+    renderPage(
+      [row({ connectionId: 'c-jf' })],
+      [conn('c-plex', 'SYNOPLEX'), conn('c-jf', 'SYNOPLEX-JELLYFIN', 'jellyfin')],
+    );
+    await screen.findByText('SYNOPLEX-JELLYFIN');
+  });
+
+  it('stays quiet with a single server', async () => {
+    renderPage([row({ connectionId: 'c-plex' })], [conn('c-plex', 'SYNOPLEX')]);
+    await screen.findByText('The Wolf Boy');
+    expect(screen.queryByText('SYNOPLEX')).toBeNull();
+  });
+
+  it('leaves imported history unlabelled — it came from no server', async () => {
+    renderPage(
+      [row({ connectionId: null, importSource: 'tautulli' })],
+      [conn('c-plex', 'SYNOPLEX'), conn('c-jf', 'JF', 'jellyfin')],
+    );
+    await screen.findByText('The Wolf Boy');
+    expect(screen.queryByText('SYNOPLEX')).toBeNull();
   });
 });

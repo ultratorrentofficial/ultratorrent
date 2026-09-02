@@ -84,6 +84,19 @@ export function WatchHistoryPage() {
     queryFn: () => api.mediaServerAnalytics.watchHistory({ page, pageSize: PAGE_SIZE }),
     placeholderData: keepPreviousData,
   });
+  /*
+   * Which server each play came from. Shown only when more than one is
+   * connected — see LiveActivityPage for the same rule. Imported history has no
+   * connection at all, so those rows simply carry no label.
+   */
+  const dash = useQuery({
+    queryKey: ['mediaServerAnalytics', 'dashboard'],
+    queryFn: () => api.mediaServerAnalytics.dashboard(),
+    staleTime: 60_000,
+  });
+  const servers = new Map((dash.data?.connections ?? []).map((c) => [c.id, c.name]));
+  const showServer = servers.size > 1;
+
   const rows = q.data?.items ?? [];
 
   // Summary before detail: what this page of history amounts to, so the table
@@ -143,7 +156,7 @@ export function WatchHistoryPage() {
               </thead>
               <tbody>
                 {rows.map((h) => (
-                  <Row key={h.id} h={h} t={t as unknown as (k: string, o?: Record<string, unknown>) => string} />
+                  <Row key={h.id} h={h} t={t as unknown as (k: string, o?: Record<string, unknown>) => string} server={showServer && h.connectionId ? servers.get(h.connectionId) : undefined} />
                 ))}
               </tbody>
             </table>
@@ -167,7 +180,16 @@ function Stat({ icon, label, value, tone }: { icon: React.ReactNode; label: stri
   );
 }
 
-function Row({ h, t }: { h: MediaServerWatchHistoryRow; t: (k: string, o?: Record<string, unknown>) => string }) {
+function Row({
+  h,
+  t,
+  server,
+}: {
+  h: MediaServerWatchHistoryRow;
+  t: (k: string, o?: Record<string, unknown>) => string;
+  /** Undefined with a single server, or for imported history with no connection. */
+  server?: string;
+}) {
   const bar = completion(h.percentComplete);
   const isEpisode = (h.mediaType ?? '').toLowerCase().includes('episode') || (h.mediaType ?? '').toLowerCase() === 'tv';
 
@@ -181,8 +203,12 @@ function Row({ h, t }: { h: MediaServerWatchHistoryRow; t: (k: string, o?: Recor
           <span className="min-w-0">
             {/* The title is the thing being scanned for; it earns the foreground. */}
             <span className="block truncate font-medium text-foreground">{h.title}</span>
-            {h.libraryName && (
-              <span className="block truncate text-xs text-muted-foreground">{h.libraryName}</span>
+            {(h.libraryName || server) && (
+              <span className="block truncate text-xs text-muted-foreground">
+                {h.libraryName}
+                {h.libraryName && server ? ' · ' : ''}
+                {server && <span className="text-foreground/60">{server}</span>}
+              </span>
             )}
           </span>
         </div>
