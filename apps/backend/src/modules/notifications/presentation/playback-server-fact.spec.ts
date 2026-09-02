@@ -34,7 +34,7 @@ describe('the playback card names the media server', () => {
 
   it('gives Plex its own colour, so the two are told apart at a glance', () => {
     expect(serverFact({ serverKind: 'plex', serverName: 'SYNOPLEX' })?.value)
-      .toBe('\u{1F7E0} Plex · SYNOPLEX');
+      .toBe('\u{1F7E1} Plex · SYNOPLEX');
   });
 
   it.each([['emby', '\u{1F7E2} Emby'], ['kodi', '\u{1F535} Kodi']])(
@@ -46,7 +46,7 @@ describe('the playback card names the media server', () => {
 
   it('is shown even without playback-detail permission — it describes the server, not the viewer', () => {
     expect(serverFact({ serverKind: 'plex', serverName: 'SYNOPLEX' }, false)?.value)
-      .toBe('\u{1F7E0} Plex · SYNOPLEX');
+      .toBe('\u{1F7E1} Plex · SYNOPLEX');
   });
 
   /*
@@ -97,7 +97,7 @@ describe('the Telegram message names the server', () => {
 
   it('distinguishes a Plex stream by colour in the same inbox', () => {
     const plex = message('plex', 'SYNOPLEX');
-    expect(plex).toContain('\u{1F7E0} Plex');
+    expect(plex).toContain('\u{1F7E1} Plex');
     expect(plex).not.toContain('\u{1F7E3}');
   });
 });

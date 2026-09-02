@@ -137,7 +137,7 @@ function qualitySummary(resolution: string | null, dynamicRange: string | null):
  * match the brand marks the UI uses.
  */
 const SERVER_PRODUCT: Record<string, string> = {
-  plex: '\u{1F7E0} Plex',
+  plex: '\u{1F7E1} Plex',
   jellyfin: '\u{1F7E3} Jellyfin',
   emby: '\u{1F7E2} Emby',
   kodi: '\u{1F535} Kodi',
