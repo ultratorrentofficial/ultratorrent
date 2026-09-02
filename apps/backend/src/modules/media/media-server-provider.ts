@@ -611,6 +611,32 @@ class JellyfinEmbyBase {
   }
 }
 
+/**
+ * Normalise a container name that came back as a demuxer alias list.
+ *
+ * Jellyfin and Emby pass through ffprobe's `format_name`, which for anything in
+ * the MP4 family is the whole set of formats sharing one demuxer:
+ * `mov,mp4,m4a,3gp,3g2,mj2`. Rendered in a UI chip that is noise, and it is not
+ * a container anyone would recognise as the file they are watching.
+ *
+ * Pick the member people actually name the format by, falling back to the first
+ * entry for a list we have not seen. Plex reports a single value already and is
+ * unaffected.
+ */
+export function normalizeContainer(raw: string | null | undefined): string | undefined {
+  const value = (raw ?? '').trim();
+  if (!value) return undefined;
+  if (!value.includes(',')) return value.toLowerCase() === 'matroska' ? 'mkv' : value;
+
+  const parts = value.split(',').map((p) => p.trim().toLowerCase()).filter(Boolean);
+  if (parts.length === 0) return undefined;
+  // Ordered by how likely a viewer is to call the file that.
+  for (const preferred of ['mp4', 'mkv', 'matroska', 'webm', 'avi', 'mov', 'mpegts', 'flv']) {
+    if (parts.includes(preferred)) return preferred === 'matroska' ? 'mkv' : preferred;
+  }
+  return parts[0];
+}
+
 const JELLYFIN_EMBY_CAPS: MediaServerCapabilities = {
   libraries: true, recentlyAdded: true, sessions: true, watchHistory: true, refresh: true,
 };
