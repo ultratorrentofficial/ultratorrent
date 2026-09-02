@@ -3,6 +3,7 @@ import { RefreshCw, Server } from 'lucide-react';
 import type { MediaServerConnectionSummary } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { MediaServerIcon } from '@/components/media-servers/MediaServerIcon';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
@@ -62,7 +63,10 @@ export function ProviderStatusPanel({
             <Card key={c.id}>
               <CardContent className="space-y-2 p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate font-medium">{c.name}</span>
+                  {/* The mark identifies the product; the name identifies the box.
+                      Same pairing the rest of the app uses. */}
+                  <MediaServerIcon kind={c.kind} className="h-5 w-5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate font-medium">{c.name}</span>
                   <Badge variant={statusVariant(c.status)}>
                     {t(`connections.status.${c.status === 'online' || c.status === 'offline' ? c.status : 'unknown'}`)}
                   </Badge>
