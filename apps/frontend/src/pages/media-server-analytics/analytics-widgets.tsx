@@ -23,7 +23,9 @@ export function KpiTile({
       <CardContent className="p-4">
         <div className="flex items-center gap-3">
           <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/[0.04]', tone)}>
-            <Icon className="h-4.5 w-4.5" />
+            {/* Tailwind 3 has no 4.5 half-step, so the class here previously emitted
+                  nothing and this icon had no size at all. */}
+              <Icon className="h-5 w-5" />
           </span>
           <div className="min-w-0">
             <div className="truncate text-xl font-semibold tabular-nums leading-tight">{value}</div>
