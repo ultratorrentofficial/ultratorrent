@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Library, Plus, Pencil, Trash2 } from 'lucide-react';
 import { api, ApiError, type MediaServerLibrariesResult, type MediaServerConnectionSummary } from '@/lib/api';
 import { ConnectionFormDialog } from './ConnectionFormDialog';
+import { MediaServerIcon } from '@/components/media-servers/MediaServerIcon';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -74,7 +75,10 @@ export function MediaServerConnectionsPage() {
             <Card key={c.id}>
               <CardContent className="flex flex-wrap items-center gap-3 p-3">
                 <span className="font-medium">{c.name}</span>
-                <span className="text-xs uppercase text-muted-foreground">{c.kind}</span>
+                <span className="inline-flex items-center gap-1.5 text-xs uppercase text-muted-foreground">
+                  <MediaServerIcon kind={c.kind} className="h-4 w-4" />
+                  {c.kind}
+                </span>
                 <Badge variant={STATUS_VARIANT[c.status] ?? 'secondary'}>
                   {t(`connections.status.${c.status}`, { defaultValue: c.status })}
                 </Badge>

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { MediaServerIcon } from '@/components/media-servers/MediaServerIcon';
 
 /**
  * Media Server → Users. Every account synced from every connected server, with a
@@ -157,7 +158,10 @@ export function MediaServerUsersPage() {
                         <td className="py-2 pr-3 align-top">
                           {server ? (
                             <span className="inline-flex items-center gap-1.5">
-                              <Badge variant="secondary">{server.kind}</Badge>
+                              <Badge variant="secondary" className="inline-flex items-center gap-1">
+                                <MediaServerIcon kind={server.kind} className="h-3.5 w-3.5" />
+                                {server.kind}
+                              </Badge>
                               <span className="text-xs text-muted-foreground">{server.name}</span>
                             </span>
                           ) : (

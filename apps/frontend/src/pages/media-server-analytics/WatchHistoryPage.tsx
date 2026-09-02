@@ -8,6 +8,7 @@ import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedbac
 import { Pagination } from '@/components/ui/pagination';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { MediaServerIcon } from '@/components/media-servers/MediaServerIcon';
 
 const PAGE_SIZE = 50;
 
@@ -94,7 +95,7 @@ export function WatchHistoryPage() {
     queryFn: () => api.mediaServerAnalytics.dashboard(),
     staleTime: 60_000,
   });
-  const servers = new Map((dash.data?.connections ?? []).map((c) => [c.id, c.name]));
+  const servers = new Map((dash.data?.connections ?? []).map((c) => [c.id, { name: c.name, kind: c.kind }]));
   const showServer = servers.size > 1;
 
   const rows = q.data?.items ?? [];
@@ -188,7 +189,7 @@ function Row({
   h: MediaServerWatchHistoryRow;
   t: (k: string, o?: Record<string, unknown>) => string;
   /** Undefined with a single server, or for imported history with no connection. */
-  server?: string;
+  server?: { name: string; kind: string };
 }) {
   const bar = completion(h.percentComplete);
   const isEpisode = (h.mediaType ?? '').toLowerCase().includes('episode') || (h.mediaType ?? '').toLowerCase() === 'tv';
@@ -207,7 +208,12 @@ function Row({
               <span className="block truncate text-xs text-muted-foreground">
                 {h.libraryName}
                 {h.libraryName && server ? ' · ' : ''}
-                {server && <span className="text-foreground/60">{server}</span>}
+                {server && (
+                  <span className="inline-flex items-center gap-1 align-middle text-foreground/60">
+                    <MediaServerIcon kind={server.kind} className="h-3 w-3" />
+                    {server.name}
+                  </span>
+                )}
               </span>
             )}
           </span>
