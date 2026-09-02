@@ -51,6 +51,7 @@ import { MediaConsistencyService } from './media-consistency.service';
 import { ShowHealthService } from './health/show-health.service';
 import type { IssueKind } from './media-item.service';
 import { MediaNfoService } from './media-nfo.service';
+import { DuplicateScanScheduleService } from './duplicate-scan-schedule.service';
 import { MediaDuplicateService } from './media-duplicate.service';
 import { MediaShowDuplicateService } from './media-show-duplicate.service';
 import { RunShowMergeDto, ShowMergeDto } from './dto/show-merge.dto';
@@ -121,6 +122,9 @@ export class MediaController {
     private readonly consistency: MediaConsistencyService,
     private readonly showHealth: ShowHealthService,
     private readonly duplicates: MediaDuplicateService,
+    // Appended, not inserted: this constructor is long and other call sites
+    // construct it positionally in tests.
+    private readonly duplicateSchedule_: DuplicateScanScheduleService,
     private readonly duplicateResolution: DuplicateResolutionService,
     private readonly showDuplicates: MediaShowDuplicateService,
     private readonly integrations: MediaServerIntegrationService,
@@ -878,6 +882,19 @@ export class MediaController {
    * with nothing behind it. Returns `{ jobId }` at once; progress, the metrics
    * result and failures arrive over the `media_manager.job.*` WS events.
    */
+  /** The recurring-scan configuration. */
+  @Get('duplicates/schedule')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  duplicateSchedule() {
+    return this.duplicateSchedule_.get();
+  }
+
+  @Patch('duplicates/schedule')
+  @RequirePermissions(P.MEDIA_MANAGER_SCAN)
+  setDuplicateSchedule(@Body() body: { enabled?: boolean; intervalHours?: number }) {
+    return this.duplicateSchedule_.set(body ?? {});
+  }
+
   @Post('duplicates/detect')
   @RequirePermissions(P.MEDIA_MANAGER_SCAN)
   detectDuplicates() {

@@ -559,6 +559,21 @@
         "clear": "Clear ID",
         "unchanged": "No change"
       }
+    },
+    "schedule": {
+      "title": "Scheduled scan",
+      "description": "Run duplicate detection automatically instead of only when someone presses Scan.",
+      "enabled": "Run on a schedule",
+      "frequency": "Frequency",
+      "everyHours": "Every {{hours}} hours",
+      "weekly": "Weekly",
+      "save": "Save",
+      "saved": "Schedule saved",
+      "saveFailed": "Could not save the schedule",
+      "lastRun": "Last scan: {{when}}",
+      "neverRun": "Never scanned on a schedule yet.",
+      "nextRun": "Next scan: {{when}}",
+      "cheapNote": "A scan checks whether anything changed first and stops immediately if not, so a quiet library costs almost nothing."
     }
   },
   "renamePreview": {

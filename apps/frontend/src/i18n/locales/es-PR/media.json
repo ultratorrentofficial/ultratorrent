@@ -559,6 +559,21 @@
         "clear": "Borrar ID",
         "unchanged": "Sin cambios"
       }
+    },
+    "schedule": {
+      "title": "Escaneo programado",
+      "description": "Ejecute la detección de duplicados automáticamente, en vez de solo cuando alguien presiona Escanear.",
+      "enabled": "Ejecutar programado",
+      "frequency": "Frecuencia",
+      "everyHours": "Cada {{hours}} horas",
+      "weekly": "Semanal",
+      "save": "Guardar",
+      "saved": "Programación guardada",
+      "saveFailed": "No se pudo guardar la programación",
+      "lastRun": "Último escaneo: {{when}}",
+      "neverRun": "Todavía no se ha escaneado de forma programada.",
+      "nextRun": "Próximo escaneo: {{when}}",
+      "cheapNote": "Un escaneo primero verifica si algo cambió y se detiene de inmediato si no, así que una biblioteca sin cambios casi no cuesta nada."
     }
   },
   "renamePreview": {

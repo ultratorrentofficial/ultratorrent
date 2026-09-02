@@ -3648,6 +3648,17 @@ export interface PublicUrlStatus {
   checkedAt: string;
 }
 
+
+/** Recurring duplicate-detection configuration. */
+export interface DuplicateScanSchedule {
+  enabled: boolean;
+  /** 6, 12, 24 or 168 hours. */
+  intervalHours: number;
+  lastRunAt: string | null;
+  /** Null while disabled — a next run that will not fire is not a promise. */
+  nextRunAt: string | null;
+}
+
 export const api = {
   auth: {
     async login(
@@ -4943,6 +4954,12 @@ export const api = {
      * measured at 10.5s on a 29.5k-item library, too long to hold a request open.
      * Progress and the final metrics arrive over the `media_manager.job.*` events.
      */
+    duplicateSchedule(): Promise<DuplicateScanSchedule> {
+      return request<DuplicateScanSchedule>('/media/duplicates/schedule');
+    },
+    setDuplicateSchedule(body: { enabled?: boolean; intervalHours?: number }): Promise<DuplicateScanSchedule> {
+      return request<DuplicateScanSchedule>('/media/duplicates/schedule', { method: 'PATCH', body });
+    },
     detectDuplicates(): Promise<{ jobId: string }> {
       return request<{ jobId: string }>('/media/duplicates/detect', { method: 'POST' });
     },

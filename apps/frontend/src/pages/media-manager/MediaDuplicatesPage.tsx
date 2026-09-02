@@ -36,6 +36,7 @@ import { DuplicateComparison, CompareToggleButton } from './DuplicateComparison'
 import { DuplicateTrashPanel } from './DuplicateTrashPanel';
 import { QuickCleanPanel } from './QuickCleanPanel';
 import { MovieIdentityRepairPanel } from './MovieIdentityRepairPanel';
+import { DuplicateScheduleCard } from './DuplicateScheduleCard';
 
 const DUPES_PAGE_SIZE = 25;
 
@@ -218,6 +219,8 @@ export function MediaDuplicatesPage() {
           </Button>
         )}
       </div>
+
+      <DuplicateScheduleCard />
 
       {scan ? (
         <Card>

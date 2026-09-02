@@ -49,6 +49,7 @@ import { ImdbService } from './imdb/imdb.service';
 import { ImdbTrigramIndexService } from './imdb/imdb-trigram-index.service';
 import { ImdbSeriesResolver } from '../media-acquisition/imdb-series-resolver.service';
 import { MediaController } from './media.controller';
+import { DuplicateScanScheduleService } from './duplicate-scan-schedule.service';
 
 /**
  * Media Manager — scan, identify, enrich, and organise media libraries.
@@ -63,7 +64,7 @@ import { MediaController } from './media.controller';
 @Global()
 @Module({
   imports: [SettingsModule, FilesModule],
-  providers: [
+  providers: [DuplicateScanScheduleService, 
     ImdbTrigramIndexService,
     // The scanner resolves a show folder's series IMDb id at scan time; the resolver
     // only needs Prisma, so provide its own instance here rather than importing the
