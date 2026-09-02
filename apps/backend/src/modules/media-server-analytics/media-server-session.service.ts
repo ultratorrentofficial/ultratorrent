@@ -194,6 +194,8 @@ export class MediaServerSessionService {
   /** Reconcile sessions across every enabled connection. */
   async poll(): Promise<{ connections: number; active: number; ended: number }> {
     const connections = await this.prisma.mediaServerIntegration.findMany({ where: { isEnabled: true } });
+    // Whether naming the server on a notification tells the reader anything.
+    const multiServer = connections.length > 1;
     let active = 0;
     let ended = 0;
     for (const conn of connections) {
@@ -285,7 +287,7 @@ export class MediaServerSessionService {
            * history under whichever episode happened to be last.
            */
           const newItem = isNewViewing(existing, data);
-          if (newItem) await this.recordStop(existing, conn.name ?? conn.id);
+          if (newItem) await this.recordStop(existing, conn.name ?? conn.id, multiServer ? (conn.kind ?? null) : null);
 
           await this.prisma.mediaServerSession.update({
             where: { id: existing.id },
@@ -299,12 +301,12 @@ export class MediaServerSessionService {
               ...(newItem ? { startedAt: new Date() } : {}),
             },
           });
-          if (newItem) await this.announceStart(conn, s);
+          if (newItem) await this.announceStart(conn, s, multiServer);
         } else {
           await this.prisma.mediaServerSession.create({
             data: { connectionId: conn.id, providerSessionId: s.sessionId, ...data },
           });
-          await this.announceStart(conn, s);
+          await this.announceStart(conn, s, multiServer);
         }
       }
 
@@ -330,7 +332,7 @@ export class MediaServerSessionService {
           });
           continue;
         }
-        await this.endSession(c, conn.name ?? conn.id);
+        await this.endSession(c, conn.name ?? conn.id, multiServer ? (conn.kind ?? null) : null);
         ended += 1;
       }
     }
@@ -374,8 +376,9 @@ export class MediaServerSessionService {
    * swallow the next episode too.
    */
   private async announceStart(
-    conn: { id: string; name: string | null },
+    conn: { id: string; name: string | null; kind?: string | null },
     s: ProviderSession,
+    multiServer: boolean,
   ): Promise<void> {
     this.realtime.broadcast('media_server.session.started', {
       connectionId: conn.id,
@@ -389,6 +392,9 @@ export class MediaServerSessionService {
       payload: {
         mediaTitle: s.title,
         serverName: conn.name ?? conn.id,
+        // Which product, not just which box: with Plex and Jellyfin on one host
+        // the name alone does not say what is handling the stream.
+        serverKind: conn.kind ?? null,
         userDisplayName: await this.viewerName(conn.id, s.userId ?? null, s.userName ?? null),
         showTitle: s.showTitle ?? null,
         episodeTitle: s.episodeTitle ?? null,
@@ -417,7 +423,7 @@ export class MediaServerSessionService {
   }
 
   /** A finished session: write history, tell everyone, but leave the row alone. */
-  private async recordStop(c: MediaServerSession, serverName: string): Promise<void> {
+  private async recordStop(c: MediaServerSession, serverName: string, serverKind: string | null): Promise<void> {
     const watchedSeconds = Math.max(0, Math.round((Date.now() - c.startedAt.getTime()) / 1000));
     await this.prisma.mediaServerWatchHistory.create({
       data: {
@@ -454,6 +460,7 @@ export class MediaServerSessionService {
       payload: {
         mediaTitle: c.title,
         serverName,
+        serverKind,
         userDisplayName: await this.viewerName(c.connectionId, c.providerUserId, c.userName),
         showTitle: c.showTitle,
         episodeTitle: c.episodeTitle,
@@ -479,8 +486,8 @@ export class MediaServerSessionService {
   }
 
   /** A session that vanished from the provider: record the stop, drop the row. */
-  private async endSession(c: MediaServerSession, serverName: string): Promise<void> {
-    await this.recordStop(c, serverName);
+  private async endSession(c: MediaServerSession, serverName: string, serverKind: string | null): Promise<void> {
+    await this.recordStop(c, serverName, serverKind);
     await this.prisma.mediaServerSession.delete({ where: { id: c.id } });
   }
 }

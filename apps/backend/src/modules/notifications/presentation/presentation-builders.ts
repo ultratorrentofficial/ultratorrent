@@ -122,6 +122,43 @@ function qualitySummary(resolution: string | null, dynamicRange: string | null):
  *   needs it, so the builder has no path to it rather than a condition a later
  *   edit could invert.
  */
+/**
+ * The media server a session is playing on: product, brand marker, and the
+ * server's own name.
+ *
+ * The marker lives in the VALUE rather than the fact's icon because the icon
+ * vocabulary is a shared union — rendered as Lucide components in the web app
+ * and as emoji in Telegram — so no member of it can be a product logo. A
+ * coloured dot carries the same at-a-glance distinction in a chat message, and
+ * degrades to nothing worse than a bullet where emoji are stripped.
+ *
+ * Both halves are needed, for the reason the web UI shows both: the product
+ * tells Plex from Jellyfin, the name tells one Plex box from another. Colours
+ * match the brand marks the UI uses.
+ */
+const SERVER_PRODUCT: Record<string, string> = {
+  plex: '\u{1F7E0} Plex',
+  jellyfin: '\u{1F7E3} Jellyfin',
+  emby: '\u{1F7E2} Emby',
+  kodi: '\u{1F535} Kodi',
+};
+
+function serverLabel(kind: string | null | undefined, name: string | null | undefined): string | null {
+  /*
+   * The KIND is required, and its absence is the signal to say nothing.
+   *
+   * The emitter sets it only when more than one media server is connected — the
+   * same rule Live Activity uses for its server chip. On a single-server install
+   * the tag would be identical on every card and would push the device off a
+   * line capped at two parts, spending a slot to say what the reader already
+   * knows.
+   */
+  if (!kind) return null;
+  const product = SERVER_PRODUCT[kind.toLowerCase()] ?? kind;
+  return name ? `${product} \u00B7 ${name}` : product;
+}
+
+
 const buildPlayback: PresentationBuilder = (ctx) => {
   const { envelope, locale, timezone } = ctx;
   const payload = (envelope.payload ?? {}) as Record<string, unknown>;
@@ -166,6 +203,16 @@ const buildPlayback: PresentationBuilder = (ctx) => {
     },
     { icon: 'clock', label: s('fieldTime', locale), value: formatWhen(when, locale, timezone) },
   ];
+
+  /*
+   * Which server is handling the stream. Not gated behind playback detail: it
+   * describes the SERVER, not the viewer or what they are watching, and with
+   * two products attached to one host a card omitting it cannot be acted on.
+   */
+  const server = serverLabel(str(payload, 'serverKind'), str(payload, 'serverName'));
+  if (server) {
+    facts.push({ icon: 'server', label: s('fieldServer', locale), value: server });
+  }
 
   // Device and quality are playback detail — same gate as the dashboard.
   if (ctx.canViewPlaybackDetail) {
@@ -276,6 +323,23 @@ const buildPlayback: PresentationBuilder = (ctx) => {
       }
     }
   }
+
+    /*
+     * Which server handled it, first — and within the two-part cap, not around it.
+     *
+     * Not gated on playback detail: it describes the server, not the viewer.
+     *
+     * It takes the FIRST slot and the line is then truncated, so on a host running
+     * one product nothing visible changes, and on a host running two the device
+     * (already the lowest-priority part) yields to the fact that says which server
+     * to go and look at. Adding a third part instead would have broken the
+     * "not a spec sheet" rule the surrounding code states and a test enforces.
+     */
+    const serverTag = serverLabel(str(payload, 'serverKind'), str(payload, 'serverName'));
+    if (serverTag) {
+      contextParts.unshift(serverTag);
+      contextParts.length = Math.min(contextParts.length, 2);
+    }
 
   const context = contextParts.length ? contextParts.join(' • ') : null;
 
