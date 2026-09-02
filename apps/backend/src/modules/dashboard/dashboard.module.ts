@@ -166,12 +166,25 @@ const ACRONYMS: Record<string, string> = {
   '2fa': '2FA',
 };
 
+/** Actions that take something away — held to a higher bar of explanation. */
+function isDestructive(action: string): boolean {
+  return /(^|\.)(delete|deleted|remove|removeData|destroy|purge|prune|trash_prune)($|\.)/.test(action)
+    || action.endsWith('.delete_files');
+}
+
 export function toActivityItem(row: AuditRow, names: MediaNames = new Map()): ActivityItem {
   const meta = asMeta(row.metadata);
   const described = describeActivity(row, meta, resolvedName(row, names));
   let message = described.message;
   const actor = actorName(row);
-  if (actor) message += ` · ${actor}`;
+  if (actor) message += ` \u00B7 ${actor}`;
+  /*
+   * "Who" is part of what a destructive line has to answer, and silence is not
+   * an answer. Most removals here are the scheduler acting on a seed policy and
+   * carry no user at all — without this the line looks exactly like something a
+   * person did and nobody will own up to.
+   */
+  else if (isDestructive(row.action)) message += ' \u00B7 automatic';
 
   return {
     id: row.id,
@@ -309,6 +322,48 @@ function burstSubjects(group: AuditRow[], names: MediaNames): string | null {
  * says exactly what media was handled and what was attempted); everything else
  * falls back to the generic verb-from-action rendering.
  */
+/**
+ * A destructive row has to answer three questions: what, who, and how.
+ *
+ * The feed answered none of them for a delete. `file.deleted` fell through to
+ * the default branch, which prints the action label and looks for a subject in
+ * METADATA — but a file delete records its path in `objectId`, so the line read
+ * "File deleted" and nothing else. The rows have always carried the path, the
+ * size, whether it went to the trash or was destroyed, and often why.
+ */
+
+/** Just the filename — the full path goes on the detail line. */
+function baseName(path: string | null | undefined): string | null {
+  if (!path) return null;
+  const parts = path.split('/').filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : path;
+}
+
+/** Size in the units a person reads, or null when it was not recorded. */
+function bytesLabel(value: unknown): string | null {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
+  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+}
+
+/** "3 items", "1 item" — for the bulk actions that record only a count. */
+function countLabel(value: unknown, noun: string): string | null {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
+
+/** Join the parts of a detail line, dropping the ones that were not recorded. */
+function detailLine(...parts: Array<string | null | undefined>): string | null {
+  const kept = parts.filter((p): p is string => !!p);
+  return kept.length ? kept.join(' \u00B7 ') : null;
+}
+
+
 function describeActivity(
   row: AuditRow,
   meta: Record<string, unknown>,
@@ -321,6 +376,67 @@ function describeActivity(
   const failed = row.result === 'failure';
 
   switch (row.action) {
+    /*
+     * Deletes, in as much detail as was recorded. `mode` separates the
+     * recoverable from the irreversible, which is the first thing a reader needs
+     * to know; the full path goes on the detail line so the message stays
+     * scannable.
+     */
+    case 'file.deleted': {
+      const mode = str(meta.mode);
+      const permanent = mode === 'permanent';
+      const file = baseName(row.objectId) ?? name;
+      return {
+        message: `${permanent ? 'Deleted permanently' : 'Moved to trash'}${file ? `: ${file}` : ''}`,
+        detail: detailLine(
+          row.objectId ?? null,
+          bytesLabel(meta.bytes),
+          str(meta.reason),
+          meta.isDirectory === true ? 'folder' : null,
+        ),
+      };
+    }
+    case 'file.bulk.delete':
+      return {
+        message: `Deleted ${countLabel(meta.count, 'file') ?? 'files'}`,
+        detail: detailLine(str(meta.mode), str(meta.reason)),
+      };
+    case 'file.trash_prune': {
+      const pruned = countLabel(meta.count, 'item');
+      return {
+        message: `Trash pruned${pruned ? `: ${pruned}` : ''}`,
+        detail: detailLine(bytesLabel(meta.bytes), str(meta.reason)),
+      };
+    }
+    /*
+     * A torrent removal is usually the scheduler acting on a seed policy, and
+     * `reason` is the whole story — without it the line looks like something a
+     * person did, and cannot be traced back to the rule that did it.
+     */
+    case 'torrents.remove':
+    case 'torrents.delete':
+    case 'torrents.delete_data': {
+      const withData = row.action !== 'torrents.remove';
+      const subject = str(meta.name) ?? baseName(row.objectId) ?? name;
+      return {
+        message: `${withData ? 'Removed torrent and data' : 'Removed torrent'}${subject ? `: ${subject}` : ''}`,
+        detail: detailLine(str(meta.reason), bytesLabel(meta.bytes)),
+      };
+    }
+    case 'torrents.bulk.remove':
+    case 'torrents.bulk.removeData': {
+      const withData = row.action === 'torrents.bulk.removeData';
+      const removed = countLabel(meta.libraryItemsRemoved, 'library item');
+      return {
+        message: `${withData ? 'Removed torrents and data' : 'Removed torrents'}: ${countLabel(meta.count, 'torrent') ?? 'several'}`,
+        detail: detailLine(removed ? `${removed} removed` : null, str(meta.reason)),
+      };
+    }
+    case 'media.bulk.delete_files':
+      return {
+        message: `Deleted library files: ${countLabel(meta.count, 'item') ?? 'several'}`,
+        detail: detailLine(str(meta.reason)),
+      };
     case 'media.rename':
       return {
         message: `${failed ? 'Rename failed' : 'Renamed media'}${name ? ` for ${name}` : ''}`,
