@@ -74,6 +74,12 @@ audit/
 # Private conversation logs — full memory across compaction, never published.
 ops/conversation-logs/
 
+# Diagnostic capture from live verification runs (installer tests, incident
+# evidence). Kept locally because it is the record of what a box actually did
+# at a moment in time — container topology, host paths, memory traces — none of
+# which belongs in a public repo, and none of which is source.
+ops/evidence/
+
 # UltraTorrent Console build output — binaries are built, never committed.
 clients/console/dist/
 
