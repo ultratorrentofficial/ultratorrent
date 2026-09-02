@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Radio, Users, Activity, Cpu, MonitorPlay, Server } from 'lucide-react';
+import { RefreshCw, Radio, Users, Activity, Cpu, MonitorPlay } from 'lucide-react';
+import { MediaServerIcon } from '@/components/media-servers/MediaServerIcon';
 import { api, type MediaServerLiveSession } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { useRealtime } from '@/realtime/RealtimeContext';
@@ -228,7 +229,9 @@ function SessionCard({
                   className="inline-flex items-center gap-1 rounded bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-medium text-foreground/70"
                   title={t('liveActivity.onServer', { name: server.name, kind: server.kind })}
                 >
-                  <Server className="h-3 w-3" aria-hidden />
+                  {/* The brand mark identifies the product at a glance; the name
+                      distinguishes two servers of the SAME product. Both are needed. */}
+                  <MediaServerIcon kind={server.kind} className="h-3.5 w-3.5" />
                   {server.name}
                 </span>
               )}
