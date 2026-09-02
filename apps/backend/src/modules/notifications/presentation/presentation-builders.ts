@@ -123,24 +123,24 @@ function qualitySummary(resolution: string | null, dynamicRange: string | null):
  *   edit could invert.
  */
 /**
- * The media server a session is playing on: product, brand marker, and the
- * server's own name.
+ * The media server a session is playing on: product and the server's own name.
  *
- * The marker lives in the VALUE rather than the fact's icon because the icon
- * vocabulary is a shared union — rendered as Lucide components in the web app
- * and as emoji in Telegram — so no member of it can be a product logo. A
- * coloured dot carries the same at-a-glance distinction in a chat message, and
- * degrades to nothing worse than a bullet where emoji are stripped.
+ * No icon, deliberately. A Telegram message is text plus HTML — it cannot carry
+ * an SVG mid-sentence, so the brand marks the web UI uses have no way in, and
+ * the only pictorial vocabulary is standard emoji, of which there is no Plex,
+ * Jellyfin, Emby or Kodi one. A coloured circle was tried as a stand-in and
+ * dropped: the product name already carries the whole meaning, so the dot added
+ * colour without information while implying a brand mark it was not. Something
+ * that looks like a logo and is not is worse than plain words.
  *
- * Both halves are needed, for the reason the web UI shows both: the product
- * tells Plex from Jellyfin, the name tells one Plex box from another. Colours
- * match the brand marks the UI uses.
+ * Both halves stay, for the reason the web UI shows both: the product tells Plex
+ * from Jellyfin, the name tells one Plex box from another.
  */
 const SERVER_PRODUCT: Record<string, string> = {
-  plex: '\u{1F7E1} Plex',
-  jellyfin: '\u{1F7E3} Jellyfin',
-  emby: '\u{1F7E2} Emby',
-  kodi: '\u{1F535} Kodi',
+  plex: 'Plex',
+  jellyfin: 'Jellyfin',
+  emby: 'Emby',
+  kodi: 'Kodi',
 };
 
 function serverLabel(kind: string | null | undefined, name: string | null | undefined): string | null {

@@ -28,16 +28,16 @@ const serverFact = (p: Record<string, unknown>, detail = true) =>
 describe('the playback card names the media server', () => {
   it('gives Jellyfin its product name, marker and server name', () => {
     const f = serverFact({ serverKind: 'jellyfin', serverName: 'SYNOPLEX-JELLYFIN' });
-    expect(f?.value).toBe('\u{1F7E3} Jellyfin · SYNOPLEX-JELLYFIN');
+    expect(f?.value).toBe('Jellyfin · SYNOPLEX-JELLYFIN');
     expect(f?.icon).toBe('server');
   });
 
   it('gives Plex its own colour, so the two are told apart at a glance', () => {
     expect(serverFact({ serverKind: 'plex', serverName: 'SYNOPLEX' })?.value)
-      .toBe('\u{1F7E1} Plex · SYNOPLEX');
+      .toBe('Plex · SYNOPLEX');
   });
 
-  it.each([['emby', '\u{1F7E2} Emby'], ['kodi', '\u{1F535} Kodi']])(
+  it.each([['emby', 'Emby'], ['kodi', 'Kodi']])(
     'covers %s',
     (kind, expected) => {
       expect(serverFact({ serverKind: kind, serverName: 'BOX' })?.value).toBe(`${expected} · BOX`);
@@ -46,7 +46,7 @@ describe('the playback card names the media server', () => {
 
   it('is shown even without playback-detail permission — it describes the server, not the viewer', () => {
     expect(serverFact({ serverKind: 'plex', serverName: 'SYNOPLEX' }, false)?.value)
-      .toBe('\u{1F7E1} Plex · SYNOPLEX');
+      .toBe('Plex · SYNOPLEX');
   });
 
   /*
@@ -86,18 +86,18 @@ describe('the Telegram message names the server', () => {
       })!,
     );
 
-  it('puts the Jellyfin marker and both names in the sent text', () => {
+  it('puts the product and the server name in the sent text', () => {
     const out = message('jellyfin', 'SYNOPLEX-JELLYFIN');
     expect(out).toContain('Jellyfin');
     expect(out).toContain('SYNOPLEX-JELLYFIN');
     // The playback card is artwork-led: it renders the context line, not the
-    // labelled fact rows, so the brand marker carries the identification alone.
-    expect(out).toContain('\u{1F7E3}');          // purple, matching the UI mark
+    // labelled fact rows, so the product name carries the identification alone.
+    expect(out).toContain('Jellyfin \u00B7 SYNOPLEX-JELLYFIN');
   });
 
   it('distinguishes a Plex stream by colour in the same inbox', () => {
     const plex = message('plex', 'SYNOPLEX');
-    expect(plex).toContain('\u{1F7E1} Plex');
-    expect(plex).not.toContain('\u{1F7E3}');
+    expect(plex).toContain('Plex · SYNOPLEX');
+    expect(plex).not.toContain('Jellyfin');
   });
 });
