@@ -64,7 +64,15 @@ export function MediaServerIcon({
   }
 
   if (kind === 'jellyfin') {
-    // Jellyfin's purple-to-blue gradient on its stacked chevron silhouette.
+    /*
+     * Jellyfin's mark: a rounded triangular ring with a smaller solid triangle
+     * inside it, both in the purple-to-blue gradient.
+     *
+     * The ring is a STROKED triangle rather than two filled paths with an
+     * even-odd hole — `stroke-linejoin="round"` gives the rounded corners the
+     * logo has for free, where hand-authored arc segments at this size would
+     * only approximate them and would need re-deriving for every size.
+     */
     const gid = 'ut-jellyfin-grad';
     return (
       <svg {...common}>
@@ -75,8 +83,20 @@ export function MediaServerIcon({
             <stop offset="100%" stopColor="#00A4DC" />
           </linearGradient>
         </defs>
-        <path d="M12 3.2c-1 0-5.6 8.1-5.1 9.1.5 1 9.7 1 10.2 0 .5-1-4.1-9.1-5.1-9.1Z" fill={`url(#${gid})`} />
-        <path d="M12 13.4c-.7 0-4 5.8-3.7 6.5.4.7 7 .7 7.4 0 .4-.7-3-6.5-3.7-6.5Z" fill={`url(#${gid})`} opacity="0.75" />
+        <path
+          d="M12 3.6 20.7 18.6 3.3 18.6Z"
+          fill="none"
+          stroke={`url(#${gid})`}
+          strokeWidth="3.1"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12 10.9 15.7 17.3 8.3 17.3Z"
+          fill={`url(#${gid})`}
+          stroke={`url(#${gid})`}
+          strokeWidth="1.3"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   }
