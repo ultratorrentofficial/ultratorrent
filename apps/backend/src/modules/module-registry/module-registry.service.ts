@@ -88,7 +88,7 @@ export class ModuleRegistryService implements OnModuleInit {
     if (!m || typeof m !== 'object') fail('not an object');
     if (!m.id || typeof m.id !== 'string') fail('missing id');
     if (!m.name) fail('missing name');
-    if (!['core', 'community'].includes(m.tier)) fail('bad tier');
+    if (typeof m.required !== 'boolean') fail('bad required flag');
     if (!Array.isArray(m.dependencies)) fail('dependencies must be an array');
     if (!Array.isArray(m.permissions)) fail('permissions must be an array');
     if (typeof m.enabledByDefault !== 'boolean') fail('enabledByDefault must be boolean');
@@ -118,7 +118,7 @@ export class ModuleRegistryService implements OnModuleInit {
     );
     const licensed = new Map<string, boolean>();
     for (const m of this.manifests) {
-      licensed.set(m.id, m.tier === 'core' || m.tier === 'community' ? true : await this.license.hasModule(m.id));
+      licensed.set(m.id, await this.license.hasModule(m.id));
     }
 
     // Desired state before dependency resolution.
@@ -163,7 +163,7 @@ export class ModuleRegistryService implements OnModuleInit {
         id: m.id,
         name: m.name,
         description: m.description,
-        tier: m.tier,
+        required: m.required,
         state,
         enabled: isEnabled,
         licensed: isLicensed,
@@ -172,7 +172,7 @@ export class ModuleRegistryService implements OnModuleInit {
         permissions: m.permissions,
         menu: m.menu ?? [],
         features: m.features ?? [],
-        locked: m.tier === 'core',
+        locked: m.required,
         reason,
       });
     }
@@ -208,7 +208,7 @@ export class ModuleRegistryService implements OnModuleInit {
     if (unmet.length) {
       throw new BadRequestException(`Enable its dependencies first: ${unmet.join(', ')}`);
     }
-    await this.setState(id, true, m.tier);
+    await this.setState(id, true, m.required);
     await this.event(id, 'module.enabled', `Module "${id}" enabled`, userId);
     await this.refresh();
     return this.getStatus(id)!;
@@ -216,8 +216,8 @@ export class ModuleRegistryService implements OnModuleInit {
 
   async disable(id: string, userId?: string): Promise<ModuleStatus> {
     const m = this.getManifest(id);
-    if (m.tier === 'core') {
-      throw new ForbiddenException('Core modules cannot be disabled');
+    if (m.required) {
+      throw new ForbiddenException('Required modules cannot be disabled');
     }
     const dependents = this.manifests.filter(
       (x) => x.dependencies.includes(id) && this.isEnabled(x.id),
@@ -227,17 +227,22 @@ export class ModuleRegistryService implements OnModuleInit {
         `Disable dependents first: ${dependents.map((d) => d.id).join(', ')}`,
       );
     }
-    await this.setState(id, false, m.tier);
+    await this.setState(id, false, m.required);
     await this.event(id, 'module.disabled', `Module "${id}" disabled`, userId);
     await this.refresh();
     return this.getStatus(id)!;
   }
 
-  private async setState(moduleId: string, enabled: boolean, tier: string): Promise<void> {
+  /*
+   * `module_states.tier` is a NOT NULL column nothing reads — only `enabled` is
+   * ever loaded back. Rather than keep writing a retired licensing word into it,
+   * it now records what the flag actually means.
+   */
+  private async setState(moduleId: string, enabled: boolean, required: boolean): Promise<void> {
     await this.prisma.moduleState.upsert({
       where: { moduleId },
-      create: { moduleId, enabled, status: enabled ? 'enabled' : 'disabled', tier },
-      update: { enabled, status: enabled ? 'enabled' : 'disabled', tier },
+      create: { moduleId, enabled, status: enabled ? 'enabled' : 'disabled', tier: required ? 'required' : 'optional' },
+      update: { enabled, status: enabled ? 'enabled' : 'disabled', tier: required ? 'required' : 'optional' },
     });
   }
 

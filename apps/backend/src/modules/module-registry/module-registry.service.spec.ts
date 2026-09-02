@@ -22,8 +22,9 @@ const audit = { record: async () => undefined } as any;
 function tierLicense(byId: Map<string, ModuleManifest>): LicenseProvider {
   return {
     async hasModule(id: string) {
-      const t = byId.get(id)?.tier;
-      return t === 'core' || t === 'community';
+      // Every known module is available; the seam exists so the rule lives in
+      // one place, not because there is more than one answer.
+      return byId.has(id);
     },
     async getStatus() { return { edition: 'community', valid: true, licensee: null, modules: [], issuedAt: null, expiresAt: null, expired: false }; },
     async getModuleLimits() { return {}; },
@@ -41,7 +42,7 @@ function svc(manifests: ModuleManifest[]) {
 
 const M = (over: Partial<ModuleManifest>): ModuleManifest => ({
   id: over.id!, name: over.name ?? over.id!, description: '',
-  tier: over.tier ?? 'core', enabledByDefault: over.enabledByDefault ?? true,
+  required: over.required ?? true, enabledByDefault: over.enabledByDefault ?? true,
   dependencies: over.dependencies ?? [], permissions: over.permissions ?? [],
 });
 
@@ -64,10 +65,10 @@ describe('ModuleRegistryService — validation', () => {
 
 describe('ModuleRegistryService — states & rules', () => {
   const set = () => [
-    M({ id: 'auth', tier: 'core' }),
-    M({ id: 'free', tier: 'community', dependencies: ['auth'] }),
-    M({ id: 'free_dep', tier: 'community', dependencies: ['free'] }),
-    M({ id: 'opt', tier: 'community', enabledByDefault: false, dependencies: ['auth'] }),
+    M({ id: 'auth', required: true }),
+    M({ id: 'free', required: false, dependencies: ['auth'] }),
+    M({ id: 'free_dep', required: false, dependencies: ['free'] }),
+    M({ id: 'opt', required: false, enabledByDefault: false, dependencies: ['auth'] }),
   ];
 
   it('core is enabled and locked; community enabled by default', async () => {

@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
-import { StateBadge, TierBadge, TIER_ORDER } from '@/modules/moduleUi';
+import { StateBadge, RequiredBadge } from '@/modules/moduleUi';
 
 export function ModulesPage() {
   const { t } = useTranslation('modules');
@@ -49,10 +49,12 @@ export function ModulesPage() {
     }
   };
 
-  const grouped = TIER_ORDER.map((tier) => ({
-    tier,
-    modules: (data ?? []).filter((m) => m.tier === tier),
-  })).filter((g) => g.modules.length > 0);
+  /*
+   * One list, alphabetical. It used to be split under "Core" and "Community"
+   * headings — the two editions of a product that no longer has editions, so the
+   * grouping described nothing and split the list for no reason.
+   */
+  const modules = [...(data ?? [])].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="space-y-6">
@@ -112,20 +114,13 @@ export function ModulesPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {grouped.map((group) => (
-            <div key={group.tier} className="space-y-3">
-              <h2 className="text-sm font-semibold text-muted-foreground">
-                {t(`tier.${group.tier}`)}
-              </h2>
-              {group.modules.map((module) => (
-                <ModuleCard
-                  key={module.id}
-                  module={module}
-                  canManage={canManage}
-                  onToggle={(next) => toggle(module, next)}
-                />
-              ))}
-            </div>
+          {modules.map((module) => (
+            <ModuleCard
+              key={module.id}
+              module={module}
+              canManage={canManage}
+              onToggle={(next) => toggle(module, next)}
+            />
           ))}
         </div>
       )}
@@ -173,7 +168,7 @@ function ModuleCard({
             <code className="rounded bg-white/[0.04] px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
               {module.id}
             </code>
-            <TierBadge tier={module.tier} />
+            {module.required && <RequiredBadge />}
             <StateBadge state={module.state} />
             <Badge variant={module.licensed ? 'success' : 'secondary'}>
               {module.licensed ? t('card.licensed') : t('card.unlicensed')}

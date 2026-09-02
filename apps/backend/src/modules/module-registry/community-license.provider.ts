@@ -10,15 +10,14 @@ import { ALL_MANIFESTS } from './manifests';
 export const LICENSE_PROVIDER = Symbol('MODULE_AVAILABILITY_PROVIDER');
 
 /**
- * Single-tier availability provider. UltraTorrent ships one community edition in
- * which every module is `core`/`community` and therefore always available. The
- * registry consults this seam so the rule lives in one place.
+ * Availability provider. UltraTorrent ships a single community edition in which
+ * every module is available, so this answers "is this a module we know about"
+ * and nothing more. The registry consults it as a seam, keeping the rule in one
+ * place rather than scattering an `always true` through the callers.
  */
 @Injectable()
 export class CommunityLicenseProvider implements LicenseProvider {
-  private readonly tierById = new Map<string, ModuleManifest['tier']>(
-    ALL_MANIFESTS.map((m) => [m.id, m.tier]),
-  );
+  private readonly knownIds = new Set<string>(ALL_MANIFESTS.map((m) => m.id));
 
   async getStatus(): Promise<LicenseStatus> {
     return {
@@ -31,11 +30,14 @@ export class CommunityLicenseProvider implements LicenseProvider {
       expired: false,
     };
   }
-
   async hasModule(moduleId: string): Promise<boolean> {
-    const tier = this.tierById.get(moduleId);
-    // Unknown ids (e.g. an external module key) are treated as not-available.
-    return tier === 'core' || tier === 'community';
+    /*
+     * Every module ships in the one community build, so availability is only ever
+     * "is this a module we know about". This used to compare a tier against the
+     * two values it could hold and return true for both — a licensing check that
+     * had stopped checking anything.
+     */
+    return this.knownIds.has(moduleId);
   }
 
   async getModuleLimits(): Promise<Record<string, unknown>> {

@@ -7,8 +7,19 @@
  * decide what is active. Access to a module's routes is governed by RBAC.
  */
 
-export type ModuleTier = 'core' | 'community';
-
+/*
+ * There is no module tier any more.
+ *
+ * `tier: 'core' | 'community'` conflated two unrelated things: which edition a
+ * module belonged to, and whether it can be switched off. The editions were
+ * retired — every module ships in the one community build, and the license seam
+ * already answered "available" for both values — but the field stayed, so the UI
+ * went on grouping modules under "Core" and "Community" headings that describe a
+ * product that no longer exists.
+ *
+ * What survives is the second meaning, named for what it is: some modules cannot
+ * be disabled because the rest of the system does not run without them.
+ */
 export type Edition = 'community';
 
 export interface ModuleMenuItem {
@@ -22,7 +33,8 @@ export interface ModuleManifest {
   id: string;
   name: string;
   description: string;
-  tier: ModuleTier;
+  /** Cannot be disabled: the system does not run without it. */
+  required: boolean;
   /** Whether the module is on by default. */
   enabledByDefault: boolean;
   dependencies: string[];
@@ -48,7 +60,8 @@ export interface ModuleStatus {
   id: string;
   name: string;
   description: string;
-  tier: ModuleTier;
+  /** Cannot be disabled. Mirrors `locked`; kept because callers read both. */
+  required: boolean;
   state: ModuleStateValue;
   enabled: boolean;
   /** Whether this module is available in the current build (always true). */
@@ -59,7 +72,7 @@ export interface ModuleStatus {
   permissions: string[];
   menu: ModuleMenuItem[];
   features: string[];
-  /** True for core modules, which can never be disabled. */
+  /** True for required modules, which can never be disabled. */
   locked: boolean;
   /** Human-readable explanation of the current state. */
   reason: string;

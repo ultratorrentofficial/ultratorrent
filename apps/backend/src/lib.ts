@@ -60,8 +60,8 @@ export {
 } from './common/decorators/current-user.decorator';
 
 export {
-  CORE_MANIFESTS,
-  COMMUNITY_MANIFESTS,
+  REQUIRED_MANIFESTS,
+  OPTIONAL_MANIFESTS,
   ALL_MANIFESTS,
 } from './modules/module-registry/manifests';
 
@@ -72,6 +72,5 @@ export type {
   LicenseStatus,
   ModuleManifest,
   ModuleStatus,
-  ModuleTier,
   Edition,
 } from '@ultratorrent/shared';

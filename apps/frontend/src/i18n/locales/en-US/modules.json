@@ -20,10 +20,6 @@
     "error": "Could not load modules.",
     "empty": "No modules"
   },
-  "tier": {
-    "core": "Core",
-    "community": "Community"
-  },
   "state": {
     "available": "Available",
     "enabled": "Enabled",
@@ -56,5 +52,6 @@
     "unmetDependencies": "Unmet dependencies: ",
     "manageModules": "Manage modules",
     "noAccess": "This feature isn’t enabled for your account. Contact an administrator if you think you should have access."
-  }
+  },
+  "required": "Required"
 }

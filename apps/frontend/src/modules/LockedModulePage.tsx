@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { TierBadge, StateBadge } from './moduleUi';
+import { RequiredBadge, StateBadge } from './moduleUi';
 
 export function LockedModulePage({ moduleId }: { moduleId: string }) {
   const { t } = useTranslation('modules');
@@ -37,7 +37,7 @@ export function LockedModulePage({ moduleId }: { moduleId: string }) {
             <h1 className="text-xl font-bold tracking-tight">{t('locked.notAvailable', { title })}</h1>
             {module && (
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <TierBadge tier={module.tier} />
+                {module.required && <RequiredBadge />}
                 <StateBadge state={module.state} />
               </div>
             )}

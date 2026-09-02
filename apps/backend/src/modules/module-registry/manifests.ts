@@ -4,14 +4,15 @@ const P = PERMISSIONS;
 
 /**
  * Manifests for the always-on Core modules. Optional (toggleable) modules live
- * in {@link COMMUNITY_MANIFESTS} below.
+ * in {@link OPTIONAL_MANIFESTS} below. The split is required-vs-optional —
+ * whether the system runs without it — not an edition; there is only one build.
  */
-export const CORE_MANIFESTS: ModuleManifest[] = [
+export const REQUIRED_MANIFESTS: ModuleManifest[] = [
   {
     id: MODULE_IDS.AUTH,
     name: 'Authentication',
     description: 'Login, sessions, refresh-token rotation.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [],
     permissions: [],
@@ -21,7 +22,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.RBAC,
     name: 'Access control (RBAC)',
     description: 'Roles, permissions, and route guards.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH],
     permissions: [P.ROLES_MANAGE],
@@ -30,7 +31,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.ACCOUNT,
     name: 'Account & security',
     description: 'Self-service profile, password, and 2FA.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH],
     routes: ['/api/account'],
@@ -42,7 +43,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.USERS,
     name: 'Users',
     description: 'User management and role assignment.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH, MODULE_IDS.RBAC],
     permissions: [P.USERS_VIEW, P.USERS_MANAGE],
@@ -53,7 +54,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.ENGINE,
     name: 'Torrent engine',
     description: 'Engine provider abstraction (rTorrent) + registry.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH],
     permissions: [P.SYSTEM_VIEW, P.ENGINES_MANAGE],
@@ -65,7 +66,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.DASHBOARD,
     name: 'Dashboard',
     description: 'Aggregated stats and recent activity.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH, MODULE_IDS.ENGINE],
     permissions: [P.TORRENTS_VIEW],
@@ -76,7 +77,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.TORRENTS,
     name: 'Torrents',
     description: 'Torrent list, detail, lifecycle, bulk actions.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH, MODULE_IDS.ENGINE],
     permissions: [P.TORRENTS_VIEW, P.TORRENTS_ADD, P.TORRENTS_DELETE],
@@ -87,7 +88,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.SEARCH,
     name: 'Search',
     description: 'Search persisted torrent snapshots.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH],
     permissions: [P.TORRENTS_VIEW],
@@ -97,7 +98,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.TAXONOMY,
     name: 'Categories & tags',
     description: 'Organise torrents with categories and tags.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH],
     permissions: [P.CATEGORIES_MANAGE, P.TAGS_MANAGE],
@@ -107,7 +108,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.RSS,
     name: 'RSS automation',
     description: 'Feeds, ranked match candidates, and the Smart Match Builder.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH, MODULE_IDS.ENGINE],
     permissions: [
@@ -135,7 +136,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.AUTOMATION,
     name: 'Automation',
     description: 'Trigger/condition/action rule engine.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH, MODULE_IDS.ENGINE],
     permissions: [P.AUTOMATION_VIEW, P.AUTOMATION_MANAGE],
@@ -147,7 +148,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.FILES,
     name: 'File manager',
     description: 'Path-safe browsing and file operations.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH],
     permissions: [P.FILES_VIEW, P.FILES_MANAGE],
@@ -158,7 +159,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.API_KEYS,
     name: 'API keys',
     description: 'Personal API key issue/list/revoke.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH],
     permissions: [P.APIKEYS_MANAGE],
@@ -169,7 +170,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     name: 'Notifications',
     description:
       'Personal notifications. Each user chooses which events they want and where they arrive — in-app, email, Telegram or Discord. Recipients are fixed in code per event; there is no rule builder, audience designer or template editor.',
-    tier: 'core',
+    required: true,
     // Core and always on. A disabled notification module would leave producers
     // publishing into a dispatcher that is not listening — events would fire,
     // deliveries would never queue, and nothing would say why.
@@ -190,7 +191,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.AUDIT,
     name: 'Audit log',
     description: 'Append-only audit trail of sensitive actions.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH],
     permissions: [P.AUDIT_VIEW],
@@ -201,7 +202,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.SYSTEM,
     name: 'System health',
     description: 'Liveness/readiness probes and health reporting.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [],
     permissions: [P.SYSTEM_VIEW],
@@ -211,7 +212,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.SETTINGS,
     name: 'Settings',
     description: 'Key/value application settings.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH],
     permissions: [P.SETTINGS_VIEW, P.SETTINGS_MANAGE],
@@ -223,7 +224,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.OPERATIONS,
     name: 'Operations (Console API)',
     description: 'Read-only aggregate snapshot and event stream for UltraTorrent Console.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH],
     /*
@@ -247,7 +248,7 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.MODULE_REGISTRY,
     name: 'Module registry',
     description: 'Enable/disable optional modules.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH, MODULE_IDS.RBAC],
     permissions: [P.MODULES_VIEW, P.MODULES_MANAGE],
@@ -261,13 +262,13 @@ export const CORE_MANIFESTS: ModuleManifest[] = [
  * Optional (toggleable) modules, bundled and on by default. They can be enabled
  * or disabled per install; access to their routes is governed by RBAC.
  */
-export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
+export const OPTIONAL_MANIFESTS: ModuleManifest[] = [
   {
     id: MODULE_IDS.MEDIA_MANAGER,
     name: 'Media Manager',
     description:
       'Scan, identify, enrich, and organise your media libraries: library scanning, filename identification, metadata/artwork/subtitles, duplicate detection, NFO generation, rename/move for media servers, and a health dashboard.',
-    tier: 'community',
+    required: false,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH, MODULE_IDS.FILES],
     permissions: [
@@ -317,7 +318,7 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
     id: MODULE_IDS.RELEASE_SCORING,
     name: 'Release Scoring',
     description: 'Explainable 0–100 scoring of RSS releases with reasons, warnings, and a recommendation.',
-    tier: 'community',
+    required: false,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.AUTH, MODULE_IDS.RSS],
     permissions: [P.RELEASE_SCORING_VIEW, P.RELEASE_SCORING_MANAGE],
@@ -328,7 +329,7 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
     name: 'Media Acquisition Intelligence',
     description:
       'Decides what media to acquire from library gaps, release quality, duplicate risk, watchlists, acquisition profiles, and automation context — explainable decisions, never direct file operations.',
-    tier: 'community',
+    required: false,
     enabledByDefault: true,
     // Hard deps must be real, registered module ids. Smart Match Builder (an RSS
     // feature) and library intelligence are reused at runtime, not declared as
@@ -393,7 +394,7 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
     name: 'Media Server Analytics',
     description:
       'Media server monitoring, analytics, recently-added, watch history, live activity, user/library statistics, scheduled newsletters, and Tautulli analytics import — across Plex, Jellyfin, Emby, and Kodi.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [
       MODULE_IDS.AUTH,
@@ -452,7 +453,7 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
     name: 'Subtitle Intelligence',
     description:
       'The definitive subtitle engine: fingerprints every media file (movie hash + technical metadata), searches multiple providers with a progressively-relaxed strategy (hash → release → external id → title), scores and validates each candidate, installs the best as a media-server-correct sidecar (never overwriting an original), and can synchronize it to the audio. Per-library language policy, automation, and background monitoring.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [
       MODULE_IDS.AUTH,
@@ -494,7 +495,7 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
     name: 'Library Cleanup Center',
     description:
       'Policy-driven reclamation of library storage. Users build versioned cleanup policies from a catalogue of metadata, playback, technical, storage and safety conditions; a run turns matches into CANDIDATES, never deletions. Nothing is removed except through a persisted, approved plan whose per-file fingerprints still match the world, and protected, locked, actively-playing, in-flight, ambiguous or unmeasured files are refused server-side. Removal goes to quarantine or Trash through the existing path-safe file services; permanent deletion is a manual, separately-permissioned operation.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [
       MODULE_IDS.AUTH,
@@ -547,7 +548,7 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
     name: 'Media Intake Engine',
     description:
       'Staging-based import pipeline. A completed download is verified, identified, enriched and quality-scored in a staging area, then placed into a library by the cheapest strategy the storage actually supports — hardlink, reflink, provider relocation or copy — so the torrent keeps seeding. Storage Profiles hold the logical roots and reference existing libraries rather than restating their paths; a Path Mapping Registry renders every path into the space of whatever component is about to receive it. Opt-in per RSS rule and never applied to an existing one automatically: rules created before this module read legacy_direct and behave exactly as before.',
-    tier: 'core',
+    required: true,
     enabledByDefault: true,
     dependencies: [MODULE_IDS.MEDIA_MANAGER, MODULE_IDS.TORRENTS],
     permissions: [
@@ -565,6 +566,6 @@ export const COMMUNITY_MANIFESTS: ModuleManifest[] = [
 ];
 
 export const ALL_MANIFESTS: ModuleManifest[] = [
-  ...CORE_MANIFESTS,
-  ...COMMUNITY_MANIFESTS,
+  ...REQUIRED_MANIFESTS,
+  ...OPTIONAL_MANIFESTS,
 ];
