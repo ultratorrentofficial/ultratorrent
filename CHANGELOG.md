@@ -45,6 +45,24 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.88.0] - 2026-09-02
+
+### Added
+- Add, edit and delete media server connections from the UI, with a test that runs before saving
+- Duplicate detection can run on a schedule, configured from the Duplicates Center
+
+### Fixed
+- The Server Users nav entry shows its name instead of a raw translation key
+- A successful connection test no longer renders as a failure in the add-connection dialog
+- Live Activity names which media server each session is playing on
+- Watch History names which media server each play came from
+- Live Activity shows each media server's brand mark, so Plex and Jellyfin streams are told apart at a glance
+- Media server brand marks appear on Connections, Server Users and Watch History too
+- User deduplication no longer merges accounts across different media servers
+- Jellyfin sessions show a real container name instead of ffprobe's demuxer alias list
+- The media server chip is legible, and two icons sized with a Tailwind class that does not exist are fixed
+- Playback notifications name the media server when more than one is connected
+
 ## [0.87.0] - 2026-08-31
 
 ### Added
