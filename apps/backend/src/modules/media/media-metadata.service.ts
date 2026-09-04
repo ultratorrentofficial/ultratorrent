@@ -270,13 +270,21 @@ export class MediaMetadataService {
     return { details: null, provider: chain[0] ?? this.providers.offline() };
   }
 
-  private lookupFor(item: {
-    mediaType: string;
-    title: string;
-    year: number | null;
-    season: number | null;
-    episode: number | null;
-  }): MediaLookup {
+  private lookupFor(
+    item: {
+      mediaType: string;
+      title: string;
+      year: number | null;
+      season: number | null;
+      episode: number | null;
+    },
+    /*
+     * Evidence about the FILE, used only where title and year have already tied.
+     * Passed in rather than read here so the caller owns the one rule that makes
+     * it trustworthy: a duration counts only when it was MEASURED.
+     */
+    evidence?: { durationSec?: number | null; releaseName?: string | null; knownIds?: Record<string, string> },
+  ): MediaLookup {
     const kind: MediaLookup['kind'] =
       item.mediaType === 'movie'
         ? 'movie'
@@ -291,7 +299,37 @@ export class MediaMetadataService {
       year: item.year,
       season: item.season,
       episode: item.episode,
+      durationSec: evidence?.durationSec ?? null,
+      releaseName: evidence?.releaseName ?? null,
+      knownIds: evidence?.knownIds,
     };
+  }
+
+  /**
+   * The name this item's files arrived under, before any rename.
+   *
+   * The folder is renamed to a canonical `Title (Year)`; the release name is
+   * not, and it keeps the distinguishing words the rename discarded. Best-effort
+   * — an item imported by hand has no torrent behind it, and that is not an
+   * error, just one fewer rung in the cascade.
+   */
+  private async releaseNameFor(itemId: string): Promise<string | null> {
+    try {
+      const job = await this.prisma.mediaIntakeJob.findFirst({
+        where: { mediaItemId: itemId },
+        orderBy: { createdAt: 'desc' },
+        select: { sourcePath: true },
+      });
+      /*
+       * The whole staged path, not just its basename. `normalizeTitle` flattens
+       * separators to spaces, so a title registered on the candidate matches
+       * wherever it sits in the path — the release folder usually carries it
+       * while the file inside has been cut down to an episode name.
+       */
+      return job?.sourcePath ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /** Read a sidecar .nfo next to the item's primary file, if present + safe. */
@@ -496,10 +534,30 @@ export class MediaMetadataService {
     });
     if (!item) throw new NotFoundException('Item not found');
 
-    const query = this.lookupFor(item);
-    const { details: remote, provider } = await this.fetchFromChain(query, itemId, ctx);
-
+    /*
+     * The sidecar is read BEFORE the provider chain, not after it.
+     *
+     * It used to run afterwards and only fill gaps in the answer, which wasted
+     * the strongest evidence in the library: an NFO naming
+     * `<uniqueid type="imdb">` says outright what the file is, and a provider
+     * given that id cannot tie and cannot be misled by a popular near-name. Read
+     * first, it decides the lookup instead of patching it.
+     */
     const local = await this.readLocalNfo(item.files.map((f) => f.path));
+
+    /*
+     * Duration is used ONLY when it was measured from the container.
+     * `techSource` is the provenance flag that makes that checkable — a
+     * filename-derived value is a claim, and a claim must never be allowed to
+     * settle an identity that title and year could not.
+     */
+    const probed = item.files.find((f) => f.techSource === 'probe' && f.durationSec != null);
+    const query = this.lookupFor(item, {
+      durationSec: probed?.durationSec ?? null,
+      releaseName: await this.releaseNameFor(itemId),
+      knownIds: (local as { externalIds?: Record<string, string> } | null)?.externalIds,
+    });
+    const { details: remote, provider } = await this.fetchFromChain(query, itemId, ctx);
 
     // Merge: remote provider wins, local NFO fills gaps, parsed title as base.
     const merged: MediaMetadataDetails = {

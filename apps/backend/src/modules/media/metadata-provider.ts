@@ -6,7 +6,7 @@
  * titles. Other sources (TVDB/IMDb/AniDB/MusicBrainz) can be added by
  * implementing this interface — same provider pattern as the torrent engines.
  */
-import { scoreTitleMatch, titleSimilarity, titlesAreSequelVariants } from './imdb/imdb-match';
+import { normalizeTitle, scoreTitleMatch, titleSimilarity, titlesAreSequelVariants } from './imdb/imdb-match';
 
 /**
  * Minimum title+year confidence to accept a TMDB movie search result as a match.
@@ -24,6 +24,37 @@ import { scoreTitleMatch, titleSimilarity, titlesAreSequelVariants } from './imd
  * Runner" ≈ 0.79, an exact title = 1.0). 0.7 sits in that gap.
  */
 const MOVIE_MATCH_MIN_SCORE = 0.7;
+
+/**
+ * How far a file's measured duration may sit from a candidate's published
+ * runtime and still count as the same film.
+ *
+ * Tight on purpose. TMDB publishes whole minutes and one runtime per film, so a
+ * correct match lands within a few seconds (measured: 4s on The Odyssey, 5s on
+ * Leviticus, 4s on The Sheep Detectives, 11s on Teenage Wasteland). Every extra
+ * minute of slack trades a safe refusal for a possible wrong id, and a wrong id
+ * corrupts dedup and every downstream lookup while a refusal merely asks a
+ * person.
+ *
+ * It also decides the extended-cut case correctly BY REFUSING. TMDB gives one
+ * entry per film and lists the theatrical runtime — Fellowship of the Ring is a
+ * single entry at 179m though the extended cut runs ~49m longer, and Apocalypse
+ * Now is one entry at 147m though Redux runs 202m. A file holding the long cut
+ * therefore matches no candidate inside this window, so the tie stands and the
+ * item is reported rather than guessed at.
+ */
+const RUNTIME_TOLERANCE_SEC = 120;
+
+/**
+ * Ceiling on candidates the cascade will fetch details for.
+ *
+ * Each rung past the search costs one `/movie/{id}` call per candidate, and the
+ * paths that need them — a genuine tie, or a search where nothing cleared the
+ * threshold — are the rare ones. The cap keeps a pathological query (a one-word
+ * title returning twenty same-year films) from turning one enrichment into
+ * twenty API calls.
+ */
+const MAX_CASCADE_CANDIDATES = 5;
 
 /**
  * A provider's search result reduced to what the movie gate actually judges.
@@ -125,6 +156,19 @@ export interface MediaLookup {
   year?: number | null;
   season?: number | null;
   episode?: number | null;
+  /**
+   * Evidence the caller holds about the FILE, used only to break a tie.
+   *
+   * Title and year are what tie in the first place, so nothing here may widen a
+   * match — every field below chooses among candidates that already passed the
+   * gate, or (for `releaseName`) rescues one on an exact alternative-title hit.
+   */
+  /** MEASURED container duration in seconds. Never a filename-derived value. */
+  durationSec?: number | null;
+  /** The release name the file arrived as, before any rename. */
+  releaseName?: string | null;
+  /** Ids already known for this item — a sidecar NFO's, typically. */
+  knownIds?: Record<string, string>;
 }
 
 export interface MediaMetadata {
@@ -272,10 +316,176 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
     return widened?.results ?? [];
   }
 
+  /**
+   * A candidate's full record, including every title it is published under.
+   *
+   * `alternative_titles` is the half `/search/movie` never returns, and it is
+   * where a retitled film hides: TMDB lists the film it calls "The Sheep
+   * Detectives" under the alternative title "Three Bags Full: A Sheep Detective
+   * Movie", which is exactly the name on the folder. The search could not see
+   * it, so the film scored 0.35 against the only title it was offered and was
+   * rejected — correctly, on the evidence it had.
+   */
+  private async candidateDetail(id: number | string): Promise<any> {
+    return this.get(`/movie/${id}`, { append_to_response: 'alternative_titles' });
+  }
+
+  /** Every name a candidate is published under, normalized and de-duplicated. */
+  private titlesOf(detail: any): string[] {
+    const raw: string[] = [
+      detail?.title,
+      detail?.original_title,
+      ...((detail?.alternative_titles?.titles ?? []) as any[]).map((t) => t?.title),
+    ].filter((t): t is string => typeof t === 'string' && t.length > 0);
+    return [...new Set(raw.map(normalizeTitle).filter(Boolean))];
+  }
+
+  /**
+   * Rung 1 — an id we already hold settles the question outright.
+   *
+   * A sidecar NFO naming `<uniqueid type="imdb">` is the operator's own record of
+   * what the file is, and it beats any search: it cannot tie, and it cannot be
+   * fooled by a popular film with a similar name. Resolved by id, never by title.
+   */
+  private async resolveByKnownId(q: MediaLookup): Promise<any | null> {
+    const tmdbId = q.knownIds?.tmdb;
+    if (tmdbId) {
+      const hit = await this.get(`/movie/${tmdbId}`, {});
+      if (hit?.id) return hit;
+    }
+    const imdbId = q.knownIds?.imdb;
+    if (imdbId) {
+      const found = await this.get(`/find/${imdbId}`, { external_source: 'imdb_id' });
+      const hit = (found?.movie_results ?? [])[0];
+      if (hit?.id) return hit;
+    }
+    return null;
+  }
+
+  /**
+   * Rung 2 — the file's measured duration against each tied candidate's runtime.
+   *
+   * Orthogonal to title and year, which is the whole point: those two are what
+   * tied, so only a third axis can separate them. A filename can claim anything;
+   * a container's duration is a measurement.
+   *
+   * Returns a winner ONLY when exactly one candidate lands inside the tolerance.
+   * Two inside is still a tie, and none inside means the file is a cut nobody
+   * published a runtime for — both keep the existing refusal.
+   */
+  private async breakTieByRuntime(tied: any[], durationSec: number): Promise<any | null> {
+    const inside: any[] = [];
+    for (const cand of tied.slice(0, MAX_CASCADE_CANDIDATES)) {
+      const detail = await this.candidateDetail(cand.id);
+      const runtime = detail?.runtime;
+      if (typeof runtime !== 'number' || runtime <= 0) continue;
+      if (Math.abs(runtime * 60 - durationSec) <= RUNTIME_TOLERANCE_SEC) inside.push(cand);
+    }
+    return inside.length === 1 ? inside[0] : null;
+  }
+
+  /**
+   * Rung 3 — the name the file actually arrived as, against every title each
+   * tied candidate is published under.
+   *
+   * The folder is renamed; the release name is not, and it often carries the
+   * distinguishing words the rename discarded. Deliberately NOT scored: a fuzzy
+   * release-name match is how a wrong id gets written with confidence attached.
+   * A candidate hits only when one of its full titles appears verbatim in the
+   * normalized release name, and only a single hit wins.
+   */
+  private async breakTieByReleaseName(tied: any[], releaseName: string): Promise<any | null> {
+    const haystack = normalizeTitle(releaseName);
+    if (!haystack) return null;
+
+    const considered = tied.slice(0, MAX_CASCADE_CANDIDATES);
+    const titlesByCand = new Map<any, string[]>();
+    const seen = new Map<string, number>();
+    for (const cand of considered) {
+      const titles = this.titlesOf(await this.candidateDetail(cand.id)).filter((t) => t.length >= 4);
+      titlesByCand.set(cand, titles);
+      for (const t of new Set(titles)) seen.set(t, (seen.get(t) ?? 0) + 1);
+    }
+
+    /*
+     * Only a title UNIQUE to one candidate can discriminate.
+     *
+     * These candidates tied because they share a name, so that shared name turns
+     * up in the release path of any of them — matching on it identifies nothing
+     * while looking like evidence. Two 2026 films called "Nomad" are separated
+     * by "Nomad: Silent Road" appearing in the path, never by "Nomad" appearing
+     * in it.
+     */
+    const hits = considered.filter((cand) =>
+      (titlesByCand.get(cand) ?? []).some((t) => seen.get(t) === 1 && haystack.includes(t)),
+    );
+    return hits.length === 1 ? hits[0] : null;
+  }
+
+  /**
+   * The rescue for a film published under a different name than the folder uses.
+   *
+   * Runs only when NOTHING cleared the score threshold, so it can never override
+   * a match — it reconsiders candidates already rejected. It is also stricter
+   * than the gate it follows: the year must still hold to +/-1, and the folder
+   * title must equal one of the candidate's registered titles EXACTLY once
+   * normalized, rather than clearing a 0.7 similarity. Exact equality against a
+   * title the studio actually registered is stronger evidence than the fuzzy
+   * score, not weaker, which is the only reason this is allowed to widen recall.
+   *
+   * Live: `Three Bags Full A Sheep Detective Movie` is a registered alternative
+   * title of `The Sheep Detectives` (2026), and `Middletown` of `Teenage
+   * Wasteland` (2025). Both sat in the library with no artwork for days.
+   */
+  private async rescueByAlternativeTitle(results: any[], q: MediaLookup): Promise<any | null> {
+    const wanted = normalizeTitle(q.title);
+    if (!wanted) return null;
+    const hits: any[] = [];
+    for (const cand of results.slice(0, MAX_CASCADE_CANDIDATES)) {
+      const candYear = cand?.release_date ? Number(String(cand.release_date).slice(0, 4)) : null;
+      if (q.year != null && candYear != null && Math.abs(q.year - candYear) > 1) continue;
+      const detail = await this.candidateDetail(cand.id);
+      if (this.titlesOf(detail).includes(wanted)) hits.push(cand);
+    }
+    return hits.length === 1 ? hits[0] : null;
+  }
+
+  /**
+   * The one movie-choosing entry point: verify, then break a tie with evidence
+   * about the file, then rescue a retitle — stopping at the first rung that
+   * separates the candidates.
+   *
+   * Each rung is narrower than a guess and every exit is honest: an id resolves
+   * it, a runtime resolves it, a release name resolves it, or nothing does and
+   * the caller gets null exactly as before.
+   */
+  private async chooseMovie(results: any[], q: MediaLookup): Promise<any | null> {
+    const tied = verifiedMovieMatches<any>(results.map(tmdbCandidate), q);
+    if (tied.length === 1) return tied[0];
+
+    if (tied.length > 1) {
+      if (q.durationSec && q.durationSec > 0) {
+        const byRuntime = await this.breakTieByRuntime(tied, q.durationSec);
+        if (byRuntime) return byRuntime;
+      }
+      if (q.releaseName) {
+        const byName = await this.breakTieByReleaseName(tied, q.releaseName);
+        if (byName) return byName;
+      }
+      return null; // genuinely ambiguous — refuse, and let it be reported
+    }
+
+    // Nothing cleared the threshold. The film may simply be published elsewhere
+    // under another name.
+    if (results.length > 0) return this.rescueByAlternativeTitle(results, q);
+    return null;
+  }
+
   async lookup(q: MediaLookup): Promise<MediaMetadata> {
     try {
       if (q.kind === 'movie') {
-        const results = await this.searchMovies(q);
+        const known = await this.resolveByKnownId(q);
+        const results = known ? [known] : await this.searchMovies(q);
         /*
          * Verified, exactly as `fetchDetails` verifies — this half was missed when
          * the Maze Runner fix landed, and `lookup` kept taking `results[0]`.
@@ -286,7 +496,7 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
          * `year` is a hint to TMDB, not a filter (it answers `year=2011` with a 1984
          * film), so the search alone rules nothing out.
          */
-        const hit = this.pickBestMovie(results, q);
+        const hit = known ?? (await this.chooseMovie(results, q));
         if (!hit) return {};
         return {
           movieTitle: hit.title,
@@ -315,11 +525,13 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
   async fetchDetails(q: MediaLookup): Promise<MediaMetadataDetails | null> {
     try {
       if (q.kind === 'movie') {
-        const results = await this.searchMovies(q);
+        // Rung 1 first: an id we already hold cannot tie and cannot be misled by
+        // a popular near-name, so it skips the search entirely.
+        const known = await this.resolveByKnownId(q);
         // Verify the candidate instead of trusting TMDB's popularity ranking. A
         // wrong-but-popular film scores low on title+year and is rejected here,
         // rather than being written as this movie's id downstream.
-        const hit = this.pickBestMovie(results, q);
+        const hit = known ?? (await this.chooseMovie(await this.searchMovies(q), q));
         if (!hit) return null;
         const full = await this.get(`/movie/${hit.id}`, {
           append_to_response: 'credits,release_dates',
