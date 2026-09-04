@@ -45,6 +45,20 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.89.0] - 2026-09-04
+
+### Added
+- Recently Added shows posters, coloured type icons and the library each item landed in
+- Modules are no longer split into core and community tiers
+
+### Fixed
+- The Jellyfin brand mark is the real logo rather than an approximation from memory
+- Provider status cards show each media server's brand mark
+- Destructive activity entries say what was deleted, by whom, and why
+- The Plex marker in notifications is gold rather than orange
+- Notification server tags use the product name alone, without a stand-in icon
+- Newsletters verify every entry before sending: artwork and synopsis are required, gaps are repaired first, and what still fails is held back and carried to the next issue instead of going out as a blank card. Fixes a TMDB year filter that hid valid matches and a metadata row that named a provider which had found nothing.
+
 ## [0.88.0] - 2026-09-02
 
 ### Added
