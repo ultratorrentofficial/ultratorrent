@@ -328,6 +328,21 @@
       "thu": "Jueves",
       "fri": "Viernes",
       "sat": "Sábado"
+    },
+    "verification": {
+      "repaired": "Se completaron {{count}} elemento(s) incompleto(s) antes de armar esta edición",
+      "withheld": "{{count}} elemento(s) retenido(s) en esta edición",
+      "carriedForward": "Los elementos retenidos pasan a la próxima edición y se reintentan; no se descartan.",
+      "givenUp": "descartado",
+      "incomplete": "A {{count}} elemento(s) publicado(s) les falta un detalle (esa etiqueta simplemente no se muestra).",
+      "missing": {
+        "art": "sin arte",
+        "overview": "sin sinopsis",
+        "year": "sin año",
+        "runtime": "sin duración",
+        "rating": "sin calificación",
+        "genres": "sin géneros"
+      }
     }
   },
   "kpi": {
@@ -453,7 +468,10 @@
       "testSent": "Prueba enviada a {{recipient}}",
       "testFailed": "Falló la prueba a {{recipient}}",
       "smtpTestSent": "Prueba SMTP entregada a {{recipient}}",
-      "smtpTestFailed": "Falló la prueba SMTP a {{recipient}}"
+      "smtpTestFailed": "Falló la prueba SMTP a {{recipient}}",
+      "itemsWithheld": "{{count}} elemento(s) retenido(s) — sin arte o sin sinopsis",
+      "itemsAbandoned": "{{count}} elemento(s) descartado(s) tras cuatro semanas incompletos",
+      "itemsIncomplete": "{{count}} elemento(s) publicado(s) con detalles faltantes"
     },
     "event": {
       "generated": "Generado",
@@ -463,7 +481,10 @@
       "send_completed": "Envío terminado",
       "send_failed": "Envío fallido",
       "schedule_skipped": "Envío programado omitido",
-      "test_sent": "Mensaje de prueba enviado"
+      "test_sent": "Mensaje de prueba enviado",
+      "items_withheld": "Elementos retenidos",
+      "items_abandoned": "Elementos descartados",
+      "items_incomplete": "Elementos con detalles faltantes"
     },
     "field": {
       "subject": "Asunto",
@@ -476,7 +497,10 @@
       "durationMs": "Duración (ms)",
       "recipient": "Destinatario",
       "error": "Error",
-      "name": "Boletín"
+      "name": "Boletín",
+      "verified": "Elementos verificados",
+      "withheld": "Elementos retenidos",
+      "repaired": "Elementos reparados"
     }
   },
   "users": {

@@ -1,4 +1,5 @@
 import { MediaServerNewsletterService } from './media-server-newsletter.service';
+import { emptyReport } from './newsletter-verification';
 
 /*
  * Rendering has its own suites; these tests are about what a send RECORDS about
@@ -64,12 +65,16 @@ function harness(refuse: string[]) {
     { get: jest.fn(async () => undefined) } as any,
     { token: jest.fn(() => 'tok'), url: jest.fn(() => 'https://x/unsub') } as any,
     { baseUrl: async () => null } as any, // publicUrl
+    {} as any, // metadata
+    {} as any, // artwork
   );
   // The generation is exercised elsewhere; this suite is about the outcome.
   (svc as any).build = jest.fn(async () => ({
     content: { sections: [], totalItems: 3, since: new Date(), until: new Date() },
     attachments: [],
     opts: {},
+    verification: emptyReport(),
+    deferred: [],
   }));
   return { svc, update };
 }

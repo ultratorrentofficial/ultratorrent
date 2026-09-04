@@ -196,6 +196,16 @@ export class MediaProcessingService {
     const or: Prisma.MediaItemWhereInput[] = [
       { matchStatus: 'unmatched' },
       { metadata: { is: null } },
+      /*
+       * A row nobody answered for is a gap too.
+       *
+       * `providerName` is null when the chain was asked and found nothing, so
+       * the row holds only the parsed title. Selecting on `is: null` alone
+       * treated that as enriched and never asked again — permanently, for
+       * anything a provider missed on the day it was imported. It is a gap
+       * until somebody fills it.
+       */
+      { metadata: { providerName: null } },
     ];
     if (library.artworkEnabled) or.push({ artwork: { none: { type: 'poster' } } });
     // Locked items are the operator's: never re-identify or re-scrape them.
@@ -235,7 +245,7 @@ export class MediaProcessingService {
       select: {
         matchStatus: true,
         locked: true,
-        metadata: { select: { id: true } },
+        metadata: { select: { id: true, providerName: true } },
         artwork: { where: { type: 'poster' }, select: { id: true } },
       },
     });
@@ -262,9 +272,11 @@ export class MediaProcessingService {
     // Can't enrich something we couldn't name.
     if (!matched) return out;
 
-    // Fill missing metadata (a freshly-identified item has none yet). Existing
-    // metadata is left alone — periodic scan fills gaps, it doesn't re-fetch.
-    if (!item.metadata) {
+    // Fill missing metadata (a freshly-identified item has none yet), and retry
+    // a row no provider ever answered for — see the gap query. Metadata that a
+    // provider DID supply is left alone: the periodic scan fills gaps, it
+    // doesn't re-fetch.
+    if (!item.metadata || item.metadata.providerName === null) {
       try {
         await this.actions.execute('media_fetch_metadata', { itemId });
         out.metadataFetched = true;

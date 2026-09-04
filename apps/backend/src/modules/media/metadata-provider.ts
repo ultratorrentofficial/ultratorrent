@@ -244,13 +244,38 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
     }
   }
 
+  /**
+   * Search TMDB for a movie, then widen to a yearless search when the
+   * year-filtered one comes back empty.
+   *
+   * TMDB's `year` is a **filter**, not the ranking hint the call site assumed:
+   * `search/movie?query=Lola+Dust&year=2024` returns zero rows for a film TMDB
+   * dates 2025-01-06, and a film TMDB holds with no release date at all
+   * (`SILA: The Life Within Everything`) is excluded by ANY year. Both were
+   * measured live, and both would have been accepted by
+   * {@link verifiedMovieMatches} — its year gate allows +/-1 precisely to absorb
+   * a festival-vs-wide-release drift, and it skips the gate entirely for a
+   * candidate with no year. The filter was denying that gate its candidates.
+   *
+   * The widened search only ever ADDS candidates; every one still faces the
+   * unchanged gate, so a wrong film is no likelier to be accepted than before —
+   * the year simply stops deciding the question before the gate is asked.
+   */
+  private async searchMovies(q: MediaLookup): Promise<any[]> {
+    const withYear = await this.get('/search/movie', {
+      query: q.title,
+      ...(q.year ? { year: String(q.year) } : {}),
+    });
+    const results = withYear?.results ?? [];
+    if (results.length > 0 || !q.year) return results;
+    const widened = await this.get('/search/movie', { query: q.title });
+    return widened?.results ?? [];
+  }
+
   async lookup(q: MediaLookup): Promise<MediaMetadata> {
     try {
       if (q.kind === 'movie') {
-        const search = await this.get('/search/movie', {
-          query: q.title,
-          ...(q.year ? { year: String(q.year) } : {}),
-        });
+        const results = await this.searchMovies(q);
         /*
          * Verified, exactly as `fetchDetails` verifies — this half was missed when
          * the Maze Runner fix landed, and `lookup` kept taking `results[0]`.
@@ -261,7 +286,7 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
          * `year` is a hint to TMDB, not a filter (it answers `year=2011` with a 1984
          * film), so the search alone rules nothing out.
          */
-        const hit = this.pickBestMovie(search?.results ?? [], q);
+        const hit = this.pickBestMovie(results, q);
         if (!hit) return {};
         return {
           movieTitle: hit.title,
@@ -290,14 +315,11 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
   async fetchDetails(q: MediaLookup): Promise<MediaMetadataDetails | null> {
     try {
       if (q.kind === 'movie') {
-        const search = await this.get('/search/movie', {
-          query: q.title,
-          ...(q.year ? { year: String(q.year) } : {}),
-        });
+        const results = await this.searchMovies(q);
         // Verify the candidate instead of trusting TMDB's popularity ranking. A
         // wrong-but-popular film scores low on title+year and is rejected here,
         // rather than being written as this movie's id downstream.
-        const hit = this.pickBestMovie(search?.results ?? [], q);
+        const hit = this.pickBestMovie(results, q);
         if (!hit) return null;
         const full = await this.get(`/movie/${hit.id}`, {
           append_to_response: 'credits,release_dates',
@@ -437,11 +459,7 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
    */
   async ambiguousMovieIds(q: MediaLookup): Promise<Array<Record<string, string>>> {
     try {
-      const search = await this.get('/search/movie', {
-        query: q.title,
-        ...(q.year ? { year: String(q.year) } : {}),
-      });
-      const tied = verifiedMovieMatches<any>((search?.results ?? []).map(tmdbCandidate), q);
+      const tied = verifiedMovieMatches<any>((await this.searchMovies(q)).map(tmdbCandidate), q);
       // Only `tmdb` — the imdb id lives behind a per-candidate `/movie/{id}` call,
       // and fetching one for every tied film to enrich a set the caller will
       // mostly reject is a poor trade against a rate-limited API.

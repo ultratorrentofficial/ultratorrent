@@ -126,4 +126,33 @@ describe('MediaMetadataService — the provider chain', () => {
     // Falls back to the parsed title rather than throwing or writing nothing.
     expect(prisma.mediaMetadata.upsert.mock.calls[0][0].create.title).toBe('Silo');
   });
+
+  /*
+   * Provenance, and why it is not cosmetic.
+   *
+   * `fetchFromChain` returns the head of the chain whatever it found, so a TMDB
+   * lookup that matched nothing used to stamp `tmdb` on a row of nulls. Six
+   * films on the 2026-09-04 Movies newsletter carried exactly that, and because
+   * `enrichLibrary` selects metadata gaps with `{ metadata: { is: null } }`, a
+   * row of nulls read as "already enriched" and was never offered to a provider
+   * again — one had been waiting six days when the newsletter went out.
+   */
+  it('does not name a provider that found nothing', async () => {
+    const tmdb = provider('tmdb', async () => null);
+    const { svc, prisma } = build([tmdb]);
+
+    await svc.fetchMetadata('i1');
+
+    const written = prisma.mediaMetadata.upsert.mock.calls[0][0].create;
+    expect(written.title).toBe('Silo'); // the parsed name is still worth keeping
+    expect(written.providerName).toBeNull(); // but nobody provided it
+  });
+
+  it('names the provider that DID answer', async () => {
+    const { svc, prisma } = build([provider('tmdb', async () => details('tmdb'))]);
+
+    await svc.fetchMetadata('i1');
+
+    expect(prisma.mediaMetadata.upsert.mock.calls[0][0].create.providerName).toBe('tmdb');
+  });
 });

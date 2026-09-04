@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, Pencil, Play, Send, Trash2, X } from 'lucide-react';
-import { api, ApiError, type Newsletter, type NewsletterPreview, type MediaServerUserMeta } from '@/lib/api';
+import { AlertTriangle, Eye, Pencil, Play, Send, Trash2, Wrench, X } from 'lucide-react';
+import { api, ApiError, type Newsletter, type NewsletterPreview, type NewsletterVerification, type NewsletterWithheldItem, type MediaServerUserMeta } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,6 +12,63 @@ import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+
+/**
+ * What the pre-send check held back, shown above the preview it is missing from.
+ *
+ * The preview's job is to be what the recipients will get, so the entries it
+ * does NOT contain have to be named somewhere — otherwise a tidy-looking issue
+ * is indistinguishable from a complete one, which is the failure this whole
+ * check exists to stop. Nothing renders when there is nothing to say.
+ */
+function VerificationReport({ report }: { report?: NewsletterVerification }) {
+  const { t } = useTranslation('mediaServerAnalytics');
+  if (!report) return null;
+  const { withheld, abandoned, incomplete, repaired } = report;
+  if (withheld.length === 0 && abandoned.length === 0 && incomplete.length === 0 && repaired === 0) return null;
+
+  const name = (i: NewsletterWithheldItem) => (i.year ? `${i.title} (${i.year})` : i.title);
+  const reason = (i: NewsletterWithheldItem) =>
+    i.missing.map((m) => t(`newsletter.verification.missing.${m}`)).join(', ');
+
+  return (
+    <div className="space-y-2 rounded-md border border-white/10 bg-black/20 p-3 text-xs">
+      {repaired > 0 && (
+        <p className="flex items-center gap-1.5 text-emerald-300">
+          <Wrench className="h-3.5 w-3.5 shrink-0" />
+          {t('newsletter.verification.repaired', { count: repaired })}
+        </p>
+      )}
+      {(withheld.length > 0 || abandoned.length > 0) && (
+        <div className="space-y-1.5">
+          <p className="flex items-center gap-1.5 font-medium text-warning">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            {t('newsletter.verification.withheld', { count: withheld.length + abandoned.length })}
+          </p>
+          <ul className="space-y-1 pl-5">
+            {[...withheld, ...abandoned].map((i, idx) => (
+              <li key={`${i.itemId ?? i.title}-${idx}`} className="flex flex-wrap items-baseline gap-x-2 text-muted-foreground">
+                <span className="text-foreground">{name(i)}</span>
+                <span>— {reason(i)}</span>
+                {abandoned.includes(i) && (
+                  <span className="rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
+                    {t('newsletter.verification.givenUp')}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="pl-5 text-[11px] text-muted-foreground">{t('newsletter.verification.carriedForward')}</p>
+        </div>
+      )}
+      {incomplete.length > 0 && (
+        <p className="text-muted-foreground">
+          {t('newsletter.verification.incomplete', { count: incomplete.length })}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /** Content-type groups a newsletter can cover (mirrors backend NEWSLETTER_GROUPS keys). */
 const CONTENT_GROUP_KEYS = ['tv', 'movie', 'music', 'documentary', 'other'] as const;
@@ -546,6 +603,7 @@ export function NewslettersPage() {
                     ))}
                   </div>
                 </div>
+                <VerificationReport report={preview.data.verification} />
                 <div className="flex justify-center rounded-md bg-black/20 p-3">
                   <iframe
                     title="newsletter-preview"

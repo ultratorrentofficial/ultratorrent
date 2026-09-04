@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { MediaServerNewsletterService } from './media-server-newsletter.service';
+import { emptyReport } from './newsletter-verification';
 
 jest.mock('./newsletter-render', () => ({
   ...jest.requireActual('./newsletter-render'),
@@ -29,10 +30,14 @@ function harness(failWith?: string) {
     { effectiveMode: jest.fn(async () => ({ mode: 'proxy', publicBaseUrl: '' })) } as any,
     { token: jest.fn(() => 'tok'), url: jest.fn(() => 'https://x/unsub') } as any,
     { baseUrl: async () => null } as any, // publicUrl
+    {} as any, // metadata
+    {} as any, // artwork
   );
   (svc as any).build = jest.fn(async () => ({
     content: { sections: [], totalItems: 1, since: new Date(), until: new Date() },
     attachments: [], opts: {},
+    verification: emptyReport(),
+    deferred: [],
   }));
   return { svc, record, auditRecord };
 }

@@ -5932,6 +5932,36 @@ export interface NewsletterPreview {
   since: string;
   /** True when the library had no new items, so representative sample data is shown. */
   sample: boolean;
+  /** What pre-send verification found — the same verdict the send will reach. */
+  verification: NewsletterVerification;
+}
+
+/** A field an entry was missing when the newsletter was built. */
+export type NewsletterMissingField = 'art' | 'overview' | 'year' | 'runtime' | 'rating' | 'genres';
+
+export interface NewsletterWithheldItem {
+  itemId?: string;
+  title: string;
+  year: number | null;
+  mediaType: string;
+  missing: NewsletterMissingField[];
+  /** True when an earlier issue had already held this entry back. */
+  deferred?: boolean;
+}
+
+export interface NewsletterVerification {
+  /** Entries examined, before anything was withheld. */
+  checked: number;
+  /** Entries that will be published. */
+  published: number;
+  /** Entries held back from this issue and carried to the next. */
+  withheld: NewsletterWithheldItem[];
+  /** Published entries missing something that does not stop them. */
+  incomplete: { title: string; advisory: NewsletterMissingField[] }[];
+  /** Entries a repair pass completed in time for this issue. */
+  repaired: number;
+  /** Entries carried past the deferral window and given up on. */
+  abandoned: NewsletterWithheldItem[];
 }
 
 export interface MediaServerEmailSettings {

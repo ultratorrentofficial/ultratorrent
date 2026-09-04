@@ -12,7 +12,13 @@ export type NewsletterEventType =
   | 'send_failed'
   | 'schedule_skipped'
   | 'test_sent'
-  | 'unsubscribed';
+  | 'unsubscribed'
+  /** Entries held back from an issue because they had no artwork or metadata. */
+  | 'items_withheld'
+  /** Entries carried forward past the deferral window and given up on. */
+  | 'items_abandoned'
+  /** Entries published with a gap that does not stop them (no runtime, no rating). */
+  | 'items_incomplete';
 
 export type NewsletterEventLevel = 'info' | 'success' | 'warning' | 'error';
 

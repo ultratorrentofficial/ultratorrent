@@ -21,6 +21,12 @@ import {
 import { inlineCidImages } from './newsletter-inline-cid';
 import { nextRunAt } from './newsletter-schedule';
 import { SettingsService } from '../settings/settings.module';
+import { MediaMetadataService } from '../media/media-metadata.service';
+import { MediaArtworkService } from '../media/media-artwork.service';
+import {
+  emptyReport, isPublishable, nextDeferred, parseDeferred, partitionDeferred, verifyEntry,
+  type DeferredItem, type VerificationReport, type WithheldEntry,
+} from './newsletter-verification';
 
 const ACCENT = '#f5a623';
 
@@ -67,7 +73,21 @@ interface RenderedNewsletter {
   content: NewsletterContent;
   attachments: EmailAttachment[];
   opts: RenderOptions;
+  /** What pre-send verification found while building this issue. */
+  verification: VerificationReport;
+  /** The carried-forward list to store if this issue is actually sent. */
+  deferred: DeferredItem[];
 }
+
+/**
+ * How many incomplete entries one build will try to repair.
+ *
+ * Repair is provider traffic inside a send. A cap keeps a library that has
+ * fallen badly behind from turning one newsletter into hundreds of TMDB calls
+ * and a mail job that looks hung; whatever it does not reach this week is
+ * carried forward and tried again next week.
+ */
+const MAX_REPAIRS = 25;
 
 @Injectable()
 export class MediaServerNewsletterService {
@@ -88,6 +108,11 @@ export class MediaServerNewsletterService {
     // positional argument after it, and the tests construct this by position.
     private readonly unsub: NewsletterUnsubscribeService,
     private readonly publicUrl: PublicUrlService,
+    // Pre-send verification repairs what it can before withholding it, and
+    // repair means exactly what intake means by it: fetch the metadata, then
+    // fetch the artwork the metadata's external id unlocks.
+    private readonly metadata: MediaMetadataService,
+    private readonly artwork: MediaArtworkService,
   ) {}
 
   list() {
@@ -246,19 +271,43 @@ export class MediaServerNewsletterService {
     return types.length ? [...new Set(types)] : null;
   }
 
-  private async build(n: MediaServerNewsletter): Promise<RenderedNewsletter> {
-    const since = this.since(n);
-    const until = new Date();
-    const types = this.mediaTypeFilter(n);
+  /**
+   * Load the window's items and the poster artwork each one owns.
+   *
+   * `carriedIds` are items an earlier issue held back; they are pulled in
+   * regardless of the date window, because the point of carrying an item
+   * forward is to publish it once it is complete — by which time it has usually
+   * aged out of "added in the last seven days".
+   */
+  private async gather(
+    since: Date,
+    types: string[] | null,
+    carriedIds: string[],
+  ): Promise<{ items: NewsletterItem[]; posters: Map<string, PosterArt> }> {
+    const inWindow = { createdAt: { gte: since }, ...(types ? { mediaType: { in: types } } : {}) };
     const rows = await this.prisma.mediaItem.findMany({
-      where: { createdAt: { gte: since }, ...(types ? { mediaType: { in: types } } : {}) },
+      where: carriedIds.length ? { OR: [inWindow, { id: { in: carriedIds } }] } : inWindow,
       orderBy: { createdAt: 'desc' },
       take: MAX_ITEMS,
       select: {
         id: true, title: true, mediaType: true, year: true, season: true, episode: true, createdAt: true,
         library: { select: { name: true } },
         metadata: { select: { overview: true, rating: true, runtime: true, certification: true, genres: true } },
-        artwork: { where: { type: 'poster' }, orderBy: { selected: 'desc' }, take: 1, select: { id: true, url: true, localPath: true } },
+        /*
+         * `url`/`localPath` guarded exactly as the show query guards them.
+         *
+         * Without it `take: 1` could return an artwork row with neither, and a
+         * row that names no bytes is not a poster: the entry counted as
+         * illustrated, `loadAndResize` then returned null, and the card rendered
+         * the initial-letter placeholder with no way to tell it apart from a
+         * film that has no artwork at all.
+         */
+        artwork: {
+          where: { type: 'poster', OR: [{ localPath: { not: null } }, { url: { not: null } }] },
+          orderBy: { selected: 'desc' },
+          take: 1,
+          select: { id: true, url: true, localPath: true },
+        },
       },
     });
 
@@ -300,16 +349,167 @@ export class MediaServerNewsletterService {
         library: r.library?.name ?? null,
       };
     });
+    return { items, posters };
+  }
 
+  /** Every show title in the grouped content, for the show-poster lookup. */
+  private showTitlesOf(content: NewsletterContent): string[] {
+    return [
+      ...new Set(content.sections.filter((s) => s.layout === 'shows').flatMap((s) => s.shows.map((sh) => sh.title))),
+    ];
+  }
+
+  /**
+   * Judge every entry in an issue, without changing it.
+   *
+   * Judged on the GROUPED content rather than the raw items, because that is
+   * what a reader sees: a show is one card however many episodes landed, so a
+   * show is one verdict — and its artwork comes from the show's own library
+   * item, which no episode row knows about.
+   */
+  private verifyContent(
+    content: NewsletterContent,
+    posters: Map<string, PosterArt>,
+    showPosters: Map<string, PosterArt>,
+  ): {
+    failing: WithheldEntry[];
+    incomplete: { title: string; advisory: VerificationReport['incomplete'][number]['advisory'] }[];
+    dropMovieIds: Set<string>;
+    dropShowTitles: Set<string>;
+    checked: number;
+  } {
+    const failing: WithheldEntry[] = [];
+    const incomplete: { title: string; advisory: VerificationReport['incomplete'][number]['advisory'] }[] = [];
+    const dropMovieIds = new Set<string>();
+    const dropShowTitles = new Set<string>();
+    let checked = 0;
+
+    for (const section of content.sections) {
+      for (const show of section.shows) {
+        checked += 1;
+        const art = showPosters.get(show.title) ?? (show.posterItemId ? posters.get(show.posterItemId) : undefined);
+        const verdict = verifyEntry(show, Boolean(art));
+        if (!isPublishable(verdict)) {
+          failing.push({
+            itemId: show.posterItemId,
+            title: show.title,
+            year: show.year,
+            mediaType: 'show',
+            missing: verdict.missing,
+          });
+          dropShowTitles.add(show.title);
+        } else if (verdict.advisory.length) {
+          incomplete.push({ title: show.title, advisory: verdict.advisory });
+        }
+      }
+      for (const movie of section.movies) {
+        checked += 1;
+        const art = movie.id ? posters.get(movie.id) : undefined;
+        const verdict = verifyEntry(movie, Boolean(art));
+        if (!isPublishable(verdict)) {
+          failing.push({
+            itemId: movie.id,
+            title: movie.title,
+            year: movie.year,
+            mediaType: movie.mediaType,
+            missing: verdict.missing,
+          });
+          if (movie.id) dropMovieIds.add(movie.id);
+        } else if (verdict.advisory.length) {
+          incomplete.push({ title: movie.title, advisory: verdict.advisory });
+        }
+      }
+    }
+    return { failing, incomplete, dropMovieIds, dropShowTitles, checked };
+  }
+
+  /**
+   * Try to complete the entries that failed, in the order intake completes them:
+   * metadata first, because the artwork import needs the external id metadata
+   * writes.
+   *
+   * Every stage is isolated and nothing here can fail a send. An entry that
+   * cannot be completed is not an error — a film TMDB lists under a different
+   * title, or two films TMDB cannot tell apart, are answers, and the reason the
+   * report exists is to put them in front of a person.
+   */
+  private async repairEntries(itemIds: string[]): Promise<void> {
+    for (const itemId of itemIds.slice(0, MAX_REPAIRS)) {
+      try {
+        await this.metadata.fetchMetadata(itemId, {});
+      } catch (err) {
+        this.logger.warn(`Newsletter repair — metadata for ${itemId}: ${(err as Error).message}`);
+      }
+      try {
+        await this.artwork.importFromProvider(itemId, {});
+      } catch (err) {
+        this.logger.warn(`Newsletter repair — artwork for ${itemId}: ${(err as Error).message}`);
+      }
+    }
+  }
+
+  private async build(n: MediaServerNewsletter): Promise<RenderedNewsletter> {
+    const since = this.since(n);
+    const until = new Date();
+    const types = this.mediaTypeFilter(n);
     // The conjunction in "E02, E04 and E09" is localized like every other label.
-    const content = buildContent(items, since, until, newsletterStrings('en-US').and);
+    const and = newsletterStrings('en-US').and;
+
+    // Items an earlier issue held back. Those past the deferral window are still
+    // gathered — so a late repair still publishes them — but they are never
+    // deferred a second time; if they fail again they are reported as abandoned.
+    const stored = parseDeferred((n as { deferredItems?: unknown }).deferredItems);
+    const { live: carried, expired } = partitionDeferred(stored, until);
+    const expiredIds = new Set(expired.map((d) => d.id));
+    const carriedIds = [...carried, ...expired].map((d) => d.id);
+
+    const report = emptyReport();
+
+    let { items, posters } = await this.gather(since, types, carriedIds);
+    let content = buildContent(items, since, until, and);
     // Resolve each show's poster from the whole library by its (normalized)
     // title — the newest episodes are often artwork-less, but the show's real
     // item carries the poster.
-    const showTitles = [
-      ...new Set(content.sections.filter((s) => s.layout === 'shows').flatMap((s) => s.shows.map((sh) => sh.title))),
-    ];
-    const showPosters = await this.fetchShowPosters(showTitles);
+    let showPosters = await this.fetchShowPosters(this.showTitlesOf(content));
+    let verdict = this.verifyContent(content, posters, showPosters);
+
+    /*
+     * Repair, then look again.
+     *
+     * The re-read is a fresh gather rather than a patch of the objects in hand:
+     * `fetchMetadata` writes external ids that `importFromProvider` then turns
+     * into artwork rows, and reconstructing that from return values would be a
+     * second, quietly divergent copy of what the database already knows.
+     */
+    const repairable = verdict.failing.map((f) => f.itemId).filter((id): id is string => Boolean(id));
+    if (repairable.length > 0) {
+      const before = verdict.failing.length;
+      await this.repairEntries(repairable);
+      ({ items, posters } = await this.gather(since, types, carriedIds));
+      content = buildContent(items, since, until, and);
+      showPosters = await this.fetchShowPosters(this.showTitlesOf(content));
+      verdict = this.verifyContent(content, posters, showPosters);
+      report.repaired = Math.max(0, before - verdict.failing.length);
+    }
+
+    for (const entry of verdict.failing) {
+      const wasDeferred = Boolean(entry.itemId && (expiredIds.has(entry.itemId) || carried.some((d) => d.id === entry.itemId)));
+      const record = { ...entry, deferred: wasDeferred };
+      if (entry.itemId && expiredIds.has(entry.itemId)) report.abandoned.push(record);
+      else report.withheld.push(record);
+    }
+    report.incomplete = verdict.incomplete;
+    report.checked = verdict.checked;
+
+    // Publish what passed. Withheld movies go by id; a withheld show takes its
+    // episodes with it, since the card is the show and there is no card without.
+    const publishable = items.filter(
+      (i) => !(i.id && verdict.dropMovieIds.has(i.id)) && !verdict.dropShowTitles.has(i.title),
+    );
+    content = buildContent(publishable, since, until, and);
+    showPosters = await this.fetchShowPosters(this.showTitlesOf(content));
+    report.published = content.sections.reduce((n2, s) => n2 + s.shows.length + s.movies.length, 0);
+
     const attachments = await this.assemblePosters(content, posters, showPosters);
     // The logo rides along with the posters so preview and send share one path
     // and it never competes with them for the MAX_POSTERS budget.
@@ -319,7 +519,13 @@ export class MediaServerNewsletterService {
       content: Buffer.from(BRAND_LOGO_PNG_BASE64, 'base64'),
       contentType: BRAND_LOGO_CONTENT_TYPE,
     });
-    return { content, attachments, opts: await this.renderOpts(since, until, n) };
+    return {
+      content,
+      attachments,
+      opts: await this.renderOpts(since, until, n),
+      verification: report,
+      deferred: nextDeferred(report.withheld, stored, until),
+    };
   }
 
   /**
@@ -444,6 +650,60 @@ export class MediaServerNewsletterService {
     return (n.subjectTemplate?.trim() || `What's new — ${n.name}`).replace('{{count}}', String(content.totalItems));
   }
 
+  /**
+   * Put the verification verdict in the activity log.
+   *
+   * Three separate events rather than one, because they call for three
+   * different things from the reader: `items_withheld` is transient and needs
+   * no action, `items_abandoned` is a title the library will never complete on
+   * its own and needs a person, `items_incomplete` is a card that went out with
+   * a pill missing. Folding them together would have buried the one that
+   * matters under the two that do not.
+   *
+   * Titles go in the metadata, not the message: "6 films" is the summary, and
+   * WHICH six is what the operator opens the entry to find out.
+   */
+  private async recordVerification(
+    id: string,
+    runId: string,
+    report: VerificationReport,
+  ): Promise<void> {
+    const describe = (e: WithheldEntry) => ({
+      title: e.year ? `${e.title} (${e.year})` : e.title,
+      missing: e.missing,
+      ...(e.deferred ? { deferred: true } : {}),
+    });
+
+    if (report.withheld.length > 0) {
+      await this.events.record({
+        newsletterId: id, runId, level: 'warning', eventType: 'items_withheld',
+        messageKey: 'newsletter.event.itemsWithheld',
+        messageParams: { count: report.withheld.length },
+        metadata: {
+          count: report.withheld.length,
+          repaired: report.repaired,
+          items: report.withheld.map(describe),
+        },
+      });
+    }
+    if (report.abandoned.length > 0) {
+      await this.events.record({
+        newsletterId: id, runId, level: 'error', eventType: 'items_abandoned',
+        messageKey: 'newsletter.event.itemsAbandoned',
+        messageParams: { count: report.abandoned.length },
+        metadata: { count: report.abandoned.length, items: report.abandoned.map(describe) },
+      });
+    }
+    if (report.incomplete.length > 0) {
+      await this.events.record({
+        newsletterId: id, runId, level: 'info', eventType: 'items_incomplete',
+        messageKey: 'newsletter.event.itemsIncomplete',
+        messageParams: { count: report.incomplete.length },
+        metadata: { count: report.incomplete.length, items: report.incomplete },
+      });
+    }
+  }
+
   async preview(id: string) {
     const n = await this.get(id);
     const built = await this.build(n);
@@ -464,7 +724,21 @@ export class MediaServerNewsletterService {
      * own notes for why it must not be done one attachment at a time.
      */
     const html = inlineCidImages(renderHtml(content, built.opts), attachments);
-    return { subject: this.subject(n, built.content), html, text: renderText(content, built.opts), count: built.content.totalItems, since: built.content.since, sample: isSample };
+    return {
+      subject: this.subject(n, built.content),
+      html,
+      text: renderText(content, built.opts),
+      count: built.content.totalItems,
+      since: built.content.since,
+      sample: isSample,
+      /*
+       * The same verdict the send will reach, in the one view where an operator
+       * can still act on it. A preview that showed a tidy issue and said nothing
+       * about the six films it had quietly held back would be the more
+       * misleading of the two screens.
+       */
+      verification: built.verification,
+    };
   }
 
   async testSend(id: string, recipient: string, userId?: string) {
@@ -516,7 +790,7 @@ export class MediaServerNewsletterService {
     const runId = this.events.newRun();
     const startedAt = Date.now();
 
-    const { content, attachments, opts } = await this.build(n);
+    const { content, attachments, opts, verification, deferred } = await this.build(n);
     const subject = this.subject(n, content);
     // One render for everyone, with the per-recipient token left as a
     // placeholder — see UNSUB_PLACEHOLDER. Rendering the whole newsletter once
@@ -545,8 +819,12 @@ export class MediaServerNewsletterService {
         recipients: recipients.length,
         attachments: attachments?.length ?? 0,
         trigger: userId ? 'manual' : 'scheduled',
+        verified: verification.checked,
+        withheld: verification.withheld.length,
+        repaired: verification.repaired,
       },
     });
+    await this.recordVerification(id, runId, verification);
     await this.events.record({
       newsletterId: id, runId, level: 'info', eventType: 'send_started',
       messageKey: 'newsletter.event.sendStarted',
@@ -611,6 +889,13 @@ export class MediaServerNewsletterService {
       data: {
         ...(sent > 0 ? { lastSuccessfulSendAt: new Date() } : {}),
         nextRunAt: await this.nextRun(n),
+        /*
+         * Carried forward only when the issue actually went out. A send that
+         * reached nobody published nothing, so nothing was withheld from anyone
+         * — recording a deferral there would date the window from an issue that
+         * never existed and start expiring items against it.
+         */
+        ...(sent > 0 ? { deferredItems: deferred as object } : {}),
       },
     });
     this.realtime.broadcast(failed && !sent ? 'media_server.newsletter.failed' : 'media_server.newsletter.sent', { id, sent, failed });

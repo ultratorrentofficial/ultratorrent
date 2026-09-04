@@ -328,6 +328,21 @@
       "thu": "Thursday",
       "fri": "Friday",
       "sat": "Saturday"
+    },
+    "verification": {
+      "repaired": "Filled in {{count}} incomplete item(s) before building this issue",
+      "withheld": "{{count}} item(s) held back from this issue",
+      "carriedForward": "Held items are carried to the next issue and retried, not dropped.",
+      "givenUp": "given up on",
+      "incomplete": "{{count}} published item(s) are missing a detail (a pill simply will not render).",
+      "missing": {
+        "art": "no artwork",
+        "overview": "no synopsis",
+        "year": "no year",
+        "runtime": "no runtime",
+        "rating": "no rating",
+        "genres": "no genres"
+      }
     }
   },
   "kpi": {
@@ -453,7 +468,10 @@
       "testSent": "Test sent to {{recipient}}",
       "testFailed": "Test to {{recipient}} failed",
       "smtpTestSent": "SMTP test delivered to {{recipient}}",
-      "smtpTestFailed": "SMTP test to {{recipient}} failed"
+      "smtpTestFailed": "SMTP test to {{recipient}} failed",
+      "itemsWithheld": "{{count}} item(s) held back — no artwork or no synopsis",
+      "itemsAbandoned": "{{count}} item(s) given up on after four weeks incomplete",
+      "itemsIncomplete": "{{count}} item(s) published with details missing"
     },
     "event": {
       "generated": "Generated",
@@ -463,7 +481,10 @@
       "send_completed": "Send finished",
       "send_failed": "Send failed",
       "schedule_skipped": "Scheduled send skipped",
-      "test_sent": "Test message sent"
+      "test_sent": "Test message sent",
+      "items_withheld": "Items held back",
+      "items_abandoned": "Items given up on",
+      "items_incomplete": "Items missing details"
     },
     "field": {
       "subject": "Subject",
@@ -476,7 +497,10 @@
       "durationMs": "Duration (ms)",
       "recipient": "Recipient",
       "error": "Error",
-      "name": "Newsletter"
+      "name": "Newsletter",
+      "verified": "Items verified",
+      "withheld": "Items held back",
+      "repaired": "Items repaired"
     }
   },
   "users": {

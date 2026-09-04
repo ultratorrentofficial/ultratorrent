@@ -1664,6 +1664,11 @@ model MediaServerNewsletter {
   timezone             String?
   lastSuccessfulSendAt DateTime?
   nextRunAt            DateTime?
+  /// Items held back from an issue because they failed pre-send verification —
+  /// no artwork or no metadata — carried into the NEXT issue so a film is
+  /// delayed rather than lost. `{ id, firstDeferredAt }` pairs; an entry older
+  /// than the deferral window is dropped and reported.
+  deferredItems        Json      @default("[]")
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

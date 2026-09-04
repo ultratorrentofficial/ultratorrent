@@ -8,12 +8,15 @@ import { MediaServerNewsletterService } from './media-server-newsletter.service'
 function svc() {
   // Positional stubs: the settings mock must land in the settings slot, so this
   // list has to be as long as the constructor — prisma, email, audit, events,
-  // realtime, registry, images, config, settings, unsub, publicUrl.
+  // realtime, registry, images, config, settings, unsub, publicUrl, metadata,
+  // artwork.
   return new MediaServerNewsletterService(
     {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
     { get: jest.fn(async () => undefined) } as any,
     {} as any,
     { baseUrl: async () => null } as any, // publicUrl
+    {} as any, // metadata
+    {} as any, // artwork
   );
 }
 const since = (n: Record<string, unknown>) => (svc() as any).since(n) as Date;

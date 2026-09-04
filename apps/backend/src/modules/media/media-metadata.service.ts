@@ -527,7 +527,26 @@ export class MediaMetadataService {
       rating: merged.rating ?? null,
       certification: merged.certification ?? null,
       tags: (merged.tags ?? []) as Prisma.InputJsonValue,
-      providerName: merged.providerName ?? provider.name,
+      /*
+       * The provider that ANSWERED, not the one that was asked.
+       *
+       * `provider` is the head of the chain whatever it returned, so a TMDB
+       * lookup that found nothing still stamped `tmdb` on a row of nulls. Six
+       * films on the 2026-09-04 Movies newsletter carried exactly that: a `tmdb`
+       * row with no overview, runtime, rating or genre, claiming an enrichment
+       * that never happened.
+       *
+       * It was not only untidy. `MediaProcessingService.enrichLibrary` selects
+       * metadata gaps with `{ metadata: { is: null } }`, and a row of nulls is
+       * not null, so those six were never offered to a provider again — one had
+       * been waiting six days when the newsletter went out. Null here restores
+       * them to the gap query, which now looks for an unanswered row too.
+       *
+       * The row itself is still written: on an install with no provider
+       * configured at all it is the parsed title and year, and that is what
+       * makes the library browsable offline.
+       */
+      providerName: merged.providerName ?? (remote ? provider.name : null),
       // Only the Universal scraper sets this. For a single-provider fetch there is
       // nothing to disambiguate, and a stale map would be worse than none.
       fieldSources: (merged.fieldSources ?? null) as Prisma.InputJsonValue,
