@@ -3862,3 +3862,331 @@ model TorrentSchedulerOverride {
   @@index([engineId, clearedAt])
   @@map("torrent_scheduler_overrides")
 }
+
+// ===========================================================================
+// Media Discovery Engine
+//
+// Discovery answers "what SHOULD be monitored". It never downloads: an
+// auto-monitored title becomes a MediaAcquisitionWatchlistItem plus a generated
+// RssRule, and the existing acquisition sweeps and Smart Download engine decide
+// everything from there. See docs/MEDIA_DISCOVERY.md.
+// ===========================================================================
+
+/// One upcoming/new title, normalized across every provider that reported it.
+model DiscoveredMedia {
+  id String @id @default(uuid())
+
+  /// movie | tv
+  mediaType       String
+  title           String
+  originalTitle   String?
+  /// Lowercased, punctuation-stripped — the same shape `normalizeTitle()` produces,
+  /// so a discovery can be compared with a watchlist item without re-normalizing.
+  normalizedTitle String
+  year            Int?
+
+  /// The identity this record is keyed on, e.g. `tmdb:movie:1698863`. Derived from
+  /// the STRONGEST external id available, which is what makes the same title
+  /// reported by three providers converge on one row instead of three.
+  ///
+  /// Unique rather than a composite of (title, year): two 2026 films called "The
+  /// Odyssey" are different records and must stay that way.
+  dedupeKey String @unique
+
+  /// { tmdb, imdb, tvdb, tvmaze, trakt } — same shape as
+  /// `MediaAcquisitionWatchlistItem.externalIds`, so ids transfer verbatim.
+  externalIds Json @default("{}")
+
+  genres           String[] @default([])
+  originalLanguage String?
+  countries        String[] @default([])
+  network          String?
+  studio           String?
+  streamingService String?
+  overview         String?
+  posterUrl        String?
+  backdropUrl      String?
+  popularity       Float?
+  rating           Float?
+  voteCount        Int?
+
+  // --- television ----------------------------------------------------------
+  /// continuing | returning | planned | in_production | ended | canceled | unknown.
+  /// Deliberately the SAME vocabulary as `TvShowStatus.normalizedStatus` so the two
+  /// can be read together rather than translated.
+  seriesStatus       String?
+  seasonNumber       Int?
+  episodeNumber      Int?
+  premiereDate       DateTime?
+  seasonPremiereDate DateTime?
+
+  // --- discovery provenance ------------------------------------------------
+  firstSeenAt     DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+  lastRefreshedAt DateTime?
+  /// Every provider that has reported this title.
+  sourceProviders String[]  @default([])
+  /// 0–1. How much the merged identity is trusted; below the template's floor a
+  /// title is never auto-monitored.
+  confidence      Float     @default(0)
+
+  /// new | evaluated | monitored | notified | ignored | needs_review
+  discoveryStatus String @default("new")
+  /// resolved | ambiguous | conflicted. `ambiguous` means two providers disagree on
+  /// identity — never auto-monitored, always surfaced for a person.
+  identityStatus  String @default("resolved")
+
+  // --- current decision (history lives in DiscoveryEvaluation) -------------
+  /// auto_monitor | notify | ignore | needs_review | null when never evaluated
+  decision          String?
+  decisionReason    String?
+  evaluatedAt       DateTime?
+  matchedTemplateId String?
+  /// Set once auto-monitoring actually created them. Null on a notify/ignore.
+  watchlistItemId   String?
+  rssRuleId         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  releaseDates DiscoveredMediaReleaseDate[]
+  evaluations  DiscoveryEvaluation[]
+
+  @@index([mediaType, discoveryStatus])
+  @@index([normalizedTitle])
+  @@index([decision])
+  @@index([lastSeenAt])
+  @@index([year])
+  @@map("discovered_media")
+}
+
+/// One provider's claim about one release date. Kept per source rather than
+/// merged into a single column: providers disagree, and flattening the
+/// disagreement is how a guessed date starts looking like a confirmed one.
+model DiscoveredMediaReleaseDate {
+  id                String @id @default(uuid())
+  discoveredMediaId String
+
+  /// Movies: festival | limited_theatrical | wide_theatrical | digital | streaming |
+  /// physical | unknown.
+  /// TV: series_premiere | season_premiere | episode_air | finale | streaming | unknown.
+  releaseType String
+  /// Null when the provider names a year but no date. Never invent precision.
+  date        DateTime?
+  /// ISO-3166 alpha-2, when the provider scopes the date to a region.
+  region      String?
+  /// The provider that reported it.
+  source      String
+  confidence  Float     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  media DiscoveredMedia @relation(fields: [discoveredMediaId], references: [id], onDelete: Cascade)
+
+  @@unique([discoveredMediaId, releaseType, region, source])
+  @@index([date])
+  @@map("discovered_media_release_dates")
+}
+
+/// WHAT should be monitored: filters plus a three-way category policy.
+model DiscoveryTemplate {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  /// Discovery automation is OFF until an operator turns it on. A template that
+  /// auto-monitored the moment it was saved would be a surprise, not a feature.
+  enabled     Boolean @default(false)
+
+  /// movie | tv | any
+  mediaType String   @default("any")
+  /// Provider names this template draws from. Empty = every enabled provider.
+  providers String[] @default([])
+
+  upcomingWindowDays Int      @default(90)
+  regions            String[] @default([])
+  languages          String[] @default([])
+  minimumPopularity  Float?
+  minimumRating      Float?
+  minimumVoteCount   Int?
+  networks           String[] @default([])
+  streamingServices  String[] @default([])
+  studios            String[] @default([])
+  seriesTypes        String[] @default([])
+  /// Which release-date semantics matter — "digital or streaming in the next 60
+  /// days" without also discovering theatrical.
+  releaseTypes       String[] @default([])
+
+  // --- category policy -----------------------------------------------------
+  /// Three explicit outcomes, not one allow-list. A genre absent from all three
+  /// is neutral: it neither qualifies a title nor blocks it.
+  autoMonitorCategories     String[] @default([])
+  notifyOnlyCategories      String[] @default([])
+  ignoreCategories          String[] @default([])
+  /// Evaluated FIRST and beats everything. A Sci-Fi + Documentary title does not
+  /// auto-monitor when Documentary is blocked, however well Sci-Fi qualifies.
+  blockedFromAutoCategories String[] @default([])
+  /// ANY | ALL | PRIMARY
+  categoryMatchMode         String   @default("ANY")
+
+  /// Identity confidence floor for auto-monitoring. An ambiguous title is never
+  /// auto-monitored regardless of this value.
+  minimumConfidence Float @default(0.8)
+
+  // --- what auto-monitoring produces ---------------------------------------
+  acquisitionTemplateId String?
+  /// The feed a generated rule is created on. `RssRule.feedId` is required, so a
+  /// template cannot be ENABLED without this — validated on enable, not on save,
+  /// so a half-built template is still saveable.
+  rssFeedId             String?
+  /// The destination. Not a path: a generated rule is `managed_intake` and the
+  /// existing intake pipeline resolves where files go from this profile.
+  storageProfileId      String?
+  /// Optional leaf shape BELOW the profile's staging root, e.g.
+  /// `TV Shows/{tvshow} ({year})`. Never an absolute path.
+  pathTemplate          String?
+  createIntakeDirectory Boolean @default(false)
+
+  autoAddLimitPerDay  Int @default(10)
+  autoAddLimitPerWeek Int @default(30)
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  evaluations DiscoveryEvaluation[]
+
+  @@index([enabled])
+  @@map("discovery_templates")
+}
+
+/// HOW a discovered title should be acquired: an ordered candidate ladder.
+model AcquisitionRuleTemplate {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  /// tv | movie | anime | any
+  mediaType   String  @default("any")
+  enabled     Boolean @default(true)
+
+  /// Optional default feed, overridden by the discovery template that uses it.
+  rssFeedId        String?
+  storageProfileId String?
+  pathTemplate     String?
+
+  /// Applied to every generated rule on top of the per-candidate terms.
+  requiredTerms Json @default("[]")
+  excludedTerms Json @default("[]")
+
+  /// Whether generated rules ask Smart Download to replace an owned copy. The
+  /// decision itself stays with the existing engine; this only sets the flag.
+  upgradePolicy String @default("inherit") // inherit | never | always
+
+  version Int @default(1)
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  candidates AcquisitionRuleTemplateCandidate[]
+
+  @@map("acquisition_rule_templates")
+}
+
+/// One rung of a template's preference ladder.
+///
+/// Columns mirror `RssRuleMatchCandidate` one-for-one so generating a rule is a
+/// straight copy — there is exactly one match engine, and this is not a second
+/// one. If that model gains a field, this one must too.
+model AcquisitionRuleTemplateCandidate {
+  id         String @id @default(uuid())
+  templateId String
+
+  priorityOrder Int     @default(0)
+  name          String
+  description   String?
+  enabled       Boolean @default(true)
+  /// exact_text | contains_text | regex | wildcard | smart_episode_match |
+  /// smart_movie_match | fuzzy_match
+  matchType     String  @default("smart_episode_match")
+  /// Null is a deliberate pass-through: the generated rule supplies the title
+  /// pattern, the template supplies the quality preferences.
+  pattern       String?
+  requiredTerms Json    @default("[]")
+  excludedTerms Json    @default("[]")
+  /// { quality, source, codec, resolution, hdr, audio, season, episode, year }
+  qualityRules  Json    @default("{}")
+  /// { minBytes, maxBytes }
+  sizeRules     Json    @default("{}")
+  /// { feedIds: string[] } — empty = every feed the rule can see.
+  feedScope     Json    @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  template AcquisitionRuleTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@map("acquisition_rule_template_candidates")
+}
+
+/// Why a title was auto-monitored, notified, ignored or held for review.
+///
+/// A row per evaluation rather than a field on the title: an operator asking
+/// "why did this appear?" is usually asking about a decision the template has
+/// since been edited away from, and a single current value cannot answer that.
+model DiscoveryEvaluation {
+  id                String  @id @default(uuid())
+  discoveredMediaId String
+  templateId        String?
+
+  /// auto_monitor | notify | ignore | needs_review
+  decision String
+  reason   String
+  /// Ordered steps: which filter ran, what it saw, whether it passed. This is
+  /// what the UI renders as the decision trace.
+  trace    Json   @default("[]")
+
+  /// Set when the decision actually produced them.
+  watchlistItemId String?
+  rssRuleId       String?
+  /// Populated when auto-monitoring failed after being chosen — a rule that could
+  /// not be generated, or an intake directory that could not be created. A
+  /// failure must never leave a title looking healthy.
+  failureReason   String?
+
+  createdAt DateTime @default(now())
+
+  media    DiscoveredMedia    @relation(fields: [discoveredMediaId], references: [id], onDelete: Cascade)
+  template DiscoveryTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([discoveredMediaId, createdAt])
+  @@index([decision])
+  @@map("discovery_evaluations")
+}
+
+/// Per-provider sync health. Never holds credentials — those stay in settings.
+model DiscoveryProviderState {
+  id       String @id @default(uuid())
+  provider String @unique
+
+  enabled Boolean @default(false)
+  healthy Boolean @default(true)
+
+  lastSyncStartedAt  DateTime?
+  lastSuccessfulSync DateTime?
+  lastFailureAt      DateTime?
+  lastFailureReason  String?
+  lastResponseMs     Int?
+  itemsDiscovered    Int       @default(0)
+  /// Capability names this provider reported, so the UI can show what it can do
+  /// rather than what the interface allows.
+  capabilities       String[]  @default([])
+  /// Opaque per-endpoint cursors / ETags for incremental refresh.
+  syncCursors        Json      @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("discovery_provider_state")
+}

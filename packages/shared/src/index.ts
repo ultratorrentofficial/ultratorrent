@@ -11,5 +11,6 @@ export * from './actions.js';
 export * from './timezone.js';
 export * from './intake.js';
 export * from './operations.js';
+export * from './media-discovery.js';
 
 export const PRODUCT_NAME = 'UltraTorrent';
