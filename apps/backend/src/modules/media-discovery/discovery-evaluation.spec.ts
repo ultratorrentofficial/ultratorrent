@@ -92,10 +92,12 @@ function harness(opts: { rows?: any[]; remaining?: number; watchlistFails?: bool
     }),
   };
   const intake = { provision: jest.fn(async () => ({ ok: true, detail: 'created', path: '/x' })) };
+  const published: any[] = [];
+  const bus = { publish: jest.fn((e: any) => { published.push(e); }) };
 
   return {
-    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any),
-    prisma, budget, watchlist, rules, intake, evaluations, stamps,
+    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any, bus as any),
+    prisma, budget, watchlist, rules, intake, evaluations, stamps, published,
   };
 }
 
@@ -251,5 +253,63 @@ describe('the ticker', () => {
     const second = await h.svc.runAll(NOW);
     await first;
     expect(second).toEqual([]);
+  });
+});
+
+describe('what it tells a person about', () => {
+  const keys = (published: any[]) => published.map((e) => e.eventKey);
+
+  /*
+   * The system acquiring something without being asked is exactly what a person
+   * should be told about, so this one is per title — and its volume is already
+   * bounded by the automatic-add limit rather than by suppressing the event.
+   */
+  it('announces each auto-monitored title', async () => {
+    const h = harness({ rows: [row('a'), row('b')] });
+    await h.svc.runAll(NOW);
+    expect(keys(h.published).filter((k) => k === 'media_discovery.auto_monitored')).toHaveLength(2);
+    expect(h.published[0].payload).toMatchObject({ title: 'Show a (2026)', templateName: 'Premium TV' });
+  });
+
+  it('says nothing about a notified or ignored title', async () => {
+    const h = harness({ rows: [row('a', { genres: ['Drama'] }), row('b', { genres: ['Reality'] })] });
+    await h.svc.runAll(NOW);
+    expect(h.published).toEqual([]);
+  });
+
+  /*
+   * A first pass can hold twenty titles at once, and twenty notifications all say
+   * the same thing and are all answered by one visit to the inbox.
+   */
+  it('summarises held titles once per run, not once per title', async () => {
+    const h = harness({ rows: [row('a'), row('b'), row('c')], remaining: 0 });
+    await h.svc.runAll(NOW);
+    const review = h.published.filter((e) => e.eventKey === 'media_discovery.review_required');
+    expect(review).toHaveLength(1);
+    expect(review[0].payload).toEqual({ count: 3, templateName: 'Premium TV' });
+  });
+
+  it('does not announce a review summary when nothing was held', async () => {
+    const h = harness();
+    await h.svc.runAll(NOW);
+    expect(keys(h.published)).not.toContain('media_discovery.review_required');
+  });
+
+  /*
+   * A monitored title with no rule of its own is a real fault with its own
+   * cause, so it is reported per title rather than folded into a summary.
+   */
+  it('reports a title that is monitored but got no rule', async () => {
+    const h = harness({ ruleFails: true });
+    await h.svc.runAll(NOW);
+    const failed = h.published.filter((e) => e.eventKey === 'media_discovery.rule_failed');
+    expect(failed).toHaveLength(1);
+    expect(failed[0].payload.reason).toMatch(/Rule generation failed/);
+  });
+
+  it('does not report a rule failure when the rule was generated', async () => {
+    const h = harness();
+    await h.svc.runAll(NOW);
+    expect(keys(h.published)).not.toContain('media_discovery.rule_failed');
   });
 });

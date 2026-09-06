@@ -24,6 +24,80 @@ import type { RawDiscovery, RawReleaseDate } from './discovery-provider';
  *     distinguishing more than one work by that name.
  */
 
+
+/*
+ * ---------------------------------------------------------------------------
+ * Provider output is untrusted, and this is the one funnel it all passes
+ * through before it is stored.
+ *
+ * Sanitising here rather than in each provider means a future provider inherits
+ * it: the failure mode of per-provider validation is the fifth provider that
+ * forgets. Nothing below rejects a record — a title with a hostile poster URL is
+ * still a real discovery — it removes the part that cannot be trusted and keeps
+ * the rest.
+ * ---------------------------------------------------------------------------
+ */
+
+/** Field caps. Generous for real data, fatal to a runaway or hostile response. */
+const MAX_TITLE = 500;
+const MAX_OVERVIEW = 5_000;
+const MAX_SHORT = 200;
+const MAX_URL = 2_000;
+const MAX_LIST = 50;
+
+/**
+ * C0 and C1 controls, plus the Unicode FORMAT characters that are invisible but
+ * change how text renders.
+ *
+ * U+202E (right-to-left override) is the one that matters: it makes
+ * `report{RLO}gnp.exe` display as `report exe.png` — a title that looks like an
+ * image and is not. Zero-width characters are included for the same reason, one
+ * step less dramatic: two titles that render identically and compare unequal
+ * defeat every deduplication rule in this file.
+ */
+const CONTROL = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
+
+/** Trim, strip control characters, and cap. Empty becomes null. */
+function clean(value: unknown, max: number): string | null {
+  if (typeof value !== 'string') return null;
+  const out = value.replace(CONTROL, '').trim().slice(0, max);
+  return out.length ? out : null;
+}
+
+/**
+ * An image URL that is safe to put in an `<img src>`.
+ *
+ * **http and https only.** TVmaze hands back `show.image.original` verbatim, so
+ * the value is whatever the provider says — and a `javascript:` or `data:` URL
+ * reaching an `src` attribute is a cross-site scripting vector that React's
+ * escaping does not cover, because escaping protects the TEXT of an attribute
+ * and not its scheme. A relative or malformed URL is dropped rather than
+ * repaired: guessing at a host is how a broken image becomes a request to
+ * somewhere unintended.
+ */
+function safeImageUrl(value: unknown): string | null {
+  const raw = clean(value, MAX_URL);
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A bounded list of cleaned, de-duplicated strings. */
+function cleanList(values: unknown, max = MAX_SHORT): string[] {
+  if (!Array.isArray(values)) return [];
+  const out: string[] = [];
+  for (const v of values) {
+    const c = clean(v, max);
+    if (c && !out.includes(c)) out.push(c);
+    if (out.length >= MAX_LIST) break;
+  }
+  return out;
+}
+
 /** Id namespaces, strongest first. Order decides the canonical key. */
 export const ID_PRIORITY = ['imdb', 'tmdb', 'tvdb', 'tvmaze', 'trakt'] as const;
 export type IdNamespace = (typeof ID_PRIORITY)[number];
@@ -107,7 +181,7 @@ export function identityKeys(ids: Partial<Record<IdNamespace, string>>, mediaTyp
  * by normalized title + year within a media type.
  */
 export function mergeDiscoveries(input: SourcedDiscovery[]): MergedDiscovery[] {
-  const nodes = input.filter((s) => s.raw?.title?.trim());
+  const nodes = input.filter((s) => clean(s.raw?.title, MAX_TITLE) !== null);
 
   // --- 1. union by shared id ----------------------------------------------
   const parent = nodes.map((_, i) => i);
@@ -195,13 +269,17 @@ function build(members: SourcedDiscovery[], wasAmbiguous: boolean): MergedDiscov
     for (const m of members) {
       const v = m.raw.externalIds?.[ns];
       if (!v) continue;
-      if (externalIds[ns] && externalIds[ns] !== String(v)) conflicted = true;
-      externalIds[ns] ??= String(v);
+      const id = clean(v, MAX_SHORT);
+      if (!id) continue;
+      // An id becomes part of a dedupe KEY, so a control character or a
+      // megabyte of text here would poison the row's identity, not just a field.
+      if (externalIds[ns] && externalIds[ns] !== id) conflicted = true;
+      externalIds[ns] ??= id;
     }
   }
 
   const mediaType = members[0].raw.mediaType;
-  const title = String(first((r) => r.title) ?? '');
+  const title = clean(first((r) => r.title), MAX_TITLE) ?? '';
   const keys = identityKeys(externalIds, mediaType);
 
   const releaseDates = members.flatMap((m) =>
@@ -217,7 +295,7 @@ function build(members: SourcedDiscovery[], wasAmbiguous: boolean): MergedDiscov
   return {
     mediaType,
     title,
-    originalTitle: first((r) => r.originalTitle),
+    originalTitle: clean(first((r) => r.originalTitle), MAX_TITLE),
     normalizedTitle: normalizeTitle(title),
     year: first((r) => r.year),
     externalIds,
@@ -229,19 +307,19 @@ function build(members: SourcedDiscovery[], wasAmbiguous: boolean): MergedDiscov
      */
     dedupeKey: keys[0] ?? `title:${mediaType}:${normalizeTitle(title)}:${first((r) => r.year) ?? ''}`,
     alternateKeys: keys,
-    genres: [...new Set(members.flatMap((m) => m.raw.genres ?? []))],
-    originalLanguage: first((r) => r.originalLanguage),
-    countries: [...new Set(members.flatMap((m) => m.raw.countries ?? []))],
-    network: first((r) => r.network),
-    studio: first((r) => r.studio),
-    streamingService: first((r) => r.streamingService),
-    overview: first((r) => r.overview),
-    posterUrl: first((r) => r.posterUrl),
-    backdropUrl: first((r) => r.backdropUrl),
+    genres: cleanList(members.flatMap((m) => m.raw.genres ?? [])),
+    originalLanguage: clean(first((r) => r.originalLanguage), MAX_SHORT),
+    countries: cleanList(members.flatMap((m) => m.raw.countries ?? [])),
+    network: clean(first((r) => r.network), MAX_SHORT),
+    studio: clean(first((r) => r.studio), MAX_SHORT),
+    streamingService: clean(first((r) => r.streamingService), MAX_SHORT),
+    overview: clean(first((r) => r.overview), MAX_OVERVIEW),
+    posterUrl: safeImageUrl(first((r) => r.posterUrl)),
+    backdropUrl: safeImageUrl(first((r) => r.backdropUrl)),
     popularity: first((r) => r.popularity),
     rating: first((r) => r.rating),
     voteCount: first((r) => r.voteCount),
-    seriesStatus: first((r) => r.seriesStatus),
+    seriesStatus: clean(first((r) => r.seriesStatus), MAX_SHORT),
     seasonNumber: first((r) => r.seasonNumber),
     episodeNumber: first((r) => r.episodeNumber),
     premiereDate: first((r) => r.premiereDate),

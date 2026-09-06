@@ -110,6 +110,49 @@ const DEFINITIONS: readonly DomainEventDefinition[] = [
     deduplicationWindowSeconds: 21600,
   },
 
+  // --- Media Discovery -----------------------------------------------------
+  {
+    key: DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED,
+    description:
+      'A discovered title is now being monitored automatically: a watchlist entry and an acquisition rule were created without being asked.',
+    requiredFields: ['title', 'templateName'],
+    /*
+     * No deduplication window. Each event is a DIFFERENT title, so collapsing
+     * them would hide acquisitions rather than reduce noise — and the volume is
+     * already bounded by the template's automatic-add limit, which is the right
+     * place to pace this.
+     */
+    deduplicationWindowSeconds: 0,
+  },
+  {
+    key: DOMAIN_EVENTS.MEDIA_DISCOVERY_REVIEW_REQUIRED,
+    description:
+      'An evaluation run left titles that need a person: an unresolved identity, or an automatic-add limit already spent.',
+    requiredFields: ['count', 'templateName'],
+    /*
+     * Summarised per RUN and deduplicated for six hours. One event per held
+     * title would fire twenty times on a first run, all saying the same thing
+     * and all answered by the same visit to the inbox.
+     */
+    deduplicationWindowSeconds: 21600,
+  },
+  {
+    key: DOMAIN_EVENTS.MEDIA_DISCOVERY_RULE_FAILED,
+    description:
+      'A title is monitored but its acquisition rule could not be generated, so it has no release preferences of its own.',
+    requiredFields: ['title', 'reason'],
+    // Per title, and rare: each one is a real fault with its own cause.
+    deduplicationWindowSeconds: 0,
+  },
+  {
+    key: DOMAIN_EVENTS.MEDIA_DISCOVERY_PROVIDER_SYNC_FAILED,
+    description:
+      "A discovery provider's catalogue refresh failed. The previous catalogue was kept rather than emptied.",
+    requiredFields: ['provider', 'reason'],
+    // A broken provider stays broken, and the sweep retries every six hours.
+    deduplicationWindowSeconds: 21600,
+  },
+
   // --- Storage -------------------------------------------------------------
   {
     key: DOMAIN_EVENTS.SYSTEM_STORAGE_WARNING,

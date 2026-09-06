@@ -1117,3 +1117,32 @@ remain modeled in the schema without a dedicated endpoint:
   is read-only, so the provider now fails loudly rather than silently no-op'ing.
   The only in-tree caller is the internal placeholder-name repair
   (`TorrentNameRepairService`), which degrades gracefully on that error.
+
+## Media Discovery
+
+Base path `/api/media-discovery`. Full guide:
+[MEDIA_DISCOVERY.md](MEDIA_DISCOVERY.md).
+
+**No endpoint here calls a provider.** A sync is queued against the background
+service and the inbox reads the database, so a page load never waits on a third
+party. Provider health comes from what the last sync recorded rather than from
+probing on request.
+
+| Method | Path | Permission |
+| --- | --- | --- |
+| `GET` | `/providers` | `media_discovery.view` |
+| `POST` | `/providers/:name/enable` | `media_discovery.providers.manage` |
+| `GET` | `/inbox` | `media_discovery.view` |
+| `GET` | `/items/:id` | `media_discovery.view` |
+| `GET` | `/templates` | `media_discovery.view` |
+| `POST` `PATCH` `DELETE` | `/templates[/:id]` | `media_discovery.templates.manage` |
+| `GET` | `/acquisition-templates` | `media_discovery.view` |
+| `POST` `PATCH` `DELETE` | `/acquisition-templates[/:id]` | `media_discovery.templates.manage` |
+| `GET` | `/template-options` | `media_discovery.templates.manage` |
+| `POST` | `/preview` | `media_discovery.templates.manage` |
+| `POST` | `/sync` | `media_discovery.providers.manage` |
+| `POST` | `/evaluate` | `media_discovery.manage` |
+
+`/preview` writes nothing and takes a template **by value**, so an unsaved one
+can be evaluated. `/evaluate` is the consequential endpoint — it can create
+watchlist entries and generate acquisition rules — and is audited before it runs.

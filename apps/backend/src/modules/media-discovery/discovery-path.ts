@@ -70,7 +70,14 @@ function tokenValue(token: PathTemplateToken, tokens: PathTokens): string {
    * structural and must survive; separators in a provider-supplied value are
    * just characters and must not.
    */
-  return sanitizeSegment(String(raw));
+  /*
+   * Unicode FORMAT characters go before anything else. U+202E flips rendering,
+   * so `report{RLO}gnp.exe` displays as `report exe.png` — a staging folder that
+   * looks like one thing and is another. `sanitizeSegment` handles C0/C1 but not
+   * these, because they are not control characters by category.
+   */
+  const deceptive = /[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
+  return sanitizeSegment(String(raw).replace(deceptive, ''));
 }
 
 /** Remove framing left empty by a missing token, then collapse whitespace. */
@@ -126,6 +133,24 @@ export function renderPathFragment(pathTemplate: string, tokens: PathTokens): st
   if (!segments.length) {
     throw new BadRequestException('The path template rendered to nothing for this title.');
   }
+
+  /*
+   * A template's TOKENS must contribute something.
+   *
+   * `Movies/{movie}` with a title that sanitises away leaves the literal prefix
+   * `Movies` — not an escape, but every such title would then stage into one
+   * shared folder instead of its own, which is a collision the operator never
+   * asked for and would not see coming.
+   */
+  if (/\{[^}]*\}/.test(pathTemplate)) {
+    const literalOnly = pathTemplate.replace(/\{[^}]*\}/g, '');
+    if (normalizeForCompare(segments.join('/')) === normalizeForCompare(literalOnly)) {
+      throw new BadRequestException(
+        'The path template rendered to nothing for this title beyond its fixed folders.',
+      );
+    }
+  }
+
   return segments.join('/');
 }
 
@@ -177,4 +202,9 @@ export function renderTargetPath(input: RenderTargetInput): string {
   }
 
   return target;
+}
+
+/** Compare two path fragments ignoring separators, spacing and case. */
+function normalizeForCompare(value: string): string {
+  return value.replace(/[/\s]+/g, '').toLowerCase();
 }

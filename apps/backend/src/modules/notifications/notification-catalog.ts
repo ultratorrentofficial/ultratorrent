@@ -48,6 +48,64 @@ const DEFINITIONS: readonly NotificationEventDefinition[] = [
     requiredPermission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY,
     presentationBuilder: 'playback',
   },
+  // --- Media Discovery ------------------------------------------------------
+  // Categorised as `downloads` rather than a new category: these events are
+  // about media being acquired, which is what that bucket already means, and the
+  // category set is a shared contract the preferences UI groups by. Gated on the
+  // permission that opens the Discover inbox — somebody who cannot see what was
+  // discovered has no use for being told about it.
+  {
+    key: DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED,
+    category: 'downloads',
+    severity: 'info',
+    titleKey: 'events.media_discovery.auto_monitored.title',
+    descriptionKey: 'events.media_discovery.auto_monitored.description',
+    /*
+     * ON by default, unlike most per-item events. The system acquiring
+     * something without being asked is exactly the thing a person should be told
+     * about by default — and the template's automatic-add limit already caps how
+     * often it can happen.
+     */
+    defaultInApp: true,
+    recipientStrategy: 'permission_holders',
+    requiredPermission: PERMISSIONS.MEDIA_DISCOVERY_VIEW,
+    presentationBuilder: 'discovery',
+  },
+  {
+    key: DOMAIN_EVENTS.MEDIA_DISCOVERY_REVIEW_REQUIRED,
+    category: 'downloads',
+    severity: 'warning',
+    titleKey: 'events.media_discovery.review_required.title',
+    descriptionKey: 'events.media_discovery.review_required.description',
+    defaultInApp: true,
+    recipientStrategy: 'permission_holders',
+    requiredPermission: PERMISSIONS.MEDIA_DISCOVERY_VIEW,
+    presentationBuilder: 'discovery',
+  },
+  {
+    key: DOMAIN_EVENTS.MEDIA_DISCOVERY_RULE_FAILED,
+    category: 'downloads',
+    severity: 'error',
+    titleKey: 'events.media_discovery.rule_failed.title',
+    descriptionKey: 'events.media_discovery.rule_failed.description',
+    defaultInApp: true,
+    recipientStrategy: 'permission_holders',
+    requiredPermission: PERMISSIONS.MEDIA_DISCOVERY_MANAGE,
+    presentationBuilder: 'discovery',
+  },
+  {
+    key: DOMAIN_EVENTS.MEDIA_DISCOVERY_PROVIDER_SYNC_FAILED,
+    category: 'providers',
+    severity: 'warning',
+    titleKey: 'events.media_discovery.provider_sync_failed.title',
+    descriptionKey: 'events.media_discovery.provider_sync_failed.description',
+    defaultInApp: true,
+    recipientStrategy: 'permission_holders',
+    requiredPermission: PERMISSIONS.MEDIA_DISCOVERY_PROVIDERS_MANAGE,
+    // A provider failure is a provider failure, whichever subsystem owns it.
+    presentationBuilder: 'provider',
+  },
+
   {
     key: DOMAIN_EVENTS.MEDIA_SERVER_REFRESH_FAILED,
     category: 'providers',

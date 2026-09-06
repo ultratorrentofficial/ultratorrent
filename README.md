@@ -110,6 +110,16 @@ architecture.
   multi-dimensional upgrade comparison (resolution/source/HDR/audio), holds out for
   better releases, and executes/upgrades downloads — with a decision simulator and
   dashboard. See [docs/SMART_DOWNLOAD.md](docs/SMART_DOWNLOAD.md).
+- **Media Discovery** — finds upcoming films, new and returning series from
+  metadata providers and decides what should be *monitored*, turning qualifying
+  titles into a watchlist entry and a generated acquisition rule that the
+  existing Smart Download engine acts on. A three-way category policy (monitor /
+  tell me / hide, plus a "never automatically" list that overrides the rest),
+  explainable decisions with the reason on every card, preview-before-enable, and
+  rolling-window limits that hold excess titles for review rather than dropping
+  them. **It never downloads anything itself, and ships disabled** — providers
+  are silent until enabled and templates default to off. See
+  [docs/MEDIA_DISCOVERY.md](docs/MEDIA_DISCOVERY.md).
 - **Media Intake** — a managed, resumable import pipeline between "the torrent
   finished" and "the file is in the library": verify payload → import (hardlink,
   copy or move) → identify → metadata → artwork → subtitles → seed. Each stage is

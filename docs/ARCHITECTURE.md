@@ -594,7 +594,7 @@ detector), `apps/backend/src/common/file-placement.ts` (the shared primitive).
 
 ## Media Discovery Engine
 
-**Status: usable end to end from the browser.** Discover → merge → persist →
+**Status: complete and documented, and switched off.** Discover → merge → persist →
 decide → watchlist → rule → directory, on a schedule, with preview and pacing,
 configured and observed at **Media Acquisition → Discover** (Inbox · Templates ·
 Providers). Verified against
@@ -605,10 +605,11 @@ carrying its acquisition ladder.
 **Three doors stand between a fresh install and an automatic download**, and all
 three are shut: the module ships disabled, providers are silent until enabled,
 and templates default to disabled. Discovery templates can be authored, previewed and
-enabled in the UI. **Acquisition-template ladders still have no editor** — a
-discovery template can select an existing one or fall back to the auto-download
-profiles, but authoring a new candidate ladder needs the API. That, plus
-notifications, audit polish and documentation, is what remains. Providers are silent until an
+enabled in the UI, and four domain events report what it does. **Acquisition-template
+ladders still have no editor** — a discovery template can select an existing one
+or fall back to the auto-download profiles, but authoring a new candidate ladder
+needs the API. That, plus audit polish, security hardening and documentation, is
+what remains. Providers are silent until an
 operator enables them, so a fresh install makes no third-party calls at all. This
 section describes what is built, not what is planned — see
 [MEDIA_DISCOVERY_GAP_ANALYSIS.md](MEDIA_DISCOVERY_GAP_ANALYSIS.md) for the
@@ -1033,8 +1034,39 @@ notify-only template they are not optional but irrelevant, and asking would impl
 otherwise.
 
 
+### Notifications
+
+Four events, where a first sketch listed fourteen. `domain-events.ts` states the
+rule this follows: *a key appears here only when something really publishes it,
+and an event that cannot fire is worse than an absent one.* The discarded ten —
+`created`, `updated`, `evaluated`, `ignored`, `sync_started`, `sync_completed` and
+the rest — could all have had producers, and every one of them fires per item or
+per tick, which is how a catalogue of 800 titles becomes an inbox nobody reads.
+What survives is what a person would want to be TOLD about: something is being
+acquired on their behalf, something is waiting on them, or something is broken.
+
+| Event | Granularity | Why |
+| --- | --- | --- |
+| `auto_monitored` | per title | The system acquiring without being asked is precisely what to report. Volume is already bounded by the template's automatic-add limit, so pacing lives there rather than in suppressing the event. Defaults **on** in-app. |
+| `review_required` | per RUN | A first pass can hold twenty titles; twenty notifications say one thing and are answered by one visit to the inbox. |
+| `rule_failed` | per title | Each is a real fault with its own cause. |
+| `provider_sync_failed` | per provider | Deduplicated six hours — a broken provider stays broken and the sweep retries hourly. |
+
+**A partial provider failure publishes nothing.** A provider that answered one
+capability and failed another still refreshed its catalogue; alerting there would
+train people to ignore the alert that matters. The failure is still recorded on
+provider state and visible in the UI — it is simply not pushed.
+
+Presentation reuses the existing icon vocabulary (`film`, `alert`, `library`)
+and the existing `downloads` category rather than adding discovery-shaped names.
+Both sets are shared contracts every client renders, and growing them for one
+feature would make an older client show nothing where an icon should be.
+
 Key files: `packages/shared/src/media-discovery.ts` (the shared vocabulary),
-`apps/backend/src/modules/media-discovery/`.
+`apps/backend/src/modules/media-discovery/`. Operator guides:
+[MEDIA_DISCOVERY.md](MEDIA_DISCOVERY.md) for setup and operation,
+[MEDIA_DISCOVERY_TEMPLATES.md](MEDIA_DISCOVERY_TEMPLATES.md) for what every
+template field means and why.
 
 ## Event-Driven Architecture
 
@@ -1324,6 +1356,8 @@ docs/             this documentation set
 [MEDIA_MANAGER.md](MEDIA_MANAGER.md) ·
 [MEDIA_INTAKE.md](MEDIA_INTAKE.md) ·
 [MEDIA_ACQUISITION_INTELLIGENCE.md](MEDIA_ACQUISITION_INTELLIGENCE.md) ·
+[MEDIA_DISCOVERY.md](MEDIA_DISCOVERY.md) ·
+[MEDIA_DISCOVERY_TEMPLATES.md](MEDIA_DISCOVERY_TEMPLATES.md) ·
 [INDEXERS.md](INDEXERS.md) · [PROWLARR.md](PROWLARR.md) ·
 [API.md](API.md) · [SECURITY.md](SECURITY.md)
 
@@ -1335,6 +1369,10 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-06 | **Media Discovery is documented, and the feature is complete.** [MEDIA_DISCOVERY.md](MEDIA_DISCOVERY.md) covers the end-to-end flow, the three shut doors between a fresh install and an automatic download, setup, the inbox's four states (and why *needs review* is not *notify*), provider health, limits, an explicit list of what it will **not** do, and a troubleshooting section written from what actually confused during development. [MEDIA_DISCOVERY_TEMPLATES.md](MEDIA_DISCOVERY_TEMPLATES.md) explains every template field and the reasoning behind the awkward ones: why the category policy is four lists rather than an allow-list, why a category may sit in both *monitor* and *never automatically*, why an untagged title never matches under any mode, why HDR and Atmos are required terms rather than quality rules, and what protects a rule once a person edits it. README and the architecture doc index updated. Twenty-four phases: the engine discovers, merges, decides, monitors and explains itself — built on the platform's existing scheduler, event bus, match engine, watchlist, intake pipeline, RBAC and audit, with no second acquisition system, no second matcher, and nothing that downloads. |
+| 2026-09-06 | **Media Discovery security hardening — three real defects, all found by writing hostile inputs.** (1) **A non-numeric threshold value bypassed the floor entirely**: `null` was the only "unknown" checked for, so the string `"Infinity"` sailed through — `'Infinity' < 50` is false, no failure was reported, and a title with unverifiable popularity was auto-monitored past the gate set to hold it back. NaN behaved identically. Thresholds now require a finite number and treat anything else as unknown, which fails. (2) **Poster URLs went from provider straight into `<img src>`** — TVmaze hands back `show.image.original` verbatim, so `javascript:`, `data:text/html`, `vbscript:` and `file://` all reached the DOM; React's escaping protects an attribute's text, not its scheme. Now http/https only, and a relative or malformed URL is dropped rather than repaired. (3) **Unicode FORMAT characters survived into filesystem paths**: `sanitizeSegment` strips C0/C1 but U+202E is a format character, so `report{RLO}gnp.exe` would create a folder displaying as `report exe.png`; zero-width characters were the quieter version, since two titles that render identically but compare unequal defeat every dedup rule. Sanitisation lives in the **merge** rather than in each provider, because the failure mode of per-provider validation is the fifth provider that forgets. Also: a template whose tokens all sanitise away no longer collapses to its literal prefix, which would have staged every such title into one shared folder. Two of my own assertions were walked back as wrong — `..` characters in a filename are inert (containment is the property, not their absence), and `$`/`'` must NOT be stripped because they appear in real titles and the defence against injection here is structural: paths are passed to `mkdir` as arguments, never interpolated into a shell. |
+| 2026-09-06 | **Media Discovery RBAC and audit — and a shipped bug the test found.** Writing the coverage spec revealed that **none of the role grants from the permissions phase had actually landed**: the four permissions existed in the catalogue while no role held them except administrators, so the Discover page would have returned 403 for every power user and ordinary user. The script that added them reported success on reaching its end rather than on each replacement matching; the fix asserts each anchor. Grants now: read-only and ordinary users get `view`, power users add `manage`, administrators get all four. Three consequential user actions were unaudited and now are — enabling a provider (the moment this installation starts calling a third party), requesting a sync, and `POST /evaluate`, which can create watchlist entries and generate rules and is therefore audited **before** it runs, since an evaluation that half-completed and threw would otherwise leave what it created with nothing recording who asked for it. Engine decisions are deliberately **not** audited: audit answers "who did what" per USER action, these have no user behind them, and `DiscoveryEvaluation` is already that record. A reflection-based spec fails if any controller handler carries no permission, so a future endpoint added without a guard breaks the build rather than shipping open. |
+| 2026-09-06 | **Media Discovery reports what it does: four domain events and their notifications.** A first sketch listed fourteen; `domain-events.ts` states the rule that settled it — *a key appears here only when something really publishes it, and an event that cannot fire is worse than an absent one.* The ten dropped (`created`, `updated`, `evaluated`, `ignored`, `sync_started`, `sync_completed`…) all fire per item or per tick, which is how a catalogue of 800 titles becomes an inbox nobody reads. The four kept are chosen by granularity as much as by subject: `auto_monitored` is **per title** and defaults ON, because the system acquiring something unasked is exactly what a person should be told, and its volume is already capped by the automatic-add limit rather than by suppressing the event; `review_required` is **per run**, because a first pass holds twenty titles and twenty notifications are answered by one visit to the inbox; `rule_failed` is per title since each is a distinct fault; `provider_sync_failed` is deduplicated six hours since a broken provider stays broken. **A partial provider failure publishes nothing** — a provider that answered one capability and failed another still refreshed its catalogue, and alerting there trains people to ignore the alert that matters; the failure stays visible in provider state and the UI. Presentation reuses the existing icon vocabulary and the `downloads` category rather than adding discovery-shaped names, because both are shared contracts every client renders and growing them for one feature would make an older client render blanks. |
 | 2026-09-06 | **Media Discovery is configurable from the UI: Providers and Templates.** Providers distinguishes *not configured* from *configured but off* from *on and unhealthy*, because only the last is a fault and the action differs for each; an unregistered provider now carries a `configurationHint` naming WHERE its credential is set (the TMDB key lives in Media Manager settings, which nobody would guess from a Discovery screen) — a location, never a credential. Templates authors the automation: the category policy is **four lists** rather than one allow-list, because a single list cannot express "tell me about Drama but never add it on its own", and a category may legitimately sit in both auto-monitor and blocked — that is how "Sci-Fi qualifies, but never when it is also a Documentary" is written down. Auto-monitor overlapping *ignore* is flagged while typing rather than as a rejected save. **Preview sits before Enable** and posts the form unsaved, so the adjust-and-look-again loop costs nothing and persists nothing; it surfaces `beyondWeeklyAllowance` so an operator sees that 20 of 50 candidates would land in review BEFORE enabling rather than from a full inbox. Feed and storage-profile fields appear only when a template can auto-monitor, since for a notify-only template they are irrelevant rather than optional. Verified through the same API the form calls: the enable guard refuses a feedless auto-monitor template with a message naming the missing piece, and preview ran over 870 real titles. **Acquisition-template ladders still have no editor** — selectable, not yet authorable, in the UI. |
 | 2026-09-06 | **Media Discovery gains its inbox: the Discover page under Media Acquisition.** Placed inside acquisition rather than as a top-level area, because discovering what to acquire is part of acquiring and a separate destination would imply a separate subsystem — which is the thing this deliberately is not. The organising rule is that **every card carries the reason it is there**: a decision with no visible explanation is one an operator can neither trust nor correct, so the reason sits on the card rather than behind a detail view, and an unresolved identity is called out in amber because that is when a person needs to know the engine was unsure rather than wrong. A provider with stored history but no registration is shown as *not configured* rather than disappearing — verified accidentally when the dev database wipe removed the TMDB key and the branch fired for real. The module registers with **`enabledByDefault: false`**, alone among the optional modules, making it the third of three shut doors between a fresh install and an automatic download (module off, providers silent, templates disabled). The nav i18n guard added earlier this session caught the missing `Discover` translations in both locales before they could ship. Template authoring still has no UI, so the feature is not yet usable end to end from the browser. |
 | 2026-09-06 | **Media Discovery runs end to end: intake provisioning, preview, auto-add limits, the evaluation orchestrator and the API.** Verified against the real catalogue — 500 titles examined, 5 auto-monitored with watchlist entries and generated rules carrying their ladders, the rest held by a deliberately tight weekly cap. **A correctness trap was found only by running it**: titles a template has no opinion about were recorded nowhere, so the `evaluations: { none: … }` filter re-fetched them every tick and they consumed the page budget permanently — a second pass re-examined the same 500 rows, 407 not applicable, meaning a template that accumulates a page's worth would never reach a genuinely new title. The evaluation row is now written as the audit trail while `DiscoveredMedia` is left untouched, so the inbox stays clean and the sweep makes progress. Ordering is watchlist → rule → directory and a later failure never undoes an earlier success: the entry causes acquisition, the rest improve it, so a rule failure leaves a monitored title with a recorded reason rather than a silent gap. Limits use **rolling windows** (a calendar boundary lets twenty additions land across midnight) and count only additions that actually happened, so a run of failures cannot exhaust the allowance. Preview runs the real evaluator, takes a template by value so an unsaved one can be tried, projects limits rather than applying them, and is proven read-only by a Prisma stub whose every write throws. Four permissions separate viewing the inbox from configuring automation, and no endpoint calls a provider. |

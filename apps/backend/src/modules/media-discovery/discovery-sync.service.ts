@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import type { DiscoveryCapability } from '@ultratorrent/shared';
+import { DOMAIN_EVENTS, type DiscoveryCapability } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { DiscoveryProviderRegistry } from './discovery-provider-registry.service';
 import { DiscoveryStoreService } from './discovery-store.service';
@@ -72,6 +73,7 @@ export class DiscoverySyncService {
     private readonly prisma: PrismaService,
     private readonly registry: DiscoveryProviderRegistry,
     private readonly store: DiscoveryStoreService,
+    private readonly bus: DomainEventBus,
   ) {}
 
   @Interval('media_discovery_provider_sync', TICK_MS)
@@ -203,9 +205,23 @@ export class DiscoverySyncService {
 
   private async recordState(p: CollectOutcome, discovered: number): Promise<void> {
     if (p.anyFailed) {
-      // Nothing came back and something broke: keep whatever is already stored
-      // rather than recording a successful empty sync. "We could not ask" and
-      // "nothing is coming out" are very different claims.
+      /*
+       * Nothing came back and something broke: keep whatever is already stored
+       * rather than recording a successful empty sync. "We could not ask" and
+       * "nothing is coming out" are very different claims — and the notification
+       * says which, because an operator seeing an unchanged catalogue would
+       * otherwise have no way to tell them apart.
+       */
+      this.bus.publish({
+        eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_PROVIDER_SYNC_FAILED,
+        resourceType: 'discovery_provider',
+        resourceId: p.provider,
+        payload: {
+          provider: p.provider,
+          providerName: p.provider,
+          reason: p.error ?? 'Sync returned nothing',
+        },
+      });
       await this.mark(p.provider, {
         healthy: false,
         lastFailureAt: new Date(),

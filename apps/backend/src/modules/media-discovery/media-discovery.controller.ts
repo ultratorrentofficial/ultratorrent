@@ -6,6 +6,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { reqAuditContext } from '../../common/request-audit-context';
 import { paginate, parsePage } from '../../common/pagination';
 import { DiscoveryProviderRegistry } from './discovery-provider-registry.service';
 import { DiscoverySyncService } from './discovery-sync.service';
@@ -67,6 +69,7 @@ export interface ProviderStatus {
 export class MediaDiscoveryController {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
     private readonly registry: DiscoveryProviderRegistry,
     private readonly sync: DiscoverySyncService,
     private readonly preview: DiscoveryPreviewService,
@@ -130,15 +133,33 @@ export class MediaDiscoveryController {
     return [...live, ...orphaned];
   }
 
+  /**
+   * Enabling a provider is the moment this installation starts calling a third
+   * party, so it is audited. Disabling is audited for the same reason in reverse:
+   * a catalogue that stopped refreshing should have a traceable cause.
+   */
   @Post('providers/:name/enable')
   @RequirePermissions(P.MEDIA_DISCOVERY_PROVIDERS_MANAGE)
-  async enableProvider(@Param('name') name: string, @Body() body: { enabled?: boolean }) {
+  async enableProvider(
+    @Param('name') name: string,
+    @Body() body: { enabled?: boolean },
+    @Req() req: Request,
+  ) {
     const enabled = body?.enabled !== false;
-    return this.prisma.discoveryProviderState.upsert({
+    const row = await this.prisma.discoveryProviderState.upsert({
       where: { provider: name },
       create: { provider: name, enabled },
       update: { enabled },
     });
+    await this.audit.record({
+      userId: userId(req),
+      ...reqAuditContext(req),
+      action: enabled ? 'media_discovery.provider.enabled' : 'media_discovery.provider.disabled',
+      objectType: 'discovery_provider',
+      objectId: name,
+      metadata: { provider: name, enabled },
+    });
+    return row;
   }
 
   // --- the inbox -----------------------------------------------------------
@@ -291,15 +312,37 @@ export class MediaDiscoveryController {
    */
   @Post('sync')
   @RequirePermissions(P.MEDIA_DISCOVERY_PROVIDERS_MANAGE)
-  runSync(@Body() body: { providers?: string[] }) {
+  async runSync(@Body() body: { providers?: string[] }, @Req() req: Request) {
     const names = body?.providers?.length ? body.providers : this.registry.all().map((p) => p.name);
+    await this.audit.record({
+      userId: userId(req),
+      ...reqAuditContext(req),
+      action: 'media_discovery.sync.requested',
+      objectType: 'discovery_provider',
+      objectId: names.join(','),
+      metadata: { providers: names },
+    });
     return this.sync.syncProviders(names);
   }
 
-  /** Evaluate now rather than waiting for the hourly tick. */
+  /**
+   * Evaluate now rather than waiting for the hourly tick.
+   *
+   * **The most consequential endpoint here.** A run can create watchlist entries
+   * and generate acquisition rules, so it is audited BEFORE it runs — an
+   * evaluation that half-completed and then threw would otherwise leave the
+   * things it created with nothing recording who asked for them.
+   */
   @Post('evaluate')
   @RequirePermissions(P.MEDIA_DISCOVERY_MANAGE)
-  runEvaluation() {
+  async runEvaluation(@Req() req: Request) {
+    await this.audit.record({
+      userId: userId(req),
+      ...reqAuditContext(req),
+      action: 'media_discovery.evaluation.requested',
+      objectType: 'discovery_template',
+      objectId: 'all_enabled',
+    });
     return this.evaluation.runAll();
   }
 }

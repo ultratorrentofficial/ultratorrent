@@ -119,6 +119,30 @@ export const STRINGS = {
 
   // --- providers ------------------------------------------------------------
   providerLead: { 'en-US': 'Provider', 'es-PR': 'Proveedor' } satisfies Copy,
+
+  // --- Media Discovery ------------------------------------------------------
+  discoveryLead: { 'en-US': 'Discovery', 'es-PR': 'Descubrimiento' } satisfies Copy,
+  autoMonitoredTrail: { 'en-US': 'is now monitored', 'es-PR': 'ahora se monitorea' } satisfies Copy,
+  reviewRequiredTrail: { 'en-US': 'needs your review', 'es-PR': 'requiere tu revisión' } satisfies Copy,
+  ruleFailedTrail: { 'en-US': 'could not build a rule', 'es-PR': 'no pudo crear una regla' } satisfies Copy,
+  autoMonitoredSummary: {
+    'en-US': '{{title}} was added to the watchlist automatically.',
+    'es-PR': '{{title}} se añadió automáticamente a la lista de seguimiento.',
+  } satisfies Copy,
+  reviewRequiredSummary: {
+    'en-US': '{{count}} discovered title(s) were held for review.',
+    'es-PR': '{{count}} título(s) descubierto(s) quedaron en revisión.',
+  } satisfies Copy,
+  ruleFailedSummary: {
+    'en-US': '{{title}} is monitored, but its acquisition rule could not be generated.',
+    'es-PR': '{{title}} se monitorea, pero no se pudo generar su regla de adquisición.',
+  } satisfies Copy,
+  discoverySyncFailedSummary: {
+    'en-US': '{{name}} could not refresh its catalogue. The previous catalogue was kept.',
+    'es-PR': '{{name}} no pudo actualizar su catálogo. Se conservó el catálogo anterior.',
+  } satisfies Copy,
+  fieldTemplate: { 'en-US': 'Template', 'es-PR': 'Plantilla' } satisfies Copy,
+  viewDiscover: { 'en-US': 'Open Discover', 'es-PR': 'Abrir Descubrir' } satisfies Copy,
   providerOfflineTrail: { 'en-US': 'Offline', 'es-PR': 'sin conexión' } satisfies Copy,
   providerRecoveredTrail: { 'en-US': 'Recovered', 'es-PR': 'recuperado' } satisfies Copy,
   refreshFailedTrail: { 'en-US': 'Refresh Failed', 'es-PR': 'actualización fallida' } satisfies Copy,

@@ -166,6 +166,24 @@
         "title": "La purga omitió medios que no pudo verificar",
         "description": "Una limpieza dejó {{skipped}} elemento(s) en su sitio porque no se pudo contactar el cliente de torrents y no se pudo confirmar si siguen en seed. No se eliminó nada. Se reintentarán en la próxima ejecución."
       }
+    },
+    "media_discovery": {
+      "auto_monitored": {
+        "title": "Título monitoreado automáticamente",
+        "description": "Descubrir añadió un título a la lista de seguimiento y generó su regla de adquisición sin preguntar."
+      },
+      "review_required": {
+        "title": "Descubrimientos requieren revisión",
+        "description": "Una ejecución de descubrimiento retuvo títulos — identidad sin resolver, o límite de altas automáticas agotado."
+      },
+      "rule_failed": {
+        "title": "No se pudo generar la regla de adquisición",
+        "description": "Un título se monitorea pero no tiene preferencias de versión propias."
+      },
+      "provider_sync_failed": {
+        "title": "Falló la actualización de un proveedor de descubrimiento",
+        "description": "No se pudo actualizar el catálogo de un proveedor. Se conservó el catálogo anterior."
+      }
     }
   },
   "inbox": {

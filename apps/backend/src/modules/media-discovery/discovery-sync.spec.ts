@@ -33,8 +33,10 @@ function harness(opts: {
       return { created: records.length, updated: 0, failed: 0 };
     }),
   };
-  const svc = new DiscoverySyncService(prisma as any, registry, store as any);
-  return { svc, prisma, store, marks, persisted };
+  const published: any[] = [];
+  const bus = { publish: jest.fn((e: any) => { published.push(e); }) };
+  const svc = new DiscoverySyncService(prisma as any, registry, store as any, bus as any);
+  return { svc, prisma, store, marks, persisted, published };
 }
 
 function provider(
@@ -253,5 +255,43 @@ describe('DiscoverySyncService — merging ACROSS providers', () => {
     await svc.syncProviders(['tmdb']);
     expect(persisted[0]).toHaveLength(2);
     expect(persisted[0].every((m: any) => m.identityStatus === 'ambiguous')).toBe(true);
+  });
+});
+
+describe('telling somebody a provider broke', () => {
+  /*
+   * An operator looking at an unchanged catalogue cannot tell "we could not ask"
+   * from "nothing is coming out". The notification is what says which.
+   */
+  it('announces a provider whose sync returned nothing and failed', async () => {
+    const p = provider('tmdb', ['upcoming_series'], { upcoming_series: new Error('ECONNRESET') });
+    const { svc, published } = harness({ providers: [p] });
+    await svc.syncProviders(['tmdb']);
+
+    expect(published).toHaveLength(1);
+    expect(published[0].eventKey).toBe('media_discovery.provider_sync_failed');
+    expect(published[0].payload).toMatchObject({ provider: 'tmdb', reason: 'ECONNRESET' });
+  });
+
+  it('says nothing when the sync succeeded', async () => {
+    const p = provider('tmdb', ['upcoming_series'], { upcoming_series: [raw('A', { tmdb: '1' })] });
+    const { svc, published } = harness({ providers: [p] });
+    await svc.syncProviders(['tmdb']);
+    expect(published).toEqual([]);
+  });
+
+  /*
+   * Partial data is progress. A provider that answered one capability and failed
+   * another still refreshed its catalogue, and alerting on it would train people
+   * to ignore the alert that matters.
+   */
+  it('says nothing when only some capabilities failed', async () => {
+    const p = provider('tvmaze', ['upcoming_series', 'returning_series'], {
+      upcoming_series: [raw('Survivor', { tvmaze: '1' })],
+      returning_series: new Error('timeout'),
+    });
+    const { svc, published } = harness({ providers: [p] });
+    await svc.syncProviders(['tvmaze']);
+    expect(published).toEqual([]);
   });
 });

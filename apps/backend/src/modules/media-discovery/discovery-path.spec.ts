@@ -119,11 +119,32 @@ describe('containment', () => {
     ).toThrow(/absolute staging root/);
   });
 
-  it('always lands inside the staging root', () => {
+  /*
+   * Two safe outcomes, never a third.
+   *
+   * A title either renders to a path inside the staging root, or is REFUSED
+   * because it sanitised away to nothing beyond the template's fixed folders —
+   * which would otherwise stage every such title into one shared directory. What
+   * must never happen is a path outside the root.
+   */
+  it('either lands inside the staging root or refuses — never escapes', () => {
     for (const title of ['../x', '..', '/abs', 'a/../../b', 'normal']) {
-      const out = render('Movies/{movie}', { movie: title });
-      expect(out.startsWith('/media/Staging/')).toBe(true);
+      let out: string | null = null;
+      try {
+        out = render('Movies/{movie}', { movie: title });
+      } catch {
+        out = null; // refused, which is the other safe answer
+      }
+      if (out !== null) expect(out.startsWith('/media/Staging/')).toBe(true);
     }
+  });
+
+  it('refuses the titles that sanitise away entirely', () => {
+    expect(() => render('Movies/{movie}', { movie: '..' })).toThrow(/rendered to nothing/);
+  });
+
+  it('still renders an ordinary title', () => {
+    expect(render('Movies/{movie}', { movie: 'normal' })).toBe('/media/Staging/Movies/normal');
   });
 
   /*

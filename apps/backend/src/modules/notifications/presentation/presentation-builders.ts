@@ -541,6 +541,74 @@ const buildProvider: PresentationBuilder = (ctx) => {
   };
 };
 
+/* ------------------------------------------------------------ discovery */
+
+/**
+ * Media Discovery notifications.
+ *
+ * Three of the four events are about a TITLE and one is about a provider, so the
+ * provider failure reuses `buildProvider` rather than being bent into this shape.
+ * What these three share is that the reader's next action is the same — open
+ * Discover — so they share an action button and differ only in what they say
+ * happened.
+ */
+const buildDiscovery: PresentationBuilder = (ctx) => {
+  const { envelope, locale, timezone } = ctx;
+  const payload = (envelope.payload ?? {}) as Record<string, unknown>;
+  const key = envelope.eventKey;
+
+  const monitored = key === DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED;
+  const review = key === DOMAIN_EVENTS.MEDIA_DISCOVERY_REVIEW_REQUIRED;
+
+  const title = str(payload, 'title') ?? '';
+  const templateName = str(payload, 'templateName') ?? '';
+  const count = typeof payload.count === 'number' ? payload.count : 0;
+  const reason = str(payload, 'reason');
+
+  // A title event with no title says nothing worth delivering.
+  if (!review && !title) return null;
+
+  const facts = [
+    ...(templateName
+      ? [{ icon: 'library' as const, label: s('fieldTemplate', locale), value: templateName }]
+      : []),
+    ...(reason ? [{ icon: 'alert' as const, label: s('fieldReason', locale), value: reason }] : []),
+    { icon: 'clock' as const, label: s('fieldTime', locale), value: formatWhen(envelope.occurredAt, locale, timezone) },
+  ];
+
+  return {
+    version: PRESENTATION_VERSION,
+    eventKey: key,
+    // Monitored is something that WORKED; the other two want attention.
+    accent: monitored ? 'success' : review ? 'warning' : 'error',
+    /*
+     * From the existing icon vocabulary rather than three new names. That set is
+     * a shared contract every client renders, and growing it for one feature
+     * would make older clients show nothing where an icon should be.
+     */
+    icon: monitored ? 'film' : 'alert',
+    headline: {
+      lead: s('discoveryLead', locale),
+      trail: s(monitored ? 'autoMonitoredTrail' : review ? 'reviewRequiredTrail' : 'ruleFailedTrail', locale),
+    },
+    summary: {
+      text: s(
+        monitored ? 'autoMonitoredSummary' : review ? 'reviewRequiredSummary' : 'ruleFailedSummary',
+        locale,
+        { title, count: String(count) },
+      ),
+      emphasis: review ? String(count) : title,
+    },
+    avatar: null,
+    artwork: null,
+    facts,
+    progress: null,
+    status: null,
+    action: { label: s('viewDiscover', locale), href: '/media-acquisition/discover', icon: 'film' },
+    timestamp: envelope.occurredAt,
+  };
+};
+
 /* ---------------------------------------------------------- security/users */
 
 const buildSecurity: PresentationBuilder = (ctx) => {
@@ -633,6 +701,7 @@ const BUILDERS: Record<string, PresentationBuilder> = {
   storage: buildStorage,
   workflow: buildWorkflow,
   provider: buildProvider,
+  discovery: buildDiscovery,
   security: buildSecurity,
   user: buildUser,
 };

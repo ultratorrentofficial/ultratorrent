@@ -525,3 +525,26 @@ for a vulnerability.
 > Update the contact address above to your project's real security contact before
 > publishing.
 </content>
+
+## Media Discovery: provider output is untrusted input
+
+TMDB and TVmaze are third parties reached over a network. A compromised or simply
+buggy response can put anything in any field, and those fields reach a filesystem
+path, an `<img src>`, a database column and an automation decision.
+
+Sanitisation lives in **one place** — the identity merge every provider's output
+passes through before storage — because the failure mode of per-provider
+validation is the fifth provider that forgets.
+
+| Threat | Control |
+| --- | --- |
+| Script in an image URL (`javascript:`, `data:text/html`) | Image URLs are parsed and accepted only for `http`/`https`. A relative or malformed URL is dropped, never repaired — guessing a host turns a broken image into a request somewhere unintended. |
+| Path traversal via a title | Values are sanitised **before** substitution, so a `/` in a title cannot invent a directory level; the rendered path is asserted to sit inside the storage profile's staging root and outside every destination library. |
+| Deceptive filenames | Unicode format characters (U+202E and the zero-width range) are stripped: `report{RLO}gnp.exe` would otherwise create a folder displaying as `report exe.png`. |
+| Oversized fields | Title, overview, list and id lengths are capped at ingest. |
+| Threshold bypass | A non-finite or non-numeric value is treated as *unknown*, which fails a threshold rather than passing it. |
+| Identity poisoning | External ids are cleaned before becoming dedupe keys. Two works sharing a title and year are marked ambiguous and **never auto-monitored**, and no template setting can override that. |
+| Command injection | Not applicable by construction: rendered paths are passed to `mkdir` as arguments and never interpolated into a shell; database access goes through Prisma parameter binding. Shell metacharacters are therefore **not** stripped from titles, since `$` and `'` appear in real ones. |
+
+Discovery automation ships **disabled**, providers are silent until enabled, and
+templates default to off. See [MEDIA_DISCOVERY.md](MEDIA_DISCOVERY.md).

@@ -166,6 +166,24 @@
         "title": "Purge skipped media it could not verify",
         "description": "A cleanup run left {{skipped}} item(s) in place because the torrent engine could not be reached, so it could not confirm whether they are still being seeded. Nothing was deleted. The run will retry them next time."
       }
+    },
+    "media_discovery": {
+      "auto_monitored": {
+        "title": "Title monitored automatically",
+        "description": "Discovery added a title to the watchlist and generated its acquisition rule without being asked."
+      },
+      "review_required": {
+        "title": "Discoveries need review",
+        "description": "A discovery run held titles back — an unresolved identity, or an automatic-add limit already spent."
+      },
+      "rule_failed": {
+        "title": "Acquisition rule could not be generated",
+        "description": "A title is monitored but has no release preferences of its own."
+      },
+      "provider_sync_failed": {
+        "title": "Discovery provider refresh failed",
+        "description": "A provider's catalogue could not be refreshed. The previous catalogue was kept."
+      }
     }
   },
   "inbox": {

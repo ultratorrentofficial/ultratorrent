@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import type { DiscoveryTemplate } from '@prisma/client';
 import type { DiscoveryDecision } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -58,6 +60,7 @@ export class DiscoveryEvaluationService {
     private readonly watchlist: DiscoveryWatchlistService,
     private readonly rules: DiscoveryRuleService,
     private readonly intake: DiscoveryIntakeService,
+    private readonly bus: DomainEventBus,
   ) {}
 
   @Interval('media_discovery_evaluate', TICK_MS)
@@ -121,6 +124,7 @@ export class DiscoveryEvaluationService {
     // Read once, then spend locally: a single pass must not out-race its own cap.
     const budget = await this.budget.state(template.id, template, now);
     let remaining = Math.min(budget.remainingToday, budget.remainingThisWeek);
+    let heldForReview = 0;
 
     const profile = template.storageProfileId
       ? await this.prisma.storageProfile.findUnique({
@@ -171,10 +175,44 @@ export class DiscoveryEvaluationService {
         if (acted.watchlistItemId) {
           outcome.monitored += 1;
           remaining -= 1; // spent only when monitoring really happened
+          /*
+           * Per title, and on by default in the catalogue: the system acquiring
+           * something without being asked is exactly what a person should be
+           * told about. The volume is already bounded by the template's
+           * automatic-add limit, so the pacing lives there rather than here.
+           */
+          this.bus.publish({
+            eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED,
+            resourceType: 'discovered_media',
+            resourceId: row.id,
+            payload: {
+              title: row.year ? `${row.title} (${row.year})` : row.title,
+              templateName: template.name,
+              mediaType: row.mediaType,
+              watchlistItemId: acted.watchlistItemId,
+              rssRuleId: acted.rssRuleId,
+            },
+          });
+          // A title that IS monitored but has no rule of its own is a real fault
+          // with its own cause, so it is reported per title rather than summarised.
+          if (!acted.rssRuleId && acted.failureReason) {
+            this.bus.publish({
+              eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_RULE_FAILED,
+              resourceType: 'discovered_media',
+              resourceId: row.id,
+              payload: {
+                title: row.year ? `${row.title} (${row.year})` : row.title,
+                templateName: template.name,
+                reason: acted.failureReason,
+              },
+            });
+          }
         } else {
           outcome.failed += 1;
         }
       }
+
+      if (verdict.decision === 'needs_review') heldForReview += 1;
 
       await this.record(row.id, template.id, verdict, acted);
       await this.prisma.discoveredMedia
@@ -191,6 +229,22 @@ export class DiscoveryEvaluationService {
           },
         })
         .catch((err) => this.logger.warn(`Could not stamp ${row.id}: ${(err as Error).message}`));
+    }
+
+    /*
+     * Summarised per RUN, not per title.
+     *
+     * A first pass can hold twenty titles at once — an unresolved identity here,
+     * an exhausted allowance there — and twenty notifications all say the same
+     * thing and are all answered by one visit to the inbox.
+     */
+    if (heldForReview > 0) {
+      this.bus.publish({
+        eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_REVIEW_REQUIRED,
+        resourceType: 'discovery_template',
+        resourceId: template.id,
+        payload: { count: heldForReview, templateName: template.name },
+      });
     }
 
     return outcome;

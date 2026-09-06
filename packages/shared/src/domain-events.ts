@@ -65,6 +65,26 @@ export const DOMAIN_EVENTS = {
    */
   LIBRARY_CLEANUP_SEEDING_UNVERIFIED: 'library_cleanup.seeding_unverified',
 
+  // --- Media Discovery -----------------------------------------------------
+  /*
+   * Four, not the fourteen a first sketch listed.
+   *
+   * `created`, `updated`, `evaluated`, `ignored`, `sync_started` and
+   * `sync_completed` all have real producers — and all of them fire per item or
+   * per tick, which is how a catalogue of 800 titles becomes an inbox nobody
+   * reads. What survives is what a person would want to be TOLD about: something
+   * is now being acquired on their behalf, something is waiting on them, or
+   * something is broken.
+   */
+  /** A title is now monitored automatically — a watchlist entry and rule exist. */
+  MEDIA_DISCOVERY_AUTO_MONITORED: 'media_discovery.auto_monitored',
+  /** One run left titles that need a person. Summarised, never one per title. */
+  MEDIA_DISCOVERY_REVIEW_REQUIRED: 'media_discovery.review_required',
+  /** A title was monitored but its acquisition rule could not be generated. */
+  MEDIA_DISCOVERY_RULE_FAILED: 'media_discovery.rule_failed',
+  /** A provider's catalogue refresh failed; its previous catalogue was kept. */
+  MEDIA_DISCOVERY_PROVIDER_SYNC_FAILED: 'media_discovery.provider_sync_failed',
+
   // --- Storage -------------------------------------------------------------
   SYSTEM_STORAGE_WARNING: 'system.storage_warning',
   SYSTEM_STORAGE_CRITICAL: 'system.storage_critical',

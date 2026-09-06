@@ -2,6 +2,7 @@ import { Module, type OnModuleInit } from '@nestjs/common';
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { SettingsModule, SettingsService } from '../settings/settings.module';
 import { AuditModule } from '../audit/audit.module';
+import { DomainEventsModule } from '../domain-events/domain-events.module';
 import { DiscoveryProviderRegistry } from './discovery-provider-registry.service';
 import { DiscoveryStoreService } from './discovery-store.service';
 import { DiscoverySyncService } from './discovery-sync.service';
@@ -36,7 +37,7 @@ export { evaluateDiscovery, categoriesMatch } from './discovery-policy';
  * need to, the answer is to call the acquisition engine, not to grow a second one.
  */
 @Module({
-  imports: [PrismaModule, SettingsModule, AuditModule, MediaAcquisitionModule, FilesModule],
+  imports: [PrismaModule, SettingsModule, AuditModule, MediaAcquisitionModule, FilesModule, DomainEventsModule],
   providers: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService],
   controllers: [MediaDiscoveryController],
   exports: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService],

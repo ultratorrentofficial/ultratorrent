@@ -349,25 +349,32 @@ function sourceFilter(media: PolicyMedia, template: PolicyTemplate): { ok: boole
   };
 }
 
+/**
+ * A value is only a number if it really is one.
+ *
+ * `null` was the only "unknown" this checked for, so a provider returning the
+ * STRING `"Infinity"` sailed through: `'Infinity' < 50` is false, the comparison
+ * reported no failure, and a title with unverifiable popularity was auto-monitored
+ * past a floor set precisely to hold it back. NaN behaves the same way — every
+ * comparison against it is false, so an unguarded `<` reads a broken value as a
+ * passing one.
+ */
+function numeric(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 /** The first threshold this title falls below, or null. */
 function thresholds(media: PolicyMedia, template: PolicyTemplate): string | null {
-  if (template.minimumPopularity != null) {
-    if (media.popularity == null) return `Popularity is unknown, and ${template.minimumPopularity} is required`;
-    if (media.popularity < template.minimumPopularity) {
-      return `Popularity ${media.popularity} is below the required ${template.minimumPopularity}`;
-    }
-  }
-  if (template.minimumRating != null) {
-    if (media.rating == null) return `Rating is unknown, and ${template.minimumRating} is required`;
-    if (media.rating < template.minimumRating) {
-      return `Rating ${media.rating} is below the required ${template.minimumRating}`;
-    }
-  }
-  if (template.minimumVoteCount != null) {
-    if (media.voteCount == null) return `Vote count is unknown, and ${template.minimumVoteCount} is required`;
-    if (media.voteCount < template.minimumVoteCount) {
-      return `Vote count ${media.voteCount} is below the required ${template.minimumVoteCount}`;
-    }
+  const checks: Array<[label: string, value: unknown, floor: number | null | undefined]> = [
+    ['Popularity', media.popularity, template.minimumPopularity],
+    ['Rating', media.rating, template.minimumRating],
+    ['Vote count', media.voteCount, template.minimumVoteCount],
+  ];
+  for (const [label, raw, floor] of checks) {
+    if (floor == null) continue;
+    const value = numeric(raw);
+    if (value === null) return `${label} is unknown, and ${floor} is required`;
+    if (value < floor) return `${label} ${value} is below the required ${floor}`;
   }
   return null;
 }
