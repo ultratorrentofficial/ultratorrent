@@ -1,0 +1,160 @@
+{
+  "title": "Discover",
+  "subtitle": "Upcoming films and series from your metadata providers, and what UltraTorrent decided about each one.",
+  "actions": {
+    "sync": "Refresh catalogues",
+    "syncQueued": "Catalogue refresh started",
+    "preview": "Preview",
+    "save": "Save",
+    "saveAndEnable": "Save and enable",
+    "cancel": "Cancel"
+  },
+  "firstRun": {
+    "title": "No discovery provider is enabled yet",
+    "body": "Discovery makes no third-party calls until you enable a provider. Once enabled, catalogues refresh in the background and appear here. Nothing is monitored automatically until you also create and enable a discovery template."
+  },
+  "providers": {
+    "title": "Providers",
+    "enable": "Enable",
+    "disable": "Disable",
+    "notConfigured": "Not configured",
+    "discovered": "{{count}} discovered",
+    "error": "Could not load providers",
+    "off": "Off",
+    "syncOne": "Refresh this provider",
+    "discoveredLabel": "Discovered",
+    "lastSync": "Last sync",
+    "responseTime": "Response",
+    "never": "Never",
+    "noneTitle": "No providers available",
+    "noneDescription": "Discovery ships with TMDB and TVmaze. TMDB needs an API key; TVmaze needs none.",
+    "explainer": "A provider is silent until you enable it — nothing is fetched from a third party before that. Enabling one only refreshes catalogues; it does not monitor or download anything."
+  },
+  "views": {
+    "all": "All",
+    "monitored": "Monitored",
+    "needsReview": "Needs review",
+    "notified": "Notified",
+    "ignored": "Ignored"
+  },
+  "filters": {
+    "allTypes": "All types",
+    "movies": "Movies",
+    "tv": "TV",
+    "search": "Search titles…"
+  },
+  "card": {
+    "releases": "{{type}} {{date}}",
+    "sources": "via {{list}}",
+    "onWatchlist": "On watchlist",
+    "hasRule": "Rule generated"
+  },
+  "identity": {
+    "ambiguous": "Ambiguous identity",
+    "conflicted": "Conflicting ids"
+  },
+  "inbox": {
+    "count": "Showing {{shown}} of {{total}}",
+    "emptyTitle": "Nothing discovered yet",
+    "emptyDescription": "Enable a provider and refresh the catalogues, or widen the filters above.",
+    "error": "Could not load discoveries"
+  },
+  "tabs": {
+    "inbox": "Inbox",
+    "providers": "Providers",
+    "templates": "Templates"
+  },
+  "policy": {
+    "autoMonitorCategories": {
+      "title": "Monitor automatically",
+      "help": "Titles in these categories get a watchlist entry and an acquisition rule without being asked."
+    },
+    "notifyOnlyCategories": {
+      "title": "Tell me only",
+      "help": "Surfaced in the inbox. Nothing is created until you act on it."
+    },
+    "ignoreCategories": {
+      "title": "Hide",
+      "help": "Filed away so the same unwanted title stops reappearing."
+    },
+    "blockedFromAutoCategories": {
+      "title": "Never automatically",
+      "help": "Beats every list above. A Sci-Fi title that is also a Documentary will not auto-monitor if Documentary is here — it is still shown, just never added on its own."
+    },
+    "empty": "None yet",
+    "addPlaceholder": "Add a category…",
+    "remove": "Remove {{category}}",
+    "contradiction": "These categories are both monitored and hidden, which cannot both be true: {{list}}"
+  },
+  "releaseTypes": {
+    "digital": "Digital",
+    "streaming": "Streaming",
+    "wide_theatrical": "Theatrical",
+    "limited_theatrical": "Limited theatrical",
+    "physical": "Physical",
+    "festival": "Festival",
+    "series_premiere": "Series premiere",
+    "season_premiere": "Season premiere",
+    "episode_air": "Episode",
+    "finale": "Finale"
+  },
+  "form": {
+    "name": "Name",
+    "mediaType": "Media type",
+    "anyType": "Anything",
+    "windowDays": "Look ahead (days)",
+    "languages": "Languages",
+    "regions": "Regions",
+    "releaseTypes": "Release types that count",
+    "releaseTypesAll": "No selection means every release type counts.",
+    "matchMode": "Category match",
+    "modeAny": "Any category qualifies",
+    "modeAll": "Every category must qualify",
+    "modePrimary": "Only the first category",
+    "minPopularity": "Min popularity",
+    "minRating": "Min rating",
+    "minConfidence": "Min identity confidence",
+    "feed": "RSS feed",
+    "storageProfile": "Storage profile",
+    "acquisitionTemplate": "Acquisition template",
+    "acquisitionDefault": "Use the default preferences",
+    "pathTemplate": "Folder below the staging root",
+    "pathHelp": "Tokens: {tvshow} {movie} {year} {season_number}. The root comes from the storage profile.",
+    "choose": "Choose…",
+    "disabled": "disabled",
+    "perDay": "Max automatic adds per day",
+    "perWeek": "Max automatic adds per week",
+    "notifyOnlyNotice": "This template has no auto-monitor categories, so it only notifies. A feed and storage profile are not needed.",
+    "sections": {
+      "scope": "What to look at",
+      "policy": "What to do with it",
+      "destination": "Where it goes"
+    }
+  },
+  "preview": {
+    "heading": "If this template ran now, over {{examined}} discovered titles:",
+    "monitored": "Monitored",
+    "notified": "Notified",
+    "review": "Needs review",
+    "ignored": "Ignored",
+    "beyondAllowance": "{{count}} of these would be held for review — your weekly limit is {{perWeek}}.",
+    "truncated": "The catalogue is larger than one preview reads, so these are a sample rather than a total."
+  },
+  "templates": {
+    "create": "New template",
+    "on": "Enabled",
+    "off": "Disabled",
+    "enable": "Enable",
+    "disable": "Disable",
+    "notifyOnly": "Notify only",
+    "saved": "Template saved",
+    "deleted": "Template deleted",
+    "error": "Could not load templates",
+    "emptyTitle": "No discovery templates yet",
+    "emptyDescription": "A template decides which discovered titles are monitored automatically. Nothing is monitored until you create one and enable it.",
+    "explainer": "A template is a standing instruction. While one is enabled, matching titles get a watchlist entry and an acquisition rule without being asked.",
+    "summary": "{{auto}} monitored · {{notify}} notify · {{ignore}} hidden · next {{days}} days",
+    "limits": "Up to {{perDay}} per day, {{perWeek}} per week",
+    "confirmDelete": "Delete the template \"{{name}}\"? Titles it already monitored are not affected."
+  }
+}

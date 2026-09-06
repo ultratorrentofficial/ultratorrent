@@ -1,0 +1,160 @@
+{
+  "title": "Descubrir",
+  "subtitle": "Películas y series próximas de tus proveedores de metadatos, y lo que UltraTorrent decidió sobre cada una.",
+  "actions": {
+    "sync": "Actualizar catálogos",
+    "syncQueued": "Actualización de catálogo iniciada",
+    "preview": "Vista previa",
+    "save": "Guardar",
+    "saveAndEnable": "Guardar y activar",
+    "cancel": "Cancelar"
+  },
+  "firstRun": {
+    "title": "Aún no hay ningún proveedor de descubrimiento activo",
+    "body": "Descubrir no hace llamadas a terceros hasta que actives un proveedor. Una vez activo, los catálogos se actualizan en segundo plano y aparecen aquí. No se monitorea nada automáticamente hasta que además crees y actives una plantilla de descubrimiento."
+  },
+  "providers": {
+    "title": "Proveedores",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "notConfigured": "Sin configurar",
+    "discovered": "{{count}} descubiertos",
+    "error": "No se pudieron cargar los proveedores",
+    "off": "Apagado",
+    "syncOne": "Actualizar este proveedor",
+    "discoveredLabel": "Descubiertos",
+    "lastSync": "Última sincronización",
+    "responseTime": "Respuesta",
+    "never": "Nunca",
+    "noneTitle": "No hay proveedores disponibles",
+    "noneDescription": "Descubrir incluye TMDB y TVmaze. TMDB requiere una clave de API; TVmaze no requiere ninguna.",
+    "explainer": "Un proveedor permanece en silencio hasta que lo actives — no se consulta a terceros antes de eso. Activarlo solo actualiza catálogos; no monitorea ni descarga nada."
+  },
+  "views": {
+    "all": "Todos",
+    "monitored": "Monitoreados",
+    "needsReview": "Requieren revisión",
+    "notified": "Notificados",
+    "ignored": "Ignorados"
+  },
+  "filters": {
+    "allTypes": "Todos los tipos",
+    "movies": "Películas",
+    "tv": "TV",
+    "search": "Buscar títulos…"
+  },
+  "card": {
+    "releases": "{{type}} {{date}}",
+    "sources": "vía {{list}}",
+    "onWatchlist": "En la lista de seguimiento",
+    "hasRule": "Regla generada"
+  },
+  "identity": {
+    "ambiguous": "Identidad ambigua",
+    "conflicted": "Identificadores en conflicto"
+  },
+  "inbox": {
+    "count": "Mostrando {{shown}} de {{total}}",
+    "emptyTitle": "Aún no se ha descubierto nada",
+    "emptyDescription": "Activa un proveedor y actualiza los catálogos, o amplía los filtros de arriba.",
+    "error": "No se pudieron cargar los descubrimientos"
+  },
+  "tabs": {
+    "inbox": "Bandeja",
+    "providers": "Proveedores",
+    "templates": "Plantillas"
+  },
+  "policy": {
+    "autoMonitorCategories": {
+      "title": "Monitorear automáticamente",
+      "help": "Los títulos de estas categorías reciben una entrada en la lista de seguimiento y una regla de adquisición sin preguntar."
+    },
+    "notifyOnlyCategories": {
+      "title": "Solo avisarme",
+      "help": "Aparecen en la bandeja. No se crea nada hasta que actúes."
+    },
+    "ignoreCategories": {
+      "title": "Ocultar",
+      "help": "Se archivan para que el mismo título no vuelva a aparecer."
+    },
+    "blockedFromAutoCategories": {
+      "title": "Nunca automáticamente",
+      "help": "Prevalece sobre todas las listas anteriores. Un título de ciencia ficción que además es documental no se monitoreará solo si Documental está aquí — se sigue mostrando, pero nunca se añade por su cuenta."
+    },
+    "empty": "Ninguna aún",
+    "addPlaceholder": "Añadir categoría…",
+    "remove": "Quitar {{category}}",
+    "contradiction": "Estas categorías están a la vez monitoreadas y ocultas, lo cual no puede ser: {{list}}"
+  },
+  "releaseTypes": {
+    "digital": "Digital",
+    "streaming": "Streaming",
+    "wide_theatrical": "Cines",
+    "limited_theatrical": "Estreno limitado",
+    "physical": "Físico",
+    "festival": "Festival",
+    "series_premiere": "Estreno de serie",
+    "season_premiere": "Estreno de temporada",
+    "episode_air": "Episodio",
+    "finale": "Final"
+  },
+  "form": {
+    "name": "Nombre",
+    "mediaType": "Tipo de medio",
+    "anyType": "Cualquiera",
+    "windowDays": "Anticipación (días)",
+    "languages": "Idiomas",
+    "regions": "Regiones",
+    "releaseTypes": "Tipos de estreno que cuentan",
+    "releaseTypesAll": "Sin selección, cuentan todos los tipos de estreno.",
+    "matchMode": "Coincidencia de categorías",
+    "modeAny": "Basta una categoría",
+    "modeAll": "Todas las categorías deben calificar",
+    "modePrimary": "Solo la primera categoría",
+    "minPopularity": "Popularidad mínima",
+    "minRating": "Calificación mínima",
+    "minConfidence": "Confianza mínima de identidad",
+    "feed": "Fuente RSS",
+    "storageProfile": "Perfil de almacenamiento",
+    "acquisitionTemplate": "Plantilla de adquisición",
+    "acquisitionDefault": "Usar las preferencias por defecto",
+    "pathTemplate": "Carpeta bajo la raíz de preparación",
+    "pathHelp": "Tokens: {tvshow} {movie} {year} {season_number}. La raíz proviene del perfil de almacenamiento.",
+    "choose": "Elegir…",
+    "disabled": "desactivada",
+    "perDay": "Máx. altas automáticas por día",
+    "perWeek": "Máx. altas automáticas por semana",
+    "notifyOnlyNotice": "Esta plantilla no tiene categorías de monitoreo automático, así que solo avisa. No hacen falta fuente ni perfil de almacenamiento.",
+    "sections": {
+      "scope": "Qué observar",
+      "policy": "Qué hacer con ello",
+      "destination": "A dónde va"
+    }
+  },
+  "preview": {
+    "heading": "Si esta plantilla se ejecutara ahora, sobre {{examined}} títulos descubiertos:",
+    "monitored": "Monitoreados",
+    "notified": "Notificados",
+    "review": "Requieren revisión",
+    "ignored": "Ignorados",
+    "beyondAllowance": "{{count}} de estos quedarían en revisión — tu límite semanal es {{perWeek}}.",
+    "truncated": "El catálogo es mayor de lo que lee una vista previa, así que esto es una muestra y no un total."
+  },
+  "templates": {
+    "create": "Nueva plantilla",
+    "on": "Activada",
+    "off": "Desactivada",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "notifyOnly": "Solo avisos",
+    "saved": "Plantilla guardada",
+    "deleted": "Plantilla eliminada",
+    "error": "No se pudieron cargar las plantillas",
+    "emptyTitle": "Aún no hay plantillas de descubrimiento",
+    "emptyDescription": "Una plantilla decide qué títulos descubiertos se monitorean automáticamente. No se monitorea nada hasta que crees una y la actives.",
+    "explainer": "Una plantilla es una instrucción permanente. Mientras esté activa, los títulos que coincidan reciben una entrada en la lista de seguimiento y una regla de adquisición sin preguntar.",
+    "summary": "{{auto}} monitoreadas · {{notify}} avisos · {{ignore}} ocultas · próximos {{days}} días",
+    "limits": "Hasta {{perDay}} por día, {{perWeek}} por semana",
+    "confirmDelete": "¿Eliminar la plantilla «{{name}}»? Los títulos que ya monitoreaba no se ven afectados."
+  }
+}

@@ -147,6 +147,7 @@ export const MODULE_IDS = {
   // Core — policy-driven, plan-executed library storage reclamation
   LIBRARY_CLEANUP: 'library_cleanup',
   MEDIA_INTAKE: 'media_intake',
+  MEDIA_DISCOVERY: 'media_discovery',
   OPERATIONS: 'operations',
 } as const;
 

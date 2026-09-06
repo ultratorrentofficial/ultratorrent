@@ -390,6 +390,49 @@ export const OPTIONAL_MANIFESTS: ModuleManifest[] = [
     ],
   },
   {
+    id: MODULE_IDS.MEDIA_DISCOVERY,
+    name: 'Media Discovery',
+    description:
+      'Discovers upcoming films, new and returning series from metadata providers, and decides what should be monitored — creating watchlist entries and generated RSS rules that the existing acquisition engine acts on. Never downloads anything itself.',
+    required: false,
+    /*
+     * OFF by default, unlike every other optional module here.
+     *
+     * Enabling this one is the operator saying the system may acquire media on
+     * its own. That has to be a deliberate act, and a module that arrived
+     * switched on would make it an accident. Providers are separately silent
+     * until enabled, and templates default to disabled, so there are three
+     * doors between a fresh install and an automatic download.
+     */
+    enabledByDefault: false,
+    dependencies: [
+      MODULE_IDS.AUTH,
+      MODULE_IDS.RBAC,
+      MODULE_IDS.MODULE_REGISTRY,
+      MODULE_IDS.AUDIT,
+      MODULE_IDS.SETTINGS,
+      MODULE_IDS.MEDIA_MANAGER,
+      MODULE_IDS.MEDIA_ACQUISITION_INTELLIGENCE,
+      MODULE_IDS.MEDIA_INTAKE,
+      MODULE_IDS.RSS,
+    ],
+    permissions: [
+      P.MEDIA_DISCOVERY_VIEW,
+      P.MEDIA_DISCOVERY_MANAGE,
+      P.MEDIA_DISCOVERY_TEMPLATES_MANAGE,
+      P.MEDIA_DISCOVERY_PROVIDERS_MANAGE,
+    ],
+    routes: ['/media-acquisition/discover'],
+    schedulerJobs: ['media_discovery_provider_sync', 'media_discovery_evaluate'],
+    features: [
+      'upcoming_discovery',
+      'category_automation_policy',
+      'acquisition_rule_templates',
+      'preview_mode',
+      'automatic_rule_generation',
+    ],
+  },
+  {
     id: MODULE_IDS.MEDIA_SERVER_ANALYTICS,
     name: 'Media Server Analytics',
     description:

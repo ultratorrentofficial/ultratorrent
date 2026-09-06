@@ -594,14 +594,21 @@ detector), `apps/backend/src/common/file-placement.ts` (the shared primitive).
 
 ## Media Discovery Engine
 
-**Status: the pipeline runs end to end.** Discover → merge → persist → decide →
-watchlist → rule → directory, on a schedule, with preview and pacing. Verified
-against the real catalogue: 500 titles examined, 5 auto-monitored (the rest held
-by a deliberately tight weekly cap), 5 watchlist entries and 5 generated rules,
-each carrying its acquisition ladder. **Discovery automation is still OFF by
-default** — providers are silent until enabled and templates default to disabled,
-so a fresh install discovers nothing and acquires nothing. What remains is the
-UI, notifications and documentation. Providers are silent until an
+**Status: usable end to end from the browser.** Discover → merge → persist →
+decide → watchlist → rule → directory, on a schedule, with preview and pacing,
+configured and observed at **Media Acquisition → Discover** (Inbox · Templates ·
+Providers). Verified against
+the real catalogue: 500 titles examined, 5 auto-monitored (the rest held by a
+deliberately tight weekly cap), 5 watchlist entries and 5 generated rules, each
+carrying its acquisition ladder.
+
+**Three doors stand between a fresh install and an automatic download**, and all
+three are shut: the module ships disabled, providers are silent until enabled,
+and templates default to disabled. Discovery templates can be authored, previewed and
+enabled in the UI. **Acquisition-template ladders still have no editor** — a
+discovery template can select an existing one or fall back to the auto-download
+profiles, but authoring a new candidate ladder needs the API. That, plus
+notifications, audit polish and documentation, is what remains. Providers are silent until an
 operator enables them, so a fresh install makes no third-party calls at all. This
 section describes what is built, not what is planned — see
 [MEDIA_DISCOVERY_GAP_ANALYSIS.md](MEDIA_DISCOVERY_GAP_ANALYSIS.md) for the
@@ -980,6 +987,52 @@ against the background service, the inbox reads the database, and provider healt
 comes from stored state rather than probing, so a page load never waits on TMDB.
 
 
+### The Discover page
+
+Lives inside Media Acquisition rather than as a top-level area, because
+discovering what to acquire is part of acquiring — a separate destination would
+imply a separate subsystem, which is exactly what this is not.
+
+The organising rule is that **every card carries the reason it is there**. A
+discovery engine that silently monitors things is one an operator cannot trust or
+correct, so the decision and its reason sit on the card itself rather than behind
+a detail view somebody has to think to open. An unresolved identity is called out
+in amber, because that is precisely when a person needs to know the engine was
+UNSURE rather than wrong.
+
+A provider with stored history but no registration — usually a key that was
+removed — is listed as **not configured** instead of disappearing. A source that
+silently vanishes leaves an operator wondering why it stopped producing anything.
+
+The module is registered with `enabledByDefault: false`, alone among the optional
+modules. Enabling it is the operator saying the system may acquire media on its
+own, and a module that arrived switched on would make that an accident.
+
+**Providers** distinguishes three states, because only one is a fault and the
+action differs for each: *not configured* (no credential here — and it says WHERE
+to set one, since "not configured" without a location is a dead end), *configured
+but off* (silent by choice, the normal fresh-install state), and *on and
+unhealthy* (carrying the last failure reason rather than a red dot to interpret).
+The configuration hint is a **location, never a credential**.
+
+**Templates** is where the automation is authored. The category policy is four
+lists — monitor, tell me, hide, and **never automatically** — because a single
+allow-list can only say what qualifies and cannot express "tell me about Drama
+but never add it on its own", which is what most operators actually want. A
+category may legitimately appear in both auto-monitor and blocked; that is
+precisely how "Sci-Fi qualifies, but never when it is also a Documentary" is
+written. Auto-monitor overlapping *ignore* is flagged while typing, since those
+are opposite verdicts and the server refuses the save.
+
+Two ordering decisions in the form: **Preview sits before Enable**, because the
+engine creates watchlist entries and rules on its own and offering that button
+before showing what it would do is the wrong order — and preview posts the form
+UNSAVED, so the adjust-and-look-again loop costs nothing. The feed and storage
+profile fields appear only when the template can auto-monitor at all; for a
+notify-only template they are not optional but irrelevant, and asking would imply
+otherwise.
+
+
 Key files: `packages/shared/src/media-discovery.ts` (the shared vocabulary),
 `apps/backend/src/modules/media-discovery/`.
 
@@ -1282,6 +1335,8 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-06 | **Media Discovery is configurable from the UI: Providers and Templates.** Providers distinguishes *not configured* from *configured but off* from *on and unhealthy*, because only the last is a fault and the action differs for each; an unregistered provider now carries a `configurationHint` naming WHERE its credential is set (the TMDB key lives in Media Manager settings, which nobody would guess from a Discovery screen) — a location, never a credential. Templates authors the automation: the category policy is **four lists** rather than one allow-list, because a single list cannot express "tell me about Drama but never add it on its own", and a category may legitimately sit in both auto-monitor and blocked — that is how "Sci-Fi qualifies, but never when it is also a Documentary" is written down. Auto-monitor overlapping *ignore* is flagged while typing rather than as a rejected save. **Preview sits before Enable** and posts the form unsaved, so the adjust-and-look-again loop costs nothing and persists nothing; it surfaces `beyondWeeklyAllowance` so an operator sees that 20 of 50 candidates would land in review BEFORE enabling rather than from a full inbox. Feed and storage-profile fields appear only when a template can auto-monitor, since for a notify-only template they are irrelevant rather than optional. Verified through the same API the form calls: the enable guard refuses a feedless auto-monitor template with a message naming the missing piece, and preview ran over 870 real titles. **Acquisition-template ladders still have no editor** — selectable, not yet authorable, in the UI. |
+| 2026-09-06 | **Media Discovery gains its inbox: the Discover page under Media Acquisition.** Placed inside acquisition rather than as a top-level area, because discovering what to acquire is part of acquiring and a separate destination would imply a separate subsystem — which is the thing this deliberately is not. The organising rule is that **every card carries the reason it is there**: a decision with no visible explanation is one an operator can neither trust nor correct, so the reason sits on the card rather than behind a detail view, and an unresolved identity is called out in amber because that is when a person needs to know the engine was unsure rather than wrong. A provider with stored history but no registration is shown as *not configured* rather than disappearing — verified accidentally when the dev database wipe removed the TMDB key and the branch fired for real. The module registers with **`enabledByDefault: false`**, alone among the optional modules, making it the third of three shut doors between a fresh install and an automatic download (module off, providers silent, templates disabled). The nav i18n guard added earlier this session caught the missing `Discover` translations in both locales before they could ship. Template authoring still has no UI, so the feature is not yet usable end to end from the browser. |
 | 2026-09-06 | **Media Discovery runs end to end: intake provisioning, preview, auto-add limits, the evaluation orchestrator and the API.** Verified against the real catalogue — 500 titles examined, 5 auto-monitored with watchlist entries and generated rules carrying their ladders, the rest held by a deliberately tight weekly cap. **A correctness trap was found only by running it**: titles a template has no opinion about were recorded nowhere, so the `evaluations: { none: … }` filter re-fetched them every tick and they consumed the page budget permanently — a second pass re-examined the same 500 rows, 407 not applicable, meaning a template that accumulates a page's worth would never reach a genuinely new title. The evaluation row is now written as the audit trail while `DiscoveredMedia` is left untouched, so the inbox stays clean and the sweep makes progress. Ordering is watchlist → rule → directory and a later failure never undoes an earlier success: the entry causes acquisition, the rest improve it, so a rule failure leaves a monitored title with a recorded reason rather than a silent gap. Limits use **rolling windows** (a calendar boundary lets twenty additions land across midnight) and count only additions that actually happened, so a run of failures cannot exhaust the allowance. Preview runs the real evaluator, takes a template by value so an unsaved one can be tried, projects limits rather than applying them, and is proven read-only by a Prisma stub whose every write throws. Four permissions separate viewing the inbox from configuring automation, and no endpoint calls a provider. |
 | 2026-09-06 | **Media Discovery generates the title-specific RSS rule an auto-monitored title needs.** The rule's job is to CARRY THE PREFERENCES, not to monitor: `resolveCandidates()` already reads a watchlist item's linked rule ahead of profiles and defaults, so a generated rule slots into the top rung of an order that already existed — confirmed live, with the ladder landing in `RssRuleMatchCandidate` exactly where the existing engine reads it and template-wide terms reaching every rung (a fallback rung that dropped `excludedTerms: ['CAM']` would accept what the template forbids). Rules are `managed_intake` with the template's Storage Profile so intake resolves the destination. Six additive provenance columns on `rss_rules`, `generatedByDiscovery` defaulting to **false** on the `importMode` precedent so every pre-existing rule stays hand-made. Three refusals define it: it **never adopts a rule a person made** (a name collision returns `skipped` with that rule's id and a reason, so the watchlist can still link to it while nothing is taken over); it never generates twice for one title, keyed on `discoveredMediaId`; and **`userModifiedAt` is the ownership line** — `updateRule` stamps it on the first human edit of a generated rule, re-application filters on it being null, and `userOwned()` lists the rest so they are reported rather than silently skipped. Nothing evaluates templates on a schedule yet, so no rule is generated unless a caller asks. |
 | 2026-09-06 | **Media Discovery — templates, the policy evaluator, the path renderer and watchlist integration.** It can now DECIDE; it still cannot act, because no RSS rule is generated yet. The evaluator is pure, which is what will make Preview Mode honest, and its sharpest distinction is that **`needs_review` is not `notify`** — one says "you might want this", the other says "we would have acted and could not safely". Three rules are easy to get backwards and are pinned by tests: a title with **no categories never matches, including under `ALL`** (a vacuous truth would auto-monitor the untagged daily news that dominates the TVmaze feed); an **unknown threshold value fails rather than passes**; and the confidence floor is configurable while the identity **status** is not, so no template can configure its way past an ambiguous identity. Run over the 753 real discovered titles with a realistic template: 53 auto-monitor, 54 notify, 171 ignore, 9 needs-review, 466 not applicable. Acquisition templates mirror `RssRuleMatchCandidate` field-for-field, guarded by a parity test against the Prisma datamodel that was **verified by introducing a field and watching it fail**; validation refuses `hdr`/`audio` quality rules because `match-engine.ts` does not read them and the setting would silently do nothing. The path renderer reuses `sanitizeSegment` and `nests()` rather than reimplementing them, and fixed two defects its own tests found: substituting tokens before splitting let a title of `Face/Off` invent a directory level (values are now sanitised BEFORE substitution — template separators are structure, value separators are not), and `../../etc/passwd` produced a contained but *hidden* `.... etc passwd` folder, so leading dots are stripped. `sanitizeSegment` itself now strips control characters, closing the same hole for the renamer. Watchlist integration goes through `AcquisitionWatchlistService`, never the table; `paused`/`archived`/`completed` entries are never reactivated, and the title fallback normalizes the discovery title **the watchlist's way** because the two tables normalize differently. |

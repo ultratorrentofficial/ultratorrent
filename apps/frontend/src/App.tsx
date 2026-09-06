@@ -68,6 +68,7 @@ import { IndexersPage } from '@/pages/indexers/IndexersPage';
 import { MediaAcquisitionPage } from '@/pages/media-acquisition/MediaAcquisitionPage';
 import { MissingEpisodesPage } from '@/pages/media-acquisition/MissingEpisodesPage';
 import { DecisionSimulatorPage } from '@/pages/media-acquisition/DecisionSimulatorPage';
+import { DiscoverPage } from '@/pages/media-discovery/DiscoverPage';
 import { SmartDownloadDashboardPage } from '@/pages/media-acquisition/SmartDownloadDashboardPage';
 import { MediaServerAnalyticsDashboardPage } from '@/pages/media-server-analytics/MediaServerAnalyticsDashboardPage';
 import { MediaServerConnectionsPage } from '@/pages/media-server-analytics/MediaServerConnectionsPage';
@@ -438,6 +439,14 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_acquisition_intelligence">
                             <MissingEpisodesPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media-acquisition/discover"
+                        element={
+                          <ModuleRoute moduleId="media_discovery">
+                            <DiscoverPage />
                           </ModuleRoute>
                         }
                       />

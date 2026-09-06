@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS as P } from '@ultratorrent/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -13,6 +14,16 @@ import { DiscoveryEvaluationService } from './discovery-evaluation.service';
 import { DiscoveryTemplateService, type DiscoveryTemplateInput } from './discovery-template.service';
 import { AcquisitionTemplateService, type AcquisitionTemplateInput } from './acquisition-template.service';
 
+/**
+ * Where each provider's credential lives, for a provider that is not registered.
+ *
+ * The VALUE is a location, never a secret — this endpoint must not carry a key,
+ * and saying where one is set is not the same as saying what it is.
+ */
+const CONFIGURATION_HINTS: Record<string, string> = {
+  tmdb: 'Set a TMDB API key in Media Manager settings; Discovery reuses the same key.',
+};
+
 /** One provider as the Providers screen shows it. Never carries a credential. */
 export interface ProviderStatus {
   provider: string;
@@ -21,6 +32,14 @@ export interface ProviderStatus {
   capabilities: string[];
   enabled: boolean;
   healthy: boolean | null;
+  /**
+   * What an operator must do to make an unregistered provider usable.
+   *
+   * "Not configured" without saying WHERE is a dead end — the TMDB key lives in
+   * Media Manager settings, which is not a place anyone would guess from a
+   * Discovery screen.
+   */
+  configurationHint: string | null;
   lastSuccessfulSync: Date | null;
   lastFailureAt: Date | null;
   lastFailureReason: string | null;
@@ -75,6 +94,7 @@ export class MediaDiscoveryController {
       return {
         provider: p.name,
         registered: true,
+        configurationHint: null,
         capabilities: p.capabilities(),
         enabled: row?.enabled ?? false,
         healthy: row?.healthy ?? null,
@@ -96,6 +116,7 @@ export class MediaDiscoveryController {
       .map((s) => ({
         provider: s.provider,
         registered: false,
+        configurationHint: CONFIGURATION_HINTS[s.provider] ?? null,
         capabilities: s.capabilities,
         enabled: s.enabled,
         healthy: false,
@@ -176,8 +197,20 @@ export class MediaDiscoveryController {
 
   @Post('templates')
   @RequirePermissions(P.MEDIA_DISCOVERY_TEMPLATES_MANAGE)
-  createTemplate(@Body() body: DiscoveryTemplateInput) {
-    return this.templates.create(body);
+  createTemplate(@Body() body: DiscoveryTemplateInput, @Req() req: Request) {
+    return this.templates.create(body, userId(req));
+  }
+
+  @Patch('templates/:id')
+  @RequirePermissions(P.MEDIA_DISCOVERY_TEMPLATES_MANAGE)
+  updateTemplate(@Param('id') id: string, @Body() body: DiscoveryTemplateInput, @Req() req: Request) {
+    return this.templates.update(id, body, userId(req));
+  }
+
+  @Delete('templates/:id')
+  @RequirePermissions(P.MEDIA_DISCOVERY_TEMPLATES_MANAGE)
+  deleteTemplate(@Param('id') id: string, @Req() req: Request) {
+    return this.templates.remove(id, userId(req));
   }
 
   @Get('acquisition-templates')
@@ -188,8 +221,52 @@ export class MediaDiscoveryController {
 
   @Post('acquisition-templates')
   @RequirePermissions(P.MEDIA_DISCOVERY_TEMPLATES_MANAGE)
-  createAcquisitionTemplate(@Body() body: AcquisitionTemplateInput) {
-    return this.acquisition.create(body);
+  createAcquisitionTemplate(@Body() body: AcquisitionTemplateInput, @Req() req: Request) {
+    return this.acquisition.create(body, userId(req));
+  }
+
+  @Patch('acquisition-templates/:id')
+  @RequirePermissions(P.MEDIA_DISCOVERY_TEMPLATES_MANAGE)
+  updateAcquisitionTemplate(
+    @Param('id') id: string,
+    @Body() body: AcquisitionTemplateInput,
+    @Req() req: Request,
+  ) {
+    return this.acquisition.update(id, body, userId(req));
+  }
+
+  @Delete('acquisition-templates/:id')
+  @RequirePermissions(P.MEDIA_DISCOVERY_TEMPLATES_MANAGE)
+  deleteAcquisitionTemplate(@Param('id') id: string, @Req() req: Request) {
+    return this.acquisition.remove(id, userId(req));
+  }
+
+  /**
+   * The feeds, storage profiles and acquisition templates a discovery template
+   * can point at, in one call.
+   *
+   * One request rather than three because they are only ever needed together —
+   * the template form cannot be filled in without all of them, and three
+   * round-trips would show it half-populated on a slow connection.
+   */
+  @Get('template-options')
+  @RequirePermissions(P.MEDIA_DISCOVERY_TEMPLATES_MANAGE)
+  async templateOptions() {
+    const [feeds, profiles, acquisitionTemplates] = await Promise.all([
+      this.prisma.rssFeed.findMany({
+        select: { id: true, name: true, isEnabled: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.storageProfile.findMany({
+        select: { id: true, name: true, isEnabled: true, stagingRoot: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.acquisitionRuleTemplate.findMany({
+        select: { id: true, name: true, mediaType: true, version: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+    return { feeds, profiles, acquisitionTemplates };
   }
 
   // --- preview and run -----------------------------------------------------
@@ -225,4 +302,10 @@ export class MediaDiscoveryController {
   runEvaluation() {
     return this.evaluation.runAll();
   }
+}
+
+/** The acting user, for the audit rows these services write. */
+function userId(req: Request): string | undefined {
+  return (req as Request & { user?: { sub?: string; id?: string } }).user?.sub
+    ?? (req as Request & { user?: { id?: string } }).user?.id;
 }

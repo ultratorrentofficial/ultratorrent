@@ -33,6 +33,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Telescope,
   Tv,
   FlaskConical,
   Gauge,
@@ -51,7 +52,8 @@ import {
   ClipboardCheck,
   Trash2,
 
-  HardDrive,} from 'lucide-react';
+  HardDrive,
+} from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { Permission } from '@ultratorrent/shared';
 import { PERMISSIONS } from '@ultratorrent/shared';
@@ -213,6 +215,7 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
       { id: 'smart-download', to: '/media-acquisition/dashboard', label: 'Smart Download', icon: Gauge, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Smart Download' },
       { id: 'missing-episodes', to: '/media-acquisition/missing-episodes', label: 'Missing Episodes', icon: Tv, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Missing Episodes' },
       { id: 'decision-simulator', to: '/media-acquisition/simulator', label: 'Decision Simulator', icon: FlaskConical, permission: PERMISSIONS.MEDIA_ACQUISITION_VIEW, module: 'media_acquisition_intelligence', descriptionKey: 'Decision Simulator' },
+      { id: 'discover', to: '/media-acquisition/discover', label: 'Discover', icon: Telescope, permission: PERMISSIONS.MEDIA_DISCOVERY_VIEW, module: 'media_discovery', descriptionKey: 'Discover' },
     ],
   } },
 

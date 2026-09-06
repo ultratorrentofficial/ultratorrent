@@ -101,7 +101,8 @@
     "Users": "Users",
     "Watch History": "Watch History",
     "Workflow Approvals": "Workflow Approvals",
-    "Workflows": "Workflows"
+    "Workflows": "Workflows",
+    "Discover": "Discover"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",
@@ -182,7 +183,8 @@
     "Users": "User accounts, roles and permissions",
     "Watch History": "Completed playback history",
     "Workflow Approvals": "Decide workflow steps awaiting approval",
-    "Workflows": "Design automations visually on a canvas"
+    "Workflows": "Design automations visually on a canvas",
+    "Discover": "Upcoming titles and what was decided about them"
   },
   "details": {
     "Account": "Account",

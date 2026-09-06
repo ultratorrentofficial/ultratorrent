@@ -6,6 +6,7 @@ import type auth from './locales/en-US/auth.json';
 import type shell from './locales/en-US/shell.json';
 import type media from './locales/en-US/media.json';
 import type mediaServerAnalytics from './locales/en-US/mediaServerAnalytics.json';
+import type mediaDiscovery from './locales/en-US/mediaDiscovery.json';
 import type intake from './locales/en-US/intake.json';
 import type subtitleIntelligence from './locales/en-US/subtitleIntelligence.json';
 import type imdb from './locales/en-US/imdb.json';
@@ -41,6 +42,7 @@ declare module 'i18next' {
       shell: typeof shell;
       media: typeof media;
       mediaServerAnalytics: typeof mediaServerAnalytics;
+      mediaDiscovery: typeof mediaDiscovery;
       intake: typeof intake;
       subtitleIntelligence: typeof subtitleIntelligence;
       imdb: typeof imdb;

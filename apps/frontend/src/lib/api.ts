@@ -5179,6 +5179,66 @@ export const api = {
     },
   },
 
+  mediaDiscovery: {
+    providers(): Promise<DiscoveryProviderStatus[]> {
+      return request<DiscoveryProviderStatus[]>('/media-discovery/providers');
+    },
+    setProviderEnabled(name: string, enabled: boolean) {
+      return request(`/media-discovery/providers/${encodeURIComponent(name)}/enable`, {
+        method: 'POST',
+        body: { enabled },
+      });
+    },
+    inbox(params: {
+      status?: string;
+      decision?: string;
+      mediaType?: string;
+      search?: string;
+      page?: number;
+      pageSize?: number;
+    } = {}): Promise<DiscoveredMediaPage> {
+      return request<DiscoveredMediaPage>('/media-discovery/inbox', { query: params });
+    },
+    item(id: string): Promise<DiscoveredMediaDetail> {
+      return request<DiscoveredMediaDetail>(`/media-discovery/items/${id}`);
+    },
+    templates(): Promise<DiscoveryTemplate[]> {
+      return request<DiscoveryTemplate[]>('/media-discovery/templates');
+    },
+    createTemplate(body: DiscoveryTemplateInput): Promise<DiscoveryTemplate> {
+      return request<DiscoveryTemplate>('/media-discovery/templates', { method: 'POST', body });
+    },
+    updateTemplate(id: string, body: DiscoveryTemplateInput): Promise<DiscoveryTemplate> {
+      return request<DiscoveryTemplate>(`/media-discovery/templates/${id}`, { method: 'PATCH', body });
+    },
+    deleteTemplate(id: string) {
+      return request(`/media-discovery/templates/${id}`, { method: 'DELETE' });
+    },
+    acquisitionTemplates(): Promise<AcquisitionRuleTemplate[]> {
+      return request<AcquisitionRuleTemplate[]>('/media-discovery/acquisition-templates');
+    },
+    createAcquisitionTemplate(body: Record<string, unknown>): Promise<AcquisitionRuleTemplate> {
+      return request<AcquisitionRuleTemplate>('/media-discovery/acquisition-templates', { method: 'POST', body });
+    },
+    deleteAcquisitionTemplate(id: string) {
+      return request(`/media-discovery/acquisition-templates/${id}`, { method: 'DELETE' });
+    },
+    /** Feeds, storage profiles and acquisition templates the form needs, in one call. */
+    templateOptions(): Promise<DiscoveryTemplateOptions> {
+      return request<DiscoveryTemplateOptions>('/media-discovery/template-options');
+    },
+    /** Read-only: the server writes nothing for a preview. */
+    preview(template: Record<string, unknown>): Promise<DiscoveryPreview> {
+      return request<DiscoveryPreview>('/media-discovery/preview', { method: 'POST', body: template });
+    },
+    sync(providers?: string[]) {
+      return request('/media-discovery/sync', { method: 'POST', body: { providers } });
+    },
+    evaluate() {
+      return request('/media-discovery/evaluate', { method: 'POST' });
+    },
+  },
+
   mediaAcquisition: {
     overview(): Promise<MediaAcquisitionOverview> {
       return request<MediaAcquisitionOverview>('/media-acquisition/overview');
@@ -6419,3 +6479,159 @@ export interface SubtitleSyncRow {
 }
 
 export { API_URL };
+
+// --- Media Discovery -------------------------------------------------------
+export interface DiscoveryProviderStatus {
+  provider: string;
+  /** False when state exists for a provider this installation no longer configures. */
+  registered: boolean;
+  /** Where to configure an unregistered provider. Never a credential itself. */
+  configurationHint: string | null;
+  capabilities: string[];
+  enabled: boolean;
+  healthy: boolean | null;
+  lastSuccessfulSync: string | null;
+  lastFailureAt: string | null;
+  lastFailureReason: string | null;
+  lastResponseMs: number | null;
+  itemsDiscovered: number;
+}
+
+export interface DiscoveredReleaseDate {
+  releaseType: string;
+  date: string | null;
+  region: string | null;
+  source: string;
+  confidence: number;
+}
+
+export interface DiscoveredMediaItem {
+  id: string;
+  mediaType: string;
+  title: string;
+  year: number | null;
+  genres: string[];
+  overview: string | null;
+  posterUrl: string | null;
+  network: string | null;
+  streamingService: string | null;
+  popularity: number | null;
+  rating: number | null;
+  externalIds: Record<string, string>;
+  sourceProviders: string[];
+  confidence: number;
+  identityStatus: string;
+  discoveryStatus: string;
+  decision: string | null;
+  decisionReason: string | null;
+  watchlistItemId: string | null;
+  rssRuleId: string | null;
+  lastSeenAt: string;
+  releaseDates: DiscoveredReleaseDate[];
+}
+
+export interface DiscoveredMediaPage {
+  items: DiscoveredMediaItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface DiscoveryEvaluationRecord {
+  id: string;
+  decision: string;
+  reason: string;
+  trace: Array<{ step: string; status: string; detail: string }>;
+  failureReason: string | null;
+  createdAt: string;
+}
+
+export interface DiscoveredMediaDetail extends DiscoveredMediaItem {
+  evaluations: DiscoveryEvaluationRecord[];
+}
+
+export interface DiscoveryTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  mediaType: string;
+  providers: string[];
+  upcomingWindowDays: number;
+  regions: string[];
+  languages: string[];
+  minimumPopularity: number | null;
+  minimumRating: number | null;
+  minimumVoteCount: number | null;
+  networks: string[];
+  streamingServices: string[];
+  studios: string[];
+  releaseTypes: string[];
+  autoMonitorCategories: string[];
+  notifyOnlyCategories: string[];
+  ignoreCategories: string[];
+  blockedFromAutoCategories: string[];
+  categoryMatchMode: string;
+  minimumConfidence: number;
+  acquisitionTemplateId: string | null;
+  rssFeedId: string | null;
+  storageProfileId: string | null;
+  pathTemplate: string | null;
+  createIntakeDirectory: boolean;
+  autoAddLimitPerDay: number;
+  autoAddLimitPerWeek: number;
+}
+
+export type DiscoveryTemplateInput = Partial<Omit<DiscoveryTemplate, 'id'>>;
+
+export interface AcquisitionRuleTemplateCandidate {
+  id: string;
+  priorityOrder: number;
+  name: string;
+  enabled: boolean;
+  matchType: string;
+  requiredTerms: string[];
+  excludedTerms: string[];
+  qualityRules: Record<string, string>;
+  sizeRules: Record<string, number>;
+}
+
+export interface AcquisitionRuleTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  mediaType: string;
+  enabled: boolean;
+  version: number;
+  requiredTerms: string[];
+  excludedTerms: string[];
+  candidates: AcquisitionRuleTemplateCandidate[];
+}
+
+export interface DiscoveryTemplateOptions {
+  feeds: Array<{ id: string; name: string; isEnabled: boolean }>;
+  profiles: Array<{ id: string; name: string; isEnabled: boolean; stagingRoot: string }>;
+  acquisitionTemplates: Array<{ id: string; name: string; mediaType: string; version: number }>;
+}
+
+export interface DiscoveryPreview {
+  examined: number;
+  /** True when the catalogue is larger than one preview may read. */
+  truncated: boolean;
+  counts: Record<string, number>;
+  limits: {
+    perDay: number;
+    perWeek: number;
+    autoMonitorCandidates: number;
+    beyondWeeklyAllowance: number;
+  };
+  samples: Array<{
+    discoveredMediaId: string;
+    title: string;
+    year: number | null;
+    genres: string[];
+    decision: string;
+    reason: string;
+  }>;
+  generatedAt: string;
+}
