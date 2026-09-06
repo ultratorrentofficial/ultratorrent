@@ -18,7 +18,7 @@ Esta página se genera desde `los decoradores @Controller / @Get / @RequirePermi
 Cada endpoint de abajo se leyó de los controladores mismos, incluyendo el **permiso
 exacto** que exige su guard.
 
-- **470 endpoints** en **24 controladores**
+- **493 endpoints** en **26 controladores**
 - URL base: `http://<host>:<port>/api`
 
 ## Autenticación
@@ -321,6 +321,8 @@ From `MediaController`.
 | `POST` | `/api/media/nfo/generate` | `MEDIA_MANAGER_GENERATE_NFO` | `generateNfo` |
 | `GET` | `/api/media/duplicates/overview` | `MEDIA_MANAGER_VIEW` | `duplicatesOverview` |
 | `GET` | `/api/media/duplicates` | `MEDIA_MANAGER_VIEW` | `listDuplicates` |
+| `GET` | `/api/media/duplicates/schedule` | `MEDIA_MANAGER_VIEW` | `duplicateSchedule` |
+| `PATCH` | `/api/media/duplicates/schedule` | `MEDIA_MANAGER_SCAN` | `setDuplicateSchedule` |
 | `POST` | `/api/media/duplicates/detect` | `MEDIA_MANAGER_SCAN` | `detectDuplicates` |
 | `POST` | `/api/media/duplicates/restore-suffixes` | `MEDIA_MANAGER_RENAME` | `restoreOrphanedSuffixes` |
 | `POST` | `/api/media/jobs/:jobId/cancel` | `MEDIA_MANAGER_SCAN` | `cancelJob` |
@@ -425,6 +427,29 @@ From `MediaAcquisitionController`.
 | `PATCH` | `/api/media-acquisition/settings` | `MEDIA_ACQUISITION_SETTINGS` | `updateSettings` |
 | `POST` | `/api/media-acquisition/export` | `MEDIA_ACQUISITION_EXPORT` | `export` |
 
+## `/media-discovery`
+
+From `MediaDiscoveryController`.
+
+| Método | Ruta | Permiso | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/media-discovery/providers` | `MEDIA_DISCOVERY_VIEW` | `providers` |
+| `POST` | `/api/media-discovery/providers/:name/enable` | `MEDIA_DISCOVERY_PROVIDERS_MANAGE` | `enableProvider` |
+| `GET` | `/api/media-discovery/inbox` | `MEDIA_DISCOVERY_VIEW` | `inbox` |
+| `GET` | `/api/media-discovery/items/:id` | `MEDIA_DISCOVERY_VIEW` | `item` |
+| `GET` | `/api/media-discovery/templates` | `MEDIA_DISCOVERY_VIEW` | `listTemplates` |
+| `POST` | `/api/media-discovery/templates` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | `createTemplate` |
+| `PATCH` | `/api/media-discovery/templates/:id` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | `updateTemplate` |
+| `DELETE` | `/api/media-discovery/templates/:id` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | `deleteTemplate` |
+| `GET` | `/api/media-discovery/acquisition-templates` | `MEDIA_DISCOVERY_VIEW` | `listAcquisitionTemplates` |
+| `POST` | `/api/media-discovery/acquisition-templates` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | `createAcquisitionTemplate` |
+| `PATCH` | `/api/media-discovery/acquisition-templates/:id` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | `updateAcquisitionTemplate` |
+| `DELETE` | `/api/media-discovery/acquisition-templates/:id` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | `deleteAcquisitionTemplate` |
+| `GET` | `/api/media-discovery/template-options` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | `templateOptions` |
+| `POST` | `/api/media-discovery/preview` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | `runPreview` |
+| `POST` | `/api/media-discovery/sync` | `MEDIA_DISCOVERY_PROVIDERS_MANAGE` | `runSync` |
+| `POST` | `/api/media-discovery/evaluate` | `MEDIA_DISCOVERY_MANAGE` | `runEvaluation` |
+
 ## `/media-server-analytics`
 
 From `MediaServerAnalyticsController`.
@@ -452,6 +477,7 @@ From `MediaServerAnalyticsController`.
 | `GET` | `/api/media-server-analytics/export/watch-history` | `MEDIA_SERVER_ANALYTICS_EXPORT` | `exportWatchHistory` |
 | `GET` | `/api/media-server-analytics/meta/libraries` | `MEDIA_SERVER_ANALYTICS_VIEW` | `metaLibraries` |
 | `GET` | `/api/media-server-analytics/meta/users` | `MEDIA_SERVER_ANALYTICS_VIEW` | `metaUsers` |
+| `PATCH` | `/api/media-server-analytics/meta/users/:userId` | `MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS` | `updateMetaUser` |
 | `GET` | `/api/media-server-analytics/meta/sync-runs` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `metaSyncRuns` |
 | `POST` | `/api/media-server-analytics/meta/sync` | `MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS` | `runSync` |
 | `GET` | `/api/media-server-analytics/users` | `MEDIA_SERVER_ANALYTICS_VIEW_USERS` | `users` |
@@ -470,6 +496,7 @@ From `MediaServerAnalyticsController`.
 | `GET` | `/api/media-server-analytics/newsletters/recipient-options` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `newsletterRecipientOptions` |
 | `PATCH` | `/api/media-server-analytics/newsletters/recipient-options/:userId` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `setRecipientEmail` |
 | `POST` | `/api/media-server-analytics/newsletters` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `createNewsletter` |
+| `GET` | `/api/media-server-analytics/newsletters/activity` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `newsletterActivity` |
 | `GET` | `/api/media-server-analytics/newsletters/:id` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `getNewsletter` |
 | `PATCH` | `/api/media-server-analytics/newsletters/:id` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `updateNewsletter` |
 | `DELETE` | `/api/media-server-analytics/newsletters/:id` | `MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS` | `deleteNewsletter` |
@@ -483,6 +510,7 @@ From `MediaServerAnalyticsController`.
 | `GET` | `/api/media-server-analytics/settings/newsletter-images` | `MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS` | `getNewsletterImageSettings` |
 | `PATCH` | `/api/media-server-analytics/settings/newsletter-images` | `MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS` | `updateNewsletterImageSettings` |
 | `GET` | `/api/media-server-analytics/connections` | `MEDIA_SERVER_ANALYTICS_VIEW` | `listConnections` |
+| `POST` | `/api/media-server-analytics/connections/test-config` | `MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS` | `testConnectionConfig` |
 | `POST` | `/api/media-server-analytics/connections` | `MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS` | `createConnection` |
 | `GET` | `/api/media-server-analytics/connections/:id` | `MEDIA_SERVER_ANALYTICS_VIEW` | `getConnection` |
 | `PATCH` | `/api/media-server-analytics/connections/:id` | `MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS` | `updateConnection` |
@@ -498,6 +526,15 @@ From `NewsletterImageController`.
 | Método | Ruta | Permiso | Handler |
 | --- | --- | --- | --- |
 | `GET` | `/api/media-server-analytics/nl-image/:id` | — | `serve` |
+
+## `/media-server-analytics/nl-unsubscribe`
+
+From `NewsletterUnsubscribeController`.
+
+| Método | Ruta | Permiso | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/media-server-analytics/nl-unsubscribe` | — | `confirm` |
+| `POST` | `/api/media-server-analytics/nl-unsubscribe` | — | `act` |
 
 ## `/media/cleanup`
 

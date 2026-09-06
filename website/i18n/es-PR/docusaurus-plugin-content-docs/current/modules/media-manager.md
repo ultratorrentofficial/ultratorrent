@@ -1,7 +1,7 @@
 ---
 id: media-manager
 title: Gestor de Medios
-sidebar_position: 9
+sidebar_position: 10
 description: Convierte descargas completadas en bibliotecas limpias y listas para tu servidor de medios — escanea, identifica, enriquece, renombra y organiza.
 keywords: [gestor de medios, biblioteca, escaneo, identificación, tmdb, imdb, metadatos, ilustraciones, subtítulos, nfo, renombrado, hardlink, plex, jellyfin, emby, kodi, duplicados]
 ---
@@ -107,7 +107,7 @@ Vale la pena interiorizar tres propiedades de este pipeline:
 | **Modo** | El modo de renombrado (tabla de arriba). | `hardlink` | **`hardlink`.** Pone el archivo en la biblioteca mientras deja el original para que el cliente de torrents lo siga compartiendo. |
 | **Habilitado** | Si la biblioteca participa en los escaneos y en el flujo posterior a la descarga. | Activado | — |
 | **Intervalo de escaneo (minutos)** | Re-escaneo periódico opcional, que autopobla metadatos e ilustraciones para carpetas nuevas. Nunca renombra ni mueve archivos. | Sin definir | Actívalo si agregas archivos fuera de UltraTorrent. |
-| **NFO habilitado** | Genera archivos NFO adyacentes durante el flujo. | **Desactivado** | Actívalo si tu servidor de medios prefiere metadatos locales. |
+| **NFO habilitado** | Genera archivos NFO adyacentes durante el flujo — `movie.nfo`, `tvshow.nfo` y archivos por episodio. | **Desactivado** | Actívalo si tu servidor de medios prefiere metadatos locales. |
 | **Ilustraciones habilitadas** | Obtiene ilustraciones durante el flujo. | **Activado** | Actívalo. |
 
 :::danger Los hardlinks necesitan un solo sistema de archivos
@@ -157,6 +157,24 @@ Esto está arreglado. Una ruta renderizada ahora solo es utilizable para un vide
 
 Aun así: **previsualiza un cambio de plantilla antes de aplicarlo.** El modo `preview` existe exactamente para esto.
 :::
+
+### Archivos NFO adyacentes
+
+Con **NFO habilitado**, el flujo escribe archivos adyacentes que un servidor de medios puede leer sin conexión:
+
+| Archivo | Se escribe para | Lleva |
+|---------|-----------------|-------|
+| `movie.nfo` | Una película | Título, año, sinopsis, calificaciones, ids externos |
+| `tvshow.nfo` | Una **carpeta de serie** | La identidad propia de la serie |
+| `<episodio>.nfo` | Cada episodio | La identidad de **ese episodio** |
+
+:::danger El id de un episodio es del episodio, no de la serie
+Cada archivo de episodio debe llevar **su propio** id único. Sellar el id de la serie en cada episodio hace que Plex los trate como el mismo objeto: los episodios se fusionan y la biblioteca muestra una sola entrada — lo más visible es una serie colapsada a algo como "Episodio 12".
+
+Esto fue una falla real y está corregida. Si te afectó, hay que regenerar los archivos adyacentes y refrescar la sección; los ids equivocados ya están escritos en disco, y nada los vuelve a leer por su cuenta.
+:::
+
+Para que una serie tenga identidad propia — en vez de inferirla del episodio que el escáner leyó primero — se genera `tvshow.nfo` a nivel de la serie. Una biblioteca de Plex que lee NFOs quiere el agente `tv.plex.agents.nfo.series` con el escáner **Plex TV Series**.
 
 ### Proveedores de metadatos
 
@@ -273,6 +291,16 @@ Tienes miles de archivos en carpetas con nombres de la scene que una herramienta
 ### Encontrar y eliminar duplicados
 
 **Medios → Duplicados** agrupa los elementos por motivo: `title_year`, `show_season_episode`, `external_id`, `file_hash` o `similar_filename`. Ese último atrapa el caso en el que tienes el mismo episodio de dos grupos de lanzamiento distintos con dos calidades. Revisa los grupos, conserva la mejor copia y elimina la otra — a través del [Gestor de Archivos](/modules/files), que hace un borrado suave a la Papelera en vez de destruir nada.
+
+La detección se puede **programar**, para que los grupos se mantengan al día sin que nadie recuerde apretar un botón.
+
+:::danger Prueba la identidad antes de borrar
+Un grupo de duplicados es una afirmación de que dos archivos son *la misma obra*. Verifícala — incluyendo el año, y leyendo los NFOs — antes de eliminar nada. Un grupo equivocado no es un clic desperdiciado; borrar desde ahí destruye la única copia de algo que nunca fue un duplicado.
+
+La similitud de nombre de archivo es el más débil de los cinco motivos y el que más probablemente se equivoca.
+:::
+
+Cuando dos identidades candidatas empatan, el resolutor ahora rompe el empate con **evidencia sobre el archivo mismo** — la duración por encima de todo — en vez de con el título que ordenó primero. La duración es el discriminador honesto: dos películas distintas que comparten título y año rara vez comparten duración.
 
 ## Resolución de problemas
 

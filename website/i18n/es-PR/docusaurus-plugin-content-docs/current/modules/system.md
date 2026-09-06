@@ -108,6 +108,20 @@ La configuración es un **almacén plano de clave/valor**, no secciones. Hay sei
 Así que las "secciones" que ves dependen enteramente de qué claves haya en la tabla. Dos instalaciones pueden mostrar páginas de Configuración distintas.
 :::
 
+### URL pública
+
+Algunas funciones necesitan saber cómo el mundo exterior alcanza esta instancia — un enlace de baja en un [boletín](/modules/media-server-analytics), o una URL de cartel auto-alojada. Ninguna se puede derivar de una petición entrante, porque ambas se usan en correo, mucho después de que la petición terminó.
+
+**Configuración** guarda la **URL pública** de la instancia, y reporta sobre ella con **honestidad**: si la dirección no es realmente alcanzable, lo dice, en vez de guardar una cadena sin probar que produce enlaces muertos en la bandeja de todo el mundo.
+
+### Configuración de correo
+
+**Configuración → Configuración de correo** configura SMTP. Tres cosas que conviene saber:
+
+- **El certificado TLS se nombra.** La tarjeta reporta qué certificado presentó el relay, así que una falla por host que no coincide es legible en vez de un error genérico de handshake. Un certificado comodín no tiene SAN de IP — conectarse por IP pelada fallará la validación aunque el nombre de host funcione.
+- **Un envío de prueba queda registrado**, con su resultado y su razón. Puedes ver si la última prueba realmente tuvo éxito en vez de inferirlo de la ausencia de un aviso.
+- **Una prueba fallida ya no falla en silencio.** Reporta qué salió mal.
+
 `fileManager.defaultRootPath` es una **clave protegida**. Escribirla mediante `PUT /api/settings/:key` o `PATCH /api/settings` devuelve un **`403`** que te dice que uses la ruta dedicada, `PUT /api/files/root`, que requiere el permiso aparte `settings.manage_root_path` y valida la ruta contra las raíces duras. Consulta [Gestor de Archivos](/modules/files).
 
 | Método | Ruta | Permiso |

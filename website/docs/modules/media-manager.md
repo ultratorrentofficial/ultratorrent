@@ -1,7 +1,7 @@
 ---
 id: media-manager
 title: Media Manager
-sidebar_position: 9
+sidebar_position: 10
 description: Turn completed downloads into clean, media-server-ready libraries — scan, identify, enrich, rename, and organise.
 keywords: [media manager, library, scan, identification, tmdb, imdb, metadata, artwork, subtitles, nfo, rename, hardlink, plex, jellyfin, emby, kodi, duplicates]
 ---
@@ -107,7 +107,7 @@ Three properties of this pipeline are worth internalising:
 | **Mode** | The rename mode (table above). | `hardlink` | **`hardlink`.** It puts the file in the library while leaving the original for the torrent client to seed. |
 | **Enabled** | Whether the library participates in scans and the post-download workflow. | On | — |
 | **Scan interval (minutes)** | Optional periodic re-scan, which auto-populates metadata and artwork for new folders. Never renames or moves files. | Unset | Set it if you add files outside UltraTorrent. |
-| **NFO enabled** | Generate NFO sidecars during the workflow. | **Off** | On, if your media server prefers local metadata. |
+| **NFO enabled** | Generate NFO sidecars during the workflow — `movie.nfo`, `tvshow.nfo` and per-episode files. | **Off** | On, if your media server prefers local metadata. |
 | **Artwork enabled** | Fetch artwork during the workflow. | **On** | On. |
 
 :::danger Hardlinks need one filesystem
@@ -157,6 +157,24 @@ This is fixed. A rendered path is now only usable for a primary video if it is n
 
 Still: **preview a template change before applying it.** `preview` mode exists for exactly this.
 :::
+
+### NFO sidecars
+
+With **NFO enabled**, the workflow writes sidecars a media server can read offline:
+
+| File | Written for | Carries |
+|------|-------------|---------|
+| `movie.nfo` | A film | Title, year, overview, ratings, external ids |
+| `tvshow.nfo` | A **series folder** | The series' own identity |
+| `<episode>.nfo` | Each episode | That **episode's** identity |
+
+:::danger An episode's id is the episode's, not the series'
+Each episode file must carry **its own** unique id. Stamping the series id onto every episode makes Plex treat them all as the same object: the episodes merge, and the library shows a single entry — most visibly a show collapsing to something like "Episode 12".
+
+This was a real defect and is fixed. If you were affected, the sidecars must be regenerated and the section refreshed; the wrong ids are already written to disk, and nothing re-reads them on its own.
+:::
+
+For a series to have an identity of its own — rather than being inferred from whichever episode the scanner happened to read first — `tvshow.nfo` is generated at the series level. A Plex library reading NFOs wants the agent set to `tv.plex.agents.nfo.series` with the **Plex TV Series** scanner.
 
 ### Metadata providers
 
@@ -273,6 +291,16 @@ You have thousands of files in scene-named folders that a previous tool never or
 ### Find and kill duplicates
 
 **Media → Duplicates** groups items by reason: `title_year`, `show_season_episode`, `external_id`, `file_hash`, or `similar_filename`. That last one catches the case where you have the same episode from two different release groups at two qualities. Review the groups, keep the better copy, and remove the other — through the [File Manager](/modules/files), which soft-deletes to Trash rather than destroying anything.
+
+Detection can be **scheduled**, so the groups stay current without anyone remembering to press a button.
+
+:::danger Prove identity before you delete
+A duplicate group is a claim that two files are *the same work*. Verify it — year included, and read the NFOs — before removing anything. A wrong group is not a wasted click; deleting from it destroys the only copy of something that was never a duplicate at all.
+
+Filename similarity is the weakest of the five reasons and the one most likely to be wrong.
+:::
+
+When two candidate identities tie, the resolver now breaks the tie on **evidence about the file itself** — runtime above all — rather than on whichever title sorted first. Runtime is the honest discriminator: two different films sharing a title and year rarely share a duration.
 
 ## Troubleshooting
 

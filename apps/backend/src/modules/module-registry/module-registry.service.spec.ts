@@ -32,6 +32,19 @@ function tierLicense(byId: Map<string, ModuleManifest>): LicenseProvider {
   };
 }
 
+function svcMissingLicense(manifests: ModuleManifest[], withheld: string[]) {
+  const byId = new Map(manifests.map((m) => [m.id, m]));
+  const prisma = makePrisma();
+  const base = tierLicense(byId);
+  const s = new ModuleRegistryService(
+    prisma,
+    audit,
+    { ...base, hasModule: async (id: string) => byId.has(id) && !withheld.includes(id) },
+    );
+  s.load(manifests);
+  return { s, prisma };
+}
+
 function svc(manifests: ModuleManifest[]) {
   const byId = new Map(manifests.map((m) => [m.id, m]));
   const prisma = makePrisma();
@@ -134,5 +147,77 @@ describe('ModuleRegistryService — states & rules', () => {
     await s.refresh();
     expect(s.isEnabled('free')).toBe(true);
     expect(s.isEnabled('opt')).toBe(false);
+  });
+});
+
+/*
+ * A disabled module has to say WHY it is disabled, and the three reasons are
+ * not interchangeable.
+ *
+ * All three used to share one `else` reading "disabled by an administrator".
+ * On a fresh install that sentence is false for every module shipping
+ * `enabledByDefault: false` — it names an actor who never acted, and sends the
+ * operator looking through the audit log for a change nobody made. Media
+ * Discovery is deliberately off out of the box and reported itself as though
+ * somebody had switched it off.
+ */
+describe('ModuleRegistryService — why a module is disabled', () => {
+  const set = () => [
+    M({ id: 'auth', required: true }),
+    M({ id: 'free', required: false, dependencies: ['auth'] }),
+    M({ id: 'opt', required: false, enabledByDefault: false, dependencies: ['auth'] }),
+  ];
+
+  it('does not blame an administrator for a module that is merely off by default', async () => {
+    const { s, prisma } = svc(set());
+    await s.refresh();
+    // Nothing has ever been toggled: the override table is empty.
+    expect([...prisma.states.values()]).toEqual([]);
+    const opt = s.getStatus('opt')!;
+    expect(opt.state).toBe('disabled');
+    expect(opt.reason).not.toMatch(/administrator/);
+    expect(opt.reason).toMatch(/off by default/);
+  });
+
+  it('does blame an administrator once one actually turns it off', async () => {
+    const { s } = svc(set());
+    await s.refresh();
+    await s.disable('free');
+    expect(s.getStatus('free')!.reason).toBe('disabled by an administrator');
+  });
+
+  /*
+   * Re-enabling has to clear the accusation too. An override row exists either
+   * way, so a reason keyed on the row's presence rather than its value would
+   * leave "disabled by an administrator" on a module an administrator just
+   * switched back on.
+   */
+  it('stops blaming an administrator after they turn it back on', async () => {
+    const { s } = svc(set());
+    await s.refresh();
+    await s.disable('opt').catch(() => undefined);
+    await s.enable('opt');
+    expect(s.getStatus('opt')!.reason).toBe('active');
+  });
+
+  it('reports a withheld licence as a licence matter, not an administrator', async () => {
+    const { s } = svcMissingLicense(set(), ['free']);
+    await s.refresh();
+    const free = s.getStatus('free')!;
+    expect(free.licensed).toBe(false);
+    expect(free.state).toBe('license_required');
+    expect(free.reason).not.toMatch(/administrator/);
+  });
+
+  it('still names the unmet dependency rather than an administrator', async () => {
+    const { s } = svc([
+      M({ id: 'auth', required: true }),
+      M({ id: 'base', required: false, enabledByDefault: false }),
+      M({ id: 'needy', required: false, dependencies: ['base'] }),
+    ]);
+    await s.refresh();
+    const needy = s.getStatus('needy')!;
+    expect(needy.state).toBe('missing_dependency');
+    expect(needy.reason).toContain('base');
   });
 });

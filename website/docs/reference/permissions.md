@@ -17,7 +17,7 @@ just named sets of them. Both the backend route guards (`@RequirePermissions`) a
 frontend capability checks read this same catalogue, so what you see here is exactly what
 is enforced.
 
-- **166 permissions** across **29 domains**
+- **170 permissions** across **30 domains**
 - **5 built-in roles**
 
 ## How to read this
@@ -31,11 +31,11 @@ is enforced.
 
 | Role | Permissions held |
 | --- | --- |
-| `SUPER_ADMIN` | 166 of 166 |
-| `ADMINISTRATOR` | 163 of 166 |
-| `POWER_USER` | 83 of 166 |
-| `USER` | 24 of 166 |
-| `READ_ONLY` | 15 of 166 |
+| `SUPER_ADMIN` | 170 of 170 |
+| `ADMINISTRATOR` | 167 of 170 |
+| `POWER_USER` | 85 of 170 |
+| `USER` | 25 of 170 |
+| `READ_ONLY` | 16 of 170 |
 
 ## `apikeys`
 
@@ -165,6 +165,15 @@ is enforced.
 | `media_acquisition.history` | `MEDIA_ACQUISITION_HISTORY` | ✅ | ✅ | — | — | — |
 | `media_acquisition.export` | `MEDIA_ACQUISITION_EXPORT` | ✅ | ✅ | — | — | — |
 | `media_acquisition.settings` | `MEDIA_ACQUISITION_SETTINGS` | ✅ | ✅ | — | — | — |
+
+## `media_discovery`
+
+| Permission | Constant | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
+| --- | --- | :---: | :---: | :---: | :---: | :---: |
+| `media_discovery.view` | `MEDIA_DISCOVERY_VIEW` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `media_discovery.manage` | `MEDIA_DISCOVERY_MANAGE` | ✅ | ✅ | ✅ | — | — |
+| `media_discovery.templates.manage` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | ✅ | ✅ | — | — | — |
+| `media_discovery.providers.manage` | `MEDIA_DISCOVERY_PROVIDERS_MANAGE` | ✅ | ✅ | — | — | — |
 
 ## `media_intake`
 

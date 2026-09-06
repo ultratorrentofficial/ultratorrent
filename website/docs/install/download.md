@@ -96,7 +96,7 @@ git clone https://github.com/ultratorrentofficial/ultratorrent.git
 cd ultratorrent
 
 git tag --list 'v*' --sort=-v:refname | head        # newest first
-git checkout v0.85.9                                 # or whichever you want
+git checkout v0.90.0                                 # or whichever you want
 ```
 
 :::tip Which should I run?
@@ -127,7 +127,7 @@ If you can install `git` on the host, do that instead.
 ## Confirm what you got
 
 ```bash
-cat VERSION                     # the canonical version, e.g. 0.85.9
+cat VERSION                     # the canonical version, e.g. 0.90.0
 git describe --tags --always    # exactly which commit you are on
 git status --porcelain          # empty = an unmodified checkout
 ```

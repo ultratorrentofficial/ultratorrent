@@ -155,9 +155,25 @@ export class ModuleRegistryService implements OnModuleInit {
       } else if (want.get(m.id) && unmet.length) {
         state = 'missing_dependency';
         reason = `requires: ${unmet.join(', ')}`;
-      } else {
+      } else if (!isLicensed) {
+        state = 'license_required';
+        reason = 'not included in this edition';
+      } else if (overrides.get(m.id) === false) {
         state = 'disabled';
         reason = 'disabled by an administrator';
+      } else {
+        /*
+         * Off because its manifest says so, not because anyone acted.
+         *
+         * These three cases used to share one `else` that asserted an
+         * administrator had disabled the module. For a module that ships
+         * `enabledByDefault: false` that names a person who does not exist and
+         * sends the operator looking for a toggle nobody touched. Media
+         * Discovery is deliberately off on a fresh install and reported it as
+         * though something had gone wrong.
+         */
+        state = 'disabled';
+        reason = 'off by default — never enabled on this installation';
       }
       statuses.set(m.id, {
         id: m.id,

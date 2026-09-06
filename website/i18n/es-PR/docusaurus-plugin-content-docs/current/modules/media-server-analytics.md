@@ -1,7 +1,7 @@
 ---
 id: media-server-analytics
 title: Analíticas del Servidor de Medios
-sidebar_position: 10
+sidebar_position: 11
 description: Monitorea Plex, Jellyfin, Emby y Kodi — actividad en vivo, historial de reproducción, informes de uso, boletines e importación desde Tautulli.
 keywords: [analíticas del servidor de medios, plex, jellyfin, emby, kodi, tautulli, historial de reproducción, actividad en vivo, reproduciendo ahora, boletín, informes, transcodificación]
 ---
@@ -106,7 +106,30 @@ El **poller de sesiones** corre cada **30 segundos**, pero solo cuando el módul
 | **Habilitado** | Si se consulta con el poller. | — |
 | **Predeterminado** | La conexión predeterminada (se usa para el nombre del servidor en el boletín, entre otras cosas). | Define una. |
 
-Dale a **Probar** en una conexión para sondearla y persistir su salud: estado, versión, plataforma y capacidades.
+Dale a **Probar** en una conexión para sondearla y persistir su salud: estado, versión, plataforma y capacidades. Una prueba exitosa se muestra como exitosa — suena obvio, y por un tiempo no lo fue: la comprobación leía un campo que el sondeo nunca escribía, así que cada conexión funcional se reportaba como fallida.
+
+Las conexiones se gestionan **enteramente desde la UI** — agregar, editar y borrar, con el token de solo escritura. No necesitas tocar la base de datos ni una variable de entorno para apuntar a un segundo servidor.
+
+#### Más de un servidor
+
+Correr Plex y Jellyfin lado a lado es un arreglo de primera clase, no un parche, y la interfaz dice de qué servidor habla en cada lugar donde importa:
+
+- **Actividad en Vivo** etiqueta cada sesión con su servidor y dibuja la marca del producto.
+- **Historial de Reproducción** trae una columna de servidor, así que una reproducción es atribuible.
+- **Añadido Recientemente** muestra carteles, color por tipo y la biblioteca de origen.
+- Las **tarjetas de estado de proveedor** y las **notificaciones de reproducción** llevan las mismas marcas, para que el vocabulario sea consistente dondequiera que se nombre un servidor.
+
+:::danger Las cuentas de servidores distintos nunca se fusionan
+Dos cuentas en dos servidores de medios distintos son **siempre espectadores separados**, incluso cuando comparten correo. Un correo compartido es una pista, nunca una unión automática.
+
+La deduplicación solo es válida **dentro del espacio de ids de un mismo producto**. Fusionar entre servidores inventa una persona que no existe y funde en silencio los historiales de dos personas — algo irrecuperable una vez que hay informes construidos encima.
+:::
+
+### Usuarios del Servidor
+
+Los servidores de medios reportan cuentas por id interno, lo que hace ilegible un informe. **Usuarios del Servidor** te deja darle un **nombre amistoso** a cualquier cuenta de servidor de medios, y toda superficie que nombre a un espectador lo usa.
+
+El mapeo es por cuenta de servidor, así que el mismo humano en dos servidores son dos entradas — ver la regla de arriba.
 
 ### Boletines
 
@@ -117,6 +140,26 @@ El boletín es un correo original de "resumen de medios" oscuro, construido con 
 - **Alcance.** Un boletín se puede acotar a un subconjunto de tipos de contenido, así un boletín de "Series de TV" solo contiene series agrupadas.
 - **Vista previa + envío de prueba.** Ambos existen. Se renderizan datos de muestra en la vista previa cuando la biblioteca no tiene elementos nuevos, y hay un interruptor de vista previa de escritorio/móvil.
 - **Localizado** (`en-US` + `es-PR`), con una alternativa de texto plano siempre generada.
+
+#### Cada elemento se verifica antes de enviarse
+
+Un elemento es **publicable** solo si tiene **carátula** y **sinopsis**. Año, duración, calificación y géneros son informativos — su ausencia se anota, no descalifica.
+
+Un elemento que no pasa la verificación se **aplaza, no se descarta**. Se retiene hasta **28 días** mientras se vuelve a buscar su metadata, y entra en un boletín posterior cuando esté completo. Un boletín de tarjetas a medio llenar es peor que uno más corto y completo; descartar el elemento en silencio sería peor todavía, porque el título nunca aparecería.
+
+Esto cerró una falla real: los elementos cuya metadata nunca se había buscado en un proveedor eran indistinguibles de los elementos para los que un proveedor genuinamente no tenía nada, así que entraban al boletín sin carátula. La consulta de huecos ahora también trata *"nunca se consultó a un proveedor"* como un hueco.
+
+#### Historial de envíos
+
+Cada envío queda registrado y se muestra en el área de boletines: cuándo corrió, cuántos destinatarios, cuántos elementos y qué se retuvo.
+
+**Un envío que no llegó a nadie no se registra como enviado.** Suena quisquilloso y no lo es — sin eso, un boletín con la lista de destinatarios vacía registra un éxito alegre cada semana mientras nadie recibe nada.
+
+#### Baja de suscripción
+
+El pie lleva un **enlace de baja funcional**, implementado como una **capacidad firmada**: el enlace mismo es la autoridad, así que un destinatario no necesita cuenta para usarlo, y el token no se puede editar para dar de baja a otra persona.
+
+La baja necesita a dónde apuntar, y por eso la instancia ahora tiene una **URL pública** configurada (**Configuración**) — reportada con honestidad, incluso cuando no es alcanzable. Ver [Sistema](/modules/system).
 
 **El hospedaje de pósters lo elige el administrador** (**Configuración → Imágenes de pósters del boletín**). Los pósters siempre se reducen primero a un JPEG de ~240 px, y luego se entregan según el modo elegido:
 
@@ -153,6 +196,9 @@ La fase 1 importa el **historial de reproducción**. Usuarios, bibliotecas, esta
 | `GET /watch-history` | `…view_history` |
 | `GET /reports/usage` · `/users` · `/libraries` · `/playback` | `…view_reports` |
 | `GET /recently-added` | `media_server_analytics.view` |
+| `GET/PATCH /server-users` | `…view_users` / `…manage_mappings` |
+| `GET /newsletters/:id/history` | `…manage_newsletters` |
+| `GET /newsletters/unsubscribe/:token` | capacidad firmada (sin autenticar) |
 | `GET/POST /import-sources`, `POST /import-sources/:id/test` · `/preview` | `…manage_imports` |
 | `POST /import-sources/:id/import` | `…run_imports` |
 

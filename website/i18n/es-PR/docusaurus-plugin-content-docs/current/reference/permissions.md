@@ -17,7 +17,7 @@ simplemente conjuntos con nombre de esos permisos. Tanto los guards de ruta del 
 de capacidades del frontend leen este mismo catálogo, así que lo que ves aquí es
 exactamente lo que se aplica.
 
-- **166 permisos** en **29 dominios**
+- **170 permisos** en **30 dominios**
 - **5 roles integrados**
 
 ## Cómo leer esto
@@ -31,11 +31,11 @@ exactamente lo que se aplica.
 
 | Rol | Permisos que tiene |
 | --- | --- |
-| `SUPER_ADMIN` | 166 of 166 |
-| `ADMINISTRATOR` | 163 of 166 |
-| `POWER_USER` | 83 of 166 |
-| `USER` | 24 of 166 |
-| `READ_ONLY` | 15 of 166 |
+| `SUPER_ADMIN` | 170 of 170 |
+| `ADMINISTRATOR` | 167 of 170 |
+| `POWER_USER` | 85 of 170 |
+| `USER` | 25 of 170 |
+| `READ_ONLY` | 16 of 170 |
 
 ## `apikeys`
 
@@ -165,6 +165,15 @@ exactamente lo que se aplica.
 | `media_acquisition.history` | `MEDIA_ACQUISITION_HISTORY` | ✅ | ✅ | — | — | — |
 | `media_acquisition.export` | `MEDIA_ACQUISITION_EXPORT` | ✅ | ✅ | — | — | — |
 | `media_acquisition.settings` | `MEDIA_ACQUISITION_SETTINGS` | ✅ | ✅ | — | — | — |
+
+## `media_discovery`
+
+| Permiso | Constante | SUPER ADMIN | ADMINISTRATOR | POWER USER | USER | READ ONLY |
+| --- | --- | :---: | :---: | :---: | :---: | :---: |
+| `media_discovery.view` | `MEDIA_DISCOVERY_VIEW` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `media_discovery.manage` | `MEDIA_DISCOVERY_MANAGE` | ✅ | ✅ | ✅ | — | — |
+| `media_discovery.templates.manage` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | ✅ | ✅ | — | — | — |
+| `media_discovery.providers.manage` | `MEDIA_DISCOVERY_PROVIDERS_MANAGE` | ✅ | ✅ | — | — | — |
 
 ## `media_intake`
 

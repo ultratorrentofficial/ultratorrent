@@ -1,0 +1,279 @@
+---
+id: media-discovery
+title: Media Discovery
+sidebar_position: 9
+description: Finds upcoming films and new or returning series from metadata providers, and decides what is worth monitoring — without ever downloading anything.
+keywords: [media discovery, upcoming releases, discovery template, watchlist automation, TMDB, TVmaze, generated RSS rule, acquisition template, discovery inbox]
+---
+
+# Media Discovery
+
+## Overview
+
+Media Discovery answers one question: **what should UltraTorrent be monitoring?**
+
+It finds upcoming films and new or returning series from metadata providers, decides which of them are worth watching for, and turns the qualifying ones into a **watchlist entry** plus a **generated RSS rule**. Everything after that belongs to systems that already existed — the acquisition sweeps monitor the watchlist, and [Smart Download](/modules/smart-download) decides whether any particular release is worth taking.
+
+:::danger Discovery never downloads anything
+It does not score releases, does not talk to an indexer, and has no opinion about whether a given file is good enough. There is exactly **one** match engine and **one** acquisition decision engine in this product, and Media Discovery is neither of them. If it ever appears to need one, the answer is to call the existing engine — not to grow a second.
+:::
+
+## Why / when to use it
+
+The rest of the acquisition stack is **reactive**: something must appear in a feed before anything happens. That works well for a show you already follow, and not at all for a film that comes out in three months.
+
+Use Media Discovery when you want to stop finding out about releases after the fact. Typical shapes:
+
+- *"Monitor every new Sci-Fi series in English, but only tell me about documentaries."*
+- *"Follow films once they reach **digital** release, not when they hit cinemas."*
+- *"Show me what is coming, and let me pick — automate nothing."* (A perfectly good configuration; see the `notify` decision.)
+
+If you would rather add every title by hand, you can leave this module off forever and lose nothing else.
+
+## Prerequisites
+
+- **[Media Manager](/modules/media-manager)** and **[Smart Download](/modules/smart-download)** enabled — Discovery declares both as hard dependencies, along with `media_intake` and `rss`.
+- **At least one RSS feed**, because a generated rule must belong to one.
+- **A storage profile**, which decides where matched media is staged and filed.
+- **A TMDB API key** if you want film coverage. It is the same key Media Manager uses; TVmaze needs no credentials.
+
+## Nothing happens until you say so
+
+There are **three doors** between a fresh install and an automatic download, and all three are shut:
+
+1. **The module is disabled.** Media Discovery is the only module that ships `enabledByDefault: false`. Enabling it is you saying the system may acquire media on its own, and a module that arrived switched on would make that an accident rather than a decision.
+2. **Providers are silent.** No third-party call is made until you enable a provider. A fresh install contacts nobody.
+3. **Templates are disabled.** A template is saved off and must be explicitly enabled, after you have previewed what it would do.
+
+:::info "Disabled by an administrator"? No.
+Because this module ships off, a fresh install shows it disabled with the reason **"off by default — never enabled on this installation"**. That is the intended resting state, not a fault, and not something an administrator did. See [Module state](/modules/#module-state).
+:::
+
+## Concepts
+
+| Term | Meaning |
+|------|---------|
+| **Discovered title** | A merged record of one work, assembled from every provider that reported it. |
+| **Discovery template** | A standing instruction deciding *what to monitor*. |
+| **Acquisition rule template** | An ordered ladder deciding *which release characteristics* are preferred, once something is monitored. |
+| **Decision** | What the evaluator concluded for one title under one template: `auto_monitor`, `notify`, `needs_review`, `ignore`, or `not_applicable`. |
+| **Identity confidence** | How sure the engine is about *what a title is* — measured from external ids, not from how rich the metadata looks. |
+| **Generated rule** | An RSS rule Discovery created, stamped with the template and title it came from. |
+
+The two kinds of template are separate because the questions are separate. *"Is this show worth following"* and *"which of these six releases do I want"* have different answers and different audiences.
+
+## How it works
+
+```mermaid
+flowchart TD
+  TMDB[(TMDB)] --> MERGE[merge + identity]
+  TVMAZE[(TVmaze)] --> MERGE
+  MERGE --> STORE[(discovered_media)]
+  STORE --> EVAL{evaluate<br/>per template}
+  EVAL -->|ignore| FILED[filed away]
+  EVAL -->|notify| INBOX[inbox only]
+  EVAL -->|needs review| REVIEW[waiting on you]
+  EVAL -->|auto-monitor| CREATE[watchlist entry<br/>+ generated RSS rule]
+  CREATE --> SWEEP[existing acquisition sweeps]
+  SWEEP --> SD[Smart Download decides]
+```
+
+Two schedules drive it, both on the platform's existing scheduler:
+
+| Job | Interval | What it does |
+|-----|----------|--------------|
+| `media_discovery_provider_sync` | hourly tick; refreshes a given provider every 6 h | Pulls catalogues, merges, stores. **Decides nothing.** |
+| `media_discovery_evaluate` | hourly | Runs enabled templates over stored titles and acts on the results. |
+
+A catalogue refresh writes rows and updates counters. It cannot, by itself, cause an acquisition — that separation is why a sync can run on a schedule without anyone worrying about what it might start.
+
+### Identity, and why it gates everything
+
+Titles arrive from more than one provider and must be merged into one record. The merge treats **a shared external id as proof**, a **contradicted id as proof of the opposite**, and **title + year as a hint** that may only join records from *different* providers.
+
+Confidence measures identity, **not** metadata richness. A record with a full synopsis, a poster and 5,000 votes but no external id scores `0.1`, because it is still unidentified.
+
+You can lower the confidence floor. You **cannot** configure past an *ambiguous* identity — two works genuinely sharing a title and year are held for review no matter what. TMDB carries three separate 2026 films called *The Odyssey*; a wrong external id would propagate into duplicate detection and every downstream lookup, while an unmonitored title merely waits for you.
+
+## Configuration
+
+### Enable the module
+
+**System → Modules → Media Discovery.**
+
+### Enable a provider
+
+**Media Acquisition → Discover → Providers.**
+
+| Provider | Covers | Credentials |
+|----------|--------|-------------|
+| **TVmaze** | Television | None |
+| **TMDB** | Films and television | Reuses the Media Manager API key |
+
+Providers report three states, and only one is a fault:
+
+| State | Meaning | What to do |
+|-------|---------|-----------|
+| **Not configured** | No credential on this installation | Follow the hint on the card |
+| **Configured but off** | Silent by choice — the normal fresh-install state | Nothing |
+| **On and unhealthy** | The catalogue refresh failed | Read the failure reason on the card |
+
+Health comes from what the last sync recorded, **not** from probing when you open the page. A page load must never wait on a third party, and a transient blip is not a provider's condition.
+
+**A failed refresh keeps the previous catalogue.** "We could not ask" and "nothing is coming out" are very different claims.
+
+### Build a template
+
+The full field-by-field guide is in the repository at `docs/MEDIA_DISCOVERY_TEMPLATES.md`. The parts worth knowing before you start:
+
+**The category policy is four lists, not one.** A single allow-list cannot express *"tell me about Drama but never add it on its own"*, which is what most people actually want.
+
+| List | Effect |
+|------|--------|
+| **Monitor automatically** | Watchlist entry + acquisition rule, unasked |
+| **Tell me only** | Appears in the inbox. Nothing is created. |
+| **Hide** | Filed away so the same unwanted title stops reappearing |
+| **Never automatically** | **Beats every list above** |
+
+A title tagged *Sci-Fi + Documentary* is not auto-monitored when Documentary is on the "never" list, however well Sci-Fi qualifies — but it is still shown, so you can add it by hand.
+
+Two rules the form enforces: **Monitor and Hide may not overlap** (opposite verdicts, no defensible reading), and **a title with no categories at all never matches under any mode** — much of the TVmaze schedule is untagged daily news and talk, and "every category qualifies" is vacuously true of an empty list.
+
+**Release types matter more than they look.** "Films once they reach streaming" is a different query from "films in cinemas", and the digital date is often a year after the theatrical one. Scoping by region matters for the same reason: release dates are per-country, and without a region a single foreign TV airing can qualify a five-year-old film.
+
+**Thresholds demote, they do not drop.** A title below your popularity or rating floor becomes `notify` rather than vanishing — it is the right kind of title, just not one to add automatically. **An unknown value fails a threshold**; treating unknown as satisfied would let every title with thin metadata through the one gate set to hold things back.
+
+### Preview before enabling
+
+Preview runs the **real evaluator** — not a copy of the rules, which would drift from them invisibly — over the catalogue you already have, and writes nothing.
+
+```
+If this template ran now, over 870 discovered titles:
+   50 would be automatically monitored
+   24 would generate notifications
+  233 would be ignored
+   13 would need review
+  550 are outside this template
+
+20 of these would be held for review — your weekly limit is 30.
+```
+
+That last line is the reason to preview before enabling rather than after. Limits are **projected, not applied** in a preview: folding the budget into the evaluation would make every title past the tenth read as "needs review" and hide the shape of the policy you are actually tuning.
+
+## The inbox
+
+Every card carries **the reason it is there**. A discovery engine that silently monitors things is one you can neither trust nor correct.
+
+| State | Meaning |
+|-------|---------|
+| **Monitored** | A watchlist entry and an acquisition rule exist. Acquisition is now the existing engine's job. |
+| **Notify** | Surfaced for you. Nothing was created. |
+| **Needs review** | The engine *would* have acted and could not safely — an unresolved identity, or the automatic-add limit already spent. |
+| **Ignored** | Not what the template is looking for. Filed so it stops reappearing. |
+
+**Needs review is not notify.** One says "you might want this"; the other says "we nearly did something and stopped." They are triaged differently, which is why they are separate.
+
+![Discovery inbox](/img/screenshots/media-discovery-inbox.png)
+
+## Limits
+
+`autoAddLimitPerDay` (default 10) and `autoAddLimitPerWeek` (default 30) pace acquisition. They use **rolling windows**, not calendar days: "10 per day" means no more than ten in any 24 hours, because a calendar boundary lets twenty land across midnight — the exact burst the limit exists to prevent.
+
+- **An over-budget title is held for review, never dropped.** The limit paces acquisition; losing the title would be a different and worse feature.
+- **Only additions that actually happened count.** A decision whose rule generation then failed produced no monitoring, so it does not spend budget — otherwise a run of failures would silently exhaust the allowance.
+- **A limit of `0` means none**, not unlimited.
+- A weekly cap below the daily cap is refused: the daily allowance would be exhausted first every time.
+
+## What protects your work
+
+- **A rule you edit becomes yours.** The first time a person edits a generated rule, `userModifiedAt` is stamped and never cleared. Template re-application only touches generated rules where it is null.
+- **Name collisions are never resolved by adoption.** If a generated rule's name would collide with one you made, Discovery skips generation, links the watchlist entry to *your* rule, and reports why.
+- **It will not reactivate something you paused.** A `paused`, `archived` or `completed` watchlist entry is a decision you made, and a background sweep that undid it would be indistinguishable from a bug.
+- **Rules a person has taken over are listed, not hidden**, so a template change can tell you what it deliberately did not touch.
+
+## Permissions
+
+| Permission | Grants |
+|------------|--------|
+| `media_discovery.view` | Read the inbox, templates and provider status |
+| `media_discovery.manage` | Act on the inbox; run an evaluation |
+| `media_discovery.templates.manage` | Author templates; run previews |
+| `media_discovery.providers.manage` | Enable providers; request a sync |
+
+Read-only and ordinary users get `view`; power users add `manage`; administrators get all four. Seeing what was discovered and deciding that the system may acquire media on its own are deliberately different privileges.
+
+## API
+
+Base path `/api/media-discovery`. **No endpoint calls a provider** — a sync is queued against the background service and the inbox reads the database, so a page load never waits on TMDB.
+
+| Method | Path | Permission |
+|--------|------|-----------|
+| `GET` | `/providers` | `view` |
+| `POST` | `/providers/:name/enable` | `providers.manage` |
+| `GET` | `/inbox` | `view` |
+| `GET` | `/items/:id` | `view` |
+| `GET` `POST` `PATCH` `DELETE` | `/templates` | `view` / `templates.manage` |
+| `GET` `POST` `PATCH` `DELETE` | `/acquisition-templates` | `view` / `templates.manage` |
+| `GET` | `/template-options` | `templates.manage` |
+| `POST` | `/preview` | `templates.manage` |
+| `POST` | `/sync` | `providers.manage` |
+| `POST` | `/evaluate` | `manage` |
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Nothing appears in the inbox | No provider is enabled, or no sync has run yet | Check the **Providers** tab; use **Refresh catalogues** |
+| TMDB says *Not configured* | Discovery reuses the Media Manager TMDB key | Set one there; the provider registers on the next backend start |
+| Everything is in **Needs review** | Weak identities (TVmaze-only shows often carry no IMDb or TVDB id, capping confidence below the 0.8 floor), or the add limit is spent | The reason on each card says which |
+| A template monitors nothing | The category policy does not match the genres your providers emit — and a title with **no** categories never matches | Compare against the inbox's actual genre tags |
+| A title I wanted was ignored | A template only monitors what it names | Add the category, or add the title by hand |
+| It found a film I already have | Discovery does not check your library — it reports what is being *released* | Nothing; the watchlist and Smart Download handle ownership |
+
+## Best practices
+
+- **Preview every template before enabling it**, and read the limit projection line.
+- **Start with a notify-only template.** Watch what it surfaces for a week before letting anything auto-monitor.
+- **Scope films by region and release type.** Without them, a single foreign airing can qualify a five-year-old film.
+- **Leave the confidence floor at 0.8** unless you have a reason. Below it you are asking the system to guess at identity.
+
+## Common mistakes
+
+- **Treating "off by default" as a bug.** It is the third of three deliberate doors.
+- **Expecting Discovery to grab something.** It creates monitoring. If nothing downloads, the question is for [Smart Download](/modules/smart-download).
+- **Putting a category in both Monitor and Hide.** Refused — they are opposite verdicts.
+- **Setting a weekly limit below the daily one.** Refused — the weekly figure would never do anything.
+- **Assuming a threshold filters.** It demotes to `notify`.
+
+## FAQ
+
+**Does this replace my RSS rules?**
+No. It *creates* RSS rules, using the same model a hand-made rule uses. There is one match engine.
+
+**Will it overwrite a rule I changed?**
+No. The first edit you make stamps the rule as yours, permanently.
+
+**Can it download a film that has not been released?**
+It can create monitoring for one. Whether anything is ever grabbed is Smart Download's decision, against real releases in a real feed.
+
+**Why is a title with a great poster and a full synopsis at 0.1 confidence?**
+Because confidence measures *identity*, not metadata. No external id means unidentified.
+
+**Does enabling a provider send it my library?**
+No. Providers are read-only catalogue sources; Discovery pulls upcoming-release data and sends nothing about your installation.
+
+## Checklist
+
+- [ ] Enable the module at **System → Modules**. Expected: the Discover entry appears under Media Acquisition.
+- [ ] Enable TVmaze and press **Refresh catalogues**. Expected: the inbox populates within a few seconds; nothing is monitored.
+- [ ] Create a template with **Tell me only** categories and preview it. Expected: a non-zero `notify` count, zero `auto_monitor`.
+- [ ] Save it enabled and wait for one evaluation. Expected: inbox cards in the `notify` state, no new RSS rules.
+- [ ] Switch one category to **Monitor automatically**, preview again. Expected: the projection moves, and the limit line reports what would be held.
+
+## See also
+
+- [Smart Download](/modules/smart-download) — what actually decides on a release.
+- [RSS automation](/modules/rss) — the rules Discovery generates, and the feeds they belong to.
+- [Media Manager](/modules/media-manager) — libraries, identity and the TMDB key.
+- [Module reference](/reference/modules) — the generated manifest entry.
+- [Permissions reference](/reference/permissions) — every permission string.

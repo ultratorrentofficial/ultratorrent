@@ -2,8 +2,8 @@
 id: modules
 title: Referencia de módulos
 sidebar_position: 3
-description: Cada módulo de UltraTorrent, su tier, dependencias, permisos y rutas.
-keywords: [modules, registry, manifest, dependencies, core, community]
+description: Cada módulo de UltraTorrent, si es obligatorio, sus dependencias, permisos y rutas.
+keywords: [modules, registry, manifest, dependencies, required, optional]
 ---
 
 # Referencia de módulos
@@ -13,12 +13,13 @@ Esta página se genera desde `apps/backend/src/modules/module-registry/manifests
 :::
 
 UltraTorrent está construido como un **registro de módulos**. Cada módulo declara un manifiesto — su id,
-tier, dependencias, los permisos que introduce y las rutas de API que le pertenecen. El
+si es obligatorio, sus dependencias, los permisos que introduce y las rutas de API que le pertenecen. El
 registro resuelve el grafo de dependencias al arrancar y se niega a iniciar ante una
 dependencia desconocida o circular, así que un módulo roto nunca puede quedar a medio cargar.
 
-- **26 módulos** en los tiers: `core`, `community`
-- Los módulos **core** siempre están activos. Los módulos **community/opcionales** se pueden activar o desactivar.
+- **27 módulos** — 23 obligatorios, 4 opcionales.
+- Los módulos **obligatorios** siempre están activos y no se pueden desactivar. Los módulos
+  **opcionales** se pueden activar o desactivar, y algunos vienen desactivados de fábrica.
 
 ## Grafo de dependencias
 
@@ -60,6 +61,15 @@ graph LR
   rss["rss"] --> media_acquisition_intelligence["media_acquisition_intelligence"]
   automation["automation"] --> media_acquisition_intelligence["media_acquisition_intelligence"]
   release_scoring["release_scoring"] --> media_acquisition_intelligence["media_acquisition_intelligence"]
+  auth["auth"] --> media_discovery["media_discovery"]
+  rbac["rbac"] --> media_discovery["media_discovery"]
+  module_registry["module_registry"] --> media_discovery["media_discovery"]
+  audit["audit"] --> media_discovery["media_discovery"]
+  settings["settings"] --> media_discovery["media_discovery"]
+  media_manager["media_manager"] --> media_discovery["media_discovery"]
+  media_acquisition_intelligence["media_acquisition_intelligence"] --> media_discovery["media_discovery"]
+  media_intake["media_intake"] --> media_discovery["media_discovery"]
+  rss["rss"] --> media_discovery["media_discovery"]
   auth["auth"] --> media_server_analytics["media_server_analytics"]
   rbac["rbac"] --> media_server_analytics["media_server_analytics"]
   module_registry["module_registry"] --> media_server_analytics["media_server_analytics"]
@@ -87,36 +97,37 @@ graph LR
 
 | Módulo | Id | Tier | Activo por defecto | Depende de |
 | --- | --- | --- | :---: | --- |
-| **Authentication** | `auth` | core | ✅ | — |
-| **Access control (RBAC)** | `rbac` | core | ✅ | `auth` |
-| **Account & security** | `account` | core | ✅ | `auth` |
-| **Users** | `users` | core | ✅ | `auth`, `rbac` |
-| **Torrent engine** | `engine` | core | ✅ | `auth` |
-| **Dashboard** | `dashboard` | core | ✅ | `auth`, `engine` |
-| **Torrents** | `torrents` | core | ✅ | `auth`, `engine` |
-| **Search** | `search` | core | ✅ | `auth` |
-| **Categories & tags** | `taxonomy` | core | ✅ | `auth` |
-| **RSS automation** | `rss` | core | ✅ | `auth`, `engine` |
-| **Automation** | `automation` | core | ✅ | `auth`, `engine` |
-| **File manager** | `files` | core | ✅ | `auth` |
-| **API keys** | `api_keys` | core | ✅ | `auth` |
-| **Notifications** | `notifications` | core | ✅ | `auth`, `rbac` |
-| **Audit log** | `audit` | core | ✅ | `auth` |
-| **System health** | `system` | core | ✅ | — |
-| **Settings** | `settings` | core | ✅ | `auth` |
-| **Operations (Console API)** | `operations` | core | ✅ | `auth` |
-| **Module registry** | `module_registry` | core | ✅ | `auth`, `rbac` |
-| **Media Manager** | `media_manager` | community | ✅ | `auth`, `files` |
-| **Release Scoring** | `release_scoring` | community | ✅ | `auth`, `rss` |
-| **Media Acquisition Intelligence** | `media_acquisition_intelligence` | community | ✅ | `auth`, `rbac`, `module_registry`, `audit`, `settings`, `rss`, `automation`, `release_scoring` |
-| **Media Server Analytics** | `media_server_analytics` | core | ✅ | `auth`, `rbac`, `module_registry`, `audit`, `settings`, `media_manager`, `automation` |
-| **Subtitle Intelligence** | `subtitle_intelligence` | core | ✅ | `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager` |
-| **Library Cleanup Center** | `library_cleanup` | core | ✅ | `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager` |
-| **Media Intake Engine** | `media_intake` | core | ✅ | `media_manager`, `torrents` |
+| **Authentication** | `auth` | ✅ | ✅ | — |
+| **Access control (RBAC)** | `rbac` | ✅ | ✅ | `auth` |
+| **Account & security** | `account` | ✅ | ✅ | `auth` |
+| **Users** | `users` | ✅ | ✅ | `auth`, `rbac` |
+| **Torrent engine** | `engine` | ✅ | ✅ | `auth` |
+| **Dashboard** | `dashboard` | ✅ | ✅ | `auth`, `engine` |
+| **Torrents** | `torrents` | ✅ | ✅ | `auth`, `engine` |
+| **Search** | `search` | ✅ | ✅ | `auth` |
+| **Categories & tags** | `taxonomy` | ✅ | ✅ | `auth` |
+| **RSS automation** | `rss` | ✅ | ✅ | `auth`, `engine` |
+| **Automation** | `automation` | ✅ | ✅ | `auth`, `engine` |
+| **File manager** | `files` | ✅ | ✅ | `auth` |
+| **API keys** | `api_keys` | ✅ | ✅ | `auth` |
+| **Notifications** | `notifications` | ✅ | ✅ | `auth`, `rbac` |
+| **Audit log** | `audit` | ✅ | ✅ | `auth` |
+| **System health** | `system` | ✅ | ✅ | — |
+| **Settings** | `settings` | ✅ | ✅ | `auth` |
+| **Operations (Console API)** | `operations` | ✅ | ✅ | `auth` |
+| **Module registry** | `module_registry` | ✅ | ✅ | `auth`, `rbac` |
+| **Media Manager** | `media_manager` | — | ✅ | `auth`, `files` |
+| **Release Scoring** | `release_scoring` | — | ✅ | `auth`, `rss` |
+| **Media Acquisition Intelligence** | `media_acquisition_intelligence` | — | ✅ | `auth`, `rbac`, `module_registry`, `audit`, `settings`, `rss`, `automation`, `release_scoring` |
+| **Media Discovery** | `media_discovery` | — | — | `auth`, `rbac`, `module_registry`, `audit`, `settings`, `media_manager`, `media_acquisition_intelligence`, `media_intake`, `rss` |
+| **Media Server Analytics** | `media_server_analytics` | ✅ | ✅ | `auth`, `rbac`, `module_registry`, `audit`, `settings`, `media_manager`, `automation` |
+| **Subtitle Intelligence** | `subtitle_intelligence` | ✅ | ✅ | `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager` |
+| **Library Cleanup Center** | `library_cleanup` | ✅ | ✅ | `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager` |
+| **Media Intake Engine** | `media_intake` | ✅ | ✅ | `media_manager`, `torrents` |
 
 ## Autenticación
 
-`auth` · tier `core` · activo por defecto
+`auth` · required · activo por defecto
 
 Inicio de sesión, sesiones, rotación del refresh token.
 
@@ -124,7 +135,7 @@ Inicio de sesión, sesiones, rotación del refresh token.
 
 ## Control de acceso (RBAC)
 
-`rbac` · tier `core` · activo por defecto
+`rbac` · required · activo por defecto
 
 Roles, permisos y guards de ruta.
 
@@ -134,7 +145,7 @@ Roles, permisos y guards de ruta.
 
 ## Cuenta y seguridad
 
-`account` · tier `core` · activo por defecto
+`account` · required · activo por defecto
 
 Perfil de autoservicio, contraseña y 2FA.
 
@@ -144,7 +155,7 @@ Perfil de autoservicio, contraseña y 2FA.
 
 ## Usuarios
 
-`users` · tier `core` · activo por defecto
+`users` · required · activo por defecto
 
 Gestión de usuarios y asignación de roles.
 
@@ -156,7 +167,7 @@ Gestión de usuarios y asignación de roles.
 
 ## Motor de torrents
 
-`engine` · tier `core` · activo por defecto
+`engine` · required · activo por defecto
 
 Abstracción del proveedor de motor (rTorrent) + registro.
 
@@ -168,7 +179,7 @@ Abstracción del proveedor de motor (rTorrent) + registro.
 
 ## Panel
 
-`dashboard` · tier `core` · activo por defecto
+`dashboard` · required · activo por defecto
 
 Estadísticas agregadas y actividad reciente.
 
@@ -180,7 +191,7 @@ Estadísticas agregadas y actividad reciente.
 
 ## Torrents
 
-`torrents` · tier `core` · activo por defecto
+`torrents` · required · activo por defecto
 
 Lista de torrents, detalle, ciclo de vida, acciones masivas.
 
@@ -192,7 +203,7 @@ Lista de torrents, detalle, ciclo de vida, acciones masivas.
 
 ## Búsqueda
 
-`search` · tier `core` · activo por defecto
+`search` · required · activo por defecto
 
 Busca en las instantáneas de torrents guardadas.
 
@@ -204,7 +215,7 @@ Busca en las instantáneas de torrents guardadas.
 
 ## Categorías y etiquetas
 
-`taxonomy` · tier `core` · activo por defecto
+`taxonomy` · required · activo por defecto
 
 Organiza los torrents con categorías y etiquetas.
 
@@ -216,7 +227,7 @@ Organiza los torrents con categorías y etiquetas.
 
 ## Automatización RSS
 
-`rss` · tier `core` · activo por defecto
+`rss` · required · activo por defecto
 
 Feeds, candidatos de coincidencia rankeados, y el Constructor de Coincidencias Inteligentes.
 
@@ -228,7 +239,7 @@ Feeds, candidatos de coincidencia rankeados, y el Constructor de Coincidencias I
 
 ## Automatización
 
-`automation` · tier `core` · activo por defecto
+`automation` · required · activo por defecto
 
 Motor de reglas de disparador/condición/acción.
 
@@ -240,7 +251,7 @@ Motor de reglas de disparador/condición/acción.
 
 ## Gestor de archivos
 
-`files` · tier `core` · activo por defecto
+`files` · required · activo por defecto
 
 Navegación segura por rutas y operaciones de archivos.
 
@@ -252,7 +263,7 @@ Navegación segura por rutas y operaciones de archivos.
 
 ## Claves API
 
-`api_keys` · tier `core` · activo por defecto
+`api_keys` · required · activo por defecto
 
 Emisión/listado/revocación de claves API personales.
 
@@ -264,9 +275,9 @@ Emisión/listado/revocación de claves API personales.
 
 ## Notificaciones
 
-`notifications` · tier `core` · activo por defecto
+`notifications` · required · activo por defecto
 
-Personal notifications. Each user chooses which events they want and where they arrive — in-app, email, Telegram or Discord. Recipients are fixed in code per event; there is no rule builder, audience designer or template editor.
+Notificaciones personales. Cada usuario elige qué eventos quiere y dónde le llegan — en la app, por email, Telegram o Discord. Los destinatarios están fijados en el código por evento; no hay constructor de reglas, diseñador de audiencias ni editor de plantillas.
 
 **Depende de:** `auth`, `rbac`
 
@@ -276,7 +287,7 @@ Personal notifications. Each user chooses which events they want and where they 
 
 ## Registro de auditoría
 
-`audit` · tier `core` · activo por defecto
+`audit` · required · activo por defecto
 
 Rastro de auditoría de solo-anexado de las acciones sensibles.
 
@@ -288,7 +299,7 @@ Rastro de auditoría de solo-anexado de las acciones sensibles.
 
 ## Salud del sistema
 
-`system` · tier `core` · activo por defecto
+`system` · required · activo por defecto
 
 Sondas de liveness/readiness e informes de salud.
 
@@ -298,7 +309,7 @@ Sondas de liveness/readiness e informes de salud.
 
 ## Configuración
 
-`settings` · tier `core` · activo por defecto
+`settings` · required · activo por defecto
 
 Configuración de la aplicación en pares clave/valor.
 
@@ -310,9 +321,9 @@ Configuración de la aplicación en pares clave/valor.
 
 ## Operations (Console API)
 
-`operations` · tier `core` · activo por defecto
+`operations` · required · activo por defecto
 
-Read-only aggregate snapshot and event stream for UltraTorrent Console.
+Instantánea agregada de solo lectura y flujo de eventos para UltraTorrent Console.
 
 **Depende de:** `auth`
 
@@ -322,7 +333,7 @@ Read-only aggregate snapshot and event stream for UltraTorrent Console.
 
 ## Registro de módulos
 
-`module_registry` · tier `core` · activo por defecto
+`module_registry` · required · activo por defecto
 
 Activa/desactiva módulos opcionales.
 
@@ -334,7 +345,7 @@ Activa/desactiva módulos opcionales.
 
 ## Gestor de Medios
 
-`media_manager` · tier `community` · activo por defecto
+`media_manager` · optional · activo por defecto
 
 Escanea, identifica, enriquece y organiza tus bibliotecas de medios: escaneo de bibliotecas, identificación por nombre de archivo, metadatos/carátulas/subtítulos, detección de duplicados, generación de NFO, renombrado/movimiento para servidores de medios, y un panel de salud.
 
@@ -346,7 +357,7 @@ Escanea, identifica, enriquece y organiza tus bibliotecas de medios: escaneo de 
 
 ## Puntuación de Releases
 
-`release_scoring` · tier `community` · activo por defecto
+`release_scoring` · optional · activo por defecto
 
 Puntuación explicable de 0 a 100 de los releases de RSS, con razones, advertencias y una recomendación.
 
@@ -358,7 +369,7 @@ Puntuación explicable de 0 a 100 de los releases de RSS, con razones, advertenc
 
 ## Inteligencia de Adquisición de Medios
 
-`media_acquisition_intelligence` · tier `community` · activo por defecto
+`media_acquisition_intelligence` · optional · activo por defecto
 
 Decide qué medios adquirir a partir de huecos en la biblioteca, calidad del release, riesgo de duplicados, listas de seguimiento, perfiles de adquisición y contexto de automatización — decisiones explicables, nunca operaciones directas sobre archivos.
 
@@ -368,9 +379,21 @@ Decide qué medios adquirir a partir de huecos en la biblioteca, calidad del rel
 
 **Rutas propias:** `/api/media-acquisition`
 
+## Media Discovery
+
+`media_discovery` · optional · off by default
+
+Descubre películas próximas y series nuevas o que regresan a partir de proveedores de metadatos, y decide qué debe vigilarse — creando entradas de lista de seguimiento y reglas RSS generadas sobre las que actúa el motor de adquisición existente. Nunca descarga nada por su cuenta.
+
+**Depende de:** `auth`, `rbac`, `module_registry`, `audit`, `settings`, `media_manager`, `media_acquisition_intelligence`, `media_intake`, `rss`
+
+**Introduce permisos:** `media_discovery.view`, `media_discovery.manage`, `media_discovery.templates.manage`, `media_discovery.providers.manage`
+
+**Rutas propias:** `/media-acquisition/discover`
+
 ## Analíticas del Servidor de Medios
 
-`media_server_analytics` · tier `core` · activo por defecto
+`media_server_analytics` · required · activo por defecto
 
 Monitoreo y analíticas del servidor de medios, añadidos recientemente, historial de reproducción, actividad en vivo, estadísticas de usuarios/bibliotecas, boletines programados, e importación de analíticas de Tautulli — en Plex, Jellyfin, Emby y Kodi.
 
@@ -382,9 +405,9 @@ Monitoreo y analíticas del servidor de medios, añadidos recientemente, histori
 
 ## Subtitle Intelligence
 
-`subtitle_intelligence` · tier `core` · activo por defecto
+`subtitle_intelligence` · required · activo por defecto
 
-The definitive subtitle engine: fingerprints every media file (movie hash + technical metadata), searches multiple providers with a progressively-relaxed strategy (hash → release → external id → title), scores and validates each candidate, installs the best as a media-server-correct sidecar (never overwriting an original), and can synchronize it to the audio. Per-library language policy, automation, and background monitoring.
+El motor de subtítulos definitivo: toma la huella de cada archivo de medios (hash de película + metadatos técnicos), busca en varios proveedores con una estrategia progresivamente más laxa (hash → release → id externo → título), puntúa y valida cada candidato, instala el mejor como sidecar correcto para servidores de medios (sin sobrescribir nunca un original), y puede sincronizarlo con el audio. Política de idioma por biblioteca, automatización y monitoreo en segundo plano.
 
 **Depende de:** `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager`
 
@@ -394,9 +417,9 @@ The definitive subtitle engine: fingerprints every media file (movie hash + tech
 
 ## Library Cleanup Center
 
-`library_cleanup` · tier `core` · activo por defecto
+`library_cleanup` · required · activo por defecto
 
-Policy-driven reclamation of library storage. Users build versioned cleanup policies from a catalogue of metadata, playback, technical, storage and safety conditions; a run turns matches into CANDIDATES, never deletions. Nothing is removed except through a persisted, approved plan whose per-file fingerprints still match the world, and protected, locked, actively-playing, in-flight, ambiguous or unmeasured files are refused server-side. Removal goes to quarantine or Trash through the existing path-safe file services; permanent deletion is a manual, separately-permissioned operation.
+Recuperación de almacenamiento de la biblioteca guiada por políticas. Los usuarios construyen políticas de limpieza versionadas a partir de un catálogo de condiciones de metadatos, reproducción, técnicas, de almacenamiento y de seguridad; una ejecución convierte las coincidencias en CANDIDATOS, nunca en borrados. No se elimina nada salvo mediante un plan persistido y aprobado cuyas huellas por archivo sigan coincidiendo con la realidad, y los archivos protegidos, bloqueados, en reproducción activa, en tránsito, ambiguos o no medidos se rechazan en el servidor. La eliminación pasa por cuarentena o Papelera a través de los servicios de archivos con rutas seguras ya existentes; el borrado permanente es una operación manual con permiso aparte.
 
 **Depende de:** `auth`, `rbac`, `files`, `audit`, `settings`, `media_manager`
 
@@ -406,9 +429,9 @@ Policy-driven reclamation of library storage. Users build versioned cleanup poli
 
 ## Media Intake Engine
 
-`media_intake` · tier `core` · activo por defecto
+`media_intake` · required · activo por defecto
 
-Staging-based import pipeline. A completed download is verified, identified, enriched and quality-scored in a staging area, then placed into a library by the cheapest strategy the storage actually supports — hardlink, reflink, provider relocation or copy — so the torrent keeps seeding. Storage Profiles hold the logical roots and reference existing libraries rather than restating their paths; a Path Mapping Registry renders every path into the space of whatever component is about to receive it. Opt-in per RSS rule and never applied to an existing one automatically: rules created before this module read legacy_direct and behave exactly as before.
+Tubería de importación basada en un área de preparación. Una descarga completada se verifica, identifica, enriquece y puntúa por calidad en un área de preparación, y luego se coloca en una biblioteca mediante la estrategia más barata que el almacenamiento admita realmente — hardlink, reflink, reubicación del proveedor o copia — para que el torrent siga sembrando. Los Perfiles de Almacenamiento guardan las raíces lógicas y referencian bibliotecas existentes en vez de repetir sus rutas; un Registro de Mapeo de Rutas traduce cada ruta al espacio del componente que está a punto de recibirla. Es opcional por regla RSS y nunca se aplica automáticamente a una existente: las reglas creadas antes de este módulo usan legacy_direct y se comportan exactamente igual que antes.
 
 **Depende de:** `media_manager`, `torrents`
 

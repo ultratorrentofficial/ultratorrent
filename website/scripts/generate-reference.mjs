@@ -109,8 +109,8 @@ const ES = [
     'description: Cada permiso RBAC de UltraTorrent y qué rol integrado lo tiene.',
   ],
   [
-    'description: Every UltraTorrent module, its tier, dependencies, permissions and routes.',
-    'description: Cada módulo de UltraTorrent, su tier, dependencias, permisos y rutas.',
+    'description: Every UltraTorrent module, whether it is required, its dependencies, permissions and routes.',
+    'description: Cada módulo de UltraTorrent, si es obligatorio, sus dependencias, permisos y rutas.',
   ],
   [
     'description: Every REST endpoint UltraTorrent exposes, with its verb, path and required permission.',
@@ -154,7 +154,7 @@ const ES = [
   // --- table headers ------------------------------------------------------
   ['| Method | Path | Permission | Handler |', '| Método | Ruta | Permiso | Handler |'],
   [
-    '| Module | Id | Tier | On by default | Depends on |',
+    '| Module | Id | Required | On by default | Depends on |',
     '| Módulo | Id | Tier | Activo por defecto | Depende de |',
   ],
   ['| Role | Permissions held |', '| Rol | Permisos que tiene |'],
@@ -211,12 +211,12 @@ const ES = [
     'UltraTorrent está construido como un **registro de módulos**.',
   ],
   [
-    'Each module declares a manifest — its id,\ntier, dependencies, the permissions it introduces and the API routes it owns. The registry\nresolves the dependency graph at boot and refuses to start on an unknown or circular\ndependency, so a broken module can never half-load.',
-    'Cada módulo declara un manifiesto — su id,\ntier, dependencias, los permisos que introduce y las rutas de API que le pertenecen. El\nregistro resuelve el grafo de dependencias al arrancar y se niega a iniciar ante una\ndependencia desconocida o circular, así que un módulo roto nunca puede quedar a medio cargar.',
+    'Each module declares a manifest — its id,\nwhether it is required, its dependencies, the permissions it introduces and the API routes it\nowns. The registry\nresolves the dependency graph at boot and refuses to start on an unknown or circular\ndependency, so a broken module can never half-load.',
+    'Cada módulo declara un manifiesto — su id,\nsi es obligatorio, sus dependencias, los permisos que introduce y las rutas de API que le pertenecen. El\nregistro resuelve el grafo de dependencias al arrancar y se niega a iniciar ante una\ndependencia desconocida o circular, así que un módulo roto nunca puede quedar a medio cargar.',
   ],
   [
-    '- **Core** modules are always on. **Community/optional** modules can be toggled.',
-    '- Los módulos **core** siempre están activos. Los módulos **community/opcionales** se pueden activar o desactivar.',
+    '- **Required** modules are always on and cannot be switched off. **Optional** modules can be\n  toggled, and a few ship off by default.',
+    '- Los módulos **obligatorios** siempre están activos y no se pueden desactivar. Los módulos\n  **opcionales** se pueden activar o desactivar, y algunos vienen desactivados de fábrica.',
   ],
 
   [
@@ -309,6 +309,30 @@ const ES = [
   ['Table: ', 'Tabla: '],
 
   // --- module descriptions (source: manifests.ts) -------------------------
+  [
+    'Personal notifications. Each user chooses which events they want and where they arrive — in-app, email, Telegram or Discord. Recipients are fixed in code per event; there is no rule builder, audience designer or template editor.',
+    'Notificaciones personales. Cada usuario elige qué eventos quiere y dónde le llegan — en la app, por email, Telegram o Discord. Los destinatarios están fijados en el código por evento; no hay constructor de reglas, diseñador de audiencias ni editor de plantillas.',
+  ],
+  [
+    'Read-only aggregate snapshot and event stream for UltraTorrent Console.',
+    'Instantánea agregada de solo lectura y flujo de eventos para UltraTorrent Console.',
+  ],
+  [
+    'Discovers upcoming films, new and returning series from metadata providers, and decides what should be monitored — creating watchlist entries and generated RSS rules that the existing acquisition engine acts on. Never downloads anything itself.',
+    'Descubre películas próximas y series nuevas o que regresan a partir de proveedores de metadatos, y decide qué debe vigilarse — creando entradas de lista de seguimiento y reglas RSS generadas sobre las que actúa el motor de adquisición existente. Nunca descarga nada por su cuenta.',
+  ],
+  [
+    'The definitive subtitle engine: fingerprints every media file (movie hash + technical metadata), searches multiple providers with a progressively-relaxed strategy (hash → release → external id → title), scores and validates each candidate, installs the best as a media-server-correct sidecar (never overwriting an original), and can synchronize it to the audio. Per-library language policy, automation, and background monitoring.',
+    'El motor de subtítulos definitivo: toma la huella de cada archivo de medios (hash de película + metadatos técnicos), busca en varios proveedores con una estrategia progresivamente más laxa (hash → release → id externo → título), puntúa y valida cada candidato, instala el mejor como sidecar correcto para servidores de medios (sin sobrescribir nunca un original), y puede sincronizarlo con el audio. Política de idioma por biblioteca, automatización y monitoreo en segundo plano.',
+  ],
+  [
+    'Policy-driven reclamation of library storage. Users build versioned cleanup policies from a catalogue of metadata, playback, technical, storage and safety conditions; a run turns matches into CANDIDATES, never deletions. Nothing is removed except through a persisted, approved plan whose per-file fingerprints still match the world, and protected, locked, actively-playing, in-flight, ambiguous or unmeasured files are refused server-side. Removal goes to quarantine or Trash through the existing path-safe file services; permanent deletion is a manual, separately-permissioned operation.',
+    'Recuperación de almacenamiento de la biblioteca guiada por políticas. Los usuarios construyen políticas de limpieza versionadas a partir de un catálogo de condiciones de metadatos, reproducción, técnicas, de almacenamiento y de seguridad; una ejecución convierte las coincidencias en CANDIDATOS, nunca en borrados. No se elimina nada salvo mediante un plan persistido y aprobado cuyas huellas por archivo sigan coincidiendo con la realidad, y los archivos protegidos, bloqueados, en reproducción activa, en tránsito, ambiguos o no medidos se rechazan en el servidor. La eliminación pasa por cuarentena o Papelera a través de los servicios de archivos con rutas seguras ya existentes; el borrado permanente es una operación manual con permiso aparte.',
+  ],
+  [
+    'Staging-based import pipeline. A completed download is verified, identified, enriched and quality-scored in a staging area, then placed into a library by the cheapest strategy the storage actually supports — hardlink, reflink, provider relocation or copy — so the torrent keeps seeding. Storage Profiles hold the logical roots and reference existing libraries rather than restating their paths; a Path Mapping Registry renders every path into the space of whatever component is about to receive it. Opt-in per RSS rule and never applied to an existing one automatically: rules created before this module read legacy_direct and behave exactly as before.',
+    'Tubería de importación basada en un área de preparación. Una descarga completada se verifica, identifica, enriquece y puntúa por calidad en un área de preparación, y luego se coloca en una biblioteca mediante la estrategia más barata que el almacenamiento admita realmente — hardlink, reflink, reubicación del proveedor o copia — para que el torrent siga sembrando. Los Perfiles de Almacenamiento guardan las raíces lógicas y referencian bibliotecas existentes en vez de repetir sus rutas; un Registro de Mapeo de Rutas traduce cada ruta al espacio del componente que está a punto de recibirla. Es opcional por regla RSS y nunca se aplica automáticamente a una existente: las reglas creadas antes de este módulo usan legacy_direct y se comportan exactamente igual que antes.',
+  ],
   // Data, but prose data — a Spanish reader should not hit a wall of English here.
   // If one of these is reworded upstream its entry stops matching, and the leak
   // report below turns that from a silent revert-to-English into a build warning.
@@ -450,7 +474,7 @@ const ES = [
 
   // --- counts: keep the number, translate around it -----------------------
   [/\*\*(\d+) endpoints\*\* across \*\*(\d+) controllers\*\*/g, '**$1 endpoints** en **$2 controladores**'],
-  [/\*\*(\d+) modules\*\* across tiers:/g, '**$1 módulos** en los tiers:'],
+  [/\*\*(\d+) modules\*\* — (\d+) required, (\d+) optional\./g, '**$1 módulos** — $2 obligatorios, $3 opcionales.'],
   [/\*\*(\d+) variables\*\* are recognised\./g, '**$1 variables** están reconocidas.'],
   [/^_1 model\._$/gm, '_1 modelo._'],
   [/^_(\d+) models\._$/gm, '_$1 modelos._'],
@@ -482,7 +506,7 @@ const ES_MARKERS =
 /** Descriptions that came verbatim from source, and so are the likeliest to rot. */
 const SOURCE_PROSE = {
   'modules.md': (md) =>
-    [...md.matchAll(/^`[a-z_]+` · tier `[a-z]+` · [^\n]*\n\n([^\n]+)$/gm)].map((m) => m[1]),
+    [...md.matchAll(/^`[a-z_]+` · (?:required|optional) · [^\n]*\n\n([^\n]+)$/gm)].map((m) => m[1]),
   'environment.md': (md) =>
     [...md.matchAll(/^\| `[A-Z0-9_]+` \|.*?\| ([^|]+?) \|$/gm)].map((m) => m[1].trim()),
 };
@@ -623,32 +647,46 @@ function genModules() {
     dist: 'apps/backend/dist/modules/module-registry/manifests.js',
     src: 'apps/backend/src/modules/module-registry/manifests.ts',
   });
-  const manifests = [
-    ...(m.CORE_MANIFESTS ?? []),
-    ...(m.COMMUNITY_MANIFESTS ?? []),
-    ...(m.OPTIONAL_MANIFESTS ?? []),
-  ];
-
-  const tiers = [...new Set(manifests.map((x) => x.tier))];
+  /*
+   * `ALL_MANIFESTS` is the one list, and it is read rather than reassembled.
+   *
+   * This used to spread `CORE_MANIFESTS` and `COMMUNITY_MANIFESTS` with `?? []`.
+   * Both were renamed when the core/community tier was dropped, and the `??`
+   * turned that into silence: the generator kept working and emitted a module
+   * reference containing only the optional modules. A generator whose whole
+   * claim is "cannot drift from the source" must fail loudly when the source
+   * moves, so an empty list is now an error rather than a short page.
+   */
+  const manifests = m.ALL_MANIFESTS ?? [...(m.REQUIRED_MANIFESTS ?? []), ...(m.OPTIONAL_MANIFESTS ?? [])];
+  if (!manifests.length) {
+    console.error(
+      'generate-reference: no module manifests found. The exports in\n' +
+        '  apps/backend/src/modules/module-registry/manifests.ts\n' +
+        'have moved — update this generator rather than shipping an empty reference.',
+    );
+    process.exit(1);
+  }
 
   let md = `---
 id: modules
 title: Module Reference
 sidebar_position: 3
-description: Every UltraTorrent module, its tier, dependencies, permissions and routes.
-keywords: [modules, registry, manifest, dependencies, core, community]
+description: Every UltraTorrent module, whether it is required, its dependencies, permissions and routes.
+keywords: [modules, registry, manifest, dependencies, required, optional]
 ---
 
 # Module Reference
 
 ${BANNER('apps/backend/src/modules/module-registry/manifests.ts')}
 UltraTorrent is built as a **module registry**. Each module declares a manifest — its id,
-tier, dependencies, the permissions it introduces and the API routes it owns. The registry
+whether it is required, its dependencies, the permissions it introduces and the API routes it
+owns. The registry
 resolves the dependency graph at boot and refuses to start on an unknown or circular
 dependency, so a broken module can never half-load.
 
-- **${manifests.length} modules** across tiers: ${tiers.map((t) => `\`${t}\``).join(', ')}
-- **Core** modules are always on. **Community/optional** modules can be toggled.
+- **${manifests.length} modules** — ${manifests.filter((x) => x.required).length} required, ${manifests.filter((x) => !x.required).length} optional.
+- **Required** modules are always on and cannot be switched off. **Optional** modules can be
+  toggled, and a few ship off by default.
 
 ## Dependency graph
 
@@ -666,19 +704,19 @@ ${manifests
 
 ## All modules
 
-| Module | Id | Tier | On by default | Depends on |
+| Module | Id | Required | On by default | Depends on |
 | --- | --- | --- | :---: | --- |
 ${manifests
   .map(
     (x) =>
-      `| **${esc(x.name)}** | \`${esc(x.id)}\` | ${esc(x.tier)} | ${x.enabledByDefault ? '✅' : '—'} | ${(x.dependencies ?? []).map((d) => `\`${d}\``).join(', ') || '—'} |`,
+      `| **${esc(x.name)}** | \`${esc(x.id)}\` | ${x.required ? '✅' : '—'} | ${x.enabledByDefault ? '✅' : '—'} | ${(x.dependencies ?? []).map((d) => `\`${d}\``).join(', ') || '—'} |`,
   )
   .join('\n')}
 
 `;
 
   for (const x of manifests) {
-    md += `## ${esc(x.name)}\n\n\`${esc(x.id)}\` · tier \`${esc(x.tier)}\`${x.enabledByDefault ? ' · enabled by default' : ' · optional'}\n\n${esc(x.description ?? '')}\n\n`;
+    md += `## ${esc(x.name)}\n\n\`${esc(x.id)}\` · ${x.required ? 'required' : 'optional'}${x.enabledByDefault ? ' · enabled by default' : ' · off by default'}\n\n${esc(x.description ?? '')}\n\n`;
     if (x.dependencies?.length)
       md += `**Depends on:** ${x.dependencies.map((d) => `\`${d}\``).join(', ')}\n\n`;
     if (x.permissions?.length)

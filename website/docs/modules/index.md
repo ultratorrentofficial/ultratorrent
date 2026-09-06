@@ -3,12 +3,12 @@ id: index
 title: Modules
 sidebar_position: 1
 description: Every UltraTorrent feature is a module — what each one does, how they depend on each other, and where to start.
-keywords: [modules, module registry, manifest, core modules, community modules, enable module, disable module, dependencies, RBAC]
+keywords: [modules, module registry, manifest, required modules, optional modules, enable module, disable module, dependencies, RBAC]
 ---
 
 # Modules
 
-UltraTorrent is not a monolith with a settings page bolted on. **Every feature is a module** — a self-contained NestJS module that declares a *manifest*: its id, its tier, the modules it depends on, the permissions it introduces, the API routes it owns, the WebSocket events it emits, and the scheduled jobs it runs.
+UltraTorrent is not a monolith with a settings page bolted on. **Every feature is a module** — a self-contained NestJS module that declares a *manifest*: its id, whether it is required, the modules it depends on, the permissions it introduces, the API routes it owns, the WebSocket events it emits, and the scheduled jobs it runs.
 
 At boot, the **module registry** loads every manifest, validates it, resolves the dependency graph, and decides what is active. This page is the map: what each module is for, how they fit together, and which page to read next.
 
@@ -21,26 +21,38 @@ A module registry buys you four things that matter in a self-hosted product:
 - **Permissions are declared, not discovered.** Each manifest lists the permissions it introduces; the registry syncs them into the permission catalog so RBAC can assign them from day one.
 - **Adding a feature is additive.** A new module is a new manifest plus a guarded controller — see [Creating modules](/develop/creating-modules).
 
-:::info Single tier, no paywall
-There is **no licensing, edition, product key, or feature gating** in UltraTorrent. Every module ships in the one community product. `core` and `community` are about *whether you can turn a module off*, not about what you paid. Access is governed **only** by [RBAC permissions](/reference/permissions).
+:::info One product, no paywall
+There is **no licensing, edition, product key, or feature gating** in UltraTorrent. Every module ships in the one community product. Access is governed **only** by [RBAC permissions](/reference/permissions).
+
+There used to be a `core` / `community` tier on every manifest. It was removed, because it conflated two unrelated things — which edition a module belonged to (there is only one) and whether you are allowed to switch it off. Only the second was ever real, and it is now a plain `required` flag.
 :::
 
-## Tiers
+## Required and optional
 
-| Tier | Meaning |
+| Kind | Meaning |
 |------|---------|
-| `core` | Always available, **cannot be disabled**. The system would not be coherent without it — auth, RBAC, engine, torrents, RSS, files, settings, audit, Media Server Analytics. |
-| `community` | Bundled optional modules, **on by default but toggleable** by an admin — Media Manager, Release Scoring, Media Acquisition Intelligence. |
+| **Required** | Always available, **cannot be disabled**. The system would not be coherent without it — auth, RBAC, engine, torrents, RSS, files, settings, audit, notifications, Media Server Analytics. |
+| **Optional** | Can be toggled by an admin. Most are **on by default**; a few ship **off**, which is a deliberate design decision rather than an oversight — see below. |
 
 ## Module state
 
-For every module the registry computes a state:
+For every module the registry computes a state, **and the reason for it**:
 
 | State | Meaning | What to do |
 |-------|---------|-----------|
 | `enabled` | Dependencies satisfied and turned on. | Nothing. |
-| `disabled` | Allowed, but an admin turned it off. | Enable it from **Administration → Modules**. |
+| `disabled` | Not running. The reason says which of two causes applies. | See the next table. |
 | `missing_dependency` | It wants to run, but something it depends on is off. | Enable the dependency first. |
+| `license_required` | The availability seam withheld it. | Cannot occur in this product — every module is available. The state exists so the registry has somewhere honest to put the answer if that ever changes. |
+
+A disabled module always says **why**, and the two causes are not the same thing:
+
+| Reason | Meaning |
+|--------|---------|
+| `disabled by an administrator` | Somebody switched it off. There is a stored override row and an audit entry naming them. |
+| `off by default — never enabled on this installation` | Nobody has touched it. Its manifest ships `enabledByDefault: false` and no one has opted in. |
+
+That distinction is worth stating plainly, because these two once shared one message. A module that is *deliberately* off out of the box — [Media Discovery](/modules/media-discovery) is the one that ships that way — reported itself as though an administrator had disabled it, which sends you hunting the audit log for a change nobody made.
 
 `enabled` requires **all** dependencies to be enabled, computed as a fixpoint — so disabling a module **cascades** to everything that depends on it. Disabling RSS, for example, takes Release Scoring and Media Acquisition Intelligence down with it, because both declare RSS as a hard dependency.
 
@@ -69,6 +81,7 @@ flowchart TD
     RSS[rss<br/>RSS automation]
     RS[release_scoring]
     MAI[media_acquisition_intelligence<br/>Smart Download]
+    DISC[media_discovery<br/>off by default]
     IDX[(indexers<br/>Torznab / Newznab)]
     PRW[(Prowlarr<br/>companion)]
   end
@@ -96,6 +109,9 @@ flowchart TD
 
   RSS --> RS
   RS --> MAI
+  MAI --> DISC
+  RSS --> DISC
+  DISC -.creates watchlist + rules.-> RSS
   RSS --> MAI
   AUTO --> MAI
   MAI -.searches.-> IDX
@@ -120,6 +136,7 @@ Read the graph as a story:
 1. **auth / rbac** decide who you are and what you may do. Nothing else runs without them.
 2. **engine** talks to your torrent client; **torrents** is the UI and lifecycle on top of it.
 3. **rss** watches feeds; **release_scoring** grades what it finds; **media_acquisition_intelligence** (Smart Download) decides whether a graded release is actually worth acquiring, and asks the engine to grab it.
+   **media_discovery** sits *upstream* of all of that and answers a different question — not "is this release good enough" but "should we be watching for this title at all". It creates the watchlist entry and the RSS rule, then stops; it never downloads. It is off by default.
 4. **files** gives every path-touching feature a safe sandbox; **media_manager** organises finished downloads into libraries; **media_server_analytics** reports on what people actually watch.
 5. **automation** is the reactive layer — torrent sync, RSS, and the subtitle triggers call into it directly when something happens. There is no event bus; nothing fans in generically.
 
@@ -127,44 +144,47 @@ Read the graph as a story:
 
 ### Downloading
 
-| Module | Tier | What it does |
-|--------|------|--------------|
-| [Torrents](/modules/torrents) | core | The torrent list, detail view, lifecycle actions, and bulk operations. |
-| [Engines](/modules/engines) | core | The torrent-client abstraction — connect, health-check, and sync your engine. |
+| Module | Required | What it does |
+|--------|----------|--------------|
+| [Torrents](/modules/torrents) | ✅ | The torrent list, detail view, lifecycle actions, and bulk operations. |
+| [Engines](/modules/engines) | ✅ | The torrent-client abstraction — connect, health-check, and sync your engine. |
 | [Indexers](/modules/indexers) | (subsystem) | Torznab/Newznab search endpoints, and the bridge that turns a missing episode into a download. |
 | [Prowlarr](/modules/prowlarr) | (companion) | Optional external indexer manager, run as a Compose companion. |
 
 ### Acquiring
 
-| Module | Tier | What it does |
-|--------|------|--------------|
-| [RSS automation](/modules/rss) | core | Feeds, rules, ranked match candidates, and TV airing-status awareness. |
-| [Smart Download](/modules/smart-download) | community | The explainable acquisition decision engine: what to grab, when, which release, and whether to upgrade. |
-| [Missing Episodes](/modules/missing-episodes) | community | Diffs the IMDb episode catalogue against your library to find the gaps. |
+| Module | Required | What it does |
+|--------|----------|--------------|
+| [RSS automation](/modules/rss) | ✅ | Feeds, rules, ranked match candidates, and TV airing-status awareness. |
+| [Smart Download](/modules/smart-download) | — | The explainable acquisition decision engine: what to grab, when, which release, and whether to upgrade. |
+| [Missing Episodes](/modules/missing-episodes) | — | Diffs the IMDb episode catalogue against your library to find the gaps. |
+| [Media Discovery](/modules/media-discovery) | — | Finds what is *coming out* and decides what to start monitoring. **Ships off by default.** |
 
 ### Organising
 
-| Module | Tier | What it does |
-|--------|------|--------------|
-| [Media Manager](/modules/media-manager) | community | Scan, identify, enrich, rename, and organise your media libraries. |
-| [Subtitle Intelligence](/modules/subtitle-intelligence) | core | Find, score, validate, install, and synchronize the best subtitle for every title. |
-| [Media Server Analytics](/modules/media-server-analytics) | core | Plex/Jellyfin/Emby/Kodi monitoring, watch history, reports, and newsletters. |
-| [File Manager](/modules/files) | core | Path-safe browsing, file operations, trash, and the cleanup wizard. |
+| Module | Required | What it does |
+|--------|----------|--------------|
+| [Media Manager](/modules/media-manager) | — | Scan, identify, enrich, rename, and organise your media libraries. |
+| [Subtitle Intelligence](/modules/subtitle-intelligence) | ✅ | Find, score, validate, install, and synchronize the best subtitle for every title. |
+| [Media Server Analytics](/modules/media-server-analytics) | ✅ | Plex/Jellyfin/Emby/Kodi monitoring, watch history, reports, and newsletters. |
+| [File Manager](/modules/files) | ✅ | Path-safe browsing, file operations, trash, and the cleanup wizard. |
 
 ### Reacting
 
-| Module | Tier | What it does |
-|--------|------|--------------|
-| [Automation](/modules/automation) | core | The trigger → condition → action rule engine. |
+| Module | Required | What it does |
+|--------|----------|--------------|
+| [Automation](/modules/automation) | ✅ | The trigger → condition → action rule engine. |
 
 ### Administering
 
-| Module | Tier | What it does |
-|--------|------|--------------|
-| [Users & roles](/modules/users) | core | User management, role assignment, 2FA. |
-| [API keys](/modules/api-keys) | core | Programmatic access for scripts and integrations. |
-| [Audit log](/modules/audit) | core | The append-only trail of every sensitive action. |
-| [System](/modules/system) | core | Health probes, settings, and the module registry itself. |
+| Module | Required | What it does |
+|--------|----------|--------------|
+| [Users & roles](/modules/users) | ✅ | User management, role assignment, 2FA. |
+| [API keys](/modules/api-keys) | ✅ | Programmatic access for scripts and integrations. |
+| [Audit log](/modules/audit) | ✅ | The append-only trail of every sensitive action. |
+| [System](/modules/system) | ✅ | Health probes, settings, and the module registry itself. |
+
+Not every module has a guide page yet. The [Module reference](/reference/modules) is generated from the manifests and is always complete — it currently lists **27** modules, including Notifications, Media Intake, Library Cleanup Center and the Console API, which have no hand-written page here.
 
 ## Managing modules
 
@@ -172,7 +192,7 @@ Modules are managed at **Administration → Modules** (`/modules`), which requir
 
 ![Module registry overview](/img/screenshots/modules-overview.png)
 
-The page lists every module with its tier, state, dependencies, permissions, and health. Core modules render their toggle as locked. A community module whose dependents are still enabled refuses to be disabled, and tells you which module is holding it.
+The page lists every module with its state, dependencies, permissions, and health. Required modules render their toggle as locked. An optional module whose dependents are still enabled refuses to be disabled, and tells you which module is holding it.
 
 The equivalent API surface:
 
@@ -231,7 +251,7 @@ No. Every module is in the community product. The registry consults an availabil
 **Does disabling a module delete its data?**
 No. It stops the module's routes, jobs, and UI. The database rows stay.
 
-**Why can't I disable a core module?**
+**Why can't I disable a required module?**
 Because the rest of the system assumes it. Auth, RBAC, the engine, and the audit log are not optional in any coherent configuration.
 
 **How do I add my own module?**
@@ -242,9 +262,10 @@ Its manifest, surfaced at `GET /api/modules/:id/manifest` and rendered on the [M
 
 ## Checklist
 
-- [ ] Open **Administration → Modules**. Expected: every module listed with a tier badge and a state.
-- [ ] Confirm core modules show a locked toggle. Expected: no disable control.
-- [ ] Disable one community module (e.g. Release Scoring). Expected: its nav entry disappears for non-admins, and an audit row is written.
+- [ ] Open **Administration → Modules**. Expected: every module listed with a state badge and a reason.
+- [ ] Confirm required modules show a locked toggle. Expected: no disable control.
+- [ ] Find a module that is off by default. Expected: its reason reads *off by default*, **not** *disabled by an administrator*.
+- [ ] Disable one optional module (e.g. Release Scoring). Expected: its nav entry disappears for non-admins, an audit row is written, and its reason now names an administrator.
 - [ ] Try to disable `rss` while Smart Download is enabled. Expected: refused, naming the dependent module.
 - [ ] Re-enable the module you disabled. Expected: nav entry returns, no data lost.
 

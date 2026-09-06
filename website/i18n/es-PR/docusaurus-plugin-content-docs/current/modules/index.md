@@ -3,12 +3,12 @@ id: index
 title: Módulos
 sidebar_position: 1
 description: Cada funcionalidad de UltraTorrent es un módulo — qué hace cada uno, cómo dependen entre sí, y por dónde empezar.
-keywords: [módulos, registro de módulos, manifiesto, módulos core, módulos community, activar módulo, desactivar módulo, dependencias, RBAC]
+keywords: [módulos, registro de módulos, manifiesto, módulos obligatorios, módulos opcionales, activar módulo, desactivar módulo, dependencias, RBAC]
 ---
 
 # Módulos
 
-UltraTorrent no es un monolito con una página de configuración pegada por encima. **Cada funcionalidad es un módulo** — un módulo NestJS autocontenido que declara un *manifiesto*: su id, su tier, los módulos de los que depende, los permisos que introduce, las rutas de API que le pertenecen, los eventos WebSocket que emite y las tareas programadas que ejecuta.
+UltraTorrent no es un monolito con una página de configuración pegada por encima. **Cada funcionalidad es un módulo** — un módulo NestJS autocontenido que declara un *manifiesto*: su id, si es obligatorio, los módulos de los que depende, los permisos que introduce, las rutas de API que le pertenecen, los eventos WebSocket que emite y las tareas programadas que ejecuta.
 
 Al arrancar, el **registro de módulos** carga cada manifiesto, lo valida, resuelve el grafo de dependencias y decide qué está activo. Esta página es el mapa: para qué sirve cada módulo, cómo encajan entre sí y qué página leer después.
 
@@ -21,26 +21,38 @@ Un registro de módulos te da cuatro cosas que importan en un producto autoaloja
 - **Los permisos se declaran, no se descubren.** Cada manifiesto lista los permisos que introduce; el registro los sincroniza con el catálogo de permisos para que RBAC pueda asignarlos desde el día uno.
 - **Agregar una funcionalidad es aditivo.** Un módulo nuevo es un manifiesto nuevo más un controlador protegido — mira [Crear módulos](/develop/creating-modules).
 
-:::info Un solo tier, sin muro de pago
-En UltraTorrent **no hay licencias, ediciones, claves de producto ni funcionalidades bloqueadas**. Cada módulo viene en el único producto community. `core` y `community` tratan sobre *si puedes apagar un módulo*, no sobre lo que pagaste. El acceso se gobierna **únicamente** por [permisos RBAC](/reference/permissions).
+:::info Un solo producto, sin muro de pago
+En UltraTorrent **no hay licencias, ediciones, claves de producto ni funcionalidades bloqueadas**. Cada módulo viene en el único producto community. El acceso se gobierna **únicamente** por [permisos RBAC](/reference/permissions).
+
+Antes cada manifiesto tenía un tier `core` / `community`. Se eliminó, porque mezclaba dos cosas sin relación — a qué edición pertenecía un módulo (solo hay una) y si te está permitido apagarlo. Solo la segunda fue real alguna vez, y ahora es un simple campo `required`.
 :::
 
-## Tiers
+## Obligatorios y opcionales
 
-| Tier | Significado |
+| Tipo | Significado |
 |------|---------|
-| `core` | Siempre disponible, **no se puede desactivar**. El sistema no sería coherente sin él — auth, RBAC, motor, torrents, RSS, archivos, configuración, auditoría, Analíticas del Servidor de Medios. |
-| `community` | Módulos opcionales incluidos, **activos por defecto pero conmutables** por un administrador — Gestor de Medios, Puntuación de Lanzamientos, Inteligencia de Adquisición de Medios. |
+| **Obligatorio** | Siempre disponible, **no se puede desactivar**. El sistema no sería coherente sin él — auth, RBAC, motor, torrents, RSS, archivos, configuración, auditoría, notificaciones, Analíticas del Servidor de Medios. |
+| **Opcional** | Un administrador lo puede conmutar. La mayoría vienen **activos**; algunos vienen **apagados**, lo cual es una decisión de diseño deliberada y no un descuido — ver abajo. |
 
 ## Estado del módulo
 
-Para cada módulo el registro calcula un estado:
+Para cada módulo el registro calcula un estado, **y la razón de ese estado**:
 
 | Estado | Significado | Qué hacer |
 |-------|---------|-----------|
 | `enabled` | Dependencias satisfechas y activado. | Nada. |
-| `disabled` | Permitido, pero un administrador lo apagó. | Actívalo desde **Administración → Módulos**. |
+| `disabled` | No está corriendo. La razón dice cuál de dos causas aplica. | Ver la próxima tabla. |
 | `missing_dependency` | Quiere correr, pero algo de lo que depende está apagado. | Activa primero la dependencia. |
+| `license_required` | La capa de disponibilidad lo retuvo. | No puede ocurrir en este producto — todos los módulos están disponibles. El estado existe para que el registro tenga dónde poner una respuesta honesta si eso alguna vez cambia. |
+
+Un módulo desactivado siempre dice **por qué**, y las dos causas no son lo mismo:
+
+| Razón | Significado |
+|-------|---------|
+| `disabled by an administrator` | Alguien lo apagó. Existe una fila de anulación guardada y una entrada de auditoría que lo nombra. |
+| `off by default — never enabled on this installation` | Nadie lo ha tocado. Su manifiesto trae `enabledByDefault: false` y nadie ha optado por activarlo. |
+
+Vale la pena decirlo claro, porque estas dos razones antes compartían un solo mensaje. Un módulo que está *deliberadamente* apagado de fábrica — [Descubrimiento de Medios](/modules/media-discovery) es el que viene así — se reportaba como si un administrador lo hubiera desactivado, lo cual te manda a buscar en la auditoría un cambio que nadie hizo.
 
 `enabled` requiere que **todas** las dependencias estén activadas, y se calcula como un punto fijo — así que desactivar un módulo **se propaga en cascada** a todo lo que depende de él. Desactivar RSS, por ejemplo, se lleva por delante a Puntuación de Lanzamientos y a Inteligencia de Adquisición de Medios, porque ambos declaran RSS como dependencia dura.
 
@@ -69,6 +81,7 @@ flowchart TD
     RSS[rss<br/>Automatización RSS]
     RS[release_scoring]
     MAI[media_acquisition_intelligence<br/>Descarga Inteligente]
+    DISC[media_discovery<br/>apagado de fábrica]
     IDX[(indexers<br/>Torznab / Newznab)]
     PRW[(Prowlarr<br/>complemento)]
   end
@@ -96,6 +109,9 @@ flowchart TD
 
   RSS --> RS
   RS --> MAI
+  MAI --> DISC
+  RSS --> DISC
+  DISC -.crea lista + reglas.-> RSS
   RSS --> MAI
   AUTO --> MAI
   MAI -.->|busca en| IDX
@@ -120,6 +136,7 @@ Lee el grafo como una historia:
 1. **auth / rbac** deciden quién eres y qué puedes hacer. Nada más corre sin ellos.
 2. **engine** habla con tu cliente de torrents; **torrents** es la UI y el ciclo de vida encima de él.
 3. **rss** vigila las fuentes; **release_scoring** califica lo que encuentra; **media_acquisition_intelligence** (Descarga Inteligente) decide si un lanzamiento calificado realmente vale la pena adquirirlo, y le pide al motor que lo capture.
+   **media_discovery** se sitúa *aguas arriba* de todo eso y responde otra pregunta — no "¿es este lanzamiento lo bastante bueno?" sino "¿deberíamos estar pendientes de este título?". Crea la entrada de lista de seguimiento y la regla RSS, y ahí se detiene; nunca descarga. Viene apagado de fábrica.
 4. **files** le da a cada funcionalidad que toca rutas un sandbox seguro; **media_manager** organiza las descargas terminadas en bibliotecas; **media_server_analytics** reporta lo que la gente de verdad ve.
 5. **automation** es la capa reactiva — la sincronización de torrents, RSS y los disparadores de subtítulos la invocan directamente cuando pasa algo. No hay bus de eventos; nada converge de forma genérica.
 
@@ -127,44 +144,45 @@ Lee el grafo como una historia:
 
 ### Descargar
 
-| Módulo | Tier | Qué hace |
+| Módulo | Obligatorio | Qué hace |
 |--------|------|--------------|
-| [Torrents](/modules/torrents) | core | La lista de torrents, la vista de detalle, las acciones de ciclo de vida y las operaciones en masa. |
-| [Motores](/modules/engines) | core | La abstracción del cliente de torrents — conecta, verifica la salud y sincroniza tu motor. |
+| [Torrents](/modules/torrents) | ✅ | La lista de torrents, la vista de detalle, las acciones de ciclo de vida y las operaciones en masa. |
+| [Motores](/modules/engines) | ✅ | La abstracción del cliente de torrents — conecta, verifica la salud y sincroniza tu motor. |
 | [Indexadores](/modules/indexers) | (subsistema) | Endpoints de búsqueda Torznab/Newznab, y el puente que convierte un episodio faltante en una descarga. |
 | [Prowlarr](/modules/prowlarr) | (complemento) | Gestor de indexadores externo opcional, corriendo como complemento de Compose. |
 
 ### Adquirir
 
-| Módulo | Tier | Qué hace |
+| Módulo | Obligatorio | Qué hace |
 |--------|------|--------------|
-| [Automatización RSS](/modules/rss) | core | Fuentes, reglas, candidatos de coincidencia ordenados y conciencia del estado de emisión de las series. |
-| [Descarga Inteligente](/modules/smart-download) | community | El motor de decisiones de adquisición explicable: qué capturar, cuándo, cuál lanzamiento y si conviene mejorar. |
-| [Episodios Faltantes](/modules/missing-episodes) | community | Compara el catálogo de episodios de IMDb contra tu biblioteca para encontrar los huecos. |
+| [Automatización RSS](/modules/rss) | ✅ | Fuentes, reglas, candidatos de coincidencia ordenados y conciencia del estado de emisión de las series. |
+| [Descarga Inteligente](/modules/smart-download) | — | El motor de decisiones de adquisición explicable: qué capturar, cuándo, cuál lanzamiento y si conviene mejorar. |
+| [Episodios Faltantes](/modules/missing-episodes) | — | Compara el catálogo de episodios de IMDb contra tu biblioteca para encontrar los huecos. |
+| [Descubrimiento de Medios](/modules/media-discovery) | — | Encuentra lo que *está por salir* y decide qué empezar a vigilar. **Viene apagado de fábrica.** |
 
 ### Organizar
 
-| Módulo | Tier | Qué hace |
+| Módulo | Obligatorio | Qué hace |
 |--------|------|--------------|
-| [Gestor de Medios](/modules/media-manager) | community | Escanea, identifica, enriquece, renombra y organiza tus bibliotecas de medios. |
-| [Inteligencia de Subtítulos](/modules/subtitle-intelligence) | core | Encuentra, califica, valida, instala y sincroniza el mejor subtítulo para cada título. |
-| [Analíticas del Servidor de Medios](/modules/media-server-analytics) | core | Monitoreo de Plex/Jellyfin/Emby/Kodi, historial de reproducción, informes y boletines. |
-| [Gestor de Archivos](/modules/files) | core | Navegación segura por rutas, operaciones de archivos, papelera y el asistente de limpieza. |
+| [Gestor de Medios](/modules/media-manager) | — | Escanea, identifica, enriquece, renombra y organiza tus bibliotecas de medios. |
+| [Inteligencia de Subtítulos](/modules/subtitle-intelligence) | ✅ | Encuentra, califica, valida, instala y sincroniza el mejor subtítulo para cada título. |
+| [Analíticas del Servidor de Medios](/modules/media-server-analytics) | ✅ | Monitoreo de Plex/Jellyfin/Emby/Kodi, historial de reproducción, informes y boletines. |
+| [Gestor de Archivos](/modules/files) | ✅ | Navegación segura por rutas, operaciones de archivos, papelera y el asistente de limpieza. |
 
 ### Reaccionar
 
-| Módulo | Tier | Qué hace |
+| Módulo | Obligatorio | Qué hace |
 |--------|------|--------------|
-| [Automatización](/modules/automation) | core | El motor de reglas disparador → condición → acción. |
+| [Automatización](/modules/automation) | ✅ | El motor de reglas disparador → condición → acción. |
 
 ### Administrar
 
-| Módulo | Tier | Qué hace |
+| Módulo | Obligatorio | Qué hace |
 |--------|------|--------------|
-| [Usuarios y roles](/modules/users) | core | Gestión de usuarios, asignación de roles, 2FA. |
-| [Claves API](/modules/api-keys) | core | Acceso programático para scripts e integraciones. |
-| [Registro de Auditoría](/modules/audit) | core | El rastro de solo-anexado de cada acción sensible. |
-| [Sistema](/modules/system) | core | Sondas de salud, configuración y el propio registro de módulos. |
+| [Usuarios y roles](/modules/users) | ✅ | Gestión de usuarios, asignación de roles, 2FA. |
+| [Claves API](/modules/api-keys) | ✅ | Acceso programático para scripts e integraciones. |
+| [Registro de Auditoría](/modules/audit) | ✅ | El rastro de solo-anexado de cada acción sensible. |
+| [Sistema](/modules/system) | ✅ | Sondas de salud, configuración y el propio registro de módulos. |
 
 ## Administrar los módulos
 
@@ -172,7 +190,7 @@ Los módulos se administran en **Administración → Módulos** (`/modules`), qu
 
 ![Resumen del registro de módulos](/img/screenshots/modules-overview.png)
 
-La página lista cada módulo con su tier, estado, dependencias, permisos y salud. Los módulos core muestran su interruptor bloqueado. Un módulo community cuyos dependientes siguen activos se niega a desactivarse, y te dice cuál módulo lo está reteniendo.
+La página lista cada módulo con su estado, dependencias, permisos y salud. Los módulos obligatorios muestran su interruptor bloqueado. Un módulo opcional cuyos dependientes siguen activos se niega a desactivarse, y te dice cuál módulo lo está reteniendo.
 
 La superficie de API equivalente:
 
@@ -225,13 +243,13 @@ Quieres que RSS encuentre episodios, que Descarga Inteligente escoja el mejor la
 
 ## Preguntas frecuentes
 
-**¿Hay un tier de pago o una clave de licencia?**
+**¿Hay un plan de pago o una clave de licencia?**
 No. Cada módulo está en el producto community. El registro consulta una capa de disponibilidad que siempre responde "sí" — existe para que el código tenga un solo lugar donde hacer la pregunta, no para bloquear nada.
 
 **¿Desactivar un módulo borra sus datos?**
 No. Detiene las rutas, las tareas y la UI del módulo. Las filas de la base de datos se quedan.
 
-**¿Por qué no puedo desactivar un módulo core?**
+**¿Por qué no puedo desactivar un módulo obligatorio?**
 Porque el resto del sistema lo da por sentado. Auth, RBAC, el motor y el registro de auditoría no son opcionales en ninguna configuración coherente.
 
 **¿Cómo agrego mi propio módulo?**
@@ -242,7 +260,7 @@ En su manifiesto, expuesto en `GET /api/modules/:id/manifest` y renderizado en l
 
 ## Lista de verificación
 
-- [ ] Abre **Administración → Módulos**. Esperado: cada módulo listado con una insignia de tier y un estado.
+- [ ] Abre **Administración → Módulos**. Esperado: cada módulo listado con una insignia de estado y una razón.
 - [ ] Confirma que los módulos core muestran un interruptor bloqueado. Esperado: ningún control para desactivar.
 - [ ] Desactiva un módulo community (p. ej. Puntuación de Lanzamientos). Esperado: su entrada de navegación desaparece para quienes no son administradores, y se escribe una fila de auditoría.
 - [ ] Intenta desactivar `rss` mientras Descarga Inteligente está activa. Esperado: rechazado, nombrando el módulo dependiente.

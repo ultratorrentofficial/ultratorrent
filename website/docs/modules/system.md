@@ -108,6 +108,20 @@ Settings are a **flat key/value store**, not sections. Six keys are seeded:
 So the "sections" you see depend entirely on which keys are in the table. Two installs can show different Settings pages.
 :::
 
+### Public URL
+
+Some features need to know how the outside world reaches this instance — an unsubscribe link in a [newsletter](/modules/media-server-analytics#unsubscribe), or a self-hosted poster URL. Neither can be derived from an inbound request, because both are used in email, long after the request is gone.
+
+**Settings** carries the instance's **public URL**, and reports on it **honestly**: if the address is not actually reachable, it says so rather than storing an untested string that quietly produces dead links in everyone's inbox.
+
+### Email settings
+
+**Settings → Email settings** configures SMTP. Three things worth knowing:
+
+- **The TLS certificate is named.** The settings card reports which certificate the relay presented, so a host-mismatch failure is legible rather than a generic handshake error. A wildcard certificate has no IP SAN — connecting by bare IP will fail validation even though the hostname works.
+- **A test send is recorded**, with its outcome and its reason. You can see whether the last test actually succeeded rather than inferring it from the absence of a toast.
+- **A failing test no longer fails silently.** It reports what went wrong.
+
 `fileManager.defaultRootPath` is a **protected key**. Writing it through `PUT /api/settings/:key` or `PATCH /api/settings` returns a **`403`** telling you to use the dedicated route, `PUT /api/files/root`, which requires the separate `settings.manage_root_path` permission and validates the path against the hard roots. See [File Manager](/modules/files).
 
 | Method | Path | Permission |

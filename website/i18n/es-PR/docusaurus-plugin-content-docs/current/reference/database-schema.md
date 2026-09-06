@@ -13,7 +13,7 @@ Esta página se genera desde `apps/backend/prisma/schema.prisma` durante el buil
 :::
 
 UltraTorrent guarda todo en **PostgreSQL**, gestionado por **Prisma**. Hay
-**130 modelos**. Un solo diagrama ER de todos sería ilegible, así que están
+**138 modelos**. Un solo diagrama ER de todos sería ilegible, así que están
 agrupados por dominio más abajo.
 
 :::tip Nunca edites la base de datos a mano
@@ -1494,12 +1494,14 @@ Tabla: `media_acquisition_history`
 
 ## Analíticas del servidor de medios
 
-_9 modelos._
+_10 modelos._
 
 ```mermaid
 erDiagram
   MediaServerNewsletter ||--o{ MediaServerNewsletterDelivery : "deliveries"
+  MediaServerNewsletter ||--o{ MediaServerNewsletterEvent : "events"
   MediaServerNewsletterDelivery }o--|| MediaServerNewsletter : "newsletter"
+  MediaServerNewsletterEvent }o--|| MediaServerNewsletter : "newsletter"
 ```
 
 ### `MediaServerIntegration`
@@ -1618,6 +1620,7 @@ Tabla: `media_server_users`
 | `connectionId` | `String?` |
 | `providerUserId` | `String?` |
 | `userName` | `String` |
+| `displayName` | `String?` |
 | `email` | `String?` |
 | `plays` | `Int` |
 | `lastSeenAt` | `DateTime?` |
@@ -1663,6 +1666,7 @@ Tabla: `media_server_newsletters`
 | `timezone` | `String?` |
 | `lastSuccessfulSendAt` | `DateTime?` |
 | `nextRunAt` | `DateTime?` |
+| `deferredItems` | `Json` |
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 
@@ -1679,6 +1683,24 @@ Tabla: `media_server_newsletter_deliveries`
 | `subject` | `String?` |
 | `sentAt` | `DateTime?` |
 | `errorMessage` | `String?` |
+| `createdAt` | `DateTime` |
+
+### `MediaServerNewsletterEvent`
+
+Tabla: `media_server_newsletter_events`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `newsletterId` | `String?` |
+| `runId` | `String?` |
+| `sequence` | `Int` |
+| `level` | `String` |
+| `eventType` | `String` |
+| `messageKey` | `String?` |
+| `messageParams` | `Json?` |
+| `sanitizedMessage` | `String?` |
+| `metadata` | `Json?` |
 | `createdAt` | `DateTime` |
 
 ### `MediaServerConfig`
@@ -1698,7 +1720,7 @@ Tabla: `media_server_configs`
 
 ## Plataforma
 
-_35 modelos._
+_42 modelos._
 
 ```mermaid
 erDiagram
@@ -1724,6 +1746,14 @@ erDiagram
   StorageProfile ||--o{ IntakeIntent : "intents"
   IntakeIntent }o--|| StorageProfile : "profile"
   StorageCapabilityProbe }o--|| StorageProfile : "profile"
+  DiscoveredMedia ||--o{ DiscoveredMediaReleaseDate : "releaseDates"
+  DiscoveredMedia ||--o{ DiscoveryEvaluation : "evaluations"
+  DiscoveredMediaReleaseDate }o--|| DiscoveredMedia : "media"
+  DiscoveryTemplate ||--o{ DiscoveryEvaluation : "evaluations"
+  AcquisitionRuleTemplate ||--o{ AcquisitionRuleTemplateCandidate : "candidates"
+  AcquisitionRuleTemplateCandidate }o--|| AcquisitionRuleTemplate : "template"
+  DiscoveryEvaluation }o--|| DiscoveredMedia : "media"
+  DiscoveryEvaluation }o--|| DiscoveryTemplate : "template"
 ```
 
 ### `TraktAccount`
@@ -2428,6 +2458,191 @@ Tabla: `storage_capability_probes`
 | `error` | `String?` |
 | `detectedAt` | `DateTime` |
 
+### `DiscoveredMedia`
+
+Tabla: `discovered_media`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `mediaType` | `String` |
+| `title` | `String` |
+| `originalTitle` | `String?` |
+| `normalizedTitle` | `String` |
+| `year` | `Int?` |
+| `dedupeKey` | `String` |
+| `externalIds` | `Json` |
+| `genres` | `String[]` |
+| `originalLanguage` | `String?` |
+| `countries` | `String[]` |
+| `network` | `String?` |
+| `studio` | `String?` |
+| `streamingService` | `String?` |
+| `overview` | `String?` |
+| `posterUrl` | `String?` |
+| `backdropUrl` | `String?` |
+| `popularity` | `Float?` |
+| `rating` | `Float?` |
+| `voteCount` | `Int?` |
+| `seriesStatus` | `String?` |
+| `seasonNumber` | `Int?` |
+| `episodeNumber` | `Int?` |
+| `premiereDate` | `DateTime?` |
+| `seasonPremiereDate` | `DateTime?` |
+| `firstSeenAt` | `DateTime` |
+| `lastSeenAt` | `DateTime` |
+| `lastRefreshedAt` | `DateTime?` |
+| `sourceProviders` | `String[]` |
+| `confidence` | `Float` |
+| `discoveryStatus` | `String` |
+| `identityStatus` | `String` |
+| `decision` | `String?` |
+| `decisionReason` | `String?` |
+| `evaluatedAt` | `DateTime?` |
+| `matchedTemplateId` | `String?` |
+| `watchlistItemId` | `String?` |
+| `rssRuleId` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `DiscoveredMediaReleaseDate`
+
+Tabla: `discovered_media_release_dates`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `discoveredMediaId` | `String` |
+| `releaseType` | `String` |
+| `date` | `DateTime?` |
+| `region` | `String?` |
+| `source` | `String` |
+| `confidence` | `Float` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `DiscoveryTemplate`
+
+Tabla: `discovery_templates`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `name` | `String` |
+| `description` | `String?` |
+| `enabled` | `Boolean` |
+| `mediaType` | `String` |
+| `providers` | `String[]` |
+| `upcomingWindowDays` | `Int` |
+| `regions` | `String[]` |
+| `languages` | `String[]` |
+| `minimumPopularity` | `Float?` |
+| `minimumRating` | `Float?` |
+| `minimumVoteCount` | `Int?` |
+| `networks` | `String[]` |
+| `streamingServices` | `String[]` |
+| `studios` | `String[]` |
+| `seriesTypes` | `String[]` |
+| `releaseTypes` | `String[]` |
+| `autoMonitorCategories` | `String[]` |
+| `notifyOnlyCategories` | `String[]` |
+| `ignoreCategories` | `String[]` |
+| `blockedFromAutoCategories` | `String[]` |
+| `categoryMatchMode` | `String` |
+| `minimumConfidence` | `Float` |
+| `acquisitionTemplateId` | `String?` |
+| `rssFeedId` | `String?` |
+| `storageProfileId` | `String?` |
+| `pathTemplate` | `String?` |
+| `createIntakeDirectory` | `Boolean` |
+| `autoAddLimitPerDay` | `Int` |
+| `autoAddLimitPerWeek` | `Int` |
+| `createdBy` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `AcquisitionRuleTemplate`
+
+Tabla: `acquisition_rule_templates`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `name` | `String` |
+| `description` | `String?` |
+| `mediaType` | `String` |
+| `enabled` | `Boolean` |
+| `rssFeedId` | `String?` |
+| `storageProfileId` | `String?` |
+| `pathTemplate` | `String?` |
+| `requiredTerms` | `Json` |
+| `excludedTerms` | `Json` |
+| `upgradePolicy` | `String` |
+| `version` | `Int` |
+| `createdBy` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `AcquisitionRuleTemplateCandidate`
+
+Tabla: `acquisition_rule_template_candidates`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `templateId` | `String` |
+| `priorityOrder` | `Int` |
+| `name` | `String` |
+| `description` | `String?` |
+| `enabled` | `Boolean` |
+| `matchType` | `String` |
+| `pattern` | `String?` |
+| `requiredTerms` | `Json` |
+| `excludedTerms` | `Json` |
+| `qualityRules` | `Json` |
+| `sizeRules` | `Json` |
+| `feedScope` | `Json` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `DiscoveryEvaluation`
+
+Tabla: `discovery_evaluations`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `discoveredMediaId` | `String` |
+| `templateId` | `String?` |
+| `decision` | `String` |
+| `reason` | `String` |
+| `trace` | `Json` |
+| `watchlistItemId` | `String?` |
+| `rssRuleId` | `String?` |
+| `failureReason` | `String?` |
+| `createdAt` | `DateTime` |
+
+### `DiscoveryProviderState`
+
+Tabla: `discovery_provider_state`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `provider` | `String` |
+| `enabled` | `Boolean` |
+| `healthy` | `Boolean` |
+| `lastSyncStartedAt` | `DateTime?` |
+| `lastSuccessfulSync` | `DateTime?` |
+| `lastFailureAt` | `DateTime?` |
+| `lastFailureReason` | `String?` |
+| `lastResponseMs` | `Int?` |
+| `itemsDiscovered` | `Int` |
+| `capabilities` | `String[]` |
+| `syncCursors` | `Json` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
 ## RSS
 
 _8 modelos._
@@ -2482,6 +2697,12 @@ Tabla: `rss_rules`
 | `importMode` | `String` |
 | `storageProfileId` | `String?` |
 | `preMigrationSavePath` | `String?` |
+| `generatedByDiscovery` | `Boolean` |
+| `discoveryTemplateId` | `String?` |
+| `acquisitionTemplateId` | `String?` |
+| `discoveredMediaId` | `String?` |
+| `acquisitionTemplateVersion` | `Int?` |
+| `userModifiedAt` | `DateTime?` |
 | `mediaType` | `String?` |
 | `showStatus` | `String?` |
 | `showStatusProvider` | `String?` |

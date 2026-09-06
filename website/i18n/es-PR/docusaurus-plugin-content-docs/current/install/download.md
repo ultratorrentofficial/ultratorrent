@@ -98,7 +98,7 @@ git clone https://github.com/ultratorrentofficial/ultratorrent.git
 cd ultratorrent
 
 git tag --list 'v*' --sort=-v:refname | head        # las más nuevas primero
-git checkout v0.85.9                                 # o la que quieras
+git checkout v0.90.0                                 # o la que quieras
 ```
 
 :::tip ¿Cuál debo correr?
@@ -130,7 +130,7 @@ instalar `git` en el host, hazlo.
 ## Confirma lo que bajaste
 
 ```bash
-cat VERSION                     # la versión canónica, p. ej. 0.85.9
+cat VERSION                     # la versión canónica, p. ej. 0.90.0
 git describe --tags --always    # exactamente en qué commit estás
 git status --porcelain          # vacío = un checkout sin modificar
 ```

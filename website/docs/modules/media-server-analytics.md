@@ -1,9 +1,9 @@
 ---
 id: media-server-analytics
 title: Media Server Analytics
-sidebar_position: 10
+sidebar_position: 11
 description: Monitor Plex, Jellyfin, Emby, and Kodi — live activity, watch history, usage reports, newsletters, and Tautulli import.
-keywords: [media server analytics, plex, jellyfin, emby, kodi, tautulli, watch history, live activity, now playing, newsletter, reports, transcode]
+keywords: [media server analytics, plex, jellyfin, emby, kodi, tautulli, watch history, live activity, now playing, newsletter, unsubscribe, server users, reports, transcode]
 ---
 
 # Media Server Analytics
@@ -106,7 +106,30 @@ The **session poller** runs every **30 seconds**, but only when the module is en
 | **Enabled** | Whether it is polled. | — |
 | **Default** | The default connection (used for the newsletter's server name, among other things). | Set one. |
 
-**Test** a connection to probe it and persist its health: status, version, platform, and capabilities.
+**Test** a connection to probe it and persist its health: status, version, platform, and capabilities. A successful test renders as a success — that sounds obvious, and for a while it did not: the check read a field the probe never set, so every working connection reported as failed.
+
+Connections are managed **entirely from the UI** — add, edit and delete, with the token write-only. You do not need to touch the database or an env var to point at a second server.
+
+#### More than one server
+
+Running Plex and Jellyfin side by side is a first-class arrangement, not a workaround, and the interface says which server it is talking about everywhere it matters:
+
+- **Live Activity** labels each session with its server, and draws the product's own brand mark.
+- **Watch History** carries a server column, so a play is attributable.
+- **Recently Added** shows posters, a type colour and the originating library.
+- **Provider status cards** and **playback notifications** carry the same brand marks, so the vocabulary is consistent wherever a server is named.
+
+:::danger Accounts on different servers never merge
+Two accounts on two different media servers are **always separate viewers**, even when they share an email address. A shared email is a hint, never an automatic join.
+
+Deduplication is only ever valid **within one product's id space**. Merging across servers invents a person who does not exist and silently fuses two people's viewing histories — which is unrecoverable once reports are built on it.
+:::
+
+### Server Users
+
+Media servers report accounts by internal id, which makes a report unreadable. **Server Users** lets you give any media-server account a **friendly name**, and every surface that names a viewer uses it.
+
+The mapping is per server account, so the same human on two servers is two entries — see the rule above.
 
 ### Newsletters
 
@@ -117,6 +140,26 @@ The newsletter is an original dark "media digest" email built from tables and in
 - **Scoping.** A newsletter can be scoped to a subset of content types, so a "TV Shows" newsletter only ever contains grouped shows.
 - **Preview + test send.** Both exist. Sample data renders in the preview when the library has no new items, and there is a desktop/mobile preview toggle.
 - **Localized** (`en-US` + `es-PR`), with a plain-text alternative always generated.
+
+#### Every entry is verified before it is sent
+
+An item is **publishable** only if it has both **artwork** and an **overview**. Year, runtime, rating and genres are advisory — their absence is noted, not disqualifying.
+
+An item that fails verification is **deferred, not dropped**. It is held for up to **28 days** while its metadata is re-fetched, and joins a later newsletter once it is complete. A digest of half-blank cards is worse than a shorter, complete one; silently discarding the item would be worse still, because the title would never appear at all.
+
+This closed a real failure: items whose metadata had never been fetched from a provider were indistinguishable from items a provider genuinely had nothing for, so they sailed into the newsletter with no art. The gap query now also treats *"no provider was ever consulted"* as a gap.
+
+#### Send history
+
+Every send is recorded and shown in the newsletter area: when it ran, how many recipients, how many items, and what was withheld.
+
+**A send that reached nobody is not recorded as sent.** That sounds pedantic and is not — without it, a newsletter with an empty recipient list logs a cheerful success every week while nobody receives anything.
+
+#### Unsubscribe
+
+The footer carries a **working unsubscribe link**, implemented as a **signed capability**: the link itself is the authority, so a recipient does not need an account to act on it, and the token cannot be edited into somebody else's unsubscribe.
+
+Unsubscribe needs somewhere to point, which is why the instance now has a configured **public URL** (**Settings**) — reported honestly, including when it is not reachable. See [System](/modules/system).
 
 **Poster hosting is admin-selectable** (**Settings → Newsletter poster images**). Posters are always downscaled to a ~240 px JPEG first, then delivered per the chosen mode:
 
@@ -153,6 +196,9 @@ Phase 1 imports **watch history**. Users, libraries, playback/device/transcode s
 | `GET /watch-history` | `…view_history` |
 | `GET /reports/usage` · `/users` · `/libraries` · `/playback` | `…view_reports` |
 | `GET /recently-added` | `media_server_analytics.view` |
+| `GET/PATCH /server-users` | `…view_users` / `…manage_mappings` |
+| `GET /newsletters/:id/history` | `…manage_newsletters` |
+| `GET /newsletters/unsubscribe/:token` | signed capability (unauthenticated) |
 | `GET/POST /import-sources`, `POST /import-sources/:id/test` · `/preview` | `…manage_imports` |
 | `POST /import-sources/:id/import` | `…run_imports` |
 
