@@ -403,6 +403,19 @@ export class RssService {
         importMode: dto.importMode === undefined ? undefined : dto.importMode,
         storageProfileId:
           dto.storageProfileId === undefined ? undefined : dto.storageProfileId || null,
+        /*
+         * A person editing a discovery-generated rule takes ownership of it.
+         *
+         * Stamped once, on the first edit, and never cleared. Media Discovery
+         * re-applies an acquisition template only to generated rules where this
+         * is null: past that line the operator's edit is the more specific
+         * intent, and silently reverting it on the next sync would be the worst
+         * kind of automation — invisible, and correct-looking. Untouched for a
+         * hand-made rule, where the flag means nothing.
+         */
+        ...(rule.generatedByDiscovery && rule.userModifiedAt === null
+          ? { userModifiedAt: new Date() }
+          : {}),
         ...snapshot,
       },
     });

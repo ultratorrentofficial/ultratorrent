@@ -594,12 +594,14 @@ detector), `apps/backend/src/common/file-placement.ts` (the shared primitive).
 
 ## Media Discovery Engine
 
-**Status: it can decide; it cannot yet act.** The domain model, the provider
-seam, two providers, the identity merge, persistence, a scheduled catalogue sync,
-both template kinds, the policy evaluator, the path renderer and the watchlist
-linker exist. **No RSS rule is generated yet**, and nothing runs the evaluator on
-a schedule — a catalogue refresh writes rows and updates counters, nothing more,
-so it cannot by itself cause an acquisition. Providers are silent until an
+**Status: the pipeline runs end to end.** Discover → merge → persist → decide →
+watchlist → rule → directory, on a schedule, with preview and pacing. Verified
+against the real catalogue: 500 titles examined, 5 auto-monitored (the rest held
+by a deliberately tight weekly cap), 5 watchlist entries and 5 generated rules,
+each carrying its acquisition ladder. **Discovery automation is still OFF by
+default** — providers are silent until enabled and templates default to disabled,
+so a fresh install discovers nothing and acquires nothing. What remains is the
+UI, notifications and documentation. Providers are silent until an
 operator enables them, so a fresh install makes no third-party calls at all. This
 section describes what is built, not what is planned — see
 [MEDIA_DISCOVERY_GAP_ANALYSIS.md](MEDIA_DISCOVERY_GAP_ANALYSIS.md) for the
@@ -884,6 +886,99 @@ fields is what protects an operator's customisation, since sending them
 title fallback normalizes the discovery title the watchlist's way. Comparing the
 columns directly would miss every title containing punctuation, which is most of
 the entries a person adds by hand.
+
+### Generated rules
+
+A generated `RssRule` exists to **carry the preferences**, not to do the
+monitoring. `AcquisitionMatchPreferenceService.resolveCandidates()` already reads
+a watchlist item's linked rule before profiles and before the global defaults, so
+a generated rule slots into the top rung of a resolution order that already
+existed — verified live: the ladder lands in `RssRuleMatchCandidate` exactly
+where the existing engine reads it, and no second matcher exists.
+
+Rules are `managed_intake` with the discovery template's Storage Profile, so the
+intake pipeline resolves the destination. Provenance lives in six additive
+columns on `rss_rules`, with `generatedByDiscovery` defaulting to **false** — the
+same precedent `importMode` set, so every rule that predates the column stays a
+hand-made rule. A wrong default there would silently put hundreds of manual rules
+under template management.
+
+Three refusals define the behaviour:
+
+- **It never adopts a rule a person made.** A name collision returns `skipped`
+  with the existing rule's id — the watchlist entry can still link to it, which
+  is the useful half — and an explicit reason. Taking it over would replace an
+  operator's preferences with a template's and leave no trace that it happened.
+- **It never generates twice for one title.** Keyed on `discoveredMediaId`, so a
+  title discovered every six hours for months yields one rule.
+- **`userModifiedAt` is the ownership line.** `RssService.updateRule` stamps it
+  the first time a PERSON edits a generated rule, and template re-application
+  filters on `userModifiedAt: null`. Past that line the operator's edit is the
+  more specific intent, and reverting it on the next sync would be the worst kind
+  of automation — invisible and correct-looking. Rules a person has taken over
+  are listed by `userOwned()` so they are reported rather than silently skipped.
+
+Rule names carry the year (`The Odyssey (2026)`) because two works genuinely
+share titles — the reason the identity gate exists — and two rules with the same
+name would be indistinguishable in the rules list.
+
+
+### Running it
+
+`DiscoveryEvaluationService` is the piece that puts the others in order:
+evaluate each stored discovery against each enabled template, and — only for
+`auto_monitor` — create the watchlist entry, generate the rule, provision the
+directory. It wakes hourly and refuses to run two passes at once.
+
+**Watchlist first, rule second, directory third**, and a later failure never
+undoes an earlier success. The watchlist entry is what actually causes
+acquisition; a rule carries preferences and a directory is a convenience. Rolling
+back a correct entry because a convenience failed would lose the useful half, so
+a rule failure leaves a monitored title with a recorded reason rather than a gap.
+An auto-monitor that produced no entry is `needs_review`, whatever it decided.
+
+**Budget is read once per template per pass** and spent locally, so a single pass
+cannot out-race its own cap by re-reading a count that has not been written yet —
+and it is spent only when monitoring really happened, so a run of failures cannot
+silently exhaust the allowance.
+
+One correctness trap, found only by running it: a title the template has **no
+opinion** about still gets an evaluation row. Skipping the write was the first
+instinct — it keeps the inbox clean — but the "already decided" filter is
+`evaluations: { none: … }`, so a title with no row is re-fetched every tick and
+consumes the page budget permanently. Measured: a second pass re-examined the
+same 500 rows, 407 of them not applicable. Once a template accumulates a page's
+worth, genuinely new titles are never reached. The row is therefore written as
+the audit trail while `DiscoveredMedia` is left untouched — its status stays
+`new` and it never appears in the inbox as though the template had judged it.
+
+### Limits
+
+Rolling windows rather than calendar days: "10 per day" means "no more than ten
+in any day", and a calendar boundary lets twenty land across midnight — the exact
+burst the limit exists to prevent. Rolling also needs no timezone, so the answer
+cannot move because `app.timezone` changed. Over-budget titles are held for
+review and stay in the inbox; the limit paces acquisition rather than filtering
+it, and losing the title would be a different, worse feature.
+
+### Preview
+
+`DiscoveryPreviewService` runs `evaluateDiscovery` itself — not a copy of the
+rules, which would drift from them invisibly. It takes a template BY VALUE so an
+unsaved one can be previewed, since the adjust-preview-adjust loop is the point.
+Limits are projected rather than applied: folding the budget in would make every
+title past the tenth read as `needs_review` and hide the shape of the policy
+being tuned. A test proves it writes nothing by handing it a Prisma stub whose
+every write method throws.
+
+### API
+
+Reading is separated from acting: `media_discovery.view` opens the inbox,
+`.manage` acts on it, `.templates.manage` and `.providers.manage` configure the
+automation that fills it. **No endpoint calls a provider** — a sync is queued
+against the background service, the inbox reads the database, and provider health
+comes from stored state rather than probing, so a page load never waits on TMDB.
+
 
 Key files: `packages/shared/src/media-discovery.ts` (the shared vocabulary),
 `apps/backend/src/modules/media-discovery/`.
@@ -1187,6 +1282,8 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-06 | **Media Discovery runs end to end: intake provisioning, preview, auto-add limits, the evaluation orchestrator and the API.** Verified against the real catalogue — 500 titles examined, 5 auto-monitored with watchlist entries and generated rules carrying their ladders, the rest held by a deliberately tight weekly cap. **A correctness trap was found only by running it**: titles a template has no opinion about were recorded nowhere, so the `evaluations: { none: … }` filter re-fetched them every tick and they consumed the page budget permanently — a second pass re-examined the same 500 rows, 407 not applicable, meaning a template that accumulates a page's worth would never reach a genuinely new title. The evaluation row is now written as the audit trail while `DiscoveredMedia` is left untouched, so the inbox stays clean and the sweep makes progress. Ordering is watchlist → rule → directory and a later failure never undoes an earlier success: the entry causes acquisition, the rest improve it, so a rule failure leaves a monitored title with a recorded reason rather than a silent gap. Limits use **rolling windows** (a calendar boundary lets twenty additions land across midnight) and count only additions that actually happened, so a run of failures cannot exhaust the allowance. Preview runs the real evaluator, takes a template by value so an unsaved one can be tried, projects limits rather than applying them, and is proven read-only by a Prisma stub whose every write throws. Four permissions separate viewing the inbox from configuring automation, and no endpoint calls a provider. |
+| 2026-09-06 | **Media Discovery generates the title-specific RSS rule an auto-monitored title needs.** The rule's job is to CARRY THE PREFERENCES, not to monitor: `resolveCandidates()` already reads a watchlist item's linked rule ahead of profiles and defaults, so a generated rule slots into the top rung of an order that already existed — confirmed live, with the ladder landing in `RssRuleMatchCandidate` exactly where the existing engine reads it and template-wide terms reaching every rung (a fallback rung that dropped `excludedTerms: ['CAM']` would accept what the template forbids). Rules are `managed_intake` with the template's Storage Profile so intake resolves the destination. Six additive provenance columns on `rss_rules`, `generatedByDiscovery` defaulting to **false** on the `importMode` precedent so every pre-existing rule stays hand-made. Three refusals define it: it **never adopts a rule a person made** (a name collision returns `skipped` with that rule's id and a reason, so the watchlist can still link to it while nothing is taken over); it never generates twice for one title, keyed on `discoveredMediaId`; and **`userModifiedAt` is the ownership line** — `updateRule` stamps it on the first human edit of a generated rule, re-application filters on it being null, and `userOwned()` lists the rest so they are reported rather than silently skipped. Nothing evaluates templates on a schedule yet, so no rule is generated unless a caller asks. |
 | 2026-09-06 | **Media Discovery — templates, the policy evaluator, the path renderer and watchlist integration.** It can now DECIDE; it still cannot act, because no RSS rule is generated yet. The evaluator is pure, which is what will make Preview Mode honest, and its sharpest distinction is that **`needs_review` is not `notify`** — one says "you might want this", the other says "we would have acted and could not safely". Three rules are easy to get backwards and are pinned by tests: a title with **no categories never matches, including under `ALL`** (a vacuous truth would auto-monitor the untagged daily news that dominates the TVmaze feed); an **unknown threshold value fails rather than passes**; and the confidence floor is configurable while the identity **status** is not, so no template can configure its way past an ambiguous identity. Run over the 753 real discovered titles with a realistic template: 53 auto-monitor, 54 notify, 171 ignore, 9 needs-review, 466 not applicable. Acquisition templates mirror `RssRuleMatchCandidate` field-for-field, guarded by a parity test against the Prisma datamodel that was **verified by introducing a field and watching it fail**; validation refuses `hdr`/`audio` quality rules because `match-engine.ts` does not read them and the setting would silently do nothing. The path renderer reuses `sanitizeSegment` and `nests()` rather than reimplementing them, and fixed two defects its own tests found: substituting tokens before splitting let a title of `Face/Off` invent a directory level (values are now sanitised BEFORE substitution — template separators are structure, value separators are not), and `../../etc/passwd` produced a contained but *hidden* `.... etc passwd` folder, so leading dots are stripped. `sanitizeSegment` itself now strips control characters, closing the same hole for the renamer. Watchlist integration goes through `AcquisitionWatchlistService`, never the table; `paused`/`archived`/`completed` entries are never reactivated, and the title fallback normalizes the discovery title **the watchlist's way** because the two tables normalize differently. |
 | 2026-09-05 | **Media Discovery — persistence and a scheduled catalogue sync.** `DiscoverySyncService` wakes hourly and refreshes a provider whose catalogue is older than six hours, serially, and only for providers an operator has enabled — a fresh install makes no third-party calls at all. A sync writes rows and updates counters and **decides nothing**, so a catalogue refresh cannot by itself cause an acquisition. Two defects were found only by running it against the live APIs and the real database. **Merging per provider silently disabled the cross-provider join**: the title+year rule fires only between records from different providers, so isolating each provider's haul made it unreachable — 818 rows and zero joins from data that joins 65 shows when merged together, and the store's id matching could not recover them because TMDB reports `tmdb:` ids while TVmaze reports `tvmaze:`/`tvdb:`/`imdb:`. Collection is now per provider (health and timing are per provider) while the merge is global. **A region-less release date would have grown its table without bound**: Postgres treats NULLs as DISTINCT in a unique constraint, so `(media, type, NULL, source)` never collides with itself and most TVmaze dates carry no region — the write is read-then-write rather than an upsert. `DiscoveryStoreService` resolves a record by every identity it has ever answered to (`alternateKeys` against the stored key, AND each external id against the stored `externalIds`), because the canonical key MOVES as ids accumulate and resolving on it alone would create a second row for a show already stored. Ids and providers accumulate and are never replaced — a quiet provider is not a retracting one. Live: 753 distinct works, 65 joined across providers, idempotent on a second pass. |
 | 2026-09-05 | **Media Discovery — TMDB and TVmaze providers, and the multi-provider identity merge.** Both providers were written against the live APIs, and in both cases the obvious endpoint was wrong. TMDB's `/movie/upcoming` returned *Avengers: Endgame* (2019) as the top upcoming film, so `/discover/movie` with an explicit window is used instead — and because `/discover` filters on TYPED release dates while returning the PRIMARY one (a digital query answered "Toy Story 5 — 2026-06-17", its theatrical date), results are **confirmed locally** against typed dates that are then scoped to the template's regions; without that a single foreign TV airing qualifies a five-year-old film. TVmaze uses `/schedule/full` — one request for ~6,200 episodes across 18 months with the show embedded, replacing ninety per-date calls — and needed three corrections the fixtures could not have shown: daily news and talk dominate the feed so a slice collapses to one row per show, `externals` is frequently all-null so TVmaze's own id is often the only identity, and the feed is **global**, so an unfiltered English/US template received Russian, Thai and Turkish programming until language and region were honoured. The merge is evidence-ordered: a shared id is proof, a **contradicted id is proof of the opposite**, and title+year is a hint that joins only across different providers with nothing contradicting. A title+year group where one provider already reports two works — the *Odyssey* case — is marked `ambiguous` rather than fused. `confidence` scores IDENTITY, not metadata richness (synopsis, poster and 5,000 votes with no external id scores 0.1), and an unresolved status is capped at 0.2 below the default 0.8 floor so no template can configure its way past a bad identity. Live: 120 raw records from the two providers merged to 83 distinct works, 37 joined across providers, 0 falsely unresolved. |

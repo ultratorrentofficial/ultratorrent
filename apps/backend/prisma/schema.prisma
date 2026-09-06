@@ -481,6 +481,28 @@ model RssRule {
   /// Null for a rule the wizard never converted.
   preMigrationSavePath String?
 
+  // --- Media Discovery provenance ------------------------------------------
+  /// True when the Media Discovery Engine created this rule rather than a person.
+  ///
+  /// Defaults to FALSE so every rule that exists when this column is added stays
+  /// a hand-made rule — the same precedent `importMode` set. Nothing distinguishes
+  /// a generated rule except this flag, so a wrong default would silently put
+  /// hundreds of manual rules under template management.
+  generatedByDiscovery Boolean   @default(false)
+  discoveryTemplateId  String?
+  acquisitionTemplateId String?
+  discoveredMediaId    String?
+  /// The acquisition template version this rule's ladder was copied from, so a
+  /// later template edit can tell which rules are behind without re-deriving them.
+  acquisitionTemplateVersion Int?
+  /// Stamped the first time a PERSON edits a generated rule.
+  ///
+  /// Once set, template re-application must leave the rule alone: the operator's
+  /// edit is the more specific intent, and silently reverting it on the next sync
+  /// would be the worst kind of automation. Null means the rule is still exactly
+  /// what the template produced.
+  userModifiedAt       DateTime?
+
   // TV show airing-status snapshot, captured when the rule was created/edited so
   // the recommendation shown at save time is preserved. Null for non-TV rules.
   mediaType                   String?

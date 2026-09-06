@@ -111,6 +111,16 @@ export const PERMISSIONS = {
   MEDIA_ACQUISITION_EXPORT: 'media_acquisition.export',
   MEDIA_ACQUISITION_SETTINGS: 'media_acquisition.settings',
 
+  // Media Discovery Engine
+  //
+  // Viewing what was discovered is separated from configuring what gets
+  // monitored automatically: reading the inbox is a browsing activity, while
+  // enabling a template makes the system acquire media on its own.
+  MEDIA_DISCOVERY_VIEW: 'media_discovery.view',
+  MEDIA_DISCOVERY_MANAGE: 'media_discovery.manage',
+  MEDIA_DISCOVERY_TEMPLATES_MANAGE: 'media_discovery.templates.manage',
+  MEDIA_DISCOVERY_PROVIDERS_MANAGE: 'media_discovery.providers.manage',
+
   // Media Renamer (core)
   MEDIA_RENAMER_VIEW: 'media_renamer.view',
   MEDIA_RENAMER_PREVIEW: 'media_renamer.preview',

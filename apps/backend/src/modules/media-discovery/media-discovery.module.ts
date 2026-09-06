@@ -8,6 +8,13 @@ import { DiscoverySyncService } from './discovery-sync.service';
 import { DiscoveryTemplateService } from './discovery-template.service';
 import { AcquisitionTemplateService } from './acquisition-template.service';
 import { DiscoveryWatchlistService } from './discovery-watchlist.service';
+import { DiscoveryRuleService } from './discovery-rule.service';
+import { DiscoveryIntakeService } from './discovery-intake.service';
+import { DiscoveryPreviewService } from './discovery-preview.service';
+import { DiscoveryBudgetService } from './discovery-budget.service';
+import { DiscoveryEvaluationService } from './discovery-evaluation.service';
+import { MediaDiscoveryController } from './media-discovery.controller';
+import { FilesModule } from '../files/files.module';
 import { MediaAcquisitionModule } from '../media-acquisition/media-acquisition.module';
 import { TmdbDiscoveryProvider } from './tmdb-discovery.provider';
 import { TvmazeDiscoveryProvider } from './tvmaze-discovery.provider';
@@ -29,9 +36,10 @@ export { evaluateDiscovery, categoriesMatch } from './discovery-policy';
  * need to, the answer is to call the acquisition engine, not to grow a second one.
  */
 @Module({
-  imports: [PrismaModule, SettingsModule, AuditModule, MediaAcquisitionModule],
-  providers: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService],
-  exports: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService],
+  imports: [PrismaModule, SettingsModule, AuditModule, MediaAcquisitionModule, FilesModule],
+  providers: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService],
+  controllers: [MediaDiscoveryController],
+  exports: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService],
 })
 export class MediaDiscoveryModule implements OnModuleInit {
   constructor(
