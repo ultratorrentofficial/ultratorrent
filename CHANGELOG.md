@@ -45,6 +45,15 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.0] - 2026-09-06
+
+### Added
+- Media Discovery Engine foundation: a domain model for discovered media, a capability-routed provider seam, TMDB and TVmaze discovery providers, and a multi-provider identity merge that refuses to fuse two works sharing a title and year. Nothing is scheduled yet and no acquisition is triggered.
+- Media Discovery can now decide what to monitor: discovery automation templates with a three-way category policy, acquisition rule templates that mirror the existing ranked match candidates, a pure policy evaluator with an explainable decision trace, a safe path renderer, and watchlist integration that never overrules an operator. Nothing is auto-monitored yet — no rule is generated and no schedule evaluates.
+- Media Discovery now runs end to end: an hourly evaluation pass turns discovered titles into watchlist entries and generated RSS rules, with optional intake directory provisioning, preview mode, and rolling-window auto-add limits that hold excess titles for review rather than dropping them. Discovery automation remains off by default.
+- Media Discovery gains its UI under Media Acquisition: an inbox where every title carries the reason it is there, provider management that distinguishes unconfigured from disabled from unhealthy, and a template editor with a four-way category policy and preview-before-enable. Acquisition-template ladders remain API-only for now.
+- Media Discovery is documented: MEDIA_DISCOVERY.md for setup and operation, MEDIA_DISCOVERY_TEMPLATES.md for what every template field means. Security hardening closed three real defects — a non-numeric value bypassing a threshold, provider-supplied javascript: URLs reaching an img src, and Unicode direction overrides producing deceptive folder names — and the RBAC coverage test found that the role grants had never landed.
+
 ## [0.89.1] - 2026-09-04
 
 ### Fixed
