@@ -97,6 +97,10 @@ export class MediaAcquisitionScheduler {
     MediaAcquisitionScheduler,
   ],
   controllers: [MediaAcquisitionController],
-  exports: [MediaAcquisitionService, AcquisitionEvaluatorService],
+  // `AcquisitionWatchlistService` is exported for the Media Discovery Engine,
+  // which creates watchlist entries for auto-monitored titles. It goes through
+  // this service rather than the table so the audit row, the realtime broadcast
+  // and the series-title collapsing all still happen.
+  exports: [MediaAcquisitionService, AcquisitionEvaluatorService, AcquisitionWatchlistService],
 })
 export class MediaAcquisitionModule {}

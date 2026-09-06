@@ -4114,7 +4114,11 @@ model AcquisitionRuleTemplateCandidate {
   pattern       String?
   requiredTerms Json    @default("[]")
   excludedTerms Json    @default("[]")
-  /// { quality, source, codec, resolution, hdr, audio, season, episode, year }
+  /// { quality, source, codec, resolution, season, episode, year } — EXACTLY the
+  /// keys `match-engine.ts` reads. There is deliberately no `hdr` or `audio`: the
+  /// engine does not consume them, so offering them here would be a setting that
+  /// silently does nothing. HDR and Atmos preferences are expressed as
+  /// `requiredTerms` (e.g. ["DV"], ["Atmos"]), which the engine does honour.
   qualityRules  Json    @default("{}")
   /// { minBytes, maxBytes }
   sizeRules     Json    @default("{}")

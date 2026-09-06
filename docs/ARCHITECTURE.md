@@ -594,11 +594,14 @@ detector), `apps/backend/src/common/file-placement.ts` (the shared primitive).
 
 ## Media Discovery Engine
 
-**Status: discovery works, nothing is automated yet.** The domain model, the
-provider seam, two providers and the identity merge exist. **Nothing is
-scheduled** — no provider runs on its own, no template is evaluated, and no
-watchlist entry or RSS rule is generated. This section describes what is built,
-not what is planned — see
+**Status: it can decide; it cannot yet act.** The domain model, the provider
+seam, two providers, the identity merge, persistence, a scheduled catalogue sync,
+both template kinds, the policy evaluator, the path renderer and the watchlist
+linker exist. **No RSS rule is generated yet**, and nothing runs the evaluator on
+a schedule — a catalogue refresh writes rows and updates counters, nothing more,
+so it cannot by itself cause an acquisition. Providers are silent until an
+operator enables them, so a fresh install makes no third-party calls at all. This
+section describes what is built, not what is planned — see
 [MEDIA_DISCOVERY_GAP_ANALYSIS.md](MEDIA_DISCOVERY_GAP_ANALYSIS.md) for the
 remaining phases and the decisions behind them.
 
@@ -734,6 +737,153 @@ The canonical `dedupeKey` moves as ids accumulate — a TVmaze-only show keyed
 carries `alternateKeys`, and the store must resolve by any key a record has ever
 answered to. Persisting on the canonical key alone would create a second row for
 one show.
+
+### Persistence, and the key that moves
+
+`DiscoveryStoreService` resolves an incoming record against what is stored by
+**every identity it has ever answered to** — its `alternateKeys` against the
+stored `dedupeKey`, *and* each external id against the stored `externalIds`. Both
+halves are needed, in opposite directions: alternates catch a stored row whose
+key is weaker than the incoming record's, and the id match catches a stored row
+whose key is *stronger* (keyed `imdb:tt5` when the incoming record knows only
+`tvmaze:1234`). Resolving on the canonical key alone would insert a second row
+for a show already stored, and the two would then drift, each collecting half the
+providers.
+
+The stored `dedupeKey` is deliberately **not** rewritten when a stronger id
+arrives: alternates already make a moved key findable, and renaming a row's
+identity mid-life risks colliding with the unique constraint against a different
+row.
+
+Ids and `sourceProviders` **accumulate and are never replaced** — a provider
+being quiet is not a provider retracting, so a TVmaze-only sync must not erase
+the TMDB id last week's sync learned. Release dates are written read-then-write
+rather than upserted, because Postgres treats NULLs as DISTINCT in a unique
+constraint: `(media, type, NULL, source)` never collides with itself, and most
+TVmaze dates carry no region, so an upsert would insert a fresh row every sync
+and the table would grow without bound.
+
+### Catalogue sync
+
+`DiscoverySyncService` wakes hourly (`media_discovery_provider_sync`) and
+refreshes a provider whose catalogue is older than six hours. Providers are
+synced **serially** — they are rate-limited third-party APIs, and parallelising a
+six-hourly job to save seconds is a poor trade.
+
+**Collection is per provider; the merge is global.** Health, timing and counts
+belong to a provider, but the title+year join only ever fires between records from
+DIFFERENT providers — so merging each provider's haul in isolation makes that rule
+unreachable. Measured: a per-provider merge produced 818 rows and **zero**
+cross-provider joins from data that joins 65 shows when merged together. The
+store's id matching cannot recover them either, because TMDB reports `tmdb:` ids
+while TVmaze reports `tvmaze:`/`tvdb:`/`imdb:` ones, so there is frequently no id
+in common.
+
+A provider that fails everything is marked unhealthy and its rows are left
+untouched — emptying a catalogue because a network call failed would read
+downstream as "nothing is coming out". A provider that fails *partially* still
+records a successful sync, because partial data is progress, but its failure is
+recorded too or a provider degrading half-way is invisible.
+
+
+### Deciding: the policy evaluator
+
+`evaluateDiscovery()` is pure — a title and a template in, a verdict and the
+reasoning that produced it out. That is what makes Preview Mode honest: it runs
+exactly this and simply does not act on the answer.
+
+Four outcomes, and one distinction carries most of the weight: **`needs_review`
+is not `notify`**. Notify says "you might want this"; needs_review says "we would
+have acted and could not safely" — an unresolved identity, or an auto-add budget
+already spent. An operator triages those differently, and collapsing them would
+hide the cases that actually need a person.
+
+Gate order is deliberate. Scope (media type, release window, locale, source)
+decides whether the template has an opinion at all — `applies: false` is distinct
+from `ignore`, because a TV template has no view on a film and recording one
+would be noise. Then the category policy, then thresholds, then identity, then
+budget. Everything after the category policy can only **demote** an auto-monitor
+candidate, never promote one.
+
+Three rules that are easy to get backwards:
+
+- **A title with no categories never matches, including under `ALL`.** "Every
+  category qualifies" is vacuously true of an empty list, and most of the TVmaze
+  schedule is untagged daily news — a vacuous truth there would auto-monitor all
+  of it.
+- **An unknown threshold value fails.** Treating `popularity: null` as satisfying
+  "minimum 50" would let every title with thin metadata through the one gate an
+  operator set to hold things back.
+- **The confidence floor is configurable; the identity STATUS is not.** A
+  template may lower `minimumConfidence` to zero and still cannot auto-monitor an
+  `ambiguous` identity. That failure writes a wrong id into the library, and it
+  must not be reachable through a settings form.
+
+Blocking is applied with ANY semantics whatever the template's mode: a blocking
+list means "if this appears at all", and reading it under `ALL` would make a
+block that almost never fires.
+
+### Templates
+
+A **discovery template** says WHAT to monitor. Validation splits in two: *saving*
+checks coherence, so a half-built template stays saveable; *enabling* checks it
+can do what it claims. The enable check is conditional — a template with no
+auto-monitor categories only ever notifies or ignores, generates nothing, and so
+needs neither a feed nor a destination. Requiring them would block the most
+cautious way to use the feature.
+
+An **acquisition rule template** says HOW to acquire it: an ordered candidate
+ladder whose rows mirror `RssRuleMatchCandidate` field-for-field, so generating a
+rule is a column copy. A parity test reads the Prisma datamodel and fails if the
+two models drift — verified by introducing a field and watching it fail.
+
+Its validation is strict about one thing in particular: `match-engine.ts` reads
+exactly `quality`, `source`, `codec` and `resolution`, so `hdr` and `audio` are
+**refused** with a message pointing at `requiredTerms`. Accepting them would give
+an operator a preference that looks configured and silently does nothing.
+
+Template-wide terms are applied to **every rung**: `excludedTerms: ['CAM']` is a
+constraint, not a preference of the top rung, and a fallback rung that dropped it
+would accept exactly what the template forbids.
+
+### Paths
+
+The renderer produces only the LEAF beneath the Storage Profile's staging root,
+and reuses what already exists — `sanitizeSegment` from the renamer, `nests()`
+from the storage profile service, so a discovery-created folder and a
+renamer-created one cannot diverge and the library-conflict check cannot disagree
+with `assertManagedSavePathIsStaging`.
+
+One ordering rule is the whole protection: **separators in the template are
+structure and must survive; separators in a provider-supplied value are just
+characters and must not.** Values are therefore sanitised BEFORE substitution —
+substituting first let a title of `Face/Off` invent a directory level. Leading
+dots are stripped too: `../../etc/passwd` sanitised to a contained but *hidden*
+`.... etc passwd`, which is the last thing an operator hunting for a staging
+folder needs. The containment assertion that follows should be unreachable, which
+is exactly why it is there — it turns a future gap in the sanitiser into a
+refusal rather than a write outside the storage root.
+
+### Watchlist
+
+`MediaAcquisitionWatchlistItem` stays authoritative and
+`AcquisitionWatchlistService` stays the only writer, so the audit row, the
+realtime broadcast and the series-title collapsing all still happen. Discovery is
+a new reason to add something, not a second watchlist.
+
+The hard part is **not** creating: a title discovered every six hours for months
+must produce one entry and must never undo something a person did. `paused`,
+`archived` and `completed` are decisions and are left alone — though the entry
+still gains any missing external id, because an id is information rather than a
+decision. Only ids and an absent rule are ever sent on update; omitting the other
+fields is what protects an operator's customisation, since sending them
+"unchanged" would still overwrite an edit made between the read and the write.
+
+**The two tables normalize titles differently** — the watchlist stores
+`toLowerCase().trim()`, discovery stores the punctuation-stripped form — so the
+title fallback normalizes the discovery title the watchlist's way. Comparing the
+columns directly would miss every title containing punctuation, which is most of
+the entries a person adds by hand.
 
 Key files: `packages/shared/src/media-discovery.ts` (the shared vocabulary),
 `apps/backend/src/modules/media-discovery/`.
@@ -1037,6 +1187,8 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-06 | **Media Discovery — templates, the policy evaluator, the path renderer and watchlist integration.** It can now DECIDE; it still cannot act, because no RSS rule is generated yet. The evaluator is pure, which is what will make Preview Mode honest, and its sharpest distinction is that **`needs_review` is not `notify`** — one says "you might want this", the other says "we would have acted and could not safely". Three rules are easy to get backwards and are pinned by tests: a title with **no categories never matches, including under `ALL`** (a vacuous truth would auto-monitor the untagged daily news that dominates the TVmaze feed); an **unknown threshold value fails rather than passes**; and the confidence floor is configurable while the identity **status** is not, so no template can configure its way past an ambiguous identity. Run over the 753 real discovered titles with a realistic template: 53 auto-monitor, 54 notify, 171 ignore, 9 needs-review, 466 not applicable. Acquisition templates mirror `RssRuleMatchCandidate` field-for-field, guarded by a parity test against the Prisma datamodel that was **verified by introducing a field and watching it fail**; validation refuses `hdr`/`audio` quality rules because `match-engine.ts` does not read them and the setting would silently do nothing. The path renderer reuses `sanitizeSegment` and `nests()` rather than reimplementing them, and fixed two defects its own tests found: substituting tokens before splitting let a title of `Face/Off` invent a directory level (values are now sanitised BEFORE substitution — template separators are structure, value separators are not), and `../../etc/passwd` produced a contained but *hidden* `.... etc passwd` folder, so leading dots are stripped. `sanitizeSegment` itself now strips control characters, closing the same hole for the renamer. Watchlist integration goes through `AcquisitionWatchlistService`, never the table; `paused`/`archived`/`completed` entries are never reactivated, and the title fallback normalizes the discovery title **the watchlist's way** because the two tables normalize differently. |
+| 2026-09-05 | **Media Discovery — persistence and a scheduled catalogue sync.** `DiscoverySyncService` wakes hourly and refreshes a provider whose catalogue is older than six hours, serially, and only for providers an operator has enabled — a fresh install makes no third-party calls at all. A sync writes rows and updates counters and **decides nothing**, so a catalogue refresh cannot by itself cause an acquisition. Two defects were found only by running it against the live APIs and the real database. **Merging per provider silently disabled the cross-provider join**: the title+year rule fires only between records from different providers, so isolating each provider's haul made it unreachable — 818 rows and zero joins from data that joins 65 shows when merged together, and the store's id matching could not recover them because TMDB reports `tmdb:` ids while TVmaze reports `tvmaze:`/`tvdb:`/`imdb:`. Collection is now per provider (health and timing are per provider) while the merge is global. **A region-less release date would have grown its table without bound**: Postgres treats NULLs as DISTINCT in a unique constraint, so `(media, type, NULL, source)` never collides with itself and most TVmaze dates carry no region — the write is read-then-write rather than an upsert. `DiscoveryStoreService` resolves a record by every identity it has ever answered to (`alternateKeys` against the stored key, AND each external id against the stored `externalIds`), because the canonical key MOVES as ids accumulate and resolving on it alone would create a second row for a show already stored. Ids and providers accumulate and are never replaced — a quiet provider is not a retracting one. Live: 753 distinct works, 65 joined across providers, idempotent on a second pass. |
 | 2026-09-05 | **Media Discovery — TMDB and TVmaze providers, and the multi-provider identity merge.** Both providers were written against the live APIs, and in both cases the obvious endpoint was wrong. TMDB's `/movie/upcoming` returned *Avengers: Endgame* (2019) as the top upcoming film, so `/discover/movie` with an explicit window is used instead — and because `/discover` filters on TYPED release dates while returning the PRIMARY one (a digital query answered "Toy Story 5 — 2026-06-17", its theatrical date), results are **confirmed locally** against typed dates that are then scoped to the template's regions; without that a single foreign TV airing qualifies a five-year-old film. TVmaze uses `/schedule/full` — one request for ~6,200 episodes across 18 months with the show embedded, replacing ninety per-date calls — and needed three corrections the fixtures could not have shown: daily news and talk dominate the feed so a slice collapses to one row per show, `externals` is frequently all-null so TVmaze's own id is often the only identity, and the feed is **global**, so an unfiltered English/US template received Russian, Thai and Turkish programming until language and region were honoured. The merge is evidence-ordered: a shared id is proof, a **contradicted id is proof of the opposite**, and title+year is a hint that joins only across different providers with nothing contradicting. A title+year group where one provider already reports two works — the *Odyssey* case — is marked `ambiguous` rather than fused. `confidence` scores IDENTITY, not metadata richness (synopsis, poster and 5,000 votes with no external id scores 0.1), and an unresolved status is capped at 0.2 below the default 0.8 floor so no template can configure its way past a bad identity. Live: 120 raw records from the two providers merged to 83 distinct works, 37 joined across providers, 0 falsely unresolved. |
 | 2026-09-05 | **Media Discovery Engine — domain model and provider seam (foundation only; no provider implemented, nothing scheduled).** Discovery answers *what should be monitored* and hands everything else to systems that already exist; it downloads nothing and scores no releases. The audit that preceded it found most of the brief already built: `RssRuleMatchCandidate` **is** the ranked preference model, `MediaAcquisitionWatchlistItem.rssRuleId` already linked watchlist to rule, `AcquisitionMatchPreferenceService.resolveCandidates()` already prefers a linked rule over profiles over defaults (so a generated rule needs no resolver change), and `TvShowStatus` already tracks returning series. Seven additive tables. Three modelling decisions carry the weight: `dedupeKey` is unique rather than `(title, year)`, because two 2026 films called *The Odyssey* are different records; release dates are **one row per source**, since flattening provider disagreement is how an estimate starts reading as confirmed, and a provider knowing only a year stores `date: null` rather than inventing January 1st; and `AcquisitionRuleTemplateCandidate` mirrors `RssRuleMatchCandidate` one-for-one so rule generation is a column copy and no second matcher exists. Category policy is **three lists plus a blocked list evaluated first**, not one allow-list. Safety: automation defaults OFF, an ambiguous identity is never auto-monitored, a template cannot be *enabled* without a feed (`RssRule.feedId` is required, and `onDelete: Cascade`), and the destination is a **Storage Profile** with `managed_intake` rather than a path — there is no `{library_path}` token, because intake stages first and organises into the library afterwards, so spelling the library path would invert the pipeline. The provider registry routes to **every** provider claiming a capability, unlike the metadata chain that stops at the first answer. |
 | 2026-09-04 | **Movie identity resolves through a cascade of evidence about the file, not one title guess.** `verifiedMovieMatches` could already tell that two candidates tied — it returned both — and the caller threw that away as "no match". Meanwhile the library held signals that separate them and nothing asked: a **probe-measured** `durationSec` on 99.5% of movie files, the pre-rename intake `sourcePath`, and sidecar NFO ids. Four rungs now run in order, stopping at the first that separates the candidates. **Rung 1, a known id** — an NFO's `<uniqueid type="imdb">` resolves by id via `/find`, so it cannot tie and cannot be misled by a popular near-name; the sidecar is now read BEFORE the provider chain rather than after it, where it could only patch gaps in an answer it should have been deciding. **Rung 2, measured runtime** — orthogonal to the title and year that tied, within a deliberately tight **±2 minutes**; it picked `The Odyssey` (2026) at 86m out of three same-titled 2026 films at 86/92/173m. **Rung 3, the release name** — matched only against titles UNIQUE to one candidate, because a name the candidates share turns up in any of their release paths and identifies nothing while looking like evidence. **Then it stops**: two candidates inside the tolerance, or none, keeps the existing refusal. The extended-cut case resolves correctly *by refusing* — TMDB publishes one entry per film at the theatrical runtime (Fellowship is a single entry at 179m though the extended cut adds ~49m; Apocalypse Now is one entry at 147m against Redux's 202m), so a long cut matches nothing and is reported rather than guessed at. Separately, a **retitle rescue** runs only where nothing cleared the threshold, and is *stricter* than the gate it follows: the year still holds to ±1 and the folder title must equal a registered alternative title EXACTLY once normalized, rather than clearing a 0.7 similarity — `Three Bags Full: A Sheep Detective Movie` is a registered alt title of `The Sheep Detectives`, and `Middletown` of `Teenage Wasteland`, both of which the search could never see because `/search/movie` returns only `title` and `original_title`. Detail calls are capped at 5 candidates and happen only on a tie or a total miss. |

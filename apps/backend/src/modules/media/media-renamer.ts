@@ -313,9 +313,18 @@ export const PRESET_TEMPLATES: Record<Exclude<Preset, 'custom'>, PresetTemplates
 
 // --- helpers -------------------------------------------------------------
 
-/** Strip characters illegal on common filesystems; collapse whitespace. */
+/**
+ * Strip characters illegal on common filesystems; collapse whitespace.
+ *
+ * Control characters go first and are REMOVED rather than replaced with a space.
+ * They reach here inside provider-supplied titles — a metadata title is untrusted
+ * input — and a filename carrying one is at best unopenable over SMB and at worst
+ * a way to make a path display as something other than what it is. Nothing
+ * legitimate is lost: no real title contains one.
+ */
 export function sanitizeSegment(input: string): string {
   return input
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
     .replace(/[\\/:*?"<>|]/g, ' ')
     .replace(/\s+/g, ' ')
     // An illegal character becomes a SPACE, and when it ended the title that space
