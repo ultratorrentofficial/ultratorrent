@@ -294,6 +294,49 @@ export class DiscoveryRemovalService {
     await this.prisma.discoveredMedia.delete({ where: { id: media.id } });
   }
 
+  /**
+   * Remove several titles at one scope.
+   *
+   * Sequential, not parallel: at `library` scope each removal queues a file
+   * deletion job, and firing forty of those at a NAS at once is how a bulk action
+   * becomes an outage. The wall-clock cost is a background job's; the caller gets
+   * a per-title result either way.
+   *
+   * **One failure does not abandon the rest.** A bulk action that stops halfway
+   * leaves the operator with no idea which half happened, so every title is
+   * attempted and reported individually.
+   */
+  async removeMany(
+    ids: string[],
+    req: RemovalRequest,
+    userId?: string,
+    ctx: { ipAddress?: string; userAgent?: string } = {},
+  ): Promise<{
+    removed: Array<{ id: string; title: string }>;
+    failed: Array<{ id: string; reason: string }>;
+    skipped: string[];
+    libraryItems: number;
+  }> {
+    const removed: Array<{ id: string; title: string }> = [];
+    const failed: Array<{ id: string; reason: string }> = [];
+    const skipped: string[] = [];
+    let libraryItems = 0;
+
+    for (const id of ids) {
+      try {
+        const result = await this.remove(id, req, userId, ctx);
+        removed.push({ id, title: result.title });
+        libraryItems += result.removed.libraryItems;
+        skipped.push(...result.skipped.map((s) => `${result.title}: ${s}`));
+      } catch (err) {
+        failed.push({ id, reason: (err as Error).message });
+        this.logger.warn(`Bulk removal failed for ${id}: ${(err as Error).message}`);
+      }
+    }
+
+    return { removed, failed, skipped, libraryItems };
+  }
+
   /** Let a suppressed title be discovered again on the next sync. */
   async unsuppress(dedupeKey: string, userId?: string): Promise<{ dedupeKey: string }> {
     const existing = await this.prisma.discoverySuppression.findUnique({ where: { dedupeKey } });

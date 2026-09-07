@@ -112,6 +112,15 @@ export interface RawReleaseDate {
   releaseType: ReleaseType;
   /** ISO-8601 date, or null when the provider knows the type but not the day. */
   date: string | null;
+  /**
+   * The exact instant the release happens, when the provider states one.
+   *
+   * Kept apart from `date` because they answer different questions and only one
+   * of them can be safely converted to a viewer's timezone. `date` is a calendar
+   * date as the provider publishes it; shifting it into another zone moves it a
+   * day. `airsAt` is a real point in time and localises correctly.
+   */
+  airsAt?: string | null;
   region?: string | null;
   /** 0–1, the provider's own certainty. Absent means "stated, not estimated". */
   confidence?: number;

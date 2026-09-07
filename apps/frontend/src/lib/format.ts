@@ -165,6 +165,35 @@ export function formatDate(iso: string | null | undefined): string {
 }
 
 /**
+ * A calendar date that is NOT an instant — render it without moving it.
+ *
+ * `formatDate()` parses `2026-11-15` as UTC midnight and then renders it in the
+ * display zone, which shows **14 November** to anyone west of UTC. That is right
+ * for a timestamp and wrong for a date a provider published as a plain day: a
+ * network's local air date is a fact about that network's calendar, not a moment
+ * to be converted.
+ *
+ * So the parts are formatted as given, pinned to UTC purely to stop the runtime
+ * re-interpreting them.
+ */
+export function formatCalendarDate(dateOnly: string | null | undefined): string {
+  if (!dateOnly) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateOnly);
+  if (!m) return formatDate(dateOnly);
+  const [, y, mo, d] = m;
+  const at = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
+  if (Number.isNaN(at.getTime())) return '—';
+  const opts: Intl.DateTimeFormatOptions = {
+    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC',
+  };
+  try {
+    return at.toLocaleDateString(undefined, opts);
+  } catch {
+    return dateOnly;
+  }
+}
+
+/**
  * Clock time only, in the user's zone.
  *
  * `withSeconds` is for live charts, whose x-axis ticks are seconds apart and

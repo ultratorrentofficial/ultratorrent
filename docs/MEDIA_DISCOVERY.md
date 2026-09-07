@@ -119,6 +119,40 @@ downstream lookup, while an unmonitored title merely waits for you.
 
 ## Managing the catalogue
 
+### When a title airs
+
+A card shows the soonest dated release **in your own timezone**, with a relative
+time beside it — "Sat, 15 Nov 2026, 09:00 PM (in 3 days)".
+
+Two kinds of date arrive from providers, and only one of them may be converted:
+
+| Field | What it is | How it is shown |
+| --- | --- | --- |
+| `airsAt` | A real instant the provider stated — TVmaze publishes an `airstamp` with an offset | Local date **and clock time** |
+| `date` | The network's **local calendar date** | The day it says, with no time |
+
+**A calendar date is never converted.** `2026-11-15` read as an instant is
+midnight UTC, which renders as **14 November** for every viewer west of UTC —
+quietly, so a show simply appears to air a day early. TVmaze also schedules by
+the network's local airtime, so a late-night episode already carries the previous
+calendar date; converting it again would compound the error rather than fix it.
+
+### Removing titles in bulk
+
+Tick the checkbox on any card, or **Select page**, and remove them together at the
+same three scopes as a single title. The count sits beside the button, because a
+selection you have forgotten about is the thing that makes a bulk action
+dangerous.
+
+The bulk dialog deliberately shows **no per-title plan**. Forty plans is not
+something anybody reads, and rendering them would imply a review that is not
+happening — so it states the rules that hold for every title instead. To see what
+a specific removal costs, remove that title on its own, where the plan is shown.
+
+**One failure does not abandon the rest**, and partial success is reported as
+partial: a bulk action reporting "removed 40" while four failed is worse than one
+that failed outright, because nothing prompts anybody to look.
+
 ### Removing a title
 
 Every card carries a **Remove** action, and it asks what you mean, because

@@ -14,6 +14,9 @@ import { Input } from '@/components/ui/input';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { useToast } from '@/components/ui/toast';
 import { Pagination } from '@/components/ui/pagination';
+import { Checkbox } from '@/components/ui/checkbox';
+import { describeAir, nextRelease } from './airtime';
+import { BulkRemoveDialog } from './BulkRemoveDialog';
 import { RemoveDiscoveryDialog } from './RemoveDiscoveryDialog';
 
 /*
@@ -100,14 +103,34 @@ function decisionTone(decision: string | null): { key: DecisionKey; className: s
   }
 }
 
-function DiscoveryCard({ item, onRemove }: { item: DiscoveredMediaItem; onRemove: () => void }) {
+function DiscoveryCard({
+  item,
+  onRemove,
+  selected,
+  onToggle,
+}: {
+  item: DiscoveredMediaItem;
+  onRemove: () => void;
+  selected: boolean;
+  onToggle: () => void;
+}) {
   const { t } = useTranslation('mediaDiscovery');
   const tone = decisionTone(item.decision);
-  const next = item.releaseDates.find((d) => d.date);
+  // The soonest dated release, described in the viewer's own time when the
+  // provider gave a real instant, and as a plain day when it did not.
+  const next = nextRelease(item.releaseDates);
+  const air = describeAir(next);
 
   return (
     <Card>
       <CardContent className="flex gap-3 p-3">
+        {/* Selection lives on the card, so picking several is one pass down the grid. */}
+        <Checkbox
+          className="mt-0.5 shrink-0"
+          checked={selected}
+          onCheckedChange={onToggle}
+          aria-label={t('bulk.select', { title: item.title })}
+        />
         {item.posterUrl ? (
           <img
             src={item.posterUrl}
@@ -162,9 +185,15 @@ function DiscoveryCard({ item, onRemove }: { item: DiscoveredMediaItem; onRemove
                 {g}
               </span>
             ))}
-            {next?.date && (
-              <span>
-                {t('card.releases', { date: next.date, type: next.releaseType })}
+            {air && (
+              <span title={next?.airsAt ?? next?.date ?? undefined}>
+                {t('card.releases', {
+                  type: t(`releaseType.${next!.releaseType}`, { defaultValue: next!.releaseType }),
+                  when: air.when,
+                })}
+                {air.relative && (
+                  <span className="ml-1 text-muted-foreground/70">({air.relative})</span>
+                )}
               </span>
             )}
             {item.network && <span>· {item.network}</span>}
@@ -205,6 +234,14 @@ export function DiscoverPage() {
   const [page, setPage] = useState(1);
   /* The title whose removal dialog is open, if any. */
   const [removing, setRemoving] = useState<DiscoveredMediaItem | null>(null);
+  /*
+   * Selection is keyed by id and survives paging, so "select a few here, a few
+   * there, remove them together" works. It is cleared whenever the FILTER
+   * changes, because a selection you can no longer see is one you cannot check
+   * before acting on it.
+   */
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const selected = VIEWS.find((v) => v.id === view)!;
 
@@ -222,6 +259,7 @@ export function DiscoverPage() {
    */
   useEffect(() => {
     setPage(1);
+    setSelectedIds(new Set());
   }, [view, search, mediaType]);
 
   const inbox = useQuery({
@@ -361,12 +399,60 @@ export function DiscoverPage() {
       )}
       {inbox.isSuccess && inbox.data.items.length > 0 && (
         <>
-          <p className="text-xs text-muted-foreground">
-            {t('inbox.count', { shown: inbox.data.items.length, total: inbox.data.total })}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-muted-foreground">
+              {t('inbox.count', { shown: inbox.data.items.length, total: inbox.data.total })}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                const pageIds = inbox.data.items.map((i) => i.id);
+                const allSelected = pageIds.every((id) => selectedIds.has(id));
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  pageIds.forEach((id) => (allSelected ? next.delete(id) : next.add(id)));
+                  return next;
+                });
+              }}
+            >
+              {t('bulk.selectPage')}
+            </Button>
+
+            {/*
+              * The count is the guard. A bulk removal at library scope deletes
+              * files, and "3 selected" beside the button is what stops somebody
+              * acting on a selection they had forgotten was still there.
+              */}
+            {selectedIds.size > 0 && (
+              <>
+                <span className="text-xs text-primary">{t('bulk.selected', { count: selectedIds.size })}</span>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>
+                  {t('bulk.clear')}
+                </Button>
+                <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => setBulkOpen(true)}>
+                  <Trash2 className="h-3.5 w-3.5" /> {t('bulk.remove', { count: selectedIds.size })}
+                </Button>
+              </>
+            )}
+          </div>
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {inbox.data.items.map((item) => (
-              <DiscoveryCard key={item.id} item={item} onRemove={() => setRemoving(item)} />
+              <DiscoveryCard
+                key={item.id}
+                item={item}
+                onRemove={() => setRemoving(item)}
+                selected={selectedIds.has(item.id)}
+                onToggle={() =>
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(item.id)) next.delete(item.id);
+                    else next.add(item.id);
+                    return next;
+                  })
+                }
+              />
             ))}
           </div>
           <Pagination
@@ -379,6 +465,18 @@ export function DiscoverPage() {
         </>
       )}
       </>
+      )}
+
+      {bulkOpen && (
+        <BulkRemoveDialog
+          ids={[...selectedIds]}
+          onClose={() => setBulkOpen(false)}
+          onRemoved={() => {
+            setBulkOpen(false);
+            setSelectedIds(new Set());
+            qc.invalidateQueries({ queryKey: ['discovery'] });
+          }}
+        />
       )}
 
       {removing && (

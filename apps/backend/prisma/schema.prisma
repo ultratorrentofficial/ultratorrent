@@ -3999,6 +3999,14 @@ model DiscoveredMediaReleaseDate {
   releaseType String
   /// Null when the provider names a year but no date. Never invent precision.
   date        DateTime?
+  /// The exact instant, when the provider states one — TVmaze publishes an
+  /// `airstamp` with an offset for scheduled episodes.
+  ///
+  /// Separate from `date` because only one of the two can be converted to a
+  /// viewer's timezone. `date` is the network's local calendar date and shifts a
+  /// day if treated as an instant; `airsAt` is a real point in time. A UI shows
+  /// local time when this is present and a plain date when it is not.
+  airsAt      DateTime?
   /// ISO-3166 alpha-2, when the provider scopes the date to a region.
   region      String?
   /// The provider that reported it.

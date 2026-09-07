@@ -48,7 +48,7 @@
     "search": "Search titles…"
   },
   "card": {
-    "releases": "{{type}} {{date}}",
+    "releases": "{{type}} {{when}}",
     "sources": "via {{list}}",
     "onWatchlist": "On watchlist",
     "hasRule": "Rule generated"
@@ -318,5 +318,37 @@
     "excludedTerms": "Excluded terms",
     "save": "Save profile",
     "cancel": "Cancel"
+  },
+  "bulk": {
+    "select": "Select {{title}}",
+    "selectPage": "Select page",
+    "selected": "{{count}} selected",
+    "clear": "Clear",
+    "remove": "Remove {{count}}",
+    "title": "Remove {{count}} titles",
+    "confirm": "Remove {{count}}",
+    "scope": {
+      "catalog": "{{count}} catalogue entries. Monitoring keeps running.",
+      "monitoring": "…and their generated rules and watchlist entries.",
+      "library": "…and any library media provably belonging to them."
+    },
+    "libraryWarning": "This deletes library media for up to {{count}} titles. Files go to Trash, but this is the destructive option — consider removing them one at a time so you can see each plan first.",
+    "rules": "The same rules apply as for a single title: media is matched by external id only, rules you edited by hand are never touched, and nothing here removes a torrent unless you ask.",
+    "done": "Removed {{count}} title(s)",
+    "someFailed": "{{count}} title(s) could not be removed",
+    "libraryItems": "{{count}} library item(s) queued for deletion"
+  },
+  "releaseType": {
+    "series_premiere": "Series premiere",
+    "season_premiere": "Season premiere",
+    "episode_air": "Airs",
+    "finale": "Finale",
+    "streaming": "Streaming",
+    "digital": "Digital",
+    "physical": "Physical",
+    "festival": "Festival",
+    "limited_theatrical": "Limited theatrical",
+    "wide_theatrical": "In cinemas",
+    "unknown": "Release"
   }
 }

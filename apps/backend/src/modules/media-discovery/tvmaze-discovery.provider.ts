@@ -165,6 +165,13 @@ export class TvmazeDiscoveryProvider implements ReleaseDiscoveryProvider {
 
     const premiered = isoDate(show?.premiered);
     const airdate = isoDate(episode?.airdate);
+    /*
+     * `airstamp` is the one field here that is a real INSTANT — TVmaze publishes
+     * it with an offset, e.g. 2026-09-06T04:00:00+00:00. `airdate` is the
+     * network's local calendar date and cannot be converted to a viewer's zone
+     * without moving it a day, which is why both are carried rather than one.
+     */
+    const airsAt = instant(episode?.airstamp);
     const webChannel = show?.webChannel?.name ?? null;
 
     return {
@@ -190,7 +197,7 @@ export class TvmazeDiscoveryProvider implements ReleaseDiscoveryProvider {
        * shifted, and the confidence says it is a schedule entry, not a
        * confirmation.
        */
-      releaseDates: airdate ? [{ releaseType, date: airdate, confidence: 0.7 }] : [],
+      releaseDates: airdate ? [{ releaseType, date: airdate, airsAt, confidence: 0.7 }] : [],
     };
   }
 
@@ -278,6 +285,19 @@ function isoDate(v: unknown): string | null {
   if (typeof v !== 'string' || v.length < 10) return null;
   const d = v.slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(d)) ? d : null;
+}
+
+/**
+ * A provider-stated instant, or null.
+ *
+ * Requires a time component: TVmaze returns `airstamp` for every entry, but for
+ * a show with no announced airtime it is midnight in the network's zone, which
+ * is a placeholder rather than a fact. Those are left to the calendar date.
+ */
+function instant(v: unknown): string | null {
+  if (typeof v !== 'string' || !v.includes('T')) return null;
+  const t = Date.parse(v);
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
 function num(v: unknown): number | null {

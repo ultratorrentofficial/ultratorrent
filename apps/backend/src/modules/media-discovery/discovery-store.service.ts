@@ -203,7 +203,13 @@ export class DiscoveryStoreService {
   private async writeReleaseDates(discoveredMediaId: string, record: MergedDiscovery) {
     for (const d of record.releaseDates) {
       const region = d.region ?? null;
-      const data = { date: d.date ? new Date(d.date) : null, confidence: d.confidence ?? 0 };
+      const data = {
+        date: d.date ? new Date(d.date) : null,
+        // Only when the provider stated a real instant; never derived from `date`,
+        // which is a local calendar date and would invent a timezone.
+        airsAt: d.airsAt ? new Date(d.airsAt) : null,
+        confidence: d.confidence ?? 0,
+      };
 
       /*
        * Read-then-write rather than `upsert`, because of `region`.

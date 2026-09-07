@@ -48,7 +48,7 @@
     "search": "Buscar títulos…"
   },
   "card": {
-    "releases": "{{type}} {{date}}",
+    "releases": "{{type}} {{when}}",
     "sources": "vía {{list}}",
     "onWatchlist": "En la lista de seguimiento",
     "hasRule": "Regla generada"
@@ -318,5 +318,37 @@
     "excludedTerms": "Términos excluidos",
     "save": "Guardar perfil",
     "cancel": "Cancelar"
+  },
+  "bulk": {
+    "select": "Seleccionar {{title}}",
+    "selectPage": "Seleccionar página",
+    "selected": "{{count}} seleccionados",
+    "clear": "Limpiar",
+    "remove": "Quitar {{count}}",
+    "title": "Quitar {{count}} títulos",
+    "confirm": "Quitar {{count}}",
+    "scope": {
+      "catalog": "{{count}} entradas del catálogo. La vigilancia sigue activa.",
+      "monitoring": "…y sus reglas generadas y entradas de lista de seguimiento.",
+      "library": "…y los medios de la biblioteca que les pertenezcan de forma comprobable."
+    },
+    "libraryWarning": "Esto borra medios de la biblioteca de hasta {{count}} títulos. Los archivos van a la Papelera, pero es la opción destructiva — considera quitarlos uno por uno para ver primero el plan de cada uno.",
+    "rules": "Aplican las mismas reglas que para un solo título: los medios se identifican solo por id externo, las reglas que editaste a mano nunca se tocan, y nada aquí quita un torrent salvo que lo pidas.",
+    "done": "Se quitaron {{count}} título(s)",
+    "someFailed": "No se pudieron quitar {{count}} título(s)",
+    "libraryItems": "{{count}} elemento(s) de la biblioteca en cola para borrado"
+  },
+  "releaseType": {
+    "series_premiere": "Estreno de serie",
+    "season_premiere": "Estreno de temporada",
+    "episode_air": "Se emite",
+    "finale": "Final",
+    "streaming": "Streaming",
+    "digital": "Digital",
+    "physical": "Físico",
+    "festival": "Festival",
+    "limited_theatrical": "Estreno limitado",
+    "wide_theatrical": "En cines",
+    "unknown": "Lanzamiento"
   }
 }

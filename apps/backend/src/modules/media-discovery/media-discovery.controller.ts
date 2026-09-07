@@ -21,6 +21,8 @@ import { DiscoveryReconciliationService } from './discovery-reconciliation.servi
 /** Validated rather than trusted: an unknown scope must never fall through. */
 const REMOVAL_SCOPES: RemovalScope[] = ['catalog', 'monitoring', 'library'];
 const TORRENT_ACTIONS = ['keep', 'stop', 'stop_and_delete'] as const;
+/** A page of the inbox is 24; this leaves room for a select-all across a few. */
+const MAX_BULK_REMOVE = 200;
 
 /**
  * Where each provider's credential lives, for a provider that is not registered.
@@ -443,6 +445,44 @@ export class MediaDiscoveryController {
     if (!body?.keepId) throw new BadRequestException('keepId is required.');
     if (!body?.archiveIds?.length) throw new BadRequestException('archiveIds must name at least one entry.');
     return this.reconciliation.merge(body.keepId, body.archiveIds, userId(req), reqAuditContext(req));
+  }
+
+  /**
+   * Remove several titles at once.
+   *
+   * Bounded deliberately: a bulk action at `library` scope deletes files, and an
+   * unbounded id list is an easy way to turn one mis-click into a very long
+   * background job. The page's own selection cannot exceed this.
+   */
+  @Post('items/bulk-remove')
+  @RequirePermissions(P.MEDIA_DISCOVERY_MANAGE)
+  async bulkRemove(
+    @Body() body: { ids?: string[]; scope?: string; torrentAction?: string },
+    @Req() req: Request,
+  ) {
+    const ids = [...new Set(body?.ids ?? [])];
+    if (!ids.length) throw new BadRequestException('ids must name at least one title.');
+    if (ids.length > MAX_BULK_REMOVE) {
+      throw new BadRequestException(
+        `Too many titles at once (${ids.length}). Remove at most ${MAX_BULK_REMOVE} in one action.`,
+      );
+    }
+    const scope = body?.scope ?? 'catalog';
+    if (!REMOVAL_SCOPES.includes(scope as RemovalScope)) {
+      throw new BadRequestException(
+        `Unknown removal scope "${scope}". Expected one of: ${REMOVAL_SCOPES.join(', ')}`,
+      );
+    }
+    const torrentAction = body?.torrentAction ?? 'keep';
+    if (!TORRENT_ACTIONS.includes(torrentAction as (typeof TORRENT_ACTIONS)[number])) {
+      throw new BadRequestException(`Unknown torrent action "${torrentAction}".`);
+    }
+    return this.removal.removeMany(
+      ids,
+      { scope: scope as RemovalScope, torrentAction: torrentAction as never },
+      userId(req),
+      reqAuditContext(req),
+    );
   }
 
   /** Titles held out of the catalogue, and why. */

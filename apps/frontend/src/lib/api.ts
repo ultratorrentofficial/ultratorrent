@@ -5220,6 +5220,16 @@ export const api = {
     mergeDuplicates(body: { keepId: string; archiveIds: string[] }): Promise<DuplicateMergePlan> {
       return request<DuplicateMergePlan>('/media-discovery/duplicates/merge', { method: 'POST', body });
     },
+    bulkRemoveItems(body: {
+      ids: string[];
+      scope: DiscoveryRemovalScope;
+      torrentAction?: DiscoveryTorrentAction;
+    }): Promise<DiscoveryBulkRemovalResult> {
+      return request<DiscoveryBulkRemovalResult>('/media-discovery/items/bulk-remove', {
+        method: 'POST',
+        body,
+      });
+    },
     suppressions(): Promise<DiscoverySuppression[]> {
       return request<DiscoverySuppression[]>('/media-discovery/suppressions');
     },
@@ -6529,7 +6539,10 @@ export interface DiscoveryProviderStatus {
 
 export interface DiscoveredReleaseDate {
   releaseType: string;
+  /** The network's local calendar date. NOT an instant — do not timezone-convert. */
   date: string | null;
+  /** A real instant, when the provider stated one. Safe to show in local time. */
+  airsAt?: string | null;
   region: string | null;
   source: string;
   confidence: number;
@@ -6656,6 +6669,13 @@ export interface DuplicateMergePlan {
   rulesDeleted: Array<{ id: string; name: string }>;
   rulesKept: Array<{ id: string; name: string; reason: string }>;
   warnings: string[];
+}
+
+export interface DiscoveryBulkRemovalResult {
+  removed: Array<{ id: string; title: string }>;
+  failed: Array<{ id: string; reason: string }>;
+  skipped: string[];
+  libraryItems: number;
 }
 
 export interface DiscoverySuppression {
