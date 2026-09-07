@@ -67,7 +67,8 @@
     "inbox": "Inbox",
     "providers": "Providers",
     "templates": "Templates",
-    "duplicates": "Duplicates"
+    "duplicates": "Duplicates",
+    "ladders": "Match preferences"
   },
   "policy": {
     "autoMonitorCategories": {
@@ -253,5 +254,69 @@
     },
     "merge": "Merge",
     "merged": "Merged {{count}} duplicate(s) into “{{title}}”"
+  },
+  "ladder": {
+    "error": "Could not load match preference profiles.",
+    "emptyTitle": "No match preference profiles yet",
+    "emptyDescription": "A template that automatically monitors anything needs one — a rule with no match preferences matches nothing at all.",
+    "new": "New profile",
+    "edit": "Edit",
+    "delete": "Delete profile",
+    "deleted": "Profile deleted",
+    "saved": "Profile saved",
+    "summary": "{{count}} rung(s) · {{mediaType}} · v{{version}}",
+    "disabled": "Disabled",
+    "noEnabledRungs": "No enabled rungs — this profile would match nothing",
+    "name": "Name",
+    "mediaType": "Applies to",
+    "upgradePolicy": "Upgrades",
+    "mediaTypes": {
+      "any": "Anything",
+      "tv": "TV",
+      "movie": "Movies",
+      "anime": "Anime"
+    },
+    "upgrade": {
+      "inherit": "Inherit the global setting",
+      "never": "Never upgrade",
+      "always": "Always upgrade"
+    },
+    "templateRequired": "Required in every rung",
+    "templateExcluded": "Excluded from every rung",
+    "termsHint": "These terms apply to every rung, because they are a constraint rather than a preference of the top one — a fallback that dropped “CAM” would accept exactly what you forbade. HDR and audio are not quality fields: the match engine does not read them, so express Dolby Vision or Atmos as required terms.",
+    "rungs": "The ladder",
+    "addRung": "Add rung",
+    "removeRung": "Remove rung",
+    "orderHint": "Best first. Position is priority — the top rung is preferred, and each one below is a fallback.",
+    "rung": "#{{n}}",
+    "rungNamePlaceholder": "2160p WEB-DL x265",
+    "enabled": "Enabled",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "quality": {
+      "resolution": "Resolution",
+      "source": "Source",
+      "codec": "Codec",
+      "quality": "Quality"
+    },
+    "any": "Any",
+    "matchType": "Match on",
+    "pattern": "Pattern",
+    "match": {
+      "smart_episode_match": "Smart episode match",
+      "smart_movie_match": "Smart movie match",
+      "contains_text": "Contains text",
+      "exact_text": "Exact text",
+      "wildcard": "Wildcard",
+      "regex": "Regular expression",
+      "fuzzy_match": "Fuzzy match"
+    },
+    "minSize": "Min size (GB)",
+    "maxSize": "Max size (GB)",
+    "noLimit": "No limit",
+    "requiredTerms": "Required terms",
+    "excludedTerms": "Excluded terms",
+    "save": "Save profile",
+    "cancel": "Cancel"
   }
 }

@@ -202,9 +202,25 @@ engine reads exactly `quality`, `source`, `codec` and `resolution`; it has no
 looks configured and silently does nothing, so they are refused with a message
 pointing at `requiredTerms: ["DV"]` / `["Atmos"]`.
 
-> **No editor yet.** Acquisition ladders are authored through the API. A
-> discovery template *selects* an existing one; it can no longer be left unset
-> for an auto-monitoring template.
+Ladders are authored at **Discover → Match preferences**. A discovery template
+then selects one; it can no longer be left unset for an auto-monitoring template.
+
+Two things the editor deliberately does not offer:
+
+- **A priority number.** Position is priority — the ladder reads top to bottom,
+  and a number field beside an ordered list is two sources of truth that can
+  disagree. Rungs are renumbered from zero on save, which also closes gaps an
+  older template left behind.
+- **HDR and audio fields.** The match engine reads `quality`, `source`, `codec`
+  and `resolution` and nothing else, so an HDR select would look configured and
+  silently do nothing. Dolby Vision and Atmos go in **required terms**, and the
+  editor says so rather than leaving you to discover it from a server error.
+
+Sizes are entered in **GB** and stored as bytes. An empty box means *no limit* —
+not zero, which as a maximum would reject everything.
+
+Editing the ladder bumps the profile's `version`; reordering counts, renaming the
+profile does not.
 
 :::danger A rule with no match preferences matches nothing
 This used to be optional, on the belief that a generated rule without a ladder

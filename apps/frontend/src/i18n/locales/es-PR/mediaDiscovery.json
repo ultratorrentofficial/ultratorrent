@@ -67,7 +67,8 @@
     "inbox": "Bandeja",
     "providers": "Proveedores",
     "templates": "Plantillas",
-    "duplicates": "Duplicados"
+    "duplicates": "Duplicados",
+    "ladders": "Preferencias"
   },
   "policy": {
     "autoMonitorCategories": {
@@ -253,5 +254,69 @@
     },
     "merge": "Fusionar",
     "merged": "Se fusionaron {{count}} duplicado(s) en «{{title}}»"
+  },
+  "ladder": {
+    "error": "No se pudieron cargar los perfiles de preferencias.",
+    "emptyTitle": "Aún no hay perfiles de preferencias",
+    "emptyDescription": "Una plantilla que vigile algo automáticamente necesita uno — una regla sin preferencias de coincidencia no coincide con nada.",
+    "new": "Nuevo perfil",
+    "edit": "Editar",
+    "delete": "Eliminar perfil",
+    "deleted": "Perfil eliminado",
+    "saved": "Perfil guardado",
+    "summary": "{{count}} peldaño(s) · {{mediaType}} · v{{version}}",
+    "disabled": "Desactivado",
+    "noEnabledRungs": "Sin peldaños activos — este perfil no coincidiría con nada",
+    "name": "Nombre",
+    "mediaType": "Aplica a",
+    "upgradePolicy": "Mejoras",
+    "mediaTypes": {
+      "any": "Cualquiera",
+      "tv": "TV",
+      "movie": "Películas",
+      "anime": "Anime"
+    },
+    "upgrade": {
+      "inherit": "Heredar el ajuste global",
+      "never": "Nunca mejorar",
+      "always": "Siempre mejorar"
+    },
+    "templateRequired": "Requerido en cada peldaño",
+    "templateExcluded": "Excluido de cada peldaño",
+    "termsHint": "Estos términos aplican a cada peldaño, porque son una restricción y no una preferencia del primero — un peldaño de reserva que soltara «CAM» aceptaría justo lo que prohibiste. HDR y audio no son campos de calidad: el motor de coincidencias no los lee, así que expresa Dolby Vision o Atmos como términos requeridos.",
+    "rungs": "La escalera",
+    "addRung": "Añadir peldaño",
+    "removeRung": "Quitar peldaño",
+    "orderHint": "El mejor primero. La posición es la prioridad — el peldaño de arriba se prefiere y cada uno debajo es una alternativa.",
+    "rung": "N.º {{n}}",
+    "rungNamePlaceholder": "2160p WEB-DL x265",
+    "enabled": "Activo",
+    "moveUp": "Subir",
+    "moveDown": "Bajar",
+    "quality": {
+      "resolution": "Resolución",
+      "source": "Fuente",
+      "codec": "Códec",
+      "quality": "Calidad"
+    },
+    "any": "Cualquiera",
+    "matchType": "Coincidir por",
+    "pattern": "Patrón",
+    "match": {
+      "smart_episode_match": "Coincidencia inteligente de episodio",
+      "smart_movie_match": "Coincidencia inteligente de película",
+      "contains_text": "Contiene texto",
+      "exact_text": "Texto exacto",
+      "wildcard": "Comodín",
+      "regex": "Expresión regular",
+      "fuzzy_match": "Coincidencia difusa"
+    },
+    "minSize": "Tamaño mín. (GB)",
+    "maxSize": "Tamaño máx. (GB)",
+    "noLimit": "Sin límite",
+    "requiredTerms": "Términos requeridos",
+    "excludedTerms": "Términos excluidos",
+    "save": "Guardar perfil",
+    "cancel": "Cancelar"
   }
 }

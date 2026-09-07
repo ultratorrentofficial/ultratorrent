@@ -5244,6 +5244,12 @@ export const api = {
     createAcquisitionTemplate(body: Record<string, unknown>): Promise<AcquisitionRuleTemplate> {
       return request<AcquisitionRuleTemplate>('/media-discovery/acquisition-templates', { method: 'POST', body });
     },
+    updateAcquisitionTemplate(id: string, body: Record<string, unknown>): Promise<AcquisitionRuleTemplate> {
+      return request<AcquisitionRuleTemplate>(`/media-discovery/acquisition-templates/${id}`, {
+        method: 'PATCH',
+        body,
+      });
+    },
     deleteAcquisitionTemplate(id: string) {
       return request(`/media-discovery/acquisition-templates/${id}`, { method: 'DELETE' });
     },
@@ -6720,8 +6726,10 @@ export interface AcquisitionRuleTemplateCandidate {
   id: string;
   priorityOrder: number;
   name: string;
+  description?: string | null;
   enabled: boolean;
   matchType: string;
+  pattern?: string | null;
   requiredTerms: string[];
   excludedTerms: string[];
   qualityRules: Record<string, string>;
@@ -6737,6 +6745,8 @@ export interface AcquisitionRuleTemplate {
   version: number;
   requiredTerms: string[];
   excludedTerms: string[];
+  /** inherit | never | always */
+  upgradePolicy?: string;
   candidates: AcquisitionRuleTemplateCandidate[];
 }
 
