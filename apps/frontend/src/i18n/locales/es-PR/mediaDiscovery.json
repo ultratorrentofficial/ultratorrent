@@ -38,7 +38,8 @@
     "needsReview": "Requieren revisión",
     "notified": "Notificados",
     "ignored": "Ignorados",
-    "existing": "Existentes"
+    "existing": "Existentes",
+    "pastRelease": "Ya estrenadas"
   },
   "filters": {
     "allTypes": "Todos los tipos",
@@ -131,7 +132,22 @@
     "sections": {
       "scope": "Qué observar",
       "policy": "Qué hacer con ello",
-      "destination": "A dónde va"
+      "destination": "A dónde va",
+      "eligibility": "Nuevas y próximas"
+    },
+    "requireUpcoming": "Vigilar automáticamente solo series que aún no se han estrenado",
+    "requireUpcomingHint": "Una serie que ya empezó se muestra para revisión. Desactiva esto solo si quieres que se importe catálogo antiguo automáticamente.",
+    "gracePeriodDays": "Periodo de gracia (días)",
+    "gracePeriodHint": "0 significa que el estreno debe ser hoy o después.",
+    "pastReleaseBehavior": "Series ya estrenadas",
+    "pastRelease": {
+      "review": "Mostrar para revisión",
+      "ignore": "Archivar"
+    },
+    "returningSeriesBehavior": "Series que regresan",
+    "returningSeries": {
+      "existingOnly": "Solo las que ya están aquí",
+      "review": "Mostrar para revisión"
     }
   },
   "preview": {
@@ -200,6 +216,7 @@
     "notEvaluated": "Sin evaluar",
     "alreadyMonitored": "Ya vigilado",
     "monitoringIncomplete": "Vigilancia incompleta",
-    "existsNotMonitored": "En tu biblioteca, sin vigilar"
+    "existsNotMonitored": "En tu biblioteca, sin vigilar",
+    "reviewPastRelease": "Ya estrenada — revisar"
   }
 }

@@ -300,6 +300,9 @@ describe('the trace', () => {
       'language:pass',
       'region:pass',
       'category_policy:pass',
+      // The new/upcoming gate sits after the category match and before every
+      // threshold: nothing below it can restore an auto-monitor it refused.
+      'upcoming_eligibility:pass',
       'threshold:pass',
       'identity:pass',
       'auto_add_limit:pass',

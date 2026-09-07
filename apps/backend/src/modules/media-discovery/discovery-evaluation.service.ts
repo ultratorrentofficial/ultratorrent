@@ -239,7 +239,15 @@ export class DiscoveryEvaluationService {
        */
       let effective = verdict;
       let existing: ResolvedIdentity | null = null;
-      if (verdict.decision === 'auto_monitor') {
+      /*
+       * Identity is also resolved for a past-release verdict.
+       *
+       * A series that premiered in 2022 and has a new season coming is exactly
+       * the case where "it already premiered" and "we are already monitoring it"
+       * are both true. Reporting it as a past-release review item when it is
+       * already being acquired would be noise about something working correctly.
+       */
+      if (verdict.decision === 'auto_monitor' || verdict.decision === 'review_past_release') {
         existing = await this.identity.resolve(row);
         if (existing.state !== 'none') {
           effective = {
@@ -544,7 +552,8 @@ export class DiscoveryEvaluationService {
     countries: string[]; network: string | null; streamingService: string | null; studio: string | null;
     popularity: number | null; rating: number | null; voteCount: number | null;
     identityStatus: string; confidence: number;
-    releaseDates: Array<{ releaseType: string; date: Date | null; region: string | null }>;
+    premiereDate?: Date | null; seriesStatus?: string | null;
+    releaseDates: Array<{ releaseType: string; date: Date | null; region: string | null; source?: string | null }>;
   }) {
     return {
       mediaType: row.mediaType,
@@ -560,10 +569,17 @@ export class DiscoveryEvaluationService {
       voteCount: row.voteCount,
       identityStatus: row.identityStatus,
       confidence: row.confidence,
+      // The two fields the policy could never see. Both were already stored and
+      // populated by both providers; nothing passed them along.
+      premiereDate: row.premiereDate ? row.premiereDate.toISOString().slice(0, 10) : null,
+      seriesStatus: row.seriesStatus ?? null,
       releaseDates: row.releaseDates.map((d) => ({
         releaseType: d.releaseType,
         date: d.date ? d.date.toISOString().slice(0, 10) : null,
         region: d.region,
+        // The reporting provider — two different dates from two sources is a
+        // genuine disagreement, not one provider being vague about regions.
+        source: d.source ?? null,
       })),
     };
   }

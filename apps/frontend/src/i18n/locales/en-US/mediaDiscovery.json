@@ -38,7 +38,8 @@
     "needsReview": "Needs review",
     "notified": "Notified",
     "ignored": "Ignored",
-    "existing": "Existing"
+    "existing": "Existing",
+    "pastRelease": "Past releases"
   },
   "filters": {
     "allTypes": "All types",
@@ -131,7 +132,22 @@
     "sections": {
       "scope": "What to look at",
       "policy": "What to do with it",
-      "destination": "Where it goes"
+      "destination": "Where it goes",
+      "eligibility": "New & upcoming"
+    },
+    "requireUpcoming": "Only auto-monitor series that have not premiered yet",
+    "requireUpcomingHint": "A series that already started is shown for review instead. Turn this off only if you want back-catalogue imported automatically.",
+    "gracePeriodDays": "Grace period (days)",
+    "gracePeriodHint": "0 means the premiere must be today or later.",
+    "pastReleaseBehavior": "Series that already premiered",
+    "pastRelease": {
+      "review": "Show for review",
+      "ignore": "File away"
+    },
+    "returningSeriesBehavior": "Returning series",
+    "returningSeries": {
+      "existingOnly": "Only ones already here",
+      "review": "Show for review"
     }
   },
   "preview": {
@@ -200,6 +216,7 @@
     "notEvaluated": "Not evaluated",
     "alreadyMonitored": "Already monitored",
     "monitoringIncomplete": "Monitoring incomplete",
-    "existsNotMonitored": "In your library, not monitored"
+    "existsNotMonitored": "In your library, not monitored",
+    "reviewPastRelease": "Past release — review"
   }
 }

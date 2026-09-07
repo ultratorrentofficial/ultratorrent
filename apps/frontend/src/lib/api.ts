@@ -6635,6 +6635,13 @@ export interface DiscoveryTemplate {
   mediaType: string;
   providers: string[];
   upcomingWindowDays: number;
+  /** New/upcoming eligibility — see the discovery template docs. */
+  requireUpcoming: boolean;
+  gracePeriodDays: number;
+  /** review | ignore */
+  pastReleaseBehavior: string;
+  /** existing_only | review */
+  returningSeriesBehavior: string;
   regions: string[];
   languages: string[];
   minimumPopularity: number | null;

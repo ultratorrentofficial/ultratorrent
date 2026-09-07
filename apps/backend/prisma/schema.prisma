@@ -4077,6 +4077,30 @@ model DiscoveryTemplate {
   autoAddLimitPerWeek Int @default(30)
 
   createdBy String?
+  // --- new / upcoming eligibility -----------------------------------------
+  /// Auto-monitoring is limited to series that have not premiered yet.
+  ///
+  /// ON by default, which is the whole point of the feature: a template looking
+  /// for "new Sci-Fi" must not import a Sci-Fi series that started in 2022 and
+  /// happens to be airing an episode this week. Turning it off is an operator
+  /// saying they want back-catalogue too.
+  requireUpcoming Boolean @default(true)
+
+  /// Days before today a premiere may still count as upcoming. Default 0 — the
+  /// premiere must be today or later. Never silently non-zero.
+  gracePeriodDays Int @default(0)
+
+  /// review | ignore. What to do with a series whose premiere has passed.
+  /// `review` surfaces it for a person; `ignore` files it away. There is
+  /// deliberately no `auto_monitor` value.
+  pastReleaseBehavior String @default("review")
+
+  /// existing_only | review. A series that premiered in the past and has a new
+  /// season coming: `existing_only` continues monitoring it when it is already
+  /// here, and reviews it when it is not — never importing an older series
+  /// wholesale on its own.
+  returningSeriesBehavior String @default("existing_only")
+
   /// Bumped whenever a POLICY column changes — categories, thresholds, scope,
   /// destination. Renaming a template or toggling `enabled` does not bump it.
   ///

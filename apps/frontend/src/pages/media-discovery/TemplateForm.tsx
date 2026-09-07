@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/toast';
 import { CategoryPolicyEditor, type CategoryPolicy } from './CategoryPolicyEditor';
 
@@ -127,6 +128,66 @@ export function TemplateForm({
         </div>
 
         {/* --- what to look at --- */}
+        {/*
+          * New/upcoming eligibility — its own section, above scope.
+          *
+          * This is the setting that decides whether a template imports a
+          * back-catalogue, and it was previously not a setting at all: the
+          * evaluator had no premiere date to test. Putting it beneath the genre
+          * lists would bury the one control that stops a "new Sci-Fi" template
+          * monitoring a series that started in 2022.
+          */}
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t('form.sections.eligibility')}
+          </h3>
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox
+              checked={form.requireUpcoming ?? true}
+              onCheckedChange={(v) => set('requireUpcoming', Boolean(v))}
+            />
+            <span>
+              {t('form.requireUpcoming')}
+              <span className="block text-xs text-muted-foreground">{t('form.requireUpcomingHint')}</span>
+            </span>
+          </label>
+          {(form.requireUpcoming ?? true) && (
+            <div className="grid gap-3 md:grid-cols-3">
+              <div>
+                <Label>{t('form.gracePeriodDays')}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={14}
+                  value={form.gracePeriodDays ?? 0}
+                  onChange={(e) => set('gracePeriodDays', Number(e.target.value))}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">{t('form.gracePeriodHint')}</p>
+              </div>
+              <div>
+                <Label>{t('form.pastReleaseBehavior')}</Label>
+                <Select
+                  value={form.pastReleaseBehavior ?? 'review'}
+                  onChange={(e) => set('pastReleaseBehavior', e.target.value)}
+                >
+                  <option value="review">{t('form.pastRelease.review')}</option>
+                  <option value="ignore">{t('form.pastRelease.ignore')}</option>
+                </Select>
+              </div>
+              <div>
+                <Label>{t('form.returningSeriesBehavior')}</Label>
+                <Select
+                  value={form.returningSeriesBehavior ?? 'existing_only'}
+                  onChange={(e) => set('returningSeriesBehavior', e.target.value)}
+                >
+                  <option value="existing_only">{t('form.returningSeries.existingOnly')}</option>
+                  <option value="review">{t('form.returningSeries.review')}</option>
+                </Select>
+              </div>
+            </div>
+          )}
+        </section>
+
         <section className="space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {t('form.sections.scope')}

@@ -41,6 +41,8 @@ const VIEWS = [
    * somebody is how a review queue stops being read.
    */
   { id: 'existing', status: 'exists', decision: undefined },
+  /* Series that already premiered — a person decides, so they need finding. */
+  { id: 'pastRelease', status: 'past_release', decision: undefined },
   { id: 'notified', status: 'notified', decision: undefined },
   { id: 'ignored', status: 'ignored', decision: undefined },
 ] as const;
@@ -65,7 +67,8 @@ type DecisionKey =
   | 'notEvaluated'
   | 'alreadyMonitored'
   | 'monitoringIncomplete'
-  | 'existsNotMonitored';
+  | 'existsNotMonitored'
+  | 'reviewPastRelease';
 
 function decisionTone(decision: string | null): { key: DecisionKey; className: string } {
   switch (decision) {
@@ -86,6 +89,8 @@ function decisionTone(decision: string | null): { key: DecisionKey; className: s
       return { key: 'alreadyMonitored', className: 'border-emerald-400/25 bg-emerald-400/5 text-emerald-200/80' };
     case 'exists_monitoring_incomplete':
       return { key: 'monitoringIncomplete', className: 'border-amber-400/40 bg-amber-400/10 text-amber-300' };
+    case 'review_past_release':
+      return { key: 'reviewPastRelease', className: 'border-amber-400/30 bg-amber-400/5 text-amber-200/90' };
     case 'exists_not_monitored':
       return { key: 'existsNotMonitored', className: 'border-sky-400/30 bg-sky-400/5 text-sky-200/80' };
     default:

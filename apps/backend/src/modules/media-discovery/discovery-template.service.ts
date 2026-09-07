@@ -11,6 +11,10 @@ export interface DiscoveryTemplateInput {
   mediaType?: string;
   providers?: string[];
   upcomingWindowDays?: number;
+  requireUpcoming?: boolean;
+  gracePeriodDays?: number;
+  pastReleaseBehavior?: string;
+  returningSeriesBehavior?: string;
   regions?: string[];
   languages?: string[];
   minimumPopularity?: number | null;
@@ -187,6 +191,29 @@ export class DiscoveryTemplateService {
     ) {
       throw new BadRequestException(`upcomingWindowDays must be between 1 and ${MAX_WINDOW_DAYS}.`);
     }
+
+    /*
+     * A grace period is an operator saying "a few days late still counts". It is
+     * bounded because past a couple of weeks it stops being a grace period and
+     * becomes back-catalogue import wearing its name — which is what
+     * `requireUpcoming: false` is for, deliberately and visibly.
+     */
+    if (input.gracePeriodDays != null && (input.gracePeriodDays < 0 || input.gracePeriodDays > MAX_GRACE_DAYS)) {
+      throw new BadRequestException(`gracePeriodDays must be between 0 and ${MAX_GRACE_DAYS}.`);
+    }
+    if (input.pastReleaseBehavior && !PAST_RELEASE_BEHAVIORS.includes(input.pastReleaseBehavior as never)) {
+      throw new BadRequestException(
+        `pastReleaseBehavior must be one of ${PAST_RELEASE_BEHAVIORS.join(', ')}. There is deliberately no automatic option for past releases.`,
+      );
+    }
+    if (
+      input.returningSeriesBehavior &&
+      !RETURNING_SERIES_BEHAVIORS.includes(input.returningSeriesBehavior as never)
+    ) {
+      throw new BadRequestException(
+        `returningSeriesBehavior must be one of ${RETURNING_SERIES_BEHAVIORS.join(', ')}.`,
+      );
+    }
     if (input.minimumConfidence != null && (input.minimumConfidence < 0 || input.minimumConfidence > 1)) {
       throw new BadRequestException('minimumConfidence must be between 0 and 1.');
     }
@@ -354,6 +381,12 @@ export class DiscoveryTemplateService {
  * generator reads — scope, thresholds, categories, and the destination a
  * generated rule is built from.
  */
+/** A fortnight. Past this it is back-catalogue import, not a grace period. */
+const MAX_GRACE_DAYS = 14;
+/** No `auto_monitor`: automating a past release is what this gate exists to stop. */
+const PAST_RELEASE_BEHAVIORS = ['review', 'ignore'] as const;
+const RETURNING_SERIES_BEHAVIORS = ['existing_only', 'review'] as const;
+
 const POLICY_KEYS = [
   'mediaType', 'providers', 'upcomingWindowDays', 'regions', 'languages',
   'minimumPopularity', 'minimumRating', 'minimumVoteCount', 'networks',
@@ -362,6 +395,7 @@ const POLICY_KEYS = [
   'blockedFromAutoCategories', 'categoryMatchMode', 'minimumConfidence',
   'acquisitionTemplateId', 'rssFeedId', 'storageProfileId', 'pathTemplate',
   'createIntakeDirectory', 'autoAddLimitPerDay', 'autoAddLimitPerWeek',
+  'requireUpcoming', 'gracePeriodDays', 'pastReleaseBehavior', 'returningSeriesBehavior',
 ] as const;
 
 /**

@@ -222,6 +222,56 @@ index allows at most one generated rule per discovered title, so two providers
 reaching the same show at once end with one rule — the loser of the race resolves
 to the winner's row rather than failing.
 
+## New and upcoming only
+
+Auto-monitoring is limited to series that **have not premiered yet**. This is a
+hard eligibility rule, not a scoring preference: no category, threshold or score
+can carry a title past it.
+
+It closes a real defect. The only date test used to ask whether a title had *any*
+release date of a wanted type in the forward window — and TVmaze reports
+`episode_air` and `season_premiere` for shows that started years ago. So a 2022
+series airing an episode this week qualified, and an auto-monitor category then
+monitored it. The evaluator could not see a premiere date at all; the field was
+stored and populated, and simply never passed along.
+
+| Premiere | Decision |
+| --- | --- |
+| Tomorrow, or today | `auto_monitor` (subject to everything else) |
+| Yesterday, grace 0 | `review_past_release` |
+| Yesterday, grace 3 | `auto_monitor` |
+| A year ago | `review_past_release` |
+| Unknown | `needs_review` |
+| Providers disagree | `needs_review`, with both dates kept |
+
+**Unknown and conflicting dates refuse to automate.** Treating an unknown date as
+acceptable is exactly the case this gate exists to prevent, and it would be
+silent.
+
+**A grace period never appears on its own.** The default is 0 — the premiere must
+be today or later. It is capped at 14 days, because past a fortnight it stops
+being a grace period and becomes back-catalogue import wearing its name.
+
+**Past releases are reviewed, not acted on.** The choices are *Show for review*
+(the default) and *File away*. There is deliberately no automatic option.
+
+### Returning series are a different question
+
+A series that premiered in 2022 and has a new season coming is not a new series.
+
+- **Already here?** It keeps being monitored under its existing identity. Nothing
+  new is created, and it is not reported as a past-release review item — that
+  would be noise about something working correctly.
+- **Not here?** `review_past_release`. The older series is never imported
+  wholesale on the system's own initiative; a person may still add it.
+
+### Films are not gated on their premiere
+
+Deliberately. "Monitor films once they reach **streaming**" is a legitimate
+configuration, and a film's digital date is routinely a year after its theatrical
+one — gating on a past premiere would break it. For films, the release-type and
+window rules already define what "upcoming" means.
+
 ## Providers
 
 Three states, and only one is a fault:

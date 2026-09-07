@@ -55,7 +55,18 @@ export interface PolicyMedia {
   voteCount?: number | null;
   identityStatus: string;
   confidence: number;
-  releaseDates: Array<{ releaseType: string; date: string | null; region?: string | null }>;
+  releaseDates: Array<{ releaseType: string; date: string | null; region?: string | null; source?: string | null }>;
+  /**
+   * When the SERIES first aired — not when the next episode does.
+   *
+   * The absence of this was the whole defect: the policy only ever saw
+   * `releaseDates`, and TVmaze reports `episode_air` and `season_premiere` for
+   * shows that started years ago, so a 2022 series airing this week looked
+   * exactly like a new one.
+   */
+  premiereDate?: string | null;
+  /** continuing | returning | planned | in_production | ended | canceled | unknown. */
+  seriesStatus?: string | null;
 }
 
 /** The parts of a template the policy reads. */
@@ -77,6 +88,12 @@ export interface PolicyTemplate {
   blockedFromAutoCategories: string[];
   categoryMatchMode: string;
   minimumConfidence: number;
+  requireUpcoming?: boolean;
+  gracePeriodDays?: number;
+  /** review | ignore */
+  pastReleaseBehavior?: string;
+  /** existing_only | review */
+  returningSeriesBehavior?: string;
 }
 
 export interface PolicyContext {
@@ -232,6 +249,41 @@ export function evaluateDiscovery(
 
   // Everything below can only DEMOTE an auto-monitor candidate.
   if (!wantsAuto) return verdict('notify', 'Category is configured as notify-only');
+
+  /*
+   * --- NEW / UPCOMING ELIGIBILITY -----------------------------------------
+   *
+   * A hard gate, not a preference: no category, threshold or score can carry a
+   * title past it. "A Sci-Fi title that premiered two years ago must not become
+   * auto-monitored just because Sci-Fi is an Auto category."
+   *
+   * It sits here, after the category match rather than before it, on purpose.
+   * Run earlier it would surface every past-premiere show on the provider's
+   * schedule for review — including all the ones the template never asked about
+   * — and burying the titles a template DID ask for is the failure this inbox is
+   * designed to avoid. What matters is that it is unreachable-past for an
+   * auto-monitor, and it is: this is the only route to that decision.
+   *
+   * Series only. A film's "premiere" is one of several typed release dates, and
+   * "monitor films once they reach streaming" is a legitimate, documented
+   * configuration whose digital date is often a year after the theatrical one —
+   * gating movies on a past premiere would break it. For films the release-type
+   * and window rules already say what "upcoming" means.
+   */
+  if (media.mediaType !== 'movie' && (template.requireUpcoming ?? true)) {
+    const eligibility = premiereEligibility(media, template, ctx.now);
+    if (eligibility.outcome !== 'upcoming') {
+      add('upcoming_eligibility', 'fail', eligibility.detail);
+      if (eligibility.outcome === 'past') {
+        return (template.pastReleaseBehavior ?? 'review') === 'ignore'
+          ? verdict('ignore', eligibility.detail)
+          : verdict('review_past_release', eligibility.detail);
+      }
+      // Unknown or contradicted: a person decides, and the evidence is kept.
+      return verdict('needs_review', eligibility.detail);
+    }
+    add('upcoming_eligibility', 'pass', eligibility.detail);
+  }
   if (blocked.length) {
     return verdict('notify', `Qualified, but blocked from automatic monitoring by ${blocked.join(', ')}`);
   }
@@ -280,6 +332,74 @@ export function evaluateDiscovery(
   add('auto_add_limit', 'pass', 'Within the automatic-add limits');
 
   return verdict('auto_monitor', 'Qualified on category, thresholds and identity');
+}
+
+/**
+ * Has this series premiered yet?
+ *
+ * Four answers, and three of them refuse to automate:
+ *
+ *   upcoming  — premiere is today or later (or inside the grace period)
+ *   past      — it already started; importing it is a person's decision
+ *   unknown   — nobody gave it a premiere date; we will not guess
+ *   conflict  — providers materially disagree; we will not pick a winner
+ *
+ * `unknown` and `conflict` are deliberately not "assume it is fine". This gate
+ * exists to stop old series being imported automatically, and an unknown date is
+ * exactly the case where that would happen silently.
+ */
+function premiereEligibility(
+  media: PolicyMedia,
+  template: PolicyTemplate,
+  now: Date,
+): { outcome: 'upcoming' | 'past' | 'unknown' | 'conflict'; detail: string } {
+  const grace = Math.max(0, template.gracePeriodDays ?? 0);
+  const cutoff = new Date(now.getTime() - grace * 86_400_000).toISOString().slice(0, 10);
+
+  /*
+   * Every distinct series-premiere date any provider reported.
+   *
+   * `source` is the provider, so two different dates here is a genuine
+   * disagreement rather than one provider being imprecise about regions.
+   */
+  const reported = media.releaseDates.filter((d) => d.releaseType === 'series_premiere' && d.date);
+  const distinct = [...new Set(reported.map((d) => d.date!.slice(0, 10)))];
+  if (distinct.length > 1) {
+    return {
+      outcome: 'conflict',
+      detail: `Providers disagree about the premiere date (${distinct.sort().join(', ')}) — not automating on a date nobody agrees on`,
+    };
+  }
+
+  const premiere = media.premiereDate?.slice(0, 10) ?? distinct[0] ?? null;
+  if (!premiere) {
+    return {
+      outcome: 'unknown',
+      detail: 'No provider has given this series a premiere date',
+    };
+  }
+
+  if (premiere >= cutoff) {
+    return {
+      outcome: 'upcoming',
+      detail: grace
+        ? `Premieres ${premiere}, within the ${grace}-day grace period`
+        : `Premieres ${premiere}`,
+    };
+  }
+
+  /*
+   * A returning series is named as such, because "premiered in 2022" and "has a
+   * new season coming" are both true and the operator needs to know which one
+   * they are looking at.
+   */
+  const returning = media.seriesStatus === 'returning' || media.seriesStatus === 'continuing';
+  return {
+    outcome: 'past',
+    detail: returning
+      ? `This series premiered ${premiere} and is not monitored here — a returning series is not imported automatically`
+      : `Series premiered ${premiere}, before the automatic-monitoring eligibility window`,
+  };
 }
 
 /** Does the title have a release of a wanted type inside the window? */
