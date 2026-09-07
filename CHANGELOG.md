@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.2] - 2026-09-07
+
+### Fixed
+- the docs image build includes the changelog the release notes page is generated from
+
 ## [0.90.1] - 2026-09-07
 
 ### Fixed
