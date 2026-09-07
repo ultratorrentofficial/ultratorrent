@@ -7,7 +7,9 @@
     "preview": "Vista previa",
     "save": "Guardar",
     "saveAndEnable": "Guardar y activar",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "syncDone": "Catálogo actualizado — {{examined}} título(s) reevaluados, {{monitored}} ahora vigilados",
+    "syncRetracted": "{{count}} título(s) ya no coinciden y dejaron de vigilarse; {{removed}} salieron del catálogo. No se tocaron los medios descargados."
   },
   "firstRun": {
     "title": "Aún no hay ningún proveedor de descubrimiento activo",
@@ -156,5 +158,37 @@
     "summary": "{{auto}} monitoreadas · {{notify}} avisos · {{ignore}} ocultas · próximos {{days}} días",
     "limits": "Hasta {{perDay}} por día, {{perWeek}} por semana",
     "confirmDelete": "¿Eliminar la plantilla «{{name}}»? Los títulos que ya monitoreaba no se ven afectados."
+  },
+  "remove": {
+    "action": "Quitar del catálogo",
+    "actionFor": "Quitar {{title}} del catálogo",
+    "title": "Quitar «{{title}}»",
+    "planError": "No se pudo determinar qué afectaría esta eliminación.",
+    "scope": {
+      "catalog": {
+        "label": "Solo del catálogo",
+        "detail": "1 título descubierto y {{evaluations}} evaluación(es). La vigilancia sigue activa."
+      },
+      "monitoring": {
+        "label": "…y dejar de vigilarlo",
+        "rule": "Elimina la regla generada «{{name}}»",
+        "noRule": "No hay regla generada que eliminar",
+        "watchlist": "Archiva su entrada de lista de seguimiento",
+        "noWatchlist": "No hay entrada de lista de seguimiento"
+      },
+      "library": {
+        "label": "…y borrar los medios de la biblioteca",
+        "items": "{{count}} elemento(s) en tu biblioteca",
+        "sidecars": "Las carátulas, subtítulos y archivos NFO se van con ellos",
+        "unidentified": "Este título no trae id externo, así que sus medios no se pueden identificar con certeza — no se tocarán archivos."
+      }
+    },
+    "alsoTorrent": "Quitar también el torrent y sus datos",
+    "trashNote": "Los archivos se mueven a la Papelera mediante el mismo servicio de rutas seguras que usa el Gestor de Archivos, no se borran de golpe.",
+    "userRuleKept": "La regla «{{name}}» fue editada a mano y se dejará en su sitio.",
+    "suppressNote": "Este título no volverá en el próximo refresco del catálogo. Puedes deshacerlo desde la lista de supresiones.",
+    "cancel": "Cancelar",
+    "confirm": "Quitar",
+    "done": "Se quitó «{{title}}»"
   }
 }

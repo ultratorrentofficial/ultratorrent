@@ -22,6 +22,7 @@ function harness(opts: { feed?: any; profile?: any; acq?: any; template?: any } 
     rssFeed: { findUnique: jest.fn(async () => (opts.feed === undefined ? { id: 'f1', isEnabled: true, name: 'Feed' } : opts.feed)) },
     storageProfile: { findUnique: jest.fn(async () => (opts.profile === undefined ? { id: 'p1', isEnabled: true, name: 'Dev' } : opts.profile)) },
     acquisitionRuleTemplate: { findUnique: jest.fn(async () => (opts.acq === undefined ? { id: 'a1' } : opts.acq)) },
+    discoveryEvaluation: { deleteMany: jest.fn(async () => ({ count: 42 })) },
   };
   const audit = { record: jest.fn(async () => undefined) };
   return { svc: new DiscoveryTemplateService(prisma as any, audit as any), prisma, audit, created };
@@ -251,5 +252,80 @@ describe('audit', () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ metadata: expect.objectContaining({ enabledChangedTo: true }) }),
     );
+  });
+});
+
+/**
+ * An edit has to reach titles the template already judged.
+ *
+ * The evaluator only considers rows with no evaluation for the template, so an
+ * edit is inert unless something clears the old decisions. The evaluator's own
+ * comment said a template edit was what should cause a re-run — and nothing
+ * implemented it, so moving a genre to the "never" list changed precisely
+ * nothing for every title already seen.
+ */
+describe('editing a template reopens what it already decided', () => {
+  const existing = {
+    id: 't1',
+    name: 'Sci-Fi',
+    enabled: true,
+    policyVersion: 3,
+    autoMonitorCategories: ['Sci-Fi'],
+    blockedFromAutoCategories: [],
+    minimumConfidence: 0.8,
+    upcomingWindowDays: 90,
+    rssFeedId: 'f1',
+    storageProfileId: 'p1',
+  };
+
+  it('clears the decisions and bumps the version when a policy field changes', async () => {
+    const { svc, prisma } = harness({ template: existing });
+    await svc.update('t1', { blockedFromAutoCategories: ['Documentary'] });
+    expect(prisma.discoveryEvaluation.deleteMany).toHaveBeenCalledWith({ where: { templateId: 't1' } });
+    expect(prisma.discoveryTemplate.update.mock.calls[0][0].data.policyVersion).toEqual({ increment: 1 });
+  });
+
+  it('treats a threshold change as a policy change', async () => {
+    const { svc, prisma } = harness({ template: existing });
+    await svc.update('t1', { minimumConfidence: 0.5 });
+    expect(prisma.discoveryEvaluation.deleteMany).toHaveBeenCalled();
+  });
+
+  /*
+   * Re-deciding 870 titles because somebody fixed a typo would flood the inbox
+   * and teach people not to touch templates.
+   */
+  it('does not reopen anything when only the name changes', async () => {
+    const { svc, prisma } = harness({ template: existing });
+    await svc.update('t1', { name: 'Sci-Fi and Fantasy' });
+    expect(prisma.discoveryEvaluation.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.discoveryTemplate.update.mock.calls[0][0].data.policyVersion).toBeUndefined();
+  });
+
+  it('does not reopen anything when a template is merely disabled', async () => {
+    const { svc, prisma } = harness({ template: existing });
+    await svc.update('t1', { enabled: false });
+    expect(prisma.discoveryEvaluation.deleteMany).not.toHaveBeenCalled();
+  });
+
+  /*
+   * Category lists are sets. Reopening the whole catalogue because a multi-select
+   * returned the same values in a different order would make every save
+   * expensive and every inbox noisy.
+   */
+  it('ignores a reordering of the same categories', async () => {
+    const { svc, prisma } = harness({
+      template: { ...existing, autoMonitorCategories: ['Sci-Fi', 'Drama'] },
+    });
+    await svc.update('t1', { autoMonitorCategories: ['Drama', 'Sci-Fi'] });
+    expect(prisma.discoveryEvaluation.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('notices a genuine change to the same-length list', async () => {
+    const { svc, prisma } = harness({
+      template: { ...existing, autoMonitorCategories: ['Sci-Fi', 'Drama'] },
+    });
+    await svc.update('t1', { autoMonitorCategories: ['Sci-Fi', 'Horror'] });
+    expect(prisma.discoveryEvaluation.deleteMany).toHaveBeenCalled();
   });
 });

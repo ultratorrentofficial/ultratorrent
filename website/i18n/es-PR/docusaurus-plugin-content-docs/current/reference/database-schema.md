@@ -13,7 +13,7 @@ Esta página se genera desde `apps/backend/prisma/schema.prisma` durante el buil
 :::
 
 UltraTorrent guarda todo en **PostgreSQL**, gestionado por **Prisma**. Hay
-**138 modelos**. Un solo diagrama ER de todos sería ilegible, así que están
+**139 modelos**. Un solo diagrama ER de todos sería ilegible, así que están
 agrupados por dominio más abajo.
 
 :::tip Nunca edites la base de datos a mano
@@ -1720,7 +1720,7 @@ Tabla: `media_server_configs`
 
 ## Plataforma
 
-_42 modelos._
+_43 modelos._
 
 ```mermaid
 erDiagram
@@ -2558,6 +2558,7 @@ Tabla: `discovery_templates`
 | `autoAddLimitPerDay` | `Int` |
 | `autoAddLimitPerWeek` | `Int` |
 | `createdBy` | `String?` |
+| `policyVersion` | `Int` |
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
 
@@ -2642,6 +2643,20 @@ Tabla: `discovery_provider_state`
 | `syncCursors` | `Json` |
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
+
+### `DiscoverySuppression`
+
+Tabla: `discovery_suppressions`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `dedupeKey` | `String` |
+| `title` | `String` |
+| `mediaType` | `String?` |
+| `reason` | `String` |
+| `suppressedAt` | `DateTime` |
+| `suppressedBy` | `String?` |
 
 ## RSS
 

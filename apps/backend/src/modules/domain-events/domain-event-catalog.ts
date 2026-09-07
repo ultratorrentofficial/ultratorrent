@@ -145,6 +145,19 @@ const DEFINITIONS: readonly DomainEventDefinition[] = [
     deduplicationWindowSeconds: 0,
   },
   {
+    key: DOMAIN_EVENTS.MEDIA_DISCOVERY_RETRACTED,
+    description:
+      'A monitored title stopped qualifying for its template, so its generated rule was deleted and its watchlist entry archived. Downloaded media and torrents are never touched.',
+    requiredFields: ['title', 'templateName'],
+    /*
+     * Per title and never summarised. This UNDOES something the system did on
+     * the operator's behalf, and a person who finds a show no longer being
+     * acquired needs to be able to find out why — a count would not tell them
+     * which show.
+     */
+    deduplicationWindowSeconds: 0,
+  },
+  {
     key: DOMAIN_EVENTS.MEDIA_DISCOVERY_PROVIDER_SYNC_FAILED,
     description:
       "A discovery provider's catalogue refresh failed. The previous catalogue was kept rather than emptied.",

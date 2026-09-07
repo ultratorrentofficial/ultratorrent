@@ -117,6 +117,70 @@ called *The Odyssey* — and the engine refused to guess. No template setting ca
 override this: a wrong external id propagates into duplicate detection and every
 downstream lookup, while an unmonitored title merely waits for you.
 
+## Managing the catalogue
+
+### Removing a title
+
+Every card carries a **Remove** action, and it asks what you mean, because
+"remove this show" means three different things:
+
+| Scope | Removes |
+| --- | --- |
+| **From the catalogue only** | The discovered title and its evaluations. Monitoring keeps running. |
+| **…and stop monitoring it** | Also the generated RSS rule, and archives the watchlist entry. |
+| **…and delete the library media** | Also the media items, their artwork, subtitles and NFO sidecars — optionally the torrent and its data. |
+
+The dialog shows **what each scope would actually take** before you confirm —
+counts from the server's own plan, not a guess. The least destructive scope is
+the default; escalating is a deliberate second click.
+
+**Library media is matched by external id only.** Title-and-year is good enough
+to group a listing and nowhere near good enough to delete by: two films
+genuinely share a title and year. A title carrying no external id reports that
+it cannot be identified and its files are left alone.
+
+**Files go to Trash**, through the same path-safe service the File Manager uses —
+`MediaBulkService.deleteFiles`, which already handles sidecars, artwork and the
+source torrent, and runs as an audited background job. There is no second
+deletion path here.
+
+**A removed title does not come back.** Its identity is recorded as a
+*suppression*, checked on every sync — otherwise the next catalogue refresh
+re-creates the row within six hours and the deletion reads as a bug. Suppressions
+are listed at `GET /suppressions` and cleared with `DELETE /suppressions/:key`.
+
+### Editing a template re-decides the catalogue
+
+A template edit that changes **policy** — categories, thresholds, scope, or the
+destination a rule is built from — bumps its `policyVersion` and **clears that
+template's decisions**, so every stored title is judged again under the new
+policy. Renaming a template, or merely enabling and disabling it, does not.
+
+Pressing **Refresh catalogues** fetches from the providers *and* re-evaluates
+everything, then reports what changed. That is the button people press after an
+edit, and it used to answer a different question — returning only newly-fetched
+titles while every already-decided title kept its old verdict, which looked
+exactly like the edit had done nothing.
+
+### Titles that stop matching
+
+When a re-evaluation finds a title this system had auto-monitored no longer
+qualifies, the monitoring is **withdrawn**: the generated rule is deleted, the
+watchlist entry archived, and — if the title is now out of scope entirely or
+explicitly ignored — it leaves the catalogue. Every retraction publishes a
+notification, because it undoes something done on your behalf.
+
+Three things retraction never does:
+
+- **It never deletes media or torrents.** Retraction runs from a background
+  sweep that fired because somebody edited a genre list. A sweep that deleted
+  40 GB of episodes as a side effect of that edit would be unrecoverable and
+  invisible. Deleting media stays explicit, scoped and previewed.
+- **It never touches a rule you edited.** Past that first edit the rule is
+  yours; the delete is filtered on `userModifiedAt: null` rather than branching
+  on it.
+- **It never overrules a watchlist entry you paused, archived or completed.**
+
 ## Providers
 
 Three states, and only one is a fault:

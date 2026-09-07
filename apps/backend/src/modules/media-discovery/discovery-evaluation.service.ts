@@ -6,6 +6,7 @@ import type { DiscoveryTemplate } from '@prisma/client';
 import type { DiscoveryDecision } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { evaluateDiscovery, type PolicyTemplate, type PolicyVerdict } from './discovery-policy';
+import { DiscoveryRemovalService } from './discovery-removal.service';
 import { DiscoveryBudgetService } from './discovery-budget.service';
 import { DiscoveryWatchlistService } from './discovery-watchlist.service';
 import { DiscoveryRuleService } from './discovery-rule.service';
@@ -40,11 +41,22 @@ const TICK_MS = 60 * 60_000;
 /** Discoveries examined per template per run — a bounded unit of work. */
 const MAX_PER_RUN = 500;
 
+/**
+ * Watchlist states a person chose. Retraction leaves these alone for the same
+ * reason monitoring never reactivates them: they are decisions, and a sweep that
+ * overwrote one would be indistinguishable from a bug.
+ */
+const OPERATOR_DECIDED_STATUSES = new Set(['paused', 'archived', 'completed']);
+
 export interface EvaluationOutcome {
   templateId: string;
   templateName: string;
   examined: number;
   decisions: Record<DiscoveryDecision | 'not_applicable', number>;
+  /** Titles this template had monitored that no longer qualify. */
+  retracted: number;
+  /** Of those, the ones dropped from the catalogue entirely. */
+  removedFromCatalog: number;
   monitored: number;
   failed: number;
 }
@@ -61,6 +73,7 @@ export class DiscoveryEvaluationService {
     private readonly rules: DiscoveryRuleService,
     private readonly intake: DiscoveryIntakeService,
     private readonly bus: DomainEventBus,
+    private readonly removal: DiscoveryRemovalService,
   ) {}
 
   @Interval('media_discovery_evaluate', TICK_MS)
@@ -102,6 +115,8 @@ export class DiscoveryEvaluationService {
       decisions,
       monitored: 0,
       failed: 0,
+      retracted: 0,
+      removedFromCatalog: 0,
     };
 
     /*
@@ -142,6 +157,33 @@ export class DiscoveryEvaluationService {
 
       const key = verdict.applies ? verdict.decision : 'not_applicable';
       decisions[key] += 1;
+
+      /*
+       * A title this template used to monitor, that no longer qualifies.
+       *
+       * Reached when a policy edit reopened the decision and the answer changed.
+       * Monitoring is withdrawn — the generated rule deleted, the watchlist entry
+       * archived — and if the title is now out of scope or explicitly ignored it
+       * leaves the catalogue too.
+       *
+       * **Files and torrents are never touched here.** Retraction runs from a
+       * background sweep that fires because somebody edited a genre list; a
+       * sweep that deleted 40 GB of episodes as a side effect of that edit would
+       * be both unrecoverable and invisible. Deleting media stays an explicit,
+       * scoped, previewed action — see DiscoveryRemovalService.
+       */
+      const wasMonitored = row.discoveryStatus === 'monitored' && row.matchedTemplateId === template.id;
+      if (wasMonitored && verdict.decision !== 'auto_monitor') {
+        const gone = !verdict.applies || verdict.decision === 'ignore';
+        await this.retract(row, template, gone);
+        outcome.retracted += 1;
+        if (gone) {
+          outcome.removedFromCatalog += 1;
+          // The row is gone; there is nothing left to record an evaluation
+          // against, and the suppression is the record of why.
+          continue;
+        }
+      }
 
       /*
        * A template with no opinion is RECORDED but does not touch the title.
@@ -353,6 +395,68 @@ export class DiscoveryEvaluationService {
     if (decision === 'notify') return 'notified';
     if (decision === 'needs_review') return 'needs_review';
     return 'ignored';
+  }
+
+  /**
+   * Withdraw monitoring this template created, and optionally drop the title.
+   *
+   * A rule a person has edited is left in place and reported: past that first
+   * edit the rule is theirs, and a sweep that deleted it would be discarding
+   * work nobody asked it to touch. The same reasoning protects a watchlist entry
+   * somebody paused or completed.
+   */
+  private async retract(
+    row: { id: string; title: string; year: number | null; rssRuleId: string | null; watchlistItemId: string | null },
+    template: DiscoveryTemplate,
+    removeFromCatalog: boolean,
+  ): Promise<void> {
+    try {
+      if (row.rssRuleId) {
+        // Deleted only while it is still discovery's to delete.
+        const { count } = await this.prisma.rssRule.deleteMany({
+          where: { id: row.rssRuleId, generatedByDiscovery: true, userModifiedAt: null },
+        });
+        if (!count) {
+          this.logger.log(
+            `Retraction left rule ${row.rssRuleId} for "${row.title}" alone — edited by hand`,
+          );
+        }
+      }
+      if (row.watchlistItemId) {
+        const item = await this.prisma.mediaAcquisitionWatchlistItem.findUnique({
+          where: { id: row.watchlistItemId },
+          select: { status: true },
+        });
+        if (item && !OPERATOR_DECIDED_STATUSES.has(item.status)) {
+          await this.prisma.mediaAcquisitionWatchlistItem.update({
+            where: { id: row.watchlistItemId },
+            data: { status: 'archived' },
+          });
+        }
+      }
+
+      this.bus.publish({
+        eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_RETRACTED,
+        resourceType: 'discovered_media',
+        resourceId: row.id,
+        payload: {
+          title: row.year ? `${row.title} (${row.year})` : row.title,
+          templateName: template.name,
+          removedFromCatalog: removeFromCatalog,
+        },
+      });
+
+      if (removeFromCatalog) {
+        await this.removal.suppress(row.id, 'retracted');
+      } else {
+        await this.prisma.discoveredMedia.update({
+          where: { id: row.id },
+          data: { watchlistItemId: null, rssRuleId: null },
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`Could not retract "${row.title}": ${(err as Error).message}`);
+    }
   }
 
   private async record(

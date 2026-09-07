@@ -82,6 +82,13 @@ export const DOMAIN_EVENTS = {
   MEDIA_DISCOVERY_REVIEW_REQUIRED: 'media_discovery.review_required',
   /** A title was monitored but its acquisition rule could not be generated. */
   MEDIA_DISCOVERY_RULE_FAILED: 'media_discovery.rule_failed',
+  /**
+   * A title this system had monitored stopped qualifying, and its monitoring was
+   * withdrawn. Published per title because it UNDOES something done on the
+   * operator's behalf — the one direction that must never be silent. Downloaded
+   * media and torrents are never touched by a retraction.
+   */
+  MEDIA_DISCOVERY_RETRACTED: 'media_discovery.retracted',
   /** A provider's catalogue refresh failed; its previous catalogue was kept. */
   MEDIA_DISCOVERY_PROVIDER_SYNC_FAILED: 'media_discovery.provider_sync_failed',
 

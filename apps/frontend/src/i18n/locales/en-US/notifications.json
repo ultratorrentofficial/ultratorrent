@@ -180,6 +180,10 @@
         "title": "Acquisition rule could not be generated",
         "description": "A title is monitored but has no release preferences of its own."
       },
+      "retracted": {
+        "title": "Monitoring withdrawn",
+        "description": "A monitored title stopped qualifying for its template. Its generated rule was deleted and its watchlist entry archived; downloaded media and torrents were not touched."
+      },
       "provider_sync_failed": {
         "title": "Discovery provider refresh failed",
         "description": "A provider's catalogue could not be refreshed. The previous catalogue was kept."

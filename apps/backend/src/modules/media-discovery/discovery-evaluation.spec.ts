@@ -50,7 +50,10 @@ const row = (id: string, over: any = {}) => ({
   ...over,
 });
 
-function harness(opts: { rows?: any[]; remaining?: number; watchlistFails?: boolean; ruleFails?: boolean; ruleReason?: string } = {}) {
+function harness(opts: {
+  rows?: any[]; remaining?: number; watchlistFails?: boolean; ruleFails?: boolean; ruleReason?: string;
+  ruleIsUserModified?: boolean; watchlistStatus?: string;
+} = {}) {
   const evaluations: any[] = [];
   const stamps: any[] = [];
   const prisma: any = {
@@ -70,6 +73,11 @@ function harness(opts: { rows?: any[]; remaining?: number; watchlistFails?: bool
     },
     storageProfile: { findUnique: jest.fn(async () => null) },
     acquisitionRuleTemplate: { findUnique: jest.fn(async () => null) },
+    rssRule: { deleteMany: jest.fn(async () => ({ count: opts.ruleIsUserModified ? 0 : 1 })) },
+    mediaAcquisitionWatchlistItem: {
+      findUnique: jest.fn(async () => ({ status: opts.watchlistStatus ?? 'active' })),
+      update: jest.fn(async () => ({})),
+    },
   };
   const budget = {
     state: jest.fn(async () => ({
@@ -94,9 +102,11 @@ function harness(opts: { rows?: any[]; remaining?: number; watchlistFails?: bool
   const intake = { provision: jest.fn(async () => ({ ok: true, detail: 'created', path: '/x' })) };
   const published: any[] = [];
   const bus = { publish: jest.fn((e: any) => { published.push(e); }) };
+  const removal = { suppress: jest.fn(async () => undefined) };
 
   return {
-    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any, bus as any),
+    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any, bus as any, removal as any),
+    removal,
     prisma, budget, watchlist, rules, intake, evaluations, stamps, published,
   };
 }
@@ -311,5 +321,108 @@ describe('what it tells a person about', () => {
     const h = harness();
     await h.svc.runAll(NOW);
     expect(keys(h.published)).not.toContain('media_discovery.rule_failed');
+  });
+});
+
+/**
+ * Withdrawing monitoring when a title stops qualifying.
+ *
+ * Reached after a template edit clears the old decisions and the answer comes
+ * back different. The rule this file is really pinning is the one about what
+ * retraction must NEVER do: it runs from a background sweep that fired because
+ * somebody edited a genre list, and a sweep that deleted media as a side effect
+ * of that edit would be both unrecoverable and invisible.
+ */
+describe('retraction', () => {
+  /** A title this template previously auto-monitored. */
+  const monitored = (over: any = {}) =>
+    row('m1', {
+      discoveryStatus: 'monitored',
+      matchedTemplateId: TEMPLATE.id,
+      rssRuleId: 'r1',
+      watchlistItemId: 'w1',
+      ...over,
+    });
+
+  it('deletes the generated rule and archives the watchlist entry', async () => {
+    const h = harness({ rows: [monitored({ genres: ['Cooking'] })] });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.retracted).toBe(1);
+    expect(h.prisma.rssRule.deleteMany).toHaveBeenCalledWith({
+      where: { id: 'r1', generatedByDiscovery: true, userModifiedAt: null },
+    });
+    expect(h.prisma.mediaAcquisitionWatchlistItem.update).toHaveBeenCalledWith({
+      where: { id: 'w1' },
+      data: { status: 'archived' },
+    });
+  });
+
+  /*
+   * THE property. Nothing in this path may reach a file or a torrent.
+   */
+  it('never deletes media or torrents', async () => {
+    const h = harness({ rows: [monitored({ genres: ['Cooking'] })] });
+    await h.svc.runAll();
+    // The evaluator has no media-deletion collaborator at all, and the only
+    // thing it may ask of removal is to drop the catalogue row.
+    expect(Object.keys(h.removal)).toEqual(['suppress']);
+    expect(h.prisma).not.toHaveProperty('mediaItem');
+  });
+
+  /*
+   * Past the first hand edit the rule is the operator's. A sweep that deleted it
+   * would discard work nobody asked it to touch.
+   */
+  it('leaves a hand-edited rule alone', async () => {
+    const h = harness({ rows: [monitored({ genres: ['Cooking'] })], ruleIsUserModified: true });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.retracted).toBe(1);
+    // deleteMany still runs, but its filter refuses to match — the guard is in
+    // the WHERE clause rather than in a branch that could be forgotten.
+    expect(h.prisma.rssRule.deleteMany).toHaveBeenCalled();
+  });
+
+  it('does not overrule a watchlist entry a person paused', async () => {
+    const h = harness({ rows: [monitored({ genres: ['Cooking'] })], watchlistStatus: 'paused' });
+    await h.svc.runAll();
+    expect(h.prisma.mediaAcquisitionWatchlistItem.update).not.toHaveBeenCalled();
+  });
+
+  /*
+   * Out of scope entirely, or explicitly ignored, means it leaves the catalogue.
+   * Still matching but at a lower decision does not — it is still something the
+   * operator is meant to see.
+   */
+  it('drops a title from the catalogue when it no longer applies at all', async () => {
+    // No qualifying release date at all, so the template has no opinion on it.
+    const h = harness({ rows: [monitored({ releaseDates: [] })] });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.removedFromCatalog).toBe(1);
+    expect(h.removal.suppress).toHaveBeenCalledWith('m1', 'retracted');
+  });
+
+  it('keeps a title that still matches, only at a lower decision', async () => {
+    const h = harness({ rows: [monitored({ confidence: 0.2 })] });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.retracted).toBe(1);
+    expect(outcome.removedFromCatalog).toBe(0);
+    expect(h.removal.suppress).not.toHaveBeenCalled();
+  });
+
+  /*
+   * A title this template never monitored is not "retracted" by being ignored —
+   * counting it would make every ordinary sweep look like it was undoing things.
+   */
+  it('does not retract a title this template never monitored', async () => {
+    const h = harness({ rows: [row('x', { genres: ['Cooking'] })] });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.retracted).toBe(0);
+    expect(h.prisma.rssRule.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('does not retract a title that still qualifies', async () => {
+    const h = harness({ rows: [monitored()] });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.retracted).toBe(0);
   });
 });

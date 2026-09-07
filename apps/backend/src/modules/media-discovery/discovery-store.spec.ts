@@ -8,6 +8,7 @@ const merged = (provider: string, over: Partial<RawDiscovery>) =>
 /** In-memory stand-in for the two tables the store writes. */
 function fakePrisma(rows: any[] = []) {
   const dates: any[] = [];
+  const suppressed: { dedupeKey: string }[] = [];
   return {
     rows,
     dates,
@@ -55,6 +56,11 @@ function fakePrisma(rows: any[] = []) {
         Object.assign(dates.find((d) => d.id === where.id), data);
       }),
     },
+    discoverySuppression: {
+      findMany: jest.fn(async () => suppressed),
+    },
+    /** Test hook: identities a person removed. */
+    __suppress: (...keys: string[]) => suppressed.push(...keys.map((dedupeKey) => ({ dedupeKey }))),
   };
 }
 
@@ -80,7 +86,7 @@ describe('DiscoveryStoreService — the moving key', () => {
     ]);
 
     expect(p.rows).toHaveLength(1);
-    expect(result).toEqual({ created: 0, updated: 1, failed: 0 });
+    expect(result).toEqual({ created: 0, updated: 1, failed: 0, suppressed: 0 });
   });
 
   /*
@@ -200,6 +206,57 @@ describe('DiscoveryStoreService — resilience', () => {
       merged('tmdb', { externalIds: { tmdb: '1' } }),
       merged('tmdb', { externalIds: { tmdb: '2' } }),
     ]);
-    expect(result).toEqual({ created: 1, updated: 0, failed: 1 });
+    expect(result).toEqual({ created: 1, updated: 0, failed: 1, suppressed: 0 });
+  });
+});
+
+/**
+ * A removed title must stay removed.
+ *
+ * The catalogue is rebuilt from upstream every six hours. Without a suppression
+ * check here, deleting a title is undone by the next refresh under the same
+ * dedupe key — and a deletion that silently reverses itself reads as a bug
+ * rather than a decision.
+ */
+describe('DiscoveryStoreService — suppressed titles', () => {
+  it('does not re-create a title that was removed', async () => {
+    const p = fakePrisma();
+    const record = merged('tmdb', { externalIds: { tmdb: '125988' } });
+    (p as any).__suppress(record.dedupeKey);
+
+    const result = await new DiscoveryStoreService(p as any).persist([record]);
+    expect(result.created).toBe(0);
+    expect(result.suppressed).toBe(1);
+    expect(p.rows).toEqual([]);
+    expect(p.discoveredMedia.create).not.toHaveBeenCalled();
+  });
+
+  /*
+   * The key a title arrives under moves as providers report better ids, and
+   * `findExisting` already matches on alternates for exactly that reason.
+   * Checking only the canonical key would let a suppressed title walk straight
+   * back in the moment a provider promoted a different id to strongest.
+   */
+  it('honours a suppression recorded against an alternate key', async () => {
+    const p = fakePrisma();
+    const record = merged('tmdb', { externalIds: { tmdb: '125988', imdb: 'tt14688458' } });
+    const alternate = record.alternateKeys[0] ?? record.dedupeKey;
+    (p as any).__suppress(alternate);
+
+    const result = await new DiscoveryStoreService(p as any).persist([record]);
+    expect(result.suppressed).toBe(1);
+    expect(p.rows).toEqual([]);
+  });
+
+  it('still stores everything that is not suppressed', async () => {
+    const p = fakePrisma();
+    const wanted = merged('tmdb', { title: 'Silo', externalIds: { tmdb: '1' } });
+    const unwanted = merged('tmdb', { title: 'Gone', externalIds: { tmdb: '2' } });
+    (p as any).__suppress(unwanted.dedupeKey);
+
+    const result = await new DiscoveryStoreService(p as any).persist([wanted, unwanted]);
+    expect(result.created).toBe(1);
+    expect(result.suppressed).toBe(1);
+    expect(p.rows.map((r: any) => r.title)).toEqual(['Silo']);
   });
 });

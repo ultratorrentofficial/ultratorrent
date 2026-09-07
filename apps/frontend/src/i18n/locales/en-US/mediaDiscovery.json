@@ -7,7 +7,9 @@
     "preview": "Preview",
     "save": "Save",
     "saveAndEnable": "Save and enable",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "syncDone": "Catalogue refreshed — {{examined}} title(s) re-evaluated, {{monitored}} now monitored",
+    "syncRetracted": "{{count}} title(s) no longer match and are no longer monitored; {{removed}} left the catalogue. Downloaded media was not touched."
   },
   "firstRun": {
     "title": "No discovery provider is enabled yet",
@@ -156,5 +158,37 @@
     "summary": "{{auto}} monitored · {{notify}} notify · {{ignore}} hidden · next {{days}} days",
     "limits": "Up to {{perDay}} per day, {{perWeek}} per week",
     "confirmDelete": "Delete the template \"{{name}}\"? Titles it already monitored are not affected."
+  },
+  "remove": {
+    "action": "Remove from catalogue",
+    "actionFor": "Remove {{title}} from the catalogue",
+    "title": "Remove “{{title}}”",
+    "planError": "Could not work out what removing this would affect.",
+    "scope": {
+      "catalog": {
+        "label": "From the catalogue only",
+        "detail": "1 discovered title and {{evaluations}} evaluation(s). Monitoring is left running."
+      },
+      "monitoring": {
+        "label": "…and stop monitoring it",
+        "rule": "Deletes the generated rule “{{name}}”",
+        "noRule": "No generated rule to delete",
+        "watchlist": "Archives its watchlist entry",
+        "noWatchlist": "No watchlist entry"
+      },
+      "library": {
+        "label": "…and delete the library media",
+        "items": "{{count}} media item(s) in your library",
+        "sidecars": "Artwork, subtitles and NFO sidecars go with them",
+        "unidentified": "This title carries no external id, so its media cannot be identified with certainty — files will not be touched."
+      }
+    },
+    "alsoTorrent": "Also remove the torrent and its data",
+    "trashNote": "Files are moved to Trash by the same path-safe service the File Manager uses, not deleted outright.",
+    "userRuleKept": "The rule “{{name}}” was edited by hand and will be left in place.",
+    "suppressNote": "This title will not come back on the next catalogue refresh. You can undo that from the suppressions list.",
+    "cancel": "Cancel",
+    "confirm": "Remove",
+    "done": "Removed “{{title}}”"
   }
 }

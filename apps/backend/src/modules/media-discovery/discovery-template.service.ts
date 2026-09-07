@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { DiscoveryTemplate, Prisma } from '@prisma/client';
 import { CATEGORY_MATCH_MODES, PATH_TEMPLATE_TOKENS, RELEASE_TYPES } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -56,6 +56,8 @@ const CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/;
  */
 @Injectable()
 export class DiscoveryTemplateService {
+  private readonly logger = new Logger(DiscoveryTemplateService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -101,10 +103,33 @@ export class DiscoveryTemplateService {
     const next = { ...current, ...this.columns(input) } as DiscoveryTemplate;
     if (next.enabled) await this.assertEnableable(next);
 
+    /*
+     * A policy change re-opens every title this template had already decided.
+     *
+     * The evaluator's candidate filter is "no evaluation for this template", so
+     * without clearing those rows an edit changed nothing for anything already
+     * seen — you could move a genre to the "never" list, press Refresh, and
+     * watch the same titles stay monitored. The comment in the evaluator said a
+     * template edit was what should cause a re-run; nothing implemented it.
+     *
+     * Renaming a template or toggling `enabled` is not a policy change and does
+     * not reopen anything.
+     */
+    const changed = this.policyChanged(current, input);
+
     const updated = await this.prisma.discoveryTemplate.update({
       where: { id },
-      data: this.columns(input) as Prisma.DiscoveryTemplateUncheckedUpdateInput,
+      data: {
+        ...(this.columns(input) as Prisma.DiscoveryTemplateUncheckedUpdateInput),
+        ...(changed ? { policyVersion: { increment: 1 } } : {}),
+      },
     });
+    if (changed) {
+      const { count } = await this.prisma.discoveryEvaluation.deleteMany({ where: { templateId: id } });
+      this.logger.log(
+        `Template "${updated.name}" policy changed (v${updated.policyVersion}) — reopened ${count} decision(s)`,
+      );
+    }
     await this.audit.record({
       userId,
       action: 'media_discovery.template.updated',
@@ -115,6 +140,9 @@ export class DiscoveryTemplateService {
         // Enabling is the consequential half of an edit, so it is called out
         // rather than left for a reader to diff out of the payload.
         ...(current.enabled !== updated.enabled ? { enabledChangedTo: updated.enabled } : {}),
+        // A policy bump is the half of an edit that changes outcomes, so it is
+        // recorded rather than inferred from a version column nobody diffs.
+        ...(changed ? { policyVersion: updated.policyVersion } : {}),
       },
     });
     return updated;
@@ -285,6 +313,21 @@ export class DiscoveryTemplateService {
   }
 
   /** Only the fields the caller actually supplied. */
+  /**
+   * Whether an edit changed anything that could change a DECISION.
+   *
+   * `name`, `description` and `enabled` are deliberately excluded: re-deciding
+   * 870 titles because somebody fixed a typo would flood the inbox and, worse,
+   * teach people not to touch templates.
+   */
+  private policyChanged(current: DiscoveryTemplate, input: DiscoveryTemplateInput): boolean {
+    const next = this.columns(input);
+    return POLICY_KEYS.some((key) => {
+      if (!(key in next)) return false;
+      return !same((current as Record<string, unknown>)[key], next[key]);
+    });
+  }
+
   private columns(input: DiscoveryTemplateInput): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     const copy = <K extends keyof DiscoveryTemplateInput>(key: K) => {
@@ -304,6 +347,38 @@ export class DiscoveryTemplateService {
     if (input.name !== undefined) out.name = input.name.trim();
     return out;
   }
+}
+
+/**
+ * The columns that decide an outcome. Everything the evaluator or the rule
+ * generator reads — scope, thresholds, categories, and the destination a
+ * generated rule is built from.
+ */
+const POLICY_KEYS = [
+  'mediaType', 'providers', 'upcomingWindowDays', 'regions', 'languages',
+  'minimumPopularity', 'minimumRating', 'minimumVoteCount', 'networks',
+  'streamingServices', 'studios', 'seriesTypes', 'releaseTypes',
+  'autoMonitorCategories', 'notifyOnlyCategories', 'ignoreCategories',
+  'blockedFromAutoCategories', 'categoryMatchMode', 'minimumConfidence',
+  'acquisitionTemplateId', 'rssFeedId', 'storageProfileId', 'pathTemplate',
+  'createIntakeDirectory', 'autoAddLimitPerDay', 'autoAddLimitPerWeek',
+] as const;
+
+/**
+ * Order-insensitive for arrays.
+ *
+ * The category lists are sets in every way that matters, and treating
+ * `['Drama','Sci-Fi']` as different from `['Sci-Fi','Drama']` would reopen the
+ * whole catalogue every time somebody re-ordered a multi-select.
+ */
+function same(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    const sa = [...a].map(String).sort();
+    const sb = [...b].map(String).sort();
+    return sa.every((v, i) => v === sb[i]);
+  }
+  return a === b || (a == null && b == null);
 }
 
 /** Categories are compared case- and space-insensitively. */

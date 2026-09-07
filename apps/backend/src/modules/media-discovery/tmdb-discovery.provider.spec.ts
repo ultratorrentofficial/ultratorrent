@@ -191,10 +191,20 @@ describe('TmdbDiscoveryProvider — confirming the window locally', () => {
    * returned *Spider-Man: No Way Home* (2021), which qualifies only on a French
    * TV airing.
    */
+  /*
+   * The FR airing is dated relative to today rather than pinned.
+   *
+   * It was written as the literal `2026-09-06` the live API returned, which put
+   * it inside a forward 60-day window on the day it was captured and outside one
+   * the following morning — the suite passed for two days and then failed with
+   * nothing having changed. A fixture compared against a window computed from
+   * the real clock has to move with it.
+   */
+  const inWindow = new Date(Date.now() + 10 * 24 * 3600 * 1000).toISOString();
   const spider = {
     '/discover/movie': { results: [{ id: 634649, title: 'Spider-Man: No Way Home', release_date: '2021-12-15', genre_ids: [] }], total_pages: 1 },
     '/movie/634649/release_dates': {
-      results: [{ iso_3166_1: 'FR', release_dates: [{ type: 6, release_date: '2026-09-06T00:00:00.000Z' }] }],
+      results: [{ iso_3166_1: 'FR', release_dates: [{ type: 6, release_date: inWindow }] }],
     },
     '/genre/': GENRES,
   };

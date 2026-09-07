@@ -5202,6 +5202,21 @@ export const api = {
     item(id: string): Promise<DiscoveredMediaDetail> {
       return request<DiscoveredMediaDetail>(`/media-discovery/items/${id}`);
     },
+    removalPlan(id: string): Promise<DiscoveryRemovalPlan> {
+      return request<DiscoveryRemovalPlan>(`/media-discovery/items/${id}/removal-plan`);
+    },
+    removeItem(
+      id: string,
+      body: { scope: DiscoveryRemovalScope; torrentAction?: DiscoveryTorrentAction },
+    ): Promise<DiscoveryRemovalResult> {
+      return request<DiscoveryRemovalResult>(`/media-discovery/items/${id}`, { method: 'DELETE', body });
+    },
+    suppressions(): Promise<DiscoverySuppression[]> {
+      return request<DiscoverySuppression[]>('/media-discovery/suppressions');
+    },
+    unsuppress(dedupeKey: string) {
+      return request(`/media-discovery/suppressions/${encodeURIComponent(dedupeKey)}`, { method: 'DELETE' });
+    },
     templates(): Promise<DiscoveryTemplate[]> {
       return request<DiscoveryTemplate[]>('/media-discovery/templates');
     },
@@ -5231,8 +5246,8 @@ export const api = {
     preview(template: Record<string, unknown>): Promise<DiscoveryPreview> {
       return request<DiscoveryPreview>('/media-discovery/preview', { method: 'POST', body: template });
     },
-    sync(providers?: string[]) {
-      return request('/media-discovery/sync', { method: 'POST', body: { providers } });
+    sync(providers?: string[]): Promise<DiscoverySyncResult> {
+      return request<DiscoverySyncResult>('/media-discovery/sync', { method: 'POST', body: { providers } });
     },
     evaluate() {
       return request('/media-discovery/evaluate', { method: 'POST' });
@@ -6535,6 +6550,68 @@ export interface DiscoveredMediaPage {
   total: number;
   page: number;
   pageSize: number;
+}
+
+/** Escalating; each scope includes the one before it. */
+export type DiscoveryRemovalScope = 'catalog' | 'monitoring' | 'library';
+export type DiscoveryTorrentAction = 'keep' | 'stop' | 'stop_and_delete';
+
+export interface DiscoveryRemovalPlan {
+  id: string;
+  title: string;
+  year: number | null;
+  mediaType: string;
+  catalog: { evaluations: number; releaseDates: number };
+  monitoring: {
+    rule: { id: string; name: string } | null;
+    userModifiedRule: { id: string; name: string } | null;
+    watchlistItem: { id: string; title: string; status: string } | null;
+  };
+  library: {
+    items: { id: string; title: string; path: string }[];
+    unmatchedReason: 'no_external_ids' | null;
+  };
+}
+
+export interface DiscoveryRemovalResult extends DiscoveryRemovalPlan {
+  scope: DiscoveryRemovalScope;
+  removed: {
+    catalogRow: boolean;
+    rule: boolean;
+    watchlistArchived: boolean;
+    libraryItems: number;
+    libraryJobId: string | null;
+  };
+  skipped: string[];
+}
+
+/** A manual catalogue refresh: fetch, then re-decide the whole catalogue. */
+export interface DiscoverySyncResult {
+  providers: Array<{
+    provider: string;
+    discovered: number;
+    created: number;
+    updated: number;
+    failed: number;
+    suppressed: number;
+  }>;
+  evaluation: {
+    templates: number;
+    examined: number;
+    monitored: number;
+    retracted: number;
+    removedFromCatalog: number;
+  };
+}
+
+export interface DiscoverySuppression {
+  id: string;
+  dedupeKey: string;
+  title: string;
+  mediaType: string | null;
+  reason: string;
+  suppressedAt: string;
+  suppressedBy: string | null;
 }
 
 export interface DiscoveryEvaluationRecord {

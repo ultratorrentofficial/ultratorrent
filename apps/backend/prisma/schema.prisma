@@ -4073,6 +4073,15 @@ model DiscoveryTemplate {
   autoAddLimitPerWeek Int @default(30)
 
   createdBy String?
+  /// Bumped whenever a POLICY column changes — categories, thresholds, scope,
+  /// destination. Renaming a template or toggling `enabled` does not bump it.
+  ///
+  /// A bump is what makes an edit take effect on titles this template has
+  /// already decided about: the evaluator's candidate filter is "no evaluation
+  /// for this template", so without clearing those rows an edited template
+  /// silently changed nothing for everything it had already seen.
+  policyVersion Int @default(1)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -4215,4 +4224,31 @@ model DiscoveryProviderState {
   updatedAt DateTime @updatedAt
 
   @@map("discovery_provider_state")
+}
+
+/// A title a person removed from the discovery catalogue.
+///
+/// Without this a deletion is undone by the next provider sync: the catalogue is
+/// rebuilt from upstream every six hours, so the row comes straight back and the
+/// removal reads as a bug. Keyed on `dedupeKey` because that is the identity the
+/// merge converges on — the same key the sync would re-insert under.
+model DiscoverySuppression {
+  id String @id @default(uuid())
+
+  /// The `DiscoveredMedia.dedupeKey` that must not be re-created.
+  dedupeKey String @unique
+  /// Kept for the UI, so a suppression list is readable without re-querying a
+  /// provider for a title that is deliberately absent.
+  title     String
+  mediaType String?
+
+  /// manual | retracted. A person deleting it, versus a template that stopped
+  /// matching — different causes, and only the first should survive a template
+  /// being edited back.
+  reason       String   @default("manual")
+  suppressedAt DateTime @default(now())
+  suppressedBy String?
+
+  @@index([reason])
+  @@map("discovery_suppressions")
 }

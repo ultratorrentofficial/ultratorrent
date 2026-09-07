@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Eye, RefreshCw, Telescope } from 'lucide-react';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, Eye, RefreshCw, Telescope, Trash2 } from 'lucide-react';
 import { api, type DiscoveredMediaItem } from '@/lib/api';
 import { ProvidersPanel } from './ProvidersPanel';
 import { TemplatesPanel } from './TemplatesPanel';
@@ -11,6 +11,15 @@ import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { useToast } from '@/components/ui/toast';
+import { Pagination } from '@/components/ui/pagination';
+import { RemoveDiscoveryDialog } from './RemoveDiscoveryDialog';
+
+/*
+ * 24 rather than 60: three columns at xl, so every page fills its rows exactly,
+ * and a page is small enough that the pagination control is reachable without
+ * scrolling past a screen of cards to find it.
+ */
+const INBOX_PAGE_SIZE = 24;
 
 /**
  * The Discovery Inbox.
@@ -48,7 +57,7 @@ function decisionTone(decision: string | null): { label: string; className: stri
   }
 }
 
-function DiscoveryCard({ item }: { item: DiscoveredMediaItem }) {
+function DiscoveryCard({ item, onRemove }: { item: DiscoveredMediaItem; onRemove: () => void }) {
   const { t } = useTranslation('mediaDiscovery');
   const tone = decisionTone(item.decision);
   const next = item.releaseDates.find((d) => d.date);
@@ -76,6 +85,23 @@ function DiscoveryCard({ item }: { item: DiscoveredMediaItem }) {
             <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${tone.className}`}>
               {tone.label}
             </span>
+            {/*
+              * Removal lives on the card, not behind a detail view.
+              *
+              * The catalogue is where somebody notices a show they do not want,
+              * and making them open a page to act on it is the reason the
+              * catalogue felt unmanageable. The dialog does the explaining.
+              */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+              title={t('remove.action')}
+              aria-label={t('remove.actionFor', { title: item.title })}
+              onClick={onRemove}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
           </div>
 
           {/*
@@ -133,6 +159,9 @@ export function DiscoverPage() {
   const [view, setView] = useState<ViewId>('all');
   const [search, setSearch] = useState('');
   const [mediaType, setMediaType] = useState('');
+  const [page, setPage] = useState(1);
+  /* The title whose removal dialog is open, if any. */
+  const [removing, setRemoving] = useState<DiscoveredMediaItem | null>(null);
 
   const selected = VIEWS.find((v) => v.id === view)!;
 
@@ -141,22 +170,56 @@ export function DiscoverPage() {
     queryFn: () => api.mediaDiscovery.providers(),
   });
 
+  /*
+   * Filters reset to the first page.
+   *
+   * Without this, narrowing a 900-title catalogue while on page 8 lands on a
+   * page that no longer exists and renders as an empty inbox — which reads as
+   * "the filter matched nothing".
+   */
+  useEffect(() => {
+    setPage(1);
+  }, [view, search, mediaType]);
+
   const inbox = useQuery({
-    queryKey: ['discovery', 'inbox', view, search, mediaType],
+    queryKey: ['discovery', 'inbox', view, search, mediaType, page],
     queryFn: () =>
       api.mediaDiscovery.inbox({
         status: selected.status,
         decision: selected.decision,
         mediaType: mediaType || undefined,
         search: search || undefined,
-        pageSize: 60,
+        page,
+        pageSize: INBOX_PAGE_SIZE,
       }),
+    // The grid keeps the previous page while the next loads, so paging does not
+    // flash an empty state between two full pages.
+    placeholderData: keepPreviousData,
   });
 
   const sync = useMutation({
     mutationFn: () => api.mediaDiscovery.sync(),
-    onSuccess: () => {
-      toast.success(t('actions.syncQueued'));
+    onSuccess: (result) => {
+      /*
+       * A refresh now re-decides the whole catalogue, so it reports what that
+       * did. "Refresh started" was accurate and useless: the button is pressed
+       * after editing a template, and the question being asked is whether the
+       * edit changed anything.
+       */
+      toast.success(
+        t('actions.syncDone', {
+          examined: result.evaluation.examined,
+          monitored: result.evaluation.monitored,
+        }),
+      );
+      if (result.evaluation.retracted > 0) {
+        toast.info(
+          t('actions.syncRetracted', {
+            count: result.evaluation.retracted,
+            removed: result.evaluation.removedFromCatalog,
+          }),
+        );
+      }
       qc.invalidateQueries({ queryKey: ['discovery'] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -258,12 +321,30 @@ export function DiscoverPage() {
           </p>
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {inbox.data.items.map((item) => (
-              <DiscoveryCard key={item.id} item={item} />
+              <DiscoveryCard key={item.id} item={item} onRemove={() => setRemoving(item)} />
             ))}
           </div>
+          <Pagination
+            page={page}
+            pageSize={INBOX_PAGE_SIZE}
+            total={inbox.data.total}
+            onPage={setPage}
+            busy={inbox.isFetching}
+          />
         </>
       )}
       </>
+      )}
+
+      {removing && (
+        <RemoveDiscoveryDialog
+          item={removing}
+          onClose={() => setRemoving(null)}
+          onRemoved={() => {
+            setRemoving(null);
+            qc.invalidateQueries({ queryKey: ['discovery'] });
+          }}
+        />
       )}
     </div>
   );

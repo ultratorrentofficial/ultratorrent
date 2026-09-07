@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS as P } from '@ultratorrent/shared';
@@ -15,6 +15,11 @@ import { DiscoveryPreviewService, type PreviewableTemplate } from './discovery-p
 import { DiscoveryEvaluationService } from './discovery-evaluation.service';
 import { DiscoveryTemplateService, type DiscoveryTemplateInput } from './discovery-template.service';
 import { AcquisitionTemplateService, type AcquisitionTemplateInput } from './acquisition-template.service';
+import { DiscoveryRemovalService, type RemovalScope } from './discovery-removal.service';
+
+/** Validated rather than trusted: an unknown scope must never fall through. */
+const REMOVAL_SCOPES: RemovalScope[] = ['catalog', 'monitoring', 'library'];
+const TORRENT_ACTIONS = ['keep', 'stop', 'stop_and_delete'] as const;
 
 /**
  * Where each provider's credential lives, for a provider that is not registered.
@@ -76,6 +81,7 @@ export class MediaDiscoveryController {
     private readonly evaluation: DiscoveryEvaluationService,
     private readonly templates: DiscoveryTemplateService,
     private readonly acquisition: AcquisitionTemplateService,
+    private readonly removal: DiscoveryRemovalService,
   ) {}
 
   // --- providers -----------------------------------------------------------
@@ -322,7 +328,94 @@ export class MediaDiscoveryController {
       objectId: names.join(','),
       metadata: { providers: names },
     });
-    return this.sync.syncProviders(names);
+    const outcomes = await this.sync.syncProviders(names);
+
+    /*
+     * A manual refresh re-decides the whole catalogue, not just what is new.
+     *
+     * "Refresh catalogues" is pressed after editing a template, and the question
+     * being asked is "apply what I just changed". Returning only newly-fetched
+     * titles answered a different question and left every already-decided title
+     * on its old verdict — which looked exactly like the edit had done nothing.
+     *
+     * The evaluation is awaited rather than fired and forgotten: the caller is a
+     * person watching a button, and a count they can read is the point.
+     */
+    const evaluations = await this.evaluation.runAll();
+    return {
+      providers: outcomes,
+      evaluation: {
+        templates: evaluations.length,
+        examined: evaluations.reduce((n, e) => n + e.examined, 0),
+        monitored: evaluations.reduce((n, e) => n + e.monitored, 0),
+        retracted: evaluations.reduce((n, e) => n + e.retracted, 0),
+        removedFromCatalog: evaluations.reduce((n, e) => n + e.removedFromCatalog, 0),
+      },
+    };
+  }
+
+  // --- catalogue management -------------------------------------------------
+
+  /**
+   * What removing this title would touch, without touching any of it.
+   *
+   * `view` rather than `manage`: reading the consequences of an action is not
+   * the action, and somebody deciding whether to ask an admin to delete
+   * something needs to be able to see what it would cost.
+   */
+  @Get('items/:id/removal-plan')
+  @RequirePermissions(P.MEDIA_DISCOVERY_VIEW)
+  removalPlan(@Param('id') id: string) {
+    return this.removal.plan(id);
+  }
+
+  /**
+   * Remove a discovered title, at the scope the caller names.
+   *
+   * `library` scope deletes media files, so it requires `manage` and is never
+   * the default — the body must ask for it explicitly. The scope is validated
+   * here rather than trusted, because an unrecognised value silently falling
+   * through to the most destructive branch is the worst possible failure.
+   */
+  @Delete('items/:id')
+  @RequirePermissions(P.MEDIA_DISCOVERY_MANAGE)
+  async removeItem(
+    @Param('id') id: string,
+    @Body() body: { scope?: string; torrentAction?: string },
+    @Req() req: Request,
+  ) {
+    const scope = body?.scope ?? 'catalog';
+    if (!REMOVAL_SCOPES.includes(scope as RemovalScope)) {
+      throw new BadRequestException(
+        `Unknown removal scope "${scope}". Expected one of: ${REMOVAL_SCOPES.join(', ')}`,
+      );
+    }
+    const torrentAction = body?.torrentAction ?? 'keep';
+    if (!TORRENT_ACTIONS.includes(torrentAction as (typeof TORRENT_ACTIONS)[number])) {
+      throw new BadRequestException(
+        `Unknown torrent action "${torrentAction}". Expected one of: ${TORRENT_ACTIONS.join(', ')}`,
+      );
+    }
+    return this.removal.remove(
+      id,
+      { scope: scope as RemovalScope, torrentAction: torrentAction as never },
+      userId(req),
+      reqAuditContext(req),
+    );
+  }
+
+  /** Titles held out of the catalogue, and why. */
+  @Get('suppressions')
+  @RequirePermissions(P.MEDIA_DISCOVERY_VIEW)
+  suppressions() {
+    return this.prisma.discoverySuppression.findMany({ orderBy: { suppressedAt: 'desc' }, take: 500 });
+  }
+
+  /** Let a removed title be discovered again on the next refresh. */
+  @Delete('suppressions/:dedupeKey')
+  @RequirePermissions(P.MEDIA_DISCOVERY_MANAGE)
+  unsuppress(@Param('dedupeKey') dedupeKey: string, @Req() req: Request) {
+    return this.removal.unsuppress(decodeURIComponent(dedupeKey), userId(req));
   }
 
   /**

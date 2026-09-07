@@ -94,6 +94,17 @@ const DEFINITIONS: readonly NotificationEventDefinition[] = [
     presentationBuilder: 'discovery',
   },
   {
+    key: DOMAIN_EVENTS.MEDIA_DISCOVERY_RETRACTED,
+    category: 'downloads',
+    severity: 'warning',
+    titleKey: 'events.media_discovery.retracted.title',
+    descriptionKey: 'events.media_discovery.retracted.description',
+    defaultInApp: true,
+    recipientStrategy: 'permission_holders',
+    requiredPermission: PERMISSIONS.MEDIA_DISCOVERY_VIEW,
+    presentationBuilder: 'discovery',
+  },
+  {
     key: DOMAIN_EVENTS.MEDIA_DISCOVERY_PROVIDER_SYNC_FAILED,
     category: 'providers',
     severity: 'warning',

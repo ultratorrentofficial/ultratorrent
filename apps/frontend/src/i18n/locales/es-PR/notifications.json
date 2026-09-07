@@ -180,6 +180,10 @@
         "title": "No se pudo generar la regla de adquisición",
         "description": "Un título se monitorea pero no tiene preferencias de versión propias."
       },
+      "retracted": {
+        "title": "Vigilancia retirada",
+        "description": "Un título vigilado dejó de calificar para su plantilla. Se eliminó su regla generada y se archivó su entrada de lista de seguimiento; no se tocaron los medios descargados ni los torrents."
+      },
       "provider_sync_failed": {
         "title": "Falló la actualización de un proveedor de descubrimiento",
         "description": "No se pudo actualizar el catálogo de un proveedor. Se conservó el catálogo anterior."

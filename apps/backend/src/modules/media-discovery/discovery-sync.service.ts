@@ -43,6 +43,8 @@ export interface SyncOutcome {
   created: number;
   updated: number;
   failed: number;
+  /** Reported by upstream, held back because somebody removed it here. */
+  suppressed: number;
   durationMs: number;
   error?: string;
 }
@@ -158,6 +160,7 @@ export class DiscoverySyncService {
           created: result.created,
           updated: result.updated,
           failed: result.failed,
+          suppressed: result.suppressed,
           durationMs: p.durationMs,
           ...(p.error ? { error: p.error } : {}),
         });

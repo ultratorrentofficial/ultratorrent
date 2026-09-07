@@ -14,9 +14,14 @@ import { DiscoveryIntakeService } from './discovery-intake.service';
 import { DiscoveryPreviewService } from './discovery-preview.service';
 import { DiscoveryBudgetService } from './discovery-budget.service';
 import { DiscoveryEvaluationService } from './discovery-evaluation.service';
+import { DiscoveryRemovalService } from './discovery-removal.service';
 import { MediaDiscoveryController } from './media-discovery.controller';
 import { FilesModule } from '../files/files.module';
 import { MediaAcquisitionModule } from '../media-acquisition/media-acquisition.module';
+// Removal reuses MediaBulkService.deleteFiles rather than growing a second
+// deletion path: it already handles sidecars, artwork, subtitles and the source
+// torrent, audits the run, and removes to Trash instead of unlinking.
+import { MediaModule } from '../media/media.module';
 import { TmdbDiscoveryProvider } from './tmdb-discovery.provider';
 import { TvmazeDiscoveryProvider } from './tvmaze-discovery.provider';
 
@@ -37,10 +42,10 @@ export { evaluateDiscovery, categoriesMatch } from './discovery-policy';
  * need to, the answer is to call the acquisition engine, not to grow a second one.
  */
 @Module({
-  imports: [PrismaModule, SettingsModule, AuditModule, MediaAcquisitionModule, FilesModule, DomainEventsModule],
-  providers: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService],
+  imports: [PrismaModule, SettingsModule, AuditModule, MediaAcquisitionModule, MediaModule, FilesModule, DomainEventsModule],
+  providers: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService, DiscoveryRemovalService],
   controllers: [MediaDiscoveryController],
-  exports: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService],
+  exports: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService, DiscoveryRemovalService],
 })
 export class MediaDiscoveryModule implements OnModuleInit {
   constructor(

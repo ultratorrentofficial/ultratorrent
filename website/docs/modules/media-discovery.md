@@ -160,6 +160,44 @@ If this template ran now, over 870 discovered titles:
 
 That last line is the reason to preview before enabling rather than after. Limits are **projected, not applied** in a preview: folding the budget into the evaluation would make every title past the tenth read as "needs review" and hide the shape of the policy you are actually tuning.
 
+## Managing the catalogue
+
+### Removing a title
+
+Every card carries a **Remove** action, and the dialog asks what you mean — because "remove this show" means three different things:
+
+| Scope | Removes |
+|-------|---------|
+| **From the catalogue only** | The discovered title and its evaluations. Monitoring keeps running. |
+| **…and stop monitoring it** | Also the generated RSS rule, and archives the watchlist entry. |
+| **…and delete the library media** | Also the media items, their artwork, subtitles and NFO sidecars — optionally the torrent and its data. |
+
+The dialog shows **what each scope would actually take** before you confirm, from the server's own plan. The least destructive scope is the default; escalating is a deliberate second click.
+
+:::danger Library media is matched by external id only
+Title-and-year is good enough to group a listing and nowhere near good enough to delete by — two films genuinely share a title and year. A title carrying no external id reports that it cannot be identified, and its files are left alone.
+
+Files are moved to **Trash** through the same path-safe service the File Manager uses, not unlinked. There is no second deletion path.
+:::
+
+**A removed title does not come back.** Its identity is recorded as a *suppression* and checked on every sync — otherwise the next catalogue refresh re-creates it within six hours and the deletion reads as a bug.
+
+### Editing a template re-decides the catalogue
+
+An edit that changes **policy** — categories, thresholds, scope, or the destination a rule is built from — clears that template's decisions, so every stored title is judged again. Renaming a template, or merely enabling and disabling it, does not.
+
+**Refresh catalogues** fetches from the providers *and* re-evaluates everything, then reports what changed. That is the button you press after an edit.
+
+### Titles that stop matching
+
+When a re-evaluation finds an auto-monitored title no longer qualifies, its monitoring is **withdrawn**: the generated rule deleted, the watchlist entry archived, and — if the title is now out of scope or explicitly ignored — it leaves the catalogue. Every retraction notifies you, because it undoes something done on your behalf.
+
+Three things retraction never does:
+
+- **It never deletes media or torrents.** It runs from a background sweep that fired because somebody edited a genre list; deleting 40 GB of episodes as a side effect of that would be unrecoverable and invisible.
+- **It never touches a rule you edited.**
+- **It never overrules a watchlist entry you paused, archived or completed.**
+
 ## The inbox
 
 Every card carries **the reason it is there**. A discovery engine that silently monitors things is one you can neither trust nor correct.
@@ -212,6 +250,10 @@ Base path `/api/media-discovery`. **No endpoint calls a provider** — a sync is
 | `POST` | `/providers/:name/enable` | `providers.manage` |
 | `GET` | `/inbox` | `view` |
 | `GET` | `/items/:id` | `view` |
+| `GET` | `/items/:id/removal-plan` | `view` |
+| `DELETE` | `/items/:id` | `manage` |
+| `GET` | `/suppressions` | `view` |
+| `DELETE` | `/suppressions/:dedupeKey` | `manage` |
 | `GET` `POST` `PATCH` `DELETE` | `/templates` | `view` / `templates.manage` |
 | `GET` `POST` `PATCH` `DELETE` | `/acquisition-templates` | `view` / `templates.manage` |
 | `GET` | `/template-options` | `templates.manage` |

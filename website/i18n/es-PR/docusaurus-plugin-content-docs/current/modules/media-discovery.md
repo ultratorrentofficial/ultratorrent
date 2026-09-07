@@ -160,6 +160,44 @@ Si esta plantilla corriera ahora, sobre 870 títulos descubiertos:
 
 Esa última línea es la razón para previsualizar antes de activar y no después. En una previsualización los límites se **proyectan, no se aplican**: meter el presupuesto dentro de la evaluación haría que cada título después del décimo se leyera como "necesita revisión" y escondería la forma de la política que estás afinando.
 
+## Gestionar el catálogo
+
+### Quitar un título
+
+Cada tarjeta trae una acción **Quitar**, y el diálogo pregunta a qué te refieres — porque «quitar esta serie» significa tres cosas distintas:
+
+| Alcance | Quita |
+|---------|-------|
+| **Solo del catálogo** | El título descubierto y sus evaluaciones. La vigilancia sigue activa. |
+| **…y dejar de vigilarlo** | Además la regla RSS generada, y archiva la entrada de lista de seguimiento. |
+| **…y borrar los medios de la biblioteca** | Además los elementos, sus carátulas, subtítulos y archivos NFO — y opcionalmente el torrent y sus datos. |
+
+El diálogo muestra **qué se llevaría cada alcance** antes de que confirmes, a partir del plan del propio servidor. El alcance menos destructivo es el predeterminado; escalar es un segundo clic deliberado.
+
+:::danger Los medios se identifican solo por id externo
+Título y año sirven para agrupar un listado y no alcanzan ni de lejos para borrar — dos películas comparten título y año de verdad. Un título sin id externo reporta que no se puede identificar, y no se tocan sus archivos.
+
+Los archivos se mueven a la **Papelera** mediante el mismo servicio de rutas seguras que usa el Gestor de Archivos, no se desenlazan. No hay una segunda vía de borrado.
+:::
+
+**Un título quitado no regresa.** Su identidad se registra como una *supresión* y se comprueba en cada sync — si no, el próximo refresco lo recrearía en seis horas y la eliminación parecería un error.
+
+### Editar una plantilla vuelve a decidir el catálogo
+
+Una edición que cambia la **política** — categorías, umbrales, alcance o el destino con el que se construye una regla — borra las decisiones de esa plantilla, así que cada título guardado se juzga de nuevo. Renombrarla, o solo activarla y desactivarla, no.
+
+**Refrescar catálogos** consulta a los proveedores *y* reevalúa todo, y luego reporta qué cambió. Ese es el botón que presionas después de una edición.
+
+### Títulos que dejan de coincidir
+
+Cuando una reevaluación encuentra que un título auto-vigilado ya no califica, se **retira** su vigilancia: se elimina la regla generada, se archiva la entrada de lista y — si el título quedó fuera de alcance o explícitamente ignorado — sale del catálogo. Cada retirada te notifica, porque deshace algo hecho en tu nombre.
+
+Tres cosas que la retirada nunca hace:
+
+- **Nunca borra medios ni torrents.** Corre desde un barrido en segundo plano que se disparó porque alguien editó una lista de géneros; borrar 40 GB de episodios como efecto secundario de eso sería irrecuperable e invisible.
+- **Nunca toca una regla que editaste.**
+- **Nunca pasa por encima de una entrada de lista que pausaste, archivaste o completaste.**
+
 ## La bandeja
 
 Cada tarjeta lleva **la razón por la que está ahí**. Un motor de descubrimiento que vigila cosas en silencio es uno en el que no puedes confiar ni corregir.
@@ -212,6 +250,10 @@ Ruta base `/api/media-discovery`. **Ningún endpoint llama a un proveedor** — 
 | `POST` | `/providers/:name/enable` | `providers.manage` |
 | `GET` | `/inbox` | `view` |
 | `GET` | `/items/:id` | `view` |
+| `GET` | `/items/:id/removal-plan` | `view` |
+| `DELETE` | `/items/:id` | `manage` |
+| `GET` | `/suppressions` | `view` |
+| `DELETE` | `/suppressions/:dedupeKey` | `manage` |
 | `GET` `POST` `PATCH` `DELETE` | `/templates` | `view` / `templates.manage` |
 | `GET` `POST` `PATCH` `DELETE` | `/acquisition-templates` | `view` / `templates.manage` |
 | `GET` | `/template-options` | `templates.manage` |

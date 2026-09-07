@@ -8,6 +8,8 @@ export interface StoreResult {
   created: number;
   updated: number;
   failed: number;
+  /** Titles upstream still reports that somebody removed here. */
+  suppressed: number;
 }
 
 /**
@@ -33,9 +35,41 @@ export class DiscoveryStoreService {
   constructor(private readonly prisma: PrismaService) {}
 
   async persist(records: MergedDiscovery[]): Promise<StoreResult> {
-    const result: StoreResult = { created: 0, updated: 0, failed: 0 };
+    const result: StoreResult = { created: 0, updated: 0, failed: 0, suppressed: 0 };
+
+    /*
+     * Identities a person removed, or a template retracted.
+     *
+     * Loaded once per sync rather than queried per record: a catalogue refresh
+     * carries thousands of titles, and this is a small set that changes only
+     * when somebody deletes something.
+     *
+     * Without this the whole feature is cosmetic — a deleted title is re-created
+     * by the next refresh under the same dedupe key, within six hours, and the
+     * deletion reads as a bug rather than a decision.
+     */
+    const suppressed = new Set(
+      (await this.prisma.discoverySuppression.findMany({ select: { dedupeKey: true } })).map(
+        (s) => s.dedupeKey,
+      ),
+    );
+
     for (const record of records) {
       try {
+        /*
+         * Every key the record could land under is checked, not just the
+         * primary. `findExisting` already matches on `alternateKeys`, so
+         * checking only `dedupeKey` would let a title return the moment a
+         * provider promoted a different id to strongest.
+         */
+        const keys = record.alternateKeys.length
+          ? [record.dedupeKey, ...record.alternateKeys]
+          : [record.dedupeKey];
+        if (keys.some((k) => suppressed.has(k))) {
+          result.suppressed += 1;
+          continue;
+        }
+
         const existing = await this.findExisting(record);
         if (existing) {
           await this.update(existing.id, existing, record);
