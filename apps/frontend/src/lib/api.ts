@@ -5211,6 +5211,15 @@ export const api = {
     ): Promise<DiscoveryRemovalResult> {
       return request<DiscoveryRemovalResult>(`/media-discovery/items/${id}`, { method: 'DELETE', body });
     },
+    duplicates(): Promise<DuplicateGroup[]> {
+      return request<DuplicateGroup[]>('/media-discovery/duplicates');
+    },
+    duplicatePlan(body: { keepId: string; archiveIds: string[] }): Promise<DuplicateMergePlan> {
+      return request<DuplicateMergePlan>('/media-discovery/duplicates/plan', { method: 'POST', body });
+    },
+    mergeDuplicates(body: { keepId: string; archiveIds: string[] }): Promise<DuplicateMergePlan> {
+      return request<DuplicateMergePlan>('/media-discovery/duplicates/merge', { method: 'POST', body });
+    },
     suppressions(): Promise<DiscoverySuppression[]> {
       return request<DiscoverySuppression[]>('/media-discovery/suppressions');
     },
@@ -6602,6 +6611,45 @@ export interface DiscoverySyncResult {
     retracted: number;
     removedFromCatalog: number;
   };
+}
+
+export interface DuplicateEntry {
+  id: string;
+  title: string;
+  year: number | null;
+  status: string;
+  createdAt: string;
+  externalIds: Record<string, string>;
+  createdByDiscovery: boolean;
+  rule: {
+    id: string;
+    name: string;
+    generatedByDiscovery: boolean;
+    userModifiedAt: string | null;
+    candidateCount: number;
+  } | null;
+  history: { wantedEpisodes: number; evaluations: number; acquisitions: number };
+}
+
+export interface DuplicateGroup {
+  key: string;
+  mediaType: string;
+  canonicalTitle: string;
+  year: number | null;
+  evidence: 'external_id' | 'canonical_title';
+  matchedIdNamespace: string | null;
+  entries: DuplicateEntry[];
+  recommendedKeepId: string;
+  recommendation: string;
+}
+
+export interface DuplicateMergePlan {
+  keep: DuplicateEntry;
+  archive: DuplicateEntry[];
+  idsGained: Record<string, string>;
+  rulesDeleted: Array<{ id: string; name: string }>;
+  rulesKept: Array<{ id: string; name: string; reason: string }>;
+  warnings: string[];
 }
 
 export interface DiscoverySuppression {

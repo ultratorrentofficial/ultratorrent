@@ -66,7 +66,8 @@
   "tabs": {
     "inbox": "Bandeja",
     "providers": "Proveedores",
-    "templates": "Plantillas"
+    "templates": "Plantillas",
+    "duplicates": "Duplicados"
   },
   "policy": {
     "autoMonitorCategories": {
@@ -218,5 +219,39 @@
     "monitoringIncomplete": "Vigilancia incompleta",
     "existsNotMonitored": "En tu biblioteca, sin vigilar",
     "reviewPastRelease": "Ya estrenada — revisar"
+  },
+  "duplicates": {
+    "error": "No se pudo buscar duplicados.",
+    "emptyTitle": "No se encontraron duplicados",
+    "emptyDescription": "Cada programa vigilado resuelve a una sola identidad.",
+    "intro": "{{count}} programa(s) parecen estar vigilados más de una vez. Nada se fusiona hasta que elijas.",
+    "recommended": "Recomendado",
+    "chooseKeeper": "Elige la entrada que se conserva. Las demás se archivan — nunca se borran — para que su historial siga legible y la decisión sea reversible.",
+    "evidence": {
+      "id": "Mismo id {{ns}}",
+      "title": "Mismo título y año"
+    },
+    "origin": {
+      "manual": "hecha a mano",
+      "generated": "generada",
+      "edited": "generada y luego editada"
+    },
+    "entry": {
+      "rule": "Regla «{{name}}» · {{count}} preferencia(s) de coincidencia · {{origin}}",
+      "noRule": "Sin regla de adquisición",
+      "history": "{{count}} fila(s) de historial",
+      "noHistory": "Sin historial de adquisición",
+      "noIds": "Sin ids externos"
+    },
+    "whatHappens": "Qué hace esta fusión",
+    "plan": {
+      "archive": "Archiva {{count}} entrada(s) duplicada(s) — reversible, y su historial queda intacto",
+      "idsGained": "Añade los ids externos {{ids}} a la entrada que conservas",
+      "ruleDeleted": "Elimina la regla generada «{{name}}»",
+      "ruleKept": "Conserva la regla «{{name}}» ({{reason}})",
+      "neverTouched": "No se tocan medios, torrents ni ajustes hechos a mano"
+    },
+    "merge": "Fusionar",
+    "merged": "Se fusionaron {{count}} duplicado(s) en «{{title}}»"
   }
 }

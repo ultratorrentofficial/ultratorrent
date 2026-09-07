@@ -16,6 +16,7 @@ import { DiscoveryBudgetService } from './discovery-budget.service';
 import { DiscoveryEvaluationService } from './discovery-evaluation.service';
 import { DiscoveryRemovalService } from './discovery-removal.service';
 import { DiscoveryIdentityResolverService } from './discovery-identity-resolver.service';
+import { DiscoveryReconciliationService } from './discovery-reconciliation.service';
 import { MediaDiscoveryController } from './media-discovery.controller';
 import { FilesModule } from '../files/files.module';
 import { MediaAcquisitionModule } from '../media-acquisition/media-acquisition.module';
@@ -44,9 +45,9 @@ export { evaluateDiscovery, categoriesMatch } from './discovery-policy';
  */
 @Module({
   imports: [PrismaModule, SettingsModule, AuditModule, MediaAcquisitionModule, MediaModule, FilesModule, DomainEventsModule],
-  providers: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService, DiscoveryRemovalService, DiscoveryIdentityResolverService],
+  providers: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService, DiscoveryRemovalService, DiscoveryIdentityResolverService, DiscoveryReconciliationService],
   controllers: [MediaDiscoveryController],
-  exports: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService, DiscoveryRemovalService, DiscoveryIdentityResolverService],
+  exports: [DiscoveryProviderRegistry, DiscoveryStoreService, DiscoverySyncService, DiscoveryTemplateService, AcquisitionTemplateService, DiscoveryWatchlistService, DiscoveryRuleService, DiscoveryIntakeService, DiscoveryPreviewService, DiscoveryBudgetService, DiscoveryEvaluationService, DiscoveryRemovalService, DiscoveryIdentityResolverService, DiscoveryReconciliationService],
 })
 export class MediaDiscoveryModule implements OnModuleInit {
   constructor(

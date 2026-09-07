@@ -66,7 +66,8 @@
   "tabs": {
     "inbox": "Inbox",
     "providers": "Providers",
-    "templates": "Templates"
+    "templates": "Templates",
+    "duplicates": "Duplicates"
   },
   "policy": {
     "autoMonitorCategories": {
@@ -218,5 +219,39 @@
     "monitoringIncomplete": "Monitoring incomplete",
     "existsNotMonitored": "In your library, not monitored",
     "reviewPastRelease": "Past release — review"
+  },
+  "duplicates": {
+    "error": "Could not check for duplicates.",
+    "emptyTitle": "No duplicates found",
+    "emptyDescription": "Every monitored show resolves to one identity.",
+    "intro": "{{count}} show(s) appear to be monitored more than once. Nothing is merged until you choose.",
+    "recommended": "Recommended",
+    "chooseKeeper": "Choose the entry to keep. The others are archived — never deleted — so their history stays readable and the choice is reversible.",
+    "evidence": {
+      "id": "Same {{ns}} id",
+      "title": "Same title and year"
+    },
+    "origin": {
+      "manual": "made by hand",
+      "generated": "generated",
+      "edited": "generated, then edited"
+    },
+    "entry": {
+      "rule": "Rule “{{name}}” · {{count}} match preference(s) · {{origin}}",
+      "noRule": "No acquisition rule",
+      "history": "{{count}} history row(s)",
+      "noHistory": "No acquisition history",
+      "noIds": "No external ids"
+    },
+    "whatHappens": "What this merge does",
+    "plan": {
+      "archive": "Archives {{count}} duplicate entry(s) — reversible, and their history is untouched",
+      "idsGained": "Adds the external ids {{ids}} to the entry you keep",
+      "ruleDeleted": "Deletes the generated rule “{{name}}”",
+      "ruleKept": "Keeps the rule “{{name}}” ({{reason}})",
+      "neverTouched": "No media, torrents or hand-authored settings are touched"
+    },
+    "merge": "Merge",
+    "merged": "Merged {{count}} duplicate(s) into “{{title}}”"
   }
 }

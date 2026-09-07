@@ -16,6 +16,7 @@ import { DiscoveryEvaluationService } from './discovery-evaluation.service';
 import { DiscoveryTemplateService, type DiscoveryTemplateInput } from './discovery-template.service';
 import { AcquisitionTemplateService, type AcquisitionTemplateInput } from './acquisition-template.service';
 import { DiscoveryRemovalService, type RemovalScope } from './discovery-removal.service';
+import { DiscoveryReconciliationService } from './discovery-reconciliation.service';
 
 /** Validated rather than trusted: an unknown scope must never fall through. */
 const REMOVAL_SCOPES: RemovalScope[] = ['catalog', 'monitoring', 'library'];
@@ -82,6 +83,7 @@ export class MediaDiscoveryController {
     private readonly templates: DiscoveryTemplateService,
     private readonly acquisition: AcquisitionTemplateService,
     private readonly removal: DiscoveryRemovalService,
+    private readonly reconciliation: DiscoveryReconciliationService,
   ) {}
 
   // --- providers -----------------------------------------------------------
@@ -402,6 +404,45 @@ export class MediaDiscoveryController {
       userId(req),
       reqAuditContext(req),
     );
+  }
+
+  // --- duplicate reconciliation --------------------------------------------
+
+  /**
+   * Shows being monitored more than once.
+   *
+   * `view`, because reading a report is not acting on it — and somebody who
+   * cannot merge still needs to be able to see what is wrong and ask.
+   */
+  @Get('duplicates')
+  @RequirePermissions(P.MEDIA_DISCOVERY_VIEW)
+  duplicates() {
+    return this.reconciliation.scan();
+  }
+
+  /** What merging these would do. Writes nothing. */
+  @Post('duplicates/plan')
+  @RequirePermissions(P.MEDIA_DISCOVERY_VIEW)
+  duplicatePlan(@Body() body: { keepId?: string; archiveIds?: string[] }) {
+    if (!body?.keepId) throw new BadRequestException('keepId is required.');
+    return this.reconciliation.plan(body.keepId, body.archiveIds ?? []);
+  }
+
+  /**
+   * Merge duplicates an operator has reviewed.
+   *
+   * The losers are archived rather than deleted, and no media, torrent or
+   * hand-authored rule is touched — see `DiscoveryReconciliationService`.
+   */
+  @Post('duplicates/merge')
+  @RequirePermissions(P.MEDIA_DISCOVERY_MANAGE)
+  mergeDuplicates(
+    @Body() body: { keepId?: string; archiveIds?: string[] },
+    @Req() req: Request,
+  ) {
+    if (!body?.keepId) throw new BadRequestException('keepId is required.');
+    if (!body?.archiveIds?.length) throw new BadRequestException('archiveIds must name at least one entry.');
+    return this.reconciliation.merge(body.keepId, body.archiveIds, userId(req), reqAuditContext(req));
   }
 
   /** Titles held out of the catalogue, and why. */

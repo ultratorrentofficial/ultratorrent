@@ -298,6 +298,50 @@ written. A template that cannot build a working rule holds its titles for
 complete and does nothing.
 :::
 
+## Reconciling duplicates that already exist
+
+The identity gate stops **new** duplicates. It cannot help with the ones created
+before it existed — two watchlist entries, two rules, possibly two intake folders.
+**Discover → Duplicates** finds them and proposes a merge.
+
+Groups are formed two ways, and the card says which:
+
+| Evidence | Meaning |
+| --- | --- |
+| **Same external id** | Proof. Two entries naming the same TMDB / IMDb / TVDB / TVmaze id are one work. |
+| **Same title and year** | A proposal. Canonical, so `Tulsa King` and `Tulsa King (2022)` group — but only when no id contradicts it. |
+
+**Contradicting ids beat agreeing titles.** Two entries that both carry an IMDb id
+and carry different ones are never grouped, whatever their titles say. That is
+what keeps a remake out of its original's group.
+
+### Nothing is merged without you
+
+The tool recommends which entry to keep, ordered by **what is hardest to
+recreate** — a hand-made rule first, then one that was edited, then acquisition
+history, then external ids, with the oldest entry breaking a tie. You can choose
+differently; the plan updates to show what that choice would cost.
+
+### A loser is archived, never deleted
+
+Four tables hang off a watchlist entry, and `WantedEpisode` is unique on
+`(watchlistItemId, season, episode)`. Reparenting that history onto the keeper
+would collide on every episode both entries know about, and resolving those
+collisions means discarding rows. Archiving keeps every row exactly where it is,
+keeps the history readable, and is reversible by setting a status back.
+
+A merge does exactly four things:
+
+1. **Archives** the duplicate entries.
+2. **Adds** external ids the kept entry was missing — never overwriting one it
+   already has. A differing id is reported as a warning, because silently
+   overwriting an identity is how the wrong show gets acquired afterwards.
+3. **Deletes** generated rules nobody has edited.
+4. **Keeps** every rule that was made by hand or edited by hand, and says so.
+
+**Media, torrents and hand-authored settings are never touched.** A duplicate is
+a bookkeeping problem; the files were never duplicated.
+
 ## Providers
 
 Three states, and only one is a fault:

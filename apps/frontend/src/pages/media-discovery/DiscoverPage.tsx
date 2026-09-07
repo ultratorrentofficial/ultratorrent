@@ -5,6 +5,7 @@ import { AlertTriangle, Eye, RefreshCw, Telescope, Trash2 } from 'lucide-react';
 import { api, type DiscoveredMediaItem } from '@/lib/api';
 import { ProvidersPanel } from './ProvidersPanel';
 import { TemplatesPanel } from './TemplatesPanel';
+import { DuplicatesPanel } from './DuplicatesPanel';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -196,7 +197,7 @@ export function DiscoverPage() {
   const { t } = useTranslation('mediaDiscovery');
   const toast = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<'inbox' | 'templates' | 'providers'>('inbox');
+  const [tab, setTab] = useState<'inbox' | 'templates' | 'providers' | 'duplicates'>('inbox');
   const [view, setView] = useState<ViewId>('all');
   const [search, setSearch] = useState('');
   const [mediaType, setMediaType] = useState('');
@@ -299,7 +300,7 @@ export function DiscoverPage() {
       )}
 
       <div className="flex items-center gap-1 rounded-lg border border-white/10 p-0.5">
-        {(['inbox', 'templates', 'providers'] as const).map((id) => (
+        {(['inbox', 'templates', 'providers', 'duplicates'] as const).map((id) => (
           <button
             key={id}
             type="button"
@@ -315,6 +316,7 @@ export function DiscoverPage() {
 
       {tab === 'providers' && <ProvidersPanel />}
       {tab === 'templates' && <TemplatesPanel />}
+      {tab === 'duplicates' && <DuplicatesPanel />}
 
       {tab === 'inbox' && (
       <>
