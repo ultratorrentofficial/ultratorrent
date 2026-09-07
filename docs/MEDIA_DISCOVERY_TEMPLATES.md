@@ -126,7 +126,7 @@ notify-only template they are not optional but irrelevant.
 | --- | --- |
 | **RSS feed** | A generated rule must belong to a feed — `RssRule.feedId` is required. A template cannot be *enabled* without one. |
 | **Storage profile** | Decides where media is staged and filed. Generated rules are `managed_intake`, so the intake pipeline resolves the destination from this. |
-| **Acquisition template** | Optional. Without one, generated rules fall back to your auto-download profiles and then the global defaults — so a rule still has preferences, just not template-specific ones. |
+| **Match preferences** | **Required.** A template cannot be enabled for auto-monitoring without one, and it must have at least one enabled rung. |
 | **Folder below the staging root** | The *leaf* only. Tokens: `{tvshow}` `{movie}` `{year}` `{season_number}` `{title}` `{season}`. |
 
 There is deliberately **no `{library_path}` or `{intake_path}` token.** The root
@@ -203,8 +203,26 @@ looks configured and silently does nothing, so they are refused with a message
 pointing at `requiredTerms: ["DV"]` / `["Atmos"]`.
 
 > **No editor yet.** Acquisition ladders are authored through the API. A
-> discovery template can *select* an existing one, or leave it unset and fall
-> back to your auto-download profiles.
+> discovery template *selects* an existing one; it can no longer be left unset
+> for an auto-monitoring template.
+
+:::danger A rule with no match preferences matches nothing
+This used to be optional, on the belief that a generated rule without a ladder
+would fall back to your auto-download profiles and then the global defaults.
+
+That is true of the **watchlist and missing-episode search** path. It is **not**
+true of RSS feed matching, which is what a generated rule is for: a rule is
+filtered by its match candidates if it has any and by its include/exclude regex
+otherwise, and a rule with **neither** is treated as matching nothing —
+deliberately, so a filterless rule cannot grab an entire feed. Discovery never
+sets a regex.
+
+So a template with no match preferences produced a rule that was enabled,
+auto-downloading, and permanently inert, with nothing indicating a fault. Match
+preferences are now required, validated when the template is enabled and again
+when the rule is written, and a template that cannot build a working rule holds
+its titles for review rather than creating half-configured monitoring.
+:::
 
 Editing a ladder bumps the template's `version`, so a later change can tell which
 generated rules are behind. A description-only edit does not.

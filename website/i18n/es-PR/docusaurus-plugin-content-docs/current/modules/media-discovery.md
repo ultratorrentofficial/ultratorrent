@@ -198,6 +198,16 @@ Tres cosas que la retirada nunca hace:
 - **Nunca toca una regla que editaste.**
 - **Nunca pasa por encima de una entrada de lista que pausaste, archivaste o completaste.**
 
+## Las preferencias de coincidencia son obligatorias para auto-vigilar
+
+Una plantilla de descubrimiento que auto-vigile algo **debe** referenciar un perfil de preferencias de coincidencia con al menos un peldaño activo. La regla generada lleva entonces la escalera completa — cada peldaño en orden, los términos requeridos y excluidos de la plantilla fusionados en cada uno, y las reglas de calidad y tamaño intactas — activada y preparada mediante ingesta gestionada, lista para adquirir en cuanto aparezca un lanzamiento aceptable.
+
+:::danger Una regla sin preferencias de coincidencia no coincide con nada
+Una regla RSS se filtra por sus candidatos de coincidencia si tiene alguno, y por su regex de inclusión/exclusión si no. Una regla que no tiene **ninguno de los dos** se trata como que no coincide con nada — a propósito, para que una regla sin filtro no pueda capturar una fuente entera. El descubrimiento nunca escribe un regex.
+
+Por eso una plantilla sin preferencias de coincidencia producía una regla activada, con descarga automática, y permanentemente inerte, sin que nada indicara la falla. Ahora se valida al activar la plantilla y otra vez al escribir la regla, y una plantilla que no puede construir una regla funcional retiene sus títulos para revisión en vez de crear una vigilancia que parece completa y no hace nada.
+:::
+
 ## La bandeja
 
 Cada tarjeta lleva **la razón por la que está ahí**. Un motor de descubrimiento que vigila cosas en silencio es uno en el que no puedes confiar ni corregir.

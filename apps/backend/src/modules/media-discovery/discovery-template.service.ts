@@ -327,16 +327,65 @@ export class DiscoveryTemplateService {
       throw new ConflictException(`The storage profile "${profile.name}" is disabled.`);
     }
 
-    if (t.acquisitionTemplateId) {
-      const acq = await this.prisma.acquisitionRuleTemplate.findUnique({
-        where: { id: t.acquisitionTemplateId },
-        select: { id: true },
-      });
-      if (!acq) throw new BadRequestException('The selected acquisition template no longer exists.');
+    /*
+     * An auto-monitoring template MUST carry match preferences.
+     *
+     * This used to be optional, on the belief that a generated rule without them
+     * would fall back to the auto-download profiles and then the global
+     * defaults. That is true of `AcquisitionMatchPreferenceService.resolveCandidates()`,
+     * which serves the watchlist and missing-episode search — and NOT of RSS feed
+     * matching, which is what a generated rule is for. `rss.module.ts` picks a
+     * rule's match candidates if it has any and its include/exclude regex
+     * otherwise, and `legacyEvaluation()` returns `matched: false` for a rule
+     * with neither, deliberately, so a filterless rule cannot grab a whole feed.
+     *
+     * The generator never sets a regex. So a template with no acquisition
+     * template produced a rule that was enabled, `autoDownload: true`, and
+     * matched nothing for ever — with nothing anywhere indicating a fault.
+     */
+    const readiness = await this.acquisitionReadiness(t.acquisitionTemplateId);
+    if (!readiness.ready) throw new BadRequestException(readiness.reason);
+  }
+
+  /**
+   * Can this acquisition template produce a rule that will actually match?
+   *
+   * Shared between save-time validation and the evaluator, which checks it once
+   * per run rather than creating half-configured monitoring and reporting the
+   * failure afterwards.
+   */
+  async acquisitionReadiness(
+    acquisitionTemplateId: string | null,
+  ): Promise<{ ready: boolean; reason: string }> {
+    if (!acquisitionTemplateId) {
+      return {
+        ready: false,
+        reason:
+          'Select match preferences before enabling automatic monitoring: a generated rule with no match candidates matches nothing at all, so it would be created enabled and never acquire anything.',
+      };
     }
-    // No acquisition template is legal: `resolveCandidates()` already falls back
-    // to the auto-download profiles and then the global defaults, so a generated
-    // rule without one still has preferences — just not template-specific ones.
+    const acq = await this.prisma.acquisitionRuleTemplate.findUnique({
+      where: { id: acquisitionTemplateId },
+      select: { id: true, name: true, enabled: true, candidates: { select: { enabled: true } } },
+    });
+    if (!acq) {
+      return { ready: false, reason: 'The selected match preference profile no longer exists.' };
+    }
+    if (!acq.enabled) {
+      return { ready: false, reason: `The match preference profile "${acq.name}" is disabled.` };
+    }
+    /*
+     * At least one ENABLED rung. A ladder whose every rung is switched off is
+     * copied onto the rule faithfully and then matches nothing — the same silent
+     * failure as having no ladder, one level down.
+     */
+    if (!acq.candidates.some((c) => c.enabled)) {
+      return {
+        ready: false,
+        reason: `The match preference profile "${acq.name}" has no enabled candidates, so a rule built from it would match nothing.`,
+      };
+    }
+    return { ready: true, reason: `Match preferences "${acq.name}" are ready` };
   }
 
   /** Only the fields the caller actually supplied. */

@@ -21,7 +21,13 @@ function harness(opts: { feed?: any; profile?: any; acq?: any; template?: any } 
     },
     rssFeed: { findUnique: jest.fn(async () => (opts.feed === undefined ? { id: 'f1', isEnabled: true, name: 'Feed' } : opts.feed)) },
     storageProfile: { findUnique: jest.fn(async () => (opts.profile === undefined ? { id: 'p1', isEnabled: true, name: 'Dev' } : opts.profile)) },
-    acquisitionRuleTemplate: { findUnique: jest.fn(async () => (opts.acq === undefined ? { id: 'a1' } : opts.acq)) },
+    acquisitionRuleTemplate: {
+      findUnique: jest.fn(async () =>
+        opts.acq === undefined
+          ? { id: 'a1', name: 'TV Premium 4K', enabled: true, candidates: [{ enabled: true }] }
+          : opts.acq,
+      ),
+    },
     discoveryEvaluation: { deleteMany: jest.fn(async () => ({ count: 42 })) },
   };
   const audit = { record: jest.fn(async () => undefined) };
@@ -181,7 +187,7 @@ describe('enabling a template', () => {
   it('enables when the feed and profile are both present and healthy', async () => {
     const { svc } = harness();
     await expect(
-      svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1' }),
+      svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1', acquisitionTemplateId: 'a1' }),
     ).resolves.toBeDefined();
   });
 
@@ -192,19 +198,19 @@ describe('enabling a template', () => {
   it('refuses a disabled feed, and says why', async () => {
     const { svc } = harness({ feed: { id: 'f1', isEnabled: false, name: 'Old Feed' } });
     await expect(
-      svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1' }),
+      svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1', acquisitionTemplateId: 'a1' }),
     ).rejects.toThrow(ConflictException);
   });
 
   it('refuses a feed or profile that has been deleted', async () => {
     const gone = harness({ feed: null });
     await expect(
-      gone.svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1' }),
+      gone.svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1', acquisitionTemplateId: 'a1' }),
     ).rejects.toThrow(/feed no longer exists/);
 
     const noProfile = harness({ profile: null });
     await expect(
-      noProfile.svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1' }),
+      noProfile.svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1', acquisitionTemplateId: 'a1' }),
     ).rejects.toThrow(/storage profile no longer exists/);
   });
 
@@ -213,10 +219,40 @@ describe('enabling a template', () => {
    * then the global defaults, so a generated rule without a template still has
    * preferences — just not template-specific ones.
    */
-  it('allows enabling with no acquisition template', async () => {
+  /*
+   * Inverted. This used to assert that enabling without match preferences was
+   * fine, on the belief that a generated rule would fall back to the
+   * auto-download profiles — which is true of the watchlist search path and NOT
+   * of RSS feed matching. A rule with neither candidates nor a regex is treated
+   * as matching nothing, so what that permitted was an enabled, permanently
+   * inert rule with nothing indicating a fault.
+   */
+  it('refuses to enable auto-monitoring with no match preferences', async () => {
     const { svc } = harness();
     await expect(
       svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1', acquisitionTemplateId: null }),
+    ).rejects.toThrow(/matches nothing at all/);
+  });
+
+  it('refuses a match preference profile with no enabled candidates', async () => {
+    const { svc } = harness({ acq: { id: 'a1', name: 'Empty', enabled: true, candidates: [{ enabled: false }] } });
+    await expect(
+      svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1', acquisitionTemplateId: 'a1' }),
+    ).rejects.toThrow(/no enabled candidates/);
+  });
+
+  it('refuses a disabled match preference profile', async () => {
+    const { svc } = harness({ acq: { id: 'a1', name: 'Off', enabled: false, candidates: [{ enabled: true }] } });
+    await expect(
+      svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1', acquisitionTemplateId: 'a1' }),
+    ).rejects.toThrow(/is disabled/);
+  });
+
+  /* A notify-only template generates no rules, so it needs no preferences. */
+  it('does not demand match preferences from a notify-only template', async () => {
+    const { svc } = harness();
+    await expect(
+      svc.create({ ...NOTIFY_ONLY, enabled: true, acquisitionTemplateId: null }),
     ).resolves.toBeDefined();
   });
 
@@ -224,7 +260,7 @@ describe('enabling a template', () => {
     const { svc } = harness({ acq: null });
     await expect(
       svc.create({ ...AUTO, enabled: true, rssFeedId: 'f1', storageProfileId: 'p1', acquisitionTemplateId: 'a1' }),
-    ).rejects.toThrow(/acquisition template no longer exists/);
+    ).rejects.toThrow(/match preference profile no longer exists/);
   });
 
   it('re-checks on update, not only on create', async () => {
@@ -276,6 +312,8 @@ describe('editing a template reopens what it already decided', () => {
     upcomingWindowDays: 90,
     rssFeedId: 'f1',
     storageProfileId: 'p1',
+    // An enabled auto-monitoring template must carry match preferences.
+    acquisitionTemplateId: 'a1',
   };
 
   it('clears the decisions and bumps the version when a policy field changes', async () => {

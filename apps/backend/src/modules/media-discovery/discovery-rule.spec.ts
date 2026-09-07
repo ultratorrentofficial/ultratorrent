@@ -100,12 +100,30 @@ describe('generating a rule', () => {
    * `resolveCandidates()` already falls back to the auto-download profiles and
    * then the global defaults, so a rule with no ladder still has preferences.
    */
-  it('creates a rule with no candidates when the template has no acquisition template', async () => {
+  /*
+   * Inverted, and this is the whole of Fix 3.
+   *
+   * A rule with no match candidates and no include/exclude regex is treated by
+   * `rss.module.ts` as matching NOTHING — deliberately, so a filterless rule
+   * cannot grab a whole feed. This generator never sets a regex, so what used to
+   * be created here was an enabled, `autoDownload: true` rule that could never
+   * acquire anything, with no indication of a fault anywhere.
+   */
+  it('refuses to create a rule that would match nothing', async () => {
     const { svc, created } = harness();
     const r = await svc.generate(input({ acquisition: null }));
-    expect(r.outcome).toBe('created');
-    expect(created[0].matchCandidates).toBeUndefined();
-    expect(created[0].acquisitionTemplateId).toBeNull();
+    expect(r.outcome).toBe('skipped');
+    expect(r.reason).toMatch(/match nothing/);
+    expect(created).toHaveLength(0);
+  });
+
+  it('refuses when every rung of the ladder is switched off', async () => {
+    const { svc, created } = harness();
+    const r = await svc.generate(
+      input({ acquisition: { ...ACQUISITION, candidates: ACQUISITION.candidates.map((c: any) => ({ ...c, enabled: false })) } }),
+    );
+    expect(r.outcome).toBe('skipped');
+    expect(created).toHaveLength(0);
   });
 
   it('records the generation in the audit log', async () => {
@@ -218,7 +236,11 @@ describe('two passes racing for the same title', () => {
         }),
       },
     };
-    const acquisitionTemplates = { toRuleCandidates: () => [] } as any;
+    // Must yield an enabled rung, or the generator refuses before the insert
+    // this race is about ever happens.
+    const acquisitionTemplates = {
+      toRuleCandidates: () => [{ priorityOrder: 0, name: '1080p', enabled: true }],
+    } as any;
     const audit = { record: jest.fn(async () => undefined) } as any;
     return new DiscoveryRuleService(prisma, audit, acquisitionTemplates);
   }
@@ -226,7 +248,9 @@ describe('two passes racing for the same title', () => {
   const input = () => ({
     media: MEDIA as any,
     template: TEMPLATE as any,
-    acquisition: null,
+    // A ladder is required now; without one the generator refuses before it
+    // ever reaches the insert this race is about.
+    acquisition: ACQUISITION,
   });
 
   it('resolves to the rule the winner created rather than failing', async () => {
@@ -247,5 +271,67 @@ describe('two passes racing for the same title', () => {
   it('rethrows when the constraint fired but no winner can be found', async () => {
     const svc = racingHarness(null);
     await expect(svc.generate(input() as any)).rejects.toThrow(/Unique constraint/);
+  });
+});
+
+/**
+ * A generated rule must be able to acquire something the moment it exists.
+ *
+ * The failure this pins is not "needs a second configuration step" — it is that
+ * a rule built without match preferences was created ENABLED with
+ * `autoDownload: true` and matched nothing for ever, because `rss.module.ts`
+ * treats a rule with neither candidates nor a regex as matching nothing.
+ */
+describe('the generated rule is operational', () => {
+  it('carries the whole ladder, in order, renumbered from zero', () => {
+    const { svc, created } = harness();
+    return svc.generate(input()).then(() => {
+      const ladder = created[0].matchCandidates.create;
+      expect(ladder.map((c: any) => c.priorityOrder)).toEqual([0, 1]);
+      expect(ladder.map((c: any) => c.name)).toEqual(['2160p', '1080p']);
+    });
+  });
+
+  /*
+   * Template-wide terms are a CONSTRAINT, not a preference of the top rung — a
+   * fallback that dropped `CAM` would accept exactly what the template forbids.
+   */
+  it('propagates template-wide required and excluded terms to every rung', async () => {
+    const { svc, created } = harness();
+    await svc.generate(input());
+    for (const c of created[0].matchCandidates.create) {
+      expect(c.excludedTerms).toContain('CAM');
+      expect(c.requiredTerms).toContain('WEB-DL');
+    }
+  });
+
+  it('keeps a rung own required terms alongside the template-wide ones', async () => {
+    const { svc, created } = harness();
+    await svc.generate(input());
+    const top = created[0].matchCandidates.create[0];
+    expect(top.requiredTerms).toEqual(expect.arrayContaining(['DV', 'WEB-DL']));
+  });
+
+  it('propagates quality and size rules rather than dropping them', async () => {
+    const { svc, created } = harness();
+    await svc.generate(input());
+    expect(created[0].matchCandidates.create[0].qualityRules).toEqual({ resolution: '2160p' });
+  });
+
+  it('is enabled, auto-downloading, and staged through managed intake', async () => {
+    const { svc, created } = harness();
+    await svc.generate(input());
+    expect(created[0].isEnabled).toBe(true);
+    expect(created[0].autoDownload).toBe(true);
+    expect(created[0].importMode).toBe('managed_intake');
+    expect(created[0].storageProfileId).toBe('sp-1');
+  });
+
+  it('records which template and version it was built from', async () => {
+    const { svc, created } = harness();
+    await svc.generate(input());
+    expect(created[0].acquisitionTemplateId).toBe('at1');
+    expect(created[0].acquisitionTemplateVersion).toBe(4);
+    expect(created[0].generatedByDiscovery).toBe(true);
   });
 });

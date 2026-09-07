@@ -118,6 +118,28 @@ export class DiscoveryRuleService {
       ? this.acquisitionTemplates.toRuleCandidates(input.acquisition, 'placeholder')
       : [];
 
+    /*
+     * Never create a rule that cannot match anything.
+     *
+     * `rss.module.ts` uses a rule's match candidates if it has any and its
+     * include/exclude regex otherwise, and `legacyEvaluation()` returns
+     * `matched: false` for a rule with neither — deliberately, so a filterless
+     * rule cannot grab an entire feed. This generator sets no regex, so a rule
+     * built without candidates would be enabled, `autoDownload: true`, and
+     * permanently inert, with nothing indicating a fault.
+     *
+     * The evaluator already refuses to reach this point with an unready
+     * template. This is the second lock, on the door that actually writes.
+     */
+    if (!candidates.some((c) => c.enabled)) {
+      return {
+        ruleId: null,
+        outcome: 'skipped',
+        reason:
+          'No enabled match preferences: a rule built from this template would match nothing, so none was created',
+      };
+    }
+
     let created: { id: string };
     try {
       created = await this.prisma.rssRule.create({

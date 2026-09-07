@@ -272,6 +272,32 @@ configuration, and a film's digital date is routinely a year after its theatrica
 one — gating on a past premiere would break it. For films, the release-type and
 window rules already define what "upcoming" means.
 
+## Match preferences are required for auto-monitoring
+
+A discovery template that auto-monitors anything **must** reference a match
+preference profile with at least one enabled rung. The generated rule then
+carries the whole ladder — every rung in order, the template-wide required and
+excluded terms merged into each, quality and size rules intact — and is enabled
+and staged through managed intake, ready to acquire the moment an acceptable
+release appears. There is no second configuration step.
+
+:::danger Why this is required rather than optional
+A rule is filtered by its match candidates if it has any and by its
+include/exclude regex otherwise. A rule with **neither** matches nothing —
+deliberately, so a filterless rule cannot grab an entire feed. Discovery never
+sets a regex.
+
+So a template without match preferences used to produce a rule that was enabled,
+`autoDownload: true`, and permanently inert, with nothing anywhere indicating a
+fault. (The fallback to auto-download profiles and global defaults is real, but
+it serves the watchlist and missing-episode search — not RSS feed matching.)
+
+It is validated twice: when the template is enabled, and again when the rule is
+written. A template that cannot build a working rule holds its titles for
+`needs_review` with the reason, rather than creating monitoring that looks
+complete and does nothing.
+:::
+
 ## Providers
 
 Three states, and only one is a fault:

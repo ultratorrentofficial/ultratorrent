@@ -52,7 +52,7 @@ const row = (id: string, over: any = {}) => ({
 
 function harness(opts: {
   rows?: any[]; remaining?: number; watchlistFails?: boolean; ruleFails?: boolean; ruleReason?: string;
-  ruleIsUserModified?: boolean; watchlistStatus?: string; existing?: any;
+  ruleIsUserModified?: boolean; watchlistStatus?: string; existing?: any; readiness?: any;
 } = {}) {
   const evaluations: any[] = [];
   const stamps: any[] = [];
@@ -108,6 +108,12 @@ function harness(opts: {
    * state that may create — so every pre-existing test keeps asserting what it
    * always asserted, and the existing-identity cases opt in explicitly.
    */
+  const templates = {
+    canAutoMonitor: jest.fn(() => true),
+    acquisitionReadiness: jest.fn(async () =>
+      opts.readiness ?? { ready: true, reason: 'Match preferences "TV Premium 4K" are ready' },
+    ),
+  };
   const identity = {
     resolve: jest.fn(async () => opts.existing ?? {
       state: 'none', matchedBy: null, matchedIdNamespace: null,
@@ -116,9 +122,10 @@ function harness(opts: {
   };
 
   return {
-    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any, bus as any, removal as any, identity as any),
+    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any, bus as any, removal as any, identity as any, templates as any),
     removal,
     identity,
+    templates,
     prisma, budget, watchlist, rules, intake, evaluations, stamps, published,
   };
 }
@@ -531,5 +538,53 @@ describe('the identity gate', () => {
     const h = harness({ rows: [row('x', { genres: ['Cooking'] })] });
     await h.svc.runAll();
     expect(h.identity.resolve).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A template that cannot build a working rule creates nothing at all.
+ *
+ * "Do not create partial automatic monitoring." Failing after the watchlist
+ * entry exists would leave exactly the half-configured state this is meant to
+ * prevent — and worse, it would look like it worked.
+ */
+describe('template readiness', () => {
+  const unready = { ready: false, reason: 'Select match preferences before enabling automatic monitoring' };
+
+  it('creates no watchlist entry, no rule and no directory', async () => {
+    const h = harness({ readiness: unready });
+    await h.svc.runAll();
+    expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
+    expect(h.rules.generate).not.toHaveBeenCalled();
+    expect(h.intake.provision).not.toHaveBeenCalled();
+  });
+
+  it('holds the title for review with the precise reason', async () => {
+    const h = harness({ readiness: unready });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.needs_review).toBe(1);
+    expect(outcome.decisions.auto_monitor).toBe(0);
+    expect(h.stamps[0].decisionReason).toMatch(/Select match preferences/);
+  });
+
+  /* Asked once per run: a template cannot change configuration mid-pass. */
+  it('checks readiness once, not once per title', async () => {
+    const h = harness({ readiness: unready, rows: [row('a'), row('b'), row('c')] });
+    await h.svc.runAll();
+    expect(h.templates.acquisitionReadiness).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not ask at all for a template that only notifies', async () => {
+    const h = harness();
+    h.templates.canAutoMonitor.mockReturnValue(false);
+    await h.svc.runAll();
+    expect(h.templates.acquisitionReadiness).not.toHaveBeenCalled();
+  });
+
+  it('proceeds normally when the template is ready', async () => {
+    const h = harness();
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.auto_monitor).toBe(1);
+    expect(h.watchlist.linkOrCreate).toHaveBeenCalled();
   });
 });

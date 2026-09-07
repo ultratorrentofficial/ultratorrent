@@ -7,6 +7,7 @@ import type { DiscoveryDecision } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { evaluateDiscovery, type PolicyTemplate, type PolicyVerdict } from './discovery-policy';
 import { DiscoveryRemovalService } from './discovery-removal.service';
+import { DiscoveryTemplateService } from './discovery-template.service';
 import {
   DiscoveryIdentityResolverService,
   type ExistingState,
@@ -93,6 +94,7 @@ export class DiscoveryEvaluationService {
     private readonly bus: DomainEventBus,
     private readonly removal: DiscoveryRemovalService,
     private readonly identity: DiscoveryIdentityResolverService,
+    private readonly templates: DiscoveryTemplateService,
   ) {}
 
   @Interval('media_discovery_evaluate', TICK_MS)
@@ -152,6 +154,22 @@ export class DiscoveryEvaluationService {
     });
     outcome.examined = rows.length;
     if (!rows.length) return outcome;
+
+    /*
+     * Can this template actually produce a working rule? Asked ONCE per run.
+     *
+     * A template's configuration cannot change mid-run, so this is one query
+     * rather than one per title — and checking it up front is what keeps the
+     * promise that no half-configured monitoring is ever created. Failing later,
+     * after the watchlist entry exists, would leave exactly the partial state
+     * this is meant to prevent.
+     */
+    const readiness = this.templates.canAutoMonitor(template)
+      ? await this.templates.acquisitionReadiness(template.acquisitionTemplateId)
+      : { ready: true, reason: '' };
+    if (!readiness.ready) {
+      this.logger.warn(`Template "${template.name}" cannot auto-monitor: ${readiness.reason}`);
+    }
 
     // Read once, then spend locally: a single pass must not out-race its own cap.
     const budget = await this.budget.state(template.id, template, now);
@@ -239,6 +257,24 @@ export class DiscoveryEvaluationService {
        */
       let effective = verdict;
       let existing: ResolvedIdentity | null = null;
+
+      /*
+       * A template that cannot build a working rule does not monitor anything.
+       *
+       * The title is held for review with the precise reason, rather than given
+       * a watchlist entry and an inert rule — which is worse than doing nothing,
+       * because it looks like it worked.
+       */
+      if (verdict.decision === 'auto_monitor' && !readiness.ready) {
+        effective = {
+          ...verdict,
+          decision: 'needs_review',
+          reason: readiness.reason,
+          trace: [...verdict.trace, { step: 'template_readiness', status: 'fail', detail: readiness.reason }],
+        };
+        decisions.auto_monitor -= 1;
+        decisions.needs_review += 1;
+      }
       /*
        * Identity is also resolved for a past-release verdict.
        *
@@ -247,7 +283,7 @@ export class DiscoveryEvaluationService {
        * are both true. Reporting it as a past-release review item when it is
        * already being acquired would be noise about something working correctly.
        */
-      if (verdict.decision === 'auto_monitor' || verdict.decision === 'review_past_release') {
+      if (effective.decision === 'auto_monitor' || effective.decision === 'review_past_release') {
         existing = await this.identity.resolve(row);
         if (existing.state !== 'none') {
           effective = {

@@ -198,6 +198,16 @@ Three things retraction never does:
 - **It never touches a rule you edited.**
 - **It never overrules a watchlist entry you paused, archived or completed.**
 
+## Match preferences are required for auto-monitoring
+
+A discovery template that auto-monitors anything **must** reference a match preference profile with at least one enabled rung. The generated rule then carries the whole ladder — every rung in order, the template-wide required and excluded terms merged into each, quality and size rules intact — enabled and staged through managed intake, ready to acquire the moment an acceptable release appears.
+
+:::danger A rule with no match preferences matches nothing
+An RSS rule is filtered by its match candidates if it has any, and by its include/exclude regex otherwise. A rule with **neither** is treated as matching nothing — deliberately, so a filterless rule cannot grab an entire feed. Discovery never sets a regex.
+
+A template without match preferences therefore used to produce a rule that was enabled, auto-downloading, and permanently inert, with nothing indicating a fault. It is now validated when the template is enabled and again when the rule is written, and a template that cannot build a working rule holds its titles for review instead of creating monitoring that looks complete and does nothing.
+:::
+
 ## The inbox
 
 Every card carries **the reason it is there**. A discovery engine that silently monitors things is one you can neither trust nor correct.
