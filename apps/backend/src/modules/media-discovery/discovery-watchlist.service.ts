@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { canonicalizeTitle, sameCanonicalTitle } from '@ultratorrent/shared';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AcquisitionWatchlistService } from '../media-acquisition/watchlist.service';
@@ -151,25 +152,51 @@ export class DiscoveryWatchlistService {
     }
 
     /*
-     * The two tables normalize titles DIFFERENTLY.
+     * The two tables normalize titles DIFFERENTLY, and neither used to drop a
+     * presentation year.
      *
-     * The watchlist stores `title.toLowerCase().trim()`; discovery stores the
-     * punctuation-stripped `normalizeTitle()`. Comparing the two columns directly
-     * would miss every title containing punctuation — "SILA: The Life Within
-     * Everything" is `sila: the …` on one side and `sila the …` on the other. So
-     * the discovery title is normalized the WATCHLIST's way for this comparison.
+     * The watchlist stores `title.toLowerCase().trim()` — raw, punctuation and
+     * `(2022)` included. Discovery stores a canonical, year-free normalization.
+     * Comparing them directly missed both punctuation AND the year, which is how
+     * a hand-added "The Terminal List" failed to match a discovered "The
+     * Terminal List (2022)" and a second entry was created.
+     *
+     * So: query every legacy encoding the same work could be stored under — an
+     * indexed equality lookup — then confirm canonically in memory, where years
+     * are compared properly.
      */
-    const normalized = media.title.toLowerCase().trim();
-    return this.prisma.mediaAcquisitionWatchlistItem.findFirst({
+    const canon = canonicalizeTitle(media.title, media.year);
+    if (!canon.normalizedTitle) return null;
+
+    const base = canon.title.trim();
+    const variants = new Set<string>([base.toLowerCase()]);
+    if (canon.year != null) {
+      variants.add(`${base} (${canon.year})`.toLowerCase());
+      variants.add(`${base} [${canon.year}]`.toLowerCase());
+      variants.add(`${base} ${canon.year}`.toLowerCase());
+      variants.add(`${base}.${canon.year}`.toLowerCase());
+    }
+
+    // The longest token, so a probe on "the" does not drag back the whole table.
+    const probe = canon.normalizedTitle
+      .split(' ')
+      .filter(Boolean)
+      .reduce((best, t) => (t.length > best.length ? t : best), '');
+    const candidates = await this.prisma.mediaAcquisitionWatchlistItem.findMany({
       where: {
         type,
-        normalizedTitle: normalized,
-        // A null year on either side is missing information, not a mismatch: a
-        // hand-added entry frequently has none.
-        ...(media.year != null ? { OR: [{ year: media.year }, { year: null }] } : {}),
+        OR: [
+          { normalizedTitle: { in: [...variants] } },
+          ...(probe ? [{ normalizedTitle: { contains: probe, mode: 'insensitive' as const } }] : []),
+        ],
       },
-      select: { id: true, status: true, externalIds: true, rssRuleId: true },
+      select: { id: true, status: true, externalIds: true, rssRuleId: true, title: true, year: true },
+      take: 50,
     });
+    const hit = candidates.find((c) => sameCanonicalTitle(canon, canonicalizeTitle(c.title, c.year)));
+    return hit
+      ? { id: hit.id, status: hit.status, externalIds: hit.externalIds, rssRuleId: hit.rssRuleId }
+      : null;
   }
 
   /** True when the discovery knows an id the watchlist entry does not. */

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { canonicalizeTitle, sameCanonicalTitle } from '@ultratorrent/shared';
 import type { AcquisitionRuleTemplate, AcquisitionRuleTemplateCandidate, Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -74,10 +75,27 @@ export class DiscoveryRuleService {
     if (mine) return { ruleId: mine.id, outcome: 'reused' };
 
     const name = this.ruleName(media);
-    const clash = await this.prisma.rssRule.findFirst({
-      where: { name: { equals: name, mode: 'insensitive' } },
-      select: { id: true, generatedByDiscovery: true, name: true },
-    });
+
+    /*
+     * A collision is decided on canonical IDENTITY, not on display text.
+     *
+     * This compared names exactly, so a hand-made rule called "Tulsa King" did
+     * not collide with a generated "Tulsa King (2022)" — the protection below
+     * never fired and a second rule was created for a show somebody was already
+     * managing. The narrowing query is a cheap net; the canonical comparison is
+     * the actual test.
+     */
+    const canon = canonicalizeTitle(media.title, media.year);
+    const tokens = canon.normalizedTitle.split(' ').filter(Boolean);
+    const probe = tokens.reduce((best, t) => (t.length > best.length ? t : best), '');
+    const nearby = probe
+      ? await this.prisma.rssRule.findMany({
+          where: { name: { contains: probe, mode: 'insensitive' } },
+          select: { id: true, generatedByDiscovery: true, name: true },
+          take: 200,
+        })
+      : [];
+    const clash = nearby.find((r) => sameCanonicalTitle(canon, canonicalizeTitle(r.name))) ?? null;
     if (clash) {
       /*
        * A name collision is never resolved by taking the rule over.
@@ -100,7 +118,9 @@ export class DiscoveryRuleService {
       ? this.acquisitionTemplates.toRuleCandidates(input.acquisition, 'placeholder')
       : [];
 
-    const created = await this.prisma.rssRule.create({
+    let created: { id: string };
+    try {
+      created = await this.prisma.rssRule.create({
       data: {
         feedId: template.rssFeedId,
         name,
@@ -125,8 +145,31 @@ export class DiscoveryRuleService {
           ? { create: candidates.map(({ rssRuleId: _drop, ...c }) => c) }
           : undefined,
       },
-      select: { id: true },
-    });
+        select: { id: true },
+      });
+    } catch (err) {
+      /*
+       * Lost a race, rather than failed.
+       *
+       * A partial unique index allows at most one generated rule per discovered
+       * title, so two concurrent passes — TMDB and TVmaze reaching the same show,
+       * or a manual evaluate overlapping the hourly tick — end with one insert
+       * and one `P2002`. That is the constraint doing its job; the loser resolves
+       * to the row the winner wrote instead of reporting a failure nobody can act
+       * on. The resolver is the fast path, this is the guarantee.
+       */
+      if ((err as { code?: string }).code === 'P2002') {
+        const winner = await this.prisma.rssRule.findFirst({
+          where: { generatedByDiscovery: true, discoveredMediaId: media.id },
+          select: { id: true },
+        });
+        if (winner) {
+          this.logger.log(`Rule for "${name}" was created concurrently — reusing ${winner.id}`);
+          return { ruleId: winner.id, outcome: 'reused' };
+        }
+      }
+      throw err;
+    }
 
     await this.audit.record({
       userId,

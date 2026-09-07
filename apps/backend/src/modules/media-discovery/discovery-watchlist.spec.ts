@@ -25,6 +25,24 @@ function harness(existing?: any) {
         }
         return null;
       }),
+      /*
+       * The title fallback is now a candidate query verified canonically in
+       * memory, rather than one equality against a column that still held the
+       * year. The mock mirrors both nets the real query casts.
+       */
+      findMany: jest.fn(async ({ where }: any) => {
+        if (!existing) return [];
+        const exact: string[] = where.OR?.[0]?.normalizedTitle?.in ?? [];
+        const contains: string = where.OR?.[1]?.normalizedTitle?.contains ?? '';
+        const matched =
+          exact.includes(existing.normalizedTitle) ||
+          (contains && String(existing.normalizedTitle).includes(contains));
+        // The real query selects `title` and `year` so the candidate can be
+        // canonicalised; older fixtures only set `normalizedTitle`.
+        return matched
+          ? [{ ...existing, title: existing.title ?? existing.normalizedTitle, year: existing.year ?? null }]
+          : [];
+      }),
     },
   };
   const watchlist = {

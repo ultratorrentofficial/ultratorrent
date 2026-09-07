@@ -37,7 +37,8 @@
     "monitored": "Monitoreados",
     "needsReview": "Requieren revisión",
     "notified": "Notificados",
-    "ignored": "Ignorados"
+    "ignored": "Ignorados",
+    "existing": "Existentes"
   },
   "filters": {
     "allTypes": "Todos los tipos",
@@ -190,5 +191,15 @@
     "cancel": "Cancelar",
     "confirm": "Quitar",
     "done": "Se quitó «{{title}}»"
+  },
+  "decision": {
+    "monitored": "Vigilado",
+    "needsReview": "Necesita revisión",
+    "notify": "Avisar",
+    "ignored": "Ignorado",
+    "notEvaluated": "Sin evaluar",
+    "alreadyMonitored": "Ya vigilado",
+    "monitoringIncomplete": "Vigilancia incompleta",
+    "existsNotMonitored": "En tu biblioteca, sin vigilar"
   }
 }

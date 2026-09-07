@@ -35,25 +35,61 @@ const VIEWS = [
   { id: 'all', status: undefined, decision: undefined },
   { id: 'monitored', status: 'monitored', decision: undefined },
   { id: 'needsReview', status: 'needs_review', decision: undefined },
+  /*
+   * Titles already represented here. Their own view rather than a line in the
+   * review queue: they need nobody, and burying them among things that DO need
+   * somebody is how a review queue stops being read.
+   */
+  { id: 'existing', status: 'exists', decision: undefined },
   { id: 'notified', status: 'notified', decision: undefined },
   { id: 'ignored', status: 'ignored', decision: undefined },
 ] as const;
 
 type ViewId = (typeof VIEWS)[number]['id'];
 
-/** Decision → the visual weight it should carry. */
-function decisionTone(decision: string | null): { label: string; className: string } {
+/**
+ * Decision → the visual weight it should carry, and the key that names it.
+ *
+ * A key rather than a literal: these labels were hardcoded English on a page
+ * that ships in two locales, so a Spanish reader saw "Needs review" on every
+ * card.
+ */
+const MUTED = 'border-white/10 bg-white/5 text-muted-foreground';
+
+/** Literal, so the `decision.*` lookup stays inside i18next's typed key set. */
+type DecisionKey =
+  | 'monitored'
+  | 'needsReview'
+  | 'notify'
+  | 'ignored'
+  | 'notEvaluated'
+  | 'alreadyMonitored'
+  | 'monitoringIncomplete'
+  | 'existsNotMonitored';
+
+function decisionTone(decision: string | null): { key: DecisionKey; className: string } {
   switch (decision) {
     case 'auto_monitor':
-      return { label: 'Monitored', className: 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300' };
+      return { key: 'monitored', className: 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300' };
     case 'needs_review':
-      return { label: 'Needs review', className: 'border-amber-400/40 bg-amber-400/10 text-amber-300' };
+      return { key: 'needsReview', className: 'border-amber-400/40 bg-amber-400/10 text-amber-300' };
     case 'notify':
-      return { label: 'Notify', className: 'border-sky-400/40 bg-sky-400/10 text-sky-300' };
+      return { key: 'notify', className: 'border-sky-400/40 bg-sky-400/10 text-sky-300' };
     case 'ignore':
-      return { label: 'Ignored', className: 'border-white/10 bg-white/5 text-muted-foreground' };
+      return { key: 'ignored', className: MUTED };
+    /*
+     * Neutral, deliberately. "Already monitored" is a satisfactory outcome, and
+     * colouring it like a warning would send people to investigate something
+     * that is working exactly as intended.
+     */
+    case 'already_monitored':
+      return { key: 'alreadyMonitored', className: 'border-emerald-400/25 bg-emerald-400/5 text-emerald-200/80' };
+    case 'exists_monitoring_incomplete':
+      return { key: 'monitoringIncomplete', className: 'border-amber-400/40 bg-amber-400/10 text-amber-300' };
+    case 'exists_not_monitored':
+      return { key: 'existsNotMonitored', className: 'border-sky-400/30 bg-sky-400/5 text-sky-200/80' };
     default:
-      return { label: 'Not evaluated', className: 'border-white/10 bg-white/5 text-muted-foreground' };
+      return { key: 'notEvaluated', className: MUTED };
   }
 }
 
@@ -83,7 +119,7 @@ function DiscoveryCard({ item, onRemove }: { item: DiscoveredMediaItem; onRemove
             <h3 className="truncate text-sm font-semibold">{item.title}</h3>
             {item.year && <span className="text-xs text-muted-foreground">({item.year})</span>}
             <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${tone.className}`}>
-              {tone.label}
+              {t(`decision.${tone.key}`)}
             </span>
             {/*
               * Removal lives on the card, not behind a detail view.

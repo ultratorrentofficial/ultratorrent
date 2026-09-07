@@ -102,13 +102,7 @@ describe('the counts', () => {
     );
     const r = await svc.preview({ ...TEMPLATE, mediaType: 'tv' }, NOW);
 
-    expect(r.counts).toEqual({
-      auto_monitor: 1,
-      notify: 1,
-      ignore: 1,
-      needs_review: 1,
-      not_applicable: 1,
-    });
+    expect(r.counts).toMatchObject({ auto_monitor: 1, notify: 1, ignore: 1, needs_review: 1, not_applicable: 1 });
     expect(r.examined).toBe(5);
   });
 

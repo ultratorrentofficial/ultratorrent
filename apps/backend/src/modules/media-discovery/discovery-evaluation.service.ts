@@ -1,12 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DOMAIN_EVENTS, zeroDecisionCounts } from '@ultratorrent/shared';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import type { DiscoveryTemplate } from '@prisma/client';
 import type { DiscoveryDecision } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { evaluateDiscovery, type PolicyTemplate, type PolicyVerdict } from './discovery-policy';
 import { DiscoveryRemovalService } from './discovery-removal.service';
+import {
+  DiscoveryIdentityResolverService,
+  type ExistingState,
+  type ResolvedIdentity,
+} from './discovery-identity-resolver.service';
 import { DiscoveryBudgetService } from './discovery-budget.service';
 import { DiscoveryWatchlistService } from './discovery-watchlist.service';
 import { DiscoveryRuleService } from './discovery-rule.service';
@@ -48,6 +53,19 @@ const MAX_PER_RUN = 500;
  */
 const OPERATOR_DECIDED_STATUSES = new Set(['paused', 'archived', 'completed']);
 
+/**
+ * What an existing identity turns an auto-monitor into.
+ *
+ * All three are reported rather than swallowed. A title that quietly vanished
+ * because it was already handled is indistinguishable, from the operator's side,
+ * from one the engine forgot about.
+ */
+const EXISTING_STATE_DECISION: Record<Exclude<ExistingState, 'none'>, DiscoveryDecision> = {
+  already_monitored: 'already_monitored',
+  monitoring_incomplete: 'exists_monitoring_incomplete',
+  exists_not_monitored: 'exists_not_monitored',
+};
+
 export interface EvaluationOutcome {
   templateId: string;
   templateName: string;
@@ -74,6 +92,7 @@ export class DiscoveryEvaluationService {
     private readonly intake: DiscoveryIntakeService,
     private readonly bus: DomainEventBus,
     private readonly removal: DiscoveryRemovalService,
+    private readonly identity: DiscoveryIdentityResolverService,
   ) {}
 
   @Interval('media_discovery_evaluate', TICK_MS)
@@ -105,9 +124,7 @@ export class DiscoveryEvaluationService {
   }
 
   async runTemplate(template: DiscoveryTemplate, now = new Date()): Promise<EvaluationOutcome> {
-    const decisions: EvaluationOutcome['decisions'] = {
-      auto_monitor: 0, notify: 0, ignore: 0, needs_review: 0, not_applicable: 0,
-    };
+    const decisions: EvaluationOutcome['decisions'] = zeroDecisionCounts();
     const outcome: EvaluationOutcome = {
       templateId: template.id,
       templateName: template.name,
@@ -209,11 +226,41 @@ export class DiscoveryEvaluationService {
         continue;
       }
 
-      const acted = verdict.decision === 'auto_monitor'
-        ? await this.act(row, template, profile, verdict)
+      /*
+       * THE IDENTITY GATE.
+       *
+       * Nothing may be created until we know this work is not already here. Every
+       * writer used to answer that for itself and each answered differently, so
+       * "The Terminal List" and "The Terminal List (2022)" were monitored twice.
+       *
+       * It runs only for a title we are about to act on: resolving identity for a
+       * title the template is going to ignore anyway would be three queries per
+       * row for an answer nobody reads.
+       */
+      let effective = verdict;
+      let existing: ResolvedIdentity | null = null;
+      if (verdict.decision === 'auto_monitor') {
+        existing = await this.identity.resolve(row);
+        if (existing.state !== 'none') {
+          effective = {
+            ...verdict,
+            decision: EXISTING_STATE_DECISION[existing.state],
+            reason: existing.detail,
+            trace: [
+              ...verdict.trace,
+              { step: 'existing_identity', status: 'fail', detail: existing.detail },
+            ],
+          };
+          decisions.auto_monitor -= 1;
+          decisions[effective.decision] = (decisions[effective.decision] ?? 0) + 1;
+        }
+      }
+
+      const acted = effective.decision === 'auto_monitor'
+        ? await this.act(row, template, profile, effective)
         : { watchlistItemId: null, rssRuleId: null, failureReason: null as string | null };
 
-      if (verdict.decision === 'auto_monitor') {
+      if (effective.decision === 'auto_monitor') {
         if (acted.watchlistItemId) {
           outcome.monitored += 1;
           remaining -= 1; // spent only when monitoring really happened
@@ -254,20 +301,29 @@ export class DiscoveryEvaluationService {
         }
       }
 
-      if (verdict.decision === 'needs_review') heldForReview += 1;
+      if (effective.decision === 'needs_review') heldForReview += 1;
 
-      await this.record(row.id, template.id, verdict, acted);
+      await this.record(row.id, template.id, effective, acted);
       await this.prisma.discoveredMedia
         .update({
           where: { id: row.id },
           data: {
-            decision: verdict.decision,
-            decisionReason: acted.failureReason ?? verdict.reason,
+            decision: effective.decision,
+            decisionReason: acted.failureReason ?? effective.reason,
             evaluatedAt: now,
             matchedTemplateId: template.id,
-            discoveryStatus: this.statusFor(verdict.decision, acted),
-            ...(acted.watchlistItemId ? { watchlistItemId: acted.watchlistItemId } : {}),
-            ...(acted.rssRuleId ? { rssRuleId: acted.rssRuleId } : {}),
+            discoveryStatus: this.statusFor(effective.decision, acted),
+            /*
+             * An existing identity is LINKED, not re-created. This is what makes a
+             * repeated sync idempotent: the second pass finds the same watchlist
+             * entry and rule and points the catalogue row at them.
+             */
+            ...(acted.watchlistItemId ?? existing?.watchlistItem?.id
+              ? { watchlistItemId: acted.watchlistItemId ?? existing?.watchlistItem?.id }
+              : {}),
+            ...(acted.rssRuleId ?? existing?.rssRule?.id
+              ? { rssRuleId: acted.rssRuleId ?? existing?.rssRule?.id }
+              : {}),
           },
         })
         .catch((err) => this.logger.warn(`Could not stamp ${row.id}: ${(err as Error).message}`));

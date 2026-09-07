@@ -181,6 +181,47 @@ Three things retraction never does:
   on it.
 - **It never overrules a watchlist entry you paused, archived or completed.**
 
+## The identity gate: nothing is created for a show you already have
+
+Before a watchlist entry, an acquisition rule or an intake directory is created,
+discovery asks one question: **does this work already exist here?**
+
+Lookup order — **external ids are proof, titles are a hint**:
+
+1. A watchlist entry carrying the same TMDB / IMDb / TVDB / TVmaze id
+2. A watchlist entry whose **canonical** title and year are the same
+3. An acquisition rule for the same work — matched canonically, not by display name
+4. Library media carrying the same external id
+
+The outcome replaces the auto-monitor:
+
+| Found | Decision | What happens |
+| --- | --- | --- |
+| Watchlist **and** rule | `already_monitored` | Nothing is created or overwritten |
+| One but not the other | `exists_monitoring_incomplete` | Surfaced so the missing half can be completed |
+| Library only | `exists_not_monitored` | Surfaced; monitoring is not started unasked |
+| Nothing | `auto_monitor` | The only case that may create a new monitored show |
+
+**A presentation year is not an identity.** `The Terminal List`, `The Terminal
+List (2022)`, `THE TERMINAL LIST` and `The.Terminal.List.2022` are one work. The
+year is lifted out of the title and compared as a year, so it can no longer fork
+a show into two monitored copies — which is exactly what it used to do.
+
+The stripping is deliberately narrow. `Blade Runner 2049`, `2012`, `1923`,
+`Fahrenheit 451` and `Apollo 13` keep their numbers: only a **trailing**
+parenthesised year, or a trailing year behind a release-name separator
+(`The.Terminal.List.2022`), is treated as presentation.
+
+**A different year is a different work.** `The Odyssey (1997)` and
+`The Odyssey (2026)` never merge. A *missing* year on either side is missing
+information rather than a mismatch, because hand-added entries rarely have one.
+
+**Idempotent, and safe under concurrency.** The catalogue row is linked to
+whatever already exists, so repeating a sync changes nothing. A partial unique
+index allows at most one generated rule per discovered title, so two providers
+reaching the same show at once end with one rule — the loser of the race resolves
+to the winner's row rather than failing.
+
 ## Providers
 
 Three states, and only one is a fault:

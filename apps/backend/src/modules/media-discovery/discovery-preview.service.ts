@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { zeroDecisionCounts } from '@ultratorrent/shared';
 import type { DiscoveryDecision } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { evaluateDiscovery, type PolicyTemplate, type PolicyVerdict } from './discovery-policy';
@@ -87,13 +88,7 @@ export class DiscoveryPreviewService {
     const truncated = rows.length > MAX_EXAMINED;
     const examinable = truncated ? rows.slice(0, MAX_EXAMINED) : rows;
 
-    const counts: PreviewResult['counts'] = {
-      auto_monitor: 0,
-      notify: 0,
-      ignore: 0,
-      needs_review: 0,
-      not_applicable: 0,
-    };
+    const counts: PreviewResult['counts'] = zeroDecisionCounts();
     const samples: PreviewSample[] = [];
     const sampled: Record<string, number> = {};
 

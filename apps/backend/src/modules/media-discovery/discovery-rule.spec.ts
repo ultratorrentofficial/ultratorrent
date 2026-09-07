@@ -31,7 +31,16 @@ function harness(opts: { mine?: any; clash?: any } = {}) {
         if (where.name) return opts.clash ?? null;
         return null;
       }),
-      findMany: jest.fn(async () => []),
+      /*
+       * The clash check is now a canonical identity comparison over a narrowed
+       * candidate set, not an exact name equality — that is the whole fix, since
+       * "Tulsa King" never equalled "Tulsa King (2022)".
+       */
+      findMany: jest.fn(async ({ where }: any) => {
+        if (!opts.clash) return [];
+        const needle = String(where?.name?.contains ?? '').toLowerCase();
+        return needle && String(opts.clash.name).toLowerCase().includes(needle) ? [opts.clash] : [];
+      }),
       create: jest.fn(async ({ data }: any) => {
         created.push(data);
         return { id: 'rule-1' };
@@ -183,5 +192,60 @@ describe('protecting an operator’s edits', () => {
         where: { generatedByDiscovery: true, acquisitionTemplateId: 'at1', userModifiedAt: { not: null } },
       }),
     );
+  });
+});
+
+/**
+ * Concurrency.
+ *
+ * The resolver is a check-then-insert, and two passes can both pass the check —
+ * TMDB and TVmaze reaching the same show in one run, or a manual evaluate
+ * overlapping the hourly tick. A partial unique index makes the database the
+ * guarantee; this is what the loser of that race does with the rejection.
+ */
+describe('two passes racing for the same title', () => {
+  function racingHarness(winnerId: string | null) {
+    const prisma: any = {
+      rssRule: {
+        findFirst: jest.fn(async ({ where }: any) =>
+          where.discoveredMediaId && winnerId ? { id: winnerId } : null,
+        ),
+        findMany: jest.fn(async () => []),
+        create: jest.fn(async () => {
+          const e: any = new Error('Unique constraint failed');
+          e.code = 'P2002';
+          throw e;
+        }),
+      },
+    };
+    const acquisitionTemplates = { toRuleCandidates: () => [] } as any;
+    const audit = { record: jest.fn(async () => undefined) } as any;
+    return new DiscoveryRuleService(prisma, audit, acquisitionTemplates);
+  }
+
+  const input = () => ({
+    media: MEDIA as any,
+    template: TEMPLATE as any,
+    acquisition: null,
+  });
+
+  it('resolves to the rule the winner created rather than failing', async () => {
+    // `findFirst` answers null on the pre-check and the winner's id after the
+    // insert lost — which is exactly the sequence a real race produces.
+    const svc = racingHarness('rule-winner');
+    let call = 0;
+    (svc as any).prisma.rssRule.findFirst = jest.fn(async () => (call++ === 0 ? null : { id: 'rule-winner' }));
+    const r = await svc.generate(input() as any);
+    expect(r.outcome).toBe('reused');
+    expect(r.ruleId).toBe('rule-winner');
+  });
+
+  /*
+   * A P2002 with nothing to resolve to is a different fault — a constraint we do
+   * not understand — and swallowing it would hide it.
+   */
+  it('rethrows when the constraint fired but no winner can be found', async () => {
+    const svc = racingHarness(null);
+    await expect(svc.generate(input() as any)).rejects.toThrow(/Unique constraint/);
   });
 });

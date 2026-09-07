@@ -52,7 +52,7 @@ const row = (id: string, over: any = {}) => ({
 
 function harness(opts: {
   rows?: any[]; remaining?: number; watchlistFails?: boolean; ruleFails?: boolean; ruleReason?: string;
-  ruleIsUserModified?: boolean; watchlistStatus?: string;
+  ruleIsUserModified?: boolean; watchlistStatus?: string; existing?: any;
 } = {}) {
   const evaluations: any[] = [];
   const stamps: any[] = [];
@@ -103,10 +103,22 @@ function harness(opts: {
   const published: any[] = [];
   const bus = { publish: jest.fn((e: any) => { published.push(e); }) };
   const removal = { suppress: jest.fn(async () => undefined) };
+  /*
+   * The identity gate. Default is "nothing here represents this work" — the only
+   * state that may create — so every pre-existing test keeps asserting what it
+   * always asserted, and the existing-identity cases opt in explicitly.
+   */
+  const identity = {
+    resolve: jest.fn(async () => opts.existing ?? {
+      state: 'none', matchedBy: null, matchedIdNamespace: null,
+      watchlistItem: null, rssRule: null, libraryItemIds: [], detail: 'Not present in UltraTorrent',
+    }),
+  };
 
   return {
-    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any, bus as any, removal as any),
+    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any, bus as any, removal as any, identity as any),
     removal,
+    identity,
     prisma, budget, watchlist, rules, intake, evaluations, stamps, published,
   };
 }
@@ -424,5 +436,100 @@ describe('retraction', () => {
     const h = harness({ rows: [monitored()] });
     const [outcome] = await h.svc.runAll();
     expect(outcome.retracted).toBe(0);
+  });
+});
+
+/**
+ * The identity gate, from the evaluator's side.
+ *
+ * The resolver decides what already exists; these tests pin what the evaluator
+ * does with that answer — which is the half that actually prevents the duplicate
+ * being written.
+ */
+describe('the identity gate', () => {
+  const already = {
+    state: 'already_monitored', matchedBy: 'external_id', matchedIdNamespace: 'tmdb',
+    watchlistItem: { id: 'wl-existing', status: 'active', rssRuleId: 'r-existing', title: 'The Terminal List' },
+    rssRule: { id: 'r-existing', name: 'The Terminal List', generatedByDiscovery: false, userModifiedAt: null },
+    libraryItemIds: [], detail: 'Already monitored (matched by TMDB id)',
+  };
+
+  it('creates nothing when the show is already monitored', async () => {
+    const h = harness({ existing: already });
+    const [outcome] = await h.svc.runAll();
+    expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
+    expect(h.rules.generate).not.toHaveBeenCalled();
+    expect(h.intake.provision).not.toHaveBeenCalled();
+    expect(outcome.decisions.already_monitored).toBe(1);
+    expect(outcome.decisions.auto_monitor).toBe(0);
+    expect(outcome.monitored).toBe(0);
+  });
+
+  /*
+   * Reported, not swallowed. A title that quietly vanished because it was
+   * already handled is indistinguishable from one the engine forgot.
+   */
+  it('records why, naming the existing identity', async () => {
+    const h = harness({ existing: already });
+    await h.svc.runAll();
+    expect(h.stamps[0].decision).toBe('already_monitored');
+    expect(h.stamps[0].decisionReason).toMatch(/Already monitored/);
+  });
+
+  /*
+   * The idempotency mechanism: the catalogue row is pointed at what already
+   * exists, so a second pass finds the link rather than re-resolving from
+   * scratch, and nothing downstream sees an orphan.
+   */
+  it('links the catalogue row to the existing watchlist entry and rule', async () => {
+    const h = harness({ existing: already });
+    await h.svc.runAll();
+    expect(h.stamps[0].watchlistItemId).toBe('wl-existing');
+    expect(h.stamps[0].rssRuleId).toBe('r-existing');
+  });
+
+  it('does not spend the auto-add budget on something it did not add', async () => {
+    const h = harness({ existing: already });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.monitored).toBe(0);
+  });
+
+  it('reports a half-configured show as incomplete rather than creating a second', async () => {
+    const h = harness({
+      existing: { ...already, state: 'monitoring_incomplete', rssRule: null,
+        detail: 'On the watchlist but with no acquisition rule' },
+    });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.exists_monitoring_incomplete).toBe(1);
+    expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
+    expect(h.rules.generate).not.toHaveBeenCalled();
+  });
+
+  it('reports a library-only show as existing but unmonitored', async () => {
+    const h = harness({
+      existing: { ...already, state: 'exists_not_monitored', watchlistItem: null, rssRule: null,
+        libraryItemIds: ['mi1'], detail: '1 item(s) already in your library' },
+    });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.exists_not_monitored).toBe(1);
+    expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
+  });
+
+  it('still creates for a genuinely new title', async () => {
+    const h = harness();
+    const [outcome] = await h.svc.runAll();
+    expect(h.watchlist.linkOrCreate).toHaveBeenCalled();
+    expect(outcome.decisions.auto_monitor).toBe(1);
+  });
+
+  /*
+   * The gate is not consulted for a title nobody is going to act on: three
+   * queries per row for an answer no code path reads is a cost paid on every
+   * tick, over the whole catalogue.
+   */
+  it('does not resolve identity for a title it was never going to monitor', async () => {
+    const h = harness({ rows: [row('x', { genres: ['Cooking'] })] });
+    await h.svc.runAll();
+    expect(h.identity.resolve).not.toHaveBeenCalled();
   });
 });

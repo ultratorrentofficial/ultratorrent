@@ -53,8 +53,42 @@ export type ReleaseType = MovieReleaseType | TvReleaseType;
  * auto-add limit already spent — and it exists so those titles are never
  * silently dropped.
  */
-export const DISCOVERY_DECISIONS = ['auto_monitor', 'notify', 'ignore', 'needs_review'] as const;
+export const DISCOVERY_DECISIONS = [
+  'auto_monitor',
+  'notify',
+  'ignore',
+  'needs_review',
+  /*
+   * Outcomes about what ALREADY EXISTS here, rather than about the title itself.
+   *
+   * These are separated from `needs_review` because they are answered
+   * differently. "We nearly acted and stopped" sends somebody to the inbox to
+   * decide; "this is already monitored" needs nobody at all, and burying it in
+   * the review queue would train people to ignore that queue.
+   */
+  /** A watchlist entry and an acquisition rule both already exist. Nothing to do. */
+  'already_monitored',
+  /** In the library, but nothing is watching for more of it. */
+  'exists_not_monitored',
+  /** Half set up — an entry with no rule, or a rule with no entry. Offer to finish it. */
+  'exists_monitoring_incomplete',
+  /**
+   * A new series whose premiere has already happened.
+   *
+   * Not `ignore`: the title is exactly what the template is looking for, and the
+   * only thing wrong with it is that automating it would import something old.
+   * It is shown so a person can add it deliberately.
+   */
+  'review_past_release',
+] as const;
 export type DiscoveryDecision = (typeof DISCOVERY_DECISIONS)[number];
+
+/** Decisions that mean the title is represented here already. */
+export const EXISTING_DECISIONS = [
+  'already_monitored',
+  'exists_not_monitored',
+  'exists_monitoring_incomplete',
+] as const;
 
 /** Where a discovered title currently sits. */
 export const DISCOVERY_STATUSES = [
@@ -64,6 +98,10 @@ export const DISCOVERY_STATUSES = [
   'notified',
   'ignored',
   'needs_review',
+  /** Represented in UltraTorrent already; discovery made no changes. */
+  'exists',
+  /** A past-premiere title held for a person to decide about. */
+  'past_release',
 ] as const;
 export type DiscoveryStatus = (typeof DISCOVERY_STATUSES)[number];
 
@@ -135,3 +173,16 @@ export const PATH_TEMPLATE_TOKENS = [
   'season_number',
 ] as const;
 export type PathTemplateToken = (typeof PATH_TEMPLATE_TOKENS)[number];
+
+/**
+ * A zeroed counter for every decision, built from the vocabulary itself.
+ *
+ * Spelled out by hand in two files, this needed editing in both every time a
+ * decision was added — and a missed one is a `NaN` in a report rather than an
+ * error, so it would ship.
+ */
+export function zeroDecisionCounts(): Record<DiscoveryDecision | 'not_applicable', number> {
+  const out = { not_applicable: 0 } as Record<DiscoveryDecision | 'not_applicable', number>;
+  for (const d of DISCOVERY_DECISIONS) out[d] = 0;
+  return out;
+}

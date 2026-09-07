@@ -1,3 +1,4 @@
+import { canonicalizeTitle } from '@ultratorrent/shared';
 import { normalizeTitle } from '../media/imdb/imdb-match';
 import type { RawDiscovery, RawReleaseDate } from './discovery-provider';
 
@@ -209,7 +210,17 @@ export function mergeDiscoveries(input: SourcedDiscovery[]): MergedDiscovery[] {
    */
   const titleGroups = new Map<string, number[]>();
   nodes.forEach((n, i) => {
-    const key = `${n.raw.mediaType}|${normalizeTitle(n.raw.title)}|${n.raw.year ?? ''}`;
+    /*
+     * Canonical, so presentation does not fork identity.
+     *
+     * This keyed on `normalizeTitle(title)`, which leaves a trailing year inside
+     * the string: `the terminal list` and `the terminal list 2022` were
+     * different works, so two providers formatting the same show differently
+     * produced two rows that never joined — and each went on to create its own
+     * watchlist entry and rule.
+     */
+    const canon = canonicalizeTitle(n.raw.title, n.raw.year);
+    const key = `${n.raw.mediaType}|${canon.normalizedTitle}|${canon.year ?? ''}`;
     titleGroups.set(key, [...(titleGroups.get(key) ?? []), i]);
   });
 
@@ -296,7 +307,7 @@ function build(members: SourcedDiscovery[], wasAmbiguous: boolean): MergedDiscov
     mediaType,
     title,
     originalTitle: clean(first((r) => r.originalTitle), MAX_TITLE),
-    normalizedTitle: normalizeTitle(title),
+    normalizedTitle: canonicalizeTitle(title, first((r) => r.year)).normalizedTitle,
     year: first((r) => r.year),
     externalIds,
     /*
@@ -305,7 +316,9 @@ function build(members: SourcedDiscovery[], wasAmbiguous: boolean): MergedDiscov
      * it exists so the record can be stored and shown, never so it can be acted
      * on automatically.
      */
-    dedupeKey: keys[0] ?? `title:${mediaType}:${normalizeTitle(title)}:${first((r) => r.year) ?? ''}`,
+    dedupeKey:
+      keys[0] ??
+      `title:${mediaType}:${canonicalizeTitle(title, first((r) => r.year)).normalizedTitle}:${first((r) => r.year) ?? ''}`,
     alternateKeys: keys,
     genres: cleanList(members.flatMap((m) => m.raw.genres ?? [])),
     originalLanguage: clean(first((r) => r.originalLanguage), MAX_SHORT),

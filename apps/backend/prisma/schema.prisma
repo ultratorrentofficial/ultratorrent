@@ -491,6 +491,10 @@ model RssRule {
   generatedByDiscovery Boolean   @default(false)
   discoveryTemplateId  String?
   acquisitionTemplateId String?
+  /// At most one GENERATED rule per discovered title, enforced by a partial
+  /// unique index (see migration 20260907190000). Expressed there rather than
+  /// here because Prisma cannot describe a partial index, and a plain unique
+  /// over a nullable column would constrain nothing — NULLs are distinct.
   discoveredMediaId    String?
   /// The acquisition template version this rule's ladder was copied from, so a
   /// later template edit can tell which rules are behind without re-deriving them.
