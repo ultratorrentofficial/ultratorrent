@@ -32,6 +32,11 @@ FROM build AS docs
 COPY apps/backend/src apps/backend/src
 COPY apps/backend/prisma apps/backend/prisma
 COPY .env.example ./
+# The Release Notes page is generated from the repository changelog, the same way
+# the API reference is generated from the backend sources above. Its generator
+# hard-fails when the file is absent rather than emitting an empty page — which
+# is what caught this omission, at the cost of one failed build.
+COPY CHANGELOG.md ./
 COPY website website
 WORKDIR /app/website
 RUN npm ci
