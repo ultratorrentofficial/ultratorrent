@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.3] - 2026-09-07
+
+### Fixed
+- discovery shows episode air times in your own timezone, and titles can be selected and removed in bulk
+
 ## [0.90.2] - 2026-09-07
 
 ### Fixed
