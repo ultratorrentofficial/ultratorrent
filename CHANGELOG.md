@@ -45,6 +45,17 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.1] - 2026-09-07
+
+### Fixed
+- the discovery catalogue can be managed: remove a title at a chosen scope with a preview of what goes, re-decide everything when a template changes, retract titles that stop matching, and page through the listing
+- media discovery resolves canonical identity before auto-monitoring, so a show already on the watchlist, already ruled or already in the library is never monitored twice
+- discovery auto-monitoring is limited to series that have not premiered yet, with unknown and conflicting dates held for review, so an old show airing this week is no longer imported automatically
+- a discovery template must carry match preferences to auto-monitor, so every generated RSS rule can actually acquire — one without them matched nothing at all
+- a duplicate reconciliation tool finds shows monitored more than once and proposes a safe merge — archiving rather than deleting, and never touching media, torrents or hand-authored rules
+- match preference profiles can be authored from the UI — an ordered ladder editor with reordering, quality fields, size bounds and per-rung terms
+- a disabled module says which of three things disabled it, instead of blaming an administrator for one that is simply off by default
+
 ## [0.90.0] - 2026-09-06
 
 ### Added
