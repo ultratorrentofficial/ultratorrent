@@ -159,6 +159,7 @@ const config: Config = {
         { type: 'docSidebar', sidebarId: 'reference', position: 'left', label: 'Reference' },
         { type: 'docSidebar', sidebarId: 'develop', position: 'left', label: 'Develop' },
         { type: 'docSidebar', sidebarId: 'operate', position: 'left', label: 'Operate' },
+        { type: 'docSidebar', sidebarId: 'releaseNotes', position: 'left', label: 'Release Notes' },
         { type: 'docsVersionDropdown', position: 'right' },
         { type: 'localeDropdown', position: 'right' },
         {
@@ -192,6 +193,7 @@ const config: Config = {
         {
           title: 'Help',
           items: [
+            { label: 'Release Notes', to: '/release-notes/' },
             { label: 'Troubleshooting', to: '/operate/troubleshooting' },
             { label: 'FAQ', to: '/help/faq' },
             {

@@ -44,6 +44,10 @@ It is one command and it is the entire difference between "roll back in two minu
 _Video coming soon._
 :::
 
+:::tip Know what you are upgrading into
+Read the [Release Notes](/release-notes/) first. They list what each version added, changed and fixed, newest first — including anything that needs action on your part.
+:::
+
 ## Prerequisites
 
 - Shell access to the Docker host.

@@ -18,7 +18,8 @@
     "typecheck": "tsc",
     "gen:reference": "node scripts/generate-reference.mjs",
     "gen:screenshots": "node scripts/generate-screenshot-placeholders.mjs",
-    "gen": "npm run gen:reference && npm run gen:screenshots"
+    "gen": "npm run gen:reference && npm run gen:release-notes && npm run gen:screenshots",
+    "gen:release-notes": "node scripts/generate-release-notes.mjs"
   },
   "dependencies": {
     "@docusaurus/core": "3.10.2",

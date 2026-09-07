@@ -44,6 +44,10 @@ Es un solo comando y es toda la diferencia entre "revertir en dos minutos" y "re
 _Video próximamente._
 :::
 
+:::tip Conoce hacia qué versión estás actualizando
+Lee primero las [Notas de Versión](/release-notes/). Listan qué añadió, cambió y corrigió cada versión, de la más reciente a la más antigua — incluido lo que requiera acción de tu parte.
+:::
+
 ## Requisitos previos
 
 - Acceso por shell al host de Docker.
