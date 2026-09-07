@@ -165,6 +165,39 @@ docker tag  <registry>/ultratorrent-core-<svc>:<version> ultratorrent-core-<svc>
 docker compose up -d --no-build backend frontend
 ```
 
+`ops/scripts/qnap-deploy.sh` does all of the above **and prunes**, which is the
+reason to use it rather than the commands by hand:
+
+```bash
+cd <deployment dir>
+REGISTRY=<host:port> /path/to/qnap-deploy.sh <version>      # pull, retag, up, prune
+REGISTRY=<host:port> /path/to/qnap-deploy.sh --prune-only   # just the cleanup
+```
+
+Install it somewhere under `/share`. On a QNAP, **`/root` is a volatile ramdisk** and
+is wiped on reboot.
+
+:::danger The constrained host did not prune for a year
+The build host has always pruned local images to current + previous on every
+deploy. The NAS path never did, because it was a handful of commands typed by hand.
+By 2026-09-07 that was **98 images and 54 GB of reclaimable data** on a box with
+7.8 GB of RAM — cleared back to 11 images and 5 GB.
+
+Two things do **not** port from the build host's script, and both fail quietly:
+
+- **BusyBox `sort` has no `-V`.** Copying the semver sort verbatim leaves the
+  keep-list empty, and the `[ -n "$KEEP" ]` guard then skips the prune while
+  reporting success. The NAS script uses a numeric field sort (which still orders
+  `0.83.10` after `0.83.9`) and treats an empty keep-list as a **loud refusal**.
+- **`/bin/sh` there is bash 3.2**, which reads an apostrophe inside a
+  `${VAR:?message}` expansion as an unterminated quote. One `'` in a usage message
+  made the whole script unparseable — on the NAS only; it passed locally.
+
+Pruning a large backlog takes ~25 minutes of `docker rmi` and will outlive an SSH
+timeout. Run it detached with `setsid` (BusyBox has no `nohup`). A normal deploy
+only removes two versions, so this is a one-off cost.
+:::
+
 The **retag to the bare `ultratorrent-core-<svc>:latest`** matters: that is the name
 Compose derives from the project directory, and `--no-build` will otherwise not find
 an image. The target needs the registry in its `insecure-registries` (plain HTTP).
